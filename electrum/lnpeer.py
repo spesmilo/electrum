@@ -45,8 +45,7 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc, ChannelConf
                      LOCAL, REMOTE, HTLCOwner,
                      ln_compare_features, MIN_FINAL_CLTV_DELTA_ACCEPTED,
                      RemoteMisbehaving, ShortChannelID,
-                     IncompatibleLightningFeatures, derive_payment_secret_from_payment_preimage,
-                     ChannelType, LNProtocolWarning, validate_features,
+                     IncompatibleLightningFeatures, ChannelType, LNProtocolWarning, validate_features,
                      IncompatibleOrInsaneFeatures, FeeBudgetExceeded,
                      GossipForwardingMessage, GossipTimestampFilter, channel_id_from_funding_tx,
                      PaymentFeeBudget, serialize_htlc_key, Keypair)
@@ -2591,11 +2590,9 @@ class Peer(Logger, EventListener):
             raise exc_incorrect_or_unknown_pd
 
         preimage = self.lnworker.get_preimage(payment_hash)
-        expected_payment_secrets = [self.lnworker.get_payment_secret(htlc.payment_hash)]
-        if preimage:
-            expected_payment_secrets.append(derive_payment_secret_from_payment_preimage(preimage)) # legacy secret for old invoices
-        if payment_secret_from_onion not in expected_payment_secrets:
-            log_fail_reason(f'incorrect payment secret {payment_secret_from_onion.hex()} != {expected_payment_secrets[0].hex()}')
+        expected_payment_secret = self.lnworker.get_payment_secret(htlc.payment_hash)
+        if payment_secret_from_onion != expected_payment_secret:
+            log_fail_reason(f'incorrect payment secret {payment_secret_from_onion.hex()} != {expected_payment_secret.hex()}')
             raise exc_incorrect_or_unknown_pd
         invoice_msat = info.amount_msat
         if channel_opening_fee:

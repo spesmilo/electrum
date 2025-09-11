@@ -1827,19 +1827,6 @@ def validate_features(features: int) -> LnFeatures:
     return features
 
 
-def derive_payment_secret_from_payment_preimage(payment_preimage: bytes) -> bytes:
-    """Returns secret to be put into invoice.
-    Derivation is deterministic, based on the preimage.
-    Crucially the payment_hash must be derived in an independent way from this.
-    """
-    # Note that this could be random data too, but then we would need to store it.
-    # We derive it identically to clightning, so that we cannot be distinguished:
-    # https://github.com/ElementsProject/lightning/blob/faac4b28adee5221e83787d64cd5d30b16b62097/lightningd/invoice.c#L115
-    modified = bytearray(payment_preimage)
-    modified[0] ^= 1
-    return sha256(bytes(modified))
-
-
 def get_compressed_pubkey_from_bech32(bech32_pubkey: str) -> bytes:
     decoded_bech32 = segwit_addr.bech32_decode(bech32_pubkey)
     hrp = decoded_bech32.hrp
