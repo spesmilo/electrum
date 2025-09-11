@@ -164,7 +164,7 @@ class FakeADB:
     def get_tx_height(self, txid):
         # because we use a current timestamp, and history is empty,
         # FxThread.history_rate will use spot prices
-        return TxMinedInfo(height=10, conf=10, timestamp=int(time.time()), header_hash='def')
+        return TxMinedInfo(_height=10, conf=10, timestamp=int(time.time()), header_hash='def')
 
 class FakeWallet:
     def __init__(self, fiat_value):
