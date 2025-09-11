@@ -11,6 +11,7 @@ from PyQt6.QtCore import Qt
 
 from electrum import util
 from electrum.i18n import _
+from electrum.base_crash_reporter import taint_reports_by_console_usage
 
 from .util import MONOSPACE_FONT, font_height
 
@@ -83,7 +84,7 @@ class Console(QtWidgets.QPlainTextEdit):
         with open(filename) as f:
             script = f.read()
 
-        self.exec_command(script)
+        self._exec_command(script)
 
     def updateNamespace(self, namespace):
         self.namespace.update(namespace)
@@ -221,12 +222,13 @@ class Console(QtWidgets.QPlainTextEdit):
         command = self.getConstruct(command)
 
         if command:
-            self.exec_command(command)
+            self._exec_command(command)
         self.newPrompt('')
         self.set_json(False)
 
-    def exec_command(self, command):
+    def _exec_command(self, command):
         tmp_stdout = sys.stdout
+        taint_reports_by_console_usage()
 
         class StdoutProxy:
             def __init__(self, write_func):
