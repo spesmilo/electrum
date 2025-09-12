@@ -1947,17 +1947,33 @@ class RecvMPPResolution(IntEnum):
     FAILED = 3
 
 
+class ReceivedMPPHtlc(NamedTuple):
+    scid: ShortChannelID
+    htlc: UpdateAddHtlc
+    unprocessed_onion: str
+
+    @staticmethod
+    def from_tuple(scid, htlc, unprocessed_onion) -> 'ReceivedMPPHtlc':
+        assert is_hex_str(unprocessed_onion) and is_hex_str(scid)
+        return ReceivedMPPHtlc(
+            scid=ShortChannelID(bytes.fromhex(scid)),
+            htlc=UpdateAddHtlc.from_tuple(*htlc),
+            unprocessed_onion=unprocessed_onion,
+        )
+
+
 class ReceivedMPPStatus(NamedTuple):
     resolution: RecvMPPResolution
-    htlc_set: Set[Tuple[ShortChannelID, UpdateAddHtlc]]
+    htlcs: set[ReceivedMPPHtlc]
 
     @staticmethod
     @stored_in('received_mpp_htlcs', tuple)
     def from_tuple(resolution, htlc_list) -> 'ReceivedMPPStatus':
-        htlc_set = set([(ShortChannelID(bytes.fromhex(scid)), UpdateAddHtlc.from_tuple(*x)) for (scid, x) in htlc_list])
+        assert isinstance(resolution, int)
+        htlc_set = set(ReceivedMPPHtlc.from_tuple(*htlc_data) for htlc_data in htlc_list)
         return ReceivedMPPStatus(
             resolution=RecvMPPResolution(resolution),
-            htlc_set=htlc_set
+            htlcs=htlc_set,
         )
 
 
