@@ -39,6 +39,12 @@ if TYPE_CHECKING:
     from .network import ProxySettings
 
 
+_tainted_by_console = False
+def taint_reports_by_console_usage():
+    global _tainted_by_console
+    _tainted_by_console = True
+
+
 class CrashReportResponse(NamedTuple):
     status: Optional[str]
     text: str
@@ -153,8 +159,11 @@ class BaseCrashReporter(Logger):
         return sha256(str(_id))
 
     def get_additional_info(self):
+        app_version = (get_git_version() or ELECTRUM_VERSION)
+        if _tainted_by_console:
+            app_version += "-consoletaint"
         args = {
-            "app_version": get_git_version() or ELECTRUM_VERSION,
+            "app_version": app_version,
             "python_version": sys.version,
             "os": describe_os_version(),
             "wallet_type": "unknown",
