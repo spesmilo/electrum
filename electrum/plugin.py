@@ -794,7 +794,7 @@ class Plugins(DaemonThread):
             metadata = self.external_plugin_metadata[name]
             dirname = metadata['dirname']
             with zipfile_lib.ZipFile(plugin_filename) as myzip:
-                with myzip.open(os.path.join(dirname, filename)) as myfile:
+                with myzip.open("/".join([dirname,filename])) as myfile:
                     return myfile.read()
         elif name in self.internal_plugin_metadata:
             path = os.path.join(os.path.dirname(__file__), 'plugins', name, filename)
