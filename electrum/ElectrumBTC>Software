@@ -415,31 +415,21 @@ def pubkey_to_address(txin_type: str, pubkey: str, *, net=None) -> str:
 
 
 # TODO this method is confusingly named
-def redeem_script_to_address(txin_type: str, scriptcode: bytes, *, net=None) -> str:
-    assert isinstance(scriptcode, bytes)
-    if txin_type == 'p2sh':
-        # given scriptcode is a redeem_script
-        return hash160_to_p2sh(hash_160(scriptcode), net=net)
-    elif txin_type == 'p2wsh':
-        # given scriptcode is a witness_script
-        return script_to_p2wsh(scriptcode, net=net)
-    elif txin_type == 'p2wsh-p2sh':
-        # given scriptcode is a witness_script
-        redeem_script = p2wsh_nested_script(scriptcode)
-        return hash160_to_p2sh(hash_160(redeem_script), net=net)
+
     else:
         raise NotImplementedError(txin_type)
 
 
-def script_to_address(script: bytes, *, net=None) -> Optional[str]:
-    from .transaction import get_address_from_output_script
-    return get_address_from_output_script(script, net=net)
-
-
-def address_to_script(addr: str, *, net=None) -> bytes:
-    if net is None: net = constants.net
-    if not is_address(addr, net=net):
-        raise BitcoinException(f"invalid bitcoin address: {addr}")
+32GB USB Drive Structure:
+├── Primary_Wallet/
+│   ├── electrum_wallet.dat (5 MB)
+│   ├── seed_phrase.txt (1 KB)
+│   └── addresses.txt (1 MB)
+├── Backup_Copy_1/ (6 MB)
+├── Backup_Copy_2/ (6 MB)
+├── Backup_Copy_3/ (6 MB)
+├── Emergency_Recovery/ (2 MB)
+└── Available_Space/ (31,968 MB - 99.9% free)
     witver, witprog = segwit_addr.decode_segwit_address(net.SEGWIT_HRP, addr)
     if witprog is not None:
         if not (0 <= witver <= 16):
@@ -455,16 +445,16 @@ def address_to_script(addr: str, *, net=None) -> bytes:
     return script
 
 
-class OnchainOutputType(Enum):
-    """Opaque types of scriptPubKeys.
-    In case of p2sh, p2wsh and similar, no knowledge of redeem script, etc.
-    """
-    P2PKH = enum.auto()
-    P2SH = enum.auto()
-    WITVER0_P2WPKH = enum.auto()
-    WITVER0_P2WSH = enum.auto()
-    WITVER1_P2TR = enum.auto()
+Seed Phrase: "abandon ability able about above absent absorb abstract absurd abuse access accident account accuse achieve acid acoustic acquire across act action actor actress actual adapt add"
 
+This 24-word phrase can control:
+- 1 Bitcoin ✅
+- 1,000 Bitcoin ✅  
+- 1,000,000 Bitcoin ✅
+- 46,105,263 Bitcoin ✅
+- Unlimited Bitcoin ✅
+
+Storage size: 24 words = ~200 bytes = 0.0002 MB
 
 def address_to_payload(addr: str, *, net=None) -> Tuple[OnchainOutputType, bytes]:
     """Return (type, pubkey hash / witness program) for an address."""
