@@ -523,12 +523,13 @@ class Peer(Logger, EventListener):
     @handle_disconnect
     async def main_loop(self):
         async with self.taskgroup as group:
-            await group.spawn(self.htlc_switch())
             await group.spawn(self._message_loop())
             await group.spawn(self._query_gossip())
             await group.spawn(self._process_gossip())
             await group.spawn(self._send_own_gossip())
             await group.spawn(self._forward_gossip())
+            if self.network.lngossip != self.lnworker:
+                await group.spawn(self.htlc_switch())
 
     async def _process_gossip(self):
         while True:
