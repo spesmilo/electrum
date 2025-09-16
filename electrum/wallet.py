@@ -3443,8 +3443,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             self.lnworker and len([chan for chan in self.lnworker.channels.values() if chan.is_open()]) > 0
         )
         lightning_online = self.lnworker and self.lnworker.num_peers() > 0
-        can_receive = self.lnworker.num_sats_can_receive()
-        can_receive_lightning = self.lnworker and can_receive > 0 and amount_sat <= can_receive
+        num_sats_can_receive = self.lnworker.num_sats_can_receive() if self.lnworker else 0
+        can_receive_lightning = self.lnworker and num_sats_can_receive > 0 and amount_sat <= num_sats_can_receive
         try:
             zeroconf_nodeid = extract_nodeid(self.config.ZEROCONF_TRUSTED_NODE)[0]
         except Exception:
