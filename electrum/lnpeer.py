@@ -2480,7 +2480,7 @@ class Peer(Logger, EventListener):
         elif mpp_resolution == RecvMPPResolution.FAILED:
             log_fail_reason(f"mpp_resolution is FAILED")
             raise exc_incorrect_or_unknown_pd
-        elif mpp_resolution == RecvMPPResolution.ACCEPTED:
+        elif mpp_resolution == RecvMPPResolution.COMPLETE:
             return False
         else:
             raise Exception(f"unexpected {mpp_resolution=}")

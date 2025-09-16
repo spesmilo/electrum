@@ -1438,7 +1438,7 @@ class Commands(Logger):
         assert payment_hash in wallet.lnworker.payment_info, \
             f"Couldn't find lightning invoice for {payment_hash=}"
         assert payment_hash in wallet.lnworker.dont_settle_htlcs, f"Invoice {payment_hash=} not a hold invoice?"
-        assert wallet.lnworker.is_accepted_mpp(bfh(payment_hash)), \
+        assert wallet.lnworker.is_complete_mpp(bfh(payment_hash)), \
             f"MPP incomplete, cannot settle hold invoice {payment_hash} yet"
         info: Optional['PaymentInfo'] = wallet.lnworker.get_payment_info(bfh(payment_hash))
         assert (wallet.lnworker.get_payment_mpp_amount_msat(bfh(payment_hash)) or 0) >= (info.amount_msat or 0)
@@ -1465,7 +1465,7 @@ class Commands(Logger):
         wallet.lnworker.set_payment_status(bfh(payment_hash), PR_UNPAID)
         wallet.lnworker.delete_payment_info(payment_hash)
         wallet.set_label(payment_hash, None)
-        while wallet.lnworker.is_accepted_mpp(bfh(payment_hash)):
+        while wallet.lnworker.is_complete_mpp(bfh(payment_hash)):
             # wait until the htlcs got failed so the payment won't get settled accidentally in a race
             await asyncio.sleep(0.1)
         del wallet.lnworker.dont_settle_htlcs[payment_hash]
@@ -1490,7 +1490,7 @@ class Commands(Logger):
         """
         assert len(payment_hash) == 64, f"Invalid payment_hash length: {len(payment_hash)} != 64"
         info: Optional['PaymentInfo'] = wallet.lnworker.get_payment_info(bfh(payment_hash))
-        is_accepted_mpp: bool = wallet.lnworker.is_accepted_mpp(bfh(payment_hash))
+        is_complete_mpp: bool = wallet.lnworker.is_complete_mpp(bfh(payment_hash))
         amount_sat = (wallet.lnworker.get_payment_mpp_amount_msat(bfh(payment_hash)) or 0) // 1000
         result = {
             "status": "unknown",
@@ -1498,10 +1498,10 @@ class Commands(Logger):
         }
         if info is None:
             pass
-        elif not is_accepted_mpp and not wallet.lnworker.get_preimage_hex(payment_hash):
-            # is_accepted_mpp is False for settled payments
+        elif not is_complete_mpp and not wallet.lnworker.get_preimage_hex(payment_hash):
+            # is_complete_mpp is False for settled payments
             result["status"] = "unpaid"
-        elif is_accepted_mpp and payment_hash in wallet.lnworker.dont_settle_htlcs:
+        elif is_complete_mpp and payment_hash in wallet.lnworker.dont_settle_htlcs:
             result["status"] = "paid"
             payment_key: str = wallet.lnworker._get_payment_key(bfh(payment_hash)).hex()
             htlc_status = wallet.lnworker.received_mpp_htlcs[payment_key]

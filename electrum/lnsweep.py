@@ -432,7 +432,7 @@ def sweep_our_ctx(
         ctn=ctn)
     for (direction, htlc), (ctx_output_idx, htlc_relative_idx) in htlc_to_ctx_output_idx_map.items():
         if direction == RECEIVED:
-            if not chan.lnworker.is_accepted_mpp(htlc.payment_hash):
+            if not chan.lnworker.is_complete_mpp(htlc.payment_hash):
                 # do not redeem this, it might publish the preimage of an incomplete MPP
                 continue
             preimage = chan.lnworker.get_preimage(htlc.payment_hash)
@@ -727,7 +727,7 @@ def sweep_their_ctx(
     for (direction, htlc), (ctx_output_idx, htlc_relative_idx) in htlc_to_ctx_output_idx_map.items():
         is_received_htlc = direction == RECEIVED
         if not is_received_htlc and not is_revocation:
-            if not chan.lnworker.is_accepted_mpp(htlc.payment_hash):
+            if not chan.lnworker.is_complete_mpp(htlc.payment_hash):
                 # do not redeem this, it might publish the preimage of an incomplete MPP
                 continue
             preimage = chan.lnworker.get_preimage(htlc.payment_hash)

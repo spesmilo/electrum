@@ -2444,12 +2444,12 @@ class LNWallet(LNWorker):
                 payment_keys = [payment_key]
             first_timestamp = min([self.get_first_timestamp_of_mpp(pkey) for pkey in payment_keys])
             if self.get_payment_status(payment_hash) == PR_PAID:
-                mpp_resolution = RecvMPPResolution.ACCEPTED
+                mpp_resolution = RecvMPPResolution.COMPLETE
             elif self.stopping_soon:
                 # try to time out pending HTLCs before shutting down
                 mpp_resolution = RecvMPPResolution.EXPIRED
             elif all([self.is_mpp_amount_reached(pkey) for pkey in payment_keys]):
-                mpp_resolution = RecvMPPResolution.ACCEPTED
+                mpp_resolution = RecvMPPResolution.COMPLETE
             elif time.time() - first_timestamp > self.MPP_EXPIRY:
                 mpp_resolution = RecvMPPResolution.EXPIRED
             # save resolution, if any.
@@ -2497,10 +2497,10 @@ class LNWallet(LNWorker):
         total, expected = amounts
         return total >= expected
 
-    def is_accepted_mpp(self, payment_hash: bytes) -> bool:
+    def is_complete_mpp(self, payment_hash: bytes) -> bool:
         payment_key = self._get_payment_key(payment_hash)
         status = self.received_mpp_htlcs.get(payment_key.hex())
-        return status and status.resolution == RecvMPPResolution.ACCEPTED
+        return status and status.resolution == RecvMPPResolution.COMPLETE
 
     def get_payment_mpp_amount_msat(self, payment_hash: bytes) -> Optional[int]:
         """Returns the received mpp amount for given payment hash."""
