@@ -1941,10 +1941,11 @@ class UpdateAddHtlc:
 # Note: these states are persisted in the wallet file.
 # Do not modify them without performing a wallet db upgrade
 class RecvMPPResolution(IntEnum):
-    WAITING = 0
-    EXPIRED = 1
-    COMPLETE = 2
-    FAILED = 3
+    WAITING = 0  # set is not complete yet, waiting for arrival of the remaining htlcs
+    EXPIRED = 1  # preimage must not be revealed
+    COMPLETE = 2  # set is complete but could still be failed (e.g. due to cltv timeout)
+    FAILED = 3  # preimage must not be revealed
+    SETTLING = 4  # must not be failed, should be settled asap
 
 
 class ReceivedMPPHtlc(NamedTuple):
