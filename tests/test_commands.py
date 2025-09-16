@@ -547,7 +547,7 @@ class TestCommandsTestnet(ElectrumTestCase):
         mock_htlc2.amount_msat = 5_500_000
         mock_htlc_status = mock.Mock()
         mock_htlc_status.htlc_set = [(None, mock_htlc1), (None, mock_htlc2)]
-        mock_htlc_status.resolution = RecvMPPResolution.ACCEPTED
+        mock_htlc_status.resolution = RecvMPPResolution.COMPLETE
 
         payment_key = wallet.lnworker._get_payment_key(bytes.fromhex(payment_hash)).hex()
         with mock.patch.dict(wallet.lnworker.received_mpp_htlcs, {payment_key: mock_htlc_status}):

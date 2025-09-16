@@ -1943,7 +1943,7 @@ class UpdateAddHtlc:
 class RecvMPPResolution(IntEnum):
     WAITING = 0
     EXPIRED = 1
-    ACCEPTED = 2
+    COMPLETE = 2
     FAILED = 3
 
 
