@@ -347,6 +347,10 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     current_target_feerate_per_kw = LNWallet.current_target_feerate_per_kw
     current_low_feerate_per_kw_srk_channel = LNWallet.current_low_feerate_per_kw_srk_channel
     maybe_cleanup_mpp = LNWallet.maybe_cleanup_mpp
+    create_onion_for_route = LNWallet.create_onion_for_route
+    maybe_forward_htlc = LNWallet.maybe_forward_htlc
+    maybe_forward_trampoline = LNWallet.maybe_forward_trampoline
+    _maybe_refuse_to_forward_htlc_that_corresponds_to_payreq_we_created = LNWallet._maybe_refuse_to_forward_htlc_that_corresponds_to_payreq_we_created
 
 
 class MockTransport:
