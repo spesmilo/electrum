@@ -92,6 +92,17 @@ so make sure that is on your `PATH` variable.
 
 ### Development version (git clone)
 
+$ python3 -m pip install --user -e .
+
+> **Note for zsh users:** If your shell is `zsh`, you might see  
+> `zsh: no matches found: .[fast]`  
+> when installing. To fix this, quote the extras like so:
+>
+> ```bash
+> python3 -m pip install --user '.[fast]'
+> ```
+
+
 _(For OS-specific instructions, see [here for Windows](contrib/build-wine/README_windows.md),
 and [for macOS](contrib/osx/README_macos.md))_
 
