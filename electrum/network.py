@@ -43,7 +43,7 @@ from aiohttp import ClientResponse
 
 from . import util
 from .util import (
-    log_exceptions, ignore_exceptions, OldTaskGroup, make_aiohttp_session, MyEncoder,
+    log_exceptions, ignore_exceptions, OldTaskGroup, make_aiohttp_session,
     NetworkRetryManager, error_text_str_to_safe_str, detect_tor_socks_proxy
 )
 from . import constants
@@ -471,7 +471,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         if not self.config.path:
             return
         path = os.path.join(self.config.path, "recent_servers")
-        s = json.dumps(self._recent_servers, indent=4, sort_keys=True, cls=MyEncoder)
+        s = json.dumps(self._recent_servers, indent=4, sort_keys=True, default=str)
         try:
             with open(path, "w", encoding='utf-8') as f:
                 f.write(s)
