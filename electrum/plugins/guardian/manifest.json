@@ -1,0 +1,7 @@
+{
+  "name": "guardian",
+  "fullname": "Guardian Address",
+  "description": "Guardian Address for Physical Coercion Resistance (BIP Draft)",
+  "requires": [],
+  "available_for": ["qt"]
+}
