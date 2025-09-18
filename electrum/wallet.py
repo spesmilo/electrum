@@ -949,7 +949,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                              and (tx_we_already_have_in_db is None or not tx_we_already_have_in_db.is_complete()))
         label = ''
         tx_mined_status = self.adb.get_tx_height(tx_hash)
-        can_remove = ((tx_mined_status.height in [TX_HEIGHT_FUTURE, TX_HEIGHT_LOCAL])
+        can_remove = ((tx_mined_status.height() in [TX_HEIGHT_FUTURE, TX_HEIGHT_LOCAL])
                       # otherwise 'height' is unreliable (typically LOCAL):
                       and is_relevant
                       # don't offer during common signing flow, e.g. when watch-only wallet starts creating a tx:
@@ -958,12 +958,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if tx.is_complete():
             if tx_we_already_have_in_db:
                 label = self.get_label_for_txid(tx_hash)
-                if tx_mined_status.height > 0:
+                if tx_mined_status.height() > 0:
                     if tx_mined_status.conf:
                         status = _("{} confirmations").format(tx_mined_status.conf)
                     else:
                         status = _('Not verified')
-                elif tx_mined_status.height in (TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED):
+                elif tx_mined_status.height() in (TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED):
                     status = _('Unconfirmed')
                     if fee is None:
                         fee = self.adb.get_tx_fee(tx_hash)
@@ -981,7 +981,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                         can_cpfp = False
                 else:
                     status = _('Local')
-                    if tx_mined_status.height == TX_HEIGHT_FUTURE:
+                    if tx_mined_status.height() == TX_HEIGHT_FUTURE:
                         num_blocks_remainining = tx_mined_status.wanted_height - self.adb.get_local_height()
                         num_blocks_remainining = max(0, num_blocks_remainining)
                         status = _('Local (future: {})').format(_('in {} blocks').format(num_blocks_remainining))
@@ -1043,7 +1043,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 # populate cache in chronological order (confirmed tx only)
                 # todo: get_full_history should return unconfirmed tx topologically sorted
                 for _txid, tx_item in self._last_full_history.items():
-                    if tx_item.tx_mined_status.height > 0:
+                    if tx_item.tx_mined_status.height() > 0:
                         self.get_tx_parents(_txid)
 
             result = self._tx_parents_cache.get(txid, None)
@@ -1224,7 +1224,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         monotonic_timestamp = 0
         for hist_item in self.adb.get_history(domain=domain):
             timestamp = (hist_item.tx_mined_status.timestamp or TX_TIMESTAMP_INF)
-            height = hist_item.tx_mined_status.height
+            height = hist_item.tx_mined_status.height()
             if from_timestamp and (timestamp or now) < from_timestamp:
                 continue
             if to_timestamp and (timestamp or now) >= to_timestamp:
@@ -1405,7 +1405,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 for prevout, v in prevouts_and_values:
                     relevant_txs.add(prevout.txid.hex())
                     tx_height = self.adb.get_tx_height(prevout.txid.hex())
-                    if 0 < tx_height.height <= invoice.height:  # exclude txs older than invoice
+                    if 0 < tx_height.height() <= invoice.height:  # exclude txs older than invoice
                         continue
                     confs_and_values.append((tx_height.conf or 0, v))
                 # check that there is at least one TXO, and that they pay enough.
@@ -1748,7 +1748,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def get_tx_status(self, tx_hash: str, tx_mined_info: TxMinedInfo):
         extra = []
-        height = tx_mined_info.height
+        height = tx_mined_info.height()
         conf = tx_mined_info.conf
         timestamp = tx_mined_info.timestamp
         if height == TX_HEIGHT_FUTURE:
@@ -1812,7 +1812,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             # tx should not be mined yet
             if hist_item.tx_mined_status.conf > 0: continue
             # conservative future proofing of code: only allow known unconfirmed types
-            if hist_item.tx_mined_status.height not in (
+            if hist_item.tx_mined_status.height() not in (
                     TX_HEIGHT_UNCONFIRMED,
                     TX_HEIGHT_UNCONF_PARENT,
                     TX_HEIGHT_LOCAL):
@@ -2016,7 +2016,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             if base_tx:
                 # make sure we don't try to spend change from the tx-to-be-replaced:
                 coins = [c for c in coins if c.prevout.txid.hex() != base_tx.txid()]
-                is_local = self.adb.get_tx_height(base_tx.txid()).height == TX_HEIGHT_LOCAL
+                is_local = self.adb.get_tx_height(base_tx.txid()).height() == TX_HEIGHT_LOCAL
                 if not isinstance(base_tx, PartialTransaction):
                     base_tx = PartialTransaction.from_tx(base_tx)
                     base_tx.add_info_from_wallet(self)
@@ -2149,7 +2149,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             return bool(frozen)
         # State not set. We implicitly mark certain coins as frozen:
         tx_mined_status = self.adb.get_tx_height(utxo.prevout.txid.hex())
-        if tx_mined_status.height == TX_HEIGHT_FUTURE:
+        if tx_mined_status.height() == TX_HEIGHT_FUTURE:
             return True
         if self._is_coin_small_and_unconfirmed(utxo):
             return True
@@ -2675,7 +2675,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         txin.script_descriptor = self.get_script_descriptor_for_address(address)
         txin.is_mine = True
         self._add_txinout_derivation_info(txin, address, only_der_suffix=only_der_suffix)
-        txin.block_height = self.adb.get_tx_height(txin.prevout.txid.hex()).height
+        txin.block_height = self.adb.get_tx_height(txin.prevout.txid.hex()).height()
 
     def has_support_for_slip_19_ownership_proofs(self) -> bool:
         return False

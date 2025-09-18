@@ -279,5 +279,5 @@ class LNWatcher(Logger, EventListener):
                 # We should not keep warning the user forever.
                 return
             tx_mined_status = self.adb.get_tx_height(spender_txid)
-            if tx_mined_status.height == TX_HEIGHT_LOCAL:
+            if tx_mined_status.height() == TX_HEIGHT_LOCAL:
                 self._pending_force_closes.add(chan)
