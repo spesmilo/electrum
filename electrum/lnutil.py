@@ -1953,6 +1953,9 @@ class ReceivedMPPHtlc(NamedTuple):
     htlc: UpdateAddHtlc
     unprocessed_onion: str
 
+    def __repr__(self):
+        return f"{self.scid}, {self.htlc=}, {self.unprocessed_onion[:15]=}..."
+
     @staticmethod
     def from_tuple(scid, htlc, unprocessed_onion) -> 'ReceivedMPPHtlc':
         assert is_hex_str(unprocessed_onion) and is_hex_str(scid)
@@ -1966,6 +1969,10 @@ class ReceivedMPPHtlc(NamedTuple):
 class ReceivedMPPStatus(NamedTuple):
     resolution: RecvMPPResolution
     htlcs: set[ReceivedMPPHtlc]
+
+    def get_first_htlc_timestamp(self):
+        assert self.htlcs, "htlc set is empty"
+        return min(mpp_htlc.htlc.timestamp for mpp_htlc in self.htlcs)
 
     @staticmethod
     @stored_in('received_mpp_htlcs', tuple)
