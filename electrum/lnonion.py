@@ -36,6 +36,7 @@ from .lnutil import (PaymentFailure, NUM_MAX_HOPS_IN_PAYMENT_PATH,
                      NUM_MAX_EDGES_IN_PAYMENT_PATH, ShortChannelID, OnionFailureCodeMetaFlag)
 from .lnmsg import OnionWireSerializer, read_bigsize_int, write_bigsize_int
 from . import lnmsg
+from . import util
 
 if TYPE_CHECKING:
     from .lnrouter import LNPaymentRoute
@@ -113,11 +114,11 @@ class OnionHopsDataSingle:  # called HopData in lnd
 
 class OnionPacket:
 
-    def __init__(self, public_key: bytes, hops_data: bytes, hmac: bytes):
+    def __init__(self, public_key: bytes, hops_data: bytes, hmac: bytes, version: int = 0):
         assert len(public_key) == 33
         assert len(hops_data) in [HOPS_DATA_SIZE, TRAMPOLINE_HOPS_DATA_SIZE, ONION_MESSAGE_LARGE_SIZE]
         assert len(hmac) == PER_HOP_HMAC_SIZE
-        self.version = 0
+        self.version = version
         self.public_key = public_key
         self.hops_data = hops_data  # also called RoutingInfo in bolt-04
         self.hmac = hmac
@@ -140,14 +141,16 @@ class OnionPacket:
     def from_bytes(cls, b: bytes):
         if len(b) - 66 not in [HOPS_DATA_SIZE, TRAMPOLINE_HOPS_DATA_SIZE, ONION_MESSAGE_LARGE_SIZE]:
             raise Exception('unexpected length {}'.format(len(b)))
-        version = b[0]
-        if version != 0:
-            raise UnsupportedOnionPacketVersion('version {} is not supported'.format(version))
         return OnionPacket(
             public_key=b[1:34],
             hops_data=b[34:-32],
-            hmac=b[-32:]
+            hmac=b[-32:],
+            version=b[0],
         )
+
+    @property
+    def onion_hash(self) -> bytes:
+        return sha256(self.to_bytes())
 
 
 def get_bolt04_onion_key(key_type: bytes, secret: bytes) -> bytes:
@@ -352,6 +355,36 @@ class ProcessedOnionPacket(NamedTuple):
     next_packet: OnionPacket
     trampoline_onion_packet: OnionPacket
 
+    @property
+    def amt_to_forward(self) -> Optional[int]:
+        k1 = k2 = 'amt_to_forward'
+        return self._get_from_payload(k1, k2, int)
+
+    @property
+    def outgoing_cltv_value(self) -> Optional[int]:
+        k1 = k2 = 'outgoing_cltv_value'
+        return self._get_from_payload(k1, k2, int)
+
+    @property
+    def next_chan_scid(self) -> Optional[ShortChannelID]:
+        k1 = k2 = 'short_channel_id'
+        return self._get_from_payload(k1, k2, ShortChannelID)
+
+    @property
+    def total_msat(self) -> Optional[int]:
+        return self._get_from_payload('payment_data', 'total_msat', int)
+
+    @property
+    def payment_secret(self) -> Optional[bytes]:
+        return self._get_from_payload('payment_data', 'payment_secret', bytes)
+
+    def _get_from_payload(self, k1: str, k2: str, res_type: type):
+        try:
+            result = self.hop_data.payload[k1][k2]
+            return res_type(result)
+        except Exception:
+            return None
+
 
 # TODO replay protection
 def process_onion_packet(
@@ -361,6 +394,9 @@ def process_onion_packet(
         associated_data: bytes = b'',
         is_trampoline=False,
         tlv_stream_name='payload') -> ProcessedOnionPacket:
+    # TODO: check Onion features ( PERM|NODE|3 (required_node_feature_missing )
+    if onion_packet.version != 0:
+        raise UnsupportedOnionPacketVersion()
     if not ecc.ECPubkey.is_pubkey_bytes(onion_packet.public_key):
         raise InvalidOnionPubkey()
     shared_secret = get_ecdh(our_onion_private_key, onion_packet.public_key)
@@ -369,7 +405,7 @@ def process_onion_packet(
     calculated_mac = hmac_oneshot(
         mu_key, msg=onion_packet.hops_data+associated_data,
         digest=hashlib.sha256)
-    if onion_packet.hmac != calculated_mac:
+    if not util.constant_time_compare(onion_packet.hmac, calculated_mac):
         raise InvalidOnionMac()
     # peel an onion layer off
     rho_key = get_bolt04_onion_key(b'rho', shared_secret)
@@ -407,6 +443,33 @@ def process_onion_packet(
         # we are an intermediate node; forwarding
         are_we_final = False
     return ProcessedOnionPacket(are_we_final, hop_data, next_onion_packet, trampoline_onion_packet)
+
+
+def compare_trampoline_onions(trampoline_onions: List[Optional[ProcessedOnionPacket]]) -> bool:
+    """
+    compare values of trampoline onions except for the amount_to_forward as it is expected
+    to differ between onions
+    """
+    assert trampoline_onions, f"nothing to compare: {trampoline_onions=}"
+    first_onion = trampoline_onions[0]
+    if not all(isinstance(onion, type(first_onion)) for onion in trampoline_onions):
+        return False
+    if first_onion is None:
+        return True  # all onions are None
+    are_we_final = first_onion.are_we_final
+    total_msat = first_onion.total_msat
+    outgoing_cltv_value = first_onion.outgoing_cltv_value
+    payment_secret = first_onion.payment_secret
+    for onion in trampoline_onions:
+        if onion.are_we_final != are_we_final:
+            return False
+        if onion.total_msat != total_msat:
+            return False
+        if onion.outgoing_cltv_value != outgoing_cltv_value:
+            return False
+        if onion.payment_secret != payment_secret:
+            return False
+    return True
 
 
 class FailedToDecodeOnionError(Exception): pass
@@ -448,6 +511,13 @@ class OnionRoutingFailure(Exception):
             payload = None
         return payload
 
+    def to_wire_msg(self, onion_packet: OnionPacket, privkey: bytes, local_height: int) -> bytes:
+        onion_error = construct_onion_error(self, onion_packet.public_key, privkey, local_height)
+        error_bytes = obfuscate_onion_error(onion_error, onion_packet.public_key, privkey)
+        return error_bytes
+
+
+class OnionParsingError(OnionRoutingFailure): pass
 
 def construct_onion_error(
         error: OnionRoutingFailure,
@@ -484,23 +554,38 @@ def obfuscate_onion_error(error_packet, their_public_key, our_onion_private_key)
 
 def _decode_onion_error(error_packet: bytes, payment_path_pubkeys: Sequence[bytes],
                         session_key: bytes) -> Tuple[bytes, int]:
-    """Returns the decoded error bytes, and the index of the sender of the error."""
+    """
+    Returns the decoded error bytes, and the index of the sender of the error.
+    https://github.com/lightning/bolts/blob/14272b1bd9361750cfdb3e5d35740889a6b510b5/04-onion-routing.md?plain=1#L1096
+    """
     num_hops = len(payment_path_pubkeys)
     hop_shared_secrets, _ = get_shared_secrets_along_route(payment_path_pubkeys, session_key)
-    for i in range(num_hops):
-        ammag_key = get_bolt04_onion_key(b'ammag', hop_shared_secrets[i])
-        um_key = get_bolt04_onion_key(b'um', hop_shared_secrets[i])
+    result = None
+    dummy_secret = bytes(32)
+    # SHOULD continue decrypting, until the loop has been repeated 27 times
+    for i in range(27):
+        if i < num_hops:
+            ammag_key = get_bolt04_onion_key(b'ammag', hop_shared_secrets[i])
+            um_key = get_bolt04_onion_key(b'um', hop_shared_secrets[i])
+        else:
+            # SHOULD use constant `ammag` and `um` keys to obfuscate the route length.
+            ammag_key = get_bolt04_onion_key(b'ammag', dummy_secret)
+            um_key = get_bolt04_onion_key(b'um', dummy_secret)
+
         stream_bytes = generate_cipher_stream(ammag_key, len(error_packet))
         error_packet = xor_bytes(error_packet, stream_bytes)
         hmac_computed = hmac_oneshot(um_key, msg=error_packet[32:], digest=hashlib.sha256)
         hmac_found = error_packet[:32]
-        if hmac_computed == hmac_found:
-            return error_packet, i
+        if util.constant_time_compare(hmac_found, hmac_computed) and i < num_hops:
+            result = error_packet, i
+
+    if result is not None:
+        return result
     raise FailedToDecodeOnionError()
 
 
 def decode_onion_error(error_packet: bytes, payment_path_pubkeys: Sequence[bytes],
-                       session_key: bytes) -> (OnionRoutingFailure, int):
+                       session_key: bytes) -> Tuple[OnionRoutingFailure, int]:
     """Returns the failure message, and the index of the sender of the error."""
     decrypted_error, sender_index = _decode_onion_error(error_packet, payment_path_pubkeys, session_key)
     failure_msg = get_failure_msg_from_onion_error(decrypted_error)

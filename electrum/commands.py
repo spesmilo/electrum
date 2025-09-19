@@ -1405,17 +1405,17 @@ class Commands(Logger):
         assert inbound_capacity > satoshis(amount or 0), \
             f"Not enough inbound capacity [{inbound_capacity} sat] to receive this payment"
 
-        lnaddr, invoice = wallet.lnworker.get_bolt11_invoice(
-            payment_hash=bfh(payment_hash),
-            amount_msat=satoshis(amount) * 1000 if amount else None,
-            message=memo,
-            expiry=expiry,
-            min_final_cltv_expiry_delta=min_final_cltv_expiry_delta,
-            fallback_address=None
-        )
         wallet.lnworker.add_payment_info_for_hold_invoice(
             bfh(payment_hash),
-            satoshis(amount) if amount else None,
+            lightning_amount_sat=satoshis(amount) if amount else None,
+            min_final_cltv_delta=min_final_cltv_expiry_delta,
+            exp_delay=expiry,
+        )
+        info = wallet.lnworker.get_payment_info(bfh(payment_hash))
+        lnaddr, invoice = wallet.lnworker.get_bolt11_invoice(
+            payment_info=info,
+            message=memo,
+            fallback_address=None
         )
         wallet.lnworker.dont_settle_htlcs[payment_hash] = None
         wallet.set_label(payment_hash, memo)
@@ -1506,7 +1506,7 @@ class Commands(Logger):
             payment_key: str = wallet.lnworker._get_payment_key(bfh(payment_hash)).hex()
             htlc_status = wallet.lnworker.received_mpp_htlcs[payment_key]
             result["closest_htlc_expiry_height"] = min(
-                htlc.cltv_abs for _, htlc in htlc_status.htlc_set
+                mpp_htlc.htlc.cltv_abs for mpp_htlc in htlc_status.htlcs
             )
         elif wallet.lnworker.get_preimage_hex(payment_hash) is not None \
                 and payment_hash not in wallet.lnworker.dont_settle_htlcs:

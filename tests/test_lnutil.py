@@ -562,7 +562,7 @@ class TestLNUtil(ElectrumTestCase):
                           (1, 2000 * 1000),
                           (3, 3000 * 1000),
                           (4, 4000 * 1000)]:
-            htlc_obj[num] = UpdateAddHtlc(amount_msat=msat, payment_hash=bitcoin.sha256(htlc_payment_preimage[num]), cltv_abs=0, htlc_id=None, timestamp=0)
+            htlc_obj[num] = UpdateAddHtlc(amount_msat=msat, rhash=bitcoin.sha256(htlc_payment_preimage[num]).hex(), cltv_abs=0, htlc_id=None, timestamp=0)
         htlcs = [ScriptHtlc(htlc[x], htlc_obj[x]) for x in range(5)]
 
         our_commit_tx = make_commitment(
@@ -848,7 +848,7 @@ class TestLNUtil(ElectrumTestCase):
                                 has_anchors=True)
                         update_add_htlc = UpdateAddHtlc(
                             amount_msat=test_htlc['amount'],
-                            payment_hash=bitcoin.sha256(bfh(test_htlc['preimage'])),
+                            rhash=bitcoin.sha256(bfh(test_htlc['preimage'])).hex(),
                             cltv_abs=test_htlc['expiry'],
                             htlc_id=None,
                             timestamp=0)

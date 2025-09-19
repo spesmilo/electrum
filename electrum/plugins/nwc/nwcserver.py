@@ -480,12 +480,11 @@ class NWCServer(Logger, EventListener):
             address=None
         )
         req: Request = self.wallet.get_request(key)
+        info = self.wallet.lnworker.get_payment_info(req.payment_hash)
         try:
             lnaddr, b11 = self.wallet.lnworker.get_bolt11_invoice(
-                payment_hash=req.payment_hash,
-                amount_msat=amount_msat,
+                payment_info=info,
                 message=description,
-                expiry=expiry,
                 fallback_address=None
             )
         except Exception:
@@ -538,11 +537,10 @@ class NWCServer(Logger, EventListener):
             b11 = invoice.lightning_invoice
         elif self.wallet.get_request(invoice.rhash):
             direction = "incoming"
+            info = self.wallet.lnworker.get_payment_info(invoice.payment_hash)
             _, b11 = self.wallet.lnworker.get_bolt11_invoice(
-                payment_hash=bytes.fromhex(invoice.rhash),
-                amount_msat=invoice.amount_msat,
+                payment_info=info,
                 message=invoice.message,
-                expiry=invoice.exp,
                 fallback_address=None
             )
 
@@ -749,11 +747,10 @@ class NWCServer(Logger, EventListener):
         request: Optional[Request] = self.wallet.get_request(key)
         if not request or not request.is_lightning() or not status == PR_PAID:
             return
+        info = self.wallet.lnworker.get_payment_info(request.payment_hash)
         _, b11 = self.wallet.lnworker.get_bolt11_invoice(
-            payment_hash=request.payment_hash,
-            amount_msat=request.get_amount_msat(),
+            payment_info=info,
             message=request.message,
-            expiry=request.exp,
             fallback_address=None
         )
 
