@@ -2284,13 +2284,13 @@ class LNWallet(LNWorker):
             invoice_features &= ~ LnFeatures.BASIC_MPP_OPT & ~ LnFeatures.BASIC_MPP_REQ
         payment_secret = self.get_payment_secret(payment_info.payment_hash)
         amount_btc = amount_msat/Decimal(COIN*1000) if amount_msat else None
-        min_final_cltv_delta = payment_info.min_final_cltv_delta + MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE
+        min_final_cltv_delta_requested = payment_info.min_final_cltv_delta + MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE
         lnaddr = LnAddr(
             paymenthash=payment_info.payment_hash,
             amount=amount_btc,
             tags=[
                 ('d', message),
-                ('c', min_final_cltv_delta),
+                ('c', min_final_cltv_delta_requested),
                 ('x', payment_info.expiry_delay),
                 ('9', invoice_features),
                 ('f', fallback_address),
@@ -2611,6 +2611,7 @@ class LNWallet(LNWorker):
         for payment_key, htlcs in self.active_forwardings.items():
             if htlc_key in htlcs:
                 return payment_key
+        return None
 
     def notify_upstream_peer(self, htlc_key: str) -> None:
         """Called when an HTLC we offered on chan gets irrevocably fulfilled or failed.
@@ -3490,7 +3491,7 @@ class LNWallet(LNWorker):
         return htlc_key
 
     @log_exceptions
-    async def maybe_forward_trampoline(
+    async def _maybe_forward_trampoline(
         self, *,
         payment_hash: bytes,
         inc_cltv_abs: int,
@@ -3536,7 +3537,7 @@ class LNWallet(LNWorker):
 
         # these are the fee/cltv paid by the sender
         # pay_to_node will raise if they are not sufficient
-        total_msat = outer_onion.hop_data.payload["payment_data"]["total_msat"]
+        total_msat = outer_onion.total_msat
         budget = PaymentFeeBudget(
             fee_msat=total_msat - amt_to_forward,
             cltv=inc_cltv_abs - out_cltv_abs,
@@ -3654,7 +3655,6 @@ class LNWallet(LNWorker):
             final_cltv_abs=final_cltv_abs,
             total_msat=total_msat,
             payment_secret=payment_secret)
-        num_hops = len(hops_data)
         self.logger.info(f"pay len(route)={len(route)}")
         for i in range(len(route)):
             self.logger.info(f"  {i}: edge={route[i].short_channel_id} hop_data={hops_data[i]!r}")
