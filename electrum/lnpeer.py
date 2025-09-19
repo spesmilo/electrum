@@ -2080,44 +2080,39 @@ class Peer(Logger, EventListener):
         chan.receive_htlc(htlc, onion_packet)
         util.trigger_callback('htlc_added', chan, htlc, RECEIVED)
 
-    def check_accepted_htlc(
-            self, *,
-            chan: Channel,
+    @staticmethod
+    def _check_accepted_final_htlc(
+            *, chan: Channel,
             htlc: UpdateAddHtlc,
             processed_onion: ProcessedOnionPacket,
             log_fail_reason: Callable[[str], None],
     ) -> tuple[bytes, int, int, OnionRoutingFailure]:
         """
-        Perform checks that are invariant (results do not depend on height, network conditions, etc).
+        Perform checks that are invariant (results do not depend on height, network conditions, etc.)
+        for htlcs of which we are the receiver (forwarding htlcs will have their checks in maybe_forward_htlc).
         May raise OnionRoutingFailure
         """
-        try:
-            amt_to_forward = processed_onion.hop_data.payload["amt_to_forward"]["amt_to_forward"]
-        except Exception:
+        if (amt_to_forward := processed_onion.amt_to_forward) is None:
             log_fail_reason(f"'amt_to_forward' missing from onion")
             raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
-
-        exc_incorrect_or_unknown_pd = OnionRoutingFailure(
-            code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS,
-            data=amt_to_forward.to_bytes(8, byteorder="big")) # height will be added later
-        try:
-            cltv_abs_from_onion = processed_onion.hop_data.payload["outgoing_cltv_value"]["outgoing_cltv_value"]
-        except Exception:
+        if (cltv_abs_from_onion := processed_onion.outgoing_cltv_value) is None:
             log_fail_reason(f"'outgoing_cltv_value' missing from onion")
             raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
-
         if cltv_abs_from_onion > htlc.cltv_abs:
             log_fail_reason(f"cltv_abs_from_onion != htlc.cltv_abs")
             raise OnionRoutingFailure(
                 code=OnionFailureCode.FINAL_INCORRECT_CLTV_EXPIRY,
                 data=htlc.cltv_abs.to_bytes(4, byteorder="big"))
-        try:
-            total_msat = processed_onion.hop_data.payload["payment_data"]["total_msat"]  # type: int
-        except Exception:
+
+        exc_incorrect_or_unknown_pd = OnionRoutingFailure(
+            code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS,
+            data=amt_to_forward.to_bytes(8, byteorder="big")) # height will be added later
+        if (total_msat := processed_onion.total_msat) is None:
             log_fail_reason(f"'total_msat' missing from onion")
             raise exc_incorrect_or_unknown_pd
 
         if chan.opening_fee:
+            # todo: is this handled correct with new set architecture?
             channel_opening_fee = chan.opening_fee['channel_opening_fee']  # type: int
             total_msat -= channel_opening_fee
             amt_to_forward -= channel_opening_fee
