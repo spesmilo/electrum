@@ -114,11 +114,11 @@ class OnionHopsDataSingle:  # called HopData in lnd
 
 class OnionPacket:
 
-    def __init__(self, public_key: bytes, hops_data: bytes, hmac: bytes):
+    def __init__(self, public_key: bytes, hops_data: bytes, hmac: bytes, version: int = 0):
         assert len(public_key) == 33
         assert len(hops_data) in [HOPS_DATA_SIZE, TRAMPOLINE_HOPS_DATA_SIZE, ONION_MESSAGE_LARGE_SIZE]
         assert len(hmac) == PER_HOP_HMAC_SIZE
-        self.version = 0
+        self.version = version
         self.public_key = public_key
         self.hops_data = hops_data  # also called RoutingInfo in bolt-04
         self.hmac = hmac
@@ -141,13 +141,11 @@ class OnionPacket:
     def from_bytes(cls, b: bytes):
         if len(b) - 66 not in [HOPS_DATA_SIZE, TRAMPOLINE_HOPS_DATA_SIZE, ONION_MESSAGE_LARGE_SIZE]:
             raise Exception('unexpected length {}'.format(len(b)))
-        version = b[0]
-        if version != 0:
-            raise UnsupportedOnionPacketVersion('version {} is not supported'.format(version))
         return OnionPacket(
             public_key=b[1:34],
             hops_data=b[34:-32],
-            hmac=b[-32:]
+            hmac=b[-32:],
+            version=b[0],
         )
 
 
@@ -362,6 +360,9 @@ def process_onion_packet(
         associated_data: bytes = b'',
         is_trampoline=False,
         tlv_stream_name='payload') -> ProcessedOnionPacket:
+    # TODO: check Onion features ( PERM|NODE|3 (required_node_feature_missing )
+    if onion_packet.version != 0:
+        raise UnsupportedOnionPacketVersion()
     if not ecc.ECPubkey.is_pubkey_bytes(onion_packet.public_key):
         raise InvalidOnionPubkey()
     shared_secret = get_ecdh(our_onion_private_key, onion_packet.public_key)
