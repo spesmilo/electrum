@@ -445,6 +445,33 @@ def process_onion_packet(
     return ProcessedOnionPacket(are_we_final, hop_data, next_onion_packet, trampoline_onion_packet)
 
 
+def compare_trampoline_onions(trampoline_onions: List[Optional[ProcessedOnionPacket]]) -> bool:
+    """
+    compare values of trampoline onions except for the amount_to_forward as it is expected
+    to differ between onions
+    """
+    assert trampoline_onions, f"nothing to compare: {trampoline_onions=}"
+    first_onion = trampoline_onions[0]
+    if not all(isinstance(onion, type(first_onion)) for onion in trampoline_onions):
+        return False
+    if first_onion is None:
+        return True  # all onions are None
+    are_we_final = first_onion.are_we_final
+    total_msat = first_onion.total_msat
+    outgoing_cltv_value = first_onion.outgoing_cltv_value
+    payment_secret = first_onion.payment_secret
+    for onion in trampoline_onions:
+        if onion.are_we_final != are_we_final:
+            return False
+        if onion.total_msat != total_msat:
+            return False
+        if onion.outgoing_cltv_value != outgoing_cltv_value:
+            return False
+        if onion.payment_secret != payment_secret:
+            return False
+    return True
+
+
 class FailedToDecodeOnionError(Exception): pass
 
 
