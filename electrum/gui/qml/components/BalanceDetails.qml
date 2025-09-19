@@ -100,14 +100,13 @@ Pane {
                         }
 
                         RowLayout {
+                            visible: Daemon.currentWallet.isLightning
                             Rectangle {
-                                visible: Daemon.currentWallet.isLightning
                                 Layout.preferredWidth: constants.iconSizeXSmall
                                 Layout.preferredHeight: constants.iconSizeXSmall
                                 color: constants.colorPiechartLightning
                             }
                             Label {
-                                visible: Daemon.currentWallet.isLightning
                                 text: qsTr('Lightning')
                             }
                         }
