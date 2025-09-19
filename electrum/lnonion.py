@@ -511,6 +511,13 @@ class OnionRoutingFailure(Exception):
             payload = None
         return payload
 
+    def to_wire_msg(self, onion_packet: OnionPacket, privkey: bytes, local_height: int) -> bytes:
+        onion_error = construct_onion_error(self, onion_packet.public_key, privkey, local_height)
+        error_bytes = obfuscate_onion_error(onion_error, onion_packet.public_key, privkey)
+        return error_bytes
+
+
+class OnionParsingError(OnionRoutingFailure): pass
 
 def construct_onion_error(
         error: OnionRoutingFailure,
