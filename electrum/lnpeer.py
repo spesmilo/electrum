@@ -3224,8 +3224,8 @@ class Peer(Logger, EventListener):
         except InvalidOnionMac:
             raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_HMAC, data=failure_data)
         except Exception as e:
-            self.logger.info(f"error processing onion packet: {e!r}")
-            raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_VERSION, data=failure_data)
+            self.logger.warning(f"error processing onion packet: {e!r}")
+            raise OnionParsingError(code=OnionFailureCodeMetaFlag.BADONION, data=failure_data)
         if self.network.config.TEST_FAIL_HTLCS_AS_MALFORMED:
             raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_VERSION, data=failure_data)
         if self.network.config.TEST_FAIL_HTLCS_WITH_TEMP_NODE_FAILURE:
