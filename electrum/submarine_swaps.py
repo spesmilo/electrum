@@ -415,7 +415,7 @@ class SwapManager(Logger):
                     self._prepayments.pop(swap.prepay_hash, None)
                     if self.lnworker.get_payment_status(swap.prepay_hash) != PR_PAID:
                         self.lnworker.delete_payment_info(swap.prepay_hash.hex())
-                        self.lnworker.delete_payment_bundle(swap.payment_hash)
+                        self.lnworker.delete_payment_bundle(payment_hash=swap.payment_hash)
 
     @classmethod
     def extract_preimage(cls, swap: SwapData, claim_tx: Transaction) -> Optional[bytes]:
@@ -473,7 +473,7 @@ class SwapManager(Logger):
                         # cleanup
                         self.lnwatcher.remove_callback(swap.lockup_address)
                         if not swap.is_reverse:
-                            self.lnworker.delete_payment_bundle(swap.payment_hash)
+                            self.lnworker.delete_payment_bundle(payment_hash=swap.payment_hash)
                             self.lnworker.unregister_hold_invoice(swap.payment_hash)
 
             if not swap.is_reverse:
