@@ -2107,6 +2107,27 @@ class TestWalletSending(ElectrumTestCase):
         tx = make_tx(to_self_address)
         self.assertEqual(1, len(tx.outputs()))
 
+    async def test_ln_reserve__usechange_off(self):
+        """Send all the coins using 'max', with wallet.use_change being off.
+        This will create a reserve UTXO, reusing an input address.
+        """
+        wallet, outgoing_address, to_self_address = self._create_cause_carbon_wallet()
+        wallet.use_change = False
+        def make_tx():
+            outputs = [PartialTxOutput.from_address_and_value(outgoing_address, '!')]
+            wallet.lnworker = mock.Mock()
+            wallet.lnworker.has_anchor_channels.return_value = True
+            return wallet.make_unsigned_transaction(
+                outputs = outputs,
+                fee_policy = FixedFeePolicy(100),
+            )
+        tx = make_tx()
+        self.assertEqual(1, len(tx.inputs()))
+        self.assertEqual(2, len(tx.outputs()))
+        outputs = {txout.address: txout.value for txout in tx.outputs()}
+        assert outgoing_address in outputs
+        assert outputs[tx.inputs()[0].address] == self.config.LN_UTXO_RESERVE  # address-reuse
+
     async def test_ln_reserve_keep_existing_reserve(self):
         """
         tests if make_unsigned_transaction keeps the existing reserve utxo
