@@ -163,16 +163,9 @@ class StoredDict(dict):
             for k, vv in v.items():
                 v.__setitem__(k, vv, patch=False)
         # recursively convert dict to StoredDict.
-        # _convert_dict is called breadth-first
         elif isinstance(v, dict):
-            if self.db:
-                v = self.db._convert_dict(self.path, key, v)
             if not self.db or self.db._should_convert_to_stored_dict(key):
                 v = StoredDict(v, self.db, self.path + [key])
-        # convert_value is called depth-first
-        if isinstance(v, dict) or isinstance(v, str) or isinstance(v, int):
-            if self.db:
-                v = self.db._convert_value(self.path, key, v)
         # set parent of StoredObject
         if isinstance(v, StoredObject):
             v.set_db(self.db, self.path + [key])
@@ -263,7 +256,9 @@ class JsonDB(Logger):
         if upgrader:
             data, was_upgraded = upgrader(data)
             self._modified |= was_upgraded
-        # convert to StoredDict
+        # convert json to python objects
+        data = self._convert_dict([], data)
+        # convert dict to StoredDict
         self.data = StoredDict(data, self, [])
         # write file in case there was a db upgrade
         if self.storage and self.storage.file_exists():
@@ -391,7 +386,22 @@ class JsonDB(Logger):
     def _should_convert_to_stored_dict(self, key) -> bool:
         return True
 
-    def _convert_dict(self, path, key, v):
+    def _convert_dict_key(self, path):
+        key = path[-1]
+        parent_key = path[-2] if len(path) > 1 else None
+        gp_key = path[-3] if len(path) > 2 else None
+        if parent_key and parent_key in registered_dict_keys:
+            convert_key = registered_dict_keys[parent_key]
+        elif gp_key and gp_key in registered_parent_keys:
+            convert_key = registered_parent_keys.get(gp_key)
+        else:
+            convert_key = None
+        if convert_key:
+            key = convert_key(key)
+        return key
+
+    def _convert_dict_value(self, path, v):
+        key = path[-1]
         if key in registered_dicts:
             constructor, _type = registered_dicts[key]
             if _type == dict:
@@ -400,24 +410,25 @@ class JsonDB(Logger):
                 v = dict((k, constructor(*x)) for k, x in v.items())
             else:
                 v = dict((k, constructor(x)) for k, x in v.items())
-        if key in registered_dict_keys:
-            convert_key = registered_dict_keys[key]
-        elif path and path[-1] in registered_parent_keys:
-            convert_key = registered_parent_keys.get(path[-1])
-        else:
-            convert_key = None
-        if convert_key:
-            v = dict((convert_key(k), x) for k, x in v.items())
-        return v
-
-    def _convert_value(self, path, key, v):
-        if key in registered_names:
+        elif key in registered_names:
             constructor, _type = registered_names[key]
             if _type == dict:
                 v = constructor(**v)
             else:
                 v = constructor(v)
+        if isinstance(v, dict):
+            v = self._convert_dict(path, v)
         return v
+
+    def _convert_dict(self, path, data: dict):
+        # recursively convert dict to StoredDict
+        d = {}
+        for k, v in list(data.items()):
+            child_path = path + [k]
+            k = self._convert_dict_key(child_path)
+            v = self._convert_dict_value(child_path, v)
+            d[k] = v
+        return d
 
     @locked
     def write(self):
