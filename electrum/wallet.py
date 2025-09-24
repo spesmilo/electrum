@@ -637,12 +637,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         util.trigger_callback('removed_transaction', self, tx)
 
     @event_listener
-    def on_event_adb_added_verified_tx(self, adb, tx_hash):
+    def on_event_adb_added_verified_tx(self, adb, tx_hash, info: TxMinedInfo):
         if adb != self.adb:
             return
         self._update_invoices_and_reqs_touched_by_tx(tx_hash)
-        tx_mined_status = self.adb.get_tx_height(tx_hash)
-        util.trigger_callback('verified', self, tx_hash, tx_mined_status)
+        util.trigger_callback('verified', self, tx_hash, info)
 
     @event_listener
     def on_event_adb_removed_verified_tx(self, adb, tx_hash):
