@@ -1264,7 +1264,7 @@ class LNWallet(LNWorker):
         elif chan.get_state() == ChannelState.FORCE_CLOSING:
             force_close_tx = chan.force_close_tx()
             txid = force_close_tx.txid()
-            height = self.lnwatcher.adb.get_tx_height(txid).height
+            height = self.lnwatcher.adb.get_tx_height(txid).height()
             if height == TX_HEIGHT_LOCAL:
                 self.logger.info('REBROADCASTING CLOSING TX')
                 await self.network.try_broadcasting(force_close_tx, 'force-close')

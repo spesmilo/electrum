@@ -1440,7 +1440,7 @@ class SwapManager(Logger):
             delta = current_height - swap.locktime
             if self.wallet.adb.is_mine(swap.lockup_address):
                 tx_height = self.wallet.adb.get_tx_height(swap.funding_txid)
-                if swap.is_reverse and tx_height.height <= 0:
+                if swap.is_reverse and tx_height.height() <= 0:
                     label += ' (%s)' % _('waiting for funding tx confirmation')
                 if not swap.is_reverse and not swap.is_redeemed and swap.spending_txid is None and delta < 0:
                     label += f' (refundable in {-delta} blocks)' # fixme: only if unspent
@@ -1481,8 +1481,8 @@ class SwapManager(Logger):
                 # and adb will return TX_HEIGHT_LOCAL
                 continue
             # note: adb.get_tx_height returns TX_HEIGHT_LOCAL if the txid is unknown
-            funding_height = self.lnworker.wallet.adb.get_tx_height(swap.funding_txid).height
-            spending_height = self.lnworker.wallet.adb.get_tx_height(swap.spending_txid).height
+            funding_height = self.lnworker.wallet.adb.get_tx_height(swap.funding_txid).height()
+            spending_height = self.lnworker.wallet.adb.get_tx_height(swap.spending_txid).height()
             if funding_height > TX_HEIGHT_LOCAL and spending_height <= TX_HEIGHT_LOCAL:
                 pending_swaps.append(swap)
         return pending_swaps

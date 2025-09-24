@@ -196,7 +196,7 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
     def _tx_mined_info_from_tx_item(tx_item: Dict[str, Any]) -> TxMinedInfo:
         # FIXME a bit hackish to have to reconstruct the TxMinedInfo... same thing in qt-gui
         tx_mined_info = TxMinedInfo(
-            height=tx_item['height'],
+            _height=tx_item['height'],
             conf=tx_item['confirmations'],
             timestamp=tx_item['timestamp'],
             wanted_height=tx_item.get('wanted_height', None),
@@ -229,10 +229,10 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
 
         self._dirty = False
 
-    def on_tx_verified(self, txid, info):
+    def on_tx_verified(self, txid: str, info: TxMinedInfo):
         for i, tx in enumerate(self.tx_history):
             if 'txid' in tx and tx['txid'] == txid:
-                tx['height'] = info.height
+                tx['height'] = info.height()
                 tx['confirmations'] = info.conf
                 tx['timestamp'] = info.timestamp
                 tx['section'] = self.get_section_by_timestamp(info.timestamp)
@@ -255,7 +255,7 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
         status, status_str = self.wallet.get_tx_status(txid, txinfo.tx_mined_status)
         tx_item['date'] = status_str
         # note: if the height changes, that might affect the history order, but we won't re-sort now.
-        tx_item['height'] = self.wallet.adb.get_tx_height(txid).height
+        tx_item['height'] = self.wallet.adb.get_tx_height(txid).height()
         index = self.index(tx_item_idx, 0)
         roles = [self._ROLE_RMAP[x] for x in ['height', 'date']]
         self.dataChanged.emit(index, index, roles)

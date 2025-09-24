@@ -1634,7 +1634,7 @@ class Commands(Logger):
 
         arg:txid:txid:Transaction ID
         """
-        height = wallet.adb.get_tx_height(txid).height
+        height = wallet.adb.get_tx_height(txid).height()
         if height != TX_HEIGHT_LOCAL:
             raise UserFacingException(
                 f'Only local transactions can be removed. '

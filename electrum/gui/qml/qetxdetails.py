@@ -352,14 +352,14 @@ class QETxDetails(QObject, QtEventListener):
 
         self._lock_delay = 0
         self._in_mempool = False
-        self._is_mined = False if not txinfo.tx_mined_status else txinfo.tx_mined_status.height > 0
+        self._is_mined = False if not txinfo.tx_mined_status else txinfo.tx_mined_status.height() > 0
         if self._is_mined:
             self.update_mined_status(txinfo.tx_mined_status)
         else:
-            if txinfo.tx_mined_status.height in [TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT]:
+            if txinfo.tx_mined_status.height() in [TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT]:
                 self._mempool_depth = FeePolicy.depth_tooltip(txinfo.mempool_depth_bytes)
                 self._in_mempool = True
-            elif txinfo.tx_mined_status.height == TX_HEIGHT_FUTURE:
+            elif txinfo.tx_mined_status.height() == TX_HEIGHT_FUTURE:
                 self._lock_delay = txinfo.tx_mined_status.wanted_height - self._wallet.wallet.adb.get_local_height()
             if isinstance(self._tx, PartialTransaction):
                 self._sighash_danger = self._wallet.wallet.check_sighash(self._tx)

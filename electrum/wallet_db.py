@@ -1508,7 +1508,7 @@ class WalletDB(JsonDB):
         if txid not in self.verified_tx:
             return None
         height, timestamp, txpos, header_hash = self.verified_tx[txid]
-        return TxMinedInfo(height=height,
+        return TxMinedInfo(_height=height,
                            conf=None,
                            timestamp=timestamp,
                            txpos=txpos,
@@ -1518,7 +1518,9 @@ class WalletDB(JsonDB):
     def add_verified_tx(self, txid: str, info: TxMinedInfo):
         assert isinstance(txid, str)
         assert isinstance(info, TxMinedInfo)
-        self.verified_tx[txid] = (info.height, info.timestamp, info.txpos, info.header_hash)
+        height = info._height  # number of conf is dynamic and might not be set here
+        assert height > 0, height
+        self.verified_tx[txid] = (height, info.timestamp, info.txpos, info.header_hash)
 
     @modifier
     def remove_verified_tx(self, txid: str):

@@ -218,7 +218,7 @@ class WatchTower(Logger, EventListener):
         return keep_watching
 
     async def broadcast_or_log(self, funding_outpoint: str, tx: Transaction):
-        height = self.adb.get_tx_height(tx.txid()).height
+        height = self.adb.get_tx_height(tx.txid()).height()
         if height != TX_HEIGHT_LOCAL:
             return
         try:

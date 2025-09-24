@@ -336,9 +336,9 @@ class AbstractChannel(Logger, ABC):
                              closing_txid: str, closing_height: TxMinedInfo, keep_watching: bool) -> None:
         # note: state transitions are irreversible, but
         # save_funding_height, save_closing_height are reversible
-        if funding_height.height == TX_HEIGHT_LOCAL:
+        if funding_height.height() == TX_HEIGHT_LOCAL:
             self.update_unfunded_state()
-        elif closing_height.height == TX_HEIGHT_LOCAL:
+        elif closing_height.height() == TX_HEIGHT_LOCAL:
             self.update_funded_state(
                 funding_txid=funding_txid,
                 funding_height=funding_height)
@@ -401,11 +401,11 @@ class AbstractChannel(Logger, ABC):
                 self.lnworker.remove_channel(self.channel_id)
 
     def update_funded_state(self, *, funding_txid: str, funding_height: TxMinedInfo) -> None:
-        self.save_funding_height(txid=funding_txid, height=funding_height.height, timestamp=funding_height.timestamp)
+        self.save_funding_height(txid=funding_txid, height=funding_height.height(), timestamp=funding_height.timestamp)
         self.delete_closing_height()
         if funding_height.conf>0:
             self.set_short_channel_id(ShortChannelID.from_components(
-                funding_height.height, funding_height.txpos, self.funding_outpoint.output_index))
+                funding_height.height(), funding_height.txpos, self.funding_outpoint.output_index))
         if self.get_state() == ChannelState.OPENING:
             if self.is_funding_tx_mined(funding_height):
                 self.set_state(ChannelState.FUNDED)
@@ -423,11 +423,11 @@ class AbstractChannel(Logger, ABC):
 
     def update_closed_state(self, *, funding_txid: str, funding_height: TxMinedInfo,
                             closing_txid: str, closing_height: TxMinedInfo, keep_watching: bool) -> None:
-        self.save_funding_height(txid=funding_txid, height=funding_height.height, timestamp=funding_height.timestamp)
-        self.save_closing_height(txid=closing_txid, height=closing_height.height, timestamp=closing_height.timestamp)
+        self.save_funding_height(txid=funding_txid, height=funding_height.height(), timestamp=funding_height.timestamp)
+        self.save_closing_height(txid=closing_txid, height=closing_height.height(), timestamp=closing_height.timestamp)
         if funding_height.conf>0:
             self.set_short_channel_id(ShortChannelID.from_components(
-                funding_height.height, funding_height.txpos, self.funding_outpoint.output_index))
+                funding_height.height(), funding_height.txpos, self.funding_outpoint.output_index))
         if self.get_state() < ChannelState.CLOSED:
             conf = closing_height.conf
             if conf > 0:

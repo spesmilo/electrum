@@ -2945,7 +2945,7 @@ class TestWalletSending(ElectrumTestCase):
         assert payment_txid
         # save payment_tx as LOCAL and UNSIGNED
         wallet.adb.add_transaction(payment_tx)
-        self.assertEqual(TX_HEIGHT_LOCAL, wallet.adb.get_tx_height(payment_txid).height)
+        self.assertEqual(TX_HEIGHT_LOCAL, wallet.adb.get_tx_height(payment_txid).height())
         self.assertEqual(1, len(wallet.get_spendable_coins(nonlocal_only=True)))
         self.assertEqual(2, len(wallet.get_spendable_coins(nonlocal_only=False)))
         # transition payment_tx to mempool (but it is still unsigned!)
@@ -2958,13 +2958,13 @@ class TestWalletSending(ElectrumTestCase):
         #   but the wallet db does not yet have the corresponding full tx.
         #   In such cases, we instead want the txid to be considered LOCAL.
         wallet.adb.receive_tx_callback(payment_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
-        self.assertEqual(TX_HEIGHT_LOCAL, wallet.adb.get_tx_height(payment_txid).height)
+        self.assertEqual(TX_HEIGHT_LOCAL, wallet.adb.get_tx_height(payment_txid).height())
         self.assertEqual(1, len(wallet.get_spendable_coins(nonlocal_only=True)))
         self.assertEqual(2, len(wallet.get_spendable_coins(nonlocal_only=False)))
         # wallet gets signed tx (e.g. from network).  payment_tx is now considered to be in mempool
         wallet.sign_transaction(payment_tx, password=None)
         wallet.adb.receive_tx_callback(payment_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
-        self.assertEqual(TX_HEIGHT_UNCONFIRMED, wallet.adb.get_tx_height(payment_txid).height)
+        self.assertEqual(TX_HEIGHT_UNCONFIRMED, wallet.adb.get_tx_height(payment_txid).height())
         self.assertEqual(2, len(wallet.get_spendable_coins(nonlocal_only=True)))
         self.assertEqual(2, len(wallet.get_spendable_coins(nonlocal_only=False)))
 
@@ -2983,10 +2983,10 @@ class TestWalletSending(ElectrumTestCase):
         assert payment_txid
         # save payment_tx as LOCAL and UNSIGNED
         wallet.adb.add_transaction(payment_tx)
-        self.assertEqual(TX_HEIGHT_LOCAL, wallet.adb.get_tx_height(payment_txid).height)
+        self.assertEqual(TX_HEIGHT_LOCAL, wallet.adb.get_tx_height(payment_txid).height())
         # mark payment_tx as future
         wallet.adb.set_future_tx(payment_txid, wanted_height=300)
-        self.assertEqual(TX_HEIGHT_FUTURE, wallet.adb.get_tx_height(payment_txid).height)
+        self.assertEqual(TX_HEIGHT_FUTURE, wallet.adb.get_tx_height(payment_txid).height())
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_imported_wallet_usechange_off(self, mock_save_db):
@@ -4479,7 +4479,7 @@ class TestWalletHistory_HelperFns(ElectrumTestCase):
         wallet1.adb.add_transaction(tx)
         # let's see if the calculated feerate correct:
         self.assertEqual((3, 'Local [26.3 sat/vB]'),
-                         wallet1.get_tx_status(tx.txid(), TxMinedInfo(height=TX_HEIGHT_LOCAL, conf=0)))
+                         wallet1.get_tx_status(tx.txid(), TxMinedInfo(_height=TX_HEIGHT_LOCAL, conf=0)))
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_get_tx_status_feerate_for_local_2of3_multisig_signed_tx(self, mock_save_db):
@@ -4502,7 +4502,7 @@ class TestWalletHistory_HelperFns(ElectrumTestCase):
         wallet1.adb.add_transaction(tx)
         # let's see if the calculated feerate correct:
         self.assertEqual((3, 'Local [26.3 sat/vB]'),
-                         wallet1.get_tx_status(tx.txid(), TxMinedInfo(height=TX_HEIGHT_LOCAL, conf=0)))
+                         wallet1.get_tx_status(tx.txid(), TxMinedInfo(_height=TX_HEIGHT_LOCAL, conf=0)))
 
 
 class TestImportedWallet(ElectrumTestCase):

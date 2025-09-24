@@ -439,7 +439,7 @@ class HistoryModel(CustomModel, Logger):
     def _tx_mined_info_from_tx_item(tx_item: Dict[str, Any]) -> TxMinedInfo:
         # FIXME a bit hackish to have to reconstruct the TxMinedInfo... same thing in qml-gui
         tx_mined_info = TxMinedInfo(
-            height=tx_item['height'],
+            _height=tx_item['height'],
             conf=tx_item['confirmations'],
             timestamp=tx_item['timestamp'],
             wanted_height=tx_item.get('wanted_height', None),
@@ -764,7 +764,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             return
         tx_URL = block_explorer_URL(self.config, 'tx', tx_hash)
         tx_details = self.wallet.get_tx_info(tx)
-        is_unconfirmed = tx_details.tx_mined_status.height <= 0
+        is_unconfirmed = tx_details.tx_mined_status.height() <= 0
         menu = QMenu()
         menu.addAction(_("Details"), lambda: self.main_window.show_transaction(tx))
         if tx_details.can_remove:
