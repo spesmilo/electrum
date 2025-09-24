@@ -1850,6 +1850,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def get_change_addresses_for_new_transaction(
             self, preferred_change_addr=None, *, allow_reusing_used_change_addrs: bool = True,
     ) -> List[str]:
+        """note: might return an empty list! (e.g. if use_change is disabled, or allow_reuse is False)"""
         change_addrs = []
         if preferred_change_addr:
             if isinstance(preferred_change_addr, (list, tuple)):
@@ -2111,7 +2112,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     to_distribute -= reserve_sized_input.value_sats()
                 else:
                     self.logger.info(f'Adding change output to meet utxo reserve requirements')
-                    change_addr = self.get_change_addresses_for_new_transaction(change_addr)[0]
+                    change_addrs = self.get_change_addresses_for_new_transaction(change_addr)
+                    change_addr = change_addrs[0] if change_addrs else tx_inputs[0].address
                     change = PartialTxOutput.from_address_and_value(change_addr, self.config.LN_UTXO_RESERVE)
                     change.is_utxo_reserve = True  # for GUI
                     outputs.append(change)
