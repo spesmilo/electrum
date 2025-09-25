@@ -784,7 +784,7 @@ class Channel(AbstractChannel):
         self.data_loss_protect_remote_pcp = state['data_loss_protect_remote_pcp']
         self.hm = HTLCManager(log=state['log'], initial_feerate=initial_feerate)
         self.unfulfilled_htlcs = state["unfulfilled_htlcs"]  # type: Dict[int, Optional[str]]
-        # ^ htlc_id -> onion_packet_hex, forwarding_key
+        # ^ htlc_id -> onion_packet_hex
         self._state = ChannelState[state['state']]
         self.peer_state = PeerState.DISCONNECTED
         self._outgoing_channel_update = None  # type: Optional[bytes]

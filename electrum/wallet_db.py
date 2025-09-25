@@ -1158,19 +1158,13 @@ class WalletDBUpgrader(Logger):
     def _convert_version_61(self):
         if not self._is_upgrade_method_needed(60, 60):
             return
-        # conversion of PaymentInformation
+        # adding additional fields to PaymentInfo
         lightning_payments = self.data.get('lightning_payments', {})
+        expiry_never = 100 * 365 * 24 * 60 * 60
+        migration_time = int(time.time())
         for rhash, (amount_msat, direction, is_paid) in list(lightning_payments.items()):
-            new_dataclass_type = {
-                'rhash': rhash,
-                'amount_msat': amount_msat,
-                'direction': direction,
-                'status': is_paid,
-                'min_final_cltv_delta': 147,
-                'expiry_delay': 100 * 365 * 24 * 60 * 60,  # LN_EXPIRY_NEVER
-                'creation_ts': int(time.time()),
-            }
-            lightning_payments[rhash] = new_dataclass_type
+            new = (amount_msat, direction, is_paid, 147, expiry_never, migration_time)
+            lightning_payments[rhash] = new
         self.data['seed_version'] = 61
 
     def _convert_version_62(self):

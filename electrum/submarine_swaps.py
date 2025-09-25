@@ -36,8 +36,7 @@ from .util import (
     run_sync_function_on_asyncio_thread, trigger_callback, NoDynamicFeeEstimates, UserFacingException,
 )
 from . import lnutil
-from .lnutil import (hex_to_bytes, REDEEM_AFTER_DOUBLE_SPENT_DELAY, Keypair,
-                     MIN_FINAL_CLTV_DELTA_FOR_INVOICE)
+from .lnutil import hex_to_bytes, REDEEM_AFTER_DOUBLE_SPENT_DELAY, Keypair
 from .lnaddr import lndecode
 from .json_db import StoredObject, stored_in
 from . import constants
@@ -67,7 +66,6 @@ MAX_LOCKTIME_DELTA = 100
 MIN_FINAL_CLTV_DELTA_FOR_CLIENT = 3 * 144  # note: put in invoice, but is not enforced by receiver in lnpeer.py
 assert MIN_LOCKTIME_DELTA <= LOCKTIME_DELTA_REFUND <= MAX_LOCKTIME_DELTA
 assert MAX_LOCKTIME_DELTA < lnutil.MIN_FINAL_CLTV_DELTA_ACCEPTED
-assert MAX_LOCKTIME_DELTA < lnutil.MIN_FINAL_CLTV_DELTA_FOR_INVOICE
 assert MAX_LOCKTIME_DELTA < MIN_FINAL_CLTV_DELTA_FOR_CLIENT
 
 
@@ -650,7 +648,7 @@ class SwapManager(Logger):
         self.lnworker.add_payment_info_for_hold_invoice(
             payment_hash,
             lightning_amount_sat=invoice_amount_sat,
-            min_final_cltv_delta=min_final_cltv_expiry_delta or MIN_FINAL_CLTV_DELTA_FOR_INVOICE,
+            min_final_cltv_delta=min_final_cltv_expiry_delta or lnutil.MIN_FINAL_CLTV_DELTA_ACCEPTED,
             exp_delay=300,
         )
         info = self.lnworker.get_payment_info(payment_hash)
@@ -669,7 +667,7 @@ class SwapManager(Logger):
         if prepay:
             prepay_hash = self.lnworker.create_payment_info(
                 amount_msat=prepay_amount_sat*1000,
-                min_final_cltv_delta=min_final_cltv_expiry_delta or MIN_FINAL_CLTV_DELTA_FOR_INVOICE,
+                min_final_cltv_delta=min_final_cltv_expiry_delta or lnutil.MIN_FINAL_CLTV_DELTA_ACCEPTED,
                 exp_delay=300,
             )
             info = self.lnworker.get_payment_info(prepay_hash)

@@ -1938,7 +1938,7 @@ class Peer(Logger, EventListener):
         session_key: Optional[bytes] = None,
     ) -> UpdateAddHtlc:
         assert chan.can_send_update_add_htlc(), f"cannot send updates: {chan.short_channel_id}"
-        htlc = UpdateAddHtlc(amount_msat=amount_msat, rhash=payment_hash.hex(), cltv_abs=cltv_abs, timestamp=int(time.time()))
+        htlc = UpdateAddHtlc(amount_msat=amount_msat, payment_hash=payment_hash, cltv_abs=cltv_abs, timestamp=int(time.time()))
         htlc = chan.add_htlc(htlc)
         if session_key:
             chan.set_onion_key(htlc.htlc_id, session_key) # should it be the outer onion secret?
@@ -2062,7 +2062,7 @@ class Peer(Logger, EventListener):
         onion_packet = payload["onion_routing_packet"]
         htlc = UpdateAddHtlc(
             amount_msat=amount_msat_htlc,
-            rhash=payment_hash.hex(),
+            payment_hash=payment_hash,
             cltv_abs=cltv_abs,
             timestamp=int(time.time()),
             htlc_id=htlc_id)
@@ -2137,7 +2137,6 @@ class Peer(Logger, EventListener):
         assert htlc_set.resolution == RecvMPPResolution.SETTLING
         # get payment hash of any htlc in the set (they are all the same)
         payment_hash = next(iter(htlc_set.htlcs)).htlc.payment_hash
-        assert self.lnworker.get_payment_status(payment_hash) == PR_UNPAID, "already paid?"
         for mpp_htlc in list(htlc_set.htlcs):
             htlc_id = mpp_htlc.htlc.htlc_id
             chan = self.lnworker.get_channel_by_short_id(mpp_htlc.scid)
@@ -2158,9 +2157,6 @@ class Peer(Logger, EventListener):
             htlc_set.htlcs.remove(mpp_htlc)
             # reset just-in-time opening fee of channel
             chan.opening_fee = None
-
-        if len(htlc_set.htlcs) == 0:
-            self.lnworker.set_request_status(payment_hash, PR_PAID)
 
     def _fail_htlc_set(
         self,
@@ -2937,7 +2933,7 @@ class Peer(Logger, EventListener):
             * Fail whole set -> returns error code
             * Settle whole set -> Returns preimage
             * call callback (e.g. forwarding, hold invoice)
-        May modifies the mpp set in lnworker.received_mpp_htlcs (e.g. by setting its state to ACCEPTED).
+        May modifies the mpp set in lnworker.received_mpp_htlcs (e.g. by setting its resolution to COMPLETE).
         """
         _log_fail_reason = self._log_htlc_set_fail_reason_cb(mpp_set)
 
@@ -3075,10 +3071,6 @@ class Peer(Logger, EventListener):
         if payment_info is None:
             _log_fail_reason(f"payment info has been deleted")
             return OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, None, None
-        invoice_msat = payment_info.amount_msat  # expected amount requested in the invoice
-        if not (invoice_msat is None or invoice_msat <= total_msat <= 2 * invoice_msat):
-            _log_fail_reason(f"{total_msat=} out of range: {invoice_msat=}")
-            return OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, None, None
 
         # check invoice expiry, fail set if the invoice has expired before it was completed
         if mpp_set.resolution == RecvMPPResolution.WAITING:
@@ -3113,8 +3105,13 @@ class Peer(Logger, EventListener):
             _log_fail_reason(f"cannot settle, no preimage found for {payment_hash.hex()=}")
             return OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, None, None
 
+        if not self.lnworker.is_payment_bundle_complete(payment_key):
+            # don't allow settling before the whole bundle is complete
+            return None, None, None
+
         # settle htlc set
         self.lnworker.set_mpp_resolution(payment_key, RecvMPPResolution.SETTLING)
+        self.lnworker.set_payment_status(payment_hash, PR_PAID)
         return None, preimage, None
 
     def _parse_onion_packet(self, onion_packet_hex: str) -> OnionPacket:

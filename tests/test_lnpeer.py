@@ -579,8 +579,15 @@ class TestPeer(ElectrumTestCase):
         else:
             payment_secret = None
         if min_final_cltv_delta is None:
-            min_final_cltv_delta = lnutil.MIN_FINAL_CLTV_DELTA_FOR_INVOICE
-        info = PaymentInfo(payment_hash.hex(), amount_msat, RECEIVED, PR_UNPAID, min_final_cltv_delta, expiry or LN_EXPIRY_NEVER)
+            min_final_cltv_delta = lnutil.MIN_FINAL_CLTV_DELTA_ACCEPTED
+        info = PaymentInfo(
+            payment_hash=payment_hash,
+            amount_msat=amount_msat,
+            direction=RECEIVED,
+            status=PR_UNPAID,
+            min_final_cltv_delta=min_final_cltv_delta,
+            expiry_delay=expiry or LN_EXPIRY_NEVER,
+        )
         w2.save_payment_info(info)
         lnaddr1 = LnAddr(
             paymenthash=payment_hash,
@@ -712,7 +719,7 @@ class TestPeerDirect(TestPeer):
 
     @staticmethod
     def _send_fake_htlc(peer: Peer, chan: Channel) -> UpdateAddHtlc:
-        htlc = UpdateAddHtlc(amount_msat=10000, rhash=os.urandom(32).hex(), cltv_abs=999, timestamp=1)
+        htlc = UpdateAddHtlc(amount_msat=10000, payment_hash=os.urandom(32), cltv_abs=999, timestamp=1)
         htlc = chan.add_htlc(htlc)
         peer.send_message(
             "update_add_htlc",
@@ -1050,13 +1057,10 @@ class TestPeerDirect(TestPeer):
                 assert result is True
                 # now pay the same invoice again, the payment should be rejected by w2
                 w1.set_payment_status(pay_req._lnaddr.paymenthash, PR_UNPAID)
-                try:
-                    result, log = await w1.pay_invoice(pay_req)
-                except PaymentFailure:
-                    # pay_invoice can also raise PaymentFailure, e.g. payment status is already PR_PAID
-                    raise Exception from PaymentFailure
+                result, log = await w1.pay_invoice(pay_req)
                 if not result:
-                    raise PaymentFailure()
+                    # w1.pay_invoice returned a payment failure as the payment got rejected by w2
+                    raise SuccessfulTest()
                 raise PaymentDone()
 
             if test_trampoline:
@@ -1075,7 +1079,7 @@ class TestPeerDirect(TestPeer):
                     await asyncio.sleep(0.01)
                     await group.spawn(try_pay_invoice_twice(_pay_req))
 
-            with self.assertRaises(PaymentFailure):
+            with self.assertRaises(SuccessfulTest):
                 await f()
 
         for _test_trampoline in [False, True]:

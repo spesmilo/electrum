@@ -259,7 +259,7 @@ class TestChannel(ElectrumTestCase):
         self.paymentPreimage = b"\x01" * 32
         paymentHash = bitcoin.sha256(self.paymentPreimage)
         self.htlc = UpdateAddHtlc(
-            rhash=paymentHash.hex(),
+            payment_hash=paymentHash,
             amount_msat=one_bitcoin_in_msat,
             cltv_abs=5,
             timestamp=0,
@@ -281,7 +281,7 @@ class TestChannel(ElectrumTestCase):
     def test_concurrent_reversed_payment(self):
         self.htlc = dataclasses.replace(
             self.htlc,
-            rhash=bitcoin.sha256(32 * b'\x02').hex(),
+            payment_hash=bitcoin.sha256(32 * b'\x02'),
             amount_msat=self.htlc.amount_msat + 1000,
         )
         self.bob_channel.add_htlc(self.htlc)
@@ -671,12 +671,12 @@ class TestChannel(ElectrumTestCase):
 
         self.htlc = dataclasses.replace(
             self.htlc,
-            rhash=bitcoin.sha256(32 * b'\x02').hex(),
+            payment_hash=bitcoin.sha256(32 * b'\x02'),
         )
         self.alice_channel.add_htlc(self.htlc)
         self.htlc = dataclasses.replace(
             self.htlc,
-            rhash=bitcoin.sha256(32 * b'\x03').hex(),
+            payment_hash=bitcoin.sha256(32 * b'\x03'),
         )
         self.alice_channel.add_htlc(self.htlc)
         # now there are three htlcs (one was in setUp)
@@ -687,7 +687,7 @@ class TestChannel(ElectrumTestCase):
         new = dataclasses.replace(
             self.htlc,
             amount_msat=int(self.htlc.amount_msat * 2.5),
-            rhash=bitcoin.sha256(32 * b'\x04').hex(),
+            payment_hash=bitcoin.sha256(32 * b'\x04'),
         )
         with self.assertRaises(lnutil.PaymentFailure) as cm:
             self.alice_channel.add_htlc(new)
@@ -707,7 +707,7 @@ class TestAvailableToSpend(ElectrumTestCase):
         paymentPreimage = b"\x01" * 32
         paymentHash = bitcoin.sha256(paymentPreimage)
         htlc = UpdateAddHtlc(
-            rhash=paymentHash.hex(),
+            payment_hash=paymentHash,
             amount_msat=one_bitcoin_in_msat * 41 // 10,
             cltv_abs=5,
             timestamp=0,
@@ -731,7 +731,7 @@ class TestAvailableToSpend(ElectrumTestCase):
         # We try adding an HTLC of value 1 BTC, which should fail because the
         # balance is unavailable.
         htlc = UpdateAddHtlc(
-            rhash=paymentHash.hex(),
+            payment_hash=paymentHash,
             amount_msat=one_bitcoin_in_msat,
             cltv_abs=5,
             timestamp=0,
@@ -763,7 +763,7 @@ class TestAvailableToSpend(ElectrumTestCase):
 
         paymentPreimage1 = b"\x01" * 32
         htlc = UpdateAddHtlc(
-            rhash=bitcoin.sha256(paymentPreimage1).hex(),
+            payment_hash=bitcoin.sha256(paymentPreimage1),
             amount_msat=1000000000,
             cltv_abs=5,
             timestamp=0,
@@ -781,7 +781,7 @@ class TestAvailableToSpend(ElectrumTestCase):
 
         paymentPreimage2 = b"\x02" * 32
         htlc2 = UpdateAddHtlc(
-            rhash=bitcoin.sha256(paymentPreimage2).hex(),
+            payment_hash=bitcoin.sha256(paymentPreimage2),
             amount_msat=1500000000,
             cltv_abs=5,
             timestamp=0,
@@ -838,7 +838,7 @@ class TestChanReserve(ElectrumTestCase):
         paymentPreimage = b"\x01" * 32
         paymentHash = bitcoin.sha256(paymentPreimage)
         htlc = UpdateAddHtlc(
-            rhash=paymentHash.hex(),
+            payment_hash=paymentHash,
             amount_msat=int(.5 * one_bitcoin_in_msat),
             cltv_abs=5,
             timestamp=0,
@@ -862,14 +862,14 @@ class TestChanReserve(ElectrumTestCase):
         #	Alice:	4.5
         #	Bob:	5.0
         with self.assertRaises(lnutil.PaymentFailure):
-            htlc = dataclasses.replace(htlc, rhash=bitcoin.sha256(32 * b'\x02').hex())
+            htlc = dataclasses.replace(htlc, payment_hash=bitcoin.sha256(32 * b'\x02'))
             self.bob_channel.add_htlc(htlc)
         with self.assertRaises(lnutil.RemoteMisbehaving):
             self.alice_channel.receive_htlc(htlc)
 
     def part2(self):
         paymentPreimage = b"\x01" * 32
-        paymentHash = bitcoin.sha256(paymentPreimage).hex()
+        paymentHash = bitcoin.sha256(paymentPreimage)
         # Now we'll add HTLC of 3.5 BTC to Alice's commitment, this should put
         # Alice's balance at 1.5 BTC.
         #
@@ -877,7 +877,7 @@ class TestChanReserve(ElectrumTestCase):
         #	Alice:	1.5
         #	Bob:	9.5
         htlc = UpdateAddHtlc(
-            rhash=paymentHash,
+            payment_hash=paymentHash,
             amount_msat=int(3.5 * one_bitcoin_in_msat),
             cltv_abs=5,
         )
@@ -899,9 +899,9 @@ class TestChanReserve(ElectrumTestCase):
         #	Alice:	3.0
         #	Bob:	7.0
         paymentPreimage = b"\x01" * 32
-        paymentHash = bitcoin.sha256(paymentPreimage).hex()
+        paymentHash = bitcoin.sha256(paymentPreimage)
         htlc = UpdateAddHtlc(
-            rhash=paymentHash,
+            payment_hash=paymentHash,
             amount_msat=int(2 * one_bitcoin_in_msat),
             cltv_abs=5,
             timestamp=0,
@@ -951,7 +951,7 @@ class TestDust(ElectrumTestCase):
         bob_ctx = bob_channel.get_latest_commitment(LOCAL)
         bobs_original_outputs = [x.value for x in bob_ctx.outputs()]
         paymentPreimage = b"\x01" * 32
-        paymentHash = bitcoin.sha256(paymentPreimage).hex()
+        paymentHash = bitcoin.sha256(paymentPreimage)
         fee_per_kw = alice_channel.get_next_feerate(LOCAL)
         success_weight = effective_htlc_tx_weight(success=True, has_anchors=self.TEST_ANCHOR_CHANNELS)
         # we put a single sat less into the htlc than bob can afford
@@ -959,7 +959,7 @@ class TestDust(ElectrumTestCase):
         below_dust_for_bob = dust_limit_bob - 1
         htlc_amt = below_dust_for_bob + success_weight * (fee_per_kw // 1000)
         htlc = UpdateAddHtlc(
-            rhash=paymentHash,
+            payment_hash=paymentHash,
             amount_msat=1000 * htlc_amt,
             cltv_abs=5,  # consistent with channel policy
             timestamp=0,
