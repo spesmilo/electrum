@@ -50,7 +50,7 @@ else
     info "not doing fresh clone."
 fi
 
-# build the type2-runtime binary, this build step uses a separate docker container 
+# build the type2-runtime binary, this build step uses a separate docker container
 # defined in the type2-runtime repo (patched with type2-runtime-reproducible-build.patch)
 TYPE2_RUNTIME_REPO_DIR="$PROJECT_ROOT_OR_FRESHCLONE_ROOT/contrib/build-linux/appimage/.cache/appimage/type2-runtime"
 (
@@ -74,7 +74,7 @@ TYPE2_RUNTIME_REPO_DIR="$PROJECT_ROOT_OR_FRESHCLONE_ROOT/contrib/build-linux/app
     rm -rf "$TYPE2_RUNTIME_REPO_DIR/out"
 
     info "runtime build successful: $(sha256sum "$TYPE2_RUNTIME_REPO_DIR/runtime-x86_64")"
-) || fail "Failed to build type2-runtime"
+)
 
 info "building binary..."
 # check uid and maybe chown. see #8261
