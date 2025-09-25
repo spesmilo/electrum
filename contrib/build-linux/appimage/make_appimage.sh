@@ -181,7 +181,7 @@ info "finalizing AppDir."
     mv usr/include usr/include.tmp
     delete_blacklisted
     mv usr/include.tmp usr/include
-) || fail "Could not finalize AppDir"
+)
 
 info "Copying additional libraries"
 (
