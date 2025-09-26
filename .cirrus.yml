@@ -55,7 +55,7 @@ task:
                -m pytest tests -v
     - coverage report
   coveralls_script:
-    - if [ ! -z "$COVERALLS_REPO_TOKEN" ] ; then coveralls ; fi
+    - if [ ! -z "$COVERALLS_REPO_TOKEN" ] && [ "$ELECTRUM_PYTHON_VERSION" = "3.10" ] ; then coveralls ; fi
   env:
     LD_LIBRARY_PATH: contrib/_saved_secp256k1_build/
     ELECTRUM_REQUIREMENTS_CI: contrib/requirements/requirements-ci.txt
