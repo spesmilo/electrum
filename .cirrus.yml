@@ -344,8 +344,10 @@ task:
       only_if: $CIRRUS_CRON == ""
     - trigger_type: automatic
       only_if: $CIRRUS_CRON == "nightly"
-  container:
-    dockerfile: contrib/build-linux/appimage/Dockerfile
+  compute_engine_instance:
+    image_project: cirrus-images
+    image: family/docker-builder
+    platform: linux
     cpu: 2
     memory: 2G
   pip_cache:
@@ -361,11 +363,9 @@ task:
       - cat contrib/make_libsecp256k1.sh | sha256sum
       - git ls-files -s contrib/build-linux/appimage/
   build_script:
-    - ./contrib/build-linux/appimage/make_appimage.sh
+    - ./contrib/build-linux/appimage/build.sh
   binaries_artifacts:
     path: "dist/*"
-  env:
-    CIRRUS_DOCKER_CONTEXT: contrib/build-linux/appimage
   depends_on:
     - "unittests: py3.10"
 
