@@ -75,6 +75,7 @@ class ElectrumTestCase(unittest.IsolatedAsyncioTestCase, Logger):
         util._asyncio_event_loop = loop
 
     def tearDown(self):
+        util.callback_mgr.clear_all_callbacks()
         shutil.rmtree(self.electrum_path)
         super().tearDown()
         util._asyncio_event_loop = None  # cleared here, at the ~last possible moment. asyncTearDown is too early.

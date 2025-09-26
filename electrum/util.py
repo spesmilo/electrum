@@ -1953,20 +1953,24 @@ class CallbackManager(Logger):
     def __init__(self):
         Logger.__init__(self)
         self.callback_lock = threading.Lock()
-        self.callbacks = defaultdict(list)      # note: needs self.callback_lock
+        self.callbacks = defaultdict(list)  # type: Dict[str, List[Callable]]  # note: needs self.callback_lock
 
-    def register_callback(self, func, events):
+    def register_callback(self, func: Callable, events: Sequence[str]) -> None:
         with self.callback_lock:
             for event in events:
                 self.callbacks[event].append(func)
 
-    def unregister_callback(self, callback):
+    def unregister_callback(self, callback: Callable) -> None:
         with self.callback_lock:
             for callbacks in self.callbacks.values():
                 if callback in callbacks:
                     callbacks.remove(callback)
 
-    def trigger_callback(self, event, *args):
+    def clear_all_callbacks(self) -> None:
+        with self.callback_lock:
+            self.callbacks.clear()
+
+    def trigger_callback(self, event: str, *args) -> None:
         """Trigger a callback with given arguments.
         Can be called from any thread. The callback itself will get scheduled
         on the event loop.

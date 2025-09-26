@@ -1117,12 +1117,8 @@ class TestPeerDirect(TestPeer):
         util.register_callback(on_htlc_fulfilled, ["htlc_fulfilled"])
         util.register_callback(on_htlc_failed, ["htlc_failed"])
 
-        try:
-            with self.assertRaises(SuccessfulTest):
-                await f()
-        finally:
-            util.unregister_callback(on_htlc_fulfilled)
-            util.unregister_callback(on_htlc_failed)
+        with self.assertRaises(SuccessfulTest):
+            await f()
 
     async def test_payment_recv_mpp_confusion2(self):
         """Regression test for https://github.com/spesmilo/electrum/security/advisories/GHSA-8r85-vp7r-hjxf"""
@@ -1191,12 +1187,8 @@ class TestPeerDirect(TestPeer):
         util.register_callback(on_htlc_fulfilled, ["htlc_fulfilled"])
         util.register_callback(on_htlc_failed, ["htlc_failed"])
 
-        try:
-            with self.assertRaises(SuccessfulTest):
-                await f()
-        finally:
-            util.unregister_callback(on_htlc_fulfilled)
-            util.unregister_callback(on_htlc_failed)
+        with self.assertRaises(SuccessfulTest):
+            await f()
 
     async def test_legacy_shutdown_low(self):
         await self._test_shutdown(alice_fee=100, bob_fee=150)
