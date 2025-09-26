@@ -66,7 +66,6 @@ MAX_LOCKTIME_DELTA = 100
 MIN_FINAL_CLTV_DELTA_FOR_CLIENT = 3 * 144  # note: put in invoice, but is not enforced by receiver in lnpeer.py
 assert MIN_LOCKTIME_DELTA <= LOCKTIME_DELTA_REFUND <= MAX_LOCKTIME_DELTA
 assert MAX_LOCKTIME_DELTA < lnutil.MIN_FINAL_CLTV_DELTA_ACCEPTED
-assert MAX_LOCKTIME_DELTA < lnutil.MIN_FINAL_CLTV_DELTA_FOR_INVOICE
 assert MAX_LOCKTIME_DELTA < MIN_FINAL_CLTV_DELTA_FOR_CLIENT
 
 
@@ -414,7 +413,7 @@ class SwapManager(Logger):
                     self._prepayments.pop(swap.prepay_hash, None)
                     if self.lnworker.get_payment_status(swap.prepay_hash) != PR_PAID:
                         self.lnworker.delete_payment_info(swap.prepay_hash.hex())
-                        self.lnworker.delete_payment_bundle(swap.payment_hash)
+                        self.lnworker.delete_payment_bundle(payment_hash=swap.payment_hash)
 
     @classmethod
     def extract_preimage(cls, swap: SwapData, claim_tx: Transaction) -> Optional[bytes]:
@@ -472,7 +471,7 @@ class SwapManager(Logger):
                         # cleanup
                         self.lnwatcher.remove_callback(swap.lockup_address)
                         if not swap.is_reverse:
-                            self.lnworker.delete_payment_bundle(swap.payment_hash)
+                            self.lnworker.delete_payment_bundle(payment_hash=swap.payment_hash)
                             self.lnworker.unregister_hold_invoice(swap.payment_hash)
 
             if not swap.is_reverse:
@@ -645,33 +644,38 @@ class SwapManager(Logger):
         else:
             invoice_amount_sat = lightning_amount_sat
 
+        # add payment info to lnworker
+        self.lnworker.add_payment_info_for_hold_invoice(
+            payment_hash,
+            lightning_amount_sat=invoice_amount_sat,
+            min_final_cltv_delta=min_final_cltv_expiry_delta or lnutil.MIN_FINAL_CLTV_DELTA_ACCEPTED,
+            exp_delay=300,
+        )
+        info = self.lnworker.get_payment_info(payment_hash)
         lnaddr1, invoice = self.lnworker.get_bolt11_invoice(
-            payment_hash=payment_hash,
-            amount_msat=invoice_amount_sat * 1000,
+            payment_info=info,
             message='Submarine swap',
-            expiry=300,
             fallback_address=None,
             channels=channels,
-            min_final_cltv_expiry_delta=min_final_cltv_expiry_delta,
         )
         margin_to_get_refund_tx_mined = MIN_LOCKTIME_DELTA
         if not (locktime + margin_to_get_refund_tx_mined < self.network.get_local_height() + lnaddr1.get_min_final_cltv_delta()):
             raise Exception(
                 f"onchain locktime ({locktime}+{margin_to_get_refund_tx_mined}) "
                 f"too close to LN-htlc-expiry ({self.network.get_local_height()+lnaddr1.get_min_final_cltv_delta()})")
-        # add payment info to lnworker
-        self.lnworker.add_payment_info_for_hold_invoice(payment_hash, invoice_amount_sat)
 
         if prepay:
-            prepay_hash = self.lnworker.create_payment_info(amount_msat=prepay_amount_sat*1000)
+            prepay_hash = self.lnworker.create_payment_info(
+                amount_msat=prepay_amount_sat*1000,
+                min_final_cltv_delta=min_final_cltv_expiry_delta or lnutil.MIN_FINAL_CLTV_DELTA_ACCEPTED,
+                exp_delay=300,
+            )
+            info = self.lnworker.get_payment_info(prepay_hash)
             lnaddr2, prepay_invoice = self.lnworker.get_bolt11_invoice(
-                payment_hash=prepay_hash,
-                amount_msat=prepay_amount_sat * 1000,
+                payment_info=info,
                 message='Submarine swap prepayment',
-                expiry=300,
                 fallback_address=None,
                 channels=channels,
-                min_final_cltv_expiry_delta=min_final_cltv_expiry_delta,
             )
             self.lnworker.bundle_payments([payment_hash, prepay_hash])
             self._prepayments[prepay_hash] = payment_hash

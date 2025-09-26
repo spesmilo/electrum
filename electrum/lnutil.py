@@ -12,9 +12,10 @@ from functools import lru_cache
 import electrum_ecc as ecc
 from electrum_ecc import CURVE_ORDER, ecdsa_sig64_from_der_sig
 from electrum_ecc.util import bip340_tagged_hash
+import dataclasses
 import attr
 
-from .util import bfh, UserFacingException, list_enabled_bits
+from .util import bfh, UserFacingException, list_enabled_bits, is_hex_str
 from .util import ShortID as ShortChannelID, format_short_id as format_short_channel_id
 
 from .crypto import sha256, pw_decode_with_version_and_mac
@@ -22,7 +23,8 @@ from .transaction import (
     Transaction, PartialTransaction, PartialTxInput, TxOutpoint, PartialTxOutput, opcodes, OPPushDataPubkey
 )
 from . import bitcoin, crypto, transaction, descriptor, segwit_addr
-from .bitcoin import redeem_script_to_address, address_to_script, construct_witness, construct_script
+from .bitcoin import redeem_script_to_address, address_to_script, construct_witness, \
+    construct_script, NLOCKTIME_BLOCKHEIGHT_MAX
 from .i18n import _
 from .bip32 import BIP32Node, BIP32_PRIME
 from .transaction import BCDataStream, OPPushDataGeneric
@@ -503,9 +505,10 @@ MIN_FUNDING_SAT = 200_000
 # the minimum cltv_expiry accepted for newly received HTLCs
 # note: when changing, consider Blockchain.is_tip_stale()
 MIN_FINAL_CLTV_DELTA_ACCEPTED = 144
-# set it a tiny bit higher for invoices as blocks could get mined
-# during forward path of payment
-MIN_FINAL_CLTV_DELTA_FOR_INVOICE = MIN_FINAL_CLTV_DELTA_ACCEPTED + 3
+
+# buffer added to min_final_cltv_delta of created bolt11 invoices to make verifying the cltv delta
+# of incoming payment htlcs reliable even if some blocks have been mined during forwarding
+MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE = 3
 
 # the deadline for offered HTLCs:
 # the deadline after which the channel has to be failed and timed out on-chain
@@ -1825,19 +1828,6 @@ def validate_features(features: int) -> LnFeatures:
     return features
 
 
-def derive_payment_secret_from_payment_preimage(payment_preimage: bytes) -> bytes:
-    """Returns secret to be put into invoice.
-    Derivation is deterministic, based on the preimage.
-    Crucially the payment_hash must be derived in an independent way from this.
-    """
-    # Note that this could be random data too, but then we would need to store it.
-    # We derive it identically to clightning, so that we cannot be distinguished:
-    # https://github.com/ElementsProject/lightning/blob/faac4b28adee5221e83787d64cd5d30b16b62097/lightningd/invoice.c#L115
-    modified = bytearray(payment_preimage)
-    modified[0] ^= 1
-    return sha256(bytes(modified))
-
-
 def get_compressed_pubkey_from_bech32(bech32_pubkey: str) -> bytes:
     decoded_bech32 = segwit_addr.bech32_decode(bech32_pubkey)
     hrp = decoded_bech32.hrp
@@ -1908,26 +1898,100 @@ NUM_MAX_HOPS_IN_PAYMENT_PATH = 20
 NUM_MAX_EDGES_IN_PAYMENT_PATH = NUM_MAX_HOPS_IN_PAYMENT_PATH
 
 
-@attr.s(frozen=True)
+@dataclasses.dataclass(frozen=True, kw_only=True)
 class UpdateAddHtlc:
-    amount_msat = attr.ib(type=int, kw_only=True)
-    payment_hash = attr.ib(type=bytes, kw_only=True, converter=hex_to_bytes, repr=lambda val: val.hex())
-    cltv_abs = attr.ib(type=int, kw_only=True)
-    timestamp = attr.ib(type=int, kw_only=True)
-    htlc_id = attr.ib(type=int, kw_only=True, default=None)
+    amount_msat: int
+    payment_hash: bytes
+    cltv_abs: int
+    htlc_id: Optional[int] = dataclasses.field(default=None)
+    timestamp: int = dataclasses.field(default_factory=lambda: int(time.time()))
 
     @staticmethod
     @stored_in('adds', tuple)
-    def from_tuple(amount_msat, payment_hash, cltv_abs, htlc_id, timestamp) -> 'UpdateAddHtlc':
+    def from_tuple(amount_msat, rhash, cltv_abs, htlc_id, timestamp) -> 'UpdateAddHtlc':
         return UpdateAddHtlc(
             amount_msat=amount_msat,
-            payment_hash=payment_hash,
+            payment_hash=bytes.fromhex(rhash),
             cltv_abs=cltv_abs,
             htlc_id=htlc_id,
             timestamp=timestamp)
 
     def to_json(self):
-        return self.amount_msat, self.payment_hash, self.cltv_abs, self.htlc_id, self.timestamp
+        self._validate()
+        return dataclasses.astuple(self)
+
+    def _validate(self):
+        assert isinstance(self.amount_msat, int), self.amount_msat
+        assert isinstance(self.payment_hash, bytes) and len(self.payment_hash) == 32
+        assert isinstance(self.cltv_abs, int) and self.cltv_abs <= NLOCKTIME_BLOCKHEIGHT_MAX, self.cltv_abs
+        assert isinstance(self.htlc_id, int) or self.htlc_id is None, self.htlc_id
+        assert isinstance(self.timestamp, int), self.timestamp
+
+    def __post_init__(self):
+        self._validate()
+
+
+# Note: these states are persisted in the wallet file.
+# Do not modify them without performing a wallet db upgrade
+class RecvMPPResolution(IntEnum):
+    WAITING = 0  # set is not complete yet, waiting for arrival of the remaining htlcs
+    EXPIRED = 1  # preimage must not be revealed
+    COMPLETE = 2  # set is complete but could still be failed (e.g. due to cltv timeout)
+    FAILED = 3  # preimage must not be revealed
+    SETTLING = 4  # don't fail this set and release the preimage as soon as it becomes available
+
+r = RecvMPPResolution
+allowed_mpp_set_transitions = (
+    (r.WAITING, r.EXPIRED),
+    (r.WAITING, r.FAILED),
+    (r.WAITING, r.COMPLETE),
+    (r.WAITING, r.SETTLING),  # normal htlc forwarding
+
+    (r.COMPLETE, r.SETTLING),
+    (r.COMPLETE, r.FAILED),
+    (r.COMPLETE, r.EXPIRED),  # this should only realistically happen for payment bundles
+
+    (r.SETTLING, r.FAILED),  # forwarding failure
+
+    (r.EXPIRED, r.FAILED),  # doesn't seem useful but also not dangerous
+)
+del r
+
+class ReceivedMPPHtlc(NamedTuple):
+    scid: ShortChannelID
+    htlc: UpdateAddHtlc
+    unprocessed_onion: str
+
+    def __repr__(self):
+        return f"{self.scid}, {self.htlc=}, {self.unprocessed_onion[:15]=}..."
+
+    @staticmethod
+    def from_tuple(scid, htlc, unprocessed_onion) -> 'ReceivedMPPHtlc':
+        assert is_hex_str(unprocessed_onion) and is_hex_str(scid)
+        return ReceivedMPPHtlc(
+            scid=ShortChannelID(bytes.fromhex(scid)),
+            htlc=UpdateAddHtlc.from_tuple(*htlc),
+            unprocessed_onion=unprocessed_onion,
+        )
+
+
+class ReceivedMPPStatus(NamedTuple):
+    resolution: RecvMPPResolution
+    htlcs: set[ReceivedMPPHtlc]
+
+    def get_first_htlc_timestamp(self):
+        assert self.htlcs, "htlc set is empty"
+        return min(mpp_htlc.htlc.timestamp for mpp_htlc in self.htlcs)
+
+    @staticmethod
+    @stored_in('received_mpp_htlcs', tuple)
+    def from_tuple(resolution, htlc_list) -> 'ReceivedMPPStatus':
+        assert isinstance(resolution, int)
+        htlc_set = set(ReceivedMPPHtlc.from_tuple(*htlc_data) for htlc_data in htlc_list)
+        return ReceivedMPPStatus(
+            resolution=RecvMPPResolution(resolution),
+            htlcs=htlc_set,
+        )
 
 
 class OnionFailureCodeMetaFlag(IntFlag):

@@ -17,6 +17,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
+import dataclasses
 import enum
 from collections import defaultdict
 from enum import IntEnum, Enum
@@ -782,8 +783,8 @@ class Channel(AbstractChannel):
         self.onion_keys = state['onion_keys']  # type: Dict[int, bytes]
         self.data_loss_protect_remote_pcp = state['data_loss_protect_remote_pcp']
         self.hm = HTLCManager(log=state['log'], initial_feerate=initial_feerate)
-        self.unfulfilled_htlcs = state["unfulfilled_htlcs"]  # type: Dict[int, Tuple[str, Optional[str]]]
-        # ^ htlc_id -> onion_packet_hex, forwarding_key
+        self.unfulfilled_htlcs = state["unfulfilled_htlcs"]  # type: Dict[int, Optional[str]]
+        # ^ htlc_id -> onion_packet_hex
         self._state = ChannelState[state['state']]
         self.peer_state = PeerState.DISCONNECTED
         self._outgoing_channel_update = None  # type: Optional[bytes]
@@ -1111,6 +1112,7 @@ class Channel(AbstractChannel):
             if amount_msat <= 0:
                 raise PaymentFailure("HTLC value must be positive")
             if amount_msat < chan_config.htlc_minimum_msat:
+                # todo: for incoming htlcs this could be handled more gracefully with `amount_below_minimum`
                 raise PaymentFailure(f'HTLC value too small: {amount_msat} msat')
 
         if self.htlc_slots_left(htlc_proposer) == 0:
@@ -1202,12 +1204,10 @@ class Channel(AbstractChannel):
         """Adds a new LOCAL HTLC to the channel.
         Action must be initiated by LOCAL.
         """
-        if isinstance(htlc, dict):  # legacy conversion  # FIXME remove
-            htlc = UpdateAddHtlc(**htlc)
         assert isinstance(htlc, UpdateAddHtlc)
         self._assert_can_add_htlc(htlc_proposer=LOCAL, amount_msat=htlc.amount_msat)
         if htlc.htlc_id is None:
-            htlc = attr.evolve(htlc, htlc_id=self.hm.get_next_htlc_id(LOCAL))
+            htlc = dataclasses.replace(htlc, htlc_id=self.hm.get_next_htlc_id(LOCAL))
         with self.db_lock:
             self.hm.send_htlc(htlc)
         self.logger.info("add_htlc")
@@ -1217,19 +1217,17 @@ class Channel(AbstractChannel):
         """Adds a new REMOTE HTLC to the channel.
         Action must be initiated by REMOTE.
         """
-        if isinstance(htlc, dict):  # legacy conversion  # FIXME remove
-            htlc = UpdateAddHtlc(**htlc)
         assert isinstance(htlc, UpdateAddHtlc)
         try:
             self._assert_can_add_htlc(htlc_proposer=REMOTE, amount_msat=htlc.amount_msat)
         except PaymentFailure as e:
             raise RemoteMisbehaving(e) from e
         if htlc.htlc_id is None:  # used in unit tests
-            htlc = attr.evolve(htlc, htlc_id=self.hm.get_next_htlc_id(REMOTE))
+            htlc = dataclasses.replace(htlc, htlc_id=self.hm.get_next_htlc_id(REMOTE))
         with self.db_lock:
             self.hm.recv_htlc(htlc)
             if onion_packet:
-                self.unfulfilled_htlcs[htlc.htlc_id] = onion_packet.hex(), None
+                self.unfulfilled_htlcs[htlc.htlc_id] = onion_packet.hex()
 
         self.logger.info("receive_htlc")
         return htlc

@@ -68,7 +68,7 @@ from .wallet import (
 )
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from .mnemonic import Mnemonic
-from .lnutil import (channel_id_from_funding_tx, LnFeatures, SENT, MIN_FINAL_CLTV_DELTA_FOR_INVOICE,
+from .lnutil import (channel_id_from_funding_tx, LnFeatures, SENT, MIN_FINAL_CLTV_DELTA_ACCEPTED,
                      PaymentFeeBudget, NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE)
 from .plugin import run_hook, DeviceMgr, Plugins
 from .version import ELECTRUM_VERSION
@@ -1382,7 +1382,7 @@ class Commands(Logger):
             amount: Optional[Decimal] = None,
             memo: str = "",
             expiry: int = 3600,
-            min_final_cltv_expiry_delta: int = MIN_FINAL_CLTV_DELTA_FOR_INVOICE * 2,
+            min_final_cltv_expiry_delta: int = MIN_FINAL_CLTV_DELTA_ACCEPTED * 2,
             wallet: Abstract_Wallet = None
     ) -> dict:
         """
@@ -1399,23 +1399,23 @@ class Commands(Logger):
         assert payment_hash not in wallet.lnworker.payment_info, "Payment hash already used!"
         assert payment_hash not in wallet.lnworker.dont_settle_htlcs, "Payment hash already used!"
         assert wallet.lnworker.get_preimage(bfh(payment_hash)) is None, "Already got a preimage for this payment hash!"
-        assert MIN_FINAL_CLTV_DELTA_FOR_INVOICE < min_final_cltv_expiry_delta < 576, "Use a sane min_final_cltv_expiry_delta value"
+        assert MIN_FINAL_CLTV_DELTA_ACCEPTED < min_final_cltv_expiry_delta < 576, "Use a sane min_final_cltv_expiry_delta value"
         amount = amount if amount and satoshis(amount) > 0 else None  # make amount either >0 or None
         inbound_capacity = wallet.lnworker.num_sats_can_receive()
         assert inbound_capacity > satoshis(amount or 0), \
             f"Not enough inbound capacity [{inbound_capacity} sat] to receive this payment"
 
-        lnaddr, invoice = wallet.lnworker.get_bolt11_invoice(
-            payment_hash=bfh(payment_hash),
-            amount_msat=satoshis(amount) * 1000 if amount else None,
-            message=memo,
-            expiry=expiry,
-            min_final_cltv_expiry_delta=min_final_cltv_expiry_delta,
-            fallback_address=None
-        )
         wallet.lnworker.add_payment_info_for_hold_invoice(
             bfh(payment_hash),
-            satoshis(amount) if amount else None,
+            lightning_amount_sat=satoshis(amount) if amount else None,
+            min_final_cltv_delta=min_final_cltv_expiry_delta,
+            exp_delay=expiry,
+        )
+        info = wallet.lnworker.get_payment_info(bfh(payment_hash))
+        lnaddr, invoice = wallet.lnworker.get_bolt11_invoice(
+            payment_info=info,
+            message=memo,
+            fallback_address=None
         )
         wallet.lnworker.dont_settle_htlcs[payment_hash] = None
         wallet.set_label(payment_hash, memo)
@@ -1438,7 +1438,7 @@ class Commands(Logger):
         assert payment_hash in wallet.lnworker.payment_info, \
             f"Couldn't find lightning invoice for {payment_hash=}"
         assert payment_hash in wallet.lnworker.dont_settle_htlcs, f"Invoice {payment_hash=} not a hold invoice?"
-        assert wallet.lnworker.is_accepted_mpp(bfh(payment_hash)), \
+        assert wallet.lnworker.is_complete_mpp(bfh(payment_hash)), \
             f"MPP incomplete, cannot settle hold invoice {payment_hash} yet"
         info: Optional['PaymentInfo'] = wallet.lnworker.get_payment_info(bfh(payment_hash))
         assert (wallet.lnworker.get_payment_mpp_amount_msat(bfh(payment_hash)) or 0) >= (info.amount_msat or 0)
@@ -1465,7 +1465,7 @@ class Commands(Logger):
         wallet.lnworker.set_payment_status(bfh(payment_hash), PR_UNPAID)
         wallet.lnworker.delete_payment_info(payment_hash)
         wallet.set_label(payment_hash, None)
-        while wallet.lnworker.is_accepted_mpp(bfh(payment_hash)):
+        while wallet.lnworker.is_complete_mpp(bfh(payment_hash)):
             # wait until the htlcs got failed so the payment won't get settled accidentally in a race
             await asyncio.sleep(0.1)
         del wallet.lnworker.dont_settle_htlcs[payment_hash]
@@ -1490,7 +1490,7 @@ class Commands(Logger):
         """
         assert len(payment_hash) == 64, f"Invalid payment_hash length: {len(payment_hash)} != 64"
         info: Optional['PaymentInfo'] = wallet.lnworker.get_payment_info(bfh(payment_hash))
-        is_accepted_mpp: bool = wallet.lnworker.is_accepted_mpp(bfh(payment_hash))
+        is_complete_mpp: bool = wallet.lnworker.is_complete_mpp(bfh(payment_hash))
         amount_sat = (wallet.lnworker.get_payment_mpp_amount_msat(bfh(payment_hash)) or 0) // 1000
         result = {
             "status": "unknown",
@@ -1498,15 +1498,15 @@ class Commands(Logger):
         }
         if info is None:
             pass
-        elif not is_accepted_mpp and not wallet.lnworker.get_preimage_hex(payment_hash):
-            # is_accepted_mpp is False for settled payments
+        elif not is_complete_mpp and not wallet.lnworker.get_preimage_hex(payment_hash):
+            # is_complete_mpp is False for settled payments
             result["status"] = "unpaid"
-        elif is_accepted_mpp and payment_hash in wallet.lnworker.dont_settle_htlcs:
+        elif is_complete_mpp and payment_hash in wallet.lnworker.dont_settle_htlcs:
             result["status"] = "paid"
             payment_key: str = wallet.lnworker._get_payment_key(bfh(payment_hash)).hex()
             htlc_status = wallet.lnworker.received_mpp_htlcs[payment_key]
             result["closest_htlc_expiry_height"] = min(
-                htlc.cltv_abs for _, htlc in htlc_status.htlc_set
+                mpp_htlc.htlc.cltv_abs for mpp_htlc in htlc_status.htlcs
             )
         elif wallet.lnworker.get_preimage_hex(payment_hash) is not None \
                 and payment_hash not in wallet.lnworker.dont_settle_htlcs:
