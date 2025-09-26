@@ -559,7 +559,12 @@ class TestPeer(ElectrumTestCase):
             payment_preimage = os.urandom(32)
         if payment_hash is None:
             payment_hash = sha256(payment_preimage)
-        info = PaymentInfo(payment_hash, amount_msat, RECEIVED, PR_UNPAID)
+        info = PaymentInfo(
+            payment_hash=payment_hash,
+            amount_msat=amount_msat,
+            direction=RECEIVED,
+            status=PR_UNPAID,
+        )
         if payment_preimage:
             w2.save_preimage(payment_hash, payment_preimage)
         w2.save_payment_info(info)
