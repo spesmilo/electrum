@@ -41,7 +41,7 @@ from electrum.lnworker import PaymentInfo, RECEIVED
 from electrum.lnonion import OnionFailureCode, OnionRoutingFailure
 from electrum.lnutil import UpdateAddHtlc
 from electrum.lnutil import LOCAL, REMOTE
-from electrum.invoices import PR_PAID, PR_UNPAID, Invoice
+from electrum.invoices import PR_PAID, PR_UNPAID, Invoice, LN_EXPIRY_NEVER
 from electrum.interface import GracefulDisconnect
 from electrum.simple_config import SimpleConfig
 from electrum.fee_policy import FeeTimeEstimates, FEE_ETA_TARGETS
@@ -563,15 +563,8 @@ class TestPeer(ElectrumTestCase):
             payment_preimage = os.urandom(32)
         if payment_hash is None:
             payment_hash = sha256(payment_preimage)
-        info = PaymentInfo(
-            payment_hash=payment_hash,
-            amount_msat=amount_msat,
-            direction=RECEIVED,
-            status=PR_UNPAID,
-        )
         if payment_preimage:
             w2.save_preimage(payment_hash, payment_preimage)
-        w2.save_payment_info(info)
         if include_routing_hints:
             routing_hints = w2.calc_routing_hints_for_invoice(amount_msat)
         else:
@@ -584,7 +577,16 @@ class TestPeer(ElectrumTestCase):
         else:
             payment_secret = None
         if min_final_cltv_delta is None:
-            min_final_cltv_delta = lnutil.MIN_FINAL_CLTV_DELTA_FOR_INVOICE
+            min_final_cltv_delta = lnutil.MIN_FINAL_CLTV_DELTA_ACCEPTED
+        info = PaymentInfo(
+            payment_hash=payment_hash,
+            amount_msat=amount_msat,
+            direction=RECEIVED,
+            status=PR_UNPAID,
+            min_final_cltv_delta=min_final_cltv_delta,
+            expiry_delay=LN_EXPIRY_NEVER,
+        )
+        w2.save_payment_info(info)
         lnaddr1 = LnAddr(
             paymenthash=payment_hash,
             amount=amount_btc,

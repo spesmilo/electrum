@@ -65,11 +65,11 @@ from .lnchannel import Channel, AbstractChannel, ChannelState, PeerState, HTLCWi
 from .lnrater import LNRater
 from .lnutil import (
     get_compressed_pubkey_from_bech32, serialize_htlc_key, deserialize_htlc_key, PaymentFailure, generate_keypair,
-    LnKeyFamily, LOCAL, REMOTE, MIN_FINAL_CLTV_DELTA_FOR_INVOICE, SENT, RECEIVED, HTLCOwner, UpdateAddHtlc, LnFeatures,
+    LnKeyFamily, LOCAL, REMOTE, MIN_FINAL_CLTV_DELTA_ACCEPTED, SENT, RECEIVED, HTLCOwner, UpdateAddHtlc, LnFeatures,
     ShortChannelID, HtlcLog, NoPathFound, InvalidGossipMsg, FeeBudgetExceeded, ImportedChannelBackupStorage,
     OnchainChannelBackupStorage, ln_compare_features, IncompatibleLightningFeatures, PaymentFeeBudget,
     NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, GossipForwardingMessage, MIN_FUNDING_SAT,
-    RecvMPPResolution, ReceivedMPPStatus,
+    MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE, ReceivedMPPStatus, RecvMPPResolution,
 )
 from .lnonion import (
     decode_onion_error, OnionFailureCode, OnionRoutingFailure, OnionPacket,
@@ -119,12 +119,22 @@ class PaymentInfo:
     amount_msat: Optional[int]
     direction: int
     status: int
+    min_final_cltv_delta: int
+    expiry_delay: int
+    creation_ts: int = dataclasses.field(default_factory=lambda: int(time.time()))
+
+    @property
+    def expiration_ts(self):
+        return self.creation_ts + self.expiry_delay
 
     def validate(self):
         assert isinstance(self.payment_hash, bytes) and len(self.payment_hash) == 32
         assert self.amount_msat is None or isinstance(self.amount_msat, int)
         assert isinstance(self.direction, int)
         assert isinstance(self.status, int)
+        assert isinstance(self.min_final_cltv_delta, int)
+        assert isinstance(self.expiry_delay, int) and self.expiry_delay > 0
+        assert isinstance(self.creation_ts, int)
 
     def __post_init__(self):
         self.validate()
@@ -864,7 +874,8 @@ class LNWallet(LNWorker):
         LNWorker.__init__(self, self.node_keypair, features, config=self.config)
         self.lnwatcher = LNWatcher(self)
         self.lnrater: LNRater = None
-        self.payment_info = self.db.get_dict('lightning_payments')  # RHASH -> amount, direction, is_paid
+        # lightning_payments: RHASH -> amount_msat, direction, status, min_final_cltv_delta, expiry_delay, creation_ts
+        self.payment_info = self.db.get_dict('lightning_payments')  # type: dict[str, Tuple[Optional[int], int, int, int, int, int]]
         self._preimages = self.db.get_dict('lightning_preimages')   # RHASH -> preimage
         self._bolt11_cache = {}
         # note: this sweep_address is only used as fallback; as it might result in address-reuse
@@ -1567,6 +1578,8 @@ class LNWallet(LNWorker):
             amount_msat=amount_to_pay,
             direction=SENT,
             status=PR_UNPAID,
+            min_final_cltv_delta=min_final_cltv_delta,
+            expiry_delay=LN_EXPIRY_NEVER,
         )
         self.save_payment_info(info)
         self.wallet.set_label(key, lnaddr.get_description())
@@ -2238,17 +2251,13 @@ class LNWallet(LNWorker):
 
     def get_bolt11_invoice(
             self, *,
-            payment_hash: bytes,
-            amount_msat: Optional[int],
+            payment_info: PaymentInfo,
             message: str,
-            expiry: int,  # expiration of invoice (in seconds, relative)
             fallback_address: Optional[str],
             channels: Optional[Sequence[Channel]] = None,
-            min_final_cltv_expiry_delta: Optional[int] = None,
     ) -> Tuple[LnAddr, str]:
-        assert isinstance(payment_hash, bytes), f"expected bytes, but got {type(payment_hash)}"
-
-        pair = self._bolt11_cache.get(payment_hash)
+        amount_msat = payment_info.amount_msat
+        pair = self._bolt11_cache.get(payment_info.payment_hash)
         if pair:
             lnaddr, invoice = pair
             assert lnaddr.get_amount_msat() == amount_msat
@@ -2265,19 +2274,16 @@ class LNWallet(LNWorker):
         if needs_jit:
             # jit only works with single htlcs, mpp will cause LSP to open channels for each htlc
             invoice_features &= ~ LnFeatures.BASIC_MPP_OPT & ~ LnFeatures.BASIC_MPP_REQ
-        payment_secret = self.get_payment_secret(payment_hash)
+        payment_secret = self.get_payment_secret(payment_info.payment_hash)
         amount_btc = amount_msat/Decimal(COIN*1000) if amount_msat else None
-        if expiry == 0:
-            expiry = LN_EXPIRY_NEVER
-        if min_final_cltv_expiry_delta is None:
-            min_final_cltv_expiry_delta = MIN_FINAL_CLTV_DELTA_FOR_INVOICE
+        min_final_cltv_delta = payment_info.min_final_cltv_delta + MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE
         lnaddr = LnAddr(
-            paymenthash=payment_hash,
+            paymenthash=payment_info.payment_hash,
             amount=amount_btc,
             tags=[
                 ('d', message),
-                ('c', min_final_cltv_expiry_delta),
-                ('x', expiry),
+                ('c', min_final_cltv_delta),
+                ('x', payment_info.expiry_delay),
                 ('9', invoice_features),
                 ('f', fallback_address),
             ] + routing_hints,
@@ -2285,7 +2291,7 @@ class LNWallet(LNWorker):
             payment_secret=payment_secret)
         invoice = lnencode(lnaddr, self.node_keypair.privkey)
         pair = lnaddr, invoice
-        self._bolt11_cache[payment_hash] = pair
+        self._bolt11_cache[payment_info.payment_hash] = pair
         return pair
 
     def get_payment_secret(self, payment_hash):
@@ -2299,14 +2305,23 @@ class LNWallet(LNWorker):
         payment_secret = self.get_payment_secret(payment_hash)
         return payment_hash + payment_secret
 
-    def create_payment_info(self, *, amount_msat: Optional[int], write_to_disk=True) -> bytes:
+    def create_payment_info(
+        self, *,
+        amount_msat: Optional[int],
+        min_final_cltv_delta: Optional[int] = None,
+        exp_delay: int = LN_EXPIRY_NEVER,
+        write_to_disk=True
+    ) -> bytes:
         payment_preimage = os.urandom(32)
         payment_hash = sha256(payment_preimage)
+        min_final_cltv_delta = min_final_cltv_delta or MIN_FINAL_CLTV_DELTA_ACCEPTED
         info = PaymentInfo(
             payment_hash=payment_hash,
             amount_msat=amount_msat,
             direction=RECEIVED,
             status=PR_UNPAID,
+            min_final_cltv_delta=min_final_cltv_delta,
+            expiry_delay=exp_delay
         )
         self.save_preimage(payment_hash, payment_preimage, write_to_disk=False)
         self.save_payment_info(info, write_to_disk=False)
@@ -2380,22 +2395,34 @@ class LNWallet(LNWorker):
         key = payment_hash.hex()
         with self.lock:
             if key in self.payment_info:
-                amount_msat, direction, status = self.payment_info[key]
+                stored_tuple = self.payment_info[key]
+                amount_msat, direction, status, min_final_cltv_delta, expiry_delay, creation_ts = stored_tuple
                 return PaymentInfo(
                     payment_hash=payment_hash,
                     amount_msat=amount_msat,
                     direction=direction,
                     status=status,
+                    min_final_cltv_delta=min_final_cltv_delta,
+                    expiry_delay=expiry_delay,
+                    creation_ts=creation_ts,
                 )
             return None
 
-    def add_payment_info_for_hold_invoice(self, payment_hash: bytes, lightning_amount_sat: Optional[int]):
+    def add_payment_info_for_hold_invoice(
+        self,
+        payment_hash: bytes, *,
+        lightning_amount_sat: Optional[int],
+        min_final_cltv_delta: int,
+        exp_delay: int,
+    ):
         amount = lightning_amount_sat * 1000 if lightning_amount_sat else None
         info = PaymentInfo(
             payment_hash=payment_hash,
             amount_msat=amount,
             direction=RECEIVED,
             status=PR_UNPAID,
+            min_final_cltv_delta=min_final_cltv_delta,
+            expiry_delay=exp_delay,
         )
         self.save_payment_info(info, write_to_disk=False)
 
@@ -2411,9 +2438,12 @@ class LNWallet(LNWorker):
             if old_info := self.get_payment_info(payment_hash=info.payment_hash):
                 if info == old_info:
                     return  # already saved
+                if info.direction == SENT:
+                    # allow saving of newer PaymentInfo if it is a sending attempt
+                    old_info = dataclasses.replace(old_info, creation_ts=info.creation_ts)
                 if info != dataclasses.replace(old_info, status=info.status):
                     # differs more than in status. let's fail
-                    raise Exception("payment_hash already in use")
+                    raise Exception(f"payment_hash already in use: {info=} != {old_info=}")
             key = info.payment_hash.hex()
             self.payment_info[key] = dataclasses.astuple(info)[1:]  # drop the payment hash at index 0
         if write_to_disk:
@@ -3031,12 +3061,14 @@ class LNWallet(LNWorker):
             raise Exception('Rebalance requires two different channels')
         if self.uses_trampoline() and chan1.node_id == chan2.node_id:
             raise Exception('Rebalance requires channels from different trampolines')
-        payment_hash = self.create_payment_info(amount_msat=amount_msat)
-        lnaddr, invoice = self.get_bolt11_invoice(
-            payment_hash=payment_hash,
+        payment_hash = self.create_payment_info(
             amount_msat=amount_msat,
+            exp_delay=3600,
+        )
+        info = self.get_payment_info(payment_hash)
+        lnaddr, invoice = self.get_bolt11_invoice(
+            payment_info=info,
             message='rebalance',
-            expiry=3600,
             fallback_address=None,
             channels=[chan2],
         )

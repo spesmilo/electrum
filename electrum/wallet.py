@@ -3011,11 +3011,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             return ''
         amount_msat = req.get_amount_msat() or None
         assert (amount_msat is None or amount_msat > 0), amount_msat
+        info = self.lnworker.get_payment_info(payment_hash)
+        assert info.amount_msat == amount_msat, f"{info.amount_msat=} != {amount_msat=}"
         lnaddr, invoice = self.lnworker.get_bolt11_invoice(
-            payment_hash=payment_hash,
-            amount_msat=amount_msat,
+            payment_info=info,
             message=req.message,
-            expiry=req.exp,
             fallback_address=None)
         return invoice
 
@@ -3031,7 +3031,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         timestamp = int(Request._get_cur_time())
         if address is None:
             assert self.has_lightning()
-            payment_hash = self.lnworker.create_payment_info(amount_msat=amount_msat, write_to_disk=False)
+            payment_hash = self.lnworker.create_payment_info(
+                amount_msat=amount_msat,
+                exp_delay=exp_delay,
+                write_to_disk=False,
+            )
         else:
             payment_hash = None
         outputs = [PartialTxOutput.from_address_and_value(address, amount_sat)] if address else []

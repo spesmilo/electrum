@@ -505,9 +505,10 @@ MIN_FUNDING_SAT = 200_000
 # the minimum cltv_expiry accepted for newly received HTLCs
 # note: when changing, consider Blockchain.is_tip_stale()
 MIN_FINAL_CLTV_DELTA_ACCEPTED = 144
-# set it a tiny bit higher for invoices as blocks could get mined
-# during forward path of payment
-MIN_FINAL_CLTV_DELTA_FOR_INVOICE = MIN_FINAL_CLTV_DELTA_ACCEPTED + 3
+
+# buffer added to min_final_cltv_delta of created bolt11 invoices to make verifying the cltv delta
+# of incoming payment htlcs reliable even if some blocks have been mined during forwarding
+MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE = 3
 
 # the deadline for offered HTLCs:
 # the deadline after which the channel has to be failed and timed out on-chain
