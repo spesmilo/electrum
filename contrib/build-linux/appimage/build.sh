@@ -50,6 +50,12 @@ fi
 # defined in the type2-runtime repo (patched with type2-runtime-reproducible-build.patch)
 "$CONTRIB_APPIMAGE/make_type2_runtime.sh" || fail "Error building type2-runtime."
 
+DOCKER_RUN_FLAGS=""
+if sh -c ": >/dev/tty" >/dev/null 2>/dev/null; then
+    info "/dev/tty is available and usable"
+    DOCKER_RUN_FLAGS="-it"
+fi
+
 info "building binary..."
 # check uid and maybe chown. see #8261
 if [ ! -z "$ELECBUILD_COMMIT" ] ; then  # fresh clone (reproducible build)
@@ -58,7 +64,7 @@ if [ ! -z "$ELECBUILD_COMMIT" ] ; then  # fresh clone (reproducible build)
         sudo chown -R 1000:1000 "$FRESH_CLONE"
     fi
 fi
-docker run -it \
+docker run $DOCKER_RUN_FLAGS \
     --name electrum-appimage-builder-cont \
     -v "$PROJECT_ROOT_OR_FRESHCLONE_ROOT":/opt/electrum \
     --rm \

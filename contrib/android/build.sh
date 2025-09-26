@@ -63,10 +63,13 @@ else
 fi
 
 DOCKER_RUN_FLAGS=""
-
 if [[ "$3" == "release" ]] ; then
     info "'release' mode selected. mounting ~/.keystore inside container."
     DOCKER_RUN_FLAGS="-v $HOME/.keystore:/home/user/.keystore"
+fi
+if sh -c ": >/dev/tty" >/dev/null 2>/dev/null; then
+    info "/dev/tty is available and usable"
+    DOCKER_RUN_FLAGS="$DOCKER_RUN_FLAGS -it"
 fi
 
 info "building binary..."
@@ -78,7 +81,7 @@ if [ ! -z "$ELECBUILD_COMMIT" ] ; then  # fresh clone (reproducible build)
         sudo chown -R 1000:1000 "$FRESH_CLONE"
     fi
 fi
-docker run -it --rm \
+docker run --rm \
     --name electrum-android-builder-cont \
     -v "$PROJECT_ROOT_OR_FRESHCLONE_ROOT":/home/user/wspace/electrum \
     -v "$PROJECT_ROOT_OR_FRESHCLONE_ROOT"/.buildozer/.gradle:/home/user/.gradle \
