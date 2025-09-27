@@ -1266,7 +1266,7 @@ def upgrade_wallet_db(data: dict, do_upgrade: bool) -> Tuple[dict, bool]:
             first_electrum_version_used=ELECTRUM_VERSION,
         )
         assert data.get("db_metadata", None) is None
-        data["db_metadata"] = v
+        data["db_metadata"] = v.to_json()
         was_upgraded = True
 
     dbu = WalletDBUpgrader(data)

@@ -117,7 +117,7 @@ def create_channel_state(funding_txid, funding_index, funding_sat, is_initiator,
             'revocation_store': {},
             'channel_type': channel_type,
     }
-    return StoredDict(state, None, [])
+    return StoredDict(state, None)
 
 
 def bip32(sequence):

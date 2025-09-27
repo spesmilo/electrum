@@ -696,7 +696,7 @@ This can eliminate a serious privacy issue where a malicious user can track your
 to a previously-paid address of yours that would then be included with unrelated inputs in your future payments."""),
     )
     WALLET_PARTIAL_WRITES = ConfigVar(
-        'wallet_partial_writes', default=False, type_=bool,
+        'wallet_partial_writes', default=True, type_=bool,
         long_desc=lambda: _("""Allows partial updates to be written to disk for the wallet DB.
 If disabled, the full wallet file is written to disk for every change. Experimental."""),
     )

@@ -772,7 +772,7 @@ class Channel(AbstractChannel):
         Logger.__init__(self)  # should be after short_channel_id is set
         self.lnworker = lnworker
         self.storage = state
-        self.db_lock = self.storage.db.lock if self.storage.db else threading.RLock()
+        self.db_lock = self.storage.lock
         self.config = {}
         self.config[LOCAL] = state["local_config"]
         self.config[REMOTE] = state["remote_config"]

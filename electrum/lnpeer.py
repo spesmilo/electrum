@@ -1261,8 +1261,7 @@ class Peer(Logger, EventListener):
             "revocation_store": {},
             "channel_type": channel_type,
         }
-        # set db to None, because we do not want to write updates until channel is saved
-        return StoredDict(chan_dict, None, [])
+        return StoredDict(chan_dict, self.lnworker.db)
 
     @non_blocking_msg_handler
     async def on_open_channel(self, payload):
