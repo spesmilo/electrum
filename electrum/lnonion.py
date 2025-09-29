@@ -114,7 +114,7 @@ class OnionHopsDataSingle:  # called HopData in lnd
 
 class OnionPacket:
 
-    def __init__(self, public_key: bytes, hops_data: bytes, hmac: bytes, version: int = 0):
+    def __init__(self, *, public_key: bytes, hops_data: bytes, hmac: bytes, version: int = 0):
         assert len(public_key) == 33
         assert len(hops_data) in [HOPS_DATA_SIZE, TRAMPOLINE_HOPS_DATA_SIZE, ONION_MESSAGE_LARGE_SIZE]
         assert len(hmac) == PER_HOP_HMAC_SIZE
