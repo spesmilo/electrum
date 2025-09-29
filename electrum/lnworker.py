@@ -20,6 +20,7 @@ import concurrent
 from concurrent import futures
 import urllib.parse
 import itertools
+import dataclasses
 
 import aiohttp
 import dns.asyncresolver
@@ -67,7 +68,8 @@ from .lnutil import (
     LnKeyFamily, LOCAL, REMOTE, MIN_FINAL_CLTV_DELTA_FOR_INVOICE, SENT, RECEIVED, HTLCOwner, UpdateAddHtlc, LnFeatures,
     ShortChannelID, HtlcLog, NoPathFound, InvalidGossipMsg, FeeBudgetExceeded, ImportedChannelBackupStorage,
     OnchainChannelBackupStorage, ln_compare_features, IncompatibleLightningFeatures, PaymentFeeBudget,
-    NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, GossipForwardingMessage, MIN_FUNDING_SAT
+    NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, GossipForwardingMessage, MIN_FUNDING_SAT,
+    RecvMPPResolution, ReceivedMPPStatus,
 )
 from .lnonion import decode_onion_error, OnionFailureCode, OnionRoutingFailure, OnionPacket
 from .lnmsg import decode_msg
@@ -106,34 +108,23 @@ class PaymentDirection(IntEnum):
     FORWARDING = 3
 
 
-class PaymentInfo(NamedTuple):
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class PaymentInfo:
+    """Information required to handle incoming htlcs for a payment request"""
     payment_hash: bytes
     amount_msat: Optional[int]
     direction: int
     status: int
 
+    def validate(self):
+        assert isinstance(self.payment_hash, bytes) and len(self.payment_hash) == 32
+        assert self.amount_msat is None or isinstance(self.amount_msat, int)
+        assert isinstance(self.direction, int)
+        assert isinstance(self.status, int)
 
-# Note: these states are persisted in the wallet file.
-# Do not modify them without performing a wallet db upgrade
-class RecvMPPResolution(IntEnum):
-    WAITING = 0
-    EXPIRED = 1
-    ACCEPTED = 2
-    FAILED = 3
+    def __post_init__(self):
+        self.validate()
 
-
-class ReceivedMPPStatus(NamedTuple):
-    resolution: RecvMPPResolution
-    expected_msat: int
-    htlc_set: Set[Tuple[ShortChannelID, UpdateAddHtlc]]
-
-    @stored_in('received_mpp_htlcs', tuple)
-    def from_tuple(resolution, expected_msat, htlc_list) -> 'ReceivedMPPStatus':
-        htlc_set = set([(ShortChannelID(bytes.fromhex(scid)), UpdateAddHtlc.from_tuple(*x)) for (scid, x) in htlc_list])
-        return ReceivedMPPStatus(
-            resolution=RecvMPPResolution(resolution),
-            expected_msat=expected_msat,
-            htlc_set=htlc_set)
 
 
 SentHtlcKey = Tuple[bytes, ShortChannelID, int]  # RHASH, scid, htlc_id
@@ -1567,7 +1558,12 @@ class LNWallet(LNWorker):
             raise PaymentFailure(_("A payment was already initiated for this invoice"))
         if payment_hash in self.get_payments(status='inflight'):
             raise PaymentFailure(_("A previous attempt to pay this invoice did not clear"))
-        info = PaymentInfo(payment_hash, amount_to_pay, SENT, PR_UNPAID)
+        info = PaymentInfo(
+            payment_hash=payment_hash,
+            amount_msat=amount_to_pay,
+            direction=SENT,
+            status=PR_UNPAID,
+        )
         self.save_payment_info(info)
         self.wallet.set_label(key, lnaddr.get_description())
         self.set_invoice_status(key, PR_INFLIGHT)
@@ -2302,7 +2298,12 @@ class LNWallet(LNWorker):
     def create_payment_info(self, *, amount_msat: Optional[int], write_to_disk=True) -> bytes:
         payment_preimage = os.urandom(32)
         payment_hash = sha256(payment_preimage)
-        info = PaymentInfo(payment_hash, amount_msat, RECEIVED, PR_UNPAID)
+        info = PaymentInfo(
+            payment_hash=payment_hash,
+            amount_msat=amount_msat,
+            direction=RECEIVED,
+            status=PR_UNPAID,
+        )
         self.save_preimage(payment_hash, payment_preimage, write_to_disk=False)
         self.save_payment_info(info, write_to_disk=False)
         if write_to_disk:
@@ -2376,12 +2377,22 @@ class LNWallet(LNWorker):
         with self.lock:
             if key in self.payment_info:
                 amount_msat, direction, status = self.payment_info[key]
-                return PaymentInfo(payment_hash, amount_msat, direction, status)
+                return PaymentInfo(
+                    payment_hash=payment_hash,
+                    amount_msat=amount_msat,
+                    direction=direction,
+                    status=status,
+                )
             return None
 
     def add_payment_info_for_hold_invoice(self, payment_hash: bytes, lightning_amount_sat: Optional[int]):
         amount = lightning_amount_sat * 1000 if lightning_amount_sat else None
-        info = PaymentInfo(payment_hash, amount, RECEIVED, PR_UNPAID)
+        info = PaymentInfo(
+            payment_hash=payment_hash,
+            amount_msat=amount,
+            direction=RECEIVED,
+            status=PR_UNPAID,
+        )
         self.save_payment_info(info, write_to_disk=False)
 
     def register_hold_invoice(self, payment_hash: bytes, cb: Callable[[bytes], Awaitable[None]]):
@@ -2396,11 +2407,11 @@ class LNWallet(LNWorker):
             if old_info := self.get_payment_info(payment_hash=info.payment_hash):
                 if info == old_info:
                     return  # already saved
-                if info != old_info._replace(status=info.status):
+                if info != dataclasses.replace(old_info, status=info.status):
                     # differs more than in status. let's fail
                     raise Exception("payment_hash already in use")
             key = info.payment_hash.hex()
-            self.payment_info[key] = info.amount_msat, info.direction, info.status
+            self.payment_info[key] = dataclasses.astuple(info)[1:]  # drop the payment hash at index 0
         if write_to_disk:
             self.wallet.save_db()
 
@@ -2433,12 +2444,12 @@ class LNWallet(LNWorker):
                 payment_keys = [payment_key]
             first_timestamp = min([self.get_first_timestamp_of_mpp(pkey) for pkey in payment_keys])
             if self.get_payment_status(payment_hash) == PR_PAID:
-                mpp_resolution = RecvMPPResolution.ACCEPTED
+                mpp_resolution = RecvMPPResolution.COMPLETE
             elif self.stopping_soon:
                 # try to time out pending HTLCs before shutting down
                 mpp_resolution = RecvMPPResolution.EXPIRED
             elif all([self.is_mpp_amount_reached(pkey) for pkey in payment_keys]):
-                mpp_resolution = RecvMPPResolution.ACCEPTED
+                mpp_resolution = RecvMPPResolution.COMPLETE
             elif time.time() - first_timestamp > self.MPP_EXPIRY:
                 mpp_resolution = RecvMPPResolution.EXPIRED
             # save resolution, if any.
@@ -2486,10 +2497,10 @@ class LNWallet(LNWorker):
         total, expected = amounts
         return total >= expected
 
-    def is_accepted_mpp(self, payment_hash: bytes) -> bool:
+    def is_complete_mpp(self, payment_hash: bytes) -> bool:
         payment_key = self._get_payment_key(payment_hash)
         status = self.received_mpp_htlcs.get(payment_key.hex())
-        return status and status.resolution == RecvMPPResolution.ACCEPTED
+        return status and status.resolution == RecvMPPResolution.COMPLETE
 
     def get_payment_mpp_amount_msat(self, payment_hash: bytes) -> Optional[int]:
         """Returns the received mpp amount for given payment hash."""
@@ -2577,7 +2588,7 @@ class LNWallet(LNWorker):
         if info is None:
             # if we are forwarding
             return
-        info = info._replace(status=status)
+        info = dataclasses.replace(info, status=status)
         self.save_payment_info(info)
 
     def is_forwarded_htlc(self, htlc_key) -> Optional[str]:

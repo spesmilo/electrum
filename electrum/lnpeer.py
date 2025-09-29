@@ -24,7 +24,7 @@ from aiorpcx import ignore_after
 from .crypto import sha256, sha256d, privkey_to_pubkey
 from . import bitcoin, util
 from . import constants
-from .util import (bfh, log_exceptions, ignore_exceptions, chunks, OldTaskGroup,
+from .util import (log_exceptions, ignore_exceptions, chunks, OldTaskGroup,
                    UnrelatedTransactionException, error_text_bytes_to_safe_str, AsyncHangDetector,
                    NoDynamicFeeEstimates, event_listener, EventListener)
 from . import transaction
@@ -36,7 +36,7 @@ from .lnonion import (new_onion_packet, OnionFailureCode, calc_hops_data_for_pay
                       OnionPacket, construct_onion_error, obfuscate_onion_error, OnionRoutingFailure,
                       ProcessedOnionPacket, UnsupportedOnionPacketVersion, InvalidOnionMac, InvalidOnionPubkey,
                       OnionFailureCodeMetaFlag)
-from .lnchannel import Channel, RevokeAndAck, RemoteCtnTooFarInFuture, ChannelState, PeerState, ChanCloseOption, CF_ANNOUNCE_CHANNEL
+from .lnchannel import Channel, RevokeAndAck, ChannelState, PeerState, ChanCloseOption, CF_ANNOUNCE_CHANNEL
 from . import lnutil
 from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc, ChannelConfig,
                      RemoteConfig, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore,
@@ -45,19 +45,17 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc, ChannelConf
                      LOCAL, REMOTE, HTLCOwner,
                      ln_compare_features, MIN_FINAL_CLTV_DELTA_ACCEPTED,
                      RemoteMisbehaving, ShortChannelID,
-                     IncompatibleLightningFeatures, derive_payment_secret_from_payment_preimage,
-                     ChannelType, LNProtocolWarning, validate_features,
+                     IncompatibleLightningFeatures, ChannelType, LNProtocolWarning, validate_features,
                      IncompatibleOrInsaneFeatures, FeeBudgetExceeded,
-                     GossipForwardingMessage, GossipTimestampFilter)
-from .lnutil import FeeUpdate, channel_id_from_funding_tx, PaymentFeeBudget
-from .lnutil import serialize_htlc_key, Keypair
+                     GossipForwardingMessage, GossipTimestampFilter, channel_id_from_funding_tx,
+                     PaymentFeeBudget, serialize_htlc_key, Keypair, RecvMPPResolution)
 from .lntransport import LNTransport, LNTransportBase, LightningPeerConnectionClosed, HandshakeFailed
 from .lnmsg import encode_msg, decode_msg, UnknownOptionalMsgType, FailedToParseMsg
 from .interface import GracefulDisconnect
 from .lnrouter import fee_for_edge_msat
 from .json_db import StoredDict
 from .invoices import PR_PAID
-from .fee_policy import FEE_LN_ETA_TARGET, FEE_LN_MINIMUM_ETA_TARGET, FEERATE_PER_KW_MIN_RELAY_LIGHTNING
+from .fee_policy import FEE_LN_ETA_TARGET, FEERATE_PER_KW_MIN_RELAY_LIGHTNING
 from .trampoline import decode_routing_info
 
 if TYPE_CHECKING:
@@ -525,12 +523,13 @@ class Peer(Logger, EventListener):
     @handle_disconnect
     async def main_loop(self):
         async with self.taskgroup as group:
-            await group.spawn(self.htlc_switch())
             await group.spawn(self._message_loop())
             await group.spawn(self._query_gossip())
             await group.spawn(self._process_gossip())
             await group.spawn(self._send_own_gossip())
             await group.spawn(self._forward_gossip())
+            if self.network.lngossip != self.lnworker:
+                await group.spawn(self.htlc_switch())
 
     async def _process_gossip(self):
         while True:
@@ -2467,7 +2466,6 @@ class Peer(Logger, EventListener):
         exc_incorrect_or_unknown_pd: OnionRoutingFailure,
         log_fail_reason: Callable[[str], None],
     ) -> bool:
-        from .lnworker import RecvMPPResolution
         mpp_resolution = self.lnworker.check_mpp_status(
             payment_secret=payment_secret,
             short_channel_id=short_channel_id,
@@ -2482,7 +2480,7 @@ class Peer(Logger, EventListener):
         elif mpp_resolution == RecvMPPResolution.FAILED:
             log_fail_reason(f"mpp_resolution is FAILED")
             raise exc_incorrect_or_unknown_pd
-        elif mpp_resolution == RecvMPPResolution.ACCEPTED:
+        elif mpp_resolution == RecvMPPResolution.COMPLETE:
             return False
         else:
             raise Exception(f"unexpected {mpp_resolution=}")
@@ -2592,11 +2590,9 @@ class Peer(Logger, EventListener):
             raise exc_incorrect_or_unknown_pd
 
         preimage = self.lnworker.get_preimage(payment_hash)
-        expected_payment_secrets = [self.lnworker.get_payment_secret(htlc.payment_hash)]
-        if preimage:
-            expected_payment_secrets.append(derive_payment_secret_from_payment_preimage(preimage)) # legacy secret for old invoices
-        if payment_secret_from_onion not in expected_payment_secrets:
-            log_fail_reason(f'incorrect payment secret {payment_secret_from_onion.hex()} != {expected_payment_secrets[0].hex()}')
+        expected_payment_secret = self.lnworker.get_payment_secret(htlc.payment_hash)
+        if payment_secret_from_onion != expected_payment_secret:
+            log_fail_reason(f'incorrect payment secret {payment_secret_from_onion.hex()} != {expected_payment_secret.hex()}')
             raise exc_incorrect_or_unknown_pd
         invoice_msat = info.amount_msat
         if channel_opening_fee:
