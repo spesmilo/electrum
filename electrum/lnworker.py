@@ -2533,52 +2533,6 @@ class LNWallet(LNWorker):
         if write_to_disk:
             self.wallet.save_db()
 
-    def check_mpp_status(
-            self, *,
-            payment_secret: bytes,
-            short_channel_id: ShortChannelID,
-            htlc: UpdateAddHtlc,
-            expected_msat: int,
-    ) -> RecvMPPResolution:
-        raise DeprecationWarning('old function')
-        """Returns the status of the incoming htlc set the given *htlc* belongs to.
-
-        ACCEPTED simply means the mpp set is complete, and we can proceed with further
-        checks before fulfilling (or failing) the htlcs.
-        In particular, note that hold-invoice-htlcs typically remain in the ACCEPTED state
-        for quite some time -- not in the "WAITING" state (which would refer to the mpp set
-        not yet being complete!).
-        """
-        payment_hash = htlc.payment_hash
-        payment_key = payment_hash + payment_secret
-        self.update_mpp_with_received_htlc(
-            payment_key=payment_key, scid=short_channel_id, htlc=htlc, expected_msat=expected_msat)
-        mpp_resolution = self.received_mpp_htlcs[payment_key.hex()].resolution
-        # if still waiting, calc resolution now:
-        if mpp_resolution == RecvMPPResolution.WAITING:
-            bundle = self.get_payment_bundle(payment_key)
-            if bundle:
-                payment_keys = bundle
-            else:
-                payment_keys = [payment_key]
-            first_timestamp = min([self.get_first_timestamp_of_mpp(pkey) for pkey in payment_keys])
-            if self.get_payment_status(payment_hash) == PR_PAID:
-                mpp_resolution = RecvMPPResolution.COMPLETE
-            elif self.stopping_soon:
-                # try to time out pending HTLCs before shutting down
-                mpp_resolution = RecvMPPResolution.EXPIRED
-            elif all([self.is_mpp_amount_reached(pkey) for pkey in payment_keys]):
-                mpp_resolution = RecvMPPResolution.COMPLETE
-            elif time.time() - first_timestamp > self.MPP_EXPIRY:
-                mpp_resolution = RecvMPPResolution.EXPIRED
-            # save resolution, if any.
-            if mpp_resolution != RecvMPPResolution.WAITING:
-                for pkey in payment_keys:
-                    if pkey.hex() in self.received_mpp_htlcs:
-                        self.set_mpp_resolution(payment_key=pkey, resolution=mpp_resolution)
-
-        return mpp_resolution
-
     def update_or_create_mpp_with_received_htlc(
         self,
         *,
@@ -2668,14 +2622,6 @@ class LNWallet(LNWorker):
 
         return raw_error, error_code, error_data
 
-    def is_mpp_amount_reached(self, payment_key: bytes) -> bool:
-        raise DeprecationWarning('old function')
-        amounts = self.get_mpp_amounts(payment_key)
-        if amounts is None:
-            return False
-        total, expected = amounts
-        return total >= expected
-
     def get_mpp_resolution(self, payment_hash: bytes) -> Optional[RecvMPPResolution]:
         payment_key = self._get_payment_key(payment_hash)
         status = self.received_mpp_htlcs.get(payment_key.hex())
@@ -2702,13 +2648,6 @@ class LNWallet(LNWorker):
             return None
         total = sum([mpp_htlc.htlc.amount_msat for mpp_htlc in mpp_status.htlcs])
         return total
-
-    def get_first_timestamp_of_mpp(self, payment_key: bytes) -> int:
-        raise DeprecationWarning('old function')
-        mpp_status = self.received_mpp_htlcs.get(payment_key.hex())
-        if not mpp_status:
-            return int(time.time())
-        return min([_htlc.timestamp for scid, _htlc in mpp_status.htlc_set])
 
     def maybe_cleanup_mpp(
             self,
