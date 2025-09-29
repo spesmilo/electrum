@@ -2930,8 +2930,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if x.is_lightning():
             d['rhash'] = x.rhash
             d['lightning_invoice'] = self.get_bolt11_invoice(x)
-            if self.lnworker and status == PR_UNPAID:
-                d['can_receive'] = self.lnworker.can_receive_invoice(x)
+            if self.lnworker:
+                if status == PR_UNPAID:
+                    d['can_receive'] = self.lnworker.can_receive_invoice(x)
+                elif status == PR_PAID and (preimage := self.lnworker.get_preimage(x.payment_hash)):
+                    d['preimage'] = preimage.hex()
         if address := x.get_address():
             d['address'] = address
             d['URI'] = self.get_request_URI(x)

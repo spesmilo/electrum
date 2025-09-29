@@ -1514,9 +1514,21 @@ class Commands(Logger):
             plist = wallet.lnworker.get_payments(status='settled')[bfh(payment_hash)]
             _dir, amount_msat, _fee, _ts = wallet.lnworker.get_payment_value(info, plist)
             result["received_amount_sat"] = amount_msat // 1000
+            result['preimage'] = wallet.lnworker.get_preimage_hex(payment_hash)
         if info is not None:
             result["invoice_amount_sat"] = (info.amount_msat or 0) // 1000
         return result
+
+    @command('wl')
+    async def export_lightning_preimage(self, payment_hash: str, wallet: 'Abstract_Wallet' = None) -> Optional[str]:
+        """
+        Returns the stored preimage of the given payment_hash if it is known.
+
+        arg:str:payment_hash: Hash of the preimage
+        """
+        preimage = wallet.lnworker.get_preimage_hex(payment_hash)
+        assert preimage is None or crypto.sha256(bytes.fromhex(preimage)).hex() == payment_hash
+        return preimage
 
     @command('w')
     async def addtransaction(self, tx, wallet: Abstract_Wallet = None):
