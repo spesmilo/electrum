@@ -2758,7 +2758,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.closing_warning_callbacks.append(warning_callback)
 
     def _check_ongoing_force_closures(self) -> Optional[str]:
-        from electrum.lnutil import MIN_FINAL_CLTV_DELTA_FOR_INVOICE
+        from electrum.lnutil import MIN_FINAL_CLTV_DELTA_ACCEPTED
         if not self.wallet.has_lightning():
             return None
         if not self.network:
@@ -2767,7 +2767,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         if not force_closes:
             return
         # fixme: this is inaccurate, we need local_height - cltv_of_htlc
-        cltv_delta = MIN_FINAL_CLTV_DELTA_FOR_INVOICE
+        cltv_delta = MIN_FINAL_CLTV_DELTA_ACCEPTED
         msg = '\n\n'.join([
             _("Pending channel force-close"),
             messages.MSG_FORCE_CLOSE_WARNING.format(cltv_delta),

@@ -68,7 +68,7 @@ from .wallet import (
 )
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from .mnemonic import Mnemonic
-from .lnutil import (channel_id_from_funding_tx, LnFeatures, SENT, MIN_FINAL_CLTV_DELTA_FOR_INVOICE,
+from .lnutil import (channel_id_from_funding_tx, LnFeatures, SENT, MIN_FINAL_CLTV_DELTA_ACCEPTED,
                      PaymentFeeBudget, NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE)
 from .plugin import run_hook, DeviceMgr, Plugins
 from .version import ELECTRUM_VERSION
@@ -1382,7 +1382,7 @@ class Commands(Logger):
             amount: Optional[Decimal] = None,
             memo: str = "",
             expiry: int = 3600,
-            min_final_cltv_expiry_delta: int = MIN_FINAL_CLTV_DELTA_FOR_INVOICE * 2,
+            min_final_cltv_expiry_delta: int = MIN_FINAL_CLTV_DELTA_ACCEPTED * 2,
             wallet: Abstract_Wallet = None
     ) -> dict:
         """
@@ -1399,23 +1399,23 @@ class Commands(Logger):
         assert payment_hash not in wallet.lnworker.payment_info, "Payment hash already used!"
         assert payment_hash not in wallet.lnworker.dont_settle_htlcs, "Payment hash already used!"
         assert wallet.lnworker.get_preimage(bfh(payment_hash)) is None, "Already got a preimage for this payment hash!"
-        assert MIN_FINAL_CLTV_DELTA_FOR_INVOICE < min_final_cltv_expiry_delta < 576, "Use a sane min_final_cltv_expiry_delta value"
+        assert MIN_FINAL_CLTV_DELTA_ACCEPTED < min_final_cltv_expiry_delta < 576, "Use a sane min_final_cltv_expiry_delta value"
         amount = amount if amount and satoshis(amount) > 0 else None  # make amount either >0 or None
         inbound_capacity = wallet.lnworker.num_sats_can_receive()
         assert inbound_capacity > satoshis(amount or 0), \
             f"Not enough inbound capacity [{inbound_capacity} sat] to receive this payment"
 
-        lnaddr, invoice = wallet.lnworker.get_bolt11_invoice(
-            payment_hash=bfh(payment_hash),
-            amount_msat=satoshis(amount) * 1000 if amount else None,
-            message=memo,
-            expiry=expiry,
-            min_final_cltv_expiry_delta=min_final_cltv_expiry_delta,
-            fallback_address=None
-        )
         wallet.lnworker.add_payment_info_for_hold_invoice(
             bfh(payment_hash),
-            satoshis(amount) if amount else None,
+            lightning_amount_sat=satoshis(amount) if amount else None,
+            min_final_cltv_delta=min_final_cltv_expiry_delta,
+            exp_delay=expiry,
+        )
+        info = wallet.lnworker.get_payment_info(bfh(payment_hash))
+        lnaddr, invoice = wallet.lnworker.get_bolt11_invoice(
+            payment_info=info,
+            message=memo,
+            fallback_address=None
         )
         wallet.lnworker.dont_settle_htlcs[payment_hash] = None
         wallet.set_label(payment_hash, memo)
