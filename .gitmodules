@@ -7,3 +7,16 @@
 [submodule "electrum/plugins/keepkey/keepkeylib"]
 	path = electrum/plugins/keepkey/keepkeylib
 	url = https://github.com/spesmilo/electrum-keepkeylib.git
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.8;
+
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract AddressBook is Ownable(msg.sender) {
+    string private salt = "value"; 
+    struct Contact {
+        uint id;
+        string firstName;
+        string lastName;
+        uint[] phoneNumbers;
+    }
