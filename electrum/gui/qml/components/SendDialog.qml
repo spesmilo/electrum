@@ -12,6 +12,7 @@ ElDialog {
     id: dialog
 
     property InvoiceParser invoiceParser
+    property PIResolver piResolver
 
     signal txFound(data: string)
     signal channelBackupFound(data: string)
@@ -36,7 +37,7 @@ ElDialog {
         } else if (Daemon.currentWallet.isValidChannelBackup(data)) {
             channelBackupFound(data)
         } else {
-            invoiceParser.recipient = data
+            piResolver.recipient = data
         }
     }
 
@@ -57,8 +58,8 @@ ElDialog {
             Layout.fillHeight: true
 
             hint: Daemon.currentWallet.isLightning
-                ? qsTr('Scan an Invoice, an Address, an LNURL-pay, a PSBT or a Channel Backup')
-                : qsTr('Scan an Invoice, an Address, an LNURL-pay or a PSBT')
+                ? qsTr('Scan an Invoice, an Address, an LNURL, a PSBT or a Channel Backup')
+                : qsTr('Scan an Invoice, an Address, an LNURL or a PSBT')
 
             onFoundText: (data) => {
                 dialog.dispatch(data)
@@ -71,7 +72,7 @@ ElDialog {
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
-                enabled: !invoiceParser.busy
+                enabled: !invoiceParser.busy && !piResolver.busy
                 icon.source: '../../icons/copy_bw.png'
                 text: qsTr('Paste')
                 onClicked: {
