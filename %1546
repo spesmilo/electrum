@@ -1,0 +1,16 @@
+// SPDX-License-Identifier: MIT
+
+pragma solidity ^0.8.17;
+
+contract EmployeeStorage {
+    uint16 private shares;
+    uint32 private salary;
+    uint256 public idNumber;
+    string public name;
+
+    constructor(uint16 _shares, string memory _name, uint32 _salary, uint _idNumber) {
+        shares = _shares;
+        name = _name;
+        salary = _salary;
+        idNumber = _idNumber;
+    }
