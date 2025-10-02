@@ -17,6 +17,7 @@ ElDialog {
     property RequestDetails requestDetails
 
     padding: 0
+    needsSystemBarPadding: false
 
     property int walletCanReceive: 0
     property int providerMinWithdrawable: parseInt(requestDetails.lnurlData['min_withdrawable_sat'])
