@@ -230,19 +230,18 @@ class QERequestDetails(QObject, QtEventListener):
         self._logger.debug(f'requesting lnurlw: {repr(self._lnurlData)}')
 
         try:
-            key = self.wallet.wallet.create_request(
+            key = self._wallet.wallet.create_request(
                 amount_sat=amount_sat,
                 message=self._lnurlData.get('default_description', ''),
                 exp_delay=120,
                 address=None,
             )
-            req = self.wallet.wallet.get_request(key)
-            _lnaddr, b11_invoice = self.wallet.wallet.lnworker.get_bolt11_invoice(
-                payment_hash=req.payment_hash,
-                amount_msat=req.get_amount_msat(),
+            req = self._wallet.wallet.get_request(key)
+            info = self._wallet.wallet.lnworker.get_payment_info(req.payment_hash)
+            _lnaddr, b11_invoice = self._wallet.wallet.lnworker.get_bolt11_invoice(
+                payment_info=info,
                 message=req.get_message(),
-                expiry=req.exp,
-                fallback_address=None
+                fallback_address=None,
             )
         except Exception as e:
             self._logger.exception('')

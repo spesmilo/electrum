@@ -968,12 +968,11 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                 address=None,
             )
             req = self.wallet.get_request(key)
+            info = self.wallet.lnworker.get_payment_info(req.payment_hash)
             _lnaddr, b11_invoice = self.wallet.lnworker.get_bolt11_invoice(
-                payment_hash=req.payment_hash,
-                amount_msat=req.get_amount_msat(),
+                payment_info=info,
                 message=req.get_message(),
-                expiry=req.exp,
-                fallback_address=None
+                fallback_address=None,
             )
         except Exception as e:
             self.logger.exception('')
