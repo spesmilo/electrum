@@ -36,7 +36,7 @@ Item {
     function openSendDialog() {
         // Qt based send dialog if not on android
         if (!AppController.isAndroid()) {
-            _sendDialog = qtSendDialog.createObject(mainView, {invoiceParser: invoiceParser})
+            _sendDialog = qtSendDialog.createObject(mainView, {invoiceParser: invoiceParser, piResolver: piResolver})
             _sendDialog.open()
             return
         }
@@ -44,8 +44,8 @@ Item {
         // Android based send dialog if on android
         var scanner = app.scanDialog.createObject(mainView, {
             hint: Daemon.currentWallet.isLightning
-                ? qsTr('Scan an Invoice, an Address, an LNURL-pay, a PSBT or a Channel Backup')
-                : qsTr('Scan an Invoice, an Address, an LNURL-pay or a PSBT')
+                ? qsTr('Scan an Invoice, an Address, an LNURL, a PSBT or a Channel Backup')
+                : qsTr('Scan an Invoice, an Address, an LNURL or a PSBT')
         })
         scanner.onFoundText.connect(function(data) {
             data = data.trim()
@@ -61,7 +61,7 @@ Item {
                 })
                 dialog.open()
             } else {
-                invoiceParser.recipient = data
+                piResolver.recipient = data
             }
             //scanner.destroy()  // TODO
         })
@@ -362,7 +362,7 @@ Item {
                 Layout.preferredWidth: 1
                 icon.source: '../../icons/tab_send.png'
                 text: qsTr('Send')
-                enabled: !invoiceParser.busy
+                enabled: !invoiceParser.busy && !piResolver.busy && !requestDetails.busy
                 onClicked: openSendDialog()
                 onPressAndHold: {
                     Config.userKnowsPressAndHold = true
@@ -370,6 +370,48 @@ Item {
                     AppController.haptic()
                 }
             }
+        }
+    }
+
+    PIResolver {
+        id: piResolver
+        wallet: Daemon.currentWallet
+
+        onResolveError: (code, message) => {
+            var dialog = app.messageDialog.createObject(app, {
+                title: qsTr('Error'),
+                iconSource: Qt.resolvedUrl('../../icons/warning.png'),
+                text: message
+            })
+            dialog.open()
+        }
+
+        onInvoiceResolved: (pi) => {
+            invoiceParser.fromResolvedPaymentIdentifier(pi)
+        }
+
+        onRequestResolved: (pi) => {
+            requestDetails.fromResolvedPaymentIdentifier(pi)
+        }
+    }
+
+    RequestDetails {
+        id: requestDetails
+        wallet: Daemon.currentWallet
+        onNeedsLNURLUserInput: {
+            closeSendDialog()
+            var dialog = lnurlWithdrawDialog.createObject(app, {
+                requestDetails: requestDetails
+            })
+            dialog.open()
+        }
+        onLnurlError: (code, message) => {
+            var dialog = app.messageDialog.createObject(app, {
+                title: qsTr('Error'),
+                iconSource: Qt.resolvedUrl('../../icons/warning.png'),
+                text: message
+            })
+            dialog.open()
         }
     }
 
@@ -420,12 +462,16 @@ Item {
             })
             dialog.open()
         }
-
         onLnurlRetrieved: {
             closeSendDialog()
-            var dialog = lnurlPayDialog.createObject(app, {
-                invoiceParser: invoiceParser
-            })
+            if (invoiceParser.invoiceType === Invoice.Type.LNURLPayRequest) {
+                var dialog = lnurlPayDialog.createObject(app, {
+                    invoiceParser: invoiceParser
+                })
+            } else {
+                console.log("Unsupported LNURL type:", invoiceParser.invoiceType)
+                return
+            }
             dialog.open()
         }
         onLnurlError: (code, message) => {
@@ -451,7 +497,7 @@ Item {
                 _intentUri = uri
                 return
             }
-            invoiceParser.recipient = uri
+            piResolver.recipient = uri
         }
     }
 
@@ -460,7 +506,7 @@ Item {
         function onWalletLoaded() {
             infobanner.hide() // start hidden when switching wallets
             if (_intentUri) {
-                invoiceParser.recipient = _intentUri
+                piResolver.recipient = _intentUri
                 _intentUri = ''
             }
         }
@@ -732,6 +778,16 @@ Item {
     Component {
         id: lnurlPayDialog
         LnurlPayRequestDialog {
+            width: parent.width * 0.9
+            anchors.centerIn: parent
+
+            onClosed: destroy()
+        }
+    }
+
+    Component {
+        id: lnurlWithdrawDialog
+        LnurlWithdrawRequestDialog {
             width: parent.width * 0.9
             anchors.centerIn: parent
 
