@@ -27,6 +27,7 @@ import attr, json
 import asyncio
 import random
 from functools import partial
+from contextlib import asynccontextmanager
 
 import electrum_ecc as ecc
 import electrum_aionostr as aionostr
@@ -156,9 +157,14 @@ class Notary(Logger, EventListener):
         #
         self.db = NotaryDB(self.config)
         self.requests = self.db.get_dict('requests')
-
+        xpub = self.wallet.keystore.get_master_public_key()  # type: str
+        privkey = sha256('notary:' + xpub)
+        pubkey = ecc.ECPrivkey(privkey).get_public_key_bytes()[1:]
+        self.nostr_privkey = privkey.hex()
+        self.nostr_pubkey = pubkey.hex()
+        self.logger.info(f'nostr pubkey: {self.nostr_pubkey}')
+        # database
         self.unit_trees = {} # int -> 256-tree
-        
         self.forest = self.db.get_dict('forest')                      # fee_level -> Dict[leaf, proof]
         self.mempool_roots = self.db.get_dict('mempool_roots')        # txid -> (root, unit_indexes)
         self.confirmed_trees = self.db.get_dict('confirmed_trees')    # txid -> Dict[leaf, proof]
@@ -233,12 +239,16 @@ class Notary(Logger, EventListener):
                 break
             else:
                 raise UserFacingException("proof not found")
+
+        tx_mined_status = self.wallet.adb.get_tx_height(txid)
+        height = max(0, tx_mined_status.height())
         r = json.loads(json.dumps(proof, cls=MyEncoder))
         r["event_id"] = request.event_id
         r["pubkey"] = request.pubkey
         r["txid"] = txid
         r["leaf"] = leaf_hash
         r["root"] = root
+        r["block_height"] = height
         return r
 
 
@@ -513,48 +523,61 @@ class Notary(Logger, EventListener):
             if not await self.wallet.network.try_broadcasting(tx, 'level %d'%k):
                 print('could not broadcast tx', txid)
 
-    async def publish_tree(self, tree, transport):
+    async def publish_tree(self, tree, relay_manager):
         self.logger.info(f"publish tree {len(tree)}")
         for leaf, proof in tree.items():
             rhash = self._leaf_to_rhash[bytes.fromhex(leaf)] #.get(leaf, None) # we should persist that
             request = self.requests[rhash.hex()] #, None)
             # publish temporary proof
-            await self.publish_proof(request, proof, transport) #bytes.fromhex(h), proof.hashes, proof.index)
+            await self.publish_proof(leaf, request, proof, relay_manager) #bytes.fromhex(h), proof.hashes, proof.index)
 
-    async def publish_proofs(self, transport):
+    async def publish_proofs(self, relay_manager):
         # remove processed requests from buffer
         # publish proofs; they must be updated
         for tree in self.forest.values():
-            await self.publish_tree(tree, transport)
+            await self.publish_tree(tree, relay_manager)
         print('published proofs')
 
-    async def publish_proof(self, request, proof: Proof, transport):
+    async def publish_proof(self, leaf, request, proof: Proof, relay_manager):
         json_proof = json.dumps(proof, cls=MyEncoder)
-        return
         # the first value of a single letter tag is indexed and can be filtered for
         tags = [
             ['e', request.event_id],      # event id
             ['p', request.pubkey],        # event pubkey
-            ['v', request.log_fee],       # upvote value in satoshis
-            ['expiration', str(int(time.time() + 60))]
+            ['v', str(request.log_fee)],       # upvote value in satoshis
+            #['expiration', str(int(time.time() + 60))],
+            ['d', leaf],
         ]
-        relay_manager = transport.get_relay_manager()
         try:
             event_id = await aionostr._add_event(
                 relay_manager,
-                kind=777,
+                kind=30021, # addressable
                 tags=tags,
                 content=json_proof,
-                private_key=transport.nostr_private_key)
+                private_key=self.nostr_privkey)
         except asyncio.TimeoutError as e:
             self.logger.warning(f"failed to publish swap offer: {str(e)}")
+            return
+
+    @asynccontextmanager
+    async def nostr_manager(self):
+        manager_logger = self.logger.getChild('aionostr')
+        manager_logger.setLevel("DEBUG")  # set to INFO because DEBUG is very spammy
+        async with aionostr.Manager(
+                relays=self.config.NOSTR_RELAYS.split(','),
+                private_key=self.nostr_privkey,
+                proxy=None,
+                log=manager_logger
+        ) as manager:
+            yield manager
 
     @log_exceptions
     async def run(self):
-        from electrum.submarine_swaps import NostrTransport
-        with NostrTransport(self.config, self.wallet.lnworker.swap_manager, self.wallet.lnworker.nostr_keypair) as transport:
-            await transport.is_connected.wait()
+        async with self.nostr_manager() as relay_manager:
+            await relay_manager.connect()
             self.logger.info(f'nostr is connected')
+            connected_relays = relay_manager.relays
+            print(f'connected relays: {[relay.url for relay in connected_relays]}')
             while True:
                 self.prune_verified()
                 requests = self.get_unprocessed_requests()
@@ -570,7 +593,7 @@ class Notary(Logger, EventListener):
 
                 self.wallet.save_db()
                 await self.broadcast_transactions() # this can always fail
-                await self.publish_proofs(transport)
+                await self.publish_proofs(relay_manager)
 
     def add_unit_tree(self, new_forest):
         n = (max(list(self.unit_trees.keys())) + 1) if self.unit_trees else 0

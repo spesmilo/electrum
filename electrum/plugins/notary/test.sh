@@ -6,10 +6,10 @@ $bob load_wallet
 $alice load_wallet
 
 while true; do
-    
-    event_id=$(hexdump -vn16 -e'4/4 "%08x" 1 "\n"' /dev/urandom)
-    pubkey=$(hexdump -vn16 -e'4/4 "%08x" 1 "\n"' /dev/urandom)
+    event_id=$(hexdump -n32 -e '16/1 "%02x"' /dev/urandom)
+    pubkey=$(hexdump -n32 -e '16/1 "%02x"' /dev/urandom)
     log_fee=$(($RANDOM % 5))
+    echo "$alice notary_notarize $event_id $pubkey $log_fee"
     invoice=$($alice notary_notarize $event_id $pubkey $log_fee)
     $bob lnpay $invoice --timeout 3
     # sleep random time

@@ -40,14 +40,28 @@ class NotaryServer(Logger, EventListener):
     async def run(self):
         self.root = '/root'
         app = web.Application()
-        app.add_routes([web.get('/api/status', self.get_status)])
+        #app.add_routes([web.get('/api/status', self.get_status)])
+        app.add_routes([web.post('/api/proof', self.get_proof)])
         app.add_routes([web.post('/api/notarize', self.notarize)])
         runner = web.AppRunner(app)
         await runner.setup()
-        site = web.TCPSite(runner, host='localhost', port=self.port)#, ssl_context=self.config.get_ssl_context())
+        site = web.TCPSite(runner, host='0.0.0.0', port=self.port)#, ssl_context=self.config.get_ssl_context())
         await site.start()
         self.logger.info(f"nostary server is listening on port {self.port}")
 
+
+    async def get_proof(self, request):
+        """
+        returns an invoice. the rhash will be used to get proof
+        """
+        params = await request.post()
+        try:
+            rhash = params['rhash']
+        except:
+            print(request, params)
+            raise web.HTTPUnsupportedMediaType()
+        proof = self.notary.get_proof(rhash)
+        return web.json_response(proof)
 
     async def notarize(self, request):
         """ 
@@ -55,6 +69,7 @@ class NotaryServer(Logger, EventListener):
         the rhash will be used to get proof
         """
         params = await request.post()
+        print("request", request, params)
         try:
             event_id = params['event_id']
             event_pubkey = params['event_pubkey']
@@ -62,7 +77,7 @@ class NotaryServer(Logger, EventListener):
             log_fee = int(log_fee_str)
         except:
             raise web.HTTPUnsupportedMediaType()
-        invoice = await plugin.notary.add_request(event_id, event_pubkey, log_fee)
+        invoice = self.notary.add_request(event_id, event_pubkey, log_fee)
         return web.json_response(invoice)
 
     async def get_status(self, request):
