@@ -2394,6 +2394,25 @@ class TestPeerForwarding(TestPeer):
             graph = self.create_square_graph(direct=False, test_mpp_consolidation=True, is_legacy=True)
             await self._run_trampoline_payment(graph)
 
+    async def test_trampoline_mpp_consolidation_forwarding_amount(self):
+        """sanity check that bob is forwarding less than he is receiving"""
+        # alice->bob->carol->dave
+        graph = self.create_square_graph(direct=False, test_mpp_consolidation=True, is_legacy=True)
+        # bump alices trampoline fee level so the first payment succeeds and the htlc sums can be compared usefully below.
+        alice = graph.workers['alice']
+        alice.config.INITIAL_TRAMPOLINE_FEE_LEVEL = 6
+        with self.assertRaises(PaymentDone):
+            await self._run_trampoline_payment(graph, attempts=1)
+
+        # assert bob hasn't forwarded more than he received
+        bob_alice_channel = graph.channels[('bob', 'alice')]
+        htlcs_bob_received_from_alice = bob_alice_channel.hm.all_htlcs_ever()
+        bob_carol_channel = graph.channels[('bob', 'carol')]
+        htlcs_bob_sent_to_carol = bob_carol_channel.hm.all_htlcs_ever()
+        sum_bob_received = sum(htlc.amount_msat for (direction, htlc) in htlcs_bob_received_from_alice)
+        sum_bob_sent = sum(htlc.amount_msat for (direction, htlc) in htlcs_bob_sent_to_carol)
+        assert sum_bob_sent < sum_bob_received, f"{sum_bob_sent=} > {sum_bob_received=}"
+
     async def test_trampoline_mpp_consolidation_with_hold_invoice(self):
         with self.assertRaises(PaymentDone):
             graph = self.create_square_graph(direct=False, test_mpp_consolidation=True, is_legacy=True)
