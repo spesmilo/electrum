@@ -869,6 +869,8 @@ class LNWallet(LNWorker):
             features |= LnFeatures.OPTION_ANCHORS_ZERO_FEE_HTLC_OPT
         if self.config.ACCEPT_ZEROCONF_CHANNELS:
             features |= LnFeatures.OPTION_ZEROCONF_OPT
+        if self.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS or self.config.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS:
+            features |= LnFeatures.OPTION_ONION_MESSAGE_OPT
         if self.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS and self.config.LIGHTNING_USE_GOSSIP:
             features |= LnFeatures.GOSSIP_QUERIES_OPT  # signal we have gossip to fetch
         LNWorker.__init__(self, self.node_keypair, features, config=self.config)
