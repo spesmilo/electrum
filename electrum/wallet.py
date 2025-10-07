@@ -444,7 +444,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self._init_lnworker()
         self._init_requests_rhash_index()
         self._prepare_onchain_invoice_paid_detection()
-        self.calc_unused_change_addresses()
+        self._calc_unused_change_addresses()
         # save wallet type the first time
         if self.db.get('wallet_type') is None:
             self.db.put('wallet_type', self.wallet_type)
@@ -707,7 +707,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             return addr
         return wrapper
 
-    def calc_unused_change_addresses(self) -> Sequence[str]:
+    def _calc_unused_change_addresses(self) -> Sequence[str]:
         """Returns a list of change addresses to choose from, for usage in e.g. new transactions.
         The caller should give priority to earlier ones in the list.
         """
@@ -1891,7 +1891,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         allow_reuse: bool = True,
     ) -> Sequence[str]:
         # Recalc and get unused change addresses
-        addrs = self.calc_unused_change_addresses()
+        addrs = self._calc_unused_change_addresses()
         # New change addresses are created only after a few
         # confirmations.
         if addrs:
@@ -3754,7 +3754,7 @@ class Imported_Wallet(Simple_Wallet):
             **{**kwargs, "allow_reusing_used_change_addrs": False},
         )
 
-    def calc_unused_change_addresses(self) -> Sequence[str]:
+    def _calc_unused_change_addresses(self) -> Sequence[str]:
         with self.lock:
             unused_addrs = [addr for addr in self.get_change_addresses()
                             if not self.adb.is_used(addr) and not self.is_address_reserved(addr)]
