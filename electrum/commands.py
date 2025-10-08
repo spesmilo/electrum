@@ -43,11 +43,12 @@ import re
 
 import electrum_ecc as ecc
 
-from . import util
+from . import util, bolt12
 from .lnmsg import OnionWireSerializer
 from .lnworker import LN_P2P_NETWORK_TIMEOUT
 from .logging import Logger
 from .onion_message import create_blinded_path, send_onion_message_to
+from .segwit_addr import bech32_encode, Encoding, convertbits
 from .submarine_swaps import NostrTransport
 from .util import (
     bfh, json_decode, json_normalize, is_hash256_str, is_hex_str, to_bytes, parse_max_spend, to_decimal,
@@ -1374,6 +1375,54 @@ class Commands(Logger):
         key = wallet.create_request(amount, memo, expiry, addr)
         req = wallet.get_request(key)
         return wallet.export_request(req)
+
+    @command('wnl')
+    async def add_offer(self, amount, memo='', expiry=3600, wallet: Abstract_Wallet = None):
+        """Create a bolt12 offer.
+
+        arg:decimal:amount:Requested amount (in btc)
+        arg:str:memo:Description of the request
+        arg:int:expiry:Time in seconds.
+        """
+        amount = satoshis(amount)
+        expiry = int(expiry) if expiry else None
+        key = wallet.create_offer(amount, memo, expiry)
+        offer = wallet.get_offer(key)
+        bech32_data = convertbits(list(bolt12.encode_offer(offer)), 8, 5, True)
+
+        return {
+            # 'offer_dict': offer,
+            'id': key.hex(),
+            'offer': bech32_encode(Encoding.BECH32, 'lno', bech32_data, with_checksum=False)
+        }
+
+    @command('w')
+    async def get_offer(self, offer_id, wallet: Abstract_Wallet = None):
+        """
+        retrieve bolt12 offer
+        arg:str:offer_id:the offer id
+        """
+        id_ = bfh(offer_id)
+        offer = wallet.get_offer(id_)
+        bech32_data = convertbits(list(bolt12.encode_offer(offer)), 8, 5, True)
+        return {
+            'id': offer_id,
+            'offer': bech32_encode(Encoding.BECH32, 'lno', bech32_data, with_checksum=False)
+        }
+
+    @command('w')
+    async def list_offers(self, wallet: Abstract_Wallet = None):
+        """
+        list bolt12 offers
+        """
+        result = []
+        for offer_id, offer in wallet._offers.items():
+            bech32_data = convertbits(list(bolt12.encode_offer(offer)), 8, 5, True)
+            result.append({
+                'id': offer_id.hex(),
+                'offer': bech32_encode(Encoding.BECH32, 'lno', bech32_data, with_checksum=False)
+            })
+        return result
 
     @command('wnl')
     async def add_hold_invoice(
