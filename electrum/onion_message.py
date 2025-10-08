@@ -728,10 +728,15 @@ class OnionMessageManager(Logger):
         # e.g. via a decorator, something like
         # @onion_message_request_handler(payload_key='invoice_request') for BOLT12 invoice requests.
 
-        if 'message' not in payload:
+        if 'message' not in payload and 'invoice_request' not in payload:
             self.logger.error('Unsupported onion message payload')
             return
 
+        if 'invoice_request' in payload:
+            self.lnwallet.on_bolt12_invoice_request(recipient_data, payload)
+            return
+
+        # log 'message' payload
         if 'text' not in payload['message'] or not isinstance(payload['message']['text'], bytes):
             self.logger.error('Malformed \'message\' payload')
             return

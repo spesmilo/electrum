@@ -29,6 +29,7 @@ import dns.asyncresolver
 import dns.exception
 from aiorpcx import run_in_thread, NetAddress, ignore_after
 
+from .bolt12 import encode_invoice
 from .logging import Logger
 from .i18n import _
 from .json_db import stored_in
@@ -57,7 +58,7 @@ from .crypto import (
     sha256, chacha20_encrypt, chacha20_decrypt, pw_encode_with_version_and_mac, pw_decode_with_version_and_mac
 )
 
-from .onion_message import OnionMessageManager
+from .onion_message import OnionMessageManager, send_onion_message_to, encode_blinded_path
 from .lntransport import (
     LNTransport, LNResponderTransport, LNTransportBase, LNPeerAddr, split_host_port, extract_nodeid,
     ConnStringFormatError
@@ -3978,3 +3979,74 @@ class LNWallet(LNWorker):
         error_bytes = bytes.fromhex(error_hex) if error_hex else None
         failure_message = OnionRoutingFailure.from_bytes(bytes.fromhex(failure_hex)) if failure_hex else None
         return error_bytes, failure_message
+
+    def on_bolt12_invoice_request(self, recipient_data: dict, payload: dict):
+        # match to offer
+        self.logger.debug(f'on_bolt12_invoice_request: {recipient_data=} {payload=}')
+
+        invreq_tlv = payload['invoice_request']['invoice_request']
+        invreq = bolt12.decode_invoice_request(invreq_tlv)
+        self.logger.info(f'invoice_request: {invreq=}')
+
+        offer_id = invreq.get('offer_metadata', {}).get('data')
+        offer = self.wallet.get_offer(offer_id)
+        if offer is None:
+            self.logger.warning('no matching offer for invoice_request')
+            return
+        self.logger.debug(f'invoice_request for {offer=}')
+
+        # two scenarios:
+        # 1) not in response to offer (no offer_issuer_id or offer_paths)
+        #     MUST reject the invoice request if any of the following are present:
+        #         offer_chains, offer_features or offer_quantity_max.
+        #     MUST reject the invoice request if invreq_amount is not present.
+        #     MAY use offer_amount (or offer_currency) for informational display to user.
+        #     if it sends an invoice in response:
+        #         MUST use invreq_paths if present, otherwise MUST use invreq_payer_id as the node id to send to.
+
+        # 2) response to offer.
+        #
+        #     MUST reject the invoice request if the offer fields do not exactly match a valid, unexpired offer.
+        #     if offer_paths is present:
+        #         MUST ignore the invoice_request if it did not arrive via one of those paths.
+        #     otherwise:
+        #         MUST ignore any invoice_request if it arrived via a blinded path.
+        #     if offer_quantity_max is present:
+        #         MUST reject the invoice request if there is no invreq_quantity field.
+        #         if offer_quantity_max is non-zero:
+        #             MUST reject the invoice request if invreq_quantity is zero, OR greater than offer_quantity_max.
+        #     otherwise:
+        #         MUST reject the invoice request if there is an invreq_quantity field.
+        #     if offer_amount is present:
+        #         MUST calculate the expected amount using the offer_amount:
+        #             if offer_currency is not the invreq_chain currency, convert to the invreq_chain currency.
+        #             if invreq_quantity is present, multiply by invreq_quantity.quantity.
+        #         if invreq_amount is present:
+        #             MUST reject the invoice request if invreq_amount.msat is less than the expected amount.
+        #             MAY reject the invoice request if invreq_amount.msat greatly exceeds the expected amount.
+        #     otherwise (no offer_amount):
+        #         MUST reject the invoice request if it does not contain invreq_amount.
+        #     SHOULD send an invoice in response using the onionmsg_tlv reply_path.
+
+        is_response_to_offer = True  # always assume scenario 2 for now
+
+        if is_response_to_offer:
+            node_id_or_blinded_path = encode_blinded_path(payload['reply_path']['path'])
+        else:
+            # spec: MUST use invreq_paths if present, otherwise MUST use invreq_payer_id as the node id to send to.
+            if 'invreq_paths' in invreq:
+                node_id_or_blinded_path = invreq['invreq_paths']['paths'][0]  # take first
+            else:
+                node_id_or_blinded_path = invreq['invreq_payer_id']
+
+        invoice = bolt12.verify_request_and_create_invoice(self, offer, invreq)
+        if invoice is None:  # TODO: use exception, not None
+            self.logger.error('could not generate invoice')
+            # TODO: send invoice_error if request not totally bogus
+            return
+
+        destination_payload = {
+            'invoice': {'invoice': encode_invoice(invoice, self.node_keypair.privkey)}
+        }
+
+        send_onion_message_to(self, node_id_or_blinded_path, destination_payload)
