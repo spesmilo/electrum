@@ -702,7 +702,7 @@ class OnionMessageManager(Logger):
                     delay = 0  # quickly try all destinations
                 self.send_queue.put_nowait((now() + delay, expires, key))
 
-    def _remove_pending_message(self, key: bytes) -> None:
+    def remove_pending_message(self, key: bytes) -> None:
         with self.pending_lock:
             if key in self.pending:
                 del self.pending[key]
@@ -742,7 +742,7 @@ class OnionMessageManager(Logger):
         try:
             return await future
         finally:
-            self._remove_pending_message(key)
+            self.remove_pending_message(key)
 
     def _send_pending_message(self, key: bytes) -> None:
         """adds reply_path to payload"""
@@ -881,7 +881,7 @@ class OnionMessageManager(Logger):
         # e.g. via a decorator, something like
         # @onion_message_request_handler(payload_key='invoice_request') for BOLT12 invoice requests.
 
-        known_payloads = ('message', 'invoice', 'invoice_error')
+        known_payloads = ('message', 'invoice', 'invoice_error', 'invoice_request')
         if not any(known_payload in payload for known_payload in known_payloads):
             self.logger.error('Unsupported onion message payload')
             return
@@ -893,6 +893,14 @@ class OnionMessageManager(Logger):
                 self.logger.warning(f"failed to handle incoming invoice: {e!r}")
             return
 
+        if 'invoice_request' in payload:
+            try:
+                self.lnwallet.on_bolt12_invoice_request(recipient_data, payload)
+            except Exception as e:
+                self.logger.warning(f"failed to handle invoice_request: {e!r}")
+            return
+
+        # log 'message' payload
         if 'text' not in payload['message'] or not isinstance(payload['message']['text'], bytes):
             self.logger.error('Malformed \'message\' payload')
             return
