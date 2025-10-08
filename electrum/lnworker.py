@@ -4625,3 +4625,56 @@ class LNWallet(Logger):
         if not util.constant_time_compare(sha256(our_sig), invreq_sig_digest):
             return False
         return True
+
+    def create_offer(
+        self,
+        *,
+        amount_msat: Optional[int] = None,
+        description: Optional[str] = None,
+        relative_expiry: Optional[int] = None,
+        issuer_name: Optional[str] = None,
+        allow_unblinded: bool = False,
+    ) -> 'BOLT12Offer':
+        """
+        Create n bolt12 offer.
+        - allow_unblinded only makes sense if node_id is public, or for testing with direct electrum peer.
+        """
+        # We always set an offer_issuer_id which we then can use as invoice_node_id for the invoice creation,
+        # otherwise we would need to use the blinded node id (and its secret) on which the invoice_request arrived to
+        # sign the corresponding invoice. This approach is simpler to reason about and implement.
+        # If we include blinded paths in this offer the path_id is the random private key for offer_issuer_id.
+        # If we don't include blinded paths (and allow_unblinded is True) we simply use the node keypair.
+        random_offer_issuer_id_key = ECPrivkey.generate_random_key()
+        path_id = random_offer_issuer_id_key.get_secret_bytes()
+        reply_path_infos = None
+        try:
+            reply_path_infos = get_blinded_reply_paths(self, path_id)
+        except NoOnionMessagePeers as e:
+            self.logger.debug(f"create_offer: no onion message peers: {str(e)}")
+            if not allow_unblinded:
+                raise
+
+        reply_paths = tuple(p.path for p in reply_path_infos) if reply_path_infos else None
+        chains = [constants.net.rev_genesis_bytes()] if constants.net != constants.BitcoinMainnet else None
+
+        # To be able to verify the offer fields inside a received invoice_request we first serialize an offer
+        # without metadata (or some randomness), then create a hmac on it which will be included as metadata of the final offer.
+        offer = BOLT12Offer(
+            # add some randomness if there are no (random) reply_paths (unblinded offer) so we create unique offers
+            offer_metadata=os.urandom(8) if not reply_paths else b'',
+            # description must not be None if amount is given (spec)
+            offer_description=(description or '') if amount_msat is not None else description,
+            offer_chains=chains,
+            offer_amount=amount_msat,
+            offer_absolute_expiry=int(time.time()) + relative_expiry if relative_expiry else None,
+            offer_issuer_id=self.node_keypair.pubkey if not reply_paths else random_offer_issuer_id_key.get_public_key_bytes(),
+            offer_issuer=issuer_name,
+            offer_paths=reply_paths,
+        )
+        encoded_offer = offer.encode(as_bech32=False)
+        mac = hmac_oneshot(key=self.bolt12_secret_key, msg=b'offer' + encoded_offer, digest='sha-256')
+        new_metadata = offer.offer_metadata + mac
+        offer = dataclasses.replace(offer, offer_metadata=new_metadata)
+
+        assert allow_unblinded if offer.offer_issuer_id == self.node_keypair.pubkey else offer.offer_paths, offer
+        return offer
