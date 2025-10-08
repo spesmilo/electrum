@@ -1,5 +1,6 @@
 import io
 import json
+import os
 import time
 from dataclasses import fields
 from pathlib import Path
@@ -9,7 +10,7 @@ from electrum_ecc import ECPrivkey
 from electrum import segwit_addr, lnutil
 from electrum.bolt12 import (
     is_offer, bolt12_bech32_to_bytes, BOLT12Offer, BOLT12InvoiceRequest, BOLT12Invoice, NoMatchingChainError,
-    extract_shared_fields
+    extract_shared_fields, BOLT12InvoicePathIDPayload, Bolt12InvoiceError
 )
 from electrum.crypto import privkey_to_pubkey
 from electrum.lnmsg import UnknownMandatoryTLVRecordType, MsgInvalidSignature, OnionWireSerializer, \
@@ -18,6 +19,7 @@ from electrum.lnonion import OnionHopsDataSingle
 from electrum.lnutil import LnFeatures, UnknownEvenFeatureBits
 from electrum.segwit_addr import INVALID_BECH32, bech32_encode, Encoding, convertbits
 from electrum.util import bfh
+from electrum.lnworker import LNWALLET_FEATURES
 
 from . import ElectrumTestCase
 
@@ -419,6 +421,59 @@ class TestBolt12(ElectrumTestCase):
         self.assertTrue(invoice.invreq_metadata)
         self.assertEqual(invoice.invreq_metadata, extracted_invreq.invreq_metadata)
         self.assertEqual(invoice.offer_issuer_id, extracted_invreq.offer_issuer_id)
+
+    def test_bolt12_invoice_path_id_payload(self):
+        amount_msat = 1000
+        created_at = int(time.time())
+        relative_expiry = created_at + 100
+        payment_preimage = os.urandom(32)
+        min_final_cltv_expiry_delta = 322
+        invoice_features = LNWALLET_FEATURES.for_bolt12_invoice()
+        invreq_payer_id = os.urandom(33)
+        offer_metadata_digest = os.urandom(32)
+        invreq_quantity = 5
+        invreq_payer_note = "Thanks for the Pizza, it was delicious!"
+        offer_description = "Pizza Salami - 30 cm - Old Italy"
+        path_id_payload = BOLT12InvoicePathIDPayload(
+            amount_msat=amount_msat,
+            created_at=created_at,
+            relative_expiry=relative_expiry,
+            payment_preimage=payment_preimage,
+            min_final_cltv_expiry_delta=min_final_cltv_expiry_delta,
+            invoice_features=invoice_features,
+            payer_id=invreq_payer_id,
+            offer_metadata_digest=offer_metadata_digest,
+            quantity=invreq_quantity,
+            payer_note=invreq_payer_note,
+            description=offer_description,
+        )
+        encoded = path_id_payload.encode()
+        decoded = BOLT12InvoicePathIDPayload.decode(encoded)
+        self.assertEqual(decoded.amount_msat, amount_msat)
+        self.assertEqual(decoded.created_at, created_at)
+        self.assertEqual(decoded.relative_expiry, relative_expiry)
+        self.assertEqual(decoded.payment_preimage, payment_preimage)
+        self.assertEqual(decoded.min_final_cltv_expiry_delta, min_final_cltv_expiry_delta)
+        self.assertEqual(decoded.invoice_features, invoice_features)
+        self.assertEqual(decoded.payer_id, invreq_payer_id)
+        self.assertEqual(decoded.offer_metadata_digest, offer_metadata_digest)
+        self.assertEqual(decoded.quantity, invreq_quantity)
+        self.assertEqual(decoded.payer_note, invreq_payer_note)
+        self.assertEqual(decoded.description, offer_description)
+
+    def test_bolt12_invoice_error(self):
+        invoice_error_tlv = bfh("01015203086465616462656566050e616d6f756e7420746f6f206c6f77")
+        invoice_error = Bolt12InvoiceError.from_tlv(invoice_error_tlv)
+        invoice_error = invoice_error.to_tlv()
+        self.assertEqual(invoice_error, invoice_error_tlv)
+        invoice_error = Bolt12InvoiceError(
+            msg="amount too low",
+            erroneous_field=82,
+            suggested_value=b"deadbeef"
+        )
+        self.assertEqual(invoice_error.to_tlv(), invoice_error_tlv)
+        invoice_error = Bolt12InvoiceError.from_tlv(b"deadbeef")
+        self.assertEqual(invoice_error.message, "malformed invoice error")
 
     def test_fallback_address(self):
         # invoice without fallback address

@@ -22,10 +22,9 @@ from electrum_ecc import ecdsa_sig64_from_r_and_s, ecdsa_der_sig_from_ecdsa_sig6
 import aiorpcx
 from aiorpcx import ignore_after
 
-from electrum.lnonion import BlindedPathInfo
 from .lrucache import LRUCache
 from .crypto import sha256, sha256d, privkey_to_pubkey
-from . import bitcoin, util
+from . import bitcoin, util, bolt12
 from . import constants
 from .util import (log_exceptions, ignore_exceptions, chunks, OldTaskGroup,
                    UnrelatedTransactionException, error_text_bytes_to_safe_str, AsyncHangDetector,
@@ -38,7 +37,7 @@ from . import lnonion
 from .lnonion import (OnionFailureCode, OnionPacket, obfuscate_onion_error, InvalidBlindedOnion,
                       OnionRoutingFailure, ProcessedOnionPacket, UnsupportedOnionPacketVersion,
                       InvalidOnionMac, InvalidOnionPubkey, OnionFailureCodeMetaFlag,
-                      OnionParsingError)
+                      OnionParsingError, BlindedPathInfo)
 from .lnchannel import Channel, RevokeAndAck, ChannelState, PeerState, ChanCloseOption, CF_ANNOUNCE_CHANNEL
 from . import lnutil
 from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc, ChannelConfig, LnFeatureContexts,
@@ -2207,14 +2206,14 @@ class Peer(Logger, EventListener):
             log_fail_reason(f"{processed_onion.blinded_path_recipient_data=} contains both node_id and next_chan_scid")
             raise exc_invalid_onion_blinding
 
-    @staticmethod
     def _check_accepted_final_htlc(
+            self,
             *, chan: Channel,
             htlc: UpdateAddHtlc,
             processed_onion: ProcessedOnionPacket,
             is_trampoline_onion: bool = False,
             log_fail_reason: Callable[[str], None],
-    ) -> tuple[bytes, int, int, OnionRoutingFailure]:
+    ) -> tuple[Optional[bytes], Optional[bytes], int, int, OnionRoutingFailure]:
         """
         Perform checks that are invariant (results do not depend on height, network conditions, etc.)
         for htlcs of which we are the receiver (forwarding htlcs will have their checks in maybe_forward_htlc).
@@ -2238,6 +2237,8 @@ class Peer(Logger, EventListener):
             code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS,
             data=amt_to_forward.to_bytes(8, byteorder="big"))  # height will be added later
 
+        path_id_digest = None
+        payment_secret_from_onion = None
         if processed_onion.blinded_path_recipient_data is not None:  # payment over blinded path
             # spec: MUST return an error if the payload contains other tlv fields than allowed_payload_keys
             allowed_payload_fields = ('encrypted_recipient_data', 'current_path_key', 'amt_to_forward', 'outgoing_cltv_value', 'total_amount_msat')
@@ -2250,8 +2251,23 @@ class Peer(Logger, EventListener):
                 log_fail_reason(f"'path_id' missing in recipient_data")
                 raise exc_invalid_onion_blinding
 
-            log_fail_reason('we cannot receive blinded payments yet.')
-            raise exc_invalid_onion_blinding
+            try:  # TODO: encrypt path_id with authentication to prevent forgery?
+                path_id_payload = bolt12.BOLT12InvoicePathIDPayload.decode(path_id)
+            except Exception as e:
+                log_fail_reason(f"couldn't decode blinded payment metadata: {e}: {path_id.hex()}")
+                raise exc_incorrect_or_unknown_pd
+
+            path_id_payment_hash = sha256(path_id_payload.payment_preimage)
+            if path_id_payment_hash != htlc.payment_hash:
+                log_fail_reason(f"sender used blinded path out of context? {path_id_payment_hash.hex()=} != {htlc.payment_hash.hex()}")
+                raise exc_incorrect_or_unknown_pd
+
+            self.lnworker.save_blinded_payment_info(path_id_payload)
+            # stop sending the invoice onion message
+            self.lnworker.cancel_bolt12_invoice_response(path_id_payment_hash)
+            path_id_digest = sha256(path_id)
+        else:
+            payment_secret_from_onion = processed_onion.payment_secret
 
         if (total_msat := processed_onion.total_msat) is None:
             log_fail_reason(f"'total_msat' missing from onion")
@@ -2272,11 +2288,11 @@ class Peer(Logger, EventListener):
                     code=OnionFailureCode.FINAL_INCORRECT_HTLC_AMOUNT,
                     data=htlc.amount_msat.to_bytes(8, byteorder="big"))
 
-        if (payment_secret_from_onion := processed_onion.payment_secret) is None:
+        if payment_secret_from_onion is None and path_id_digest is None:
             log_fail_reason(f"'payment_secret' missing from onion")
             raise exc_incorrect_or_unknown_pd
 
-        return payment_secret_from_onion, total_msat, channel_opening_fee, exc_incorrect_or_unknown_pd
+        return payment_secret_from_onion, path_id_digest, total_msat, channel_opening_fee, exc_incorrect_or_unknown_pd
 
     def _check_unfulfilled_htlc(
         self, *,
@@ -2316,7 +2332,7 @@ class Peer(Logger, EventListener):
             return payment_key
 
         # parse parameters and perform checks that are invariant
-        payment_secret_from_onion, total_msat, channel_opening_fee, exc_incorrect_or_unknown_pd = (
+        payment_secret_from_onion, path_id_digest, total_msat, channel_opening_fee, exc_incorrect_or_unknown_pd = (
             self._check_accepted_final_htlc(
                 chan=chan,
                 htlc=htlc,
@@ -2324,11 +2340,12 @@ class Peer(Logger, EventListener):
                 is_trampoline_onion=bool(outer_onion_payment_secret),
                 log_fail_reason=_log_fail_reason,
             ))
+        assert bool(payment_secret_from_onion) != bool(path_id_digest), "need either payment secret or blinded payment"
         # trampoline htlcs of which we are the final receiver will first get grouped by the outer
         # onions secret to allow grouping a multi-trampoline mpp in different sets. Once a trampoline
         # payment part is completed (sum(htlcs) >= (trampoline-)amt_to_forward), its htlcs get moved into
         # the htlc set representing the whole payment (payment key derived from trampoline/invoice secret).
-        payment_key = (payment_hash + (outer_onion_payment_secret or payment_secret_from_onion)).hex()
+        payment_key = (payment_hash + (outer_onion_payment_secret or payment_secret_from_onion or path_id_digest)).hex()
 
         # for safety, still enforce MIN_FINAL_CLTV_DELTA here even if payment_hash is in dont_expire_htlcs
         if blocks_to_expiry < MIN_FINAL_CLTV_DELTA_ACCEPTED:
@@ -2359,6 +2376,7 @@ class Peer(Logger, EventListener):
                     _log_fail_reason(f'incorrect trampoline onion {processed_onion=}\n{trampoline_onion=}')
                     raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
 
+            assert payment_secret_from_onion, "need payment secret for outer trampoline onion"
             return self._check_unfulfilled_htlc(
                 chan=chan,
                 htlc=htlc,
@@ -2387,10 +2405,11 @@ class Peer(Logger, EventListener):
             _log_fail_reason(f"got mpp but we requested no mpp in the invoice: {total_msat=} > {htlc.amount_msat=}")
             raise exc_incorrect_or_unknown_pd
 
-        expected_payment_secret = self.lnworker.get_payment_secret(payment_hash)
-        if not util.constant_time_compare(payment_secret_from_onion, expected_payment_secret):
-            _log_fail_reason(f'incorrect payment secret: {payment_secret_from_onion.hex()=}')
-            raise exc_incorrect_or_unknown_pd
+        if not path_id_digest:
+            expected_payment_secret = self.lnworker.get_payment_secret(payment_hash)
+            if not util.constant_time_compare(payment_secret_from_onion, expected_payment_secret):
+                _log_fail_reason(f'incorrect payment secret: {payment_secret_from_onion.hex()=}')
+                raise exc_incorrect_or_unknown_pd
 
         invoice_msat = info.amount_msat
         if channel_opening_fee:
