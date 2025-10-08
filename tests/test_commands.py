@@ -23,6 +23,7 @@ from electrum.transaction import Transaction, TxOutput, tx_from_any
 from electrum.util import UserFacingException, NotEnoughFunds
 from electrum.crypto import sha256
 from electrum.bolt11 import decode_bolt11_invoice
+from electrum.bolt12 import BOLT12Offer
 from electrum.daemon import Daemon
 from electrum import json_db
 
@@ -914,3 +915,28 @@ class TestCommandsTestnet(ElectrumTestCase):
 
         # set back to Testnet
         constants.net = prev_net
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_add_lightning_offer(self, *mock_args):
+        wallet: Abstract_Wallet = restore_wallet_from_text__for_unittest(
+            'disagree rug lemon bean unaware square alone beach tennis exhibit fix mimic',
+            path='if_this_exists_mocking_failed_648151893',
+            config=self.config)['wallet']
+        cmds = Commands(config=self.config)
+
+        bolt12_offer = (await cmds.add_lightning_offer(
+            amount=Decimal(0.001),
+            description="test cli",
+            relative_expiry=None,
+            issuer_name="me",
+            allow_unblinded=True,
+            wallet=wallet,
+        ))['offer']
+        decoded_offer = BOLT12Offer.decode(bolt12_offer)
+        self.assertEqual(len(decoded_offer.offer_metadata), 40)
+        self.assertEqual(decoded_offer.offer_amount, 100000000)
+        self.assertEqual(decoded_offer.offer_description, "test cli")
+        self.assertEqual(decoded_offer.offer_absolute_expiry, None)
+        self.assertEqual(decoded_offer.offer_issuer, "me")
+        self.assertEqual(decoded_offer.offer_issuer_id, wallet.lnworker.node_keypair.pubkey)
+        self.assertEqual(decoded_offer.offer_paths, None)
