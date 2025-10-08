@@ -26,18 +26,23 @@
 import copy
 import io
 import os
+import time
 from decimal import Decimal
 
-from typing import Union, Optional, List, Tuple
+from typing import TYPE_CHECKING, Union, Optional, List, Tuple, Sequence
 
 import electrum_ecc as ecc
 
 from . import constants
 from .bitcoin import COIN
+from .crypto import sha256
 from .lnaddr import LnAddr
 from .lnmsg import OnionWireSerializer, batched
-from .onion_message import Timeout
+from .onion_message import Timeout, get_blinded_paths_to_me
 from .segwit_addr import bech32_decode, DecodedBech32, convertbits
+
+if TYPE_CHECKING:
+    from .lnworker import LNWallet
 
 
 def is_offer(data: str) -> bool:
@@ -168,6 +173,8 @@ async def request_invoice(
     else:
         node_id = bolt12_offer['offer_issuer_id']['id']
 
+    # spec: MUST set invreq_payer_id to a transient public key.
+    # spec: MUST remember the secret key corresponding to invreq_payer_id.
     session_key = os.urandom(32)
     blinding = ecc.ECPrivkey(session_key).get_public_key_bytes()
 
@@ -239,6 +246,54 @@ async def request_invoice(
     # - MUST reject the invoice if it did not arrive via one of the paths in invreq_paths
 
     return invoice_data, invoice_tlv
+
+
+def verify_request_and_create_invoice(
+        lnwallet: 'LNWallet',
+        bolt12_offer: dict,
+        bolt12_invreq: dict,
+        preimage,
+) -> dict:
+    # TODO check offer fields in invreq are equal
+    # TODO check constraints, like expiry, offer_amount etc
+    # copy the invreq and offer fields
+    invoice = copy.deepcopy(bolt12_invreq)
+    del invoice['signature']  # remove the signature from the invreq
+    now = int(time.time())
+    invoice_payment_hash = sha256(preimage)
+    invoice.update({
+        'invoice_created_at': {'timestamp': now},
+        'invoice_relative_expiry': {'seconds_from_creation': 3600},  # TODO hardcoded
+        'invoice_payment_hash': {'payment_hash': invoice_payment_hash}
+    })
+
+    # spec: if invreq_amount is present: MUST set invoice_amount to invreq_amount
+    # otherwise: 'expected' amount (or amount == 0 invoice? or min_htlc_msat from channel set?)
+    amount_msat = 0
+    if bolt12_invreq.get('invreq_amount'):
+        amount_msat = bolt12_invreq['invreq_amount']['msat']
+    invoice.update({
+        'invoice_amount': {'msat': amount_msat}
+    })
+
+    # spec: if offer_issuer_id is present: MUST set invoice_node_id to the offer_issuer_id
+    # spec: otherwise, if offer_paths is present: MUST set invoice_node_id to the final blinded_node_id
+    # on the path it received the invoice request
+    if bolt12_offer.get('offer_issuer_id'):
+        invoice.update({
+            'invoice_node_id': {'node_id': bolt12_offer['offer_issuer_id']['id']}
+        })
+    else:
+        # we don't have invreq used path available here atm.
+        raise Exception('branch not implemented, electrum should set offer_issuer_id')
+
+    invoice_paths, payinfo = get_blinded_paths_to_me(lnwallet)
+    invoice.update({
+        'invoice_paths': {'paths': invoice_paths},
+        'invoice_blindedpay': {'payinfo': payinfo}
+    })
+
+    return invoice
 
 
 # wraps remote invoice_error
