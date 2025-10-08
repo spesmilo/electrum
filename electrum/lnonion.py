@@ -386,12 +386,13 @@ def calc_hops_data_for_blinded_payment(
             raise Exception(f'blinded path htlc_maximum_msat {htlc_max} too low for {amt=}')
 
     inv_hops = inv_path.get('path')
-    num_hops = int.from_bytes(inv_path.get('num_hops'))
-    if num_hops == 1:
+    if not isinstance(inv_hops, list):
         inv_hops = [inv_hops]
+    num_hops = len(inv_hops)
+
     hops_data = []
     _logger.info('inv_hops: ' + repr(inv_hops))
-    hops_pubkeys = [x.get('blinded_node_id') for x in inv_hops[1:]]
+    hops_pubkeys = [x.get('blinded_node_id') for x in inv_hops]
     # build reversed
     for i, inv_hop in enumerate(reversed(inv_hops)):
         payload = {}
@@ -410,12 +411,12 @@ def calc_hops_data_for_blinded_payment(
 
     # calc amount from aggregate blinded path info to send to introduction point
     amt = amount_msat + inv_blindedpay_info.get('fee_base_msat') + \
-        (inv_blindedpay_info.get('fee_proportional_millionths') * amount_msat + 1000000 - 1) // 1000000
+        (inv_blindedpay_info.get('fee_proportional_millionths') * amount_msat) // 1000000
     cltv_abs += inv_blindedpay_info.get('cltv_expiry_delta')
     _logger.info(f'blinded payment introduction point {amt=} for {amount_msat=}, {cltv_abs=}')
 
     # payloads, backwards from last hop (but excluding the first edges):
-    for i, route_edge in enumerate(reversed(route[1:])):
+    for i, route_edge in enumerate(reversed(route[0:])):
         hop_payload = {
             "amt_to_forward": {"amt_to_forward": amt},
             "outgoing_cltv_value": {"outgoing_cltv_value": cltv_abs},

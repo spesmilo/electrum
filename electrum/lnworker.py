@@ -3773,6 +3773,8 @@ class LNWallet(LNWorker):
                 final_cltv_abs=final_cltv_abs,
                 total_msat=total_msat,
                 bolt12_invoice=bolt12_invoice)
+            hops_data = hops_data[1:]
+            blinded_node_ids = blinded_node_ids[1:]
 
         num_hops = len(hops_data)
         self.logger.info(f"pay len(route)={len(route)}. for payment_hash={payment_hash.hex()}")
