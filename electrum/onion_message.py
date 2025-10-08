@@ -423,6 +423,7 @@ def get_blinded_paths_to_me(
        - reply_path introduction points are direct peers only (TODO: longer paths)
     """
     # TODO: build longer paths and/or add dummy hops to increase privacy
+    assert final_recipient_data['path_id']['data'], f"missing path_id: {final_recipient_data}"
     if not my_channels:
         my_channels = [chan for chan in lnwallet.channels.values() if chan.is_active()]
 
