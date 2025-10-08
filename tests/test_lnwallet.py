@@ -13,9 +13,10 @@ from electrum_ecc import ECPrivkey
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
 from electrum import bitcoin
 import electrum.trampoline
+from electrum.gui.qt.wizard import wallet
 from electrum.onion_message import NoOnionMessagePeers
 from electrum import constants
-from electrum.bolt12 import BOLT12Offer, BOLT12InvoiceRequest, BOLT12Invoice
+from electrum.bolt12 import BOLT12Offer, BOLT12InvoiceRequest, BOLT12Invoice, BOLT12InvoicePathIDPayload
 from electrum.crypto import sha256, hmac_oneshot
 from electrum.lnonion import BlindedPath, BlindedPathHop, BlindedPathInfo, BlindedPayInfo
 from electrum.lnutil import RECEIVED, MIN_FINAL_CLTV_DELTA_ACCEPTED, serialize_htlc_key, LnFeatures, HTLCOwner
@@ -27,6 +28,7 @@ from electrum.lnchannel import Channel, ChannelState
 from electrum.lnonion import OnionPacket, OnionRoutingFailure
 from electrum.crypto import sha256
 from electrum.simple_config import SimpleConfig
+from electrum.lnworker import LNWALLET_FEATURES
 
 from . import ElectrumTestCase, lnhelpers
 from .lnhelpers import create_test_channels
@@ -77,6 +79,37 @@ class TestLNWallet(ElectrumTestCase):
                 min_final_cltv_delta=min_final_cltv_delta,
                 exp_delay=exp_delay,
             )
+
+    def test_save_blinded_payment_info(self):
+        amount_msat = 1000
+        created_at = int(time.time())
+        relative_expiry = created_at + 100
+        payment_preimage = os.urandom(32)
+        min_final_cltv_expiry_delta = 322
+        invoice_features = LNWALLET_FEATURES.for_bolt12_invoice()
+        invreq_payer_id = os.urandom(33)
+        path_id_payload = BOLT12InvoicePathIDPayload(
+            amount_msat=amount_msat,
+            created_at=created_at,
+            relative_expiry=relative_expiry,
+            payment_preimage=payment_preimage,
+            min_final_cltv_expiry_delta=min_final_cltv_expiry_delta,
+            invoice_features=invoice_features,
+            payer_id=invreq_payer_id,
+        )
+        wallet = self.lnwallet_anchors
+        wallet.save_blinded_payment_info(path_id_payload)
+        payment_hash = sha256(payment_preimage)
+        payment_info = wallet.get_payment_info(payment_hash, direction=RECEIVED)
+        self.assertIsNotNone(payment_info)
+        self.assertEqual(wallet.get_preimage(payment_hash), payment_preimage)
+        self.assertEqual(payment_info.payment_hash, payment_hash)
+        self.assertEqual(payment_info.amount_msat, amount_msat)
+        self.assertEqual(payment_info.status, PR_UNPAID)
+        self.assertEqual(payment_info.min_final_cltv_delta, min_final_cltv_expiry_delta)
+        self.assertEqual(payment_info.expiry_delay, relative_expiry)
+        self.assertEqual(payment_info.creation_ts, created_at)
+        self.assertEqual(payment_info.invoice_features, invoice_features)
 
     async def test_trampoline_invoice_features_and_routing_hints(self):
         """
@@ -708,3 +741,19 @@ class TestLNWallet(ElectrumTestCase):
         offer1 = wallet.create_offer(allow_unblinded=True).encode()
         offer2 = wallet.create_offer(allow_unblinded=True).encode()
         self.assertNotEqual(offer1, offer2)
+
+    def test__verify_bolt12_offer_created_by_us(self):
+        wallet = self.lnwallet_anchors
+
+        offer_created_by_us = wallet.create_offer(
+            allow_unblinded=True,
+            amount_msat=1000,
+            description="best pizza place",
+        )
+        self.assertTrue(wallet._verify_bolt_12_offer_created_by_us(offer_created_by_us))
+
+        offer_modified = dataclasses.replace(offer_created_by_us, offer_description="pizza place stinks")
+        self.assertFalse(wallet._verify_bolt_12_offer_created_by_us(offer_modified))
+
+        offer_modified = dataclasses.replace(offer_created_by_us, offer_amount=1001)
+        self.assertFalse(wallet._verify_bolt_12_offer_created_by_us(offer_modified))
