@@ -26,6 +26,7 @@
 import copy
 import io
 import os
+import time
 from decimal import Decimal
 
 from typing import TYPE_CHECKING, Union, Optional, List, Tuple
@@ -36,7 +37,7 @@ from . import constants
 from .bitcoin import COIN
 from .lnaddr import LnAddr
 from .lnmsg import OnionWireSerializer, batched
-from .onion_message import Timeout
+from .onion_message import Timeout, get_blinded_paths_to_me
 from .segwit_addr import bech32_decode, DecodedBech32, convertbits
 
 if TYPE_CHECKING:
@@ -152,8 +153,9 @@ async def request_invoice(
         amount_msat: int,
         *,
         note: Optional[str] = None,
-        reply_paths: List[bytes] = None
 ) -> Tuple[dict, bytes]:
+    # NOTE: offer_chains isn't checked here, bolt12.decode_offer already raises on invalid chains.
+
     #   - if it chooses to send an `invoice_request`, it sends an onion message:
     #     - if `offer_paths` is set:
     #       - MUST send the onion message via any path in `offer_paths` to the final `onion_msg_hop`.`blinded_node_id` in that path
@@ -172,6 +174,8 @@ async def request_invoice(
     else:
         node_id = bolt12_offer['offer_issuer_id']['id']
 
+    # spec: MUST set invreq_payer_id to a transient public key.
+    # spec: MUST remember the secret key corresponding to invreq_payer_id.
     session_key = os.urandom(32)
     blinding = ecc.ECPrivkey(session_key).get_public_key_bytes()
 
@@ -219,27 +223,115 @@ async def request_invoice(
         lnwallet.logger.error(f'error requesting bolt12 invoice: {e!r}')
         raise
 
-    # validation https://github.com/lightning/bolts/blob/master/12-offer-encoding.md
+    # validation https://github.com/lightning/bolts/blob/master/12-offer-encoding.md#requirements-1
+    # NOTE: assumed scenario: invoice in response to invoice_request
     if any(invoice_data.get(x) is None for x in [
             'invoice_amount', 'invoice_created_at', 'invoice_payment_hash',
             'invoice_node_id', 'invoice_paths', 'invoice_blindedpay'
     ]):
         raise Exception('invalid bolt12 invoice')
+
+    # - MUST reject the invoice if num_hops is 0 in any blinded_path in invoice_paths.
+    invoice_paths = invoice_data.get('invoice_paths').get('paths')
+    for invoice_path in invoice_paths:
+        if len(invoice_path.get('path', [])) == 0:
+            raise Exception('invalid bolt12 invoice, zero-length invoice_path present')
+
+    # - MUST reject the invoice if invoice_blindedpay does not contain exactly one blinded_payinfo per invoice_paths.blinded_path.
+    if len(invoice_paths) != len(invoice_data.get('invoice_blindedpay').get('payinfo', [])):
+        raise Exception('invalid bolt12 invoice, incorrect number of invoice_blindedpay.payinfo found')
+
+    # - MUST reject the invoice if all fields in ranges 0 to 159 and 1000000000 to 2999999999 (inclusive) do not exactly match the invoice request.
+    invreq_keys = filter(lambda key: 0 <= key[0] <= 159 or 1_000_000_000 <= key[0] <= 2_999_999_999,
+                         OnionWireSerializer.in_tlv_stream_get_record_name_from_type['invoice_request'].items())
+    for ftype, fkey in invreq_keys:
+        if not invoice_data.get(fkey) == invreq_data.get(fkey):
+            raise Exception(f'invalid bolt12 invoice, non-matching invreq {fkey=}')
+    # - MUST reject the invoice if invoice_node_id is not equal to offer_issuer_id if offer_issuer_id is present
+    if offer_issuer_id := bolt12_offer.get('offer_issuer_id', {}).get('id'):
+        if not invoice_data.get('invoice_node_id', {}).get('node_id') == offer_issuer_id:
+            raise Exception(f'invalid bolt12 invoice, invoice_node_id does not match offer_issuer_id')
+    # TODO: otherwise MUST reject the invoice if invoice_node_id is not equal to the final blinded_node_id it sent the invoice request to.
+
+    # - MUST reject the invoice if invoice_amount is not equal to invreq_amount if invreq_amount is present
+    # - otherwise SHOULD confirm authorization if invoice_amount.msat is not within the amount range authorized.
+    if invoice_amount := invoice_data.get('invoice_amount', {}).get('msat'):
+        if invoice_amount != amount_msat:
+            raise Exception('invoice bolt12 invoice, invoice_amount != invreq_amount')
+
     # TODO:
-    # - invreq is equal checks
     # - invoice_features checks
-    # - invoice_paths empty
     # - invoice_blindedpay.payinfo matches invoice_paths.blinded_path and features
-    # - invoice in response to invoice_request:
-    #   - MUST reject the invoice if all fields in ranges 0 to 159 and 1000000000 to 2999999999 (inclusive) do not exactly match the invoice request.
-    #   - MUST reject the invoice if invoice_node_id is not equal to offer_issuer_id if offer_issuer_id is present
-    #   - otherwise MUST reject the invoice if invoice_node_id is not equal to the final blinded_node_id it sent the invoice request to.
-    #   - MUST reject the invoice if invoice_amount is not equal to invreq_amount if invreq_amount is present
-    #   - otherwise SHOULD confirm authorization if invoice_amount.msat is not within the amount range authorized.
     # - fallback address checks
     # - MUST reject the invoice if it did not arrive via one of the paths in invreq_paths
 
     return invoice_data, invoice_tlv
+
+
+def verify_request_and_create_invoice(
+        lnwallet: 'LNWallet',
+        bolt12_offer: dict,
+        bolt12_invreq: dict,
+) -> dict:
+    # TODO check offer fields in invreq are equal
+    # TODO check constraints, like expiry, offer_amount etc
+
+    # copy the invreq and offer fields
+    invoice = copy.deepcopy(bolt12_invreq)
+    del invoice['signature']  # remove the signature from the invreq
+
+    # spec: if invreq_amount is present: MUST set invoice_amount to invreq_amount
+    # otherwise: 'expected' amount (or amount == 0 invoice? or min_htlc_msat from channel set?)
+    amount_msat = 0
+    if bolt12_invreq.get('invreq_amount'):
+        amount_msat = bolt12_invreq['invreq_amount']['msat']
+    elif bolt12_invreq.get('offer_amount'):
+        amount_msat = bolt12_invreq['offer_amount']['amount']
+    else:  # TODO: raise if neither offer nor invreq specify amount?
+        pass
+
+    invoice_payment_hash = lnwallet.create_payment_info(amount_msat=amount_msat)  # TODO cltv, expiry
+
+    now = int(time.time())
+    invoice.update({
+        'invoice_amount': {'msat': amount_msat},
+        'invoice_created_at': {'timestamp': now},
+        'invoice_relative_expiry': {'seconds_from_creation': 3600},  # TODO hardcoded
+        'invoice_payment_hash': {'payment_hash': invoice_payment_hash}
+    })
+
+    # spec: if offer_issuer_id is present: MUST set invoice_node_id to the offer_issuer_id
+    # spec: otherwise, if offer_paths is present: MUST set invoice_node_id to the final blinded_node_id
+    # on the path it received the invoice request
+    if bolt12_offer.get('offer_issuer_id'):
+        invoice.update({
+            'invoice_node_id': {'node_id': bolt12_offer['offer_issuer_id']['id']}
+        })
+    else:
+        # NOTE: requires knowledge of invreq incoming path and its final blinded_node_id
+        # and corresponding secret for signing invoice
+
+        # if offer_paths := bolt12_offer.get('offer_paths', {}).get('paths'):
+        #     # TODO match path, assuming path[0] for now
+        #     path_last_blinded_node_id = offer_paths[0].get('path')[-1].get('blinded_node_id')
+        #     invoice.update({
+        #         'invoice_node_id': {'node_id': path_last_blinded_node_id}
+        #     })
+
+        # we don't have invreq used path available here atm. see also request_invoice()
+        raise Exception('branch not implemented, electrum should set offer_issuer_id')
+
+    payment_secret = lnwallet.get_payment_secret(invoice_payment_hash)
+    invoice_paths, payinfo = get_blinded_paths_to_me(lnwallet, final_recipient_data={
+        'path_id': {'data': payment_secret},  # TODO gen & store
+    })
+
+    invoice.update({
+        'invoice_paths': {'paths': invoice_paths},
+        'invoice_blindedpay': {'payinfo': payinfo}
+    })
+
+    return invoice
 
 
 # wraps remote invoice_error
