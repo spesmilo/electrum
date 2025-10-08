@@ -29,15 +29,15 @@ import time
 from dataclasses import dataclass, field, asdict, fields
 from functools import cached_property
 import re
-from typing import Optional, Tuple, Iterable, Type, TypeVar, Any, ClassVar, Sequence
+from typing import Optional, Tuple, Iterable, Type, TypeVar, Any, ClassVar
 from abc import ABC, abstractmethod
 
 import electrum_ecc as ecc
 
 from . import constants
 from .util import chunks
-from .lnmsg import OnionWireSerializer
-from .lnutil import LnFeatures, validate_features, NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, LnFeatureContexts
+from .lnmsg import OnionWireSerializer, write_bigsize_int, read_bigsize_int
+from .lnutil import LnFeatures, validate_features, MIN_FINAL_CLTV_DELTA_ACCEPTED, NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, LnFeatureContexts
 from .onion_message import BlindedPath, BlindedPayInfo
 from .segwit_addr import (
     bech32_decode, convertbits, bech32_encode, Encoding, INVALID_BECH32,
@@ -259,6 +259,7 @@ class BOLT12InvoiceRequest(BOLT12Offer):
                 # MUST calculate the expected amount using the offer_amount
                 if self.offer_currency and self.offer_currency.upper() != 'BTC':
                     # TODO: if offer_currency is not the invreq_chain currency, convert to the invreq_chain currency
+                    #  also adapt invoice_amount_msat property below
                     raise NotImplementedError("no fx conversion support yet, will this be used?")
                 # if invreq_quantity is present, multiply by invreq_quantity.quantity
                 if self.invreq_quantity:
@@ -291,6 +292,20 @@ class BOLT12InvoiceRequest(BOLT12Offer):
             name, domain = self.invreq_bip_353_name
             if not validate_bip_353_name(name, domain):
                 raise ValueError(f"invalid bip 353 name: {self.invreq_bip_353_name}")
+
+    @property
+    def invoice_amount_msat(self) -> int:
+        # this relies on the __post_init__ validation
+        if isinstance(self, BOLT12Invoice):
+            return self.invoice_amount
+        assert isinstance(self, BOLT12InvoiceRequest)
+        if self.invreq_amount is not None:
+            return self.invreq_amount
+        expected_amount = self.offer_amount
+        assert expected_amount is not None
+        if self.invreq_quantity:
+            expected_amount *= self.invreq_quantity
+        return expected_amount
 
     @classmethod
     def deserialize(cls, ir: dict) -> 'BOLT12InvoiceRequest':
@@ -507,12 +522,199 @@ def bolt12_tlv_bytes_to_bech32(bolt12_tlv: bytes, bolt12_type: type[BOLT12Base])
     return bech32_encode(Encoding.BECH32, bolt12_type.hrp, bech32_data, with_checksum=False)
 
 
+@dataclass(frozen=True, kw_only=True)
+class BOLT12InvoicePathIDPayload:
+    """
+    Payment information embedded into the BOLT12Invoice blinded path's path_id so we can hand out invoices
+    statelessly and reconstruct the full payment context when the actual HTLCs arrive.
+
+    TODO: If this is too large some fields might need to be removed (esp the descriptions texts).
+          We could also cache some less important things like the description
+          in memory, assuming that the Invoice is usually paid right after being requested.
+          A filled path_id payload can reach ~270 bytes realistically.
+    """
+    VERSION: ClassVar[bytes] = b'\x01'
+
+    amount_msat: int
+    created_at: int
+    relative_expiry: int
+    payment_preimage: bytes
+    min_final_cltv_expiry_delta: int
+    invoice_features: LnFeatures
+    payer_id: bytes
+    offer_metadata_digest: Optional[bytes] = None  # allows us to associate the payment with an offer (if we'd persist/cache offers)
+    quantity: Optional[int] = None
+    payer_note: Optional[str] = None
+    description: Optional[str] = None
+
+    def __post_init__(self):  # some sanity checks
+        assert isinstance(self.payment_preimage, bytes) and len(self.payment_preimage) == 32, self.payment_preimage
+        assert isinstance(self.payer_id, bytes) and len(self.payer_id) == 33, self.payer_id
+        assert self.amount_msat and self.created_at and self.relative_expiry, (self.amount_msat, self.created_at, self.relative_expiry)
+        assert self.min_final_cltv_expiry_delta >= MIN_FINAL_CLTV_DELTA_ACCEPTED
+        validate_features(self.invoice_features, context=LnFeatureContexts.BOLT12_INVOICE)
+
+    def encode(self) -> bytes:
+        flags = 0
+        if self.quantity is not None:
+            assert self.quantity >= 0
+            flags |= 0b0001
+        if self.offer_metadata_digest is not None:  # we could truncate it to save some space?
+            assert isinstance(self.offer_metadata_digest, bytes) and len(self.offer_metadata_digest) == 32
+            flags |= 0b0010
+
+        payer_note = self.payer_note[:64] if self.payer_note is not None else None
+        description = self.description[:64] if self.description is not None else None
+        if payer_note is not None:
+            flags |= 0b0100
+        if description is not None:
+            flags |= 0b1000
+
+        with io.BytesIO() as fd:
+            fd.write(self.VERSION)
+            fd.write(self.payment_preimage)
+            fd.write(self.payer_id)
+            fd.write(write_bigsize_int(self.amount_msat))
+            fd.write(write_bigsize_int(self.created_at))
+            fd.write(write_bigsize_int(self.relative_expiry))
+            fd.write(write_bigsize_int(self.min_final_cltv_expiry_delta))
+            features_bytes = self.invoice_features.to_tlv_bytes()
+            fd.write(write_bigsize_int(len(features_bytes)))
+            fd.write(features_bytes)
+            fd.write(bytes([flags]))
+            if self.quantity is not None:
+                fd.write(write_bigsize_int(self.quantity))
+            if self.offer_metadata_digest is not None:
+                fd.write(self.offer_metadata_digest)
+            if payer_note is not None:
+                payer_note_bytes = payer_note.encode('utf-8')
+                fd.write(write_bigsize_int(len(payer_note_bytes)))
+                fd.write(payer_note_bytes)
+            if description is not None:
+                description_bytes = description.encode('utf-8')
+                fd.write(write_bigsize_int(len(description_bytes)))
+                fd.write(description_bytes)
+            return fd.getvalue()
+
+    @classmethod
+    def decode(cls, data: bytes) -> 'BOLT12InvoicePathIDPayload':
+        with io.BytesIO(data) as fd:
+            version = fd.read(1)
+            if version != cls.VERSION:
+                raise ValueError(f"unsupported version: {version!r}")
+
+            payment_preimage = fd.read(32)
+            if len(payment_preimage) != 32:
+                raise ValueError("path_id truncated: payment_preimage")
+            payer_id = fd.read(33)
+            if len(payer_id) != 33:
+                raise ValueError("path_id truncated: payer_id")
+
+            amount_msat = read_bigsize_int(fd)
+            created_at = read_bigsize_int(fd)
+            relative_expiry = read_bigsize_int(fd)
+            min_final_cltv_expiry_delta = read_bigsize_int(fd)
+            if not amount_msat or not created_at or not relative_expiry or not min_final_cltv_expiry_delta:
+                raise ValueError("path_id truncated: amount_msat, created_at, relative_expiry or min_final_cltv_expiry_delta")
+
+            features_len = read_bigsize_int(fd)
+            if features_len is None:
+                raise ValueError("path_id truncated: features_len")
+            features_bytes = fd.read(features_len)
+            if len(features_bytes) != features_len:
+                raise ValueError("path_id truncated: invoice_features")
+            invoice_features = LnFeatures(int.from_bytes(features_bytes, byteorder="big", signed=False))
+
+            flags_byte = fd.read(1)
+            if len(flags_byte) != 1:
+                raise ValueError("path_id truncated: flags")
+            flags = flags_byte[0]
+
+            quantity: Optional[int] = None
+            offer_metadata_digest: Optional[bytes] = None
+            payer_note: Optional[str] = None
+            description: Optional[str] = None
+
+            if flags & 0b0001:
+                quantity = read_bigsize_int(fd)
+                if quantity is None:
+                    raise ValueError("path_id truncated: quantity")
+            if flags & 0b0010:
+                offer_metadata_digest = fd.read(32)
+                if len(offer_metadata_digest) != 32:
+                    raise ValueError("path_id truncated: offer_metadata_digest")
+            if flags & 0b0100:
+                note_len = read_bigsize_int(fd)
+                if note_len is None:
+                    raise ValueError("path_id truncated: payer_note_len")
+                note_bytes = fd.read(note_len)
+                if len(note_bytes) != note_len:
+                    raise ValueError("path_id truncated: payer_note")
+                payer_note = note_bytes.decode('utf-8')
+            if flags & 0b1000:
+                desc_len = read_bigsize_int(fd)
+                if desc_len is None:
+                    raise ValueError("path_id truncated: description_len")
+                desc_bytes = fd.read(desc_len)
+                if len(desc_bytes) != desc_len:
+                    raise ValueError("path_id truncated: description")
+                description = desc_bytes.decode('utf-8')
+
+            if fd.read(1):
+                raise ValueError("trailing bytes in path_id?")
+
+        return cls(
+            amount_msat=amount_msat,
+            created_at=created_at,
+            relative_expiry=relative_expiry,
+            payment_preimage=payment_preimage,
+            min_final_cltv_expiry_delta=min_final_cltv_expiry_delta,
+            invoice_features=invoice_features,
+            payer_id=payer_id,
+            offer_metadata_digest=offer_metadata_digest,
+            quantity=quantity,
+            payer_note=payer_note,
+            description=description,
+        )
+
+
 # offer/request/invoice uses different chain than we do
 class NoMatchingChainError(Exception): pass
 
 
-# wraps remote invoice_error
-class Bolt12InvoiceError(Exception): pass
+# wraps invoice_error
+class Bolt12InvoiceError(Exception):
+    def __init__(self, msg: str, *, erroneous_field: Optional[int] = None, suggested_value: Optional[bytes] = None):
+        assert msg
+        assert suggested_value is None if erroneous_field is None else True
+
+        super().__init__(msg)
+        self.message = msg
+        self.erroneous_field = erroneous_field
+        self.suggested_value = suggested_value
+
+    @classmethod
+    def from_tlv(cls, tlv: bytes) -> 'Bolt12InvoiceError':
+        try:
+            with io.BytesIO(tlv) as fd:
+                invoice_error = OnionWireSerializer.read_tlv_stream(fd=fd, tlv_stream_name='invoice_error')
+        except Exception:
+            return cls(msg="malformed invoice error")
+        return cls(
+            msg=invoice_error.get('error', {}).get('msg', "received invoice_error without message"),
+            erroneous_field=invoice_error.get('erroneous_field', {}).get('tlv_fieldnum'),
+            suggested_value=invoice_error.get('suggested_value', {}).get('value'),
+        )
+
+    def to_tlv(self):
+        data = {'error': {'msg': self.message}}
+        if self.erroneous_field is not None:
+            data.update({'erroneous_field': {'tlv_fieldnum': self.erroneous_field}})
+        if self.suggested_value is not None:
+            data.update({'suggested_value': {'value': self.suggested_value}})
+        with io.BytesIO() as fd:
+            OnionWireSerializer.write_tlv_stream(fd=fd, tlv_stream_name='invoice_error', **data)
+            return fd.getvalue()
 
 
 def remove_bolt12_whitespace(bolt12_bech32: str) -> str:
