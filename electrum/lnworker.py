@@ -1435,12 +1435,12 @@ class LNWallet(LNWorker):
     def cb_data(self, node_id: bytes) -> bytes:
         return CB_MAGIC_BYTES + node_id[0:NODE_ID_PREFIX_LEN]
 
-    def decrypt_cb_data(self, encrypted_data, funding_address):
+    def decrypt_cb_data(self, encrypted_data: bytes, funding_address: str) -> bytes:
         funding_scripthash = bytes.fromhex(address_to_scripthash(funding_address))
         nonce = funding_scripthash[0:12]
         return chacha20_decrypt(key=self.backup_key, data=encrypted_data, nonce=nonce)
 
-    def encrypt_cb_data(self, data, funding_address):
+    def encrypt_cb_data(self, data: bytes, funding_address: str) -> bytes:
         funding_scripthash = bytes.fromhex(address_to_scripthash(funding_address))
         nonce = funding_scripthash[0:12]
         # note: we are only using chacha20 instead of chacha20+poly1305 to save onchain space
@@ -1473,7 +1473,7 @@ class LNWallet(LNWorker):
         tx.locktime = get_locktime_for_new_transaction(self.network, include_random_component=False)
         return tx
 
-    def suggest_funding_amount(self, amount_to_pay, coins) -> Tuple[int, int] | None:
+    def suggest_funding_amount(self, amount_to_pay: int, coins: Sequence[PartialTxInput]) -> Tuple[int, int] | None:
         """ whether we can pay amount_sat after opening a new channel"""
         num_sats_can_send = int(self.num_sats_can_send())
         lightning_needed = amount_to_pay - num_sats_can_send
