@@ -1436,30 +1436,6 @@ class Transaction:
         script = bitcoin.address_to_script(addr)
         return self.get_output_idxs_from_scriptpubkey(script)
 
-    def replace_output_address(self, old_address: str, new_address: str) -> None:
-        idx = list(self.get_output_idxs_from_address(old_address))
-        assert len(idx) == 1
-        amount = self._outputs[idx[0]].value
-        funding_output = PartialTxOutput.from_address_and_value(new_address, amount)
-        old_output = PartialTxOutput.from_address_and_value(old_address, amount)
-        self._outputs.remove(old_output)
-        self.add_outputs([funding_output])
-        delattr(self, '_script_to_output_idx')
-
-    def get_change_outputs(self):
-        return  [o for o in self._outputs if o.is_change]
-
-    def has_change(self):
-        return len(self.get_change_outputs()) > 0
-
-    def get_dummy_output(self, dummy_addr: str) -> Optional['PartialTxOutput']:
-        idxs = self.get_output_idxs_from_address(dummy_addr)
-        if not idxs:
-            return
-        assert len(idxs) == 1
-        for i in idxs:
-            return self.outputs()[i]
-
     def output_value_for_address(self, addr):
         # assumes exactly one output has that address
         for o in self.outputs():
@@ -2433,6 +2409,30 @@ class PartialTransaction(Transaction):
         if BIP69_sort:
             self.BIP69_sort(inputs=False)
         self.invalidate_ser_cache()
+
+    def replace_output_address(self, old_address: str, new_address: str) -> None:
+        idx = list(self.get_output_idxs_from_address(old_address))
+        assert len(idx) == 1
+        amount = self._outputs[idx[0]].value
+        funding_output = PartialTxOutput.from_address_and_value(new_address, amount)
+        old_output = PartialTxOutput.from_address_and_value(old_address, amount)
+        self._outputs.remove(old_output)
+        self.add_outputs([funding_output])
+        delattr(self, '_script_to_output_idx')
+
+    def get_change_outputs(self):
+        return  [o for o in self._outputs if o.is_change]
+
+    def has_change(self):
+        return len(self.get_change_outputs()) > 0
+
+    def get_dummy_output(self, dummy_addr: str) -> Optional['PartialTxOutput']:
+        idxs = self.get_output_idxs_from_address(dummy_addr)
+        if not idxs:
+            return
+        assert len(idxs) == 1
+        for i in idxs:
+            return self.outputs()[i]
 
     def set_rbf(self, rbf: bool) -> None:
         nSequence = 0xffffffff - (2 if rbf else 1)
