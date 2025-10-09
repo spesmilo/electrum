@@ -1848,7 +1848,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return candidates
 
     def get_change_addresses_for_new_transaction(
-            self, preferred_change_addr=None, *, allow_reusing_used_change_addrs: bool = True,
+            self, preferred_change_addr=None, *, allow_reusing_used_change_addrs: bool = True, max_change: Optional[int] = None,
     ) -> List[str]:
         """note: might return an empty list! (e.g. if use_change is disabled, or allow_reuse is False)"""
         change_addrs = []
@@ -1864,7 +1864,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             # note that change addresses are not necessarily ismine
             # in which case this is a no-op
             self.check_address_for_corruption(addr)
-        max_change = self.max_change_outputs if self.multiple_change else 1
+        if max_change is None:
+            max_change = self.max_change_outputs if self.multiple_change else 1
         return change_addrs[:max_change]
 
     def get_single_change_address_for_new_transaction(
