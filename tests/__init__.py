@@ -5,6 +5,7 @@ import threading
 import tempfile
 import shutil
 import functools
+import inspect
 
 import electrum
 import electrum.logging
@@ -88,7 +89,7 @@ def as_testnet(func):
     NOTE: this is inherently sequential; tests running in parallel would break things
     """
     old_net = constants.net
-    if asyncio.iscoroutinefunction(func):
+    if inspect.iscoroutinefunction(func):
         async def run_test(*args, **kwargs):
             try:
                 constants.BitcoinTestnet.set_as_network()

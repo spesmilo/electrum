@@ -3,6 +3,7 @@ import base64
 import json
 import os
 import sys
+import inspect
 
 import electrum_ecc as ecc
 
@@ -46,7 +47,7 @@ def needs_test_with_all_aes_implementations(func):
     has_cryptodome = crypto.HAS_CRYPTODOME
     has_cryptography = crypto.HAS_CRYPTOGRAPHY
     has_pyaes = crypto.HAS_PYAES
-    if asyncio.iscoroutinefunction(func):
+    if inspect.iscoroutinefunction(func):
         async def run_test(*args, **kwargs):
             try:
                 if has_pyaes:
@@ -92,7 +93,7 @@ def needs_test_with_all_chacha20_implementations(func):
         return func
     has_cryptodome = crypto.HAS_CRYPTODOME
     has_cryptography = crypto.HAS_CRYPTOGRAPHY
-    if asyncio.iscoroutinefunction(func):
+    if inspect.iscoroutinefunction(func):
         async def run_test(*args, **kwargs):
             try:
                 if has_cryptodome:
@@ -128,7 +129,7 @@ def disable_ecdsa_r_value_grinding(func):
     tests running in parallel would break things
     """
     is_grinding = ecc.ENABLE_ECDSA_R_VALUE_GRINDING
-    if asyncio.iscoroutinefunction(func):
+    if inspect.iscoroutinefunction(func):
         async def run_test(*args, **kwargs):
             try:
                 ecc.ENABLE_ECDSA_R_VALUE_GRINDING = False
