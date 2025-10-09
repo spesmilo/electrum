@@ -52,7 +52,11 @@ class TimelockRecoveryContext:
         self.wallet_name = str(self.wallet)
 
     def _get_address_by_label(self, label: str) -> str:
-        unused_addresses = list(self.wallet.get_unused_addresses())
+        unused_change_addresses = list(self.wallet.get_change_addresses_for_new_transaction(
+            allow_reusing_used_change_addrs=False,
+            max_change=self.wallet.gap_limit_for_change if self.wallet.gap_limit_for_change is not None else 2,
+        ))
+        unused_addresses = unused_change_addresses + list(self.wallet.get_unused_addresses())
         for addr in unused_addresses:
             if self.wallet.get_label_for_address(addr) == label:
                 return addr
@@ -61,7 +65,7 @@ class TimelockRecoveryContext:
                 self.wallet.set_label(addr, label)
                 return addr
         if self.wallet.is_deterministic():
-            addr = self.wallet.create_new_address(False)
+            addr = self.wallet.create_new_address(True) or self.wallet.create_new_address(False)
             if addr:
                 self.wallet.set_label(addr, label)
                 return addr
