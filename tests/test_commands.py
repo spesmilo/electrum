@@ -572,6 +572,7 @@ class TestCommandsTestnet(ElectrumTestCase):
             assert settled_status['status'] == 'settled'
             assert settled_status['received_amount_sat'] == 10000
             assert settled_status['invoice_amount_sat'] == 10000
+            assert settled_status['preimage'] == preimage.hex()
 
         with self.assertRaises(AssertionError):
             # cancelling a settled invoice should raise
@@ -723,3 +724,19 @@ class TestCommandsTestnet(ElectrumTestCase):
             }
         }
         self.assertEqual(result, expected_result)
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_export_lightning_preimage(self, *mock_args):
+        w = restore_wallet_from_text__for_unittest(
+            'disagree rug lemon bean unaware square alone beach tennis exhibit fix mimic',
+            path='if_this_exists_mocking_failed_648151893',
+            config=self.config)['wallet']
+        cmds = Commands(config=self.config)
+
+        preimage = os.urandom(32)
+        payment_hash = sha256(preimage)
+        w.lnworker.save_preimage(payment_hash, preimage)
+
+        assert await cmds.export_lightning_preimage(payment_hash=payment_hash.hex(), wallet=w) == preimage.hex()
+        assert await cmds.export_lightning_preimage(payment_hash=os.urandom(32).hex(), wallet=w) is None
+
