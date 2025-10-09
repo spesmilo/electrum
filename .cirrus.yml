@@ -17,9 +17,11 @@ task:
            ELECTRUM_PYTHON_VERSION: 3.12
        - env:
            ELECTRUM_PYTHON_VERSION: 3.13
-       - name: "unittests: py3.13, debug-mode"
+       - env:
+           ELECTRUM_PYTHON_VERSION: 3.14
+       - name: "unittests: py3.14, debug-mode"
          env:
-           ELECTRUM_PYTHON_VERSION: 3.13
+           ELECTRUM_PYTHON_VERSION: 3.14
            # enable additional checks:
            PYTHONASYNCIODEBUG: "1"
            PYTHONDEVMODE: "1"
