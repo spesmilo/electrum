@@ -44,7 +44,7 @@ class TestTimelockRecovery(ElectrumTestCase):
 
         context = TimelockRecoveryContext(wallet)
         alert_address = context.get_alert_address()
-        self.assertEqual(alert_address, 'tb1qchyc02y9mv4xths4je9puc4yzuxt8rfm26ef07')
+        self.assertEqual(alert_address, 'tb1q02g5nde0heaed0y24rztkedh9nvswknw50h7fx')
 
     async def test_get_cancellation_address(self):
         wallet = self._create_default_wallet()
@@ -52,7 +52,7 @@ class TestTimelockRecovery(ElectrumTestCase):
         context = TimelockRecoveryContext(wallet)
         context.get_alert_address()
         cancellation_address = context.get_cancellation_address()
-        self.assertEqual(cancellation_address, 'tb1q6k5h4cz6ra8nzhg90xm9wldvadgh0fpttfthcg')
+        self.assertEqual(cancellation_address, 'tb1qzyaz308030saay93zqma0at032vfqa9y0gfge3')
 
     async def test_make_unsigned_alert_tx(self):
         wallet = self._create_default_wallet()
@@ -72,9 +72,9 @@ class TestTimelockRecovery(ElectrumTestCase):
         alert_tx_outputs = [(tx_output.address, tx_output.value) for tx_output in alert_tx.outputs()]
         self.assertEqual(alert_tx_outputs, [
             ('tb1q4s8z6g5jqzllkgt8a4har94wl8tg0k9m8kv5zd', 600),
-            ('tb1qchyc02y9mv4xths4je9puc4yzuxt8rfm26ef07', 743065),
+            ('tb1q02g5nde0heaed0y24rztkedh9nvswknw50h7fx', 743065),
         ])
-        self.assertEqual(alert_tx.txid(), '01c227f136c4490ec7cb0fe2ba5e44c436f58906b7fc29a83cb865d7e3bfaa60')
+        self.assertEqual(alert_tx.txid(), 'd1cfea399f59da9920c91edd6343501730a771d1d4a43596b0ff33ae95d9b3a9')
 
     async def test_make_unsigned_recovery_tx(self):
         wallet = self._create_default_wallet()
@@ -90,7 +90,7 @@ class TestTimelockRecovery(ElectrumTestCase):
         self.assertEqual(recovery_tx.version, 2)
         recovery_tx_inputs = [tx_input.prevout.to_str() for tx_input in recovery_tx.inputs()]
         self.assertEqual(recovery_tx_inputs, [
-            '01c227f136c4490ec7cb0fe2ba5e44c436f58906b7fc29a83cb865d7e3bfaa60:1',
+            'd1cfea399f59da9920c91edd6343501730a771d1d4a43596b0ff33ae95d9b3a9:1',
         ])
         self.assertEqual(recovery_tx.inputs()[0].nsequence, 0x00403b54)
 
@@ -112,10 +112,10 @@ class TestTimelockRecovery(ElectrumTestCase):
         self.assertEqual(cancellation_tx.version, 2)
         cancellation_tx_inputs = [tx_input.prevout.to_str() for tx_input in cancellation_tx.inputs()]
         self.assertEqual(cancellation_tx_inputs, [
-            '01c227f136c4490ec7cb0fe2ba5e44c436f58906b7fc29a83cb865d7e3bfaa60:1',
+            'd1cfea399f59da9920c91edd6343501730a771d1d4a43596b0ff33ae95d9b3a9:1',
         ])
         self.assertEqual(cancellation_tx.inputs()[0].nsequence, 0xfffffffd)
         cancellation_tx_outputs = [(tx_output.address, tx_output.value) for tx_output in cancellation_tx.outputs()]
         self.assertEqual(cancellation_tx_outputs, [
-            ('tb1q6k5h4cz6ra8nzhg90xm9wldvadgh0fpttfthcg', 737065),
+            ('tb1qzyaz308030saay93zqma0at032vfqa9y0gfge3', 737065),
         ])
