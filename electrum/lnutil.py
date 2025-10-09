@@ -1934,25 +1934,72 @@ class UpdateAddHtlc:
 # Note: these states are persisted in the wallet file.
 # Do not modify them without performing a wallet db upgrade
 class RecvMPPResolution(IntEnum):
-    WAITING = 0
-    EXPIRED = 1
-    COMPLETE = 2
-    FAILED = 3
+    WAITING = 0  # set is not complete yet, waiting for arrival of the remaining htlcs
+    EXPIRED = 1  # preimage must not be revealed
+    COMPLETE = 2  # set is complete but could still be failed (e.g. due to cltv timeout)
+    FAILED = 3  # preimage must not be revealed
+    SETTLING = 4  # don't fail this set and release the preimage as soon as it becomes available
+
+
+r = RecvMPPResolution
+allowed_mpp_set_transitions = (
+    (r.WAITING, r.EXPIRED),
+    (r.WAITING, r.FAILED),
+    (r.WAITING, r.COMPLETE),
+    (r.WAITING, r.SETTLING),  # normal htlc forwarding
+
+    (r.COMPLETE, r.SETTLING),
+    (r.COMPLETE, r.FAILED),
+    (r.COMPLETE, r.EXPIRED),  # this should only realistically happen for payment bundles
+
+    (r.SETTLING, r.FAILED),  # forwarding failure, hold invoice callback gets unregistered, and we don't have preimage
+
+    (r.EXPIRED, r.FAILED),  # doesn't seem useful but also not dangerous
+)
+del r
+
+
+class ReceivedMPPHtlc(NamedTuple):
+    scid: ShortChannelID
+    htlc: UpdateAddHtlc
+    unprocessed_onion: str
+
+    def __repr__(self):
+        return f"{self.scid}, {self.htlc=}, {self.unprocessed_onion[:15]=}..."
+
+    @staticmethod
+    def from_tuple(scid, htlc, unprocessed_onion) -> 'ReceivedMPPHtlc':
+        assert is_hex_str(unprocessed_onion) and is_hex_str(scid)
+        return ReceivedMPPHtlc(
+            scid=ShortChannelID(bytes.fromhex(scid)),
+            htlc=UpdateAddHtlc.from_tuple(*htlc),
+            unprocessed_onion=unprocessed_onion,
+        )
 
 
 class ReceivedMPPStatus(NamedTuple):
     resolution: RecvMPPResolution
-    expected_msat: int
-    htlc_set: Set[Tuple[ShortChannelID, UpdateAddHtlc]]
+    htlcs: set[ReceivedMPPHtlc]
+
+    def get_first_htlc_timestamp(self):
+        assert self.htlcs, "htlc set is empty"
+        return min(mpp_htlc.htlc.timestamp for mpp_htlc in self.htlcs)
+
+    def get_payment_hash(self) -> Optional[bytes]:
+        mpp_htlc = next(iter(self.htlcs), None)
+        if mpp_htlc:
+            return mpp_htlc.htlc.payment_hash
+        return None
 
     @staticmethod
     @stored_in('received_mpp_htlcs', tuple)
-    def from_tuple(resolution, expected_msat, htlc_list) -> 'ReceivedMPPStatus':
-        htlc_set = set([(ShortChannelID(bytes.fromhex(scid)), UpdateAddHtlc.from_tuple(*x)) for (scid, x) in htlc_list])
+    def from_tuple(resolution, htlc_list) -> 'ReceivedMPPStatus':
+        assert isinstance(resolution, int)
+        htlc_set = set(ReceivedMPPHtlc.from_tuple(*htlc_data) for htlc_data in htlc_list)
         return ReceivedMPPStatus(
             resolution=RecvMPPResolution(resolution),
-            expected_msat=expected_msat,
-            htlc_set=htlc_set)
+            htlcs=htlc_set,
+        )
 
 
 class OnionFailureCodeMetaFlag(IntFlag):
