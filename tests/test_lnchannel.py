@@ -50,7 +50,8 @@ one_bitcoin_in_msat = bitcoin.COIN * 1000
 def create_channel_state(funding_txid, funding_index, funding_sat, is_initiator,
                          local_amount, remote_amount, privkeys, other_pubkeys,
                          seed, cur, nex, other_node_id, l_dust, r_dust, l_csv,
-                         r_csv, anchor_outputs, local_max_inflight, remote_max_inflight):
+                         r_csv, anchor_outputs, local_max_inflight, remote_max_inflight,
+                         max_accepted_htlcs):
     #assert local_amount > 0
     #assert remote_amount > 0
 
@@ -71,7 +72,7 @@ def create_channel_state(funding_txid, funding_index, funding_sat, is_initiator,
                 to_self_delay=r_csv,
                 dust_limit_sat=r_dust,
                 max_htlc_value_in_flight_msat=remote_max_inflight,
-                max_accepted_htlcs=5,
+                max_accepted_htlcs=max_accepted_htlcs,
                 initial_msat=remote_amount,
                 reserve_sat=0,
                 htlc_minimum_msat=1,
@@ -91,7 +92,7 @@ def create_channel_state(funding_txid, funding_index, funding_sat, is_initiator,
                 to_self_delay=l_csv,
                 dust_limit_sat=l_dust,
                 max_htlc_value_in_flight_msat=local_max_inflight,
-                max_accepted_htlcs=5,
+                max_accepted_htlcs=max_accepted_htlcs,
                 initial_msat=local_amount,
                 reserve_sat=0,
                 per_commitment_secret_seed=seed,
@@ -133,7 +134,8 @@ def create_test_channels(*, feerate=6000, local_msat=None, remote_msat=None,
                          alice_name="alice", bob_name="bob",
                          alice_pubkey=b"\x01"*33, bob_pubkey=b"\x02"*33, random_seed=None,
                          anchor_outputs=False,
-                         local_max_inflight=None, remote_max_inflight=None):
+                         local_max_inflight=None, remote_max_inflight=None,
+                         max_accepted_htlcs=5):
     if random_seed is None:  # needed for deterministic randomness
         random_seed = os.urandom(32)
     random_gen = PRNG(random_seed)
@@ -168,7 +170,8 @@ def create_test_channels(*, feerate=6000, local_msat=None, remote_msat=None,
                 remote_amount, alice_privkeys, bob_pubkeys, alice_seed, None,
                 bob_first, other_node_id=bob_pubkey, l_dust=200, r_dust=1300,
                 l_csv=5, r_csv=4, anchor_outputs=anchor_outputs,
-                local_max_inflight=local_max_inflight, remote_max_inflight=remote_max_inflight
+                local_max_inflight=local_max_inflight, remote_max_inflight=remote_max_inflight,
+                max_accepted_htlcs=max_accepted_htlcs,
             ),
             name=f"{alice_name}->{bob_name}",
             initial_feerate=feerate),
@@ -178,7 +181,8 @@ def create_test_channels(*, feerate=6000, local_msat=None, remote_msat=None,
                 local_amount, bob_privkeys, alice_pubkeys, bob_seed, None,
                 alice_first, other_node_id=alice_pubkey, l_dust=1300, r_dust=200,
                 l_csv=4, r_csv=5, anchor_outputs=anchor_outputs,
-                local_max_inflight=remote_max_inflight, remote_max_inflight=local_max_inflight
+                local_max_inflight=remote_max_inflight, remote_max_inflight=local_max_inflight,
+                max_accepted_htlcs=max_accepted_htlcs,
             ),
             name=f"{bob_name}->{alice_name}",
             initial_feerate=feerate)
