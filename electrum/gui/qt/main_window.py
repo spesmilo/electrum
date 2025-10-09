@@ -1509,15 +1509,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             return
         self._open_channel(connect_str, funding_sat, push_amt, funding_tx)
 
-    def confirm_tx_dialog(self, make_tx, output_value, allow_preview=True, batching_candidates=None):
+    def confirm_tx_dialog(self, make_tx, output_value, *, allow_preview=True, batching_candidates=None) -> tuple[Optional[PartialTransaction], bool]:
         d = ConfirmTxDialog(window=self, make_tx=make_tx, output_value=output_value, allow_preview=allow_preview, batching_candidates=batching_candidates)
-        if d.not_enough_funds:  # FIXME this check looks broken?
-            # note: use confirmed_only=False here, regardless of config setting,
-            #       as the user needs to get to ConfirmTxDialog to change the config setting
-            if not d.can_pay_assuming_zero_fees(confirmed_only=False):
-                text = self.wallet.get_text_not_enough_funds_mentioning_frozen(for_amount=output_value)
-                self.show_message(text)
-                return
         return d.run(), d.is_preview
 
     @protected
