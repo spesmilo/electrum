@@ -559,7 +559,7 @@ class TxBatch(Logger):
         self._prevout = None
 
     @locked
-    def _new_base_tx(self, tx: Transaction) -> None:
+    def _new_base_tx(self, tx: PartialTransaction) -> None:
         self._prevout = tx.inputs()[0].prevout.to_str()
         self.storage['prevout'] = self._prevout
         if tx.has_change():

@@ -2420,19 +2420,19 @@ class PartialTransaction(Transaction):
         self.add_outputs([funding_output])
         delattr(self, '_script_to_output_idx')
 
-    def get_change_outputs(self):
-        return  [o for o in self._outputs if o.is_change]
+    def get_change_outputs(self) -> Sequence[PartialTxOutput]:
+        return [o for o in self._outputs if o.is_change]
 
-    def has_change(self):
+    def has_change(self) -> bool:
         return len(self.get_change_outputs()) > 0
 
     def get_dummy_output(self, dummy_addr: str) -> Optional['PartialTxOutput']:
         idxs = self.get_output_idxs_from_address(dummy_addr)
         if not idxs:
-            return
+            return None
         assert len(idxs) == 1
-        for i in idxs:
-            return self.outputs()[i]
+        idx = list(idxs)[0]
+        return self.outputs()[idx]
 
     def set_rbf(self, rbf: bool) -> None:
         nSequence = 0xffffffff - (2 if rbf else 1)
