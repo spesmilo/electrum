@@ -24,7 +24,7 @@ from electrum.network import TxBroadcastError, BestEffortRequestFailed
 from electrum.payment_identifier import (PaymentIdentifierType, PaymentIdentifier,
                                          invoice_from_payment_identifier,
                                          payment_identifier_from_invoice, PaymentIdentifierState)
-from electrum.submarine_swaps import SwapServerError
+from electrum.submarine_swaps import SwapServerError, SwapServerTransport
 from electrum.fee_policy import FeePolicy, FixedFeePolicy
 from electrum.lnurl import LNURL3Data, request_lnurl_withdraw_callback, LNURLError
 
@@ -295,9 +295,22 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             msg += "\n" + _("Some coins are frozen: {} (can be unfrozen in the Addresses or in the Coins tab)").format(frozen_bal)
         QToolTip.showText(self.max_button.mapToGlobal(QPoint(0, 0)), msg)
 
+    @staticmethod
+    def maybe_pass_swap_transport(func):
+        def wrapper(self, *args, **kwargs):
+            assert isinstance(self, SendTab)
+            if self.config.WALLET_SEND_CHANGE_TO_LIGHTNING and not kwargs.get('swap_transport'):
+                with self.window.create_sm_transport() as transport:
+                    if self.window.initialize_swap_manager(transport):
+                        kwargs['swap_transport'] = transport
+                        return func(self, *args, **kwargs)
+            return func(self, *args, **kwargs)
+        return wrapper
+
     # TODO: instead of passing outputs, use an invoice instead (like pay_lightning_invoice)
     # so we have more context (we cannot rely on send_tab field contents or payment identifier
     # as this method is called from other places as well).
+    @maybe_pass_swap_transport
     def pay_onchain_dialog(
             self,
             outputs: List[PartialTxOutput],
@@ -305,7 +318,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             nonlocal_only=False,
             external_keypairs: Mapping[bytes, bytes] = None,
             get_coins: Callable[..., Sequence[PartialTxInput]] = None,
-            invoice: Optional[Invoice] = None
+            invoice: Optional[Invoice] = None,
+            swap_transport: Optional['SwapServerTransport'] = None,
     ) -> None:
         # trustedcoin requires this
         if run_hook('abort_send', self):
@@ -324,7 +338,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                 outputs=outputs,
                 base_tx=base_tx,
                 is_sweep=is_sweep,
-                send_change_to_lightning=self.config.WALLET_SEND_CHANGE_TO_LIGHTNING,
+                send_change_to_lightning=bool(swap_transport),
                 merge_duplicate_outputs=self.config.WALLET_MERGE_DUPLICATE_OUTPUTS,
             )
         output_values = [x.value for x in outputs]
@@ -345,22 +359,20 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             return
 
         if swap_dummy_output := tx.get_dummy_output(DummyAddress.SWAP):
-            sm = self.wallet.lnworker.swap_manager
-            with self.window.create_sm_transport() as transport:
-                if not self.window.initialize_swap_manager(transport):
-                    return
-                coro = sm.request_swap_for_amount(transport=transport, onchain_amount=swap_dummy_output.value)
-                try:
-                    swap, swap_invoice = self.window.run_coroutine_dialog(coro, _('Requesting swap invoice...'))
-                except (SwapServerError, UserFacingException) as e:
-                    self.show_error(str(e))
-                    return
-                except UserCancelled:
-                    return
-                tx.replace_output_address(DummyAddress.SWAP, swap.lockup_address)
-                assert tx.get_dummy_output(DummyAddress.SWAP) is None
-                tx.swap_invoice = swap_invoice
-                tx.swap_payment_hash = swap.payment_hash
+            assert swap_transport and swap_transport.sm.is_initialized.is_set()
+            sm = swap_transport.sm
+            coro = sm.request_forward_swap_for_amount(transport=swap_transport, onchain_amount=swap_dummy_output.value)
+            try:
+                swap, swap_invoice = self.window.run_coroutine_dialog(coro, _('Requesting swap invoice...'))
+            except (SwapServerError, UserFacingException) as e:
+                self.show_error(str(e))
+                return
+            except UserCancelled:
+                return
+            tx.replace_output_address(DummyAddress.SWAP, swap.lockup_address)
+            assert tx.get_dummy_output(DummyAddress.SWAP) is None
+            tx.swap_invoice = swap_invoice
+            tx.swap_payment_hash = swap.payment_hash
 
         if is_preview:
             self.window.show_transaction(tx, external_keypairs=external_keypairs, invoice=invoice)
