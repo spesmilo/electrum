@@ -32,6 +32,7 @@ from typing import (
     NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable, Any, Sequence, Dict, Generic, TypeVar, List, Iterable,
     Set, Awaitable
 )
+from types import MappingProxyType
 from datetime import datetime, timezone, timedelta
 import decimal
 from decimal import Decimal
@@ -1873,6 +1874,21 @@ class OrderedDictWithIndex(OrderedDict):
             self._key_to_pos[key] = pos
             self._pos_to_key[pos] = key
         return ret
+
+
+def make_object_immutable(obj):
+    """Makes the passed object immutable recursively."""
+    allowed_types = (
+        dict, MappingProxyType, list, tuple, set, frozenset, str, int, float, bool, bytes, type(None)
+    )
+    assert isinstance(obj, allowed_types), f"{type(obj)=} cannot be made immutable"
+    if isinstance(obj, (dict, MappingProxyType)):
+        return MappingProxyType({k: make_object_immutable(v) for k, v in obj.items()})
+    elif isinstance(obj, (list, tuple)):
+        return tuple(make_object_immutable(item) for item in obj)
+    elif isinstance(obj, (set, frozenset)):
+        return frozenset(make_object_immutable(item) for item in obj)
+    return obj
 
 
 def multisig_type(wallet_type):

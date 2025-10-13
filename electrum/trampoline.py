@@ -1,7 +1,9 @@
 import io
 import os
 import random
+import dataclasses
 from typing import Mapping, Tuple, Optional, List, Iterable, Sequence, Set, Any
+from types import MappingProxyType
 
 from .lnutil import LnFeatures, PaymentFeeBudget, FeeBudgetExceeded
 from .lnonion import (
@@ -302,12 +304,12 @@ def create_trampoline_onion(
     for i in range(num_hops):
         route_edge = route[i]
         assert route_edge.is_trampoline()
-        payload = hops_data[i].payload
+        payload = dict(hops_data[i].payload)
         if i < num_hops - 1:
             payload.pop('short_channel_id')
             next_edge = route[i+1]
             assert next_edge.is_trampoline()
-            hops_data[i].payload["outgoing_node_id"] = {"outgoing_node_id": next_edge.node_id}
+            payload["outgoing_node_id"] = {"outgoing_node_id": next_edge.node_id}
         # only for final
         if i == num_hops - 1:
             payload["payment_data"] = {
@@ -322,10 +324,11 @@ def create_trampoline_onion(
                 "payment_secret": payment_secret,
                 "total_msat": total_msat
             }
+        hops_data[i] = dataclasses.replace(hops_data[i], payload=MappingProxyType(payload))
 
     if (index := routing_info_payload_index) is not None:
         # fill the remaining payload space with available routing hints (r_tags)
-        payload: dict = hops_data[index].payload
+        payload = dict(hops_data[index].payload)
         # try different r_tag order on each attempt
         invoice_routing_info = random_shuffled_copy(route[index].invoice_routing_info)
         remaining_payload_space = TRAMPOLINE_HOPS_DATA_SIZE \
@@ -341,12 +344,16 @@ def create_trampoline_onion(
             remaining_payload_space -= r_tag_size
         # add the chosen r_tags to the payload
         payload["invoice_routing_info"] = {"invoice_routing_info": b''.join(routing_info_to_use)}
+        hops_data[index] = dataclasses.replace(hops_data[index], payload=MappingProxyType(payload))
         _logger.debug(f"Using {len(routing_info_to_use)} of {len(invoice_routing_info)} r_tags")
 
     trampoline_session_key = os.urandom(32)
     trampoline_onion = new_onion_packet(payment_path_pubkeys, trampoline_session_key, hops_data, associated_data=payment_hash, trampoline=True)
-    trampoline_onion._debug_hops_data = hops_data
-    trampoline_onion._debug_route = route
+    trampoline_onion = dataclasses.replace(
+        trampoline_onion,
+        _debug_hops_data=hops_data,
+        _debug_route=route,
+    )
     return trampoline_onion, amount_msat, cltv_abs
 
 
