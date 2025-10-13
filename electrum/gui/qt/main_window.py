@@ -2911,7 +2911,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             return
         fee = fee_e.get_amount()
         if fee is None:
-            return  # fee left empty, treat is as "cancel"
+            return  # fee left empty, treat it as "cancel"
         if fee > max_fee:
             self.show_error(_('Max fee exceeded'))
             return
