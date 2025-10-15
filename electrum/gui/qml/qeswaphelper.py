@@ -13,7 +13,9 @@ from electrum.logging import get_logger
 from electrum.transaction import PartialTxOutput, PartialTransaction
 from electrum.util import (NotEnoughFunds, NoDynamicFeeEstimates, profiler, get_asyncio_loop, age,
                            wait_for2, send_exception_to_crash_reporter)
-from electrum.submarine_swaps import NostrTransport, SwapServerTransport, pubkey_to_rgb_color
+from electrum.submarine_swaps import (
+    NostrTransport, SwapServerTransport, pubkey_to_rgb_color, LOCKTIME_DELTA_REFUND, LOCKTIME_DELTA_REFUND_BUFFER
+)
 from electrum.fee_policy import FeePolicy
 
 from .auth import AuthMixin, auth_protect
@@ -702,6 +704,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         self._finalizer.canRbf = False
         self._finalizer.amount = QEAmount(amount_sat=self._send_amount)
         self._finalizer.wallet = self._wallet
+        self._finalizer.deadline = LOCKTIME_DELTA_REFUND - LOCKTIME_DELTA_REFUND_BUFFER  # 10-block buffer before refund deadline
         self.finalizerChanged.emit()
 
     def do_reverse_swap(self, lightning_amount, onchain_amount):
