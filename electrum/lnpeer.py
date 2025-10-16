@@ -2788,7 +2788,15 @@ class Peer(Logger, EventListener):
                     await group.spawn(self.downstream_htlc_resolved_event.wait())
             self._htlc_switch_iterstart_event.set()
             self._htlc_switch_iterstart_event.clear()
-            self._run_htlc_switch_iteration()
+            try:
+                self._run_htlc_switch_iteration()
+            except Exception as e:
+                # this is code with many asserts and dense logic so it seems useful to allow the user
+                # report to exceptions that otherwise might go unnoticed for some time
+                reported_exc = type(e)("redacted")  # text could contain onions, payment hashes etc.
+                reported_exc.__traceback__ = e.__traceback__
+                util.send_exception_to_crash_reporter(reported_exc)
+                raise e
 
     @util.profiler(min_threshold=0.02)
     def _run_htlc_switch_iteration(self):
