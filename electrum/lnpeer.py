@@ -2082,15 +2082,17 @@ class Peer(Logger, EventListener):
         chan.receive_htlc(htlc, onion_packet)
         util.trigger_callback('htlc_added', chan, htlc, RECEIVED)
 
-    def check_accepted_htlc(
-            self, *,
-            chan: Channel,
+    @staticmethod
+    def _check_accepted_final_htlc(
+            *, chan: Channel,
             htlc: UpdateAddHtlc,
             processed_onion: ProcessedOnionPacket,
+            is_trampoline_onion: bool = False,
             log_fail_reason: Callable[[str], None],
     ) -> tuple[bytes, int, int, OnionRoutingFailure]:
         """
-        Perform checks that are invariant (results do not depend on height, network conditions, etc).
+        Perform checks that are invariant (results do not depend on height, network conditions, etc.)
+        for htlcs of which we are the receiver (forwarding htlcs will have their checks in maybe_forward_htlc).
         May raise OnionRoutingFailure
         """
         assert processed_onion.are_we_final, processed_onion
@@ -2120,11 +2122,13 @@ class Peer(Logger, EventListener):
         else:
             channel_opening_fee = 0
 
-        if amt_to_forward > htlc.amount_msat:
-            log_fail_reason(f"amt_to_forward != htlc.amount_msat")
-            raise OnionRoutingFailure(
-                code=OnionFailureCode.FINAL_INCORRECT_HTLC_AMOUNT,
-                data=htlc.amount_msat.to_bytes(8, byteorder="big"))
+        if not is_trampoline_onion:
+            # for inner trampoline onions amt_to_forward can be larger than the htlc amount
+            if amt_to_forward > htlc.amount_msat:
+                log_fail_reason(f"{amt_to_forward=} > {htlc.amount_msat=}")
+                raise OnionRoutingFailure(
+                    code=OnionFailureCode.FINAL_INCORRECT_HTLC_AMOUNT,
+                    data=htlc.amount_msat.to_bytes(8, byteorder="big"))
 
         if (payment_secret_from_onion := processed_onion.payment_secret) is None:
             log_fail_reason(f"'payment_secret' missing from onion")
@@ -2166,6 +2170,7 @@ class Peer(Logger, EventListener):
             chan: Channel,
             htlc: UpdateAddHtlc,
             processed_onion: ProcessedOnionPacket,
+            outer_onion_payment_secret: bytes = None,  # used to group trampoline htlcs for forwarding
             onion_packet_bytes: bytes,
             already_forwarded: bool = False,
     ) -> Tuple[Optional[bytes], Optional[Tuple[str, Callable[[], Awaitable[Optional[str]]]]]]:
@@ -2199,10 +2204,11 @@ class Peer(Logger, EventListener):
         local_height = chain.height()
 
         # parse parameters and perform checks that are invariant
-        payment_secret_from_onion, total_msat, channel_opening_fee, exc_incorrect_or_unknown_pd = self.check_accepted_htlc(
+        payment_secret_from_onion, total_msat, channel_opening_fee, exc_incorrect_or_unknown_pd = self._check_accepted_final_htlc(
             chan=chan,
             htlc=htlc,
             processed_onion=processed_onion,
+            is_trampoline_onion=bool(outer_onion_payment_secret),
             log_fail_reason=log_fail_reason)
 
         # payment key for final onions
@@ -2244,6 +2250,7 @@ class Peer(Logger, EventListener):
                     chan=chan,
                     htlc=htlc,
                     processed_onion=trampoline_onion,
+                    outer_onion_payment_secret=payment_secret_from_onion,
                     onion_packet_bytes=onion_packet_bytes,
                     already_forwarded=already_forwarded,
                 )

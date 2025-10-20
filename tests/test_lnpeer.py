@@ -2025,6 +2025,9 @@ class TestPeerForwarding(TestPeer):
             async with OldTaskGroup() as g:
                 for peer in peers:
                     await g.spawn(peer.wait_one_htlc_switch_iteration())
+            async with OldTaskGroup() as g:
+                for peer in peers:
+                    await g.spawn(peer.wait_one_htlc_switch_iteration())
             for peer in peers:
                 self.assertEqual(len(peer.lnworker.active_forwardings), 0)
             if result:
@@ -2122,6 +2125,33 @@ class TestPeerForwarding(TestPeer):
             await self._run_trampoline_payment(
                 graph, sender_name='alice', destination_name='edward',tf_names=('bob', 'dave'))
 
+    async def test_multi_trampoline_payment(self):
+        """
+        Alice splits her payment to Dave between two trampoline forwarding nodes Carol and Bob.
+        This should test Multi-Trampoline MPP:
+        https://github.com/lightning/bolts/blob/bc7a1a0bc97b2293e7f43dd8a06529e5fdcf7cd2/proposals/trampoline.md#multi-trampoline-mpp
+        """
+        graph_definition = self.GRAPH_DEFINITIONS['square_graph']
+        # payment amount is 100_000_000 msat, size the channels so that alice must use both to succeed
+        graph_definition['alice']['channels']['bob']['local_balance_msat'] = int(100_000_000 * 0.75)
+        graph_definition['alice']['channels']['carol']['local_balance_msat'] = int(100_000_000 * 0.75)
+        g = self.prepare_chans_and_peers_in_graph(graph_definition)
+        w = g.workers['alice'], g.workers['carol'], g.workers['bob'], g.workers['dave']
+        alice_w, carol_w, bob_w, dave_w = w
+
+        alice_w.config.TEST_FORCE_MPP = True
+        bob_w.config.TEST_FORCE_MPP = True
+        carol_w.config.TEST_FORCE_MPP = True
+        dave_w.features |= LnFeatures.BASIC_MPP_OPT
+
+        with self.assertRaises(PaymentDone):
+            await self._run_trampoline_payment(
+                g,
+                sender_name='alice',
+                destination_name='dave',
+                tf_names=('bob', 'carol'),
+                attempts=30,  # the default used in LNWallet.pay_invoice()
+            )
 
 class TestPeerDirectAnchors(TestPeerDirect):
     TEST_ANCHOR_CHANNELS = True
