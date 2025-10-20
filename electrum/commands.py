@@ -69,7 +69,7 @@ from .wallet import (
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from .mnemonic import Mnemonic
 from .lnutil import (channel_id_from_funding_tx, LnFeatures, SENT, MIN_FINAL_CLTV_DELTA_ACCEPTED,
-                     PaymentFeeBudget, NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE)
+                     PaymentFeeBudget, NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, RECEIVED)
 from .plugin import run_hook, DeviceMgr, Plugins
 from .version import ELECTRUM_VERSION
 from .simple_config import SimpleConfig
@@ -1396,7 +1396,7 @@ class Commands(Logger):
         arg:int:min_final_cltv_expiry_delta:Optional min final cltv expiry delta (default: 294 blocks)
         """
         assert len(payment_hash) == 64, f"Invalid payment hash length: {len(payment_hash)} != 64"
-        assert payment_hash not in wallet.lnworker.payment_info, "Payment hash already used!"
+        assert payment_hash not in wallet.lnworker.received_payment_info, "Payment hash already used!"
         assert payment_hash not in wallet.lnworker.dont_settle_htlcs, "Payment hash already used!"
         assert wallet.lnworker.get_preimage(bfh(payment_hash)) is None, "Already got a preimage for this payment hash!"
         assert MIN_FINAL_CLTV_DELTA_ACCEPTED < min_final_cltv_expiry_delta < 576, "Use a sane min_final_cltv_expiry_delta value"
@@ -1411,7 +1411,7 @@ class Commands(Logger):
             min_final_cltv_delta=min_final_cltv_expiry_delta,
             exp_delay=expiry,
         )
-        info = wallet.lnworker.get_payment_info(bfh(payment_hash))
+        info = wallet.lnworker.get_payment_info(bfh(payment_hash), direction=RECEIVED)
         lnaddr, invoice = wallet.lnworker.get_bolt11_invoice(
             payment_info=info,
             message=memo,
@@ -1435,12 +1435,12 @@ class Commands(Logger):
         assert len(preimage) == 64, f"Invalid payment_hash length: {len(preimage)} != 64"
         payment_hash: str = crypto.sha256(bfh(preimage)).hex()
         assert payment_hash not in wallet.lnworker._preimages, f"Invoice {payment_hash=} already settled"
-        assert payment_hash in wallet.lnworker.payment_info, \
+        assert payment_hash in wallet.lnworker.received_payment_info, \
             f"Couldn't find lightning invoice for {payment_hash=}"
         assert payment_hash in wallet.lnworker.dont_settle_htlcs, f"Invoice {payment_hash=} not a hold invoice?"
         assert wallet.lnworker.is_complete_mpp(bfh(payment_hash)), \
             f"MPP incomplete, cannot settle hold invoice {payment_hash} yet"
-        info: Optional['PaymentInfo'] = wallet.lnworker.get_payment_info(bfh(payment_hash))
+        info: Optional['PaymentInfo'] = wallet.lnworker.get_payment_info(bfh(payment_hash), direction=RECEIVED)
         assert (wallet.lnworker.get_payment_mpp_amount_msat(bfh(payment_hash)) or 0) >= (info.amount_msat or 0)
         del wallet.lnworker.dont_settle_htlcs[payment_hash]
         wallet.lnworker.save_preimage(bfh(payment_hash), bfh(preimage))
@@ -1457,7 +1457,7 @@ class Commands(Logger):
 
         arg:str:payment_hash:Payment hash in hex of the hold invoice
         """
-        assert payment_hash in wallet.lnworker.payment_info, \
+        assert payment_hash in wallet.lnworker.received_payment_info, \
             f"Couldn't find lightning invoice for payment hash {payment_hash}"
         assert payment_hash not in wallet.lnworker._preimages, "Cannot cancel anymore, preimage already given."
         assert payment_hash in wallet.lnworker.dont_settle_htlcs, f"{payment_hash=} not a hold invoice?"
@@ -1489,7 +1489,7 @@ class Commands(Logger):
         arg:str:payment_hash:Payment hash in hex of the hold invoice
         """
         assert len(payment_hash) == 64, f"Invalid payment_hash length: {len(payment_hash)} != 64"
-        info: Optional['PaymentInfo'] = wallet.lnworker.get_payment_info(bfh(payment_hash))
+        info: Optional['PaymentInfo'] = wallet.lnworker.get_payment_info(bfh(payment_hash), direction=RECEIVED)
         is_complete_mpp: bool = wallet.lnworker.is_complete_mpp(bfh(payment_hash))
         amount_sat = (wallet.lnworker.get_payment_mpp_amount_msat(bfh(payment_hash)) or 0) // 1000
         result = {
@@ -1512,7 +1512,7 @@ class Commands(Logger):
                 and payment_hash not in wallet.lnworker.dont_settle_htlcs:
             result["status"] = "settled"
             plist = wallet.lnworker.get_payments(status='settled')[bfh(payment_hash)]
-            _dir, amount_msat, _fee, _ts = wallet.lnworker.get_payment_value(info, plist)
+            _dir, amount_msat, _fee, _ts = wallet.lnworker.get_payment_value(None, plist)
             result["received_amount_sat"] = amount_msat // 1000
             result['preimage'] = wallet.lnworker.get_preimage_hex(payment_hash)
         if info is not None:

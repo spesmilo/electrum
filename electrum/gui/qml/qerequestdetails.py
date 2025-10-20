@@ -8,7 +8,7 @@ from electrum.logging import get_logger
 from electrum.invoices import (
     PR_UNPAID, PR_EXPIRED, PR_UNKNOWN, PR_PAID, PR_INFLIGHT, PR_FAILED, PR_ROUTING, PR_UNCONFIRMED, LN_EXPIRY_NEVER
 )
-from electrum.lnutil import MIN_FUNDING_SAT
+from electrum.lnutil import MIN_FUNDING_SAT, RECEIVED
 from electrum.lnurl import LNURL3Data, request_lnurl_withdraw_callback, LNURLError
 from electrum.payment_identifier import PaymentIdentifier, PaymentIdentifierType
 from electrum.i18n import _
@@ -237,7 +237,7 @@ class QERequestDetails(QObject, QtEventListener):
                 address=None,
             )
             req = self._wallet.wallet.get_request(key)
-            info = self._wallet.wallet.lnworker.get_payment_info(req.payment_hash)
+            info = self._wallet.wallet.lnworker.get_payment_info(req.payment_hash, direction=RECEIVED)
             _lnaddr, b11_invoice = self._wallet.wallet.lnworker.get_bolt11_invoice(
                 payment_info=info,
                 message=req.get_message(),

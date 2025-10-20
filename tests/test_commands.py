@@ -500,7 +500,7 @@ class TestCommandsTestnet(ElectrumTestCase):
             )
         invoice = lndecode(invoice=result['invoice'])
         assert invoice.paymenthash.hex() == payment_hash
-        assert payment_hash in wallet.lnworker.payment_info
+        assert payment_hash in wallet.lnworker.received_payment_info
         assert payment_hash in wallet.lnworker.dont_settle_htlcs
         assert invoice.get_amount_sat() == 10000
         assert invoice.get_description() == "test"
@@ -511,7 +511,7 @@ class TestCommandsTestnet(ElectrumTestCase):
             payment_hash=payment_hash,
             wallet=wallet,
         )
-        assert payment_hash not in wallet.lnworker.payment_info
+        assert payment_hash not in wallet.lnworker.received_payment_info
         assert payment_hash not in wallet.lnworker.dont_settle_htlcs
         assert wallet.get_label_for_rhash(rhash=invoice.paymenthash.hex()) == ""
         assert cancel_result['cancelled'] == payment_hash

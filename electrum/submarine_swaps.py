@@ -1421,20 +1421,12 @@ class SwapManager(Logger):
         current_height = self.wallet.adb.get_local_height()
         d = {}
         # add info about submarine swaps
-        settled_payments = self.lnworker.get_payments(status='settled')
         with self.swaps_lock:
             swaps_items = list(self._swaps.items())
         for payment_hash_hex, swap in swaps_items:
             txid = swap.spending_txid if swap.is_reverse else swap.funding_txid
             if txid is None:
                 continue
-            payment_hash = bytes.fromhex(payment_hash_hex)
-            if payment_hash in settled_payments:
-                plist = settled_payments[payment_hash]
-                info = self.lnworker.get_payment_info(payment_hash)
-                direction, amount_msat, fee_msat, timestamp = self.lnworker.get_payment_value(info, plist)
-            else:
-                amount_msat = 0
 
             if swap.is_reverse:
                 group_label = 'Reverse swap' + ' ' + self.config.format_amount_and_units(swap.lightning_amount)
