@@ -460,6 +460,18 @@ class WCShowConfirmOTP(WalletWizardComponent):
         self.wizard.trustedcoin_qhelper.otpError.connect(self.on_otp_error)
         self.wizard.trustedcoin_qhelper.remoteKeyError.connect(self.on_remote_key_error)
 
+        # set higher minHeight so the qr code and the input field are shown without scrolling
+        prev_height = self.wizard.height()
+        prev_min_height = self.wizard.minimumHeight()
+        def restore_prev_height():
+            self.wizard.setMinimumHeight(prev_min_height)
+            self.wizard.resize(self.wizard.width(), prev_height)
+            self.wizard.next_button.clicked.disconnect(restore_prev_height)
+            self.wizard.back_button.clicked.disconnect(restore_prev_height)
+        self.wizard.setMinimumHeight(530)
+        self.wizard.next_button.clicked.connect(restore_prev_height)
+        self.wizard.back_button.clicked.connect(restore_prev_height)
+
         self._is_online_continuation = 'seed' not in self.wizard_data
         if self._is_online_continuation:
             self.knownsecretlabel.setText(_('Authenticate below to finalize wallet creation'))
