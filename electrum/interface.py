@@ -50,7 +50,7 @@ import certifi
 from .util import (ignore_exceptions, log_exceptions, bfh, ESocksProxy,
                    is_integer, is_non_negative_integer, is_hash256_str, is_hex_str,
                    is_int_or_float, is_non_negative_int_or_float, OldTaskGroup,
-                   send_exception_to_crash_reporter, error_text_str_to_safe_str)
+                   send_exception_to_crash_reporter, error_text_str_to_safe_str, versiontuple)
 from . import util
 from . import x509
 from . import pem
@@ -137,6 +137,18 @@ def assert_dict_contains_field(d: Any, *, field_name: str) -> Any:
 def assert_list_or_tuple(val: Any) -> None:
     if not isinstance(val, (list, tuple)):
         raise RequestCorrupted(f'{val!r} should be a list or tuple')
+
+
+def protocol_tuple(s: Any) -> tuple[int, ...]:
+    """Converts a protocol version number, such as "1.0" to a tuple (1, 0).
+
+    If the version number is bad, (0, ) indicating version 0 is returned.
+    """
+    try:
+        assert isinstance(s, str)
+        return versiontuple(s)
+    except Exception:
+        return (0, )
 
 
 class ChainResolutionMode(enum.Enum):
@@ -574,6 +586,8 @@ class Interface(Logger):
 
         self.fee_estimates_eta = {}  # type: Dict[int, int]
 
+        self.active_protocol_tuple = (0,)  # type: Optional[tuple[int, ...]]
+
         # Dump network messages (only for this interface).  Set at runtime from the console.
         self.debug = False
 
@@ -964,15 +978,19 @@ class Interface(Logger):
             start = time.perf_counter()
             self.session = session  # type: NotificationSession
             self.session.set_default_timeout(self.network.get_network_timeout_seconds(NetworkTimeout.Generic))
+            client_prange = [version.PROTOCOL_VERSION_MIN, version.PROTOCOL_VERSION_MAX]
             try:
-                ver = await session.send_request('server.version', [self.client_name(), version.PROTOCOL_VERSION])
+                ver = await session.send_request('server.version', [self.client_name(), client_prange])
             except aiorpcx.jsonrpc.RPCError as e:
                 raise GracefulDisconnect(e)  # probably 'unsupported protocol version'
             if exit_early:
                 return
-            if ver[1] != version.PROTOCOL_VERSION:
+            self.active_protocol_tuple = protocol_tuple(ver[1])
+            client_pmin = protocol_tuple(client_prange[0])
+            client_pmax = protocol_tuple(client_prange[1])
+            if not (client_pmin <= self.active_protocol_tuple <= client_pmax):
                 raise GracefulDisconnect(f'server violated protocol-version-negotiation. '
-                                         f'we asked for {version.PROTOCOL_VERSION!r}, they sent {ver[1]!r}')
+                                         f'we asked for {client_prange!r}, they sent {ver[1]!r}')
             if not self.network.check_interface_against_healthy_spread_of_connected_servers(self):
                 raise GracefulDisconnect(f'too many connected servers already '
                                          f'in bucket {self.bucket_based_on_ipaddress()}')
