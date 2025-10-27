@@ -428,6 +428,13 @@ class PaddedRSTransport(RSTransport):
             # No polling here, we always force-empty the buffer.
             self._force_send = True
 
+    async def close(self, *args, **kwargs):
+        '''Close the connection and return when closed.'''
+        # Flush buffer before disconnecting. This makes ReplyAndDisconnect work:
+        self._force_send = True
+        self._maybe_consume_sbuffer()
+        await super().close(*args, **kwargs)
+
 
 class ServerAddr:
 
