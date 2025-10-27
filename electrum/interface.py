@@ -328,6 +328,9 @@ class PaddedRSTransport(RSTransport):
 
     MIN_PACKET_SIZE = 1024
     WAIT_FOR_BUFFER_GROWTH_SECONDS = 1.0
+    # (unpadded) amount of bytes sent instantly before beginning with polling.
+    # This makes the initial handshake where a few small messages are exchanged faster.
+    WARMUP_BUDGET_SIZE = 1024
 
     session: Optional['RPCSession']
 
@@ -361,6 +364,7 @@ class PaddedRSTransport(RSTransport):
             self._force_send
             or len(buf) >= self.MIN_PACKET_SIZE
             or self._last_send + self.WAIT_FOR_BUFFER_GROWTH_SECONDS < time.monotonic()
+            or self.session.send_size < self.WARMUP_BUDGET_SIZE
         ):
             return
         assert buf[-2:] in (b"}\n", b"]\n"), f"unexpected json-rpc terminator: {buf[-2:]=!r}"
@@ -950,6 +954,7 @@ class Interface(Logger):
             proxy=self.proxy,
             transport=PaddedRSTransport,
         ) as session:
+            start = time.perf_counter()
             self.session = session  # type: NotificationSession
             self.session.set_default_timeout(self.network.get_network_timeout_seconds(NetworkTimeout.Generic))
             try:
@@ -964,7 +969,15 @@ class Interface(Logger):
             if not self.network.check_interface_against_healthy_spread_of_connected_servers(self):
                 raise GracefulDisconnect(f'too many connected servers already '
                                          f'in bucket {self.bucket_based_on_ipaddress()}')
-            self.logger.info(f"connection established. version: {ver}")
+
+            try:
+                features = await session.send_request('server.features')
+                server_genesis_hash = assert_dict_contains_field(features, field_name='genesis_hash')
+            except (aiorpcx.jsonrpc.RPCError, RequestCorrupted) as e:
+                raise GracefulDisconnect(e)
+            if server_genesis_hash != constants.net.GENESIS:
+                raise GracefulDisconnect(f'server on different chain: {server_genesis_hash=}. ours: {constants.net.GENESIS}')
+            self.logger.info(f"connection established. version: {ver}, handshake duration: {(time.perf_counter() - start) * 1000:.2f} ms")
 
             try:
                 async with self.taskgroup as group:
