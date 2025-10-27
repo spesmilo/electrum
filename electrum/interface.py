@@ -964,6 +964,14 @@ class Interface(Logger):
             if not self.network.check_interface_against_healthy_spread_of_connected_servers(self):
                 raise GracefulDisconnect(f'too many connected servers already '
                                          f'in bucket {self.bucket_based_on_ipaddress()}')
+
+            try:
+                features = await session.send_request('server.features')
+                server_genesis_hash = assert_dict_contains_field(features, field_name='genesis_hash')
+            except (aiorpcx.jsonrpc.RPCError, RequestCorrupted) as e:
+                raise GracefulDisconnect(e)
+            if server_genesis_hash != constants.net.GENESIS:
+                raise GracefulDisconnect(f'server on different chain: {server_genesis_hash=}. ours: {constants.net.GENESIS}')
             self.logger.info(f"connection established. version: {ver}")
 
             try:

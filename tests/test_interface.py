@@ -11,6 +11,7 @@ from electrum.util import OldTaskGroup, bfh
 from electrum.logging import Logger
 from electrum.simple_config import SimpleConfig
 from electrum.transaction import Transaction
+from electrum import constants
 
 from . import ElectrumTestCase
 
@@ -130,6 +131,7 @@ class ServerSession(aiorpcx.RPCSession, Logger):
     async def handle_request(self, request):
         handlers = {
             'server.version': self._handle_server_version,
+            'server.features': self._handle_server_features,
             'blockchain.estimatefee': self._handle_estimatefee,
             'blockchain.headers.subscribe': self._handle_headers_subscribe,
             'blockchain.block.header': self._handle_block_header,
@@ -145,6 +147,17 @@ class ServerSession(aiorpcx.RPCSession, Logger):
 
     async def _handle_server_version(self, client_name='', protocol_version=None):
         return ['best_server_impl/0.1', '1.4']
+
+    async def _handle_server_features(self) -> dict:
+        return {
+            'genesis_hash': constants.net.GENESIS,
+            'hosts': {"14.3.140.101": {"tcp_port": 51001, "ssl_port": 51002}},
+            'protocol_max': '1.7.0',
+            'protocol_min': '1.4.3',
+            'pruning': None,
+            'server_version': 'ElectrumX 1.19.0',
+            'hash_function': 'sha256',
+        }
 
     async def _handle_estimatefee(self, number, mode=None):
         return 1000
