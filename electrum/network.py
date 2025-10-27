@@ -1155,19 +1155,15 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         chosen_iface = random.choice(interfaces_on_selected_chain)  # type: Interface
         # switch to server (and save to config)
         net_params = self.get_parameters()
-        net_params = net_params._replace(server=chosen_iface.server)
+        # we select a random interface, so set connection mode back to autoconnect
+        net_params = net_params._replace(server=chosen_iface.server, auto_connect=True, oneserver=False)
         await self.set_parameters(net_params)
 
-    async def follow_chain_given_server(self, server: ServerAddr) -> None:
+    def follow_chain_given_server(self, server: ServerAddr) -> None:
         # note that server_str should correspond to a connected interface
-        iface = self.interfaces.get(server)
-        if iface is None:
-            return
+        iface = self.interfaces[server]
         self._set_preferred_chain(iface.blockchain)
-        # switch to server (and save to config)
-        net_params = self.get_parameters()
-        net_params = net_params._replace(server=server)
-        await self.set_parameters(net_params)
+        self.logger.debug(f"following {self.config.BLOCKCHAIN_PREFERRED_BLOCK=}")
 
     def get_server_height(self) -> int:
         """Length of header chain, as claimed by main interface."""

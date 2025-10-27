@@ -435,7 +435,10 @@ class ServerWidget(QWidget, QtEventListener):
 
         def do_set_server(server):
             self.server_e.setText(server)
-            self.set_server()
+            if self.is_auto_connect():
+                # switch to manual mode as the user manually selected a server
+                self.set_connect_mode(ConnectMode.MANUAL, block_signals=True)
+            self.on_server_settings_changed()
         self.nodes_list_widget.setServer.connect(do_set_server)
 
         self.layout().addWidget(self.nodes_list_widget)
@@ -444,6 +447,13 @@ class ServerWidget(QWidget, QtEventListener):
         self.register_callbacks()
         self.destroyed.connect(lambda: self.unregister_callbacks())
 
+    def showEvent(self, event):
+        # gets called every time the ServerWidget is shown, when opening it and when
+        # switching between the tabs.
+        super().showEvent(event)
+        _logger.debug(f"showing ServerWidget")
+        # If the user entered garbage the previous time the ServerWidget was open this will restore
+        # it back to the current config
         self.update_from_config()
         self.update()
 
@@ -458,17 +468,50 @@ class ServerWidget(QWidget, QtEventListener):
     def is_one_server(self):
         return self.connect_combo.currentIndex() == ConnectMode.ONESERVER
 
+    def set_connect_mode(self, connect_mode: ConnectMode, *, block_signals = False):
+        # if block_signals = True the on_server_settings_changed won't get called when changing the index
+        assert isinstance(connect_mode, ConnectMode), connect_mode
+        self.connect_combo.blockSignals(block_signals)
+        self.connect_combo.setCurrentIndex(connect_mode)
+        self.connect_combo.blockSignals(False)
+
     def on_server_settings_changed(self):
         if not self.network._was_started:
             self.update()
             return
-        server = ServerAddr.from_str_with_inference(self.server_e.text().strip())
-        net_params = self.network.get_parameters()
-        if server != net_params.server or self.is_auto_connect() != net_params.auto_connect or self.is_one_server() != net_params.oneserver:
-            self.set_server()
+
+        current_net_params = self.network.get_parameters()
+        new_server = ServerAddr.from_str_with_inference(self.server_e.text().strip())
+        new_server = new_server or current_net_params.server  # keep existing server while input is invalid
+
+        settings_changed = False
+        if new_server != current_net_params.server:
+            settings_changed = True
+        if self.is_auto_connect() != current_net_params.auto_connect:
+            settings_changed = True
+        if self.is_one_server() != current_net_params.oneserver:
+            settings_changed = True
+
+        if settings_changed:
+            _logger.debug(
+                f"ServerWidget.on_server_settings_changed:\n"
+                f"[server: {current_net_params.server} -> {new_server}]\n"
+                f"[auto_connect: {current_net_params.auto_connect} -> {self.is_auto_connect()}]\n"
+                f"[oneserver: {current_net_params.oneserver} -> {self.is_one_server()}]"
+            )
+            self.set_server(
+                new_server,
+                auto_connect=self.is_auto_connect(),
+                one_server=self.is_one_server(),
+            )
+            self.update()
 
     def update(self):
         self.server_e.setEnabled(self.config.cv.NETWORK_SERVER.is_modifiable() and not self.is_auto_connect())
+        if self.is_auto_connect():
+            self.server_e.clear()
+        elif not self.server_e.text():
+            self.server_e.setText(self.config.NETWORK_SERVER or "")
         for item in [
                 self.status_label_header, self.status_label, self.status_label_helpbutton,
                 self.height_label_header, self.height_label, self.height_label_helpbutton]:
@@ -497,37 +540,49 @@ class ServerWidget(QWidget, QtEventListener):
         auto_connect = self.config.NETWORK_AUTO_CONNECT
         one_server = self.config.NETWORK_ONESERVER
         v = ConnectMode.AUTOCONNECT if auto_connect else ConnectMode.ONESERVER if one_server else ConnectMode.MANUAL
-        self.connect_combo.setCurrentIndex(v)
+        self.set_connect_mode(v)
 
         server = self.config.NETWORK_SERVER
         self.server_e.setText(server)
 
         self.server_e.setEnabled(self.config.cv.NETWORK_SERVER.is_modifiable() and not auto_connect)
         self.nodes_list_widget.setEnabled(self.config.cv.NETWORK_SERVER.is_modifiable())
+        _logger.debug(f"update from config: done")
 
     def follow_branch(self, chain_id):
         self.network.run_from_another_thread(self.network.follow_chain_given_id(chain_id))
+        # follow_chain_given_id connects to random interface, so set connect_mode back to AUTOCONNECT
+        self.set_connect_mode(ConnectMode.AUTOCONNECT, block_signals=True)
         self.update()
 
     def follow_server(self, server: ServerAddr):
+        try:
+            self.network.follow_chain_given_server(server)
+        except KeyError:
+            _logger.debug(f"follow_server: cannot follow, not connected to {server.net_addr_str()}.")
+            return
+
         self.server_e.setText(str(server))
-        self.network.run_from_another_thread(self.network.follow_chain_given_server(server))
+        if self.is_auto_connect():
+            # the user manually selected a server, so the ConnectMode gets set to MANUAL
+            self.set_connect_mode(ConnectMode.MANUAL, block_signals=True)
+
+        self.set_server(
+            server=server,
+            auto_connect=False,
+            one_server=self.is_one_server(),
+        )
         self.update()
 
-    def set_server(self):
-        net_params = self.network.get_parameters()
-        try:
-            server = ServerAddr.from_str_with_inference(str(self.server_e.text()))
-            if not server:
-                raise Exception("failed to parse server")
-        except Exception:
-            return
-        net_params = net_params._replace(
+    def set_server(self, server: ServerAddr, *, auto_connect: bool, one_server: bool):
+        current_net_params = self.network.get_parameters()
+        new_net_params = current_net_params._replace(
             server=server,
-            auto_connect=self.is_auto_connect(),
-            oneserver=self.is_one_server(),
+            auto_connect=auto_connect,
+            oneserver=one_server,
         )
-        self.network.run_from_another_thread(self.network.set_parameters(net_params))
+        _logger.debug(f"set_server: {new_net_params=}")
+        self.network.run_from_another_thread(self.network.set_parameters(new_net_params))
 
 
 class NostrWidget(QWidget, QtEventListener):
