@@ -52,7 +52,7 @@ import functools
 from functools import partial
 from abc import abstractmethod, ABC
 import enum
-from contextlib import nullcontext
+from contextlib import nullcontext, suppress
 import traceback
 import inspect
 
@@ -1704,8 +1704,20 @@ def create_and_start_event_loop() -> Tuple[asyncio.AbstractEventLoop,
             loop.run_until_complete(stopping_fut)
         finally:
             # clean-up
+            try:
+                pending_tasks = asyncio.gather(*asyncio.all_tasks(loop), return_exceptions=True)
+                pending_tasks.cancel()
+                with suppress(asyncio.CancelledError):
+                    loop.run_until_complete(pending_tasks)
+                loop.run_until_complete(loop.shutdown_asyncgens())
+                if isinstance(loop, asyncio.BaseEventLoop):
+                    loop.run_until_complete(loop.shutdown_default_executor())
+            except Exception as e:
+                _logger.debug(f"exception when cleaning up asyncio event loop: {e}")
+
             global _asyncio_event_loop
             _asyncio_event_loop = None
+            loop.close()
 
     loop.set_exception_handler(on_exception)
     _set_custom_task_factory(loop)
