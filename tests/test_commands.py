@@ -1,3 +1,4 @@
+import asyncio
 import binascii
 import datetime
 import os.path
@@ -740,3 +741,38 @@ class TestCommandsTestnet(ElectrumTestCase):
         assert await cmds.export_lightning_preimage(payment_hash=payment_hash.hex(), wallet=w) == preimage.hex()
         assert await cmds.export_lightning_preimage(payment_hash=os.urandom(32).hex(), wallet=w) is None
 
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    @mock.patch('electrum.commands.LN_P2P_NETWORK_TIMEOUT', 0.001)
+    async def test_add_peer(self, *mock_args):
+        w = restore_wallet_from_text__for_unittest(
+            'disagree rug lemon bean unaware square alone beach tennis exhibit fix mimic',
+            path='if_this_exists_mocking_failed_648151893',
+            config=self.config)['wallet']
+        cmds = Commands(config=self.config)
+
+        # Mock the network and lnworker
+        mock_lnworker = mock.Mock()
+        w.lnworker = mock_lnworker
+        mock_peer = mock.Mock()
+        mock_peer.initialized = asyncio.Future()
+        connection_string = "test_node_id@127.0.0.1:9735"
+        called = False
+        async def lnworker_add_peer(*args, **kwargs):
+            assert args[0] == connection_string
+            nonlocal called
+            called += 1
+            return mock_peer
+        mock_lnworker.add_peer = lnworker_add_peer
+
+        # check if add_peer times out if peer doesn't initialize (LN_P2P_NETWORK_TIMEOUT is 0.001s)
+        with self.assertRaises(UserFacingException):
+            await cmds.add_peer(connection_string=connection_string, wallet=w)
+        # check if add_peer called lnworker.add_peer
+        assert called == 1
+
+        mock_peer.initialized = asyncio.Future()
+        mock_peer.initialized.set_result(True)
+        # check if add_peer returns True if peer is initialized
+        result = await cmds.add_peer(connection_string=connection_string, wallet=w)
+        assert called == 2
+        self.assertTrue(result)

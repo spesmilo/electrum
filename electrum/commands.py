@@ -33,6 +33,7 @@ import binascii
 import base64
 import asyncio
 import inspect
+from asyncio import CancelledError
 from collections import defaultdict
 from functools import wraps
 from decimal import Decimal, InvalidOperation
@@ -44,6 +45,7 @@ import electrum_ecc as ecc
 
 from . import util
 from .lnmsg import OnionWireSerializer
+from .lnworker import LN_P2P_NETWORK_TIMEOUT
 from .logging import Logger
 from .onion_message import create_blinded_path, send_onion_message_to
 from .submarine_swaps import NostrTransport
@@ -1684,7 +1686,12 @@ class Commands(Logger):
         arg:int:timeout:Timeout in seconds (default=20)
         """
         lnworker = self.network.lngossip if gossip else wallet.lnworker
-        await lnworker.add_peer(connection_string)
+        peer = await lnworker.add_peer(connection_string)
+        try:
+            await util.wait_for2(peer.initialized, timeout=LN_P2P_NETWORK_TIMEOUT)
+        except (CancelledError, Exception) as e:
+            #  FIXME often simply CancelledError and real cause (e.g. timeout) remains hidden
+            raise UserFacingException(f"Connection failed: {repr(e)}")
         return True
 
     @command('wnl')
