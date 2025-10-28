@@ -523,7 +523,11 @@ class Peer(Logger, EventListener):
     @handle_disconnect
     async def main_loop(self):
         async with self.taskgroup as group:
-            await group.spawn(self._message_loop())
+            await group.spawn(self._message_loop())  # initializes connection
+            try:
+                await util.wait_for2(self.initialized, LN_P2P_NETWORK_TIMEOUT)
+            except Exception as e:
+                raise GracefulDisconnect(f"Failed to initialize: {e!r}") from e
             await group.spawn(self._query_gossip())
             await group.spawn(self._process_gossip())
             await group.spawn(self._send_own_gossip())
@@ -563,6 +567,7 @@ class Peer(Logger, EventListener):
     async def _send_own_gossip(self):
         if self.lnworker == self.lnworker.network.lngossip:
             return
+        assert self.is_initialized()
         await asyncio.sleep(10)
         while True:
             public_channels = [chan for chan in self.lnworker.channels.values() if chan.is_public()]
@@ -583,6 +588,7 @@ class Peer(Logger, EventListener):
         return False
 
     async def _forward_gossip(self):
+        assert self.is_initialized()
         if not self._should_forward_gossip():
             return
 
@@ -632,10 +638,7 @@ class Peer(Logger, EventListener):
         return amount_sent
 
     async def _query_gossip(self):
-        try:
-            await util.wait_for2(self.initialized, LN_P2P_NETWORK_TIMEOUT)
-        except Exception as e:
-            raise GracefulDisconnect(f"Failed to initialize: {e!r}") from e
+        assert self.is_initialized()
         if self.lnworker == self.lnworker.network.lngossip:
             if not self.their_features.supports(LnFeatures.GOSSIP_QUERIES_OPT):
                 raise GracefulDisconnect("remote does not support gossip_queries, which we need")
