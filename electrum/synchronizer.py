@@ -160,7 +160,18 @@ class Synchronizer(SynchronizerBase):
                 and not self._stale_histories
                 and self.status_queue.empty())
 
-    async def _maybe_request_history_for_addr(self, addr: str) -> List[dict]:
+    async def _maybe_request_history_for_addr(self, addr: str, *, ann_status: Optional[str]) -> List[dict]:
+        # First opportunistically try to guess the addr history. Might save us network requests.
+        old_history = self.adb.db.get_addr_history(addr)
+        def guess_height(old_height: int) -> int:
+            if old_height in (0, -1,):
+                return self.interface.tip  # maybe mempool tx got mined just now
+            return old_height
+        guessed_history = [(txid, guess_height(old_height)) for (txid, old_height) in old_history]
+        if history_status(guessed_history) == ann_status:
+            self.logger.debug(f"managed to guess new history for {addr}. won't call 'blockchain.scripthash.get_history'.")
+            return [{"height": height, "tx_hash": txid} for (txid, height) in guessed_history]
+        # request addr history from server
         sh = address_to_scripthash(addr)
         self._requests_sent += 1
         async with self._network_request_semaphore:
@@ -183,7 +194,7 @@ class Synchronizer(SynchronizerBase):
             self._stale_histories.pop(addr, asyncio.Future()).cancel()
         finally:
             self._handling_addr_statuses.discard(addr)
-        result = await self._maybe_request_history_for_addr(addr)
+        result = await self._maybe_request_history_for_addr(addr, ann_status=status)
         hist = list(map(lambda item: (item['tx_hash'], item['height']), result))
         # tx_fees
         tx_fees = [(item['tx_hash'], item.get('fee')) for item in result]
