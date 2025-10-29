@@ -183,9 +183,16 @@ task:
     - tests/regtest/run_bitcoind.sh
   electrumx_service_background_script:
     - tests/regtest/run_electrumx.sh
+  # if any test fails, the test will get aborted (--failfast) and the wallet directories will be
+  # available for download in the Cirrus UI
   regtest_script:
     - sleep 10s
-    - python3 -m unittest tests/regtest.py
+    - python3 -m unittest tests/regtest.py --failfast || TEST_EXIT_CODE=$?
+    - tar -czf test_wallets.tar.gz /tmp/alice /tmp/bob /tmp/carol || true
+    - exit ${TEST_EXIT_CODE:-0}
+  on_failure:
+    wallet_artifacts:
+      path: "test_wallets.tar.gz"
   env:
     LD_LIBRARY_PATH: contrib/_saved_secp256k1_build/
     ELECTRUM_REQUIREMENTS: contrib/requirements/requirements.txt
