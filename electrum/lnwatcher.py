@@ -210,10 +210,12 @@ class LNWatcher(Logger, EventListener):
         try:
             self.lnworker.wallet.txbatcher.add_sweep_input('lnwatcher', sweep_info)
         except BelowDustLimit:
+            self.logger.debug(f"maybe_redeem: BelowDustLimit: {sweep_info.name}")
             # utxo is considered dust at *current* fee estimates.
             # but maybe the fees atm are very high? We will retry later.
             pass
         except NoDynamicFeeEstimates:
+            self.logger.debug(f"maybe_redeem: NoDynamicFeeEstimates: {sweep_info.name}")
             pass  # will retry later
         if sweep_info.is_anchor():
             return False
