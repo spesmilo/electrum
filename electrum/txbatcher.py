@@ -272,9 +272,10 @@ class TxBatch(Logger):
         value = sweep_info.txin.value_sats()
         witness_size = len(sweep_info.txin.make_witness(71*b'\x00'))
         tx_size_vbytes = 84 + witness_size//4     # assumes no batching, sweep to p2wpkh
-        self.logger.info(f'{sweep_info.name} size = {tx_size_vbytes}')
         fee = self.fee_policy.estimate_fee(tx_size_vbytes, network=self.wallet.network)
-        return value - fee <= dust_threshold()
+        is_dust = value - fee <= dust_threshold()
+        self.logger.info(f'{sweep_info.name} size = {tx_size_vbytes}: {is_dust=}')
+        return is_dust
 
     @locked
     def add_sweep_input(self, sweep_info: 'SweepInfo') -> None:
