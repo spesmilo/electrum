@@ -22,33 +22,29 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-import os
-import ast
 import datetime
 import json
 import copy
-import threading
 from collections import defaultdict
 from typing import (Dict, Optional, List, Tuple, Set, Iterable, NamedTuple, Sequence, TYPE_CHECKING,
                     Union, AbstractSet)
-import binascii
 import time
 from functools import partial
 
 import attr
 
-from . import util, bitcoin
-from .util import profiler, WalletFileException, multisig_type, TxMinedInfo, bfh, MyEncoder
-from .invoices import Invoice, Request
+from . import bitcoin
+from .util import profiler, WalletFileException, multisig_type, TxMinedInfo, MyEncoder
 from .keystore import bip44_derivation
 from .transaction import Transaction, TxOutpoint, tx_from_any, PartialTransaction, PartialTxOutput, BadHeaderMagic
 from .logging import Logger
 
-from .lnutil import HTLCOwner, ChannelType
+from .lnutil import HTLCOwner, ChannelType, RecvMPPResolution
 from . import json_db
-from .json_db import StoredDict, JsonDB, locked, modifier, StoredObject, stored_in, stored_as
+from .json_db import JsonDB, locked, modifier, StoredObject, stored_in, stored_as
 from .plugin import run_hook, plugin_loaders
 from .version import ELECTRUM_VERSION
+from .i18n import _
 
 if TYPE_CHECKING:
     from .storage import WalletStorage
@@ -73,7 +69,7 @@ class WalletUnfinished(WalletFileException):
 # seed_version is now used for the version of the wallet file
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 61     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 62     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -237,6 +233,7 @@ class WalletDBUpgrader(Logger):
         self._convert_version_59()
         self._convert_version_60()
         self._convert_version_61()
+        self._convert_version_62()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
     def _convert_wallet_type(self):
@@ -1169,6 +1166,92 @@ class WalletDBUpgrader(Logger):
             new = (amount_msat, direction, is_paid, 147, expiry_never, migration_time)
             lightning_payments[rhash] = new
         self.data['seed_version'] = 61
+
+    def _convert_version_62(self):
+        if not self._is_upgrade_method_needed(61, 61):
+            return
+        # Old ReceivedMPPStatus:
+        #   class ReceivedMPPStatus(NamedTuple):
+        #      resolution: RecvMPPResolution
+        #      expected_msat: int
+        #      htlc_set: Set[Tuple[ShortChannelID, UpdateAddHtlc]]
+        #
+        # New ReceivedMPPStatus:
+        #   class ReceivedMPPStatus(NamedTuple):
+        #       resolution: RecvMPPResolution
+        #       htlcs: set[ReceivedMPPHtlc]
+        #
+        #   class ReceivedMPPHtlc(NamedTuple):
+        #       scid: ShortChannelID
+        #       htlc: UpdateAddHtlc
+        #       unprocessed_onion: str
+
+        # previously chan.unfulfilled_htlcs went through 4 stages:
+        # - 1. not forwarded yet: (onion_packet_hex, None)
+        # - 2. forwarded: (onion_packet_hex, forwarding_key)
+        # - 3. processed: (None, forwarding_key), not irrevocably removed yet
+        # - 4. done: (None, forwarding_key), irrevocably removed
+        channels = self.data.get('channels', {})
+        def _move_unprocessed_onion(short_channel_id: str, htlc_id: Optional[int]) -> Optional[Tuple[str, Optional[str]]]:
+            if htlc_id is None:
+                return None
+            for chan_ in channels.values():
+                if chan_['short_channel_id'] != short_channel_id:
+                    continue
+                unfulfilled_htlcs_ = chan_.get('unfulfilled_htlcs', {})
+                htlc_data = unfulfilled_htlcs_.get(str(htlc_id))
+                if htlc_data is None:
+                    return None
+                stored_onion_packet, htlc_forwarding_key = htlc_data
+                if stored_onion_packet is not None:
+                    htlc_data[0] = None  # overwrite the onion so it is not processed again in htlc_switch
+                    return stored_onion_packet, htlc_forwarding_key
+            return None
+
+        mpp_sets = self.data.get('received_mpp_htlcs', {})
+        for payment_key, recv_mpp_status in list(mpp_sets.items()):
+            assert isinstance(recv_mpp_status, list), f"{recv_mpp_status=}"
+            del recv_mpp_status[1]  # remove expected_msat
+
+            new_type_htlcs = []
+            forwarding_key = None
+            for scid, update_add_htlc in recv_mpp_status[1]:  # htlc_set
+                htlc_info_from_chan = _move_unprocessed_onion(scid, update_add_htlc[3])
+                if htlc_info_from_chan is None:
+                    # if there is no onion packet for the htlc it is dropped as it was already
+                    # processed in the old htlc_switch
+                    continue
+                onion_packet_hex = htlc_info_from_chan[0]
+                forwarding_key = htlc_info_from_chan[1] if htlc_info_from_chan[1] else forwarding_key
+                new_type_htlcs.append([
+                    scid,
+                    update_add_htlc,
+                    onion_packet_hex,
+                ])
+
+            if len(new_type_htlcs) == 0:
+                self.logger.debug(f"_convert_version_62: dropping mpp set {payment_key=}.")
+                del mpp_sets[payment_key]
+            else:
+                recv_mpp_status[1] = new_type_htlcs
+                self.logger.debug(f"_convert_version_62: migrated mpp set {payment_key=}")
+                if forwarding_key is not None:
+                    # if the forwarding key is set for the old mpp set it was either a forwarding
+                    # or a swap hold invoice. Assuming users of 4.6.2 don't use forwarding this update
+                    # most likely happens during a swap waiting for the preimage. Setting the mpp set
+                    # to SETTLING prevents us from accidentally failing the htlc set after the update,
+                    # however it carries the risk of the channel getting force closed if the swap fails
+                    # as the htlcs won't get failed due to the new SETTLING state
+                    # unless a forwarding error is set.
+                    recv_mpp_status[0] = RecvMPPResolution.SETTLING
+
+        # replace Tuple[onion, forwarding_key] with just the onion in chan['unfulfilled_htlcs']
+        for chan in channels.values():
+            unfulfilled_htlcs = chan.get('unfulfilled_htlcs', {})
+            for htlc_id, (unprocessed_onion, forwarding_key) in list(unfulfilled_htlcs.items()):
+                unfulfilled_htlcs[htlc_id] = unprocessed_onion
+
+        self.data['seed_version'] = 62
 
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):
