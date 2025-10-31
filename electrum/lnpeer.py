@@ -2269,7 +2269,7 @@ class Peer(Logger, EventListener):
         # note: we don't check invoice expiry (bolt11 'x' field) on the receiver-side.
         #       - semantics are weird: would make sense for simple-payment-receives, but not
         #         if htlc is expected to be pending for a while, e.g. for a hold-invoice.
-        info = self.lnworker.get_payment_info(payment_hash)
+        info = self.lnworker.get_payment_info(payment_hash, direction=RECEIVED)
         if info is None:
             log_fail_reason(f"no payment_info found for RHASH {htlc.payment_hash.hex()}")
             raise exc_incorrect_or_unknown_pd

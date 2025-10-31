@@ -73,7 +73,7 @@ class WalletUnfinished(WalletFileException):
 # seed_version is now used for the version of the wallet file
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 61     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 62     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -237,6 +237,7 @@ class WalletDBUpgrader(Logger):
         self._convert_version_59()
         self._convert_version_60()
         self._convert_version_61()
+        self._convert_version_62()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
     def _convert_wallet_type(self):
@@ -1169,6 +1170,28 @@ class WalletDBUpgrader(Logger):
             new = (amount_msat, direction, is_paid, 147, expiry_never, migration_time)
             lightning_payments[rhash] = new
         self.data['seed_version'] = 61
+
+    def _convert_version_62(self):
+        """Split the lightning payments in received and sent lightning payments, drop direction"""
+        if not self._is_upgrade_method_needed(60, 60):
+            return
+        old_lightning_payments = self.data.get('lightning_payments', {})
+        sent_payments = {}
+        received_payments = {}
+        for rhash, old_values in old_lightning_payments:
+            amount_msat, direction, status, min_final_cltv_expiry, expiry, creation_ts = old_values
+            # drop direction
+            new_values = (amount_msat, status, min_final_cltv_expiry, expiry, creation_ts)
+            if direction == -1:  # SENT
+                sent_payments[rhash] = new_values
+            elif direction == 1:  # RECEIVED
+                received_payments[rhash] = new_values
+            else:
+                raise ValueError("corrupted value: {}")
+        self.data['sent_lightning_payments'] = sent_payments
+        self.data['received_lightning_payments'] = received_payments
+        self.data.pop('lightning_payments', None)
+        self.data['seed_version'] = 62
 
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):

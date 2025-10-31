@@ -40,6 +40,7 @@ from electrum.logging import Logger
 from electrum.util import log_exceptions, ca_path, OldTaskGroup, get_asyncio_loop, InvoiceError, \
     LightningHistoryItem, event_listener, EventListener, make_aiohttp_proxy_connector, \
     get_running_loop
+from electrum.lnutil import SENT, RECEIVED
 from electrum.invoices import Invoice, Request, PR_UNKNOWN, PR_PAID, BaseInvoice, PR_INFLIGHT
 from electrum import constants
 
@@ -537,7 +538,7 @@ class NWCServer(Logger, EventListener):
             b11 = invoice.lightning_invoice
         elif self.wallet.get_request(invoice.rhash):
             direction = "incoming"
-            info = self.wallet.lnworker.get_payment_info(invoice.payment_hash)
+            info = self.wallet.lnworker.get_payment_info(invoice.payment_hash, direction=RECEIVED)
             _, b11 = self.wallet.lnworker.get_bolt11_invoice(
                 payment_info=info,
                 message=invoice.message,
@@ -947,11 +948,10 @@ class NWCServer(Logger, EventListener):
         payments = self.wallet.lnworker.get_payments(status='settled')
         plist = payments.get(payment_hash)
         if plist:
-            info = self.wallet.lnworker.get_payment_info(payment_hash)
-            if info:
-                dir, amount, fee, ts = self.wallet.lnworker.get_payment_value(info, plist)
-                fee = abs(fee) if fee else None
-                return dir, abs(amount), fee, ts
+            sent_info = self.wallet.lnworker.get_payment_info(payment_hash, direction=SENT)
+            dir, amount, fee, ts = self.wallet.lnworker.get_payment_value(sent_info, plist)
+            fee = abs(fee) if fee else None
+            return dir, abs(amount), fee, ts
         return None
 
     def is_receive_only(self, pubkey: str) -> bool:
