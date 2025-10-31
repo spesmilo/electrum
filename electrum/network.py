@@ -612,6 +612,8 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
     def update_fee_estimates(self, *, fee_est: Dict[int, int] = None):
         if fee_est is None:
+            if self.config.TEST_DISABLE_AUTOMATIC_FEE_ETA_UPDATE:
+                return
             fee_est = self.get_fee_estimates()
         for nblock_target, fee in fee_est.items():
             self.fee_estimates.set_data(nblock_target, fee)

@@ -1624,6 +1624,8 @@ class Commands(Logger):
     async def test_inject_fee_etas(self, fee_est):
         """
         Inject fee estimates into the network object, as if they were coming from connected servers.
+        `setconfig 'test_disable_automatic_fee_eta_update' true` to prevent Network from overriding
+        the configured fees.
         Useful on regtest.
 
         arg:str:fee_est:dict of ETA-based fee estimates, encoded as str

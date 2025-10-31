@@ -331,6 +331,7 @@ if [[ $1 == "lnwatcher_waits_until_fees_go_down" ]]; then
     $alice setconfig test_force_disable_mpp true
     $alice setconfig test_force_mpp false
     wait_for_balance alice 1
+    $alice setconfig test_disable_automatic_fee_eta_update true
     $alice test_inject_fee_etas "{2:1000}"
     $bob test_inject_fee_etas "{2:1000}"
     echo "alice opens channel"
