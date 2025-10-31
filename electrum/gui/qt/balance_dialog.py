@@ -105,6 +105,10 @@ class BalanceToolButton(QToolButton, PieChartObject):
         self._update_size()
         self._warning = False
 
+    @property
+    def has_warning(self) -> bool:
+        return bool(self._warning)
+
     def update_list(self, l, warning: bool):
         self._warning = warning
         self._list = l

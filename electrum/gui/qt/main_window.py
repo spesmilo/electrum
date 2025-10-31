@@ -1804,7 +1804,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
     def show_balance_dialog(self):
         balance = self.wallet.get_balances_for_piechart().total()
-        if balance == 0:
+        if balance == 0 and not self.balance_label.has_warning:
             return
         from .balance_dialog import BalanceDialog
         d = BalanceDialog(self, wallet=self.wallet)
