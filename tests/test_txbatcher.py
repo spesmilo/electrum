@@ -1,4 +1,3 @@
-import unittest
 import logging
 from unittest import mock
 import asyncio
@@ -6,14 +5,15 @@ import dataclasses
 
 from aiorpcx import timeout_after
 
-from electrum import storage, bitcoin, keystore, wallet
+import electrum.fee_policy
+from electrum import keystore, wallet, lnutil
 from electrum import SimpleConfig
 from electrum import util
-from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_LOCAL
+from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
 from electrum.transaction import Transaction, PartialTxInput, PartialTxOutput, TxOutpoint
 from electrum.logging import console_stderr_handler, Logger
 from electrum.submarine_swaps import SwapManager, SwapData
-from electrum.lnsweep import SweepInfo
+from electrum.lnsweep import SweepInfo, sweep_ctx_anchor
 from electrum.fee_policy import FeeTimeEstimates
 
 from . import ElectrumTestCase
@@ -85,6 +85,28 @@ SWAP_SWEEP_INFO = SweepInfo(
     cltv_abs=locktime,
     txout=None,
     name='swap claim',
+    can_be_batched=True,
+)
+anchor_chan_ctx = Transaction(
+    "02000000000101d24af3b7adefff5a068f736d64842c18da7087b41ba43ab5b999c545c5f1606501000000008d0d5d8"
+    "0024a010000000000002200207b95cb2555b3f8fc246d26ac38023ec8edf423d70b41dfe17efc89baa6e0cc72740003"
+    "000000000022002075f8af76a5b5c4b25e4aee3a4f96a190a168bde5d9761de8d45d3e49cd6f1d82040047304402200"
+    "6524eb2f467bf1eacd2116ea79a80c182eb95e18d0fa24fc5c600581ec4aa5f02206f50bdfc3577ca3bc9892eade7d8"
+    "1a9b06b9a8803296fad689af9fee9375191d0147304402202112d08ffa79010b1d698ca9fb0790119a42f7b70e183a2"
+    "a05dbf79c32806d3b022001cd3e3aec8c1142c8689e9e679c684ea82dcde8c86cf8e55466c743b3647b1f0147522103"
+    "0551e6017a0e9dbffd468c2a08ecf8446b532f0a6d5db291eb77026f2ef3deb421034f986fd43561d52a96b19fbdd0c"
+    "296f0442034d3f3f63fc394320a95750d42a852ae08572d20"
+)
+chan_multisig_key = lnutil.Keypair(
+    privkey="4c8b2c19d6528f54a4c900d87b3d8dbf746314925d126e0abf8e2ed965a9302f",
+    pubkey="034f986fd43561d52a96b19fbdd0c296f0442034d3f3f63fc394320a95750d42a8",
+)
+anchor_txin = sweep_ctx_anchor(ctx=anchor_chan_ctx, multisig_key=chan_multisig_key)
+ANCHOR_SWEEP_INFO = SweepInfo(
+    name='local_anchor',
+    cltv_abs=None,
+    txin=anchor_txin,
+    txout=None,
     can_be_batched=True,
 )
 
@@ -225,6 +247,38 @@ class TestTxBatcher(ElectrumTestCase):
         # check that we batched with previous tx
         assert new_tx.inputs()[0].prevout == tx.inputs()[0].prevout == txin.prevout
         assert output1 in new_tx.outputs()
+
+    async def test_to_sweep_after_anchor_sweep_conditions(self):
+        # create wallet
+        wallet = self._create_wallet()
+        wallet.txbatcher.add_sweep_input('lnwatcher', ANCHOR_SWEEP_INFO)
+        anchor_batch = wallet.txbatcher.tx_batches['lnwatcher']
+
+        # does not return sweep info if prev_tx is not in db
+        to_sweep_no_tx = anchor_batch._to_sweep_after(tx=None)
+        assert not to_sweep_no_tx
+
+        # returns sweep input if anchor_chan_ctx conf < 1
+        wallet.adb.db.transactions[anchor_chan_ctx.txid()] = anchor_chan_ctx
+        to_sweep_no_conf = anchor_batch._to_sweep_after(tx=None)
+        assert to_sweep_no_conf[anchor_txin.prevout] == ANCHOR_SWEEP_INFO
+        assert len(to_sweep_no_conf) == 1
+
+        # does not return sweep input if ctx fee is already higher than target fee
+        with mock.patch.object(wallet.adb, 'get_tx_fee', return_value=2000), \
+                mock.patch.object(electrum.fee_policy.FeePolicy, 'estimate_fee', return_value=1000):
+            to_sweep_high_fee = anchor_batch._to_sweep_after(tx=None)
+        assert not to_sweep_high_fee
+
+        # after the ctx is confirmed the anchor claim shouldn't be broadcast anymore
+        wallet.adb.receive_tx_callback(anchor_chan_ctx, tx_height=1)
+        tx_mined_status = wallet.adb.get_tx_height(anchor_chan_ctx.txid())
+        wallet.adb.add_verified_tx(anchor_chan_ctx.txid(), dataclasses.replace(tx_mined_status, conf=1))
+        assert anchor_txin.prevout in anchor_batch.batch_inputs
+        to_sweep_ctx_conf = anchor_batch._to_sweep_after(tx=None)
+        assert not to_sweep_ctx_conf
+        assert not anchor_batch.batch_inputs
+        assert wallet.txbatcher.tx_batches['lnwatcher'] == anchor_batch
 
     async def _wait_for_base_tx(self, txbatch, should_be_none=False):
         async with timeout_after(10):

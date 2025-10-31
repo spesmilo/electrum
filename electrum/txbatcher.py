@@ -321,13 +321,28 @@ class TxBatch(Logger):
         for prevout, sweep_info in list(self.batch_inputs.items()):
             assert prevout == sweep_info.txin.prevout
             prev_txid, index = prevout.to_str().split(':')
-            if not self.wallet.adb.db.get_transaction(prev_txid):
+            if not (prev_tx := self.wallet.adb.db.get_transaction(prev_txid)):
                 continue
             if sweep_info.is_anchor():
                 prev_tx_mined_status = self.wallet.adb.get_tx_height(prev_txid)
                 if prev_tx_mined_status.conf > 0:
                     self.logger.info(f"anchor not needed {prevout}")
                     self.batch_inputs.pop(prevout)  # note: if the input is already in a batch tx, this will trigger assert error
+                    continue
+                prev_tx_current_fee = self.wallet.adb.get_tx_fee(prev_txid)
+                try:
+                    prev_tx_target_fee = self.fee_policy.estimate_fee(
+                        prev_tx.estimated_size(),
+                        network=self.wallet.network,
+                    )
+                except NoDynamicFeeEstimates:
+                    prev_tx_target_fee = None
+                fees_available = prev_tx_current_fee and prev_tx_target_fee
+                if fees_available and prev_tx_current_fee > prev_tx_target_fee:
+                    self.logger.info(
+                        f"not using anchor now, fee sufficient: "
+                        f"{prev_tx_current_fee=} > {prev_tx_target_fee=}", only_once=True,
+                    )
                     continue
             if spender_txid := self.wallet.adb.db.get_spent_outpoint(prev_txid, int(index)):
                 tx_mined_status = self.wallet.adb.get_tx_height(spender_txid)
