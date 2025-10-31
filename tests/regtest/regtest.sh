@@ -22,8 +22,17 @@ function wait_until_htlcs_settled()
 {
     msg="wait until $1's local_unsettled_sent is zero"
     cmd="./run_electrum --regtest -D /tmp/$1"
+    declare -i timeout_sec=30
+    declare -i elapsed_sec=0
+
     while unsettled=$($cmd list_channels | jq '.[] | .local_unsettled_sent') && [ $unsettled != "0" ]; do
+        if ((elapsed_sec > timeout_sec)); then
+            printf "Timeout of %i s exceeded\n" "$elapsed_sec"
+            exit 1
+        fi
+
         sleep 1
+        elapsed_sec=$((elapsed_sec + 1))
         msg="$msg."
         printf "$msg\r"
     done
@@ -35,8 +44,17 @@ function wait_for_balance()
 {
     msg="wait until $1's balance reaches $2"
     cmd="./run_electrum --regtest -D /tmp/$1"
+    declare -i timeout_sec=30
+    declare -i elapsed_sec=0
+
     while balance=$($cmd getbalance | jq '[.confirmed, .unconfirmed] | to_entries | map(select(.value != null).value) | map(tonumber) | add ') && (( $(echo "$balance < $2" | bc -l) )); do
+        if ((elapsed_sec > timeout_sec)); then
+            printf "Timeout of %i s exceeded\n" "$elapsed_sec"
+            exit 1
+        fi
+
         sleep 1
+        elapsed_sec=$((elapsed_sec + 1))
         msg="$msg."
         printf "$msg\r"
     done
@@ -47,8 +65,17 @@ function wait_until_channel_open()
 {
     msg="wait until $1 sees channel open"
     cmd="./run_electrum --regtest -D /tmp/$1"
+    declare -i timeout_sec=30
+    declare -i elapsed_sec=0
+
     while channel_state=$($cmd list_channels | jq '.[0] | .state' | tr -d '"') && [ $channel_state != "OPEN" ]; do
+        if ((elapsed_sec > timeout_sec)); then
+            printf "Timeout of %i s exceeded\n" "$elapsed_sec"
+            exit 1
+        fi
+
         sleep 1
+        elapsed_sec=$((elapsed_sec + 1))
         msg="$msg."
         printf "$msg\r"
     done
@@ -59,8 +86,17 @@ function wait_until_channel_closed()
 {
     msg="wait until $1 sees channel closed"
     cmd="./run_electrum --regtest -D /tmp/$1"
+    declare -i timeout_sec=30
+    declare -i elapsed_sec=0
+
     while [[ $($cmd list_channels | jq '.[0].state' | tr -d '"') != "CLOSED" ]]; do
+        if ((elapsed_sec > timeout_sec)); then
+            printf "Timeout of %i s exceeded\n" "$elapsed_sec"
+            exit 1
+        fi
+
         sleep 1
+        elapsed_sec=$((elapsed_sec + 1))
         msg="$msg."
         printf "$msg\r"
     done
@@ -71,8 +107,17 @@ function wait_until_preimage()
 {
     msg="wait until $1 has preimage for $2"
     cmd="./run_electrum --regtest -D /tmp/$1"
+    declare -i timeout_sec=30
+    declare -i elapsed_sec=0
+
     while [[ $($cmd get_invoice $2 | jq '.preimage' | tr -d '"') == "null" ]]; do
+        if ((elapsed_sec > timeout_sec)); then
+            printf "Timeout of %i s exceeded\n" "$elapsed_sec"
+            exit 1
+        fi
+
         sleep 1
+        elapsed_sec=$((elapsed_sec + 1))
         msg="$msg."
         printf "$msg\r"
     done
@@ -82,8 +127,17 @@ function wait_until_preimage()
 function wait_until_spent()
 {
     msg="wait until $1:$2 is spent"
+    declare -i timeout_sec=30
+    declare -i elapsed_sec=0
+
     while [[ $($bitcoin_cli gettxout $1 $2) ]]; do
+        if ((elapsed_sec > timeout_sec)); then
+            printf "Timeout of %i s exceeded\n" "$elapsed_sec"
+            exit 1
+        fi
+
         sleep 1
+        elapsed_sec=$((elapsed_sec + 1))
         msg="$msg."
         printf "$msg\r"
     done
