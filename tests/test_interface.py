@@ -1,6 +1,6 @@
 import asyncio
 import collections
-from typing import Optional, Sequence, Iterable
+from typing import Optional, Sequence, Iterable, Mapping
 
 import aiorpcx
 from aiorpcx import RPCError
@@ -99,7 +99,7 @@ class MockNetwork:
 
 
 # regtest chain:
-BLOCK_HEADERS = {
+BLOCK_HEADERS: Mapping[int, bytes] = {
     0: bfh("0100000000000000000000000000000000000000000000000000000000000000000000003ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4adae5494dffff7f2002000000"),
     1: bfh("0000002006226e46111a0b59caaf126043eb5bbf28c34f3a5e332a1fc7b2b73cf188910f186c8dfd970a4545f79916bc1d75c9d00432f57c89209bf3bb115b7612848f509c25f45bffff7f2000000000"),
     2: bfh("00000020686bdfc6a3db73d5d93e8c9663a720a26ecb1ef20eb05af11b36cdbc57c19f7ebf2cbf153013a1c54abaf70e95198fcef2f3059cc6b4d0f7e876808e7d24d11cc825f45bffff7f2000000000"),
@@ -333,8 +333,9 @@ class TestInterface(ElectrumTestCase):
     async def _start_iface_and_wait_for_sync(self):
         interface = Interface(network=self.network, server=ServerAddr(host="127.0.0.1", port=self._server_port, protocol="t"))
         self.network.interface = interface
-        await util.wait_for2(interface.ready, 5)
-        await interface._blockchain_updated.wait()
+        async with util.async_timeout(5):
+            await interface.ready
+            await interface._blockchain_updated.wait()
         return interface
 
     async def test_client_syncs_headers_to_tip(self):
