@@ -326,10 +326,10 @@ class TxBatch(Logger):
                 continue
             if sweep_info.is_anchor():
                 prev_tx_mined_status = self.wallet.adb.get_tx_height(prev_txid)
-                #if prev_tx_mined_status.conf > 0:
-                #    self.logger.info(f"anchor not needed {prevout}")
-                #    self.batch_inputs.pop(prevout)  # note: if the input is already in a batch tx, this will trigger assert error
-                #    continue
+                if prev_tx_mined_status.conf > 0:
+                    self.logger.info(f"anchor not needed {prevout}")
+                    self.batch_inputs.pop(prevout)  # note: if the input is already in a batch tx, this will trigger assert error
+                    continue
             if spender_txid := self.wallet.adb.db.get_spent_outpoint(prev_txid, int(index)):
                 tx_mined_status = self.wallet.adb.get_tx_height(spender_txid)
                 if tx_mined_status.height() not in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:

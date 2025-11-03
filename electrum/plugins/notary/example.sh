@@ -2,8 +2,8 @@
 
 # this sends a notarization request to notary.electrum.org
 event_id=$(hexdump -n32 -e '16/1 "%02x"' /dev/urandom)
-fee=$((2 ** (($RANDOM % 9)) ))
-request="{\"event_id\":\"$event_id\",\"fee\":$fee}"
+value=$((2 ** (($RANDOM % 9)) ))
+request="{\"event_id\":\"$event_id\",\"value\":$value}"
 
 echo "your request"
 echo $request | jq --color-output
