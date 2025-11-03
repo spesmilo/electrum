@@ -179,7 +179,7 @@ class ToyServerSession(aiorpcx.RPCSession, Logger):
         }
 
     async def _handle_estimatefee(self, number, mode=None):
-        return 1000
+        return 0.00001000
 
     def _get_headersub_result(self):
         return {'hex': BLOCK_HEADERS[self.cur_height].hex(), 'height': self.cur_height}
