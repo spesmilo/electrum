@@ -775,6 +775,7 @@ Warning: setting this to too low will result in lots of payment failures."""),
     FEE_POLICY = ConfigVar('fee_policy.default', default='eta:2', type_=str)  # exposed to GUI
     FEE_POLICY_LIGHTNING = ConfigVar('fee_policy.lnwatcher', default='eta:2', type_=str)  # for txbatcher (sweeping)
     FEE_POLICY_SWAPS = ConfigVar('fee_policy.swaps', default='eta:2', type_=str)  # for txbatcher (sweeping and sending if we are a swapserver)
+    TEST_DISABLE_AUTOMATIC_FEE_ETA_UPDATE = ConfigVar('test_disable_automatic_fee_eta_update', default=False, type_=bool)
 
     RPC_USERNAME = ConfigVar('rpcuser', default=None, type_=str)
     RPC_PASSWORD = ConfigVar('rpcpassword', default=None, type_=str)
