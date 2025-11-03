@@ -265,7 +265,7 @@ class TxBatch(Logger):
 
     def is_dust(self, sweep_info: SweepInfo) -> bool:
         """Can raise NoDynamicFeeEstimates."""
-        if sweep_info.is_anchor():
+        if sweep_info.dust_override:
             return False
         if sweep_info.txout is not None:
             return False
