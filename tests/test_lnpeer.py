@@ -1971,6 +1971,76 @@ class TestPeerDirect(TestPeer):
         with self.assertRaises(SuccessfulTest):
             await f()
 
+    async def test_dont_settle_htlcs(self):
+        """
+        Test that htlcs registered in LNWallet.dont_settle_htlcs don't get fulfilled if the preimage is available.
+        """
+        async def run_test(test_trampoline, test_failure):
+            alice_channel, bob_channel = create_test_channels()
+            p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
+            if test_trampoline:
+                await self._activate_trampoline(w1)
+                # declare bob as trampoline node
+                electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
+                    'bob': LNPeerAddr(host="127.0.0.1", port=9735, pubkey=w2.node_keypair.pubkey),
+                }
+
+            preimage = os.urandom(32)
+            lnaddr, pay_req = self.prepare_invoice(
+                w2,
+                payment_preimage=preimage,
+                # use a higher min final cltv delta so we can mine some blocks later
+                min_final_cltv_delta=244,
+            )
+
+            # add payment_hash to dont_settle_htlcs so the htlcs are not getting settled
+            w2.dont_settle_htlcs[pay_req.rhash] = None
+
+            async def pay(lnaddr, pay_req):
+                self.assertEqual(PR_UNPAID, w2.get_payment_status(lnaddr.paymenthash))
+                result, log = await util.wait_for2(w1.pay_invoice(pay_req), timeout=3)
+                if result is True:
+                    self.assertNotIn(pay_req.rhash, w2.dont_settle_htlcs)
+                    self.assertEqual(PR_PAID, w2.get_payment_status(lnaddr.paymenthash))
+                    return PaymentDone()
+                else:
+                    self.assertIsNone(w2.get_preimage(lnaddr.paymenthash))
+                    return PaymentFailure()
+
+            async def wait_for_htlcs():
+                payment_key = w2._get_payment_key(lnaddr.paymenthash)
+                while payment_key.hex() not in w2.received_mpp_htlcs:
+                    await asyncio.sleep(0.05)
+                w2.network.blockchain()._height += 25 # mine some blocks, shouldn't affect anything
+                if test_failure:
+                    # delete preimage, this will fail htlcs even if registered in dont_settle_htlcs
+                    del w2._preimages[pay_req.rhash]
+                    return  # pay() should fail now
+                await asyncio.sleep(0.25)  # give w2 some time to do mistakes
+                self.assertEqual(w2.received_mpp_htlcs[payment_key.hex()].resolution, RecvMPPResolution.COMPLETE)
+                # remove the payment hash from dont_settle_htlcs so the htlcs can get fulfilled
+                del w2.dont_settle_htlcs[pay_req.rhash]
+
+            async def f():
+                async with OldTaskGroup() as group:
+                    await group.spawn(p1._message_loop())
+                    await group.spawn(p1.htlc_switch())
+                    await group.spawn(p2._message_loop())
+                    await group.spawn(p2.htlc_switch())
+                    await asyncio.sleep(0.01)
+                    invoice_features = lnaddr.get_features()
+                    self.assertFalse(invoice_features.supports(LnFeatures.BASIC_MPP_OPT))
+                    pay_task = await group.spawn(pay(lnaddr, pay_req))
+                    await util.wait_for2(wait_for_htlcs(), timeout=2)
+                    raise await pay_task
+
+            await f()
+
+        for test_trampoline in [False, True]:
+            for test_failure in [False, True]:
+                with self.assertRaises(PaymentFailure if test_failure else PaymentDone):
+                    await run_test(test_trampoline, test_failure)
+
 
 class TestPeerForwarding(TestPeer):
 
