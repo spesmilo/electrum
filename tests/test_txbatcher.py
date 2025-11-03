@@ -86,6 +86,7 @@ SWAP_SWEEP_INFO = SweepInfo(
     txout=None,
     name='swap claim',
     can_be_batched=True,
+    dust_override=False,
 )
 
 

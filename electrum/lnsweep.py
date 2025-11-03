@@ -43,6 +43,7 @@ class SweepInfo(NamedTuple):
     txin: PartialTxInput
     txout: Optional[PartialTxOutput]  # only for first-stage htlc tx
     can_be_batched: bool # todo: this could be more fine-grained
+    dust_override: bool
 
     def is_anchor(self):
         return self.name in ['local_anchor', 'remote_anchor']
@@ -260,6 +261,7 @@ def sweep_their_htlctx_justice(
                 txin=txin,
                 txout=None,
                 can_be_batched=False,
+                dust_override=False,
             )
     return index_to_sweepinfo
 
@@ -337,6 +339,7 @@ def sweep_our_ctx(
                 txin=txin,
                 txout=None,
                 can_be_batched=True,
+                dust_override=True,
             )
 
     # to_local
@@ -358,6 +361,7 @@ def sweep_our_ctx(
                 txin=txin,
                 txout=None,
                 can_be_batched=True,
+                dust_override=False,
             )
     we_breached = ctn < chan.get_oldest_unrevoked_ctn(LOCAL)
     if we_breached:
@@ -398,6 +402,7 @@ def sweep_our_ctx(
                 #   - in particular, it would be safe to batch htlcs where
                 #        htlc_direction, htlc.payment_hash, htlc.cltv_abs
                 #     all match. That is, MPP htlcs for the same payment.
+                dust_override=False,
             )
         else:
             # second-stage
@@ -420,6 +425,7 @@ def sweep_our_ctx(
                         # this is safe to batch, we are the only ones who can spend
                         # (assuming we did not broadcast a revoked state)
                         can_be_batched=True,
+                        dust_override=False,
                     )
 
     # offered HTLCs, in our ctx --> "timeout"
@@ -557,6 +563,7 @@ def sweep_their_ctx_to_remote_backup(
                 txin=txin,
                 txout=None,
                 can_be_batched=True,
+                dust_override=True,
             )
 
     # to_remote
@@ -577,6 +584,7 @@ def sweep_their_ctx_to_remote_backup(
                 txin=txin,
                 txout=None,
                 can_be_batched=True,
+                dust_override=False,
             )
     return txs
 
@@ -634,6 +642,7 @@ def sweep_their_ctx(
                 txin=txin,
                 txout=None,
                 can_be_batched=True,
+                dust_override=True,
             )
 
     # to_local is handled by lnwatcher
@@ -646,6 +655,7 @@ def sweep_their_ctx(
                 txin=txin,
                 txout=None,
                 can_be_batched=False,
+                dust_override=False,
             )
 
     # to_remote
@@ -676,6 +686,7 @@ def sweep_their_ctx(
                     txin=txin,
                     txout=None,
                     can_be_batched=True,
+                    dust_override=False,
                 )
 
     # HTLCs
@@ -715,6 +726,7 @@ def sweep_their_ctx(
                 txout=None,
                 can_be_batched=False,   # both parties can spend
                 # (still, in some cases we could batch, see comment in sweep_our_ctx)
+                dust_override=False,
             )
     # received HTLCs, in their ctx --> "timeout"
     # offered HTLCs, in their ctx --> "success"

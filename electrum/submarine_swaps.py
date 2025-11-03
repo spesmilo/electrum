@@ -529,6 +529,7 @@ class SwapManager(Logger):
                 txout=None,
                 name=name,
                 can_be_batched=can_be_batched,
+                dust_override=False,
             )
             try:
                 self.wallet.txbatcher.add_sweep_input('swaps', sweep_info)
