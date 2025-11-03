@@ -157,6 +157,7 @@ class ToyServerSession(aiorpcx.RPCSession, Logger):
             'blockchain.transaction.get': self._handle_transaction_get,
             'blockchain.transaction.broadcast': self._handle_transaction_broadcast,
             'blockchain.transaction.get_merkle': self._handle_transaction_get_merkle,
+            'mempool.get_info': self._handle_mempool_get_info,
             'server.ping': self._handle_ping,
         }
         handler = handlers.get(request.method)
@@ -164,15 +165,15 @@ class ToyServerSession(aiorpcx.RPCSession, Logger):
         coro = aiorpcx.handler_invocation(handler, request)()
         return await coro
 
-    async def _handle_server_version(self, client_name='', protocol_version=None):
-        return ['best_server_impl/0.1', '1.4']
+    async def _handle_server_version(self, client_name='', protocol_version=None, *args, **kwargs):
+        return ['toy_server/0.1', '1.6']
 
     async def _handle_server_features(self) -> dict:
         return {
             'genesis_hash': constants.net.GENESIS,
             'hosts': {"14.3.140.101": {"tcp_port": 51001, "ssl_port": 51002}},
-            'protocol_max': '1.7.0',
-            'protocol_min': '1.4.3',
+            'protocol_max': '1.6',
+            'protocol_min': '1.6',
             'pruning': None,
             'server_version': 'ElectrumX 1.19.0',
             'hash_function': 'sha256',
@@ -180,6 +181,13 @@ class ToyServerSession(aiorpcx.RPCSession, Logger):
 
     async def _handle_estimatefee(self, number, mode=None):
         return 0.00001000
+
+    async def _handle_mempool_get_info(self):
+        return {
+            "mempoolminfee": 0.00001000,
+            "minrelaytxfee": 0.00001000,
+            "incrementalrelayfee": 0.00001000,
+        }
 
     def _get_headersub_result(self):
         return {'hex': BLOCK_HEADERS[self.cur_height].hex(), 'height': self.cur_height}
@@ -195,8 +203,8 @@ class ToyServerSession(aiorpcx.RPCSession, Logger):
         assert start_height <= self.cur_height, (start_height, self.cur_height)
         last_height = min(start_height+count-1, self.cur_height)  # [start_height, last_height]
         count = last_height - start_height + 1
-        headers = b"".join(BLOCK_HEADERS[idx] for idx in range(start_height, last_height+1))
-        return {'hex': headers.hex(), 'count': count, 'max': 2016}
+        headers = list(BLOCK_HEADERS[idx].hex() for idx in range(start_height, last_height+1))
+        return {'headers': headers, 'count': count, 'max': 2016}
 
     async def _handle_ping(self):
         return None
