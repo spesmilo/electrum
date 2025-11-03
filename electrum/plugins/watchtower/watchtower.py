@@ -56,7 +56,7 @@ class WatchtowerPlugin(BasePlugin):
             return
 
         self.watchtower = WatchTower(self.network)
-        asyncio.ensure_future(self.watchtower.start_watching())
+        asyncio.run_coroutine_threadsafe(self.watchtower.start_watching(), self.network.asyncio_loop)
         if watchtower_port := self.config.WATCHTOWER_SERVER_PORT:
             self.server = WatchTowerServer(self.watchtower, self.network, watchtower_port)
             asyncio.run_coroutine_threadsafe(self.network.taskgroup.spawn(self.server.run), self.network.asyncio_loop)
