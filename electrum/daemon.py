@@ -214,9 +214,9 @@ class AuthenticatedServer(Logger):
         self.auth_lock = asyncio.Lock()
         self._methods = {}  # type: Dict[str, Callable]
 
-    def register_method(self, f):
-        assert f.__name__ not in self._methods, f"name collision for {f.__name__}"
-        self._methods[f.__name__] = f
+    def register_method(self, name: str, f):
+        assert name not in self._methods, f"name collision for {name}"
+        self._methods[name] = f
 
     async def authenticate(self, headers):
         if self.rpc_password == '':
@@ -299,12 +299,12 @@ class CommandsServer(AuthenticatedServer):
         self.port = self.config.RPC_PORT
         self.app = web.Application()
         self.app.router.add_post("/", self.handle)
-        self.register_method(self.ping)
-        self.register_method(self.gui)
+        self.register_method('ping', self.ping)
+        self.register_method('gui', self.gui)
         self.cmd_runner = Commands(config=self.config, network=self.daemon.network, daemon=self.daemon)
         for cmdname in known_commands:
-            self.register_method(getattr(self.cmd_runner, cmdname))
-        self.register_method(self.run_cmdline)
+            self.register_method(cmdname, getattr(self.cmd_runner, cmdname))
+        self.register_method('run_cmdline', self.run_cmdline)
 
     def _socket_config_str(self) -> str:
         if self.socktype == 'unix':
