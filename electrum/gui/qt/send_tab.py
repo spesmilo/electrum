@@ -182,7 +182,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
 
         self.invoices_label = QLabel(_('Invoices'))
         self.invoice_list = InvoiceList(self)
-        self.toolbar, menu = self.invoice_list.create_toolbar_with_menu('')
+        self.toolbar, menu = self.invoice_list.create_toolbar_with_menu('', 'tab_send.png')
 
         add_input_actions_to_context_menu(self.payto_e, menu)
         self.paytomany_menu = menu.addToggle(_("&Pay to many"), self.toggle_paytomany)

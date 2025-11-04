@@ -107,11 +107,11 @@ class QMenuWithConfig(QMenu):
             callback()
 
 
-def create_toolbar_with_menu(config: 'SimpleConfig', title):
+def create_toolbar_with_menu(config: 'SimpleConfig', title, icon_name: str = 'preferences.png'):
     menu = QMenuWithConfig(config)
     toolbar_button = QToolButton()
-    toolbar_button.setText(_('Tools'))
-    toolbar_button.setIcon(read_QIcon("preferences.png"))
+    toolbar_button.setText(' ' + _('Tools'))
+    toolbar_button.setIcon(read_QIcon(icon_name))
     toolbar_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
     toolbar_button.setMenu(menu)
     toolbar_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
@@ -418,8 +418,8 @@ class MyTreeView(QTreeView):
         self.toolbar_buttons = buttons
         return hbox
 
-    def create_toolbar_with_menu(self, title):
-        return create_toolbar_with_menu(self.config, title)
+    def create_toolbar_with_menu(self, title: str, icon: str):
+        return create_toolbar_with_menu(self.config, title, icon)
 
     configvar_show_toolbar = None  # type: Optional[ConfigVarWithConfig]
     _toolbar_checkbox = None  # type: Optional[QAction]

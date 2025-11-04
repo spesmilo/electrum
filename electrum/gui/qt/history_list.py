@@ -544,7 +544,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         self.hide_rows()
 
     def create_toolbar(self, config: 'SimpleConfig'):
-        toolbar, menu = self.create_toolbar_with_menu('')
+        toolbar, menu = self.create_toolbar_with_menu('', 'tab_history.png')
         self.num_tx_label = toolbar.itemAt(0).widget()
         self._toolbar_checkbox = menu.addToggle(_("Filter by Date"), lambda: self.toggle_toolbar())
         self.menu_fiat = menu.addConfig(config.cv.FX_HISTORY_RATES, short_desc=_('Show Fiat Values'), callback=self.main_window.app.update_fiat_signal.emit)

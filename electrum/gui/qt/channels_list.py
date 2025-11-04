@@ -358,7 +358,7 @@ class ChannelsList(MyTreeView):
         self.can_send_label.setText(msg)
 
     def create_toolbar(self, config):
-        toolbar, menu = self.create_toolbar_with_menu('')
+        toolbar, menu = self.create_toolbar_with_menu('', 'lightning.png')
         self.can_send_label = toolbar.itemAt(0).widget()
         menu.addAction(_('Rebalance channels'), lambda: self.on_rebalance())
         menu.addAction(read_QIcon('update.png'), _('Submarine swap'), lambda: self.main_window.run_swap_dialog())
