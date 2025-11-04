@@ -110,7 +110,9 @@ class QMenuWithConfig(QMenu):
 def create_toolbar_with_menu(config: 'SimpleConfig', title):
     menu = QMenuWithConfig(config)
     toolbar_button = QToolButton()
+    toolbar_button.setText(_('Tools'))
     toolbar_button.setIcon(read_QIcon("preferences.png"))
+    toolbar_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
     toolbar_button.setMenu(menu)
     toolbar_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
     toolbar_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
