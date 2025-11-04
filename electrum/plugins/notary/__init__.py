@@ -15,7 +15,7 @@ SimpleConfig.NOTARY_CSV_DELAY = ConfigVar('plugins.notary.csv_delay', default=14
 
 
 @plugin_command('wl', plugin_name)
-async def notarize(self: 'Commands', event_id:str, value: int, pubkey: str = None, signature: str = None, wallet: 'Abstract_Wallet' = None, plugin = None) -> List[dict]:
+async def add_request(self: 'Commands', event_id:str, value: int, pubkey: str = None, signature: str = None, wallet: 'Abstract_Wallet' = None, plugin = None) -> List[dict]:
     """Request notarization. This returns a lightning invoice.
     arg:str:event_id:nostr event id (hexadecimal)
     arg:int:value:amount to be burnt, in satoshis.
@@ -41,8 +41,8 @@ async def verify_proof(self: 'Commands', proof: str, wallet: 'Abstract_Wallet' =
     return await plugin.notary.verify_proof(proof)
 
 @plugin_command('wl', plugin_name)
-async def sweep_proof(self: 'Commands', proof: str, wallet: 'Abstract_Wallet' = None, plugin = None) -> List[dict]:
+async def sweep(self: 'Commands', txid: str, wallet: 'Abstract_Wallet' = None, plugin = None) -> List[dict]:
     """Sweep funds that have been burnt
-    arg:str:proof:proof
+    arg:str:txid:txid of the notarization transaction
     """
-    return await plugin.notary.sweep(proof)
+    return await plugin.notary.sweep(txid)

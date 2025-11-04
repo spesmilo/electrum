@@ -36,14 +36,14 @@ class NotaryServer(Logger):
         app = web.Application()
         app.add_routes([web.post('/api/get_proof', self.get_proof)])
         app.add_routes([web.post('/api/verify_proof', self.verify_proof)])
-        app.add_routes([web.post('/api/notarize', self.notarize)])
+        app.add_routes([web.post('/api/add_request', self.add_request)])
         runner = web.AppRunner(app)
         await runner.setup()
         site = web.TCPSite(runner, host='0.0.0.0', port=self.port)#, ssl_context=self.config.get_ssl_context())
         await site.start()
         self.logger.info(f"notary server is listening on port {self.port}")
 
-    async def notarize(self, request):
+    async def add_request(self, request):
         params = await request.json()
         try:
             event_id = params['event_id']

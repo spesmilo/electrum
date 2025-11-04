@@ -1,16 +1,20 @@
 The notary API has 3 public endpoints
 
 
-notarize
-========
+add_request
+===========
 
 Notarize takes a hash (nostr event_id) and a value (to be burnt).
 
-```bash
-curl -X POST http://localhost:5455/api/notarize -H 'Content-Type: application/json' -d '{ "event_id":"277419e0a32a8e2181f5b29102eb5008c53fec1b6d980d4b33d0a0aaadf44fc2", "value":128 }' 
+Request:
+```json
+{
+  "event_id":"277419e0a32a8e2181f5b29102eb5008c53fec1b6d980d4b33d0a0aaadf44fc2",
+  "value":128
+}
 ```
 
-This returns a lightning invoice and a rhash:
+Response:
 
 ```json
 {
@@ -27,12 +31,14 @@ The public proof will be available after the invoice has been paid.
 get_proof
 =========
 
-```bash
-curl -X POST http://localhost:5455/api/get_proof -H 'Content-Type: application/json' -d '{ "rhash":"a5d29d8ee774353204b1aa164e23d5012187ebf5f2594f2698417ae2deeada5b" }'
+Request:
+```json
+{
+  "rhash":"a5d29d8ee774353204b1aa164e23d5012187ebf5f2594f2698417ae2deeada5b"
+}
 ```
 
-This returns a public proof:
-
+Response:
 ```json
 {
     "block_height": 385,
@@ -47,7 +53,7 @@ This returns a public proof:
         "53b9bc1e430ec613a14f85c15955520533a07fc399e4e3a22febe524e86384a3:1536"
     ],
     "index": 11,
-    "outpoint": "63422a2a719fcb043fa822dda925e6d80532a3da0d44014cb402613710ea0e36:0",
+    "txid": "63422a2a719fcb043fa822dda925e6d80532a3da0d44014cb402613710ea0e36",
     "rhash": "a5d29d8ee774353204b1aa164e23d5012187ebf5f2594f2698417ae2deeada5b",
     "value": 16,
     "version": 0
@@ -55,16 +61,14 @@ This returns a public proof:
 ```
 
 
-verify_proof
-============
 
-If the proof is saved in $proof, we can use:
+verify
+======
 
-```bash
-curl -X POST http://localhost:5455/api/verify_proof -H 'Content-Type: application/json' -d  @<(echo $proof)
-```
+The previous proof can be used as request.
 
-This returns the value that was burnt for event_id and rhash.
+Response:
+
 
 ```json
 {

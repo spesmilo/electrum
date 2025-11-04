@@ -8,7 +8,7 @@ request="{\"event_id\":\"$event_id\",\"value\":$value}"
 echo "your request"
 echo $request | jq --color-output
 
-invoice=$(curl -s -X POST https://swaps.electrum.org/notary/notarize -H 'Content-Type: application/json' -d @<(echo $request))
+invoice=$(curl -s -X POST https://swaps.electrum.org/notary/add_request -H 'Content-Type: application/json' -d @<(echo $request))
 
 echo "notary invoice:"
 echo $invoice | jq --color-output

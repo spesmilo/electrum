@@ -46,7 +46,7 @@ from electrum.crypto import sha256
 from electrum.plugin import BasePlugin, hook
 from electrum.logging import Logger
 from electrum.bitcoin import DUST_LIMIT_P2WSH
-from electrum.bitcoin import construct_script, opcodes, redeem_script_to_address, address_to_script, construct_witness
+from electrum.bitcoin import construct_script, opcodes, redeem_script_to_address, address_to_script, construct_witness, make_op_return
 from electrum.transaction import PartialTxInput, PartialTxOutput, TxOutpoint, PartialTransaction, Transaction
 from electrum.json_db import JsonDB, StoredDict, StoredObject
 from electrum.lnutil import hex_to_bytes
@@ -65,6 +65,7 @@ def int_to_bytes(x: int) -> bytes:
 
 def bytes_to_int(x: bytes) -> int:
     assert type(x) == bytes
+    assert len(x) == 8
     return int.from_bytes(x, 'big')
 
 def node_hash(left_h, left_v:int, right_h, right_v:int):
@@ -73,8 +74,8 @@ def node_hash(left_h, left_v:int, right_h, right_v:int):
 def leaf_hash(event_id:str, value:int, rhash:bytes, pubkey:bytes):
     return sha256(b"Leaf:" + bytes.fromhex(event_id) + int_to_bytes(value) + rhash + (pubkey if pubkey else b''))
 
-def make_output_script(csv_delay, root_hash: bytes) -> bytes:
-    redeem_script = construct_script([csv_delay, opcodes.OP_CHECKSEQUENCEVERIFY, opcodes.OP_DROP, root_hash, opcodes.OP_DROP, opcodes.OP_TRUE])
+def make_output_script(csv_delay: int) -> bytes:
+    redeem_script = construct_script([csv_delay, opcodes.OP_CHECKSEQUENCEVERIFY, opcodes.OP_DROP, opcodes.OP_TRUE])
     address = redeem_script_to_address('p2wsh', redeem_script)
     scriptpubkey = address_to_script(address)
     return redeem_script, scriptpubkey
@@ -180,7 +181,7 @@ class Notary(Logger):
         self.db = NotaryDB(self.config)
         self.requests = self.db.get_dict('requests')
         self.proofs = self.db.get_dict('proofs')     # rhash -> txid -> proof
-        self.roots = self.db.get_dict('roots')       # txid -> csv, index, roots
+        self.roots = self.db.get_dict('roots')       # txid -> root_hash, root_value
         self.mempool = self.db.get_dict('mempool')   # txid -> (rhashes, tx)
         print("mempool", list(self.mempool.keys()))
         xpub = self.wallet.keystore.get_master_public_key()  # type: str
@@ -229,31 +230,53 @@ class Notary(Logger):
             'rhash': r['rhash'],
         }
 
+    def parse_tx(self, tx):
+        tx = Transaction(tx)
+        for txo in tx.outputs():
+            if txo.scriptpubkey.startswith(bytes([opcodes.OP_RETURN])):
+                data = txo.scriptpubkey[2:]
+                root_hash = data[0:32]
+                csv_delay = bytes_to_int(data[32:])
+                break
+        else:
+            raise Exception('op_return output not found')
+
+        redeem_script, scriptpubkey = make_output_script(csv_delay)
+        for i, txo in enumerate(tx.outputs()):
+            if txo.scriptpubkey == scriptpubkey:
+                break
+        else:
+            raise Exception('burn output not found')
+        return root_hash, csv_delay, txo, i, redeem_script
+
     async def verify_proof(self, proof) -> int:
         """ return the burnt amount and number of confirmations """
         # 1. verify that the hash of the leaf is in the root of the tree
         event_id = proof["event_id"]
         rhash = bytes.fromhex(proof["rhash"])
         pubkey = bytes.fromhex(proof.get("pubkey") or "")
-        leaf_value = proof["value"]
+        leaf_value = proof["leaf_value"]
         leaf_h = leaf_hash(event_id, leaf_value, rhash, pubkey)
         hashes = b''
         values = b''
-        for x in proof["hashes"]:
+        for x in proof["merkle_hashes"]:
             h, v = x.split(':')
             hashes += bytes.fromhex(h)
             values += int_to_bytes(int(v))
-        index = proof["index"]
+        index = proof["merkle_index"]
         p = Proof(hashes=hashes, values=values, index=index)
         root_hash, root_v = p.get_root(leaf_h, leaf_value)
         # 2. verify that the transaction is in the blockchain (or mempool if blockheight is 0)
-        outpoint = proof["outpoint"]
-        txid, out_index = outpoint.split(':')
-        out_index = int(out_index)
+        txid = proof["txid"]
         tx = await self.wallet.network.get_transaction(txid)
         if not tx:
             raise UserFacingException("Transaction not found")
-        tx = Transaction(tx)
+        _root_hash, csv_delay, txo, index, redeem_script = self.parse_tx(tx)
+        if _root_hash != root_hash:
+            raise UserFacingException('root mismatch')
+        # 4. verify that the amount burnt by the tx equals the sum of tree roots
+        if txo.value != root_v:
+            raise UserFacingException('value mismatch')
         tx_mined_status = self.wallet.adb.get_tx_height(txid)
         height = tx_mined_status.height()
         proof_height = proof["block_height"]
@@ -261,31 +284,14 @@ class Notary(Logger):
             raise UserFacingException(f"Block height mismatch {height} != {proof_height}")
         # fixme: add tx for performance
         #self.wallet.adb.add_transaction(tx, allow_unrelated=True)
-        # 3. verify that the scriptpubkey of one tx output commits to the root hash of the Merkle forest
-        csv_delay = proof["csv_delay"]
-        redeem_script, scriptpubkey = make_output_script(csv_delay, root_hash)
-        txo = tx.outputs()[out_index]
-        if txo.scriptpubkey != scriptpubkey:
-            raise UserFacingException("Root hash not in transaction")
-        # 4. verify that the amount burnt by the tx equals the sum of tree roots
-        assert txo.value == root_v
-        return {"leaf_value":leaf_value, "confirmations": tx_mined_status.conf, "total_value": txo.value}
+        return {"confirmations": tx_mined_status.conf, "output_value": txo.value, "csv_delay":csv_delay, "root_hash":root_hash.hex()}
 
-    async def sweep(self, proof):
-        outpoint = proof["outpoint"]
-        txid, out_index = outpoint.split(':')
-        out_index = int(out_index)
+    async def sweep(self, txid):
         tx = await self.wallet.network.get_transaction(txid)
         if not tx:
             raise UserFacingException("Transaction not found")
-        tx = Transaction(tx)
-        txo = tx.outputs()[out_index]
-        #roots = dict([(int(k), bytes.fromhex(v)) for k, v in proof["roots"].items()])
-        csv_delay = proof["csv_delay"]
-        #root_hash = self.get_forest_root(roots)
-        root_hash = proof["root_hash"]
-        redeem_script, scriptpubkey = make_output_script(csv_delay, root_hash)
-        prevout = TxOutpoint(txid=bytes.fromhex(txid), out_idx=0)
+        _root_hash, csv_delay, txo, index, redeem_script = self.parse_tx(tx)
+        prevout = TxOutpoint(txid=bytes.fromhex(txid), out_idx=index)
         txin = PartialTxInput(prevout=prevout)
         txin._trusted_value_sats = txo.value
         txin.witness_script = redeem_script
@@ -302,7 +308,7 @@ class Notary(Logger):
             dust_override=True,
         )
         self.wallet.txbatcher.add_sweep_input('notary', sweep_info)
-
+        return prevout.to_str()
 
     def get_proof(self, rhash_hex: str):
         try:
@@ -318,7 +324,7 @@ class Notary(Logger):
             raise UserFacingException("Transaction not broadcast yet")
         proof = self.proofs[rhash_hex][txid]
         leaf = request.leaf_hash()
-        csv_delay, out_index, root_h, root_v = self.roots[txid]
+        root_h, root_v = self.roots[txid]
         assert bytes.fromhex(root_h), root_v == proof.get_root(leaf)
         #assert root in roots.values()
         tx_mined_status = self.wallet.adb.get_tx_height(txid)
@@ -326,14 +332,13 @@ class Notary(Logger):
         r = {}
         r["version"] = PROOF_VERSION
         r["chain"] = constants.net.rev_genesis_bytes().hex()
-        r["index"] = proof.index
-        r["hashes"] = [h.hex()+':%d'%v for (h, v) in proof.get_hashes()]
+        r["merkle_index"] = proof.index
+        r["merkle_hashes"] = [h.hex()+':%d'%v for (h, v) in proof.get_hashes()]
         r["event_id"] = request.event_id
         r["rhash"] = rhash_hex
-        r["outpoint"] = txid + ':%d'%out_index
-        r["value"] = request.value
+        r["txid"] = txid
+        r["leaf_value"] = request.value
         r["block_height"] = height
-        r["csv_delay"] = csv_delay
         if request.pubkey:
             r["pubkey"] = request.pubkey.hex()
             r["signature"] = request.signature.hex()
@@ -437,26 +442,26 @@ class Notary(Logger):
         self.last_time = now
         return requests
 
-
     def create_new_tx(self, coin, root_hash, value, fee_policy:FeePolicy, csv_delay):
-        redeem_script, scriptpubkey = make_output_script(csv_delay, root_hash)
-        output = PartialTxOutput(
-            scriptpubkey=scriptpubkey,
-            value=value,
-        )
+        redeem_script, scriptpubkey = make_output_script(csv_delay)
+        outputs = [
+            PartialTxOutput(
+                scriptpubkey=scriptpubkey,
+                value=value,
+            ),
+            PartialTxOutput(
+                scriptpubkey=make_op_return(root_hash + int_to_bytes(csv_delay)),
+                value=0,
+            ),
+        ]
         tx = self.wallet.make_unsigned_transaction(
             coins=[coin],
-            outputs=[output],
+            outputs=outputs,
             rbf=True,
             fee_policy=fee_policy,
         )
         self.wallet.sign_transaction(tx, None)
-        for i, txo in enumerate(tx.outputs()):
-            if txo == output:
-                break
-        else:
-            raise
-        return tx, i
+        return tx
 
     def get_parent_coin(self):
         # pick confirmed coin, large enough
@@ -472,7 +477,7 @@ class Notary(Logger):
         return coin
 
     def get_change_utxo(self, tx):
-        assert len(tx.outputs()) == 2
+        #assert len(tx.outputs()) == 2
         for i, o in enumerate(tx.outputs()):
             if o.address is not None:
                 break
@@ -528,10 +533,10 @@ class Notary(Logger):
 
         #value = sum([pow(2, k) for k in forest.keys()])
         root_hash, value = tree.get_root()
-        tx, index = self.create_new_tx(coin, root_hash, value, fee_policy=fee_policy, csv_delay=csv_delay)
-        return tx, index
+        tx = self.create_new_tx(coin, root_hash, value, fee_policy=fee_policy, csv_delay=csv_delay)
+        return tx
 
-    def save_proofs(self, tree, requests, txid, out_index, csv_delay):
+    def save_proofs(self, tree, requests, txid, csv_delay):
         indices = [x.rhash.hex() for x in requests]
         for rhash in indices:
             r = self.requests[rhash]
@@ -547,7 +552,7 @@ class Notary(Logger):
                 self.proofs[rhash] = {}
             self.proofs[rhash][txid] = proof
             root_h, root_value = tree.get_root()
-            self.roots[txid] = csv_delay, out_index, root_h.hex(), root_value
+            self.roots[txid] = root_h.hex(), root_value
 
     async def publish_proof(self, request, relay_manager):
         rhash_hex = request.rhash.hex()
@@ -608,10 +613,10 @@ class Notary(Logger):
             indices = [x.rhash.hex() for x in requests]
             tree = self.create_tree(requests)
             csv_delay = self.config.NOTARY_CSV_DELAY
-            tx, out_index = self.create_tx(tree, csv_delay)
+            tx = self.create_tx(tree, csv_delay)
             txid = tx.txid()
             print(f'new tx: {txid}')
-            self.save_proofs(tree, requests, txid, out_index, csv_delay)
+            self.save_proofs(tree, requests, txid, csv_delay)
             self.mempool[txid] = indices, tx
             self.db.put('last_txid', txid)
             self.db.write()
