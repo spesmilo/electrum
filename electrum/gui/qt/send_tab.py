@@ -84,8 +84,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                + _("To set the amount to 'max', use the '!' special character.") + "\n"
                + _("Integers weights can also be used in conjunction with '!', "
                    "e.g. set one amount to '2!' and another to '3!' to split your coins 40-60."))
-        payto_label = HelpLabel(_('Pay to'), msg)
-        grid.addWidget(payto_label, 0, 0)
+        self.payto_label = HelpLabel(_('Pay to'), msg)
+        grid.addWidget(self.payto_label, 0, 0, Qt.AlignmentFlag.AlignLeft)
         grid.addWidget(self.payto_e, 0, 1, 1, 4)
 
         #completer = QCompleter()
@@ -822,6 +822,11 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                 _('You may load a CSV file using the file icon.')
             ])
             self.window.show_tooltip_after_delay(message)
+            self.payto_label.setAlignment(Qt.AlignmentFlag.AlignTop)
+            self.payto_label.setText(_('Pay to many'))
+        else:
+            self.payto_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+            self.payto_label.setText(_('Pay to'))
 
     def payto_contacts(self, labels):
         paytos = [self.window.get_contact_payto(label) for label in labels]
