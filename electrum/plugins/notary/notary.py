@@ -291,6 +291,10 @@ class Notary(Logger):
         if not tx:
             raise UserFacingException("Transaction not found")
         _root_hash, csv_delay, txo, index, redeem_script = self.parse_tx(tx)
+        tx_mined_status = self.wallet.adb.get_tx_height(txid)
+        conf = tx_mined_status.conf
+        if conf < csv_delay:
+            raise UserFacingException(f"CSV not reached {conf=} < {csv_delay=}")
         prevout = TxOutpoint(txid=bytes.fromhex(txid), out_idx=index)
         txin = PartialTxInput(prevout=prevout)
         txin._trusted_value_sats = txo.value
