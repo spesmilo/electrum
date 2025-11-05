@@ -44,16 +44,18 @@ import re
 
 import electrum_ecc as ecc
 
-from . import util
+from . import util, bolt12
+from .bolt12 import BOLT12Invoice, BOLT12Offer, BOLT12InvoiceRequest
 from .lnmsg import OnionWireSerializer
 from .lnworker import LN_P2P_NETWORK_TIMEOUT
 from .logging import Logger
 from .onion_message import create_blinded_path, send_onion_message_to
 from .lnonion import BlindedPath
+from .segwit_addr import INVALID_BECH32
 from .submarine_swaps import NostrTransport
 from .util import (
     bfh, json_decode, json_normalize, is_hash256_str, is_hex_str, to_bytes, parse_max_spend, to_decimal,
-    UserFacingException, InvalidPassword
+    UserFacingException, InvalidPassword, json_encode
 )
 from . import bitcoin
 from .bitcoin import is_address,  hash_160, COIN
@@ -2320,6 +2322,22 @@ class Commands(Logger):
             encoded_blinded_path = blinded_path_fd.getvalue()
 
         return encoded_blinded_path.hex()
+
+    @command('')
+    async def decode_bolt12(self, bech32: str):
+        """Decode bolt12 object
+
+        arg:str:bech32:Offer, Invoice Request or Invoice
+        """
+        dec = bolt12.bech32_decode(bech32, ignore_long_length=True, with_checksum=False)
+        if dec == INVALID_BECH32:
+            raise UserFacingException('invalid bech32')
+        d = {
+            'lni': BOLT12Invoice.decode,
+            'lno': BOLT12Offer.decode,
+            'lnr': BOLT12InvoiceRequest.decode,
+        }[dec.hrp](bech32)
+        return json_encode(d.serialize(with_signature=True))
 
 
 def plugin_command(s, plugin_name):
