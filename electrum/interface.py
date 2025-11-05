@@ -1455,6 +1455,8 @@ class Interface(Logger):
             height = assert_dict_contains_field(tx_item, field_name='height')
             assert_dict_contains_field(tx_item, field_name='tx_hash')
             assert_integer(height)
+            if height < -1:
+                raise RequestCorrupted(f'{height!r} is not a valid block height')
             assert_hash256_str(tx_item['tx_hash'])
             if height in (-1, 0):
                 assert_dict_contains_field(tx_item, field_name='fee')
@@ -1465,6 +1467,11 @@ class Interface(Logger):
                 if height < prev_height:
                     raise RequestCorrupted(f'heights of confirmed txs must be in increasing order')
                 prev_height = height
+        if self.active_protocol_tuple >= (1, 6):
+            # enforce order of mempool txs
+            mempool_txs = [tx_item for tx_item in res if tx_item['height'] <= 0]
+            if mempool_txs != sorted(mempool_txs, key=lambda x: (-x['height'], bytes.fromhex(x['tx_hash']))):
+                raise RequestCorrupted(f'mempool txs not in canonical order')
         hashes = set(map(lambda item: item['tx_hash'], res))
         if len(hashes) != len(res):
             # Either server is sending garbage... or maybe if server is race-prone
