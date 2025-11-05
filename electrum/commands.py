@@ -48,11 +48,11 @@ from .lnmsg import OnionWireSerializer
 from .lnworker import LN_P2P_NETWORK_TIMEOUT
 from .logging import Logger
 from .onion_message import create_blinded_path, send_onion_message_to
-from .segwit_addr import bech32_encode, Encoding, convertbits
+from .segwit_addr import bech32_encode, Encoding, convertbits, INVALID_BECH32
 from .submarine_swaps import NostrTransport
 from .util import (
     bfh, json_decode, json_normalize, is_hash256_str, is_hex_str, to_bytes, parse_max_spend, to_decimal,
-    UserFacingException, InvalidPassword
+    UserFacingException, InvalidPassword, json_encode
 )
 from . import bitcoin
 from .bitcoin import is_address,  hash_160, COIN
@@ -2269,6 +2269,18 @@ class Commands(Logger):
             encoded_blinded_path = blinded_path_fd.getvalue()
 
         return encoded_blinded_path.hex()
+
+    @command('')
+    async def decode_bolt12(self, bech32: str):
+        dec = bolt12.bech32_decode(bech32, ignore_long_length=True, with_checksum=False)
+        if dec == INVALID_BECH32:
+            raise Exception('invalid bech32')
+        d = {
+            'lni': bolt12.decode_invoice,
+            'lno': bolt12.decode_offer,
+            'lnr': bolt12.decode_invoice_request,
+        }[dec.hrp](bech32)
+        return json_encode(d)
 
 
 def plugin_command(s, plugin_name):
