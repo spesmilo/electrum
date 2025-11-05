@@ -2469,7 +2469,7 @@ def get_parser():
                 continue
             help = cmd.arg_descriptions.get(optname)
             if not help:
-                print(f'undocumented argument {cmdname}::{optname}')
+                print(f'undocumented argument {cmdname}::{optname}', file=sys.stderr)
             action = "store_true" if default is False else 'store'
             if action == 'store':
                 type_descriptor = cmd.arg_types.get(optname)
@@ -2484,11 +2484,11 @@ def get_parser():
                 continue
             help = cmd.arg_descriptions.get(param)
             if not help:
-                print(f'undocumented argument {cmdname}::{param}')
+                print(f'undocumented argument {cmdname}::{param}', file=sys.stderr)
             type_descriptor = cmd.arg_types.get(param)
             _type = arg_types.get(type_descriptor)
             if help is not None and _type is None:
-                print(f'unknown type \'{_type}\' for {cmdname}::{param}')
+                print(f'unknown type \'{_type}\' for {cmdname}::{param}', file=sys.stderr)
             p.add_argument(param, help=help, type=_type)
 
         cvh = config_variables.get(cmdname)
