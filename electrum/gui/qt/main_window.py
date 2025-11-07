@@ -62,7 +62,7 @@ from electrum.util import (format_time, UserCancelled, profiler, bfh, InvalidPas
 from electrum.bip21 import BITCOIN_BIP21_URI_SCHEME
 from electrum.payment_identifier import PaymentIdentifier
 from electrum.invoices import PR_PAID, Invoice
-from electrum.transaction import (Transaction, PartialTxInput,
+from electrum.transaction import (Transaction, PartialTxInput, TxOutput,
                                   PartialTransaction, PartialTxOutput)
 from electrum.wallet import (Multisig_Wallet, Abstract_Wallet,
                              sweep_preparations, InternalAddressCorruption,
@@ -1504,14 +1504,28 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                 return
         # we need to know the fee before we broadcast, because the txid is required
         make_tx = self.mktx_for_open_channel(funding_sat=funding_sat, node_id=node_id)
-        funding_tx, _ = self.confirm_tx_dialog(make_tx, funding_sat, allow_preview=False)
+        funding_tx, _, _ = self.confirm_tx_dialog(make_tx, funding_sat, allow_preview=False)
         if not funding_tx:
             return
         self._open_channel(connect_str, funding_sat, push_amt, funding_tx)
 
-    def confirm_tx_dialog(self, make_tx, output_value, *, allow_preview=True, batching_candidates=None) -> tuple[Optional[PartialTransaction], bool]:
-        d = ConfirmTxDialog(window=self, make_tx=make_tx, output_value=output_value, allow_preview=allow_preview, batching_candidates=batching_candidates)
-        return d.run(), d.is_preview
+    def confirm_tx_dialog(
+        self,
+        make_tx,
+        output_value, *,
+        payee_outputs: Optional[list[TxOutput]] = None,
+        allow_preview=True,
+        batching_candidates=None,
+    ) -> tuple[Optional[PartialTransaction], bool, bool]:
+        d = ConfirmTxDialog(
+            window=self,
+            make_tx=make_tx,
+            output_value=output_value,
+            payee_outputs=payee_outputs,
+            allow_preview=allow_preview,
+            batching_candidates=batching_candidates,
+        )
+        return d.run(), d.is_preview, d.did_swap
 
     @protected
     def _open_channel(self, connect_str, funding_sat, push_amt, funding_tx, password):

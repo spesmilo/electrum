@@ -548,7 +548,7 @@ class SwapManager(Logger):
         """
         Construct claim tx that spends exactly the funding utxo to the swap output, independent of the
         current fee environment to guarantee the correct amount is being sent to the claim output which
-        might be an external address and to keep the claim transaction uncorrelated to the wallets utxos.
+        might be an external address.
         """
         assert swap.claim_to_output, swap
         txout = PartialTxOutput.from_address_and_value(swap.claim_to_output[0], swap.claim_to_output[1])
@@ -1720,6 +1720,7 @@ class NostrTransport(SwapServerTransport):
     async def stop(self):
         self.logger.info("shutting down nostr transport")
         self.sm.is_initialized.clear()
+        self.is_connected.clear()
         await self.taskgroup.cancel_remaining()
         await self.relay_manager.close()
         self.logger.info("nostr transport shut down")
