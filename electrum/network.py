@@ -55,7 +55,7 @@ from .interface import (
     Interface, PREFERRED_NETWORK_PROTOCOL, RequestTimedOut, NetworkTimeout, BUCKET_NAME_OF_ONION_SERVERS,
     NetworkException, RequestCorrupted, ServerAddr, TxBroadcastError,
 )
-from .version import PROTOCOL_VERSION
+from .version import PROTOCOL_VERSION_MIN
 from .i18n import _
 from .logging import get_logger, Logger
 from .fee_policy import FeeHistogram, FeeTimeEstimates, FEE_ETA_TARGETS
@@ -118,7 +118,7 @@ def parse_servers(result: Sequence[Tuple[str, str, List[str]]]) -> Dict[str, dic
 def filter_version(servers):
     def is_recent(version):
         try:
-            return util.versiontuple(version) >= util.versiontuple(PROTOCOL_VERSION)
+            return util.versiontuple(version) >= util.versiontuple(PROTOCOL_VERSION_MIN)
         except Exception as e:
             return False
     return {k: v for k, v in servers.items() if is_recent(v.get('version'))}

@@ -546,7 +546,7 @@ class ElectrumQmlApplication(QGuiApplication):
         self.context.setContextProperty('QRIP', self.qr_ip_h)
         self.context.setContextProperty('BUILD', {
             'electrum_version': version.ELECTRUM_VERSION,
-            'protocol_version': version.PROTOCOL_VERSION,
+            'protocol_version': f"[{version.PROTOCOL_VERSION_MIN}, {version.PROTOCOL_VERSION_MAX}]",
             'qt_version': QT_VERSION_STR,
             'pyqt_version': PYQT_VERSION_STR
         })
