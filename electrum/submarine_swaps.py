@@ -1720,6 +1720,7 @@ class NostrTransport(SwapServerTransport):
     async def stop(self):
         self.logger.info("shutting down nostr transport")
         self.sm.is_initialized.clear()
+        self.is_connected.clear()
         await self.taskgroup.cancel_remaining()
         await self.relay_manager.close()
         self.logger.info("nostr transport shut down")
