@@ -351,6 +351,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     maybe_forward_htlc = LNWallet.maybe_forward_htlc
     maybe_forward_trampoline = LNWallet.maybe_forward_trampoline
     _maybe_refuse_to_forward_htlc_that_corresponds_to_payreq_we_created = LNWallet._maybe_refuse_to_forward_htlc_that_corresponds_to_payreq_we_created
+    _process_htlc_log = LNWallet._process_htlc_log
 
 
 class MockTransport:

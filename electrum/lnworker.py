@@ -70,6 +70,7 @@ from .lnutil import (
     OnchainChannelBackupStorage, ln_compare_features, IncompatibleLightningFeatures, PaymentFeeBudget,
     NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, GossipForwardingMessage, MIN_FUNDING_SAT,
     MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE, ReceivedMPPStatus, RecvMPPResolution,
+    PaymentSuccess,
 )
 from .lnonion import (
     decode_onion_error, OnionFailureCode, OnionRoutingFailure, OnionPacket,
@@ -1648,6 +1649,10 @@ class LNWallet(LNWorker):
             channels: Optional[Sequence[Channel]] = None,
             fw_payment_key: str = None,  # for forwarding
     ) -> None:
+        """
+        Can raise PaymentFailure, ChannelDBNotLoaded,
+        or OnionRoutingFailure (if forwarding trampoline).
+        """
 
         assert budget
         assert budget.fee_msat >= 0, budget
@@ -1721,43 +1726,8 @@ class LNWallet(LNWorker):
                 htlc_log = await paysession.wait_for_one_htlc_to_resolve()
                 while True:
                     log.append(htlc_log)
-                    if htlc_log.success:
-                        if self.network.path_finder:
-                            # TODO: report every route to liquidity hints for mpp
-                            # in the case of success, we report channels of the
-                            # route as being able to send the same amount in the future,
-                            # as we assume to not know the capacity
-                            self.network.path_finder.update_liquidity_hints(htlc_log.route, htlc_log.amount_msat)
-                            # remove inflight htlcs from liquidity hints
-                            self.network.path_finder.update_inflight_htlcs(htlc_log.route, add_htlcs=False)
-                        return
-                    # htlc failed
-                    # if we get a tmp channel failure, it might work to split the amount and try more routes
-                    # if we get a channel update, we might retry the same route and amount
-                    route = htlc_log.route
-                    sender_idx = htlc_log.sender_idx
-                    failure_msg = htlc_log.failure_msg
-                    if sender_idx is None:
-                        raise PaymentFailure(failure_msg.code_name())
-                    erring_node_id = route[sender_idx].node_id
-                    code, data = failure_msg.code, failure_msg.data
-                    self.logger.info(f"UPDATE_FAIL_HTLC. code={repr(code)}. "
-                                     f"decoded_data={failure_msg.decode_data()}. data={data.hex()!r}")
-                    self.logger.info(f"error reported by {erring_node_id.hex()}")
-                    if code == OnionFailureCode.MPP_TIMEOUT:
-                        raise PaymentFailure(failure_msg.code_name())
-                    # errors returned by the next trampoline.
-                    if fwd_trampoline_onion and code in [
-                            OnionFailureCode.TRAMPOLINE_FEE_INSUFFICIENT,
-                            OnionFailureCode.TRAMPOLINE_EXPIRY_TOO_SOON]:
-                        raise failure_msg
-                    # trampoline
-                    if self.uses_trampoline():
-                        paysession.handle_failed_trampoline_htlc(
-                            htlc_log=htlc_log, failure_msg=failure_msg)
-                    else:
-                        self.handle_error_code_from_failed_htlc(
-                            route=route, sender_idx=sender_idx, failure_msg=failure_msg, amount=htlc_log.amount_msat)
+                    await self._process_htlc_log(
+                        paysession=paysession, htlc_log=htlc_log, is_forwarding_trampoline=bool(fwd_trampoline_onion))
                     if paysession.number_htlcs_inflight < 1:
                         break
                     # wait a bit, more failures might come
@@ -1771,11 +1741,63 @@ class LNWallet(LNWorker):
                 # max attempts or timeout
                 if (attempts is not None and len(log) >= attempts) or (attempts is None and time.time() - paysession.start_time > self.PAYMENT_TIMEOUT):
                     raise PaymentFailure('Giving up after %d attempts'%len(log))
+        except PaymentSuccess:
+            pass
         finally:
             paysession.is_active = False
             if paysession.can_be_deleted():
                 self._paysessions.pop(payment_key)
             paysession.logger.info(f"pay_to_node ending session for RHASH={payment_hash.hex()}")
+
+    async def _process_htlc_log(
+        self,
+        *,
+        paysession: PaySession,
+        htlc_log: HtlcLog,
+        is_forwarding_trampoline: bool,
+    ) -> None:
+        """Handle a single just-resolved HTLC, as part of a payment-session.
+
+        Can raise PaymentFailure, PaymentSuccess,
+        or OnionRoutingFailure (if forwarding trampoline).
+        """
+        if htlc_log.success:
+            if self.network.path_finder:
+                # TODO: report every route to liquidity hints for mpp
+                # in the case of success, we report channels of the
+                # route as being able to send the same amount in the future,
+                # as we assume to not know the capacity
+                self.network.path_finder.update_liquidity_hints(htlc_log.route, htlc_log.amount_msat)
+                # remove inflight htlcs from liquidity hints
+                self.network.path_finder.update_inflight_htlcs(htlc_log.route, add_htlcs=False)
+            raise PaymentSuccess()
+        # htlc failed
+        # if we get a tmp channel failure, it might work to split the amount and try more routes
+        # if we get a channel update, we might retry the same route and amount
+        route = htlc_log.route
+        sender_idx = htlc_log.sender_idx
+        failure_msg = htlc_log.failure_msg
+        if sender_idx is None:
+            raise PaymentFailure(failure_msg.code_name())
+        erring_node_id = route[sender_idx].node_id
+        code, data = failure_msg.code, failure_msg.data
+        self.logger.info(f"UPDATE_FAIL_HTLC. code={repr(code)}. "
+                         f"decoded_data={failure_msg.decode_data()}. data={data.hex()!r}")
+        self.logger.info(f"error reported by {erring_node_id.hex()}")
+        if code == OnionFailureCode.MPP_TIMEOUT:
+            raise PaymentFailure(failure_msg.code_name())
+        # errors returned by the next trampoline.
+        if is_forwarding_trampoline and code in [
+                OnionFailureCode.TRAMPOLINE_FEE_INSUFFICIENT,
+                OnionFailureCode.TRAMPOLINE_EXPIRY_TOO_SOON]:
+            raise failure_msg
+        # trampoline
+        if self.uses_trampoline():
+            paysession.handle_failed_trampoline_htlc(
+                htlc_log=htlc_log, failure_msg=failure_msg)
+        else:
+            self.handle_error_code_from_failed_htlc(
+                route=route, sender_idx=sender_idx, failure_msg=failure_msg, amount=htlc_log.amount_msat)
 
     async def pay_to_route(
             self, *,

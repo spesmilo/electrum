@@ -465,6 +465,7 @@ class InvalidGossipMsg(Exception):
 
 
 class PaymentFailure(UserFacingException): pass
+class PaymentSuccess(Exception): pass
 
 
 class NoPathFound(PaymentFailure):
