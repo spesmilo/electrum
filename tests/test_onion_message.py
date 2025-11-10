@@ -434,7 +434,7 @@ class TestOnionMessageManager(ElectrumTestCase):
         onionmsg = bfh(test_vectors['onionmessage']['onion_message_packet'])
         try:
             t.on_onion_message({
-                'blinding': bfh(test_vectors['route']['first_path_key']),
+                'path_key': bfh(test_vectors['route']['first_path_key']),
                 'len': len(onionmsg),
                 'onion_message_packet': onionmsg
             })
