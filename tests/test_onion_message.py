@@ -168,7 +168,7 @@ class TestOnionMessage(ElectrumTestCase):
         our_privkey_int = our_privkey_int * b_hmac_int % ecc.CURVE_ORDER
         our_privkey = our_privkey_int.to_bytes(32, byteorder="big")
 
-        p = process_onion_packet(o, our_privkey, tlv_stream_name='onionmsg_tlv')
+        p = process_onion_packet(o, our_privkey, is_onion_message=True, tlv_stream_name='onionmsg_tlv')
 
         self.assertEqual(p.hop_data.blind_fields, {})
         self.assertEqual(p.hop_data.hmac, bfh('a5296325ba478ba1e1a9d1f30a2d5052b2e2889bbd64f72c72bc71d8817288a2'))

@@ -320,7 +320,7 @@ def send_onion_message_to(
             payment_path_pubkeys = blinded_node_ids + blinded_path_blinded_ids
             hop_shared_secrets, _ = get_shared_secrets_along_route(payment_path_pubkeys, session_key)
             encrypt_onionmsg_tlv_hops_data(hops_data, hop_shared_secrets)
-            packet = new_onion_packet(payment_path_pubkeys, session_key, hops_data)
+            packet = new_onion_packet(payment_path_pubkeys, session_key, hops_data, onion_message=True)
             packet_b = packet.to_bytes()
 
     else:  # node pubkey
@@ -699,6 +699,11 @@ class OnionMessageManager(Logger):
             self.logger.debug('dummy hop')
             is_dummy_hop = True
         else:
+            # not a dummy hop, check if we are configured to forward
+            if not self.network.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS:
+                self.logger.info(
+                    'onion_message dropped (not forwarding due to lightning_forward_payments config option disabled')
+                return
             # is next_node one of our peers?
             next_peer = self.lnwallet.peers.get(next_node_id)
             if not next_peer:
@@ -740,7 +745,7 @@ class OnionMessageManager(Logger):
 
     def process_onion_message_packet(self, blinding: bytes, onion_packet: OnionPacket) -> None:
         our_privkey = blinding_privkey(self.lnwallet.node_keypair.privkey, blinding)
-        processed_onion_packet = process_onion_packet(onion_packet, our_privkey, tlv_stream_name='onionmsg_tlv')
+        processed_onion_packet = process_onion_packet(onion_packet, our_privkey, is_onion_message=True, tlv_stream_name='onionmsg_tlv')
         payload = processed_onion_packet.hop_data.payload
 
         self.logger.debug(f'onion peeled: {processed_onion_packet!r}')
@@ -761,7 +766,5 @@ class OnionMessageManager(Logger):
 
         if processed_onion_packet.are_we_final:
             self.on_onion_message_received(recipient_data, payload)
-        elif self.network.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS:
-            self.on_onion_message_forward(recipient_data, processed_onion_packet.next_packet, blinding, shared_secret)
         else:
-            self.logger.info('onion_message dropped')
+            self.on_onion_message_forward(recipient_data, processed_onion_packet.next_packet, blinding, shared_secret)

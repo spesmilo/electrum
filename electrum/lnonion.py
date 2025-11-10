@@ -359,6 +359,7 @@ def process_onion_packet(
         *,
         associated_data: bytes = b'',
         is_trampoline=False,
+        is_onion_message=False,
         tlv_stream_name='payload') -> ProcessedOnionPacket:
     # TODO: check Onion features ( PERM|NODE|3 (required_node_feature_missing )
     if onion_packet.version != 0:
@@ -376,6 +377,8 @@ def process_onion_packet(
     # peel an onion layer off
     rho_key = get_bolt04_onion_key(b'rho', shared_secret)
     data_size = TRAMPOLINE_HOPS_DATA_SIZE if is_trampoline else HOPS_DATA_SIZE
+    if is_onion_message and len(onion_packet.hops_data) > HOPS_DATA_SIZE:
+        data_size = ONION_MESSAGE_LARGE_SIZE
     stream_bytes = generate_cipher_stream(rho_key, 2 * data_size)
     padded_header = onion_packet.hops_data + bytes(data_size)
     next_hops_data = xor_bytes(padded_header, stream_bytes)
