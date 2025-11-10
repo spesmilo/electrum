@@ -6,12 +6,12 @@
     "hops": [
       {
         "alias": "Alice",
-        "comment": "Alice->Bob: note next_blinding_override to match that give by Dave for Bob",
-        "blinding_secret": "6363636363636363636363636363636363636363636363636363636363636363",
+        "comment": "Alice->Bob: note next_path_key_override to match that give by Dave for Bob",
+        "path_key_secret": "6363636363636363636363636363636363636363636363636363636363636363",
         "tlvs": {
           "next_node_id": "0324653eac434488002cc06bbfb7f10fe18991e35f9fe4302dbea6d2353dc0ab1c",
-          "next_blinding_override": "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f",
-          "blinding_override_secret": "0101010101010101010101010101010101010101010101010101010101010101"
+          "next_path_key_override": "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f",
+          "path_key_override_secret": "0101010101010101010101010101010101010101010101010101010101010101"
         },
         "encrypted_data_tlv": "04210324653eac434488002cc06bbfb7f10fe18991e35f9fe4302dbea6d2353dc0ab1c0821031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f",
         "ss": "c04d2a4c518241cb49f2800eea92554cb543f268b4c73f85693541e86d649205",
@@ -26,7 +26,7 @@
       {
         "alias": "Bob",
         "comment": "Bob->Carol",
-        "blinding_secret": "0101010101010101010101010101010101010101010101010101010101010101",
+        "path_key_secret": "0101010101010101010101010101010101010101010101010101010101010101",
         "tlvs": {
           "next_node_id": "027f31ebc5462c1fdce1b737ecff52d37d75dea43ce11c74d25aa297165faa2007",
           "unknown_tag_561": "123456"
@@ -44,7 +44,7 @@
       {
         "alias": "Carol",
         "comment": "Carol->Dave",
-        "blinding_secret": "f7ab6dca6152f7b6b0c9d7c82d716af063d72d8eef8816dfc51a8ae828fa7dce",
+        "path_key_secret": "f7ab6dca6152f7b6b0c9d7c82d716af063d72d8eef8816dfc51a8ae828fa7dce",
         "tlvs": {
           "padding": "0000000000",
           "next_node_id": "032c0b7cf95324a07d05398b240174dc0c2be444d96b159aa6c7f7b1e668680991"
@@ -62,7 +62,7 @@
       {
         "alias": "Dave",
         "comment": "Dave is final node, hence path_id",
-        "blinding_secret": "5de52bb427cc148bf23e509fdc18012004202517e80abcfde21612ae408e6cea",
+        "path_key_secret": "5de52bb427cc148bf23e509fdc18012004202517e80abcfde21612ae408e6cea",
         "tlvs": {
           "padding": "",
           "path_id": "deadbeefbadc0ffeedeadbeefbadc0ffeedeadbeefbadc0ffeedeadbeefbadc0",
@@ -82,8 +82,8 @@
   },
   "route": {
     "comment": "The resulting blinded route Alice to Dave.",
-    "introduction_node_id": "02eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619",
-    "blinding": "031195a8046dcbb8e17034bca630065e7a0982e4e36f6f7e5a8d4554e4846fcd99",
+    "first_node_id": "02eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619",
+    "first_path_key": "031195a8046dcbb8e17034bca630065e7a0982e4e36f6f7e5a8d4554e4846fcd99",
     "hops": [
       {
         "blinded_node_id": "02d1c3d73f8cac67e7c5b6ec517282d5ba0a52b06a29ec92ff01e12decf76003c1",

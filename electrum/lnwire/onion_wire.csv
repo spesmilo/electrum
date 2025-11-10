@@ -34,8 +34,8 @@ tlvtype,encrypted_data_tlv,next_node_id,4
 tlvdata,encrypted_data_tlv,next_node_id,node_id,point,
 tlvtype,encrypted_data_tlv,path_id,6
 tlvdata,encrypted_data_tlv,path_id,data,byte,...
-tlvtype,encrypted_data_tlv,next_blinding_override,8
-tlvdata,encrypted_data_tlv,next_blinding_override,blinding,point,
+tlvtype,encrypted_data_tlv,next_path_key_override,8
+tlvdata,encrypted_data_tlv,next_path_key_override,path_key,point,
 tlvtype,encrypted_data_tlv,payment_relay,10
 tlvdata,encrypted_data_tlv,payment_relay,cltv_expiry_delta,u16,
 tlvdata,encrypted_data_tlv,payment_relay,fee_proportional_millionths,u32,
@@ -112,10 +112,10 @@ tlvtype,onionmsg_tlv,invoice_error,68
 tlvdata,onionmsg_tlv,invoice_error,invoice_error,byte,...
 subtype,blinded_path
 subtypedata,blinded_path,first_node_id,sciddir_or_pubkey,
-subtypedata,blinded_path,blinding,point,
+subtypedata,blinded_path,first_path_key,point,
 subtypedata,blinded_path,num_hops,byte,
-subtypedata,blinded_path,path,onionmsg_hop,num_hops
-subtype,onionmsg_hop
-subtypedata,onionmsg_hop,blinded_node_id,point,
-subtypedata,onionmsg_hop,enclen,u16,
-subtypedata,onionmsg_hop,encrypted_recipient_data,byte,enclen
+subtypedata,blinded_path,path,blinded_path_hop,num_hops
+subtype,blinded_path_hop
+subtypedata,blinded_path_hop,blinded_node_id,point,
+subtypedata,blinded_path_hop,enclen,u16,
+subtypedata,blinded_path_hop,encrypted_recipient_data,byte,enclen

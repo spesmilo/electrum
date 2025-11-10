@@ -232,6 +232,6 @@ msgdata,gossip_timestamp_filter,chain_hash,chain_hash,
 msgdata,gossip_timestamp_filter,first_timestamp,u32,
 msgdata,gossip_timestamp_filter,timestamp_range,u32,
 msgtype,onion_message,513
-msgdata,onion_message,blinding,point,
+msgdata,onion_message,path_key,point,
 msgdata,onion_message,len,u16,
 msgdata,onion_message,onion_message_packet,byte,len
