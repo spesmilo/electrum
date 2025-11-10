@@ -249,6 +249,9 @@ def send_onion_message_to(
             else:
                 # we need a route to introduction point
                 remaining_blinded_path = blinded_path['path']
+                if not isinstance(remaining_blinded_path, list):  # doesn't return list when num items == 1
+                    remaining_blinded_path = [remaining_blinded_path]
+
                 peer = lnwallet.peers.get(introduction_point)
                 # if blinded path introduction point is our direct peer, no need to route-find
                 if peer:
