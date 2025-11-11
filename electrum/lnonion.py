@@ -479,6 +479,8 @@ class ProcessedOnionPacket(NamedTuple):
     hop_data: OnionHopsDataSingle
     next_packet: OnionPacket
     trampoline_onion_packet: OnionPacket
+    blinding: Optional[bytes]
+    recipient_data_shared_secret: Optional[bytes]
 
     @property
     def amt_to_forward(self) -> Optional[int]:
@@ -497,11 +499,21 @@ class ProcessedOnionPacket(NamedTuple):
 
     @property
     def total_msat(self) -> Optional[int]:
-        return self._get_from_payload('payment_data', 'total_msat', int)
+        return self._get_from_payload('payment_data', 'total_msat', int) if not self.blinding else \
+            self._get_from_payload('total_amount_msat', 'total_msat', int)
 
     @property
     def payment_secret(self) -> Optional[bytes]:
-        return self._get_from_payload('payment_data', 'payment_secret', bytes)
+        if not self.recipient_data_shared_secret:
+            return self._get_from_payload('payment_data', 'payment_secret', bytes)
+
+        # payment secret is in ecnrypted_recipient_data in case of bolt12
+        recipient_data = decrypt_onionmsg_data_tlv(
+            shared_secret=self.recipient_data_shared_secret,
+            encrypted_recipient_data=self._get_from_payload('encrypted_recipient_data', 'encrypted_data', bytes)
+        )
+        payment_secret_from_recipient_data = recipient_data.get('path_id', {}).get('data')
+        return payment_secret_from_recipient_data
 
     def _get_from_payload(self, k1: str, k2: str, res_type: type):
         try:
@@ -519,12 +531,17 @@ def process_onion_packet(
         associated_data: bytes = b'',
         is_trampoline=False,
         is_onion_message=False,
+        blinding: bytes = None,
         tlv_stream_name='payload') -> ProcessedOnionPacket:
     # TODO: check Onion features ( PERM|NODE|3 (required_node_feature_missing )
     if onion_packet.version != 0:
         raise UnsupportedOnionPacketVersion()
     if not ecc.ECPubkey.is_pubkey_bytes(onion_packet.public_key):
         raise InvalidOnionPubkey()
+    recipient_data_shared_secret = None
+    if blinding:
+        recipient_data_shared_secret = get_ecdh(our_onion_private_key, blinding)
+        our_onion_private_key = blinding_privkey(our_onion_private_key, blinding)
     shared_secret = get_ecdh(our_onion_private_key, onion_packet.public_key)
     # check message integrity
     mu_key = get_bolt04_onion_key(b'mu', shared_secret)
@@ -572,7 +589,7 @@ def process_onion_packet(
     else:
         # we are an intermediate node; forwarding
         are_we_final = False
-    return ProcessedOnionPacket(are_we_final, hop_data, next_onion_packet, trampoline_onion_packet)
+    return ProcessedOnionPacket(are_we_final, hop_data, next_onion_packet, trampoline_onion_packet, blinding, recipient_data_shared_secret)
 
 
 def compare_trampoline_onions(
