@@ -3987,10 +3987,21 @@ class LNWallet(Logger):
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
         if (next_chan_scid := processed_onion.next_chan_scid) is None:
             raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
-        if (next_amount_msat_htlc := processed_onion.amt_to_forward) is None:
-            raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
-        if (next_cltv_abs := processed_onion.outgoing_cltv_value) is None:
-            raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
+        if not processed_onion.blinded_path_recipient_data:
+            if (next_amount_msat_htlc := processed_onion.amt_to_forward) is None:
+                raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
+            if (next_cltv_abs := processed_onion.outgoing_cltv_value) is None:
+                raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
+        else:
+            # blinded path, take from recipient_data
+            payment_relay = processed_onion.blinded_path_recipient_data.get('payment_relay')
+            if not payment_relay:
+                raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
+            next_amount_msat_htlc = htlc.amount_msat
+            next_amount_msat_htlc -= int(next_amount_msat_htlc * payment_relay.get('fee_proportional_millionths') / 1_000_000)
+            next_amount_msat_htlc -= payment_relay.get('fee_base_msat')
+
+            next_cltv_abs = htlc.cltv_abs - payment_relay.get('cltv_expiry_delta')
 
         next_chan = self.get_channel_by_short_id(next_chan_scid)
 
@@ -4064,6 +4075,7 @@ class LNWallet(Logger):
                 amount_msat=next_amount_msat_htlc,
                 cltv_abs=next_cltv_abs,
                 onion=processed_onion.next_packet,
+                next_path_key=processed_onion.next_path_key,
             )
         except BaseException as e:
             log_fail_reason(f"error sending message to next_peer={next_chan.node_id.hex()}")

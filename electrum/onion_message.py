@@ -865,9 +865,9 @@ class OnionMessageManager(Logger):
         onion_packet = OnionPacket.from_bytes(packet)
         self.process_onion_message_packet(path_key, onion_packet)
 
-    def process_onion_message_packet(self, blinding: bytes, onion_packet: OnionPacket) -> None:
-        our_privkey = blinding_privkey(self.lnwallet.node_keypair.privkey, blinding)
-        processed_onion_packet = process_onion_packet(onion_packet, our_privkey, tlv_stream_name='onionmsg_tlv')
+    def process_onion_message_packet(self, path_key: bytes, onion_packet: OnionPacket) -> None:
+        processed_onion_packet = process_onion_packet(
+            onion_packet, self.lnwallet.node_keypair.privkey, current_path_key=path_key, tlv_stream_name='onionmsg_tlv')
         payload = processed_onion_packet.hop_data.payload
 
         self.logger.debug(f'onion peeled: {processed_onion_packet!r}')
@@ -878,7 +878,7 @@ class OnionMessageManager(Logger):
                 return
 
         # decrypt
-        shared_secret = get_ecdh(self.lnwallet.node_keypair.privkey, blinding)
+        shared_secret = get_ecdh(self.lnwallet.node_keypair.privkey, path_key)
         recipient_data = decrypt_onionmsg_data_tlv(
             shared_secret=shared_secret,
             encrypted_recipient_data=payload['encrypted_recipient_data']['encrypted_recipient_data']
@@ -889,4 +889,4 @@ class OnionMessageManager(Logger):
         if processed_onion_packet.are_we_final:
             self.on_onion_message_received(recipient_data, payload)
         else:
-            self.on_onion_message_forward(recipient_data, processed_onion_packet.next_packet, blinding, shared_secret)
+            self.on_onion_message_forward(recipient_data, processed_onion_packet.next_packet, path_key, shared_secret)
