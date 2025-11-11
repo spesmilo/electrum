@@ -1917,16 +1917,18 @@ class UpdateAddHtlc:
     cltv_abs: int
     htlc_id: Optional[int] = dataclasses.field(default=None)
     timestamp: int = dataclasses.field(default_factory=lambda: int(time.time()))
+    blinding: bytes = None
 
     @staticmethod
     @stored_in('adds', tuple)
-    def from_tuple(amount_msat, rhash, cltv_abs, htlc_id, timestamp) -> 'UpdateAddHtlc':
+    def from_tuple(amount_msat, rhash, cltv_abs, htlc_id, timestamp, blinding = None) -> 'UpdateAddHtlc':
         return UpdateAddHtlc(
             amount_msat=amount_msat,
             payment_hash=bytes.fromhex(rhash),
             cltv_abs=cltv_abs,
             htlc_id=htlc_id,
-            timestamp=timestamp)
+            timestamp=timestamp,
+            blinding=None if blinding is None else bytes.fromhex(blinding))
 
     def to_json(self):
         self._validate()
