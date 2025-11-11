@@ -82,7 +82,7 @@ from .lnonion import (
 from .lnmsg import decode_msg
 from .lnrouter import (
     RouteEdge, LNPaymentRoute, LNPaymentPath, is_route_within_budget, NoChannelPolicy,
-    LNPathInconsistent, fee_for_edge_msat,
+    LNPathInconsistent, fee_for_edge_msat, amount_after_fee_msat,
 )
 from .lnwatcher import LNWatcher
 from .submarine_swaps import SwapManager
@@ -3987,39 +3987,72 @@ class LNWallet(Logger):
         chain = self.network.blockchain()
         if chain.is_tip_stale():
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
-        if (next_chan_scid := processed_onion.next_chan_scid) is None:
-            raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
-        if (next_amount_msat_htlc := processed_onion.amt_to_forward) is None:
-            raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
-        if (next_cltv_abs := processed_onion.outgoing_cltv_value) is None:
+        # a blinded payment may reference the next hop by node id or scid
+        next_chan_scid = processed_onion.next_chan_scid
+        next_node_id = processed_onion.next_node_id
+        if next_chan_scid is None and next_node_id is None:
             raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
 
-        next_chan = self.get_channel_by_short_id(next_chan_scid)
-
-        if self.features.supports(LnFeatures.OPTION_ZEROCONF_OPT):
-            next_peer = self.get_peer_by_static_jit_scid_alias(next_chan_scid)
+        if processed_onion.blinded_path_recipient_data is None:
+            if (next_amount_msat_htlc := processed_onion.amt_to_forward) is None:
+                raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
+            if (next_cltv_abs := processed_onion.outgoing_cltv_value) is None:
+                raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
         else:
-            next_peer = None
+            # blinded path, calculate values from payment_relay constraints.
+            allowed_payload_fields = ('encrypted_recipient_data', 'current_path_key')
+            if any(f not in allowed_payload_fields for f in processed_onion.hop_data.payload):
+                raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_BLINDING, data=bytes(32))
+
+            cltv_expiry_delta = processed_onion.get_from_recipient_data('payment_relay', 'cltv_expiry_delta', int)
+            fee_base_msat = processed_onion.get_from_recipient_data('payment_relay', 'fee_base_msat', int)
+            fee_proportional_millionths = processed_onion.get_from_recipient_data('payment_relay', 'fee_proportional_millionths', int)
+            if not all(v is not None and v >= 0 for v in (cltv_expiry_delta, fee_base_msat, fee_proportional_millionths)):
+                raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_BLINDING, data=bytes(32))
+
+            next_cltv_abs = htlc.cltv_abs - cltv_expiry_delta
+            next_amount_msat_htlc = amount_after_fee_msat(
+                incoming_amount_msat=htlc.amount_msat,
+                fee_base_msat=fee_base_msat,
+                fee_proportional_millionths=fee_proportional_millionths,
+            )
+            if next_cltv_abs <= 0 or next_amount_msat_htlc <= 0:
+                raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_BLINDING, data=bytes(32))
+
+        next_chan = self.get_channel_by_short_id(next_chan_scid) if next_chan_scid else None
+        next_peer = self.lnpeermgr.get_peer_by_pubkey(next_node_id) if next_node_id else None
+        if next_chan_scid and not next_peer and self.features.supports(LnFeatures.OPTION_ZEROCONF_OPT):
+            next_peer = self.get_peer_by_static_jit_scid_alias(next_chan_scid)
+
+        # search for a fitting channel if:
+        # 1. blinded forwarding requested 'next_node_id'
+        # 2. next_peer is a zeroconf peer (next_chan_scid is a zeroconf peer alias)
+        # If 'next_chan_scid' is given we don't fall back to another channel
+        if next_peer and (not next_chan_scid or next_peer.accepts_zeroconf()):
+            # check if an existing channel can be used.
+            for _next_chan in next_peer.channels.values():
+                # todo: split the payment
+                if _next_chan.can_pay(next_amount_msat_htlc):
+                    next_chan = _next_chan
+                    break
 
         if not next_chan and next_peer and next_peer.accepts_zeroconf():
-            # check if an already existing channel can be used.
-            # todo: split the payment
-            for next_chan in next_peer.channels.values():
-                if next_chan.can_pay(next_amount_msat_htlc):
-                    break
-            else:
-                return await self.open_channel_just_in_time(
-                    next_peer=next_peer,
-                    next_amount_msat_htlc=next_amount_msat_htlc,
-                    next_cltv_abs=next_cltv_abs,
-                    payment_hash=htlc.payment_hash,
-                    next_onion=processed_onion.next_packet)
+            return await self.open_channel_just_in_time(
+                next_peer=next_peer,
+                next_amount_msat_htlc=next_amount_msat_htlc,
+                next_cltv_abs=next_cltv_abs,
+                payment_hash=htlc.payment_hash,
+                next_onion=processed_onion.next_packet,
+                next_path_key=processed_onion.next_path_key)
 
         local_height = chain.height()
         if next_chan is None:
-            log_fail_reason(f"cannot find next_chan {next_chan_scid}")
+            log_fail_reason(f"cannot find next_chan {(next_chan_scid or b'').hex()=} {(next_node_id or b'').hex()=}")
             raise OnionRoutingFailure(code=OnionFailureCode.UNKNOWN_NEXT_PEER, data=b'')
-        outgoing_chan_upd = next_chan.get_outgoing_gossip_channel_update(scid=next_chan_scid)[2:]
+        # send no channel_update for blinded payments, it will be overridden with INVALID_ONION_BLINDING later, and bolt04 says:
+        # TODO: ...'the channel_update field is no longer mandatory and nodes are expected to transition away from including it'...
+        outgoing_chan_upd = next_chan.get_outgoing_gossip_channel_update(scid=next_chan_scid)[2:] \
+                                if processed_onion.blinded_path_recipient_data is None else b''
         outgoing_chan_upd_len = len(outgoing_chan_upd).to_bytes(2, byteorder="big")
         outgoing_chan_upd_message = outgoing_chan_upd_len + outgoing_chan_upd
         if not next_chan.can_send_update_add_htlc():
@@ -4041,11 +4074,17 @@ class LNWallet(Logger):
             raise OnionRoutingFailure(code=OnionFailureCode.EXPIRY_TOO_SOON, data=outgoing_chan_upd_message)
         if max(htlc.cltv_abs, next_cltv_abs) > local_height + lnutil.NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE:
             raise OnionRoutingFailure(code=OnionFailureCode.EXPIRY_TOO_FAR, data=b'')
-        forwarding_fees = fee_for_edge_msat(
-            forwarded_amount_msat=next_amount_msat_htlc,
-            fee_base_msat=next_chan.forwarding_fee_base_msat,
-            fee_proportional_millionths=next_chan.forwarding_fee_proportional_millionths)
-        if htlc.amount_msat - next_amount_msat_htlc < forwarding_fees:
+        if processed_onion.blinded_path_recipient_data is not None:
+            max_amt_to_forward = amount_after_fee_msat(
+                incoming_amount_msat=htlc.amount_msat,
+                fee_base_msat=next_chan.forwarding_fee_base_msat,
+                fee_proportional_millionths=next_chan.forwarding_fee_proportional_millionths)
+        else:
+            max_amt_to_forward = htlc.amount_msat - fee_for_edge_msat(
+                forwarded_amount_msat=next_amount_msat_htlc,
+                fee_base_msat=next_chan.forwarding_fee_base_msat,
+                fee_proportional_millionths=next_chan.forwarding_fee_proportional_millionths)
+        if next_amount_msat_htlc > max_amt_to_forward:
             data = next_amount_msat_htlc.to_bytes(8, byteorder="big") + outgoing_chan_upd_message
             raise OnionRoutingFailure(code=OnionFailureCode.FEE_INSUFFICIENT, data=data)
         if self._maybe_refuse_to_forward_htlc_that_corresponds_to_payreq_we_created(htlc.payment_hash):
@@ -4055,10 +4094,10 @@ class LNWallet(Logger):
             f"maybe_forward_htlc. will forward HTLC: inc_chan={incoming_chan.short_channel_id}. inc_htlc={str(htlc)}. "
             f"next_chan={next_chan.get_id_for_log()}.")
 
-        next_peer = self.lnpeermgr.get_peer_by_pubkey(next_chan.node_id)
-        if next_peer is None:
+        if next_peer is None and (next_peer := self.lnpeermgr.get_peer_by_pubkey(next_chan.node_id)) is None:
             log_fail_reason(f"next_peer offline ({next_chan.node_id.hex()})")
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=outgoing_chan_upd_message)
+        assert next_peer.pubkey == next_chan.node_id
         try:
             next_htlc = next_peer.send_htlc(
                 chan=next_chan,
