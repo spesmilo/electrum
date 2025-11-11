@@ -61,6 +61,14 @@ def fee_for_edge_msat(forwarded_amount_msat: int, fee_base_msat: int, fee_propor
            + (forwarded_amount_msat * fee_proportional_millionths // 1_000_000)
 
 
+def amount_after_fee_msat(*, incoming_amount_msat: int, fee_base_msat: int, fee_proportional_millionths: int) -> int:
+    """Amount to forward after subtracting our fee from the incoming amount, as specified in bolt 04.
+    https://github.com/lightning/bolts/blob/ca82e0c909437123e80486fde5829bb9fd605dd0/04-onion-routing.md?plain=1#L339-L340
+    """
+    return ((incoming_amount_msat - fee_base_msat) * 1_000_000 + 1_000_000 + fee_proportional_millionths - 1) \
+           // (1_000_000 + fee_proportional_millionths)
+
+
 @attr.s(slots=True)
 class PathEdge:
     start_node = attr.ib(type=bytes, kw_only=True, repr=lambda val: val.hex())
