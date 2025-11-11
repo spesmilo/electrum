@@ -1931,16 +1931,19 @@ class UpdateAddHtlc:
     cltv_abs: int
     htlc_id: Optional[int] = dataclasses.field(default=None)
     timestamp: int = dataclasses.field(default_factory=lambda: int(time.time()))
+    path_key: Optional[bytes] = None
 
     @staticmethod
     @stored_at('/channels/*/log/*/adds/*', tuple)
-    def from_tuple(amount_msat, rhash, cltv_abs, htlc_id, timestamp) -> 'UpdateAddHtlc':
+    def from_tuple(amount_msat, rhash, cltv_abs, htlc_id, timestamp, path_key = None) -> 'UpdateAddHtlc':
         return UpdateAddHtlc(
             amount_msat=amount_msat,
             payment_hash=bytes.fromhex(rhash),
             cltv_abs=cltv_abs,
             htlc_id=htlc_id,
-            timestamp=timestamp)
+            timestamp=timestamp,
+            path_key=None if not path_key else bytes.fromhex(path_key),
+        )
 
     def to_json(self):
         self._validate()
@@ -1952,6 +1955,7 @@ class UpdateAddHtlc:
         assert isinstance(self.cltv_abs, int) and self.cltv_abs <= NLOCKTIME_BLOCKHEIGHT_MAX, self.cltv_abs
         assert isinstance(self.htlc_id, int) or self.htlc_id is None, self.htlc_id
         assert isinstance(self.timestamp, int), self.timestamp
+        assert self.path_key is None or (isinstance(self.path_key, bytes) and len(self.path_key) == 33)
 
     def __post_init__(self):
         self._validate()

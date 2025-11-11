@@ -164,17 +164,9 @@ class TestOnionMessage(ElectrumTestCase):
     def test_decrypt_onion_message(self):
         o = OnionPacket.from_bytes(ONION_MESSAGE_PACKET)
         our_privkey = bfh(test_vectors['decrypt']['hops'][0]['privkey'])
-        blinding = bfh(test_vectors['route']['first_path_key'])
+        path_key = bfh(test_vectors['route']['first_path_key'])
 
-        shared_secret = get_ecdh(our_privkey, blinding)
-        b_hmac = get_bolt04_onion_key(b'blinded_node_id', shared_secret)
-        b_hmac_int = int.from_bytes(b_hmac, byteorder="big")
-
-        our_privkey_int = int.from_bytes(our_privkey, byteorder="big")
-        our_privkey_int = our_privkey_int * b_hmac_int % ecc.CURVE_ORDER
-        our_privkey = our_privkey_int.to_bytes(32, byteorder="big")
-
-        p = process_onion_packet(o, our_privkey, tlv_stream_name='onionmsg_tlv')
+        p = process_onion_packet(o, our_privkey, tlv_stream_name='onionmsg_tlv', current_path_key=path_key)
 
         self.assertEqual(p.hop_data.blind_fields, {})
         self.assertEqual(p.hop_data.hmac, bfh('a5296325ba478ba1e1a9d1f30a2d5052b2e2889bbd64f72c72bc71d8817288a2'))
@@ -191,8 +183,8 @@ class TestOnionMessage(ElectrumTestCase):
         })
 
     def test_blinding_privkey(self):
-        a = blinding_privkey(bfh('4141414141414141414141414141414141414141414141414141414141414141'),
-                             bfh('031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f'))
+        a = blinding_privkey(bfh('4141414141414141414141414141414141414141414141414141414141414141'),  # privkey
+                             bfh('16a5d6594dbaa363305952ed9354fa9c38ddda718d218c5da6be19f0eaa11613'))  # shared secret
         self.assertEqual(a, bfh('7e959bf6bdd3a98caf26cbbee7b69678381d5fa2882c6c12eb2042c2367264b0'))
 
     def test_create_blinded_path(self):

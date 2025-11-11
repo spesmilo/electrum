@@ -54,6 +54,7 @@ class UnsupportedOnionPacketVersion(Exception): pass
 class InvalidOnionMac(Exception): pass
 class InvalidOnionPubkey(Exception): pass
 class InvalidPayloadSize(Exception): pass
+class InvalidBlindedOnion(Exception): pass
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -193,8 +194,7 @@ def get_blinded_node_id(node_id: bytes, shared_secret: bytes):
     return blinded_node_id.get_public_key_bytes()
 
 
-def blinding_privkey(privkey: bytes, blinding: bytes) -> bytes:
-    shared_secret = get_ecdh(privkey, blinding)
+def blinding_privkey(privkey: bytes, shared_secret: bytes) -> bytes:
     b_hmac = get_bolt04_onion_key(b'blinded_node_id', shared_secret)
     b_hmac_int = int.from_bytes(b_hmac, byteorder="big")
 
@@ -389,7 +389,9 @@ class ProcessedOnionPacket(NamedTuple):
     are_we_final: bool
     hop_data: OnionHopsDataSingle
     next_packet: OnionPacket
-    trampoline_onion_packet: OnionPacket
+    trampoline_onion_packet: Optional[OnionPacket]
+    blinded_path_recipient_data: Optional[MappingProxyType] = None
+    next_path_key: Optional[bytes] = None
 
     @property
     def amt_to_forward(self) -> Optional[int]:
@@ -404,19 +406,39 @@ class ProcessedOnionPacket(NamedTuple):
     @property
     def next_chan_scid(self) -> Optional[ShortChannelID]:
         k1 = k2 = 'short_channel_id'
+        if self.blinded_path_recipient_data is not None:
+            return self.get_from_recipient_data(k1, k2, ShortChannelID)
         return self._get_from_payload(k1, k2, ShortChannelID)
 
     @property
+    def next_node_id(self) -> Optional[bytes]:
+        if self.blinded_path_recipient_data is not None:
+            return self.get_from_recipient_data('next_node_id', 'node_id', bytes)
+        return None
+
+    @property
     def total_msat(self) -> Optional[int]:
+        if self.blinded_path_recipient_data is not None:
+            return self._get_from_payload('total_amount_msat', 'total_msat', int)
         return self._get_from_payload('payment_data', 'total_msat', int)
 
     @property
     def payment_secret(self) -> Optional[bytes]:
+        if self.blinded_path_recipient_data is not None:
+            return None
         return self._get_from_payload('payment_data', 'payment_secret', bytes)
 
     def _get_from_payload(self, k1: str, k2: str, res_type: type):
+        return self._get_from(self.hop_data.payload, k1, k2, res_type)
+
+    def get_from_recipient_data(self, k1: str, k2: str, res_type: type):
+        assert self.blinded_path_recipient_data is not None
+        return self._get_from(self.blinded_path_recipient_data, k1, k2, res_type)
+
+    @staticmethod
+    def _get_from(payload: Mapping, k1: str, k2: str, res_type: type):
         try:
-            result = self.hop_data.payload[k1][k2]
+            result = payload[k1][k2]
             return res_type(result)
         except Exception:
             return None
@@ -429,6 +451,7 @@ def process_onion_packet(
         *,
         associated_data: bytes = b'',
         is_trampoline=False,
+        current_path_key: Optional[bytes] = None,
         tlv_stream_name='payload') -> ProcessedOnionPacket:
     # TODO: check Onion features ( PERM|NODE|3 (required_node_feature_missing )
     if onion_packet.version != 0:
@@ -436,6 +459,11 @@ def process_onion_packet(
     if not ecc.ECPubkey.is_pubkey_bytes(onion_packet.public_key):
         raise InvalidOnionPubkey()
     is_onion_message = tlv_stream_name == 'onionmsg_tlv'
+    recipient_data_shared_secret = None
+    if current_path_key:
+        recipient_data_shared_secret = get_ecdh(our_onion_private_key, current_path_key)
+        # the onion is encrypted to our blinded node id
+        our_onion_private_key = blinding_privkey(our_onion_private_key, recipient_data_shared_secret)
     shared_secret = get_ecdh(our_onion_private_key, onion_packet.public_key)
     # check message integrity
     mu_key = get_bolt04_onion_key(b'mu', shared_secret)
@@ -454,6 +482,28 @@ def process_onion_packet(
     next_hops_data = xor_bytes(padded_header, stream_bytes)
     next_hops_data_fd = io.BytesIO(next_hops_data)
     hop_data = OnionHopsDataSingle.from_fd(next_hops_data_fd, tlv_stream_name=tlv_stream_name)
+
+    blinded_path_recipient_data = {}
+    initial_path_key = hop_data.payload.get('current_path_key', {}).get('path_key')
+    encrypted_recipient_data = hop_data.payload.get('encrypted_recipient_data', {}).get('encrypted_recipient_data')
+    if encrypted_recipient_data is not None:
+        # we are part of a blinded path
+        if bool(initial_path_key) == bool(current_path_key):
+            raise InvalidBlindedOnion("need exactly one path key")
+        if not current_path_key:  # we are the introduction point
+            current_path_key = initial_path_key
+            recipient_data_shared_secret = get_ecdh(our_onion_private_key, current_path_key)
+        assert recipient_data_shared_secret
+        try:
+            blinded_path_recipient_data = decrypt_onionmsg_data_tlv(
+                shared_secret=recipient_data_shared_secret,
+                encrypted_recipient_data=encrypted_recipient_data,
+            )
+        except Exception as e:
+            raise InvalidBlindedOnion from e
+    elif current_path_key or initial_path_key:
+        raise InvalidBlindedOnion("got path key without encrypted_recipient_data")
+
     # trampoline
     trampoline_onion_packet = hop_data.payload.get('trampoline_onion_packet')
     if trampoline_onion_packet:
@@ -473,7 +523,20 @@ def process_onion_packet(
     else:
         # we are an intermediate node; forwarding
         are_we_final = False
-    return ProcessedOnionPacket(are_we_final, hop_data, next_onion_packet, trampoline_onion_packet)
+
+    next_path_key = blinded_path_recipient_data.get('next_path_key_override', {}).get('path_key')
+    if not are_we_final and current_path_key and not next_path_key:
+        assert recipient_data_shared_secret
+        next_path_key = next_blinding_from_shared_secret(current_path_key, recipient_data_shared_secret)
+
+    return ProcessedOnionPacket(
+        are_we_final,
+        hop_data,
+        next_onion_packet,
+        trampoline_onion_packet,
+        util.make_object_immutable(blinded_path_recipient_data) if current_path_key else None,
+        next_path_key,
+    )
 
 
 def compare_trampoline_onions(
@@ -689,6 +752,7 @@ class OnionFailureCode(IntEnum):
     EXPIRY_TOO_FAR =                          21
     INVALID_ONION_PAYLOAD =                   PERM | 22
     MPP_TIMEOUT =                             23
+    INVALID_ONION_BLINDING =                  BADONION | PERM | 24
     TRAMPOLINE_FEE_INSUFFICIENT =             NODE | 51
     TRAMPOLINE_EXPIRY_TOO_SOON =              NODE | 52
 
