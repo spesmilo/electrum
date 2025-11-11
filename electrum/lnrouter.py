@@ -281,7 +281,7 @@ class LiquidityHint:
         if is_forward_direction:
             self._inflight_htlcs_forward = max(0, self._inflight_htlcs_forward - 1)
         else:
-            self._inflight_htlcs_backward = max(0, self._inflight_htlcs_forward - 1)
+            self._inflight_htlcs_backward = max(0, self._inflight_htlcs_backward - 1)
 
     def __repr__(self):
         return f"forward: can send: {self._can_send_forward} msat, cannot send: {self._cannot_send_forward} msat, htlcs: {self._inflight_htlcs_forward}\n" \
