@@ -376,7 +376,7 @@ class TestStorageUpgrade(WalletTestCase):
                          'good': invoice_json(good)},
         }
         db = self._load_db_from_json_string(wallet_json=json.dumps(data), upgrade=True)
-        self.assertEqual(73, db.get('seed_version'))
+        self.assertEqual(74, db.get('seed_version'))
         self.assertEqual(['good'], list(db.get_dict('invoices').keys()))
 
         # sanity: without the conversion (i.e. already at seed_version 73) the same file
@@ -390,7 +390,7 @@ class TestStorageUpgrade(WalletTestCase):
         data['invoices'] = {key: {'type': 2, 'invoice': invoice_str}
                             for key, invoice_str in (('bad_r', bad_r), ('bad_t', bad_t), ('good', good))}
         db = self._load_db_from_json_string(wallet_json=json.dumps(data), upgrade=True)
-        self.assertEqual(73, db.get('seed_version'))
+        self.assertEqual(74, db.get('seed_version'))
         self.assertEqual(['good'], list(db.get_dict('invoices').keys()))
 
     @as_testnet
@@ -427,7 +427,7 @@ class TestStorageUpgrade(WalletTestCase):
                                          good_rhash: request_json(seed_version, good)},
                 }
                 db = self._load_db_from_json_string(wallet_json=json.dumps(data), upgrade=True)
-                self.assertEqual(73, db.get('seed_version'))
+                self.assertEqual(74, db.get('seed_version'))
                 self.assertEqual([good_rhash], list(db.get_dict('payment_requests').keys()))
 
 
