@@ -29,16 +29,16 @@ import threading
 import time
 import random
 
-from typing import TYPE_CHECKING, Optional, Sequence, NamedTuple, Tuple, Union
+from typing import TYPE_CHECKING, Optional, Sequence, NamedTuple, Tuple, Union, Mapping
 
 import electrum_ecc as ecc
 
 from electrum.channel_db import get_mychannel_policy
 from electrum.lnrouter import PathEdge, NoChannelPolicy
 from electrum.logging import get_logger, Logger
-from electrum.crypto import sha256, get_ecdh
+from electrum.crypto import get_ecdh
 from electrum.lnmsg import OnionWireSerializer
-from electrum.lnonion import (get_bolt04_onion_key, OnionPacket, process_onion_packet, blinding_privkey,
+from electrum.lnonion import (OnionPacket, process_onion_packet,
                               OnionHopsDataSingle, decrypt_onionmsg_data_tlv, encrypt_onionmsg_data_tlv,
                               get_shared_secrets_along_route, new_onion_packet, encrypt_hops_recipient_data,
                               next_blinding_from_shared_secret)
@@ -732,7 +732,7 @@ class OnionMessageManager(Logger):
         # TODO: use payload to determine prefix?
         return b'electrum' + key
 
-    def _get_request_for_path_id(self, recipient_data: dict) -> Optional[Request]:
+    def _get_request_for_path_id(self, recipient_data: Mapping) -> Optional[Request]:
         path_id = recipient_data.get('path_id', {}).get('data')
         if not path_id:
             return None
@@ -745,7 +745,7 @@ class OnionMessageManager(Logger):
             self.logger.warning('not a reply to our request (unknown request)')
         return req
 
-    def on_onion_message_received(self, recipient_data: dict, payload: dict) -> None:
+    def on_onion_message_received(self, recipient_data: Mapping, payload: Mapping) -> None:
         # we are destination, sanity checks
         # - if `encrypted_data_tlv` contains `allowed_features`:
         #   - MUST ignore the message if:
@@ -766,11 +766,11 @@ class OnionMessageManager(Logger):
         else:
             self.on_onion_message_received_reply(req, recipient_data, payload)
 
-    def on_onion_message_received_reply(self, request: Request, recipient_data: dict, payload: dict) -> None:
+    def on_onion_message_received_reply(self, request: Request, recipient_data: Mapping, payload: Mapping) -> None:
         assert request is not None, 'Request is mandatory'
         request.future.set_result((recipient_data, payload))
 
-    def on_onion_message_received_unsolicited(self, recipient_data: dict, payload: dict) -> None:
+    def on_onion_message_received_unsolicited(self, recipient_data: Mapping, payload: Mapping) -> None:
         self.logger.debug('unsolicited onion_message received')
         self.logger.debug(f'payload: {payload!r}')
 
@@ -801,10 +801,9 @@ class OnionMessageManager(Logger):
 
     def on_onion_message_forward(
             self,
-            recipient_data: dict,
+            recipient_data: Mapping,
             onion_packet: OnionPacket,
-            blinding: bytes,
-            shared_secret: bytes
+            next_path_key: bytes,
     ) -> None:
         if recipient_data.get('path_id'):
             self.logger.error('cannot forward onion_message, path_id in encrypted_data_tlv')
@@ -832,17 +831,6 @@ class OnionMessageManager(Logger):
                 self.logger.info(f'next node {next_node_id.hex()} not a peer, dropping message')
                 return
 
-        # blinding override?
-        next_path_key_override = recipient_data.get('next_path_key_override')
-        if next_path_key_override:
-            next_path_key = next_path_key_override.get('path_key')
-        else:
-            # E_i+1=SHA256(E_i||ss_i) * E_i
-            blinding_factor = sha256(blinding + shared_secret)
-            blinding_factor_int = int.from_bytes(blinding_factor, byteorder="big")
-            next_public_key_int = ecc.ECPubkey(blinding) * blinding_factor_int
-            next_path_key = next_public_key_int.get_public_key_bytes()
-
         if is_dummy_hop:
             self.process_onion_message_packet(next_path_key, onion_packet)
             return
@@ -865,28 +853,26 @@ class OnionMessageManager(Logger):
         onion_packet = OnionPacket.from_bytes(packet)
         self.process_onion_message_packet(path_key, onion_packet)
 
-    def process_onion_message_packet(self, blinding: bytes, onion_packet: OnionPacket) -> None:
-        our_privkey = blinding_privkey(self.lnwallet.node_keypair.privkey, blinding)
-        processed_onion_packet = process_onion_packet(onion_packet, our_privkey, tlv_stream_name='onionmsg_tlv')
+    def process_onion_message_packet(self, path_key: bytes, onion_packet: OnionPacket) -> None:
+        processed_onion_packet = process_onion_packet(
+            onion_packet,
+            self.lnwallet.node_keypair.privkey,
+            current_path_key=path_key,
+            tlv_stream_name='onionmsg_tlv',
+        )
         payload = processed_onion_packet.hop_data.payload
-
         self.logger.debug(f'onion peeled: {processed_onion_packet!r}')
 
         if not processed_onion_packet.are_we_final:
             if any([x not in ['encrypted_recipient_data'] for x in payload.keys()]):
-                self.logger.error('unexpected data in payload')  # non-final nodes only encrypted_recipient_data
+                self.logger.error(f'unexpected data in {payload.keys()=}')  # non-final nodes only encrypted_recipient_data
                 return
 
-        # decrypt
-        shared_secret = get_ecdh(self.lnwallet.node_keypair.privkey, blinding)
-        recipient_data = decrypt_onionmsg_data_tlv(
-            shared_secret=shared_secret,
-            encrypted_recipient_data=payload['encrypted_recipient_data']['encrypted_recipient_data']
-        )
-
+        recipient_data = processed_onion_packet.blinded_path_recipient_data
         self.logger.debug(f'parsed recipient_data: {recipient_data!r}')
 
         if processed_onion_packet.are_we_final:
             self.on_onion_message_received(recipient_data, payload)
         else:
-            self.on_onion_message_forward(recipient_data, processed_onion_packet.next_packet, blinding, shared_secret)
+            assert isinstance(processed_onion_packet.next_path_key, bytes), processed_onion_packet
+            self.on_onion_message_forward(recipient_data, processed_onion_packet.next_packet, processed_onion_packet.next_path_key)
