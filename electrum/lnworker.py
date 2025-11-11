@@ -1493,6 +1493,7 @@ class LNWallet(Logger):
         next_cltv_abs: int,
         payment_hash: bytes,
         next_onion: OnionPacket,
+        next_path_key: Optional[bytes] = None,
     ) -> str:
         assert self.config.OPEN_ZEROCONF_CHANNELS
         # if an exception is raised during negotiation, we raise an OnionRoutingFailure.
@@ -1536,7 +1537,8 @@ class LNWallet(Logger):
                 payment_hash=payment_hash,
                 amount_msat=next_amount_msat_htlc,
                 cltv_abs=next_cltv_abs,
-                onion=next_onion)
+                onion=next_onion,
+                next_path_key=next_path_key)
             async def wait_for_preimage():
                 while self.get_preimage(payment_hash) is None:
                     await asyncio.sleep(1)
@@ -4064,6 +4066,7 @@ class LNWallet(Logger):
                 amount_msat=next_amount_msat_htlc,
                 cltv_abs=next_cltv_abs,
                 onion=processed_onion.next_packet,
+                next_path_key=processed_onion.next_path_key,
             )
         except BaseException as e:
             log_fail_reason(f"error sending message to next_peer={next_chan.node_id.hex()}")
