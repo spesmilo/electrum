@@ -1846,8 +1846,13 @@ def validate_features(features: int, *, context: LnFeatureContexts) -> LnFeature
     features = LnFeatures(features)
     enabled_features = list_enabled_bits(features)
     for fbit in enabled_features:
-        if (1 << fbit) & LN_FEATURES_IMPLEMENTED == 0 and fbit % 2 == 0:
-            raise UnknownEvenFeatureBits(fbit)
+        if (1 << fbit) & LN_FEATURES_IMPLEMENTED == 0:
+            if fbit % 2 == 0:
+                raise UnknownEvenFeatureBits(fbit)
+            if context == LnFeatureContexts.BLINDED_PATH:
+                # bolt 04 requires unknown odd features to be failed :/
+                # https://github.com/lightning/bolts/blob/94eb038c42e664dd7862faeec6508ccd25f63ff8/04-onion-routing.md?plain=1#L313
+                raise IncompatibleOrInsaneFeatures(f"unknown odd features in blinded path context: {features.get_names()=}")
     if not features.validate_transitive_dependencies(context=context):
         raise IncompatibleOrInsaneFeatures(f"not all transitive dependencies are set. "
                                            f"features={features}")

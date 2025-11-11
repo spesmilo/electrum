@@ -2111,6 +2111,46 @@ class Peer(Logger, EventListener):
         util.trigger_callback('htlc_added', chan, htlc, RECEIVED)
 
     @staticmethod
+    def _check_encrypted_recipient_data(
+        htlc: UpdateAddHtlc,
+        processed_onion: ProcessedOnionPacket,
+        log_fail_reason: Callable[[str], None],
+    ):
+        """Check constraints inside the blinded path recipient data."""
+        exc_invalid_onion_blinding = OnionRoutingFailure(OnionFailureCode.INVALID_ONION_BLINDING, bytes(32))
+        if not processed_onion.blinded_path_recipient_data:
+            log_fail_reason("empty encrypted_recipient_data for blinded htlc")
+            raise exc_invalid_onion_blinding
+
+        # bolt-04 payment_constraint check for blinded payments
+        # https://github.com/lightning/bolts/blob/94eb038c42e664dd7862faeec6508ccd25f63ff8/04-onion-routing.md?plain=1#L306-L309
+        if 'payment_constraints' in processed_onion.blinded_path_recipient_data:
+            max_cltv_expiry = processed_onion.get_from_recipient_data('payment_constraints', 'max_cltv_expiry', int)
+            htlc_minimum_msat = processed_onion.get_from_recipient_data('payment_constraints', 'htlc_minimum_msat', int)
+            if max_cltv_expiry is None or htlc_minimum_msat is None \
+                    or htlc.cltv_abs > max_cltv_expiry or htlc.amount_msat < htlc_minimum_msat:
+                log_fail_reason(f"htlc exceeds blinded path payment_constraints: {max_cltv_expiry=} {htlc_minimum_msat=}")
+                raise exc_invalid_onion_blinding
+
+        if not processed_onion.are_we_final and 'path_id' in processed_onion.blinded_path_recipient_data:
+            log_fail_reason("path_id field in non-final recipient data")
+            raise exc_invalid_onion_blinding
+
+        # allowed_features check, in practice they should be empty
+        # https://github.com/lightning/bolts/blob/94eb038c42e664dd7862faeec6508ccd25f63ff8/04-onion-routing.md?plain=1#L310-L315
+        feature_bytes = processed_onion.get_from_recipient_data('allowed_features', 'features', bytes) or b''
+        allowed_features = LnFeatures(int.from_bytes(feature_bytes, byteorder="big", signed=False))
+        try:
+            validate_features(allowed_features, context=LnFeatureContexts.BLINDED_PATH)
+        except IncompatibleOrInsaneFeatures as e:
+            log_fail_reason(f"unsupported features in blinded path recipient data: {repr(e)} {allowed_features.get_names()=}")
+            raise exc_invalid_onion_blinding
+
+        if processed_onion.next_node_id and processed_onion.next_chan_scid:
+            log_fail_reason(f"{processed_onion.blinded_path_recipient_data=} contains both node_id and next_chan_scid")
+            raise exc_invalid_onion_blinding
+
+    @staticmethod
     def _check_accepted_final_htlc(
             *, chan: Channel,
             htlc: UpdateAddHtlc,
@@ -2136,9 +2176,26 @@ class Peer(Logger, EventListener):
                 code=OnionFailureCode.FINAL_INCORRECT_CLTV_EXPIRY,
                 data=htlc.cltv_abs.to_bytes(4, byteorder="big"))
 
+        exc_invalid_onion_blinding = OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_BLINDING, data=bytes(32))
         exc_incorrect_or_unknown_pd = OnionRoutingFailure(
             code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS,
-            data=amt_to_forward.to_bytes(8, byteorder="big")) # height will be added later
+            data=amt_to_forward.to_bytes(8, byteorder="big"))  # height will be added later
+
+        if processed_onion.blinded_path_recipient_data is not None:  # payment over blinded path
+            # spec: MUST return an error if the payload contains other tlv fields than allowed_payload_keys
+            allowed_payload_fields = ('encrypted_recipient_data', 'current_path_key', 'amt_to_forward', 'outgoing_cltv_value', 'total_amount_msat')
+            if any(f not in allowed_payload_fields for f in processed_onion.hop_data.payload):
+                log_fail_reason(f"unknown key in blinded payload: {processed_onion.hop_data.payload.keys()=}")
+                raise exc_invalid_onion_blinding
+
+            path_id = processed_onion.get_from_recipient_data('path_id', 'data', bytes)
+            if not path_id:
+                log_fail_reason(f"'path_id' missing in recipient_data")
+                raise exc_invalid_onion_blinding
+
+            log_fail_reason('we cannot receive blinded payments yet.')
+            raise exc_invalid_onion_blinding
+
         if (total_msat := processed_onion.total_msat) is None:
             log_fail_reason(f"'total_msat' missing from onion")
             raise exc_incorrect_or_unknown_pd
@@ -2186,6 +2243,9 @@ class Peer(Logger, EventListener):
         if chain.is_tip_stale():
             _log_fail_reason(f"our chain tip is stale: {local_height=}")
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
+
+        if processed_onion.blinded_path_recipient_data is not None:
+            self._check_encrypted_recipient_data(htlc=htlc, processed_onion=processed_onion, log_fail_reason=_log_fail_reason)
 
         payment_hash = htlc.payment_hash
         if not processed_onion.are_we_final:
