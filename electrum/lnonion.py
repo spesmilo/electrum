@@ -703,11 +703,12 @@ def process_onion_packet(
         public_key=next_public_key,
         hops_data=next_hops_data_fd.read(data_size),
         hmac=hop_data.hmac)
-    if hop_data.hmac == bytes(PER_HOP_HMAC_SIZE):
-        # we are the destination / exit node
-        are_we_final = True
-    else:
-        # we are an intermediate node; forwarding
+
+    # decide if we are recipient or forwarder
+    are_we_final = hop_data.hmac == bytes(PER_HOP_HMAC_SIZE)
+    next_hop_keys = ('outgoing_node_id', 'outgoing_blinded_paths')
+    if is_trampoline and any(key in hop_data.payload for key in next_hop_keys):
+        # we are the final trampoline forwarder during a legacy trampoline payment
         are_we_final = False
 
     next_path_key = blinded_path_recipient_data.get('next_path_key_override', {}).get('path_key')
