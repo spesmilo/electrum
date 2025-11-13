@@ -143,7 +143,9 @@ def to_lnaddr(data: dict) -> LnAddr:
     exp = data.get('invoice_relative_expiry', {}).get('seconds_from_creation', 0)
     if exp:
         addr.tags.append(('x', int(exp)))
-
+    description = data.get('offer_description', {}).get('description')
+    if description:
+        addr.tags.append(('d', description))
     return addr
 
 
