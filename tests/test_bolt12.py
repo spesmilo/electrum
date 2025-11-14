@@ -183,25 +183,26 @@ class TestBolt12(ElectrumTestCase):
         invreq_pl_tlv = encode_invoice_request(data, payer_key=bfh('4141414141414141414141414141414141414141414141414141414141414141'))
 
         ohds = OnionHopsDataSingle(tlv_stream_name='onionmsg_tlv',
-                            payload={'invoice_request': {'invoice_request': invreq_pl_tlv},
-                                         'reply_path': {'path': {
-                                             'first_node_id': bfh('0309d14e515e8ef4ea022787dcda8550edfbd7da6052208d2fc0cc4f7d949558e5'),
-                                             'first_path_key': bfh('0309d14e515e8ef4ea022787dcda8550edfbd7da6052208d2fc0cc4f7d949558e5'),
-                                             'num_hops': 2,
-                                             'path': [
-                                                 {'blinded_node_id': bfh('0309d14e515e8ef4ea022787dcda8550edfbd7da6052208d2fc0cc4f7d949558e5'),
-                                                  'enclen': 5,
-                                                  'encrypted_recipient_data': bfh('0000000000')},
-                                                 {'blinded_node_id': bfh('0309d14e515e8ef4ea022787dcda8550edfbd7da6052208d2fc0cc4f7d949558e5'),
-                                                  'enclen': 6,
-                                                  'encrypted_recipient_data': bfh('001111222233')}
-                                             ]
-                                         }},
-                                     },
-                            blind_fields={'padding': {'padding': b''},
-                                          #'path_id': {'data': bfh('deadbeefbadc0ffeedeadbeefbadc0ffeedeadbeefbadc0ffeedeadbeefbadc0')}
-                                          }
-                            )
+                                   payload={
+                                       'invoice_request': {'invoice_request': invreq_pl_tlv},
+                                       'reply_path': {'path': {
+                                           'first_node_id': bfh('0309d14e515e8ef4ea022787dcda8550edfbd7da6052208d2fc0cc4f7d949558e5'),
+                                           'first_path_key': bfh('0309d14e515e8ef4ea022787dcda8550edfbd7da6052208d2fc0cc4f7d949558e5'),
+                                           'num_hops': 2,
+                                           'path': [
+                                               {'blinded_node_id': bfh('0309d14e515e8ef4ea022787dcda8550edfbd7da6052208d2fc0cc4f7d949558e5'),
+                                                'enclen': 5,
+                                                'encrypted_recipient_data': bfh('0000000000')},
+                                               {'blinded_node_id': bfh('0309d14e515e8ef4ea022787dcda8550edfbd7da6052208d2fc0cc4f7d949558e5'),
+                                                'enclen': 6,
+                                                'encrypted_recipient_data': bfh('001111222233')}
+                                           ]
+                                       }},
+                                   },
+                                   blind_fields={'padding': {'padding': b''},
+                                                 #'path_id': {'data': bfh('deadbeefbadc0ffeedeadbeefbadc0ffeedeadbeefbadc0ffeedeadbeefbadc0')}
+                                                 }
+                                   )
 
         ohds_b = ohds.to_bytes()
 
@@ -211,6 +212,54 @@ class TestBolt12(ElectrumTestCase):
             ohds2 = OnionHopsDataSingle.from_fd(fd, tlv_stream_name='onionmsg_tlv')
             self.assertTrue('invoice_request' in ohds2.payload)  # TODO
             self.assertTrue('reply_path' in ohds2.payload)  # TODO
+
+        # test nested complex types with count > 1
+        offer_data = {
+            "offer_absolute_expiry": {"seconds_from_epoch": 1763136094},
+            "offer_amount": {"amount": 1000},
+            "offer_description": {"description": "ABCD"},
+            "offer_issuer_id": {"id": bfh("0325c5bc9c9b4fe688e82784f17bc14e81e3f786e9a8c663e9bbec2412af0c0339")},
+            "offer_paths": {"paths": [
+                {
+                    "first_node_id": bfh("02d4ad66692f3e39773a5917d55db2c8b81839425c4489532fd5d166466fce56d4"),
+                    "first_path_key": bfh("02b4d2e30315f7a6322fb57ed420ef8f9c541d7331a8b3a086c2692c49209be811"),
+                    "num_hops": bytes([2]),  # num_hops is defined as byte, not int
+                    "path": [
+                        {
+                            "blinded_node_id": bfh("034b1da9c0afa084c604f74f839de006d550422facc3b4be83323702892f7f5949"),
+                            "enclen": 51,
+                            "encrypted_recipient_data": bfh("42f0018dcfe5185602618b718f7aa72b1b97d8e85b97f88b8fdad95b80fd93a21d9a975cf544e8c4b5c2f519bc83bab84bda6b")
+                        },
+                        {
+                            "blinded_node_id": bfh("021a4900c95fcb5ef59284203e005b505d17cdaa066b13134d98930fb4ff1425f4"),
+                            "enclen": 50,
+                            "encrypted_recipient_data": bfh("9b66a56801a3da6b3149d8b5df0ce9f25df7605b689dd662c40fc5782cbee2786903e83f6827fa52c93af2acdb8e123c72e0")
+                        }
+                    ]
+                },
+                {
+                    "first_node_id": bfh("031a10cc4d1aea5a59e7888f3eb2f0509e3fc58dae63deff87ba34f217ae419cf7"),
+                    "first_path_key": bfh("029a5a12f3b9c0132176ab5347f49486f3d2572aa9d9c3d8ebf622e80a4131f268"),
+                    "num_hops": bytes([2]),  # num_hops is defined as byte, not int
+                    "path": [
+                        {
+                            "blinded_node_id": bfh("0250fce42de743a914b821de93c0033713e9b27c8ada26424c0e75c461c1337e1a"),
+                            "enclen": 51,
+                            "encrypted_recipient_data": bfh("c2e291a9bcf57b57e115d161f49bd8682044bcd11db3adb96ba4d8d99827650aa5691d48c78822c9ae26c446ffa03a41fbc1de")
+                        },
+                        {
+                            "blinded_node_id": bfh("02718474dc3bd8fb42af40c27ff98da911008f4020b90835d4a39ffea084406614"),
+                            "enclen": 50,
+                            "encrypted_recipient_data": bfh("9b0fc9045ff50ea82babad699c610e14607343dd70ca12dc5575edb28b5673e3660a3eb1b62fd5b6b7d14fd651d5bbee3ad3")
+                        }
+                    ]
+                }
+            ]}
+        }
+
+        offer = encode_offer(offer_data)
+        decoded = decode_offer(offer)
+        self.assertEqual(offer_data, decoded)
 
     def test_merkle_root(self):
         # test vectors in https://github.com/lightning/bolts/pull/798
