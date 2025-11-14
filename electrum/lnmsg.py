@@ -564,6 +564,11 @@ class LNSerializer:
                     count=subtype_field_count)
             parsedlist.append(parsed)
 
+            # fd might contain more bytes, but we got passed a count. break when we have 'count' items.
+            # (e.g. nested complex types)
+            if isinstance(count, int) and len(parsedlist) == count:
+                break
+
         return parsedlist if count == '...' or count > 1 else parsedlist[0]
 
     def write_tlv_stream(self, *, fd: io.BytesIO, tlv_stream_name: str, signing_key: bytes = None, **kwargs) -> None:
