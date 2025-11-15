@@ -669,7 +669,7 @@
       shown in history (#7930)
     - kivy: fix deleting "local" tx from history (#7933)
     - kivy: fix paying amountless LN invoice (#7935)
-    - Qt: better handle unparseable URIs (#7941)
+    - Qt: better handle unparsable URIs (#7941)
 
 
 # Release 4.3.0 - (August 5, 2022)
@@ -1473,7 +1473,7 @@ below are user-visible.
    the presence of other addresses in the wallet.
  * Local transactions: Transactions can be saved in the wallet without
    being broadcast. The inputs of local transactions are considered as
-   spent, and their change outputs can be re-used in subsequent
+   spent, and their change outputs can be reused in subsequent
    transactions. This can be combined with cold storage, in order to
    create several transactions before broadcasting them. Outgoing
    transactions that have been removed from the memory pool are also
@@ -1834,7 +1834,7 @@ issue #3374. Users should upgrade to 3.0.5.
    - Hardware keystores can be used as cosigners in multi-signature
      wallets.
    - Multiple hardware cosigners can be used in the same multisig
-     wallet. One icon per keystore is displayed in the satus bar. Each
+     wallet. One icon per keystore is displayed in the status bar. Each
      connected device will co-sign the transaction.
  * Replace-By-Fee: RBF transactions are supported in both Qt and
    Android. A warning is displayed in the history for transactions
@@ -1969,7 +1969,7 @@ issue #3374. Users should upgrade to 3.0.5.
    which was part of the OpenAlias plugin, is vulnerable and should
    not be trusted (Electrum 2.0 to 2.3).
  * Payment requests can be signed using Bitcoin addresses stored
-   in DNS (OpenAlias). The identity of the requestor is verified using
+   in DNS (OpenAlias). The identity of the requester is verified using
    DNSSEC.
  * Payment requests signed with OpenAlias keys can be shared as
    bitcoin: URIs, if they are simple (a single address-type
@@ -2343,7 +2343,7 @@ For an example, see Gavin's tutorial: https://gist.github.com/gavinandresen/3966
 # Release 1.6.0 (07-01-2013)
 
 == Core
-* (Feature) Add support for importing, signing and verifiying compressed keys
+* (Feature) Add support for importing, signing and verifying compressed keys
 * (Feature) Auto reconnect to random server on disconnect
 * (Feature) Ultimate fallback to HTTP port 80 if TCP doesn't work on any server
 * (Bug) Under rare circumstances changing password with incorrect password could damage wallet
