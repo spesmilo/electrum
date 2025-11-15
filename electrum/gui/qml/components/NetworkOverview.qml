@@ -13,6 +13,22 @@ Pane {
 
     property string title: qsTr("Network")
 
+    function _getFeerateColor(sat_per_vbyte) {
+        // To display a nice quickly graspable view of the mempool fee histogram, we map
+        // feerates to fixed colors. E.g. when the histogram is full of red, the user can
+        // instantly see fees are high.
+        // In the 1-600 s/b range, play with hue:
+        var hsv_hue = (2/3-(2/3*(
+            Math.log(
+                Math.min(600, Math.max(sat_per_vbyte, 1))
+            )
+            /Math.log(600))
+        ))
+        // In the 0-1 s/b range, play with value:
+        var hsv_value = Math.min(sat_per_vbyte, 1)
+        return Qt.hsva(hsv_hue, 0.8, hsv_value, 1)
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
@@ -118,7 +134,7 @@ Pane {
                                     Layout.preferredWidth: 300 * (modelData[1] / Network.feeHistogram.total)
                                     Layout.fillWidth: true
                                     height: parent.height
-                                    color: Qt.hsva(2/3-(2/3*(Math.log(Math.min(600, Math.max(modelData[0], 1)))/Math.log(600))), 0.8, 1, 1)
+                                    color: _getFeerateColor(modelData[0])
                                     ToolTip.text: (qsTr("%1 around depth %2")
                                         .arg(modelData[0] + " " + UI_UNIT_NAME.FEERATE_SAT_PER_VB)
                                         .arg((modelData[2]/1000000).toFixed(2) + " " + UI_UNIT_NAME.MEMPOOL_MB)
