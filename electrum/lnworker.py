@@ -3831,15 +3831,16 @@ class LNWallet(LNWorker):
     def on_bolt12_invoice_request(self, recipient_data: dict, payload: dict):
         # match to offer
         self.logger.debug(f'on_bolt12_invoice_request: {recipient_data=} {payload=}')
-        offer_id = recipient_data['path_id']['data']
-        offer = self.wallet.get_offer(offer_id)
-        if offer is None:
-            self.logger.warning('no matching offer for invoice_request')
-            return
 
         invreq_tlv = payload['invoice_request']['invoice_request']
         invreq = bolt12.decode_invoice_request(invreq_tlv)
         self.logger.info(f'invoice_request: {invreq=}')
+
+        offer_id = invreq.get('offer_metadata', {}).get('data')
+        offer = self.wallet.get_offer(offer_id)
+        if offer is None:
+            self.logger.warning('no matching offer for invoice_request')
+            return
         self.logger.debug(f'invoice_request for {offer=}')
 
         # two scenarios:
