@@ -3128,29 +3128,39 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if keys:
             self.save_db()
 
-    def create_offer(self, amount, memo, expiry):
+    def create_offer(self, amount, memo, expiry, *, allow_unblinded=True):
         assert self.has_lightning(), 'not a lightning wallet'
-        assert self.has_channels(), 'no channels'
+        assert self.has_channels() or allow_unblinded, 'no channels but blinding required'
 
         path_id = os.urandom(32)  # TODO: move path_id gen get_blinded_reply_paths, unique per path
         reply_paths = get_blinded_reply_paths(self.lnworker, path_id, max_paths=1)  # max 1 for now
-        if not len(reply_paths):
+        if not len(reply_paths) and not allow_unblinded:
             raise Exception('No suitable channels')
 
         offer_id = os.urandom(16)
         offer = {
             'offer_metadata': {'data': offer_id},
             'offer_description': {'description': memo},
-            'offer_issuer_id': {'id': self.lnworker.node_keypair.pubkey},
-            'offer_paths': {'paths': reply_paths},
-            'offer_chains': {'chains': constants.net.rev_genesis_bytes()}
         }
+
+        if constants.net != constants.BitcoinMainnet:
+            offer.update({'offer_chains': {'chains': constants.net.rev_genesis_bytes()}})
+
+        if not len(reply_paths):
+            offer.update({'offer_issuer_id': {'id': self.lnworker.node_keypair.pubkey}})
+        else:
+            # TODO: remove adding of offer_issuer_id, once we can sign invoices properly based on invreq used blinded path
+            offer.update({'offer_issuer_id': {'id': self.lnworker.node_keypair.pubkey}})
+            offer.update({'offer_paths': {'paths': reply_paths}})
+
         if amount:
             amount_msat = amount * 1000
             offer['offer_amount'] = {'amount': amount_msat}
+
         if expiry:
             now = int(time.time())
             offer['offer_absolute_expiry'] = {'seconds_from_epoch': now + expiry}
+
         self._offers[offer_id] = offer
 
         return offer_id
