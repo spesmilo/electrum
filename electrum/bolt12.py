@@ -37,6 +37,7 @@ from . import constants
 from .bitcoin import COIN
 from .lnaddr import LnAddr
 from .lnmsg import OnionWireSerializer, batched
+from .lnutil import LnFeatures
 from .onion_message import Timeout, get_blinded_paths_to_me
 from .segwit_addr import bech32_decode, DecodedBech32, convertbits
 
@@ -144,6 +145,10 @@ def to_lnaddr(data: dict) -> LnAddr:
     description = data.get('offer_description', {}).get('description')
     if description:
         addr.tags.append(('d', description))
+    features = data.get('invoice_features', {}).get('features')
+    if features:
+        # CLN (v25.09) doesn't add the assumed (see BOLT9) features to BOLT12 invoices, we add them here
+        addr.tags.append(('9', LnFeatures(int.from_bytes(features, byteorder="big", signed=False)).with_assumed().for_invoice()))
     return addr
 
 
