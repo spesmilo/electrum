@@ -29,7 +29,7 @@ import hashlib
 import re
 import copy
 from typing import Tuple, TYPE_CHECKING, Union, Sequence, Optional, Dict, List, NamedTuple, Any, Type
-from functools import lru_cache, wraps
+from functools import wraps
 from abc import ABC, abstractmethod
 
 import electrum_ecc as ecc
@@ -52,6 +52,7 @@ from .util import (InvalidPassword, WalletFileException,
 from .mnemonic import Mnemonic, Wordlist, calc_seed_type, is_seed
 from .plugin import run_hook
 from .logging import Logger
+from .lrucache import LRUCache
 
 if TYPE_CHECKING:
     from .gui.common_qt.util import TaskThread
@@ -398,6 +399,9 @@ class Deterministic_KeyStore(Software_KeyStore):
 
 class MasterPublicKeyMixin(ABC):
 
+    def __init__(self):
+        self._pubkey_cache = LRUCache(maxsize=10**4)  # type: LRUCache[Sequence[int], bytes]  # path->pubkey
+
     @abstractmethod
     def get_master_public_key(self) -> str:
         pass
@@ -434,8 +438,14 @@ class MasterPublicKeyMixin(ABC):
     def get_key_origin_info(self) -> Optional[KeyOriginInfo]:
         return None
 
-    @abstractmethod
     def derive_pubkey(self, for_change: int, n: int) -> bytes:
+        key = (for_change, n)
+        if key not in self._pubkey_cache:
+            self._pubkey_cache[key] = self._derive_pubkey(*key)
+        return self._pubkey_cache[key]
+
+    @abstractmethod
+    def _derive_pubkey(self, for_change: int, n: int) -> bytes:
         """Returns pubkey at given path.
         May raise CannotDerivePubkey.
         """
@@ -501,6 +511,7 @@ class MasterPublicKeyMixin(ABC):
 class Xpub(MasterPublicKeyMixin):
 
     def __init__(self, *, derivation_prefix: str = None, root_fingerprint: str = None):
+        MasterPublicKeyMixin.__init__(self)
         self.xpub = None
         self.xpub_receive = None
         self.xpub_change = None
@@ -608,8 +619,7 @@ class Xpub(MasterPublicKeyMixin):
             self._derivation_prefix = derivation_prefix
         self.is_requesting_to_be_rewritten_to_wallet_file = True
 
-    @lru_cache(maxsize=None)
-    def derive_pubkey(self, for_change: int, n: int) -> bytes:
+    def _derive_pubkey(self, for_change: int, n: int) -> bytes:
         for_change = int(for_change)
         if for_change not in (0, 1):
             raise CannotDerivePubkey("forbidden path")
@@ -624,7 +634,7 @@ class Xpub(MasterPublicKeyMixin):
         return self.get_pubkey_from_xpub(xpub, (n,))
 
     @classmethod
-    def get_pubkey_from_xpub(self, xpub: str, sequence) -> bytes:
+    def get_pubkey_from_xpub(cls, xpub: str, sequence) -> bytes:
         node = BIP32Node.from_xkey(xpub).subkey_at_public_derivation(sequence)
         return node.eckey.get_public_key_bytes(compressed=True)
 
@@ -729,6 +739,7 @@ class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
     type = 'old'
 
     def __init__(self, d: dict):
+        MasterPublicKeyMixin.__init__(self)
         Deterministic_KeyStore.__init__(self, d)
         self.mpk = d.get('mpk')  # type: Optional[str]
         self._root_fingerprint = None
@@ -807,8 +818,7 @@ class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
         public_key = master_public_key + z*ecc.GENERATOR
         return public_key.get_public_key_bytes(compressed=False)
 
-    @lru_cache(maxsize=None)
-    def derive_pubkey(self, for_change, n) -> bytes:
+    def _derive_pubkey(self, for_change, n) -> bytes:
         for_change = int(for_change)
         if for_change not in (0, 1):
             raise CannotDerivePubkey("forbidden path")
