@@ -3847,6 +3847,52 @@ class TestWalletOfflineSigning(ElectrumTestCase):
         self.assertEqual('3b7cc3c3352bbb43ddc086487ac696e09f2863c3d9e8636721851b8008a83ffa', tx.wtxid())
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_signing_mixed_input_script_types(self, mock_save_db):
+        """Create a tx that spends mixed non-segwit and segwit UTXOs, and try to offline-sign that."""
+        wallet_offline = WalletIntegrityHelper.create_imported_wallet(privkeys=True, config=self.config)
+        wallet_offline.import_private_key('p2pkh:cRd5PRVPgArr1eyrcGLKUAULM3EY3Zhseo5Xs8afkeA9UrtMdEFk', password=None)
+        wallet_offline.import_private_key('p2wpkh-p2sh:cRoYFk7m2nKFxkhQNd81HTUdpK9qBvRHcVmMSzeiFyzyNB712srM', password=None)
+        wallet_offline.import_private_key('p2wpkh:cTKEUyG8Q8t1GmBzy2jc9b9C6XPM5x2kE2xwapAAtkvKjdUXGgXA', password=None)
+        wallet_online = WalletIntegrityHelper.create_imported_wallet(privkeys=False, config=self.config)
+        wallet_online.import_address('myfTqNq3cyxECtTR5uQukdZos7UfXa3vFU')
+        wallet_online.import_address('2N9BwLxhmiWuRHyTtZk6L52jJEtkukfGTo2')
+        wallet_online.import_address('tb1qkyrls8xvh8ynyrwly89kqu5y8yhf3znnx920t9')
+
+        # bootstrap wallet_online (funding each address separately)
+        funding_tx1 = Transaction('02000000000102a96b792a0872e5d669d503607beb823c99add690bb7c3df794d4b9539228fd8f0000000000fdffffff1306475c0380fe15237a5e800ff8adb415e32526cf284569619e43435e528bfd0000000000fdffffff02e878010000000000160014b32ed4fc9f845698d440cc2bb84a4c4443877309a0860100000000001976a914c70e40272d54659ce757b1a8b20091a26c2d404588ac02473044022048c4436152bf294fea37c89b2d9fca334ca56eb33147acd79a0f712e742edccc022058397bd3c91c8c82318c2dde32dce0c028e1f8d7dc77e394b867498b0195025c0121025635408bbafc2e28981744b28d96beda9582cac0dc49262c7fb2d6d8259c60a10247304402205f50a5cfee40eae71b1a8ceaf7d27347155a50fd0173662a37f86a0884894cbd022040c2ae5eb75a9c23b28200f8be4de576d1ae71b0c1ed3a5f5691b460fb96b05f0121031a95e3afc00c3be5f9c170b1bd0192f5c673741fd641c12490d8b646dd85cb036dfa4800')
+        funding_tx2 = Transaction('02000000000102afdbaf30fe788b337330761c7b92bbc455a86a6d9b81a5aa434afb53a9db7c2b0100000000fdffffff2e4d65ac3b41d6b4cce15ed5ab71e20f69a9581a30af625b8ba67dc6918a1ffa0000000000fdffffff02f62b010000000000160014d217382b1e148cbe850edf1a0e7121a8991f0feaa08601000000000017a914aee2df11c1692811b7f726bda3adff84a52e080f87024730440220160a0a8ae6687132b16a45dd0821d9f30ef4fb40f326ed7a6aa400d01fe5595a02204fcf94e91206d81d676caaa6abe8fa2aaa4ff35e9dc627c8010bd83e1b816209012103e7ed87fa568c645d2904208fd24a385ec54ae6dde1cce91eaac317fa800e0e7d0247304402204900eb3ce18bb315f20e90e10ee0a381684d8a8a94dcbe149658eda884b2ef8f02202d76b249879ab416eae0f672ea09dff9d5eb28356eb3f3a51e7f1e69538a931a012102a2e58987e0b6b1bf2c633cb994fce0380924b62efdb9ecae67ecd5d487eb68766dfa4800')
+        funding_tx3 = Transaction('0200000000010149c2b18f76a921e2fd93c3e59cfaeb6648d4846d85f8c98ef1e7675fd55aae980000000000fdffffff02df8301000000000016001480042981a1249dc8353b6045d0db948401f82842a086010000000000160014b107f81cccb9c9320ddf21cb607284392e988a730247304402201e4df29b132ee58fcd623e6fbc680cb66697e0a6d10dc48bf6dcec92fd593e3e0220288456826fd4702dc8738a1283e593302c1faf0661c88b5b09ae6855d2771530012102eb7f680725df776cd9d8444fca219347c96b9ce0b95c4ae2855b2a638e5513e06dfa4800')
+        wallet_online.adb.receive_tx_callback(funding_tx1, tx_height=TX_HEIGHT_UNCONFIRMED)
+        wallet_online.adb.receive_tx_callback(funding_tx2, tx_height=TX_HEIGHT_UNCONFIRMED)
+        wallet_online.adb.receive_tx_callback(funding_tx3, tx_height=TX_HEIGHT_UNCONFIRMED)
+
+        # create unsigned tx
+        outputs = [PartialTxOutput.from_address_and_value('tb1qjy38fmma9vj0tl4y9u3hj0lhj03p860c70ss06', "!")]
+        tx = wallet_online.make_unsigned_transaction(outputs=outputs, fee_policy=FixedFeePolicy(5000), rbf=True)
+        tx.locktime = 4782701
+        tx.version = 2
+
+        self.assertFalse(tx.is_complete())
+        self.assertEqual(3, len(tx.inputs()))
+        partial_tx = tx.serialize_as_bytes().hex()
+        self.assertEqual("70736274ff0100a402000000032079f96374ee9641d9a64f0d4bfc13c0f896e876eac6f7ffe1e6d01723b05a190100000000fdffffff94697ad8f540a9a93e2b7b11753289ed8a66c0a5bd5e09082c8d228b2e109b720100000000fdffffff58b03491083d8ac03ee29b73622094ef38108bc4a52595a26b433064aadbce9e0100000000fdffffff015880040000000000160014912274ef7d2b24f5fea42f23793ff793e213e9f86dfa48000001011fa086010000000000160014b107f81cccb9c9320ddf21cb607284392e988a730100de0200000000010149c2b18f76a921e2fd93c3e59cfaeb6648d4846d85f8c98ef1e7675fd55aae980000000000fdffffff02df8301000000000016001480042981a1249dc8353b6045d0db948401f82842a086010000000000160014b107f81cccb9c9320ddf21cb607284392e988a730247304402201e4df29b132ee58fcd623e6fbc680cb66697e0a6d10dc48bf6dcec92fd593e3e0220288456826fd4702dc8738a1283e593302c1faf0661c88b5b09ae6855d2771530012102eb7f680725df776cd9d8444fca219347c96b9ce0b95c4ae2855b2a638e5513e06dfa4800000100fd730102000000000102afdbaf30fe788b337330761c7b92bbc455a86a6d9b81a5aa434afb53a9db7c2b0100000000fdffffff2e4d65ac3b41d6b4cce15ed5ab71e20f69a9581a30af625b8ba67dc6918a1ffa0000000000fdffffff02f62b010000000000160014d217382b1e148cbe850edf1a0e7121a8991f0feaa08601000000000017a914aee2df11c1692811b7f726bda3adff84a52e080f87024730440220160a0a8ae6687132b16a45dd0821d9f30ef4fb40f326ed7a6aa400d01fe5595a02204fcf94e91206d81d676caaa6abe8fa2aaa4ff35e9dc627c8010bd83e1b816209012103e7ed87fa568c645d2904208fd24a385ec54ae6dde1cce91eaac317fa800e0e7d0247304402204900eb3ce18bb315f20e90e10ee0a381684d8a8a94dcbe149658eda884b2ef8f02202d76b249879ab416eae0f672ea09dff9d5eb28356eb3f3a51e7f1e69538a931a012102a2e58987e0b6b1bf2c633cb994fce0380924b62efdb9ecae67ecd5d487eb68766dfa4800000100fd750102000000000102a96b792a0872e5d669d503607beb823c99add690bb7c3df794d4b9539228fd8f0000000000fdffffff1306475c0380fe15237a5e800ff8adb415e32526cf284569619e43435e528bfd0000000000fdffffff02e878010000000000160014b32ed4fc9f845698d440cc2bb84a4c4443877309a0860100000000001976a914c70e40272d54659ce757b1a8b20091a26c2d404588ac02473044022048c4436152bf294fea37c89b2d9fca334ca56eb33147acd79a0f712e742edccc022058397bd3c91c8c82318c2dde32dce0c028e1f8d7dc77e394b867498b0195025c0121025635408bbafc2e28981744b28d96beda9582cac0dc49262c7fb2d6d8259c60a10247304402205f50a5cfee40eae71b1a8ceaf7d27347155a50fd0173662a37f86a0884894cbd022040c2ae5eb75a9c23b28200f8be4de576d1ae71b0c1ed3a5f5691b460fb96b05f0121031a95e3afc00c3be5f9c170b1bd0192f5c673741fd641c12490d8b646dd85cb036dfa48000000",
+                         partial_tx)
+        tx_copy = tx_from_any(partial_tx)  # simulates moving partial txn between cosigners
+        self.assertTrue(wallet_online.is_mine(wallet_online.adb.get_txin_address(tx_copy.inputs()[0])))
+
+        self.assertEqual(None, tx_copy.txid())  # not all inputs are segwit
+        self.assertEqual(tx.txid(), tx_copy.txid())
+
+        # sign tx
+        tx = wallet_offline.sign_transaction(tx_copy, password=None)
+        self.assertTrue(tx.is_complete())
+        self.assertTrue(tx.is_segwit())
+        self.assertEqual('020000000001032079f96374ee9641d9a64f0d4bfc13c0f896e876eac6f7ffe1e6d01723b05a190100000000fdffffff94697ad8f540a9a93e2b7b11753289ed8a66c0a5bd5e09082c8d228b2e109b7201000000171600146bcf730f3a82c8a047b567ed2fff9beb945090c3fdffffff58b03491083d8ac03ee29b73622094ef38108bc4a52595a26b433064aadbce9e010000006a4730440220534c7119d920f9589d47ecd2b92d9fb7d23308e4a8f65540fad4e3b73970bb2b02201aeedb63c27844666539e72ec7afa587310027ac5c4f1cc17737195258ebe9730121038daf92580f95544335297532e782f2493c6b852d2e1382aa8816945d819c08acfdffffff015880040000000000160014912274ef7d2b24f5fea42f23793ff793e213e9f8024730440220248bb782cf19430981bf346dc397316ad28d693a55c3c5de0a1b9f5be958fe1802204a8d8b056c76e0e77db083b50db36e618857692407027f4e299baf5cc433aa410121034e22a0f8b13e2f5e91355b74bdc8e07b7ec6c5e2c31ff7daabdc167ad2d175390247304402206c7a8c33e13ae3dd84c0605a8380d98bf7f543f5ab6061678ddd851dda2ca3d302201868479f8b5d9b2045f039dfd9624432c4b40e62273d8920aede6a99bd5622dd012103e46ebd17af4cb7746dd6e190f85f34a855467346e11f34a2cc864fcf9c7d33c9006dfa4800',
+                         str(tx))
+        self.assertEqual('08b4283f230ffbb72b001eef01e267b310fa6f9d3800d2000474787e13c98ae7', tx.txid())
+        self.assertEqual('24c32d0a7370ca664023a9a1305ae1554731f400723f119e6f11b54332e950c9', tx.wtxid())
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_sending_offline_xprv_online_addr_p2pkh(self, mock_save_db):  # compressed pubkey
         wallet_offline = WalletIntegrityHelper.create_standard_wallet(
             # bip39: "qwe", der: m/44'/1'/0'
