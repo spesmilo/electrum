@@ -56,6 +56,7 @@ if TYPE_CHECKING:
     from electrum.network import Network
     from electrum.lnrouter import NodeInfo
     from electrum.lntransport import LNPeerAddr
+    from electrum.lnchannel import Channel
     from asyncio import Task
 
 logger = get_logger(__name__)
@@ -370,13 +371,11 @@ def get_blinded_reply_paths(
         path_id: bytes,
         *,
         max_paths: int = REQUEST_REPLY_PATHS_MAX,
-        preferred_node_id: bytes = None
 ) -> Sequence[dict]:
     """construct a list of blinded reply-paths for onion message.
     """
     mydata = {'path_id': {'data': path_id}}  # same path_id used in every reply path
-    paths, payinfo = get_blinded_paths_to_me(lnwallet, mydata, max_paths=max_paths,
-                                             preferred_node_id=preferred_node_id, onion_message=True)
+    paths, payinfo = get_blinded_paths_to_me(lnwallet, mydata, max_paths=max_paths, onion_message=True)
     return paths
 
 
@@ -385,7 +384,7 @@ def get_blinded_paths_to_me(
         final_recipient_data: dict,
         *,
         max_paths: int = PAYMENT_PATHS_MAX,
-        preferred_node_id: bytes = None,
+        my_channels: Optional[Sequence['Channel']] = None,
         onion_message: bool = False
 ) -> Tuple[Sequence[dict], Sequence[dict]]:
     """construct a list of blinded paths.
@@ -393,13 +392,14 @@ def get_blinded_paths_to_me(
        - uses channels peers if not onion_message
        - uses current onion_message capable channel peers if exist and if onion_message
        - otherwise, uses current onion_message capable peers if onion_message
-       - prefers preferred_node_id if given
        - reply_path introduction points are direct peers only (TODO: longer paths)"""
     # TODO: build longer paths and/or add dummy hops to increase privacy
-    my_active_channels = [chan for chan in lnwallet.channels.values() if chan.is_active()]
-    my_channels = my_active_channels
+    if not my_channels:
+        my_active_channels = [chan for chan in lnwallet.channels.values() if chan.is_active()]
+        my_channels = my_active_channels
+
     if onion_message:
-        my_channels = [chan for chan in my_active_channels if lnwallet.peers.get(chan.node_id) and
+        my_channels = [chan for chan in my_channels if lnwallet.peers.get(chan.node_id) and
                        lnwallet.peers.get(chan.node_id).their_features.supports(LnFeatures.OPTION_ONION_MESSAGE_OPT)]
 
     result = []
@@ -408,8 +408,8 @@ def get_blinded_paths_to_me(
     local_height = lnwallet.network.get_local_height()
 
     if len(my_channels):
-        # randomize list, but prefer preferred_node_id
-        rchans = sorted(my_channels, key=lambda x: random() if x.node_id != preferred_node_id else 0)
+        # randomize list
+        rchans = sorted(my_channels, key=lambda x: random())
         for chan in rchans[:max_paths]:
             hop_extras = None
             if not onion_message:  # add hop_extras and payinfo, assumption: len(blinded_path) == 2 (us and peer)
@@ -465,8 +465,8 @@ def get_blinded_paths_to_me(
         my_onionmsg_peers = [peer for peer in lnwallet.peers.values() if
                              peer.their_features.supports(LnFeatures.OPTION_ONION_MESSAGE_OPT)]
         if len(my_onionmsg_peers):
-            # randomize list, but prefer preferred_node_id
-            rpeers = sorted(my_onionmsg_peers, key=lambda x: random() if x.pubkey != preferred_node_id else 0)
+            # randomize list
+            rpeers = sorted(my_onionmsg_peers, key=lambda x: random())
             for peer in rpeers[:max_paths]:
                 blinded_path = create_blinded_path(os.urandom(32), [peer.pubkey, mynodeid], final_recipient_data)
                 result.append(blinded_path)
