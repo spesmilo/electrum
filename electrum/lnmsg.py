@@ -1,7 +1,8 @@
 import os
 import csv
 import io
-from typing import Callable, Tuple, Any, Dict, List, Sequence, Union, Optional
+from typing import Callable, Tuple, Any, Dict, List, Sequence, Union, Optional, Mapping
+from types import MappingProxyType
 from collections import OrderedDict
 
 from .lnutil import OnionFailureCodeMetaFlag
@@ -289,7 +290,7 @@ def _write_tlv_record(*, fd: io.BytesIO, tlv_type: int, tlv_val: bytes) -> None:
     _write_primitive_field(fd=fd, field_type="byte", count=tlv_len, value=tlv_val)
 
 
-def _resolve_field_count(field_count_str: str, *, vars_dict: dict, allow_any=False) -> Union[int, str]:
+def _resolve_field_count(field_count_str: str, *, vars_dict: Mapping, allow_any=False) -> Union[int, str]:
     """Returns an evaluated field count, typically an int.
     If allow_any is True, the return value can be a str with value=="...".
     """
@@ -403,7 +404,7 @@ class LNSerializer:
             fd: io.BytesIO,
             field_type: str,
             count: Union[int, str],
-            value: Union[List[Dict[str, Any]], Dict[str, Any]]
+            value: Union[Sequence[Mapping[str, Any]], Mapping[str, Any]],
     ) -> None:
         assert fd
 
@@ -421,10 +422,10 @@ class LNSerializer:
             return
 
         if count == 1:
-            assert isinstance(value, dict) or isinstance(value, list)
-            values = [value] if isinstance(value, dict) else value
+            assert isinstance(value, (MappingProxyType, dict)) or isinstance(value, (list, tuple)), type(value)
+            values = [value] if isinstance(value, (MappingProxyType, dict)) else value
         else:
-            assert isinstance(value, list), f'{field_type=}, expected value of type list for {count=}'
+            assert isinstance(value, (tuple, list)), f'{field_type=}, expected value of type list/tuple for {count=}'
             values = value
 
         if count == '...':
