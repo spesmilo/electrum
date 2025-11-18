@@ -152,7 +152,7 @@ def encrypt_onionmsg_tlv_hops_data(
             encrypted_recipient_data = encrypt_onionmsg_data_tlv(shared_secret=hop_shared_secrets[i], **hops_data[i].blind_fields)
             new_payload = dict(hops_data[i].payload)
             new_payload['encrypted_recipient_data'] = {'encrypted_recipient_data': encrypted_recipient_data}
-            hops_data[i] = dataclasses.replace(hops_data[i], payload=MappingProxyType(new_payload))
+            hops_data[i] = dataclasses.replace(hops_data[i], payload=new_payload)
 
 
 def create_onion_message_route_to(lnwallet: 'LNWallet', node_id: bytes) -> Sequence[PathEdge]:
@@ -284,17 +284,17 @@ def send_onion_message_to(
                         hops_data = [
                             OnionHopsDataSingle(
                                 tlv_stream_name='onionmsg_tlv',
-                                blind_fields=MappingProxyType({'next_node_id': {'node_id': x.end_node}})
+                                blind_fields={'next_node_id': {'node_id': x.end_node}},
                             ) for x in path[:-1]
                         ]
 
                         # final hop pre-ip, add next_path_key_override
                         final_hop_pre_ip = OnionHopsDataSingle(
                             tlv_stream_name='onionmsg_tlv',
-                            blind_fields=MappingProxyType({
+                            blind_fields={
                                 'next_node_id': {'node_id': introduction_point},
                                 'next_path_key_override': {'path_key': blinded_path['first_path_key']},
-                            })
+                            },
                         )
                         hops_data.append(final_hop_pre_ip)
 
@@ -307,7 +307,7 @@ def send_onion_message_to(
                             payload['encrypted_recipient_data'] = {
                                 'encrypted_recipient_data': encrypted_recipient_data
                             }
-                            hops_data[i] = dataclasses.replace(hops_data[i], payload=MappingProxyType(payload))
+                            hops_data[i] = dataclasses.replace(hops_data[i], payload=payload)
 
                         path_key = ecc.ECPrivkey(session_key).get_public_key_bytes()
 
@@ -320,7 +320,7 @@ def send_onion_message_to(
                 }
                 if i == len(remaining_blinded_path) - 1:  # final hop
                     payload.update(destination_payload)
-                hop = OnionHopsDataSingle(tlv_stream_name='onionmsg_tlv', payload=MappingProxyType(payload))
+                hop = OnionHopsDataSingle(tlv_stream_name='onionmsg_tlv', payload=payload)
                 hops_data.append(hop)
 
             payment_path_pubkeys = blinded_node_ids + blinded_path_blinded_ids
@@ -351,13 +351,13 @@ def send_onion_message_to(
             hops_data = [
                 OnionHopsDataSingle(
                     tlv_stream_name='onionmsg_tlv',
-                    blind_fields=MappingProxyType({'next_node_id': {'node_id': x.end_node}})
+                    blind_fields={'next_node_id': {'node_id': x.end_node}},
                 ) for x in path[1:]
             ]
 
         final_hop = OnionHopsDataSingle(
             tlv_stream_name='onionmsg_tlv',
-            payload=MappingProxyType(destination_payload),
+            payload=destination_payload,
         )
 
         hops_data.append(final_hop)

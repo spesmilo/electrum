@@ -3731,7 +3731,7 @@ class LNWallet(LNWorker):
                 "hops_data": trampoline_onion.hops_data,
                 "hmac": trampoline_onion.hmac
             }
-            hops_data[-1] = dataclasses.replace(hops_data[-1], payload=MappingProxyType(trampoline_payload))
+            hops_data[-1] = dataclasses.replace(hops_data[-1], payload=trampoline_payload)
             if t_hops_data := trampoline_onion._debug_hops_data:  # None if trampoline-forwarding
                 t_route = trampoline_onion._debug_route
                 assert t_route is not None

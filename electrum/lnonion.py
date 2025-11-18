@@ -25,7 +25,7 @@
 
 import io
 import hashlib
-from typing import Sequence, List, Tuple, NamedTuple, TYPE_CHECKING, Dict, Any, Optional, Union
+from typing import Sequence, List, Tuple, NamedTuple, TYPE_CHECKING, Dict, Any, Optional, Union, Mapping
 from enum import IntEnum
 from dataclasses import dataclass, field, replace
 from types import MappingProxyType
@@ -57,10 +57,10 @@ class InvalidPayloadSize(Exception): pass
 
 @dataclass(frozen=True, kw_only=True)
 class OnionHopsDataSingle:
-    payload: MappingProxyType = field(default_factory=lambda: MappingProxyType({}))
+    payload: Mapping = field(default_factory=lambda: MappingProxyType({}))
     hmac: Optional[bytes] = None
     tlv_stream_name: str = 'payload'
-    blind_fields: MappingProxyType = field(default_factory=lambda: MappingProxyType({}))
+    blind_fields: Mapping = field(default_factory=lambda: MappingProxyType({}))
     _raw_bytes_payload: Optional[bytes] = None
 
     def __post_init__(self):
@@ -111,7 +111,7 @@ class OnionHopsDataSingle:
                                                           tlv_stream_name=tlv_stream_name)
             ret = OnionHopsDataSingle(
                 tlv_stream_name=tlv_stream_name,
-                payload=MappingProxyType(payload),
+                payload=payload,
                 hmac=fd.read(PER_HOP_HMAC_SIZE)
             )
             return ret
@@ -303,7 +303,7 @@ def calc_hops_data_for_payment(
         "total_msat": total_msat,
         "amount_msat": amt
     }
-    hops_data = [OnionHopsDataSingle(payload=MappingProxyType(hop_payload))]
+    hops_data = [OnionHopsDataSingle(payload=hop_payload)]
     # payloads, backwards from last hop (but excluding the first edge):
     for edge_index in range(len(route) - 1, 0, -1):
         route_edge = route[edge_index]
@@ -313,7 +313,7 @@ def calc_hops_data_for_payment(
             "short_channel_id": {"short_channel_id": route_edge.short_channel_id},
         }
         hops_data.append(
-            OnionHopsDataSingle(payload=MappingProxyType(hop_payload)))
+            OnionHopsDataSingle(payload=hop_payload))
         amt += route_edge.fee_for_edge(amt)
         cltv_abs += route_edge.cltv_delta
     hops_data.reverse()

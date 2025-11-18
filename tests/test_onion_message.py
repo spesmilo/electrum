@@ -74,34 +74,34 @@ class TestOnionMessage(ElectrumTestCase):
         hops_data = [
             OnionHopsDataSingle(
                 tlv_stream_name='onionmsg_tlv',
-                blind_fields=MappingProxyType({
+                blind_fields={
                     'next_node_id': {'node_id': bfh(ALICE_TLVS['next_node_id'])},
                     'next_path_key_override': {'path_key': bfh(ALICE_TLVS['next_path_key_override'])},
-                }
-            )),
+                },
+            ),
             OnionHopsDataSingle(
                 tlv_stream_name='onionmsg_tlv',
-                blind_fields=MappingProxyType({
+                blind_fields={
                     'next_node_id': {'node_id': bfh(BOB_TLVS['next_node_id'])},
                     'unknown_tag_561': {'data': bfh(BOB_TLVS['unknown_tag_561'])},
-                }
-            )),
+                },
+            ),
             OnionHopsDataSingle(
                 tlv_stream_name='onionmsg_tlv',
-                blind_fields=MappingProxyType({
+                blind_fields={
                     'padding': {'padding': bfh(CAROL_TLVS['padding'])},
                     'next_node_id': {'node_id': bfh(CAROL_TLVS['next_node_id'])},
-                }
-            )),
+                },
+            ),
             OnionHopsDataSingle(
                 tlv_stream_name='onionmsg_tlv',
-                payload=MappingProxyType({'message': {'text': bfh(test_vectors['onionmessage']['unknown_tag_1'])}}),
-                blind_fields=MappingProxyType({
+                payload={'message': {'text': bfh(test_vectors['onionmessage']['unknown_tag_1'])}},
+                blind_fields={
                     'padding': {'padding': bfh(DAVE_TLVS['padding'])},
                     'path_id': {'data': bfh(DAVE_TLVS['path_id'])},
                     'unknown_tag_65535': {'data': bfh(DAVE_TLVS['unknown_tag_65535'])},
-                }
-            ))
+                },
+            )
         ]
 
         encrypt_onionmsg_tlv_hops_data(hops_data, hop_shared_secrets)
@@ -119,11 +119,11 @@ class TestOnionMessage(ElectrumTestCase):
             return [
                 OnionHopsDataSingle(
                     tlv_stream_name='onionmsg_tlv',
-                    payload=MappingProxyType({'message': {'text': message.encode('utf-8')}}),
-                    blind_fields=MappingProxyType({
+                    payload={'message': {'text': message.encode('utf-8')}},
+                    blind_fields={
                         'path_id': {'data': bfh('deadbeefbadc0ffeedeadbeefbadc0ffeedeadbeefbadc0ffeedeadbeefbadc0')},
-                    }
-                    ))
+                    },
+                ),
             ]
         hops_data = hops_data_for_message('short_message')  # fit in HOPS_DATA_SIZE
         encrypt_onionmsg_tlv_hops_data(hops_data, hop_shared_secrets)
@@ -234,18 +234,18 @@ class TestOnionMessage(ElectrumTestCase):
         hops_data = [
             OnionHopsDataSingle(
                 tlv_stream_name='onionmsg_tlv',
-                blind_fields=MappingProxyType({
+                blind_fields={
                     'next_node_id': {'node_id': BOB_PUBKEY},
                     'next_path_key_override': {'path_key': bfh(ALICE_TLVS['next_path_key_override'])},
-                }
-            )),
+                },
+            ),
         ]
         # encrypt encrypted_data_tlv here
         for i in range(len(hops_data)):
             encrypted_recipient_data = encrypt_onionmsg_data_tlv(shared_secret=hop_shared_secrets[i], **hops_data[i].blind_fields)
             new_payload = dict(hops_data[i].payload)
             new_payload['encrypted_recipient_data'] = {'encrypted_recipient_data': encrypted_recipient_data}
-            hops_data[i] = dataclasses.replace(hops_data[i], payload=MappingProxyType(new_payload))
+            hops_data[i] = dataclasses.replace(hops_data[i], payload=new_payload)
 
         blinded_path_blinded_ids = []
         for i, x in enumerate(blinded_path_to_dave.get('path')):
@@ -257,7 +257,7 @@ class TestOnionMessage(ElectrumTestCase):
             hops_data.append(
                 OnionHopsDataSingle(
                     tlv_stream_name='onionmsg_tlv',
-                    payload=MappingProxyType(payload))
+                    payload=payload),
             )
         payment_path_pubkeys = blinded_node_ids + blinded_path_blinded_ids
         hop_shared_secrets, _ = get_shared_secrets_along_route(payment_path_pubkeys, SESSION_KEY)

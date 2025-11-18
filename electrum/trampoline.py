@@ -324,7 +324,7 @@ def create_trampoline_onion(
                 "payment_secret": payment_secret,
                 "total_msat": total_msat
             }
-        hops_data[i] = dataclasses.replace(hops_data[i], payload=MappingProxyType(payload))
+        hops_data[i] = dataclasses.replace(hops_data[i], payload=payload)
 
     if (index := routing_info_payload_index) is not None:
         # fill the remaining payload space with available routing hints (r_tags)
@@ -344,7 +344,7 @@ def create_trampoline_onion(
             remaining_payload_space -= r_tag_size
         # add the chosen r_tags to the payload
         payload["invoice_routing_info"] = {"invoice_routing_info": b''.join(routing_info_to_use)}
-        hops_data[index] = dataclasses.replace(hops_data[index], payload=MappingProxyType(payload))
+        hops_data[index] = dataclasses.replace(hops_data[index], payload=payload)
         _logger.debug(f"Using {len(routing_info_to_use)} of {len(invoice_routing_info)} r_tags")
 
     trampoline_session_key = os.urandom(32)

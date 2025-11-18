@@ -1,7 +1,7 @@
 import os
 import csv
 import io
-from typing import Callable, Tuple, Any, Dict, List, Sequence, Union, Optional
+from typing import Callable, Tuple, Any, Dict, List, Sequence, Union, Optional, Mapping
 from types import MappingProxyType
 from collections import OrderedDict
 
@@ -290,7 +290,7 @@ def _write_tlv_record(*, fd: io.BytesIO, tlv_type: int, tlv_val: bytes) -> None:
     _write_primitive_field(fd=fd, field_type="byte", count=tlv_len, value=tlv_val)
 
 
-def _resolve_field_count(field_count_str: str, *, vars_dict: Union[dict, MappingProxyType], allow_any=False) -> Union[int, str]:
+def _resolve_field_count(field_count_str: str, *, vars_dict: Mapping, allow_any=False) -> Union[int, str]:
     """Returns an evaluated field count, typically an int.
     If allow_any is True, the return value can be a str with value=="...".
     """
@@ -404,12 +404,7 @@ class LNSerializer:
             fd: io.BytesIO,
             field_type: str,
             count: Union[int, str],
-            value: Union[
-                List[Union[MappingProxyType[str, Any], Dict[str, Any]]],
-                Tuple[Union[MappingProxyType[str, Any], Dict[str, Any]], ...],
-                Dict[str, Any],
-                MappingProxyType[str, Any],
-            ],
+            value: Union[Sequence[Mapping[str, Any]], Mapping[str, Any]],
     ) -> None:
         assert fd
 
