@@ -327,9 +327,18 @@ def verify_request_and_create_invoice(
         raise Exception('branch not implemented, electrum should set offer_issuer_id')
 
     payment_secret = lnwallet.get_payment_secret(invoice_payment_hash)
-    invoice_paths, payinfo = get_blinded_paths_to_me(lnwallet, final_recipient_data={
-        'path_id': {'data': payment_secret},  # TODO gen & store
-    })
+    recipient_data = {'path_id': {'data': payment_secret}}  # TODO gen & store
+
+    # collect suitable channels for payment
+    invoice_channels = [
+        chan for chan in lnwallet.channels.values()
+        if chan.is_active() and chan.can_receive(amount_msat=amount_msat, check_frozen=True)
+    ]
+    if not invoice_channels:
+        raise Exception('no active channels with sufficient receive capacity, ignoring invoice_request.')
+
+    invoice_paths, payinfo = get_blinded_paths_to_me(
+        lnwallet, final_recipient_data=recipient_data, my_channels=invoice_channels)
 
     invoice.update({
         'invoice_paths': {'paths': invoice_paths},
