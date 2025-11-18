@@ -1377,21 +1377,28 @@ class Commands(Logger):
         return wallet.export_request(req)
 
     @command('wnl')
-    async def add_offer(self, amount, memo='', expiry=3600, wallet: Abstract_Wallet = None):
+    async def add_offer(
+            self,
+            amount: Optional[Decimal] = None,
+            memo: Optional[str] = '',
+            expiry: Optional[int] = 3600,
+            issuer: Optional[str] = None,
+            wallet: Abstract_Wallet = None
+    ):
         """Create a bolt12 offer.
 
         arg:decimal:amount:Requested amount (in btc)
         arg:str:memo:Description of the request
         arg:int:expiry:Time in seconds.
+        arg:str:issuer:Issuer string
         """
         amount = satoshis(amount)
         expiry = int(expiry) if expiry else None
-        key = wallet.create_offer(amount, memo, expiry)
+        key = wallet.create_offer(amount, memo, expiry, issuer=issuer)
         offer = wallet.get_offer(key)
         bech32_data = convertbits(list(bolt12.encode_offer(offer)), 8, 5, True)
 
         return {
-            # 'offer_dict': offer,
             'id': key.hex(),
             'offer': bech32_encode(Encoding.BECH32, 'lno', bech32_data, with_checksum=False)
         }

@@ -3128,7 +3128,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if keys:
             self.save_db()
 
-    def create_offer(self, amount, memo, expiry, *, allow_unblinded=True):
+    def create_offer(self, amount, memo, expiry, *, issuer: str = None, allow_unblinded=True):
         assert self.has_lightning(), 'not a lightning wallet'
         assert self.has_channels() or allow_unblinded, 'no channels but blinding required'
 
@@ -3152,6 +3152,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             # TODO: remove adding of offer_issuer_id, once we can sign invoices properly based on invreq used blinded path
             offer.update({'offer_issuer_id': {'id': self.lnworker.node_keypair.pubkey}})
             offer.update({'offer_paths': {'paths': reply_paths}})
+
+        if issuer:
+            offer.update({'offer_issuer': {'issuer': issuer}})
 
         if amount:
             amount_msat = amount * 1000
