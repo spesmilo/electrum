@@ -1585,6 +1585,11 @@ class LnFeatures(IntFlag):
                 features |= (1 << flag)
         return features
 
+    def with_assumed(self) -> 'LnFeatures':
+        features = self
+        features |= LN_FEATURES_ASSUMED
+        return features
+
     def min_len(self) -> int:
         b = int.bit_length(self)
         return b // 8 + int(bool(b % 8))
@@ -1699,6 +1704,17 @@ LN_FEATURES_IMPLEMENTED = (
         | LnFeatures.OPTION_CHANNEL_TYPE_OPT | LnFeatures.OPTION_CHANNEL_TYPE_REQ
         | LnFeatures.OPTION_SCID_ALIAS_OPT | LnFeatures.OPTION_SCID_ALIAS_REQ
         | LnFeatures.OPTION_ANCHORS_ZERO_FEE_HTLC_OPT | LnFeatures.OPTION_ANCHORS_ZERO_FEE_HTLC_REQ
+)
+
+
+# some features are assumed (@20251118) https://github.com/lightning/bolts/blob/master/09-features.md
+LN_FEATURES_ASSUMED = (
+    LnFeatures(0)
+    | LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
+    | LnFeatures.VAR_ONION_REQ
+    | LnFeatures.OPTION_STATIC_REMOTEKEY_REQ
+    | LnFeatures.PAYMENT_SECRET_REQ
+    | LnFeatures.OPTION_CHANNEL_TYPE_REQ
 )
 
 
