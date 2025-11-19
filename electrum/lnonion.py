@@ -283,7 +283,7 @@ def decrypt_onionmsg_data_tlv(*, shared_secret: bytes, encrypted_recipient_data:
 
 def encrypt_hops_recipient_data(
         tlv_stream_name: str,
-        hops_data: Sequence[OnionHopsDataSingle],
+        hops_data: List[OnionHopsDataSingle],
         hop_shared_secrets: Sequence[bytes]
 ) -> None:
     """encrypt unencrypted encrypted_recipient_data for hops with blind_fields.
@@ -301,7 +301,10 @@ def encrypt_hops_recipient_data(
         if hops_data[i].tlv_stream_name == tlv_stream_name and 'encrypted_recipient_data' not in hops_data[i].payload:
             # construct encrypted_recipient_data from blind_fields
             encrypted_recipient_data = encrypt_onionmsg_data_tlv(shared_secret=hop_shared_secrets[i], **hops_data[i].blind_fields)
-            hops_data[i].payload['encrypted_recipient_data'] = {erd_key: encrypted_recipient_data}
+            # work around immutablility of OnionHopsDataSingle
+            hop_payload = {'encrypted_recipient_data': {erd_key: encrypted_recipient_data}}
+            hop_payload.update(hops_data[i].payload)
+            hops_data[i] = OnionHopsDataSingle(tlv_stream_name=hops_data[i].tlv_stream_name, payload=hop_payload, blind_fields=hops_data[i].blind_fields)
 
 
 def calc_hops_data_for_payment(
