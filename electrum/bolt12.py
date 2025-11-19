@@ -45,6 +45,9 @@ if TYPE_CHECKING:
     from .lnworker import LNWallet
 
 
+DEFAULT_INVOICE_EXPIRY = 3600
+
+
 def is_offer(data: str) -> bool:
     d = bech32_decode(data, ignore_long_length=True, with_checksum=False)
     if d == DecodedBech32(None, None, None):
@@ -278,9 +281,21 @@ def verify_request_and_create_invoice(
         lnwallet: 'LNWallet',
         bolt12_offer: dict,
         bolt12_invreq: dict,
+        invoice_expiry: int = 0,
 ) -> dict:
     # TODO check offer fields in invreq are equal
     # TODO check constraints, like expiry, offer_amount etc
+
+    # spec: MUST reject the invoice request if invreq_payer_id or invreq_metadata are not present.
+    # NOTE: invreq_payer_id already checked as part of signature verification
+    if not bolt12_invreq.get('invreq_metadata', {}).get('blob'):
+        raise Exception('invreq_metadata missing')
+
+    # TODO: store invreq_metadata in lnwallet (no need for persistence)
+    # spec: if offer_issuer_id is present, and invreq_metadata is identical to a previous invoice_request:
+    #     MAY simply reply with the previous invoice.
+    # otherwise:
+    #     MUST NOT reply with a previous invoice.
 
     # copy the invreq and offer fields
     invoice = copy.deepcopy(bolt12_invreq)
@@ -299,10 +314,12 @@ def verify_request_and_create_invoice(
     invoice_payment_hash = lnwallet.create_payment_info(amount_msat=amount_msat)  # TODO cltv, expiry
 
     now = int(time.time())
+    if invoice_expiry <= 0:
+        invoice_expiry = DEFAULT_INVOICE_EXPIRY
     invoice.update({
         'invoice_amount': {'msat': amount_msat},
         'invoice_created_at': {'timestamp': now},
-        'invoice_relative_expiry': {'seconds_from_creation': 3600},  # TODO hardcoded
+        'invoice_relative_expiry': {'seconds_from_creation': invoice_expiry},
         'invoice_payment_hash': {'payment_hash': invoice_payment_hash}
     })
 
