@@ -880,8 +880,8 @@ class Commands(Logger):
 
         arg:str:privkey:Private key. Type \'?\' to get a prompt.
         arg:str:destination:Bitcoin address, contact or alias
-        arg:str:fee:Transaction fee (absolute, in BTC)
-        arg:str:feerate:Transaction fee rate (in sat/vbyte)
+        arg:decimal:fee:Transaction fee (absolute, in BTC)
+        arg:decimal:feerate:Transaction fee rate (in sat/vbyte)
         arg:int:imax:Maximum number of inputs
         arg:bool:nocheck:Do not verify aliases
         """
@@ -925,15 +925,15 @@ class Commands(Logger):
         message = util.to_bytes(message)
         return bitcoin.verify_usermessage_with_address(address, sig, message)
 
-    def _get_fee_policy(self, fee, feerate):
+    def _get_fee_policy(self, fee: str, feerate: str):
         if fee is not None and feerate is not None:
             raise Exception('Cannot set both fee and feerate')
         if fee is not None:
             fee_sats = satoshis(fee)
             fee_policy = FeePolicy(f'fixed:{fee_sats}')
         elif feerate is not None:
-            feerate_per_byte = 1000 * feerate
-            fee_policy = FeePolicy(f'feerate:{feerate_per_byte}')
+            sat_per_kvbyte = int(1000 * to_decimal(feerate))
+            fee_policy = FeePolicy(f'feerate:{sat_per_kvbyte}')
         else:
             fee_policy = FeePolicy(self.config.FEE_POLICY)
         return fee_policy
@@ -946,7 +946,7 @@ class Commands(Logger):
         arg:str:destination:Bitcoin address, contact or alias
         arg:decimal_or_max:amount:Amount to be sent (in BTC). Type '!' to send the maximum available.
         arg:decimal:fee:Transaction fee (absolute, in BTC)
-        arg:float:feerate:Transaction fee rate (in sat/vbyte)
+        arg:decimal:feerate:Transaction fee rate (in sat/vbyte)
         arg:str:from_addr:Source address (must be a wallet address; use sweep to spend from non-wallet address)
         arg:str:change_addr:Change address. Default is a spare address, or the source address if it's not in the wallet
         arg:bool:rbf:Whether to signal opt-in Replace-By-Fee in the transaction (true/false)
@@ -979,8 +979,8 @@ class Commands(Logger):
 
         arg:json:outputs:json list of ["address", "amount in BTC"]
         arg:bool:rbf:Whether to signal opt-in Replace-By-Fee in the transaction (true/false)
-        arg:str:fee:Transaction fee (absolute, in BTC)
-        arg:str:feerate:Transaction fee rate (in sat/vbyte)
+        arg:decimal:fee:Transaction fee (absolute, in BTC)
+        arg:decimal:feerate:Transaction fee rate (in sat/vbyte)
         arg:str:from_addr:Source address (must be a wallet address; use sweep to spend from non-wallet address)
         arg:str:change_addr:Change address. Default is a spare address, or the source address if it's not in the wallet
         arg:bool:addtransaction:Whether transaction is to be used for broadcasting afterwards. Adds transaction to the wallet

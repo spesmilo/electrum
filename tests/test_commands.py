@@ -313,6 +313,14 @@ class TestCommandsTestnet(ElectrumTestCase):
             locktime=1972344,
             wallet=wallet)
 
+        tx_str_2 = await cmds.payto(
+            destination="tb1qsyzgpwa0vg2940u5t6l97etuvedr5dejpf9tdy",
+            amount="0.00123456",
+            feerate="50.000",  # test that passing a string feerate results in the same tx
+            locktime=1972344,
+            wallet=wallet)
+
+        self.assertEqual(tx_str, tx_str_2)
         tx = tx_from_any(tx_str)
         self.assertEqual(2, len(tx.outputs()))
         txout = TxOutput.from_address_and_value("tb1qsyzgpwa0vg2940u5t6l97etuvedr5dejpf9tdy", 123456)
