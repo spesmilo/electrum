@@ -55,7 +55,7 @@ from .lnutil import (Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKey
                      received_htlc_trim_threshold_sat, make_commitment_output_to_remote_address, FIXED_ANCHOR_SAT,
                      ChannelType, LNProtocolWarning, ZEROCONF_TIMEOUT)
 from .lnsweep import sweep_our_ctx, sweep_their_ctx
-from .lnsweep import sweep_their_htlctx_justice, sweep_our_htlctx, SweepInfo
+from .lnsweep import sweep_their_htlctx_justice, sweep_our_htlctx, SweepInfo, MaybeSweepInfo
 from .lnsweep import sweep_their_ctx_to_remote_backup
 from .lnhtlc import HTLCManager
 from .lnmsg import encode_msg, decode_msg
@@ -286,10 +286,10 @@ class AbstractChannel(Logger, ABC):
     def delete_closing_height(self):
         self.storage.pop('closing_height', None)
 
-    def create_sweeptxs_for_our_ctx(self, ctx: Transaction) -> Dict[str, SweepInfo]:
+    def create_sweeptxs_for_our_ctx(self, ctx: Transaction) -> Dict[str, MaybeSweepInfo]:
         return sweep_our_ctx(chan=self, ctx=ctx)
 
-    def create_sweeptxs_for_their_ctx(self, ctx: Transaction) -> Dict[str, SweepInfo]:
+    def create_sweeptxs_for_their_ctx(self, ctx: Transaction) -> Dict[str, MaybeSweepInfo]:
         return sweep_their_ctx(chan=self, ctx=ctx)
 
     def is_backup(self) -> bool:
@@ -304,7 +304,7 @@ class AbstractChannel(Logger, ABC):
     def get_remote_peer_sent_error(self) -> Optional[str]:
         return None
 
-    def get_ctx_sweep_info(self, ctx: Transaction) -> Tuple[bool, Dict[str, SweepInfo]]:
+    def get_ctx_sweep_info(self, ctx: Transaction) -> Tuple[bool, Dict[str, MaybeSweepInfo]]:
         our_sweep_info = self.create_sweeptxs_for_our_ctx(ctx)
         their_sweep_info = self.create_sweeptxs_for_their_ctx(ctx)
         if our_sweep_info:

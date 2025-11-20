@@ -11,11 +11,10 @@ from .transaction import Transaction, TxOutpoint
 from .logging import Logger
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from .lnutil import REDEEM_AFTER_DOUBLE_SPENT_DELAY
-
+from .lnsweep import KeepWatchingTXO, SweepInfo
 
 if TYPE_CHECKING:
     from .network import Network
-    from .lnsweep import SweepInfo
     from .lnworker import LNWallet
     from .lnchannel import AbstractChannel
 
@@ -159,6 +158,7 @@ class LNWatcher(Logger, EventListener):
         chan = self.lnworker.channel_by_txo(funding_outpoint)
         if not chan:
             return False
+        local_height = self.adb.get_local_height()
         # detect who closed and get information about how to claim outputs
         is_local_ctx, sweep_info_dict = chan.get_ctx_sweep_info(closing_tx)
         # note: we need to keep watching *at least* until the closing tx is deeply mined,
@@ -169,6 +169,10 @@ class LNWatcher(Logger, EventListener):
             prev_txid, prev_index = prevout.split(':')
             name = sweep_info.name + ' ' + chan.get_id_for_log()
             self.lnworker.wallet.set_default_label(prevout, name)
+            if isinstance(sweep_info, KeepWatchingTXO):  # haven't yet decided if we want to sweep
+                keep_watching |= sweep_info.until_height > local_height
+                continue
+            assert isinstance(sweep_info, SweepInfo), sweep_info
             if not self.adb.get_transaction(prev_txid):
                 # do not keep watching if prevout does not exist
                 self.logger.info(f'prevout does not exist for {name}: {prevout}')
