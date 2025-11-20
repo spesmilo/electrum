@@ -2093,29 +2093,23 @@ class Peer(Logger, EventListener):
         Perform checks that are invariant (results do not depend on height, network conditions, etc).
         May raise OnionRoutingFailure
         """
-        try:
-            amt_to_forward = processed_onion.hop_data.payload["amt_to_forward"]["amt_to_forward"]
-        except Exception:
+        assert processed_onion.are_we_final, processed_onion
+        if (amt_to_forward := processed_onion.amt_to_forward) is None:
             log_fail_reason(f"'amt_to_forward' missing from onion")
             raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
-
-        exc_incorrect_or_unknown_pd = OnionRoutingFailure(
-            code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS,
-            data=amt_to_forward.to_bytes(8, byteorder="big")) # height will be added later
-        try:
-            cltv_abs_from_onion = processed_onion.hop_data.payload["outgoing_cltv_value"]["outgoing_cltv_value"]
-        except Exception:
+        if (cltv_abs_from_onion := processed_onion.outgoing_cltv_value) is None:
             log_fail_reason(f"'outgoing_cltv_value' missing from onion")
             raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
-
         if cltv_abs_from_onion > htlc.cltv_abs:
             log_fail_reason(f"cltv_abs_from_onion != htlc.cltv_abs")
             raise OnionRoutingFailure(
                 code=OnionFailureCode.FINAL_INCORRECT_CLTV_EXPIRY,
                 data=htlc.cltv_abs.to_bytes(4, byteorder="big"))
-        try:
-            total_msat = processed_onion.hop_data.payload["payment_data"]["total_msat"]  # type: int
-        except Exception:
+
+        exc_incorrect_or_unknown_pd = OnionRoutingFailure(
+            code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS,
+            data=amt_to_forward.to_bytes(8, byteorder="big")) # height will be added later
+        if (total_msat := processed_onion.total_msat) is None:
             log_fail_reason(f"'total_msat' missing from onion")
             raise exc_incorrect_or_unknown_pd
 
@@ -2132,9 +2126,7 @@ class Peer(Logger, EventListener):
                 code=OnionFailureCode.FINAL_INCORRECT_HTLC_AMOUNT,
                 data=htlc.amount_msat.to_bytes(8, byteorder="big"))
 
-        try:
-            payment_secret_from_onion = processed_onion.hop_data.payload["payment_data"]["payment_secret"]  # type: bytes
-        except Exception:
+        if (payment_secret_from_onion := processed_onion.payment_secret) is None:
             log_fail_reason(f"'payment_secret' missing from onion")
             raise exc_incorrect_or_unknown_pd
 

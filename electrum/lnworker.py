@@ -3456,18 +3456,11 @@ class LNWallet(LNWorker):
         chain = self.network.blockchain()
         if chain.is_tip_stale():
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
-        try:
-            _next_chan_scid = processed_onion.hop_data.payload["short_channel_id"]["short_channel_id"]  # type: bytes
-            next_chan_scid = ShortChannelID(_next_chan_scid)
-        except Exception:
+        if (next_chan_scid := processed_onion.next_chan_scid) is None:
             raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
-        try:
-            next_amount_msat_htlc = processed_onion.hop_data.payload["amt_to_forward"]["amt_to_forward"]
-        except Exception:
+        if (next_amount_msat_htlc := processed_onion.amt_to_forward) is None:
             raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
-        try:
-            next_cltv_abs = processed_onion.hop_data.payload["outgoing_cltv_value"]["outgoing_cltv_value"]
-        except Exception:
+        if (next_cltv_abs := processed_onion.outgoing_cltv_value) is None:
             raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
 
         next_chan = self.get_channel_by_short_id(next_chan_scid)
