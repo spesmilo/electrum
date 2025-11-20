@@ -31,7 +31,7 @@ import dataclasses
 from random import random
 from types import MappingProxyType
 
-from typing import TYPE_CHECKING, Optional, Sequence, NamedTuple, Tuple
+from typing import TYPE_CHECKING, Optional, Sequence, NamedTuple, Tuple, Union
 
 import electrum_ecc as ecc
 
@@ -487,8 +487,7 @@ class OnionMessageManager(Logger):
     - forwards are best-effort. They should not need retrying, but a queue is used to limit the pacing of forwarding,
       and limiting the number of outstanding forwards. Any onion message forwards arriving when the forward queue
       is full will be dropped.
-
-    TODO: iterate through routes for each request"""
+    """
 
     SLEEP_DELAY = 1
     REQUEST_REPLY_TIMEOUT = 30
@@ -497,10 +496,12 @@ class OnionMessageManager(Logger):
     FORWARD_RETRY_DELAY = 2
     FORWARD_MAX_QUEUE = 3
 
-    class Request(NamedTuple):
-        future: asyncio.Future
-        payload: dict
-        node_id_or_blinded_path: bytes
+    class Request:
+        def __init__(self, *, payload: dict, node_id_or_blinded_paths: Union[bytes, Sequence[bytes]]):
+            self.future = asyncio.Future()
+            self.payload = payload
+            self.node_id_or_blinded_paths = node_id_or_blinded_paths
+            self.current_index: int = 0
 
     def __init__(self, lnwallet: 'LNWallet'):
         Logger.__init__(self)
@@ -613,8 +614,8 @@ class OnionMessageManager(Logger):
     def submit_send(
             self, *,
             payload: dict,
-            node_id_or_blinded_path: bytes,
-            key: bytes = None) -> 'Task':
+            node_id_or_blinded_paths: Union[bytes, Sequence[bytes]],
+            key: Optional[bytes] = None) -> 'Task':
         """Add onion message to queue for sending. Queued onion message payloads
            are supplied with a path_id and a reply_path to determine which request
            corresponds with arriving replies.
@@ -626,13 +627,9 @@ class OnionMessageManager(Logger):
             key = os.urandom(8)
         assert type(key) is bytes and len(key) >= 8
 
-        self.logger.debug(f'submit_send {key=} {payload=} {node_id_or_blinded_path=}')
+        self.logger.debug(f'submit_send {key=} {payload=} {node_id_or_blinded_paths=}')
 
-        req = OnionMessageManager.Request(
-            future=asyncio.Future(),
-            payload=payload,
-            node_id_or_blinded_path=node_id_or_blinded_path
-        )
+        req = OnionMessageManager.Request(payload=payload, node_id_or_blinded_paths=node_id_or_blinded_paths)
         with self.pending_lock:
             if key in self.pending:
                 raise Exception(f'{key=} already exists!')
@@ -655,8 +652,15 @@ class OnionMessageManager(Logger):
         """adds reply_path to payload"""
         req = self.pending.get(key)
         payload = req.payload
-        node_id_or_blinded_path = req.node_id_or_blinded_path
-        self.logger.debug(f'send_pending_message {key=} {payload=} {node_id_or_blinded_path=}')
+
+        # get next path (round robin)
+        dests = req.node_id_or_blinded_paths
+        if isinstance(req.node_id_or_blinded_paths, bytes):
+            dests = [req.node_id_or_blinded_paths]
+        dest = dests[req.current_index]
+        req.current_index = (req.current_index + 1) % len(dests)
+
+        self.logger.debug(f'send_pending_message {key=} {payload=} {dest=}')
 
         final_payload = copy.deepcopy(payload)
 
@@ -669,9 +673,10 @@ class OnionMessageManager(Logger):
 
             final_payload['reply_path'] = {'path': reply_paths}
 
-        # TODO: we should try alternate paths when retrying, this is currently not done.
+        # NOTE: we could also try alternate paths to introduction point (the non-blinded part of the route)
+        # when retrying, this is currently not done.
         # (send_onion_message_to decides path, without knowledge of prev attempts)
-        send_onion_message_to(self.lnwallet, node_id_or_blinded_path, final_payload)
+        send_onion_message_to(self.lnwallet, dest, final_payload)
 
     def _path_id_from_payload_and_key(self, payload: dict, key: bytes) -> bytes:
         # TODO: use payload to determine prefix?

@@ -3133,7 +3133,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         assert self.has_channels() or allow_unblinded, 'no channels but blinding required'
 
         path_id = os.urandom(32)  # TODO: move path_id gen get_blinded_reply_paths, unique per path
-        reply_paths = get_blinded_reply_paths(self.lnworker, path_id, max_paths=1)  # max 1 for now
+        reply_paths = get_blinded_reply_paths(self.lnworker, path_id)
         if not len(reply_paths) and not allow_unblinded:
             raise Exception('No suitable channels')
 
