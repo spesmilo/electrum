@@ -283,7 +283,13 @@ def verify_request_and_create_invoice(
         bolt12_invreq: dict,
         invoice_expiry: int = 0,
 ) -> dict:
-    # TODO check offer fields in invreq are equal
+    # - MUST reject the invoice request if the offer fields do not exactly match a valid, unexpired offer.
+    offer_keys = filter(lambda key: 0 <= key[0] <= 159 or 1_000_000_000 <= key[0] <= 2_999_999_999,
+                        OnionWireSerializer.in_tlv_stream_get_record_name_from_type['offer'].items())
+    for ftype, fkey in offer_keys:
+        if not bolt12_offer.get(fkey) == bolt12_invreq.get(fkey):
+            raise Exception(f'invalid bolt12 invoice_request, non-matching offer {fkey=}')
+
     # TODO check constraints, like expiry, offer_amount etc
 
     # spec: MUST reject the invoice request if invreq_payer_id or invreq_metadata are not present.
