@@ -199,7 +199,7 @@ class TestOnionMessage(ElectrumTestCase):
 
         self.assertEqual(pubkey, rp['first_node_id'])
         self.assertEqual(bfh('022ed557f5ad336b31a49857e4e9664954ac33385aa20a93e2d64bfe7f08f51277'), rp['first_path_key'])
-        self.assertEqual(1, rp['num_hops'])
+        self.assertEqual(b"\x01", rp['num_hops'])
         self.assertEqual([{
             'blinded_node_id': bfh('031e5d91e6c417f6e8c16d1086db1887edef7be9334f5e744d04edb8da7507481e'),
             'enclen': 20,
