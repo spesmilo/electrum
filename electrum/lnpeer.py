@@ -21,9 +21,10 @@ from electrum_ecc import ecdsa_sig64_from_r_and_s, ecdsa_der_sig_from_ecdsa_sig6
 import aiorpcx
 from aiorpcx import ignore_after
 
-from .crypto import sha256, sha256d, privkey_to_pubkey
+from .crypto import sha256, sha256d, privkey_to_pubkey, get_ecdh
 from . import bitcoin, util
 from . import constants
+from .onion_message import blinding_privkey
 from .util import (log_exceptions, ignore_exceptions, chunks, OldTaskGroup,
                    UnrelatedTransactionException, error_text_bytes_to_safe_str, AsyncHangDetector,
                    NoDynamicFeeEstimates, event_listener, EventListener)
@@ -35,8 +36,8 @@ from .lnrouter import RouteEdge
 from .lnonion import (new_onion_packet, OnionFailureCode, calc_hops_data_for_payment, process_onion_packet,
                       OnionPacket, construct_onion_error, obfuscate_onion_error, OnionRoutingFailure,
                       ProcessedOnionPacket, UnsupportedOnionPacketVersion, InvalidOnionMac, InvalidOnionPubkey,
-                      OnionFailureCodeMetaFlag)
-from .lnchannel import Channel, RevokeAndAck, ChannelState, PeerState, ChanCloseOption, CF_ANNOUNCE_CHANNEL
+                      OnionFailureCodeMetaFlag, calc_hops_data_for_blinded_payment, decrypt_onionmsg_data_tlv)
+from .lnchannel import Channel, RevokeAndAck, RemoteCtnTooFarInFuture, ChannelState, PeerState, ChanCloseOption, CF_ANNOUNCE_CHANNEL
 from . import lnutil
 from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc, ChannelConfig,
                      RemoteConfig, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore,
@@ -1964,6 +1965,7 @@ class Peer(Logger, EventListener):
             min_final_cltv_delta: int,
             payment_secret: bytes,
             trampoline_onion: Optional[OnionPacket] = None,
+            bolt12_invoice: Optional[dict] = None,
         ) -> UpdateAddHtlc:
 
         assert amount_msat > 0, "amount_msat is not greater zero"
@@ -1977,7 +1979,8 @@ class Peer(Logger, EventListener):
             payment_hash=payment_hash,
             min_final_cltv_delta=min_final_cltv_delta,
             payment_secret=payment_secret,
-            trampoline_onion=trampoline_onion
+            trampoline_onion=trampoline_onion,
+            bolt12_invoice=bolt12_invoice,
         )
         htlc = self.send_htlc(
             chan=chan,
@@ -2061,12 +2064,14 @@ class Peer(Logger, EventListener):
         cltv_abs = payload["cltv_expiry"]
         amount_msat_htlc = payload["amount_msat"]
         onion_packet = payload["onion_routing_packet"]
+        blinding = payload.get("update_add_htlc_tlvs", {}).get("blinded_path", {}).get("path_key")
         htlc = UpdateAddHtlc(
             amount_msat=amount_msat_htlc,
             payment_hash=payment_hash,
             cltv_abs=cltv_abs,
             timestamp=int(time.time()),
-            htlc_id=htlc_id)
+            htlc_id=htlc_id,
+            blinding=blinding)
         self.logger.info(f"on_update_add_htlc. chan {chan.short_channel_id}. htlc={str(htlc)}")
         if chan.get_state() != ChannelState.OPEN:
             raise RemoteMisbehaving(f"received update_add_htlc while chan.get_state() != OPEN. state was {chan.get_state()!r}")
@@ -2113,11 +2118,29 @@ class Peer(Logger, EventListener):
             raise OnionRoutingFailure(
                 code=OnionFailureCode.FINAL_INCORRECT_CLTV_EXPIRY,
                 data=htlc.cltv_abs.to_bytes(4, byteorder="big"))
-        try:
-            total_msat = processed_onion.hop_data.payload["payment_data"]["total_msat"]  # type: int
-        except Exception:
-            log_fail_reason(f"'total_msat' missing from onion")
-            raise exc_incorrect_or_unknown_pd
+
+        if htlc.blinding:  # payment over blinded path
+            # spec: MUST return an error if the payload contains other tlv fields than encrypted_recipient_data,
+            # current_path_key, amt_to_forward, outgoing_cltv_value and total_amount_msat.
+            assert all(x in ['encrypted_recipient_data', 'current_blinding_point', 'amt_to_forward', 'outgoing_cltv_value', 'total_amount_msat']
+                       for x in processed_onion.hop_data.payload.keys())
+            shared_secret = get_ecdh(self.privkey, htlc.blinding)
+            recipient_data = decrypt_onionmsg_data_tlv(
+                shared_secret=shared_secret,
+                encrypted_recipient_data=processed_onion.hop_data.payload['encrypted_recipient_data']['encrypted_data']
+            )
+            payment_secret_from_onion = recipient_data['path_id']['data']
+            try:
+                total_msat = processed_onion.hop_data.payload['total_amount_msat']['total_msat']
+            except Exception as e:
+                log_fail_reason(f"'total_msat' missing from onion")
+                raise exc_incorrect_or_unknown_pd
+        else:
+            try:
+                total_msat = processed_onion.hop_data.payload["payment_data"]["total_msat"]  # type: int
+            except Exception:
+                log_fail_reason(f"'total_msat' missing from onion")
+                raise exc_incorrect_or_unknown_pd
 
         if chan.opening_fee:
             channel_opening_fee = chan.opening_fee['channel_opening_fee']  # type: int
@@ -2132,11 +2155,12 @@ class Peer(Logger, EventListener):
                 code=OnionFailureCode.FINAL_INCORRECT_HTLC_AMOUNT,
                 data=htlc.amount_msat.to_bytes(8, byteorder="big"))
 
-        try:
-            payment_secret_from_onion = processed_onion.hop_data.payload["payment_data"]["payment_secret"]  # type: bytes
-        except Exception:
-            log_fail_reason(f"'payment_secret' missing from onion")
-            raise exc_incorrect_or_unknown_pd
+        if not htlc.blinding:
+            try:
+                payment_secret_from_onion = processed_onion.hop_data.payload["payment_data"]["payment_secret"]  # type: bytes
+            except Exception:
+                log_fail_reason(f"'payment_secret' missing from onion")
+                raise exc_incorrect_or_unknown_pd
 
         return payment_secret_from_onion, total_msat, channel_opening_fee, exc_incorrect_or_unknown_pd
 
@@ -2792,7 +2816,7 @@ class Peer(Logger, EventListener):
                     onion_packet = None
                     try:
                         onion_packet = OnionPacket.from_bytes(onion_packet_bytes)
-                    except OnionRoutingFailure as e:
+                    except OnionRoutingFailure as e:  # NOTE: never reached?
                         error_reason = e
                     else:
                         try:
@@ -2806,6 +2830,7 @@ class Peer(Logger, EventListener):
                                 assert forwarding_key is None
                                 unfulfilled[htlc_id] = onion_packet_hex, _forwarding_key
                         except OnionRoutingFailure as e:
+                            self.logger.debug(f'OnionRoutingFailure: {e.code!r}')
                             error_bytes = construct_onion_error(e, onion_packet.public_key, self.privkey, self.network.get_local_height())
                         if error_bytes:
                             error_bytes = obfuscate_onion_error(error_bytes, onion_packet.public_key, our_onion_private_key=self.privkey)
@@ -2872,6 +2897,7 @@ class Peer(Logger, EventListener):
         processed_onion = self.process_onion_packet(
             onion_packet,
             payment_hash=payment_hash,
+            blinding=htlc.blinding,
             onion_packet_bytes=onion_packet_bytes)
 
         preimage, forwarding_info = self.maybe_fulfill_htlc(
@@ -2938,13 +2964,16 @@ class Peer(Logger, EventListener):
             onion_packet: OnionPacket, *,
             payment_hash: bytes,
             onion_packet_bytes: bytes,
+            blinding: bytes = None,
             is_trampoline: bool = False) -> ProcessedOnionPacket:
 
         failure_data = sha256(onion_packet_bytes)
+        privkey = blinding_privkey(privkey=self.privkey, blinding=blinding) if blinding else self.privkey
+
         try:
             processed_onion = process_onion_packet(
                 onion_packet,
-                our_onion_private_key=self.privkey,
+                our_onion_private_key=privkey,
                 associated_data=payment_hash,
                 is_trampoline=is_trampoline)
         except UnsupportedOnionPacketVersion:

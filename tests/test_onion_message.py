@@ -6,6 +6,7 @@ import dataclasses
 import logging
 from functools import partial
 from types import MappingProxyType
+from aiorpcx import NetAddress
 
 import electrum_ecc as ecc
 from electrum_ecc import ECPrivkey
@@ -13,15 +14,14 @@ from electrum_ecc import ECPrivkey
 from electrum import SimpleConfig
 from electrum.lnmsg import decode_msg, OnionWireSerializer
 from electrum.lnonion import (
-    OnionHopsDataSingle, OnionPacket,
-    process_onion_packet, get_bolt04_onion_key, encrypt_onionmsg_data_tlv,
-    get_shared_secrets_along_route, new_onion_packet, ONION_MESSAGE_LARGE_SIZE,
-    HOPS_DATA_SIZE, InvalidPayloadSize)
+    OnionHopsDataSingle, OnionPacket, process_onion_packet, get_bolt04_onion_key, encrypt_onionmsg_data_tlv,
+    get_shared_secrets_along_route, new_onion_packet, ONION_MESSAGE_LARGE_SIZE, HOPS_DATA_SIZE, InvalidPayloadSize,
+    encrypt_hops_recipient_data)
 from electrum.crypto import get_ecdh, privkey_to_pubkey
+from electrum.lntransport import LNPeerAddr
 from electrum.lnutil import LnFeatures, Keypair
 from electrum.onion_message import (
-    blinding_privkey, create_blinded_path, encrypt_onionmsg_tlv_hops_data,
-    OnionMessageManager, NoRouteFound, Timeout
+    blinding_privkey, create_blinded_path,OnionMessageManager, NoRouteFound, Timeout
 )
 from electrum.util import bfh, read_json_file, OldTaskGroup, get_asyncio_loop
 from electrum.logging import console_stderr_handler
@@ -104,7 +104,7 @@ class TestOnionMessage(ElectrumTestCase):
             )
         ]
 
-        encrypt_onionmsg_tlv_hops_data(hops_data, hop_shared_secrets)
+        encrypt_hops_recipient_data('onionmsg_tlv', hops_data, hop_shared_secrets)
         packet = new_onion_packet(blinded_node_ids, SESSION_KEY, hops_data, onion_message=True)
         self.assertEqual(packet.to_bytes(), ONION_MESSAGE_PACKET)
 
@@ -126,18 +126,19 @@ class TestOnionMessage(ElectrumTestCase):
                 ),
             ]
         hops_data = hops_data_for_message('short_message')  # fit in HOPS_DATA_SIZE
-        encrypt_onionmsg_tlv_hops_data(hops_data, hop_shared_secrets)
+        encrypt_hops_recipient_data('onionmsg_tlv', hops_data, hop_shared_secrets)
         packet = new_onion_packet(blinded_node_ids, SESSION_KEY, hops_data, onion_message=True)
         self.assertEqual(len(packet.to_bytes()), HOPS_DATA_SIZE + 66)
 
         hops_data = hops_data_for_message('A' * HOPS_DATA_SIZE)  # fit in ONION_MESSAGE_LARGE_SIZE
-        encrypt_onionmsg_tlv_hops_data(hops_data, hop_shared_secrets)
+        encrypt_hops_recipient_data('onionmsg_tlv', hops_data, hop_shared_secrets)
         packet = new_onion_packet(blinded_node_ids, SESSION_KEY, hops_data, onion_message=True)
 
         self.assertEqual(len(packet.to_bytes()), ONION_MESSAGE_LARGE_SIZE + 66)
 
         hops_data = hops_data_for_message('A' * ONION_MESSAGE_LARGE_SIZE)  # does not fit in ONION_MESSAGE_LARGE_SIZE
-        encrypt_onionmsg_tlv_hops_data(hops_data, hop_shared_secrets)
+        encrypt_hops_recipient_data('onionmsg_tlv', hops_data, hop_shared_secrets)
+
         with self.assertRaises(InvalidPayloadSize):
             new_onion_packet(blinded_node_ids, SESSION_KEY, hops_data, onion_message=True)
 
@@ -261,7 +262,7 @@ class TestOnionMessage(ElectrumTestCase):
             )
         payment_path_pubkeys = blinded_node_ids + blinded_path_blinded_ids
         hop_shared_secrets, _ = get_shared_secrets_along_route(payment_path_pubkeys, SESSION_KEY)
-        encrypt_onionmsg_tlv_hops_data(hops_data, hop_shared_secrets)
+        encrypt_hops_recipient_data('onionmsg_tlv', hops_data, hop_shared_secrets)
         packet = new_onion_packet(payment_path_pubkeys, SESSION_KEY, hops_data, onion_message=True)
         self.assertEqual(packet.to_bytes(), ONION_MESSAGE_PACKET)
 
@@ -323,11 +324,12 @@ class TestOnionMessageManager(ElectrumTestCase):
         self.carol = keypair(ECPrivkey(privkey_bytes=b'\x43'*32))
         self.dave = keypair(ECPrivkey(privkey_bytes=b'\x44'*32))
         self.eve = keypair(ECPrivkey(privkey_bytes=b'\x45'*32))
+        self.fred = keypair(ECPrivkey(privkey_bytes=b'\x46'*32))
 
     async def run_test1(self, t):
         t1 = t.submit_send(
             payload={'message': {'text': 'alice_timeout'.encode('utf-8')}},
-            node_id_or_blinded_path=self.alice.pubkey)
+            node_id_or_blinded_paths=self.alice.pubkey)
 
         with self.assertRaises(Timeout):
             await t1
@@ -335,7 +337,7 @@ class TestOnionMessageManager(ElectrumTestCase):
     async def run_test2(self, t):
         t2 = t.submit_send(
             payload={'message': {'text': 'bob_slow_timeout'.encode('utf-8')}},
-            node_id_or_blinded_path=self.bob.pubkey)
+            node_id_or_blinded_paths=self.bob.pubkey)
 
         with self.assertRaises(Timeout):
             await t2
@@ -343,7 +345,7 @@ class TestOnionMessageManager(ElectrumTestCase):
     async def run_test3(self, t, rkey):
         t3 = t.submit_send(
             payload={'message': {'text': 'carol_with_immediate_reply'.encode('utf-8')}},
-            node_id_or_blinded_path=self.carol.pubkey,
+            node_id_or_blinded_paths=self.carol.pubkey,
             key=rkey)
 
         t3_result = await t3
@@ -352,7 +354,7 @@ class TestOnionMessageManager(ElectrumTestCase):
     async def run_test4(self, t, rkey):
         t4 = t.submit_send(
             payload={'message': {'text': 'dave_with_slow_reply'.encode('utf-8')}},
-            node_id_or_blinded_path=self.dave.pubkey,
+            node_id_or_blinded_paths=self.dave.pubkey,
             key=rkey)
 
         t4_result = await t4
@@ -361,10 +363,23 @@ class TestOnionMessageManager(ElectrumTestCase):
     async def run_test5(self, t):
         t5 = t.submit_send(
             payload={'message': {'text': 'no_peer'.encode('utf-8')}},
-            node_id_or_blinded_path=self.eve.pubkey)
+            node_id_or_blinded_paths=self.eve.pubkey)
 
-        with self.assertRaises(NoRouteFound):
+        # will not find eve, but has
+        with self.assertRaises(NoRouteFound) as c:
             await t5
+        self.assertEqual(c.exception.peer_address, LNPeerAddr('localhost', 1234, self.eve.pubkey))
+
+    async def run_test6(self, t, rkey):
+        # bob will not reply, fred will
+        t6 = t.submit_send(
+            payload={'message': {'text': 'send_dest_roundrobin'.encode('utf-8')}},
+            node_id_or_blinded_paths=[self.bob.pubkey, self.fred.pubkey],
+            key=rkey
+        )
+
+        t6_result = await t6
+        self.assertEqual(t6_result, ({'path_id': {'data': b'electrum' + rkey}}, {}))
 
     async def test_request_and_reply(self):
         n = MockNetwork()
@@ -384,11 +399,14 @@ class TestOnionMessageManager(ElectrumTestCase):
 
         rkey1 = bfh('0102030405060708')
         rkey2 = bfh('0102030405060709')
+        rkey3 = bfh('010203040506070a')
 
         lnw.peers[self.alice.pubkey] = MockPeer(self.alice.pubkey)
         lnw.peers[self.bob.pubkey] = MockPeer(self.bob.pubkey, on_send_message=slow)
         lnw.peers[self.carol.pubkey] = MockPeer(self.carol.pubkey, on_send_message=partial(withreply, rkey1))
         lnw.peers[self.dave.pubkey] = MockPeer(self.dave.pubkey, on_send_message=partial(slowwithreply, rkey2))
+        lnw.channel_db._addresses[self.eve.pubkey] = {NetAddress('localhost', '1234'): int(time.time())}
+        lnw.peers[self.fred.pubkey] = MockPeer(self.fred.pubkey, on_send_message=partial(withreply, rkey3))
         t = OnionMessageManager(lnw)
         t.start_network(network=n)
 
@@ -400,6 +418,7 @@ class TestOnionMessageManager(ElectrumTestCase):
             await self.run_test3(t, rkey1)
             await self.run_test4(t, rkey2)
             await self.run_test5(t)
+            await self.run_test6(t, rkey3)
             self.logger.debug('tests in parallel')
             async with OldTaskGroup() as group:
                 await group.spawn(self.run_test1(t))
@@ -407,6 +426,7 @@ class TestOnionMessageManager(ElectrumTestCase):
                 await group.spawn(self.run_test3(t, rkey1))
                 await group.spawn(self.run_test4(t, rkey2))
                 await group.spawn(self.run_test5(t))
+                await group.spawn(self.run_test6(t, rkey3))
         finally:
             await asyncio.sleep(TIME_STEP)
 
