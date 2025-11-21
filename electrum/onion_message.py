@@ -115,7 +115,7 @@ def create_blinded_path(
     blinded_path = {
         'first_node_id': introduction_point,
         'first_path_key': blinding,
-        'num_hops': len(onionmsg_hops),
+        'num_hops': bytes([len(onionmsg_hops)]),
         'path': onionmsg_hops
     }
 
@@ -604,7 +604,7 @@ class OnionMessageManager(Logger):
             path_id = self._path_id_from_payload_and_key(payload, key)
             reply_paths = get_blinded_reply_paths(self.lnwallet, path_id, max_paths=1)
             if not reply_paths:
-                raise Exception(f'Could not create a reply_path for {key=}')
+                raise Exception(f'Could not create a reply_path for {key=}. No active peers?')
 
             final_payload['reply_path'] = {'path': reply_paths}
 
