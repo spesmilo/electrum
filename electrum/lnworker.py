@@ -3716,7 +3716,7 @@ class LNWallet(LNWorker):
             total_msat=total_msat,
             payment_secret=payment_secret)
         num_hops = len(hops_data)
-        self.logger.info(f"pay len(route)={len(route)}")
+        self.logger.info(f"pay len(route)={len(route)}. for payment_hash={payment_hash.hex()}")
         for i in range(len(route)):
             self.logger.info(f"  {i}: edge={route[i].short_channel_id} hop_data={hops_data[i]!r}")
         assert final_cltv_abs <= cltv_abs, (final_cltv_abs, cltv_abs)
