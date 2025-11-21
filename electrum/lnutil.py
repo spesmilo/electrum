@@ -1934,26 +1934,86 @@ class UpdateAddHtlc:
 
 # Note: these states are persisted in the wallet file.
 # Do not modify them without performing a wallet db upgrade
+# todo: if this changes again states could also be persisted by name instead of int value as done for ChannelState
 class RecvMPPResolution(IntEnum):
-    WAITING = 0
-    EXPIRED = 1
-    COMPLETE = 2
-    FAILED = 3
+    WAITING = 0  # set is not complete yet, waiting for arrival of the remaining htlcs
+    EXPIRED = 1  # preimage must not be revealed
+    COMPLETE = 2  # set is complete but could still be failed (e.g. due to cltv timeout)
+    FAILED = 3  # preimage must not be revealed
+    SETTLING = 4  # Must not be failed, should be settled asap.
+                  # Also used when forwarding (for upstream), in which case a downstream
+                  # forwarding failure could still result in transitioning to FAILED.
+
+
+r = RecvMPPResolution
+allowed_mpp_set_transitions = (
+    (r.WAITING, r.EXPIRED),
+    (r.WAITING, r.FAILED),
+    (r.WAITING, r.COMPLETE),
+    (r.WAITING, r.SETTLING),  # normal htlc forwarding
+
+    (r.COMPLETE, r.SETTLING),
+    (r.COMPLETE, r.FAILED),
+    (r.COMPLETE, r.EXPIRED),  # this should only realistically happen for payment bundles
+
+    (r.SETTLING, r.FAILED),  # forwarding failure, hold invoice callback gets unregistered, and we don't have preimage
+
+    (r.EXPIRED, r.FAILED),  # doesn't seem useful but also not dangerous
+)
+del r
+
+
+class ReceivedMPPHtlc(NamedTuple):
+    scid: ShortChannelID
+    htlc: UpdateAddHtlc
+    unprocessed_onion: str
+
+    def __repr__(self):
+        return f"{self.scid}, {self.htlc=}, {self.unprocessed_onion[:15]=}..."
+
+    @staticmethod
+    def from_tuple(scid, htlc, unprocessed_onion) -> 'ReceivedMPPHtlc':
+        assert is_hex_str(unprocessed_onion) and is_hex_str(scid)
+        return ReceivedMPPHtlc(
+            scid=ShortChannelID(bytes.fromhex(scid)),
+            htlc=UpdateAddHtlc.from_tuple(*htlc),
+            unprocessed_onion=unprocessed_onion,
+        )
 
 
 class ReceivedMPPStatus(NamedTuple):
     resolution: RecvMPPResolution
-    expected_msat: int
-    htlc_set: Set[Tuple[ShortChannelID, UpdateAddHtlc]]
+    htlcs: set[ReceivedMPPHtlc]
+    # parent_set_key is needed as trampoline allows MPP to be nested, the parent_set_key is the
+    # payment key of the final mpp set (derived from inner trampoline onion payment secret)
+    # to which the separate trampoline sets htlcs get added once they are complete.
+    # https://github.com/lightning/bolts/pull/829/commits/bc7a1a0bc97b2293e7f43dd8a06529e5fdcf7cd2
+    parent_set_key: str = None
+
+    def get_first_htlc_timestamp(self) -> Optional[int]:
+        return min([mpp_htlc.htlc.timestamp for mpp_htlc in self.htlcs], default=None)
+
+    def get_closest_cltv_abs(self) -> Optional[int]:
+        return min([mpp_htlc.htlc.cltv_abs for mpp_htlc in self.htlcs], default=None)
+
+    def get_payment_hash(self) -> Optional[bytes]:
+        mpp_htlcs = iter(self.htlcs)
+        first_mpp_htlc = next(mpp_htlcs, None)
+        payment_hash = first_mpp_htlc.htlc.payment_hash if first_mpp_htlc else None
+        for mpp_htlc in mpp_htlcs:
+            assert mpp_htlc.htlc.payment_hash == payment_hash, "mpp set with inconsistent payment hashes"
+        return payment_hash
 
     @staticmethod
     @stored_in('received_mpp_htlcs', tuple)
-    def from_tuple(resolution, expected_msat, htlc_list) -> 'ReceivedMPPStatus':
-        htlc_set = set([(ShortChannelID(bytes.fromhex(scid)), UpdateAddHtlc.from_tuple(*x)) for (scid, x) in htlc_list])
+    def from_tuple(resolution, htlc_list, parent_set_key=None) -> 'ReceivedMPPStatus':
+        assert isinstance(resolution, int)
+        htlc_set = set(ReceivedMPPHtlc.from_tuple(*htlc_data) for htlc_data in htlc_list)
         return ReceivedMPPStatus(
             resolution=RecvMPPResolution(resolution),
-            expected_msat=expected_msat,
-            htlc_set=htlc_set)
+            htlcs=htlc_set,
+            parent_set_key=parent_set_key,
+        )
 
 
 class OnionFailureCodeMetaFlag(IntFlag):
