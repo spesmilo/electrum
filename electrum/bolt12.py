@@ -283,6 +283,8 @@ def verify_request_and_create_invoice(
         bolt12_invreq: dict,
         invoice_expiry: int = 0,
 ) -> dict:
+    now = int(time.time())
+
     # - MUST reject the invoice request if the offer fields do not exactly match a valid, unexpired offer.
     offer_keys = filter(lambda key: 0 <= key[0] <= 159 or 1_000_000_000 <= key[0] <= 2_999_999_999,
                         OnionWireSerializer.in_tlv_stream_get_record_name_from_type['offer'].items())
@@ -291,6 +293,9 @@ def verify_request_and_create_invoice(
             raise Exception(f'invalid bolt12 invoice_request, non-matching offer {fkey=}')
 
     # TODO check constraints, like expiry, offer_amount etc
+    if offer_expiry := bolt12_offer.get('offer_absolute_expiry', {}).get('seconds_from_epoch'):
+        if now > offer_expiry:
+            raise Bolt12InvoiceError('offer expired')
 
     # spec: MUST reject the invoice request if invreq_payer_id or invreq_metadata are not present.
     # NOTE: invreq_payer_id already checked as part of signature verification
@@ -319,7 +324,6 @@ def verify_request_and_create_invoice(
 
     invoice_payment_hash = lnwallet.create_payment_info(amount_msat=amount_msat)  # TODO cltv, expiry
 
-    now = int(time.time())
     if invoice_expiry <= 0:
         invoice_expiry = DEFAULT_INVOICE_EXPIRY
     invoice.update({
@@ -372,12 +376,32 @@ def verify_request_and_create_invoice(
     return invoice
 
 
-# wraps remote invoice_error
-class Bolt12InvoiceError(Exception): pass
+# wraps invoice_error
+class Bolt12InvoiceError(Exception):
+    def __init__(self, msg: str, *, erroneous_field: Optional[int] = None, suggested_value: Optional[bytes] = None):
+        assert msg
+        assert suggested_value is None if erroneous_field is None else True
+
+        super().__init__(self, msg)
+        self.message = msg
+        self.erroneous_field = erroneous_field
+        self.suggested_value = suggested_value
+
+    def to_tlv(self):
+        data = {'error': {'msg': self.message}}
+        if self.erroneous_field is not None:
+            data.update({'erroneous_field': {'tlv_fieldnum': self.erroneous_field}})
+        if self.suggested_value is not None:
+            data.update({'suggested_value': {'value': self.suggested_value}})
+        with io.BytesIO() as fd:
+            OnionWireSerializer.write_tlv_stream(fd=fd, tlv_stream_name='invoice_error', **data)
+            return fd.getvalue()
 
 
 def _raise_invoice_error(payload):
     invoice_error_tlv = payload['invoice_error']['invoice_error']
     with io.BytesIO(invoice_error_tlv) as fd:
         invoice_error = OnionWireSerializer.read_tlv_stream(fd=fd, tlv_stream_name='invoice_error')
-    raise Bolt12InvoiceError(invoice_error.get('error', {}).get('msg'))
+    raise Bolt12InvoiceError(invoice_error.get('error', {}).get('msg'),
+                             erroneous_field=invoice_error.get('erroneous_field', {}).get('tlv_fieldnum'),
+                             suggested_value=invoice_error.get('suggested_value', {}).get('value'))

@@ -29,7 +29,7 @@ import dns.asyncresolver
 import dns.exception
 from aiorpcx import run_in_thread, NetAddress, ignore_after
 
-from .bolt12 import encode_invoice
+from .bolt12 import encode_invoice, Bolt12InvoiceError
 from .logging import Logger
 from .i18n import _
 from .json_db import stored_in
@@ -4041,10 +4041,11 @@ class LNWallet(LNWorker):
             else:
                 node_id_or_blinded_path = invreq['invreq_payer_id']
 
-        invoice = bolt12.verify_request_and_create_invoice(self, offer, invreq)
-        if invoice is None:  # TODO: use exception, not None
-            self.logger.error('could not generate invoice')
-            # TODO: send invoice_error if request not totally bogus
+        try:
+            invoice = bolt12.verify_request_and_create_invoice(self, offer, invreq)
+        except Bolt12InvoiceError as e:
+            error_payload = {'invoice_error': {'invoice_error': e.to_tlv()}}
+            send_onion_message_to(self, node_id_or_blinded_path, error_payload)
             return
 
         destination_payload = {
