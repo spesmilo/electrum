@@ -396,6 +396,8 @@ def process_onion_packet(
     # trampoline
     trampoline_onion_packet = hop_data.payload.get('trampoline_onion_packet')
     if trampoline_onion_packet:
+        if is_trampoline:
+            raise Exception("found nested trampoline inside trampoline")
         top_version = trampoline_onion_packet.get('version')
         top_public_key = trampoline_onion_packet.get('public_key')
         top_hops_data = trampoline_onion_packet.get('hops_data')
