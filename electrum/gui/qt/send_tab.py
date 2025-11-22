@@ -338,9 +338,24 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         coins_conservative = get_coins(nonlocal_only=True, confirmed_only=True)
         candidates = self.wallet.get_candidates_for_batching(outputs, coins=coins_conservative)
 
-        tx, is_preview = self.window.confirm_tx_dialog(make_tx, output_value, batching_candidates=candidates)
+        submarine_payment_payee_outputs = [o for o in outputs if not o.is_change]
+        if is_max and submarine_payment_payee_outputs:
+            # replace '!' max value with amount_e int value as the swap logic should use the same
+            # amount that is shown here in the send tab. It can be set on the first value as
+            # submarine payments are only possible with a single TxOutput and will err if
+            # there are more outputs anyway.
+            submarine_payment_payee_outputs[0].value = int(self.amount_e.get_amount() or 0)
+
+        tx, is_preview, paid_with_swap = self.window.confirm_tx_dialog(
+            make_tx,
+            output_value,
+            payee_outputs=submarine_payment_payee_outputs,
+            batching_candidates=candidates,
+        )
         if tx is None:
-            # user cancelled
+            if paid_with_swap:
+                self.do_clear()
+            # user cancelled or paid with swap
             return
 
         if swap_dummy_output := tx.get_dummy_output(DummyAddress.SWAP):

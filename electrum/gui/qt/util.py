@@ -1522,6 +1522,21 @@ def set_windows_os_screenshot_protection_drm_flag(window: QWidget) -> None:
     except Exception:
         _logger.exception(f"failed to set windows screenshot protection flag")
 
+
+def debug_widget_layouts(gui_element: QObject):
+    """Draw red borders around all widgets of given QObject for debugging.
+    E.g. add util.debug_widget_layouts(self) at the end of TxEditor.__init__
+    """
+    assert isinstance(gui_element, QObject) and hasattr(gui_element, 'findChildren')
+    def set_border(widget):
+        if widget is not None:
+            widget.setStyleSheet(widget.styleSheet() + " * { border: 1px solid red; }")
+
+    # Apply to all child widgets recursively
+    for widget in gui_element.findChildren(QWidget):
+        set_border(widget)
+
+
 class _ABCQObjectMeta(type(QObject), ABCMeta): pass
 class _ABCQWidgetMeta(type(QWidget), ABCMeta): pass
 class AbstractQObject(QObject, ABC, metaclass=_ABCQObjectMeta): pass
