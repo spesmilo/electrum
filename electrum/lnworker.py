@@ -886,8 +886,9 @@ class LNWallet(LNWorker):
         LNWorker.__init__(self, self.node_keypair, features, config=self.config)
         self.lnwatcher = LNWatcher(self)
         self.lnrater: LNRater = None
-        # lightning_payments: RHASH -> amount_msat, direction, status, min_final_cltv_delta, expiry_delay, creation_ts
-        self.payment_info = self.db.get_dict('lightning_payments')  # type: dict[str, Tuple[Optional[int], int, int, int, int, int]]
+        # lightning_payments: RHASH -> amount_msat, status, min_final_cltv_delta, expiry_delay, creation_ts
+        self.received_payment_info = self.db.get_dict('received_lightning_payments')  # type: dict[str, Tuple[Optional[int], int, int, int, int]]
+        self.sent_payment_info = self.db.get_dict('sent_lightning_payments')  # type: dict[str, Tuple[Optional[int], int, int, int, int]]
         self._preimages = self.db.get_dict('lightning_preimages')   # RHASH -> preimage
         self._bolt11_cache = {}
         # note: this sweep_address is only used as fallback; as it might result in address-reuse
@@ -1087,7 +1088,7 @@ class LNWallet(LNWorker):
         return out
 
     def get_payment_value(
-            self, info: Optional['PaymentInfo'],
+            self, sent_info: Optional['PaymentInfo'],
             plist: List[HTLCWithStatus]
     ) -> Tuple[PaymentDirection, int, Optional[int], int]:
         """ fee_msat is included in amount_msat"""
@@ -1095,7 +1096,7 @@ class LNWallet(LNWorker):
         amount_msat = sum(int(x.direction) * x.htlc.amount_msat for x in plist)
         if all(x.direction == SENT for x in plist):
             direction = PaymentDirection.SENT
-            fee_msat = (- info.amount_msat - amount_msat) if info else None
+            fee_msat = (- sent_info.amount_msat - amount_msat) if sent_info else None
         elif all(x.direction == RECEIVED for x in plist):
             direction = PaymentDirection.RECEIVED
             fee_msat = None
@@ -1118,12 +1119,12 @@ class LNWallet(LNWorker):
             if len(plist) == 0:
                 continue
             key = payment_hash.hex()
-            info = self.get_payment_info(payment_hash)
+            sent_info = self.get_payment_info(payment_hash, direction=SENT)
             # note: just after successfully paying an invoice using MPP, amount and fee values might be shifted
             #       temporarily: the amount only considers 'settled' htlcs (see plist above), but we might also
             #       have some inflight htlcs still. Until all relevant htlcs settle, the amount will be lower than
             #       expected and the fee higher (the inflight htlcs will be effectively counted as fees).
-            direction, amount_msat, fee_msat, timestamp = self.get_payment_value(info, plist)
+            direction, amount_msat, fee_msat, timestamp = self.get_payment_value(sent_info, plist)
             label = self.wallet.get_label_for_rhash(key)
             if not label and direction == PaymentDirection.FORWARDING:
                 label = _('Forwarding')
@@ -2434,23 +2435,27 @@ class LNWallet(LNWorker):
         preimage_bytes = self.get_preimage(bytes.fromhex(payment_hash)) or b""
         return preimage_bytes.hex() or None
 
-    def get_payment_info(self, payment_hash: bytes) -> Optional[PaymentInfo]:
+    def get_payment_info(self, payment_hash: bytes, *, direction: lnutil.Direction) -> Optional[PaymentInfo]:
         """returns None if payment_hash is a payment we are forwarding"""
         key = payment_hash.hex()
+        assert direction in (SENT, RECEIVED), f"invalid {direction=}"
         with self.lock:
-            if key in self.payment_info:
-                stored_tuple = self.payment_info[key]
-                amount_msat, direction, status, min_final_cltv_delta, expiry_delay, creation_ts = stored_tuple
-                return PaymentInfo(
-                    payment_hash=payment_hash,
-                    amount_msat=amount_msat,
-                    direction=direction,
-                    status=status,
-                    min_final_cltv_delta=min_final_cltv_delta,
-                    expiry_delay=expiry_delay,
-                    creation_ts=creation_ts,
-                )
-            return None
+            if direction == RECEIVED:
+                stored_tuple = self.received_payment_info.get(key)
+            elif direction == SENT:
+                stored_tuple = self.sent_payment_info.get(key)
+            if stored_tuple is None:
+                return None
+            amount_msat, status, min_final_cltv_delta, expiry_delay, creation_ts = stored_tuple
+            return PaymentInfo(
+                payment_hash=payment_hash,
+                amount_msat=amount_msat,
+                direction=direction,
+                status=status,
+                min_final_cltv_delta=min_final_cltv_delta,
+                expiry_delay=expiry_delay,
+                creation_ts=creation_ts,
+            )
 
     def add_payment_info_for_hold_invoice(
         self,
@@ -2489,7 +2494,7 @@ class LNWallet(LNWorker):
                     # differs more than in status. let's fail
                     raise Exception(f"payment_hash already in use: {info=} != {old_info=}")
             key = info.payment_hash.hex()
-            self.payment_info[key] = dataclasses.astuple(info)[1:]  # drop the payment hash at index 0
+            self.received_payment_info[key] = dataclasses.astuple(info)[1:]  # drop the payment hash at index 0
         if write_to_disk:
             self.wallet.save_db()
 
@@ -2863,7 +2868,8 @@ class LNWallet(LNWorker):
         # and get_lightning_history assumes that payment_info is there.
         assert self.get_payment_status(bytes.fromhex(payment_hash_hex)) != PR_PAID
         with self.lock:
-            self.payment_info.pop(payment_hash_hex, None)
+            self.received_payment_info.pop(payment_hash_hex, None)
+            self.sent_payment_info.pop(payment_hash_hex, None)
 
     def get_balance(self, *, frozen=False) -> Decimal:
         with self.lock:
