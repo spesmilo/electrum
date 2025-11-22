@@ -141,7 +141,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         from .request_list import RequestList
         self.request_list = RequestList(self)
         # toolbar
-        self.toolbar, menu = self.request_list.create_toolbar_with_menu('')
+        self.toolbar, menu = self.request_list.create_toolbar_with_menu('', 'tab_receive.png')
 
         self.toggle_qr_button = QPushButton('')
         self.toggle_qr_button.setIcon(get_icon_qrcode())

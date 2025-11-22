@@ -87,7 +87,7 @@ class UTXOList(MyTreeView):
         self.setSortingEnabled(True)
 
     def create_toolbar(self, config):
-        toolbar, menu = self.create_toolbar_with_menu('')
+        toolbar, menu = self.create_toolbar_with_menu('', 'tab_coins.png')
         self.num_coins_label = toolbar.itemAt(0).widget()
         menu.addAction(_('Coin control'), lambda: self.add_selection_to_coincontrol())
 

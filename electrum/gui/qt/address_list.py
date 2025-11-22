@@ -125,7 +125,7 @@ class AddressList(MyTreeView):
         self.main_window.show_address(addr)
 
     def create_toolbar(self, config: 'SimpleConfig'):
-        toolbar, menu = self.create_toolbar_with_menu('')
+        toolbar, menu = self.create_toolbar_with_menu('', 'tab_addresses.png')
         self.num_addr_label = toolbar.itemAt(0).widget()
         self._toolbar_checkbox = menu.addToggle(_("Show Filter"), lambda: self.toggle_toolbar())
         menu.addConfig(config.cv.FX_SHOW_FIAT_BALANCE_FOR_ADDRESSES, callback=self.main_window.app.update_fiat_signal.emit)
