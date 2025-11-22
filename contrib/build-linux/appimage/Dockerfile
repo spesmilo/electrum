@@ -34,6 +34,8 @@ RUN apt-get update -q && \
         libffi-dev \
         libncurses5-dev \
         libncurses5 \
+        libpcsclite-dev \
+        swig \
         libtinfo-dev \
         libtinfo5 \
         libsqlite3-dev \
