@@ -53,6 +53,15 @@ class SweepInfo(NamedTuple):
         return self.txin.get_block_based_relative_locktime() or 0
 
 
+class KeepWatchingTXO(NamedTuple):
+    """Used for UTXOs we don't yet know if we want to sweep, such as pending hold-invoices."""
+    name: str
+    until_height: int
+
+
+MaybeSweepInfo = SweepInfo | KeepWatchingTXO
+
+
 def sweep_their_ctx_watchtower(
         chan: 'Channel',
         ctx: Transaction,
@@ -281,7 +290,7 @@ def sweep_our_ctx(
         *, chan: 'AbstractChannel',
         ctx: Transaction,
         actual_htlc_tx: Transaction=None, # if passed, return second stage htlcs
-) -> Dict[str, SweepInfo]:
+) -> Dict[str, MaybeSweepInfo]:
 
     """Handle the case where we force-close unilaterally with our latest ctx.
 
@@ -328,7 +337,7 @@ def sweep_our_ctx(
     # other outputs are htlcs
     # if they are spent, we need to generate the script
     # so, second-stage htlc sweep should not be returned here
-    txs = {}  # type: Dict[str, SweepInfo]
+    txs = {}  # type: Dict[str, MaybeSweepInfo]
 
     # local anchor
     if actual_htlc_tx is None and chan.has_anchors():
@@ -417,7 +426,8 @@ def sweep_our_ctx(
                         privkey=our_localdelayed_privkey.get_secret_bytes(),
                         is_revocation=False,
                 ):
-                    txs[actual_htlc_tx.txid() + f':{output_idx}'] = SweepInfo(
+                    prevout = actual_htlc_tx.txid() + f':{output_idx}'
+                    txs[prevout] = SweepInfo(
                         name=f'second-stage-htlc:{output_idx}',
                         cltv_abs=0,
                         txin=sweep_txin,
@@ -437,16 +447,18 @@ def sweep_our_ctx(
         subject=LOCAL,
         ctn=ctn)
     for (direction, htlc), (ctx_output_idx, htlc_relative_idx) in htlc_to_ctx_output_idx_map.items():
+        preimage = None
         if direction == RECEIVED:
-            if not chan.lnworker.is_complete_mpp(htlc.payment_hash):
-                # do not redeem this, it might publish the preimage of an incomplete MPP
-                continue
-            preimage = chan.lnworker.get_preimage(htlc.payment_hash)
+            # note: it is the first stage (witness of htlc_tx) that reveals the preimage,
+            #       so if we are already in second stage, it is already revealed.
+            #       However, here, we don't make a distinction.
+            preimage = _maybe_reveal_preimage_for_htlc(
+                chan=chan, htlc=htlc, txs=txs,
+                prevout=ctx.txid() + ':%d' % ctx_output_idx,
+                sweep_info_name=f"our_ctx_htlc_{ctx_output_idx}",
+            )
             if not preimage:
-                # we might not have the preimage if this is a hold invoice
                 continue
-        else:
-            preimage = None
         try:
             txs_htlc(
                 htlc=htlc,
@@ -457,6 +469,32 @@ def sweep_our_ctx(
         except UneconomicFee:
             continue
     return txs
+
+
+def _maybe_reveal_preimage_for_htlc(
+    *,
+    chan: 'AbstractChannel',
+    htlc: 'UpdateAddHtlc',
+    txs: Dict[str, MaybeSweepInfo],  # mutated in-place!
+    prevout: str,  # commitment txid + output_idx  (so always for first stage)
+    sweep_info_name: str,
+) -> Optional[bytes]:
+    """Given a Remote-added-HTLC, return the preimage if it's okay to reveal it on-chain."""
+    if not chan.lnworker.is_complete_mpp(htlc.payment_hash):
+        # - do not redeem this, it might publish the preimage of an incomplete MPP
+        # - OTOH maybe this chan just got closed, and we are still receiving new htlcs
+        #   for this MPP set. So the MPP set might still transition to complete!
+        #   The MPP_TIMEOUT is only around 2 minutes, so this window is short.
+        #   The default keep_watching logic in lnwatcher is sufficient to call us again.
+        return None
+    if htlc.payment_hash in chan.lnworker.dont_settle_htlcs:
+        txs[prevout] = KeepWatchingTXO(
+            name=sweep_info_name + "_for_hold_invoice",
+            until_height=htlc.cltv_abs,
+        )
+        return None
+    preimage = chan.lnworker.get_preimage(htlc.payment_hash)
+    return preimage
 
 
 def extract_ctx_secrets(chan: 'Channel', ctx: Transaction):
@@ -593,7 +631,7 @@ def sweep_their_ctx_to_remote_backup(
 
 def sweep_their_ctx(
         *, chan: 'Channel',
-        ctx: Transaction) -> Optional[Dict[str, SweepInfo]]:
+        ctx: Transaction) -> Optional[Dict[str, MaybeSweepInfo]]:
     """Handle the case when the remote force-closes with their ctx.
     Sweep outputs that do not have a CSV delay ('to_remote' and first-stage HTLCs).
     Outputs with CSV delay ('to_local' and second-stage HTLCs) are redeemed by LNWatcher.
@@ -607,7 +645,7 @@ def sweep_their_ctx(
 
     Outputs with CSV/CLTV are redeemed by LNWatcher.
     """
-    txs = {}  # type: Dict[str, SweepInfo]
+    txs = {}  # type: Dict[str, MaybeSweepInfo]
     our_conf, their_conf = get_ordered_channel_configs(chan=chan, for_us=True)
     x = extract_ctx_secrets(chan, ctx)
     if not x:
@@ -737,17 +775,16 @@ def sweep_their_ctx(
         subject=REMOTE,
         ctn=ctn)
     for (direction, htlc), (ctx_output_idx, htlc_relative_idx) in htlc_to_ctx_output_idx_map.items():
+        preimage = None
         is_received_htlc = direction == RECEIVED
         if not is_received_htlc and not is_revocation:
-            if not chan.lnworker.is_complete_mpp(htlc.payment_hash):
-                # do not redeem this, it might publish the preimage of an incomplete MPP
-                continue
-            preimage = chan.lnworker.get_preimage(htlc.payment_hash)
+            preimage = _maybe_reveal_preimage_for_htlc(
+                chan=chan, htlc=htlc, txs=txs,
+                prevout=ctx.txid() + ':%d' % ctx_output_idx,
+                sweep_info_name=f"their_ctx_htlc_{ctx_output_idx}",
+            )
             if not preimage:
-                # we might not have the preimage if this is a hold invoice
                 continue
-        else:
-            preimage = None
         tx_htlc(
             htlc=htlc,
             is_received_htlc=is_received_htlc,
