@@ -2185,6 +2185,7 @@ class Peer(Logger, EventListener):
         # the htlc set representing the whole payment (payment key derived from trampoline/invoice secret).
         payment_key = (payment_hash + (outer_onion_payment_secret or payment_secret_from_onion)).hex()
 
+        # for safety, still enforce MIN_FINAL_CLTV_DELTA here even if payment_hash is in dont_expire_htlcs
         if blocks_to_expiry < MIN_FINAL_CLTV_DELTA_ACCEPTED:
             # this check should be done here for new htlcs and ongoing on pending sets.
             # Here it is done so that invalid received htlcs will never get added to a set,
@@ -2261,6 +2262,8 @@ class Peer(Logger, EventListener):
         # get payment hash of any htlc in the set (they are all the same)
         payment_hash = htlc_set.get_payment_hash()
         assert payment_hash is not None, htlc_set
+        assert payment_hash not in self.lnworker.dont_settle_htlcs
+        self.lnworker.dont_expire_htlcs.pop(payment_hash.hex(), None)  # htlcs wont get expired anymore
         for mpp_htlc in list(htlc_set.htlcs):
             htlc_id = mpp_htlc.htlc.htlc_id
             chan = self.lnworker.get_channel_by_short_id(mpp_htlc.scid)
@@ -2300,6 +2303,10 @@ class Peer(Logger, EventListener):
 
         raw_error, error_code, error_data = error_tuple
         local_height = self.network.blockchain().height()
+        payment_hash = htlc_set.get_payment_hash()
+        assert payment_hash is not None, "Empty htlc set?"
+        self.lnworker.dont_expire_htlcs.pop(payment_hash.hex(), None)
+        self.lnworker.dont_settle_htlcs.pop(payment_hash.hex(), None)  # already failed
         for mpp_htlc in list(htlc_set.htlcs):
             chan = self.lnworker.get_channel_by_short_id(mpp_htlc.scid)
             htlc_id = mpp_htlc.htlc.htlc_id
@@ -2317,7 +2324,7 @@ class Peer(Logger, EventListener):
             onion_packet = self._parse_onion_packet(mpp_htlc.unprocessed_onion)
             processed_onion_packet = self._process_incoming_onion_packet(
                 onion_packet,
-                payment_hash=mpp_htlc.htlc.payment_hash,
+                payment_hash=payment_hash,
                 is_trampoline=False,
             )
             if raw_error:
@@ -2331,7 +2338,7 @@ class Peer(Logger, EventListener):
                     if processed_onion_packet.trampoline_onion_packet:
                         processed_trampoline_onion_packet = self._process_incoming_onion_packet(
                             processed_onion_packet.trampoline_onion_packet,
-                            payment_hash=mpp_htlc.htlc.payment_hash,
+                            payment_hash=payment_hash,
                             is_trampoline=True,
                         )
                         amount_to_forward = processed_trampoline_onion_packet.amt_to_forward
@@ -3048,7 +3055,8 @@ class Peer(Logger, EventListener):
         # check for expiry over time and potentially fail the whole set if any
         # htlc's cltv becomes too close
         blocks_to_expiry = max(0, closest_cltv_abs - local_height)
-        if blocks_to_expiry < MIN_FINAL_CLTV_DELTA_ACCEPTED:
+        accepted_expiry_delta = self.lnworker.dont_expire_htlcs.get(payment_hash.hex(), MIN_FINAL_CLTV_DELTA_ACCEPTED)
+        if accepted_expiry_delta is not None and blocks_to_expiry < accepted_expiry_delta:
             _log_fail_reason(f"htlc.cltv_abs is unreasonably close")
             return OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, None, None
 
@@ -3119,11 +3127,13 @@ class Peer(Logger, EventListener):
                 return OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, None, None
             return None, None, None
 
-        if payment_hash.hex() in self.lnworker.dont_settle_htlcs:
-            # used by hold invoice cli to prevent the htlcs from getting fulfilled automatically
+        preimage = self.lnworker.get_preimage(payment_hash)
+        settling_blocked = preimage is not None and payment_hash.hex() in self.lnworker.dont_settle_htlcs
+        waiting_for_preimage = preimage is None and payment_hash.hex() in self.lnworker.dont_expire_htlcs
+        if settling_blocked or waiting_for_preimage:
+            # used by hold invoice cli and JIT channels to prevent the htlcs from getting fulfilled automatically
             return None, None, None
 
-        preimage = self.lnworker.get_preimage(payment_hash)
         hold_invoice_callback = self.lnworker.hold_invoice_callbacks.get(payment_hash)
         if not preimage and not hold_invoice_callback:
             _log_fail_reason(f"cannot settle, no preimage or callback found for {payment_hash.hex()=}")

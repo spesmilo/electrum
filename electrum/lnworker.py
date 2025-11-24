@@ -925,7 +925,22 @@ class LNWallet(LNWorker):
         self.active_forwardings = self.db.get_dict('active_forwardings')    # type: Dict[str, List[str]]        # Dict: payment_key -> list of htlc_keys
         self.forwarding_failures = self.db.get_dict('forwarding_failures')  # type: Dict[str, Tuple[str, str]]  # Dict: payment_key -> (error_bytes, error_message)
         self.downstream_to_upstream_htlc = {}                               # type: Dict[str, str]              # Dict: htlc_key -> htlc_key (not persisted)
-        self.dont_settle_htlcs = self.db.get_dict('dont_settle_htlcs')      # type: Dict[str, None]             # payment_hashes of htlcs that we should not settle back yet even if we have the preimage
+
+        # k: payment_hashes of htlcs that we should not expire even if we don't know the preimage
+        # v: If `None` the htlcs won't get expired and potentially get timed out in a force close.
+        #    Note: it might not be safe to release the preimage shortly before expiry as this would allow the
+        #          remote node to ignore our fulfill_htlc, wait until expiry and try to time out the htlc onchain
+        #          in a fee race against us and then use our released preimage to fulfill upstream.
+        # v: If `int`: Overwrites `MIN_FINAL_CLTV_DELTA_ACCEPTED` in htlc switch and allows to set custom
+        #              expiration delta. The htlcs will get expired if their blocks left to expiry are
+        #              below the specified expiration delta.
+        # htlcs will get settled as soon as the preimage becomes available
+        self.dont_expire_htlcs = self.db.get_dict('dont_expire_htlcs')      # type: Dict[str, Optional[int]]
+
+        # k: payment_hash of payments for which we don't want to release the preimage, no matter
+        # how close to expiry. Doesn't prevent htlcs from getting expired or failed if there is no
+        # preimage available. Might be used in combination with dont_expire_htlcs.
+        self.dont_settle_htlcs = self.db.get_dict('dont_settle_htlcs')  # type: Dict[str, None]
 
         # payment_hash -> callback:
         self.hold_invoice_callbacks = {}                # type: Dict[bytes, Callable[[bytes], Awaitable[None]]]

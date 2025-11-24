@@ -218,6 +218,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         self._preimages = {}
         self.stopping_soon = False
         self.downstream_to_upstream_htlc = {}
+        self.dont_expire_htlcs = {}
         self.dont_settle_htlcs = {}
         self.hold_invoice_callbacks = {}
         self._payment_bundles_pkey_to_canon = {}       # type: Dict[bytes, bytes]
