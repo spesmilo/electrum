@@ -293,7 +293,7 @@ def verify_request_and_create_invoice(
                         OnionWireSerializer.in_tlv_stream_get_record_name_from_type['offer'].items())
     for ftype, fkey in offer_keys:
         if not bolt12_offer.get(fkey) == bolt12_invreq.get(fkey):
-            raise Exception(f'invalid bolt12 invoice_request, non-matching offer {fkey=}')
+            raise InvoiceRequestException(f'invalid bolt12 invoice_request, non-matching offer {fkey=}')
 
     # TODO check constraints, like expiry, offer_amount etc
     if offer_expiry := bolt12_offer.get('offer_absolute_expiry', {}).get('seconds_from_epoch'):
@@ -303,7 +303,7 @@ def verify_request_and_create_invoice(
     # spec: MUST reject the invoice request if invreq_payer_id or invreq_metadata are not present.
     # NOTE: invreq_payer_id already checked as part of signature verification
     if not bolt12_invreq.get('invreq_metadata', {}).get('blob'):
-        raise Exception('invreq_metadata missing')
+        raise InvoiceRequestException('invreq_metadata missing')
 
     # copy the invreq and offer fields
     invoice = copy.deepcopy(bolt12_invreq)
@@ -360,7 +360,7 @@ def verify_request_and_create_invoice(
         if chan.is_active() and chan.can_receive(amount_msat=amount_msat, check_frozen=True)
     ]
     if not invoice_channels:
-        raise Exception('no active channels with sufficient receive capacity, ignoring invoice_request.')
+        raise InvoiceRequestException('no active channels with sufficient receive capacity, ignoring invoice_request.')
 
     invoice_paths, payinfo = get_blinded_paths_to_me(
         lnwallet, final_recipient_data=recipient_data, my_channels=invoice_channels)
@@ -371,6 +371,9 @@ def verify_request_and_create_invoice(
     })
 
     return invoice
+
+
+class InvoiceRequestException(Exception): pass
 
 
 # wraps invoice_error
