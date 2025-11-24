@@ -22,6 +22,7 @@ from concurrent import futures
 import urllib.parse
 import itertools
 import dataclasses
+from math import ceil
 
 import aiohttp
 import dns.asyncresolver
@@ -2950,15 +2951,17 @@ class LNWallet(LNWorker):
                 if self.channel_db or self.is_trampoline_peer(c.node_id):
                     yield c
 
-    def fee_estimate(self, amount_sat):
-        # Here we have to guess a fee, because some callers (submarine swaps)
-        # use this method to initiate a payment, which would otherwise fail.
-        fee_base_msat = 5000               # FIXME ehh.. there ought to be a better way...
-        fee_proportional_millionths = 500  # FIXME
-        # inverse of fee_for_edge_msat
-        amount_msat = amount_sat * 1000
-        amount_minus_fees = (amount_msat - fee_base_msat) * 1_000_000 // ( 1_000_000 + fee_proportional_millionths)
-        return Decimal(amount_msat - amount_minus_fees) / 1000
+    def estimate_fee_reserve_for_total_amount(self, amount_sat: int | Decimal) -> int:
+        """
+        Estimate how much of the given amount needs to be reserved for
+        ln payment fees to reliably pay the remaining amount.
+        """
+        amount_msat = ceil(amount_sat * 1000)  # round up to the next sat
+        fee_msat = PaymentFeeBudget.reverse_from_total_amount(
+            total_amount_msat=amount_msat,
+            config=self.config,
+        )
+        return ceil(Decimal(fee_msat) / 1000)
 
     def num_sats_can_send(self, deltas=None) -> Decimal:
         """
@@ -2985,7 +2988,7 @@ class LNWallet(LNWorker):
                     can_send_dict[c.node_id] += send_capacity(c)
         can_send = max(can_send_dict.values()) if can_send_dict else 0
         can_send_sat = Decimal(can_send)/1000
-        can_send_sat -= self.fee_estimate(can_send_sat)
+        can_send_sat -= self.estimate_fee_reserve_for_total_amount(can_send_sat)
         return max(can_send_sat, 0)
 
     def get_channels_for_receiving(
@@ -3083,7 +3086,7 @@ class LNWallet(LNWorker):
             for chan in channels:
                 available_sat = chan.available_to_spend(LOCAL if direction == SENT else REMOTE) // 1000
                 delta = amount_sat - available_sat
-                delta += self.fee_estimate(amount_sat)
+                delta += self.estimate_fee_reserve_for_total_amount(amount_sat)
                 # add safety margin
                 delta += delta // 100 + 1
                 if func(deltas={chan:delta}) >= amount_sat:
@@ -3106,7 +3109,7 @@ class LNWallet(LNWorker):
             return False
         for chan2, delta in suggestions:
             # margin for fee caused by rebalancing
-            delta += self.fee_estimate(amount_sat)
+            delta += self.estimate_fee_reserve_for_total_amount(amount_sat)
             # find other channel or trampoline that can send delta
             for chan1 in self.channels.values():
                 if chan1.is_frozen_for_sending() or not chan1.is_active():
@@ -3129,7 +3132,7 @@ class LNWallet(LNWorker):
     def num_sats_can_rebalance(self, chan1, chan2):
         # TODO: we should be able to spend 'max', with variable fee
         n1 = chan1.available_to_spend(LOCAL)
-        n1 -= self.fee_estimate(n1)
+        n1 -= self.estimate_fee_reserve_for_total_amount(n1)
         n2 = chan2.available_to_spend(REMOTE)
         amount_sat = min(n1, n2) // 1000
         return amount_sat
