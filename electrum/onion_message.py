@@ -28,6 +28,8 @@ import os
 import threading
 import time
 import random
+from enum import Enum, auto
+from dataclasses import dataclass
 
 from typing import TYPE_CHECKING, Optional, Sequence, NamedTuple, Tuple, Union, Mapping
 
@@ -38,13 +40,14 @@ from electrum.lnrouter import PathEdge, NoChannelPolicy
 from electrum.logging import get_logger, Logger
 from electrum.crypto import get_ecdh
 from electrum.lnmsg import OnionWireSerializer
+from electrum.lntransport import LNPeerAddr
 from electrum.lnonion import (OnionPacket, process_onion_packet,
                               OnionHopsDataSingle, decrypt_onionmsg_data_tlv, encrypt_onionmsg_data_tlv,
                               get_shared_secrets_along_route, new_onion_packet, encrypt_hops_recipient_data,
                               next_blinding_from_shared_secret)
 from electrum.lnutil import (LnFeatures, MIN_FINAL_CLTV_DELTA_ACCEPTED, MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED,
                              MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE)
-from electrum.util import OldTaskGroup, log_exceptions, random_shuffled_copy
+from electrum.util import OldTaskGroup, log_exceptions, random_shuffled_copy, wait_for2
 
 
 def now() -> float:
@@ -55,7 +58,6 @@ if TYPE_CHECKING:
     from electrum.lnworker import LNWallet
     from electrum.network import Network
     from electrum.lnrouter import NodeInfo
-    from electrum.lntransport import LNPeerAddr
     from electrum.lnchannel import Channel
     from asyncio import Task
 
@@ -74,6 +76,22 @@ class NoRouteFound(Exception):
     def __init__(self, *args, peer_address: 'LNPeerAddr' = None):
         Exception.__init__(self, *args)
         self.peer_address = peer_address
+
+
+class DestinationState(Enum):
+    UNTRIED = auto()
+    SENT = auto()
+    NOT_REACHABLE = auto()  # no route, no address
+    ADDR_KNOWN = auto()  # no route, address known, no connection attempted
+    CONNECTION_ONGOING = auto()  # direct connection in process
+    CONNECTION_ESTABLISHED = auto()
+
+
+@dataclass
+class OnionMessageDestination:
+    node_id_or_blinded_path: bytes
+    state: DestinationState = DestinationState.UNTRIED
+    peer_addr: Optional[LNPeerAddr] = None
 
 
 def create_blinded_path(
@@ -390,6 +408,10 @@ def send_onion_message_to(
 
         path_key = ecc.ECPrivkey(session_key).get_public_key_bytes()
 
+    # fail early if we already know peer doesn't support onion messages
+    if peer.is_initialized() and not peer.their_features.supports(LnFeatures.OPTION_ONION_MESSAGE_OPT):
+        raise NoRouteFound("peer doesn't support onion messages")
+
     peer.send_onion_message(
         path_key=path_key,
         onion_message_packet=packet_b,
@@ -544,24 +566,35 @@ class OnionMessageManager(Logger):
     FORWARD_RETRY_TIMEOUT = 4
     FORWARD_RETRY_DELAY = 2
     FORWARD_MAX_QUEUE = 3
+    MAX_CONCURRENT_DIRECT_CONNECTION_ATTEMPTS = 10  # allocated once for sending and once for forwarding
 
     class Request:
         def __init__(self, *, payload: dict, node_id_or_blinded_paths: Union[bytes, Sequence[bytes]]):
             self.future = asyncio.Future()
             self.payload = payload
-            self.node_id_or_blinded_paths = node_id_or_blinded_paths
             self.current_index: int = 0
 
             # ensure node_id_or_blinded_paths is list
-            if isinstance(self.node_id_or_blinded_paths, bytes):
-                self.node_id_or_blinded_paths = [self.node_id_or_blinded_paths]
+            if isinstance(node_id_or_blinded_paths, bytes):
+                node_id_or_blinded_paths = [node_id_or_blinded_paths]
+            self.destinations: list[OnionMessageDestination] = [
+                OnionMessageDestination(node_id_or_blinded_path=dest) for dest in node_id_or_blinded_paths
+            ]
 
-        def get_next_destination(self) -> bytes:
+        def get_next_destination(self) -> Optional[OnionMessageDestination]:
             """get next path (round-robin)"""
-            dests = self.node_id_or_blinded_paths
-            dest = dests[self.current_index]
-            self.current_index = (self.current_index + 1) % len(dests)
-            return dest
+            dests = self.destinations
+            waiting_for_connection = False
+            for _ in dests:
+                dest = dests[self.current_index]
+                self.current_index = (self.current_index + 1) % len(dests)
+                if dest.state is DestinationState.CONNECTION_ONGOING:
+                    waiting_for_connection = True
+                if dest.state not in (DestinationState.NOT_REACHABLE, DestinationState.CONNECTION_ONGOING):
+                    return dest
+            if waiting_for_connection:
+                return None
+            raise NoRouteFound
 
     def __init__(self, lnwallet: 'LNWallet'):
         Logger.__init__(self)
@@ -572,6 +605,8 @@ class OnionMessageManager(Logger):
         self.pending_lock = threading.Lock()
         self.send_queue = asyncio.PriorityQueue()
         self.forward_queue = asyncio.PriorityQueue()
+        self._send_direct_connection_attempts = set()  # type: set[bytes]  # node ids we're currently trying to connect to
+        self._forward_direct_connection_attempts = set()  # type: set[bytes]
 
     def start_network(self, *, network: 'Network') -> None:
         assert network
@@ -612,10 +647,9 @@ class OnionMessageManager(Logger):
                     path_key=blinding,
                     onion_message_packet=onion_packet_b,
                 )
-            except BaseException as e:
-                self.logger.debug(f'error while sending {node_id=} e={e!r}')
-                # TODO: it is debatable whether we want to retry a forward.
-                self.forward_queue.put_nowait((now() + self.FORWARD_RETRY_DELAY, expires, onion_packet, blinding, node_id))
+            except Exception as e:
+                # we don't retry on error, forwarding is best effort
+                self.logger.debug(f'error while forwarding onion message to {node_id=} e={e!r}')
 
     def submit_forward(
             self, *,
@@ -653,10 +687,9 @@ class OnionMessageManager(Logger):
                 self._send_pending_message(key)
             except BaseException as e:
                 self.logger.debug(f'error while sending {key=}: ', exc_info=True)
+                # NOTE: above, when passing the caught exception instance e directly it leads to GeneratorExit() in the
+                # coroutine awaiting it
                 req.future.set_exception(copy.copy(e))
-                # NOTE: above, when passing the caught exception instance e directly it leads to GeneratorExit() in
-                if isinstance(e, NoRouteFound) and e.peer_address:
-                    await self.lnwallet.lnpeermgr.add_peer(str(e.peer_address))
             else:
                 self.logger.debug(f'resubmit {key=}')
                 self.send_queue.put_nowait((now() + self.REQUEST_REPLY_RETRY_DELAY, expires, key))
@@ -708,6 +741,8 @@ class OnionMessageManager(Logger):
         req = self.pending[key]
         payload = req.payload
         dest = req.get_next_destination()
+        if dest is None:
+            return  # wait for connection to finish
 
         self.logger.debug(f'send_pending_message {key=} {payload=} {dest=}')
 
@@ -719,10 +754,68 @@ class OnionMessageManager(Logger):
             reply_paths = get_blinded_reply_paths(self.lnwallet, path_id, max_paths=1)
             final_payload['reply_path'] = {'path': reply_paths}
 
-        # NOTE: we could also try alternate paths to introduction point (the non-blinded part of the route)
-        # when retrying, this is currently not done.
-        # (send_onion_message_to decides path, without knowledge of prev attempts)
-        send_onion_message_to(self.lnwallet, dest, final_payload)
+        try:
+            # NOTE: we could also try alternate paths to introduction point (the non-blinded part of the route)
+            # when retrying, this is currently not done.
+            # (send_onion_message_to decides path, without knowledge of prev attempts)
+            send_onion_message_to(self.lnwallet, dest.node_id_or_blinded_path, final_payload)
+            dest.state = DestinationState.SENT
+        except NoRouteFound as e:
+            if dest.state in (DestinationState.UNTRIED, DestinationState.SENT):
+                dest.state = DestinationState.NOT_REACHABLE
+                if e.peer_address and self.lnwallet.config.ONION_MESSAGE_OPEN_DIRECT_CONNECTIONS:
+                    dest.state, dest.peer_addr = DestinationState.ADDR_KNOWN, e.peer_address
+            if dest.state is DestinationState.CONNECTION_ESTABLISHED:
+                # maybe the peer disconnected again
+                dest.state = DestinationState.NOT_REACHABLE
+            if not any(d.state is DestinationState.UNTRIED for d in req.destinations):
+                if all(d.state is DestinationState.NOT_REACHABLE for d in req.destinations):
+                    raise
+                for dest_ in req.destinations:  # connect to all peers we know the address of
+                    if dest_.state is not DestinationState.ADDR_KNOWN or dest_.peer_addr is None:
+                        continue
+                    addr = dest_.peer_addr
+                    if addr.pubkey in self._send_direct_connection_attempts \
+                            or addr.pubkey in self._forward_direct_connection_attempts:
+                        continue  # already connecting, keep item in the queue
+                    if len(self._send_direct_connection_attempts) >= self.MAX_CONCURRENT_DIRECT_CONNECTION_ATTEMPTS:
+                        break
+                    task = self._connect_to_fallback_address(addr, connection_set=self._send_direct_connection_attempts)
+                    def _handle_failed_connection(t, dest_=dest_):
+                        failed = t.cancelled() or t.exception()
+                        dest_.state = DestinationState.NOT_REACHABLE if failed else DestinationState.CONNECTION_ESTABLISHED
+                        if failed and not req.future.done() \
+                                and all(d_.state is DestinationState.NOT_REACHABLE for d_ in req.destinations):
+                            req.future.set_exception(NoRouteFound('all destinations unreachable'))
+                    task.add_done_callback(_handle_failed_connection)
+                    dest_.state = DestinationState.CONNECTION_ONGOING
+                # keep trying until all direct connections attempts failed or request expiry
+
+        assert dest.state != DestinationState.UNTRIED, dest
+
+    def _connect_to_fallback_address(self, peer_address: 'LNPeerAddr', *, connection_set: set[bytes]) -> asyncio.Task:
+        """fire-and-forget connection with a new peer"""
+        from electrum.lnpeer import LN_P2P_NETWORK_TIMEOUT
+        assert peer_address.pubkey not in self._send_direct_connection_attempts \
+                and peer_address.pubkey not in self._forward_direct_connection_attempts
+        async def _add_peer():
+            try:
+                if not self.lnwallet.lnpeermgr._can_retry_addr(peer_address, urgent=True):
+                    raise ConnectionAbortedError("already tried to connect to this peer, not trying again now")
+                peer = await self.lnwallet.lnpeermgr.add_peer(str(peer_address))
+                # timeout might be longer than message queue timeout itself, so the msg could be dropped after connection
+                await wait_for2(peer.initialized, LN_P2P_NETWORK_TIMEOUT)
+                if not peer.their_features.supports(LnFeatures.OPTION_ONION_MESSAGE_OPT):
+                    raise ConnectionAbortedError("peer doesn't support onion messages")
+            except Exception as e:
+                self.logger.debug(f"failed to establish new peer connection: {e}")
+                raise
+
+        self.logger.info(f'attempting direct peer connection to {str(peer_address)}')
+        connection_set.add(peer_address.pubkey)
+        task = asyncio.create_task(_add_peer())  # util._set_custom_task_factory keeps ref too
+        task.add_done_callback(lambda t: connection_set.discard(peer_address.pubkey))
+        return task
 
     def _path_id_from_payload_and_key(self, payload: dict, key: bytes) -> bytes:
         # TODO: use payload to determine prefix?
@@ -764,7 +857,8 @@ class OnionMessageManager(Logger):
 
     def on_onion_message_received_reply(self, request: Request, recipient_data: Mapping, payload: Mapping) -> None:
         assert request is not None, 'Request is mandatory'
-        request.future.set_result((recipient_data, payload))
+        if not request.future.done():
+            request.future.set_result((recipient_data, payload))
 
     def on_onion_message_received_unsolicited(self, recipient_data: Mapping, payload: Mapping) -> None:
         self.logger.debug('unsolicited onion_message received')
