@@ -18,7 +18,7 @@ from electrum.lnonion import (
     get_shared_secrets_along_route, new_onion_packet, ONION_MESSAGE_LARGE_SIZE, HOPS_DATA_SIZE, InvalidPayloadSize,
     encrypt_hops_recipient_data, blinding_privkey, decrypt_onionmsg_data_tlv)
 from electrum.crypto import get_ecdh, privkey_to_pubkey
-from electrum.lntransport import LNPeerAddr
+from electrum.lntransport import LNPeerAddr, extract_nodeid
 from electrum.lnutil import (LnFeatures, Keypair, MIN_FINAL_CLTV_DELTA_ACCEPTED, REMOTE,
                              MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE)
 from electrum.onion_message import (
@@ -303,6 +303,16 @@ class TestOnionMessageManager(ElectrumTestCase):
         self.dave = keypair(ECPrivkey(privkey_bytes=b'\x44'*32))
         self.eve = keypair(ECPrivkey(privkey_bytes=b'\x45'*32))
         self.fred = keypair(ECPrivkey(privkey_bytes=b'\x46'*32))
+        self.gerald = keypair(ECPrivkey(privkey_bytes=b'\x47'*32))
+        self.harry = keypair(ECPrivkey(privkey_bytes=b'\x48'*32))
+
+    async def run_test_exception(self, t):
+        t1 = t.submit_send(
+            payload={'message': {'text': 'no_onionmsg_peers'.encode('utf-8')}},
+            node_id_or_blinded_paths=self.harry.pubkey)
+
+        with self.assertRaises(NoOnionMessagePeers):
+            await t1
 
     async def run_test1(self, t):
         t1 = t.submit_send(
@@ -339,13 +349,38 @@ class TestOnionMessageManager(ElectrumTestCase):
         self.assertEqual(t4_result, ({'path_id': {'data': b'electrum' + rkey}}, {}))
 
     async def run_test5(self, t):
-        t5 = t.submit_send(
-            payload={'message': {'text': 'no_peer'.encode('utf-8')}},
+        lnw = t.lnwallet
+        self.assertFalse(self.eve.pubkey in lnw.lnpeermgr.peers)
+
+        t.send_direct_connect_fallback = True
+        t5_1 = t.submit_send(
+            payload={'message': {'text': 'no_route_peer_address_known'.encode('utf-8')}},
             node_id_or_blinded_paths=self.eve.pubkey)
 
+        with self.assertRaises(Timeout) as c:
+            await t5_1
+
+        self.assertTrue(self.eve.pubkey in lnw.lnpeermgr._peers)
+        del lnw.lnpeermgr._peers[self.eve.pubkey]
+
+        t5_2 = t.submit_send(
+            payload={'message': {'text': 'no_route_no_peer_address'.encode('utf-8')}},
+            node_id_or_blinded_paths=self.gerald.pubkey)
+
+        # will not find route to gerald, and doesn't have gerald's address
+        with self.assertRaises(NoRouteFound) as c:
+            await t5_2
+
+        self.assertIsNone(c.exception.peer_address)
+
+        t.send_direct_connect_fallback = False
+        t5_3 = t.submit_send(
+            payload={'message': {'text': 'no_route_peer_address_known_but_ignored'.encode('utf-8')}},
+            node_id_or_blinded_paths=self.eve.pubkey)
         # will not find route to eve, but has eve's address, but we are configured to not direct connect
         with self.assertRaises(NoRouteFound) as c:
-            await t5
+            await t5_3
+
         self.assertEqual(c.exception.peer_address, LNPeerAddr('localhost', 1234, self.eve.pubkey))
 
     async def run_test6(self, t, rkey):
@@ -366,7 +401,7 @@ class TestOnionMessageManager(ElectrumTestCase):
         # mock add_peer for direct connection fallback
         async def mock__add_peer(host, port, node_id):
             mock_peer = MockPeer(pubkey=node_id)
-            # lnw.lnpeermgr._peers[node_id] = mock_peer
+            lnw.lnpeermgr._peers[node_id] = mock_peer
             return mock_peer
         lnw.lnpeermgr._add_peer = mock__add_peer
 
@@ -380,21 +415,27 @@ class TestOnionMessageManager(ElectrumTestCase):
             time.sleep(2*TIME_STEP)
             t.on_onion_message_received({'path_id': {'data': b'electrum' + key}}, {})
 
-        rkey1 = bfh('0102030405060708')
-        rkey2 = bfh('0102030405060709')
-        rkey3 = bfh('010203040506070a')
-
-        lnw.lnpeermgr._peers[self.alice.pubkey] = MockPeer(self.alice.pubkey)
-        lnw.lnpeermgr._peers[self.bob.pubkey] = MockPeer(self.bob.pubkey, on_send_message=slow)
-        lnw.lnpeermgr._peers[self.carol.pubkey] = MockPeer(self.carol.pubkey, on_send_message=partial(withreply, rkey1))
-        lnw.lnpeermgr._peers[self.dave.pubkey] = MockPeer(self.dave.pubkey, on_send_message=partial(slowwithreply, rkey2))
-        lnw.channel_db._addresses[self.eve.pubkey] = {NetAddress('localhost', '1234'): int(time.time())}
-        lnw.lnpeermgr._peers[self.fred.pubkey] = MockPeer(self.fred.pubkey, on_send_message=partial(withreply, rkey3))
         t = OnionMessageManager(lnw)
         t.start_network(network=n)
 
         try:
             await asyncio.sleep(TIME_STEP)
+
+            await self.run_test_exception(t)
+            lnw.lnpeermgr._peers[self.harry.pubkey] = MockPeer(self.harry.pubkey, their_features=LnFeatures(0))
+            await self.run_test_exception(t)
+
+            rkey1 = bfh('0102030405060708')
+            rkey2 = bfh('0102030405060709')
+            rkey3 = bfh('010203040506070a')
+
+            lnw.lnpeermgr._peers[self.alice.pubkey] = MockPeer(self.alice.pubkey)
+            lnw.lnpeermgr._peers[self.bob.pubkey] = MockPeer(self.bob.pubkey, on_send_message=slow)
+            lnw.lnpeermgr._peers[self.carol.pubkey] = MockPeer(self.carol.pubkey, on_send_message=partial(withreply, rkey1))
+            lnw.lnpeermgr._peers[self.dave.pubkey] = MockPeer(self.dave.pubkey, on_send_message=partial(slowwithreply, rkey2))
+            lnw.channel_db._addresses[self.eve.pubkey] = {NetAddress('localhost', '1234'): int(time.time())}
+            lnw.lnpeermgr._peers[self.fred.pubkey] = MockPeer(self.fred.pubkey, on_send_message=partial(withreply, rkey3))
+
             self.logger.debug('tests in sequence')
             await self.run_test1(t)
             await self.run_test2(t)

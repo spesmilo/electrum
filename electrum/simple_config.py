@@ -726,6 +726,13 @@ If disabled, the full wallet file is written to disk for every change. Experimen
         short_desc=lambda: _('Show Fiat balances'),
     )
 
+    ONION_MESSAGE_OPEN_DIRECT_CONNECTIONS = ConfigVar(
+        'onion_message_direct_connections', default=True, type_=bool,
+        short_desc=lambda: _("Open direct connections to deliver onion messages"),
+        long_desc=lambda: _("Opening a direct network connection to deliver an onion message allows delivery even when no "
+                            "route to the destination can be found via the public lightning network graph. The trade-off "
+                            "is that the node you connect to directly will see your IP address (unless a proxy like Tor is used)."),
+    )
     LIGHTNING_LISTEN = ConfigVar(
         'lightning_listen', default=None, type_=str,
         long_desc=lambda: _("""By default the client does not listen on any port for incoming BOLT-08 transports.
