@@ -9,7 +9,7 @@ from electrum import segwit_addr, lnutil
 from electrum import bolt12
 from electrum.bolt12 import (
     is_offer, decode_offer, encode_invoice_request, decode_invoice_request, encode_invoice, decode_invoice,
-    encode_offer, verify_request_and_create_invoice
+    encode_offer, verify_request_and_create_invoice, InvoiceRequestException
 )
 from electrum.crypto import privkey_to_pubkey
 from electrum.invoices import LN_EXPIRY_NEVER
@@ -44,15 +44,16 @@ class MockLNWallet(test_lnpeer.MockLNWallet):
 
 
 class MockChannel:
-    def __init__(self, node_id):
+    def __init__(self, node_id, rcv_capacity: int = 0):
         self.short_channel_id = lnutil.ShortChannelID.from_str('0x0x0')
         self.node_id = node_id
+        self.rcv_capacity = rcv_capacity
 
     def is_active(self):
         return True
 
     def can_receive(self, *, amount_msat, check_frozen=False):
-        return True
+        return True if self.rcv_capacity == 0 else amount_msat <= self.rcv_capacity
 
     def get_remote_update(self):
         return bfh('0102beb6d231566566e014c6f417f247a5e8e882fd6b44ff4526ee230ace401d6ae57205b5c5dd2de21b9ceecbd8676d99a4588266b38b8af59305103c956127122843497fd7f826957108f4a30fd9cec3aeba79972084e90ead01ea3309000000002fe34de423b66e0a6510eb91030200900000000000000001000003e8000000640000000012088038')
@@ -426,7 +427,7 @@ class TestBolt12(ElectrumTestCase):
 
         lnwallet = MockLNWallet()
         try:
-            chan = MockChannel(ckp.pubkey)
+            chan = MockChannel(ckp.pubkey, 1_000_000)
             lnwallet.channels[ckp.pubkey] = chan
             # lnwallet.peers[self.alice.pubkey] = MockPeer(self.alice.pubkey)
 
@@ -440,34 +441,34 @@ class TestBolt12(ElectrumTestCase):
             # non matching offer fields in invreq
             offer_data, invreq_data = self.gen_base_offer_and_invreq(wkp, pkp)
             del invreq_data['offer_metadata']
-            with self.assertRaises(Exception):
+            with self.assertRaises(InvoiceRequestException):
                 verify_request_and_create_invoice(lnwallet, offer_data, invreq_data)
 
             offer_data, invreq_data = self.gen_base_offer_and_invreq(wkp, pkp)
             invreq_data['offer_metadata'] = {'data': bfh('02')}
-            with self.assertRaises(Exception):
+            with self.assertRaises(InvoiceRequestException):
                 verify_request_and_create_invoice(lnwallet, offer_data, invreq_data)
 
             offer_data, invreq_data = self.gen_base_offer_and_invreq(wkp, pkp)
             invreq_data['offer_amount'] = {'amount': 1001}
-            with self.assertRaises(Exception):
+            with self.assertRaises(InvoiceRequestException):
                 verify_request_and_create_invoice(lnwallet, offer_data, invreq_data)
 
             offer_data, invreq_data = self.gen_base_offer_and_invreq(wkp, pkp)
             invreq_data['offer_issuer_id'] = {'id': ckp.pubkey}
-            with self.assertRaises(Exception):
+            with self.assertRaises(InvoiceRequestException):
                 verify_request_and_create_invoice(lnwallet, offer_data, invreq_data)
 
             # invreq_metadata mandatory
             offer_data, invreq_data = self.gen_base_offer_and_invreq(wkp, pkp)
             del invreq_data['invreq_metadata']
-            with self.assertRaises(Exception):
+            with self.assertRaises(InvoiceRequestException):
                 verify_request_and_create_invoice(lnwallet, offer_data, invreq_data)
 
             # expiry
             offer_data, invreq_data = self.gen_base_offer_and_invreq(wkp, pkp)
             invreq_data['offer_absolute_expiry'] = {'seconds_from_epoch': int(time.time()) - 5}
-            with self.assertRaises(Exception):
+            with self.assertRaises(InvoiceRequestException):
                 verify_request_and_create_invoice(lnwallet, offer_data, invreq_data)
 
             offer_data, invreq_data = self.gen_base_offer_and_invreq(wkp, pkp, offer_extra={
@@ -483,8 +484,16 @@ class TestBolt12(ElectrumTestCase):
             # offer_data, invreq_data = self.gen_base_offer_and_invreq(wkp, pkp)
             # del offer_data['offer_amount']
             # del invreq_data['offer_amount']
-            # with self.assertRaises(Exception):
+            # with self.assertRaises(InvoiceRequestException):
             #     verify_request_and_create_invoice(lnwallet, offer_data, invreq_data)
+
+            # rcv capacity check
+            offer_data, invreq_data = self.gen_base_offer_and_invreq(wkp, pkp,
+                offer_extra={'offer_amount': {'amount': 2_000_000}},
+                invreq_extra={'invreq_amount': {'msat': 2_000_000}},
+            )
+            with self.assertRaises(InvoiceRequestException):
+                verify_request_and_create_invoice(lnwallet, offer_data, invreq_data)
 
             # invoice_node_id == offer_issuer_id
             offer_data, invreq_data = self.gen_base_offer_and_invreq(wkp, pkp)
