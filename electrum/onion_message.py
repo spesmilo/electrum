@@ -503,6 +503,11 @@ class OnionMessageManager(Logger):
             self.node_id_or_blinded_paths = node_id_or_blinded_paths
             self.current_index: int = 0
 
+            # ensure node_id_or_blinded_paths is list, and route_not_found_for matches list length
+            if isinstance(self.node_id_or_blinded_paths, bytes):
+                self.node_id_or_blinded_paths = [self.node_id_or_blinded_paths]
+            self.route_not_found_for: list = [None] * len(self.node_id_or_blinded_paths)
+
     def __init__(self, lnwallet: 'LNWallet'):
         Logger.__init__(self)
         self.network = None  # type: Optional['Network']
@@ -512,6 +517,9 @@ class OnionMessageManager(Logger):
         self.pending_lock = threading.Lock()
         self.send_queue = asyncio.PriorityQueue()
         self.forward_queue = asyncio.PriorityQueue()
+
+        # TODO: expose as config option
+        self.send_direct_connect_fallback = True
 
     def start_network(self, *, network: 'Network') -> None:
         assert network
@@ -595,13 +603,11 @@ class OnionMessageManager(Logger):
                 await asyncio.sleep(self.SLEEP_DELAY)  # sleep here, as the first queue item wasn't due yet
                 continue
             try:
-                self._send_pending_message(key)
+                await self._send_pending_message(key)
             except BaseException as e:
                 self.logger.debug(f'error while sending {key=} {e!r}')
                 req.future.set_exception(copy.copy(e))
-                # NOTE: above, when passing the caught exception instance e directly it leads to GeneratorExit() in
-                if isinstance(e, NoRouteFound) and e.peer_address:
-                    await self.lnwallet.add_peer(str(e.peer_address))
+                # NOTE: above, when passing the caught exception instance e directly it leads to GeneratorExit()
             else:
                 self.logger.debug(f'resubmit {key=}')
                 self.send_queue.put_nowait((now() + self.REQUEST_REPLY_RETRY_DELAY, expires, key))
@@ -648,17 +654,16 @@ class OnionMessageManager(Logger):
         finally:
             self._remove_pending_message(key)
 
-    def _send_pending_message(self, key: bytes) -> None:
+    async def _send_pending_message(self, key: bytes) -> None:
         """adds reply_path to payload"""
         req = self.pending.get(key)
         payload = req.payload
+        current_index = req.current_index
 
         # get next path (round robin)
         dests = req.node_id_or_blinded_paths
-        if isinstance(req.node_id_or_blinded_paths, bytes):
-            dests = [req.node_id_or_blinded_paths]
-        dest = dests[req.current_index]
-        req.current_index = (req.current_index + 1) % len(dests)
+        dest = dests[current_index]
+        req.current_index = (current_index + 1) % len(dests)
 
         self.logger.debug(f'send_pending_message {key=} {payload=} {dest=}')
 
@@ -673,10 +678,19 @@ class OnionMessageManager(Logger):
 
             final_payload['reply_path'] = {'path': reply_paths}
 
-        # NOTE: we could also try alternate paths to introduction point (the non-blinded part of the route)
-        # when retrying, this is currently not done.
-        # (send_onion_message_to decides path, without knowledge of prev attempts)
-        send_onion_message_to(self.lnwallet, dest, final_payload)
+        try:
+            # NOTE: we could also try alternate paths to introduction point (the non-blinded part of the route)
+            # when retrying, this is currently not done.
+            # (send_onion_message_to decides path, without knowledge of prev attempts)
+            send_onion_message_to(self.lnwallet, dest, final_payload)
+        except NoRouteFound as e:
+            req.route_not_found_for[current_index] = True
+            if all(req.route_not_found_for) and self.send_direct_connect_fallback and e.peer_address:
+                # we have a peer address hint and we've tried all blinded paths: try direct peer connection
+                self.logger.info(f'No route to destination, attempting direct peer connection to {str(e.peer_address)}')
+                await self.lnwallet.add_peer(str(e.peer_address))
+            else:
+                raise
 
     def _path_id_from_payload_and_key(self, payload: dict, key: bytes) -> bytes:
         # TODO: use payload to determine prefix?
