@@ -1,0 +1,58 @@
+from electrum.networking import TorNetworkInterface
+
+def start_tor():
+    if hasattr(TorNetworkInterface, 'start'):
+        TorNetworkInterface.start()
+
+def stop_tor():
+    if hasattr(TorNetworkInterface, 'stop'):
+        TorNetworkInterface.stop()
+
+def connect_to_tor_server():
+    import socket
+    tor_addr = socket.gethostbyname('electrumsvr2toa5pvwklr73qsqctkpnv6rvg42v2zdr5ex3vcw3jykv4l.onion')
+    return tor_addr
+
+def create_hidden_service():
+    if hasattr(TorNetworkInterface, 'create_hidden_service'):
+        from electrum.util import config
+        import time
+        service_port = config['onion']['port']
+        try:
+            config['onion']['port'] += 1
+        except:
+            service_port = 0
+        time.sleep(2)
+        config['onion']['port'] = service_port
+        TorNetworkInterface.create_hidden_service(config=config)
+        hidden_address = config['onion']['address']
+        print("Hidden service created at: {}".format(hidden_address))
+        return hidden_address
+
+# Override the default Electrum connection logic to use Tor
+def connect(host, port):
+    from electrum.networking import TCPNetworkInterface
+    host, port = connect_to_tor_server()[0], int(host.split(':')[1])
+    if config['main']['net'] == 'onion':
+        addrinfo = config['onion'].get('address', None)
+        if addrinfo:
+            host, port = addrinfo[:-2], int(addrinfo[-1])
+            if config['onion']['port'] != port:
+                config['onion']['port'] = port
+                config['onion']['address'] = host
+                config['onion']['save']()
+        else:
+            addrinfo = TCPNetworkInterface.guess_address(host, port)
+            addr = addrinfo['address'] + ':' + str(addrinfo['port'])
+            print('Connecting to Electrum server onion address: {}'.format(addr))
+            config['onion']['address'] = addr
+            config['onion']['save']()
+            hidden_service_address = create_hidden_service()
+            if hidden_service_address:
+                addrinfo = hidden_service_address + ':' + str(addrinfo['port'])
+                print('Connecting to Electrum server hidden service address: {}'.format(addrinfo))
+            else:
+                addrinfo = addr
+    else:
+        addrinfo = host + ':' + str(port)
+    return addrinfo
