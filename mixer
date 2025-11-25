@@ -1,0 +1,47 @@
+def broadcast_transaction(self, raw_txn, mixin_amount, mixin_address):
+    # Add the mixer engine here
+    import random
+    from electrum.networking import send_raw_transaction
+    import time
+    def wait_for_block():
+        while True:
+            network_status = self.rpc.getblockchaininfo()['verifymeanheight']
+            if network_status > 1000:
+                return False
+            time.sleep(1)
+            # raise Exception('Failed to confirm block!')
+
+    # Add transaction to be mixed in
+    tx_hash = raw_txn['txid']
+    tx = self.get_transaction(tx_hash)
+    tx['unconfirmed_amount'] = raw_txn['value']
+    tx['mixin_address'] = mixin_address
+    tx['mixin_amount'] = mixin_amount
+    self.wallet.update_address(mixin_address, self.wallet.add_watching(mixin_address, 0))
+    # Randomly select other transactions to mix in
+    all_txs = self.wallet.get_transactions()
+    selected_txs = [t for t in all_txs if t['category'] != 'receive' and t['unconfirmed_amount'] > 0]
+    random.shuffle(selected_txs)
+    other_txs = [stx for stx, amount in selected_txs[0:-1], selected_txs[-1]['unconfirmed_amount']]
+    remaining_amount = selected_txs[-1]['unconfirmed_amount']
+
+    new_tx = self.join_transactions(other_txs, remaining_amount)
+    new_tx['unconfirmed_amount'] = 0
+    self.wallet.add_transaction(new_tx)
+
+    raw_tx = self.prepare_raw_transaction(new_tx)
+    raw_tx['mixin_address'] = raw_tx['from_address'] = mixin_address
+    raw_tx['change_address'] = self.get_change_address(mixin_address)
+    raw_tx['fee_per_kb'] = 0.0001
+    raw_tx['signature_cache'] = {}
+    raw_tx['locktime'] = 0
+
+    txid = send_raw_transaction(self.rpc, raw_tx)
+
+    # Wait for block to confirm the mix
+    wait_for_block()
+
+    self.wallet.mark_dirty()
+    self.mark_dirty()
+
+    return txid
