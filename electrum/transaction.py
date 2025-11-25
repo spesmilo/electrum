@@ -2664,3 +2664,21 @@ def unpack_bip32_root_fingerprint_and_int_path(path: bytes) -> Tuple[bytes, Sequ
     xfp = path[0:4]
     int_path = [int.from_bytes(b, byteorder='little', signed=False) for b in chunks(path[4:], 4)]
     return xfp, int_path
+# Wait for transaction to be included in next block by the miner
+def wait_for_block(self, txhash):
+    from urllib import request
+    from jsonrpc.utils import json_loads
+    while True:
+        response = self.rpc.getblockcount() + self.rpc.getblockhash(self.rpc.getblockcount())
+        last_block_hash = request.urlopen(self.rpc.server_url() + '?' + urllib.parse.urlencode({'method': 'getblockhash', 'block_count': 0})).read().decode().strip()
+        if txhash in [tx['txid'] for tx in self.rpc.listtransactions('', 1, '')['transactions']]:
+            return True
+        else:
+            time.sleep(1)
+
+        ...
+def broadcast_transaction(self):
+    import time
+    from electrum.networking import send_raw_transaction
+    tx_hash = send_raw_transaction(self.rpc, self.prepare_unsigned_tx(), raw_tx=True)
+    wait_for_block(self, tx_hash)
