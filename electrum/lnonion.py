@@ -281,6 +281,29 @@ def decrypt_onionmsg_data_tlv(*, shared_secret: bytes, encrypted_recipient_data:
     return recipient_data
 
 
+def encrypt_hops_recipient_data(
+        tlv_stream_name: str,
+        hops_data: Sequence[OnionHopsDataSingle],
+        hop_shared_secrets: Sequence[bytes]
+) -> None:
+    """encrypt unencrypted encrypted_recipient_data for hops with blind_fields.
+
+       NOTE: contents of payload.encrypted_recipient_data is slightly different for 'payload'
+       vs 'oniomsg_tlv' tlv_stream_names, so we map to the correct key here based on tlv_stream_name.
+       We can also change onion_wire.csv to use the same key, but as we import that from specs it might
+       regress in the future, so I rather make it explicit in code here.
+    """
+    # key naming payload TLV vs onionmsg_tlv TLV
+    erd_key = 'encrypted_recipient_data' if tlv_stream_name == 'onionmsg_tlv' else 'encrypted_data'
+
+    num_hops = len(hops_data)
+    for i in range(num_hops):
+        if hops_data[i].tlv_stream_name == tlv_stream_name and 'encrypted_recipient_data' not in hops_data[i].payload:
+            # construct encrypted_recipient_data from blind_fields
+            encrypted_recipient_data = encrypt_onionmsg_data_tlv(shared_secret=hop_shared_secrets[i], **hops_data[i].blind_fields)
+            hops_data[i].payload['encrypted_recipient_data'] = {erd_key: encrypted_recipient_data}
+
+
 def calc_hops_data_for_payment(
         route: 'LNPaymentRoute',
         amount_msat: int,  # that final recipient receives
