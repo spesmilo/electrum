@@ -387,4 +387,4 @@ class QEConfig(AuthMixin, QObject):
 
     @pyqtSlot('quint64', result=float)
     def satsToUnits(self, satoshis):
-        return satoshis / pow(10, self.config.decimal_point)
+        return satoshis / pow(10, self.config.BTC_AMOUNTS_DECIMAL_POINT)
