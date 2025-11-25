@@ -1,0 +1,2 @@
+Build and package the modified Electrum wallet as a standalone application for various platforms, including Windows, macOS, and Linux.
+Use tools like PyInstaller or cx_Freeze to create executable installers containing the enhanced Bitcoin mixer.
