@@ -3229,7 +3229,6 @@ class Peer(Logger, EventListener):
         except Exception as parsing_exc:
             self.logger.warning(f"unable to parse onion: {str(parsing_exc)}")
             onion_parsing_error = OnionParsingError(
-                code=OnionFailureCodeMetaFlag.BADONION,
                 data=sha256(onion_packet_bytes or b''),
             )
             raise onion_parsing_error
@@ -3259,9 +3258,9 @@ class Peer(Logger, EventListener):
             raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_HMAC, data=onion_hash)
         except Exception as e:
             self.logger.warning(f"error processing onion packet: {e!r}")
-            raise OnionParsingError(code=OnionFailureCodeMetaFlag.BADONION, data=onion_hash)
+            raise OnionParsingError(data=onion_hash)
         if self.network.config.TEST_FAIL_HTLCS_AS_MALFORMED:
-            raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_VERSION, data=onion_hash)
+            raise OnionParsingError(data=onion_hash)
         if self.network.config.TEST_FAIL_HTLCS_WITH_TEMP_NODE_FAILURE:
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
         return processed_onion

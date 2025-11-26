@@ -577,7 +577,14 @@ class OnionRoutingFailure(Exception):
         return error_bytes
 
 
-class OnionParsingError(OnionRoutingFailure): pass
+class OnionParsingError(OnionRoutingFailure):
+    """
+    Onion parsing error will cause a htlc to get failed with update_fail_malformed_htlc.
+    Using INVALID_ONION_VERSION as there is no unspecific BADONION failure code defined in the spec
+    for the case we just cannot parse the onion.
+    """
+    def __init__(self, data: bytes):
+        OnionRoutingFailure.__init__(self, code=OnionFailureCode.INVALID_ONION_VERSION, data=data)
 
 
 def construct_onion_error(
