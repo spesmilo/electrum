@@ -505,10 +505,7 @@ class OnionRoutingFailure(Exception):
     @classmethod
     def from_bytes(cls, failure_msg: bytes):
         failure_code = int.from_bytes(failure_msg[:2], byteorder='big')
-        try:
-            failure_code = OnionFailureCode(failure_code)
-        except ValueError:
-            pass  # unknown failure code
+        failure_code = OnionFailureCode.from_int(failure_code)  # convert to enum, if known code
         failure_data = failure_msg[2:]
         return OnionRoutingFailure(failure_code, failure_data)
 
@@ -639,6 +636,14 @@ class OnionFailureCode(IntEnum):
     MPP_TIMEOUT =                             23
     TRAMPOLINE_FEE_INSUFFICIENT =             NODE | 51
     TRAMPOLINE_EXPIRY_TOO_SOON =              NODE | 52
+
+    @classmethod
+    def from_int(cls, code: int) -> Union[int, 'OnionFailureCode']:
+        try:
+            code = OnionFailureCode(code)
+        except ValueError:
+            pass  # unknown failure code
+        return code
 
 
 # don't use these elsewhere, the names are ambiguous without context
