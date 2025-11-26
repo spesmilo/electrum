@@ -465,7 +465,7 @@ class PaymentIdentifier(Logger):
                     self.set_state(PaymentIdentifierState.NOT_FOUND)
                 except Exception as e:
                     self.error = str(e)
-                    self.set_state(PaymentIdentifierState.NOT_FOUND)
+                    self.set_state(PaymentIdentifierState.ERROR)
         except Exception as e:
             self.error = str(e)
             self.logger.error(f"_do_finalize() got error: {e!r}")
