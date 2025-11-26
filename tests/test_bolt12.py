@@ -16,6 +16,8 @@ from electrum.invoices import LN_EXPIRY_NEVER
 from electrum.lnchannel import Channel
 from electrum.lnmsg import UnknownMandatoryTLVRecordType, _tlv_merkle_root, OnionWireSerializer
 from electrum.lnonion import OnionHopsDataSingle
+from electrum.lnutil import LnFeatures
+from electrum.onion_message import NoRouteBlindingChannelPeers
 from electrum.segwit_addr import INVALID_BECH32, bech32_encode, Encoding, convertbits
 from electrum.util import bfh
 
@@ -57,6 +59,19 @@ class MockChannel:
 
     def get_remote_update(self):
         return bfh('0102beb6d231566566e014c6f417f247a5e8e882fd6b44ff4526ee230ace401d6ae57205b5c5dd2de21b9ceecbd8676d99a4588266b38b8af59305103c956127122843497fd7f826957108f4a30fd9cec3aeba79972084e90ead01ea3309000000002fe34de423b66e0a6510eb91030200900000000000000001000003e8000000640000000012088038')
+
+
+ROUTE_BLINDING_CAPABLE_PEER_FEATURES = LnFeatures(LnFeatures.OPTION_ROUTE_BLINDING_OPT)
+
+
+class MockPeer:
+    def __init__(self, pubkey, on_send_message=None, their_features=ROUTE_BLINDING_CAPABLE_PEER_FEATURES):
+        self.pubkey = pubkey
+        self.on_send_message = on_send_message
+        self.their_features = their_features
+
+    async def wait_one_htlc_switch_iteration(self, *args):
+        pass
 
 
 class TestBolt12(ElectrumTestCase):
@@ -429,7 +444,14 @@ class TestBolt12(ElectrumTestCase):
         try:
             chan = MockChannel(ckp.pubkey, 1_000_000)
             lnwallet.channels[ckp.pubkey] = chan
-            # lnwallet.peers[self.alice.pubkey] = MockPeer(self.alice.pubkey)
+            peer = MockPeer(ckp.pubkey)
+
+            # base case but without ROUTE_BLINDING capable peers
+            with self.assertRaises(NoRouteBlindingChannelPeers):
+                offer_data, invreq_data = self.gen_base_offer_and_invreq(wkp, pkp)
+                invoice_data = verify_request_and_create_invoice(lnwallet, offer_data, invreq_data)
+
+            lnwallet.peers[ckp.pubkey] = peer
 
             # base case
             offer_data, invreq_data = self.gen_base_offer_and_invreq(wkp, pkp)
