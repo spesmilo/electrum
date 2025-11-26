@@ -2866,6 +2866,45 @@ class TestPeerForwarding(TestPeer):
         assert len(bob_hm.all_htlcs_ever()) == 2
         assert all(bob_hm.was_htlc_failed(htlc_id=htlc.htlc_id, htlc_proposer=HTLCOwner.REMOTE) for (_, htlc) in bob_hm.all_htlcs_ever())
 
+    async def test_payment_with_malformed_onion(self):
+        """
+        Alice -> Bob -> Carol. Carol fails htlc with update_fail_malformed_htlc because she is unable
+        to parse the onion Alice sent to her.
+        """
+        graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['line_graph'])
+        peers = graph.peers.values()
+
+        async def pay(lnaddr, pay_req):
+            self.assertEqual(PR_UNPAID, graph.workers['carol'].get_payment_status(lnaddr.paymenthash))
+            result, log = await graph.workers['alice'].pay_invoice(pay_req)
+            self.assertEqual(OnionFailureCode.INVALID_ONION_VERSION, log[0].failure_msg.code)
+            self.assertFalse(result, msg=log)
+            raise PaymentFailure()
+
+        # this will make carol send update_fail_malformed_htlc
+        graph.workers['carol'].config.TEST_FAIL_HTLCS_AS_MALFORMED = True
+
+        async def f():
+            async with OldTaskGroup() as group:
+                for peer in peers:
+                    await group.spawn(peer._message_loop())
+                    await group.spawn(peer.htlc_switch())
+                for peer in peers:
+                    await peer.initialized
+                lnaddr, pay_req = self.prepare_invoice(graph.workers['carol'], include_routing_hints=True)
+                await group.spawn(pay(lnaddr, pay_req))
+
+        with self.assertLogs('electrum', level='INFO') as logs:
+            with self.assertRaises(PaymentFailure):
+                await f()
+            self.assertTrue(
+                any('carol->bob' in msg and 'fail_malformed_htlc' in msg for msg in logs.output)
+            )
+            self.assertTrue(
+                any('bob->carol' in msg and 'on_update_fail_malformed_htlc' in msg for msg in logs.output)
+            )
+
+
 class TestPeerDirectAnchors(TestPeerDirect):
     TEST_ANCHOR_CHANNELS = True
 
