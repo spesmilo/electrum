@@ -383,7 +383,7 @@ class QEInvoice(QObject, QtEventListener):
         if self.amount.isEmpty:
             if self.amountOverride.isEmpty:
                 raise Exception('can not pay 0 amount')
-            amount_msat = self.amountOverride.satsInt * 1000
+            amount_msat = self.amountOverride.msatsInt
 
         self._wallet.pay_lightning_invoice(self._effectiveInvoice, amount_msat)
 

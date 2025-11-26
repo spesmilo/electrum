@@ -181,7 +181,9 @@ ElDialog {
                                 font.pixelSize: constants.fontSizeXLarge
                                 font.family: FixedFont
                                 font.bold: true
-                                text: Config.formatSats(invoice.amount, false)
+                                text: invoice.invoiceType == Invoice.LightningInvoice
+                                    ? Config.formatMilliSats(invoice.amount, false)
+                                    : Config.formatSats(invoice.amount, false)
                             }
 
                             Label {
@@ -223,12 +225,13 @@ ElDialog {
                                 Layout.preferredWidth: amountFontMetrics.advanceWidth('0') * 14 + leftPadding + rightPadding
                                 fiatfield: amountFiat
                                 readOnly: amountMax.checked
+                                msatPrecision: invoice.invoiceType == Invoice.LightningInvoice
                                 color: readOnly
                                     ? Material.accentColor
                                     : Material.foreground
                                 onTextAsSatsChanged: {
                                     if (!amountMax.checked)
-                                        invoice.amountOverride.satsInt = textAsSats.satsInt
+                                        invoice.amountOverride.copyFrom(textAsSats)
                                 }
                                 Connections {
                                     target: invoice.amountOverride

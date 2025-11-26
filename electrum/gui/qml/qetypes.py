@@ -90,6 +90,7 @@ class QEAmount(QObject):
         self._is_max = False
         self.valueChanged.emit()
 
+    @pyqtSlot('QVariant')
     def copyFrom(self, amount):
         if not amount:
             self._logger.warning('copyFrom with None argument. assuming 0')  # TODO
