@@ -94,14 +94,22 @@ class QEConfig(AuthMixin, QObject):
 
     @pyqtProperty('QRegularExpression', notify=baseUnitChanged)
     def btcAmountRegex(self):
+        return self._btcAmountRegex()
+
+    @pyqtProperty('QRegularExpression', notify=baseUnitChanged)
+    def btcAmountRegexMsat(self):
+        return self._btcAmountRegex(3)
+
+    def _btcAmountRegex(self, extra_precision: int = 0):
         decimal_point = base_unit_name_to_decimal_point(self.config.get_base_unit())
         max_digits_before_dp = (
             len(str(TOTAL_COIN_SUPPLY_LIMIT_IN_BTC))
             + (base_unit_name_to_decimal_point("BTC") - decimal_point))
-        exp = '[0-9]{0,%d}' % max_digits_before_dp
+        exp = '^[0-9]{0,%d}' % max_digits_before_dp
+        decimal_point += extra_precision
         if decimal_point > 0:
-            exp += '\\.'
-            exp += '[0-9]{0,%d}' % decimal_point
+            exp += '(\\.[0-9]{0,%d})?' % decimal_point
+        exp += '$'
         return QRegularExpression(exp)
 
     thousandsSeparatorChanged = pyqtSignal()

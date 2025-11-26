@@ -1,6 +1,10 @@
+from typing import TYPE_CHECKING
 from electrum import SimpleConfig
 from electrum.gui.qml.qeconfig import QEConfig
 from tests.qt_util import QETestCase, qt_test
+
+if TYPE_CHECKING:
+    from PyQt6.QtCore import QRegularExpression
 
 
 class TestConfig(QETestCase):
@@ -64,3 +68,71 @@ class TestConfig(QETestCase):
         self.assertFalse(qa.isEmpty)
         self.assertEqual(qa.satsInt, 1)
         self.assertEqual(qa.msatsInt, 1001)
+
+    @qt_test
+    def test_btc_amount_regexes(self):
+        self.q.config.BTC_AMOUNTS_DECIMAL_POINT = 8
+
+        a: 'QRegularExpression' = self.q.btcAmountRegex
+        b: 'QRegularExpression' = self.q.btcAmountRegexMsat
+
+        self.assertTrue(a.isValid())
+        self.assertTrue(b.isValid())
+
+        self.assertTrue(a.match('1').hasMatch())
+        self.assertTrue(a.match('1.').hasMatch())
+        self.assertTrue(a.match('1.00000000').hasMatch())
+        self.assertFalse(a.match('1.000000000').hasMatch())
+        self.assertTrue(a.match('21000000').hasMatch())
+        self.assertFalse(a.match('121000000').hasMatch())
+
+        self.assertTrue(b.match('1').hasMatch())
+        self.assertTrue(b.match('1.').hasMatch())
+        self.assertTrue(b.match('1.00000000').hasMatch())
+        self.assertTrue(b.match('1.00000000000').hasMatch())
+        self.assertFalse(b.match('1.000000000000').hasMatch())
+        self.assertTrue(b.match('21000000').hasMatch())
+        self.assertFalse(b.match('121000000').hasMatch())
+
+        self.q.config.BTC_AMOUNTS_DECIMAL_POINT = 5
+
+        a: 'QRegularExpression' = self.q.btcAmountRegex
+        b: 'QRegularExpression' = self.q.btcAmountRegexMsat
+
+        self.assertTrue(a.isValid())
+        self.assertTrue(b.isValid())
+
+        self.assertTrue(a.match('1').hasMatch())
+        self.assertTrue(a.match('1.').hasMatch())
+        self.assertTrue(a.match('1.00000').hasMatch())
+        self.assertFalse(a.match('1.000000').hasMatch())
+        self.assertTrue(a.match('21000000000').hasMatch())
+        self.assertFalse(a.match('121000000000').hasMatch())
+
+        self.assertTrue(b.match('1').hasMatch())
+        self.assertTrue(b.match('1.').hasMatch())
+        self.assertTrue(b.match('1.0000000').hasMatch())
+        self.assertTrue(b.match('1.00000000').hasMatch())
+        self.assertFalse(b.match('1.000000000000').hasMatch())
+        self.assertTrue(b.match('21000000000').hasMatch())
+        self.assertFalse(b.match('121000000000').hasMatch())
+
+        self.q.config.BTC_AMOUNTS_DECIMAL_POINT = 0
+
+        a: 'QRegularExpression' = self.q.btcAmountRegex
+        b: 'QRegularExpression' = self.q.btcAmountRegexMsat
+
+        self.assertTrue(a.isValid())
+        self.assertTrue(b.isValid())
+
+        self.assertTrue(a.match('1').hasMatch())
+        self.assertFalse(a.match('1.').hasMatch())
+        self.assertTrue(a.match('2100000000000000').hasMatch())
+        self.assertFalse(a.match('12100000000000000').hasMatch())
+
+        self.assertTrue(b.match('1').hasMatch())
+        self.assertTrue(b.match('1.').hasMatch())
+        self.assertTrue(b.match('1.000').hasMatch())
+        self.assertFalse(b.match('1.0000').hasMatch())
+        self.assertTrue(b.match('2100000000000000').hasMatch())
+        self.assertFalse(b.match('12100000000000000').hasMatch())
