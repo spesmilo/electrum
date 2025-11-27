@@ -356,10 +356,8 @@ class QEConfig(AuthMixin, QObject):
     @pyqtSlot(QEAmount, result=str)
     @pyqtSlot(QEAmount, bool, result=str)
     def formatMilliSats(self, amount, with_unit=False):
-        if isinstance(amount, QEAmount):
-            msats = amount.msatsInt
-        else:
-            return '---'
+        assert isinstance(amount, QEAmount), f"unexpected type for amount: {type(amount)}"
+        msats = amount.msatsInt
         precision = 3  # config.amt_precision_post_satoshi is not exposed in preferences
         if with_unit:
             return self.config.format_amount_and_units(msats/1000, precision=precision)
