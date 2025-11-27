@@ -28,7 +28,6 @@ from decimal import Decimal
 from functools import partial
 from typing import TYPE_CHECKING, Optional, Union
 
-from electrum_aionostr.util import from_nip19
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (QHBoxLayout, QVBoxLayout, QLabel, QGridLayout, QPushButton, QToolButton,
@@ -47,14 +46,13 @@ from electrum.submarine_swaps import NostrTransport, HttpTransport
 from .seed_dialog import seed_warning_msg
 
 from .util import (WindowModalDialog, ColorScheme, HelpLabel, Buttons, CancelButton, WWLabel,
-                   read_QIcon, debug_widget_layouts, qt_event_listener, QtEventListener, IconLabel,
-                   pubkey_to_q_icon)
+                   read_QIcon, debug_widget_layouts, qt_event_listener, QtEventListener, IconLabel)
 from .transaction_dialog import TxSizeLabel, TxFiatLabel, TxInOutWidget
 from .fee_slider import FeeSlider, FeeComboBox
 from .amountedit import FeerateEdit, BTCAmountEdit
 from .locktimeedit import LockTimeEdit
 from .my_treeview import QMenuWithConfig
-from .swap_dialog import SwapServerDialog
+from .swap_dialog import SwapProvidersButton
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -303,7 +301,7 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
             self.tab_widget.removeTab(0)
 
         # always show onchain payment tab
-        self.tab_widget.addTab(self.onchain_tab, _('Onchain'))
+        self.tab_widget.addTab(self.onchain_tab, _('Onchain Transaction'))
 
         allow_swaps = self.allow_preview and self.payee_outputs  # allow_preview is false for ln channel opening txs
         if self.config.WALLET_ENABLE_SUBMARINE_PAYMENTS and allow_swaps:
@@ -728,10 +726,7 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         vbox.addWidget(self.submarine_stacked_widget)
         vbox.addStretch(1)
 
-        self.server_button = QPushButton()
-        self.server_button.clicked.connect(self.choose_swap_server)
-        self.server_button.setEnabled(False)
-        self.server_button.setVisible(False)
+        self.server_button = SwapProvidersButton(lambda: self.swap_transport, self.config, self.main_window)
 
         self.submarine_ok_button = QPushButton(_('OK'))
         self.submarine_ok_button.setDefault(True)
@@ -830,9 +825,8 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         # we couldn't even connect to the relays, this transport is useless. maybe network issues.
         return False
 
-    def choose_swap_server(self) -> None:
-        assert isinstance(self.swap_transport, NostrTransport), self.swap_transport
-        self.main_window.choose_swapserver_dialog(self.swap_transport)
+    @qt_event_listener
+    def on_event_swap_provider_changed(self):
         self.update_submarine_tab()
 
     def start_submarine_swap(self):
@@ -881,20 +875,7 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
             return
 
         # Update the swapserver selection button text
-        if isinstance(self.swap_transport, NostrTransport):
-            self.server_button.setVisible(True)
-            self.server_button.setEnabled(True)
-            if self.config.SWAPSERVER_NPUB:
-                pubkey = from_nip19(self.config.SWAPSERVER_NPUB)['object'].hex()
-                self.server_button.setIcon(pubkey_to_q_icon(pubkey))
-            self.server_button.setText(
-                f' {len(self.swap_transport.get_recent_offers())} ' +
-                (_('providers') if len(self.swap_transport.get_recent_offers()) != 1 else _('provider'))
-            )
-        else:
-            # HTTPTransport or no Network, not showing server selection button
-            self.server_button.setEnabled(False)
-            self.server_button.setVisible(False)
+        self.server_button.update()
 
         if not self.swap_manager.is_initialized.is_set():
             # connected to nostr relays but couldn't find swapserver announcement
@@ -996,6 +977,7 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
 
     @qt_event_listener
     def on_event_swap_offers_changed(self, _):
+        self.server_button.update()
         if self.ongoing_swap_transport_connection_attempt \
                 and not self.ongoing_swap_transport_connection_attempt.done():
             return
