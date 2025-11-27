@@ -218,6 +218,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         self._payment_bundles_pkey_to_canon = {}       # type: Dict[bytes, bytes]
         self._payment_bundles_canon_to_pkeylist = {}   # type: Dict[bytes, Sequence[bytes]]
         self.config.INITIAL_TRAMPOLINE_FEE_LEVEL = 0
+        self._channel_sending_capacity_lock = asyncio.Lock()
 
         self.logger.info(f"created LNWallet[{name}] with nodeID={local_keypair.pubkey.hex()}")
 

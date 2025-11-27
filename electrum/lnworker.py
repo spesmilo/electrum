@@ -914,6 +914,7 @@ class LNWallet(LNWorker):
         self._paysessions = dict()                      # type: Dict[bytes, PaySession]
         self.sent_htlcs_info = dict()                   # type: Dict[SentHtlcKey, SentHtlcInfo]
         self.received_mpp_htlcs = self.db.get_dict('received_mpp_htlcs')   # type: Dict[str, ReceivedMPPStatus]  # payment_key -> ReceivedMPPStatus
+        self._channel_sending_capacity_lock = asyncio.Lock()
 
         # detect inflight payments
         self.inflight_payments = set()        # (not persisted) keys of invoices that are in PR_INFLIGHT state
@@ -1698,27 +1699,33 @@ class LNWallet(LNWorker):
         try:
             while True:
                 if (amount_to_send := paysession.get_outstanding_amount_to_send()) > 0:
-                    # 1. create a set of routes for remaining amount.
-                    # note: path-finding runs in a separate thread so that we don't block the asyncio loop
-                    # graph updates might occur during the computation
                     remaining_fee_budget_msat = (budget.fee_msat * amount_to_send) // amount_to_pay
-                    routes = self.create_routes_for_payment(
-                        paysession=paysession,
-                        amount_msat=amount_to_send,
-                        full_path=full_path,
-                        fwd_trampoline_onion=fwd_trampoline_onion,
-                        channels=channels,
-                        budget=budget._replace(fee_msat=remaining_fee_budget_msat),
-                    )
-                    # 2. send htlcs
-                    async for sent_htlc_info, cltv_delta, trampoline_onion in routes:
-                        await self.pay_to_route(
+                    # splitting the amount of the payment between our channels requires the correct
+                    # available channel balance. to prevent concurrent splitting attempts from
+                    # using stale channel balances for the split calculation a lock needs to be
+                    # taken until the htlcs are added to the channel so the next splitting attempt
+                    # acts on a correct channel balance.
+                    async with self._channel_sending_capacity_lock:
+                        # 1. create a set of routes for remaining amount.
+                        # note: path-finding runs in a separate thread so that we don't block the asyncio loop
+                        # graph updates might occur during the computation
+                        routes = self.create_routes_for_payment(
                             paysession=paysession,
-                            sent_htlc_info=sent_htlc_info,
-                            min_final_cltv_delta=cltv_delta,
-                            trampoline_onion=trampoline_onion,
-                            fw_payment_key=fw_payment_key,
+                            amount_msat=amount_to_send,
+                            full_path=full_path,
+                            fwd_trampoline_onion=fwd_trampoline_onion,
+                            channels=channels,
+                            budget=budget._replace(fee_msat=remaining_fee_budget_msat),
                         )
+                        # 2. send htlcs
+                        async for sent_htlc_info, cltv_delta, trampoline_onion in routes:
+                            await self.pay_to_route(
+                                paysession=paysession,
+                                sent_htlc_info=sent_htlc_info,
+                                min_final_cltv_delta=cltv_delta,
+                                trampoline_onion=trampoline_onion,
+                                fw_payment_key=fw_payment_key,
+                            )
                     # invoice_status is triggered in self.set_invoice_status when it actually changes.
                     # It is also triggered here to update progress for a lightning payment in the GUI
                     # (e.g. attempt counter)
