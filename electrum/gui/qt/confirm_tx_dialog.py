@@ -47,7 +47,8 @@ from electrum.submarine_swaps import NostrTransport, HttpTransport
 from .seed_dialog import seed_warning_msg
 
 from .util import (WindowModalDialog, ColorScheme, HelpLabel, Buttons, CancelButton, WWLabel,
-                   read_QIcon, debug_widget_layouts, qt_event_listener, QtEventListener, IconLabel)
+                   read_QIcon, debug_widget_layouts, qt_event_listener, QtEventListener, IconLabel,
+                   pubkey_to_q_icon)
 from .transaction_dialog import TxSizeLabel, TxFiatLabel, TxInOutWidget
 from .fee_slider import FeeSlider, FeeComboBox
 from .amountedit import FeerateEdit, BTCAmountEdit
@@ -885,7 +886,7 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
             self.server_button.setEnabled(True)
             if self.config.SWAPSERVER_NPUB:
                 pubkey = from_nip19(self.config.SWAPSERVER_NPUB)['object'].hex()
-                self.server_button.setIcon(SwapServerDialog.pubkey_to_q_icon(pubkey))
+                self.server_button.setIcon(pubkey_to_q_icon(pubkey))
             self.server_button.setText(
                 f' {len(self.swap_transport.get_recent_offers())} ' +
                 (_('providers') if len(self.swap_transport.get_recent_offers()) != 1 else _('provider'))
