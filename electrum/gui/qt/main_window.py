@@ -1005,7 +1005,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         return self.config.format_fee_rate(fee_rate)
 
     def get_decimal_point(self):
-        return self.config.get_decimal_point()
+        return self.config.BTC_AMOUNTS_DECIMAL_POINT
 
     def base_unit(self):
         return self.config.get_base_unit()

@@ -615,7 +615,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
             x = Decimal(text)
         except Exception:
             return None
-        power = pow(10, self.config.get_decimal_point())
+        power = pow(10, self.config.BTC_AMOUNTS_DECIMAL_POINT)
         return int(power * x)
 
     def read_invoice(self):

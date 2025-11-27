@@ -324,11 +324,11 @@ class TrezorPlugin(HW_PluginBase):
         raise ValueError('unexpected txin type: {}'.format(electrum_txin_type))
 
     def get_trezor_amount_unit(self):
-        if self.config.decimal_point == 0:
+        if self.config.BTC_AMOUNTS_DECIMAL_POINT == 0:
             return AmountUnit.SATOSHI
-        elif self.config.decimal_point == 2:
+        elif self.config.BTC_AMOUNTS_DECIMAL_POINT == 2:
             return AmountUnit.MICROBITCOIN
-        elif self.config.decimal_point == 5:
+        elif self.config.BTC_AMOUNTS_DECIMAL_POINT == 5:
             return AmountUnit.MILLIBITCOIN
         else:
             return AmountUnit.BITCOIN

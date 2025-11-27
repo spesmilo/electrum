@@ -94,14 +94,22 @@ class QEConfig(AuthMixin, QObject):
 
     @pyqtProperty('QRegularExpression', notify=baseUnitChanged)
     def btcAmountRegex(self):
+        return self._btcAmountRegex()
+
+    @pyqtProperty('QRegularExpression', notify=baseUnitChanged)
+    def btcAmountRegexMsat(self):
+        return self._btcAmountRegex(3)
+
+    def _btcAmountRegex(self, extra_precision: int = 0):
         decimal_point = base_unit_name_to_decimal_point(self.config.get_base_unit())
         max_digits_before_dp = (
             len(str(TOTAL_COIN_SUPPLY_LIMIT_IN_BTC))
             + (base_unit_name_to_decimal_point("BTC") - decimal_point))
-        exp = '[0-9]{0,%d}' % max_digits_before_dp
+        exp = '^[0-9]{0,%d}' % max_digits_before_dp
+        decimal_point += extra_precision
         if decimal_point > 0:
-            exp += '\\.'
-            exp += '[0-9]{0,%d}' % decimal_point
+            exp += '(\\.[0-9]{0,%d})?' % decimal_point
+        exp += '$'
         return QRegularExpression(exp)
 
     thousandsSeparatorChanged = pyqtSignal()
@@ -358,13 +366,6 @@ class QEConfig(AuthMixin, QObject):
         else:
             return self.config.format_amount(msats/1000, precision=precision)
 
-    # TODO delegate all this to config.py/util.py
-    def decimal_point(self):
-        return self.config.BTC_AMOUNTS_DECIMAL_POINT
-
-    def max_precision(self):
-        return self.decimal_point() + 0  # self.extra_precision
-
     @pyqtSlot(str, result=QEAmount)
     def unitsToSats(self, unitAmount):
         self._amount = QEAmount()
@@ -373,18 +374,13 @@ class QEConfig(AuthMixin, QObject):
         except Exception:
             return self._amount
 
-        # scale it to max allowed precision, make it an int
-        max_prec_amount = int(pow(10, self.max_precision()) * x)
-        # if the max precision is simply what unit conversion allows, just return
-        if self.max_precision() == self.decimal_point():
-            self._amount = QEAmount(amount_sat=max_prec_amount)
-            return self._amount
-        self._logger.debug('fallthrough')
-        # otherwise, scale it back to the expected unit
-        #amount = Decimal(max_prec_amount) / Decimal(pow(10, self.max_precision()-self.decimal_point()))
-        #return int(amount) #Decimal(amount) if not self.is_int else int(amount)
+        sat_max_precision = self.config.BTC_AMOUNTS_DECIMAL_POINT
+        msat_max_precision = self.config.BTC_AMOUNTS_DECIMAL_POINT + 3
+        sat_max_prec_amount = int(pow(10, sat_max_precision) * x)
+        msat_max_prec_amount = int(pow(10, msat_max_precision) * x)
+        self._amount = QEAmount(amount_sat=sat_max_prec_amount, amount_msat=msat_max_prec_amount)
         return self._amount
 
     @pyqtSlot('quint64', result=float)
     def satsToUnits(self, satoshis):
-        return satoshis / pow(10, self.config.decimal_point)
+        return satoshis / pow(10, self.config.BTC_AMOUNTS_DECIMAL_POINT)

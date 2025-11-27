@@ -97,7 +97,7 @@ class SettingsDialog(QDialog, QtEventListener):
         nz_label = HelpLabel.from_configvar(self.config.cv.BTC_AMOUNTS_FORCE_NZEROS_AFTER_DECIMAL_POINT)
         nz = QSpinBox()
         nz.setMinimum(0)
-        nz.setMaximum(self.config.decimal_point)
+        nz.setMaximum(self.config.BTC_AMOUNTS_DECIMAL_POINT)
         nz.setValue(self.config.num_zeros)
         if not self.config.cv.BTC_AMOUNTS_FORCE_NZEROS_AFTER_DECIMAL_POINT.is_modifiable():
             for w in [nz, nz_label]: w.setEnabled(False)
@@ -205,7 +205,7 @@ class SettingsDialog(QDialog, QtEventListener):
             if self.config.get_base_unit() == unit_result:
                 return
             self.config.set_base_unit(unit_result)
-            nz.setMaximum(self.config.decimal_point)
+            nz.setMaximum(self.config.BTC_AMOUNTS_DECIMAL_POINT)
             self.app.refresh_tabs_signal.emit()
             self.app.update_status_signal.emit()
             self.app.refresh_amount_edits_signal.emit()

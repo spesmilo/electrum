@@ -1,7 +1,7 @@
 import copy
 import threading
 from enum import IntEnum
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple
 from urllib.parse import urlparse
 
 from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, pyqtEnum, QTimer
@@ -327,23 +327,10 @@ class QEInvoice(QObject, QtEventListener):
                 PR_UNKNOWN: _('Invoice has unknown status'),
             }[_status]
 
-        if self.invoiceType == QEInvoice.Type.LightningInvoice:
-            if status in [PR_UNPAID, PR_FAILED]:
-                if self.get_max_spendable_lightning() >= amount.satsInt:
-                    lnaddr = self._effectiveInvoice._lnaddr
-                    if lnaddr.amount and amount.satsInt < lnaddr.amount * COIN:
-                        self.userinfo = _('Cannot pay less than the amount specified in the invoice')
-                elif not self.address or self.get_max_spendable_onchain() < amount.satsInt:
-                    # TODO: for onchain: validate address? subtract fee?
-                    self.userinfo = _('Insufficient balance')
-            else:
-                self.userinfo = userinfo_for_invoice_status(status)
-        elif self.invoiceType == QEInvoice.Type.OnchainInvoice:
-            if status in [PR_UNPAID, PR_FAILED]:
-                if not ((amount.isMax and self.get_max_spendable_onchain() > 0) or (self.get_max_spendable_onchain() >= amount.satsInt)):
-                    self.userinfo = _('Insufficient balance')
-            else:
-                self.userinfo = userinfo_for_invoice_status(status)
+        if status in [PR_UNPAID, PR_FAILED]:
+            x, self.userinfo = self.check_can_pay_amount(amount)
+        else:
+            self.userinfo = userinfo_for_invoice_status(status)
 
     def determine_can_pay(self):
         self.canPay = False
@@ -364,24 +351,25 @@ class QEInvoice(QObject, QtEventListener):
         if amount.isEmpty and status == PR_UNPAID:  # unspecified amount
             return
 
+        if status in [PR_UNPAID, PR_FAILED]:
+            self.canPay, x = self.check_can_pay_amount(amount)
+
+    def check_can_pay_amount(self, amount: QEAmount) -> Tuple[bool, Optional[str]]:
+        assert self.status in [PR_UNPAID, PR_FAILED]
         if self.invoiceType == QEInvoice.Type.LightningInvoice:
-            if status in [PR_UNPAID, PR_FAILED]:
-                if self.get_max_spendable_lightning() >= amount.satsInt:
-                    lnaddr = self._effectiveInvoice._lnaddr
-                    if not (lnaddr.amount and amount.satsInt < lnaddr.amount * COIN):
-                        self.canPay = True
-                elif self.address and self.get_max_spendable_onchain() > amount.satsInt:
-                    # TODO: validate address?
-                    # TODO: subtract fee?
-                    self.canPay = True
+            if self.get_max_spendable_lightning() * 1000 >= amount.msatsInt:
+                lnaddr = self._effectiveInvoice._lnaddr
+                if lnaddr.amount and amount.msatsInt < lnaddr.amount * COIN * 1000:
+                    return False, _('Cannot pay less than the amount specified in the invoice')
+                else:
+                    return True, None
+            elif self.address and self.get_max_spendable_onchain() > amount.satsInt:
+                return True, None
         elif self.invoiceType == QEInvoice.Type.OnchainInvoice:
-            if status in [PR_UNPAID, PR_FAILED]:
-                if amount.isMax and self.get_max_spendable_onchain() > 0:
-                    # TODO: dust limit?
-                    self.canPay = True
-                elif self.get_max_spendable_onchain() >= amount.satsInt:
-                    # TODO: subtract fee?
-                    self.canPay = True
+            if (amount.isMax and self.get_max_spendable_onchain() > 0) or (self.get_max_spendable_onchain() >= amount.satsInt):
+                return True, None
+
+        return False, _('Insufficient balance')
 
     @pyqtSlot()
     def payLightningInvoice(self):
@@ -395,7 +383,7 @@ class QEInvoice(QObject, QtEventListener):
         if self.amount.isEmpty:
             if self.amountOverride.isEmpty:
                 raise Exception('can not pay 0 amount')
-            amount_msat = self.amountOverride.satsInt * 1000
+            amount_msat = self.amountOverride.msatsInt
 
         self._wallet.pay_lightning_invoice(self._effectiveInvoice, amount_msat)
 
