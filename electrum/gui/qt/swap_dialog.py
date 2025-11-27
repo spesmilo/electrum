@@ -13,12 +13,13 @@ from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, UserCancelled
 from electrum.bitcoin import DummyAddress
 from electrum.transaction import PartialTxOutput, PartialTransaction
 from electrum.fee_policy import FeePolicy
-from electrum.submarine_swaps import NostrTransport, pubkey_to_rgb_color
+from electrum.submarine_swaps import NostrTransport
 
 from electrum.gui import messages
 from . import util
 from .util import (WindowModalDialog, Buttons, OkButton, CancelButton,
-                   EnterButton, ColorScheme, WWLabel, read_QIcon, IconLabel, char_width_in_lineedit)
+                   EnterButton, ColorScheme, WWLabel, read_QIcon, IconLabel, char_width_in_lineedit,
+                   pubkey_to_q_icon)
 from .util import qt_event_listener, QtEventListener
 from .amountedit import BTCAmountEdit
 from .fee_slider import FeeSlider, FeeComboBox
@@ -301,7 +302,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         self.needs_tx_update = True
         # update icon
         pubkey = from_nip19(self.config.SWAPSERVER_NPUB)['object'].hex() if self.config.SWAPSERVER_NPUB else ''
-        self.server_button.setIcon(SwapServerDialog._pubkey_to_q_icon(pubkey))
+        self.server_button.setIcon(pubkey_to_q_icon(pubkey))
 
     def get_client_swap_limits_sat(self) -> Tuple[int, int]:
         """Returns the (min, max) client swap limits in sat."""
@@ -531,13 +532,7 @@ class SwapServerDialog(WindowModalDialog, QtEventListener):
             labels[self.Columns.LAST_SEEN] = age(x.timestamp)
             item = QTreeWidgetItem(labels)
             item.setData(self.Columns.PUBKEY, ROLE_NPUB, x.server_npub)
-            item.setIcon(self.Columns.PUBKEY, self._pubkey_to_q_icon(x.server_pubkey))
+            item.setIcon(self.Columns.PUBKEY, pubkey_to_q_icon(x.server_pubkey))
             items.append(item)
         self.servers_list.insertTopLevelItems(0, items)
 
-    @staticmethod
-    def _pubkey_to_q_icon(server_pubkey: str) -> QIcon:
-        color = QColor(*pubkey_to_rgb_color(server_pubkey))
-        color_pixmap = QPixmap(100, 100)
-        color_pixmap.fill(color)
-        return QIcon(color_pixmap)

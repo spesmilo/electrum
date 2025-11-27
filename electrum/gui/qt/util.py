@@ -26,6 +26,7 @@ from electrum.util import (FileImportFailed, FileExportFailed, resource_path, Ev
 from electrum.invoices import (PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT, PR_UNKNOWN, PR_FAILED, PR_ROUTING,
                                PR_UNCONFIRMED, PR_BROADCASTING, PR_BROADCAST)
 from electrum.qrreader import MissingQrDetectionLib, QrCodeResult
+from electrum.submarine_swaps import pubkey_to_rgb_color
 
 from electrum.gui.common_qt.util import TaskThread
 
@@ -724,6 +725,13 @@ def get_icon_qrcode() -> QIcon:
 def get_icon_camera() -> QIcon:
     name = "camera_white.png" if ColorScheme.dark_scheme else "camera_dark.png"
     return read_QIcon(name)
+
+
+def pubkey_to_q_icon(server_pubkey: str) -> QIcon:
+    color = QColor(*pubkey_to_rgb_color(server_pubkey))
+    color_pixmap = QPixmap(100, 100)
+    color_pixmap.fill(color)
+    return QIcon(color_pixmap)
 
 
 def add_input_actions_to_context_menu(gih: 'GenericInputHandler', m: QMenu) -> None:
@@ -1521,6 +1529,21 @@ def set_windows_os_screenshot_protection_drm_flag(window: QWidget) -> None:
         ctypes.windll.user32.SetWindowDisplayAffinity(window_id, WDA_MONITOR)
     except Exception:
         _logger.exception(f"failed to set windows screenshot protection flag")
+
+
+def debug_widget_layouts(gui_element: QObject):
+    """Draw red borders around all widgets of given QObject for debugging.
+    E.g. add util.debug_widget_layouts(self) at the end of TxEditor.__init__
+    """
+    assert isinstance(gui_element, QObject) and hasattr(gui_element, 'findChildren')
+    def set_border(widget):
+        if widget is not None:
+            widget.setStyleSheet(widget.styleSheet() + " * { border: 1px solid red; }")
+
+    # Apply to all child widgets recursively
+    for widget in gui_element.findChildren(QWidget):
+        set_border(widget)
+
 
 class _ABCQObjectMeta(type(QObject), ABCMeta): pass
 class _ABCQWidgetMeta(type(QWidget), ABCMeta): pass

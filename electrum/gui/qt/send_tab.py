@@ -338,9 +338,16 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         coins_conservative = get_coins(nonlocal_only=True, confirmed_only=True)
         candidates = self.wallet.get_candidates_for_batching(outputs, coins=coins_conservative)
 
-        tx, is_preview = self.window.confirm_tx_dialog(make_tx, output_value, batching_candidates=candidates)
+        tx, is_preview, paid_with_swap = self.window.confirm_tx_dialog(
+            make_tx,
+            output_value,
+            payee_outputs=[o for o in outputs if not o.is_change],
+            batching_candidates=candidates,
+        )
         if tx is None:
-            # user cancelled
+            if paid_with_swap:
+                self.do_clear()
+            # user cancelled or paid with swap
             return
 
         if swap_dummy_output := tx.get_dummy_output(DummyAddress.SWAP):

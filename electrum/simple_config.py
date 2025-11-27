@@ -688,6 +688,13 @@ class SimpleConfig(Logger):
         short_desc=lambda: _('Send change to Lightning'),
         long_desc=lambda: _('If possible, send the change of this transaction to your channels, with a submarine swap'),
     )
+    WALLET_ENABLE_SUBMARINE_PAYMENTS = ConfigVar(
+        'enable_submarine_payments', default=False, type_=bool,
+        short_desc=lambda: _('Submarine Payments'),
+        long_desc=lambda: _('Send onchain payments directly from your Lightning balance with a '
+                            'submarine swap. This allows you to do onchain transactions even if your entire '
+                            'wallet balance is inside Lightning channels.')
+    )
     WALLET_FREEZE_REUSED_ADDRESS_UTXOS = ConfigVar(
         'wallet_freeze_reused_address_utxos', default=False, type_=bool,
         short_desc=lambda: _('Avoid spending from used addresses'),
