@@ -1,4 +1,5 @@
 import asyncio
+import dataclasses
 import shutil
 import copy
 import tempfile
@@ -11,6 +12,9 @@ import concurrent
 from concurrent import futures
 from unittest import mock
 from typing import Iterable, NamedTuple, Tuple, List, Dict, Sequence
+from types import MappingProxyType
+import time
+import statistics
 
 from aiorpcx import timeout_after, TaskTimeout
 from electrum_ecc import ECPrivkey
@@ -38,9 +42,8 @@ from electrum.lnmsg import encode_msg, decode_msg
 from electrum import lnmsg
 from electrum.logging import console_stderr_handler, Logger
 from electrum.lnworker import PaymentInfo, RECEIVED
-from electrum.lnonion import OnionFailureCode, OnionRoutingFailure
-from electrum.lnutil import UpdateAddHtlc
-from electrum.lnutil import LOCAL, REMOTE
+from electrum.lnonion import OnionFailureCode, OnionRoutingFailure, OnionHopsDataSingle, OnionPacket
+from electrum.lnutil import LOCAL, REMOTE, UpdateAddHtlc, RecvMPPResolution
 from electrum.invoices import PR_PAID, PR_UNPAID, Invoice, LN_EXPIRY_NEVER
 from electrum.interface import GracefulDisconnect
 from electrum.simple_config import SimpleConfig
@@ -102,11 +105,13 @@ class MockNetwork:
 
 
 class MockBlockchain:
-
-    def height(self):
+    def __init__(self):
         # Let's return a non-zero, realistic height.
         # 0 might hide relative vs abs locktime confusion bugs.
-        return 600_000
+        self._height = 600_000
+
+    def height(self):
+       return self._height
 
     def is_tip_stale(self):
         return False
@@ -213,6 +218,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         self._preimages = {}
         self.stopping_soon = False
         self.downstream_to_upstream_htlc = {}
+        self.dont_expire_htlcs = {}
         self.dont_settle_htlcs = {}
         self.hold_invoice_callbacks = {}
         self._payment_bundles_pkey_to_canon = {}       # type: Dict[bytes, bytes]
@@ -301,7 +307,6 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     set_request_status = LNWallet.set_request_status
     set_payment_status = LNWallet.set_payment_status
     get_payment_status = LNWallet.get_payment_status
-    check_mpp_status = LNWallet.check_mpp_status
     htlc_fulfilled = LNWallet.htlc_fulfilled
     htlc_failed = LNWallet.htlc_failed
     save_preimage = LNWallet.save_preimage
@@ -334,11 +339,9 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     unregister_hold_invoice = LNWallet.unregister_hold_invoice
     add_payment_info_for_hold_invoice = LNWallet.add_payment_info_for_hold_invoice
 
-    update_mpp_with_received_htlc = LNWallet.update_mpp_with_received_htlc
+    update_or_create_mpp_with_received_htlc = LNWallet.update_or_create_mpp_with_received_htlc
     set_mpp_resolution = LNWallet.set_mpp_resolution
-    is_mpp_amount_reached = LNWallet.is_mpp_amount_reached
     get_mpp_amounts = LNWallet.get_mpp_amounts
-    get_first_timestamp_of_mpp = LNWallet.get_first_timestamp_of_mpp
     bundle_payments = LNWallet.bundle_payments
     get_payment_bundle = LNWallet.get_payment_bundle
     _get_payment_key = LNWallet._get_payment_key
@@ -347,11 +350,14 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     maybe_cleanup_forwarding = LNWallet.maybe_cleanup_forwarding
     current_target_feerate_per_kw = LNWallet.current_target_feerate_per_kw
     current_low_feerate_per_kw_srk_channel = LNWallet.current_low_feerate_per_kw_srk_channel
-    maybe_cleanup_mpp = LNWallet.maybe_cleanup_mpp
     create_onion_for_route = LNWallet.create_onion_for_route
-    maybe_forward_htlc = LNWallet.maybe_forward_htlc
-    maybe_forward_trampoline = LNWallet.maybe_forward_trampoline
+    maybe_forward_htlc_set = LNWallet.maybe_forward_htlc_set
+    _maybe_forward_htlc = LNWallet._maybe_forward_htlc
+    _maybe_forward_trampoline = LNWallet._maybe_forward_trampoline
     _maybe_refuse_to_forward_htlc_that_corresponds_to_payreq_we_created = LNWallet._maybe_refuse_to_forward_htlc_that_corresponds_to_payreq_we_created
+    set_htlc_set_error = LNWallet.set_htlc_set_error
+    is_payment_bundle_complete = LNWallet.is_payment_bundle_complete
+    delete_payment_bundle = LNWallet.delete_payment_bundle
     _process_htlc_log = LNWallet._process_htlc_log
 
 
@@ -559,6 +565,7 @@ class TestPeer(ElectrumTestCase):
             payment_hash: bytes = None,
             invoice_features: LnFeatures = None,
             min_final_cltv_delta: int = None,
+            expiry: int = None,
     ) -> Tuple[LnAddr, Invoice]:
         amount_btc = amount_msat/Decimal(COIN*1000)
         if payment_preimage is None and not payment_hash:
@@ -586,7 +593,7 @@ class TestPeer(ElectrumTestCase):
             direction=RECEIVED,
             status=PR_UNPAID,
             min_final_cltv_delta=min_final_cltv_delta,
-            expiry_delay=LN_EXPIRY_NEVER,
+            expiry_delay=expiry or LN_EXPIRY_NEVER,
         )
         w2.save_payment_info(info)
         lnaddr1 = LnAddr(
@@ -596,6 +603,7 @@ class TestPeer(ElectrumTestCase):
                 ('c', min_final_cltv_delta),
                 ('d', 'coffee'),
                 ('9', invoice_features),
+                ('x', expiry or 3600),
             ] + routing_hints,
             payment_secret=payment_secret,
         )
@@ -855,20 +863,24 @@ class TestPeerDirect(TestPeer):
         """Alice pays Bob a single HTLC via direct channel."""
         alice_channel, bob_channel = create_test_channels()
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
+        results = {}
         async def pay(lnaddr, pay_req):
             self.assertEqual(PR_UNPAID, w2.get_payment_status(lnaddr.paymenthash))
             result, log = await w1.pay_invoice(pay_req)
             if result is True:
                 self.assertEqual(PR_PAID, w2.get_payment_status(lnaddr.paymenthash))
-                raise PaymentDone()
+                results[lnaddr] = PaymentDone()
             else:
-                raise PaymentFailure()
+                results[lnaddr] = PaymentFailure()
         lnaddr, pay_req = self.prepare_invoice(w2)
+        to_pay = [(lnaddr, pay_req)]
         self.prepare_recipient(w2, lnaddr.paymenthash, test_hold_invoice, test_failure)
 
         if test_bundle:
             lnaddr2, pay_req2 = self.prepare_invoice(w2)
             w2.bundle_payments([lnaddr.paymenthash, lnaddr2.paymenthash])
+            if not test_bundle_timeout:
+                to_pay.append((lnaddr2, pay_req2))
 
         if test_trampoline:
             await self._activate_trampoline(w1)
@@ -886,9 +898,16 @@ class TestPeerDirect(TestPeer):
                 await asyncio.sleep(0.01)
                 invoice_features = lnaddr.get_features()
                 self.assertFalse(invoice_features.supports(LnFeatures.BASIC_MPP_OPT))
-                await group.spawn(pay(lnaddr, pay_req))
-                if test_bundle and not test_bundle_timeout:
-                    await group.spawn(pay(lnaddr2, pay_req2))
+                for lnaddr_to_pay, pay_req_to_pay in to_pay:
+                    await group.spawn(pay(lnaddr_to_pay, pay_req_to_pay))
+                elapsed = 0
+                while len(results) < len(to_pay) and elapsed < 4:
+                    await asyncio.sleep(0.05)  # wait for all payments to finish/fail (or timeout)
+                    elapsed += 0.05
+                self.assertEqual(len(results), len(to_pay), msg="timeout")
+                # all payment results should be similar
+                self.assertEqual(len(set(type(res) for res in results.values())), 1, msg=results)
+                raise list(results.values())[0]
 
         await f()
 
@@ -911,6 +930,11 @@ class TestPeerDirect(TestPeer):
         for test_trampoline in [False, True]:
             with self.assertRaises(PaymentFailure):
                 await self._test_simple_payment(test_trampoline=test_trampoline, test_bundle=True, test_bundle_timeout=True)
+
+    async def test_payment_bundle_with_hold_invoice(self):
+        for test_trampoline in [False, True]:
+            with self.assertRaises(PaymentDone):
+                await self._test_simple_payment(test_trampoline=test_trampoline, test_bundle=True, test_hold_invoice=True)
 
     async def test_simple_payment_success_with_hold_invoice(self):
         for test_trampoline in [False, True]:
@@ -953,6 +977,136 @@ class TestPeerDirect(TestPeer):
 
         with self.assertRaises(SuccessfulTest):
             await f()
+
+    async def test_reject_invalid_min_final_cltv_delta(self):
+        """
+        Tests that htlcs with a final cltv delta < the minimum requested in the invoice get
+        rejected immediately upon receiving them.
+        """
+        async def run_test(test_trampoline):
+            alice_channel, bob_channel = create_test_channels()
+            p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
+
+            async def try_pay_with_too_low_final_cltv_delta(lnaddr, w1=w1, w2=w2):
+                self.assertEqual(PR_UNPAID, w2.get_payment_status(lnaddr.paymenthash))
+                assert lnaddr.get_min_final_cltv_delta() == 400  # what the receiver expects
+                lnaddr.tags = [tag for tag in lnaddr.tags if tag[0] != 'c'] + [['c', 144]]
+                b11 = lnencode(lnaddr, w2.node_keypair.privkey)
+                pay_req = Invoice.from_bech32(b11)
+                assert pay_req._lnaddr.get_min_final_cltv_delta() == 144  # what w1 will use to pay
+                result, log = await w1.pay_invoice(pay_req)
+                if not result:
+                    raise PaymentFailure()
+                raise PaymentDone()
+
+            # create invoice with high min final cltv delta
+            lnaddr, _pay_req = self.prepare_invoice(w2, min_final_cltv_delta=400)
+
+            if test_trampoline:
+                await self._activate_trampoline(w1)
+                # declare bob as trampoline node
+                electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
+                    'bob': LNPeerAddr(host="127.0.0.1", port=9735, pubkey=w2.node_keypair.pubkey),
+                }
+
+            async def f():
+                async with OldTaskGroup() as group:
+                    await group.spawn(p1._message_loop())
+                    await group.spawn(p1.htlc_switch())
+                    await group.spawn(p2._message_loop())
+                    await group.spawn(p2.htlc_switch())
+                    await asyncio.sleep(0.01)
+                    await group.spawn(try_pay_with_too_low_final_cltv_delta(lnaddr))
+
+            with self.assertRaises(PaymentFailure):
+                await f()
+
+        for _test_trampoline in [False, True]:
+            await run_test(_test_trampoline)
+
+    async def test_reject_payment_for_expired_invoice(self):
+        """Tests that new htlcs paying an invoice that has already been expired will get rejected."""
+        async def run_test(test_trampoline):
+            alice_channel, bob_channel = create_test_channels()
+            p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
+
+            # create lightning invoice in the past, so it is expired
+            with mock.patch('time.time', return_value=int(time.time()) - 10000):
+                lnaddr, _pay_req = self.prepare_invoice(w2, expiry=3600)
+                b11 = lnencode(lnaddr, w2.node_keypair.privkey)
+                pay_req = Invoice.from_bech32(b11)
+
+            async def try_pay_expired_invoice(pay_req: Invoice, w1=w1):
+                assert pay_req.has_expired()
+                assert lnaddr.is_expired()
+                with mock.patch.object(w1, "_check_bolt11_invoice", return_value=lnaddr):
+                    result, log = await w1.pay_invoice(pay_req)
+                if not result:
+                    raise PaymentFailure()
+                raise PaymentDone()
+
+            if test_trampoline:
+                await self._activate_trampoline(w1)
+                # declare bob as trampoline node
+                electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
+                    'bob': LNPeerAddr(host="127.0.0.1", port=9735, pubkey=w2.node_keypair.pubkey),
+                }
+
+            async def f():
+                async with OldTaskGroup() as group:
+                    await group.spawn(p1._message_loop())
+                    await group.spawn(p1.htlc_switch())
+                    await group.spawn(p2._message_loop())
+                    await group.spawn(p2.htlc_switch())
+                    await asyncio.sleep(0.01)
+                    await group.spawn(try_pay_expired_invoice(pay_req))
+
+            with self.assertRaises(PaymentFailure):
+                await f()
+
+        for _test_trampoline in [False, True]:
+            await run_test(_test_trampoline)
+
+    async def test_reject_multiple_payments_of_same_invoice(self):
+        """Tests that new htlcs paying an invoice that has already been paid will get rejected."""
+        async def run_test(test_trampoline):
+            alice_channel, bob_channel = create_test_channels()
+            p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
+
+            lnaddr, _pay_req = self.prepare_invoice(w2)
+
+            async def try_pay_invoice_twice(pay_req: Invoice, w1=w1):
+                result, log = await w1.pay_invoice(pay_req)
+                assert result is True
+                # now pay the same invoice again, the payment should be rejected by w2
+                w1.set_payment_status(pay_req._lnaddr.paymenthash, PR_UNPAID)
+                result, log = await w1.pay_invoice(pay_req)
+                if not result:
+                    # w1.pay_invoice returned a payment failure as the payment got rejected by w2
+                    raise SuccessfulTest()
+                raise PaymentDone()
+
+            if test_trampoline:
+                await self._activate_trampoline(w1)
+                # declare bob as trampoline node
+                electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
+                    'bob': LNPeerAddr(host="127.0.0.1", port=9735, pubkey=w2.node_keypair.pubkey),
+                }
+
+            async def f():
+                async with OldTaskGroup() as group:
+                    await group.spawn(p1._message_loop())
+                    await group.spawn(p1.htlc_switch())
+                    await group.spawn(p2._message_loop())
+                    await group.spawn(p2.htlc_switch())
+                    await asyncio.sleep(0.01)
+                    await group.spawn(try_pay_invoice_twice(_pay_req))
+
+            with self.assertRaises(SuccessfulTest):
+                await f()
+
+        for _test_trampoline in [False, True]:
+            await run_test(_test_trampoline)
 
     async def test_payment_race(self):
         """Alice and Bob pay each other simultaneously.
@@ -1202,6 +1356,183 @@ class TestPeerDirect(TestPeer):
 
         with self.assertRaises(SuccessfulTest):
             await f()
+
+    async def test_dont_settle_partial_mpp_trigger_with_invalid_cltv_htlc(self):
+        """Alice gets two htlcs as part of a mpp, one has a cltv too close to expiry and will get failed.
+        Test that the other htlc won't get settled if the mpp isn't complete anymore after failing the other htlc.
+        """
+        alice_channel, bob_channel = create_test_channels()
+        p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
+        async def pay():
+            await util.wait_for2(p1.initialized, 1)
+            await util.wait_for2(p2.initialized, 1)
+            w2.features |= LnFeatures.BASIC_MPP_OPT
+            lnaddr1, _pay_req = self.prepare_invoice(w2, amount_msat=10_000, min_final_cltv_delta=144)
+            self.assertTrue(lnaddr1.get_features().supports(LnFeatures.BASIC_MPP_OPT))
+            route = (await w1.create_routes_from_invoice(amount_msat=10_000, decoded_invoice=lnaddr1))[0][0].route
+
+            # now p1 sends two htlcs, one is valid (1 msat), one is invalid (9_999 msat)
+            p1.pay(
+                route=route,
+                chan=alice_channel,
+                amount_msat=1,
+                total_msat=lnaddr1.get_amount_msat(),
+                payment_hash=lnaddr1.paymenthash,
+                # this htlc is valid and will get accepted, but it shouldn't get settled
+                min_final_cltv_delta=400,
+                payment_secret=lnaddr1.payment_secret,
+            )
+            await asyncio.sleep(0.1)
+            assert w1.get_preimage(lnaddr1.paymenthash) is None
+            p1.pay(
+                route=route,
+                chan=alice_channel,
+                amount_msat=9_999,
+                total_msat=lnaddr1.get_amount_msat(),
+                payment_hash=lnaddr1.paymenthash,
+                # this htlc will get failed directly as the cltv is too close to expiry (< 144)
+                min_final_cltv_delta=1,
+                payment_secret=lnaddr1.payment_secret,
+            )
+
+            while nhtlc_success + nhtlc_failed < 2:
+                await htlc_resolved.wait()
+            # both htlcs of the mpp set should get failed and w2 shouldn't release the preimage
+            self.assertEqual(0, nhtlc_success, f"{nhtlc_success=} | {nhtlc_failed=}")
+            self.assertEqual(2, nhtlc_failed,  f"{nhtlc_success=} | {nhtlc_failed=}")
+            assert w1.get_preimage(lnaddr1.paymenthash) is None, "w1 shouldn't get the preimage"
+            raise SuccessfulTest()
+
+        async def f():
+            async with OldTaskGroup() as group:
+                await group.spawn(p1._message_loop())
+                await group.spawn(p1.htlc_switch())
+                await group.spawn(p2._message_loop())
+                await group.spawn(p2.htlc_switch())
+                await asyncio.sleep(0.01)
+                await group.spawn(pay())
+
+        htlc_resolved = asyncio.Event()
+        nhtlc_success = 0
+        nhtlc_failed = 0
+        async def on_htlc_fulfilled(*args):
+            htlc_resolved.set()
+            htlc_resolved.clear()
+            nonlocal nhtlc_success
+            nhtlc_success += 1
+        async def on_htlc_failed(*args):
+            htlc_resolved.set()
+            htlc_resolved.clear()
+            nonlocal nhtlc_failed
+            nhtlc_failed += 1
+        util.register_callback(on_htlc_fulfilled, ["htlc_fulfilled"])
+        util.register_callback(on_htlc_failed, ["htlc_failed"])
+
+        try:
+            with self.assertRaises(SuccessfulTest):
+                await f()
+        finally:
+            util.unregister_callback(on_htlc_fulfilled)
+            util.unregister_callback(on_htlc_failed)
+
+    async def test_mpp_cleanup_after_expiry(self):
+        """
+        1. Alice sends two HTLCs to Bob, not reaching total_msat, and eventually they MPP_TIMEOUT
+        2. Bob fails both HTLCs
+        3. Alice then retries and sends HTLCs again to Bob, for the same RHASH,
+           this time reaching total_msat, and the payment succeeds
+
+        Test that the sets are properly cleaned up after MPP_TIMEOUT
+        and the sender gets a second chance to pay the same invoice.
+        """
+        async def run_test(test_trampoline: bool):
+            alice_channel, bob_channel = create_test_channels()
+            alice_peer, bob_peer, alice_wallet, bob_wallet, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
+            lnaddr1, pay_req1 = self.prepare_invoice(bob_wallet, amount_msat=10_000)
+
+            if test_trampoline:
+                await self._activate_trampoline(alice_wallet)
+                # declare bob as trampoline node
+                electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
+                    'bob': LNPeerAddr(host="127.0.0.1", port=9735, pubkey=bob_wallet.node_keypair.pubkey),
+                }
+
+            async def _test():
+                route = (await alice_wallet.create_routes_from_invoice(amount_msat=10_000, decoded_invoice=lnaddr1))[0][0].route
+                assert len(bob_wallet.received_mpp_htlcs) == 0
+                # now alice sends two small htlcs, so the set stays incomplete
+                alice_peer.pay(  # htlc 1
+                    route=route,
+                    chan=alice_channel,
+                    amount_msat=lnaddr1.get_amount_msat() // 4,
+                    total_msat=lnaddr1.get_amount_msat(),
+                    payment_hash=lnaddr1.paymenthash,
+                    min_final_cltv_delta=400,
+                    payment_secret=lnaddr1.payment_secret,
+                )
+                alice_peer.pay(  # htlc 2
+                    route=route,
+                    chan=alice_channel,
+                    amount_msat=lnaddr1.get_amount_msat() // 4,
+                    total_msat=lnaddr1.get_amount_msat(),
+                    payment_hash=lnaddr1.paymenthash,
+                    min_final_cltv_delta=400,
+                    payment_secret=lnaddr1.payment_secret,
+                )
+                await asyncio.sleep(bob_wallet.MPP_EXPIRY // 2)  # give bob time to receive the htlc
+                bob_payment_key = bob_wallet._get_payment_key(lnaddr1.paymenthash).hex()
+                assert bob_wallet.received_mpp_htlcs[bob_payment_key].resolution == RecvMPPResolution.WAITING
+                assert len(bob_wallet.received_mpp_htlcs[bob_payment_key].htlcs) == 2
+                # now wait until bob expires the mpp (set)
+                await asyncio.wait_for(alice_htlc_resolved.wait(), bob_wallet.MPP_EXPIRY * 3)  # this can take some time, esp. on CI
+                # check that bob failed the htlc
+                assert nhtlc_success == 0 and nhtlc_failed == 2
+                # check that bob deleted the mpp set as it should be expired and resolved now
+                assert bob_payment_key not in bob_wallet.received_mpp_htlcs
+                alice_wallet._paysessions.clear()
+                assert alice_wallet.get_preimage(lnaddr1.paymenthash) is None  # bob didn't preimage
+                # now try to pay again, this time the full amount
+                result, log = await alice_wallet.pay_invoice(pay_req1)
+                assert result is True
+                assert alice_wallet.get_preimage(lnaddr1.paymenthash) is not None  # bob revealed preimage
+                assert len(bob_wallet.received_mpp_htlcs) == 0  # bob should also clean up a successful set
+                raise SuccessfulTest()
+
+            async def f():
+                async with OldTaskGroup() as group:
+                    await group.spawn(alice_peer._message_loop())
+                    await group.spawn(alice_peer.htlc_switch())
+                    await group.spawn(bob_peer._message_loop())
+                    await group.spawn(bob_peer.htlc_switch())
+                    await asyncio.sleep(0.01)
+                    await group.spawn(_test())
+
+            alice_htlc_resolved = asyncio.Event()
+            nhtlc_success = 0
+            nhtlc_failed = 0
+            async def on_sender_htlc_fulfilled(*args):
+                alice_htlc_resolved.set()
+                alice_htlc_resolved.clear()
+                nonlocal nhtlc_success
+                nhtlc_success += 1
+            async def on_sender_htlc_failed(*args):
+                alice_htlc_resolved.set()
+                alice_htlc_resolved.clear()
+                nonlocal nhtlc_failed
+                nhtlc_failed += 1
+            util.register_callback(on_sender_htlc_fulfilled, ["htlc_fulfilled"])
+            util.register_callback(on_sender_htlc_failed, ["htlc_failed"])
+
+            try:
+                with self.assertRaises(SuccessfulTest):
+                    await f()
+            finally:
+                util.unregister_callback(on_sender_htlc_fulfilled)
+                util.unregister_callback(on_sender_htlc_failed)
+
+        for use_trampoline in [True, False]:
+            self.logger.debug(f"test_mpp_cleanup_after_expiry: {use_trampoline=}")
+            await run_test(use_trampoline)
 
     async def test_legacy_shutdown_low(self):
         await self._test_shutdown(alice_fee=100, bob_fee=150)
@@ -1495,6 +1826,297 @@ class TestPeerDirect(TestPeer):
         with self.assertRaises(GracefulDisconnect):
             await f()
         self.assertTrue(isinstance(failing_task.exception().__cause__, lnmsg.UnexpectedEndOfStream))
+
+    async def test_hold_invoice_set_doesnt_get_expired(self):
+        """
+        Alice pays a hold invoice from Bob, Bob doesn't release preimage. Verify that Bob doesn't
+        expire the htlc set MIN_FINAL_CLTV_DELTA_ACCEPTED blocks before htlc.cltv_abs (as we would do with normal htlc sets).
+        The htlc set should only get failed if the user of the hold invoice callback explicitly removes the
+        callback (e.g. after refunding and failing a swap), otherwise it should get timed out onchain (force-close).
+
+        This only tests hold invoice logic for hold invoices registered with `LNWallet.register_hold_invoice()`,
+        as used e.g. by submarine swaps. It doesn't cover the hold invoices created by the hold invoice CLI
+        which behave differently and use the persisted `LNWallet.dont_expire_htlcs` dict.
+        """
+        async def run_test(test_trampoline):
+            alice_channel, bob_channel = create_test_channels()
+            alice_p, bob_p, alice_w, bob_w, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
+
+            lnaddr, pay_req = self.prepare_invoice(bob_w, min_final_cltv_delta=150)
+            del bob_w._preimages[pay_req.rhash]  # del preimage so bob doesn't settle
+            payment_key = bob_w._get_payment_key(lnaddr.paymenthash).hex()
+
+            cb_got_called = False
+            async def cb(_payment_hash):
+                self.logger.debug(f"hold invoice callback called. {bob_w.network.get_local_height()=}")
+                nonlocal cb_got_called
+                cb_got_called = True
+
+            bob_w.register_hold_invoice(lnaddr.paymenthash, cb)
+
+            async def check_mpp_state():
+                async def wait_for_resolution():
+                    while True:
+                        await asyncio.sleep(0.1)
+                        if payment_key not in bob_w.received_mpp_htlcs:
+                            continue
+                        if not bob_w.received_mpp_htlcs[payment_key].resolution == RecvMPPResolution.SETTLING:
+                            continue
+                        return
+                await util.wait_for2(wait_for_resolution(), timeout=2)
+                assert cb_got_called
+                mpp_set = bob_w.received_mpp_htlcs[payment_key]
+                self.assertEqual(mpp_set.resolution, RecvMPPResolution.SETTLING, msg=mpp_set.resolution)
+                self.assertEqual(len(mpp_set.htlcs), 1, f"should get only one htlc: {mpp_set.htlcs=}")
+                left_to_expiry = next(iter(mpp_set.htlcs)).htlc.cltv_abs - bob_w.network.get_local_height()
+                # now mine up to one block after the expiry
+                bob_w.network._blockchain._height += left_to_expiry + 1
+                await asyncio.sleep(0.2)
+                # bob still has the mpp set and it is not failed
+                # it should only get removed once the channel is redeemed
+                self.assertIn(bob_w.received_mpp_htlcs[payment_key].resolution, (RecvMPPResolution.COMPLETE, RecvMPPResolution.SETTLING))
+                # now also check that the mpp set will get set failed if the hold invoice
+                # is being explicitly unregistered, and we don't have a preimage to settle it
+                bob_w.unregister_hold_invoice(lnaddr.paymenthash)
+                self.assertEqual(bob_w.received_mpp_htlcs[payment_key].resolution, RecvMPPResolution.FAILED)
+                raise SuccessfulTest()
+
+            if test_trampoline:
+                await self._activate_trampoline(alice_w)
+                # declare bob as trampoline node
+                electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
+                    'bob': LNPeerAddr(host="127.0.0.1", port=9735, pubkey=bob_w.node_keypair.pubkey),
+                }
+
+            async def f():
+                async with OldTaskGroup() as group:
+                    await group.spawn(alice_p._message_loop())
+                    await group.spawn(alice_p.htlc_switch())
+                    await group.spawn(bob_p._message_loop())
+                    await group.spawn(bob_p.htlc_switch())
+                    await asyncio.sleep(0.01)
+                    await group.spawn(alice_w.pay_invoice(pay_req))
+                    await group.spawn(check_mpp_state())
+
+            with self.assertRaises(SuccessfulTest):
+                await f()
+
+        for _test_trampoline in [False, True]:
+            await run_test(_test_trampoline)
+
+    async def test_htlc_switch_iteration_benchmark(self):
+        """Test how long a call to _run_htlc_switch_iteration takes with 10 trampoline
+        mpp sets of 1 htlc each. Raise if it takes longer than 20ms (median).
+        To create flamegraph with py-spy raise NUM_ITERATIONS to 1000 (for more samples) then run:
+        $ py-spy record -o flamegraph.svg --subprocesses -- python -m pytest tests/test_lnpeer.py::TestPeerDirect::test_htlc_switch_iteration_benchmark
+        """
+        NUM_ITERATIONS = 25
+        alice_channel, bob_channel = create_test_channels(max_accepted_htlcs=20)
+        alice_p, bob_p, alice_w, bob_w, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
+
+        await self._activate_trampoline(alice_w)
+        electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
+            'bob': LNPeerAddr(host="127.0.0.1", port=9735, pubkey=bob_w.node_keypair.pubkey),
+        }
+
+        # create 10 invoices (10 pending htlc sets with 1 htlc each)
+        invoices = []  # type: list[tuple[LnAddr, Invoice]]
+        for i in range(10):
+            lnaddr, pay_req = self.prepare_invoice(bob_w)
+            # prevent bob from settling so that htlc switch will have to iterate through all pending htlcs
+            bob_w.dont_settle_htlcs[pay_req.rhash] = None
+            invoices.append((lnaddr, pay_req))
+        self.assertEqual(len(invoices), 10, msg=len(invoices))
+
+        iterations = []
+        do_benchmark = False
+        _run_bob_htlc_switch_iteration = bob_p._run_htlc_switch_iteration
+        def timed_htlc_switch_iteration():
+            start = time.perf_counter()
+            _run_bob_htlc_switch_iteration()
+            duration = time.perf_counter() - start
+            if do_benchmark:
+                iterations.append(duration)
+        bob_p._run_htlc_switch_iteration = timed_htlc_switch_iteration
+
+        async def benchmark_htlc_switch_iterations():
+            waited = 0
+            while not len(bob_w.received_mpp_htlcs) == 10 :
+                waited += 0.1
+                await asyncio.sleep(0.1)
+                if waited > 2:
+                    raise TimeoutError()
+            nonlocal do_benchmark
+            do_benchmark = True
+            while len(iterations) < NUM_ITERATIONS:
+                await asyncio.sleep(0.05)
+            # average = sum(iterations) / len(iterations)
+            median_duration = statistics.median(iterations)
+            res = f"median duration per htlc switch iteration: {median_duration:.6f}s over {len(iterations)=}"
+            self.logger.info(res)
+            self.assertLess(median_duration, 0.02, msg=res)
+            raise SuccessfulTest()
+
+        async def f():
+            async with OldTaskGroup() as group:
+                await group.spawn(alice_p._message_loop())
+                await group.spawn(alice_p.htlc_switch())
+                await group.spawn(bob_p._message_loop())
+                await group.spawn(bob_p.htlc_switch())
+                await asyncio.sleep(0.01)
+                for _lnaddr, req in invoices:
+                    await group.spawn(alice_w.pay_invoice(req))
+                await benchmark_htlc_switch_iterations()
+
+        with self.assertRaises(SuccessfulTest):
+            await f()
+
+    async def test_dont_settle_htlcs(self):
+        """
+        Test that htlcs registered in LNWallet.dont_settle_htlcs don't get fulfilled if the preimage is available.
+        """
+        async def run_test(test_trampoline, test_failure):
+            alice_channel, bob_channel = create_test_channels()
+            p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
+            if test_trampoline:
+                await self._activate_trampoline(w1)
+                # declare bob as trampoline node
+                electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
+                    'bob': LNPeerAddr(host="127.0.0.1", port=9735, pubkey=w2.node_keypair.pubkey),
+                }
+
+            preimage = os.urandom(32)
+            lnaddr, pay_req = self.prepare_invoice(
+                w2,
+                payment_preimage=preimage,
+                # use a higher min final cltv delta so we can mine some blocks later
+                min_final_cltv_delta=244,
+            )
+
+            # add payment_hash to dont_settle_htlcs so the htlcs are not getting settled
+            w2.dont_settle_htlcs[pay_req.rhash] = None
+
+            async def pay(lnaddr, pay_req):
+                self.assertEqual(PR_UNPAID, w2.get_payment_status(lnaddr.paymenthash))
+                result, log = await util.wait_for2(w1.pay_invoice(pay_req), timeout=3)
+                if result is True:
+                    self.assertNotIn(pay_req.rhash, w2.dont_settle_htlcs)
+                    self.assertEqual(PR_PAID, w2.get_payment_status(lnaddr.paymenthash))
+                    return PaymentDone()
+                else:
+                    self.assertIsNone(w2.get_preimage(lnaddr.paymenthash))
+                    return PaymentFailure()
+
+            async def wait_for_htlcs():
+                payment_key = w2._get_payment_key(lnaddr.paymenthash)
+                while payment_key.hex() not in w2.received_mpp_htlcs:
+                    await asyncio.sleep(0.05)
+                w2.network.blockchain()._height += 25 # mine some blocks, shouldn't affect anything
+                if test_failure:
+                    # delete preimage, this will fail htlcs even if registered in dont_settle_htlcs
+                    del w2._preimages[pay_req.rhash]
+                    return  # pay() should fail now
+                await asyncio.sleep(0.25)  # give w2 some time to do mistakes
+                self.assertEqual(w2.received_mpp_htlcs[payment_key.hex()].resolution, RecvMPPResolution.COMPLETE)
+                # remove the payment hash from dont_settle_htlcs so the htlcs can get fulfilled
+                del w2.dont_settle_htlcs[pay_req.rhash]
+
+            async def f():
+                async with OldTaskGroup() as group:
+                    await group.spawn(p1._message_loop())
+                    await group.spawn(p1.htlc_switch())
+                    await group.spawn(p2._message_loop())
+                    await group.spawn(p2.htlc_switch())
+                    await asyncio.sleep(0.01)
+                    invoice_features = lnaddr.get_features()
+                    self.assertFalse(invoice_features.supports(LnFeatures.BASIC_MPP_OPT))
+                    pay_task = await group.spawn(pay(lnaddr, pay_req))
+                    await util.wait_for2(wait_for_htlcs(), timeout=2)
+                    raise await pay_task
+
+            await f()
+
+        for test_trampoline in [False, True]:
+            for test_failure in [False, True]:
+                with self.assertRaises(PaymentFailure if test_failure else PaymentDone):
+                    await run_test(test_trampoline, test_failure)
+
+    async def test_dont_expire_htlcs(self):
+        """
+        Test that htlcs registered in LNWallet.dont_expire_htlcs don't get expired before the
+        specified expiry delta if their preimage isn't available.
+        Also test that htlcs registered in LNWallet.dont_expire_htlcs get settled right away if their
+        preimage is available.
+        """
+        async def run_test(test_trampoline, test_expiry):
+            alice_channel, bob_channel = create_test_channels()
+            p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
+            if test_trampoline:
+                await self._activate_trampoline(w1)
+                # declare bob as trampoline node
+                electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
+                    'bob': LNPeerAddr(host="127.0.0.1", port=9735, pubkey=w2.node_keypair.pubkey),
+                }
+
+            preimage = os.urandom(32)
+            lnaddr, pay_req = self.prepare_invoice(w2, payment_preimage=preimage, min_final_cltv_delta=144)
+
+            # delete preimage, this would fail the htlcs if payment_hash wasn't in dont_expire_htlcs
+            del w2._preimages[pay_req.rhash]
+            # add payment_hash to dont_expire_htlcs so the htlcs are not getting failed
+            w2.dont_expire_htlcs[pay_req.rhash] = None if not test_expiry else 20
+
+            async def pay(lnaddr, pay_req):
+                self.assertEqual(PR_UNPAID, w2.get_payment_status(lnaddr.paymenthash))
+                result, log = await util.wait_for2(w1.pay_invoice(pay_req), timeout=3)
+                if result is True:
+                    self.assertEqual(PR_PAID, w2.get_payment_status(lnaddr.paymenthash))
+                    return PaymentDone()
+                else:
+                    self.assertIsNone(w2.get_preimage(lnaddr.paymenthash))
+                    return PaymentFailure()
+
+            async def wait_for_htlcs():
+                payment_key = w2._get_payment_key(lnaddr.paymenthash)
+                while payment_key.hex() not in w2.received_mpp_htlcs:
+                    await asyncio.sleep(0.05)
+                if not test_expiry:
+                    # the htlcs should never get expired if the dont_expire_htlcs value is None
+                    w2.network.blockchain()._height += 1000
+                await asyncio.sleep(0.25)  # give w2 some time to do mistakes
+                self.assertEqual(w2.received_mpp_htlcs[payment_key.hex()].resolution, RecvMPPResolution.COMPLETE)
+                if test_expiry:
+                    # we set an expiry delta of 20 blocks before expiry, htlc expiry should be +144 current height
+                    # so adding some blocks should get the htlcs failed
+                    w2.network.blockchain()._height += 50
+                    await asyncio.sleep(0.1)
+                    # the htlcs should not get failed yet as 144-50 > 20
+                    self.assertEqual(w2.received_mpp_htlcs[payment_key.hex()].resolution, RecvMPPResolution.COMPLETE)
+                    w2.network.blockchain()._height += 75
+                    return  # the htlcs should get failed and pay should return PaymentFailure
+
+                # saving the preimage should let the htlcs get fulfilled
+                w2.save_preimage(lnaddr.paymenthash, preimage)
+
+            async def f():
+                async with OldTaskGroup() as group:
+                    await group.spawn(p1._message_loop())
+                    await group.spawn(p1.htlc_switch())
+                    await group.spawn(p2._message_loop())
+                    await group.spawn(p2.htlc_switch())
+                    await asyncio.sleep(0.01)
+                    invoice_features = lnaddr.get_features()
+                    self.assertFalse(invoice_features.supports(LnFeatures.BASIC_MPP_OPT))
+                    pay_task = await group.spawn(pay(lnaddr, pay_req))
+                    await util.wait_for2(wait_for_htlcs(), timeout=3)
+                    raise await pay_task
+
+            await f()
+
+        for test_trampoline in [False, True]:
+            for test_expiry in [False, True]:
+                with self.assertRaises(PaymentFailure if test_expiry else PaymentDone):
+                    await run_test(test_trampoline, test_expiry )
 
 
 class TestPeerForwarding(TestPeer):
@@ -2085,6 +2707,25 @@ class TestPeerForwarding(TestPeer):
             graph = self.create_square_graph(direct=False, test_mpp_consolidation=True, is_legacy=True)
             await self._run_trampoline_payment(graph)
 
+    async def test_trampoline_mpp_consolidation_forwarding_amount(self):
+        """sanity check that bob is forwarding less than he is receiving"""
+        # alice->bob->carol->dave
+        graph = self.create_square_graph(direct=False, test_mpp_consolidation=True, is_legacy=True)
+        # bump alices trampoline fee level so the first payment succeeds and the htlc sums can be compared usefully below.
+        alice = graph.workers['alice']
+        alice.config.INITIAL_TRAMPOLINE_FEE_LEVEL = 6
+        with self.assertRaises(PaymentDone):
+            await self._run_trampoline_payment(graph, attempts=1)
+
+        # assert bob hasn't forwarded more than he received
+        bob_alice_channel = graph.channels[('bob', 'alice')]
+        htlcs_bob_received_from_alice = bob_alice_channel.hm.all_htlcs_ever()
+        bob_carol_channel = graph.channels[('bob', 'carol')]
+        htlcs_bob_sent_to_carol = bob_carol_channel.hm.all_htlcs_ever()
+        sum_bob_received = sum(htlc.amount_msat for (direction, htlc) in htlcs_bob_received_from_alice)
+        sum_bob_sent = sum(htlc.amount_msat for (direction, htlc) in htlcs_bob_sent_to_carol)
+        assert sum_bob_sent < sum_bob_received, f"{sum_bob_sent=} > {sum_bob_received=}"
+
     async def test_trampoline_mpp_consolidation_with_hold_invoice(self):
         with self.assertRaises(PaymentDone):
             graph = self.create_square_graph(direct=False, test_mpp_consolidation=True, is_legacy=True)
@@ -2152,6 +2793,117 @@ class TestPeerForwarding(TestPeer):
                 tf_names=('bob', 'carol'),
                 attempts=30,  # the default used in LNWallet.pay_invoice()
             )
+
+    async def test_forwarder_fails_for_inconsistent_trampoline_onions(self):
+        """
+        verify that the receiver of a trampoline forwarding fails the mpp set
+        if the trampoline onions are not similar
+        In this test alice tries to forward through bob, however in one trampoline onion she sends
+        amt_to_forward is off by one msat. Bob should compare the trampoline onions and fail the set.
+        """
+
+        # store a modified trampoline onion to be injected into lnworker.new_onion_packet later when sending the htlcs
+        modified_trampoline_onion = None
+        def modified_new_onion_packet_trampoline(payment_path_pubkeys, session_key, hops_data: List[OnionHopsDataSingle], **kwargs):
+            nonlocal modified_trampoline_onion
+            assert modified_trampoline_onion is None, "this mock should get called only once"
+            modified_hops_data = copy.copy(hops_data)
+            # first payload (i[0]) is for bob who is supposed to forward the trampoline payment, in this
+            # test he should fail the incoming htlcs as their trampolines are not similar
+            new_payload = dict(modified_hops_data[0].payload)
+            amt_to_forward = dict(new_payload['amt_to_forward'])
+            amt_to_forward['amt_to_forward'] -= 1
+            new_payload['amt_to_forward'] = amt_to_forward
+            modified_hops_data[0] = dataclasses.replace(modified_hops_data[0], payload=new_payload)
+            self.logger.debug(f"{modified_hops_data=}\nsent_{hops_data=}")
+            modified_trampoline_onion = electrum.lnonion.new_onion_packet(
+                payment_path_pubkeys,
+                session_key,
+                modified_hops_data,
+                **kwargs
+            )
+            # return the unmodified onion
+            return electrum.lnonion.new_onion_packet(
+                payment_path_pubkeys,
+                session_key,
+                hops_data,
+                **kwargs
+            )
+
+        # this gets called in lnworker per sent htlc, for one sent htlc we inject the modified trampoline
+        # onion created before in the mock above
+        def modified_new_onion_packet_lnworker(payment_path_pubkeys, session_key, hops_data: List[OnionHopsDataSingle], **kwargs):
+            nonlocal modified_trampoline_onion
+            hops_data = copy.copy(hops_data)
+            if modified_trampoline_onion:
+                assert isinstance(modified_trampoline_onion, OnionPacket)
+                assert len(hops_data) == 1
+                new_payload = dict(hops_data[0].payload)
+                new_payload['trampoline_onion_packet'] = {
+                    "version": modified_trampoline_onion.version,
+                    "public_key": modified_trampoline_onion.public_key,
+                    "hops_data": modified_trampoline_onion.hops_data,
+                    "hmac": modified_trampoline_onion.hmac,
+                }
+                hops_data[0] = dataclasses.replace(hops_data[0], payload=MappingProxyType(new_payload))
+                modified_trampoline_onion = None
+            return electrum.lnonion.new_onion_packet(
+                payment_path_pubkeys,
+                session_key,
+                hops_data,
+                **kwargs
+            )
+
+        graph = self.create_square_graph(direct=False, test_mpp_consolidation=True, is_legacy=True)
+        alice = graph.workers['alice']
+        alice.config.INITIAL_TRAMPOLINE_FEE_LEVEL = 6  # set high so the first attempt would succeed
+        with self.assertRaises(PaymentFailure):
+            with mock.patch('electrum.trampoline.new_onion_packet', side_effect=modified_new_onion_packet_trampoline), \
+                    mock.patch('electrum.lnworker.new_onion_packet', side_effect=modified_new_onion_packet_lnworker):
+                        await self._run_trampoline_payment(graph, attempts=1)
+        bob_alice_channel = graph.channels[('bob', 'alice')]
+        bob_hm = bob_alice_channel.hm
+        assert len(bob_hm.all_htlcs_ever()) == 2
+        assert all(bob_hm.was_htlc_failed(htlc_id=htlc.htlc_id, htlc_proposer=HTLCOwner.REMOTE) for (_, htlc) in bob_hm.all_htlcs_ever())
+
+    async def test_payment_with_malformed_onion(self):
+        """
+        Alice -> Bob -> Carol. Carol fails htlc with update_fail_malformed_htlc because she is unable
+        to parse the onion Alice sent to her.
+        """
+        graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['line_graph'])
+        peers = graph.peers.values()
+
+        async def pay(lnaddr, pay_req):
+            self.assertEqual(PR_UNPAID, graph.workers['carol'].get_payment_status(lnaddr.paymenthash))
+            result, log = await graph.workers['alice'].pay_invoice(pay_req)
+            self.assertEqual(OnionFailureCode.INVALID_ONION_VERSION, log[0].failure_msg.code)
+            self.assertFalse(result, msg=log)
+            raise PaymentFailure()
+
+        # this will make carol send update_fail_malformed_htlc
+        graph.workers['carol'].config.TEST_FAIL_HTLCS_AS_MALFORMED = True
+
+        async def f():
+            async with OldTaskGroup() as group:
+                for peer in peers:
+                    await group.spawn(peer._message_loop())
+                    await group.spawn(peer.htlc_switch())
+                for peer in peers:
+                    await peer.initialized
+                lnaddr, pay_req = self.prepare_invoice(graph.workers['carol'], include_routing_hints=True)
+                await group.spawn(pay(lnaddr, pay_req))
+
+        with self.assertLogs('electrum', level='INFO') as logs:
+            with self.assertRaises(PaymentFailure):
+                await f()
+            self.assertTrue(
+                any('carol->bob' in msg and 'fail_malformed_htlc' in msg for msg in logs.output)
+            )
+            self.assertTrue(
+                any('bob->carol' in msg and 'on_update_fail_malformed_htlc' in msg for msg in logs.output)
+            )
+
 
 class TestPeerDirectAnchors(TestPeerDirect):
     TEST_ANCHOR_CHANNELS = True

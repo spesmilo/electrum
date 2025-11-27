@@ -26,7 +26,8 @@
 import io
 import hashlib
 from functools import cached_property
-from typing import Sequence, List, Tuple, NamedTuple, TYPE_CHECKING, Dict, Any, Optional, Union, Mapping
+from typing import (Sequence, List, Tuple, NamedTuple, TYPE_CHECKING, Dict, Any, Optional, Union,
+                    Mapping, Iterator)
 from enum import IntEnum
 from dataclasses import dataclass, field, replace
 from types import MappingProxyType
@@ -485,6 +486,55 @@ def process_onion_packet(
     return ProcessedOnionPacket(are_we_final, hop_data, next_onion_packet, trampoline_onion_packet)
 
 
+def compare_trampoline_onions(
+    trampoline_onions: Iterator[Optional[ProcessedOnionPacket]],
+    *,
+    exclude_amt_to_fwd: bool = False,
+) -> bool:
+    """
+    compare values of trampoline onions payloads and are_we_final.
+    If we are receiver of a multi trampoline payment amt_to_fwd can differ between the trampoline
+    parts of the payment, so it needs to be excluded from the comparison when comparing all trampoline
+    onions of the whole payment (however it can be compared between the onions in a single trampoline part).
+    """
+    try:
+        first_onion = next(trampoline_onions)
+    except StopIteration:
+        raise ValueError("nothing to compare")
+
+    if first_onion is None:
+        # we don't support mixed mpp sets of htlcs with trampoline onions and regular non-trampoline htlcs.
+        # In theory this could happen if a sender e.g. uses trampoline as fallback to deliver
+        # outstanding mpp parts if local pathfinding wasn't successful for the whole payment,
+        # resulting in a mixed payment. However, it's not even clear if the spec allows for such a constellation.
+        return all(onion is None for onion in trampoline_onions)
+    assert isinstance(first_onion, ProcessedOnionPacket), f"{first_onion=}"
+
+    are_we_final = first_onion.are_we_final
+    payload = first_onion.hop_data.payload
+    total_msat = first_onion.total_msat
+    outgoing_cltv = first_onion.outgoing_cltv_value
+    payment_secret = first_onion.payment_secret
+    for onion in trampoline_onions:
+        if onion is None:
+            return False
+        assert isinstance(onion, ProcessedOnionPacket), f"{onion=}"
+        assert onion.trampoline_onion_packet is None, f"{onion=} cannot have trampoline_onion_packet"
+        if onion.are_we_final != are_we_final:
+            return False
+        if not exclude_amt_to_fwd:
+            if onion.hop_data.payload != payload:
+                return False
+        else:
+            if onion.total_msat != total_msat:
+                return False
+            if onion.outgoing_cltv_value != outgoing_cltv:
+                return False
+            if onion.payment_secret != payment_secret:
+                return False
+    return True
+
+
 class FailedToDecodeOnionError(Exception): pass
 
 
@@ -520,6 +570,21 @@ class OnionRoutingFailure(Exception):
         except lnmsg.FailedToParseMsg:
             payload = None
         return payload
+
+    def to_wire_msg(self, onion_packet: OnionPacket, privkey: bytes, local_height: int) -> bytes:
+        onion_error = construct_onion_error(self, onion_packet.public_key, privkey, local_height)
+        error_bytes = obfuscate_onion_error(onion_error, onion_packet.public_key, privkey)
+        return error_bytes
+
+
+class OnionParsingError(OnionRoutingFailure):
+    """
+    Onion parsing error will cause a htlc to get failed with update_fail_malformed_htlc.
+    Using INVALID_ONION_VERSION as there is no unspecific BADONION failure code defined in the spec
+    for the case we just cannot parse the onion.
+    """
+    def __init__(self, data: bytes):
+        OnionRoutingFailure.__init__(self, code=OnionFailureCode.INVALID_ONION_VERSION, data=data)
 
 
 def construct_onion_error(

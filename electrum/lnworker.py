@@ -10,7 +10,7 @@ import time
 from enum import IntEnum
 from typing import (
     Optional, Sequence, Tuple, List, Set, Dict, TYPE_CHECKING, NamedTuple, Mapping, Any, Iterable, AsyncGenerator,
-    Callable, Awaitable
+    Callable, Awaitable, Union,
 )
 from types import MappingProxyType
 import threading
@@ -70,7 +70,7 @@ from .lnutil import (
     ShortChannelID, HtlcLog, NoPathFound, InvalidGossipMsg, FeeBudgetExceeded, ImportedChannelBackupStorage,
     OnchainChannelBackupStorage, ln_compare_features, IncompatibleLightningFeatures, PaymentFeeBudget,
     NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, GossipForwardingMessage, MIN_FUNDING_SAT,
-    MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE, ReceivedMPPStatus, RecvMPPResolution,
+    MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE, RecvMPPResolution, ReceivedMPPStatus, ReceivedMPPHtlc,
     PaymentSuccess,
 )
 from .lnonion import (
@@ -925,7 +925,22 @@ class LNWallet(LNWorker):
         self.active_forwardings = self.db.get_dict('active_forwardings')    # type: Dict[str, List[str]]        # Dict: payment_key -> list of htlc_keys
         self.forwarding_failures = self.db.get_dict('forwarding_failures')  # type: Dict[str, Tuple[str, str]]  # Dict: payment_key -> (error_bytes, error_message)
         self.downstream_to_upstream_htlc = {}                               # type: Dict[str, str]              # Dict: htlc_key -> htlc_key (not persisted)
-        self.dont_settle_htlcs = self.db.get_dict('dont_settle_htlcs')      # type: Dict[str, None]             # payment_hashes of htlcs that we should not settle back yet even if we have the preimage
+
+        # k: payment_hashes of htlcs that we should not expire even if we don't know the preimage
+        # v: If `None` the htlcs won't get expired and potentially get timed out in a force close.
+        #    Note: it might not be safe to release the preimage shortly before expiry as this would allow the
+        #          remote node to ignore our fulfill_htlc, wait until expiry and try to time out the htlc onchain
+        #          in a fee race against us and then use our released preimage to fulfill upstream.
+        # v: If `int`: Overwrites `MIN_FINAL_CLTV_DELTA_ACCEPTED` in htlc switch and allows to set custom
+        #              expiration delta. The htlcs will get expired if their blocks left to expiry are
+        #              below the specified expiration delta.
+        # htlcs will get settled as soon as the preimage becomes available
+        self.dont_expire_htlcs = self.db.get_dict('dont_expire_htlcs')      # type: Dict[str, Optional[int]]
+
+        # k: payment_hash of payments for which we don't want to release the preimage, no matter
+        # how close to expiry. Doesn't prevent htlcs from getting expired or failed if there is no
+        # preimage available. Might be used in combination with dont_expire_htlcs.
+        self.dont_settle_htlcs = self.db.get_dict('dont_settle_htlcs')  # type: Dict[str, None]
 
         # payment_hash -> callback:
         self.hold_invoice_callbacks = {}                # type: Dict[bytes, Callable[[bytes], Awaitable[None]]]
@@ -1237,6 +1252,8 @@ class LNWallet(LNWorker):
         if type(chan) is Channel:
             self.save_channel(chan)
         self.clear_invoices_cache()
+        if chan._state == ChannelState.REDEEMED:
+            self.maybe_cleanup_mpp(chan)
         util.trigger_callback('channel', self.wallet, chan)
 
     def save_channel(self, chan: Channel):
@@ -2399,15 +2416,47 @@ class LNWallet(LNWorker):
                 self._payment_bundles_pkey_to_canon[pkey] = canon_pkey
             self._payment_bundles_canon_to_pkeylist[canon_pkey] = tuple(payment_keys)
 
-    def get_payment_bundle(self, payment_key: bytes) -> Sequence[bytes]:
+    def get_payment_bundle(self, payment_key: Union[bytes, str]) -> Sequence[bytes]:
         with self.lock:
+            if isinstance(payment_key, str):
+                try:
+                    payment_key = bytes.fromhex(payment_key)
+                except ValueError:
+                    # might be a forwarding payment_key which is not hex and will never have a bundle
+                    return []
             canon_pkey =  self._payment_bundles_pkey_to_canon.get(payment_key)
             if canon_pkey is None:
                 return []
             return self._payment_bundles_canon_to_pkeylist[canon_pkey]
 
-    def delete_payment_bundle(self, payment_hash: bytes) -> None:
-        payment_key = self._get_payment_key(payment_hash)
+    def is_payment_bundle_complete(self, any_payment_key: str) -> bool:
+        """
+        complete means a htlc set is available for each payment key of the payment bundle and
+        all htlc sets have a resolution >= COMPLETE (we got the whole payment bundle amount)
+        """
+        # get all payment keys covered by this bundle
+        bundle_payment_keys = self.get_payment_bundle(any_payment_key)
+        if not bundle_payment_keys:  # there is no payment bundle
+            return True
+        for payment_key in bundle_payment_keys:
+            mpp_set = self.received_mpp_htlcs.get(payment_key.hex())
+            if mpp_set is None:
+                # payment bundle is missing htlc set for payment request
+                # it might have already been failed and deleted
+                return False
+            elif mpp_set.resolution not in (RecvMPPResolution.COMPLETE, RecvMPPResolution.SETTLING):
+                return False
+        return True
+
+    def delete_payment_bundle(
+        self, *,
+        payment_hash: Optional[bytes] = None,
+        payment_key: Optional[bytes] = None,
+    ) -> None:
+        assert (payment_hash is not None) ^ (payment_key is not None), \
+                    "must provide exactly one of (payment_hash, payment_key)"
+        if not payment_key:
+            payment_key = self._get_payment_key(payment_hash)
         with self.lock:
             canon_pkey = self._payment_bundles_pkey_to_canon.get(payment_key)
             if canon_pkey is None:  # is it ok for bundle to be missing??
@@ -2478,10 +2527,16 @@ class LNWallet(LNWorker):
         self.save_payment_info(info, write_to_disk=False)
 
     def register_hold_invoice(self, payment_hash: bytes, cb: Callable[[bytes], Awaitable[None]]):
+        assert self.get_preimage(payment_hash) is None, "hold invoice cb won't get called if preimage is already set"
         self.hold_invoice_callbacks[payment_hash] = cb
 
     def unregister_hold_invoice(self, payment_hash: bytes):
-        self.hold_invoice_callbacks.pop(payment_hash)
+        self.hold_invoice_callbacks.pop(payment_hash, None)
+        payment_key = self._get_payment_key(payment_hash).hex()
+        if payment_key in self.received_mpp_htlcs:
+            if self.get_preimage(payment_hash) is None:
+                # the pending mpp set can be failed as we don't have the preimage to settle it
+                self.set_mpp_resolution(payment_key, RecvMPPResolution.FAILED)
 
     def save_payment_info(self, info: PaymentInfo, *, write_to_disk: bool = True) -> None:
         assert info.status in SAVED_PR_STATUS
@@ -2500,132 +2555,142 @@ class LNWallet(LNWorker):
         if write_to_disk:
             self.wallet.save_db()
 
-    def check_mpp_status(
-            self, *,
-            payment_secret: bytes,
-            short_channel_id: ShortChannelID,
-            htlc: UpdateAddHtlc,
-            expected_msat: int,
-    ) -> RecvMPPResolution:
-        """Returns the status of the incoming htlc set the given *htlc* belongs to.
-
-        ACCEPTED simply means the mpp set is complete, and we can proceed with further
-        checks before fulfilling (or failing) the htlcs.
-        In particular, note that hold-invoice-htlcs typically remain in the ACCEPTED state
-        for quite some time -- not in the "WAITING" state (which would refer to the mpp set
-        not yet being complete!).
-        """
-        payment_hash = htlc.payment_hash
-        payment_key = payment_hash + payment_secret
-        self.update_mpp_with_received_htlc(
-            payment_key=payment_key, scid=short_channel_id, htlc=htlc, expected_msat=expected_msat)
-        mpp_resolution = self.received_mpp_htlcs[payment_key.hex()].resolution
-        # if still waiting, calc resolution now:
-        if mpp_resolution == RecvMPPResolution.WAITING:
-            bundle = self.get_payment_bundle(payment_key)
-            if bundle:
-                payment_keys = bundle
-            else:
-                payment_keys = [payment_key]
-            first_timestamp = min([self.get_first_timestamp_of_mpp(pkey) for pkey in payment_keys])
-            if self.get_payment_status(payment_hash) == PR_PAID:
-                mpp_resolution = RecvMPPResolution.COMPLETE
-            elif self.stopping_soon:
-                # try to time out pending HTLCs before shutting down
-                mpp_resolution = RecvMPPResolution.EXPIRED
-            elif all([self.is_mpp_amount_reached(pkey) for pkey in payment_keys]):
-                mpp_resolution = RecvMPPResolution.COMPLETE
-            elif time.time() - first_timestamp > self.MPP_EXPIRY:
-                mpp_resolution = RecvMPPResolution.EXPIRED
-            # save resolution, if any.
-            if mpp_resolution != RecvMPPResolution.WAITING:
-                for pkey in payment_keys:
-                    if pkey.hex() in self.received_mpp_htlcs:
-                        self.set_mpp_resolution(payment_key=pkey, resolution=mpp_resolution)
-
-        return mpp_resolution
-
-    def update_mpp_with_received_htlc(
+    def update_or_create_mpp_with_received_htlc(
         self,
         *,
-        payment_key: bytes,
+        payment_key: str,
         scid: ShortChannelID,
         htlc: UpdateAddHtlc,
-        expected_msat: int,
+        unprocessed_onion_packet: str,
     ):
-        # add new htlc to set
-        mpp_status = self.received_mpp_htlcs.get(payment_key.hex())
+        # Payment key creation:
+        #   * for regular forwarded htlcs -> "scid.hex() + ':%d' % htlc_id" [htlc key]
+        #   * for trampoline forwarding -> "payment hash + payment secret from outer onion"
+        #   * for final non-trampoline htlcs (we are receiver) -> "payment hash + payment secret from onion"
+        #   * for final trampoline htlcs (we are receiver) -> 2. step grouping:
+        #           1. grouping of htlcs by "payments hash + outer onion payment secret", a 'multi-trampoline mpp part'.
+        #           2. once the set of step 1. is COMPLETE (amount_fwd outer onion >= total_amt outer onion)
+        #              the htlcs get moved to the parent mpp set (created once first part is complete) grouped by:
+        #              "payment_hash + inner onion payment secret (the one in the invoice)"
+        #              After moving the htlcs the first set gets deleted.
+        #
+        # Add the validated htlc to the htlc set associated with the payment key.
+        # If no set exists, a new set in WAITING state is created.
+        mpp_status = self.received_mpp_htlcs.get(payment_key)
         if mpp_status is None:
+            self.logger.debug(f"creating new mpp set for {payment_key=}")
             mpp_status = ReceivedMPPStatus(
                 resolution=RecvMPPResolution.WAITING,
-                expected_msat=expected_msat,
-                htlc_set=set(),
+                htlcs=set(),
             )
-        if expected_msat != mpp_status.expected_msat:
-            self.logger.info(
-                f"marking received mpp as failed. inconsistent total_msats in bucket. {payment_key.hex()=}")
-            mpp_status = mpp_status._replace(resolution=RecvMPPResolution.FAILED)
-        key = (scid, htlc)
-        if key not in mpp_status.htlc_set:
-            mpp_status.htlc_set.add(key)  # side-effecting htlc_set
-        self.received_mpp_htlcs[payment_key.hex()] = mpp_status
 
-    def set_mpp_resolution(self, *, payment_key: bytes, resolution: RecvMPPResolution):
-        mpp_status = self.received_mpp_htlcs[payment_key.hex()]
-        self.logger.info(f'set_mpp_resolution {resolution.name} {len(mpp_status.htlc_set)} {payment_key.hex()}')
-        self.received_mpp_htlcs[payment_key.hex()] = mpp_status._replace(resolution=resolution)
+        if mpp_status.resolution > RecvMPPResolution.WAITING:
+            # we are getting a htlc for a set that is not in WAITING state, it cannot be safely added
+            self.logger.info(f"htlc set cannot accept htlc, failing htlc: {scid=} {htlc.htlc_id=}")
+            if mpp_status == RecvMPPResolution.EXPIRED:
+                raise OnionRoutingFailure(code=OnionFailureCode.MPP_TIMEOUT, data=b'')
+            raise OnionRoutingFailure(
+                code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS,
+                data=htlc.amount_msat.to_bytes(8, byteorder="big"),
+            )
 
-    def is_mpp_amount_reached(self, payment_key: bytes) -> bool:
-        amounts = self.get_mpp_amounts(payment_key)
-        if amounts is None:
-            return False
-        total, expected = amounts
-        return total >= expected
+        new_htlc = ReceivedMPPHtlc(
+            scid=scid,
+            htlc=htlc,
+            unprocessed_onion=unprocessed_onion_packet,
+        )
+        assert new_htlc not in mpp_status.htlcs, "each htlc should make it here only once?"
+        assert isinstance(unprocessed_onion_packet, str)
+        mpp_status.htlcs.add(new_htlc)  # side-effecting htlc_set
+        self.received_mpp_htlcs[payment_key] = mpp_status
 
-    def is_complete_mpp(self, payment_hash: bytes) -> bool:
+    def set_mpp_resolution(self, payment_key: str, new_resolution: RecvMPPResolution) -> ReceivedMPPStatus:
+        mpp_status = self.received_mpp_htlcs[payment_key]
+        if mpp_status.resolution == new_resolution:
+            return mpp_status
+        if not (mpp_status.resolution, new_resolution) in lnutil.allowed_mpp_set_transitions:
+            raise ValueError(f'forbidden mpp set transition: {mpp_status.resolution} -> {new_resolution}')
+        self.logger.info(f'set_mpp_resolution {new_resolution.name} {len(mpp_status.htlcs)=}: {payment_key=}')
+        self.received_mpp_htlcs[payment_key] = mpp_status._replace(resolution=new_resolution)
+        self.wallet.save_db()
+        return self.received_mpp_htlcs[payment_key]
+
+    def set_htlc_set_error(
+        self,
+        payment_key: str,
+        error: Union[bytes, OnionFailureCode, OnionRoutingFailure],
+    ) -> Optional[Tuple[Optional[bytes], Optional[OnionFailureCode | int], Optional[bytes]]]:
+        """
+        handles different types of errors and sets the htlc set to failed, then returns a more
+        structured tuple of error types which can then be used to fail the htlc set
+        """
+        htlc_set = self.received_mpp_htlcs[payment_key]
+        assert htlc_set.resolution != RecvMPPResolution.SETTLING
+        raw_error, error_code, error_data = None, None, None
+        if isinstance(error, bytes):
+            raw_error = error
+        elif isinstance(error, OnionFailureCode):
+            error_code = error
+        elif isinstance(error, OnionRoutingFailure):
+            error_code, error_data = OnionFailureCode.from_int(error.code), error.data
+        else:
+            raise ValueError(f"invalid error type: {repr(error)}")
+
+        if error_code == OnionFailureCode.MPP_TIMEOUT:
+            self.set_mpp_resolution(payment_key=payment_key, new_resolution=RecvMPPResolution.EXPIRED)
+        else:
+            self.set_mpp_resolution(payment_key=payment_key, new_resolution=RecvMPPResolution.FAILED)
+
+        return raw_error, error_code, error_data
+
+    def get_mpp_resolution(self, payment_hash: bytes) -> Optional[RecvMPPResolution]:
         payment_key = self._get_payment_key(payment_hash)
         status = self.received_mpp_htlcs.get(payment_key.hex())
-        return status and status.resolution == RecvMPPResolution.COMPLETE
+        return status.resolution if status else None
+
+    def is_complete_mpp(self, payment_hash: bytes) -> bool:
+        resolution = self.get_mpp_resolution(payment_hash)
+        if resolution is not None:
+            return resolution in (RecvMPPResolution.COMPLETE, RecvMPPResolution.SETTLING)
+        return False
 
     def get_payment_mpp_amount_msat(self, payment_hash: bytes) -> Optional[int]:
         """Returns the received mpp amount for given payment hash."""
         payment_key = self._get_payment_key(payment_hash)
-        amounts = self.get_mpp_amounts(payment_key)
-        if not amounts:
+        total_msat = self.get_mpp_amounts(payment_key)
+        if not total_msat:
             return None
-        total_msat, _ = amounts
         return total_msat
 
-    def get_mpp_amounts(self, payment_key: bytes) -> Optional[Tuple[int, int]]:
-        """Returns (total received amount, expected amount) or None."""
+    def get_mpp_amounts(self, payment_key: bytes) -> Optional[int]:
+        """Returns total received amount or None."""
         mpp_status = self.received_mpp_htlcs.get(payment_key.hex())
         if not mpp_status:
             return None
-        total = sum([_htlc.amount_msat for scid, _htlc in mpp_status.htlc_set])
-        return total, mpp_status.expected_msat
-
-    def get_first_timestamp_of_mpp(self, payment_key: bytes) -> int:
-        mpp_status = self.received_mpp_htlcs.get(payment_key.hex())
-        if not mpp_status:
-            return int(time.time())
-        return min([_htlc.timestamp for scid, _htlc in mpp_status.htlc_set])
+        total = sum([mpp_htlc.htlc.amount_msat for mpp_htlc in mpp_status.htlcs])
+        return total
 
     def maybe_cleanup_mpp(
             self,
-            short_channel_id: ShortChannelID,
-            htlc: UpdateAddHtlc,
+            chan: Channel,
     ) -> None:
-
-        htlc_key = (short_channel_id, htlc)
+        """
+        Remove all remaining mpp htlcs of the given channel after closing.
+        Usually they get removed in htlc_switch after all htlcs of the set are resolved,
+        however if there is a force close with pending htlcs they need to be removed after the channel
+        is closed.
+        """
+        # only cleanup when channel is REDEEMED as mpp set is still required for lnsweep
+        assert chan._state == ChannelState.REDEEMED
         for payment_key_hex, mpp_status in list(self.received_mpp_htlcs.items()):
-            if htlc_key not in mpp_status.htlc_set:
-                continue
-            assert mpp_status.resolution != RecvMPPResolution.WAITING
-            self.logger.info(f'maybe_cleanup_mpp: removing htlc of MPP {payment_key_hex}')
-            mpp_status.htlc_set.remove(htlc_key)  # side-effecting htlc_set
-            if len(mpp_status.htlc_set) == 0:
+            htlcs_to_remove = [htlc for htlc in mpp_status.htlcs if htlc.scid == chan.short_channel_id]
+            for stale_mpp_htlc in htlcs_to_remove:
+                assert mpp_status.resolution != RecvMPPResolution.WAITING
+                self.logger.info(f'maybe_cleanup_mpp: removing htlc of MPP {payment_key_hex}')
+                mpp_status.htlcs.remove(stale_mpp_htlc)  # side-effecting htlc_set
+            if len(mpp_status.htlcs) == 0:
                 self.logger.info(f'maybe_cleanup_mpp: removing mpp {payment_key_hex}')
-                self.received_mpp_htlcs.pop(payment_key_hex)
+                del self.received_mpp_htlcs[payment_key_hex]
                 self.maybe_cleanup_forwarding(payment_key_hex)
 
     def maybe_cleanup_forwarding(self, payment_key_hex: str) -> None:
@@ -2681,6 +2746,7 @@ class LNWallet(LNWorker):
         for payment_key, htlcs in self.active_forwardings.items():
             if htlc_key in htlcs:
                 return payment_key
+        return None
 
     def notify_upstream_peer(self, htlc_key: str) -> None:
         """Called when an HTLC we offered on chan gets irrevocably fulfilled or failed.
@@ -3436,7 +3502,58 @@ class LNWallet(LNWorker):
         util.trigger_callback('channels_updated', self.wallet)
         self.lnwatcher.add_channel(cb)
 
-    async def maybe_forward_htlc(
+    async def maybe_forward_htlc_set(
+        self,
+        payment_key: str, *,
+        processed_htlc_set: dict[ReceivedMPPHtlc, Tuple[ProcessedOnionPacket, Optional[ProcessedOnionPacket]]],
+    ) -> None:
+        assert self.enable_htlc_forwarding
+        assert payment_key not in self.active_forwardings, "cannot forward set twice"
+        self.active_forwardings[payment_key] = []
+        self.logger.debug(f"adding active_forwarding: {payment_key=}")
+
+        any_mpp_htlc, (any_outer_onion, any_trampoline_onion) = next(iter(processed_htlc_set.items()))
+        try:
+            if any_trampoline_onion is None:
+                assert not any_outer_onion.are_we_final
+                assert len(processed_htlc_set) == 1, processed_htlc_set
+                forward_htlc = any_mpp_htlc.htlc
+                incoming_chan = self.get_channel_by_short_id(any_mpp_htlc.scid)
+                next_htlc = await self._maybe_forward_htlc(
+                    incoming_chan=incoming_chan,
+                    htlc=forward_htlc,
+                    processed_onion=any_outer_onion,
+                )
+                htlc_key = serialize_htlc_key(incoming_chan.get_scid_or_local_alias(), forward_htlc.htlc_id)
+                self.active_forwardings[payment_key].append(next_htlc)
+                self.downstream_to_upstream_htlc[next_htlc] = htlc_key
+            else:
+                assert not any_trampoline_onion.are_we_final and any_outer_onion.are_we_final
+                # trampoline forwarding
+                min_inc_cltv_abs = min(
+                    mpp_htlc.htlc.cltv_abs
+                    for mpp_htlc in processed_htlc_set.keys())  # take "min" to assume worst-case
+                await self._maybe_forward_trampoline(
+                    payment_hash=any_mpp_htlc.htlc.payment_hash,
+                    closest_inc_cltv_abs=min_inc_cltv_abs,
+                    total_msat=any_outer_onion.total_msat,
+                    any_trampoline_onion=any_trampoline_onion,
+                    fw_payment_key=payment_key,
+                )
+        except OnionRoutingFailure as e:
+            self.logger.debug(f"forwarding failed: {e=}")
+            if len(self.active_forwardings[payment_key]) == 0:
+                self.save_forwarding_failure(payment_key, failure_message=e)
+        # TODO what about other errors?
+        #      Could we "catch-all Exception" and fail back the htlcs with e.g. TEMPORARY_NODE_FAILURE?
+        #        - we don't want to fail the inc-HTLC for a syntax error that happens in the callback
+        #      If we don't call save_forwarding_failure(), the inc-HTLC gets stuck until expiry
+        #      and then the inc-channel will get force-closed.
+        #      => forwarding_callback() could have an API with two exceptions types:
+        #        - type1, such as OnionRoutingFailure, that signals we need to fail back the inc-HTLC
+        #        - type2, such as NoPathFound, that signals we want to retry forwarding
+
+    async def _maybe_forward_htlc(
             self, *,
             incoming_chan: Channel,
             htlc: UpdateAddHtlc,
@@ -3550,13 +3667,12 @@ class LNWallet(LNWorker):
         htlc_key = serialize_htlc_key(next_chan.get_scid_or_local_alias(), next_htlc.htlc_id)
         return htlc_key
 
-    @log_exceptions
-    async def maybe_forward_trampoline(
+    async def _maybe_forward_trampoline(
             self, *,
             payment_hash: bytes,
-            inc_cltv_abs: int,
-            outer_onion: ProcessedOnionPacket,
-            trampoline_onion: ProcessedOnionPacket,
+            closest_inc_cltv_abs: int,
+            total_msat: int,  # total_msat of the outer onion
+            any_trampoline_onion: ProcessedOnionPacket,  # any trampoline onion of the incoming htlc set, they should be similar
             fw_payment_key: str,
     ) -> None:
 
@@ -3565,7 +3681,7 @@ class LNWallet(LNWorker):
         if not (forwarding_enabled and forwarding_trampoline_enabled):
             self.logger.info(f"trampoline forwarding is disabled. failing htlc.")
             raise OnionRoutingFailure(code=OnionFailureCode.PERMANENT_CHANNEL_FAILURE, data=b'')
-        payload = trampoline_onion.hop_data.payload
+        payload = any_trampoline_onion.hop_data.payload
         payment_data = payload.get('payment_data')
         try:
             payment_secret = payment_data['payment_secret'] if payment_data else os.urandom(32)
@@ -3583,7 +3699,7 @@ class LNWallet(LNWorker):
             else:
                 self.logger.info('forward_trampoline: end-to-end')
                 invoice_features = LnFeatures.BASIC_MPP_OPT
-                next_trampoline_onion = trampoline_onion.next_packet
+                next_trampoline_onion = any_trampoline_onion.next_packet
                 r_tags = []
         except Exception as e:
             self.logger.exception('')
@@ -3597,13 +3713,12 @@ class LNWallet(LNWorker):
 
         # these are the fee/cltv paid by the sender
         # pay_to_node will raise if they are not sufficient
-        total_msat = outer_onion.hop_data.payload["payment_data"]["total_msat"]
         budget = PaymentFeeBudget(
             fee_msat=total_msat - amt_to_forward,
-            cltv=inc_cltv_abs - out_cltv_abs,
+            cltv=closest_inc_cltv_abs - out_cltv_abs,
         )
         self.logger.info(f'trampoline forwarding. budget={budget}')
-        self.logger.info(f'trampoline forwarding. {inc_cltv_abs=}, {out_cltv_abs=}')
+        self.logger.info(f'trampoline forwarding. {closest_inc_cltv_abs=}, {out_cltv_abs=}')
         # To convert abs vs rel cltvs, we need to guess blockheight used by original sender as "current blockheight".
         # Blocks might have been mined since.
         # - if we skew towards the past, we decrease our own cltv_budget accordingly (which is ok)
@@ -3715,7 +3830,6 @@ class LNWallet(LNWorker):
             final_cltv_abs=final_cltv_abs,
             total_msat=total_msat,
             payment_secret=payment_secret)
-        num_hops = len(hops_data)
         self.logger.info(f"pay len(route)={len(route)}. for payment_hash={payment_hash.hex()}")
         for i in range(len(route)):
             self.logger.info(f"  {i}: edge={route[i].short_channel_id} hop_data={hops_data[i]!r}")

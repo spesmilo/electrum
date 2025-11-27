@@ -37,8 +37,7 @@ from .util import (
     run_sync_function_on_asyncio_thread, trigger_callback, NoDynamicFeeEstimates, UserFacingException,
 )
 from . import lnutil
-from .lnutil import (hex_to_bytes, REDEEM_AFTER_DOUBLE_SPENT_DELAY, Keypair,
-                     MIN_FINAL_CLTV_DELTA_ACCEPTED)
+from .lnutil import hex_to_bytes, REDEEM_AFTER_DOUBLE_SPENT_DELAY, Keypair
 from .lnaddr import lndecode
 from .json_db import StoredObject, stored_in
 from . import constants
@@ -258,7 +257,7 @@ class SwapManager(Logger):
             payment_hash = bytes.fromhex(payment_hash_hex)
             swap._payment_hash = payment_hash
             self._add_or_reindex_swap(swap, is_new=False)
-            if not swap.is_reverse and not swap.is_redeemed:
+            if not swap.is_reverse and not swap.is_redeemed and not self.lnworker.get_preimage(swap.payment_hash):
                 self.lnworker.register_hold_invoice(payment_hash, self.hold_invoice_callback)
 
         self._prepayments = {}  # type: Dict[bytes, bytes] # fee_rhash -> rhash
@@ -400,8 +399,8 @@ class SwapManager(Logger):
     def _fail_swap(self, swap: SwapData, reason: str):
         self.logger.info(f'failing swap {swap.payment_hash.hex()}: {reason}')
         if not swap.is_reverse and swap.payment_hash in self.lnworker.hold_invoice_callbacks:
+            # unregister_hold_invoice will fail pending htlcs if there is no preimage available
             self.lnworker.unregister_hold_invoice(swap.payment_hash)
-            # Peer.maybe_fulfill_htlc will fail incoming htlcs if there is no payment info
             self.lnworker.delete_payment_info(swap.payment_hash.hex())
             self.lnworker.clear_invoices_cache()
         self.lnwatcher.remove_callback(swap.lockup_address)
@@ -416,7 +415,7 @@ class SwapManager(Logger):
                     self._prepayments.pop(swap.prepay_hash, None)
                     if self.lnworker.get_payment_status(swap.prepay_hash) != PR_PAID:
                         self.lnworker.delete_payment_info(swap.prepay_hash.hex())
-                        self.lnworker.delete_payment_bundle(swap.payment_hash)
+                        self.lnworker.delete_payment_bundle(payment_hash=swap.payment_hash)
 
     @classmethod
     def extract_preimage(cls, swap: SwapData, claim_tx: Transaction) -> Optional[bytes]:
@@ -474,7 +473,7 @@ class SwapManager(Logger):
                         # cleanup
                         self.lnwatcher.remove_callback(swap.lockup_address)
                         if not swap.is_reverse:
-                            self.lnworker.delete_payment_bundle(swap.payment_hash)
+                            self.lnworker.delete_payment_bundle(payment_hash=swap.payment_hash)
                             self.lnworker.unregister_hold_invoice(swap.payment_hash)
 
             if not swap.is_reverse:
@@ -691,7 +690,7 @@ class SwapManager(Logger):
         self.lnworker.add_payment_info_for_hold_invoice(
             payment_hash,
             lightning_amount_sat=invoice_amount_sat,
-            min_final_cltv_delta=min_final_cltv_expiry_delta or MIN_FINAL_CLTV_DELTA_ACCEPTED,
+            min_final_cltv_delta=min_final_cltv_expiry_delta or lnutil.MIN_FINAL_CLTV_DELTA_ACCEPTED,
             exp_delay=300,
         )
         info = self.lnworker.get_payment_info(payment_hash)
@@ -710,7 +709,7 @@ class SwapManager(Logger):
         if prepay:
             prepay_hash = self.lnworker.create_payment_info(
                 amount_msat=prepay_amount_sat*1000,
-                min_final_cltv_delta=min_final_cltv_expiry_delta or MIN_FINAL_CLTV_DELTA_ACCEPTED,
+                min_final_cltv_delta=min_final_cltv_expiry_delta or lnutil.MIN_FINAL_CLTV_DELTA_ACCEPTED,
                 exp_delay=300,
             )
             info = self.lnworker.get_payment_info(prepay_hash)

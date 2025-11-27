@@ -21,6 +21,7 @@ from electrum_ecc import ecdsa_sig64_from_r_and_s, ecdsa_der_sig_from_ecdsa_sig6
 import aiorpcx
 from aiorpcx import ignore_after
 
+from .lrucache import LRUCache
 from .crypto import sha256, sha256d, privkey_to_pubkey
 from . import bitcoin, util
 from . import constants
@@ -31,11 +32,11 @@ from . import transaction
 from .bitcoin import make_op_return, DummyAddress
 from .transaction import PartialTxOutput, match_script_against_template, Sighash
 from .logging import Logger
-from .lnrouter import RouteEdge
-from .lnonion import (new_onion_packet, OnionFailureCode, calc_hops_data_for_payment, process_onion_packet,
-                      OnionPacket, construct_onion_error, obfuscate_onion_error, OnionRoutingFailure,
-                      ProcessedOnionPacket, UnsupportedOnionPacketVersion, InvalidOnionMac, InvalidOnionPubkey,
-                      OnionFailureCodeMetaFlag)
+from . import lnonion
+from .lnonion import (OnionFailureCode, OnionPacket, obfuscate_onion_error,
+                      OnionRoutingFailure, ProcessedOnionPacket, UnsupportedOnionPacketVersion,
+                      InvalidOnionMac, InvalidOnionPubkey, OnionFailureCodeMetaFlag,
+                      OnionParsingError)
 from .lnchannel import Channel, RevokeAndAck, ChannelState, PeerState, ChanCloseOption, CF_ANNOUNCE_CHANNEL
 from . import lnutil
 from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc, ChannelConfig,
@@ -46,17 +47,15 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc, ChannelConf
                      ln_compare_features, MIN_FINAL_CLTV_DELTA_ACCEPTED,
                      RemoteMisbehaving, ShortChannelID,
                      IncompatibleLightningFeatures, ChannelType, LNProtocolWarning, validate_features,
-                     IncompatibleOrInsaneFeatures, FeeBudgetExceeded,
+                     IncompatibleOrInsaneFeatures, ReceivedMPPStatus, ReceivedMPPHtlc,
                      GossipForwardingMessage, GossipTimestampFilter, channel_id_from_funding_tx,
-                     PaymentFeeBudget, serialize_htlc_key, Keypair, RecvMPPResolution)
+                     serialize_htlc_key, Keypair, RecvMPPResolution)
 from .lntransport import LNTransport, LNTransportBase, LightningPeerConnectionClosed, HandshakeFailed
 from .lnmsg import encode_msg, decode_msg, UnknownOptionalMsgType, FailedToParseMsg
 from .interface import GracefulDisconnect
-from .lnrouter import fee_for_edge_msat
 from .json_db import StoredDict
 from .invoices import PR_PAID
 from .fee_policy import FEE_LN_ETA_TARGET, FEERATE_PER_KW_MIN_RELAY_LIGHTNING
-from .trampoline import decode_routing_info
 
 if TYPE_CHECKING:
     from .lnworker import LNGossip, LNWallet
@@ -132,6 +131,7 @@ class Peer(Logger, EventListener):
         self.downstream_htlc_resolved_event = asyncio.Event()
         self.register_callbacks()
         self._num_gossip_messages_forwarded = 0
+        self._processed_onion_cache = LRUCache(maxsize=100)  # type: LRUCache[bytes, ProcessedOnionPacket]
 
     def send_message(self, message_name: str, **kwargs):
         assert util.get_running_loop() == util.get_asyncio_loop(), f"this must be run on the asyncio thread!"
@@ -2136,177 +2136,154 @@ class Peer(Logger, EventListener):
 
         return payment_secret_from_onion, total_msat, channel_opening_fee, exc_incorrect_or_unknown_pd
 
-    def check_mpp_is_waiting(
-        self,
-        *,
-        payment_secret: bytes,
-        short_channel_id: ShortChannelID,
+    def _check_unfulfilled_htlc(
+        self, *,
+        chan: Channel,
         htlc: UpdateAddHtlc,
-        expected_msat: int,
-        exc_incorrect_or_unknown_pd: OnionRoutingFailure,
-        log_fail_reason: Callable[[str], None],
-    ) -> bool:
-        mpp_resolution = self.lnworker.check_mpp_status(
-            payment_secret=payment_secret,
-            short_channel_id=short_channel_id,
-            htlc=htlc,
-            expected_msat=expected_msat,
-        )
-        if mpp_resolution == RecvMPPResolution.WAITING:
-            return True
-        elif mpp_resolution == RecvMPPResolution.EXPIRED:
-            log_fail_reason(f"MPP_TIMEOUT")
-            raise OnionRoutingFailure(code=OnionFailureCode.MPP_TIMEOUT, data=b'')
-        elif mpp_resolution == RecvMPPResolution.FAILED:
-            log_fail_reason(f"mpp_resolution is FAILED")
-            raise exc_incorrect_or_unknown_pd
-        elif mpp_resolution == RecvMPPResolution.COMPLETE:
-            return False
-        else:
-            raise Exception(f"unexpected {mpp_resolution=}")
-
-    def maybe_fulfill_htlc(
-            self, *,
-            chan: Channel,
-            htlc: UpdateAddHtlc,
-            processed_onion: ProcessedOnionPacket,
-            outer_onion_payment_secret: bytes = None,  # used to group trampoline htlcs for forwarding
-            onion_packet_bytes: bytes,
-            already_forwarded: bool = False,
-    ) -> Tuple[Optional[bytes], Optional[Tuple[str, Callable[[], Awaitable[Optional[str]]]]]]:
+        processed_onion: ProcessedOnionPacket,
+        outer_onion_payment_secret: bytes = None,  # used to group trampoline htlcs for forwarding
+    ) -> str:
         """
-        Decide what to do with an HTLC: return preimage if it can be fulfilled, forwarding callback if it can be forwarded.
-        Return (preimage, (payment_key, callback)) with at most a single element not None.
+        Does additional checks on the incoming htlc and return the payment key if the tests pass,
+        otherwise raises OnionRoutingError which will get the htlc failed.
         """
-        if not processed_onion.are_we_final:
-            if not self.lnworker.enable_htlc_forwarding:
-                return None, None
-            # use the htlc key if we are forwarding
-            payment_key = serialize_htlc_key(chan.get_scid_or_local_alias(), htlc.htlc_id)
-            callback = lambda: self.lnworker.maybe_forward_htlc(
-                incoming_chan=chan,
-                htlc=htlc,
-                processed_onion=processed_onion)
-            return None, (payment_key, callback)
+        _log_fail_reason = self._log_htlc_fail_reason_cb(chan.short_channel_id, htlc, processed_onion.hop_data.payload)
 
-        def log_fail_reason(reason: str):
-            self.logger.info(
-                f"maybe_fulfill_htlc. will FAIL HTLC: chan {chan.short_channel_id}. "
-                f"{reason}. htlc={str(htlc)}. onion_payload={processed_onion.hop_data.payload}")
-
-        chain = self.network.blockchain()
         # Check that our blockchain tip is sufficiently recent so that we have an approx idea of the height.
         # We should not release the preimage for an HTLC that its sender could already time out as
         # then they might try to force-close and it becomes a race.
-        if chain.is_tip_stale() and not already_forwarded:
-            log_fail_reason(f"our chain tip is stale")
-            raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
+        chain = self.network.blockchain()
         local_height = chain.height()
+        blocks_to_expiry = max(htlc.cltv_abs - local_height, 0)
+        if chain.is_tip_stale():
+            _log_fail_reason(f"our chain tip is stale: {local_height=}")
+            raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
+
+        payment_hash = htlc.payment_hash
+        if not processed_onion.are_we_final:
+            if outer_onion_payment_secret:
+                # this is a trampoline forwarding htlc, multiple incoming trampoline htlcs can be collected
+                payment_key = (payment_hash + outer_onion_payment_secret).hex()
+                return payment_key
+            # this is a regular htlc to forward, it will get its own set of size 1 keyed by htlc_key
+            # Additional checks required only for forwarding nodes will be done in maybe_forward_htlc().
+            payment_key = serialize_htlc_key(chan.get_scid_or_local_alias(), htlc.htlc_id)
+            return payment_key
 
         # parse parameters and perform checks that are invariant
-        payment_secret_from_onion, total_msat, channel_opening_fee, exc_incorrect_or_unknown_pd = self._check_accepted_final_htlc(
-            chan=chan,
-            htlc=htlc,
-            processed_onion=processed_onion,
-            is_trampoline_onion=bool(outer_onion_payment_secret),
-            log_fail_reason=log_fail_reason)
-
-        # payment key for final onions
-        payment_hash = htlc.payment_hash
-        payment_key = (payment_hash + payment_secret_from_onion).hex()
-
-        if self.check_mpp_is_waiting(
-                payment_secret=payment_secret_from_onion,
-                short_channel_id=chan.get_scid_or_local_alias(),
+        payment_secret_from_onion, total_msat, channel_opening_fee, exc_incorrect_or_unknown_pd = (
+            self._check_accepted_final_htlc(
+                chan=chan,
                 htlc=htlc,
-                expected_msat=total_msat,
-                exc_incorrect_or_unknown_pd=exc_incorrect_or_unknown_pd,
-                log_fail_reason=log_fail_reason,
-        ):
-            return None, None
+                processed_onion=processed_onion,
+                is_trampoline_onion=bool(outer_onion_payment_secret),
+                log_fail_reason=_log_fail_reason,
+            ))
+        # trampoline htlcs of which we are the final receiver will first get grouped by the outer
+        # onions secret to allow grouping a multi-trampoline mpp in different sets. Once a trampoline
+        # payment part is completed (sum(htlcs) >= (trampoline-)amt_to_forward), its htlcs get moved into
+        # the htlc set representing the whole payment (payment key derived from trampoline/invoice secret).
+        payment_key = (payment_hash + (outer_onion_payment_secret or payment_secret_from_onion)).hex()
 
-        # TODO check against actual min_final_cltv_expiry_delta from invoice (and give 2-3 blocks of leeway?)
-        # note: payment_bundles might get split here, e.g. one payment is "already forwarded" and the other is not.
-        #       In practice, for the swap prepayment use case, this does not matter.
-        if local_height + MIN_FINAL_CLTV_DELTA_ACCEPTED > htlc.cltv_abs and not already_forwarded:
-            log_fail_reason(f"htlc.cltv_abs is unreasonably close")
+        # for safety, still enforce MIN_FINAL_CLTV_DELTA here even if payment_hash is in dont_expire_htlcs
+        if blocks_to_expiry < MIN_FINAL_CLTV_DELTA_ACCEPTED:
+            # this check should be done here for new htlcs and ongoing on pending sets.
+            # Here it is done so that invalid received htlcs will never get added to a set,
+            # so the set still has a chance to succeed until mpp timeout.
+            _log_fail_reason(f"htlc.cltv_abs is unreasonably close: {htlc.cltv_abs=}, {local_height=}")
             raise exc_incorrect_or_unknown_pd
 
-        # detect callback
-        # if there is a trampoline_onion, maybe_fulfill_htlc will be called again
-        # order is important: if we receive a trampoline onion for a hold invoice, we need to peel the onion first.
-
+        # extract trampoline
         if processed_onion.trampoline_onion_packet:
-            # TODO: we should check that all trampoline_onions are the same
-            trampoline_onion = self.process_onion_packet(
+            trampoline_onion = self._process_incoming_onion_packet(
                 processed_onion.trampoline_onion_packet,
                 payment_hash=payment_hash,
-                onion_packet_bytes=onion_packet_bytes,
                 is_trampoline=True)
-            if trampoline_onion.are_we_final:
-                # trampoline- we are final recipient of HTLC
-                # note: the returned payment_key will contain the inner payment_secret
-                return self.maybe_fulfill_htlc(
-                    chan=chan,
-                    htlc=htlc,
-                    processed_onion=trampoline_onion,
-                    outer_onion_payment_secret=payment_secret_from_onion,
-                    onion_packet_bytes=onion_packet_bytes,
-                    already_forwarded=already_forwarded,
-                )
-            else:
-                callback = lambda: self.lnworker.maybe_forward_trampoline(
-                    payment_hash=payment_hash,
-                    inc_cltv_abs=htlc.cltv_abs, # TODO: use max or enforce same value across mpp parts
-                    outer_onion=processed_onion,
-                    trampoline_onion=trampoline_onion,
-                    fw_payment_key=payment_key)
-                return None, (payment_key, callback)
 
-        # TODO don't accept payments twice for same invoice
-        # note: we don't check invoice expiry (bolt11 'x' field) on the receiver-side.
-        #       - semantics are weird: would make sense for simple-payment-receives, but not
-        #         if htlc is expected to be pending for a while, e.g. for a hold-invoice.
+            # compare trampoline onion against outer onion according to:
+            # https://github.com/lightning/bolts/blob/9938ab3d6160a3ba91f3b0e132858ab14bfe4f81/04-onion-routing.md?plain=1#L547-L553
+            if trampoline_onion.are_we_final:
+                try:
+                    assert not processed_onion.outgoing_cltv_value < trampoline_onion.outgoing_cltv_value
+                    is_mpp = processed_onion.total_msat > processed_onion.amt_to_forward
+                    if is_mpp:
+                        assert not processed_onion.total_msat < trampoline_onion.amt_to_forward
+                    else:
+                        assert not processed_onion.amt_to_forward < trampoline_onion.amt_to_forward
+                except AssertionError:
+                    _log_fail_reason(f'incorrect trampoline onion {processed_onion=}\n{trampoline_onion=}')
+                    raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
+
+            return self._check_unfulfilled_htlc(
+                chan=chan,
+                htlc=htlc,
+                processed_onion=trampoline_onion,
+                outer_onion_payment_secret=payment_secret_from_onion,
+            )
+
         info = self.lnworker.get_payment_info(payment_hash)
         if info is None:
-            log_fail_reason(f"no payment_info found for RHASH {htlc.payment_hash.hex()}")
+            _log_fail_reason(f"no payment_info found for RHASH {payment_hash.hex()}")
+            raise exc_incorrect_or_unknown_pd
+        elif info.status == PR_PAID:
+            _log_fail_reason(f"invoice already paid: {payment_hash.hex()=}")
+            raise exc_incorrect_or_unknown_pd
+        elif blocks_to_expiry < info.min_final_cltv_delta:
+            _log_fail_reason(
+                f"min final cltv delta lower than requested: "
+                f"{payment_hash.hex()=} {htlc.cltv_abs=} {blocks_to_expiry=}"
+            )
+            raise exc_incorrect_or_unknown_pd
+        elif htlc.timestamp > info.expiration_ts:  # the set will get failed too if now > exp_ts
+            _log_fail_reason(f"not accepting htlc for expired invoice")
             raise exc_incorrect_or_unknown_pd
 
-        preimage = self.lnworker.get_preimage(payment_hash)
-        expected_payment_secret = self.lnworker.get_payment_secret(htlc.payment_hash)
-        if payment_secret_from_onion != expected_payment_secret:
-            log_fail_reason(f'incorrect payment secret {payment_secret_from_onion.hex()} != {expected_payment_secret.hex()}')
+        expected_payment_secret = self.lnworker.get_payment_secret(payment_hash)
+        if not util.constant_time_compare(payment_secret_from_onion, expected_payment_secret):
+            _log_fail_reason(f'incorrect payment secret: {payment_secret_from_onion.hex()=}')
             raise exc_incorrect_or_unknown_pd
+
         invoice_msat = info.amount_msat
         if channel_opening_fee:
+            # deduct just-in-time channel fees from invoice amount
             invoice_msat -= channel_opening_fee
 
         if not (invoice_msat is None or invoice_msat <= total_msat <= 2 * invoice_msat):
-            log_fail_reason(f"total_msat={total_msat} too different from invoice_msat={invoice_msat}")
+            _log_fail_reason(f"{total_msat=} too different from {invoice_msat=}")
             raise exc_incorrect_or_unknown_pd
 
-        hold_invoice_callback = self.lnworker.hold_invoice_callbacks.get(payment_hash)
-        if hold_invoice_callback and not preimage:
-            callback = lambda: hold_invoice_callback(payment_hash)
-            return None, (payment_key, callback)
+        return payment_key
 
-        if payment_hash.hex() in self.lnworker.dont_settle_htlcs:
-            return None, None
+    def _fulfill_htlc_set(self, payment_key: str, preimage: bytes):
+        htlc_set = self.lnworker.received_mpp_htlcs[payment_key]
+        assert len(htlc_set.htlcs) > 0, f"{htlc_set=}"
+        assert htlc_set.resolution == RecvMPPResolution.SETTLING
+        assert htlc_set.parent_set_key is None, f"Must not settle child {htlc_set=}"
+        # get payment hash of any htlc in the set (they are all the same)
+        payment_hash = htlc_set.get_payment_hash()
+        assert payment_hash is not None, htlc_set
+        assert payment_hash not in self.lnworker.dont_settle_htlcs
+        self.lnworker.dont_expire_htlcs.pop(payment_hash.hex(), None)  # htlcs wont get expired anymore
+        for mpp_htlc in list(htlc_set.htlcs):
+            htlc_id = mpp_htlc.htlc.htlc_id
+            chan = self.lnworker.get_channel_by_short_id(mpp_htlc.scid)
+            if chan.channel_id not in self.channels:
+                # this htlc belongs to another peer and has to be settled in their htlc_switch
+                continue
+            if not chan.can_update_ctx(proposer=LOCAL):
+                continue
+            self.logger.info(f"fulfill htlc: {chan.short_channel_id}. {htlc_id=}. {payment_hash.hex()=}")
+            if chan.hm.was_htlc_preimage_released(htlc_id=htlc_id, htlc_proposer=REMOTE):
+                # this check is intended to gracefully handle stale htlcs in the set, e.g. after a crash
+                self.logger.debug(f"{mpp_htlc=} was already settled before, dropping it.")
+                htlc_set.htlcs.remove(mpp_htlc)
+                continue
+            self._fulfill_htlc(chan, htlc_id, preimage)
+            htlc_set.htlcs.remove(mpp_htlc)
+            # reset just-in-time opening fee of channel
+            chan.opening_fee = None
 
-        if not preimage:
-            if not already_forwarded:
-                log_fail_reason(f"missing preimage and no hold invoice callback {payment_hash.hex()}")
-                raise exc_incorrect_or_unknown_pd
-            else:
-                return None, None
-
-        chan.opening_fee = None
-        self.logger.info(f"maybe_fulfill_htlc. will FULFILL HTLC: chan {chan.short_channel_id}. htlc={str(htlc)}")
-        return preimage, None
-
-    def fulfill_htlc(self, chan: Channel, htlc_id: int, preimage: bytes):
-        self.logger.info(f"_fulfill_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
-        assert chan.can_update_ctx(proposer=LOCAL), f"cannot send updates: {chan.short_channel_id}"
+    def _fulfill_htlc(self, chan: Channel, htlc_id: int, preimage: bytes):
         assert chan.hm.is_htlc_irrevocably_added_yet(htlc_proposer=REMOTE, htlc_id=htlc_id)
         self.received_htlcs_pending_removal.add((chan, htlc_id))
         chan.settle_htlc(preimage, htlc_id)
@@ -2315,6 +2292,65 @@ class Peer(Logger, EventListener):
             channel_id=chan.channel_id,
             id=htlc_id,
             payment_preimage=preimage)
+
+    def _fail_htlc_set(
+        self,
+        payment_key: str,
+        error_tuple: Tuple[Optional[bytes], Optional[OnionFailureCode | int], Optional[bytes]],
+    ):
+        htlc_set = self.lnworker.received_mpp_htlcs[payment_key]
+        assert htlc_set.resolution in (RecvMPPResolution.FAILED, RecvMPPResolution.EXPIRED)
+
+        raw_error, error_code, error_data = error_tuple
+        local_height = self.network.blockchain().height()
+        payment_hash = htlc_set.get_payment_hash()
+        assert payment_hash is not None, "Empty htlc set?"
+        self.lnworker.dont_expire_htlcs.pop(payment_hash.hex(), None)
+        self.lnworker.dont_settle_htlcs.pop(payment_hash.hex(), None)  # already failed
+        for mpp_htlc in list(htlc_set.htlcs):
+            chan = self.lnworker.get_channel_by_short_id(mpp_htlc.scid)
+            htlc_id = mpp_htlc.htlc.htlc_id
+            if chan.channel_id not in self.channels:
+                # this htlc belongs to another peer and has to be settled in their htlc_switch
+                continue
+            if not chan.can_update_ctx(proposer=LOCAL):
+                continue
+            assert chan.hm.is_htlc_irrevocably_added_yet(htlc_proposer=REMOTE, htlc_id=htlc_id)
+            if chan.hm.was_htlc_failed(htlc_id=htlc_id, htlc_proposer=REMOTE):
+                # this check is intended to gracefully handle stale htlcs in the set, e.g. after a crash
+                self.logger.debug(f"{mpp_htlc=} was already failed before, dropping it.")
+                htlc_set.htlcs.remove(mpp_htlc)
+                continue
+            onion_packet = self._parse_onion_packet(mpp_htlc.unprocessed_onion)
+            processed_onion_packet = self._process_incoming_onion_packet(
+                onion_packet,
+                payment_hash=payment_hash,
+                is_trampoline=False,
+            )
+            if raw_error:
+                error_bytes = obfuscate_onion_error(raw_error, onion_packet.public_key, self.privkey)
+            else:
+                assert isinstance(error_code, (OnionFailureCode, int))
+                if error_code == OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS:
+                    amount_to_forward = processed_onion_packet.amt_to_forward
+                    # if this was a trampoline htlc we use the inner amount_to_forward as this is
+                    # the value known by the sender
+                    if processed_onion_packet.trampoline_onion_packet:
+                        processed_trampoline_onion_packet = self._process_incoming_onion_packet(
+                            processed_onion_packet.trampoline_onion_packet,
+                            payment_hash=payment_hash,
+                            is_trampoline=True,
+                        )
+                        amount_to_forward = processed_trampoline_onion_packet.amt_to_forward
+                    error_data = amount_to_forward.to_bytes(8, byteorder="big")
+                e = OnionRoutingFailure(code=error_code, data=error_data or b'')
+                error_bytes = e.to_wire_msg(onion_packet, self.privkey, local_height)
+            self.fail_htlc(
+                chan=chan,
+                htlc_id=htlc_id,
+                error_bytes=error_bytes,
+            )
+            htlc_set.htlcs.remove(mpp_htlc)
 
     def fail_htlc(self, *, chan: Channel, htlc_id: int, error_bytes: bytes):
         self.logger.info(f"fail_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}.")
@@ -2328,7 +2364,7 @@ class Peer(Logger, EventListener):
             len=len(error_bytes),
             reason=error_bytes)
 
-    def fail_malformed_htlc(self, *, chan: Channel, htlc_id: int, reason: OnionRoutingFailure):
+    def fail_malformed_htlc(self, *, chan: Channel, htlc_id: int, reason: OnionParsingError):
         self.logger.info(f"fail_malformed_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}.")
         assert chan.can_update_ctx(proposer=LOCAL), f"cannot send updates: {chan.short_channel_id}"
         if not (reason.code & OnionFailureCodeMetaFlag.BADONION and len(reason.data) == 32):
@@ -2759,84 +2795,120 @@ class Peer(Logger, EventListener):
                     await group.spawn(self.downstream_htlc_resolved_event.wait())
             self._htlc_switch_iterstart_event.set()
             self._htlc_switch_iterstart_event.clear()
-            self._run_htlc_switch_iteration()
+            try:
+                self._run_htlc_switch_iteration()
+            except Exception as e:
+                # this is code with many asserts and dense logic so it seems useful to allow the user
+                # report to exceptions that otherwise might go unnoticed for some time
+                reported_exc = type(e)("redacted")  # text could contain onions, payment hashes etc.
+                reported_exc.__traceback__ = e.__traceback__
+                util.send_exception_to_crash_reporter(reported_exc)
+                raise e
 
     @util.profiler(min_threshold=0.02)
     def _run_htlc_switch_iteration(self):
         self._maybe_cleanup_received_htlcs_pending_removal()
-        # In this loop, an item of chan.unfulfilled_htlcs may go through 4 stages:
-        # - 1. not forwarded yet: (None, onion_packet_hex)
-        # - 2. forwarded: (forwarding_key, onion_packet_hex)
-        # - 3. processed: (forwarding_key, None), not irrevocably removed yet
-        # - 4. done: (forwarding_key, None), irrevocably removed
+        # htlc processing happens in two steps:
+        # 1. Step: Iterating through all channels and their pending htlcs, doing validation
+        #    feasible for single htlcs (some checks only make sense on the whole mpp set) and
+        #    then collecting these htlcs in a mpp set by payment key.
+        #    HTLCs failing these checks will get failed directly and won't be added to any set.
+        #    No htlcs will get settled in this step, settling only happens on complete mpp sets.
+        #    If a new htlc belongs to a set which has already been failed, the htlc will be failed
+        #    and not added to any set.
+        #    Each htlc is only supposed to go through this first loop once when being received.
         for chan_id, chan in self.channels.items():
             if not chan.can_update_ctx(proposer=LOCAL):
                 continue
             self.maybe_send_commitment(chan)
-            done = set()
             unfulfilled = chan.unfulfilled_htlcs
-            for htlc_id, (onion_packet_hex, forwarding_key) in unfulfilled.items():
+            for htlc_id, onion_packet_hex in list(unfulfilled.items()):
                 if not chan.hm.is_htlc_irrevocably_added_yet(htlc_proposer=REMOTE, htlc_id=htlc_id):
                     continue
+
                 htlc = chan.hm.get_htlc_by_id(REMOTE, htlc_id)
-                if chan.hm.is_htlc_irrevocably_removed_yet(htlc_proposer=REMOTE, htlc_id=htlc_id):
-                    assert onion_packet_hex is None
-                    self.lnworker.maybe_cleanup_mpp(chan.get_scid_or_local_alias(), htlc)
-                    if forwarding_key:
-                        self.lnworker.maybe_cleanup_forwarding(forwarding_key)
-                    done.add(htlc_id)
-                    continue
-                if onion_packet_hex is None:
-                    # has been processed already
-                    continue
-                error_reason = None  # type: Optional[OnionRoutingFailure]
-                error_bytes = None  # type: Optional[bytes]
-                preimage = None
-                onion_packet_bytes = bytes.fromhex(onion_packet_hex)
-                onion_packet = None
                 try:
-                    onion_packet = OnionPacket.from_bytes(onion_packet_bytes)
-                except OnionRoutingFailure as e:
-                    error_reason = e
-                else:
-                    try:
-                        preimage, _forwarding_key, error_bytes = self.process_unfulfilled_htlc(
-                            chan=chan,
-                            htlc=htlc,
-                            forwarding_key=forwarding_key,
-                            onion_packet_bytes=onion_packet_bytes,
-                            onion_packet=onion_packet)
-                        if _forwarding_key:
-                            assert forwarding_key is None
-                            unfulfilled[htlc_id] = onion_packet_hex, _forwarding_key
-                    except OnionRoutingFailure as e:
-                        error_bytes = construct_onion_error(e, onion_packet.public_key, self.privkey, self.network.get_local_height())
-                    if error_bytes:
-                        error_bytes = obfuscate_onion_error(error_bytes, onion_packet.public_key, our_onion_private_key=self.privkey)
+                    onion_packet = self._parse_onion_packet(onion_packet_hex)
+                except OnionParsingError as e:
+                    self.fail_malformed_htlc(
+                        chan=chan,
+                        htlc_id=htlc.htlc_id,
+                        reason=e,
+                    )
+                    del unfulfilled[htlc_id]
+                    continue
 
-                if preimage or error_reason or error_bytes:
-                    if preimage:
-                        self.lnworker.set_request_status(htlc.payment_hash, PR_PAID)
-                        if not self.lnworker.enable_htlc_settle:
-                            continue
-                        self.fulfill_htlc(chan, htlc.htlc_id, preimage)
-                    elif error_bytes:
-                        self.fail_htlc(
-                            chan=chan,
-                            htlc_id=htlc.htlc_id,
-                            error_bytes=error_bytes)
+                try:
+                    processed_onion_packet = self._process_incoming_onion_packet(
+                        onion_packet,
+                        payment_hash=htlc.payment_hash,
+                        is_trampoline=False,
+                    )
+                    payment_key: str = self._check_unfulfilled_htlc(
+                        chan=chan,
+                        htlc=htlc,
+                        processed_onion=processed_onion_packet,
+                    )
+                    self.lnworker.update_or_create_mpp_with_received_htlc(
+                        payment_key=payment_key,
+                        scid=chan.short_channel_id,
+                        htlc=htlc,
+                        unprocessed_onion_packet=onion_packet_hex,  # outer onion if trampoline
+                    )
+                except OnionParsingError as e:  # could be raised when parsing the inner trampoline onion
+                    self.fail_malformed_htlc(
+                        chan=chan,
+                        htlc_id=htlc.htlc_id,
+                        reason=e,
+                    )
+                except Exception as e:
+                    # Fail the htlc directly if it fails to pass these tests, it will not get added to a htlc set.
+                    # https://github.com/lightning/bolts/blob/14272b1bd9361750cfdb3e5d35740889a6b510b5/04-onion-routing.md?plain=1#L388
+                    reraise = False
+                    if isinstance(e, OnionRoutingFailure):
+                        orf = e
                     else:
-                        self.fail_malformed_htlc(
-                            chan=chan,
-                            htlc_id=htlc.htlc_id,
-                            reason=error_reason)
-                    # blank onion field to mark it as processed
-                    unfulfilled[htlc_id] = None, forwarding_key
+                        orf = OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
+                        reraise = True  # propagate this out, as this might suggest a bug
+                    error_bytes = orf.to_wire_msg(onion_packet, self.privkey, self.network.get_local_height())
+                    self.fail_htlc(
+                        chan=chan,
+                        htlc_id=htlc.htlc_id,
+                        error_bytes=error_bytes,
+                    )
+                    if reraise:
+                        raise
+                finally:
+                    del unfulfilled[htlc_id]
 
-            # cleanup
-            for htlc_id in done:
-                unfulfilled.pop(htlc_id)
-            self.maybe_send_commitment(chan)
+        # 2. Step: Acting on sets of htlcs.
+        #    Doing further checks that have to be done on sets of htlcs (e.g. total amount checks)
+        #    and checks that have to be done continuously like checking for timeout.
+        #    A set marked as failed once must never settle any htlcs associated to it.
+        #    The sets are shared between all peers, so each peers htlc_switch acts on the same sets.
+        for payment_key, htlc_set in list(self.lnworker.received_mpp_htlcs.items()):
+            any_error, preimage, callback = self._check_unfulfilled_htlc_set(payment_key, htlc_set)
+            assert bool(any_error) + bool(preimage) + bool(callback) <= 1, \
+                        f"{any_error=}, {bool(preimage)=}, {callback=}"
+            if any_error:
+                error_tuple = self.lnworker.set_htlc_set_error(payment_key, any_error)
+                self._fail_htlc_set(payment_key, error_tuple)
+            if preimage:
+                if self.lnworker.enable_htlc_settle:
+                    self.lnworker.set_request_status(htlc_set.get_payment_hash(), PR_PAID)
+                    self._fulfill_htlc_set(payment_key, preimage)
+            if callback:
+                task = asyncio.create_task(callback())
+                task.add_done_callback(  # log exceptions occurring in callback
+                    lambda t, pk=payment_key: self.logger.exception(
+                        f"cb failed: "
+                        f"{self.lnworker.received_mpp_htlcs[pk]=}", exc_info=t.exception()) if t.exception() else None
+                )
+
+            if len(self.lnworker.received_mpp_htlcs[payment_key].htlcs) == 0:
+                self.logger.debug(f"deleting resolved mpp set: {payment_key=}")
+                del self.lnworker.received_mpp_htlcs[payment_key]
+                self.lnworker.maybe_cleanup_forwarding(payment_key)
 
     def _maybe_cleanup_received_htlcs_pending_removal(self) -> None:
         done = set()
@@ -2861,107 +2933,334 @@ class Peer(Logger, EventListener):
             await group.spawn(htlc_switch_iteration())
             await group.spawn(self.got_disconnected.wait())
 
-    def process_unfulfilled_htlc(
-            self, *,
-            chan: Channel,
-            htlc: UpdateAddHtlc,
-            forwarding_key: Optional[str],
-            onion_packet_bytes: bytes,
-            onion_packet: OnionPacket) -> Tuple[Optional[bytes], Optional[str], Optional[bytes]]:
-        """
-        return (preimage, payment_key, error_bytes) with at most a single element that is not None
-        raise an OnionRoutingFailure if we need to fail the htlc
-        """
-        payment_hash = htlc.payment_hash
-        processed_onion = self.process_onion_packet(
-            onion_packet,
-            payment_hash=payment_hash,
-            onion_packet_bytes=onion_packet_bytes)
+    def _log_htlc_fail_reason_cb(
+        self,
+        scid: ShortChannelID,
+        htlc: UpdateAddHtlc,
+        onion_payload: dict
+    ) -> Callable[[str], None]:
+        def _log_fail_reason(reason: str) -> None:
+            self.logger.info(f"will FAIL HTLC: {str(scid)=}. {reason=}. {str(htlc)=}. {onion_payload=}")
+        return _log_fail_reason
 
-        preimage, forwarding_info = self.maybe_fulfill_htlc(
-            chan=chan,
-            htlc=htlc,
-            processed_onion=processed_onion,
-            onion_packet_bytes=onion_packet_bytes,
-            already_forwarded=bool(forwarding_key))
+    def _log_htlc_set_fail_reason_cb(self, mpp_set: ReceivedMPPStatus) -> Callable[[str], None]:
+        def log_fail_reason(reason: str):
+            for mpp_htlc in mpp_set.htlcs:
+                try:
+                    processed_onion = self._process_incoming_onion_packet(
+                        onion_packet=self._parse_onion_packet(mpp_htlc.unprocessed_onion),
+                        payment_hash=mpp_htlc.htlc.payment_hash,
+                        is_trampoline=False,
+                    )
+                    onion_payload = processed_onion.hop_data.payload
+                except Exception:
+                    onion_payload = {}
 
-        if not forwarding_key:
-            if forwarding_info:
-                # HTLC we are supposed to forward, but haven't forwarded yet
-                payment_key, forwarding_callback = forwarding_info
+                self._log_htlc_fail_reason_cb(
+                    mpp_htlc.scid,
+                    mpp_htlc.htlc,
+                    onion_payload,
+                )(f"mpp set {id(mpp_set)} failed: {reason}")
+
+        return log_fail_reason
+
+    def _check_unfulfilled_htlc_set(
+        self,
+        payment_key: str,
+        mpp_set: ReceivedMPPStatus
+    ) -> Tuple[
+        Optional[Union[OnionRoutingFailure, OnionFailureCode, bytes]],  # error types used to fail the set
+        Optional[bytes],  # preimage to settle the set
+        Optional[Callable[[], Awaitable[None]]],  # callback
+    ]:
+        """
+        Returns what to do next with the given set of htlcs:
+            * Fail whole set -> returns error code
+            * Settle whole set -> Returns preimage
+            * call callback (e.g. forwarding, hold invoice)
+        May modify the mpp set in lnworker.received_mpp_htlcs (e.g. by setting its resolution to COMPLETE).
+        """
+        _log_fail_reason = self._log_htlc_set_fail_reason_cb(mpp_set)
+
+        if (final_state := self._check_final_mpp_set_state(payment_key, mpp_set)) is not None:
+            return final_state
+
+        assert mpp_set.resolution in (RecvMPPResolution.WAITING, RecvMPPResolution.COMPLETE)
+        chain = self.network.blockchain()
+        local_height = chain.height()
+        if chain.is_tip_stale():
+            _log_fail_reason(f"our chain tip is stale: {local_height=}")
+            return OnionFailureCode.TEMPORARY_NODE_FAILURE, None, None
+
+        amount_msat: int = 0  # sum(amount_msat of each htlc)
+        total_msat = None  # type: Optional[int]
+        payment_hash = mpp_set.get_payment_hash()
+        closest_cltv_abs = mpp_set.get_closest_cltv_abs()
+        first_htlc_timestamp = mpp_set.get_first_htlc_timestamp()
+        processed_onions = {}  # type: dict[ReceivedMPPHtlc, Tuple[ProcessedOnionPacket, Optional[ProcessedOnionPacket]]]
+        for mpp_htlc in mpp_set.htlcs:
+            processed_onion = self._process_incoming_onion_packet(
+                onion_packet=self._parse_onion_packet(mpp_htlc.unprocessed_onion),
+                payment_hash=payment_hash,
+                is_trampoline=False,  # this is always the outer onion
+            )
+            processed_onions[mpp_htlc] = (processed_onion, None)
+            inner_onion = None
+            if processed_onion.trampoline_onion_packet:
+                inner_onion = self._process_incoming_onion_packet(
+                    onion_packet=processed_onion.trampoline_onion_packet,
+                    payment_hash=payment_hash,
+                    is_trampoline=True,
+                )
+                processed_onions[mpp_htlc] = (processed_onion, inner_onion)
+
+            total_msat_outer_onion = processed_onion.total_msat
+            total_msat_inner_onion = inner_onion.total_msat if inner_onion else None
+            if total_msat is None:
+                total_msat = total_msat_inner_onion or total_msat_outer_onion
+
+            # check total_msat is equal for all htlcs of the set
+            if total_msat != (total_msat_inner_onion or total_msat_outer_onion):
+                _log_fail_reason(f"total_msat is not uniform: {total_msat=} != {processed_onion.total_msat=}")
+                return OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, None, None
+
+            amount_msat += mpp_htlc.htlc.amount_msat
+
+        # If the set contains outer onions with different payment secrets, the set's payment_key is
+        # derived from the trampoline/invoice/inner payment secret, so it is the second stage of a
+        # multi-trampoline payment in which all the trampoline parts/htlcs got combined.
+        # In this case the amt_to_forward cannot be compared as it may differ between the trampoline parts.
+        # However, amt_to_forward should be similar for all onions of a single trampoline part and gets
+        # compared in the first stage where the htlc set represents a single trampoline part.
+        outer_onions = [onions[0] for onions in processed_onions.values()]
+        can_have_different_amt_to_fwd = not all(o.payment_secret == outer_onions[0].payment_secret for o in outer_onions)
+        trampoline_onions = iter(onions[1] for onions in processed_onions.values())
+        if not lnonion.compare_trampoline_onions(trampoline_onions, exclude_amt_to_fwd=can_have_different_amt_to_fwd):
+            _log_fail_reason(f"got inconsistent {trampoline_onions=}")
+            return OnionFailureCode.INVALID_ONION_PAYLOAD, None, None
+
+        if len(processed_onions) == 1:
+            outer_onion, inner_onion = next(iter(processed_onions.values()))
+            if not outer_onion.are_we_final:
+                assert inner_onion is None, f"{outer_onion=}\n{inner_onion=}"
                 if not self.lnworker.enable_htlc_forwarding:
                     return None, None, None
-                if payment_key not in self.lnworker.active_forwardings:
-                    async def wrapped_callback():
-                        forwarding_coro = forwarding_callback()
-                        try:
-                            next_htlc = await forwarding_coro
-                            if next_htlc:
-                                htlc_key = serialize_htlc_key(chan.get_scid_or_local_alias(), htlc.htlc_id)
-                                self.lnworker.active_forwardings[payment_key].append(next_htlc)
-                                self.lnworker.downstream_to_upstream_htlc[next_htlc] = htlc_key
-                        except OnionRoutingFailure as e:
-                            if len(self.lnworker.active_forwardings[payment_key]) == 0:
-                                self.lnworker.save_forwarding_failure(payment_key, failure_message=e)
-                        # TODO what about other errors? e.g. TxBroadcastError for a swap.
-                        #        - malicious electrum server could fake TxBroadcastError
-                        #      Could we "catch-all Exception" and fail back the htlcs with e.g. TEMPORARY_NODE_FAILURE?
-                        #        - we don't want to fail the inc-HTLC for a syntax error that happens in the callback
-                        #      If we don't call save_forwarding_failure(), the inc-HTLC gets stuck until expiry
-                        #      and then the inc-channel will get force-closed.
-                        #      => forwarding_callback() could have an API with two exceptions types:
-                        #        - type1, such as OnionRoutingFailure, that signals we need to fail back the inc-HTLC
-                        #        - type2, such as TxBroadcastError, that signals we want to retry the callback
-                    # add to list
-                    assert len(self.lnworker.active_forwardings.get(payment_key, [])) == 0
-                    self.lnworker.active_forwardings[payment_key] = []
-                    fut = asyncio.ensure_future(wrapped_callback())
-                # return payment_key so this branch will not be executed again
-                return None, payment_key, None
-            elif preimage:
-                return preimage, None, None
-            else:
-                # we are waiting for mpp consolidation or preimage
+                # this is a single (non-trampoline) htlc set which needs to be forwarded.
+                # set to settling state so it will not be failed or forwarded twice.
+                self.lnworker.set_mpp_resolution(payment_key, RecvMPPResolution.SETTLING)
+                fwd_cb = lambda: self.lnworker.maybe_forward_htlc_set(payment_key, processed_htlc_set=processed_onions)
+                return None, None, fwd_cb
+
+        assert payment_hash is not None and total_msat is not None
+        # check for expiry over time and potentially fail the whole set if any
+        # htlc's cltv becomes too close
+        blocks_to_expiry = max(0, closest_cltv_abs - local_height)
+        accepted_expiry_delta = self.lnworker.dont_expire_htlcs.get(payment_hash.hex(), MIN_FINAL_CLTV_DELTA_ACCEPTED)
+        if accepted_expiry_delta is not None and blocks_to_expiry < accepted_expiry_delta:
+            _log_fail_reason(f"htlc.cltv_abs is unreasonably close")
+            return OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, None, None
+
+        # check for mpp expiry (if incomplete and expired -> fail)
+        if mpp_set.resolution == RecvMPPResolution.WAITING \
+                or not self.lnworker.is_payment_bundle_complete(payment_key):
+            # maybe this set is COMPLETE but the bundle is not yet completed, so the bundle can be considered WAITING
+            if int(time.time()) - first_htlc_timestamp > self.lnworker.MPP_EXPIRY \
+                    or self.lnworker.stopping_soon:
+                _log_fail_reason(f"MPP TIMEOUT (> {self.lnworker.MPP_EXPIRY} sec)")
+                return OnionFailureCode.MPP_TIMEOUT, None, None
+
+        if mpp_set.resolution == RecvMPPResolution.WAITING:
+            # check if set is first stage multi-trampoline payment to us
+            # first stage trampoline payment:
+            # is a trampoline payment + we_are_final + payment key is derived from outer onion's payment secret
+            # (so it is not the payment secret we requested in the invoice, but some secret set by a
+            # trampoline forwarding node on the route).
+            # if it is first stage, check if sum(htlcs) >= amount_to_forward of the trampoline_payload.
+            # If this part is complete, move the htlcs to the overall mpp set of the payment (keyed by inner secret).
+            # Once the second stage set (the set containing all htlcs of the separate trampoline parts)
+            # is complete, the payment gets fulfilled.
+            trampoline_payment_key = None
+            any_trampoline_onion = next(iter(processed_onions.values()))[1]
+            if any_trampoline_onion and any_trampoline_onion.are_we_final:
+                trampoline_payment_secret = any_trampoline_onion.payment_secret
+                assert trampoline_payment_secret == self.lnworker.get_payment_secret(payment_hash)
+                trampoline_payment_key = (payment_hash + trampoline_payment_secret).hex()
+
+            if trampoline_payment_key and trampoline_payment_key != payment_key:
+                # first stage of trampoline payment, the first stage must never get set COMPLETE
+                if amount_msat >= any_trampoline_onion.amt_to_forward:
+                    # setting the parent key will mark the htlcs to be moved to the parent set
+                    self.logger.debug(f"trampoline part complete. {len(mpp_set.htlcs)=}, "
+                                      f"{amount_msat=}. setting parent key: {trampoline_payment_key}")
+                    self.lnworker.received_mpp_htlcs[payment_key] = mpp_set._replace(
+                        parent_set_key=trampoline_payment_key,
+                    )
+            elif amount_msat >= total_msat:
+                # set mpp_set as completed as we have received the full total_msat
+                mpp_set = self.lnworker.set_mpp_resolution(
+                    payment_key=payment_key,
+                    new_resolution=RecvMPPResolution.COMPLETE,
+                )
+
+        # check if this set is a trampoline forwarding and potentially return forwarding callback
+        # note: all inner trampoline onions are equal (enforced above)
+        _, any_inner_onion = next(iter(processed_onions.values()))
+        if any_inner_onion and not any_inner_onion.are_we_final:
+            # this is a trampoline forwarding
+            can_forward = mpp_set.resolution == RecvMPPResolution.COMPLETE and self.lnworker.enable_htlc_forwarding
+            if not can_forward:
                 return None, None, None
-        else:
-            # HTLC we are supposed to forward, and have already forwarded
-            # for final trampoline onions, forwarding failures are stored with forwarding_key (which is the inner key)
-            payment_key = forwarding_key
-            preimage = self.lnworker.get_preimage(payment_hash)
-            error_bytes, error_reason = self.lnworker.get_forwarding_failure(payment_key)
-            if error_bytes:
-                return None, None, error_bytes
-            if error_reason:
-                raise error_reason
-            if preimage:
-                return preimage, None, None
+            self.lnworker.set_mpp_resolution(payment_key, RecvMPPResolution.SETTLING)
+            fwd_cb = lambda: self.lnworker.maybe_forward_htlc_set(payment_key, processed_htlc_set=processed_onions)
+            return None, None, fwd_cb
+
+        #  -- from here on it's assumed this set is a payment for us (not something to forward) --
+        payment_info = self.lnworker.get_payment_info(payment_hash)
+        if payment_info is None:
+            _log_fail_reason(f"payment info has been deleted")
+            return OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, None, None
+
+        # check invoice expiry, fail set if the invoice has expired before it was completed
+        if mpp_set.resolution == RecvMPPResolution.WAITING:
+            if int(time.time()) > payment_info.expiration_ts:
+                _log_fail_reason(f"invoice is expired {payment_info.expiration_ts=}")
+                return OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, None, None
             return None, None, None
 
-    def process_onion_packet(
+        preimage = self.lnworker.get_preimage(payment_hash)
+        settling_blocked = preimage is not None and payment_hash.hex() in self.lnworker.dont_settle_htlcs
+        waiting_for_preimage = preimage is None and payment_hash.hex() in self.lnworker.dont_expire_htlcs
+        if settling_blocked or waiting_for_preimage:
+            # used by hold invoice cli and JIT channels to prevent the htlcs from getting fulfilled automatically
+            return None, None, None
+
+        hold_invoice_callback = self.lnworker.hold_invoice_callbacks.get(payment_hash)
+        if not preimage and not hold_invoice_callback:
+            _log_fail_reason(f"cannot settle, no preimage or callback found for {payment_hash.hex()=}")
+            return OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, None, None
+
+        if not self.lnworker.is_payment_bundle_complete(payment_key):
+            # don't allow settling before all sets of the bundle are COMPLETE
+            return None, None, None
+        else:
+            # If this set is part of a bundle now all parts are COMPLETE so the bundle can be deleted
+            # so the individual sets will get fulfilled.
+            self.lnworker.delete_payment_bundle(payment_key=bytes.fromhex(payment_key))
+
+        assert mpp_set.resolution == RecvMPPResolution.COMPLETE, "should return earlier if set is incomplete"
+        if not preimage:
+            assert hold_invoice_callback is not None, "should have been failed before"
+            async def callback():
+                try:
+                    await hold_invoice_callback(payment_hash)
+                except OnionRoutingFailure as e:  # todo: should this catch all exceptions?
+                    _log_fail_reason(f"hold invoice callback raised {e}")
+                    self.lnworker.set_mpp_resolution(payment_key, RecvMPPResolution.FAILED)
+            # mpp set must not be failed unless the consumer calls unregister_hold_invoice and
+            # callback must only be called once. This is enforced by setting the set to SETTLING.
+            self.lnworker.set_mpp_resolution(payment_key, RecvMPPResolution.SETTLING)
+            return None, None, callback
+
+        # settle htlc set
+        self.lnworker.set_mpp_resolution(payment_key, RecvMPPResolution.SETTLING)
+        return None, preimage, None
+
+    def _check_final_mpp_set_state(
+        self,
+        payment_key: str,
+        mpp_set: ReceivedMPPStatus,
+    ) -> Optional[Tuple[
+            Optional[Union[OnionRoutingFailure, OnionFailureCode, bytes]],  # error types used to fail the set
+            Optional[bytes],  # preimage to settle the set
+            None,  # callback
+        ]]:
+        """
+        handle sets that are already in a state eligible for fulfillment or failure and shouldn't
+        go through another iteration of _check_unfulfilled_htlc_set.
+        """
+        if len(mpp_set.htlcs) == 0:
+            # stale set, will get deleted on the next iteration
+            return None, None, None
+
+        if mpp_set.resolution == RecvMPPResolution.FAILED:
+            error_bytes, failure_message = self.lnworker.get_forwarding_failure(payment_key)
+            if error_bytes or failure_message:
+                return error_bytes or failure_message, None, None
+            return OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, None, None
+        elif mpp_set.resolution == RecvMPPResolution.EXPIRED:
+            return OnionFailureCode.MPP_TIMEOUT, None, None
+
+        if mpp_set.parent_set_key:
+            # this is a complete trampoline part of a multi trampoline payment. Move the htlcs to parent.
+            parent = self.lnworker.received_mpp_htlcs.get(mpp_set.parent_set_key)
+            if not parent:
+                parent = ReceivedMPPStatus(
+                    resolution=RecvMPPResolution.WAITING,
+                    htlcs=set(),
+                )
+                self.lnworker.received_mpp_htlcs[mpp_set.parent_set_key] = parent
+            parent.htlcs.update(mpp_set.htlcs)
+            mpp_set.htlcs.clear()
+            return None, None, None  # this set will get deleted as there are no htlcs in it anymore
+
+        assert not mpp_set.parent_set_key
+        if mpp_set.resolution == RecvMPPResolution.SETTLING:
+            # this is an ongoing forwarding, or a set that has not yet been fully settled (and removed).
+            # note the htlcs in SETTLING will not get failed automatically,
+            # even if timeout comes close, so either a forwarding failure or preimage has to be set
+            error_bytes, failure_message = self.lnworker.get_forwarding_failure(payment_key)
+            if error_bytes or failure_message:
+                # this was a forwarding set and it failed
+                self.lnworker.set_mpp_resolution(payment_key, RecvMPPResolution.FAILED)
+                return error_bytes or failure_message, None, None
+            preimage = self.lnworker.get_preimage(mpp_set.get_payment_hash())
+            return None, preimage, None
+
+        return None
+
+    def _parse_onion_packet(self, onion_packet_hex: str) -> OnionPacket:
+        """
+        https://github.com/lightning/bolts/blob/14272b1bd9361750cfdb3e5d35740889a6b510b5/02-peer-protocol.md?plain=1#L2352
+        """
+        onion_packet_bytes = None
+        try:
+            onion_packet_bytes = bytes.fromhex(onion_packet_hex)
+            onion_packet = OnionPacket.from_bytes(onion_packet_bytes)
+        except Exception as parsing_exc:
+            self.logger.warning(f"unable to parse onion: {str(parsing_exc)}")
+            onion_parsing_error = OnionParsingError(
+                data=sha256(onion_packet_bytes or b''),
+            )
+            raise onion_parsing_error
+        return onion_packet
+
+    def _process_incoming_onion_packet(
             self,
             onion_packet: OnionPacket, *,
             payment_hash: bytes,
-            onion_packet_bytes: bytes,
             is_trampoline: bool = False) -> ProcessedOnionPacket:
-
-        failure_data = sha256(onion_packet_bytes)
+        onion_hash = onion_packet.onion_hash
+        cache_key = sha256(onion_hash + payment_hash + bytes([is_trampoline]))  # type: ignore
+        if cached_onion := self._processed_onion_cache.get(cache_key):
+            return cached_onion
         try:
-            processed_onion = process_onion_packet(
+            processed_onion = lnonion.process_onion_packet(
                 onion_packet,
                 our_onion_private_key=self.privkey,
                 associated_data=payment_hash,
                 is_trampoline=is_trampoline)
+            self._processed_onion_cache[cache_key] = processed_onion
         except UnsupportedOnionPacketVersion:
-            raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_VERSION, data=failure_data)
+            raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_VERSION, data=onion_hash)
         except InvalidOnionPubkey:
-            raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_KEY, data=failure_data)
+            raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_KEY, data=onion_hash)
         except InvalidOnionMac:
-            raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_HMAC, data=failure_data)
+            raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_HMAC, data=onion_hash)
         except Exception as e:
-            self.logger.info(f"error processing onion packet: {e!r}")
-            raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_VERSION, data=failure_data)
+            self.logger.warning(f"error processing onion packet: {e!r}")
+            raise OnionParsingError(data=onion_hash)
         if self.network.config.TEST_FAIL_HTLCS_AS_MALFORMED:
-            raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_VERSION, data=failure_data)
+            raise OnionParsingError(data=onion_hash)
         if self.network.config.TEST_FAIL_HTLCS_WITH_TEMP_NODE_FAILURE:
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
         return processed_onion
