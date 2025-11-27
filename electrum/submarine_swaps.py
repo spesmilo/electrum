@@ -42,7 +42,8 @@ from .lnutil import (hex_to_bytes, REDEEM_AFTER_DOUBLE_SPENT_DELAY, Keypair,
 from .lnaddr import lndecode
 from .json_db import StoredObject, stored_in
 from . import constants
-from .address_synchronizer import TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE
+from .address_synchronizer import (TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE, TX_HEIGHT_UNCONFIRMED,
+                                   TX_HEIGHT_UNCONF_PARENT)
 from .fee_policy import FeePolicy
 from .invoices import Invoice, PR_PAID
 from .lnonion import OnionRoutingFailure, OnionFailureCode
@@ -553,9 +554,9 @@ class SwapManager(Logger):
         assert swap.claim_to_output, swap
         txout = PartialTxOutput.from_address_and_value(swap.claim_to_output[0], swap.claim_to_output[1])
         tx = PartialTransaction.from_io([claim_txin], [txout])
-        can_be_broadcast = self.wallet.adb.get_tx_height(swap.funding_txid).height() > 0
-        already_broadcast = self.wallet.adb.get_tx_height(tx.txid()).height() >= 0
-        self.logger.debug(f"_claim_to_output: {can_be_broadcast=} {already_broadcast=}")
+        funding_tx_confirmed = self.wallet.adb.get_tx_height(swap.funding_txid).height() > TX_HEIGHT_UNCONFIRMED
+        already_broadcast = self.wallet.adb.get_tx_height(tx.txid()).height() >= TX_HEIGHT_UNCONF_PARENT
+        self.logger.debug(f"_claim_to_output: {funding_tx_confirmed=} {already_broadcast=}")
 
         # add tx to db so it can be shown as future tx
         if not self.wallet.adb.get_transaction(tx.txid()):
@@ -572,7 +573,7 @@ class SwapManager(Logger):
         if not already_broadcast and self.wallet.adb.future_tx.get(tx.txid(), 0) < wanted_height:
             self.wallet.adb.set_future_tx(tx.txid(), wanted_height=wanted_height)
 
-        if can_be_broadcast and not already_broadcast:
+        if funding_tx_confirmed and not already_broadcast:
             tx = self.wallet.sign_transaction(tx, password=None, ignore_warnings=True)
             assert tx and tx.is_complete(), tx
             try:
