@@ -410,7 +410,7 @@ class TxEditor(WindowModalDialog):
             self.resize_to_fit_content()
         self.pref_menu.addConfig(self.config.cv.GUI_QT_TX_EDITOR_SHOW_LOCKTIME, callback=cb)
         self.pref_menu.addSeparator()
-        self.pref_menu.addConfig(self.config.cv.WALLET_SEND_CHANGE_TO_LIGHTNING, callback=self.trigger_update)
+        self.pref_menu.addConfig(self.config.cv.WALLET_SEND_CHANGE_TO_LIGHTNING, callback=self.toggle_send_change_to_ln)
         self.pref_menu.addToggle(
             _('Use change addresses'),
             self.toggle_use_change,
@@ -458,6 +458,15 @@ class TxEditor(WindowModalDialog):
         self.wallet.multiple_change = not self.wallet.multiple_change
         self.wallet.db.put('multiple_change', self.wallet.multiple_change)
         self.trigger_update()
+
+    def toggle_send_change_to_ln(self):
+        """Toggling send_change_to_ln needs to restart the TxDialog as make_tx depends on the
+        NostrTransport being available"""
+        self.close()
+        state = _("Enabled") if self.config.WALLET_SEND_CHANGE_TO_LIGHTNING else _("Disabled")
+        self.show_message(
+            msg=_("{} sending change to lightning.").format(state)
+        )
 
     def set_io_visible(self):
         self.io_widget.setVisible(self.config.GUI_QT_TX_EDITOR_SHOW_IO)
@@ -543,6 +552,21 @@ class TxEditor(WindowModalDialog):
             self.error = _('Fee estimates not available. Please set a fixed fee or feerate.')
         if self.tx.get_dummy_output(DummyAddress.SWAP):
             messages.append(_('This transaction will send funds to a submarine swap.'))
+        elif self.config.WALLET_SEND_CHANGE_TO_LIGHTNING and self.tx.has_change():
+            swap_msg = _('Will not send change to lightning: ')
+            if not self.wallet.has_lightning():
+                swap_msg += _('Lightning is not enabled.')
+            elif sum(o.value for o in self.tx.get_change_outputs()) > self.wallet.lnworker.num_sats_can_receive():
+                swap_msg += _("Your channels cannot receive this amount.")
+            elif self.wallet.lnworker.swap_manager.is_initialized.is_set():
+                # we could display the limits here but then the dialog gets very convoluted
+                swap_msg += _('Change amount outside of your swap providers limits.')
+            else:
+                # If initialization of the swap manager failed they already got an error
+                # popup before, so they should know. It might also be a channel open.
+                swap_msg = None
+            if swap_msg:
+                messages.append(swap_msg)
         # warn if spending unconf
         if any((txin.block_height is not None and txin.block_height<=0) for txin in self.tx.inputs()):
             messages.append(_('This transaction will spend unconfirmed coins.'))
@@ -707,9 +731,22 @@ class ConfirmTxDialog(TxEditor):
         return grid
 
     def _update_extra_fees(self):
-        x_fee = run_hook('get_tx_extra_fee', self.wallet, self.tx)
-        if x_fee:
-            x_fee_address, x_fee_amount = x_fee
+        x_fee_total = 0
+
+        # fetch plugin extra fees
+        x_fee_plugin = run_hook('get_tx_extra_fee', self.wallet, self.tx)
+        if x_fee_plugin:
+            _x_fee_address_plugin, x_fee_amount_plugin = x_fee_plugin
+            x_fee_total += x_fee_amount_plugin
+
+        # this is a forward swap (send change to lightning)
+        if dummy_output := self.tx.get_dummy_output(DummyAddress.SWAP):
+            sm = self.wallet.lnworker.swap_manager
+            ln_amount_we_recv = sm.get_recv_amount(send_amount=dummy_output.value, is_reverse=False)
+            if ln_amount_we_recv is not None:
+                x_fee_total += dummy_output.value - ln_amount_we_recv
+
+        if x_fee_total > 0:
             self.extra_fee_label.setVisible(True)
             self.extra_fee_value.setVisible(True)
-            self.extra_fee_value.setText(self.main_window.format_amount_and_units(x_fee_amount))
+            self.extra_fee_value.setText(self.main_window.format_amount_and_units(x_fee_total))

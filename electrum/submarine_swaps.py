@@ -983,7 +983,7 @@ class SwapManager(Logger):
         return tx
 
     @log_exceptions
-    async def request_swap_for_amount(
+    async def request_forward_swap_for_amount(
         self,
         *,
         transport: 'SwapServerTransport',
