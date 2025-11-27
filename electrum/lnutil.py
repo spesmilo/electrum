@@ -1491,6 +1491,13 @@ class LnFeatures(IntFlag):
     _ln_feature_contexts[OPTION_TRAMPOLINE_ROUTING_REQ_ELECTRUM] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.INVOICE)
     _ln_feature_contexts[OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.INVOICE)
 
+    OPTION_ROUTE_BLINDING_REQ = 1 << 24
+    OPTION_ROUTE_BLINDING_OPT = 1 << 25
+
+    _ln_feature_direct_dependencies[OPTION_ROUTE_BLINDING_OPT] = {VAR_ONION_OPT}
+    _ln_feature_contexts[OPTION_ROUTE_BLINDING_REQ] = (LNFC.INIT | LNFC.NODE_ANN)
+    _ln_feature_contexts[OPTION_ROUTE_BLINDING_OPT] = (LNFC.INIT | LNFC.NODE_ANN)
+
     OPTION_SHUTDOWN_ANYSEGWIT_REQ = 1 << 26
     OPTION_SHUTDOWN_ANYSEGWIT_OPT = 1 << 27
 
@@ -1572,6 +1579,11 @@ class LnFeatures(IntFlag):
                 if flag % 2 == 0:
                     flag = get_ln_flag_pair_of_bit(flag)
                 features |= (1 << flag)
+        return features
+
+    def with_assumed(self) -> 'LnFeatures':
+        features = self
+        features |= LN_FEATURES_ASSUMED
         return features
 
     def min_len(self) -> int:
@@ -1688,6 +1700,17 @@ LN_FEATURES_IMPLEMENTED = (
         | LnFeatures.OPTION_CHANNEL_TYPE_OPT | LnFeatures.OPTION_CHANNEL_TYPE_REQ
         | LnFeatures.OPTION_SCID_ALIAS_OPT | LnFeatures.OPTION_SCID_ALIAS_REQ
         | LnFeatures.OPTION_ANCHORS_ZERO_FEE_HTLC_OPT | LnFeatures.OPTION_ANCHORS_ZERO_FEE_HTLC_REQ
+)
+
+
+# some features are assumed (@20251118) https://github.com/lightning/bolts/blob/master/09-features.md
+LN_FEATURES_ASSUMED = (
+    LnFeatures(0)
+    | LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
+    | LnFeatures.VAR_ONION_REQ
+    | LnFeatures.OPTION_STATIC_REMOTEKEY_REQ
+    | LnFeatures.PAYMENT_SECRET_REQ
+    | LnFeatures.OPTION_CHANNEL_TYPE_REQ
 )
 
 
@@ -1906,16 +1929,18 @@ class UpdateAddHtlc:
     cltv_abs: int
     htlc_id: Optional[int] = dataclasses.field(default=None)
     timestamp: int = dataclasses.field(default_factory=lambda: int(time.time()))
+    blinding: bytes = None
 
     @staticmethod
     @stored_in('adds', tuple)
-    def from_tuple(amount_msat, rhash, cltv_abs, htlc_id, timestamp) -> 'UpdateAddHtlc':
+    def from_tuple(amount_msat, rhash, cltv_abs, htlc_id, timestamp, blinding = None) -> 'UpdateAddHtlc':
         return UpdateAddHtlc(
             amount_msat=amount_msat,
             payment_hash=bytes.fromhex(rhash),
             cltv_abs=cltv_abs,
             htlc_id=htlc_id,
-            timestamp=timestamp)
+            timestamp=timestamp,
+            blinding=None if blinding is None else bytes.fromhex(blinding))
 
     def to_json(self):
         self._validate()
