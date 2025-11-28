@@ -146,10 +146,6 @@ class SettingsDialog(QDialog, QtEventListener):
             pos = lnfee_slider.sliderPosition()
             fee_val = lnfee_map[pos]
             lnfee_update_vlabel(fee_val)
-
-        def lnfee_slider_released():
-            pos = lnfee_slider.sliderPosition()
-            fee_val = lnfee_map[pos]
             self.config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS = fee_val
 
         lnfee_slider = QSlider(Qt.Orientation.Horizontal)
@@ -163,7 +159,6 @@ class SettingsDialog(QDialog, QtEventListener):
         lnfee_vlabel = QLabel("")
         lnfee_update_vlabel(self.config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS)
         lnfee_slider.valueChanged.connect(lnfee_slider_moved)
-        lnfee_slider.sliderReleased.connect(lnfee_slider_released)
         lnfee_hbox = QHBoxLayout()
         lnfee_hbox.setContentsMargins(0, 0, 0, 0)
         lnfee_hbox.addWidget(lnfee_vlabel)
