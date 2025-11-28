@@ -417,7 +417,8 @@ def sweep_our_ctx(
                         privkey=our_localdelayed_privkey.get_secret_bytes(),
                         is_revocation=False,
                 ):
-                    txs[actual_htlc_tx.txid() + f':{output_idx}'] = SweepInfo(
+                    prevout = actual_htlc_tx.txid() + f':{output_idx}'
+                    txs[prevout] = SweepInfo(
                         name=f'second-stage-htlc:{output_idx}',
                         cltv_abs=0,
                         txin=sweep_txin,
@@ -437,18 +438,16 @@ def sweep_our_ctx(
         subject=LOCAL,
         ctn=ctn)
     for (direction, htlc), (ctx_output_idx, htlc_relative_idx) in htlc_to_ctx_output_idx_map.items():
+        preimage = None
         if direction == RECEIVED:
-            if not chan.lnworker.is_complete_mpp(htlc.payment_hash):
-                # do not redeem this, it might publish the preimage of an incomplete MPP
-                continue
-            preimage = chan.lnworker.get_preimage(htlc.payment_hash)
+            # note: it is the first stage (witness of htlc_tx) that reveals the preimage,
+            #       so if we are already in second stage, it is already revealed.
+            #       However, here, we don't make a distinction.
+            preimage = _maybe_reveal_preimage_for_htlc(
+                chan=chan, htlc=htlc,
+            )
             if not preimage:
-                # we might not have the preimage if this is a hold invoice
                 continue
-            if htlc.payment_hash in chan.lnworker.dont_settle_htlcs:
-                continue
-        else:
-            preimage = None
         try:
             txs_htlc(
                 htlc=htlc,
@@ -459,6 +458,25 @@ def sweep_our_ctx(
         except UneconomicFee:
             continue
     return txs
+
+
+def _maybe_reveal_preimage_for_htlc(
+    *,
+    chan: 'AbstractChannel',
+    htlc: 'UpdateAddHtlc',
+) -> Optional[bytes]:
+    """Given a Remote-added-HTLC, return the preimage if it's okay to reveal it on-chain."""
+    if not chan.lnworker.is_complete_mpp(htlc.payment_hash):
+        # - do not redeem this, it might publish the preimage of an incomplete MPP
+        # - OTOH maybe this chan just got closed, and we are still receiving new htlcs
+        #   for this MPP set. So the MPP set might still transition to complete!
+        #   The MPP_TIMEOUT is only around 2 minutes, so this window is short.
+        #   The default keep_watching logic in lnwatcher is sufficient to call us again.
+        return None
+    if htlc.payment_hash in chan.lnworker.dont_settle_htlcs:
+        return None
+    preimage = chan.lnworker.get_preimage(htlc.payment_hash)
+    return preimage
 
 
 def extract_ctx_secrets(chan: 'Channel', ctx: Transaction):
@@ -739,19 +757,14 @@ def sweep_their_ctx(
         subject=REMOTE,
         ctn=ctn)
     for (direction, htlc), (ctx_output_idx, htlc_relative_idx) in htlc_to_ctx_output_idx_map.items():
+        preimage = None
         is_received_htlc = direction == RECEIVED
         if not is_received_htlc and not is_revocation:
-            if not chan.lnworker.is_complete_mpp(htlc.payment_hash):
-                # do not redeem this, it might publish the preimage of an incomplete MPP
-                continue
-            preimage = chan.lnworker.get_preimage(htlc.payment_hash)
+            preimage = _maybe_reveal_preimage_for_htlc(
+                chan=chan, htlc=htlc,
+            )
             if not preimage:
-                # we might not have the preimage if this is a hold invoice
                 continue
-            if htlc.payment_hash in chan.lnworker.dont_settle_htlcs:
-                continue
-        else:
-            preimage = None
         tx_htlc(
             htlc=htlc,
             is_received_htlc=is_received_htlc,
