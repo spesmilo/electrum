@@ -108,6 +108,7 @@ from electrum.gui.common_qt.util import TaskThread
 if TYPE_CHECKING:
     from . import ElectrumGui
     from electrum.submarine_swaps import SwapOffer
+    from electrum._vendor.distutils.version import StrictVersion
     from electrum.lnchannel import Channel
 
 
@@ -302,19 +303,23 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             choice = self.question(title="Electrum - " + _("Enable update check"),
                                    msg=_("For security reasons we advise that you always use the latest version of Electrum.") + " " +
                                        _("Would you like to be notified when there is a newer version of Electrum available?"))
-            config.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS = bool(choice)
+            config.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS = int(bool(choice))
 
         self._update_check_thread = None
         if config.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS:
             # The references to both the thread and the window need to be stored somewhere
             # to prevent GC from getting in our way.
-            def on_version_received(v):
-                if UpdateCheck.is_newer(v):
-                    self.update_check_button.setText(_("Update to Electrum {} is available").format(v))
-                    self.update_check_button.clicked.connect(lambda: self.show_update_check(v))
+            def on_versions_received(versions: List['StrictVersion']):
+                latest_allowed_version = UpdateCheck.latest_allowed_version(
+                    versions,
+                    self.config.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS,
+                )
+                if latest_allowed_version and UpdateCheck.is_newer(latest_allowed_version):
+                    self.update_check_button.setText(_("Update to Electrum {} is available").format(latest_allowed_version))
+                    self.update_check_button.clicked.connect(lambda: self.show_update_check(latest_allowed_version))
                     self.update_check_button.show()
             self._update_check_thread = UpdateCheckThread()
-            self._update_check_thread.checked.connect(on_version_received)
+            self._update_check_thread.checked.connect(on_versions_received)
             self._update_check_thread.start()
 
     def run_coroutine_dialog(self, coro, text):
@@ -901,7 +906,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         webopen('file:///' + filename)
 
     def show_update_check(self, version=None):
-        self.gui_object._update_check = UpdateCheck(latest_version=version)
+        version_channel = self.config.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS
+        self.gui_object._update_check = UpdateCheck(latest_version=version, version_channel=version_channel)
 
     def show_report_bug(self):
         msg = ' '.join([
