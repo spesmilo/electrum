@@ -2030,7 +2030,8 @@ class PaymentFeeBudget(NamedTuple):
     # cltv-delta the destination wants for itself. (e.g. "min_final_cltv_delta" is excluded)
     cltv: int  # this is cltv-delta-like, no absolute heights here!
 
-    #num_htlc: int
+    PAYMENT_FEE_CUTOFF_CLAMP = 10_000_000  # [0, 10k sat]
+    PAYMENT_FEE_MILLIONTHS_CLAMP = 250_000  # [0, 25%]
 
     @classmethod
     def from_invoice_amount(
@@ -2067,8 +2068,8 @@ class PaymentFeeBudget(NamedTuple):
             fee_millionths = config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS
         if fee_cutoff_msat is None:
             fee_cutoff_msat = config.LIGHTNING_PAYMENT_FEE_CUTOFF_MSAT
-        millionths_clamped = min(max(0, fee_millionths), 250_000)  # clamp into [0, 25%]
-        cutoff_clamped = min(max(0, fee_cutoff_msat), 10_000_000)  # clamp into [0, 10k sat]
+        millionths_clamped = min(max(0, fee_millionths), cls.PAYMENT_FEE_MILLIONTHS_CLAMP)
+        cutoff_clamped = min(max(0, fee_cutoff_msat), cls.PAYMENT_FEE_CUTOFF_CLAMP)
         if fee_millionths != millionths_clamped:
             _logger.warning(
                 f"PaymentFeeBudget. found insane fee millionths in config. "
@@ -2082,3 +2083,29 @@ class PaymentFeeBudget(NamedTuple):
         fee_msat = invoice_amount_msat * millionths_clamped // 1_000_000
         fee_msat = max(fee_msat, cutoff_clamped)
         return fee_msat
+
+    @classmethod
+    def reverse_from_total_amount(cls, *, total_amount_msat: int, config: 'SimpleConfig') -> int:
+        """
+        Given the total amount (including fees) return the amount of fees
+        included assuming highest allowed from config fees are being used.
+
+        This allows to guess a fee that has to be reserved to reliably allow
+        doing a "Max" amount lightning send (e.g. for submarine swaps).
+        """
+        assert isinstance(total_amount_msat, int) and total_amount_msat >= 0, repr(total_amount_msat)
+
+        millionths_clamped = min(
+            max(0, config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS),
+            cls.PAYMENT_FEE_MILLIONTHS_CLAMP,
+        )
+        cutoff_clamped = min(
+            max(0, config.LIGHTNING_PAYMENT_FEE_CUTOFF_MSAT),
+            cls.PAYMENT_FEE_CUTOFF_CLAMP,
+        )
+
+        # inverse of _calculate_fee_msat
+        amount_minus_fees = (total_amount_msat * 1_000_000) // (1_000_000 + millionths_clamped)
+        fees_msat = max(total_amount_msat - amount_minus_fees, cutoff_clamped)
+        fees_msat = min(fees_msat, total_amount_msat)  # to handle (invalid?) inputs below cutoff_clamped
+        return fees_msat

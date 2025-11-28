@@ -2720,6 +2720,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         run_hook('close_settings_dialog')
         if d.need_restart:
             self.show_warning(_('Please restart Electrum to activate the new GUI settings'), title=_('Success'))
+        else:
+            # Some values might need to be updated if settings have changed.
+            # For example 'Can send' in the lightning tab will change if the fees config is changed.
+            self.refresh_tabs()
 
     def _show_closing_warnings(self) -> bool:
         """Show any closing warnings and return True if the user chose to quit anyway."""
