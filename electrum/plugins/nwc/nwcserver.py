@@ -42,6 +42,7 @@ from electrum.util import log_exceptions, ca_path, OldTaskGroup, get_asyncio_loo
     get_running_loop
 from electrum.invoices import Invoice, Request, PR_UNKNOWN, PR_PAID, BaseInvoice, PR_INFLIGHT
 from electrum import constants
+from electrum.lnutil import RECEIVED
 
 if TYPE_CHECKING:
     from aiohttp_socks import ProxyConnector
@@ -480,7 +481,7 @@ class NWCServer(Logger, EventListener):
             address=None
         )
         req: Request = self.wallet.get_request(key)
-        info = self.wallet.lnworker.get_payment_info(req.payment_hash)
+        info = self.wallet.lnworker.get_payment_info(req.payment_hash, direction=RECEIVED)
         try:
             lnaddr, b11 = self.wallet.lnworker.get_bolt11_invoice(
                 payment_info=info,
@@ -537,7 +538,7 @@ class NWCServer(Logger, EventListener):
             b11 = invoice.lightning_invoice
         elif self.wallet.get_request(invoice.rhash):
             direction = "incoming"
-            info = self.wallet.lnworker.get_payment_info(invoice.payment_hash)
+            info = self.wallet.lnworker.get_payment_info(invoice.payment_hash, direction=RECEIVED)
             _, b11 = self.wallet.lnworker.get_bolt11_invoice(
                 payment_info=info,
                 message=invoice.message,
@@ -747,7 +748,7 @@ class NWCServer(Logger, EventListener):
         request: Optional[Request] = self.wallet.get_request(key)
         if not request or not request.is_lightning() or not status == PR_PAID:
             return
-        info = self.wallet.lnworker.get_payment_info(request.payment_hash)
+        info = self.wallet.lnworker.get_payment_info(request.payment_hash, direction=RECEIVED)
         _, b11 = self.wallet.lnworker.get_bolt11_invoice(
             payment_info=info,
             message=request.message,
@@ -947,7 +948,8 @@ class NWCServer(Logger, EventListener):
         payments = self.wallet.lnworker.get_payments(status='settled')
         plist = payments.get(payment_hash)
         if plist:
-            info = self.wallet.lnworker.get_payment_info(payment_hash)
+            direction = plist[0].direction
+            info = self.wallet.lnworker.get_payment_info(payment_hash, direction=direction)
             if info:
                 dir, amount, fee, ts = self.wallet.lnworker.get_payment_value(info, plist)
                 fee = abs(fee) if fee else None

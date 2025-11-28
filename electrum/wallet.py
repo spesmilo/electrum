@@ -76,7 +76,7 @@ from .invoices import BaseInvoice, Invoice, Request, PR_PAID, PR_UNPAID, PR_EXPI
 from .contacts import Contacts
 from .mnemonic import Mnemonic
 from .lnworker import LNWallet
-from .lnutil import MIN_FUNDING_SAT
+from .lnutil import MIN_FUNDING_SAT, RECEIVED, SENT
 from .lntransport import extract_nodeid
 from .descriptor import Descriptor
 from .txbatcher import TxBatcher
@@ -3014,7 +3014,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             return ''
         amount_msat = req.get_amount_msat() or None
         assert (amount_msat is None or amount_msat > 0), amount_msat
-        info = self.lnworker.get_payment_info(payment_hash)
+        info = self.lnworker.get_payment_info(payment_hash, direction=RECEIVED)
         assert info.amount_msat == amount_msat, f"{info.amount_msat=} != {amount_msat=}"
         lnaddr, invoice = self.lnworker.get_bolt11_invoice(
             payment_info=info,
@@ -3074,7 +3074,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if addr := req.get_address():
             self._requests_addr_to_key[addr].discard(request_id)
         if req.is_lightning() and self.lnworker:
-            self.lnworker.delete_payment_info(req.rhash)
+            self.lnworker.delete_payment_info(req.rhash, direction=RECEIVED)
         if write_to_disk:
             self.save_db()
 
@@ -3084,7 +3084,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if inv is None:
             return
         if inv.is_lightning() and self.lnworker:
-            self.lnworker.delete_payment_info(inv.rhash)
+            self.lnworker.delete_payment_info(inv.rhash, direction=SENT)
         if write_to_disk:
             self.save_db()
 

@@ -1089,6 +1089,7 @@ class HTLCOwner(IntEnum):
         return HTLCOwner(super().__neg__())
 
 
+# part of lightning_payments db keys
 class Direction(IntEnum):
     SENT = -1     # in the context of HTLCs: "offered" HTLCs
     RECEIVED = 1  # in the context of HTLCs: "received" HTLCs

@@ -11,6 +11,7 @@ import shutil
 import electrum
 from electrum.commands import Commands, eval_bool
 from electrum import storage, wallet
+from electrum.lnutil import RECEIVED
 from electrum.lnworker import RecvMPPResolution
 from electrum.wallet import Abstract_Wallet
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
@@ -509,7 +510,7 @@ class TestCommandsTestnet(ElectrumTestCase):
             )
         invoice = lndecode(invoice=result['invoice'])
         assert invoice.paymenthash.hex() == payment_hash
-        assert payment_hash in wallet.lnworker.payment_info
+        assert wallet.lnworker.get_payment_info(bytes.fromhex(payment_hash), direction=RECEIVED)
         assert payment_hash in wallet.lnworker.dont_expire_htlcs
         assert invoice.get_amount_sat() == 10000
         assert invoice.get_description() == "test"
@@ -520,7 +521,7 @@ class TestCommandsTestnet(ElectrumTestCase):
             payment_hash=payment_hash,
             wallet=wallet,
         )
-        assert payment_hash not in wallet.lnworker.payment_info
+        assert not wallet.lnworker.get_payment_info(bytes.fromhex(payment_hash), direction=RECEIVED)
         assert payment_hash not in wallet.lnworker.dont_expire_htlcs
         assert wallet.get_label_for_rhash(rhash=invoice.paymenthash.hex()) == ""
         assert cancel_result['cancelled'] == payment_hash
