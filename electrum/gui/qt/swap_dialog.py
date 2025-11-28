@@ -150,13 +150,11 @@ class SwapDialog(WindowModalDialog, QtEventListener):
 
     @qt_event_listener
     def on_event_fee_histogram(self, *args):
-        self.on_send_edited()
-        self.on_recv_edited()
+        self.update_send_receive()
 
     @qt_event_listener
     def on_event_fee(self, *args):
-        self.on_send_edited()
-        self.on_recv_edited()
+        self.update_send_receive()
 
     @qt_event_listener
     def on_event_swap_offers_changed(self, recent_offers: Sequence['SwapOffer']):
@@ -190,10 +188,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         self.config.FEE_POLICY = self.fee_policy.get_descriptor()
         if not self.is_reverse:
             self.fee_target_label.setText(self.fee_policy.get_target_text())
-        if self.send_follows:
-            self.on_recv_edited()
-        else:
-            self.on_send_edited()
+        self.update_send_receive()
         self.update()
 
     def _set_fee_slider_visibility(self, *, is_visible: bool):
@@ -276,6 +271,9 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         self.send_amount_e.follows = False
         self.send_follows = True
         self.needs_tx_update = True
+
+    def update_send_receive(self):
+        self.on_recv_edited() if self.send_follows else self.on_send_edited()
 
     def update(self):
         sm = self.swap_manager
@@ -457,8 +455,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
     def choose_swap_server(self, transport: 'SwapServerTransport') -> None:
         self.window.choose_swapserver_dialog(transport)  # type: ignore
         self.update()
-        self.on_send_edited()
-        self.on_recv_edited()
+        self.update_send_receive()
 
 
 class SwapServerDialog(WindowModalDialog, QtEventListener):
