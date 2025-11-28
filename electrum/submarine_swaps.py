@@ -401,7 +401,7 @@ class SwapManager(Logger):
         if not swap.is_reverse and swap.payment_hash in self.lnworker.hold_invoice_callbacks:
             # unregister_hold_invoice will fail pending htlcs if there is no preimage available
             self.lnworker.unregister_hold_invoice(swap.payment_hash)
-            self.lnworker.delete_payment_info(swap.payment_hash.hex())
+            self.lnworker.delete_payment_info(swap.payment_hash.hex(), direction=lnutil.RECEIVED)
             self.lnworker.clear_invoices_cache()
         self.lnwatcher.remove_callback(swap.lockup_address)
         if not swap.is_funded():
@@ -413,8 +413,8 @@ class SwapManager(Logger):
                 self._swaps_by_lockup_address.pop(swap.lockup_address, None)
                 if swap.prepay_hash is not None:
                     self._prepayments.pop(swap.prepay_hash, None)
-                    if self.lnworker.get_payment_status(swap.prepay_hash) != PR_PAID:
-                        self.lnworker.delete_payment_info(swap.prepay_hash.hex())
+                    if self.lnworker.get_payment_status(swap.prepay_hash, direction=lnutil.RECEIVED) != PR_PAID:
+                        self.lnworker.delete_payment_info(swap.prepay_hash.hex(), direction=lnutil.RECEIVED)
                         self.lnworker.delete_payment_bundle(payment_hash=swap.payment_hash)
 
     @classmethod
@@ -693,7 +693,7 @@ class SwapManager(Logger):
             min_final_cltv_delta=min_final_cltv_expiry_delta or lnutil.MIN_FINAL_CLTV_DELTA_ACCEPTED,
             exp_delay=300,
         )
-        info = self.lnworker.get_payment_info(payment_hash)
+        info = self.lnworker.get_payment_info(payment_hash, direction=lnutil.RECEIVED)
         lnaddr1, invoice = self.lnworker.get_bolt11_invoice(
             payment_info=info,
             message='Submarine swap',
@@ -712,7 +712,7 @@ class SwapManager(Logger):
                 min_final_cltv_delta=min_final_cltv_expiry_delta or lnutil.MIN_FINAL_CLTV_DELTA_ACCEPTED,
                 exp_delay=300,
             )
-            info = self.lnworker.get_payment_info(prepay_hash)
+            info = self.lnworker.get_payment_info(prepay_hash, direction=lnutil.RECEIVED)
             lnaddr2, prepay_invoice = self.lnworker.get_bolt11_invoice(
                 payment_info=info,
                 message='Submarine swap prepayment',
