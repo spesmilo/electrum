@@ -2553,9 +2553,15 @@ class LNWallet(LNWorker):
             if old_info := self.get_payment_info(payment_hash=info.payment_hash, direction=info.direction):
                 if info == old_info:
                     return  # already saved
-                if info.direction == SENT:
-                    # allow saving of newer PaymentInfo if it is a sending attempt
-                    old_info = dataclasses.replace(old_info, creation_ts=info.creation_ts)
+                if info.direction == SENT and old_info.status in (PR_UNPAID, PR_FAILED):
+                    # allow saving of newer PaymentInfo if it is a sending attempt and the previous
+                    # payment failed or was not yet attempted
+                    old_info = dataclasses.replace(
+                        old_info,
+                        creation_ts=info.creation_ts,
+                        status=info.status,
+                        amount_msat=info.amount_msat,  # might retrying to pay 0 amount invoice
+                    )
                 if info != dataclasses.replace(old_info, status=info.status):
                     # differs more than in status. let's fail
                     raise Exception(f"payment_hash already in use: {info=} != {old_info=}")
