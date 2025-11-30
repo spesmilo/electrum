@@ -100,6 +100,13 @@ if not is_android:
     check_imports()
 
 
+if is_android:
+    # hack to make pycryptodomex work on Android
+    # from https://github.com/kivy/python-for-android/issues/1866#issuecomment-927157780
+    import ctypes
+    ctypes.pythonapi = ctypes.PyDLL("libpython%d.%d.so" % sys.version_info[:2])  # replaces ctypes.PyDLL(None)
+
+
 sys._ELECTRUM_RUNNING_VIA_RUNELECTRUM = True  # used by logging.py
 
 from electrum.logging import get_logger, configure_logging  # import logging submodule first
