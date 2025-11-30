@@ -806,6 +806,8 @@ class Commands(Logger):
         ret["certifi.version"] = certifi.__version__
         import dns
         ret["dnspython.version"] = dns.__version__
+        import ssl
+        ret["openssl.version"] = ssl.OPENSSL_VERSION
 
         return ret
 
