@@ -217,6 +217,67 @@ Pane {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
                         spacing: 0
+                        // isAvailable checks phone support and if a fingerprint is enrolled on the system
+                        enabled: Biometrics.isAvailable && Daemon.currentWallet
+
+                        Connections {
+                            target: Biometrics
+                            function onEncryptionSuccess(encrypted_password) {
+                                Config.biometricsEnrolled = true
+                                Config.biometricData = encrypted_password
+                            }
+                            function onEncryptionError(error) {
+                                Config.biometricsEnrolled = false
+                                Config.biometricData = ''
+                                useBiometrics.checked = false
+                                if (error === 'CANCELLED') {
+                                    return // don't show error popup
+                                }
+                                var err = app.messageDialog.createObject(app, {
+                                    text: qsTr('Failed to enable biometric authentication: ') + error
+                                })
+                                err.open()
+                            }
+                        }
+
+                        Switch {
+                            id: useBiometrics
+                            checked: Config.biometricsEnrolled
+                            onToggled: {
+                                if (activeFocus) {
+                                    if (checked) {
+                                        if (Daemon.singlePasswordEnabled) {
+                                            Biometrics.encrypt(Daemon.singlePassword)
+                                        } else {
+                                            useBiometrics.checked = false
+                                            var err = app.messageDialog.createObject(app, {
+                                                title: qsTr('Unavailable'),
+                                                text: [
+                                                    qsTr("Cannot activate biometric authentication because you have wallets with different passwords."),
+                                                    qsTr("To use biometric authentication you first need to change all wallet passwords to the same password.")
+                                                ].join("\n")
+                                            })
+                                            err.open()
+                                        }
+                                    } else {
+                                        // Disable
+                                        Config.biometricsEnrolled = false
+                                        Config.biometricData = ''
+                                    }
+                                }
+                            }
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            text: qsTr('Biometric authentication')
+                            wrapMode: Text.Wrap
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+                        spacing: 0
                         Switch {
                             id: syncLabels
                             onCheckedChanged: {
