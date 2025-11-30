@@ -6,14 +6,14 @@ from pythonforandroid.util import load_source
 util = load_source('util', os.path.join(os.path.dirname(os.path.dirname(__file__)), 'util.py'))
 
 
-assert OpenSSLRecipe._version == "1.1"
+assert OpenSSLRecipe._version == "3.0.18"
 assert OpenSSLRecipe.depends == []
 assert OpenSSLRecipe.python_depends == []
 
 
 class OpenSSLRecipePinned(util.InheritedRecipeMixin, OpenSSLRecipe):
-    url_version = "1.1.1w"
-    sha512sum = "b4c625fe56a4e690b57b6a011a225ad0cb3af54bd8fb67af77b5eceac55cc7191291d96a660c5b568a08a2fbf62b4612818e7cca1bb95b2b6b4fc649b0552b6d"
+    version = "3.0.18"
+    sha512sum = "6bdd16f33b83ae2a12777230c4ff00d0595bbc00253ac8c3ac31e1375e818fc74d7f491bd2e507ff33cab9f0498cfb28fa8690f75a98663568d40901523cdf3c"
 
 
 recipe = OpenSSLRecipePinned()
