@@ -475,6 +475,15 @@ Pane {
             })
             dialog.accepted.connect(function() {
                 var success = Daemon.setPassword(dialog.password)
+                if (success && Biometrics.isEnabled) {
+                    if (Biometrics.isAvailable) {
+                        // also update the biometric authentication
+                        Biometrics.enable(dialog.password)
+                    } else {
+                        // disable biometric authentication as it is not available
+                        Biometrics.disable()
+                    }
+                }
                 var done_dialog = app.messageDialog.createObject(app, {
                     title: success ? qsTr('Success') : qsTr('Error'),
                     iconSource: success
@@ -545,6 +554,11 @@ Pane {
                         Daemon.singlePassword = dialog.password
                     }
                     var error_msg = qsTr('Password change failed')
+                }
+                if (success && Biometrics.isEnabled) {
+                    // unlikely to happen as this means the user somehow moved from
+                    // a unified password to differing passwords
+                    Biometrics.disable()
                 }
                 var done_dialog = app.messageDialog.createObject(app, {
                     title: success ? qsTr('Success') : qsTr('Error'),
