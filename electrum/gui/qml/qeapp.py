@@ -46,6 +46,7 @@ from .qeswaphelper import QESwapHelper
 from .qewizard import QENewWalletWizard, QEServerConnectWizard, QETermsOfUseWizard
 from .qemodelfilter import QEFilterProxyModel
 from .qebip39recovery import QEBip39RecoveryListModel
+from .qebiometrics import QEBiometrics
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
@@ -537,6 +538,7 @@ class ElectrumQmlApplication(QGuiApplication):
         self.daemon = QEDaemon(daemon, self.plugins)
         self.appController = QEAppController(self, self.plugins)
         self.maxAmount = QEAmount(is_max=True)
+        self.biometrics = QEBiometrics(self)
         self.context.setContextProperty('AppController', self.appController)
         self.context.setContextProperty('Config', self.config)
         self.context.setContextProperty('Network', self.network)
@@ -544,6 +546,7 @@ class ElectrumQmlApplication(QGuiApplication):
         self.context.setContextProperty('FixedFont', self.fixedFont)
         self.context.setContextProperty('MAX', self.maxAmount)
         self.context.setContextProperty('QRIP', self.qr_ip_h)
+        self.context.setContextProperty('Biometrics', self.biometrics)
         self.context.setContextProperty('BUILD', {
             'electrum_version': version.ELECTRUM_VERSION,
             'protocol_version': f"[{version.PROTOCOL_VERSION_MIN}, {version.PROTOCOL_VERSION_MAX}]",
