@@ -96,10 +96,12 @@ class TestJsonDB(ElectrumTestCase):
         patches = [{"op": "add", "path": "/a/b", "value": "42"}]
         jpatch = jsonpatch.JsonPatch(patches)
         data = jpatch.apply(data)
+        self.assertEqual(data, {'a': {"b": "42"}})
         # remove
         patches = [{"op": "remove", "path": "/a/b"}]
         jpatch = jsonpatch.JsonPatch(patches)
         data = jpatch.apply(data)
+        self.assertEqual(data, {'a': {}})
         # replace
         patches = [{"op": "replace", "path": "/a/b", "value": "43"}]
         jpatch = jsonpatch.JsonPatch(patches)
@@ -107,7 +109,7 @@ class TestJsonDB(ElectrumTestCase):
             data = jpatch.apply(data)
 
     async def test_jsondb_replace_after_remove(self):
-        data = { 'a': {'b': {'c': 0}}}
+        data = { 'a': {'b': {'c': 0}}, 'd': 3}
         db = JsonDB(repr(data))
         a = db.get_dict('a')
         # remove
@@ -119,9 +121,10 @@ class TestJsonDB(ElectrumTestCase):
         patches = json.loads('[' + ','.join(db.pending_changes) + ']')
         jpatch = jsonpatch.JsonPatch(patches)
         data = jpatch.apply(data)
+        self.assertEqual(data, {'a': {}, 'd': 3})
 
     async def test_jsondb_replace_after_remove_nested(self):
-        data = { 'a': {'b':{'c':0}}}
+        data = { 'a': {'b': {'c': 0}}, 'd': 3}
         db = JsonDB(repr(data))
         # remove
         a = db.data.pop('a')
@@ -133,3 +136,4 @@ class TestJsonDB(ElectrumTestCase):
         patches = json.loads('[' + ','.join(db.pending_changes) + ']')
         jpatch = jsonpatch.JsonPatch(patches)
         data = jpatch.apply(data)
+        self.assertEqual(data, {'d': 3})
