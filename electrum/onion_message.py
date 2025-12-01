@@ -40,7 +40,7 @@ from electrum.lnrouter import PathEdge
 from electrum.logging import get_logger, Logger
 from electrum.crypto import sha256, get_ecdh
 from electrum.lnmsg import OnionWireSerializer
-from electrum.lnonion import (get_bolt04_onion_key, OnionPacket, process_onion_packet,
+from electrum.lnonion import (get_bolt04_onion_key, OnionPacket, process_onion_packet, blinding_privkey,
                               OnionHopsDataSingle, decrypt_onionmsg_data_tlv, encrypt_onionmsg_data_tlv,
                               get_shared_secrets_along_route, new_onion_packet, encrypt_hops_recipient_data)
 from electrum.lnutil import LnFeatures, MIN_FINAL_CLTV_DELTA_ACCEPTED, MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED
@@ -133,18 +133,6 @@ def encode_blinded_path(blinded_path: dict):
             count=1,
             value=blinded_path)
         return blinded_path_fd.getvalue()
-
-
-def blinding_privkey(privkey: bytes, blinding: bytes) -> bytes:
-    shared_secret = get_ecdh(privkey, blinding)
-    b_hmac = get_bolt04_onion_key(b'blinded_node_id', shared_secret)
-    b_hmac_int = int.from_bytes(b_hmac, byteorder="big")
-
-    our_privkey_int = int.from_bytes(privkey, byteorder="big")
-    our_privkey_int = our_privkey_int * b_hmac_int % ecc.CURVE_ORDER
-    our_privkey = our_privkey_int.to_bytes(32, byteorder="big")
-
-    return our_privkey
 
 
 def is_onion_message_node(node_id: bytes, node_info: Optional['NodeInfo']) -> bool:
