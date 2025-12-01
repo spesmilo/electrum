@@ -17,12 +17,12 @@ from electrum.lnmsg import decode_msg, OnionWireSerializer
 from electrum.lnonion import (
     OnionHopsDataSingle, OnionPacket, process_onion_packet, get_bolt04_onion_key, encrypt_onionmsg_data_tlv,
     get_shared_secrets_along_route, new_onion_packet, ONION_MESSAGE_LARGE_SIZE, HOPS_DATA_SIZE, InvalidPayloadSize,
-    encrypt_hops_recipient_data)
+    encrypt_hops_recipient_data, blinding_privkey)
 from electrum.crypto import get_ecdh, privkey_to_pubkey
 from electrum.lntransport import LNPeerAddr
 from electrum.lnutil import LnFeatures, Keypair, MIN_FINAL_CLTV_DELTA_ACCEPTED, REMOTE
 from electrum.onion_message import (
-    blinding_privkey, create_blinded_path,OnionMessageManager, NoRouteFound, Timeout, get_blinded_paths_to_me,
+    create_blinded_path, OnionMessageManager, NoRouteFound, Timeout, get_blinded_paths_to_me,
 )
 from electrum.util import bfh, read_json_file, OldTaskGroup, get_asyncio_loop
 from electrum.logging import console_stderr_handler
