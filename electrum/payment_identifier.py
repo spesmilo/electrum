@@ -206,7 +206,8 @@ class PaymentIdentifier(Logger):
         elif self._type == PaymentIdentifierType.BOLT11:
             return bool(self.bolt11.get_amount_sat())
         elif self._type == PaymentIdentifierType.BOLT12_OFFER:
-            return bool(self.bolt12_offer.get('offer_amount'))
+            # if we received an invoice already, amount is locked
+            return bool(self.bolt12_offer.get('offer_amount')) if not self.is_available() else True
         elif self._type in [PaymentIdentifierType.LNURLP, PaymentIdentifierType.LNADDR]:
             # amount limits known after resolve, might be specific amount or locked to range
             if self.need_resolve():
@@ -740,17 +741,17 @@ class PaymentIdentifier(Logger):
 def invoice_from_payment_identifier(
     pi: 'PaymentIdentifier',
     wallet: 'Abstract_Wallet',
-    amount_sat: Union[int, str],
-    message: str = None
+    amount_sat: Optional[Union[int, str]] = None,
+    message: Optional[str] = None
 ) -> Optional[Invoice]:
     assert pi.state in [PaymentIdentifierState.AVAILABLE, PaymentIdentifierState.MERCHANT_NOTIFY]
     assert pi.is_onchain() if amount_sat == '!' else True  # MAX should only be allowed if pi has onchain destination
 
     if pi.is_lightning() and not amount_sat == '!':
-        invoice = pi.bolt11
+        invoice = pi.bolt11 if pi.bolt11 else Invoice.from_bolt12_invoice_tlv(pi.bolt12_invoice_tlv)
         if not invoice:
             return
-        if invoice._lnaddr.get_amount_msat() is None:
+        if invoice._lnaddr.get_amount_msat() is None and amount_sat is not None:
             invoice.set_amount_msat(int(amount_sat * 1000))
         return invoice
     else:
