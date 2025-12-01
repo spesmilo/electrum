@@ -847,8 +847,7 @@ class OnionMessageManager(Logger):
 
     def process_onion_message_packet(self, blinding: bytes, onion_packet: OnionPacket) -> None:
         processed_onion_packet = process_onion_packet(
-            onion_packet, self.lnwallet.node_keypair.privkey, blinding=blinding, is_onion_message=True,
-            tlv_stream_name='onionmsg_tlv')
+            onion_packet, self.lnwallet.node_keypair.privkey, blinding=blinding, tlv_stream_name='onionmsg_tlv')
         payload = processed_onion_packet.hop_data.payload
 
         self.logger.debug(f'onion peeled: {processed_onion_packet!r}')
