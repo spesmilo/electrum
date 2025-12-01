@@ -18,7 +18,9 @@ from electrum.lnutil import format_short_channel_id
 from electrum.lnurl import LNURL6Data
 from electrum.bitcoin import COIN, address_to_script
 from electrum.paymentrequest import PaymentRequest
-from electrum.payment_identifier import PaymentIdentifier, PaymentIdentifierState, PaymentIdentifierType
+from electrum.payment_identifier import (
+    PaymentIdentifier, PaymentIdentifierState, PaymentIdentifierType, invoice_from_payment_identifier
+)
 from electrum.network import Network
 from electrum.bolt12 import decode_invoice
 
@@ -485,6 +487,7 @@ class QEInvoiceParser(QEInvoice):
         self.amountOverride = QEAmount()
         if resolved_pi:
             assert not resolved_pi.need_resolve()
+            self.clear()
             self.validateRecipient(resolved_pi)
 
     @pyqtProperty('QVariantMap', notify=lnurlRetrieved)
@@ -510,6 +513,7 @@ class QEInvoiceParser(QEInvoice):
     @pyqtSlot()
     def clear(self):
         self.setInvoiceType(QEInvoice.Type.Invalid)
+        self._key = None
         self._lnurlData = None
         self._offerData = None
         self.canSave = False
@@ -614,8 +618,8 @@ class QEInvoiceParser(QEInvoice):
                 self.setValidOnchainInvoice(invoice)
                 self.validationSuccess.emit()
                 return
-            elif self._pi.type == PaymentIdentifierType.BOLT11:
-                lninvoice = self._pi.bolt11
+            elif self._pi.type in [PaymentIdentifierType.BOLT11, PaymentIdentifierType.BOLT12_OFFER]:
+                lninvoice = invoice_from_payment_identifier(self._pi, self._wallet.wallet)
                 if not self._wallet.wallet.has_lightning() and not lninvoice.get_address():
                     self.validationError.emit('no_lightning',
                         _('Detected valid Lightning invoice, but Lightning not enabled for wallet and no fallback address found.'))
