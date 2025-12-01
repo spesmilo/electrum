@@ -222,8 +222,11 @@ class StoredDict(dict, BaseStoredObject):
     @locked
     def __delitem__(self, key: _FLEX_KEY) -> None:
         assert isinstance(key, _FLEX_KEY), repr(key)
+        r  = self.get(key, None)
         dict.__delitem__(self, key)
         self.db_remove(key)
+        if isinstance(r, StoredDict):
+            r._parent = None
 
     @locked
     def pop(self, key: _FLEX_KEY, v=_RaiseKeyError) -> Any:
