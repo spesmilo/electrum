@@ -204,6 +204,17 @@ def get_blinded_node_id(node_id: bytes, shared_secret: bytes):
     return blinded_node_id.get_public_key_bytes()
 
 
+def blinding_privkey(privkey: bytes, blinding: bytes) -> bytes:
+    shared_secret = get_ecdh(privkey, blinding)
+    b_hmac = get_bolt04_onion_key(b'blinded_node_id', shared_secret)
+    b_hmac_int = int.from_bytes(b_hmac, byteorder="big")
+
+    our_privkey_int = int.from_bytes(privkey, byteorder="big")
+    our_privkey_int = our_privkey_int * b_hmac_int % ecc.CURVE_ORDER
+    our_privkey = our_privkey_int.to_bytes(32, byteorder="big")
+    return our_privkey
+
+
 def new_onion_packet(
     payment_path_pubkeys: Sequence[bytes],
     session_key: bytes,
