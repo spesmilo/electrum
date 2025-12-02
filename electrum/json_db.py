@@ -225,7 +225,7 @@ class StoredDict(dict, BaseStoredObject):
         r  = self.get(key, None)
         dict.__delitem__(self, key)
         self.db_remove(key)
-        if isinstance(r, StoredDict):
+        if isinstance(r, BaseStoredObject):
             r._parent = None
 
     @locked
@@ -238,7 +238,7 @@ class StoredDict(dict, BaseStoredObject):
                 return v
         r = dict.pop(self, key)
         self.db_remove(key)
-        if isinstance(r, StoredDict):
+        if isinstance(r, BaseStoredObject):
             r._parent = None
         return r
 
