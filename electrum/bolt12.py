@@ -27,19 +27,20 @@ import copy
 import io
 import os
 import time
+import attr
 from decimal import Decimal
-
 from typing import TYPE_CHECKING, Union, Optional, List, Tuple
 
 import electrum_ecc as ecc
 
 from . import constants
 from .bitcoin import COIN
+from .json_db import stored_in, StoredObject
 from .lnaddr import LnAddr
 from .lnmsg import OnionWireSerializer, batched
-from .lnutil import LnFeatures
-from .onion_message import Timeout, get_blinded_paths_to_me
-from .segwit_addr import bech32_decode, DecodedBech32, convertbits
+from .lnutil import LnFeatures, hex_to_bytes, bytes_to_hex
+from .onion_message import Timeout, get_blinded_paths_to_me, get_blinded_reply_paths
+from .segwit_addr import bech32_decode, DecodedBech32, convertbits, bech32_encode, Encoding
 
 if TYPE_CHECKING:
     from .lnworker import LNWallet
@@ -100,10 +101,13 @@ def decode_invoice(data: Union[str, bytes]) -> dict:
         return OnionWireSerializer.read_tlv_stream(fd=f, tlv_stream_name='invoice', signing_key_path=('invoice_node_id', 'node_id'))
 
 
-def encode_offer(data: dict):
+def encode_offer(data: dict, *, as_bech32=False) -> Union[bytes, str]:
     with io.BytesIO() as fd:
         OnionWireSerializer.write_tlv_stream(fd=fd, tlv_stream_name='offer', **data)
-        return fd.getvalue()
+        if not as_bech32:
+            return fd.getvalue()
+        bech32_data = convertbits(list(fd.getvalue()), 8, 5, True)
+        return bech32_encode(Encoding.BECH32, 'lno', bech32_data, with_checksum=False)
 
 
 def encode_invoice_request(data: dict, payer_key: bytes) -> bytes:
@@ -116,6 +120,56 @@ def encode_invoice(data: dict, signing_key: bytes) -> bytes:
     with io.BytesIO() as fd:
         OnionWireSerializer.write_tlv_stream(fd=fd, tlv_stream_name='invoice', signing_key=signing_key, **data)
         return fd.getvalue()
+
+
+def create_offer(
+    lnwallet: 'LNWallet',
+    *,
+    amount_msat: Optional[int] = None,
+    memo: Optional[str] = None,
+    expiry: Optional[int] = None,
+    issuer: str = None,
+    allow_unblinded: bool = True
+):
+    path_id = os.urandom(32)  # TODO: move path_id gen get_blinded_reply_paths, unique per path
+    reply_paths = get_blinded_reply_paths(lnwallet, path_id)  # TODO: catch exceptions
+    if not len(reply_paths) and not allow_unblinded:
+        raise Exception('No suitable channels')
+
+    offer_id = os.urandom(16)
+    offer = {
+        'offer_metadata': {'data': offer_id},
+        'offer_description': {'description': memo},
+    }
+
+    if constants.net != constants.BitcoinMainnet:
+        offer.update({'offer_chains': {'chains': constants.net.rev_genesis_bytes()}})
+
+    if not len(reply_paths):
+        offer.update({'offer_issuer_id': {'id': lnwallet.node_keypair.pubkey}})
+    else:
+        # TODO: remove adding of offer_issuer_id, once we can sign invoices properly based on invreq used blinded path
+        offer.update({'offer_issuer_id': {'id': lnwallet.node_keypair.pubkey}})
+        offer.update({'offer_paths': {'paths': reply_paths}})
+
+    if issuer:
+        offer.update({'offer_issuer': {'issuer': issuer}})
+
+    if amount_msat:
+        offer['offer_amount'] = {'amount': amount_msat}
+
+    if expiry:
+        now = int(time.time())
+        offer['offer_absolute_expiry'] = {'seconds_from_epoch': now + expiry}
+
+    return offer_id, offer
+
+
+@stored_in('offers')
+@attr.s
+class Offer(StoredObject):
+    offer_id = attr.ib(kw_only=True, type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
+    offer_bech32 = attr.ib(kw_only=True, type=str)
 
 
 def to_lnaddr(data: dict) -> LnAddr:
