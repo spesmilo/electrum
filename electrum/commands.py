@@ -1392,42 +1392,47 @@ class Commands(Logger):
         arg:int:expiry:Time in seconds.
         arg:str:issuer:Issuer string
         """
-        amount = satoshis(amount)
+        amount_msat = satoshis(amount) * 1000 if amount else None
         expiry = int(expiry) if expiry else None
-        key = wallet.create_offer(amount, memo, expiry, issuer=issuer)
-        offer = wallet.get_offer(key)
-        bech32_data = convertbits(list(bolt12.encode_offer(offer)), 8, 5, True)
+        key = wallet.lnworker.create_offer(amount_msat=amount_msat, memo=memo, expiry=expiry, issuer=issuer)
+        offer = wallet.lnworker.get_offer(key)
 
         return {
             'id': key.hex(),
-            'offer': bech32_encode(Encoding.BECH32, 'lno', bech32_data, with_checksum=False)
+            'offer': offer.offer_bech32
         }
 
-    @command('w')
+    @command('wl')
     async def get_offer(self, offer_id, wallet: Abstract_Wallet = None):
         """
         retrieve bolt12 offer
         arg:str:offer_id:the offer id
         """
         id_ = bfh(offer_id)
-        offer = wallet.get_offer(id_)
-        bech32_data = convertbits(list(bolt12.encode_offer(offer)), 8, 5, True)
+        offer = wallet.lnworker.get_offer(id_)
         return {
             'id': offer_id,
-            'offer': bech32_encode(Encoding.BECH32, 'lno', bech32_data, with_checksum=False)
-        }
+            'offer': offer.offer_bech32
+        } if offer else {}
 
-    @command('w')
+    @command('wl')
+    async def delete_offer(self, offer_id, wallet: Abstract_Wallet = None):
+        """
+        delete bolt12 offer
+        arg:str:offer_id:the offer id
+        """
+        wallet.lnworker.delete_offer(bfh(offer_id))
+
+    @command('wl')
     async def list_offers(self, wallet: Abstract_Wallet = None):
         """
         list bolt12 offers
         """
         result = []
-        for offer_id, offer in wallet._offers.items():
-            bech32_data = convertbits(list(bolt12.encode_offer(offer)), 8, 5, True)
+        for offer_id, offer in wallet.lnworker.offers.items():
             result.append({
                 'id': offer_id.hex(),
-                'offer': bech32_encode(Encoding.BECH32, 'lno', bech32_data, with_checksum=False)
+                'offer': offer.offer_bech32
             })
         return result
 

@@ -29,7 +29,7 @@ import dns.asyncresolver
 import dns.exception
 from aiorpcx import run_in_thread, NetAddress, ignore_after
 
-from .bolt12 import encode_invoice, Bolt12InvoiceError
+from .bolt12 import encode_invoice, Bolt12InvoiceError, Offer, decode_offer
 from .logging import Logger
 from .i18n import _
 from .json_db import stored_in
@@ -58,7 +58,7 @@ from .crypto import (
     sha256, chacha20_encrypt, chacha20_decrypt, pw_encode_with_version_and_mac, pw_decode_with_version_and_mac
 )
 
-from .onion_message import OnionMessageManager, send_onion_message_to, encode_blinded_path
+from .onion_message import OnionMessageManager, send_onion_message_to, encode_blinded_path, get_blinded_reply_paths
 from .lntransport import (
     LNTransport, LNResponderTransport, LNTransportBase, LNPeerAddr, split_host_port, extract_nodeid,
     ConnStringFormatError
@@ -932,6 +932,11 @@ class LNWallet(LNWorker):
             for channel_id, storage in channel_backups.items():
                 self._channel_backups[bfh(channel_id)] = cb = ChannelBackup(storage, lnworker=self)
                 self.wallet.set_reserved_addresses_for_chan(cb, reserved=True)
+
+        self._offers = {}  # type: Dict[bytes, Offer]
+        offers = self.db.get_dict("offers")
+        for offer_id, offer in offers.items():
+            self._offers[bfh(offer_id)] = offer
 
         self._paysessions = dict()                      # type: Dict[bytes, PaySession]
         self.sent_htlcs_info = dict()                   # type: Dict[SentHtlcKey, SentHtlcInfo]
@@ -3982,6 +3987,47 @@ class LNWallet(LNWorker):
         failure_message = OnionRoutingFailure.from_bytes(bytes.fromhex(failure_hex)) if failure_hex else None
         return error_bytes, failure_message
 
+    def create_offer(
+        self,
+        *,
+        amount_msat: Optional[int] = None,
+        memo: Optional[str] = None,
+        expiry: int,
+        issuer: Optional[str] = None,
+        allow_unblinded: bool = True
+    ):
+        """ Create an offer
+            allow_unblinded only makes sense if node_id is public, or for testing with direct electrum peer
+        """
+        if len(self._channels) == 0 and not allow_unblinded:
+            raise Exception('No channels')
+
+        path_id = os.urandom(32)  # TODO: move path_id gen get_blinded_reply_paths, unique per path
+        reply_paths = get_blinded_reply_paths(self, path_id)
+        if not len(reply_paths) and not allow_unblinded:
+            raise Exception('No suitable channels')
+
+        offer_id, offer = bolt12.create_offer(self, amount_msat=amount_msat, memo=memo, expiry=expiry, issuer=issuer)
+        with self.lock:
+            o = self._offers[offer_id] = Offer(offer_id=offer_id, offer_bech32=bolt12.encode_offer(offer, as_bech32=True))
+            self.db.get('offers')[offer_id.hex()] = o
+
+        return offer_id
+
+    def get_offer(self, offer_id: bytes) -> Optional[Offer]:
+        return self._offers.get(offer_id)
+
+    def delete_offer(self, offer_id: bytes):
+        with self.lock:
+            self._offers.pop(offer_id)
+            self.db.get('offers').pop(offer_id.hex())
+
+    @property
+    def offers(self) -> Mapping[bytes, Offer]:
+        """Returns a read-only copy of offers."""
+        with self.lock:
+            return self._offers.copy()
+
     def on_bolt12_invoice_request(self, recipient_data: dict, payload: dict):
         # match to offer
         self.logger.debug(f'on_bolt12_invoice_request: {recipient_data=} {payload=}')
@@ -3991,11 +4037,12 @@ class LNWallet(LNWorker):
         self.logger.info(f'invoice_request: {invreq=}')
 
         offer_id = invreq.get('offer_metadata', {}).get('data')
-        offer = self.wallet.get_offer(offer_id)
+        offer = self.get_offer(offer_id)
         if offer is None:
             self.logger.warning('no matching offer for invoice_request')
             return
-        self.logger.debug(f'invoice_request for {offer=}')
+        self.logger.debug(f'invoice_request for offer_id={offer_id.hex()}')
+        offer = decode_offer(offer.offer_bech32)
 
         # two scenarios:
         # 1) not in response to offer (no offer_issuer_id or offer_paths)
