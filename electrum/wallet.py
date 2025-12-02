@@ -49,7 +49,6 @@ from . import util, keystore, transaction, bitcoin, coinchooser, bip32, descript
 from .i18n import _
 from .bip32 import BIP32Node, convert_bip32_intpath_to_strpath, convert_bip32_strpath_to_intpath
 from .logging import get_logger, Logger
-from .onion_message import get_blinded_reply_paths
 from .segwit_addr import bech32_encode, Encoding, convertbits
 from .util import (
     NotEnoughFunds, UserCancelled, profiler, OldTaskGroup, format_fee_satoshis,
@@ -440,9 +439,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self._invoices             = db.get_dict('invoices')  # type: Dict[str, Invoice]
         self._reserved_addresses   = set(db.get('reserved_addresses', []))
         self._num_parents          = db.get_dict('num_parents')
-
-        # TODO: save
-        self._offers               = {}
 
         self._freeze_lock = threading.RLock()  # for mutating/iterating frozen_{addresses,coins}
 
@@ -3127,49 +3123,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             self.delete_request(key, write_to_disk=False)
         if keys:
             self.save_db()
-
-    def create_offer(self, amount, memo, expiry, *, issuer: str = None, allow_unblinded=True):
-        assert self.has_lightning(), 'not a lightning wallet'
-        assert self.has_channels() or allow_unblinded, 'no channels but blinding required'
-
-        path_id = os.urandom(32)  # TODO: move path_id gen get_blinded_reply_paths, unique per path
-        reply_paths = get_blinded_reply_paths(self.lnworker, path_id)
-        if not len(reply_paths) and not allow_unblinded:
-            raise Exception('No suitable channels')
-
-        offer_id = os.urandom(16)
-        offer = {
-            'offer_metadata': {'data': offer_id},
-            'offer_description': {'description': memo},
-        }
-
-        if constants.net != constants.BitcoinMainnet:
-            offer.update({'offer_chains': {'chains': constants.net.rev_genesis_bytes()}})
-
-        if not len(reply_paths):
-            offer.update({'offer_issuer_id': {'id': self.lnworker.node_keypair.pubkey}})
-        else:
-            # TODO: remove adding of offer_issuer_id, once we can sign invoices properly based on invreq used blinded path
-            offer.update({'offer_issuer_id': {'id': self.lnworker.node_keypair.pubkey}})
-            offer.update({'offer_paths': {'paths': reply_paths}})
-
-        if issuer:
-            offer.update({'offer_issuer': {'issuer': issuer}})
-
-        if amount:
-            amount_msat = amount * 1000
-            offer['offer_amount'] = {'amount': amount_msat}
-
-        if expiry:
-            now = int(time.time())
-            offer['offer_absolute_expiry'] = {'seconds_from_epoch': now + expiry}
-
-        self._offers[offer_id] = offer
-
-        return offer_id
-
-    def get_offer(self, key) -> Optional[dict]:
-        return self._offers.get(key)
 
     @abstractmethod
     def get_fingerprint(self) -> str:
