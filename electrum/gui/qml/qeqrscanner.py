@@ -19,6 +19,8 @@ if 'ANDROID_DATA' in os.environ:
 
 
 class QEQRScanner(QObject):
+    REQUEST_CODE_SIMPLE_SCANNER_ACTIVITY = 30368  # random 16 bit int
+
     _logger = get_logger(__name__)
 
     foundText = pyqtSignal(str)
@@ -54,9 +56,12 @@ class QEQRScanner(QObject):
         intent.putExtra(jIntent.EXTRA_TEXT, jString(self._hint))
 
         activity.bind(on_activity_result=self.on_qr_activity_result)
-        jpythonActivity.startActivityForResult(intent, 0)
+        jpythonActivity.startActivityForResult(intent, self.REQUEST_CODE_SIMPLE_SCANNER_ACTIVITY)
 
     def on_qr_activity_result(self, requestCode, resultCode, intent):
+        if requestCode != self.REQUEST_CODE_SIMPLE_SCANNER_ACTIVITY:
+            self._logger.warning(f"got activity result with invalid {requestCode=}")
+            return
         try:
             if resultCode == -1:  # RESULT_OK:
                 if (contents := intent.getStringExtra(jString("text"))) is not None:
