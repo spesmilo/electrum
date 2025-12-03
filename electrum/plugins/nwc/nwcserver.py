@@ -335,7 +335,6 @@ class NWCServer(Logger, EventListener):
                 content = json.loads(content)
                 if not isinstance(content, dict):
                     raise Exception("malformed content, not dict")
-                event.content = content
                 params: dict = content['params']
                 if not isinstance(params, dict):
                     raise Exception("malformed params, not dict")
@@ -362,30 +361,36 @@ class NWCServer(Logger, EventListener):
             elif method == "list_transactions":
                 task = self.handle_list_transactions(event, params)
             else:
-                self.logger.debug(f"Unsupported nwc method requested: {content.get('method')}")
-                await self.send_error(event, "NOT_IMPLEMENTED", f"{method} not supported")
+                self.logger.debug(f"Unsupported nwc method requested: {method}")
+                await self.send_error(event, "NOT_IMPLEMENTED", f"{method} not supported", error_restype=method)
                 continue
 
             if task:
-                await self.taskgroup.spawn(self.run_request_task(task, event))
+                await self.taskgroup.spawn(self.run_request_task(task, request_event=event, request_method=method))
 
-    async def run_request_task(self, task: Awaitable, request_event: nEvent) -> None:
+    async def run_request_task(self, task: Awaitable, *, request_event: nEvent, request_method: str = None) -> None:
         """Catches request handling exceptions and send an error response"""
         try:
             await task
         except Exception as e:
             self.logger.exception("Error handling nwc request")
-            await self.send_error(request_event, "INTERNAL", f"Error handling request: {str(e)[:100]}")
+            await self.send_error(
+                request_event, "INTERNAL", f"Error handling request: {str(e)[:100]}",
+                error_restype=request_method,
+            )
 
-    async def send_error(self, causing_event: nEvent, error_type: str, error_msg: str = "") -> None:
+    async def send_error(
+        self,
+        causing_event: nEvent,
+        error_type: str,
+        error_msg: str = "",
+        *,
+        error_restype: str = None,
+    ) -> None:
         """Sends an error as response to the passed nEvent, containing the error type and message"""
         to_pubkey_hex = causing_event.pubkey
         response_to_id = causing_event.id
-        res_type = None
-        if isinstance(causing_event.content, dict):  # we have replaced the content with the decrypted content
-            if 'method' in causing_event.content:
-                res_type = causing_event.content['method']
-        content = self.get_error_response(error_type, error_msg, res_type)
+        content = self.get_error_response(error_type, error_msg, error_restype)
         await self.send_encrypted_response(to_pubkey_hex, json.dumps(content), response_to_id)
 
     @staticmethod
