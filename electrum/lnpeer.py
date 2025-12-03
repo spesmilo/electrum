@@ -2130,7 +2130,17 @@ class Peer(Logger, EventListener):
                 shared_secret=shared_secret,
                 encrypted_recipient_data=processed_onion.hop_data.payload['encrypted_recipient_data']['encrypted_data']
             )
-            payment_secret_from_onion = recipient_data['path_id']['data']
+            path_id = recipient_data.get('path_id', {}).get('data')
+            if not path_id:
+                log_fail_reason(f"'path_id' missing in recipient_data")
+                raise exc_incorrect_or_unknown_pd
+
+            if path_id not in self.lnworker._pathids[htlc.payment_hash]:
+                log_fail_reason(f"unknown path_id for payment_hash")
+                raise exc_incorrect_or_unknown_pd
+
+            payment_secret_from_onion = self.lnworker.get_payment_secret(htlc.payment_hash)
+
             if (total_msat := processed_onion.hop_data.payload.get('total_amount_msat', {}).get('total_msat')) is None:
                 log_fail_reason(f"'total_msat' missing from onion")
                 raise exc_incorrect_or_unknown_pd

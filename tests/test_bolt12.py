@@ -44,6 +44,9 @@ class MockLNWallet(test_lnpeer.MockLNWallet):
     ) -> bytes:
         return b''
 
+    def add_path_ids_for_payment_hash(self, payment_hash, invoice_paths):
+        pass
+
 
 class MockChannel:
     def __init__(self, node_id, rcv_capacity: int = 0):

@@ -29,7 +29,7 @@ import os
 import time
 import attr
 from decimal import Decimal
-from typing import TYPE_CHECKING, Union, Optional, List, Tuple
+from typing import TYPE_CHECKING, Union, Optional, List, Tuple, Sequence
 
 import electrum_ecc as ecc
 
@@ -39,7 +39,7 @@ from .json_db import stored_in, StoredObject
 from .lnaddr import LnAddr
 from .lnmsg import OnionWireSerializer, batched
 from .lnutil import LnFeatures, hex_to_bytes, bytes_to_hex
-from .onion_message import Timeout, get_blinded_paths_to_me, get_blinded_reply_paths
+from .onion_message import Timeout, get_blinded_paths_to_me, BlindedPathInfo
 from .segwit_addr import bech32_decode, DecodedBech32, convertbits, bech32_encode, Encoding
 
 if TYPE_CHECKING:
@@ -123,19 +123,14 @@ def encode_invoice(data: dict, signing_key: bytes) -> bytes:
 
 
 def create_offer(
-    lnwallet: 'LNWallet',
     *,
+    offer_paths: Optional[Sequence[BlindedPathInfo]] = None,
+    node_id: Optional[bytes] = None,
     amount_msat: Optional[int] = None,
     memo: Optional[str] = None,
     expiry: Optional[int] = None,
-    issuer: str = None,
-    allow_unblinded: bool = True
+    issuer: Optional[str] = None,
 ):
-    path_id = os.urandom(32)  # TODO: move path_id gen get_blinded_reply_paths, unique per path
-    reply_paths = get_blinded_reply_paths(lnwallet, path_id)  # TODO: catch exceptions
-    if not len(reply_paths) and not allow_unblinded:
-        raise Exception('No suitable channels')
-
     offer_id = os.urandom(16)
     offer = {
         'offer_metadata': {'data': offer_id},
@@ -145,12 +140,12 @@ def create_offer(
     if constants.net != constants.BitcoinMainnet:
         offer.update({'offer_chains': {'chains': constants.net.rev_genesis_bytes()}})
 
-    if not len(reply_paths):
-        offer.update({'offer_issuer_id': {'id': lnwallet.node_keypair.pubkey}})
+    if not offer_paths:
+        offer.update({'offer_issuer_id': {'id': node_id}})
     else:
         # TODO: remove adding of offer_issuer_id, once we can sign invoices properly based on invreq used blinded path
-        offer.update({'offer_issuer_id': {'id': lnwallet.node_keypair.pubkey}})
-        offer.update({'offer_paths': {'paths': reply_paths}})
+        offer.update({'offer_issuer_id': {'id': node_id}})
+        offer.update({'offer_paths': {'paths': [x.path for x in offer_paths]}})
 
     if issuer:
         offer.update({'offer_issuer': {'issuer': issuer}})
@@ -170,6 +165,13 @@ def create_offer(
 class Offer(StoredObject):
     offer_id = attr.ib(kw_only=True, type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
     offer_bech32 = attr.ib(kw_only=True, type=str)
+
+
+# @stored_in('path_ids')
+# @attr.s
+# class PathId(StoredObject):
+#     # payment_hash = attr.ib(kw_only=True, type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
+#     path_id = attr.ib(kw_only=True, type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
 
 
 def to_lnaddr(data: dict) -> LnAddr:
@@ -279,6 +281,9 @@ async def request_invoice(
         invoice_data = decode_invoice(invoice_tlv)
         lnwallet.logger.info('received bolt12 invoice')
         lnwallet.logger.debug(f'invoice_data: {invoice_data!r}')
+        bech32_data = convertbits(list(invoice_tlv), 8, 5, True)
+        invoice_bech32 = bech32_encode(Encoding.BECH32, 'lni', bech32_data, with_checksum=False)
+        lnwallet.logger.debug(f'invoice bech32: {invoice_bech32}')
     except Timeout:
         lnwallet.logger.info('timeout waiting for bolt12 invoice')
         raise
@@ -380,11 +385,19 @@ def verify_request_and_create_invoice(
 
     if invoice_expiry <= 0:
         invoice_expiry = DEFAULT_INVOICE_EXPIRY
+
+    # determine invoice features
+    # TODO: not yet supporting jit channels. see lnwallet.get_bolt11_invoice()
+    invoice_features = lnwallet.features.for_invoice()
+    if not lnwallet.uses_trampoline():
+        invoice_features &= ~ LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM
+
     invoice.update({
         'invoice_amount': {'msat': amount_msat},
         'invoice_created_at': {'timestamp': now},
         'invoice_relative_expiry': {'seconds_from_creation': invoice_expiry},
-        'invoice_payment_hash': {'payment_hash': invoice_payment_hash}
+        'invoice_payment_hash': {'payment_hash': invoice_payment_hash},
+        'invoice_features': {'features': invoice_features.to_tlv_bytes()}
     })
 
     # spec: if offer_issuer_id is present: MUST set invoice_node_id to the offer_issuer_id
@@ -394,6 +407,7 @@ def verify_request_and_create_invoice(
         invoice.update({
             'invoice_node_id': {'node_id': bolt12_offer['offer_issuer_id']['id']}
         })
+        # TODO for non-blinded path, where to store payment secret?
     else:
         # NOTE: requires knowledge of invreq incoming path and its final blinded_node_id
         # and corresponding secret for signing invoice
@@ -408,8 +422,7 @@ def verify_request_and_create_invoice(
         # we don't have invreq used path available here atm. see also request_invoice()
         raise Exception('branch not implemented, electrum should set offer_issuer_id')
 
-    payment_secret = lnwallet.get_payment_secret(invoice_payment_hash)
-    recipient_data = {'path_id': {'data': payment_secret}}  # TODO gen & store
+    recipient_data = {}
 
     # collect suitable channels for payment
     invoice_channels = [
@@ -419,13 +432,15 @@ def verify_request_and_create_invoice(
     if not invoice_channels:
         raise InvoiceRequestException('no active channels with sufficient receive capacity, ignoring invoice_request.')
 
-    invoice_paths, payinfo = get_blinded_paths_to_me(
+    invoice_paths = get_blinded_paths_to_me(
         lnwallet, final_recipient_data=recipient_data, my_channels=invoice_channels)
 
     invoice.update({
-        'invoice_paths': {'paths': invoice_paths},
-        'invoice_blindedpay': {'payinfo': payinfo}
+        'invoice_paths': {'paths': [x.path for x in invoice_paths]},
+        'invoice_blindedpay': {'payinfo': [x.payinfo for x in invoice_paths]}
     })
+
+    lnwallet.add_path_ids_for_payment_hash(invoice_payment_hash, invoice_paths)
 
     return invoice
 
