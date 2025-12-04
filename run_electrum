@@ -397,7 +397,7 @@ def main():
             'verbosity': '*' if util.is_android_debug_apk() else '',
             'cmd': 'gui',
             SimpleConfig.GUI_NAME.key(): 'qml',
-            SimpleConfig.WALLET_USE_SINGLE_PASSWORD.key(): True,
+            SimpleConfig.WALLET_SHOULD_USE_SINGLE_PASSWORD.key(): True,
         }
         SimpleConfig.set_chain_config_opt_based_on_android_packagename(config_options)
     else:

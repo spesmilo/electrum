@@ -331,6 +331,15 @@ class QEConfig(AuthMixin, QObject):
         self._lnutxoreserve = QEAmount(amount_sat=self.config.LN_UTXO_RESERVE)
         return self._lnutxoreserve
 
+    walletShouldUseSinglePasswordChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=walletShouldUseSinglePasswordChanged)
+    def walletShouldUseSinglePassword(self):
+        """
+        NOTE: this only indicates if we even want to use a single password, to check if we
+        actually use a single password the daemon needs to be checked.
+        """
+        return self.config.WALLET_SHOULD_USE_SINGLE_PASSWORD
+
     @pyqtSlot('qint64', result=str)
     @pyqtSlot(QEAmount, result=str)
     def formatSatsForEditing(self, satoshis):

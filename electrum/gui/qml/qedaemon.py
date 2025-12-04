@@ -230,7 +230,7 @@ class QEDaemon(AuthMixin, QObject):
                 if wallet is None:
                     return
 
-                if self.daemon.config.WALLET_USE_SINGLE_PASSWORD:
+                if self.daemon.config.WALLET_SHOULD_USE_SINGLE_PASSWORD:
                     self._use_single_password = self.daemon.update_password_for_directory(old_password=local_password, new_password=local_password)
                     self._password = local_password
                     self.singlePasswordChanged.emit()
@@ -318,9 +318,40 @@ class QEDaemon(AuthMixin, QObject):
     def fx(self):
         return self.qefx
 
+    @pyqtSlot(str, result=list)
+    def getWalletsUnlockableWithPassword(self, password: str) -> list[str]:
+        """
+        Returns any wallet that can be unlocked with the given password.
+        Can be used as fallback to unlock another wallet the user entered a
+        password that doesn't work for the current wallet but might work for another one.
+        """
+        wallet_dir = os.path.dirname(self.daemon.config.get_wallet_path())
+        _, _, wallet_paths_can_unlock = self.daemon.check_password_for_directory(
+            old_password=password,
+            new_password=None,
+            wallet_dir=wallet_dir,
+        )
+        if not wallet_paths_can_unlock:
+            return []
+        self._logger.debug(f"getWalletsUnlockableWithPassword: can unlock {len(wallet_paths_can_unlock)} wallets")
+        return [str(path) for path in wallet_paths_can_unlock]
+
+    @pyqtSlot(str, result=int)
+    def numWalletsWithPassword(self, password: str) -> int:
+        """Returns the number of wallets that can be unlocked with the given password"""
+        wallet_paths_can_unlock = self.getWalletsUnlockableWithPassword(password)
+        return len(wallet_paths_can_unlock)
+
     singlePasswordChanged = pyqtSignal()
     @pyqtProperty(bool, notify=singlePasswordChanged)
     def singlePasswordEnabled(self):
+        """
+        singlePasswordEnabled is False if:
+            a.) the user has no wallet (and password) yet
+            b.) the user has wallets with different passwords (legacy)
+            c.) all wallets are locked, we couldn't check yet if they all use the same password
+            d.) we are on desktop where different passwords are allowed
+        """
         return self._use_single_password
 
     @pyqtProperty(str, notify=singlePasswordChanged)
