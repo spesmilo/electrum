@@ -356,7 +356,20 @@ class QEDaemon(AuthMixin, QObject):
 
     @pyqtProperty(str, notify=singlePasswordChanged)
     def singlePassword(self):
+        """
+        self._password is also set to the last loaded wallet password if we WANT a single password,
+        but don't actually have a single password yet. So singlePassword being set doesn't strictly
+        mean all wallets use the same password.
+        """
         return self._password
+
+    @singlePassword.setter
+    def singlePassword(self, password: str):
+        assert password
+        assert self.daemon.config.WALLET_SHOULD_USE_SINGLE_PASSWORD
+        if self._password != password:
+            self._password = password
+            self.singlePasswordChanged.emit()
 
     @pyqtSlot(result=str)
     def suggestWalletName(self):

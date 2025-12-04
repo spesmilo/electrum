@@ -528,6 +528,9 @@ Pane {
             })
             dialog.accepted.connect(function() {
                 var success = Daemon.currentWallet.setPassword(dialog.password)
+                if (success && Config.walletShouldUseSinglePassword) {
+                    Daemon.singlePassword = dialog.password
+                }
                 var done_dialog = app.messageDialog.createObject(app, {
                     title: success ? qsTr('Success') : qsTr('Error'),
                     iconSource: success
