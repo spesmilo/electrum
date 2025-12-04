@@ -1066,6 +1066,16 @@ class TestLNUtil(ElectrumTestCase):
         channel_type = ChannelType(0b10000000001000000000010).discard_unknown_and_check()
         self.assertEqual(ChannelType(0b10000000001000000000000), channel_type)
 
+    def test_to_tlv_bytes(self):
+        features = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
+        self.assertEqual(features.to_tlv_bytes(), bfh('01'))
+        features = LnFeatures.OPTION_ROUTE_BLINDING_OPT
+        self.assertEqual(features.to_tlv_bytes(), bfh('02000000'))
+        features = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ |\
+            LnFeatures.OPTION_ROUTE_BLINDING_OPT |\
+            LnFeatures.BASIC_MPP_OPT
+        self.assertEqual(features.to_tlv_bytes(), bfh('02020001'))
+
     @as_testnet
     async def test_decode_imported_channel_backup_v0(self):
         encrypted_cb = "channel_backup:Adn87xcGIs9H2kfp4VpsOaNKWCHX08wBoqq37l1cLYKGlJamTeoaLEwpJA81l1BXF3GP/mRxqkY+whZG9l51G8izIY/kmMSvnh0DOiZEdwaaT/1/MwEHfsEomruFqs+iW24SFJPHbMM7f80bDtIxcLfZkKmgcKBAOlcqtq+dL3U3yH74S8BDDe2L4snaxxpCjF0JjDMBx1UR/28D+QlIi+lbvv1JMaCGXf+AF1+3jLQf8+lVI+rvFdyArws6Ocsvjf+ANQeSGUwW6Nb2xICQcMRgr1DO7bO4pgGu408eYRr2v3ayJBVtnKwSwd49gF5SDSjTDAO4CCM0uj9H5RxyzH7fqotkd9J80MBr84RiBXAeXKz+Ap8608/FVqgQ9BOcn6LhuAQdE5zXpmbQyw5jUGkPvHuseR+rzthzncy01odUceqTNg=="

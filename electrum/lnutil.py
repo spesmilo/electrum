@@ -1618,6 +1618,12 @@ class LnFeatures(IntFlag):
             r.append(feature_name or f"bit_{flag}")
         return r
 
+    def to_tlv_bytes(self) -> bytes:
+        a = hex(int(self))[2:]
+        b = (len(a) % 2) * '0' + a
+        d = bytes.fromhex(b)
+        return d
+
     if hasattr(IntFlag, "_numeric_repr_"):  # python 3.11+
         # performance improvement (avoid base2<->base10), see #8403
         _numeric_repr_ = hex
