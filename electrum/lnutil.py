@@ -1614,6 +1614,14 @@ class LnFeatures(IntFlag):
             r.append(feature_name or f"bit_{flag}")
         return r
 
+    def to_tlv_bytes(self) -> bytes:
+        if int(self) == 0:
+            return b''
+        a = hex(int(self))[2:]
+        b = (len(a) % 2) * '0' + a
+        d = bytes.fromhex(b)
+        return d
+
     def _for_context(self, context: 'LnFeatureContexts') -> 'LnFeatures':
         features = LnFeatures(0)
         for flag in list_enabled_ln_feature_bits(self):
