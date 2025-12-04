@@ -40,6 +40,7 @@ HTLCTX_INPUT_OUTPUT_INDEX = 0
 class SweepInfo(NamedTuple):
     name: str
     cltv_abs: Optional[int] # set to None only if the script has no cltv
+    # TODO add asserts that cltv_abs is block-based (see NLOCKTIME_BLOCKHEIGHT_MAX)
     txin: PartialTxInput
     txout: Optional[PartialTxOutput]  # only for first-stage htlc tx
     can_be_batched: bool # todo: this could be more fine-grained

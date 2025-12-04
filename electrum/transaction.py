@@ -349,16 +349,18 @@ class TxInput:
 
     def get_time_based_relative_locktime(self) -> Optional[int]:
         # see bip 68
-        if self.nsequence & (1<<31):
-            return
-        if self.nsequence & (1<<22):
+        if self.nsequence & (1<<31):  # "disable" flag
+            return None
+        if self.nsequence & (1<<22):  # in units of 512 sec
             return self.nsequence & 0xffff
+        return None
 
     def get_block_based_relative_locktime(self) -> Optional[int]:
-        if self.nsequence & (1<<31):
-            return
-        if not self.nsequence & (1<<22):
+        if self.nsequence & (1<<31):  # "disable" flag
+            return None
+        if not self.nsequence & (1<<22):  # in blocks
             return self.nsequence & 0xffff
+        return None
 
     @property
     def short_id(self):
@@ -1328,13 +1330,13 @@ class Transaction:
 
     def get_time_based_relative_locktime(self) -> Optional[int]:
         if self.version < 2:
-            return
+            return None
         locktimes = list(filter(None, [txin.get_time_based_relative_locktime() for txin in self.inputs()]))
         return max(locktimes) if locktimes else None
 
     def get_block_based_relative_locktime(self) -> Optional[int]:
         if self.version < 2:
-            return
+            return None
         locktimes = list(filter(None, [txin.get_block_based_relative_locktime() for txin in self.inputs()]))
         return max(locktimes) if locktimes else None
 
