@@ -321,11 +321,30 @@ class QEDaemon(AuthMixin, QObject):
     singlePasswordChanged = pyqtSignal()
     @pyqtProperty(bool, notify=singlePasswordChanged)
     def singlePasswordEnabled(self):
+        """
+        singlePasswordEnabled is False if:
+            a.) the user has no wallet (and password) yet
+            b.) the user has wallets with different passwords (legacy)
+            c.) all wallets are locked, we couldn't check yet if they all use the same password
+            d.) we are on desktop where different passwords are allowed
+        """
         return self._use_single_password
 
     @pyqtProperty(str, notify=singlePasswordChanged)
     def singlePassword(self):
         return self._password
+
+    @pyqtSlot(str, result=int)
+    def numWalletsWithPassword(self, password: str) -> int:
+        """Returns the number of wallets that can be unlocked with the given password"""
+        wallet_dir = os.path.dirname(self.daemon.config.get_wallet_path())
+        _, _, num_can_unlock = self.daemon.check_password_for_directory(
+            old_password=password,
+            new_password=None,
+            wallet_dir=wallet_dir,
+        )
+        self._logger.debug(f"numWalletsWithPassword: {num_can_unlock=}")
+        return num_can_unlock
 
     @pyqtSlot(result=str)
     def suggestWalletName(self):
