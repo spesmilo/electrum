@@ -157,9 +157,6 @@ class LNWatcher(Logger, EventListener):
         chan = self.lnworker.channel_by_txo(funding_outpoint)
         if not chan:
             return False
-        if not chan.need_to_subscribe():
-            return False
-        self.logger.info(f'sweep_commitment_transaction {funding_outpoint}')
         # detect who closed and get information about how to claim outputs
         is_local_ctx, sweep_info_dict = chan.get_ctx_sweep_info(closing_tx)
         # note: we need to keep watching *at least* until the closing tx is deeply mined,
