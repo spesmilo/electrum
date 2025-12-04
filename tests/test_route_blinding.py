@@ -104,7 +104,7 @@ class TestPaymentRouteBlinding(ElectrumTestCase):
                         'max_cltv_expiry': EVE_TLVS['payment_constraints']['max_cltv_expiry'],
                         'htlc_minimum_msat': EVE_TLVS['payment_constraints']['htlc_minimum_msat'],
                     },
-                    'allowed_features': {'features': bfh('0' + str(LnFeatures(1 << 113))[2:])},  # FIXME, proper features bit representation
+                    'allowed_features': {'features': LnFeatures(1 << EVE_TLVS['allowed_features']['features'][0]).to_tlv_bytes()},
                     'unknown_tag_65535': {'data': bfh(EVE_TLVS['unknown_tag_65535'])},
                 }
             ),
