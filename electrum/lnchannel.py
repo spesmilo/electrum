@@ -60,7 +60,7 @@ from .lnsweep import sweep_their_ctx_to_remote_backup
 from .lnhtlc import HTLCManager
 from .lnmsg import encode_msg, decode_msg
 from .address_synchronizer import TX_HEIGHT_LOCAL
-from .lnutil import CHANNEL_OPENING_TIMEOUT
+from .lnutil import CHANNEL_OPENING_TIMEOUT_BLOCKS, CHANNEL_OPENING_TIMEOUT_SEC
 from .lnutil import ChannelBackupStorage, ImportedChannelBackupStorage, OnchainChannelBackupStorage
 from .lnutil import format_short_channel_id
 from .fee_policy import FEERATE_PER_KW_MIN_RELAY_LIGHTNING
@@ -356,7 +356,6 @@ class AbstractChannel(Logger, ABC):
         self.delete_closing_height()
         if not self.lnworker:
             return
-        chan_age = now() - self.storage.get('init_timestamp', 0)
         state = self.get_state()
         if state in [ChannelState.PREOPENING, ChannelState.OPENING, ChannelState.FORCE_CLOSING]:
             if self.is_initiator():
@@ -377,11 +376,11 @@ class AbstractChannel(Logger, ABC):
                             self.logger.info(f'channel is double spent {inputs}')
                             self.set_state(ChannelState.REDEEMED)
                             break
-            else:
-                if chan_age > CHANNEL_OPENING_TIMEOUT:
-                    self.lnworker.remove_channel(self.channel_id)
+            elif self.has_funding_timed_out():
+                self.logger.warning(f"dropping incoming channel, funding tx not found in mempool")
+                self.lnworker.remove_channel(self.channel_id)
         elif self.is_zeroconf() and state in [ChannelState.OPEN, ChannelState.CLOSING, ChannelState.FORCE_CLOSING]:
-            assert self.storage.get('init_timestamp') is not None, "init_timestamp not set for zeroconf channel"
+            chan_age = now() - self.storage['init_timestamp']
             # handling zeroconf channels with no funding tx, can happen if broadcasting fails on LSP side
             # or if the LSP did double spent the funding tx/never published it intentionally
             # only remove a timed out OPEN channel if we are connected to the network to prevent removing it if we went
@@ -407,6 +406,10 @@ class AbstractChannel(Logger, ABC):
         if funding_height.conf>0:
             self.set_short_channel_id(ShortChannelID.from_components(
                 funding_height.height(), funding_height.txpos, self.funding_outpoint.output_index))
+        elif self.has_funding_timed_out():
+            self.logger.warning("dropping incoming channel, funding tx took too long to confirm")
+            self.lnworker.remove_channel(self.channel_id)
+            return
         if self.get_state() == ChannelState.OPENING:
             if self.is_funding_tx_mined(funding_height):
                 self.set_state(ChannelState.FUNDED)
@@ -550,6 +553,10 @@ class AbstractChannel(Logger, ABC):
         pass
 
     @abstractmethod
+    def has_funding_timed_out(self) -> bool:
+        pass
+
+    @abstractmethod
     def get_wallet_addresses_channel_might_want_reserved(self) -> Sequence[str]:
         """Returns a list of addrs that the wallet should not use, to avoid address-reuse.
         Typically, these addresses are wallet.is_mine, but that is not guaranteed,
@@ -650,6 +657,9 @@ class ChannelBackup(AbstractChannel):
 
     def can_be_deleted(self):
         return self.is_imported or self.is_redeemed()
+
+    def has_funding_timed_out(self):
+        return False
 
     def get_capacity(self):
         lnwatcher = self.lnworker.lnwatcher
@@ -769,7 +779,7 @@ class Channel(AbstractChannel):
         self,
         state: 'StoredDict', *,
         name=None,
-        lnworker=None,
+        lnworker=None,  # None only in unittests
         initial_feerate=None,
         jit_opening_fee: Optional[int] = None,
     ):
@@ -833,8 +843,22 @@ class Channel(AbstractChannel):
     def has_onchain_backup(self):
         return self.storage.get('has_onchain_backup', False)
 
-    def can_be_deleted(self):
+    def can_be_deleted(self) -> bool:
+        if self.has_funding_timed_out():
+            return True
         return self.is_redeemed()
+
+    def has_funding_timed_out(self):
+        if self.is_initiator() or self.is_funded():
+            return False
+        if self.lnworker.network.blockchain().is_tip_stale() or not self.lnworker.wallet.is_up_to_date():
+            return False
+        init_height = self.storage.get('init_height', 0)
+        init_timestamp = self.storage.get('init_timestamp', 0)
+        age_blocks = self.lnworker.network.get_local_height() - init_height
+        age_sec = now() - init_timestamp
+        # some channels might not have init_height set so we check both time and block based timeouts
+        return age_blocks > CHANNEL_OPENING_TIMEOUT_BLOCKS and age_sec > CHANNEL_OPENING_TIMEOUT_SEC
 
     def get_capacity(self):
         return self.constraints.capacity

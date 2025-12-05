@@ -1216,6 +1216,7 @@ class Peer(Logger, EventListener):
         )
         chan.storage['funding_inputs'] = [txin.prevout.to_json() for txin in funding_tx.inputs()]
         chan.storage['has_onchain_backup'] = has_onchain_backup
+        chan.storage['init_height'] = self.lnworker.network.get_local_height()
         chan.storage['init_timestamp'] = int(time.time())
         if isinstance(self.transport, LNTransport):
             chan.add_or_update_peer_addr(self.transport.peer_addr)
@@ -1438,6 +1439,7 @@ class Peer(Logger, EventListener):
             initial_feerate=feerate,
             jit_opening_fee = channel_opening_fee,
         )
+        chan.storage['init_height'] = self.lnworker.network.get_local_height()
         chan.storage['init_timestamp'] = int(time.time())
         if isinstance(self.transport, LNTransport):
             chan.add_or_update_peer_addr(self.transport.peer_addr)

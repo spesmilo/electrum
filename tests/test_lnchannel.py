@@ -23,11 +23,13 @@
 # (around commit 42de4400bff5105352d0552155f73589166d162b).
 
 import unittest
+from unittest import mock
 import os
 import binascii
 from pprint import pformat
 import logging
 import dataclasses
+import time
 
 from electrum import bitcoin
 from electrum import lnpeer
@@ -697,6 +699,46 @@ class TestChannel(ElectrumTestCase):
             self.alice_channel.add_htlc(new)
         self.assertIn('Not enough local balance', cm.exception.args[0])
 
+    def test_unfunded_channel_can_be_removed(self):
+        """
+        Test that an incoming channel which stays unfunded longer than
+        lnutil.CHANNEL_OPENING_TIMEOUT_BLOCKS and lnutil.CHANNEL_OPENING_TIMEOUT_SEC
+        can be removed
+        """
+        # set the init_height and init_timestamp
+        self.current_height = 800_000
+        self.bob_channel.storage['init_height'] = self.current_height
+        self.alice_channel.storage['init_height'] = self.current_height
+        self.bob_channel.storage['init_timestamp'] = int(time.time())
+        self.alice_channel.storage['init_timestamp'] = int(time.time())
+
+        mock_lnworker = mock.Mock()
+        mock_blockchain = mock.Mock()
+        mock_lnworker.wallet = mock.Mock()
+        mock_lnworker.wallet.is_up_to_date = lambda: True
+        mock_blockchain.is_tip_stale = lambda: False
+        mock_lnworker.network.blockchain = lambda: mock_blockchain
+        mock_lnworker.network.get_local_height = lambda: self.current_height
+        self.bob_channel.lnworker = mock_lnworker
+        self.alice_channel.lnworker = mock_lnworker
+
+        # test that the non-initiator can remove the channel after timeout
+        self.assertFalse(self.bob_channel.is_initiator())
+        self.bob_channel._state = ChannelState.OPENING
+        self.assertFalse(self.bob_channel.can_be_deleted())
+        self.current_height += lnutil.CHANNEL_OPENING_TIMEOUT_BLOCKS + 1
+        self.assertFalse(self.bob_channel.can_be_deleted())  # needs both block and time based timeout
+        self.bob_channel.storage['init_timestamp'] -= lnutil.CHANNEL_OPENING_TIMEOUT_SEC + 1
+        self.alice_channel.storage['init_timestamp'] -= lnutil.CHANNEL_OPENING_TIMEOUT_SEC + 1
+        self.assertTrue(self.bob_channel.can_be_deleted())  # now both timeouts are reached
+        self.current_height = 800_000  # reset to check if we can delete with just the time based timeout
+        self.assertFalse(self.bob_channel.can_be_deleted())
+
+        # test that the initiator can't remove the channel, even after timeout
+        self.current_height += lnutil.CHANNEL_OPENING_TIMEOUT_BLOCKS + 1
+        self.assertTrue(self.alice_channel.is_initiator())
+        self.alice_channel._state = ChannelState.OPENING
+        self.assertFalse(self.alice_channel.can_be_deleted())
 
 class TestChannelAnchors(TestChannel):
     TEST_ANCHOR_CHANNELS = True
