@@ -779,7 +779,11 @@ if [[ $1 == "just_in_time" ]]; then
     echo "carol pays alice"
     # note: set amount to 0.001 to test failure: 'payment too low'
     invoice=$($alice add_request 0.01 --lightning --memo "invoice" | jq -r ".lightning_invoice")
-    $carol lnpay $invoice
+    success=$($carol lnpay $invoice| jq '.success')
+    if [[ $success != "true" ]]; then
+	echo "JIT payment failed"
+	exit 1
+    fi
 fi
 
 if [[ $1 == "unixsockets" ]]; then
