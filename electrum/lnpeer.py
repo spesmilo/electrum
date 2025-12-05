@@ -2221,7 +2221,7 @@ class Peer(Logger, EventListener):
                 outer_onion_payment_secret=payment_secret_from_onion,
             )
 
-        info = self.lnworker.get_payment_info(payment_hash)
+        info = self.lnworker.get_payment_info(payment_hash, direction=RECEIVED)
         if info is None:
             _log_fail_reason(f"no payment_info found for RHASH {payment_hash.hex()}")
             raise exc_incorrect_or_unknown_pd
@@ -3115,7 +3115,7 @@ class Peer(Logger, EventListener):
             return None, None, fwd_cb
 
         #  -- from here on it's assumed this set is a payment for us (not something to forward) --
-        payment_info = self.lnworker.get_payment_info(payment_hash)
+        payment_info = self.lnworker.get_payment_info(payment_hash, direction=RECEIVED)
         if payment_info is None:
             _log_fail_reason(f"payment info has been deleted")
             return OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, None, None
