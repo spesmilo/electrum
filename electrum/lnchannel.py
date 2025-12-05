@@ -224,6 +224,10 @@ class AbstractChannel(Logger, ABC):
     def get_state(self) -> ChannelState:
         return self._state
 
+    def get_age(self) -> int:
+        init_timestamp = self.storage.get('init_timestamp', 0)
+        return int(time.time()) - init_timestamp
+
     def is_funded(self) -> bool:
         return self.get_state() >= ChannelState.FUNDED
 
@@ -356,7 +360,7 @@ class AbstractChannel(Logger, ABC):
         self.delete_closing_height()
         if not self.lnworker:
             return
-        chan_age = now() - self.storage.get('init_timestamp', 0)
+        chan_age = self.get_age()
         state = self.get_state()
         if state in [ChannelState.PREOPENING, ChannelState.OPENING, ChannelState.FORCE_CLOSING]:
             if self.is_initiator():
@@ -826,7 +830,9 @@ class Channel(AbstractChannel):
     def has_onchain_backup(self):
         return self.storage.get('has_onchain_backup', False)
 
-    def can_be_deleted(self):
+    def can_be_deleted(self) -> bool:
+        if not self.is_initiator() and not self.is_funded():
+            return self.get_age() > lnutil.CHANNEL_OPENING_TIMEOUT
         return self.is_redeemed()
 
     def get_capacity(self):
