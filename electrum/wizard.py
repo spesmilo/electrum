@@ -12,7 +12,8 @@ from electrum.logging import get_logger
 from electrum.network import ProxySettings
 from electrum.plugin import run_hook
 from electrum.slip39 import EncryptedSeed
-from electrum.storage import WalletStorage, StorageEncryptionVersion
+from electrum.storage import WalletStorage, StorageEncryptionVersion, StorageReadWriteError
+from electrum.util import UserFacingException
 from electrum.wallet_db import WalletDB
 from electrum.bip32 import normalize_bip32_derivation, xpub_type
 from electrum import keystore, mnemonic, bitcoin
@@ -684,8 +685,11 @@ class NewWalletWizard(KeystoreWizard):
         assert data['wallet_type'] in ['standard', '2fa', 'imported', 'multisig']
 
         if os.path.exists(path):
-            raise Exception('file already exists at path')
-        storage = WalletStorage(path)
+            raise UserFacingException(_('File already exists at path: {}').format(path))
+        try:
+            storage = WalletStorage(path)
+        except StorageReadWriteError as e:
+            raise UserFacingException(e)
 
         # TODO: refactor using self.keystore_from_data
         k = None
@@ -729,35 +733,35 @@ class NewWalletWizard(KeystoreWizard):
                 self._logger.debug('creating keystore from 2fa seed')
                 k = keystore.from_xprv(data['x1']['xprv'])
             else:
-                raise Exception('unsupported/unknown seed_type %s' % data['seed_type'])
+                raise NotImplementedError('unsupported/unknown seed_type %s' % data['seed_type'])
         elif data['keystore_type'] == 'masterkey':
             k = keystore.from_master_key(data['master_key'])
             if isinstance(k, keystore.Xpub):  # has xpub
                 t1 = xpub_type(k.xpub)
                 if data['wallet_type'] == 'multisig':
                     if t1 not in ['standard', 'p2wsh', 'p2wsh-p2sh']:
-                        raise Exception('wrong key type %s' % t1)
+                        raise UserFacingException(_('Wrong key type {}').format(t1))
                 else:
                     if t1 not in ['standard', 'p2wpkh', 'p2wpkh-p2sh']:
-                        raise Exception('wrong key type %s' % t1)
+                        raise UserFacingException(_('Wrong key type {}').format(t1))
             elif isinstance(k, keystore.Old_KeyStore):
                 pass
             else:
-                raise Exception(f'unexpected keystore type: {type(k)}')
+                raise NotImplementedError(f'unexpected keystore type: {type(k)}')
         elif data['keystore_type'] == 'hardware':
             k = self.hw_keystore(data)
             if isinstance(k, keystore.Xpub):  # has xpub
                 t1 = xpub_type(k.xpub)
                 if data['wallet_type'] == 'multisig':
                     if t1 not in ['standard', 'p2wsh', 'p2wsh-p2sh']:
-                        raise Exception('wrong key type %s' % t1)
+                        raise UserFacingException(_('Wrong key type {}').format(t1))
                 else:
                     if t1 not in ['standard', 'p2wpkh', 'p2wpkh-p2sh']:
-                        raise Exception('wrong key type %s' % t1)
+                        raise UserFacingException(_('Wrong key type {}').format(t1))
             else:
-                raise Exception(f'unexpected keystore type: {type(k)}')
+                raise NotImplementedError(f'unexpected keystore type: {type(k)}')
         else:
-            raise Exception('unsupported/unknown keystore_type %s' % data['keystore_type'])
+            raise NotImplementedError('unsupported/unknown keystore_type %s' % data['keystore_type'])
 
         if data['password']:
             if k and k.may_have_password():
@@ -792,16 +796,16 @@ class NewWalletWizard(KeystoreWizard):
             db.put('use_trustedcoin', True)
         elif data['wallet_type'] == 'multisig':
             if not isinstance(k, keystore.Xpub):
-                raise Exception(f'unexpected keystore(main) type={type(k)} in multisig. not bip32.')
+                raise TypeError(f'unexpected keystore(main) type={type(k)} in multisig. not bip32.')
             k_xpub_type = xpub_type(k.xpub)
             db.put('wallet_type', '%dof%d' % (data['multisig_signatures'], data['multisig_participants']))
             db.put('x1', k.dump())
             for cosigner in data['multisig_cosigner_data']:
                 cosigner_keystore = self.keystore_from_data('multisig', data['multisig_cosigner_data'][cosigner])
                 if not isinstance(cosigner_keystore, keystore.Xpub):
-                    raise Exception(f'unexpected keystore(cosigner) type={type(cosigner_keystore)} in multisig. not bip32.')
+                    raise TypeError(f'unexpected keystore(cosigner) type={type(cosigner_keystore)} in multisig. not bip32.')
                 if k_xpub_type != xpub_type(cosigner_keystore.xpub):
-                    raise Exception('multisig wallet needs to have homogeneous xpub types')
+                    raise UserFacingException(_('Multisig wallet needs to have homogeneous xpub types.'))
                 if data['encrypt'] and cosigner_keystore.may_have_password():
                     cosigner_keystore.update_password(None, data['password'])
                 db.put(f'x{cosigner}', cosigner_keystore.dump())
