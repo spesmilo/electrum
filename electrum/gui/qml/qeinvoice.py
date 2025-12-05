@@ -529,7 +529,8 @@ class QEInvoiceParser(QEInvoice):
             PaymentIdentifierType.SPK, PaymentIdentifierType.BIP21,
             PaymentIdentifierType.BIP70, PaymentIdentifierType.BOLT11,
             PaymentIdentifierType.LNADDR, PaymentIdentifierType.LNURLP,
-            PaymentIdentifierType.EMAILLIKE, PaymentIdentifierType.DOMAINLIKE
+            PaymentIdentifierType.EMAILLIKE, PaymentIdentifierType.DOMAINLIKE,
+            PaymentIdentifierType.OPENALIAS,
         ]:
             self.validationError.emit('unknown', _('Unknown invoice'))
             return
