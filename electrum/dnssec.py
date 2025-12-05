@@ -137,7 +137,11 @@ async def _get_and_validate(ns, url, _type) -> dns.rrset.RRset:
     return rrset
 
 
-async def query(url, rtype) -> Tuple[dns.rrset.RRset, bool]:
+async def query(url: str, rtype: dns.rdatatype.RdataType) -> Tuple[dns.rrset.RRset, bool]:
+    """Try to do DNS resolution, including DNSSEC.
+    'validated' shows whether the DNSSEC checks passed. DNS is completely INSECURE without DNSSEC,
+    so the caller must carefully consider whether the response can be used for anything if validated=False.
+    """
     # FIXME this method is not using the network proxy. (although the proxy might not support UDP?)
     # 8.8.8.8 is Google's public DNS server
     nameservers = ['8.8.8.8']

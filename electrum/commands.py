@@ -870,12 +870,10 @@ class Commands(Logger):
         if x is None:
             return None
         out = await wallet.contacts.resolve(x)
-        if out.get('type') == 'openalias' and self.nocheck is False and out.get('validated') is False:
-            raise UserFacingException(f"cannot verify alias: {x}")
         return out['address']
 
     @command('n')
-    async def sweep(self, privkey, destination, fee=None, feerate=None, nocheck=False, imax=100):
+    async def sweep(self, privkey, destination, fee=None, feerate=None, imax=100):
         """
         Sweep private keys. Returns a transaction that spends UTXOs from
         privkey to a destination address. The transaction will not be broadcast.
@@ -885,12 +883,10 @@ class Commands(Logger):
         arg:decimal:fee:Transaction fee (absolute, in BTC)
         arg:decimal:feerate:Transaction fee rate (in sat/vbyte)
         arg:int:imax:Maximum number of inputs
-        arg:bool:nocheck:Do not verify aliases
         """
         from .wallet import sweep
         fee_policy = self._get_fee_policy(fee, feerate)
         privkeys = privkey.split()
-        self.nocheck = nocheck
         #dest = self._resolver(destination)
         tx = await sweep(
             privkeys,
@@ -942,7 +938,7 @@ class Commands(Logger):
 
     @command('wp')
     async def payto(self, destination, amount, fee=None, feerate=None, from_addr=None, from_coins=None, change_addr=None,
-                    nocheck=False, unsigned=False, rbf=True, password=None, locktime=None, addtransaction=False, wallet: Abstract_Wallet = None):
+                    unsigned=False, rbf=True, password=None, locktime=None, addtransaction=False, wallet: Abstract_Wallet = None):
         """Create an on-chain transaction.
 
         arg:str:destination:Bitcoin address, contact or alias
@@ -955,7 +951,6 @@ class Commands(Logger):
         arg:bool:addtransaction:Whether transaction is to be used for broadcasting afterwards. Adds transaction to the wallet
         arg:int:locktime:Set locktime block number
         arg:bool:unsigned:Do not sign transaction
-        arg:bool:nocheck:Do not verify aliases
         arg:json:from_coins:Source coins (must be in wallet; use sweep to spend from non-wallet address)
         """
         return await self.paytomany(
@@ -965,7 +960,6 @@ class Commands(Logger):
             from_addr=from_addr,
             from_coins=from_coins,
             change_addr=change_addr,
-            nocheck=nocheck,
             unsigned=unsigned,
             rbf=rbf,
             password=password,
@@ -976,7 +970,7 @@ class Commands(Logger):
 
     @command('wp')
     async def paytomany(self, outputs, fee=None, feerate=None, from_addr=None, from_coins=None, change_addr=None,
-                        nocheck=False, unsigned=False, rbf=True, password=None, locktime=None, addtransaction=False, wallet: Abstract_Wallet = None):
+                        unsigned=False, rbf=True, password=None, locktime=None, addtransaction=False, wallet: Abstract_Wallet = None):
         """Create a multi-output transaction.
 
         arg:json:outputs:json list of ["address", "amount in BTC"]
@@ -988,10 +982,8 @@ class Commands(Logger):
         arg:bool:addtransaction:Whether transaction is to be used for broadcasting afterwards. Adds transaction to the wallet
         arg:int:locktime:Set locktime block number
         arg:bool:unsigned:Do not sign transaction
-        arg:bool:nocheck:Do not verify aliases
         arg:json:from_coins:Source coins (must be in wallet; use sweep to spend from non-wallet address)
         """
-        self.nocheck = nocheck
         fee_policy = self._get_fee_policy(fee, feerate)
         domain_addr = from_addr.split(',') if from_addr else None
         domain_coins = from_coins.split(',') if from_coins else None
@@ -1150,7 +1142,11 @@ class Commands(Logger):
 
         arg:str:key:the alias to be retrieved
         """
-        return await wallet.contacts.resolve(key)
+        d = await wallet.contacts.resolve(key)
+        if d.get("type") == "openalias":
+            # we always validate DNSSEC now
+            d["validated"] = True
+        return d
 
     @command('w')
     async def searchcontacts(self, query, wallet: Abstract_Wallet = None):

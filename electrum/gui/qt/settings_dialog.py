@@ -437,8 +437,7 @@ class SettingsDialog(QDialog, QtEventListener):
             self.alias_e.setStyleSheet("")
             return
         if self.wallet.contacts.alias_info:
-            alias_addr, alias_name, validated = self.wallet.contacts.alias_info
-            self.alias_e.setStyleSheet((ColorScheme.GREEN if validated else ColorScheme.RED).as_stylesheet(True))
+            self.alias_e.setStyleSheet(ColorScheme.GREEN.as_stylesheet(True))
         else:
             self.alias_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
 
