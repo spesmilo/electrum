@@ -474,6 +474,10 @@ class OnionMessageManager(Logger):
                 onion_packet_b = onion_packet.to_bytes()
                 next_peer = self.lnwallet.peers.get(node_id)
 
+                if not next_peer.their_features.supports(LnFeatures.OPTION_ONION_MESSAGE_OPT):
+                    self.logger.debug('forward dropped, next peer is not ONION_MESSAGE capable')
+                    continue
+
                 next_peer.send_message(
                     "onion_message",
                     path_key=blinding,
