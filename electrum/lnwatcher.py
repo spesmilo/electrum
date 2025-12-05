@@ -109,6 +109,8 @@ class LNWatcher(Logger, EventListener):
             closing_tx = self.adb.get_transaction(closing_txid)
             if closing_tx:
                 keep_watching = await self.sweep_commitment_transaction(funding_outpoint, closing_tx)
+                if not keep_watching:
+                    self.remove_callback(address)
             else:
                 self.logger.info(f"channel {funding_outpoint} closed by {closing_txid}. still waiting for tx itself...")
                 keep_watching = True
