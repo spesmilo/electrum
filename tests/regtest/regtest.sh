@@ -346,7 +346,8 @@ if [[ $1 == "swapserver_forceclose" ]]; then
     wait_for_balance bob 0.999
     # check that the closing tx is in alice's onchain_history. Since this tx does not
     # touch alice's wallet addresses, this test requires accounting_addresses to be set
-    if [[ ! $($alice onchain_history| jq --arg txid $ctx_id '.[]|select(.txid == $txid)') ]]; then
+    $alice stop
+    if [[ ! $($alice -o onchain_history| jq --arg txid $ctx_id '.[]|select(.txid == $txid)') ]]; then
        echo "accounting_address not set"
        exit 1
     fi
