@@ -225,9 +225,6 @@ class PaymentRequest:
         sig = pr.signature
         alias = pr.pki_data
         info: dict = await Contacts.resolve_openalias(alias)
-        if info.get('validated') is not True:
-            self.error = "Alias verification failed (DNSSEC)"
-            return False
         if pr.pki_type == "dnssec+btc":
             self.requestor = alias
             address = info.get('address')

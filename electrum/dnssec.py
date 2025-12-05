@@ -30,6 +30,7 @@
 #  http://backreference.org/2010/11/17/dnssec-verification-with-dig/
 #  https://github.com/rthalley/dnspython/blob/master/tests/test_dnssec.py
 
+import logging
 
 import dns
 import dns.name
@@ -137,7 +138,11 @@ async def _get_and_validate(ns, url, _type) -> dns.rrset.RRset:
     return rrset
 
 
-async def query(url, rtype) -> Tuple[dns.rrset.RRset, bool]:
+async def query(url: str, rtype: dns.rdatatype.RdataType) -> Tuple[dns.rrset.RRset, bool]:
+    """Try to do DNS resolution, including DNSSEC.
+    'validated' shows whether the DNSSEC checks passed. DNS is completely INSECURE without DNSSEC,
+    so the caller must carefully consider whether the response can be used for anything if validated=False.
+    """
     # FIXME this method is not using the network proxy. (although the proxy might not support UDP?)
     # 8.8.8.8 is Google's public DNS server
     nameservers = ['8.8.8.8']
@@ -146,7 +151,8 @@ async def query(url, rtype) -> Tuple[dns.rrset.RRset, bool]:
         out = await _get_and_validate(ns, url, rtype)
         validated = True
     except Exception as e:
-        _logger.info(f"DNSSEC error: {repr(e)}")
+        log_level = logging.WARNING if isinstance(e, ImportError) else logging.INFO
+        _logger.log(log_level, f"DNSSEC error: {repr(e)}")
         out = await dns.asyncresolver.resolve(url, rtype)
         validated = False
     return out, validated

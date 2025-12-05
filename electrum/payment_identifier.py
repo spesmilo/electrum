@@ -330,10 +330,6 @@ class PaymentIdentifier(Logger):
                 elif openalias_result := await openalias_task:
                     self.openalias_data = openalias_result
                     address = openalias_result.get('address')
-                    if not openalias_result.get('validated'):
-                        self.warning = _(
-                            'WARNING: the alias "{}" could not be validated via an additional '
-                            'security check, DNSSEC, and thus may not be correct.').format(openalias_key)
                     try:
                         # this assertion error message is shown in the GUI
                         assert bitcoin.is_address(address), f"{_('Openalias address invalid')}: {address[:100]}"
@@ -594,10 +590,6 @@ class PaymentIdentifier(Logger):
             name = self.openalias_data.get('name')
             description = name
             recipient = key + ' <' + address + '>'
-            validated = self.openalias_data.get('validated')
-            if not validated:
-                self.warning = _('WARNING: the alias "{}" could not be validated via an additional '
-                                 'security check, DNSSEC, and thus may not be correct.').format(key)
 
         elif self.bolt11:
             recipient, amount, description = self._get_bolt11_fields()
