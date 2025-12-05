@@ -1392,8 +1392,7 @@ class Commands(Logger):
         arg:int:expiry:Time in seconds.
         arg:str:issuer:Issuer string
         """
-        amount = satoshis(amount)
-        amount_msat = amount * 1000
+        amount_msat = satoshis(amount) * 1000 if amount else None
         expiry = int(expiry) if expiry else None
         key = wallet.lnworker.create_offer(amount_msat=amount_msat, memo=memo, expiry=expiry, issuer=issuer)
         offer = wallet.lnworker.get_offer(key)
