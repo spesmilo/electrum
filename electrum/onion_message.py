@@ -476,7 +476,7 @@ class OnionMessageManager(Logger):
 
                 next_peer.send_message(
                     "onion_message",
-                    blinding=blinding,
+                    path_key=blinding,
                     len=len(onion_packet_b),
                     onion_message_packet=onion_packet_b
                 )
