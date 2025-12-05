@@ -30,6 +30,7 @@
 #  http://backreference.org/2010/11/17/dnssec-verification-with-dig/
 #  https://github.com/rthalley/dnspython/blob/master/tests/test_dnssec.py
 
+import logging
 
 import dns
 import dns.name
@@ -150,7 +151,8 @@ async def query(url: str, rtype: dns.rdatatype.RdataType) -> Tuple[dns.rrset.RRs
         out = await _get_and_validate(ns, url, rtype)
         validated = True
     except Exception as e:
-        _logger.info(f"DNSSEC error: {repr(e)}")
+        log_level = logging.WARNING if isinstance(e, ImportError) else logging.INFO
+        _logger.log(log_level, f"DNSSEC error: {repr(e)}")
         out = await dns.asyncresolver.resolve(url, rtype)
         validated = False
     return out, validated
