@@ -1316,9 +1316,12 @@ class Peer(Logger, EventListener):
         # store the temp id now, so that it is recognized for e.g. 'error' messages
         self.temp_id_to_id[temp_chan_id] = None
         self._cleanup_temp_channelids()
-        channel_opening_fee = open_channel_tlvs.get('channel_opening_fee') if open_channel_tlvs else None
+        channel_opening_fee_tlv = open_channel_tlvs.get('channel_opening_fee', {})
+        channel_opening_fee = channel_opening_fee_tlv.get('channel_opening_fee')
         if channel_opening_fee:
             # todo check that the fee is reasonable
+            assert is_zeroconf
+            self.logger.info(f"just-in-time opening fee: {channel_opening_fee} msat")
             pass
 
         if self.use_anchors():
@@ -1433,7 +1436,7 @@ class Peer(Logger, EventListener):
             chan_dict,
             lnworker=self.lnworker,
             initial_feerate=feerate,
-            opening_fee = channel_opening_fee,
+            jit_opening_fee = channel_opening_fee,
         )
         chan.storage['init_timestamp'] = int(time.time())
         if isinstance(self.transport, LNTransport):
@@ -2115,8 +2118,8 @@ class Peer(Logger, EventListener):
             log_fail_reason(f"'total_msat' missing from onion")
             raise exc_incorrect_or_unknown_pd
 
-        if chan.opening_fee:
-            channel_opening_fee = chan.opening_fee['channel_opening_fee']  # type: int
+        if chan.jit_opening_fee:
+            channel_opening_fee = chan.jit_opening_fee
             total_msat -= channel_opening_fee
             amt_to_forward -= channel_opening_fee
         else:
@@ -2281,7 +2284,7 @@ class Peer(Logger, EventListener):
             self._fulfill_htlc(chan, htlc_id, preimage)
             htlc_set.htlcs.remove(mpp_htlc)
             # reset just-in-time opening fee of channel
-            chan.opening_fee = None
+            chan.jit_opening_fee = None
 
     def _fulfill_htlc(self, chan: Channel, htlc_id: int, preimage: bytes):
         assert chan.hm.is_htlc_irrevocably_added_yet(htlc_proposer=REMOTE, htlc_id=htlc_id)
@@ -3070,6 +3073,10 @@ class Peer(Logger, EventListener):
                 return OnionFailureCode.MPP_TIMEOUT, None, None
 
         if mpp_set.resolution == RecvMPPResolution.WAITING:
+            # calculate the sum of just in time channel opening fees
+            htlc_channels = [self.lnworker.get_channel_by_short_id(scid) for scid in set(h.scid for h in mpp_set.htlcs)]
+            jit_opening_fees_msat = sum((c.jit_opening_fee or 0) for c in htlc_channels)
+
             # check if set is first stage multi-trampoline payment to us
             # first stage trampoline payment:
             # is a trampoline payment + we_are_final + payment key is derived from outer onion's payment secret
@@ -3088,14 +3095,14 @@ class Peer(Logger, EventListener):
 
             if trampoline_payment_key and trampoline_payment_key != payment_key:
                 # first stage of trampoline payment, the first stage must never get set COMPLETE
-                if amount_msat >= any_trampoline_onion.amt_to_forward:
+                if amount_msat >= (any_trampoline_onion.amt_to_forward - jit_opening_fees_msat):
                     # setting the parent key will mark the htlcs to be moved to the parent set
                     self.logger.debug(f"trampoline part complete. {len(mpp_set.htlcs)=}, "
                                       f"{amount_msat=}. setting parent key: {trampoline_payment_key}")
                     self.lnworker.received_mpp_htlcs[payment_key] = mpp_set._replace(
                         parent_set_key=trampoline_payment_key,
                     )
-            elif amount_msat >= total_msat:
+            elif amount_msat >= (total_msat - jit_opening_fees_msat):
                 # set mpp_set as completed as we have received the full total_msat
                 mpp_set = self.lnworker.set_mpp_resolution(
                     payment_key=payment_key,
