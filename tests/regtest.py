@@ -141,6 +141,9 @@ class TestLightningABC(TestLightning):
         }
     }
 
+    def test_bolt12(self):
+        self.run_shell(['bolt12'])
+
     def test_fw_fail_htlc(self):
         self.run_shell(['fw_fail_htlc'])
 
