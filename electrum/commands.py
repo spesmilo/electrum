@@ -1389,6 +1389,42 @@ class Commands(Logger):
         return wallet.export_request(req)
 
     @command('wnl')
+    async def pay_bolt12_offer(
+            self,
+            offer: str,
+            amount: Optional[Decimal] = None,
+            payer_note: Optional[str] = None,
+            wallet: Abstract_Wallet = None
+    ):
+        """Retrieve an invoice from a bolt12 offer, and pay that invoice
+
+        arg:str:offer:bolt-12 offer (bech32)
+        arg:decimal:amount:Amount to send
+        arg:str:payer_note:Text note for the recipient
+        """
+        amount_msat = satoshis(amount) * 1000 if amount else None
+        bolt12_offer = bolt12.BOLT12Offer.decode(offer)
+        offer_amount_msat = bolt12_offer.offer_amount
+        if offer_amount_msat and amount_msat and offer_amount_msat != amount_msat:
+            raise ValueError(f"{amount_msat=} different than {offer_amount_msat=}")
+        send_amount = offer_amount_msat or amount_msat
+        if not send_amount:
+            raise ValueError(f"Missing amount to send: {amount_msat=}")
+        lnworker = wallet.lnworker
+        bolt12_invoice, invoice_tlv = await lnworker.request_bolt12_invoice(
+            bolt12_offer,
+            amount_msat=send_amount,
+            payer_note=payer_note,
+        )
+        invoice_bech32 = bolt12.bolt12_tlv_bytes_to_bech32(invoice_tlv, bolt12.BOLT12Invoice)
+        invoice = Invoice.from_bech32(invoice_bech32)
+        success, log = await lnworker.pay_invoice(invoice)
+        return {
+            'success': success,
+            'log': [x.formatted_tuple() for x in log]
+        }
+
+    @command('wnl')
     async def add_lightning_offer(
             self,
             amount: Optional[Decimal] = None,
