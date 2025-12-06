@@ -232,6 +232,12 @@ class QEDaemon(AuthMixin, QObject):
 
                 if self.daemon.config.WALLET_USE_SINGLE_PASSWORD:
                     self._use_single_password = self.daemon.update_password_for_directory(old_password=local_password, new_password=local_password)
+                    if not self._use_single_password and self.daemon.config.WALLET_ANDROID_USE_BIOMETRIC_AUTHENTICATION:
+                        # we need to disable biometric auth if the user creates wallets with different passwords as
+                        # we only store one encrypted password which is not associated to a specific wallet
+                        self._logger.warning(f"biometric authentication disabled, not in single password mode")
+                        self.daemon.config.WALLET_ANDROID_USE_BIOMETRIC_AUTHENTICATION = False
+                        self.daemon.config.WALLET_ANDROID_BIOMETRIC_ENCRYPTED_DATA = ''
                     self._password = local_password
                     self.singlePasswordChanged.emit()
                     self._logger.info(f'use single password: {self._use_single_password}')

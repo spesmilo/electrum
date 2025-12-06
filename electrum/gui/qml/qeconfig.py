@@ -171,6 +171,26 @@ class QEConfig(AuthMixin, QObject):
         self.config.CONFIG_PIN_CODE = ""
         self.pinCodeChanged.emit()
 
+    biometricsEnrolledChanged= pyqtSignal()
+    @pyqtProperty(bool, notify=biometricsEnrolledChanged)
+    def biometricsEnrolled(self):
+        return self.config.WALLET_ANDROID_USE_BIOMETRIC_AUTHENTICATION
+
+    @biometricsEnrolled.setter
+    def biometricsEnrolled(self, use_biometrics: bool):
+        self.config.WALLET_ANDROID_USE_BIOMETRIC_AUTHENTICATION = use_biometrics
+        self.biometricsEnrolledChanged.emit()
+
+    biometricDataChanged = pyqtSignal()
+    @pyqtProperty(str, notify=biometricDataChanged)
+    def biometricData(self) -> str:
+        return self.config.WALLET_ANDROID_BIOMETRIC_ENCRYPTED_DATA
+
+    @biometricData.setter
+    def biometricData(self, data: str):
+        self.config.WALLET_ANDROID_BIOMETRIC_ENCRYPTED_DATA = data
+        self.biometricDataChanged.emit()
+
     useGossipChanged = pyqtSignal()
     @pyqtProperty(bool, notify=useGossipChanged)
     def useGossip(self):
