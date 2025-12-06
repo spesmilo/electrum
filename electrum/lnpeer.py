@@ -3095,7 +3095,7 @@ class Peer(Logger, EventListener):
 
             if trampoline_payment_key and trampoline_payment_key != payment_key:
                 # first stage of trampoline payment, the first stage must never get set COMPLETE
-                if amount_msat >= any_trampoline_onion.amt_to_forward:
+                if amount_msat >= (any_trampoline_onion.amt_to_forward - jit_opening_fees_msat):
                     # setting the parent key will mark the htlcs to be moved to the parent set
                     self.logger.debug(f"trampoline part complete. {len(mpp_set.htlcs)=}, "
                                       f"{amount_msat=}. setting parent key: {trampoline_payment_key}")
