@@ -1377,6 +1377,33 @@ class Commands(Logger):
         return wallet.export_request(req)
 
     @command('wnl')
+    async def pay_bolt12_offer(
+            self,
+            offer: str,
+            amount: Optional[Decimal] = None,
+            wallet: Abstract_Wallet = None
+    ):
+        """Retrieve an invoice from a bolt12 offer, and pay that invoice
+
+        arg:str:offer:bolt-12 offer (bech32)
+        arg:decimal:amount:Amount to send
+        """
+        amount_msat = satoshis(amount) * 1000 if amount else None
+        bolt12_offer = bolt12.decode_offer(offer)
+        offer_amount = bolt12_offer.get('offer_amount')
+        offer_amount_msat = offer_amount.get('amount')
+        if amount_msat and offer_amount_msat:
+            assert amount_msat == offer_amount_msat
+        lnworker = wallet.lnworker
+        bolt12_invoice, bolt12_invoice_tlv = await bolt12.request_invoice(lnworker, bolt12_offer, amount_msat or offer_amount_msat)
+        invoice = Invoice.from_bolt12_invoice_tlv(bolt12_invoice_tlv)
+        success, log = await lnworker.pay_invoice(invoice)
+        return {
+            'success': success,
+            'log': [x.formatted_tuple() for x in log]
+        }
+
+    @command('wnl')
     async def add_offer(
             self,
             amount: Optional[Decimal] = None,
@@ -2277,6 +2304,10 @@ class Commands(Logger):
 
     @command('')
     async def decode_bolt12(self, bech32: str):
+        """Decode bolt12 object
+
+        arg:str:bech32:invoice or offer
+        """
         dec = bolt12.bech32_decode(bech32, ignore_long_length=True, with_checksum=False)
         if dec == INVALID_BECH32:
             raise Exception('invalid bech32')
