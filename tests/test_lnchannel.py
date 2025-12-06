@@ -28,6 +28,7 @@ import binascii
 from pprint import pformat
 import logging
 import dataclasses
+import time
 
 from electrum import bitcoin
 from electrum import lnpeer
@@ -697,6 +698,27 @@ class TestChannel(ElectrumTestCase):
             self.alice_channel.add_htlc(new)
         self.assertIn('Not enough local balance', cm.exception.args[0])
 
+    def test_unfunded_channel_can_be_removed(self):
+        """
+        Test that an incoming channel which stays unfunded longer than
+        lnutil.CHANNEL_OPENING_TIMEOUT can be removed
+        """
+        # set the init_timestamp
+        self.bob_channel.storage['init_timestamp'] = int(time.time())
+        self.alice_channel.storage['init_timestamp'] = int(time.time())
+
+        # test that the non-initiator can remove the channel after timeout
+        self.assertFalse(self.bob_channel.is_initiator())
+        self.bob_channel._state = ChannelState.OPENING
+        self.assertFalse(self.bob_channel.can_be_deleted())
+        self.bob_channel.storage['init_timestamp'] = int(time.time()) - (lnutil.CHANNEL_OPENING_TIMEOUT + 10)
+        self.assertTrue(self.bob_channel.can_be_deleted())
+
+        # test that the initiator can't remove the channel, even after timeout
+        self.assertTrue(self.alice_channel.is_initiator())
+        self.alice_channel._state = ChannelState.OPENING
+        self.alice_channel.storage['init_timestamp'] = int(time.time()) - (lnutil.CHANNEL_OPENING_TIMEOUT + 10)
+        self.assertFalse(self.alice_channel.can_be_deleted())
 
 class TestChannelAnchors(TestChannel):
     TEST_ANCHOR_CHANNELS = True
