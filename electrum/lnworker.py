@@ -118,7 +118,15 @@ class PaymentDirection(IntEnum):
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class PaymentInfo:
-    """Information required to handle incoming htlcs for a payment request"""
+    """Information required to handle incoming htlcs for a payment request.
+
+    - Historically, we used to store "bolt11, direction, status", but deserializing bolt11 was too slow.
+      (even deserializing just once - all bolt11 during wallet-open - was slow)
+      - note: the deserialization code in lnaddr.py has been significantly sped up since
+    - For incoming payments, for unpaid requests, ~every time the user displays the unpaid bolt11,
+      we get a chance to display a new bolt11, with same payment_hash/amount, but with updated
+      routing_hints (channels might get closed/opened, or just liquidity changed drastically).
+    """
     payment_hash: bytes
     amount_msat: Optional[int]
     direction: lnutil.Direction
