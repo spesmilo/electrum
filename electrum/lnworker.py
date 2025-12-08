@@ -1574,6 +1574,7 @@ class LNWallet(LNWorker):
         return chan, funding_tx
 
     def get_channel_by_short_id(self, short_channel_id: bytes) -> Optional[Channel]:
+        assert short_channel_id and isinstance(short_channel_id, bytes), repr(short_channel_id)
         # First check against *real* SCIDs.
         # This e.g. protects against maliciously chosen SCID aliases, and accidental collisions.
         for chan in self.channels.values():
