@@ -2150,7 +2150,7 @@ class Peer(Logger, EventListener):
         Does additional checks on the incoming htlc and return the payment key if the tests pass,
         otherwise raises OnionRoutingError which will get the htlc failed.
         """
-        _log_fail_reason = self._log_htlc_fail_reason_cb(chan.short_channel_id, htlc, processed_onion.hop_data.payload)
+        _log_fail_reason = self._log_htlc_fail_reason_cb(chan.channel_id, htlc, processed_onion.hop_data.payload)
 
         # Check that our blockchain tip is sufficiently recent so that we have an approx idea of the height.
         # We should not release the preimage for an HTLC that its sender could already time out as
@@ -2269,7 +2269,7 @@ class Peer(Logger, EventListener):
         self.lnworker.dont_expire_htlcs.pop(payment_hash.hex(), None)  # htlcs wont get expired anymore
         for mpp_htlc in list(htlc_set.htlcs):
             htlc_id = mpp_htlc.htlc.htlc_id
-            chan = self.lnworker.get_channel_by_short_id(mpp_htlc.scid)
+            chan = self.lnworker.channels[mpp_htlc.channel_id]
             if chan.channel_id not in self.channels:
                 # this htlc belongs to another peer and has to be settled in their htlc_switch
                 continue
@@ -2311,7 +2311,7 @@ class Peer(Logger, EventListener):
         self.lnworker.dont_expire_htlcs.pop(payment_hash.hex(), None)
         self.lnworker.dont_settle_htlcs.pop(payment_hash.hex(), None)  # already failed
         for mpp_htlc in list(htlc_set.htlcs):
-            chan = self.lnworker.get_channel_by_short_id(mpp_htlc.scid)
+            chan = self.lnworker.channels[mpp_htlc.channel_id]
             htlc_id = mpp_htlc.htlc.htlc_id
             if chan.channel_id not in self.channels:
                 # this htlc belongs to another peer and has to be settled in their htlc_switch
@@ -2854,7 +2854,7 @@ class Peer(Logger, EventListener):
                     )
                     self.lnworker.update_or_create_mpp_with_received_htlc(
                         payment_key=payment_key,
-                        scid=chan.short_channel_id,
+                        channel_id=chan.channel_id,
                         htlc=htlc,
                         unprocessed_onion_packet=onion_packet_hex,  # outer onion if trampoline
                     )
@@ -2938,11 +2938,12 @@ class Peer(Logger, EventListener):
 
     def _log_htlc_fail_reason_cb(
         self,
-        scid: ShortChannelID,
+        channel_id: bytes,
         htlc: UpdateAddHtlc,
         onion_payload: dict
     ) -> Callable[[str], None]:
         def _log_fail_reason(reason: str) -> None:
+            scid = self.lnworker.channels[channel_id].short_channel_id
             self.logger.info(f"will FAIL HTLC: {str(scid)=}. {reason=}. {str(htlc)=}. {onion_payload=}")
         return _log_fail_reason
 
@@ -2960,7 +2961,7 @@ class Peer(Logger, EventListener):
                     onion_payload = {}
 
                 self._log_htlc_fail_reason_cb(
-                    mpp_htlc.scid,
+                    mpp_htlc.channel_id,
                     mpp_htlc.htlc,
                     onion_payload,
                 )(f"mpp set {id(mpp_set)} failed: {reason}")
@@ -3074,7 +3075,7 @@ class Peer(Logger, EventListener):
 
         if mpp_set.resolution == RecvMPPResolution.WAITING:
             # calculate the sum of just in time channel opening fees
-            htlc_channels = [self.lnworker.get_channel_by_short_id(scid) for scid in set(h.scid for h in mpp_set.htlcs)]
+            htlc_channels = [self.lnworker.channels[channel_id] for channel_id in set(h.channel_id for h in mpp_set.htlcs)]
             jit_opening_fees_msat = sum((c.jit_opening_fee or 0) for c in htlc_channels)
 
             # check if set is first stage multi-trampoline payment to us

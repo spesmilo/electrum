@@ -69,7 +69,7 @@ class WalletUnfinished(WalletFileException):
 # seed_version is now used for the version of the wallet file
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 64     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 65     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -236,6 +236,7 @@ class WalletDBUpgrader(Logger):
         self._convert_version_62()
         self._convert_version_63()
         self._convert_version_64()
+        self._convert_version_65()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
     def _convert_wallet_type(self):
@@ -1287,6 +1288,32 @@ class WalletDBUpgrader(Logger):
 
         self.data['lightning_payments'] = new_payment_infos
         self.data['seed_version'] = 64
+
+    def _convert_version_65(self):
+        """Store channel_id instead of short_channel_id in ReceivedMPPHtlc"""
+        if not self._is_upgrade_method_needed(64, 64):
+            return
+
+        channels = self.data.get('channels', {})
+        def scid_to_channel_id(scid):
+            for channel_id, channel_data in channels.items():
+                if scid == channel_data.get('short_channel_id'):
+                    return channel_id
+            raise KeyError(f"missing {scid=} in channels")
+
+        mpp_sets = self.data.get('received_mpp_htlcs', {})
+        new_mpp_sets = {}
+        for payment_key, mpp_set in mpp_sets.items():
+            resolution, htlc_list, parent_set_key = mpp_set
+            new_htlc_list = []
+            for htlc_data_tuple in htlc_list:
+                scid, update_add_htlc, onion = htlc_data_tuple
+                channel_id = scid_to_channel_id(scid)
+                new_htlc_list.append((channel_id, update_add_htlc, onion))
+            new_mpp_sets[payment_key] = (resolution, new_htlc_list, parent_set_key)
+
+        self.data['received_mpp_htlcs'] = new_mpp_sets
+        self.data['seed_version'] = 65
 
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):

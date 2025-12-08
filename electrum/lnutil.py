@@ -1965,18 +1965,18 @@ del r
 
 
 class ReceivedMPPHtlc(NamedTuple):
-    scid: ShortChannelID
+    channel_id: bytes
     htlc: UpdateAddHtlc
     unprocessed_onion: str
 
     def __repr__(self):
-        return f"{self.scid}, {self.htlc=}, {self.unprocessed_onion[:15]=}..."
+        return f"chan_id={self.channel_id.hex()}, {self.htlc=}, {self.unprocessed_onion[:15]=}..."
 
     @staticmethod
-    def from_tuple(scid, htlc, unprocessed_onion) -> 'ReceivedMPPHtlc':
-        assert is_hex_str(unprocessed_onion) and is_hex_str(scid)
+    def from_tuple(channel_id, htlc, unprocessed_onion) -> 'ReceivedMPPHtlc':
+        assert is_hex_str(unprocessed_onion) and is_hex_str(channel_id)
         return ReceivedMPPHtlc(
-            scid=ShortChannelID(bytes.fromhex(scid)),
+            channel_id=bytes.fromhex(channel_id),
             htlc=UpdateAddHtlc.from_tuple(*htlc),
             unprocessed_onion=unprocessed_onion,
         )

@@ -2583,7 +2583,7 @@ class LNWallet(LNWorker):
         self,
         *,
         payment_key: str,
-        scid: ShortChannelID,
+        channel_id: bytes,
         htlc: UpdateAddHtlc,
         unprocessed_onion_packet: str,
     ):
@@ -2610,7 +2610,7 @@ class LNWallet(LNWorker):
 
         if mpp_status.resolution > RecvMPPResolution.WAITING:
             # we are getting a htlc for a set that is not in WAITING state, it cannot be safely added
-            self.logger.info(f"htlc set cannot accept htlc, failing htlc: {scid=} {htlc.htlc_id=}")
+            self.logger.info(f"htlc set cannot accept htlc, failing htlc: {channel_id=} {htlc.htlc_id=}")
             if mpp_status == RecvMPPResolution.EXPIRED:
                 raise OnionRoutingFailure(code=OnionFailureCode.MPP_TIMEOUT, data=b'')
             raise OnionRoutingFailure(
@@ -2619,7 +2619,7 @@ class LNWallet(LNWorker):
             )
 
         new_htlc = ReceivedMPPHtlc(
-            scid=scid,
+            channel_id=channel_id,
             htlc=htlc,
             unprocessed_onion=unprocessed_onion_packet,
         )
@@ -2707,7 +2707,7 @@ class LNWallet(LNWorker):
         # only cleanup when channel is REDEEMED as mpp set is still required for lnsweep
         assert chan._state == ChannelState.REDEEMED
         for payment_key_hex, mpp_status in list(self.received_mpp_htlcs.items()):
-            htlcs_to_remove = [htlc for htlc in mpp_status.htlcs if htlc.scid == chan.short_channel_id]
+            htlcs_to_remove = [htlc for htlc in mpp_status.htlcs if htlc.channel_id == chan.channel_id]
             for stale_mpp_htlc in htlcs_to_remove:
                 assert mpp_status.resolution != RecvMPPResolution.WAITING
                 self.logger.info(f'maybe_cleanup_mpp: removing htlc of MPP {payment_key_hex}')
@@ -3547,7 +3547,7 @@ class LNWallet(LNWorker):
                 assert not any_outer_onion.are_we_final
                 assert len(processed_htlc_set) == 1, processed_htlc_set
                 forward_htlc = any_mpp_htlc.htlc
-                incoming_chan = self.get_channel_by_short_id(any_mpp_htlc.scid)
+                incoming_chan = self.channels[any_mpp_htlc.channel_id]
                 next_htlc = await self._maybe_forward_htlc(
                     incoming_chan=incoming_chan,
                     htlc=forward_htlc,
