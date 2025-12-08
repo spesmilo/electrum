@@ -1452,6 +1452,7 @@ class TestPeerDirect(TestPeer):
         async def run_test(test_trampoline: bool):
             alice_channel, bob_channel = create_test_channels()
             alice_peer, bob_peer, alice_wallet, bob_wallet, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
+            bob_wallet.features |= LnFeatures.BASIC_MPP_OPT
             lnaddr1, pay_req1 = self.prepare_invoice(bob_wallet, amount_msat=10_000)
 
             if test_trampoline:
