@@ -69,7 +69,7 @@ class WalletUnfinished(WalletFileException):
 # seed_version is now used for the version of the wallet file
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 65     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 66     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -237,6 +237,7 @@ class WalletDBUpgrader(Logger):
         self._convert_version_63()
         self._convert_version_64()
         self._convert_version_65()
+        self._convert_version_66()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
     def _convert_wallet_type(self):
@@ -1314,6 +1315,22 @@ class WalletDBUpgrader(Logger):
 
         self.data['received_mpp_htlcs'] = new_mpp_sets
         self.data['seed_version'] = 65
+
+    def _convert_version_66(self):
+        """Add invoice features to PaymentInfo"""
+        if not self._is_upgrade_method_needed(65, 65):
+            return
+
+        new_payment_infos = {}
+        old_payment_infos = self.data.get('lightning_payments', {})
+        for key, old_v in old_payment_infos.items():
+            amount_msat, status, min_final_cltv_expiry, expiry, creation_ts = old_v
+            invoice_features = 147712  # <VAR_ONION_REQ|PAYMENT_SECRET_REQ|BASIC_MPP_OPT: 0x24100>
+            new_v = (amount_msat, status, min_final_cltv_expiry, expiry, creation_ts, invoice_features)
+            new_payment_infos[key] = new_v
+
+        self.data['lightning_payments'] = new_payment_infos
+        self.data['seed_version'] = 66
 
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):

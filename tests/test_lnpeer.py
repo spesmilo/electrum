@@ -359,6 +359,9 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     is_payment_bundle_complete = LNWallet.is_payment_bundle_complete
     delete_payment_bundle = LNWallet.delete_payment_bundle
     _process_htlc_log = LNWallet._process_htlc_log
+    _get_invoice_features = LNWallet._get_invoice_features
+    receive_requires_jit_channel = LNWallet.receive_requires_jit_channel
+    can_get_zeroconf_channel = LNWallet.can_get_zeroconf_channel
 
 
 class MockTransport:
@@ -594,6 +597,7 @@ class TestPeer(ElectrumTestCase):
             status=PR_UNPAID,
             min_final_cltv_delta=min_final_cltv_delta,
             expiry_delay=expiry or LN_EXPIRY_NEVER,
+            invoice_features=invoice_features,
         )
         w2.save_payment_info(info)
         lnaddr1 = LnAddr(
