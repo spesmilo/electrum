@@ -137,6 +137,11 @@ def test_pin_unlocked(func):
             return func(self, *args, **kwargs)
         except SecurityStatusNotSatisfiedError:
             raise UserFacingException(_('Your Ledger is locked. Please unlock it.'))
+        except OSError as e:
+            _logger.exception('')
+            raise UserFacingException(
+                _('Communication with Ledger failed. Open the Bitcoin app and try again.') + f'\n{str(e)}',
+            )
     return catch_exception
 
 
