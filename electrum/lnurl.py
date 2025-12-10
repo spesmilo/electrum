@@ -179,7 +179,7 @@ def _parse_lnurl3_response(lnurl_response: dict) -> LNURL3Data:
         raise UntrustedLNURLError(f"Missing k1 value in LNURL3 response: {lnurl_response=}")
     default_description = lnurl_response.get('defaultDescription', '')
     try:
-        min_withdrawable_sat = int(lnurl_response['minWithdrawable']) // 1000
+        min_withdrawable_sat = int(lnurl_response['minWithdrawable'] or 0) // 1000
         max_withdrawable_sat = int(lnurl_response['maxWithdrawable']) // 1000
         assert max_withdrawable_sat >= min_withdrawable_sat, f"Invalid amounts: max < min amount"
         assert max_withdrawable_sat > 0, f"Invalid max amount: {max_withdrawable_sat} sat"
