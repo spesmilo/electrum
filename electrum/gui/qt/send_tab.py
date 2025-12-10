@@ -1002,3 +1002,5 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             self.window.run_coroutine_dialog(coro, _("Requesting lightning withdrawal..."))
         except LNURLError as e:
             self.show_error(f"{_('Failed to request withdrawal')}:\n{str(e)}")
+        except UserCancelled:
+            pass
