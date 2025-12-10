@@ -276,10 +276,11 @@ class TestTransaction(ElectrumTestCase):
                         data = raw_tx.data
                         tx_from_any(data)  # test if raises (should not)
                     else:
+                        mid = len(raw_tx.data) // 2
                         if isinstance(raw_tx.data, str):
-                            data = whitespace_str + raw_tx.data + whitespace_str
+                            data = whitespace_str + raw_tx.data[:mid] + whitespace_str + raw_tx.data[mid:] + whitespace_str
                         else:
-                            data = whitespace_bytes + raw_tx.data + whitespace_bytes
+                            data = whitespace_bytes + raw_tx.data[:mid] + whitespace_bytes + raw_tx.data[mid:] + whitespace_bytes
                         if raw_tx.is_whitespace_allowed:
                             tx_from_any(data)  # test if raises (should not)
                         else:

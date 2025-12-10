@@ -36,6 +36,7 @@ from enum import IntEnum
 import itertools
 import binascii
 import copy
+import re
 
 import electrum_ecc as ecc
 from electrum_ecc.util import bip340_tagged_hash
@@ -1482,7 +1483,11 @@ def convert_raw_tx_to_hex(raw: Union[str, bytes]) -> str:
     if not raw:
         raise ValueError("empty string")
     raw_unstripped = raw
-    raw = raw.strip()
+    # remove all whitespace characters
+    if isinstance(raw, str):
+        raw = re.sub(r'\s', '', raw)
+    else:
+        raw = re.sub(rb'\s', b'', raw)
     # try hex
     try:
         return binascii.unhexlify(raw).hex()
