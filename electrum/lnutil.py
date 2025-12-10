@@ -489,7 +489,10 @@ class LNProtocolWarning(Exception):
 # TODO make some of these values configurable?
 REDEEM_AFTER_DOUBLE_SPENT_DELAY = 30
 
-CHANNEL_OPENING_TIMEOUT = 24*60*60
+# timeout after which we forget incoming channels if the funding tx has no confirmation
+# https://github.com/lightning/bolts/commit/ba00bf8f4cd85f21bacfc03adcafd4acc7d68382
+CHANNEL_OPENING_TIMEOUT_BLOCKS = 2016
+CHANNEL_OPENING_TIMEOUT_SEC = 14*24*60*60  # 2 weeks
 
 # Small capacity channels are problematic for many reasons. As the onchain fees start to become
 # significant compared to the capacity, things start to break down. e.g. the counterparty
