@@ -359,6 +359,9 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     is_payment_bundle_complete = LNWallet.is_payment_bundle_complete
     delete_payment_bundle = LNWallet.delete_payment_bundle
     _process_htlc_log = LNWallet._process_htlc_log
+    _get_invoice_features = LNWallet._get_invoice_features
+    receive_requires_jit_channel = LNWallet.receive_requires_jit_channel
+    can_get_zeroconf_channel = LNWallet.can_get_zeroconf_channel
 
 
 class MockTransport:
@@ -594,6 +597,7 @@ class TestPeer(ElectrumTestCase):
             status=PR_UNPAID,
             min_final_cltv_delta=min_final_cltv_delta,
             expiry_delay=expiry or LN_EXPIRY_NEVER,
+            invoice_features=invoice_features,
         )
         w2.save_payment_info(info)
         lnaddr1 = LnAddr(
@@ -1067,6 +1071,46 @@ class TestPeerDirect(TestPeer):
         for _test_trampoline in [False, True]:
             await run_test(_test_trampoline)
 
+    async def test_reject_mpp_for_non_mpp_invoice(self):
+        """Test that we reject a payment if it is mpp and we didn't signal support for mpp in the invoice"""
+        async def run_test(test_trampoline):
+            alice_channel, bob_channel = create_test_channels()
+            p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
+            w1.config.TEST_FORCE_MPP = True  # force alice to send mpp
+
+            if test_trampoline:
+                await self._activate_trampoline(w1)
+                await self._activate_trampoline(w2)
+                # declare bob as trampoline node
+                electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
+                    'bob': LNPeerAddr(host="127.0.0.1", port=9735, pubkey=w2.node_keypair.pubkey),
+                }
+
+            lnaddr, pay_req = self.prepare_invoice(w2)
+            self.assertFalse(lnaddr.get_features().supports(LnFeatures.BASIC_MPP_OPT))
+            self.assertFalse(lnaddr.get_features().supports(LnFeatures.BASIC_MPP_REQ))
+
+            async def try_pay_invoice_with_mpp(pay_req: Invoice, w1=w1):
+                result, log = await w1.pay_invoice(pay_req)
+                if not result:
+                    raise PaymentFailure()
+                raise PaymentDone()
+
+            async def f():
+                async with OldTaskGroup() as group:
+                    await group.spawn(p1._message_loop())
+                    await group.spawn(p1.htlc_switch())
+                    await group.spawn(p2._message_loop())
+                    await group.spawn(p2.htlc_switch())
+                    await asyncio.sleep(0.01)
+                    await group.spawn(try_pay_invoice_with_mpp(pay_req))
+
+            with self.assertRaises(PaymentFailure):
+                await f()
+
+        for _test_trampoline in [False, True]:
+            await run_test(_test_trampoline)
+
     async def test_reject_multiple_payments_of_same_invoice(self):
         """Tests that new htlcs paying an invoice that has already been paid will get rejected."""
         async def run_test(test_trampoline):
@@ -1448,6 +1492,7 @@ class TestPeerDirect(TestPeer):
         async def run_test(test_trampoline: bool):
             alice_channel, bob_channel = create_test_channels()
             alice_peer, bob_peer, alice_wallet, bob_wallet, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
+            bob_wallet.features |= LnFeatures.BASIC_MPP_OPT
             lnaddr1, pay_req1 = self.prepare_invoice(bob_wallet, amount_msat=10_000)
 
             if test_trampoline:
