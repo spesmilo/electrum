@@ -1325,7 +1325,7 @@ class WalletDBUpgrader(Logger):
         old_payment_infos = self.data.get('lightning_payments', {})
         for key, old_v in old_payment_infos.items():
             amount_msat, status, min_final_cltv_expiry, expiry, creation_ts = old_v
-            invoice_features = 147712  # <VAR_ONION_REQ|PAYMENT_SECRET_REQ|BASIC_MPP_OPT: 0x24100>
+            invoice_features = 0x24100  # <VAR_ONION_REQ|PAYMENT_SECRET_REQ|BASIC_MPP_OPT>
             new_v = (amount_msat, status, min_final_cltv_expiry, expiry, creation_ts, invoice_features)
             new_payment_infos[key] = new_v
 
