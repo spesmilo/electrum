@@ -2149,7 +2149,7 @@ class LNWallet(LNWorker):
                     per_trampoline_channel_amounts = defaultdict(list)
                     # categorize by trampoline nodes for trampoline mpp construction
                     for (chan_id, _), part_amounts_msat in sc.config.items():
-                        chan = self.channels[chan_id]
+                        chan = self._channels[chan_id]
                         for part_amount_msat in part_amounts_msat:
                             per_trampoline_channel_amounts[chan.node_id].append((chan_id, part_amount_msat))
                     # for each trampoline forwarder, construct mpp trampoline
@@ -2179,7 +2179,7 @@ class LNWallet(LNWorker):
                         self.logger.info(f'trampoline hops: {[hop.end_node.hex() for hop in trampoline_route]}')
                         self.logger.info(f'per trampoline fees: {per_trampoline_fees}')
                         for chan_id, part_amount_msat in trampoline_parts:
-                            chan = self.channels[chan_id]
+                            chan = self._channels[chan_id]
                             margin = chan.available_to_spend(LOCAL) - part_amount_msat
                             delta_fee = min(per_trampoline_fees, margin)
                             # TODO: distribute trampoline fee over several channels?
@@ -2216,7 +2216,7 @@ class LNWallet(LNWorker):
                     # a failure to find a path for a single part, we try the next configuration
                     for (chan_id, _), part_amounts_msat in sc.config.items():
                         for part_amount_msat in part_amounts_msat:
-                            channel = self.channels[chan_id]
+                            channel = self._channels[chan_id]
                             route = await run_in_thread(
                                 partial(
                                     self.create_route_for_single_htlc,
@@ -3277,7 +3277,7 @@ class LNWallet(LNWorker):
         return asyncio.create_task(self.network.try_broadcasting(tx, 'force-close'))
 
     def remove_channel(self, chan_id):
-        chan = self.channels[chan_id]
+        chan = self._channels[chan_id]
         assert chan.can_be_deleted()
         with self.lock:
             self._channels.pop(chan_id)
@@ -3394,8 +3394,7 @@ class LNWallet(LNWorker):
         return 'channel_backup:' + encrypted
 
     async def request_force_close(self, channel_id: bytes, *, connect_str=None) -> None:
-        if channel_id in self.channels:
-            chan = self.channels[channel_id]
+        if chan := self.get_channel_by_id(channel_id):
             peer = self._peers.get(chan.node_id)
             chan.should_request_force_close = True
             if peer:
@@ -3558,7 +3557,7 @@ class LNWallet(LNWorker):
                 assert not any_outer_onion.are_we_final
                 assert len(processed_htlc_set) == 1, processed_htlc_set
                 forward_htlc = any_mpp_htlc.htlc
-                incoming_chan = self.channels[any_mpp_htlc.channel_id]
+                incoming_chan = self._channels[any_mpp_htlc.channel_id]
                 next_htlc = await self._maybe_forward_htlc(
                     incoming_chan=incoming_chan,
                     htlc=forward_htlc,

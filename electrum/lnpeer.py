@@ -289,7 +289,7 @@ class Peer(Logger, EventListener):
         self.logger.info(f"remote peer sent error [DO NOT TRUST THIS MESSAGE]: "
                          f"{error_text_bytes_to_safe_str(err_bytes, max_len=None)}. chan_id={chan_id.hex()}. "
                          f"{is_known_chan_id=}")
-        if chan := self.channels.get(chan_id):
+        if chan := self.get_channel_by_id(chan_id):
             self.schedule_force_closing(chan_id)
             self.ordered_message_queues[chan_id].put_nowait((None, {'error': err_bytes}))
             chan.save_remote_peer_sent_error(err_bytes)
@@ -1499,7 +1499,7 @@ class Peer(Logger, EventListener):
         channels_with_peer.extend(self.temp_id_to_id.values())
         if channel_id not in channels_with_peer:
             raise ValueError(f"channel {channel_id.hex()} does not belong to this peer")
-        chan = self.channels.get(channel_id)
+        chan = self.get_channel_by_id(channel_id)
         if not chan:
             self.logger.warning(f"tried to force-close channel {channel_id.hex()} but it is not in self.channels yet")
         if ChanCloseOption.LOCAL_FCLOSE in chan.get_close_options():
@@ -2275,8 +2275,8 @@ class Peer(Logger, EventListener):
         self.lnworker.dont_expire_htlcs.pop(payment_hash.hex(), None)  # htlcs wont get expired anymore
         for mpp_htlc in list(htlc_set.htlcs):
             htlc_id = mpp_htlc.htlc.htlc_id
-            chan = self.lnworker.channels[mpp_htlc.channel_id]
-            if chan.channel_id not in self.channels:
+            chan = self.get_channel_by_id(mpp_htlc.channel_id)
+            if chan is None:
                 # this htlc belongs to another peer and has to be settled in their htlc_switch
                 continue
             if not chan.can_update_ctx(proposer=LOCAL):
@@ -2317,9 +2317,9 @@ class Peer(Logger, EventListener):
         self.lnworker.dont_expire_htlcs.pop(payment_hash.hex(), None)
         self.lnworker.dont_settle_htlcs.pop(payment_hash.hex(), None)  # already failed
         for mpp_htlc in list(htlc_set.htlcs):
-            chan = self.lnworker.channels[mpp_htlc.channel_id]
+            chan = self.get_channel_by_id(mpp_htlc.channel_id)
             htlc_id = mpp_htlc.htlc.htlc_id
-            if chan.channel_id not in self.channels:
+            if chan is None:
                 # this htlc belongs to another peer and has to be settled in their htlc_switch
                 continue
             if not chan.can_update_ctx(proposer=LOCAL):
@@ -2489,7 +2489,8 @@ class Peer(Logger, EventListener):
 
     @log_exceptions
     async def close_channel(self, chan_id: bytes):
-        chan = self.channels[chan_id]
+        chan = self.get_channel_by_id(chan_id)
+        assert chan
         self.shutdown_received[chan_id] = self.asyncio_loop.create_future()
         await self.send_shutdown(chan)
         payload = await self.shutdown_received[chan_id]
@@ -2949,7 +2950,7 @@ class Peer(Logger, EventListener):
         onion_payload: dict
     ) -> Callable[[str], None]:
         def _log_fail_reason(reason: str) -> None:
-            scid = self.lnworker.channels[channel_id].short_channel_id
+            scid = self.lnworker.get_channel_by_id(channel_id).short_channel_id
             self.logger.info(f"will FAIL HTLC: {str(scid)=}. {reason=}. {str(htlc)=}. {onion_payload=}")
         return _log_fail_reason
 
@@ -3082,7 +3083,7 @@ class Peer(Logger, EventListener):
         if mpp_set.resolution == RecvMPPResolution.WAITING:
             # calculate the sum of just in time channel opening fees, note jit only supports
             # single part payments for now, this is enforced by checking against the invoice features
-            htlc_channels = [self.lnworker.channels[channel_id] for channel_id in set(h.channel_id for h in mpp_set.htlcs)]
+            htlc_channels = [self.lnworker.get_channel_by_id(channel_id) for channel_id in set(h.channel_id for h in mpp_set.htlcs)]
             jit_opening_fees_msat = sum((c.jit_opening_fee or 0) for c in htlc_channels)
 
             # check if set is first stage multi-trampoline payment to us

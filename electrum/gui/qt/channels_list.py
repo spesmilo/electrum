@@ -207,8 +207,8 @@ class ChannelsList(MyTreeView):
             idx2 = selected[1]
             channel_id1 = idx1.sibling(idx1.row(), self.Columns.NODE_ALIAS).data(ROLE_CHANNEL_ID)
             channel_id2 = idx2.sibling(idx2.row(), self.Columns.NODE_ALIAS).data(ROLE_CHANNEL_ID)
-            chan1 = self.lnworker.channels.get(channel_id1)
-            chan2 = self.lnworker.channels.get(channel_id2)
+            chan1 = self.lnworker.get_channel_by_id(channel_id1)
+            chan2 = self.lnworker.get_channel_by_id(channel_id2)
             if chan1 and chan2 and (not self.lnworker.uses_trampoline() or chan1.node_id != chan2.node_id):
                 return chan1, chan2
         return None, None
