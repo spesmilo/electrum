@@ -36,6 +36,7 @@ from enum import IntEnum
 import itertools
 import binascii
 import copy
+import re
 
 import electrum_ecc as ecc
 from electrum_ecc.util import bip340_tagged_hash
@@ -1482,7 +1483,16 @@ def convert_raw_tx_to_hex(raw: Union[str, bytes]) -> str:
     if not raw:
         raise ValueError("empty string")
     raw_unstripped = raw
-    raw = raw.strip()
+    if isinstance(raw, str):
+        # remove all whitespace characters, anywhere, for convenience
+        # - leading/trailing whitespaces are quite common for user-input
+        # - newlines in the middle can also happen, e.g. when copying a raw tx from a pdf
+        # note: we don't do this for bytes-like inputs, as whitespace-looking bytes can appear
+        #       anywhere in a raw tx. Even leading/trailing pseudo-whitespace: consider that
+        #       the nVersion or the nLocktime might contain e.g. "0a" bytes
+        #       consider:  "\n".encode().hex() == "0a"
+        #       For str, this is a non-issue and safe to do.
+        raw = re.sub(r'\s', '', raw)
     # try hex
     try:
         return binascii.unhexlify(raw).hex()
@@ -1524,7 +1534,7 @@ def tx_from_any(raw: Union[str, bytes], *,
         return tx
     except Exception as e:
         raise SerializationError(f"Failed to recognise tx encoding, or to parse transaction. "
-                                 f"raw: {raw[:30]}...") from e
+                                 f"raw: {raw[:30]!r}...") from e
 
 
 class PSBTGlobalType(IntEnum):
