@@ -76,7 +76,7 @@ requirements =
     plyer,
     libffi,
     libsecp256k1,
-    cryptography,
+    pycryptodomex,
     pyqt6sip,
     pyqt6,
     libzbar
