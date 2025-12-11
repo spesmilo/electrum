@@ -2314,8 +2314,6 @@ class Peer(Logger, EventListener):
         local_height = self.network.blockchain().height()
         payment_hash = htlc_set.get_payment_hash()
         assert payment_hash is not None, "Empty htlc set?"
-        self.lnworker.dont_expire_htlcs.pop(payment_hash.hex(), None)
-        self.lnworker.dont_settle_htlcs.pop(payment_hash.hex(), None)  # already failed
         for mpp_htlc in list(htlc_set.htlcs):
             chan = self.get_channel_by_id(mpp_htlc.channel_id)
             htlc_id = mpp_htlc.htlc.htlc_id
