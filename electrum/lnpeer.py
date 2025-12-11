@@ -4,7 +4,6 @@
 # Distributed under the MIT software license, see the accompanying
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
 
-import zlib
 from collections import OrderedDict, defaultdict
 import asyncio
 import os
@@ -786,13 +785,11 @@ class Peer(Logger, EventListener):
             first_blocknum=first_block,
             number_of_blocks=num_blocks)
 
-    def decode_short_ids(self, encoded):
-        if encoded[0] == 0:
-            decoded = encoded[1:]
-        elif encoded[0] == 1:
-            decoded = zlib.decompress(encoded[1:])
-        else:
+    @staticmethod
+    def decode_short_ids(encoded):
+        if encoded[0] != 0:
             raise Exception(f'decode_short_ids: unexpected first byte: {encoded[0]}')
+        decoded = encoded[1:]
         ids = [decoded[i:i+8] for i in range(0, len(decoded), 8)]
         return ids
 
