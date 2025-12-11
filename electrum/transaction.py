@@ -1483,11 +1483,15 @@ def convert_raw_tx_to_hex(raw: Union[str, bytes]) -> str:
     if not raw:
         raise ValueError("empty string")
     raw_unstripped = raw
-    # remove all whitespace characters
-    if isinstance(raw, str):
+    # try to remove whitespaces.
+    # FIXME we should NOT do *any* whitespace mangling for bytes-like inputs, only str
+    raw = raw.strip()  # remove leading/trailing whitespace, even if bytes-like
+    if isinstance(raw, str):  # remove all whitespace characters, if str
+        # note: we don't do this for bytes-like inputs, as whitespace-looking bytes can appear
+        #       anywhere in a raw tx. Even leading/trailing pseudo-whitespace: consider that
+        #       the nVersion or the nLocktime might contain "0a" bytes
+        #       consider e.g.:  "\n".encode().hex() == "0a"
         raw = re.sub(r'\s', '', raw)
-    else:
-        raw = re.sub(rb'\s', b'', raw)
     # try hex
     try:
         return binascii.unhexlify(raw).hex()
@@ -1529,7 +1533,7 @@ def tx_from_any(raw: Union[str, bytes], *,
         return tx
     except Exception as e:
         raise SerializationError(f"Failed to recognise tx encoding, or to parse transaction. "
-                                 f"raw: {raw[:30]}...") from e
+                                 f"raw: {raw[:30]!r}...") from e
 
 
 class PSBTGlobalType(IntEnum):
