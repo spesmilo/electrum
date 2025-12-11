@@ -3240,7 +3240,10 @@ class Peer(Logger, EventListener):
                 # this was a forwarding set and it failed
                 self.lnworker.set_mpp_resolution(payment_key, RecvMPPResolution.FAILED)
                 return error_bytes or failure_message, None, None
-            preimage = self.lnworker.get_preimage(mpp_set.get_payment_hash())
+            payment_hash = mpp_set.get_payment_hash()
+            if payment_hash.hex() in self.lnworker.dont_settle_htlcs:
+                return None, None, None
+            preimage = self.lnworker.get_preimage(payment_hash)
             return None, preimage, None
 
         return None
