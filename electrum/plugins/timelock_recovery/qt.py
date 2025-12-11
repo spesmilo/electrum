@@ -463,6 +463,16 @@ class Plugin(TimelockRecoveryPlugin):
                 payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
                 payto_e.setToolTip("At least one line must be set to max spend ('!' in the amount column).")
                 return False
+            for output in pi.multiline_outputs:  # type: PartialTxOutput
+                if not output.address:
+                    payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
+                    payto_e.setToolTip("Recovery should only send to addresses.")
+                    return False
+                else:
+                    if context.wallet.is_mine(output.address):
+                        payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
+                        payto_e.setToolTip("Recovery should not send to same wallet.")
+                        return False
             context.outputs = pi.multiline_outputs
         else:
             if not pi.is_available() or pi.type != PaymentIdentifierType.SPK or not pi.spk_is_address:
@@ -470,6 +480,10 @@ class Plugin(TimelockRecoveryPlugin):
                 payto_e.setToolTip("Invalid address type - must be a Bitcoin address.")
                 return False
             assert pi.spk and pi.spk_is_address
+            if context.wallet.is_mine(pi.text):
+                payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
+                payto_e.setToolTip("Recovery should not send to same wallet.")
+                return False
             context.outputs = [PartialTxOutput(scriptpubkey=pi.spk, value='!')]
         return True
 
