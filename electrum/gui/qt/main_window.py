@@ -2368,13 +2368,26 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         )
         if not fileName:
             return
+        file_content = None  # type: None | str | bytes
+        # 1. try to open file as "text"
         try:
-            with open(fileName, "rb") as f:
-                file_content = f.read()  # type: Union[str, bytes]
+            with open(fileName, "r", encoding="ascii") as f:
+                file_content = f.read()  # type: str
         except (ValueError, IOError, os.error) as reason:
-            self.show_critical(_("Electrum was unable to open your transaction file") + "\n" + str(reason),
-                               title=_("Unable to read file or no transaction found"))
-            return
+            pass
+        else:
+            assert isinstance(file_content, str), f"expected str, got {type(file_content)}"
+            file_content = file_content.strip()  # for text, we can safely strip leading/trailing whitespaces
+        # 2. try to open file as "binary"
+        if file_content is None:
+            try:
+                with open(fileName, "rb") as f:
+                    file_content = f.read()  # type: bytes
+            except (ValueError, IOError, os.error) as reason:
+                self.show_critical(_("Electrum was unable to open your transaction file") + "\n" + str(reason),
+                                   title=_("Unable to read file or no transaction found"))
+        if file_content is None:
+            return None
         return self.tx_from_text(file_content)
 
     def do_process_from_text(self):

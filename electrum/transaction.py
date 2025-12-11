@@ -1483,14 +1483,15 @@ def convert_raw_tx_to_hex(raw: Union[str, bytes]) -> str:
     if not raw:
         raise ValueError("empty string")
     raw_unstripped = raw
-    # try to remove whitespaces.
-    # FIXME we should NOT do *any* whitespace mangling for bytes-like inputs, only str
-    raw = raw.strip()  # remove leading/trailing whitespace, even if bytes-like
-    if isinstance(raw, str):  # remove all whitespace characters, if str
+    if isinstance(raw, str):
+        # remove all whitespace characters, anywhere, for convenience
+        # - leading/trailing whitespaces are quite common for user-input
+        # - newlines in the middle can also happen, e.g. when copying a raw tx from a pdf
         # note: we don't do this for bytes-like inputs, as whitespace-looking bytes can appear
         #       anywhere in a raw tx. Even leading/trailing pseudo-whitespace: consider that
-        #       the nVersion or the nLocktime might contain "0a" bytes
-        #       consider e.g.:  "\n".encode().hex() == "0a"
+        #       the nVersion or the nLocktime might contain e.g. "0a" bytes
+        #       consider:  "\n".encode().hex() == "0a"
+        #       For str, this is a non-issue and safe to do.
         raw = re.sub(r'\s', '', raw)
     # try hex
     try:
