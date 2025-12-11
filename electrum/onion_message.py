@@ -42,7 +42,8 @@ from electrum.crypto import sha256, get_ecdh
 from electrum.lnmsg import OnionWireSerializer
 from electrum.lnonion import (get_bolt04_onion_key, OnionPacket, process_onion_packet, blinding_privkey,
                               OnionHopsDataSingle, decrypt_onionmsg_data_tlv, encrypt_onionmsg_data_tlv,
-                              get_shared_secrets_along_route, new_onion_packet, encrypt_hops_recipient_data)
+                              get_shared_secrets_along_route, new_onion_packet, encrypt_hops_recipient_data,
+                              next_blinding_from_shared_secret)
 from electrum.lnutil import LnFeatures, MIN_FINAL_CLTV_DELTA_ACCEPTED, MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED
 from electrum.util import OldTaskGroup, log_exceptions
 
@@ -82,7 +83,8 @@ def create_blinded_path(
         final_recipient_data: dict,
         *,
         hop_extras: Optional[Sequence[dict]] = None,
-        dummy_hops: Optional[int] = 0
+        dummy_hops: Optional[int] = 0,
+        channels: Optional[Sequence['Channel']] = None,
 ) -> dict:
     # dummy hops could be inserted anywhere in the path, but for compatibility just add them at the end
     # because blinded paths are usually constructed towards ourselves, and we know we can handle dummy hops.
@@ -101,10 +103,17 @@ def create_blinded_path(
 
         if is_non_final_node:
             # spec: alt: short_channel_id instead of next_node_id
-            recipient_data = {
-                # TODO: SHOULD add padding data to ensure all encrypted_data_tlv(i) have the same length
-                'next_node_id': {'node_id': path[i+1]}
-            }
+            if channels:  # use short_channel_id for payments
+                recipient_data = {
+                    # TODO: SHOULD add padding data to ensure all encrypted_data_tlv(i) have the same length
+                    'short_channel_id': {'short_channel_id': channels[i].short_channel_id}
+                }
+            else:
+                recipient_data = {
+                    # TODO: SHOULD add padding data to ensure all encrypted_data_tlv(i) have the same length
+                    'next_node_id': {'node_id': path[i+1]}
+                }
+
             if hop_extras and i < len(hop_extras):  # extra hop data for debugging for now
                 recipient_data.update(hop_extras[i])
         else:
@@ -233,12 +242,7 @@ def send_onion_message_to(
                 if next_path_key_override:
                     next_path_key = next_path_key_override.get('path_key')
                 else:
-                    # E_i+1=SHA256(E_i||ss_i) * E_i
-                    blinding_factor = sha256(our_blinding + shared_secret)
-                    blinding_factor_int = int.from_bytes(blinding_factor, byteorder="big")
-                    next_public_key_int = ecc.ECPubkey(our_blinding) * blinding_factor_int
-                    next_path_key = next_public_key_int.get_public_key_bytes()
-
+                    next_path_key = next_blinding_from_shared_secret(our_blinding, shared_secret)
                 path_key = next_path_key
 
             else:
@@ -475,7 +479,7 @@ def get_blinded_paths_to_me(
                 }
             recipient_data, path_id = ensure_path_id(final_recipient_data)
             blinded_path = create_blinded_path(os.urandom(32), [chan.node_id, mynodeid], recipient_data,
-                                               hop_extras=hop_extras)
+                                               hop_extras=hop_extras, channels=[chan] if not onion_message else None)
             result.append(BlindedPathInfo(blinded_path, path_id, payinfo))
     elif onion_message:
         # we can use peers even without channels for onion messages

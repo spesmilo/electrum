@@ -163,15 +163,7 @@ class TestOnionMessage(ElectrumTestCase):
         our_privkey = bfh(test_vectors['decrypt']['hops'][0]['privkey'])
         blinding = bfh(test_vectors['route']['first_path_key'])
 
-        shared_secret = get_ecdh(our_privkey, blinding)
-        b_hmac = get_bolt04_onion_key(b'blinded_node_id', shared_secret)
-        b_hmac_int = int.from_bytes(b_hmac, byteorder="big")
-
-        our_privkey_int = int.from_bytes(our_privkey, byteorder="big")
-        our_privkey_int = our_privkey_int * b_hmac_int % ecc.CURVE_ORDER
-        our_privkey = our_privkey_int.to_bytes(32, byteorder="big")
-
-        p = process_onion_packet(o, our_privkey, tlv_stream_name='onionmsg_tlv')
+        p = process_onion_packet(o, our_privkey, tlv_stream_name='onionmsg_tlv', blinding=blinding)
 
         self.assertEqual(p.hop_data.blind_fields, {})
         self.assertEqual(p.hop_data.hmac, bfh('a5296325ba478ba1e1a9d1f30a2d5052b2e2889bbd64f72c72bc71d8817288a2'))

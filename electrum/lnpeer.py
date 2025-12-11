@@ -1941,6 +1941,7 @@ class Peer(Logger, EventListener):
         cltv_abs: int,
         onion: OnionPacket,
         session_key: Optional[bytes] = None,
+        blinding: Optional[bytes] = None
     ) -> UpdateAddHtlc:
         assert chan.can_send_update_add_htlc(), f"cannot send updates: {chan.short_channel_id}"
         htlc = UpdateAddHtlc(amount_msat=amount_msat, payment_hash=payment_hash, cltv_abs=cltv_abs, timestamp=int(time.time()))
@@ -1948,6 +1949,10 @@ class Peer(Logger, EventListener):
         if session_key:
             chan.set_onion_key(htlc.htlc_id, session_key) # should it be the outer onion secret?
         self.logger.info(f"starting payment. htlc: {htlc}")
+        extra = {}
+        if blinding:
+            extra = {'update_add_htlc_tlvs': {'blinded_path': {'path_key': blinding}}}
+
         self.send_message(
             "update_add_htlc",
             channel_id=chan.channel_id,
@@ -1955,7 +1960,8 @@ class Peer(Logger, EventListener):
             cltv_expiry=htlc.cltv_abs,
             amount_msat=htlc.amount_msat,
             payment_hash=htlc.payment_hash,
-            onion_routing_packet=onion.to_bytes())
+            onion_routing_packet=onion.to_bytes(),
+            **extra)
         self.maybe_send_commitment(chan)
         return htlc
 
@@ -2125,11 +2131,7 @@ class Peer(Logger, EventListener):
             # current_path_key, amt_to_forward, outgoing_cltv_value and total_amount_msat.
             assert all(x in ['encrypted_recipient_data', 'current_blinding_point', 'amt_to_forward', 'outgoing_cltv_value', 'total_amount_msat']
                        for x in processed_onion.hop_data.payload.keys())
-            shared_secret = get_ecdh(self.privkey, htlc.blinding)
-            recipient_data = decrypt_onionmsg_data_tlv(
-                shared_secret=shared_secret,
-                encrypted_recipient_data=processed_onion.hop_data.payload['encrypted_recipient_data']['encrypted_data']
-            )
+            recipient_data = processed_onion.blinded_path_recipient_data
             path_id = recipient_data.get('path_id', {}).get('data')
             if not path_id:
                 log_fail_reason(f"'path_id' missing in recipient_data")
