@@ -787,7 +787,9 @@ class Peer(Logger, EventListener):
 
     @staticmethod
     def decode_short_ids(encoded):
-        if encoded[0] != 0:
+        if len(encoded) < 1 or (len(encoded) - 1) % 8 != 0:
+            raise Exception(f'decode_short_ids: invalid size: {len(encoded)=}')
+        elif encoded[0] != 0:
             raise Exception(f'decode_short_ids: unexpected first byte: {encoded[0]}')
         decoded = encoded[1:]
         ids = [decoded[i:i+8] for i in range(0, len(decoded), 8)]
