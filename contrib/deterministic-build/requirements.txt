@@ -16,8 +16,8 @@ certifi==2025.4.26 \
     --hash=sha256:0a816057ea3cdefcef70270d2c515e4506bbc954f417fa5ade2021213bb8f0c6
 dnspython==2.4.2 \
     --hash=sha256:8dcfae8c7460a2f84b4072e26f1c9f4101ca20c071649cb7c34e8b6a93d58984
-electrum-aionostr==0.0.11 \
-    --hash=sha256:0eeb1d01e55d4bab2c116268965a0b2c11490659e969fd864c453104558bcf81
+electrum-aionostr==0.1.0 \
+    --hash=sha256:3774f8e8312388272e10851a869c9f4d3d4a54d8d564851c36e2dc40297bec84
 electrum-ecc==0.0.6 \
     --hash=sha256:6360c71fb08b51d80a455e938f126ba4c790be74ba226461d54d7a3aa6890b89
 frozenlist==1.6.0 \

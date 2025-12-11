@@ -7,7 +7,7 @@ aiohttp_socks>=0.9.2
 certifi
 jsonpatch
 electrum_ecc>=0.0.4,<0.1
-electrum_aionostr>=0.0.11,<0.1
+electrum_aionostr>=0.1.0,<0.2
 
 # - upper limit to avoid needing hatchling at build-time :/
 #   (however newer versions should work at runtime)
