@@ -2202,9 +2202,9 @@ class PartialTransaction(Transaction):
         return res
 
     @classmethod
-    def from_raw_psbt(cls, raw) -> 'PartialTransaction':
+    def from_raw_psbt(cls, raw: Union[str, bytes, bytearray]) -> 'PartialTransaction':
         # auto-detect and decode Base64 and Hex.
-        if raw[0:10].lower() in (b'70736274ff', '70736274ff'):  # hex
+        if raw[0:10].lower() == '70736274ff':  # hex (str)
             raw = bytes.fromhex(raw)
         elif raw[0:6] in (b'cHNidP', 'cHNidP'):  # base64
             raw = base64.b64decode(raw, validate=True)
