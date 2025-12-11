@@ -634,6 +634,45 @@ class TestPeer(ElectrumTestCase):
             w2.register_hold_invoice(payment_hash, cb)
 
 
+class TestPeerUtils(TestPeer):
+
+    def test_decode_short_ids(self):
+        """
+        Test Peer.decode_short_ids() against some data from
+        https://github.com/lightning/bolts/commit/313c0f290eb87e96dc8195cad0c891418a826c2c
+        """
+        # Test uncompressed encoding with three scids
+        encoded_uncompressed = bytes.fromhex("00" + "0000000000003043" + "00000000000778d6" + "000000000046e1c1")
+        result = Peer.decode_short_ids(encoded_uncompressed)
+        self.assertEqual(len(result), 3)
+        self.assertEqual(result[0], bytes.fromhex("0000000000003043"))  # 0x0x12355
+        self.assertEqual(result[1], bytes.fromhex("00000000000778d6"))  # 0x7x30934
+        self.assertEqual(result[2], bytes.fromhex("000000000046e1c1"))  # 0x70x57793
+
+        # Test empty list
+        encoded_empty = bytes.fromhex("00")
+        result = Peer.decode_short_ids(encoded_empty)
+        self.assertEqual(result, [])
+
+        # Test single scid
+        encoded_single = bytes.fromhex("00" + "000000000000008e")  # 0x0x142
+        result = Peer.decode_short_ids(encoded_single)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0], bytes.fromhex("000000000000008e"))
+
+        # test invalid size raises exception
+        encoded_invalid = bytes.fromhex("00" + "00" * 9)
+        with self.assertRaises(Exception) as ctx:
+            Peer.decode_short_ids(encoded_invalid)
+        self.assertIn("invalid size", str(ctx.exception))
+
+        # Test unsupported encoding raises exception (considering it even passes the length check)
+        encoded_unsupported = bytes.fromhex("01" + "00" * 8)  # 01 was zlib before removed
+        with self.assertRaises(Exception) as ctx:
+            Peer.decode_short_ids(encoded_unsupported)
+        self.assertIn("unexpected first byte", str(ctx.exception))
+
+
 class TestPeerDirect(TestPeer):
 
     def prepare_peers(
