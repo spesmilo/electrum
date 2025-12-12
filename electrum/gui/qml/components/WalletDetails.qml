@@ -462,6 +462,18 @@ Pane {
     }
 
     Connections {
+        target: Biometrics
+        function onEncryptionSuccess(encrypted_password) {
+            // update the encrypted password in the config
+            Config.biometricData = encrypted_password
+        }
+        function onEncryptionError(error) {
+            Config.biometricsEnrolled = false
+            Config.biometricData = ''
+        }
+    }
+
+    Connections {
         target: Daemon
         function onWalletLoaded() {
             Daemon.availableWallets.reload()
@@ -475,6 +487,16 @@ Pane {
             })
             dialog.accepted.connect(function() {
                 var success = Daemon.setPassword(dialog.password)
+                if (success && Config.biometricsEnrolled) {
+                    if (Biometrics.isAvailable) {
+                        // also update the biometric authentication
+                        Biometrics.encrypt(dialog.password)
+                    } else {
+                        // disable biometric authentication as it is not available
+                        Config.biometricsEnrolled = false
+                        Config.biometricData = ''
+                    }
+                }
                 var done_dialog = app.messageDialog.createObject(app, {
                     title: success ? qsTr('Success') : qsTr('Error'),
                     iconSource: success
@@ -528,6 +550,11 @@ Pane {
             })
             dialog.accepted.connect(function() {
                 var success = Daemon.currentWallet.setPassword(dialog.password)
+                if (success && Config.biometricsEnrolled) {
+                    // disable biometric authentication as it only works with the unified password
+                    Config.biometricsEnrolled = false
+                    Config.biometricData = ''
+                }
                 var done_dialog = app.messageDialog.createObject(app, {
                     title: success ? qsTr('Success') : qsTr('Error'),
                     iconSource: success
