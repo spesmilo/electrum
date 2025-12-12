@@ -1941,7 +1941,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             self.lightning_button.setText('')
             self.lightning_button.setToolTip(_("The Lightning Network graph is fully synced."))
         else:
-            self.lightning_button.setMaximumWidth(25 + 5 * char_width_in_lineedit())
+            self.lightning_button.setMaximumWidth(25 + 6 * char_width_in_lineedit())
             self.lightning_button.setText(progress_str)
             self.lightning_button.setToolTip(_("The Lightning Network graph is syncing...\n"
                                                "Payments are more likely to succeed with a more complete graph."))
