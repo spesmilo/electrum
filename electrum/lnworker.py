@@ -146,7 +146,7 @@ class PaymentInfo:
         assert isinstance(self.direction, int)
         assert isinstance(self.status, int)
         assert isinstance(self.min_final_cltv_delta, int)
-        assert isinstance(self.expiry_delay, int) and self.expiry_delay > 0
+        assert isinstance(self.expiry_delay, int) and self.expiry_delay > 0, repr(self.expiry_delay)
         assert isinstance(self.creation_ts, int)
         assert isinstance(self.invoice_features, LnFeatures)
 
@@ -2414,7 +2414,7 @@ class LNWallet(LNWorker):
             direction=RECEIVED,
             status=PR_UNPAID,
             min_final_cltv_delta=min_final_cltv_delta,
-            expiry_delay=exp_delay,
+            expiry_delay=exp_delay or LN_EXPIRY_NEVER,
             invoice_features=invoice_features,
         )
         self.save_preimage(payment_hash, payment_preimage, write_to_disk=False)
