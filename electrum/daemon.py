@@ -663,14 +663,15 @@ class Daemon(Logger):
             asyncio.run_coroutine_threadsafe(self.stop(), self.asyncio_loop).result()
 
     @with_wallet_lock
-    def _check_password_for_directory(self, *, old_password, new_password=None, wallet_dir: str) -> Tuple[bool, bool]:
+    def check_password_for_directory(self, *, old_password, new_password=None, wallet_dir: str) -> Tuple[bool, bool, int]:
         """Checks password against all wallets (in dir), returns whether they can be unified and whether they are already.
         If new_password is not None, update all wallet passwords to new_password.
         """
         assert os.path.exists(wallet_dir), f"path {wallet_dir!r} does not exist"
         failed = []
         is_unified = True
-        for filename in os.listdir(wallet_dir):
+        wallet_filenames = os.listdir(wallet_dir)
+        for filename in wallet_filenames:
             path = os.path.join(wallet_dir, filename)
             path = standardize_path(path)
             if not os.path.isfile(path):
@@ -708,7 +709,8 @@ class Daemon(Logger):
                 wallet.update_password(old_password_real, new_password, encrypt_storage=True)
         can_be_unified = failed == []
         is_unified = can_be_unified and is_unified
-        return can_be_unified, is_unified
+        num_can_unlock = len(wallet_filenames) - len(failed)
+        return can_be_unified, is_unified, num_can_unlock
 
     @with_wallet_lock
     def update_password_for_directory(
@@ -724,13 +726,13 @@ class Daemon(Logger):
             return False
         if wallet_dir is None:
             wallet_dir = os.path.dirname(self.config.get_wallet_path())
-        can_be_unified, is_unified = self._check_password_for_directory(
+        can_be_unified, is_unified, _ = self.check_password_for_directory(
             old_password=old_password, new_password=None, wallet_dir=wallet_dir)
         if not can_be_unified:
             return False
         if is_unified and old_password == new_password:
             return True
-        self._check_password_for_directory(
+        self.check_password_for_directory(
             old_password=old_password, new_password=new_password, wallet_dir=wallet_dir)
         return True
 
