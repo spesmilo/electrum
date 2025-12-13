@@ -243,12 +243,25 @@ class SettingsDialog(QDialog, QtEventListener):
             self.need_restart = True
         colortheme_combo.currentIndexChanged.connect(on_colortheme)
 
-        updatecheck_cb = checkbox_from_configvar(self.config.cv.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS)
-        updatecheck_cb.setChecked(self.config.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS)
+        update_check_label = HelpLabel(
+            text=_("Update check") + ":",
+            help_text="".join([
+                _("Choose how Electrum checks for updates"), ":\n\n",
+                "-> ", _("Disabled"), ":\n", _("No update checks will be performed"), "\n\n",
+                "-> ", _("Stable"), ":\n", _("You will get notified when a new stable version has been released"), "\n\n",
+                "-> ", _("Beta"), ":\n", _("You will also get notified for newer, more experimental releases"),
+            ]),
+        )
+        update_check_combo = QComboBox()
+        update_check_combo.addItem(_("Disabled"), 0)
+        update_check_combo.addItem(_("Stable"), 1)
+        update_check_combo.addItem(_("Beta"), 2)
+        index = update_check_combo.findData(self.config.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS)
+        update_check_combo.setCurrentIndex(index)
 
-        def on_set_updatecheck(_x):
-            self.config.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS = updatecheck_cb.isChecked()
-        updatecheck_cb.stateChanged.connect(on_set_updatecheck)
+        def on_update_channel_changed(x):
+            self.config.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS = update_check_combo.itemData(x)
+        update_check_combo.currentIndexChanged.connect(on_update_channel_changed)
 
         filelogging_cb = checkbox_from_configvar(self.config.cv.WRITE_LOGS_TO_DISK)
         filelogging_cb.setChecked(self.config.WRITE_LOGS_TO_DISK)
@@ -394,11 +407,11 @@ class SettingsDialog(QDialog, QtEventListener):
         fiat_widgets.append((QLabel(_('Source')), ex_combo))
         fiat_widgets.append((self.history_rates_cb, None))
         misc_widgets = []
-        misc_widgets.append((updatecheck_cb, None))
         misc_widgets.append((filelogging_cb, None))
         misc_widgets.append((screenshot_protection_cb, None))
         misc_widgets.append((alias_label, self.alias_e))
         misc_widgets.append((qr_label, qr_combo))
+        misc_widgets.append((update_check_label, update_check_combo))
 
         tabs_info = [
             (gui_widgets, _('Appearance')),
