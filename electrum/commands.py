@@ -43,15 +43,16 @@ import re
 
 import electrum_ecc as ecc
 
-from . import util
+from . import util, bolt12
 from .lnmsg import OnionWireSerializer
 from .lnworker import LN_P2P_NETWORK_TIMEOUT
 from .logging import Logger
 from .onion_message import create_blinded_path, send_onion_message_to
+from .segwit_addr import bech32_encode, Encoding, convertbits, INVALID_BECH32
 from .submarine_swaps import NostrTransport
 from .util import (
     bfh, json_decode, json_normalize, is_hash256_str, is_hex_str, to_bytes, parse_max_spend, to_decimal,
-    UserFacingException, InvalidPassword
+    UserFacingException, InvalidPassword, json_encode
 )
 from . import bitcoin
 from .bitcoin import is_address,  hash_160, COIN
@@ -1376,6 +1377,93 @@ class Commands(Logger):
         return wallet.export_request(req)
 
     @command('wnl')
+    async def pay_bolt12_offer(
+            self,
+            offer: str,
+            amount: Optional[Decimal] = None,
+            wallet: Abstract_Wallet = None
+    ):
+        """Retrieve an invoice from a bolt12 offer, and pay that invoice
+
+        arg:str:offer:bolt-12 offer (bech32)
+        arg:decimal:amount:Amount to send
+        """
+        amount_msat = satoshis(amount) * 1000 if amount else None
+        bolt12_offer = bolt12.decode_offer(offer)
+        offer_amount = bolt12_offer.get('offer_amount')
+        offer_amount_msat = offer_amount.get('amount')
+        if amount_msat and offer_amount_msat:
+            assert amount_msat == offer_amount_msat
+        lnworker = wallet.lnworker
+        bolt12_invoice, bolt12_invoice_tlv = await bolt12.request_invoice(lnworker, bolt12_offer, amount_msat or offer_amount_msat)
+        invoice = Invoice.from_bolt12_invoice_tlv(bolt12_invoice_tlv)
+        success, log = await lnworker.pay_invoice(invoice)
+        return {
+            'success': success,
+            'log': [x.formatted_tuple() for x in log]
+        }
+
+    @command('wnl')
+    async def add_offer(
+            self,
+            amount: Optional[Decimal] = None,
+            memo: Optional[str] = '',
+            expiry: Optional[int] = 3600,
+            issuer: Optional[str] = None,
+            wallet: Abstract_Wallet = None
+    ):
+        """Create a bolt12 offer.
+
+        arg:decimal:amount:Requested amount (in btc)
+        arg:str:memo:Description of the request
+        arg:int:expiry:Time in seconds.
+        arg:str:issuer:Issuer string
+        """
+        amount_msat = satoshis(amount) * 1000 if amount else None
+        expiry = int(expiry) if expiry else None
+        key = wallet.lnworker.create_offer(amount_msat=amount_msat, memo=memo, expiry=expiry, issuer=issuer)
+        offer = wallet.lnworker.get_offer(key)
+
+        return {
+            'id': key.hex(),
+            'offer': offer.offer_bech32
+        }
+
+    @command('wl')
+    async def get_offer(self, offer_id, wallet: Abstract_Wallet = None):
+        """
+        retrieve bolt12 offer
+        arg:str:offer_id:the offer id
+        """
+        id_ = bfh(offer_id)
+        offer = wallet.lnworker.get_offer(id_)
+        return {
+            'id': offer_id,
+            'offer': offer.offer_bech32
+        } if offer else {}
+
+    @command('wl')
+    async def delete_offer(self, offer_id, wallet: Abstract_Wallet = None):
+        """
+        delete bolt12 offer
+        arg:str:offer_id:the offer id
+        """
+        wallet.lnworker.delete_offer(bfh(offer_id))
+
+    @command('wl')
+    async def list_offers(self, wallet: Abstract_Wallet = None):
+        """
+        list bolt12 offers
+        """
+        result = []
+        for offer_id, offer in wallet.lnworker.offers.items():
+            result.append({
+                'id': offer_id.hex(),
+                'offer': offer.offer_bech32
+            })
+        return result
+
+    @command('wnl')
     async def add_hold_invoice(
             self,
             payment_hash: str,
@@ -2213,6 +2301,22 @@ class Commands(Logger):
             encoded_blinded_path = blinded_path_fd.getvalue()
 
         return encoded_blinded_path.hex()
+
+    @command('')
+    async def decode_bolt12(self, bech32: str):
+        """Decode bolt12 object
+
+        arg:str:bech32:invoice or offer
+        """
+        dec = bolt12.bech32_decode(bech32, ignore_long_length=True, with_checksum=False)
+        if dec == INVALID_BECH32:
+            raise Exception('invalid bech32')
+        d = {
+            'lni': bolt12.decode_invoice,
+            'lno': bolt12.decode_offer,
+            'lnr': bolt12.decode_invoice_request,
+        }[dec.hrp](bech32)
+        return json_encode(d)
 
 
 def plugin_command(s, plugin_name):

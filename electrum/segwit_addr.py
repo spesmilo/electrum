@@ -43,6 +43,9 @@ class DecodedBech32(NamedTuple):
     data: Optional[Sequence[int]]  # 5-bit ints
 
 
+INVALID_BECH32 = DecodedBech32(None, None, None)
+
+
 def bech32_polymod(values):
     """Internal function that computes the Bech32 checksum."""
     generator = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3]
@@ -71,7 +74,7 @@ def bech32_verify_checksum(hrp, data):
         return None
 
 
-def bech32_create_checksum(encoding: Encoding, hrp: str, data: List[int]) -> List[int]:
+def bech32_create_checksum(encoding: Encoding, hrp: str, data: Sequence[int]) -> List[int]:
     """Compute the checksum values given HRP and data."""
     values = bech32_hrp_expand(hrp) + data
     const = BECH32M_CONST if encoding == Encoding.BECH32M else BECH32_CONST
@@ -79,32 +82,34 @@ def bech32_create_checksum(encoding: Encoding, hrp: str, data: List[int]) -> Lis
     return [(polymod >> 5 * (5 - i)) & 31 for i in range(6)]
 
 
-def bech32_encode(encoding: Encoding, hrp: str, data: List[int]) -> str:
+def bech32_encode(encoding: Encoding, hrp: str, data: Sequence[int], *, with_checksum=True) -> str:
     """Compute a Bech32 or Bech32m string given HRP and data values."""
-    combined = data + bech32_create_checksum(encoding, hrp, data)
+    combined = (data + bech32_create_checksum(encoding, hrp, data)) if with_checksum else data
     return hrp + '1' + ''.join([CHARSET[d] for d in combined])
 
 
-def bech32_decode(bech: str, *, ignore_long_length=False) -> DecodedBech32:
+def bech32_decode(bech: str, *, ignore_long_length=False, with_checksum=True) -> DecodedBech32:
     """Validate a Bech32/Bech32m string, and determine HRP and data."""
     bech_lower = bech.lower()
     if bech_lower != bech and bech.upper() != bech:
-        return DecodedBech32(None, None, None)
+        return INVALID_BECH32
     pos = bech.rfind('1')
     if pos < 1 or pos + 7 > len(bech) or (not ignore_long_length and len(bech) > 90):
-        return DecodedBech32(None, None, None)
+        return INVALID_BECH32
     # check that HRP only consists of sane ASCII chars
     if any(ord(x) < 33 or ord(x) > 126 for x in bech[:pos+1]):
-        return DecodedBech32(None, None, None)
+        return INVALID_BECH32
     bech = bech_lower
     hrp = bech[:pos]
     try:
         data = [CHARSET_INVERSE[x] for x in bech[pos + 1:]]
     except KeyError:
-        return DecodedBech32(None, None, None)
+        return INVALID_BECH32
+    if not with_checksum:
+        return DecodedBech32(encoding=None, hrp=hrp, data=data)
     encoding = bech32_verify_checksum(hrp, data)
     if encoding is None:
-        return DecodedBech32(None, None, None)
+        return INVALID_BECH32
     return DecodedBech32(encoding=encoding, hrp=hrp, data=data[:-6])
 
 
