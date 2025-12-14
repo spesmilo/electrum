@@ -406,7 +406,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self.config = config
         assert self.config is not None, "config must not be None"
         self.db = db
-        self.storage = db.storage  # type: Optional[WalletStorage]
+        self.storage = db.data._db.storage  # type: Optional[WalletStorage]
         # load addresses needs to be called before constructor for sanity checks
         db.load_addresses(self.wallet_type)
         self.keystore = None  # type: Optional[KeyStore]  # will be set by load_keystore
@@ -493,8 +493,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             await run_in_thread(self.synchronize)
 
     def save_db(self):
-        if self.db.storage:
-            self.db.write()
+        if self.storage:
+            self.db.data._db.write()
 
     def save_backup(self, backup_dir):
         new_path = os.path.join(backup_dir, self.basename() + '.backup')
@@ -575,6 +575,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 self.save_keystore()
             self.db.prune_uninstalled_plugin_data(self.config.get_installed_plugins())
             self.save_db()
+            if self.storage:
+                self.storage._db.close()
 
     def is_up_to_date(self) -> bool:
         if self.taskgroup and self.taskgroup.joined:  # either stop() was called, or the taskgroup died
@@ -2925,7 +2927,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def export_request(self, x: Request) -> Dict[str, Any]:
         key = x.get_id()
         status = self.get_invoice_status(x)
-        d = x.as_dict(status)
+        d = x.export(status)
         d['request_id'] = d.pop('id')
         if x.is_lightning():
             d['rhash'] = x.rhash
@@ -2951,7 +2953,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def export_invoice(self, x: Invoice) -> Dict[str, Any]:
         key = x.get_id()
         status = self.get_invoice_status(x)
-        d = x.as_dict(status)
+        d = x.export(status)
         d['invoice_id'] = d.pop('id')
         if x.is_lightning():
             d['lightning_invoice'] = x.lightning_invoice
@@ -3189,7 +3191,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 enc_version = StorageEncryptionVersion.PLAINTEXT
             self.storage.set_password(new_pw, enc_version)
         # make sure next storage.write() saves changes
-        self.db.set_modified(True)
+        self.db.data._db.set_modified(True)
 
         # note: Encrypting storage with a hw device is currently only
         #       allowed for non-multisig wallets. Further,
@@ -3201,7 +3203,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self.db.set_keystore_encryption(bool(new_pw) and encrypt_keystore)
         # save changes. force full rewrite to rm remnants of old password
         if self.storage and self.storage.file_exists():
-            self.db.write_and_force_consolidation()
+            self.storage._db.write_and_force_consolidation()
         # if wallet was previously unlocked, reset password_in_memory
         self.lock_wallet()
 
@@ -4077,7 +4079,7 @@ class Deterministic_Wallet(Abstract_Wallet):
 
     def enable_keystore(self, keystore: KeyStore, is_hardware_keystore: bool, password) -> None:
         assert self.can_enable_disable_keystore(keystore)
-        if not is_hardware_keystore and self.storage.is_encrypted_with_user_pw():
+        if not is_hardware_keystore and self.storage and self.storage.is_encrypted_with_user_pw():
             keystore.update_password(None, password)
             self.db.put('use_encryption', True)
         self._update_keystore(keystore)
@@ -4088,7 +4090,7 @@ class Deterministic_Wallet(Abstract_Wallet):
         assert keystore in self.get_keystores()
         if hasattr(keystore, 'thread') and keystore.thread:
             keystore.thread.stop()
-        if self.storage.is_encrypted_with_hw_device():
+        if self.storage and self.storage.is_encrypted_with_hw_device():
             password = keystore.get_password_for_storage_encryption()
             self.update_password(password, None, encrypt_storage=False)
         new = keystore.watching_only_keystore()
@@ -4276,22 +4278,28 @@ class Wallet(object):
 
 
 def create_new_wallet(
-    *,
-    path,
-    config: SimpleConfig,
-    passphrase: Optional[str] = None,
-    password: Optional[str] = None,
-    encrypt_file: bool = True,
-    seed_type: Optional[str] = None,
-    gap_limit: Optional[int] = None,
-    gap_limit_for_change: Optional[int] = None,
+        *,
+        path,
+        config: SimpleConfig,
+        passphrase: Optional[str] = None,
+        password: Optional[str] = None,
+        encrypt_file: bool = True,
+        seed_type: Optional[str] = None,
+        gap_limit: Optional[int] = None,
+        gap_limit_for_change: Optional[int] = None,
+        use_levelDB: bool = False,
 ) -> dict:
     """Create a new wallet"""
-    storage = WalletStorage(path, allow_partial_writes=config.WALLET_PARTIAL_WRITES)
+    storage = WalletStorage(
+        path,
+        allow_partial_writes=config.WALLET_PARTIAL_WRITES,
+        use_levelDB=use_levelDB,
+    )
     if storage.file_exists():
         raise UserFacingException("Remove the existing wallet first!")
-    db = WalletDB('', storage=storage, upgrade=True)
 
+    storage.init_db()
+    db = WalletDB(storage.get_stored_dict())
     seed = Mnemonic('en').make_seed(seed_type=seed_type)
     k = keystore.from_seed(seed, passphrase=passphrase)
     db.put('keystore', k.dump())
@@ -4311,16 +4319,17 @@ def create_new_wallet(
 
 
 def restore_wallet_from_text(
-    text: str,
-    *,
-    path: Optional[str],
-    config: SimpleConfig,
-    passphrase: Optional[str] = None,
-    password: Optional[str] = None,
-    encrypt_file: Optional[bool] = None,
-    gap_limit: Optional[int] = None,
-    gap_limit_for_change: Optional[int] = None,
-    wallet_factory = Wallet,  # used in tests
+        text: str,
+        *,
+        path: Optional[str],
+        config: SimpleConfig,
+        passphrase: Optional[str] = None,
+        password: Optional[str] = None,
+        encrypt_file: Optional[bool] = None,
+        gap_limit: Optional[int] = None,
+        gap_limit_for_change: Optional[int] = None,
+        use_levelDB: bool = False,
+        wallet_factory = Wallet,  # used in tests
 ) -> dict:
     """Restore a wallet from text. Text can be a seed phrase, a master
     public key, a master private key, a list of bitcoin addresses
@@ -4328,12 +4337,24 @@ def restore_wallet_from_text(
     if path is None:  # create wallet in-memory
         storage = None
     else:
-        storage = WalletStorage(path, allow_partial_writes=config.WALLET_PARTIAL_WRITES)
+        storage = WalletStorage(
+            path,
+            allow_partial_writes=config.WALLET_PARTIAL_WRITES,
+            use_levelDB=use_levelDB)
         if storage.file_exists():
             raise UserFacingException("Remove the existing wallet first!")
     if encrypt_file is None:
         encrypt_file = True
-    db = WalletDB('', storage=storage, upgrade=True)
+    if storage:
+        storage.init_db()
+        stored_dict = storage.get_stored_dict()
+    else:
+        # tests
+        from .json_db import JsonDB
+        from .stored_dict import StoredDict
+        json_db = JsonDB('', storage=None)
+        stored_dict = StoredDict(json_db, key='', parent=None)
+    db = WalletDB(stored_dict)
     text = text.strip()
     if keystore.is_address_list(text):
         wallet = Imported_Wallet(db, config=config)
@@ -4367,8 +4388,8 @@ def restore_wallet_from_text(
         if gap_limit_for_change is not None:
             db.put('gap_limit_for_change', gap_limit_for_change)
         wallet = wallet_factory(db, config=config)
-    if db.storage:
-        assert not db.storage.file_exists(), "file was created too soon! plaintext keys might have been written to disk"
+    if storage:
+        assert not storage.file_exists(), "file was created too soon! plaintext keys might have been written to disk"
     wallet.update_password(old_pw=None, new_pw=password, encrypt_storage=encrypt_file)
     wallet.synchronize()
     msg = ("This wallet was restored offline. It may contain more addresses than displayed. "

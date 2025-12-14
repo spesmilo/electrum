@@ -65,6 +65,7 @@ import dns.asyncresolver
 
 from .i18n import _
 from .logging import get_logger, Logger
+from .stored_dict import stored_at
 
 if TYPE_CHECKING:
     from .network import Network, ProxySettings
@@ -337,6 +338,8 @@ class MyEncoder(json.JSONEncoder):
             return obj.hex()
         if hasattr(obj, 'to_json') and callable(obj.to_json):
             return obj.to_json()
+        if hasattr(obj, 'as_tuple') and callable(obj.as_tuple):
+            return obj.as_tuple()
         return super(MyEncoder, self).default(obj)
 
 
@@ -1274,6 +1277,19 @@ class TxMinedInfo:
     txpos: Optional[int] = None        # position of tx in serialized block
     header_hash: Optional[str] = None  # hash of block that mined tx
     wanted_height: Optional[int] = None  # in case of timelock, min abs block height
+
+    def as_tuple(self):
+        return (self._height, self.timestamp, self.txpos, self.header_hash)
+
+    @staticmethod
+    @stored_at('verified_tx3/*', tuple)
+    def from_tuple(height, timestamp, txpos, header_hash):
+        return TxMinedInfo(
+            _height=height,
+            timestamp=timestamp,
+            txpos=txpos,
+            header_hash=header_hash,
+        )
 
     def height(self) -> int:
         """Treat unverified heights as unconfirmed."""

@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import attr
 
-from .json_db import StoredObject, stored_in
+from .stored_dict import StoredObject, stored_at
 from .i18n import _
 from .util import age, InvoiceError, format_satoshis
 from .bip21 import create_bip21_uri
@@ -251,7 +251,7 @@ class BaseInvoice(StoredObject):
         else:  # on-chain
             return get_id_from_onchain_outputs(outputs=self.get_outputs(), timestamp=self.time)
 
-    def as_dict(self, status):
+    def export(self, status):
         d = {
             'is_lightning': self.is_lightning(),
             'amount_BTC': format_satoshis(self.get_amount_sat()),
@@ -268,7 +268,7 @@ class BaseInvoice(StoredObject):
         return d
 
 
-@stored_in('invoices')
+@stored_at('invoices/*')
 @attr.s
 class Invoice(BaseInvoice):
     lightning_invoice = attr.ib(type=str, kw_only=True)  # type: Optional[str]
@@ -318,7 +318,7 @@ class Invoice(BaseInvoice):
         return d
 
 
-@stored_in('payment_requests')
+@stored_at('payment_requests/*')
 @attr.s
 class Request(BaseInvoice):
     payment_hash = attr.ib(type=bytes, kw_only=True, converter=hex_to_bytes)  # type: Optional[bytes]

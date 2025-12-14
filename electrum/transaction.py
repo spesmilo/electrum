@@ -164,6 +164,9 @@ class TxOutput:
             return TYPE_ADDRESS, self.address, self.value
         return TYPE_SCRIPT, self.scriptpubkey.hex(), self.value
 
+    def as_tuple(self):
+        return self.to_legacy_tuple()
+
     @classmethod
     def from_legacy_tuple(cls, _type: int, addr: str, val: Union[int, str]) -> Union['TxOutput', 'PartialTxOutput']:
         if _type == TYPE_ADDRESS:
@@ -906,6 +909,9 @@ class Transaction:
 
     def __str__(self):
         return self.serialize()
+
+    def as_str(self):
+        return str(self)
 
     def __init__(self, raw):
         if raw is None:

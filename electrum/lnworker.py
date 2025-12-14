@@ -31,7 +31,7 @@ from aiorpcx import run_in_thread, NetAddress, ignore_after
 
 from .logging import Logger
 from .i18n import _
-from .json_db import stored_in
+from .stored_dict import stored_at
 from .channel_db import UpdateStatus, ChannelDBNotLoaded, get_mychannel_info, get_mychannel_policy
 
 from . import constants, util, lnutil
@@ -117,7 +117,13 @@ class PaymentDirection(IntEnum):
     FORWARDING = 3
 
 
-@dataclasses.dataclass(frozen=True, kw_only=True)
+@stored_at('forwarding_failures/*', tuple)
+class ForwardingFailure(NamedTuple):
+    error_hex: Optional[str] = None
+    failure_hex: Optional[str] = None
+
+
+@dataclasses.dataclass(kw_only=True)
 class PaymentInfo:
     """Information required to handle incoming htlcs for a payment request.
 
@@ -137,14 +143,30 @@ class PaymentInfo:
     creation_ts: int = dataclasses.field(default_factory=lambda: int(time.time()))
     invoice_features: LnFeatures
 
+    def as_tuple(self):
+        return (self.amount_msat, self.status, self.min_final_cltv_delta, self.expiry_delay, self.creation_ts, int(self.invoice_features))
+
+    @stored_at('lightning_payments/*', tuple)
+    def from_tuple(amount_msat, status, min_final_cltv_delta, expiry_delay, creation_ts, invoice_features):
+        return PaymentInfo(
+            payment_hash=None,
+            amount_msat=amount_msat,
+            direction=None,
+            status=status,
+            min_final_cltv_delta=min_final_cltv_delta,
+            expiry_delay=expiry_delay,
+            creation_ts=creation_ts,
+            invoice_features=LnFeatures(invoice_features),
+        )
+
     @property
     def expiration_ts(self):
         return self.creation_ts + self.expiry_delay
 
     def validate(self):
-        assert isinstance(self.payment_hash, bytes) and len(self.payment_hash) == 32
+        #assert isinstance(self.payment_hash, bytes) and len(self.payment_hash) == 32
         assert self.amount_msat is None or isinstance(self.amount_msat, int)
-        assert isinstance(self.direction, int)
+        #assert isinstance(self.direction, int)
         assert isinstance(self.status, int)
         assert isinstance(self.min_final_cltv_delta, int)
         assert isinstance(self.expiry_delay, int) and self.expiry_delay > 0, repr(self.expiry_delay)
@@ -1360,13 +1382,11 @@ class LNWallet(Logger):
             item = chan.get_funding_height()
             if item is None:
                 continue
-            funding_txid, funding_height, funding_timestamp = item
-            groups[funding_txid] = funding_txid
+            groups[item.txid] = item.txid
             item = chan.get_closing_height()
             if item is None:
                 continue
-            closing_txid, closing_height, closing_timestamp = item
-            groups[closing_txid] = closing_txid
+            groups[item.txid] = item.txid
 
         d = self.swap_manager.get_groups_for_onchain_history()
         for txid, v in d.items():
@@ -1593,8 +1613,6 @@ class LNWallet(Logger):
 
     def add_new_channel(self, chan: Channel):
         self.add_channel(chan)
-        channels_db = self.db.get_dict('channels')
-        channels_db[chan.channel_id.hex()] = chan.storage
         self.wallet.set_reserved_addresses_for_chan(chan, reserved=True)
         try:
             self.save_channel(chan)
@@ -2713,18 +2731,10 @@ class LNWallet(Logger):
         key = PaymentInfo.calc_db_key(payment_hash_hex=payment_hash.hex(), direction=direction)
         with self.lock:
             if key in self.payment_info:
-                stored_tuple = self.payment_info[key]
-                amount_msat, status, min_final_cltv_delta, expiry_delay, creation_ts, invoice_features = stored_tuple
-                return PaymentInfo(
-                    payment_hash=payment_hash,
-                    amount_msat=amount_msat,
-                    direction=direction,
-                    status=status,
-                    min_final_cltv_delta=min_final_cltv_delta,
-                    expiry_delay=expiry_delay,
-                    creation_ts=creation_ts,
-                    invoice_features=LnFeatures(invoice_features),
-                )
+                info = self.payment_info[key]
+                info.payment_hash = payment_hash
+                info.direction = direction
+                return info
             return None
 
     def add_payment_info_for_hold_invoice(
@@ -2776,8 +2786,7 @@ class LNWallet(Logger):
                 if info != dataclasses.replace(old_info, status=info.status):
                     # differs more than in status. let's fail
                     raise Exception(f"payment_hash already in use: {info=} != {old_info=}")
-            v = info.amount_msat, info.status, info.min_final_cltv_delta, info.expiry_delay, info.creation_ts, int(info.invoice_features)
-            self.payment_info[info.db_key] = v
+            self.payment_info[info.db_key] = info
         if write_to_disk:
             self.wallet.save_db()
 
@@ -4078,10 +4087,10 @@ class LNWallet(Logger):
     ) -> None:
         error_hex = error_bytes.hex() if error_bytes else None
         failure_hex = failure_message.to_bytes().hex() if failure_message else None
-        self.forwarding_failures[payment_key] = (error_hex, failure_hex)
+        self.forwarding_failures[payment_key] = ForwardingFailure(error_hex, failure_hex)
 
     def get_forwarding_failure(self, payment_key: str) -> Tuple[Optional[bytes], Optional['OnionRoutingFailure']]:
-        error_hex, failure_hex = self.forwarding_failures.get(payment_key, (None, None))
-        error_bytes = bytes.fromhex(error_hex) if error_hex else None
-        failure_message = OnionRoutingFailure.from_bytes(bytes.fromhex(failure_hex)) if failure_hex else None
+        fwf = self.forwarding_failures.get(payment_key, ForwardingFailure(None, None))
+        error_bytes = bytes.fromhex(fwf.error_hex) if fwf.error_hex else None
+        failure_message = OnionRoutingFailure.from_bytes(bytes.fromhex(fwf.failure_hex)) if fwf.failure_hex else None
         return error_bytes, failure_message

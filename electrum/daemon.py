@@ -536,7 +536,8 @@ class Daemon(Logger):
                 raise InvalidPassword('No password given')
             storage.decrypt(password)
         # read data, pass it to db
-        db = WalletDB(storage.read(), storage=storage, upgrade=upgrade)
+        storage.init_db()
+        db = WalletDB(storage.get_stored_dict())
         if db.get_action():
             raise WalletUnfinished(db)
         wallet = Wallet(db, config=config)
@@ -585,8 +586,8 @@ class Daemon(Logger):
             return False
         await wallet.stop()
         if self.config.get('wallet_path') is None:
-            wallet_paths = [w.db.storage.path for w in self._wallets.values()
-                            if w.db.storage and w.db.storage.path]
+            wallet_paths = [w.storage.path for w in self._wallets.values()
+                            if w.storage and w.storage.path]
             if self.config.CURRENT_WALLET == path and wallet_paths:
                 self.config.CURRENT_WALLET = wallet_paths[0]
         return True

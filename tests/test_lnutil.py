@@ -3,7 +3,7 @@ import json
 from typing import Dict, List
 
 from electrum import bitcoin
-from electrum.json_db import StoredDict
+from electrum.json_db import JsonDB
 from electrum.lnutil import (
     RevocationStore, get_per_commitment_secret_from_seed, make_offered_htlc, make_received_htlc, make_commitment,
     make_htlc_tx_witness, make_htlc_tx_output, make_htlc_tx_inputs, secret_to_pubkey, derive_blinded_pubkey,
@@ -12,7 +12,8 @@ from electrum.lnutil import (
     IncompatibleLightningFeatures, ChannelType, offered_htlc_trim_threshold_sat, received_htlc_trim_threshold_sat,
     ImportedChannelBackupStorage, list_enabled_ln_feature_bits, PaymentFeeBudget,
 )
-from electrum.util import bfh, MyEncoder
+from electrum.util import bfh
+from electrum.stored_dict import json_default
 from electrum.transaction import Transaction, PartialTransaction, Sighash
 from electrum.lnworker import LNWallet
 from electrum.wallet import Standard_Wallet
@@ -474,10 +475,9 @@ class TestLNUtil(ElectrumTestCase):
         ]
 
         for test in tests:
-            receiver = RevocationStore(StoredDict({}, None))
+            receiver = RevocationStore(JsonDB('{}').get_stored_dict())
             for insert in test["inserts"]:
                 secret = bytes.fromhex(insert["secret"])
-
                 try:
                     receiver.add_next_entry(secret)
                 except Exception as e:
@@ -497,7 +497,7 @@ class TestLNUtil(ElectrumTestCase):
 
     def test_shachain_produce_consume(self):
         seed = bitcoin.sha256(b"shachaintest")
-        consumer = RevocationStore(StoredDict({}, None))
+        consumer = RevocationStore(JsonDB('{}').get_stored_dict())
         for i in range(10000):
             secret = get_per_commitment_secret_from_seed(seed, RevocationStore.START_INDEX - i)
             try:
@@ -506,9 +506,9 @@ class TestLNUtil(ElectrumTestCase):
                 raise Exception("iteration " + str(i) + ": " + str(e))
             if i % 1000 == 0:
                 c1 = consumer
-                s1 = json.dumps(c1.storage, cls=MyEncoder)
-                c2 = RevocationStore(StoredDict(json.loads(s1), None))
-                s2 = json.dumps(c2.storage, cls=MyEncoder)
+                s1 = json.dumps(c1.storage._db.json_data, default=json_default)
+                c2 = RevocationStore(JsonDB(s1).get_stored_dict())
+                s2 = json.dumps(c2.storage._db.json_data, default=json_default)
                 self.assertEqual(s1, s2)
 
     def test_commitment_tx_with_all_five_HTLCs_untrimmed_minimum_feerate(self):

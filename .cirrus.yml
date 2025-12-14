@@ -42,7 +42,7 @@ task:
   install_script:
     - apt-get update
     # qml test reqs:
-    - apt-get -y install libgl1 libegl1 libxkbcommon0 libdbus-1-3
+    - apt-get -y install libgl1 libegl1 libxkbcommon0 libdbus-1-3 libleveldb-dev
     - pip install -r $ELECTRUM_REQUIREMENTS_CI
     # electrum itself:
     - export ELECTRUM_ECC_DONT_COMPILE=1
