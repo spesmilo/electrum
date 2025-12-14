@@ -8,6 +8,7 @@ from electrum.simple_config import SimpleConfig
 from electrum.storage import WalletStorage
 from electrum.transaction import PartialTxOutput
 from electrum.wallet import Wallet
+from electrum.json_db import JsonDB
 from electrum.wallet_db import WalletDB
 
 from . import ElectrumTestCase
@@ -35,7 +36,7 @@ class TestTimelockRecovery(ElectrumTestCase):
         with open(os.path.join(os.path.dirname(__file__), "test_timelock_recovery", "default_wallet"), "r") as f:
             wallet_str = f.read()
         storage = WalletStorage(self.wallet_path)
-        db = WalletDB(wallet_str, storage=storage, upgrade=True)
+        db = WalletDB(JsonDB(wallet_str, storage=storage).get_stored_dict(), upgrade=True)
         wallet = Wallet(db, config=self.config)
         return wallet
 

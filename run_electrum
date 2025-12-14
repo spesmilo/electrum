@@ -246,7 +246,8 @@ async def run_offline_command(config: 'SimpleConfig', config_options: dict, wall
                 password = get_password_for_hw_device_encrypted_storage(plugins)
                 config_options['password'] = password
             storage.decrypt(password)
-        db = WalletDB(storage.read(), storage=storage, upgrade=True)
+        storage.init_db()
+        db = WalletDB(storage.get_stored_dict())
         wallet = Wallet(db, config=config)
         config_options['wallet'] = wallet
     else:

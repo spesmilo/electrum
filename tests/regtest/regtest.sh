@@ -166,7 +166,7 @@ if [[ $1 == "init" ]]; then
     echo "initializing $2"
     rm -rf /tmp/$2/
     agent="./run_electrum --regtest -D /tmp/$2"
-    $agent create --offline > /dev/null
+    $agent create --offline --use_levelDB > /dev/null
     $agent setconfig --offline enable_anchor_channels $TEST_ANCHOR_CHANNELS
     $agent setconfig --offline log_to_file True
     $agent setconfig --offline use_gossip True
@@ -642,7 +642,7 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
         echo "enable_htlc_settle did not work, $unsettled"
         exit 1
     fi
-    cp /tmp/alice/regtest/wallets/default_wallet /tmp/alice/regtest/wallets/toxic_wallet
+    cp -r /tmp/alice/regtest/wallets/default_wallet /tmp/alice/regtest/wallets/toxic_wallet
     $bob enable_htlc_settle true
     unsettled=$($alice list_channels | jq '.[] | .local_unsettled_sent')
     if [[ "$unsettled" != "0" ]]; then
