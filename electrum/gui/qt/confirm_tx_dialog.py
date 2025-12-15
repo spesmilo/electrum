@@ -539,6 +539,8 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         self.pref_menu.addConfig(self.config.cv.WALLET_COIN_CHOOSER_OUTPUT_ROUNDING, callback=self.trigger_update)
         self.pref_button = QToolButton()
         self.pref_button.setIcon(read_QIcon("preferences.png"))
+        self.pref_button.setText(_('Tools'))
+        self.pref_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.pref_button.setMenu(self.pref_menu)
         self.pref_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.pref_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
