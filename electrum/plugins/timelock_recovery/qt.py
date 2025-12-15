@@ -50,7 +50,7 @@ if TYPE_CHECKING:
     from electrum.gui.qt.main_window import ElectrumWindow
 
 
-AGREEMENT_TEXT = "I understand that the Timelock Recovery plan will be broken if I keep using this wallet"
+AGREEMENT_TEXT = _("I understand that the Timelock Recovery plan will be broken if I keep using this wallet")
 MIN_LOCKTIME_DAYS = 2
 # 0xFFFF * 512 seconds = 388.36 days.
 MAX_LOCKTIME_DAYS = 388
@@ -269,7 +269,7 @@ class Plugin(TimelockRecoveryPlugin):
                 cancellation_tx_complete_label.setText("")
                 cancellation_tx_fee_label.setText("")
                 payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
-                payto_e.setToolTip("Not enough funds to create the transactions.")
+                payto_e.setToolTip(_("Not enough funds to create the transactions."))
                 next_button.setEnabled(False)
                 next_button.setToolTip("")
                 return
@@ -339,12 +339,12 @@ class Plugin(TimelockRecoveryPlugin):
         )
 
         fee_combo = FeeComboBox(fee_slider)
-        plan_grid.addWidget(QLabel('Fee policy'), grid_row, 0)
+        plan_grid.addWidget(QLabel(_('Fee policy')), grid_row, 0)
         plan_grid.addWidget(fee_slider, grid_row, 1)
         plan_grid.addWidget(fee_combo, grid_row, 2)
         grid_row += 1
 
-        plan_grid.addWidget(QLabel('Alert transaction'), grid_row, 0)
+        plan_grid.addWidget(QLabel(_('Alert transaction')), grid_row, 0)
         plan_grid.addWidget(alert_tx_fee_label, grid_row, 1, 1, 2)
         plan_grid.addWidget(alert_tx_complete_label, grid_row, 3)
         view_alert_tx_button = QPushButton(_('View'))
@@ -365,7 +365,7 @@ class Plugin(TimelockRecoveryPlugin):
         plan_grid.addWidget(view_alert_tx_button, grid_row, 4)
         grid_row += 1
 
-        plan_grid.addWidget(QLabel('Recovery transaction'), grid_row, 0)
+        plan_grid.addWidget(QLabel(_('Recovery transaction')), grid_row, 0)
         plan_grid.addWidget(recovery_tx_fee_label, grid_row, 1, 1, 2)
         plan_grid.addWidget(recovery_tx_complete_label, grid_row, 3)
         view_recovery_tx_button = QPushButton(_('View'))
@@ -382,7 +382,7 @@ class Plugin(TimelockRecoveryPlugin):
         plan_grid.addWidget(view_recovery_tx_button, grid_row, 4)
         grid_row += 1
 
-        cancellation_label = QLabel('Cancellation transaction')
+        cancellation_label = QLabel(_('Cancellation transaction'))
         plan_grid.addWidget(cancellation_label, grid_row, 0)
         plan_grid.addWidget(cancellation_tx_fee_label, grid_row, 1, 1, 2)
         plan_grid.addWidget(cancellation_tx_complete_label, grid_row, 3)
@@ -448,7 +448,7 @@ class Plugin(TimelockRecoveryPlugin):
             timelock_days_widget.setToolTip("")
         except ValueError:
             timelock_days_widget.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
-            timelock_days_widget.setToolTip("Value must be between {} and {} days.".format(MIN_LOCKTIME_DAYS, MAX_LOCKTIME_DAYS))
+            timelock_days_widget.setToolTip(_("Value must be between {} and {} days.").format(MIN_LOCKTIME_DAYS, MAX_LOCKTIME_DAYS))
             return False
         pi = payto_e.payment_identifier
         if not pi:
@@ -456,33 +456,33 @@ class Plugin(TimelockRecoveryPlugin):
         if not pi.is_valid():
             # Don't make background red - maybe the user did not complete typing yet.
             payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True) if '\n' in pi.text.strip() else '')
-            payto_e.setToolTip((pi.get_error() or "Invalid address.") if pi.text else "")
+            payto_e.setToolTip((pi.get_error() or _("Invalid address.")) if pi.text else "")
             return False
         elif pi.is_multiline():
             if not pi.is_multiline_max():
                 payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
-                payto_e.setToolTip("At least one line must be set to max spend ('!' in the amount column).")
+                payto_e.setToolTip(_("At least one line must be set to max spend ('!' in the amount column)."))
                 return False
             for output in pi.multiline_outputs:  # type: PartialTxOutput
                 if not output.address:
                     payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
-                    payto_e.setToolTip("Recovery should only send to addresses.")
+                    payto_e.setToolTip(_("Recovery should only send to addresses."))
                     return False
                 else:
                     if context.wallet.is_mine(output.address):
                         payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
-                        payto_e.setToolTip("Recovery should not send to same wallet.")
+                        payto_e.setToolTip(_("Recovery should not send to same wallet."))
                         return False
             context.outputs = pi.multiline_outputs
         else:
             if not pi.is_available() or pi.type != PaymentIdentifierType.SPK or not pi.spk_is_address:
                 payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
-                payto_e.setToolTip("Invalid address type - must be a Bitcoin address.")
+                payto_e.setToolTip(_("Invalid address type - must be a Bitcoin address."))
                 return False
             assert pi.spk and pi.spk_is_address
             if context.wallet.is_mine(pi.text):
                 payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
-                payto_e.setToolTip("Recovery should not send to same wallet.")
+                payto_e.setToolTip(_("Recovery should not send to same wallet."))
                 return False
             context.outputs = [PartialTxOutput(scriptpubkey=pi.spk, value='!')]
         return True
@@ -605,10 +605,10 @@ class Plugin(TimelockRecoveryPlugin):
         grid.setRowStretch(line_number, 1)
         # Create buttons
         recovery_menu = QMenu()
-        action = QAction('Save as PDF', recovery_menu)
+        action = QAction(_('Save as PDF'), recovery_menu)
         action.triggered.connect(partial(self._save_recovery_plan_pdf, context, download_dialog))
         recovery_menu.addAction(action)
-        action = QAction('Save as JSON', recovery_menu)
+        action = QAction(_('Save as JSON'), recovery_menu)
         action.triggered.connect(partial(self._save_recovery_plan_json, context, download_dialog))
         recovery_menu.addAction(action)
         recovery_button = QToolButton()
@@ -617,10 +617,10 @@ class Plugin(TimelockRecoveryPlugin):
         recovery_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         # Save Cancellation Plan button row (if applicable)
         cancellation_menu = QMenu()
-        action = QAction('Save as PDF', cancellation_menu)
+        action = QAction(_('Save as PDF'), cancellation_menu)
         action.triggered.connect(partial(self._save_cancellation_plan_pdf, context, download_dialog))
         cancellation_menu.addAction(action)
-        action = QAction('Save as JSON', cancellation_menu)
+        action = QAction(_('Save as JSON'), cancellation_menu)
         action.triggered.connect(partial(self._save_cancellation_plan_json, context, download_dialog))
         cancellation_menu.addAction(action)
         cancellation_button = QToolButton()
