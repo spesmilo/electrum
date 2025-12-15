@@ -368,7 +368,11 @@ class ChannelsList(MyTreeView):
         #     and maybe add item "main_window.init_lightning_dialog()" when applicable
         menu.setEnabled(self.wallet.has_lightning())
         self.new_channel_button = EnterButton(_('New Channel'), self.main_window.new_channel_dialog)
-        self.new_channel_button.setEnabled(self.wallet.can_have_lightning())
+        if not self.wallet.can_have_lightning():
+            self.new_channel_button.setEnabled(False)
+            self.new_channel_button.setToolTip(_("Lightning is not available for this wallet."))
+        else:
+            self.new_channel_button.setToolTip(_("Open a channel to send payments over the Lightning network."))
         toolbar.insertWidget(2, self.new_channel_button)
         return toolbar
 
