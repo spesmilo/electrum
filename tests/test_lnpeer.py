@@ -68,7 +68,6 @@ def noop_lock():
 
 class MockNetwork:
     def __init__(self, tx_queue, *, config: SimpleConfig):
-        self.callbacks = defaultdict(list)
         self.lnwatcher = None
         self.interface = None
         self.fee_estimates = FeeTimeEstimates()
@@ -81,10 +80,6 @@ class MockNetwork:
         self.lngossip = MockLNGossip()
         self.tx_queue = tx_queue
         self._blockchain = MockBlockchain()
-
-    @property
-    def callback_lock(self):
-        return noop_lock()
 
     def get_local_height(self):
         return self.blockchain().height()
