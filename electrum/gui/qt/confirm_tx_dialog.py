@@ -500,8 +500,23 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
             self.resize_to_fit_content()
         self.pref_menu.addConfig(self.config.cv.GUI_QT_TX_EDITOR_SHOW_LOCKTIME, callback=cb)
         self.pref_menu.addSeparator()
-        self.pref_menu.addConfig(self.config.cv.WALLET_SEND_CHANGE_TO_LIGHTNING, callback=self.trigger_update)
-        self.pref_menu.addConfig(self.config.cv.WALLET_ENABLE_SUBMARINE_PAYMENTS, callback=self.update_tab_visibility)
+        can_have_lightning = self.wallet.can_have_lightning()
+        send_ch_to_ln = self.pref_menu.addConfig(
+            self.config.cv.WALLET_SEND_CHANGE_TO_LIGHTNING,
+            callback=self.trigger_update,
+            checked=False if not can_have_lightning else None,
+        )
+        sub_payments = self.pref_menu.addConfig(
+            self.config.cv.WALLET_ENABLE_SUBMARINE_PAYMENTS,
+            callback=self.update_tab_visibility,
+            checked=False if not can_have_lightning else None,
+        )
+        if not can_have_lightning:  # disable the buttons and override tooltip
+            ln_unavailable_msg = _("Not available for this wallet.") \
+                                 + "\n" + _("Requires a wallet with Lightning network support.")
+            for ln_conf in (send_ch_to_ln, sub_payments):
+                ln_conf.setEnabled(False)
+                ln_conf.setToolTip(ln_unavailable_msg)
         self.pref_menu.addToggle(
             _('Use change addresses'),
             self.toggle_use_change,
