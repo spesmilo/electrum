@@ -303,7 +303,8 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         # always show onchain payment tab
         self.tab_widget.addTab(self.onchain_tab, _('Onchain Transaction'))
 
-        allow_swaps = self.allow_preview and self.payee_outputs  # allow_preview is false for ln channel opening txs
+        # allow_preview is false for ln channel opening txs
+        allow_swaps = self.allow_preview and self.payee_outputs and self.swap_manager
         if self.config.WALLET_ENABLE_SUBMARINE_PAYMENTS and allow_swaps:
             i = self.tab_widget.addTab(self.submarine_payment_tab, _('Submarine Payment'))
             tooltip = self.config.cv.WALLET_ENABLE_SUBMARINE_PAYMENTS.get_long_desc()
