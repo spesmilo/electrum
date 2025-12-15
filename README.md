@@ -124,6 +124,7 @@ Run unit tests with `pytest`:
 ```
 $ pytest tests -v
 ```
+(can be parallelized with `-n auto` option, using [`pytest-xdist`](https://github.com/pytest-dev/pytest-xdist) plugin)
 
 To run a single file, specify it directly like this:
 ```
