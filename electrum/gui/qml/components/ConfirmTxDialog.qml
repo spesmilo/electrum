@@ -203,6 +203,27 @@ ElDialog {
                             helptext: Config.longDescFor('WALLET_COIN_CHOOSER_OUTPUT_ROUNDING')
                         }
 
+                        ElCheckBox {
+                            Layout.fillWidth: true
+                            visible: Daemon.currentWallet.isLightning && Daemon.currentWallet.lightningCanReceive.satsInt > 0
+                            text: Config.shortDescFor('WALLET_SEND_CHANGE_TO_LIGHTNING')
+                            onCheckedChanged: {
+                                if (activeFocus) {
+                                    Config.sendChangeToLightning = checked
+                                    finalizer.doUpdate()
+                                }
+                            }
+                            Component.onCompleted: {
+                                checked = Config.sendChangeToLightning
+                            }
+                        }
+
+                        HelpButton {
+                            visible: Daemon.currentWallet.isLightning && Daemon.currentWallet.lightningCanReceive.satsInt > 0
+                            heading: Config.shortDescFor('WALLET_SEND_CHANGE_TO_LIGHTNING')
+                            helptext: Config.longDescFor('WALLET_SEND_CHANGE_TO_LIGHTNING')
+                        }
+
                     }
                 }
 
