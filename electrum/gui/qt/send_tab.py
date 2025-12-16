@@ -370,7 +370,13 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                 tx.swap_payment_hash = swap.payment_hash
 
         if is_preview:
-            self.window.show_transaction(tx, external_keypairs=external_keypairs, invoice=invoice)
+            self.window.show_transaction(
+                tx,
+                external_keypairs=external_keypairs,
+                invoice=invoice,
+                show_sign_button=self.wallet.wallet_type != '2fa',
+                show_broadcast_button=self.wallet.wallet_type != '2fa',
+            )
             return
         self.save_pending_invoice()
         def sign_done(success):
