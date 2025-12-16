@@ -143,7 +143,11 @@ Pane {
         target: Daemon
         function onWalletLoaded() {
             if (app.stack.currentItem.objectName == 'Wallets')
-                app.stack.pop()
+                if (app.stack.getRoot().objectName == 'Wallets') {
+                    app.stack.replaceRoot('WalletMainView.qml')
+                } else {
+                    app.stack.pop()
+                }
         }
     }
 

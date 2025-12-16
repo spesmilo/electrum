@@ -219,7 +219,7 @@ class QEDaemon(AuthMixin, QObject):
                 except InvalidPassword:
                     self.walletRequiresPassword.emit(self._name, self._path)
                 except FileNotFoundError:
-                    self.walletOpenError.emit(_('File not found'))
+                    self.walletOpenError.emit(_('File not found') + f":\n{self._path}")
                 except StorageReadWriteError:
                     self.walletOpenError.emit(_('Could not read/write file'))
                 except WalletFileException as e:
