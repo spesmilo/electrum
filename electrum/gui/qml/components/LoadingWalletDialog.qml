@@ -44,7 +44,13 @@ ElDialog {
             console.log('daemon loading ' + Daemon.loading)
             if (!Daemon.loading) {
                 showTimer.stop()
-                dialog.close()
+                if (dialog.visible) {
+                    dialog.close()
+                } else {
+                    // if the dialog wasn't visible its onClosed callbacks don't get called, so it
+                    // needs to be destroyed manually
+                    Qt.callLater(function() { dialog.destroy() })
+                }
             }
         }
     }
