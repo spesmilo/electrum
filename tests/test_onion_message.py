@@ -352,9 +352,8 @@ class TestOnionMessageManager(ElectrumTestCase):
 
     async def test_request_and_reply(self):
         n = MockNetwork()
-        k = keypair()
         q1, q2 = asyncio.Queue(), asyncio.Queue()
-        lnw = MockLNWallet(local_keypair=k, chans=[], tx_queue=q1, name='test_request_and_reply', has_anchors=False)
+        lnw = MockLNWallet(tx_queue=q1, name='test_request_and_reply', has_anchors=False)
 
         def slow(*args, **kwargs):
             time.sleep(2*TIME_STEP)
@@ -369,10 +368,10 @@ class TestOnionMessageManager(ElectrumTestCase):
         rkey1 = bfh('0102030405060708')
         rkey2 = bfh('0102030405060709')
 
-        lnw.peers[self.alice.pubkey] = MockPeer(self.alice.pubkey)
-        lnw.peers[self.bob.pubkey] = MockPeer(self.bob.pubkey, on_send_message=slow)
-        lnw.peers[self.carol.pubkey] = MockPeer(self.carol.pubkey, on_send_message=partial(withreply, rkey1))
-        lnw.peers[self.dave.pubkey] = MockPeer(self.dave.pubkey, on_send_message=partial(slowwithreply, rkey2))
+        lnw.lnpeermgr._peers[self.alice.pubkey] = MockPeer(self.alice.pubkey)
+        lnw.lnpeermgr._peers[self.bob.pubkey] = MockPeer(self.bob.pubkey, on_send_message=slow)
+        lnw.lnpeermgr._peers[self.carol.pubkey] = MockPeer(self.carol.pubkey, on_send_message=partial(withreply, rkey1))
+        lnw.lnpeermgr._peers[self.dave.pubkey] = MockPeer(self.dave.pubkey, on_send_message=partial(slowwithreply, rkey2))
         t = OnionMessageManager(lnw)
         t.start_network(network=n)
 
@@ -401,7 +400,8 @@ class TestOnionMessageManager(ElectrumTestCase):
     async def test_forward(self):
         n = MockNetwork()
         q1 = asyncio.Queue()
-        lnw = MockLNWallet(local_keypair=self.alice, chans=[], tx_queue=q1, name='alice', has_anchors=False)
+        lnw = MockLNWallet(tx_queue=q1, name='alice', has_anchors=False)
+        lnw.node_keypair = self.alice
 
         self.was_sent = False
 
@@ -414,8 +414,8 @@ class TestOnionMessageManager(ElectrumTestCase):
             self.assertEqual(message_type, 'onion_message')
             self.assertEqual(payload['onion_message_packet'], kwargs['onion_message_packet'])
 
-        lnw.peers[self.bob.pubkey] = MockPeer(self.bob.pubkey, on_send_message=partial(on_send, 'bob'))
-        lnw.peers[self.carol.pubkey] = MockPeer(self.carol.pubkey, on_send_message=partial(on_send, 'carol'))
+        lnw.lnpeermgr._peers[self.bob.pubkey] = MockPeer(self.bob.pubkey, on_send_message=partial(on_send, 'bob'))
+        lnw.lnpeermgr._peers[self.carol.pubkey] = MockPeer(self.carol.pubkey, on_send_message=partial(on_send, 'carol'))
         t = OnionMessageManager(lnw)
         t.start_network(network=n)
 
@@ -438,7 +438,8 @@ class TestOnionMessageManager(ElectrumTestCase):
     async def test_receive_unsolicited(self):
         n = MockNetwork()
         q1 = asyncio.Queue()
-        lnw = MockLNWallet(local_keypair=self.dave, chans=[], tx_queue=q1, name='dave', has_anchors=False)
+        lnw = MockLNWallet(tx_queue=q1, name='dave', has_anchors=False)
+        lnw.node_keypair = self.dave
 
         t = OnionMessageManager(lnw)
         t.start_network(network=n)

@@ -525,7 +525,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     @pyqtProperty(int, notify=peersUpdated)
     def lightningNumPeers(self):
         if self.isLightning:
-            return self.wallet.lnworker.num_peers()
+            return self.wallet.lnworker.lnpeermgr.num_peers()
         return 0
 
     @pyqtSlot()
