@@ -1010,7 +1010,8 @@ class QETxSweepFinalizer(QETxFinalizer):
         coins, keypairs = copy.deepcopy(self._txins)
         outputs = [PartialTxOutput.from_address_and_value(address, value='!')]
 
-        tx = self._wallet.wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee=None, rbf=self._rbf, is_sweep=True)
+        tx = self._wallet.wallet.make_unsigned_transaction(
+            coins=coins, outputs=outputs, fee_policy=self._fee_policy, rbf=self._rbf, is_sweep=True)
         self._logger.debug('fee: %d, inputs: %d, outputs: %d' % (tx.get_fee(), len(tx.inputs()), len(tx.outputs())))
 
         tx.sign(keypairs)
