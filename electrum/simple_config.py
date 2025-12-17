@@ -676,6 +676,8 @@ class SimpleConfig(Logger):
     WALLET_UNCONF_UTXO_FREEZE_THRESHOLD_SAT = ConfigVar('unconf_utxo_freeze_threshold', default=5_000, type_=int)
     WALLET_PAYREQ_EXPIRY_SECONDS = ConfigVar('request_expiry', default=invoices.PR_DEFAULT_EXPIRATION_WHEN_CREATING, type_=int)
     WALLET_SHOULD_USE_SINGLE_PASSWORD = ConfigVar('should_use_single_password', default=False, type_=bool)
+    # TODO: consider removing WALLET_DID_USE_SINGLE_PASSWORD once encrypted wallet file headers are available
+    WALLET_DID_USE_SINGLE_PASSWORD = ConfigVar('did_use_single_password', default=False, type_=bool)
     # note: 'use_change' and 'multiple_change' are per-wallet settings
     WALLET_SEND_CHANGE_TO_LIGHTNING = ConfigVar(
         'send_change_to_lightning', default=False, type_=bool,

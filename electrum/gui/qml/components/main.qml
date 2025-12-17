@@ -634,12 +634,18 @@ ApplicationWindow
     }
 
     property var _opendialog: undefined
+    property var _opendialog_startup: true
 
     function showOpenWalletDialog(name, path) {
         if (_opendialog == undefined) {
-            _opendialog = openWalletDialog.createObject(app, { name: name, path: path })
+            _opendialog = openWalletDialog.createObject(app, {
+                name: name,
+                path: path,
+                isStartup: _opendialog_startup,
+            })
             _opendialog.closed.connect(function() {
                 _opendialog = undefined
+                _opendialog_startup = false
             })
             _opendialog.open()
         }
