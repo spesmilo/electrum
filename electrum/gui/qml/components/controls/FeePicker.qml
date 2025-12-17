@@ -140,6 +140,9 @@ Item {
                 Layout.fillWidth: true
                 text: finalizer.userFeerate
                 inputMethodHints: Qt.ImhDigitsOnly
+                validator: RegularExpressionValidator {
+                    regularExpression: /^[0-9]*\.[0-9]?$/
+                }
                 onTextEdited: {
                     finalizer.userFeerate = text
                 }
@@ -156,6 +159,9 @@ Item {
                 Layout.fillWidth: true
                 text: finalizer.userFee
                 inputMethodHints: Qt.ImhDigitsOnly
+                validator: RegularExpressionValidator {
+                    regularExpression: /^[0-9]*$/
+                }
                 onTextEdited: {
                     finalizer.userFee = text
                 }
