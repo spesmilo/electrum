@@ -562,6 +562,8 @@ class Daemon(Logger):
         if os.path.exists(path):
             os.unlink(path)
             self.update_recently_opened_wallets(path, remove=True)
+            if self.config.CURRENT_WALLET == path:
+                self.config.CURRENT_WALLET = None
             return True
         return False
 
