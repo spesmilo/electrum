@@ -327,7 +327,7 @@ class AbstractChannel(Logger, ABC):
         is_local_ctx = who_closed == LOCAL
         return is_local_ctx, sweep_info
 
-    def maybe_sweep_htlcs(self, ctx: Transaction, htlc_tx: Transaction) -> Dict[str, SweepInfo]:
+    def maybe_sweep_htlcs(self, ctx: Transaction, htlc_tx: Transaction) -> Dict[str, MaybeSweepInfo]:
         return {}
 
     def extract_preimage_from_htlc_txin(self, txin: TxInput, *, is_deeply_mined: bool) -> None:
@@ -682,7 +682,7 @@ class ChannelBackup(AbstractChannel):
         else:
             return {}
 
-    def maybe_sweep_htlcs(self, ctx: Transaction, htlc_tx: Transaction) -> Dict[str, SweepInfo]:
+    def maybe_sweep_htlcs(self, ctx: Transaction, htlc_tx: Transaction) -> Dict[str, MaybeSweepInfo]:
         return {}
 
     def extract_preimage_from_htlc_txin(self, txin: TxInput, *, is_deeply_mined: bool) -> None:
@@ -1939,7 +1939,7 @@ class Channel(AbstractChannel):
         assert not (self.get_state() == ChannelState.WE_ARE_TOXIC and ChanCloseOption.LOCAL_FCLOSE in ret), "local force-close unsafe if we are toxic"
         return ret
 
-    def maybe_sweep_htlcs(self, ctx: Transaction, htlc_tx: Transaction) -> Dict[str, SweepInfo]:
+    def maybe_sweep_htlcs(self, ctx: Transaction, htlc_tx: Transaction) -> Dict[str, MaybeSweepInfo]:
         # look at the output address, check if it matches
         d = sweep_their_htlctx_justice(self, ctx, htlc_tx)
         d2 = sweep_our_htlctx(self, ctx, htlc_tx)

@@ -184,9 +184,13 @@ class LNWatcher(Logger, EventListener):
                 # the spender might be the remote, revoked or not
                 htlc_sweepinfo = chan.maybe_sweep_htlcs(closing_tx, spender_tx)
                 for prevout2, htlc_sweep_info in htlc_sweepinfo.items():
+                    self.lnworker.wallet.set_default_label(prevout2, htlc_sweep_info.name)
+                    if isinstance(htlc_sweep_info, KeepWatchingTXO):  # haven't yet decided if we want to sweep
+                        keep_watching |= htlc_sweep_info.until_height > local_height
+                        continue
+                    assert isinstance(htlc_sweep_info, SweepInfo), htlc_sweep_info
                     watch_htlc_sweep_info = self.maybe_redeem(htlc_sweep_info)
                     htlc_tx_spender = self.adb.get_spender(prevout2)
-                    self.lnworker.wallet.set_default_label(prevout2, htlc_sweep_info.name)
                     if htlc_tx_spender:
                         keep_watching |= not self.adb.is_deeply_mined(htlc_tx_spender)
                         self.maybe_add_accounting_address(htlc_tx_spender, htlc_sweep_info)
