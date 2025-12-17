@@ -98,7 +98,7 @@ class QEWalletListModel(QAbstractListModel):
             i += 1
 
         if remove >= 0:
-            self.beginRemoveRows(QModelIndex(), i, i)
+            self.beginRemoveRows(QModelIndex(), remove, remove)
             self._wallets = wallets
             self.endRemoveRows()
 
