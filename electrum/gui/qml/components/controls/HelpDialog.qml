@@ -7,6 +7,7 @@ ElDialog {
     id: dialog
 
     header: Item { }
+    footer: Item { }
 
     property string text
     property string heading
@@ -18,20 +19,27 @@ ElDialog {
     padding: 0
     needsSystemBarPadding: false
 
-    width: rootPane.width
+    width: parent.width * 4/5
 
     Overlay.modal: Rectangle {
-        color: "#55000000"
+        color: "#aa000000"
+    }
+
+    background: Rectangle {
+        color: "transparent"
     }
 
     Pane {
         id: rootPane
-        width: rootLayout.width + leftPadding + rightPadding
+        width: parent.width
+        implicitHeight: rootLayout.height + topPadding + bottomPadding
         padding: constants.paddingLarge
-
+        background: Rectangle {
+            color: constants.lighterBackground
+        }
         ColumnLayout {
             id: rootLayout
-            width: dialog.parent.width * 3/4
+            width: parent.width
             spacing: constants.paddingLarge
 
             RowLayout {
@@ -58,6 +66,9 @@ ElDialog {
                 background: Rectangle {
                     color: 'transparent'
                 }
+            }
+            Item {
+                height: constants.paddingLarge
             }
         }
     }
