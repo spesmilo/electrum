@@ -81,7 +81,7 @@ class Peer(Logger, EventListener):
 
     def __init__(
             self,
-            lnworker: Union['LNGossip', 'LNWallet'],
+            lnworker: Union['LNWallet', 'LNGossip'],
             pubkey: bytes,
             transport: LNTransportBase,
             *, is_channel_backup= False):
@@ -402,7 +402,7 @@ class Peer(Logger, EventListener):
             if constants.net.rev_genesis_bytes() not in their_chains:
                 raise GracefulDisconnect(f"no common chain found with remote. (they sent: {their_chains})")
         # all checks passed
-        self.lnworker.on_peer_successfully_established(self)
+        self.lnworker.lnpeermgr.on_peer_successfully_established(self)
         self._received_init = True
         self.maybe_set_initialized()
 
@@ -888,7 +888,7 @@ class Peer(Logger, EventListener):
                 self.transport.close()
         except Exception:
             pass
-        self.lnworker.peer_closed(self)
+        self.lnworker.lnpeermgr.peer_closed(self)
         self.got_disconnected.set()
 
     def is_shutdown_anysegwit(self):
@@ -3064,7 +3064,7 @@ class Peer(Logger, EventListener):
                 or not self.lnworker.is_payment_bundle_complete(payment_key):
             # maybe this set is COMPLETE but the bundle is not yet completed, so the bundle can be considered WAITING
             if int(time.time()) - first_htlc_timestamp > self.lnworker.MPP_EXPIRY \
-                    or self.lnworker.stopping_soon:
+                    or self.lnworker.lnpeermgr.stopping_soon:
                 _log_fail_reason(f"MPP TIMEOUT (> {self.lnworker.MPP_EXPIRY} sec)")
                 return OnionFailureCode.MPP_TIMEOUT, None, None
 

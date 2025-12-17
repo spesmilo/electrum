@@ -62,7 +62,7 @@ class LightningDialog(QDialog, QtEventListener):
         self.register_callbacks()
         self.network.channel_db.update_counts() # trigger callback
         if self.network.lngossip:
-            self.on_event_gossip_peers(self.network.lngossip.num_peers())
+            self.on_event_gossip_peers(self.network.lngossip.lnpeermgr.num_peers())
             self.on_event_unknown_channels(len(self.network.lngossip.unknown_ids))
         else:
             self.num_peers.setText(_('Lightning gossip not active.'))

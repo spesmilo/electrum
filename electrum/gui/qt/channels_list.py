@@ -98,7 +98,7 @@ class ChannelsList(MyTreeView):
             labels[subject] = label
         status = chan.get_state_for_GUI()
         closed = chan.is_closed()
-        node_alias = self.lnworker.get_node_alias(chan.node_id) or chan.node_id.hex()
+        node_alias = self.lnworker.lnpeermgr.get_node_alias(chan.node_id) or chan.node_id.hex()
         capacity_str = self.main_window.format_amount(chan.get_capacity(), whitespaces=True)
         return {
             self.Columns.SHORT_CHANID: chan.short_id_for_GUI(),

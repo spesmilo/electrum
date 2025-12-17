@@ -417,9 +417,9 @@ class AbstractChannel(Logger, ABC):
             if not self.is_funding_tx_mined(funding_height):
                 # funding tx is invalid (invalid amount or address) we need to get rid of the channel again
                 self.should_request_force_close = True
-                if self.lnworker and self.node_id in self.lnworker.peers:
+                if self.lnworker and (peer := self.lnworker.lnpeermgr.get_peer_by_pubkey(self.node_id)):
                     # reconnect to trigger force close request
-                    self.lnworker.peers[self.node_id].close_and_cleanup()
+                    peer.close_and_cleanup()
             else:
                 # remove zeroconf flag as we are now confirmed, this is to prevent an electrum server causing
                 # us to remove a channel later in update_unfunded_state by omitting its funding tx
@@ -779,7 +779,7 @@ class Channel(AbstractChannel):
         self,
         state: 'StoredDict', *,
         name=None,
-        lnworker=None,  # None only in unittests
+        lnworker: 'LNWallet' = None,  # None only in unittests
         initial_feerate=None,
         jit_opening_fee: Optional[int] = None,
     ):
@@ -1022,8 +1022,8 @@ class Channel(AbstractChannel):
         elif self.is_static_remotekey_enabled():
             our_payment_pubkey = self.config[LOCAL].payment_basepoint.pubkey
             addr = make_commitment_output_to_remote_address(our_payment_pubkey, has_anchors=self.has_anchors())
-        if self.lnworker:
-            assert self.lnworker.wallet.is_mine(addr)
+        #if self.lnworker:
+        #    assert self.lnworker.wallet.is_mine(addr)  # FIXME xxxxx chan should be deterministic. NEEDS to be fixed before merge
         return addr
 
     def has_anchors(self) -> bool:

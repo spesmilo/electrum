@@ -23,6 +23,7 @@
 # (around commit 42de4400bff5105352d0552155f73589166d162b).
 
 import unittest
+from functools import lru_cache
 from unittest import mock
 import os
 import binascii
@@ -40,7 +41,7 @@ from electrum.crypto import privkey_to_pubkey
 from electrum.lnutil import SENT, LOCAL, REMOTE, RECEIVED, UpdateAddHtlc
 from electrum.lnutil import effective_htlc_tx_weight
 from electrum.logging import console_stderr_handler
-from electrum.lnchannel import ChannelState
+from electrum.lnchannel import ChannelState, Channel
 from electrum.json_db import StoredDict
 from electrum.coinchooser import PRNG
 
@@ -124,6 +125,7 @@ def create_channel_state(funding_txid, funding_index, funding_sat, is_initiator,
     return StoredDict(state, None)
 
 
+@lru_cache()
 def bip32(sequence):
     node = bip32_utils.BIP32Node.from_rootseed(b"9dk", xtype='standard').subkey_at_private_derivation(sequence)
     k = node.eckey.get_secret_bytes()
@@ -137,7 +139,7 @@ def create_test_channels(*, feerate=6000, local_msat=None, remote_msat=None,
                          alice_pubkey=b"\x01"*33, bob_pubkey=b"\x02"*33, random_seed=None,
                          anchor_outputs=False,
                          local_max_inflight=None, remote_max_inflight=None,
-                         max_accepted_htlcs=5):
+                         max_accepted_htlcs=5) -> tuple[Channel, Channel]:
     if random_seed is None:  # needed for deterministic randomness
         random_seed = os.urandom(32)
     random_gen = PRNG(random_seed)

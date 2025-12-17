@@ -3451,7 +3451,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         lightning_has_channels = (
             self.lnworker and len([chan for chan in self.lnworker.channels.values() if chan.is_open()]) > 0
         )
-        lightning_online = self.lnworker and self.lnworker.num_peers() > 0
+        lightning_online = self.lnworker and self.lnworker.lnpeermgr.num_peers() > 0
         num_sats_can_receive = self.lnworker.num_sats_can_receive() if self.lnworker else 0
         can_receive_lightning = self.lnworker and num_sats_can_receive > 0 and amount_sat <= num_sats_can_receive
         try:
@@ -3459,7 +3459,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         except Exception:
             zeroconf_nodeid = None
         can_get_zeroconf_channel = (self.lnworker and self.config.ACCEPT_ZEROCONF_CHANNELS
-                                    and zeroconf_nodeid in self.lnworker.peers)
+                                    and self.lnworker.lnpeermgr.get_peer_by_pubkey(zeroconf_nodeid) is not None)
         status = self.get_invoice_status(req)
 
         if status == PR_EXPIRED:

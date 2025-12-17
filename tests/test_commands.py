@@ -760,22 +760,23 @@ class TestCommandsTestnet(ElectrumTestCase):
 
         # Mock the network and lnworker
         mock_lnworker = mock.Mock()
+        mock_lnworker.lnpeermgr = mock.Mock()
         w.lnworker = mock_lnworker
         mock_peer = mock.Mock()
         mock_peer.initialized = asyncio.Future()
         connection_string = "test_node_id@127.0.0.1:9735"
         called = False
-        async def lnworker_add_peer(*args, **kwargs):
+        async def lnpeermgr_add_peer(*args, **kwargs):
             assert args[0] == connection_string
             nonlocal called
             called += 1
             return mock_peer
-        mock_lnworker.add_peer = lnworker_add_peer
+        mock_lnworker.lnpeermgr.add_peer = lnpeermgr_add_peer
 
         # check if add_peer times out if peer doesn't initialize (LN_P2P_NETWORK_TIMEOUT is 0.001s)
         with self.assertRaises(UserFacingException):
             await cmds.add_peer(connection_string=connection_string, wallet=w)
-        # check if add_peer called lnworker.add_peer
+        # check if add_peer called lnpeermgr.add_peer
         assert called == 1
 
         mock_peer.initialized = asyncio.Future()
