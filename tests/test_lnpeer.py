@@ -534,18 +534,23 @@ class TestPeer(ElectrumTestCase):
                     raise OnionRoutingFailure(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
             w2.register_hold_invoice(payment_hash, cb)
 
+    def prepare_lnwallets(self, graph_definition) -> Mapping[str, MockLNWallet]:
+        workers = {}  # type: Dict[str, MockLNWallet]
+        for a, definition in graph_definition.items():
+            workers[a] = MockLNWallet(name=a, has_anchors=self.TEST_ANCHOR_CHANNELS)
+        self._lnworkers_created.extend(list(workers.values()))
+        return workers
+
     def prepare_chans_and_peers_in_graph(
         self,
         graph_definition,
         *,
+        workers: Dict[str, MockLNWallet] = None,
         channels: Mapping[Tuple[str, str], Channel] = None,
     ) -> Graph:
-        workers = {}  # type: Dict[str, MockLNWallet]
-
         # create workers
-        for a, definition in graph_definition.items():
-            workers[a] = MockLNWallet(name=a, has_anchors=self.TEST_ANCHOR_CHANNELS)
-        self._lnworkers_created.extend(list(workers.values()))
+        if workers is None:
+            workers = self.prepare_lnwallets(graph_definition=graph_definition)
         keys = {name: w.node_keypair for name, w in workers.items()}
 
         if channels is None:
@@ -562,10 +567,8 @@ class TestPeer(ElectrumTestCase):
                     channel_ba = channels[(b, a)]
                 else:  # create new chans now
                     channel_ab, channel_ba = create_test_channels(
-                        alice_name=a,
-                        bob_name=b,
-                        alice_pubkey=keys[a].pubkey,
-                        bob_pubkey=keys[b].pubkey,
+                        alice_lnwallet=workers[a],
+                        bob_lnwallet=workers[b],
                         local_msat=channel_def['local_balance_msat'],
                         remote_msat=channel_def['remote_balance_msat'],
                         anchor_outputs=self.TEST_ANCHOR_CHANNELS
@@ -668,16 +671,8 @@ class TestPeerDirect(TestPeer):
             self.GRAPH_DEFINITIONS['single_chan'],
             channels={('alice', 'bob'): alice_channel, ('bob', 'alice'): bob_channel},
         )
-        c1, c2 = graph.channels.values()
         p1, p2 = graph.peers.values()
         w1, w2 = graph.workers.values()
-
-        # FIXME xxxxx horrible ugly hack:
-        c1.node_id = w2.node_keypair.pubkey
-        c2.node_id = w1.node_keypair.pubkey
-        c1.storage['node_id'] = c1.node_id
-        c2.storage['node_id'] = c2.node_id
-
         return p1, p2, w1, w2
 
     async def test_reestablish(self):
@@ -701,8 +696,9 @@ class TestPeerDirect(TestPeer):
     async def test_reestablish_with_old_state(self):
         async def f(alice_slow: bool, bob_slow: bool):
             random_seed = os.urandom(32)
-            alice_channel, bob_channel = create_test_channels(random_seed=random_seed)
-            alice_channel_0, bob_channel_0 = create_test_channels(random_seed=random_seed)  # these are identical
+            alice_lnwallet, bob_lnwallet = self.prepare_lnwallets(self.GRAPH_DEFINITIONS['single_chan']).values()
+            alice_channel, bob_channel = create_test_channels(random_seed=random_seed, alice_lnwallet=alice_lnwallet, bob_lnwallet=bob_lnwallet)
+            alice_channel_0, bob_channel_0 = create_test_channels(random_seed=random_seed, alice_lnwallet=alice_lnwallet, bob_lnwallet=bob_lnwallet)  # these are identical
             p1, p2, w1, w2 = self.prepare_peers(alice_channel, bob_channel)
             lnaddr, pay_req = self.prepare_invoice(w2)
             async def pay():
@@ -776,7 +772,8 @@ class TestPeerDirect(TestPeer):
         ----add-->
         ----sig-->
         """
-        chan_AB, chan_BA = create_test_channels()
+        alice_lnwallet, bob_lnwallet = self.prepare_lnwallets(self.GRAPH_DEFINITIONS['single_chan']).values()
+        chan_AB, chan_BA = create_test_channels(alice_lnwallet=alice_lnwallet, bob_lnwallet=bob_lnwallet)
         # note: we don't start peer.htlc_switch() so that the fake htlcs are left alone.
         async def f():
             p1, p2, w1, w2 = self.prepare_peers(chan_AB, chan_BA)
@@ -831,7 +828,8 @@ class TestPeerDirect(TestPeer):
         ----sig-->
         ----rev-->
         """
-        chan_AB, chan_BA = create_test_channels()
+        alice_lnwallet, bob_lnwallet = self.prepare_lnwallets(self.GRAPH_DEFINITIONS['single_chan']).values()
+        chan_AB, chan_BA = create_test_channels(alice_lnwallet=alice_lnwallet, bob_lnwallet=bob_lnwallet)
         # note: we don't start peer.htlc_switch() so that the fake htlcs are left alone.
         async def f():
             p1, p2, w1, w2 = self.prepare_peers(chan_AB, chan_BA)
@@ -1703,7 +1701,8 @@ class TestPeerDirect(TestPeer):
             await gath
 
     async def test_close_upfront_shutdown_script(self):
-        alice_channel, bob_channel = create_test_channels()
+        alice_lnwallet, bob_lnwallet = self.prepare_lnwallets(self.GRAPH_DEFINITIONS['single_chan']).values()
+        alice_channel, bob_channel = create_test_channels(alice_lnwallet=alice_lnwallet, bob_lnwallet=bob_lnwallet)
 
         # create upfront shutdown script for bob, alice doesn't use upfront
         # shutdown script
@@ -1995,7 +1994,10 @@ class TestPeerDirect(TestPeer):
         $ py-spy record -o flamegraph.svg --subprocesses -- python -m pytest tests/test_lnpeer.py::TestPeerDirect::test_htlc_switch_iteration_benchmark
         """
         NUM_ITERATIONS = 25
-        alice_channel, bob_channel = create_test_channels(max_accepted_htlcs=20)
+        alice_lnwallet, bob_lnwallet = self.prepare_lnwallets(self.GRAPH_DEFINITIONS['single_chan']).values()
+        alice_channel, bob_channel = create_test_channels(
+            alice_lnwallet=alice_lnwallet, bob_lnwallet=bob_lnwallet, max_accepted_htlcs=20,
+        )
         alice_p, bob_p, alice_w, bob_w = self.prepare_peers(alice_channel, bob_channel)
 
         await self._activate_trampoline(alice_w)
