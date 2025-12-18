@@ -44,6 +44,7 @@ from ..messages import MSG_FREEZE_ADDRESS
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
+    from electrum.wallet import AddressIndexGeneric
 
 
 class AddressUsageStateFilter(IntEnum):
@@ -219,9 +220,9 @@ class AddressList(MyTreeView):
             else:
                 address_item[self.Columns.TYPE].setText(_('receiving'))
                 address_item[self.Columns.TYPE].setBackground(ColorScheme.GREEN.as_color(True))
-            address_item[0].setData(address, self.ROLE_ADDRESS_STR)
+            address_item[self.Columns.TYPE].setData(address, self.ROLE_ADDRESS_STR)
             address_path = self.wallet.get_address_index(address)
-            address_item[self.Columns.TYPE].setData(address_path, self.ROLE_SORT_ORDER)
+            address_item[self.Columns.TYPE].setData(self.address_index_as_sortable_key(address_path), self.ROLE_SORT_ORDER)
             address_path_str = self.wallet.get_address_path_str(address)
             if address_path_str is not None:
                 address_item[self.Columns.TYPE].setToolTip(address_path_str)
@@ -242,6 +243,9 @@ class AddressList(MyTreeView):
         self.proxy.setDynamicSortFilter(True)
         # update counter
         self.num_addr_label.setText(_("{} addresses").format(num_shown))
+
+    def address_index_as_sortable_key(self, address_index: 'AddressIndexGeneric'):
+        return address_index if isinstance(address_index, str) else ''.join(f'{i:08x}' for i in address_index)
 
     def refresh_row(self, key, row):
         assert row is not None
