@@ -499,6 +499,8 @@ class Daemon(Logger):
         if wallet := self._wallets.get(wallet_key):
             if force_check_password:
                 wallet.check_password(password)
+            if self.config.get('wallet_path') is None:
+                self.config.CURRENT_WALLET = path
             return wallet
         wallet = self._load_wallet(
             path, password, upgrade=upgrade, config=self.config, force_check_password=force_check_password)
