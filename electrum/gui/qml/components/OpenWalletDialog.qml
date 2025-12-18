@@ -12,6 +12,7 @@ ElDialog {
 
     property string name
     property string path
+    property bool isStartup
 
     property bool _invalidPassword: false
     property bool _unlockClicked: false
@@ -40,7 +41,7 @@ ElDialog {
 
             InfoTextArea {
                 id: notice
-                text: Daemon.singlePasswordEnabled || !Daemon.currentWallet
+                text: Daemon.singlePasswordEnabled || isStartup
                     ? qsTr('Please enter password')
                     : qsTr('Wallet <b>%1</b> requires password to unlock').arg(name)
                 iconStyle: InfoTextArea.IconStyle.Warn
@@ -94,9 +95,39 @@ ElDialog {
         Daemon.loadWallet(openwalletdialog.path, password.text)
     }
 
+    function maybeUnlockAnyOtherWallet() {
+        // try to open any other wallet with the password the user entered, hack to improve ux for
+        // users with non-unified wallet password.
+        // we should only fall back to opening a random wallet if:
+        // - the user did not select a specific wallet, otherwise this is confusing
+        // - there can be more than one password, otherwise this scan would be pointless
+        if (Daemon.availableWallets.rowCount() <= 1 || password.text === '') {
+            return false
+        }
+        if (Config.walletDidUseSinglePassword) {
+            // the last time the wallet was unlocked all wallets used the same password.
+            // trying to decrypt all of them now is most probably useless.
+            return false
+        }
+        if (!openwalletdialog.isStartup) {
+            return false  // this dialog got opened because the user clicked on a specific wallet
+        }
+        let wallet_paths = Daemon.getWalletsUnlockableWithPassword(password.text)
+        if (wallet_paths && wallet_paths.length > 0) {
+            console.log('could not unlock recent wallet, falling back to: ' + wallet_paths[0])
+            Daemon.loadWallet(wallet_paths[0], password.text)
+            return true
+        }
+        return false
+    }
+
     Connections {
         target: Daemon
         function onWalletRequiresPassword() {
+            if (maybeUnlockAnyOtherWallet()) {
+                password.text = ''  // reset pw so we cannot end up in a loop
+                return
+            }
             console.log('invalid password')
             _invalidPassword = true
             password.tf.forceActiveFocus()

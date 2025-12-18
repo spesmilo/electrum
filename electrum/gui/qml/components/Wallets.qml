@@ -121,7 +121,21 @@ Pane {
             Layout.fillWidth: true
             text: qsTr('Create Wallet')
             icon.source: '../../icons/add.png'
-            onClicked: rootItem.createWallet()
+            onClicked: {
+                if (Daemon.availableWallets.rowCount() > 0 && Config.walletShouldUseSinglePassword
+                    && (!Daemon.singlePassword || Daemon.numWalletsWithPassword(Daemon.singlePassword) < 1)) {
+                    // if the user has wallets but hasn't unlocked any wallet yet force them to do so.
+                    // this ensures they know at least one wallets password and can complete the wizard
+                    // where they will need to enter the password of an existing wallet.
+                    var dialog = app.messageDialog.createObject(app, {
+                        title: qsTr('Wallet unlock required'),
+                        text: qsTr("You have to unlock any existing wallet first before creating a new wallet."),
+                    })
+                    dialog.open()
+                } else {
+                    rootItem.createWallet()
+                }
+            }
         }
     }
 
@@ -129,7 +143,11 @@ Pane {
         target: Daemon
         function onWalletLoaded() {
             if (app.stack.currentItem.objectName == 'Wallets')
-                app.stack.pop()
+                if (app.stack.getRoot().objectName == 'Wallets') {
+                    app.stack.replaceRoot('WalletMainView.qml')
+                } else {
+                    app.stack.pop()
+                }
         }
     }
 

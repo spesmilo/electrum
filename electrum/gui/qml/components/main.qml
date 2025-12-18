@@ -38,6 +38,8 @@ ApplicationWindow
     property alias keyboardFreeZone: _keyboardFreeZone
     property alias infobanner: _infobanner
 
+    property string pendingIntent: ""
+
     property variant activeDialogs: []
 
     property var _exceptionDialog
@@ -120,7 +122,7 @@ ApplicationWindow
 
     header: ToolBar {
         id: toolbar
- 
+
         // Add top margin for status bar on Android when using edge-to-edge
         topPadding: app.statusBarHeight
 
@@ -269,7 +271,7 @@ ApplicationWindow
             Layout.fillWidth: true
 
             initialItem: Component {
-                WalletMainView {}
+                Wallets {}
             }
 
             function getRoot() {
@@ -281,6 +283,10 @@ ApplicationWindow
                 } else {
                     mainStackView.push(item)
                 }
+            }
+            function replaceRoot(item_url) {
+                mainStackView.clear()
+                mainStackView.push(Qt.resolvedUrl(item_url))
             }
         }
 
@@ -628,12 +634,18 @@ ApplicationWindow
     }
 
     property var _opendialog: undefined
+    property var _opendialog_startup: true
 
     function showOpenWalletDialog(name, path) {
         if (_opendialog == undefined) {
-            _opendialog = openWalletDialog.createObject(app, { name: name, path: path })
+            _opendialog = openWalletDialog.createObject(app, {
+                name: name,
+                path: path,
+                isStartup: _opendialog_startup,
+            })
             _opendialog.closed.connect(function() {
                 _opendialog = undefined
+                _opendialog_startup = false
             })
             _opendialog.open()
         }
@@ -697,6 +709,10 @@ ApplicationWindow
             var obj = comp.createObject(app)
             if (obj != null)
                 app.pluginobjects[name] = obj
+        }
+        function onUriReceived(uri) {
+            console.log('uri received (main): ' + uri)
+            app.pendingIntent = uri
         }
     }
 
