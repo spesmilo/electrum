@@ -11,7 +11,7 @@ from electrum.logging import get_logger
 from electrum.i18n import _
 from electrum.bitcoin import DummyAddress
 from electrum.transaction import PartialTxOutput, PartialTransaction, Transaction, TxOutpoint
-from electrum.util import NotEnoughFunds, profiler, quantize_feerate, UserFacingException
+from electrum.util import NotEnoughFunds, profiler, quantize_feerate, UserFacingException, NoDynamicFeeEstimates
 from electrum.wallet import CannotBumpFee, CannotDoubleSpendTx, CannotCPFP, BumpFeeStrategy, sweep_preparations
 from electrum import keystore
 from electrum.plugin import run_hook
@@ -1048,9 +1048,13 @@ class QETxSweepFinalizer(QETxFinalizer):
         try:
             # make unsigned transaction
             tx = self.make_sweep_tx()
-        except Exception as e:
-            self._logger.error(str(e))
-            self.warning = repr(e)
+        except NoDynamicFeeEstimates:
+            self.warning = _('No dynamic fee estimates available')
+            self._valid = False
+            self.validChanged.emit()
+            return
+        except NotEnoughFunds:
+            self.warning = _('Not enough funds')
             self._valid = False
             self.validChanged.emit()
             return
