@@ -183,7 +183,7 @@ class NodesListWidget(QTreeWidget):
         disconnected_servers_item = QTreeWidgetItem([_("Other known servers"), ""])
         disconnected_servers_item.setData(0, self.ITEMTYPE_ROLE, self.ItemType.TOPLEVEL)
         for server in network.get_disconnected_server_addrs():
-            item = QTreeWidgetItem([server.net_addr_str(), ""])
+            item = QTreeWidgetItem([server.to_friendly_name(), ""])
             item.setData(0, self.ITEMTYPE_ROLE, self.ItemType.DISCONNECTED_SERVER)
             item.setData(0, self.SERVER_ADDR_ROLE, server)
             if network.is_server_bookmarked(server):

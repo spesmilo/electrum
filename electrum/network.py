@@ -53,7 +53,7 @@ from .transaction import Transaction
 from .blockchain import Blockchain
 from .interface import (
     Interface, PREFERRED_NETWORK_PROTOCOL, RequestTimedOut, NetworkTimeout, BUCKET_NAME_OF_ONION_SERVERS,
-    NetworkException, RequestCorrupted, ServerAddr, TxBroadcastError,
+    NetworkException, RequestCorrupted, ServerAddr, TxBroadcastError, KNOWN_ELEC_PROTOCOL_TRANSPORTS,
 )
 from .version import PROTOCOL_VERSION_MIN
 from .i18n import _
@@ -660,21 +660,27 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         return out
 
     def get_disconnected_server_addrs(self) -> Sequence[ServerAddr]:
-        servers = self.get_servers()
+        hostmap = self.get_servers()
         disconnected_server_addrs = []  # type: List[ServerAddr]
         chains = self.get_blockchains()
         connected_hosts = set([iface.host for ifaces in chains.values() for iface in ifaces])
-        protocol = PREFERRED_NETWORK_PROTOCOL
-        server_addrs = [
-            ServerAddr(_host, port, protocol=protocol)
-            for _host, d in servers.items()
-            if (port := d.get(protocol))]  # FIXME this filters out even bookmarked servers from other protocols
+        # convert hostmap to list of ServerAddrs (one-to-many mapping)
+        server_addrs = []
+        for host, portmap in hostmap.items():
+            for protocol in KNOWN_ELEC_PROTOCOL_TRANSPORTS:
+                if port := portmap.get(protocol):
+                    server_addrs.append(ServerAddr(host, port, protocol=protocol))
+        # sort bookmarked servers to appear first
         server_addrs.sort(key=lambda x: (-self.is_server_bookmarked(x), str(x)))
+        # filter out stuff
         for server in server_addrs:
             if server.host in connected_hosts:
                 continue
-            if server.host.endswith('.onion') and not self.is_proxy_tor:
-                continue
+            if not self.is_server_bookmarked(server):
+                if server.protocol != PREFERRED_NETWORK_PROTOCOL:
+                    continue
+                if server.host.endswith('.onion') and not self.is_proxy_tor:
+                    continue
             disconnected_server_addrs.append(server)
         return disconnected_server_addrs
 

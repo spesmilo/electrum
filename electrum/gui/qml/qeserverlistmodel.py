@@ -118,7 +118,7 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
                 'height': 0,
                 'is_primary': False,
                 'is_connected': False,
-                'name': s.net_addr_str()
+                'name': s.to_friendly_name()
             }
             server['address'] = server['name']
 
