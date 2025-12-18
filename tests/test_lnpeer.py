@@ -515,6 +515,76 @@ class TestPeer(ElectrumTestCase):
                     raise OnionRoutingFailure(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
             w2.register_hold_invoice(payment_hash, cb)
 
+    def prepare_chans_and_peers_in_graph(self, graph_definition) -> Graph:
+        workers = {}  # type: Dict[str, MockLNWallet]
+
+        # create workers
+        for a, definition in graph_definition.items():
+            workers[a] = MockLNWallet(name=a, has_anchors=self.TEST_ANCHOR_CHANNELS)
+        self._lnworkers_created.extend(list(workers.values()))
+        keys = {name: w.node_keypair for name, w in workers.items()}
+
+        channels = {}  # type: Dict[Tuple[str, str], Channel]
+        transports = {}
+        peers = {}
+
+        # create channels
+        for a, definition in graph_definition.items():
+            for b, channel_def in definition.get('channels', {}).items():
+                channel_ab, channel_ba = create_test_channels(
+                    alice_name=a,
+                    bob_name=b,
+                    alice_pubkey=keys[a].pubkey,
+                    bob_pubkey=keys[b].pubkey,
+                    local_msat=channel_def['local_balance_msat'],
+                    remote_msat=channel_def['remote_balance_msat'],
+                    anchor_outputs=self.TEST_ANCHOR_CHANNELS
+                )
+                channels[(a, b)], channels[(b, a)] = channel_ab, channel_ba
+                workers[a]._add_channel(channel_ab)
+                workers[b]._add_channel(channel_ba)
+                transport_ab, transport_ba = transport_pair(keys[a], keys[b], channel_ab.name, channel_ba.name)
+                transports[(a, b)], transports[(b, a)] = transport_ab, transport_ba
+                # set fees
+                channel_ab.forwarding_fee_proportional_millionths = channel_def['local_fee_rate_millionths']
+                channel_ab.forwarding_fee_base_msat = channel_def['local_base_fee_msat']
+                channel_ba.forwarding_fee_proportional_millionths = channel_def['remote_fee_rate_millionths']
+                channel_ba.forwarding_fee_base_msat = channel_def['remote_base_fee_msat']
+
+        # create peers
+        for ab in channels.keys():
+            peers[ab] = Peer(workers[ab[0]], keys[ab[1]].pubkey, transports[ab])
+
+        # add peers to workers
+        for a, w in workers.items():
+            for ab, peer_ab in peers.items():
+                if ab[0] == a:
+                    w.lnpeermgr._peers[peer_ab.pubkey] = peer_ab
+
+        # set forwarding properties
+        for a, definition in graph_definition.items():
+            for property in definition.get('config', {}).items():
+                workers[a].network.config.set_key(*property)
+
+        # mark_open won't work if state is already OPEN.
+        # so set it to FUNDED
+        for channel_ab in channels.values():
+           channel_ab._state = ChannelState.FUNDED
+
+        # this populates the channel graph:
+        for ab, peer_ab in peers.items():
+            peer_ab.mark_open(channels[ab])
+
+        graph = Graph(
+            workers=workers,
+            peers=peers,
+            channels=channels,
+        )
+        for a in workers:
+            print(f"{a:5s}: {keys[a].pubkey}")
+            print(f"       {keys[a].pubkey.hex()}")
+        return graph
+
 
 class TestPeerUtils(TestPeer):
 
@@ -2012,76 +2082,6 @@ class TestPeerDirect(TestPeer):
 
 
 class TestPeerForwarding(TestPeer):
-
-    def prepare_chans_and_peers_in_graph(self, graph_definition) -> Graph:
-        workers = {}  # type: Dict[str, MockLNWallet]
-
-        # create workers
-        for a, definition in graph_definition.items():
-            workers[a] = MockLNWallet(name=a, has_anchors=self.TEST_ANCHOR_CHANNELS)
-        self._lnworkers_created.extend(list(workers.values()))
-        keys = {name: w.node_keypair for name, w in workers.items()}
-
-        channels = {}  # type: Dict[Tuple[str, str], Channel]
-        transports = {}
-        peers = {}
-
-        # create channels
-        for a, definition in graph_definition.items():
-            for b, channel_def in definition.get('channels', {}).items():
-                channel_ab, channel_ba = create_test_channels(
-                    alice_name=a,
-                    bob_name=b,
-                    alice_pubkey=keys[a].pubkey,
-                    bob_pubkey=keys[b].pubkey,
-                    local_msat=channel_def['local_balance_msat'],
-                    remote_msat=channel_def['remote_balance_msat'],
-                    anchor_outputs=self.TEST_ANCHOR_CHANNELS
-                )
-                channels[(a, b)], channels[(b, a)] = channel_ab, channel_ba
-                workers[a]._add_channel(channel_ab)
-                workers[b]._add_channel(channel_ba)
-                transport_ab, transport_ba = transport_pair(keys[a], keys[b], channel_ab.name, channel_ba.name)
-                transports[(a, b)], transports[(b, a)] = transport_ab, transport_ba
-                # set fees
-                channel_ab.forwarding_fee_proportional_millionths = channel_def['local_fee_rate_millionths']
-                channel_ab.forwarding_fee_base_msat = channel_def['local_base_fee_msat']
-                channel_ba.forwarding_fee_proportional_millionths = channel_def['remote_fee_rate_millionths']
-                channel_ba.forwarding_fee_base_msat = channel_def['remote_base_fee_msat']
-
-        # create peers
-        for ab in channels.keys():
-            peers[ab] = Peer(workers[ab[0]], keys[ab[1]].pubkey, transports[ab])
-
-        # add peers to workers
-        for a, w in workers.items():
-            for ab, peer_ab in peers.items():
-                if ab[0] == a:
-                    w.lnpeermgr._peers[peer_ab.pubkey] = peer_ab
-
-        # set forwarding properties
-        for a, definition in graph_definition.items():
-            for property in definition.get('config', {}).items():
-                workers[a].network.config.set_key(*property)
-
-        # mark_open won't work if state is already OPEN.
-        # so set it to FUNDED
-        for channel_ab in channels.values():
-           channel_ab._state = ChannelState.FUNDED
-
-        # this populates the channel graph:
-        for ab, peer_ab in peers.items():
-            peer_ab.mark_open(channels[ab])
-
-        graph = Graph(
-            workers=workers,
-            peers=peers,
-            channels=channels,
-        )
-        for a in workers:
-            print(f"{a:5s}: {keys[a].pubkey}")
-            print(f"       {keys[a].pubkey.hex()}")
-        return graph
 
     async def test_payment_in_graph_with_direct_channel(self):
         """Test payment over a direct channel where sender has multiple available channels."""
