@@ -170,8 +170,9 @@ class ChannelConfig(StoredObject):
             initial_feerate_per_kw: int,
             config: 'SimpleConfig',
             peer_features: 'LnFeatures',
-            has_anchors: bool,
+            channel_type: 'ChannelType',
     ) -> None:
+        has_anchors = bool(channel_type & ChannelType.OPTION_ANCHORS_ZERO_FEE_HTLC_TX)
         # first we validate the configs separately
         local_config.validate_params(funding_sat=funding_sat, config=config, peer_features=peer_features)
         remote_config.validate_params(funding_sat=funding_sat, config=config, peer_features=peer_features)
@@ -1621,7 +1622,7 @@ class ChannelType(IntFlag):
     OPTION_SCID_ALIAS = 1 << 46
     OPTION_ZEROCONF = 1 << 50
 
-    def discard_unknown_and_check(self):
+    def discard_unknown_and_check(self) -> 'ChannelType':
         """Discards unknown flags and checks flag combination."""
         flags = list_enabled_bits(self)
         known_channel_types = []
