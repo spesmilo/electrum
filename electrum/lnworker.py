@@ -35,6 +35,7 @@ from .json_db import stored_in
 from .channel_db import UpdateStatus, ChannelDBNotLoaded, get_mychannel_info, get_mychannel_policy
 
 from . import constants, util, lnutil
+from . import bitcoin
 from .util import (
     profiler, OldTaskGroup, ESocksProxy, NetworkRetryManager, JsonRPCClient, NotEnoughFunds, EventListener,
     event_listener, bfh, InvoiceError, resolve_dns_srv, is_ip_address, log_exceptions, ignore_exceptions,
@@ -73,7 +74,7 @@ from .lnutil import (
     OnchainChannelBackupStorage, ln_compare_features, IncompatibleLightningFeatures, PaymentFeeBudget,
     NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, GossipForwardingMessage, MIN_FUNDING_SAT,
     MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE, RecvMPPResolution, ReceivedMPPStatus, ReceivedMPPHtlc,
-    PaymentSuccess,
+    PaymentSuccess, ChannelType, LocalConfig, Keypair,
 )
 from .lnonion import (
     decode_onion_error, OnionFailureCode, OnionRoutingFailure, OnionPacket,
@@ -1600,6 +1601,72 @@ class LNWallet(Logger):
             chan.set_state(ChannelState.REDEEMED)
             self.remove_channel(chan.channel_id)
             raise
+
+    def make_local_config_for_new_channel(
+        self,
+        *,
+        funding_sat: int,
+        push_msat: int,
+        initiator: HTLCOwner,
+        channel_type: ChannelType,
+        multisig_funding_keypair: Optional[Keypair],  # if None, will get derived from channel_seed
+        peer_features: LnFeatures,
+    ) -> LocalConfig:
+        channel_seed = os.urandom(32)
+        initial_msat = funding_sat * 1000 - push_msat if initiator == LOCAL else push_msat
+
+        # sending empty bytes as the upfront_shutdown_script will give us the
+        # flexibility to decide an address at closing time
+        upfront_shutdown_script = b''
+
+        assert channel_type is not None
+        if channel_type & ChannelType.OPTION_ANCHORS_ZERO_FEE_HTLC_TX:  # anchors
+            static_payment_key = self.static_payment_key
+            static_remotekey = None
+        else:  # static_remotekey
+            assert channel_type & channel_type.OPTION_STATIC_REMOTEKEY
+            wallet = self.wallet
+            assert wallet.txin_type == 'p2wpkh'
+            addr = wallet.get_new_sweep_address_for_channel()
+            static_payment_key = None
+            static_remotekey = bytes.fromhex(wallet.get_public_key(addr))
+
+        if multisig_funding_keypair:
+            for chan in self.channels.values():  # check against all chans of lnworker, for sanity
+                if multisig_funding_keypair.pubkey == chan.config[LOCAL].multisig_key.pubkey:
+                    raise Exception(
+                        "Refusing to reuse multisig_funding_keypair for new channel. "
+                        "Wait one block before opening another channel with this peer."
+                    )
+
+        dust_limit_sat = bitcoin.DUST_LIMIT_P2PKH
+        reserve_sat = max(funding_sat // 100, dust_limit_sat)
+        # for comparison of defaults, see
+        # https://github.com/ACINQ/eclair/blob/afa378fbb73c265da44856b4ad0f2128a88ae6c6/eclair-core/src/main/resources/reference.conf#L66
+        # https://github.com/ElementsProject/lightning/blob/0056dd75572a8857cff36fcbdb1a2295a1ac9253/lightningd/options.c#L657
+        # https://github.com/lightningnetwork/lnd/blob/56b61078c5b2be007d318673a5f3b40c6346883a/config.go#L81
+        max_htlc_value_in_flight_msat = self.network.config.LIGHTNING_MAX_HTLC_VALUE_IN_FLIGHT_MSAT or funding_sat * 1000
+        local_config = LocalConfig.from_seed(
+            channel_seed=channel_seed,
+            static_remotekey=static_remotekey,
+            static_payment_key=static_payment_key,
+            multisig_key=multisig_funding_keypair,
+            upfront_shutdown_script=upfront_shutdown_script,
+            to_self_delay=self.network.config.LIGHTNING_TO_SELF_DELAY_CSV,
+            dust_limit_sat=dust_limit_sat,
+            max_htlc_value_in_flight_msat=max_htlc_value_in_flight_msat,
+            max_accepted_htlcs=30,
+            initial_msat=initial_msat,
+            reserve_sat=reserve_sat,
+            funding_locked_received=False,
+            current_commitment_signature=None,
+            current_htlc_signatures=b'',
+            htlc_minimum_msat=1,
+            announcement_node_sig=b'',
+            announcement_bitcoin_sig=b'',
+        )
+        local_config.validate_params(funding_sat=funding_sat, config=self.network.config, peer_features=peer_features)
+        return local_config
 
     def cb_data(self, node_id: bytes) -> bytes:
         return CB_MAGIC_BYTES + node_id[0:NODE_ID_PREFIX_LEN]
