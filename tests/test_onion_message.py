@@ -352,8 +352,7 @@ class TestOnionMessageManager(ElectrumTestCase):
 
     async def test_request_and_reply(self):
         n = MockNetwork()
-        q1, q2 = asyncio.Queue(), asyncio.Queue()
-        lnw = MockLNWallet(tx_queue=q1, name='test_request_and_reply', has_anchors=False)
+        lnw = MockLNWallet(name='test_request_and_reply', has_anchors=False)
 
         def slow(*args, **kwargs):
             time.sleep(2*TIME_STEP)
@@ -399,8 +398,7 @@ class TestOnionMessageManager(ElectrumTestCase):
 
     async def test_forward(self):
         n = MockNetwork()
-        q1 = asyncio.Queue()
-        lnw = MockLNWallet(tx_queue=q1, name='alice', has_anchors=False)
+        lnw = MockLNWallet(name='alice', has_anchors=False)
         lnw.node_keypair = self.alice
 
         self.was_sent = False
@@ -437,8 +435,7 @@ class TestOnionMessageManager(ElectrumTestCase):
 
     async def test_receive_unsolicited(self):
         n = MockNetwork()
-        q1 = asyncio.Queue()
-        lnw = MockLNWallet(tx_queue=q1, name='dave', has_anchors=False)
+        lnw = MockLNWallet(name='dave', has_anchors=False)
         lnw.node_keypair = self.dave
 
         t = OnionMessageManager(lnw)
