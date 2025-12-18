@@ -31,6 +31,7 @@ from pprint import pformat
 import logging
 import dataclasses
 import time
+from typing import TYPE_CHECKING
 
 from electrum import bitcoin
 from electrum import lnpeer
@@ -46,6 +47,10 @@ from electrum.json_db import StoredDict
 from electrum.coinchooser import PRNG
 
 from . import ElectrumTestCase
+
+if TYPE_CHECKING:
+    from .test_lnpeer import MockLNWallet
+
 
 one_bitcoin_in_msat = bitcoin.COIN * 1000
 
@@ -134,15 +139,33 @@ def bip32(sequence):
     return k
 
 
-def create_test_channels(*, feerate=6000, local_msat=None, remote_msat=None,
-                         alice_name="alice", bob_name="bob",
-                         alice_pubkey=b"\x01"*33, bob_pubkey=b"\x02"*33, random_seed=None,
-                         anchor_outputs=False,
-                         local_max_inflight=None, remote_max_inflight=None,
-                         max_accepted_htlcs=5) -> tuple[Channel, Channel]:
+def create_test_channels(
+    *,
+    alice_lnwallet: 'MockLNWallet' = None,
+    bob_lnwallet: 'MockLNWallet' = None,
+    feerate=6000,
+    local_msat=None,
+    remote_msat=None,
+    random_seed=None,
+    anchor_outputs=False,
+    local_max_inflight=None,
+    remote_max_inflight=None,
+    max_accepted_htlcs=5,
+) -> tuple[Channel, Channel]:
     if random_seed is None:  # needed for deterministic randomness
         random_seed = os.urandom(32)
     random_gen = PRNG(random_seed)
+    if alice_lnwallet or bob_lnwallet:
+        assert alice_lnwallet and bob_lnwallet, "either both or neither lnwallet must be set"
+        alice_name = alice_lnwallet.name
+        bob_name = bob_lnwallet.name
+        alice_pubkey = alice_lnwallet.node_keypair.pubkey
+        bob_pubkey = bob_lnwallet.node_keypair.pubkey
+    else:
+        alice_name = "alice"
+        bob_name = "bob",
+        alice_pubkey = b"\x01" * 33
+        bob_pubkey = b"\x02" * 33
     funding_txid = binascii.hexlify(random_gen.get_bytes(32)).decode("ascii")
     funding_index = 0
     funding_sat = ((local_msat + remote_msat) // 1000) if local_msat is not None and remote_msat is not None else (bitcoin.COIN * 10)
