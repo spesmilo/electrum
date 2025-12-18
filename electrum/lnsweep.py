@@ -54,6 +54,15 @@ class SweepInfo(NamedTuple):
         return self.txin.get_block_based_relative_locktime() or 0
 
 
+class KeepWatchingTXO(NamedTuple):
+    """Used for UTXOs we don't yet know if we want to sweep, such as pending HTLCs for JIT channels."""
+    name: str
+    until_height: int
+
+
+MaybeSweepInfo = SweepInfo | KeepWatchingTXO
+
+
 def sweep_their_ctx_watchtower(
         chan: 'Channel',
         ctx: Transaction,
@@ -282,7 +291,7 @@ def sweep_our_ctx(
         *, chan: 'AbstractChannel',
         ctx: Transaction,
         actual_htlc_tx: Transaction=None, # if passed, return second stage htlcs
-) -> Dict[str, SweepInfo]:
+) -> Dict[str, MaybeSweepInfo]:
 
     """Handle the case where we force-close unilaterally with our latest ctx.
 
@@ -329,7 +338,7 @@ def sweep_our_ctx(
     # other outputs are htlcs
     # if they are spent, we need to generate the script
     # so, second-stage htlc sweep should not be returned here
-    txs = {}  # type: Dict[str, SweepInfo]
+    txs = {}  # type: Dict[str, MaybeSweepInfo]
 
     # local anchor
     if actual_htlc_tx is None and chan.has_anchors():
@@ -444,9 +453,13 @@ def sweep_our_ctx(
             # note: it is the first stage (witness of htlc_tx) that reveals the preimage,
             #       so if we are already in second stage, it is already revealed.
             #       However, here, we don't make a distinction.
-            preimage = _maybe_reveal_preimage_for_htlc(
+            preimage, keep_watching_txo = _maybe_reveal_preimage_for_htlc(
                 chan=chan, htlc=htlc,
+                sweep_info_name=f"our_ctx_htlc_{ctx_output_idx}",
             )
+            if keep_watching_txo:
+                prevout = ctx.txid() + ':%d' % ctx_output_idx
+                txs[prevout] = keep_watching_txo
             if not preimage:
                 continue
         try:
@@ -465,7 +478,8 @@ def _maybe_reveal_preimage_for_htlc(
     *,
     chan: 'AbstractChannel',
     htlc: 'UpdateAddHtlc',
-) -> Optional[bytes]:
+    sweep_info_name: str,
+) -> Tuple[Optional[bytes], Optional[KeepWatchingTXO]]:
     """Given a Remote-added-HTLC, return the preimage if it's okay to reveal it on-chain."""
     if not chan.lnworker.is_complete_mpp(htlc.payment_hash):
         # - do not redeem this, it might publish the preimage of an incomplete MPP
@@ -473,11 +487,16 @@ def _maybe_reveal_preimage_for_htlc(
         #   for this MPP set. So the MPP set might still transition to complete!
         #   The MPP_TIMEOUT is only around 2 minutes, so this window is short.
         #   The default keep_watching logic in lnwatcher is sufficient to call us again.
-        return None
-    if htlc.payment_hash in chan.lnworker.dont_settle_htlcs:
-        return None
+        return None, None
+    if htlc.payment_hash.hex() in chan.lnworker.dont_settle_htlcs:
+        # we should not reveal the preimage *for now*, but we might still decide to reveal it later
+        keep_watching_txo = KeepWatchingTXO(
+            name=sweep_info_name + "_dont_settle_htlcs",
+            until_height=htlc.cltv_abs,
+        )
+        return None, keep_watching_txo
     preimage = chan.lnworker.get_preimage(htlc.payment_hash)
-    return preimage
+    return preimage, None
 
 
 def extract_ctx_secrets(chan: 'Channel', ctx: Transaction):
@@ -614,7 +633,7 @@ def sweep_their_ctx_to_remote_backup(
 
 def sweep_their_ctx(
         *, chan: 'Channel',
-        ctx: Transaction) -> Optional[Dict[str, SweepInfo]]:
+        ctx: Transaction) -> Optional[Dict[str, MaybeSweepInfo]]:
     """Handle the case when the remote force-closes with their ctx.
     Sweep outputs that do not have a CSV delay ('to_remote' and first-stage HTLCs).
     Outputs with CSV delay ('to_local' and second-stage HTLCs) are redeemed by LNWatcher.
@@ -628,7 +647,7 @@ def sweep_their_ctx(
 
     Outputs with CSV/CLTV are redeemed by LNWatcher.
     """
-    txs = {}  # type: Dict[str, SweepInfo]
+    txs = {}  # type: Dict[str, MaybeSweepInfo]
     our_conf, their_conf = get_ordered_channel_configs(chan=chan, for_us=True)
     x = extract_ctx_secrets(chan, ctx)
     if not x:
@@ -761,9 +780,13 @@ def sweep_their_ctx(
         preimage = None
         is_received_htlc = direction == RECEIVED
         if not is_received_htlc and not is_revocation:
-            preimage = _maybe_reveal_preimage_for_htlc(
+            preimage, keep_watching_txo = _maybe_reveal_preimage_for_htlc(
                 chan=chan, htlc=htlc,
+                sweep_info_name=f"their_ctx_htlc_{ctx_output_idx}",
             )
+            if keep_watching_txo:
+                prevout = ctx.txid() + ':%d' % ctx_output_idx
+                txs[prevout] = keep_watching_txo
             if not preimage:
                 continue
         tx_htlc(
