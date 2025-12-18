@@ -16,7 +16,7 @@ from electrum.network import Network
 
 from .qewallet import QEWallet
 from .qetypes import QEAmount
-from .util import QtEventListener, event_listener, status_update_timer_interval
+from .util import QtEventListener, qt_event_listener, status_update_timer_interval
 
 
 class QERequestDetails(QObject, QtEventListener):
@@ -65,7 +65,7 @@ class QERequestDetails(QObject, QtEventListener):
             self._timer.stop()
             self._timer = None
 
-    @event_listener
+    @qt_event_listener
     def on_event_request_status(self, wallet, key, status):
         if wallet == self._wallet.wallet and key == self._key:
             self._logger.debug('request status %d for key %s' % (status, key))
