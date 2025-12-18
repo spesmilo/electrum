@@ -894,9 +894,6 @@ class Peer(Logger, EventListener):
     def is_shutdown_anysegwit(self):
         return self.features.supports(LnFeatures.OPTION_SHUTDOWN_ANYSEGWIT_OPT)
 
-    def is_channel_type(self):
-        return self.features.supports(LnFeatures.OPTION_CHANNEL_TYPE_OPT)
-
     def accepts_zeroconf(self):
         return self.features.supports(LnFeatures.OPTION_ZEROCONF_OPT)
 
@@ -936,10 +933,11 @@ class Peer(Logger, EventListener):
         # flexibility to decide an address at closing time
         upfront_shutdown_script = b''
 
-        if self.use_anchors():
+        assert channel_type is not None
+        if channel_type & ChannelType.OPTION_ANCHORS_ZERO_FEE_HTLC_TX:  # anchors
             static_payment_key = self.lnworker.static_payment_key
             static_remotekey = None
-        else:
+        else:  # static_remotekey
             assert channel_type & channel_type.OPTION_STATIC_REMOTEKEY
             wallet = self.lnworker.wallet
             assert wallet.txin_type == 'p2wpkh'
@@ -1055,13 +1053,12 @@ class Peer(Logger, EventListener):
         # Eclair accepts channel_type with that bit, but does not require it.
 
         # if option_channel_type is negotiated: MUST set channel_type
-        if self.is_channel_type():
-            # if it includes channel_type: MUST set it to a defined type representing the type it wants.
-            open_channel_tlvs['channel_type'] = {
-                'type': our_channel_type.to_bytes_minimal()
-            }
+        # if it includes channel_type: MUST set it to a defined type representing the type it wants.
+        open_channel_tlvs['channel_type'] = {
+            'type': our_channel_type.to_bytes_minimal()
+        }
 
-        if self.use_anchors():
+        if our_channel_type & ChannelType.OPTION_ANCHORS_ZERO_FEE_HTLC_TX:
             multisig_funding_keypair = lnutil.derive_multisig_funding_key_if_we_opened(
                 funding_root_secret=self.lnworker.funding_root_keypair.privkey,
                 remote_node_id_or_prefix=self.pubkey,
@@ -1168,7 +1165,7 @@ class Peer(Logger, EventListener):
             initial_feerate_per_kw=feerate,
             config=self.network.config,
             peer_features=self.features,
-            has_anchors=self.use_anchors(),
+            channel_type=our_channel_type,
         )
 
         # -> funding created
@@ -1285,21 +1282,19 @@ class Peer(Logger, EventListener):
         channel_type = open_channel_tlvs.get('channel_type') if open_channel_tlvs else None
         # The receiving node MAY fail the channel if:
         # option_channel_type was negotiated but the message doesn't include a channel_type
-        if self.is_channel_type() and channel_type is None:
+        if channel_type is None:
             raise Exception("sender has advertised option_channel_type, but hasn't sent the channel type")
         # MUST fail the channel if it supports channel_type,
         # channel_type was set, and the type is not suitable.
-        elif self.is_channel_type() and channel_type is not None:
+        else:
             channel_type = ChannelType.from_bytes(channel_type['type'], byteorder='big').discard_unknown_and_check()
             if not channel_type.complies_with_features(self.features):
                 raise Exception("sender has sent a channel type we don't support")
+        assert isinstance(channel_type, ChannelType)
 
-        if self.is_channel_type():
-            is_zeroconf = bool(channel_type & ChannelType.OPTION_ZEROCONF)
-            if is_zeroconf and not self.network.config.ZEROCONF_TRUSTED_NODE.startswith(self.pubkey.hex()):
-                raise Exception(f"not accepting zeroconf from node {self.pubkey}")
-        else:
-            is_zeroconf = False
+        is_zeroconf = bool(channel_type & ChannelType.OPTION_ZEROCONF)
+        if is_zeroconf and not self.network.config.ZEROCONF_TRUSTED_NODE.startswith(self.pubkey.hex()):
+            raise Exception(f"not accepting zeroconf from node {self.pubkey}")
 
         if self.lnworker.has_recoverable_channels() and not is_zeroconf:
             # FIXME: we might want to keep the connection open
@@ -1324,7 +1319,7 @@ class Peer(Logger, EventListener):
             self.logger.info(f"just-in-time opening fee: {channel_opening_fee} msat")
             pass
 
-        if self.use_anchors():
+        if channel_type & ChannelType.OPTION_ANCHORS_ZERO_FEE_HTLC_TX:
             multisig_funding_keypair = lnutil.derive_multisig_funding_key_if_they_opened(
                 funding_root_secret=self.lnworker.funding_root_keypair.privkey,
                 remote_node_id_or_prefix=self.pubkey,
@@ -1370,7 +1365,7 @@ class Peer(Logger, EventListener):
             initial_feerate_per_kw=feerate,
             config=self.network.config,
             peer_features=self.features,
-            has_anchors=self.use_anchors(),
+            channel_type=channel_type,
         )
 
         channel_flags = ord(payload['channel_flags'])
@@ -1390,12 +1385,10 @@ class Peer(Logger, EventListener):
             'upfront_shutdown_script': {
                 'shutdown_scriptpubkey': local_config.upfront_shutdown_script
             },
+            'channel_type': {
+                'type': channel_type.to_bytes_minimal(),
+            },
         }
-        # The sender: if it sets channel_type: MUST set it to the channel_type from open_channel
-        if self.is_channel_type():
-            accept_channel_tlvs['channel_type'] = {
-                'type': channel_type.to_bytes_minimal()
-            }
 
         self.send_message(
             'accept_channel',

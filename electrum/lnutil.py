@@ -170,8 +170,9 @@ class ChannelConfig(StoredObject):
             initial_feerate_per_kw: int,
             config: 'SimpleConfig',
             peer_features: 'LnFeatures',
-            has_anchors: bool,
+            channel_type: 'ChannelType',
     ) -> None:
+        has_anchors = bool(channel_type & ChannelType.OPTION_ANCHORS_ZERO_FEE_HTLC_TX)
         # first we validate the configs separately
         local_config.validate_params(funding_sat=funding_sat, config=config, peer_features=peer_features)
         remote_config.validate_params(funding_sat=funding_sat, config=config, peer_features=peer_features)
@@ -1469,12 +1470,6 @@ class LnFeatures(IntFlag):
     _ln_feature_contexts[OPTION_SUPPORT_LARGE_CHANNEL_OPT] = (LNFC.INIT | LNFC.NODE_ANN)
     _ln_feature_contexts[OPTION_SUPPORT_LARGE_CHANNEL_REQ] = (LNFC.INIT | LNFC.NODE_ANN)
 
-    OPTION_ANCHOR_OUTPUTS_REQ = 1 << 20
-    OPTION_ANCHOR_OUTPUTS_OPT = 1 << 21
-    _ln_feature_direct_dependencies[OPTION_ANCHOR_OUTPUTS_OPT] = {OPTION_STATIC_REMOTEKEY_OPT}
-    _ln_feature_contexts[OPTION_ANCHOR_OUTPUTS_REQ] = (LNFC.INIT | LNFC.NODE_ANN)
-    _ln_feature_contexts[OPTION_ANCHOR_OUTPUTS_OPT] = (LNFC.INIT | LNFC.NODE_ANN)
-
     OPTION_ANCHORS_ZERO_FEE_HTLC_REQ = 1 << 22
     OPTION_ANCHORS_ZERO_FEE_HTLC_OPT = 1 << 23
     _ln_feature_direct_dependencies[OPTION_ANCHORS_ZERO_FEE_HTLC_OPT] = {OPTION_STATIC_REMOTEKEY_OPT}
@@ -1623,12 +1618,11 @@ class LnFeatures(IntFlag):
 class ChannelType(IntFlag):
     OPTION_LEGACY_CHANNEL = 0
     OPTION_STATIC_REMOTEKEY = 1 << 12
-    OPTION_ANCHOR_OUTPUTS = 1 << 20
     OPTION_ANCHORS_ZERO_FEE_HTLC_TX = 1 << 22
     OPTION_SCID_ALIAS = 1 << 46
     OPTION_ZEROCONF = 1 << 50
 
-    def discard_unknown_and_check(self):
+    def discard_unknown_and_check(self) -> 'ChannelType':
         """Discards unknown flags and checks flag combination."""
         flags = list_enabled_bits(self)
         known_channel_types = []
@@ -1647,7 +1641,6 @@ class ChannelType(IntFlag):
         basic_type = self & ~(ChannelType.OPTION_SCID_ALIAS | ChannelType.OPTION_ZEROCONF)
         if basic_type not in [
                 ChannelType.OPTION_STATIC_REMOTEKEY,
-                ChannelType.OPTION_ANCHOR_OUTPUTS | ChannelType.OPTION_STATIC_REMOTEKEY,
                 ChannelType.OPTION_ANCHORS_ZERO_FEE_HTLC_TX | ChannelType.OPTION_STATIC_REMOTEKEY
         ]:
             raise ValueError("Channel type is not a valid flag combination.")
