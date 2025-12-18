@@ -149,9 +149,6 @@ class NodesListWidget(QTreeWidget):
     def update(self):
         self.clear()
         network = self.network
-        servers = self.network.get_servers()
-
-        use_tor = bool(network.is_proxy_tor)
 
         # connected servers
         connected_servers_item = QTreeWidgetItem([_("Connected nodes"), ''])
@@ -185,18 +182,7 @@ class NodesListWidget(QTreeWidget):
         # disconnected servers
         disconnected_servers_item = QTreeWidgetItem([_("Other known servers"), ""])
         disconnected_servers_item.setData(0, self.ITEMTYPE_ROLE, self.ItemType.TOPLEVEL)
-        connected_hosts = set([iface.host for ifaces in chains.values() for iface in ifaces])
-        protocol = PREFERRED_NETWORK_PROTOCOL
-        server_addrs = [
-            ServerAddr(_host, port, protocol=protocol)
-            for _host, d in servers.items()
-            if (port := d.get(protocol))]
-        server_addrs.sort(key=lambda x: (-network.is_server_bookmarked(x), str(x)))
-        for server in server_addrs:
-            if server.host in connected_hosts:
-                continue
-            if server.host.endswith('.onion') and not use_tor:
-                continue
+        for server in network.get_disconnected_server_addrs():
             item = QTreeWidgetItem([server.net_addr_str(), ""])
             item.setData(0, self.ITEMTYPE_ROLE, self.ItemType.DISCONNECTED_SERVER)
             item.setData(0, self.SERVER_ADDR_ROLE, server)
