@@ -525,18 +525,33 @@ Pane {
                 confirmPassword: true,
                 title: qsTr('Enter new password'),
                 infotext: qsTr('If you forget your password, you\'ll need to restore from seed. Please make sure you have your seed stored safely')
+                        + (Daemon.availableWallets.rowCount() > 1 && Config.walletShouldUseSinglePassword
+                        ? "\n\n" + qsTr('The new password needs to match the password of any other existing wallet.')
+                        : "")
             })
             dialog.accepted.connect(function() {
-                var success = Daemon.currentWallet.setPassword(dialog.password)
-                if (success && Config.walletShouldUseSinglePassword) {
-                    Daemon.singlePassword = dialog.password
+                if (Config.walletShouldUseSinglePassword  // android
+                        && Daemon.availableWallets.rowCount() > 1  // has more than one wallet
+                        && Daemon.numWalletsWithPassword(dialog.password) < 1  // no other wallet uses this new password
+                ) {
+                    var success = false
+                    var error_msg = [
+                        qsTr('You need to use the password of any other existing wallet.'),
+                        qsTr('Using different wallet passwords is not supported.'),
+                    ].join("\n")
+                } else {
+                    var success = Daemon.currentWallet.setPassword(dialog.password)
+                    if (success && Config.walletShouldUseSinglePassword) {
+                        Daemon.singlePassword = dialog.password
+                    }
+                    var error_msg = qsTr('Password change failed')
                 }
                 var done_dialog = app.messageDialog.createObject(app, {
                     title: success ? qsTr('Success') : qsTr('Error'),
                     iconSource: success
                         ? Qt.resolvedUrl('../../icons/info.png')
                         : Qt.resolvedUrl('../../icons/warning.png'),
-                    text: success ? qsTr('Password changed') : qsTr('Password change failed')
+                    text: success ? qsTr('Password changed') : error_msg
                 })
                 done_dialog.open()
             })
