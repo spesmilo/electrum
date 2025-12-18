@@ -17,7 +17,11 @@ ElDialog {
     signal doPay
     signal invoiceAmountChanged
 
-    title: invoice.invoiceType == Invoice.OnchainInvoice ? qsTr('On-chain Invoice') : qsTr('Lightning Invoice')
+    title: invoice.invoiceType == Invoice.OnchainInvoice
+            ? qsTr('On-chain Invoice')
+            : invoice.lnprops.is_bolt12
+                ? qsTr('BOLT12 Invoice')
+                : qsTr('Lightning Invoice')
     iconSource: Qt.resolvedUrl('../../icons/tab_send.png')
 
     padding: 0
@@ -103,6 +107,30 @@ ElDialog {
                                 dialog.open()
                             }
                         }
+                    }
+                }
+
+                Label {
+                    Layout.columnSpan: 2
+                    Layout.topMargin: constants.paddingSmall
+                    text: qsTr('Issuer')
+                    visible: 'issuer' in invoice.lnprops && invoice.lnprops.issuer != ''
+                    color: Material.accentColor
+                }
+
+                TextHighlightPane {
+                    Layout.columnSpan: 2
+                    Layout.fillWidth: true
+
+                    visible: 'issuer' in invoice.lnprops && invoice.lnprops.issuer != ''
+                    leftPadding: constants.paddingMedium
+
+                    Label {
+                        text: 'issuer' in invoice.lnprops ? invoice.lnprops.issuer : ''
+                        width: parent.width
+                        font.pixelSize: constants.fontSizeXLarge
+                        wrapMode: Text.Wrap
+                        elide: Text.ElideRight
                     }
                 }
 
@@ -414,6 +442,36 @@ ElDialog {
                             Label {
                                 Layout.fillWidth: true
                                 text: modelData.node
+                                wrapMode: Text.Wrap
+                            }
+                        }
+                    }
+                }
+
+                Label {
+                    Layout.columnSpan: 2
+                    Layout.topMargin: constants.paddingSmall
+                    visible: 'blinded_paths' in invoice.lnprops && invoice.lnprops.blinded_paths.length
+                    text: qsTr('Blinded paths')
+                    color: Material.accentColor
+                }
+
+                Repeater {
+                    visible: 'blinded_paths' in invoice.lnprops && invoice.lnprops.blinded_paths.length
+                    model: invoice.lnprops.blinded_paths
+
+                    TextHighlightPane {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+
+                        RowLayout {
+                            width: parent.width
+
+                            Label {
+                                Layout.fillWidth: true
+                                text: qsTr('via %1 (%2 hops)')
+                                    .arg(modelData.first_node)
+                                    .arg(modelData.path_length)
                                 wrapMode: Text.Wrap
                             }
                         }

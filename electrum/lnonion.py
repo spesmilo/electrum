@@ -42,6 +42,10 @@ from .lnmsg import OnionWireSerializer, read_bigsize_int, write_bigsize_int
 from . import lnmsg
 from . import util
 
+from .logging import get_logger
+_logger = get_logger(__name__)
+
+
 if TYPE_CHECKING:
     from .lnrouter import LNPaymentRoute
 
@@ -50,6 +54,7 @@ HOPS_DATA_SIZE = 1300      # also sometimes called routingInfoSize in bolt-04
 TRAMPOLINE_HOPS_DATA_SIZE = 400
 PER_HOP_HMAC_SIZE = 32
 ONION_MESSAGE_LARGE_SIZE = 32768
+
 
 class UnsupportedOnionPacketVersion(Exception): pass
 class InvalidOnionMac(Exception): pass
@@ -197,6 +202,25 @@ def get_blinded_node_id(node_id: bytes, shared_secret: bytes):
     ss_bni_hmac_int = int.from_bytes(ss_bni_hmac, byteorder="big")
     blinded_node_id = ecc.ECPubkey(node_id) * ss_bni_hmac_int
     return blinded_node_id.get_public_key_bytes()
+
+
+def blinding_privkey(privkey: bytes, blinding: bytes) -> bytes:
+    shared_secret = get_ecdh(privkey, blinding)
+    b_hmac = get_bolt04_onion_key(b'blinded_node_id', shared_secret)
+    b_hmac_int = int.from_bytes(b_hmac, byteorder="big")
+
+    our_privkey_int = int.from_bytes(privkey, byteorder="big")
+    our_privkey_int = our_privkey_int * b_hmac_int % ecc.CURVE_ORDER
+    our_privkey = our_privkey_int.to_bytes(32, byteorder="big")
+    return our_privkey
+
+
+def next_blinding_from_shared_secret(pubkey: bytes, shared_secret: bytes) -> bytes:
+    # E_i+1=SHA256(E_i||ss_i) * E_i
+    blinding_factor = sha256(pubkey + shared_secret)
+    blinding_factor_int = int.from_bytes(blinding_factor, byteorder="big")
+    next_public_key_int = ecc.ECPubkey(pubkey) * blinding_factor_int
+    return next_public_key_int.get_public_key_bytes()
 
 
 def new_onion_packet(
@@ -351,6 +375,79 @@ def calc_hops_data_for_payment(
     return hops_data, amt, cltv_abs
 
 
+def calc_hops_data_for_blinded_payment(
+        route: 'LNPaymentRoute',
+        amount_msat: int,  # that final recipient receives
+        *,
+        final_cltv_abs: int,
+        total_msat: int,
+        bolt12_invoice: dict,
+) -> Tuple[List[OnionHopsDataSingle], List[bytes], int, int]:
+    """Returns the hops_data to be used for constructing an onion packet,
+    and the amount_msat and cltv_abs to be used on our immediate channel.
+    """
+    if len(route) > NUM_MAX_EDGES_IN_PAYMENT_PATH:
+        raise PaymentFailure(f"too long route ({len(route)} edges)")
+
+    amt = amount_msat
+    cltv_abs = final_cltv_abs
+    inv_path = bolt12_invoice.get('invoice_paths').get('paths')[0]
+    inv_blindedpay_info = bolt12_invoice.get('invoice_blindedpay').get('payinfo')[0]
+    # htlc_maximum_msat for blinded path
+    if htlc_max := inv_blindedpay_info.get('htlc_maximum_msat'):
+        if htlc_max < amt:
+            raise Exception(f'blinded path htlc_maximum_msat {htlc_max} too low for {amt=}')
+
+    inv_hops = inv_path.get('path')
+    if not isinstance(inv_hops, list):
+        inv_hops = [inv_hops]
+    num_hops = len(inv_hops)
+
+    hops_data = []
+    _logger.info('inv_hops: ' + repr(inv_hops))
+    hops_pubkeys = [x.get('blinded_node_id') for x in inv_hops]
+    # build reversed
+    for i, inv_hop in enumerate(reversed(inv_hops)):
+        payload = {}
+        if i == 0:  # sender intended amount for recipient
+            payload = {  # ?
+                'amt_to_forward': {'amt_to_forward': amount_msat},
+                'outgoing_cltv_value': {'outgoing_cltv_value': cltv_abs},
+                'total_amount_msat': {'total_msat': total_msat},
+            }
+        if i == num_hops - 1:  # introduction point
+            payload['current_blinding_point'] = {'blinding': inv_path.get('first_path_key')}
+        payload['encrypted_recipient_data'] = {'encrypted_data': inv_hop.get('encrypted_recipient_data')}
+
+        _logger.info(f'inv_hop[{num_hops - 1 - i}].payload: ' + repr(payload))
+        hops_data.append(OnionHopsDataSingle(payload=payload))
+
+    # calc amount from aggregate blinded path info to send to introduction point
+    amt = amount_msat + inv_blindedpay_info.get('fee_base_msat') + \
+        (inv_blindedpay_info.get('fee_proportional_millionths') * amount_msat) // 1000000
+    cltv_abs += inv_blindedpay_info.get('cltv_expiry_delta')
+    _logger.info(f'blinded payment introduction point {amt=} for {amount_msat=}, {cltv_abs=}')
+
+    # payloads, backwards from last hop (but excluding the first edges):
+    for i, route_edge in enumerate(reversed(route[0:])):
+        hop_payload = {
+            "amt_to_forward": {"amt_to_forward": amt},
+            "outgoing_cltv_value": {"outgoing_cltv_value": cltv_abs},
+            "short_channel_id": {"short_channel_id": route_edge.short_channel_id},
+        }
+
+        hops_data.append(OnionHopsDataSingle(payload=hop_payload))
+        amt += route_edge.fee_for_edge(amt)
+        cltv_abs += route_edge.cltv_delta
+
+        _logger.info(f'route_edge[{len(route) - 1 - i}].payload: ' + repr(hop_payload) + \
+                     f'\nedge_in_amt: {amt}, edge_in_cltv: {cltv_abs}' + \
+                     f'\n--> {route_edge.end_node.hex()}')
+
+    hops_data.reverse()
+    return hops_data, hops_pubkeys, amt, cltv_abs
+
+
 def _generate_filler(key_type: bytes, hops_data: Sequence[OnionHopsDataSingle],
                      shared_secrets: Sequence[bytes], data_size:int) -> bytes:
     num_hops = len(hops_data)
@@ -390,6 +487,8 @@ class ProcessedOnionPacket(NamedTuple):
     hop_data: OnionHopsDataSingle
     next_packet: OnionPacket
     trampoline_onion_packet: OnionPacket
+    blinded_path_recipient_data: Optional[dict]
+    next_blinding: bytes = None
 
     @property
     def amt_to_forward(self) -> Optional[int]:
@@ -403,16 +502,27 @@ class ProcessedOnionPacket(NamedTuple):
 
     @property
     def next_chan_scid(self) -> Optional[ShortChannelID]:
-        k1 = k2 = 'short_channel_id'
-        return self._get_from_payload(k1, k2, ShortChannelID)
+        if not self.blinded_path_recipient_data:
+            k1 = k2 = 'short_channel_id'
+            return self._get_from_payload(k1, k2, ShortChannelID)
+
+        scid = self.blinded_path_recipient_data.get('short_channel_id', {}).get('short_channel_id')
+        return ShortChannelID(scid) if scid else None
 
     @property
     def total_msat(self) -> Optional[int]:
-        return self._get_from_payload('payment_data', 'total_msat', int)
+        if not self.blinded_path_recipient_data:
+            return self._get_from_payload('payment_data', 'total_msat', int)
+
+        return self._get_from_payload('total_amount_msat', 'total_msat', int)
 
     @property
     def payment_secret(self) -> Optional[bytes]:
-        return self._get_from_payload('payment_data', 'payment_secret', bytes)
+        if not self.blinded_path_recipient_data:
+            return self._get_from_payload('payment_data', 'payment_secret', bytes)
+
+        payment_secret_from_recipient_data = self.blinded_path_recipient_data.get('path_id', {}).get('data')
+        return payment_secret_from_recipient_data
 
     def _get_from_payload(self, k1: str, k2: str, res_type: type):
         try:
@@ -429,13 +539,19 @@ def process_onion_packet(
         *,
         associated_data: bytes = b'',
         is_trampoline=False,
-        is_onion_message=False,
+        blinding: bytes = None,
         tlv_stream_name='payload') -> ProcessedOnionPacket:
     # TODO: check Onion features ( PERM|NODE|3 (required_node_feature_missing )
     if onion_packet.version != 0:
         raise UnsupportedOnionPacketVersion()
     if not ecc.ECPubkey.is_pubkey_bytes(onion_packet.public_key):
         raise InvalidOnionPubkey()
+    is_onion_message = tlv_stream_name == 'onionmsg_tlv'
+    recipient_data_shared_secret = None
+    blinded_path_recipient_data = {}
+    if blinding:
+        recipient_data_shared_secret = get_ecdh(our_onion_private_key, blinding)
+        our_onion_private_key = blinding_privkey(our_onion_private_key, blinding)
     shared_secret = get_ecdh(our_onion_private_key, onion_packet.public_key)
     # check message integrity
     mu_key = get_bolt04_onion_key(b'mu', shared_secret)
@@ -454,6 +570,20 @@ def process_onion_packet(
     next_hops_data = xor_bytes(padded_header, stream_bytes)
     next_hops_data_fd = io.BytesIO(next_hops_data)
     hop_data = OnionHopsDataSingle.from_fd(next_hops_data_fd, tlv_stream_name=tlv_stream_name)
+
+    erd = (hop_data.payload.get('encrypted_recipient_data', {})
+           .get('encrypted_recipient_data' if is_onion_message else 'encrypted_data'))
+    if erd:
+        # we are part of a blinded path
+        if not blinding:
+            # we are the introduction point
+            blinding = hop_data.payload.get('current_blinding_point', {}).get('blinding')
+            recipient_data_shared_secret = get_ecdh(our_onion_private_key, blinding)
+        blinded_path_recipient_data = decrypt_onionmsg_data_tlv(
+            shared_secret=recipient_data_shared_secret,
+            encrypted_recipient_data=erd
+        )
+
     # trampoline
     trampoline_onion_packet = hop_data.payload.get('trampoline_onion_packet')
     if trampoline_onion_packet:
@@ -469,21 +599,25 @@ def process_onion_packet(
             hops_data=top_hops_data_fd.read(TRAMPOLINE_HOPS_DATA_SIZE),
             hmac=top_hmac)
     # calc next ephemeral key
-    blinding_factor = sha256(onion_packet.public_key + shared_secret)
-    blinding_factor_int = int.from_bytes(blinding_factor, byteorder="big")
-    next_public_key_int = ecc.ECPubkey(onion_packet.public_key) * blinding_factor_int
-    next_public_key = next_public_key_int.get_public_key_bytes()
+    next_public_key = next_blinding_from_shared_secret(onion_packet.public_key, shared_secret)
     next_onion_packet = OnionPacket(
         public_key=next_public_key,
         hops_data=next_hops_data_fd.read(data_size),
         hmac=hop_data.hmac)
+
+    next_blinding = None
     if hop_data.hmac == bytes(PER_HOP_HMAC_SIZE):
         # we are the destination / exit node
         are_we_final = True
     else:
         # we are an intermediate node; forwarding
         are_we_final = False
-    return ProcessedOnionPacket(are_we_final, hop_data, next_onion_packet, trampoline_onion_packet)
+
+        if blinding:
+            next_blinding = next_blinding_from_shared_secret(blinding, recipient_data_shared_secret)
+
+    return ProcessedOnionPacket(are_we_final, hop_data, next_onion_packet, trampoline_onion_packet,
+                                blinded_path_recipient_data, next_blinding)
 
 
 def compare_trampoline_onions(

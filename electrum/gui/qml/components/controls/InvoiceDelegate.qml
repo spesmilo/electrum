@@ -40,7 +40,9 @@ ItemDelegate {
             Layout.preferredWidth: constants.iconSizeLarge
             Layout.preferredHeight: constants.iconSizeLarge
             source: model.is_lightning
-                ? "../../../icons/lightning.png"
+                ? model.is_bolt12
+                    ? "../../../icons/bolt12.png"
+                    : "../../../icons/lightning.png"
                 : "../../../icons/bitcoin.png"
 
             Image {

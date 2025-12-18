@@ -45,16 +45,17 @@ from dataclasses import dataclass
 import electrum_ecc as ecc
 from aiorpcx import ignore_after, run_in_thread
 
-from . import util, keystore, transaction, bitcoin, coinchooser, bip32, descriptor
+from . import util, keystore, transaction, bitcoin, coinchooser, bip32, descriptor, constants
 from .i18n import _
 from .bip32 import BIP32Node, convert_bip32_intpath_to_strpath, convert_bip32_strpath_to_intpath
 from .logging import get_logger, Logger
+from .segwit_addr import bech32_encode, Encoding, convertbits
 from .util import (
     NotEnoughFunds, UserCancelled, profiler, OldTaskGroup, format_fee_satoshis,
     WalletFileException, BitcoinException, InvalidPassword, format_time, timestamp_to_datetime,
     Satoshis, Fiat, TxMinedInfo, quantize_feerate, OrderedDictWithIndex, multisig_type, parse_max_spend,
     OnchainHistoryItem, read_json_file, write_json_file, UserFacingException, FileImportFailed, EventListener,
-    event_listener
+    event_listener, bfh
 )
 from .bitcoin import COIN, is_address, is_minikey, relayfee, dust_threshold, DummyAddress, DummyAddressUsedInTxException
 from .keystore import (
@@ -72,7 +73,9 @@ from .address_synchronizer import (
     AddressSynchronizer, TX_HEIGHT_LOCAL, TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_FUTURE,
     TX_TIMESTAMP_INF
 )
-from .invoices import BaseInvoice, Invoice, Request, PR_PAID, PR_UNPAID, PR_EXPIRED, PR_UNCONFIRMED
+from .invoices import (
+    BaseInvoice, Invoice, Request, PR_PAID, PR_UNPAID, PR_EXPIRED, PR_UNCONFIRMED, BOLT12_INVOICE_PREFIX
+)
 from .contacts import Contacts
 from .mnemonic import Mnemonic
 from .lnworker import LNWallet
@@ -2954,7 +2957,13 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         d = x.as_dict(status)
         d['invoice_id'] = d.pop('id')
         if x.is_lightning():
-            d['lightning_invoice'] = x.lightning_invoice
+            invoice = x.lightning_invoice
+            if invoice.startswith(BOLT12_INVOICE_PREFIX):
+                bolt12_invoice = bfh(invoice[len(BOLT12_INVOICE_PREFIX):])
+                bech32_data = convertbits(list(bolt12_invoice), 8, 5, True)
+                d['lightning_invoice'] = bech32_encode(Encoding.BECH32, 'lni', bech32_data, with_checksum=False)
+            else:
+                d['lightning_invoice'] = x.lightning_invoice
             if self.lnworker and status == PR_UNPAID:
                 d['can_pay'] = self.lnworker.can_pay_invoice(x)
             if self.lnworker and status == PR_PAID:

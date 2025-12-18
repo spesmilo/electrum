@@ -725,6 +725,25 @@ if [[ $1 == "watchtower" ]]; then
     wait_until_spent $ctx_id $output_index  # alice's to_local gets punished
 fi
 
+if [[ $1 == "bolt12" ]]; then
+#    $carol enable_htlc_settle false
+    bob_node=$($bob nodeid)
+    wait_for_balance carol 1
+    echo "alice and carol open channels with bob"
+    chan_id1=$($alice open_channel $bob_node 0.15 --password='' --push_amount=0.075)
+    chan_id2=$($carol open_channel $bob_node 0.15 --password='' --push_amount=0.075)
+    new_blocks 3
+    wait_until_channel_open alice
+    wait_until_channel_open carol
+    echo "alice pays carol"
+    offer=$($carol add_offer --amount=0.001| jq '.offer')
+    result=$($alice pay_bolt12_offer $offer)
+    echo $result
+    if [[ $(echo $result|jq '.success') == false ]]; then
+	exit 1
+    fi
+fi
+
 if [[ $1 == "fw_fail_htlc" ]]; then
     $carol enable_htlc_settle false
     bob_node=$($bob nodeid)

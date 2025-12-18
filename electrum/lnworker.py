@@ -29,12 +29,13 @@ import dns.asyncresolver
 import dns.exception
 from aiorpcx import run_in_thread, NetAddress, ignore_after
 
+from .bolt12 import encode_invoice, Bolt12InvoiceError, Offer, decode_offer
 from .logging import Logger
 from .i18n import _
 from .json_db import stored_in
 from .channel_db import UpdateStatus, ChannelDBNotLoaded, get_mychannel_info, get_mychannel_policy
 
-from . import constants, util, lnutil
+from . import constants, util, lnutil, bolt12
 from .util import (
     profiler, OldTaskGroup, ESocksProxy, NetworkRetryManager, JsonRPCClient, NotEnoughFunds, EventListener,
     event_listener, bfh, InvoiceError, resolve_dns_srv, is_ip_address, log_exceptions, ignore_exceptions,
@@ -57,7 +58,9 @@ from .crypto import (
     sha256, chacha20_encrypt, chacha20_decrypt, pw_encode_with_version_and_mac, pw_decode_with_version_and_mac
 )
 
-from .onion_message import OnionMessageManager
+from .onion_message import (
+    OnionMessageManager, send_onion_message_to, encode_blinded_path, get_blinded_reply_paths, NoOnionMessagePeers
+)
 from .lntransport import (
     LNTransport, LNResponderTransport, LNTransportBase, LNPeerAddr, split_host_port, extract_nodeid,
     ConnStringFormatError
@@ -77,7 +80,7 @@ from .lnutil import (
 )
 from .lnonion import (
     decode_onion_error, OnionFailureCode, OnionRoutingFailure, OnionPacket,
-    ProcessedOnionPacket, calc_hops_data_for_payment, new_onion_packet,
+    ProcessedOnionPacket, calc_hops_data_for_payment, new_onion_packet, calc_hops_data_for_blinded_payment,
 )
 from .lnmsg import decode_msg
 from .lnrouter import (
@@ -203,6 +206,8 @@ LNWALLET_FEATURES = (
     | LnFeatures.OPTION_SHUTDOWN_ANYSEGWIT_OPT
     | LnFeatures.OPTION_SCID_ALIAS_OPT
     | LnFeatures.OPTION_SUPPORT_LARGE_CHANNEL_OPT
+    | LnFeatures.OPTION_ONION_MESSAGE_OPT
+    | LnFeatures.OPTION_ROUTE_BLINDING_OPT
 )
 
 LNGOSSIP_FEATURES = (
@@ -748,6 +753,7 @@ class PaySession(Logger):
             invoice_pubkey: bytes,
             uses_trampoline: bool,  # whether sender uses trampoline or gossip
             use_two_trampolines: bool,  # whether legacy payments will try to use two trampolines
+            bolt12_invoice: Optional[dict] = None,
     ):
         assert payment_hash
         assert payment_secret
@@ -756,6 +762,7 @@ class PaySession(Logger):
         self.payment_key = payment_hash + payment_secret
         Logger.__init__(self)
 
+        self.bolt12_invoice = bolt12_invoice
         self.invoice_features = LnFeatures(invoice_features)
         self.r_tags = r_tags
         self.min_final_cltv_delta = min_final_cltv_delta
@@ -929,6 +936,16 @@ class LNWallet(LNWorker):
             for channel_id, storage in channel_backups.items():
                 self._channel_backups[bfh(channel_id)] = cb = ChannelBackup(storage, lnworker=self)
                 self.wallet.set_reserved_addresses_for_chan(cb, reserved=True)
+
+        self._offers = {}  # type: Dict[bytes, Offer]
+        offers = self.db.get_dict("offers")
+        for offer_id, offer in offers.items():
+            self._offers[bfh(offer_id)] = offer
+
+        self._pathids = {}  # type: Dict[bytes, Sequence[bytes]]
+        pathids = self.db.get_dict("path_ids")
+        for payment_hash, path_ids in pathids.items():
+            self._pathids[bfh(payment_hash)] = path_ids
 
         self._paysessions = dict()                      # type: Dict[bytes, PaySession]
         self.sent_htlcs_info = dict()                   # type: Dict[SentHtlcKey, SentHtlcInfo]
@@ -1606,9 +1623,15 @@ class LNWallet(LNWorker):
             channels: Optional[Sequence[Channel]] = None,
             budget: Optional[PaymentFeeBudget] = None,
     ) -> Tuple[bool, List[HtlcLog]]:
-        bolt11 = invoice.lightning_invoice
-        lnaddr = self._check_bolt11_invoice(bolt11, amount_msat=amount_msat)
-        min_final_cltv_delta = lnaddr.get_min_final_cltv_delta()
+        bolt12_invoice = None
+        if bolt12_invoice_tlv := invoice.bolt12_invoice_tlv():
+            bolt12_invoice = bolt12.decode_invoice(bolt12_invoice_tlv)
+            lnaddr = self._check_bolt12_invoice(bolt12_invoice, amount_msat=amount_msat)
+            min_final_cltv_delta = bolt12_invoice.get('invoice_blindedpay').get('payinfo')[0].get('cltv_expiry_delta')
+        elif bolt11 := invoice.lightning_invoice:
+            lnaddr = self._check_bolt11_invoice(bolt11, amount_msat=amount_msat)
+            min_final_cltv_delta = lnaddr.get_min_final_cltv_delta()
+
         payment_hash = lnaddr.paymenthash
         key = payment_hash.hex()
         payment_secret = lnaddr.payment_secret
@@ -1654,6 +1677,7 @@ class LNWallet(LNWorker):
                 full_path=full_path,
                 channels=channels,
                 budget=budget,
+                bolt12_invoice=bolt12_invoice,
             )
             success = True
         except PaymentFailure as e:
@@ -1688,6 +1712,7 @@ class LNWallet(LNWorker):
             budget: PaymentFeeBudget,
             channels: Optional[Sequence[Channel]] = None,
             fw_payment_key: str = None,  # for forwarding
+            bolt12_invoice: Optional[dict] = None,  # TODO: lots of unnecessary data included here, split off later
     ) -> None:
         """
         Can raise PaymentFailure, ChannelDBNotLoaded,
@@ -1716,6 +1741,7 @@ class LNWallet(LNWorker):
             # TODO: if you read this, the year is 2027 and there is no use for the second trampoline
             # hop code anymore remove the code completely.
             use_two_trampolines=False,
+            bolt12_invoice=bolt12_invoice,
         )
         self.logs[payment_hash.hex()] = log = []  # TODO incl payment_secret in key (re trampoline forwarding)
 
@@ -1871,7 +1897,8 @@ class LNWallet(LNWorker):
             payment_hash=paysession.payment_hash,
             min_final_cltv_delta=min_final_cltv_delta,
             payment_secret=shi.payment_secret_bucket,
-            trampoline_onion=trampoline_onion)
+            trampoline_onion=trampoline_onion,
+            bolt12_invoice=paysession.bolt12_invoice)
 
         key = (paysession.payment_hash, short_channel_id, htlc.htlc_id)
         self.sent_htlcs_info[key] = shi
@@ -2035,6 +2062,35 @@ class LNWallet(LNWorker):
         addr.validate_and_compare_features(self.features)
         return addr
 
+    def _check_bolt12_invoice(self, invoice: dict, *, amount_msat: int = None) -> LnAddr:
+        """Parses and validates a bolt12 invoice dict into a LnAddr.
+        Includes pre-payment checks external to the parser.
+        """
+        addr = bolt12.to_lnaddr(invoice)
+
+        # # blind copy below, unchecked
+        # if addr.is_expired():
+        #     raise InvoiceError(_("This invoice has expired"))
+        # # check amount
+        # if amount_msat:  # replace amt in invoice. main usecase is paying zero amt invoices
+        #     existing_amt_msat = addr.get_amount_msat()
+        #     if existing_amt_msat and amount_msat < existing_amt_msat:
+        #         raise Exception("cannot pay lower amt than what is originally in LN invoice")
+        #     addr.amount = Decimal(amount_msat) / COIN / 1000
+        # if addr.amount is None:
+        #     raise InvoiceError(_("Missing amount"))
+        # # check cltv
+        # if addr.get_min_final_cltv_delta() > NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE:
+        #     raise InvoiceError("{}\n{}".format(
+        #         _("Invoice wants us to risk locking funds for unreasonably long."),
+        #         f"min_final_cltv_delta: {addr.get_min_final_cltv_delta()}"))
+
+        # check features
+        if addr.get_features() != LnFeatures(0):
+            addr.validate_and_compare_features(self.features)
+
+        return addr
+
     def is_trampoline_peer(self, node_id: bytes) -> bool:
         # until trampoline is advertised in lnfeatures, check against hardcoded list
         if is_hardcoded_trampoline(node_id):
@@ -2130,7 +2186,7 @@ class LNWallet(LNWorker):
             final_total_msat=paysession.amount_to_pay,
             my_active_channels=my_active_channels,
             invoice_features=paysession.invoice_features,
-            r_tags=paysession.r_tags,
+            r_tags=paysession.r_tags,  # bolt12 TODO: r_tags only used in trampoline case
             receiver_pubkey=paysession.invoice_pubkey,
         )
         for sc in split_configurations:
@@ -2228,6 +2284,7 @@ class LNWallet(LNWorker):
                                     my_sending_channels=[channel] if is_multichan_mpp else my_active_channels,
                                     full_path=full_path,
                                     budget=budget._replace(fee_msat=budget.fee_msat // sc.config.number_parts()),
+                                    bolt12_invoice=paysession.bolt12_invoice,
                                 )
                             )
                             shi = SentHtlcInfo(
@@ -2264,6 +2321,7 @@ class LNWallet(LNWorker):
             my_sending_channels: List[Channel],
             full_path: Optional[LNPaymentPath],
             budget: PaymentFeeBudget,
+            bolt12_invoice: Optional[dict],
     ) -> LNPaymentRoute:
 
         my_sending_aliases = set(chan.get_local_scid_alias() for chan in my_sending_channels)
@@ -2311,10 +2369,14 @@ class LNWallet(LNWorker):
                 private_route_edges[route_edge.short_channel_id] = route_edge
                 start_node = end_node
         # now find a route, end to end: between us and the recipient
+        dest_node = invoice_pubkey
+        if bolt12_invoice:
+            paths = bolt12_invoice.get('invoice_paths').get('paths')
+            dest_node = paths[0].get('first_node_id')
         try:
             route = self.network.path_finder.find_route(
                 nodeA=self.node_keypair.pubkey,
-                nodeB=invoice_pubkey,
+                nodeB=dest_node,
                 invoice_amount_msat=amount_msat,
                 path=full_path,
                 my_sending_channels=my_sending_channels,
@@ -2329,8 +2391,11 @@ class LNWallet(LNWorker):
             self.logger.info(f"rejecting route (exceeds budget): {route=}. {budget=}")
             raise FeeBudgetExceeded()
         assert len(route) > 0
-        if route[-1].end_node != invoice_pubkey:
-            raise LNPathInconsistent("last node_id != invoice pubkey")
+        if route[-1].end_node != dest_node:
+            if bolt12_invoice:
+                raise LNPathInconsistent("last node_id != blinded path introduction point")
+            else:
+                raise LNPathInconsistent("last node_id != invoice pubkey")
         # add features from invoice
         route[-1].node_features |= invoice_features
         return route
@@ -3621,10 +3686,21 @@ class LNWallet(LNWorker):
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
         if (next_chan_scid := processed_onion.next_chan_scid) is None:
             raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
-        if (next_amount_msat_htlc := processed_onion.amt_to_forward) is None:
-            raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
-        if (next_cltv_abs := processed_onion.outgoing_cltv_value) is None:
-            raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
+        if not processed_onion.blinded_path_recipient_data:
+            if (next_amount_msat_htlc := processed_onion.amt_to_forward) is None:
+                raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
+            if (next_cltv_abs := processed_onion.outgoing_cltv_value) is None:
+                raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
+        else:
+            # blinded path, take from recipient_data
+            payment_relay = processed_onion.blinded_path_recipient_data.get('payment_relay')
+            if not payment_relay:
+                raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
+            next_amount_msat_htlc = htlc.amount_msat
+            next_amount_msat_htlc -= int(next_amount_msat_htlc * payment_relay.get('fee_proportional_millionths') / 1_000_000)
+            next_amount_msat_htlc -= payment_relay.get('fee_base_msat')
+
+            next_cltv_abs = htlc.cltv_abs - payment_relay.get('cltv_expiry_delta')
 
         next_chan = self.get_channel_by_short_id(next_chan_scid)
 
@@ -3698,6 +3774,7 @@ class LNWallet(LNWorker):
                 amount_msat=next_amount_msat_htlc,
                 cltv_abs=next_cltv_abs,
                 onion=processed_onion.next_packet,
+                blinding=processed_onion.next_blinding,
             )
         except BaseException as e:
             log_fail_reason(f"error sending message to next_peer={next_chan.node_id.hex()}")
@@ -3857,17 +3934,29 @@ class LNWallet(LNWorker):
         min_final_cltv_delta: int,
         payment_secret: bytes,
         trampoline_onion: Optional[OnionPacket] = None,
+        bolt12_invoice: Optional[dict] = None,
     ):
         # add features learned during "init" for direct neighbour:
         route[0].node_features |= self.features
         local_height = self.network.get_local_height()
         final_cltv_abs = local_height + min_final_cltv_delta
-        hops_data, amount_msat, cltv_abs = calc_hops_data_for_payment(
-            route,
-            amount_msat,
-            final_cltv_abs=final_cltv_abs,
-            total_msat=total_msat,
-            payment_secret=payment_secret)
+        if not bolt12_invoice:
+            hops_data, amount_msat, cltv_abs = calc_hops_data_for_payment(
+                route,
+                amount_msat,
+                final_cltv_abs=final_cltv_abs,
+                total_msat=total_msat,
+                payment_secret=payment_secret)
+        else:
+            hops_data, blinded_node_ids, amount_msat, cltv_abs = calc_hops_data_for_blinded_payment(
+                route,
+                amount_msat,
+                final_cltv_abs=final_cltv_abs,
+                total_msat=total_msat,
+                bolt12_invoice=bolt12_invoice)
+            hops_data = hops_data[1:]
+            blinded_node_ids = blinded_node_ids[1:]
+
         self.logger.info(f"pay len(route)={len(route)}. for payment_hash={payment_hash.hex()}")
         for i in range(len(route)):
             self.logger.info(f"  {i}: edge={route[i].short_channel_id} hop_data={hops_data[i]!r}")
@@ -3891,7 +3980,10 @@ class LNWallet(LNWorker):
                 for i in range(len(t_route)):
                     self.logger.info(f"  {i}: t_node={t_route[i].end_node.hex()} hop_data={t_hops_data[i]!r}")
         # create onion packet
-        payment_path_pubkeys = [x.node_id for x in route]
+        if bolt12_invoice:
+            payment_path_pubkeys = [x.node_id for x in route] + blinded_node_ids
+        else:
+            payment_path_pubkeys = [x.node_id for x in route]
         onion = new_onion_packet(payment_path_pubkeys, session_key, hops_data, associated_data=payment_hash) # must use another sessionkey
         self.logger.info(f"starting payment. len(route)={len(hops_data)}.")
         # create htlc
@@ -3915,3 +4007,126 @@ class LNWallet(LNWorker):
         error_bytes = bytes.fromhex(error_hex) if error_hex else None
         failure_message = OnionRoutingFailure.from_bytes(bytes.fromhex(failure_hex)) if failure_hex else None
         return error_bytes, failure_message
+
+    def create_offer(
+        self,
+        *,
+        amount_msat: Optional[int] = None,
+        memo: Optional[str] = None,
+        expiry: int,
+        issuer: Optional[str] = None,
+        allow_unblinded: bool = True
+    ) -> bytes:
+        """ Create an offer
+            allow_unblinded only makes sense if node_id is public, or for testing with direct electrum peer
+        """
+        reply_paths = None
+        try:
+            reply_paths = get_blinded_reply_paths(self)
+        except NoOnionMessagePeers:
+            if not allow_unblinded:
+                raise
+
+        offer_id, offer = bolt12.create_offer(
+            offer_paths=reply_paths, node_id=self.node_keypair.pubkey, amount_msat=amount_msat,
+            memo=memo, expiry=expiry, issuer=issuer)
+        with self.lock:
+            o = self._offers[offer_id] = Offer(offer_id=offer_id, offer_bech32=bolt12.encode_offer(offer, as_bech32=True))
+            self.db.get('offers')[offer_id.hex()] = o
+        return offer_id
+
+    def get_offer(self, offer_id: bytes) -> Optional[Offer]:
+        return self._offers.get(offer_id)
+
+    def delete_offer(self, offer_id: bytes):
+        with self.lock:
+            offer = self._offers.pop(offer_id, None)
+            if offer is None:
+                return
+            self.db.get('offers').pop(offer_id.hex())
+
+    @property
+    def offers(self) -> Mapping[bytes, Offer]:
+        """Returns a read-only copy of offers."""
+        with self.lock:
+            return self._offers.copy()
+
+    def add_path_ids_for_payment_hash(self, payment_hash, invoice_paths):
+        """Store payment hash -> [path_id] association """
+        with self.lock:
+            path_ids = [x.path_id for x in invoice_paths]
+            self._pathids[payment_hash] = path_ids
+            self.db.get('path_ids')[payment_hash.hex()] = path_ids
+
+    def on_bolt12_invoice_request(self, recipient_data: dict, payload: dict):
+        # match to offer
+        self.logger.debug(f'on_bolt12_invoice_request: {recipient_data=} {payload=}')
+
+        invreq_tlv = payload['invoice_request']['invoice_request']
+        invreq = bolt12.decode_invoice_request(invreq_tlv)
+        self.logger.info(f'invoice_request: {invreq=}')
+
+        offer_id = invreq.get('offer_metadata', {}).get('data')
+        offer = self.get_offer(offer_id)
+        if offer is None:
+            self.logger.warning('no matching offer for invoice_request')
+            return
+        self.logger.debug(f'invoice_request for offer_id={offer_id.hex()}')
+        offer = decode_offer(offer.offer_bech32)
+
+        # two scenarios:
+        # 1) not in response to offer (no offer_issuer_id or offer_paths)
+        #     MUST reject the invoice request if any of the following are present:
+        #         offer_chains, offer_features or offer_quantity_max.
+        #     MUST reject the invoice request if invreq_amount is not present.
+        #     MAY use offer_amount (or offer_currency) for informational display to user.
+        #     if it sends an invoice in response:
+        #         MUST use invreq_paths if present, otherwise MUST use invreq_payer_id as the node id to send to.
+
+        # 2) response to offer.
+        #
+        #     MUST reject the invoice request if the offer fields do not exactly match a valid, unexpired offer.
+        #     if offer_paths is present:
+        #         MUST ignore the invoice_request if it did not arrive via one of those paths.
+        #     otherwise:
+        #         MUST ignore any invoice_request if it arrived via a blinded path.
+        #     if offer_quantity_max is present:
+        #         MUST reject the invoice request if there is no invreq_quantity field.
+        #         if offer_quantity_max is non-zero:
+        #             MUST reject the invoice request if invreq_quantity is zero, OR greater than offer_quantity_max.
+        #     otherwise:
+        #         MUST reject the invoice request if there is an invreq_quantity field.
+        #     if offer_amount is present:
+        #         MUST calculate the expected amount using the offer_amount:
+        #             if offer_currency is not the invreq_chain currency, convert to the invreq_chain currency.
+        #             if invreq_quantity is present, multiply by invreq_quantity.quantity.
+        #         if invreq_amount is present:
+        #             MUST reject the invoice request if invreq_amount.msat is less than the expected amount.
+        #             MAY reject the invoice request if invreq_amount.msat greatly exceeds the expected amount.
+        #     otherwise (no offer_amount):
+        #         MUST reject the invoice request if it does not contain invreq_amount.
+        #     SHOULD send an invoice in response using the onionmsg_tlv reply_path.
+
+        is_response_to_offer = True  # always assume scenario 2 for now
+
+        if is_response_to_offer:
+            node_id_or_blinded_path = encode_blinded_path(payload['reply_path']['path'])
+        else:
+            # spec: MUST use invreq_paths if present, otherwise MUST use invreq_payer_id as the node id to send to.
+            if 'invreq_paths' in invreq:
+                node_id_or_blinded_path = invreq['invreq_paths']['paths'][0]  # take first
+            else:
+                node_id_or_blinded_path = invreq['invreq_payer_id']
+
+        try:
+            invoice = bolt12.verify_request_and_create_invoice(self, offer, invreq)
+        except Bolt12InvoiceError as e:
+            error_payload = {'invoice_error': {'invoice_error': e.to_tlv()}}
+            send_onion_message_to(self, node_id_or_blinded_path, error_payload)
+            return
+
+        destination_payload = {
+            'invoice': {'invoice': encode_invoice(invoice, self.node_keypair.privkey)}
+        }
+
+        send_onion_message_to(self, node_id_or_blinded_path, destination_payload)

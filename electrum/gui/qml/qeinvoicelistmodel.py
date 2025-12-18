@@ -6,7 +6,7 @@ from PyQt6.QtCore import Qt, QAbstractListModel, QModelIndex
 
 from electrum.logging import get_logger
 from electrum.util import Satoshis, format_time
-from electrum.invoices import BaseInvoice, PR_EXPIRED, LN_EXPIRY_NEVER, Invoice, Request, PR_PAID
+from electrum.invoices import BaseInvoice, PR_EXPIRED, LN_EXPIRY_NEVER, Invoice, Request, PR_PAID, BOLT12_INVOICE_PREFIX
 
 from .util import QtEventListener, qt_event_listener, status_update_timer_interval
 from .qetypes import QEAmount
@@ -21,7 +21,7 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
     # define listmodel rolemap
     _ROLE_NAMES=('key', 'is_lightning', 'timestamp', 'date', 'message', 'amount',
                  'status', 'status_str', 'address', 'expiry', 'type', 'onchain_fallback',
-                 'lightning_invoice')
+                 'lightning_invoice', 'is_bolt12')
     _ROLE_KEYS = range(Qt.ItemDataRole.UserRole, Qt.ItemDataRole.UserRole + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
     _ROLE_RMAP = dict(zip(_ROLE_NAMES, _ROLE_KEYS))
@@ -133,7 +133,7 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
         item['date'] = format_time(item['timestamp'])
         item['amount'] = QEAmount(from_invoice=invoice)
         item['onchain_fallback'] = invoice.is_lightning() and bool(invoice.get_address())
-
+        item['is_bolt12'] = False
         return item
 
     def set_status_timer(self):
@@ -193,9 +193,10 @@ class QEInvoiceListModel(QEAbstractInvoiceListModel, QtEventListener):
             self._logger.debug(f'invoice status update for key {key} to {status}')
             self.updateInvoice(key, status)
 
-    def invoice_to_model(self, invoice: BaseInvoice):
+    def invoice_to_model(self, invoice: Invoice):
         item = super().invoice_to_model(invoice)
         item['type'] = 'invoice'
+        item['is_bolt12'] = invoice.lightning_invoice and invoice.lightning_invoice.startswith(BOLT12_INVOICE_PREFIX)
 
         return item
 
@@ -228,7 +229,7 @@ class QERequestListModel(QEAbstractInvoiceListModel, QtEventListener):
             self._logger.debug(f'request status update for key {key} to {status}')
             self.updateRequest(key, status)
 
-    def invoice_to_model(self, invoice: BaseInvoice):
+    def invoice_to_model(self, invoice: Request):
         item = super().invoice_to_model(invoice)
         item['type'] = 'request'
 

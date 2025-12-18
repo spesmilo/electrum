@@ -462,7 +462,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         lock_recipient = pi.type in [PaymentIdentifierType.LNURL, PaymentIdentifierType.LNURLW,
                                      PaymentIdentifierType.LNURLP, PaymentIdentifierType.LNADDR,
                                      PaymentIdentifierType.OPENALIAS, PaymentIdentifierType.BIP70,
-                                     PaymentIdentifierType.BIP21, PaymentIdentifierType.BOLT11] and not pi.need_resolve()
+                                     PaymentIdentifierType.BIP21, PaymentIdentifierType.BOLT11,
+                                     PaymentIdentifierType.BOLT12_OFFER] and not pi.need_resolve()
         lock_amount = pi.is_amount_locked()
         lock_max = lock_amount or pi.type not in [PaymentIdentifierType.SPK, PaymentIdentifierType.BIP21]
 
@@ -504,8 +505,9 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         amount_valid = is_spk_script or bool(self.amount_e.get_amount())
 
         self.send_button.setEnabled(not pi_unusable and amount_valid and not pi.has_expired())
-        self.save_button.setEnabled(not pi_unusable and not is_spk_script and not pi.has_expired() and \
-                                    pi.type not in [PaymentIdentifierType.LNURLP, PaymentIdentifierType.LNADDR])
+        self.save_button.setEnabled(not pi_unusable and not is_spk_script and pi.type not in [ \
+            PaymentIdentifierType.LNURLP, PaymentIdentifierType.LNADDR, PaymentIdentifierType.BOLT12_OFFER
+        ])
 
         self.invoice_error.setText(_('Expired') if pi.has_expired() else '')
 
@@ -592,7 +594,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         if pi.error:
             self.show_error(pi.error)
             return
-        invoice = pi.bolt11
+        invoice = invoice_from_payment_identifier(pi, self.wallet)
         self.pending_invoice = invoice
         self.logger.debug(f'after finalize invoice: {invoice!r}')
         self.do_pay_invoice(invoice)
