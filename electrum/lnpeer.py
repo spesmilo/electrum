@@ -8,7 +8,7 @@ from collections import OrderedDict, defaultdict
 import asyncio
 import os
 import time
-from typing import Tuple, Dict, TYPE_CHECKING, Optional, Union, Set, Callable, Awaitable, List
+from typing import Tuple, Dict, TYPE_CHECKING, Optional, Union, Set, Callable, Coroutine, List, Any
 from datetime import datetime
 import functools
 from functools import partial
@@ -2901,10 +2901,8 @@ class Peer(Logger, EventListener):
                     self._fulfill_htlc_set(payment_key, preimage)
             if callback:
                 task = asyncio.create_task(callback())
-                task.add_done_callback(  # log exceptions occurring in callback
-                    lambda t, pk=payment_key: self.logger.exception(
-                        f"cb failed: "
-                        f"{self.lnworker.received_mpp_htlcs[pk]=}", exc_info=t.exception()) if t.exception() else None
+                task.add_done_callback(  # handle exceptions occurring in callback
+                    lambda t: (util.send_exception_to_crash_reporter(t.exception()) if t.exception() else None)
                 )
 
             if len(self.lnworker.received_mpp_htlcs[payment_key].htlcs) == 0:
@@ -2974,7 +2972,7 @@ class Peer(Logger, EventListener):
     ) -> Tuple[
         Optional[Union[OnionRoutingFailure, OnionFailureCode, bytes]],  # error types used to fail the set
         Optional[bytes],  # preimage to settle the set
-        Optional[Callable[[], Awaitable[None]]],  # callback
+        Optional[Callable[[], Coroutine[Any, Any, None]]],  # callback
     ]:
         """
         Returns what to do next with the given set of htlcs:
