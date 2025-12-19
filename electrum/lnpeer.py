@@ -2901,10 +2901,8 @@ class Peer(Logger, EventListener):
                     self._fulfill_htlc_set(payment_key, preimage)
             if callback:
                 task = asyncio.create_task(callback())
-                task.add_done_callback(  # log exceptions occurring in callback
-                    lambda t, pk=payment_key: self.logger.exception(
-                        f"cb failed: "
-                        f"{self.lnworker.received_mpp_htlcs[pk]=}", exc_info=t.exception()) if t.exception() else None
+                task.add_done_callback(  # handle exceptions occurring in callback
+                    lambda t: (util.send_exception_to_crash_reporter(t.exception()) if t.exception() else None)
                 )
 
             if len(self.lnworker.received_mpp_htlcs[payment_key].htlcs) == 0:
