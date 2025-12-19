@@ -196,7 +196,6 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         self.features |= LnFeatures.OPTION_SCID_ALIAS_OPT
         self.features |= LnFeatures.OPTION_STATIC_REMOTEKEY_OPT
         self.config.ENABLE_ANCHOR_CHANNELS = has_anchors
-        self.pending_payments = defaultdict(asyncio.Future)
         for chan in chans:
             chan.lnworker = self
         self._peers = {}  # bytes -> Peer
@@ -224,9 +223,6 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         self.logger.info(f"created LNWallet[{name}] with nodeID={local_keypair.pubkey.hex()}")
 
     def clear_invoices_cache(self):
-        pass
-
-    def pay_scheduled_invoices(self):
         pass
 
     def get_invoice_status(self, key):
@@ -314,7 +310,6 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     pay_invoice = LNWallet.pay_invoice
     force_close_channel = LNWallet.force_close_channel
     schedule_force_closing = LNWallet.schedule_force_closing
-    get_first_timestamp = lambda self: 0
     on_peer_successfully_established = LNWallet.on_peer_successfully_established
     get_channel_by_id = LNWallet.get_channel_by_id
     channels_for_peer = LNWallet.channels_for_peer

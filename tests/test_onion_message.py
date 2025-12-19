@@ -24,8 +24,8 @@ from electrum.onion_message import (
 from electrum.util import bfh, read_json_file, OldTaskGroup, get_asyncio_loop
 from electrum.logging import console_stderr_handler
 
-from . import ElectrumTestCase, test_lnpeer
-from .test_lnpeer import PutIntoOthersQueueTransport, PeerInTests, keypair
+from . import ElectrumTestCase
+from .test_lnpeer import keypair, MockLNWallet
 
 TIME_STEP = 0.01  # run tests 100 x faster
 OnionMessageManager.SLEEP_DELAY *= TIME_STEP
@@ -271,21 +271,6 @@ class MockNetwork:
         self.taskgroup = OldTaskGroup()
         self.config = SimpleConfig()
         self.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS = True
-
-
-class MockWallet:
-    def __init__(self):
-        pass
-
-
-class MockLNWallet(test_lnpeer.MockLNWallet):
-
-    async def add_peer(self, connect_str: str):
-        t1 = PutIntoOthersQueueTransport(self.node_keypair, 'test')
-        p1 = PeerInTests(self, keypair().pubkey, t1)
-        self.peers[p1.pubkey] = p1
-        p1.initialized.set_result(True)
-        return p1
 
 
 class MockPeer:
