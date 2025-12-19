@@ -111,15 +111,6 @@ class MockBlockchain:
         return False
 
 
-class MockADB:
-    def __init__(self):
-        self._blockchain = MockBlockchain()
-    def add_transaction(self, tx):
-        pass
-    def get_local_height(self):
-        return self._blockchain.height()
-
-
 class MockLNGossip:
     def get_sync_progress_estimate(self):
         return None, None, None
@@ -159,7 +150,7 @@ class MockLNWallet(LNWallet):
     TIMEOUT_SHUTDOWN_FAIL_PENDING_HTLCS = 0
     MPP_SPLIT_PART_FRACTION = 1  # this disables the forced splitting
 
-    def __init__(self, *, name, has_anchors, ln_xprv: str = None):
+    def __init__(self, *, name, has_anchors):
         self.name = name
 
         self._user_dir = tempfile.mkdtemp(prefix="electrum-lnpeer-test-")
@@ -173,6 +164,7 @@ class MockLNWallet(LNWallet):
             "9dk", path=None, passphrase=name, config=self.config)['wallet']  # type: Abstract_Wallet
         wallet.is_up_to_date = lambda: True
         wallet.adb.network = wallet.network = network
+        #assert wallet.lnworker is None  # FIXME xxxxx wallet already has another lnworker by now >.<
 
         features = LnFeatures(0)
         features |= LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT
@@ -184,8 +176,7 @@ class MockLNWallet(LNWallet):
         features |= LnFeatures.OPTION_SCID_ALIAS_OPT
         features |= LnFeatures.OPTION_STATIC_REMOTEKEY_OPT
 
-        if ln_xprv is None:
-            ln_xprv = _bip32_from_name(name).to_xprv()
+        ln_xprv = _bip32_from_name(name).to_xprv()
         LNWallet.__init__(self, wallet=wallet, xprv=ln_xprv, features=features)
 
         self.lnpeermgr = MockLNPeerManager(
@@ -195,10 +186,6 @@ class MockLNWallet(LNWallet):
             lnwallet=self,
             network=network,
         )
-        self.lnwatcher = None
-        self.swap_manager = None
-        self.onion_message_manager = None
-        self.listen_server = None
 
         self.logger.info(f"created LNWallet[{name}] with nodeID={self.node_keypair.pubkey.hex()}")
 
