@@ -4262,7 +4262,7 @@ class Wallet(object):
 
     def __new__(cls, db: 'WalletDB', *, config: SimpleConfig) -> Abstract_Wallet:
         wallet_type = db.get('wallet_type')
-        WalletClass = Wallet.wallet_class(wallet_type)
+        WalletClass = cls.wallet_class(wallet_type)
         wallet = WalletClass(db, config=config)
         return wallet
 
@@ -4320,6 +4320,7 @@ def restore_wallet_from_text(
     encrypt_file: Optional[bool] = None,
     gap_limit: Optional[int] = None,
     gap_limit_for_change: Optional[int] = None,
+    wallet_factory = Wallet,  # used in tests
 ) -> dict:
     """Restore a wallet from text. Text can be a seed phrase, a master
     public key, a master private key, a list of bitcoin addresses
@@ -4365,7 +4366,7 @@ def restore_wallet_from_text(
             db.put('gap_limit', gap_limit)
         if gap_limit_for_change is not None:
             db.put('gap_limit_for_change', gap_limit_for_change)
-        wallet = Wallet(db, config=config)
+        wallet = wallet_factory(db, config=config)
     if db.storage:
         assert not db.storage.file_exists(), "file was created too soon! plaintext keys might have been written to disk"
     wallet.update_password(old_pw=None, new_pw=password, encrypt_storage=encrypt_file)
