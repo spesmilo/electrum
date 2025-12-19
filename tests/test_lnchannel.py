@@ -175,12 +175,12 @@ def create_test_channels(
     remote_max_inflight = funding_sat * 1000 if remote_max_inflight is None else remote_max_inflight
     alice_raw = [bip32("m/" + str(i)) for i in range(5)]
     bob_raw = [bip32("m/" + str(i)) for i in range(5,11)]
-    alice_privkeys = [lnutil.Keypair(privkey_to_pubkey(x), x) for x in alice_raw]
+    alice_privkeys = [lnutil.Keypair(privkey_to_pubkey(x), x) for x in alice_raw]  # TODO make it depend on alice_lnwallet
     bob_privkeys = [lnutil.Keypair(privkey_to_pubkey(x), x) for x in bob_raw]
     alice_pubkeys = [lnutil.OnlyPubkeyKeypair(x.pubkey) for x in alice_privkeys]
     bob_pubkeys = [lnutil.OnlyPubkeyKeypair(x.pubkey) for x in bob_privkeys]
 
-    alice_seed = random_gen.get_bytes(32)
+    alice_seed = random_gen.get_bytes(32)  # TODO make it depend on alice_lnwallet
     bob_seed = random_gen.get_bytes(32)
 
     alice_first = lnutil.secret_to_pubkey(
@@ -201,7 +201,9 @@ def create_test_channels(
                 max_accepted_htlcs=max_accepted_htlcs,
             ),
             name=f"{alice_name}->{bob_name}",
-            initial_feerate=feerate),
+            initial_feerate=feerate,
+            lnworker=alice_lnwallet,
+        ),
         lnchannel.Channel(
             create_channel_state(
                 funding_txid, funding_index, funding_sat, False, remote_amount,
@@ -212,7 +214,9 @@ def create_test_channels(
                 max_accepted_htlcs=max_accepted_htlcs,
             ),
             name=f"{bob_name}->{alice_name}",
-            initial_feerate=feerate)
+            initial_feerate=feerate,
+            lnworker=bob_lnwallet,
+        )
     )
 
     alice.hm.log[LOCAL]['ctn'] = 0
