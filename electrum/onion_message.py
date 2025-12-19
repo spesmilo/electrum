@@ -456,7 +456,8 @@ class OnionMessageManager(Logger):
         self.logger.info("taskgroup stopped.")
 
     async def stop(self) -> None:
-        await self.taskgroup.cancel_remaining()
+        if self.taskgroup:
+            await self.taskgroup.cancel_remaining()
 
     async def process_forward_queue(self) -> None:
         while True:
