@@ -30,7 +30,7 @@ import threading
 import json
 from typing import (
     NamedTuple, Optional, Sequence, List, Dict, Tuple, TYPE_CHECKING, Iterable, Set, Any, TypeVar,
-    Callable
+    Callable, Mapping,
 )
 import copy
 import functools
@@ -53,7 +53,7 @@ from .transaction import Transaction
 from .blockchain import Blockchain
 from .interface import (
     Interface, PREFERRED_NETWORK_PROTOCOL, RequestTimedOut, NetworkTimeout, BUCKET_NAME_OF_ONION_SERVERS,
-    NetworkException, RequestCorrupted, ServerAddr, TxBroadcastError,
+    NetworkException, RequestCorrupted, ServerAddr, TxBroadcastError, KNOWN_ELEC_PROTOCOL_TRANSPORTS,
 )
 from .version import PROTOCOL_VERSION_MIN
 from .i18n import _
@@ -624,7 +624,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
 
     @with_recent_servers_lock
-    def get_servers(self):
+    def get_servers(self) -> Mapping[str, Mapping[str, str]]:
         # note: order of sources when adding servers here is crucial!
         # don't let "server_peers" overwrite anything,
         # otherwise main server can eclipse the client
@@ -658,6 +658,31 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         if self.config.NETWORK_NOONION:
             out = filter_noonion(out)
         return out
+
+    def get_disconnected_server_addrs(self) -> Sequence[ServerAddr]:
+        hostmap = self.get_servers()
+        disconnected_server_addrs = []  # type: List[ServerAddr]
+        chains = self.get_blockchains()
+        connected_hosts = set([iface.host for ifaces in chains.values() for iface in ifaces])
+        # convert hostmap to list of ServerAddrs (one-to-many mapping)
+        server_addrs = []
+        for host, portmap in hostmap.items():
+            for protocol in KNOWN_ELEC_PROTOCOL_TRANSPORTS:
+                if port := portmap.get(protocol):
+                    server_addrs.append(ServerAddr(host, port, protocol=protocol))
+        # sort bookmarked servers to appear first
+        server_addrs.sort(key=lambda x: (-self.is_server_bookmarked(x), str(x)))
+        # filter out stuff
+        for server in server_addrs:
+            if server.host in connected_hosts:
+                continue
+            if not self.is_server_bookmarked(server):
+                if server.protocol != PREFERRED_NETWORK_PROTOCOL:
+                    continue
+                if server.host.endswith('.onion') and not self.is_proxy_tor:
+                    continue
+            disconnected_server_addrs.append(server)
+        return disconnected_server_addrs
 
     def _get_next_server_to_try(self) -> Optional[ServerAddr]:
         now = time.time()
@@ -1122,7 +1147,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             self._blockchain = interface.blockchain
         return self._blockchain
 
-    def get_blockchains(self):
+    def get_blockchains(self) -> Mapping[str, Sequence[Interface]]:
         out = {}  # blockchain_id -> list(interfaces)
         with blockchain.blockchains_lock: blockchain_items = list(blockchain.blockchains.items())
         with self.interfaces_lock: interfaces_values = list(self.interfaces.values())

@@ -111,28 +111,18 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
                 servers.append(server)
 
         # disconnected servers
-        all_servers = self.network.get_servers()
-        connected_hosts = set([iface.host for ifaces in chains.values() for iface in ifaces])
-        protocol = PREFERRED_NETWORK_PROTOCOL
-        for _host, d in sorted(all_servers.items()):
-            if _host in connected_hosts:
-                continue
-            if _host.endswith('.onion') and not self.network.is_proxy_tor:
-                continue
-            port = d.get(protocol)
-            if port:
-                s = ServerAddr(_host, port, protocol=protocol)
-                server = {
-                    'chain': '',
-                    'chain_height': 0,
-                    'height': 0,
-                    'is_primary': False,
-                    'is_connected': False,
-                    'name': s.net_addr_str()
-                }
-                server['address'] = server['name']
+        for s in self.network.get_disconnected_server_addrs():
+            server = {
+                'chain': '',
+                'chain_height': 0,
+                'height': 0,
+                'is_primary': False,
+                'is_connected': False,
+                'name': s.to_friendly_name()
+            }
+            server['address'] = server['name']
 
-                servers.append(server)
+            servers.append(server)
 
         self.beginInsertRows(QModelIndex(), 0, len(servers) - 1)
         self._servers = servers

@@ -75,9 +75,9 @@ ca_path = certifi.where()
 
 BUCKET_NAME_OF_ONION_SERVERS = 'onion'
 
-_KNOWN_NETWORK_PROTOCOLS = {'t', 's'}
+KNOWN_ELEC_PROTOCOL_TRANSPORTS = {'t', 's'}
 PREFERRED_NETWORK_PROTOCOL = 's'
-assert PREFERRED_NETWORK_PROTOCOL in _KNOWN_NETWORK_PROTOCOLS
+assert PREFERRED_NETWORK_PROTOCOL in KNOWN_ELEC_PROTOCOL_TRANSPORTS
 
 MAX_NUM_HEADERS_PER_REQUEST = 2016
 assert MAX_NUM_HEADERS_PER_REQUEST >= CHUNK_SIZE
@@ -462,7 +462,7 @@ class ServerAddr:
             net_addr = NetAddress(host, port)  # this validates host and port
         except Exception as e:
             raise ValueError(f"cannot construct ServerAddr: invalid host or port (host={host}, port={port})") from e
-        if protocol not in _KNOWN_NETWORK_PROTOCOLS:
+        if protocol not in KNOWN_ELEC_PROTOCOL_TRANSPORTS:
             raise ValueError(f"invalid network protocol: {protocol}")
         self.host = str(net_addr.host)  # canonical form (if e.g. IPv6 address)
         self.port = int(net_addr.port)
