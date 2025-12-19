@@ -1525,8 +1525,10 @@ class LNWallet(Logger):
             # todo: if broadcasting raise an exception, we should try to rebroadcast
             await self.network.broadcast_transaction(funding_tx)
         except OnionRoutingFailure:
+            self._preimages.pop(payment_hash.hex(), None)
             raise
         except Exception:
+            self._preimages.pop(payment_hash.hex(), None)
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
         finally:
             del self.dont_settle_htlcs[payment_hash.hex()]
