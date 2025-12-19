@@ -51,7 +51,7 @@ from electrum.interface import GracefulDisconnect
 from electrum.simple_config import SimpleConfig
 from electrum.fee_policy import FeeTimeEstimates, FEE_ETA_TARGETS
 from electrum.mpp_split import split_amount_normal
-from electrum.wallet import Abstract_Wallet
+from electrum.wallet import Abstract_Wallet, Standard_Wallet
 
 from .test_lnchannel import create_test_channels
 from .test_bitcoin import needs_test_with_all_chacha20_implementations
@@ -116,93 +116,70 @@ class MockLNGossip:
         return None, None, None
 
 
-class MockLNPeerManager(LNPeerManager):
-    def __init__(
-        self,
-        *,
-        node_keypair,
-        config: SimpleConfig,
-        features: LnFeatures,
-        lnwallet: LNWallet,
-        network: 'MockNetwork',
-    ):
-        LNPeerManager.__init__(
-            self,
-            node_keypair=node_keypair,
-            lnwallet_or_lngossip=lnwallet,
-            features=features,
-            config=config,
-        )
-        self.network = network
+class MockWalletFactory(electrum.wallet.Wallet):
+
+    @staticmethod
+    def wallet_class(wallet_type):
+        real_wallet_class = electrum.wallet.Wallet.wallet_class(wallet_type)
+        if real_wallet_class is Standard_Wallet:
+            return MockStandardWallet
+        return real_wallet_class
 
 
-@lru_cache()
-def _bip32_from_name(name: str) -> bip32.BIP32Node:
-    # note: unlike a serialized xprv, the bip32 node can be cached easily,
-    #       as it does not depend on constant.net (testnet/mainnet) network bytes
-    sequence = [ord(c) for c in name]
-    bip32_node = bip32.BIP32Node.from_rootseed(b"9dk", xtype='standard').subkey_at_private_derivation(sequence)
-    return bip32_node
+class MockStandardWallet(Standard_Wallet):
+    def _init_lnworker(self):
+        ln_xprv = self.db.get('lightning_xprv') or self.db.get('lightning_privkey2')
+        assert ln_xprv
+        self.lnworker = MockLNWallet(self, ln_xprv)
 
+    def basename(self):
+        passphrase = self.db.get("keystore").get("passphrase")
+        assert passphrase
+        return passphrase  # lol, super secure name
+
+def create_mock_lnwallet(*, name, has_anchors) -> 'MockLNWallet':
+    _user_dir = tempfile.mkdtemp(prefix="electrum-lnpeer-test-")
+    config = SimpleConfig({}, read_user_dir_function=lambda: _user_dir)
+    config.ENABLE_ANCHOR_CHANNELS = has_anchors
+    config.INITIAL_TRAMPOLINE_FEE_LEVEL = 0
+
+    network = MockNetwork(config=config)
+
+    wallet = restore_wallet_from_text__for_unittest(
+        "9dk", path=None, passphrase=name, config=config,
+        wallet_factory=MockWalletFactory,
+    )['wallet']  # type: MockStandardWallet
+    wallet.is_up_to_date = lambda: True
+    wallet.adb.network = wallet.network = network
+
+    lnworker = wallet.lnworker
+    assert isinstance(lnworker, MockLNWallet), f"{lnworker=!r}"
+    lnworker._user_dir = _user_dir
+    lnworker.lnpeermgr.network = network
+    lnworker.logger.info(f"created LNWallet[{name}] with nodeID={lnworker.node_keypair.pubkey.hex()}")
+    return lnworker
 
 class MockLNWallet(LNWallet):
     MPP_EXPIRY = 2  # HTLC timestamps are cast to int, so this cannot be 1
     TIMEOUT_SHUTDOWN_FAIL_PENDING_HTLCS = 0
     MPP_SPLIT_PART_FRACTION = 1  # this disables the forced splitting
 
-    def __init__(self, *, name, has_anchors):
-        self.name = name
-
-        self._user_dir = tempfile.mkdtemp(prefix="electrum-lnpeer-test-")
-        self.config = SimpleConfig({}, read_user_dir_function=lambda: self._user_dir)
-        self.config.ENABLE_ANCHOR_CHANNELS = has_anchors
-        self.config.INITIAL_TRAMPOLINE_FEE_LEVEL = 0
-
-        network = MockNetwork(config=self.config)
-
-        wallet = restore_wallet_from_text__for_unittest(
-            "9dk", path=None, passphrase=name, config=self.config)['wallet']  # type: Abstract_Wallet
-        wallet.is_up_to_date = lambda: True
-        wallet.adb.network = wallet.network = network
-        #assert wallet.lnworker is None  # FIXME xxxxx wallet already has another lnworker by now >.<
-
-        features = LnFeatures(0)
-        features |= LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT
-        features |= LnFeatures.OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT
-        features |= LnFeatures.VAR_ONION_OPT
-        features |= LnFeatures.PAYMENT_SECRET_OPT
-        features |= LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM
-        features |= LnFeatures.OPTION_CHANNEL_TYPE_OPT
-        features |= LnFeatures.OPTION_SCID_ALIAS_OPT
-        features |= LnFeatures.OPTION_STATIC_REMOTEKEY_OPT
-
-        ln_xprv = _bip32_from_name(name).to_xprv()
-        LNWallet.__init__(self, wallet=wallet, xprv=ln_xprv, features=features)
-
-        self.lnpeermgr = MockLNPeerManager(
-            node_keypair=self.node_keypair,
-            config=self.config,
-            features=features,
-            lnwallet=self,
-            network=network,
-        )
-
-        self.logger.info(f"created LNWallet[{name}] with nodeID={self.node_keypair.pubkey.hex()}")
+    def __init__(self, *args, **kwargs):
+        LNWallet.__init__(self, *args, **kwargs)
+        self.features &= ~LnFeatures.BASIC_MPP_OPT  # by default, disable MPP
 
     def _add_channel(self, chan: Channel):
         self._channels[chan.channel_id] = chan
+        # assert chan.lnworker == self  # this fails as some tests are reusing chans in a weird way
         chan.lnworker = self
 
     @LNWallet.features.setter
     def features(self, value):
         self.lnpeermgr.features = value
 
-    def save_channel(self, chan):
-        pass
-        #print("Ignoring channel save")
-
-    def diagnostic_name(self):
-        return self.name
+    @property
+    def name(self):
+        return self.wallet.basename()
 
     async def stop(self):
         await LNWallet.stop(self)
@@ -524,7 +501,7 @@ class TestPeer(ElectrumTestCase):
     def prepare_lnwallets(self, graph_definition) -> Mapping[str, MockLNWallet]:
         workers = {}  # type: Dict[str, MockLNWallet]
         for a, definition in graph_definition.items():
-            workers[a] = MockLNWallet(name=a, has_anchors=self.TEST_ANCHOR_CHANNELS)
+            workers[a] = create_mock_lnwallet(name=a, has_anchors=self.TEST_ANCHOR_CHANNELS)
         self._lnworkers_created.extend(list(workers.values()))
         return workers
 
