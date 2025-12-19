@@ -8,7 +8,7 @@ from collections import OrderedDict, defaultdict
 import asyncio
 import os
 import time
-from typing import Tuple, Dict, TYPE_CHECKING, Optional, Union, Set, Callable, Awaitable, List
+from typing import Tuple, Dict, TYPE_CHECKING, Optional, Union, Set, Callable, Coroutine, List, Any
 from datetime import datetime
 import functools
 from functools import partial
@@ -2972,7 +2972,7 @@ class Peer(Logger, EventListener):
     ) -> Tuple[
         Optional[Union[OnionRoutingFailure, OnionFailureCode, bytes]],  # error types used to fail the set
         Optional[bytes],  # preimage to settle the set
-        Optional[Callable[[], Awaitable[None]]],  # callback
+        Optional[Callable[[], Coroutine[Any, Any, None]]],  # callback
     ]:
         """
         Returns what to do next with the given set of htlcs:
