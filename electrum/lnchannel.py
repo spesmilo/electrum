@@ -1022,8 +1022,8 @@ class Channel(AbstractChannel):
         elif self.is_static_remotekey_enabled():
             our_payment_pubkey = self.config[LOCAL].payment_basepoint.pubkey
             addr = make_commitment_output_to_remote_address(our_payment_pubkey, has_anchors=self.has_anchors())
-        #if self.lnworker:
-        #    assert self.lnworker.wallet.is_mine(addr)  # FIXME xxxxx chan should be deterministic. NEEDS to be fixed before merge
+        if self.lnworker:
+           assert self.lnworker.wallet.is_mine(addr)
         return addr
 
     def has_anchors(self) -> bool:

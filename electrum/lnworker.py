@@ -1611,8 +1611,10 @@ class LNWallet(Logger):
         channel_type: ChannelType,
         multisig_funding_keypair: Optional[Keypair],  # if None, will get derived from channel_seed
         peer_features: LnFeatures,
+        channel_seed: bytes = None,
     ) -> LocalConfig:
-        channel_seed = os.urandom(32)
+        if channel_seed is None:
+            channel_seed = os.urandom(32)
         initial_msat = funding_sat * 1000 - push_msat if initiator == LOCAL else push_msat
 
         # sending empty bytes as the upfront_shutdown_script will give us the

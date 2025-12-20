@@ -138,7 +138,7 @@ class MockStandardWallet(Standard_Wallet):
         return passphrase  # lol, super secure name
 
 def create_mock_lnwallet(*, name, has_anchors) -> 'MockLNWallet':
-    _user_dir = tempfile.mkdtemp(prefix="electrum-lnpeer-test-")
+    _user_dir = tempfile.mkdtemp(prefix="electrum-lnpeer-test-")  # TODO clean-up after??
     config = SimpleConfig({}, read_user_dir_function=lambda: _user_dir)
     config.ENABLE_ANCHOR_CHANNELS = has_anchors
     config.INITIAL_TRAMPOLINE_FEE_LEVEL = 0
