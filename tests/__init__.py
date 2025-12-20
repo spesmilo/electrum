@@ -6,13 +6,18 @@ import tempfile
 import shutil
 import functools
 import inspect
+from typing import TYPE_CHECKING, List
 
 import electrum
 import electrum.logging
 from electrum import constants
 from electrum import util
+from electrum.util import OldTaskGroup
 from electrum.logging import Logger
 from electrum.wallet import restore_wallet_from_text
+
+if TYPE_CHECKING:
+    from .test_lnpeer import MockLNWallet
 
 
 # Set this locally to make the test suite run faster.
@@ -64,8 +69,11 @@ class ElectrumTestCase(unittest.IsolatedAsyncioTestCase, Logger):
             # or if a prior test raised  during `setUp` or `asyncSetUp` and never released the lock.
             raise Exception("timed out waiting for test_lock")
         super().setUp()
-        self.electrum_path = tempfile.mkdtemp(prefix="electrum-unittest-base-")
+        self.unittest_base_path = tempfile.mkdtemp(prefix="electrum-unittest-base-")
+        self.electrum_path = os.path.join(self.unittest_base_path, "electrum")
+        util.make_dir(self.electrum_path)
         assert util._asyncio_event_loop is None, "global event loop already set?!"
+        self._lnworkers_created = []  # type: List[MockLNWallet]
 
     async def asyncSetUp(self):
         await super().asyncSetUp()
@@ -75,12 +83,32 @@ class ElectrumTestCase(unittest.IsolatedAsyncioTestCase, Logger):
             loop.set_debug(False)
         util._asyncio_event_loop = loop
 
+    async def asyncTearDown(self):
+        # clean up lnworkers
+        async with OldTaskGroup() as group:
+            for lnworker in self._lnworkers_created:
+                await group.spawn(lnworker.stop())
+        self._lnworkers_created.clear()
+        await super().asyncTearDown()
+
     def tearDown(self):
         util.callback_mgr.clear_all_callbacks()
-        shutil.rmtree(self.electrum_path)
+        shutil.rmtree(self.unittest_base_path)
         super().tearDown()
         util._asyncio_event_loop = None  # cleared here, at the ~last possible moment. asyncTearDown is too early.
         self._test_lock.release()
+
+    def create_mock_lnwallet(
+        self,
+        *,
+        name: str,
+        has_anchors: bool,
+    ) -> 'MockLNWallet':
+        from .test_lnpeer import _create_mock_lnwallet
+        data_dir = tempfile.mkdtemp(prefix="lnwallet-", dir=self.unittest_base_path)
+        lnwallet = _create_mock_lnwallet(name=name, has_anchors=has_anchors, data_dir=data_dir)
+        self._lnworkers_created.append(lnwallet)
+        return lnwallet
 
 
 def as_testnet(func):
