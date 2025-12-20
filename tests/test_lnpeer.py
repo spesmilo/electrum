@@ -58,14 +58,6 @@ from .test_bitcoin import needs_test_with_all_chacha20_implementations
 from . import ElectrumTestCase, restore_wallet_from_text__for_unittest
 
 
-def keypair():
-    priv = ECPrivkey.generate_random_key().get_secret_bytes()
-    k1 = Keypair(
-            pubkey=privkey_to_pubkey(priv),
-            privkey=priv)
-    return k1
-
-
 class MockNetwork:
     def __init__(self, *, config: SimpleConfig):
         self.lnwatcher = None
