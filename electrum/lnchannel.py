@@ -183,7 +183,7 @@ class HTLCWithStatus(NamedTuple):
 class AbstractChannel(Logger, ABC):
     storage: Union['StoredDict', dict]
     config: Dict[HTLCOwner, Union[LocalConfig, RemoteConfig]]
-    lnworker: Optional['LNWallet']
+    lnworker: 'LNWallet'
     channel_id: bytes
     short_channel_id: Optional[ShortChannelID] = None
     funding_outpoint: Outpoint
@@ -218,8 +218,7 @@ class AbstractChannel(Logger, ABC):
         self.logger.debug(f'Setting channel state: {old_state.name} -> {state.name}')
         self._state = state
         self.storage['state'] = self._state.name
-        if self.lnworker:
-            self.lnworker.channel_state_changed(self)
+        self.lnworker.channel_state_changed(self)
 
     def get_state(self) -> ChannelState:
         return self._state
@@ -250,18 +249,16 @@ class AbstractChannel(Logger, ABC):
         # note: tx might not be directly related to the wallet, e.g. chan opened by remote
         if (funding_item := self.get_funding_height()) is None:
             return True
-        if self.lnworker:
-            funding_txid, funding_height, funding_timestamp = funding_item
-            if self.lnworker.wallet.adb.get_transaction(funding_txid) is None:
-                return True
+        funding_txid, funding_height, funding_timestamp = funding_item
+        if self.lnworker.wallet.adb.get_transaction(funding_txid) is None:
+            return True
         # check we have closing tx
         # note: tx might not be directly related to the wallet, e.g. local-fclose
         if (closing_item := self.get_closing_height()) is None:
             return True
-        if self.lnworker:
-            closing_txid, closing_height, closing_timestamp = closing_item
-            if self.lnworker.wallet.adb.get_transaction(closing_txid) is None:
-                return True
+        closing_txid, closing_height, closing_timestamp = closing_item
+        if self.lnworker.wallet.adb.get_transaction(closing_txid) is None:
+            return True
         return False
 
     @abstractmethod
@@ -354,8 +351,6 @@ class AbstractChannel(Logger, ABC):
     def update_unfunded_state(self) -> None:
         self.delete_funding_height()
         self.delete_closing_height()
-        if not self.lnworker:
-            return
         state = self.get_state()
         if state in [ChannelState.PREOPENING, ChannelState.OPENING, ChannelState.FORCE_CLOSING]:
             if self.is_initiator():
@@ -395,6 +390,7 @@ class AbstractChannel(Logger, ABC):
                         f"we may have been scammed out of {local_balance_sat} sat by our "
                         f"JIT provider: {self.lnworker.config.ZEROCONF_TRUSTED_NODE} or he didn't use our preimage")
                     self.lnworker.config.ZEROCONF_TRUSTED_NODE = ''
+                # FIXME this is broken: lnwatcher.unwatch_channel does not exist
                 self.lnworker.lnwatcher.unwatch_channel(self.get_funding_address(), self.funding_outpoint.to_str())
                 # remove remaining local transactions from the wallet, this will also remove child transactions (closing tx)
                 self.lnworker.lnwatcher.adb.remove_transaction(self.funding_outpoint.txid)
@@ -417,7 +413,7 @@ class AbstractChannel(Logger, ABC):
             if not self.is_funding_tx_mined(funding_height):
                 # funding tx is invalid (invalid amount or address) we need to get rid of the channel again
                 self.should_request_force_close = True
-                if self.lnworker and (peer := self.lnworker.lnpeermgr.get_peer_by_pubkey(self.node_id)):
+                if peer := self.lnworker.lnpeermgr.get_peer_by_pubkey(self.node_id):
                     # reconnect to trigger force close request
                     peer.close_and_cleanup()
             else:
@@ -436,19 +432,17 @@ class AbstractChannel(Logger, ABC):
             conf = closing_height.conf
             if conf > 0:
                 self.set_state(ChannelState.CLOSED)
-                if self.lnworker:
-                    self.lnworker.wallet.txbatcher.set_password_future(None)
+                self.lnworker.wallet.txbatcher.set_password_future(None)
             else:
                 # we must not trust the server with unconfirmed transactions,
                 # because the state transition is irreversible. if the remote
                 # force closed, we remain OPEN until the closing tx is confirmed
                 self.unconfirmed_closing_txid = closing_txid
-                if self.lnworker:
-                    util.trigger_callback('channel', self.lnworker.wallet, self)
+                util.trigger_callback('channel', self.lnworker.wallet, self)
 
         if self.get_state() == ChannelState.CLOSED and not keep_watching:
             self.set_state(ChannelState.REDEEMED)
-            if self.lnworker and self.is_backup():
+            if self.is_backup():
                 # auto-remove redeemed backups
                 self.lnworker.remove_channel_backup(self.channel_id)
 
@@ -578,7 +572,7 @@ class ChannelBackup(AbstractChannel):
       - will need to sweep their ctx to_remote
     """
 
-    def __init__(self, cb: ChannelBackupStorage, *, lnworker=None):
+    def __init__(self, cb: ChannelBackupStorage, *, lnworker: 'LNWallet'):
         self.name = None
         self.cb = cb
         self.is_imported = isinstance(self.cb, ImportedChannelBackupStorage)
@@ -779,7 +773,7 @@ class Channel(AbstractChannel):
         self,
         state: 'StoredDict', *,
         name=None,
-        lnworker: 'LNWallet' = None,  # None only in unittests
+        lnworker: 'LNWallet',
         initial_feerate=None,
         jit_opening_fee: Optional[int] = None,
     ):
@@ -893,8 +887,6 @@ class Channel(AbstractChannel):
         return self.data_loss_protect_remote_pcp.get(key)
 
     def get_local_pubkey(self) -> bytes:
-        if not self.lnworker:
-            raise Exception('lnworker not set for channel!')
         return self.lnworker.node_keypair.pubkey
 
     def set_remote_update(self, payload: dict) -> None:
@@ -945,8 +937,6 @@ class Channel(AbstractChannel):
         """
         if self._outgoing_channel_update is not None and scid is None:
             return self._outgoing_channel_update
-        if not self.lnworker:
-            raise Exception('lnworker not set for channel!')
         if scid is None:
             scid = self.short_channel_id
         sorted_node_ids = list(sorted([self.node_id, self.get_local_pubkey()]))
@@ -1022,8 +1012,7 @@ class Channel(AbstractChannel):
         elif self.is_static_remotekey_enabled():
             our_payment_pubkey = self.config[LOCAL].payment_basepoint.pubkey
             addr = make_commitment_output_to_remote_address(our_payment_pubkey, has_anchors=self.has_anchors())
-        if self.lnworker:
-           assert self.lnworker.wallet.is_mine(addr)
+        assert self.lnworker.wallet.is_mine(addr)
         return addr
 
     def has_anchors(self) -> bool:
@@ -1103,7 +1092,7 @@ class Channel(AbstractChannel):
         return self.can_update_ctx(proposer=LOCAL) and self.is_open()
 
     def is_frozen_for_sending(self) -> bool:
-        if self.lnworker and self.lnworker.uses_trampoline() and not self.lnworker.is_trampoline_peer(self.node_id):
+        if self.lnworker.uses_trampoline() and not self.lnworker.is_trampoline_peer(self.node_id):
             return True
         return self.storage.get('frozen_for_sending', False)
 
@@ -1112,7 +1101,7 @@ class Channel(AbstractChannel):
         util.trigger_callback('channel', self.lnworker.wallet, self)
 
     def is_frozen_for_receiving(self) -> bool:
-        if self.lnworker and self.lnworker.uses_trampoline() and not self.lnworker.is_trampoline_peer(self.node_id):
+        if self.lnworker.uses_trampoline() and not self.lnworker.is_trampoline_peer(self.node_id):
             return True
         return self.storage.get('frozen_for_receiving', False)
 
@@ -1426,17 +1415,16 @@ class Channel(AbstractChannel):
             self.config[REMOTE].next_per_commitment_point=revocation.next_per_commitment_point
         assert new_ctn == self.get_oldest_unrevoked_ctn(REMOTE)
         # lnworker callbacks
-        if self.lnworker:
-            sent = self.hm.sent_in_ctn(new_ctn)
-            for htlc in sent:
-                self.lnworker.htlc_fulfilled(self, htlc.payment_hash, htlc.htlc_id)
-            failed = self.hm.failed_in_ctn(new_ctn)
-            for htlc in failed:
-                try:
-                    error_bytes, failure_message = self._receive_fail_reasons.pop(htlc.htlc_id)
-                except KeyError:
-                    error_bytes, failure_message = None, None
-                self.lnworker.htlc_failed(self, htlc.payment_hash, htlc.htlc_id, error_bytes, failure_message)
+        sent = self.hm.sent_in_ctn(new_ctn)
+        for htlc in sent:
+            self.lnworker.htlc_fulfilled(self, htlc.payment_hash, htlc.htlc_id)
+        failed = self.hm.failed_in_ctn(new_ctn)
+        for htlc in failed:
+            try:
+                error_bytes, failure_message = self._receive_fail_reasons.pop(htlc.htlc_id)
+            except KeyError:
+                error_bytes, failure_message = None, None
+            self.lnworker.htlc_failed(self, htlc.payment_hash, htlc.htlc_id, error_bytes, failure_message)
 
     def extract_preimage_from_htlc_txin(self, txin: TxInput, *, is_deeply_mined: bool) -> None:
         from . import lnutil
