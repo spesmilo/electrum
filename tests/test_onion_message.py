@@ -25,7 +25,6 @@ from electrum.util import bfh, read_json_file, OldTaskGroup, get_asyncio_loop
 from electrum.logging import console_stderr_handler
 
 from . import ElectrumTestCase
-from .test_lnpeer import create_mock_lnwallet
 
 
 TIME_STEP = 0.01  # run tests 100 x faster
@@ -353,7 +352,7 @@ class TestOnionMessageManager(ElectrumTestCase):
 
     async def test_request_and_reply(self):
         n = MockNetwork()
-        lnw = create_mock_lnwallet(name='test_request_and_reply', has_anchors=False)
+        lnw = self.create_mock_lnwallet(name='test_request_and_reply', has_anchors=False)
 
         def slow(*args, **kwargs):
             time.sleep(2*TIME_STEP)
@@ -399,7 +398,7 @@ class TestOnionMessageManager(ElectrumTestCase):
 
     async def test_forward(self):
         n = MockNetwork()
-        lnw = create_mock_lnwallet(name='alice', has_anchors=False)
+        lnw = self.create_mock_lnwallet(name='alice', has_anchors=False)
         lnw.node_keypair = self.alice
 
         self.was_sent = False
@@ -436,7 +435,7 @@ class TestOnionMessageManager(ElectrumTestCase):
 
     async def test_receive_unsolicited(self):
         n = MockNetwork()
-        lnw = create_mock_lnwallet(name='dave', has_anchors=False)
+        lnw = self.create_mock_lnwallet(name='dave', has_anchors=False)
         lnw.node_keypair = self.dave
 
         t = OnionMessageManager(lnw)

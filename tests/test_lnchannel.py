@@ -123,8 +123,8 @@ def create_channel_state(
 
 def create_test_channels(
     *,
-    alice_lnwallet: 'MockLNWallet' = None,
-    bob_lnwallet: 'MockLNWallet' = None,
+    alice_lnwallet: 'MockLNWallet',
+    bob_lnwallet: 'MockLNWallet',
     feerate=6000,
     local_msat=None,
     remote_msat=None,
@@ -137,12 +137,6 @@ def create_test_channels(
     if random_seed is None:  # needed for deterministic randomness
         random_seed = os.urandom(32)
     random_gen = PRNG(random_seed)
-    if alice_lnwallet is None:
-        from .test_lnpeer import create_mock_lnwallet
-        alice_lnwallet = create_mock_lnwallet(name="alice", has_anchors=anchor_outputs)
-    if bob_lnwallet is None:
-        from .test_lnpeer import create_mock_lnwallet
-        bob_lnwallet = create_mock_lnwallet(name="bob", has_anchors=anchor_outputs)
     alice_name = alice_lnwallet.name
     bob_name = bob_lnwallet.name
     alice_pubkey = alice_lnwallet.node_keypair.pubkey
@@ -267,12 +261,21 @@ class TestFee(ElectrumTestCase):
     test
     https://github.com/lightningnetwork/lightning-rfc/blob/e0c436bd7a3ed6a028e1cb472908224658a14eca/03-transactions.md#requirements-2
     """
+
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        self.alice_lnwallet = self.create_mock_lnwallet(name="alice", has_anchors=self.TEST_ANCHOR_CHANNELS)
+        self.bob_lnwallet = self.create_mock_lnwallet(name="bob", has_anchors=self.TEST_ANCHOR_CHANNELS)
+
     async def test_fee(self):
         alice_channel, bob_channel = create_test_channels(
             feerate=253,
             local_msat=10_000_000_000,
             remote_msat=5_000_000_000,
-            anchor_outputs=self.TEST_ANCHOR_CHANNELS)
+            anchor_outputs=self.TEST_ANCHOR_CHANNELS,
+            alice_lnwallet=self.alice_lnwallet,
+            bob_lnwallet=self.bob_lnwallet,
+        )
         expected_value = 9_999_056 if self.TEST_ANCHOR_CHANNELS else 9_999_817
         self.assertIn(expected_value, [x.value for x in alice_channel.get_latest_commitment(LOCAL).outputs()])
 
@@ -297,10 +300,14 @@ class TestChannel(ElectrumTestCase):
 
     async def asyncSetUp(self):
         await super().asyncSetUp()
+        self.alice_lnwallet = self.create_mock_lnwallet(name="alice", has_anchors=self.TEST_ANCHOR_CHANNELS)
+        self.bob_lnwallet = self.create_mock_lnwallet(name="bob", has_anchors=self.TEST_ANCHOR_CHANNELS)
+
         # Create a test channel which will be used for the duration of this
         # unittest. The channel will be funded evenly with Alice having 5 BTC,
         # and Bob having 5 BTC.
-        self.alice_channel, self.bob_channel = create_test_channels(anchor_outputs=self.TEST_ANCHOR_CHANNELS)
+        self.alice_channel, self.bob_channel = create_test_channels(
+            anchor_outputs=self.TEST_ANCHOR_CHANNELS, alice_lnwallet=self.alice_lnwallet, bob_lnwallet=self.bob_lnwallet)
 
         self.paymentPreimage = b"\x01" * 32
         paymentHash = bitcoin.sha256(self.paymentPreimage)
@@ -785,8 +792,14 @@ class TestChannelAnchors(TestChannel):
 
 
 class TestAvailableToSpend(ElectrumTestCase):
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        self.alice_lnwallet = self.create_mock_lnwallet(name="alice", has_anchors=self.TEST_ANCHOR_CHANNELS)
+        self.bob_lnwallet = self.create_mock_lnwallet(name="bob", has_anchors=self.TEST_ANCHOR_CHANNELS)
+
     async def test_DesyncHTLCs(self):
-        alice_channel, bob_channel = create_test_channels(anchor_outputs=self.TEST_ANCHOR_CHANNELS)
+        alice_channel, bob_channel = create_test_channels(
+            anchor_outputs=self.TEST_ANCHOR_CHANNELS, alice_lnwallet=self.alice_lnwallet, bob_lnwallet=self.bob_lnwallet)
         self.assertEqual(499986152000 if not alice_channel.has_anchors() else 499980692000, alice_channel.available_to_spend(LOCAL))
         self.assertEqual(500000000000, bob_channel.available_to_spend(LOCAL))
 
@@ -837,7 +850,10 @@ class TestAvailableToSpend(ElectrumTestCase):
             local_msat=4000000000,
             remote_msat=4000000000,
             local_max_inflight=1000000000,
-            remote_max_inflight=2000000000)
+            remote_max_inflight=2000000000,
+            alice_lnwallet=self.alice_lnwallet,
+            bob_lnwallet=self.bob_lnwallet,
+        )
 
         # alice can send 20 but bob can only receive 10, because of stricter receiving rules
         self.assertEqual(2000000000, alice_channel.available_to_spend(LOCAL))
@@ -893,8 +909,11 @@ class TestAvailableToSpendAnchors(TestAvailableToSpend):
 
 
 class TestChanReserve(ElectrumTestCase):
-    def setUp(self):
-        alice_channel, bob_channel = create_test_channels(anchor_outputs=False)
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        alice_lnwallet = self.create_mock_lnwallet(name="alice", has_anchors=self.TEST_ANCHOR_CHANNELS)
+        bob_lnwallet = self.create_mock_lnwallet(name="bob", has_anchors=self.TEST_ANCHOR_CHANNELS)
+        alice_channel, bob_channel = create_test_channels(anchor_outputs=False, alice_lnwallet=alice_lnwallet, bob_lnwallet=bob_lnwallet)
         alice_min_reserve = int(.5 * one_bitcoin_in_msat // 1000)
         # We set Bob's channel reserve to a value that is larger than
         # his current balance in the channel. This will ensure that
@@ -1027,9 +1046,14 @@ class TestChanReserveAnchors(TestChanReserve):
 
 
 class TestDust(ElectrumTestCase):
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        self.alice_lnwallet = self.create_mock_lnwallet(name="alice", has_anchors=self.TEST_ANCHOR_CHANNELS)
+        self.bob_lnwallet = self.create_mock_lnwallet(name="bob", has_anchors=self.TEST_ANCHOR_CHANNELS)
+
     async def test_DustLimit(self):
         """Test that addition of an HTLC below the dust limit changes the balances."""
-        alice_channel, bob_channel = create_test_channels(anchor_outputs=self.TEST_ANCHOR_CHANNELS)
+        alice_channel, bob_channel = create_test_channels(anchor_outputs=self.TEST_ANCHOR_CHANNELS, alice_lnwallet=self.alice_lnwallet, bob_lnwallet=self.bob_lnwallet)
         dust_limit_alice = alice_channel.config[LOCAL].dust_limit_sat
         dust_limit_bob = bob_channel.config[LOCAL].dust_limit_sat
         self.assertLess(dust_limit_alice, dust_limit_bob)

@@ -137,9 +137,8 @@ class MockStandardWallet(Standard_Wallet):
         assert passphrase
         return passphrase  # lol, super secure name
 
-def create_mock_lnwallet(*, name, has_anchors) -> 'MockLNWallet':
-    _user_dir = tempfile.mkdtemp(prefix="electrum-lnpeer-test-")  # TODO clean-up after??
-    config = SimpleConfig({}, read_user_dir_function=lambda: _user_dir)
+def _create_mock_lnwallet(*, name, has_anchors, data_dir: str) -> 'MockLNWallet':
+    config = SimpleConfig({}, read_user_dir_function=lambda: data_dir)
     config.ENABLE_ANCHOR_CHANNELS = has_anchors
     config.INITIAL_TRAMPOLINE_FEE_LEVEL = 0
 
@@ -154,7 +153,6 @@ def create_mock_lnwallet(*, name, has_anchors) -> 'MockLNWallet':
 
     lnworker = wallet.lnworker
     assert isinstance(lnworker, MockLNWallet), f"{lnworker=!r}"
-    lnworker._user_dir = _user_dir
     lnworker.lnpeermgr.network = network
     lnworker.logger.info(f"created LNWallet[{name}] with nodeID={lnworker.node_keypair.pubkey.hex()}")
     return lnworker
@@ -410,16 +408,8 @@ class TestPeer(ElectrumTestCase):
     def setUp(self):
         super().setUp()
         self.GRAPH_DEFINITIONS = copy.deepcopy(_GRAPH_DEFINITIONS)
-        self._lnworkers_created = []  # type: List[MockLNWallet]
 
     async def asyncTearDown(self):
-        # clean up lnworkers
-        async with OldTaskGroup() as group:
-            for lnworker in self._lnworkers_created:
-                await group.spawn(lnworker.stop())
-        for lnworker in self._lnworkers_created:
-            shutil.rmtree(lnworker._user_dir)
-        self._lnworkers_created.clear()
         electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {}
         await super().asyncTearDown()
 
@@ -501,8 +491,7 @@ class TestPeer(ElectrumTestCase):
     def prepare_lnwallets(self, graph_definition) -> Mapping[str, MockLNWallet]:
         workers = {}  # type: Dict[str, MockLNWallet]
         for a, definition in graph_definition.items():
-            workers[a] = create_mock_lnwallet(name=a, has_anchors=self.TEST_ANCHOR_CHANNELS)
-        self._lnworkers_created.extend(list(workers.values()))
+            workers[a] = self.create_mock_lnwallet(name=a, has_anchors=self.TEST_ANCHOR_CHANNELS)
         return workers
 
     def prepare_chans_and_peers_in_graph(
