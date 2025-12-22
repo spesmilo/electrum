@@ -12,13 +12,13 @@
 # https://github.com/markusfisch/zxing-cpp/blob/master/wrappers/aar/build.gradle
 
 
-BARCODE_SCANNER_VIEW_COMMIT_HASH="a4928bf83c0aae8ecb80e665d93f10b70232455b"  # 1.6.3
+BARCODE_SCANNER_VIEW_COMMIT_HASH="0bdb69269c252bb6daef2f871b76403c8b051945"  # 1.6.5
 BARCODE_SCANNER_VIEW_REPO="https://github.com/markusfisch/BarcodeScannerView.git"
 
 CAMERA_VIEW_COMMIT_HASH="745597d05bc6abfdb3637a09a8ecaf30fdce7b6e"  # 1.10.0
 CAMERA_VIEW_REPO="https://github.com/markusfisch/CameraView.git"
 
-ZXING_CPP_COMMIT_HASH="0741a597409ff69a96a326f3a65fe6440d87ad99"  # v2.2.0.5 using kotlin-stdlib 1.8.22
+ZXING_CPP_COMMIT_HASH="79f5adc6250e90de0bd635eb9181c5f8a18affda"  # v2.3.0.4 using kotlin-stdlib 1.8.22
 ZXING_CPP_REPO="https://github.com/markusfisch/zxing-cpp.git"
 
 
@@ -65,7 +65,6 @@ else
     info "Building zxing-cpp for $ZXING_CPP_BUILD_ID..."
     ZXING_CPP_DIR="$BUILDDIR/zxing-cpp"
     clone_or_update_repo "$ZXING_CPP_REPO" "$ZXING_CPP_COMMIT_HASH" "$ZXING_CPP_DIR"
-    apply_patch "${CONTRIB_ANDROID}/barcode_16kb.patch" "$ZXING_CPP_DIR"
     cd "$ZXING_CPP_DIR/wrappers/aar"
     chmod +x gradlew
 
