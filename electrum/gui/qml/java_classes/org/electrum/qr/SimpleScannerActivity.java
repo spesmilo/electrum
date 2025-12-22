@@ -95,7 +95,10 @@ public class SimpleScannerActivity extends Activity {
     private void startCamera() {
         if (mScannerView == null) {
             mScannerView = new BarcodeScannerView(this);
-            mScannerView.setCropRatio(0.75f); // Set crop ratio to 75% (this defines the square area shown in the scanner view)
+            // Set crop ratio to 75% (this defines the square area shown in the scanner view)
+            mScannerView.setCropRatio(0.75f);
+            // allow tap to focus (note: some devices don't support autofocus which is enabled by default)
+            mScannerView.setTapToFocus();
             // by default only Format.QR_CODE is set
             ViewGroup contentFrame = (ViewGroup) findViewById(R.id.content_frame);
             contentFrame.addView(mScannerView);
@@ -172,7 +175,7 @@ public class SimpleScannerActivity extends Activity {
         // Get the root view and set up insets listener
         getWindow().getDecorView().setOnApplyWindowInsetsListener((v, insets) -> {
             android.graphics.Insets systemBars = insets.getInsets(WindowInsets.Type.systemBars());
-            
+
             // Apply padding to content frame to keep scanner focus area centered
             ViewGroup contentFrame = findViewById(R.id.content_frame);
             if (contentFrame != null) {
@@ -195,7 +198,7 @@ public class SimpleScannerActivity extends Activity {
                 );
             }
 
-            // Apply bottom margin to paste button for navigation bar  
+            // Apply bottom margin to paste button for navigation bar
             Button pasteButton = findViewById(R.id.paste_btn);
             if (pasteButton != null) {
                 ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) pasteButton.getLayoutParams();
