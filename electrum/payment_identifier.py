@@ -293,9 +293,9 @@ class PaymentIdentifier(Logger):
                 self._type = PaymentIdentifierType.EMAILLIKE
                 self.emaillike = contact['address']
                 self.set_state(PaymentIdentifierState.NEED_RESOLVE)
-        elif re.match(RE_EMAIL, text):
+        elif re.match(RE_EMAIL, (maybe_emaillike := remove_uri_prefix(text, prefix=LIGHTNING_URI_SCHEME))):
             self._type = PaymentIdentifierType.EMAILLIKE
-            self.emaillike = text
+            self.emaillike = maybe_emaillike
             self.set_state(PaymentIdentifierState.NEED_RESOLVE)
         elif re.match(RE_DOMAIN, text):
             self._type = PaymentIdentifierType.DOMAINLIKE

@@ -378,6 +378,11 @@ class TestPaymentIdentifier(ElectrumTestCase):
             'lnbcuser@some.domain',
             'lnurluser@some.domain',
             'bc1quser@some.domain',
+            'lightning:user@some.domain',
+            'lightning:user@some.weird.but.valid.domain',
+            'lightning:lnbcuser@some.domain',
+            'lightning:lnurluser@some.domain',
+            'lightning:bc1quser@some.domain',
         )
         for pi_str in email_pi_strings:
             pi = PaymentIdentifier(None, pi_str)
