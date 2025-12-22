@@ -46,7 +46,8 @@ from electrum.submarine_swaps import NostrTransport, HttpTransport
 from .seed_dialog import seed_warning_msg
 
 from .util import (WindowModalDialog, ColorScheme, HelpLabel, Buttons, CancelButton, WWLabel,
-                   read_QIcon, debug_widget_layouts, qt_event_listener, QtEventListener, IconLabel)
+                   read_QIcon, debug_widget_layouts, qt_event_listener, QtEventListener, IconLabel,
+                   HelpButton)
 from .transaction_dialog import TxSizeLabel, TxFiatLabel, TxInOutWidget
 from .fee_slider import FeeSlider, FeeComboBox
 from .amountedit import FeerateEdit, BTCAmountEdit
@@ -59,6 +60,22 @@ if TYPE_CHECKING:
 
 
 class TxEditor(WindowModalDialog, QtEventListener, Logger):
+    SUBMARINE_PAYMENT_HELP_TEXT = ''.join((
+        _("Submarine Payments use a reverse submarine swap to do on-chain transactions directly "
+          "from your lightning balance."), '\n\n',
+        _("Submarine Payments happen in two stages. In the first stage, your wallet sends a lightning "
+          "payment to the submarine swap provider. The swap provider will lock funds to a "
+          "funding output in an on-chain transaction (the funding transaction)."), '\n',
+        _("Once the funding transaction has one confirmation, your wallet will broadcast a claim "
+          "transaction as the second stage of the payment. This claim transaction spends the funding "
+          "output to the payee's address."), '\n\n',
+        _("Warning:"), '\n',
+        _('The funding transaction is not visible to the payee. They will only see a pending '
+          'transaction in the mempool after your wallet broadcasts the claim transaction. '
+          'Since confirmation of the funding transaction can take over 30 minutes, avoid using '
+          'Submarine Payments when the payee expects to see the transaction within a limited '
+          'time frame (e.g., an online shop checkout). Use a regular on-chain payment instead.'),
+   ))
 
     def __init__(
             self, *, title='',
@@ -715,6 +732,7 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         # Normal layout page
         normal_page = QWidget()
         h = QGridLayout(normal_page)
+        help_button = HelpButton(self.SUBMARINE_PAYMENT_HELP_TEXT)
         self.submarine_lightning_send_amount_label = QLabel()
         self.submarine_onchain_send_amount_label = QLabel()
         self.submarine_claim_mining_fee_label = QLabel()
@@ -723,14 +741,22 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         self.submarine_we_send_label.setIcon(read_QIcon('lightning.png'))
         self.submarine_they_receive_label = IconLabel(text=_('They receive')+':')
         self.submarine_they_receive_label.setIcon(read_QIcon('bitcoin.png'))
+        # column 0 (labels)
         h.addWidget(self.submarine_we_send_label, 0, 0)
-        h.addWidget(self.submarine_lightning_send_amount_label, 0, 1)
         h.addWidget(self.submarine_they_receive_label, 1, 0)
-        h.addWidget(self.submarine_onchain_send_amount_label, 1, 1)
         h.addWidget(QLabel(_('Swap fee')+':'), 2, 0)
-        h.addWidget(self.submarine_server_fee_label, 2, 1, 1, 2)
         h.addWidget(QLabel(_('Mining fee')+':'), 3, 0)
-        h.addWidget(self.submarine_claim_mining_fee_label, 3, 1, 1, 2)
+        # column 1 (spacing)
+        h.setColumnStretch(1, 1)
+        # column 2 (amounts)
+        h.addWidget(self.submarine_lightning_send_amount_label, 0, 2)
+        h.addWidget(self.submarine_onchain_send_amount_label, 1, 2)
+        h.addWidget(self.submarine_server_fee_label, 2, 2, 1, 2)
+        h.addWidget(self.submarine_claim_mining_fee_label, 3, 2, 1, 2)
+        # column 3 (spacing)
+        h.setColumnStretch(3, 1)
+        # column 4 (help button)
+        h.addWidget(help_button, 0, 4)
 
         # Warning layout page
         warning_page = QWidget()
