@@ -46,7 +46,8 @@ from electrum.submarine_swaps import NostrTransport, HttpTransport
 from .seed_dialog import seed_warning_msg
 
 from .util import (WindowModalDialog, ColorScheme, HelpLabel, Buttons, CancelButton, WWLabel,
-                   read_QIcon, debug_widget_layouts, qt_event_listener, QtEventListener, IconLabel)
+                   read_QIcon, debug_widget_layouts, qt_event_listener, QtEventListener, IconLabel,
+                   HelpButton)
 from .transaction_dialog import TxSizeLabel, TxFiatLabel, TxInOutWidget
 from .fee_slider import FeeSlider, FeeComboBox
 from .amountedit import FeerateEdit, BTCAmountEdit
@@ -59,6 +60,22 @@ if TYPE_CHECKING:
 
 
 class TxEditor(WindowModalDialog, QtEventListener, Logger):
+    SUBMARINE_PAYMENT_HELP_TEXT = ''.join((
+        _("Submarine Payments use a reverse submarine swap to do on-chain transactions directly "
+          "from your lightning balance."), '\n\n',
+        _("Submarine Payments happen in two stages. In the first stage, your wallet sends a lightning "
+          "payment to the submarine swap provider. The swap provider will lock funds to a "
+          "funding output in an on-chain transaction (the funding transaction)."), '\n',
+        _("Once the funding transaction has one confirmation, your wallet will broadcast a claim "
+          "transaction as the second stage of the payment. This claim transaction spends the funding "
+          "output to the payee's address."), '\n\n',
+        _("Warning:"), '\n',
+        _('The funding transaction is not visible to the payee. They will only see a pending '
+          'transaction in the mempool after your wallet broadcasts the claim transaction. '
+          'Since confirmation of the funding transaction can take over 30 minutes, avoid using '
+          'Submarine Payments when the payee expects to see the transaction within a limited '
+          'time frame (e.g., an online shop checkout). Use a regular on-chain payment instead.'),
+   ))
 
     def __init__(
             self, *, title='',
@@ -303,7 +320,8 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         # always show onchain payment tab
         self.tab_widget.addTab(self.onchain_tab, _('Onchain Transaction'))
 
-        allow_swaps = self.allow_preview and self.payee_outputs  # allow_preview is false for ln channel opening txs
+        # allow_preview is false for ln channel opening txs
+        allow_swaps = self.allow_preview and self.payee_outputs and self.swap_manager
         if self.config.WALLET_ENABLE_SUBMARINE_PAYMENTS and allow_swaps:
             i = self.tab_widget.addTab(self.submarine_payment_tab, _('Submarine Payment'))
             tooltip = self.config.cv.WALLET_ENABLE_SUBMARINE_PAYMENTS.get_long_desc()
@@ -499,8 +517,23 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
             self.resize_to_fit_content()
         self.pref_menu.addConfig(self.config.cv.GUI_QT_TX_EDITOR_SHOW_LOCKTIME, callback=cb)
         self.pref_menu.addSeparator()
-        self.pref_menu.addConfig(self.config.cv.WALLET_SEND_CHANGE_TO_LIGHTNING, callback=self.trigger_update)
-        self.pref_menu.addConfig(self.config.cv.WALLET_ENABLE_SUBMARINE_PAYMENTS, callback=self.update_tab_visibility)
+        can_have_lightning = self.wallet.can_have_lightning()
+        send_ch_to_ln = self.pref_menu.addConfig(
+            self.config.cv.WALLET_SEND_CHANGE_TO_LIGHTNING,
+            callback=self.trigger_update,
+            checked=False if not can_have_lightning else None,
+        )
+        sub_payments = self.pref_menu.addConfig(
+            self.config.cv.WALLET_ENABLE_SUBMARINE_PAYMENTS,
+            callback=self.update_tab_visibility,
+            checked=False if not can_have_lightning else None,
+        )
+        if not can_have_lightning:  # disable the buttons and override tooltip
+            ln_unavailable_msg = _("Not available for this wallet.") \
+                                 + "\n" + _("Requires a wallet with Lightning network support.")
+            for ln_conf in (send_ch_to_ln, sub_payments):
+                ln_conf.setEnabled(False)
+                ln_conf.setToolTip(ln_unavailable_msg)
         self.pref_menu.addToggle(
             _('Use change addresses'),
             self.toggle_use_change,
@@ -523,6 +556,8 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         self.pref_menu.addConfig(self.config.cv.WALLET_COIN_CHOOSER_OUTPUT_ROUNDING, callback=self.trigger_update)
         self.pref_button = QToolButton()
         self.pref_button.setIcon(read_QIcon("preferences.png"))
+        self.pref_button.setText(_('Tools'))
+        self.pref_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.pref_button.setMenu(self.pref_menu)
         self.pref_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.pref_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -697,6 +732,7 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         # Normal layout page
         normal_page = QWidget()
         h = QGridLayout(normal_page)
+        help_button = HelpButton(self.SUBMARINE_PAYMENT_HELP_TEXT)
         self.submarine_lightning_send_amount_label = QLabel()
         self.submarine_onchain_send_amount_label = QLabel()
         self.submarine_claim_mining_fee_label = QLabel()
@@ -705,14 +741,22 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         self.submarine_we_send_label.setIcon(read_QIcon('lightning.png'))
         self.submarine_they_receive_label = IconLabel(text=_('They receive')+':')
         self.submarine_they_receive_label.setIcon(read_QIcon('bitcoin.png'))
+        # column 0 (labels)
         h.addWidget(self.submarine_we_send_label, 0, 0)
-        h.addWidget(self.submarine_lightning_send_amount_label, 0, 1)
         h.addWidget(self.submarine_they_receive_label, 1, 0)
-        h.addWidget(self.submarine_onchain_send_amount_label, 1, 1)
         h.addWidget(QLabel(_('Swap fee')+':'), 2, 0)
-        h.addWidget(self.submarine_server_fee_label, 2, 1, 1, 2)
         h.addWidget(QLabel(_('Mining fee')+':'), 3, 0)
-        h.addWidget(self.submarine_claim_mining_fee_label, 3, 1, 1, 2)
+        # column 1 (spacing)
+        h.setColumnStretch(1, 1)
+        # column 2 (amounts)
+        h.addWidget(self.submarine_lightning_send_amount_label, 0, 2)
+        h.addWidget(self.submarine_onchain_send_amount_label, 1, 2)
+        h.addWidget(self.submarine_server_fee_label, 2, 2, 1, 2)
+        h.addWidget(self.submarine_claim_mining_fee_label, 3, 2, 1, 2)
+        # column 3 (spacing)
+        h.setColumnStretch(3, 1)
+        # column 4 (help button)
+        h.addWidget(help_button, 0, 4)
 
         # Warning layout page
         warning_page = QWidget()
@@ -828,6 +872,12 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
     @qt_event_listener
     def on_event_swap_provider_changed(self):
         self.update_submarine_tab()
+
+    @qt_event_listener
+    def on_event_channels_updated(self, wallet):
+        # useful e.g. if the user quickly opens the tab after startup before the channels are initialized
+        if wallet == self.wallet and self.swap_manager and self.swap_manager.is_initialized.is_set():
+            self.update_submarine_tab()
 
     def start_submarine_swap(self):
         assert self.payee_outputs and len(self.payee_outputs) == 1
