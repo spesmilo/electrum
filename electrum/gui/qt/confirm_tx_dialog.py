@@ -873,6 +873,12 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
     def on_event_swap_provider_changed(self):
         self.update_submarine_tab()
 
+    @qt_event_listener
+    def on_event_channels_updated(self, wallet):
+        # useful e.g. if the user quickly opens the tab after startup before the channels are initialized
+        if wallet == self.wallet and self.swap_manager and self.swap_manager.is_initialized.is_set():
+            self.update_submarine_tab()
+
     def start_submarine_swap(self):
         assert self.payee_outputs and len(self.payee_outputs) == 1
         payee_output = self.payee_outputs[0]
