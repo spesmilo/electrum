@@ -21,6 +21,7 @@ from .bitcoin import opcodes, construct_script
 from .lnaddr import LnInvoiceException
 from .lnutil import IncompatibleOrInsaneFeatures
 from .bip21 import parse_bip21_URI, InvalidBitcoinURI, LIGHTNING_URI_SCHEME, BITCOIN_BIP21_URI_SCHEME
+from .segwit_addr import bech32_decode
 from . import paymentrequest
 
 if TYPE_CHECKING:
@@ -28,23 +29,21 @@ if TYPE_CHECKING:
     from .transaction import Transaction
 
 
-def maybe_extract_lightning_payment_identifier(data: str) -> Optional[str]:
-    data = data.strip()  # whitespaces
-    data = data.lower()
-    if data.startswith(LIGHTNING_URI_SCHEME + ':ln'):
-        cut_prefix = LIGHTNING_URI_SCHEME + ':'
-        data = data[len(cut_prefix):]
-    if data.startswith('ln'):
-        return data
-    return None
+def maybe_extract_bech32_lightning_payment_identifier(data: str) -> Optional[str]:
+    data = remove_uri_prefix(data, prefix=LIGHTNING_URI_SCHEME)
+    if not data.startswith('ln'):
+        return None
+    decoded_bech32 = bech32_decode(data, ignore_long_length=True)
+    if not decoded_bech32.hrp or not decoded_bech32.data:
+        return None
+    return data
 
 
-def is_uri(data: str) -> bool:
-    data = data.lower()
-    if (data.startswith(LIGHTNING_URI_SCHEME + ":") or
-            data.startswith(BITCOIN_BIP21_URI_SCHEME + ':')):
-        return True
-    return False
+def remove_uri_prefix(data: str, *, prefix: str) -> str:
+    assert isinstance(data, str) and isinstance(prefix, str)
+    data = data.lower().strip()
+    data = data.removeprefix(prefix + ':')
+    return data
 
 
 RE_ALIAS = r'(.*?)\s*\<([0-9A-Za-z]{1,})\>'
@@ -225,7 +224,7 @@ class PaymentIdentifier(Logger):
                 self.set_state(PaymentIdentifierState.INVALID)
             else:
                 self.set_state(PaymentIdentifierState.AVAILABLE)
-        elif invoice_or_lnurl := maybe_extract_lightning_payment_identifier(text):
+        elif invoice_or_lnurl := maybe_extract_bech32_lightning_payment_identifier(text):
             if invoice_or_lnurl.startswith('lnurl'):
                 self._type = PaymentIdentifierType.LNURL
                 try:
@@ -294,9 +293,9 @@ class PaymentIdentifier(Logger):
                 self._type = PaymentIdentifierType.EMAILLIKE
                 self.emaillike = contact['address']
                 self.set_state(PaymentIdentifierState.NEED_RESOLVE)
-        elif re.match(RE_EMAIL, text):
+        elif re.match(RE_EMAIL, (maybe_emaillike := remove_uri_prefix(text, prefix=LIGHTNING_URI_SCHEME))):
             self._type = PaymentIdentifierType.EMAILLIKE
-            self.emaillike = text
+            self.emaillike = maybe_emaillike
             self.set_state(PaymentIdentifierState.NEED_RESOLVE)
         elif re.match(RE_DOMAIN, text):
             self._type = PaymentIdentifierType.DOMAINLIKE

@@ -4,9 +4,10 @@ from unittest.mock import patch
 
 from electrum import SimpleConfig
 from electrum.invoices import Invoice
-from electrum.payment_identifier import (maybe_extract_lightning_payment_identifier, PaymentIdentifier,
-                                         PaymentIdentifierType, PaymentIdentifierState,
-                                         invoice_from_payment_identifier)
+from electrum.payment_identifier import (
+    maybe_extract_bech32_lightning_payment_identifier, PaymentIdentifier, PaymentIdentifierType,
+    PaymentIdentifierState, invoice_from_payment_identifier, remove_uri_prefix,
+)
 from electrum.lnurl import LNURL6Data, LNURL3Data, LNURLError
 from electrum.transaction import PartialTxOutput
 
@@ -34,18 +35,37 @@ class TestPaymentIdentifier(ElectrumTestCase):
         })
         self.wallet2_path = os.path.join(self.electrum_path, "somewallet2")
 
-    def test_maybe_extract_lightning_payment_identifier(self):
+    def test_maybe_extract_bech32_lightning_payment_identifier(self):
         bolt11 = "lnbc1ps9zprzpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqsp5zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygsdqq9qypqszpyrpe4tym8d3q87d43cgdhhlsrt78epu7u99mkzttmt2wtsx0304rrw50addkryfrd3vn3zy467vxwlmf4uz7yvntuwjr2hqjl9lw5cqwtp2dy"
         lnurl = "lnurl1dp68gurn8ghj7um9wfmxjcm99e5k7telwy7nxenrxvmrgdtzxsenjcm98pjnwxq96s9"
-        self.assertEqual(bolt11, maybe_extract_lightning_payment_identifier(f"{bolt11}".upper()))
-        self.assertEqual(bolt11, maybe_extract_lightning_payment_identifier(f"lightning:{bolt11}"))
-        self.assertEqual(bolt11, maybe_extract_lightning_payment_identifier(f"  lightning:{bolt11}   ".upper()))
-        self.assertEqual(lnurl, maybe_extract_lightning_payment_identifier(lnurl))
-        self.assertEqual(lnurl, maybe_extract_lightning_payment_identifier(f"  lightning:{lnurl}   ".upper()))
+        self.assertEqual(bolt11, maybe_extract_bech32_lightning_payment_identifier(f"{bolt11}".upper()))
+        self.assertEqual(bolt11, maybe_extract_bech32_lightning_payment_identifier(f"lightning:{bolt11}"))
+        self.assertEqual(bolt11, maybe_extract_bech32_lightning_payment_identifier(f"  lightning:{bolt11}   ".upper()))
+        self.assertEqual(lnurl, maybe_extract_bech32_lightning_payment_identifier(lnurl))
+        self.assertEqual(lnurl, maybe_extract_bech32_lightning_payment_identifier(f"  lightning:{lnurl}   ".upper()))
 
-        self.assertEqual(None, maybe_extract_lightning_payment_identifier(f"bitcoin:{bolt11}"))
-        self.assertEqual(None, maybe_extract_lightning_payment_identifier(f":{bolt11}"))
-        self.assertEqual(None, maybe_extract_lightning_payment_identifier(f"garbage text"))
+        self.assertEqual(None, maybe_extract_bech32_lightning_payment_identifier(f"bitcoin:{bolt11}"))
+        self.assertEqual(None, maybe_extract_bech32_lightning_payment_identifier(f":{bolt11}"))
+        self.assertEqual(None, maybe_extract_bech32_lightning_payment_identifier(f"garbage text"))
+
+    def test_remove_uri_prefix(self):
+        lightning, bitcoin = 'lightning', 'bitcoin'
+        tests = (
+            (lightning, '', ''),
+            (lightning, 'lightning:test', 'test'),
+            (lightning, 'bitcoin:test', 'bitcoin:test'),
+            (lightning, 'lightningtest', 'lightningtest'),
+            (lightning, 'lightning test', 'lightning test'),
+            (bitcoin, 'lightning:test', 'lightning:test'),
+            (bitcoin, 'bitcoin:test', 'test'),
+            (bitcoin, 'bitcoin', 'bitcoin'),
+            (bitcoin, 'bitcoin:', ''),
+        )
+        for prefix, input_str, expected_output_str in tests:
+            output_str = remove_uri_prefix(input_str, prefix=prefix)
+            self.assertEqual(expected_output_str, output_str, msg=output_str)
+        with self.assertRaises(AssertionError):
+            remove_uri_prefix(data=1234, prefix="test")
 
     def test_bolt11(self):
         # no amount, no fallback address
@@ -337,35 +357,39 @@ class TestPaymentIdentifier(ElectrumTestCase):
             self.assertTrue(pi.is_available())
 
     def test_email_and_domain(self):
-        pi_str = 'some.domain'
-        pi = PaymentIdentifier(None, pi_str)
-        self.assertTrue(pi.is_valid())
-        self.assertEqual(PaymentIdentifierType.DOMAINLIKE, pi.type)
-        self.assertFalse(pi.is_available())
-        self.assertTrue(pi.need_resolve())
-
-        pi_str = 'some.weird.but.valid.domain'
-        pi = PaymentIdentifier(None, pi_str)
-        self.assertTrue(pi.is_valid())
-        self.assertEqual(PaymentIdentifierType.DOMAINLIKE, pi.type)
-        self.assertFalse(pi.is_available())
-        self.assertTrue(pi.need_resolve())
-
-        pi_str = 'user@some.domain'
-        pi = PaymentIdentifier(None, pi_str)
-        self.assertTrue(pi.is_valid())
-        self.assertEqual(PaymentIdentifierType.EMAILLIKE, pi.type)
-        self.assertFalse(pi.is_available())
-        self.assertTrue(pi.need_resolve())
-
-        pi_str = 'user@some.weird.but.valid.domain'
-        pi = PaymentIdentifier(None, pi_str)
-        self.assertTrue(pi.is_valid())
-        self.assertEqual(PaymentIdentifierType.EMAILLIKE, pi.type)
-        self.assertFalse(pi.is_available())
-        self.assertTrue(pi.need_resolve())
-
         # TODO resolve mock
+        domain_pi_strings = (
+            'some.domain',
+            'some.weird.but.valid.domain',
+            'lnbcsome.weird.but.valid.domain',
+            'bc1qsome.weird.but.valid.domain',
+            'lnurlsome.weird.but.valid.domain',
+        )
+        for pi_str in domain_pi_strings:
+            pi = PaymentIdentifier(None, pi_str)
+            self.assertTrue(pi.is_valid())
+            self.assertEqual(PaymentIdentifierType.DOMAINLIKE, pi.type)
+            self.assertFalse(pi.is_available())
+            self.assertTrue(pi.need_resolve())
+
+        email_pi_strings = (
+            'user@some.domain',
+            'user@some.weird.but.valid.domain',
+            'lnbcuser@some.domain',
+            'lnurluser@some.domain',
+            'bc1quser@some.domain',
+            'lightning:user@some.domain',
+            'lightning:user@some.weird.but.valid.domain',
+            'lightning:lnbcuser@some.domain',
+            'lightning:lnurluser@some.domain',
+            'lightning:bc1quser@some.domain',
+        )
+        for pi_str in email_pi_strings:
+            pi = PaymentIdentifier(None, pi_str)
+            self.assertTrue(pi.is_valid())
+            self.assertEqual(PaymentIdentifierType.EMAILLIKE, pi.type)
+            self.assertFalse(pi.is_available())
+            self.assertTrue(pi.need_resolve())
 
     def test_bip70(self):
         pi_str = 'bitcoin:?r=https://test.bitpay.com/i/87iLJoaYVyJwFXtdassQJv'
