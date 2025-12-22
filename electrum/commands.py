@@ -1687,7 +1687,7 @@ class Commands(Logger):
         arg:int:timeout:Timeout in seconds (default=20)
         """
         lnworker = self.network.lngossip if gossip else wallet.lnworker
-        peer = await lnworker.add_peer(connection_string)
+        peer = await lnworker.lnpeermgr.add_peer(connection_string)
         try:
             await util.wait_for2(peer.initialized, timeout=LN_P2P_NETWORK_TIMEOUT)
         except (CancelledError, Exception) as e:
@@ -1700,7 +1700,7 @@ class Commands(Logger):
         """Display statistics about lightninig gossip"""
         lngossip = self.network.lngossip
         channel_db = lngossip.channel_db
-        forwarded = dict([(key.hex(), p._num_gossip_messages_forwarded) for key, p in wallet.lnworker.peers.items()]),
+        forwarded = dict([(key.hex(), p._num_gossip_messages_forwarded) for key, p in wallet.lnworker.lnpeermgr.peers.items()]),
         out = {
             'received': {
                 'channel_announcements': lngossip._num_chan_ann,
@@ -1731,7 +1731,7 @@ class Commands(Logger):
             'initialized': p.is_initialized(),
             'features': str(LnFeatures(p.features)),
             'channels': [c.funding_outpoint.to_str() for c in p.channels.values()],
-        } for p in lnworker.peers.values()]
+        } for p in lnworker.lnpeermgr.peers.values()]
 
     @command('wpnl')
     async def open_channel(self, connection_string, amount, push_amount=0, public=False, zeroconf=False, password=None, wallet: Abstract_Wallet = None):
@@ -1748,7 +1748,7 @@ class Commands(Logger):
             raise UserFacingException("This wallet cannot create new channels")
         funding_sat = satoshis(amount)
         push_sat = satoshis(push_amount)
-        peer = await wallet.lnworker.add_peer(connection_string)
+        peer = await wallet.lnworker.lnpeermgr.add_peer(connection_string)
         chan, funding_tx = await wallet.lnworker.open_channel_with_peer(
             peer, funding_sat,
             push_sat=push_sat,
@@ -2197,7 +2197,7 @@ class Commands(Logger):
         pubkey = bfh(node_id)
         assert len(pubkey) == 33, 'invalid node_id'
 
-        peer = wallet.lnworker.peers[pubkey]
+        peer = wallet.lnworker.lnpeermgr.peers[pubkey]
         assert peer, 'node_id not a peer'
 
         path = [pubkey, wallet.lnworker.node_keypair.pubkey]

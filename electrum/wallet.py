@@ -3451,7 +3451,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         lightning_has_channels = (
             self.lnworker and len([chan for chan in self.lnworker.channels.values() if chan.is_open()]) > 0
         )
-        lightning_online = self.lnworker and self.lnworker.num_peers() > 0
+        lightning_online = self.lnworker and self.lnworker.lnpeermgr.num_peers() > 0
         num_sats_can_receive = self.lnworker.num_sats_can_receive() if self.lnworker else 0
         can_receive_lightning = self.lnworker and num_sats_can_receive > 0 and amount_sat <= num_sats_can_receive
         try:
@@ -3459,7 +3459,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         except Exception:
             zeroconf_nodeid = None
         can_get_zeroconf_channel = (self.lnworker and self.config.ACCEPT_ZEROCONF_CHANNELS
-                                    and zeroconf_nodeid in self.lnworker.peers)
+                                    and self.lnworker.lnpeermgr.get_peer_by_pubkey(zeroconf_nodeid) is not None)
         status = self.get_invoice_status(req)
 
         if status == PR_EXPIRED:
@@ -4262,7 +4262,7 @@ class Wallet(object):
 
     def __new__(cls, db: 'WalletDB', *, config: SimpleConfig) -> Abstract_Wallet:
         wallet_type = db.get('wallet_type')
-        WalletClass = Wallet.wallet_class(wallet_type)
+        WalletClass = cls.wallet_class(wallet_type)
         wallet = WalletClass(db, config=config)
         return wallet
 
@@ -4320,6 +4320,7 @@ def restore_wallet_from_text(
     encrypt_file: Optional[bool] = None,
     gap_limit: Optional[int] = None,
     gap_limit_for_change: Optional[int] = None,
+    wallet_factory = Wallet,  # used in tests
 ) -> dict:
     """Restore a wallet from text. Text can be a seed phrase, a master
     public key, a master private key, a list of bitcoin addresses
@@ -4365,7 +4366,7 @@ def restore_wallet_from_text(
             db.put('gap_limit', gap_limit)
         if gap_limit_for_change is not None:
             db.put('gap_limit_for_change', gap_limit_for_change)
-        wallet = Wallet(db, config=config)
+        wallet = wallet_factory(db, config=config)
     if db.storage:
         assert not db.storage.file_exists(), "file was created too soon! plaintext keys might have been written to disk"
     wallet.update_password(old_pw=None, new_pw=password, encrypt_storage=encrypt_file)
