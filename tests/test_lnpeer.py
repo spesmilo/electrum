@@ -302,6 +302,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     htlc_failed = LNWallet.htlc_failed
     save_preimage = LNWallet.save_preimage
     get_preimage = LNWallet.get_preimage
+    create_payment_info = LNWallet.create_payment_info
     create_route_for_single_htlc = LNWallet.create_route_for_single_htlc
     create_routes_for_payment = LNWallet.create_routes_for_payment
     _check_bolt11_invoice = LNWallet._check_bolt11_invoice
