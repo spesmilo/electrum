@@ -11,7 +11,10 @@ ElComboBox {
     textRole: 'text'
     valueRole: 'value'
 
-    model: [
+    // NOTE: deadline property only exists on QETxFinalizer, but as undefined == false, that's ok.
+    model: feeslider.deadline ? [
+        { text: qsTr('ETA'), value: FeeSlider.FSMethod.ETA }
+    ] : [
         { text: qsTr('ETA'), value: FeeSlider.FSMethod.ETA },
         { text: qsTr('Mempool'), value: FeeSlider.FSMethod.MEMPOOL },
         { text: qsTr('Feerate'), value: FeeSlider.FSMethod.FEERATE }
