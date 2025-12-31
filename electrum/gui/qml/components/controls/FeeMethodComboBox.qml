@@ -14,7 +14,8 @@ ElComboBox {
     model: [
         { text: qsTr('ETA'), value: FeeSlider.FSMethod.ETA },
         { text: qsTr('Mempool'), value: FeeSlider.FSMethod.MEMPOOL },
-        { text: qsTr('Feerate'), value: FeeSlider.FSMethod.FEERATE }
+        { text: qsTr('Feerate'), value: FeeSlider.FSMethod.FEERATE },
+        { text: qsTr('Manual'), value: FeeSlider.FSMethod.MANUAL }
     ]
     onCurrentValueChanged: {
         if (activeFocus)
