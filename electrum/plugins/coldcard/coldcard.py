@@ -34,7 +34,12 @@ try:
     from ckcc.constants import (MAX_MSG_LEN, MAX_BLK_LEN, MSG_SIGNING_MAX_LENGTH, MAX_TXN_LEN,
         AF_CLASSIC, AF_P2SH, AF_P2WPKH, AF_P2WSH, AF_P2WPKH_P2SH, AF_P2WSH_P2SH)
 
-    from ckcc.client import ColdcardDevice, COINKITE_VID, CKCC_PID, CKCC_SIMULATOR_PATH
+    from ckcc.client import ColdcardDevice, COINKITE_VID, CKCC_PID
+
+    try:  # >= v1.5.0
+        from ckcc.client import DEFAULT_SIM_SOCKET as CKCC_SIMULATOR_PATH
+    except ImportError:  # <= v1.4.x
+        from ckcc.client import CKCC_SIMULATOR_PATH
 
     requirements_ok = True
 
