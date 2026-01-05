@@ -72,7 +72,11 @@ class CKCCClient(HardwareClientBase):
         else:
             # open the real HID device
             hd = hid.device(path=dev_path)
-            hd.open_path(dev_path)
+            try:
+                hd.open_path(dev_path)
+            except OSError:
+                _logger.error('cannot open hid path. Did you forget to configure udev rules?')
+                raise
 
             self.dev = ElectrumColdcardDevice(dev=hd, encrypt=True)
 
