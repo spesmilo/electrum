@@ -74,7 +74,7 @@ class PsbtNostrPlugin(BasePlugin):
             self.cosigner_wallets.pop(wallet)
 
 
-class CosignerWallet(Logger):
+class CosignerWallet(Logger):  # children have to inherit EventListener and register callbacks
     # one for each open window (Qt) / open wallet (QML)
     # if user signs a tx, we have the password
     # if user receives a dm? needs to enter password first
@@ -124,6 +124,7 @@ class CosignerWallet(Logger):
 
     @event_listener
     async def on_event_proxy_set(self, *args):
+        # note: the callbacks get registered in the child classes of CosignerWallet
         if not (self.network and self.nostr_pubkey):
             return
         await self.stop()
