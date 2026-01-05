@@ -40,7 +40,8 @@ from electrum.logging import Logger
 from electrum.plugin import BasePlugin
 from electrum.transaction import PartialTransaction, tx_from_any
 from electrum.util import (
-    log_exceptions, OldTaskGroup, ca_path, trigger_callback, event_listener, json_decode, make_aiohttp_proxy_connector
+    log_exceptions, OldTaskGroup, ca_path, trigger_callback, event_listener, json_decode,
+    make_aiohttp_proxy_connector, run_sync_function_on_asyncio_thread,
 )
 from electrum.wallet import Multisig_Wallet
 
@@ -250,7 +251,7 @@ class CosignerWallet(Logger):
     def mark_pending_event_rcvd(self, event_id):
         self.logger.debug('marking event rcvd')
         self.known_events[event_id] = now()
-        self.pending.set()
+        run_sync_function_on_asyncio_thread(self.pending.set, block=False)
 
     def prepare_messages(self, tx: Union[Transaction, PartialTransaction], label: str = None) -> List[Tuple[str, dict]]:
         messages = []
