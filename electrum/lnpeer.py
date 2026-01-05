@@ -2200,7 +2200,7 @@ class Peer(Logger, EventListener):
         # get payment hash of any htlc in the set (they are all the same)
         payment_hash = htlc_set.get_payment_hash()
         assert payment_hash is not None, htlc_set
-        assert payment_hash not in self.lnworker.dont_settle_htlcs
+        assert payment_hash.hex() not in self.lnworker.dont_settle_htlcs
         self.lnworker.dont_expire_htlcs.pop(payment_hash.hex(), None)  # htlcs wont get expired anymore
         for mpp_htlc in list(htlc_set.htlcs):
             htlc_id = mpp_htlc.htlc.htlc_id
@@ -2220,6 +2220,8 @@ class Peer(Logger, EventListener):
             htlc_set.htlcs.remove(mpp_htlc)
             # reset just-in-time opening fee of channel
             chan.jit_opening_fee = None
+        # save htlc_set to storage
+        self.lnworker.received_mpp_htlcs[payment_key] = htlc_set
 
     def _fulfill_htlc(self, chan: Channel, htlc_id: int, preimage: bytes):
         assert chan.hm.is_htlc_irrevocably_added_yet(htlc_proposer=REMOTE, htlc_id=htlc_id)
@@ -2287,6 +2289,8 @@ class Peer(Logger, EventListener):
                 error_bytes=error_bytes,
             )
             htlc_set.htlcs.remove(mpp_htlc)
+        # save htlc_set to storage
+        self.lnworker.received_mpp_htlcs[payment_key] = htlc_set
 
     def fail_htlc(self, *, chan: Channel, htlc_id: int, error_bytes: bytes):
         self.logger.info(f"fail_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}.")
@@ -3150,9 +3154,11 @@ class Peer(Logger, EventListener):
                     resolution=RecvMPPResolution.WAITING,
                     htlcs=set(),
                 )
-                self.lnworker.received_mpp_htlcs[mpp_set.parent_set_key] = parent
             parent.htlcs.update(mpp_set.htlcs)
             mpp_set.htlcs.clear()
+            # save to storage
+            self.lnworker.received_mpp_htlcs[mpp_set.parent_set_key] = parent
+            self.lnworker.received_mpp_htlcs[payment_key] = mpp_set
             return None, None, None  # this set will get deleted as there are no htlcs in it anymore
 
         assert not mpp_set.parent_set_key
