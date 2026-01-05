@@ -81,7 +81,7 @@ class Peer(Logger, EventListener):
 
     def __init__(
             self,
-            lnworker: Union['LNGossip', 'LNWallet'],
+            lnworker: Union['LNWallet', 'LNGossip'],
             pubkey: bytes,
             transport: LNTransportBase,
             *, is_channel_backup= False):
@@ -402,7 +402,7 @@ class Peer(Logger, EventListener):
             if constants.net.rev_genesis_bytes() not in their_chains:
                 raise GracefulDisconnect(f"no common chain found with remote. (they sent: {their_chains})")
         # all checks passed
-        self.lnworker.on_peer_successfully_established(self)
+        self.lnworker.lnpeermgr.on_peer_successfully_established(self)
         self._received_init = True
         self.maybe_set_initialized()
 
@@ -888,7 +888,7 @@ class Peer(Logger, EventListener):
                 self.transport.close()
         except Exception:
             pass
-        self.lnworker.peer_closed(self)
+        self.lnworker.lnpeermgr.peer_closed(self)
         self.got_disconnected.set()
 
     def is_shutdown_anysegwit(self):
@@ -916,71 +916,6 @@ class Peer(Logger, EventListener):
             upfront_shutdown_script = b''
         self.logger.info(f"upfront shutdown script received: {upfront_shutdown_script}")
         return upfront_shutdown_script
-
-    def make_local_config(
-        self,
-        *,
-        funding_sat: int,
-        push_msat: int,
-        initiator: HTLCOwner,
-        channel_type: ChannelType,
-        multisig_funding_keypair: Optional[Keypair],  # if None, will get derived from channel_seed
-    ) -> LocalConfig:
-        channel_seed = os.urandom(32)
-        initial_msat = funding_sat * 1000 - push_msat if initiator == LOCAL else push_msat
-
-        # sending empty bytes as the upfront_shutdown_script will give us the
-        # flexibility to decide an address at closing time
-        upfront_shutdown_script = b''
-
-        assert channel_type is not None
-        if channel_type & ChannelType.OPTION_ANCHORS_ZERO_FEE_HTLC_TX:  # anchors
-            static_payment_key = self.lnworker.static_payment_key
-            static_remotekey = None
-        else:  # static_remotekey
-            assert channel_type & channel_type.OPTION_STATIC_REMOTEKEY
-            wallet = self.lnworker.wallet
-            assert wallet.txin_type == 'p2wpkh'
-            addr = wallet.get_new_sweep_address_for_channel()
-            static_payment_key = None
-            static_remotekey = bytes.fromhex(wallet.get_public_key(addr))
-
-        if multisig_funding_keypair:
-            for chan in self.lnworker.channels.values():  # check against all chans of lnworker, for sanity
-                if multisig_funding_keypair.pubkey == chan.config[LOCAL].multisig_key.pubkey:
-                    raise Exception(
-                        "Refusing to reuse multisig_funding_keypair for new channel. "
-                        "Wait one block before opening another channel with this peer."
-                    )
-
-        dust_limit_sat = bitcoin.DUST_LIMIT_P2PKH
-        reserve_sat = max(funding_sat // 100, dust_limit_sat)
-        # for comparison of defaults, see
-        # https://github.com/ACINQ/eclair/blob/afa378fbb73c265da44856b4ad0f2128a88ae6c6/eclair-core/src/main/resources/reference.conf#L66
-        # https://github.com/ElementsProject/lightning/blob/0056dd75572a8857cff36fcbdb1a2295a1ac9253/lightningd/options.c#L657
-        # https://github.com/lightningnetwork/lnd/blob/56b61078c5b2be007d318673a5f3b40c6346883a/config.go#L81
-        max_htlc_value_in_flight_msat = self.network.config.LIGHTNING_MAX_HTLC_VALUE_IN_FLIGHT_MSAT or funding_sat * 1000
-        local_config = LocalConfig.from_seed(
-            channel_seed=channel_seed,
-            static_remotekey=static_remotekey,
-            static_payment_key=static_payment_key,
-            multisig_key=multisig_funding_keypair,
-            upfront_shutdown_script=upfront_shutdown_script,
-            to_self_delay=self.network.config.LIGHTNING_TO_SELF_DELAY_CSV,
-            dust_limit_sat=dust_limit_sat,
-            max_htlc_value_in_flight_msat=max_htlc_value_in_flight_msat,
-            max_accepted_htlcs=30,
-            initial_msat=initial_msat,
-            reserve_sat=reserve_sat,
-            funding_locked_received=False,
-            current_commitment_signature=None,
-            current_htlc_signatures=b'',
-            htlc_minimum_msat=1,
-            announcement_node_sig=b'',
-            announcement_bitcoin_sig=b'',
-        )
-        local_config.validate_params(funding_sat=funding_sat, config=self.network.config, peer_features=self.features)
-        return local_config
 
     def temporarily_reserve_funding_tx_change_address(func):
         # During the channel open flow, if we initiated, we might have used a change address
@@ -1066,12 +1001,13 @@ class Peer(Logger, EventListener):
             )
         else:
             multisig_funding_keypair = None
-        local_config = self.make_local_config(
+        local_config = self.lnworker.make_local_config_for_new_channel(
             funding_sat=funding_sat,
             push_msat=push_msat,
             initiator=LOCAL,
             channel_type=our_channel_type,
             multisig_funding_keypair=multisig_funding_keypair,
+            peer_features=self.features,
         )
         # if it includes open_channel_tlvs: MUST include upfront_shutdown_script.
         open_channel_tlvs['upfront_shutdown_script'] = {
@@ -1327,12 +1263,13 @@ class Peer(Logger, EventListener):
             )
         else:
             multisig_funding_keypair = None
-        local_config = self.make_local_config(
+        local_config = self.lnworker.make_local_config_for_new_channel(
             funding_sat=funding_sat,
             push_msat=push_msat,
             initiator=REMOTE,
             channel_type=channel_type,
             multisig_funding_keypair=multisig_funding_keypair,
+            peer_features=self.features,
         )
 
         upfront_shutdown_script = self.upfront_shutdown_script_from_payload(
@@ -3064,7 +3001,7 @@ class Peer(Logger, EventListener):
                 or not self.lnworker.is_payment_bundle_complete(payment_key):
             # maybe this set is COMPLETE but the bundle is not yet completed, so the bundle can be considered WAITING
             if int(time.time()) - first_htlc_timestamp > self.lnworker.MPP_EXPIRY \
-                    or self.lnworker.stopping_soon:
+                    or self.lnworker.lnpeermgr.stopping_soon:
                 _log_fail_reason(f"MPP TIMEOUT (> {self.lnworker.MPP_EXPIRY} sec)")
                 return OnionFailureCode.MPP_TIMEOUT, None, None
 

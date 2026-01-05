@@ -162,7 +162,7 @@ def create_onion_message_route_to(lnwallet: 'LNWallet', node_id: bytes) -> Seque
         ): return path
 
     # alt: dest is existing peer?
-    if lnwallet.peers.get(node_id):
+    if lnwallet.lnpeermgr.get_peer_by_pubkey(node_id):
         return [PathEdge(short_channel_id=None, start_node=None, end_node=node_id)]
 
     # if we have an address, pass it.
@@ -219,7 +219,7 @@ def send_onion_message_to(
                     encrypted_recipient_data=our_payload['encrypted_recipient_data']
                 )
 
-                peer = lnwallet.peers.get(recipient_data['next_node_id']['node_id'])
+                peer = lnwallet.lnpeermgr.get_peer_by_pubkey(recipient_data['next_node_id']['node_id'])
                 assert peer, 'next_node_id not a peer'
 
                 # blinding override?
@@ -241,7 +241,7 @@ def send_onion_message_to(
                 if not isinstance(remaining_blinded_path, list):  # doesn't return list when num items == 1
                     remaining_blinded_path = [remaining_blinded_path]
 
-                peer = lnwallet.peers.get(introduction_point)
+                peer = lnwallet.lnpeermgr.get_peer_by_pubkey(introduction_point)
                 # if blinded path introduction point is our direct peer, no need to route-find
                 if peer:
                     # start of blinded path is our peer
@@ -250,7 +250,7 @@ def send_onion_message_to(
                     path = create_onion_message_route_to(lnwallet, introduction_point)
 
                     # first edge must be to our peer
-                    peer = lnwallet.peers.get(path[0].end_node)
+                    peer = lnwallet.lnpeermgr.get_peer_by_pubkey(path[0].end_node)
                     assert peer, 'first hop not a peer'
 
                     # last edge is to introduction point and start of blinded path. remove from route
@@ -321,7 +321,7 @@ def send_onion_message_to(
             raise Exception('cannot send to myself')
 
         hops_data = []
-        peer = lnwallet.peers.get(pubkey)
+        peer = lnwallet.lnpeermgr.get_peer_by_pubkey(pubkey)
 
         if peer:
             # destination is our direct peer, no need to route-find
@@ -330,7 +330,7 @@ def send_onion_message_to(
             path = create_onion_message_route_to(lnwallet, pubkey)
 
             # first edge must be to our peer
-            peer = lnwallet.peers.get(path[0].end_node)
+            peer = lnwallet.lnpeermgr.get_peer_by_pubkey(path[0].end_node)
             assert peer, 'first hop not a peer'
 
             hops_data = [
@@ -379,9 +379,9 @@ def get_blinded_reply_paths(
        - reply_path introduction points are direct peers only (TODO: longer reply paths)"""
     # TODO: build longer paths and/or add dummy hops to increase privacy
     my_active_channels = [chan for chan in lnwallet.channels.values() if chan.is_active()]
-    my_onionmsg_channels = [chan for chan in my_active_channels if lnwallet.peers.get(chan.node_id) and
-                            lnwallet.peers.get(chan.node_id).their_features.supports(LnFeatures.OPTION_ONION_MESSAGE_OPT)]
-    my_onionmsg_peers = [peer for peer in lnwallet.peers.values() if peer.their_features.supports(LnFeatures.OPTION_ONION_MESSAGE_OPT)]
+    my_onionmsg_channels = [chan for chan in my_active_channels if lnwallet.lnpeermgr.get_peer_by_pubkey(chan.node_id) and
+                            lnwallet.lnpeermgr.get_peer_by_pubkey(chan.node_id).their_features.supports(LnFeatures.OPTION_ONION_MESSAGE_OPT)]
+    my_onionmsg_peers = [peer for peer in lnwallet.lnpeermgr.peers.values() if peer.their_features.supports(LnFeatures.OPTION_ONION_MESSAGE_OPT)]
 
     result = []
     mynodeid = lnwallet.node_keypair.pubkey
@@ -456,7 +456,8 @@ class OnionMessageManager(Logger):
         self.logger.info("taskgroup stopped.")
 
     async def stop(self) -> None:
-        await self.taskgroup.cancel_remaining()
+        if self.taskgroup:
+            await self.taskgroup.cancel_remaining()
 
     async def process_forward_queue(self) -> None:
         while True:
@@ -472,7 +473,7 @@ class OnionMessageManager(Logger):
 
             try:
                 onion_packet_b = onion_packet.to_bytes()
-                next_peer = self.lnwallet.peers.get(node_id)
+                next_peer = self.lnwallet.lnpeermgr.get_peer_by_pubkey(node_id)
 
                 if not next_peer.their_features.supports(LnFeatures.OPTION_ONION_MESSAGE_OPT):
                     self.logger.debug('forward dropped, next peer is not ONION_MESSAGE capable')
@@ -528,7 +529,7 @@ class OnionMessageManager(Logger):
                 req.future.set_exception(copy.copy(e))
                 # NOTE: above, when passing the caught exception instance e directly it leads to GeneratorExit() in
                 if isinstance(e, NoRouteFound) and e.peer_address:
-                    await self.lnwallet.add_peer(str(e.peer_address))
+                    await self.lnwallet.lnpeermgr.add_peer(str(e.peer_address))
             else:
                 self.logger.debug(f'resubmit {key=}')
                 self.send_queue.put_nowait((now() + self.REQUEST_REPLY_RETRY_DELAY, expires, key))
@@ -700,7 +701,7 @@ class OnionMessageManager(Logger):
                     'onion_message dropped (not forwarding due to lightning_forward_payments config option disabled')
                 return
             # is next_node one of our peers?
-            next_peer = self.lnwallet.peers.get(next_node_id)
+            next_peer = self.lnwallet.lnpeermgr.get_peer_by_pubkey(next_node_id)
             if not next_peer:
                 self.logger.info(f'next node {next_node_id.hex()} not a peer, dropping message')
                 return

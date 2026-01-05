@@ -35,11 +35,12 @@ from .json_db import stored_in
 from .channel_db import UpdateStatus, ChannelDBNotLoaded, get_mychannel_info, get_mychannel_policy
 
 from . import constants, util, lnutil
+from . import bitcoin
 from .util import (
     profiler, OldTaskGroup, ESocksProxy, NetworkRetryManager, JsonRPCClient, NotEnoughFunds, EventListener,
     event_listener, bfh, InvoiceError, resolve_dns_srv, is_ip_address, log_exceptions, ignore_exceptions,
     make_aiohttp_session, random_shuffled_copy, is_private_netaddress,
-    UnrelatedTransactionException, LightningHistoryItem
+    UnrelatedTransactionException, LightningHistoryItem, get_asyncio_loop,
 )
 from .fee_policy import (
     FeePolicy, FEERATE_FALLBACK_STATIC_FEE, FEE_LN_ETA_TARGET, FEE_LN_LOW_ETA_TARGET,
@@ -73,7 +74,7 @@ from .lnutil import (
     OnchainChannelBackupStorage, ln_compare_features, IncompatibleLightningFeatures, PaymentFeeBudget,
     NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, GossipForwardingMessage, MIN_FUNDING_SAT,
     MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE, RecvMPPResolution, ReceivedMPPStatus, ReceivedMPPHtlc,
-    PaymentSuccess,
+    PaymentSuccess, ChannelType, LocalConfig, Keypair,
 )
 from .lnonion import (
     decode_onion_error, OnionFailureCode, OnionRoutingFailure, OnionPacket,
@@ -215,9 +216,15 @@ LNGOSSIP_FEATURES = (
 )
 
 
-class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
+class LNPeerManager(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
 
-    def __init__(self, node_keypair, features: LnFeatures, *, config: 'SimpleConfig'):
+    def __init__(
+        self, node_keypair,
+        *,
+        lnwallet_or_lngossip: 'LNWallet | LNGossip',
+        features: LnFeatures,
+        config: 'SimpleConfig',
+    ):
         Logger.__init__(self)
         NetworkRetryManager.__init__(
             self,
@@ -228,6 +235,7 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         )
         self.lock = threading.RLock()
         self.node_keypair = node_keypair
+        self._lnwallet_or_lngossip = lnwallet_or_lngossip
         self._peers = {}  # type: Dict[bytes, Peer]  # pubkey -> Peer  # needs self.lock
         self._channelless_incoming_peers = set()  # type: Set[bytes]  # node_ids  # needs self.lock
         self.taskgroup = OldTaskGroup()
@@ -252,7 +260,10 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
             return self._peers.copy()
 
     def channels_for_peer(self, node_id: bytes) -> Dict[bytes, Channel]:
-        return {}
+        return self._lnwallet_or_lngossip.channels_for_peer(node_id)
+
+    def get_peer_by_pubkey(self, pubkey: bytes) -> Optional[Peer]:
+        return self._peers.get(pubkey)
 
     def get_node_alias(self, node_id: bytes) -> Optional[str]:
         """Returns the alias of the node, or None if unknown."""
@@ -269,7 +280,7 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         return node_alias
 
     async def maybe_listen(self):
-        # FIXME: only one LNWorker can listen at a time (single port)
+        # FIXME: only one LNPeerManager can listen at a time (single port)
         listen_addr = self.config.LIGHTNING_LISTEN
         if listen_addr:
             self.logger.info(f'lightning_listen enabled. will try to bind: {listen_addr!r}')
@@ -368,13 +379,17 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
                         return None
                     self._channelless_incoming_peers.add(node_id)
             # checks done: we are adding this peer.
-            peer = Peer(self, node_id, transport)
+            peer = Peer(self._lnwallet_or_lngossip, node_id, transport)
             assert node_id not in self._peers
             self._peers[node_id] = peer
         await self.taskgroup.spawn(peer.main_loop())
         return peer
 
     def peer_closed(self, peer: Peer) -> None:
+        if isinstance(self._lnwallet_or_lngossip, LNWallet):
+            for chan in self.channels_for_peer(peer.pubkey).values():
+                chan.peer_state = PeerState.DISCONNECTED
+                util.trigger_callback('channel', self._lnwallet_or_lngossip.wallet, chan)
         with self.lock:
             peer2 = self._peers.get(peer.pubkey)
             if peer2 is peer:
@@ -392,14 +407,25 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
                 return True
         return False
 
-    def start_network(self, network: 'Network'):
+    def start_network(
+        self, network: 'Network', *,
+        listen: bool = False,
+        maintain_random_peers: bool = False,
+    ) -> None:
         assert network
         assert self.network is None, "already started"
         self.network = network
         self._add_peers_from_config()
-        asyncio.run_coroutine_threadsafe(self.main_loop(), self.network.asyncio_loop)
+        asyncio.run_coroutine_threadsafe(self.main_loop(), get_asyncio_loop())
+        if listen:
+            tg_coro = self.taskgroup.spawn(self.maybe_listen())
+            asyncio.run_coroutine_threadsafe(tg_coro, get_asyncio_loop())
+        if maintain_random_peers:
+            tg_coro = self.taskgroup.spawn(self._maintain_connectivity())
+            asyncio.run_coroutine_threadsafe(tg_coro, get_asyncio_loop())
 
     async def stop(self):
+        self.stopping_soon = True
         if self.listen_server:
             self.listen_server.close()
         self.unregister_callbacks()
@@ -410,7 +436,7 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         for host, port, pubkey in peer_list:
             asyncio.run_coroutine_threadsafe(
                 self._add_peer(host, int(port), bfh(pubkey)),
-                self.network.asyncio_loop)
+                get_asyncio_loop())
 
     def is_good_peer(self, peer: LNPeerAddr) -> bool:
         # the purpose of this method is to filter peers that advertise the desired feature bits
@@ -573,8 +599,44 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
             peer = await self._add_peer(host, port, node_id)
         return peer
 
+    async def reestablish_peer_for_given_channel(self, chan: Channel) -> None:
+        await self.taskgroup.spawn(self._reestablish_peer_for_given_channel(chan))
 
-class LNGossip(LNWorker):
+    @ignore_exceptions
+    @log_exceptions
+    async def _reestablish_peer_for_given_channel(self, chan: Channel) -> None:
+        now = time.time()
+        peer_addresses = []
+        if self.uses_trampoline():
+            addr = trampolines_by_id().get(chan.node_id)
+            if addr:
+                peer_addresses.append(addr)
+        else:
+            # will try last good address first, from gossip
+            last_good_addr = self.channel_db.get_last_good_address(chan.node_id)
+            if last_good_addr:
+                peer_addresses.append(last_good_addr)
+            # will try addresses for node_id from gossip
+            addrs_from_gossip = self.channel_db.get_node_addresses(chan.node_id) or []
+            for host, port, ts in addrs_from_gossip:
+                peer_addresses.append(LNPeerAddr(host, port, chan.node_id))
+        # will try addresses stored in channel storage
+        peer_addresses += list(chan.get_peer_addresses())
+        # Done gathering addresses.
+        # Now select first one that has not failed recently.
+        for peer in peer_addresses:
+            if self._can_retry_addr(peer, urgent=True, now=now):
+                await self._add_peer(peer.host, peer.port, peer.pubkey)
+                return
+
+    async def reestablish_peer_for_zero_conf_trusted_node(self) -> None:
+        if self.config.ZEROCONF_TRUSTED_NODE:
+            peer = LNPeerAddr.from_str(self.config.ZEROCONF_TRUSTED_NODE)
+            if self._can_retry_addr(peer, urgent=True):
+                await self._add_peer(peer.host, peer.port, peer.pubkey)
+
+
+class LNGossip(Logger):
     """The LNGossip class is a separate, unannounced Lightning node with random id that is just querying
     gossip from other nodes. The LNGossip node does not satisfy gossip queries, this is done by the
     LNWallet class(es). LNWallets are the advertised nodes used for actual payments and only satisfy
@@ -584,11 +646,14 @@ class LNGossip(LNWorker):
     max_age = 14*24*3600
 
     def __init__(self, config: 'SimpleConfig'):
+        self.config = config
         seed = os.urandom(32)
         node = BIP32Node.from_rootseed(seed, xtype='standard')
         xprv = node.to_xprv()
         node_keypair = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.NODE_KEY)
-        LNWorker.__init__(self, node_keypair, LNGOSSIP_FEATURES, config=config)
+        Logger.__init__(self)
+        self.lnpeermgr = LNPeerManager(node_keypair, features=LNGOSSIP_FEATURES, config=self.config, lnwallet_or_lngossip=self)
+        self.taskgroup = OldTaskGroup()
         self.unknown_ids = set()
         self._forwarding_gossip = []  # type: List[GossipForwardingMessage]
         self._last_gossip_batch_ts = 0  # type: int
@@ -600,15 +665,44 @@ class LNGossip(LNWorker):
         self._num_chan_upd = 0
         self._num_chan_upd_good = 0
 
+    @property
+    def features(self) -> 'LnFeatures':
+        return self.lnpeermgr.features
+
+    @property
+    def network(self) -> Optional['Network']:
+        return self.lnpeermgr.network
+
+    @property
+    def channel_db(self) -> 'ChannelDB':
+        return self.network.channel_db if self.network else None
+
+    def uses_trampoline(self) -> bool:
+        return not bool(self.channel_db)
+
+    async def main_loop(self):
+        self.logger.info("starting taskgroup.")
+        try:
+            async with self.taskgroup as group:
+                await group.spawn(asyncio.Event().wait)  # run forever (until cancel)
+        except Exception as e:
+            self.logger.exception("taskgroup died.")
+        finally:
+            self.logger.info("taskgroup stopped.")
+
     def start_network(self, network: 'Network'):
-        super().start_network(network)
+        asyncio.run_coroutine_threadsafe(self.main_loop(), get_asyncio_loop())
+        self.lnpeermgr.start_network(network, maintain_random_peers=True)
         for coro in [
-                self._maintain_connectivity(),
                 self.maintain_db(),
                 self._maintain_forwarding_gossip()
         ]:
             tg_coro = self.taskgroup.spawn(coro)
-            asyncio.run_coroutine_threadsafe(tg_coro, self.network.asyncio_loop)
+            asyncio.run_coroutine_threadsafe(tg_coro, get_asyncio_loop())
+
+    async def stop(self):
+        await self.lnpeermgr.stop()
+        await self.taskgroup.cancel_remaining()
 
     async def maintain_db(self):
         await self.channel_db.data_loaded.wait()
@@ -637,7 +731,7 @@ class LNGossip(LNWorker):
         new = set(ids) - set(known)
         self.unknown_ids.update(new)
         util.trigger_callback('unknown_channels', len(self.unknown_ids))
-        util.trigger_callback('gossip_peers', self.num_peers())
+        util.trigger_callback('gossip_peers', self.lnpeermgr.num_peers())
         util.trigger_callback('ln_gossip_sync_progress')
 
     def get_ids_to_query(self) -> Sequence[bytes]:
@@ -652,7 +746,7 @@ class LNGossip(LNWorker):
         """Estimates the gossip synchronization process and returns the number
         of synchronized channels, the total channels in the network and a
         rescaled percentage of the synchronization process."""
-        if self.num_peers() == 0:
+        if self.lnpeermgr.num_peers() == 0:
             return None, None, None
         nchans_with_0p, nchans_with_1p, nchans_with_2p = self.channel_db.get_num_channels_partitioned_by_policy_count()
         num_db_channels = nchans_with_0p + nchans_with_1p + nchans_with_2p
@@ -729,6 +823,9 @@ class LNGossip(LNWorker):
             await asyncio.sleep(10)
             # flush the gossip queue so we don't forward old gossip after sync is complete
             self.channel_db.get_forwarding_gossip_batch()
+
+    def channels_for_peer(self, node_id: bytes) -> Dict[bytes, Channel]:
+        return {}
 
 
 class PaySession(Logger):
@@ -875,7 +972,7 @@ class PaySession(Logger):
         return nhtlcs_resolved == self._nhtlcs_inflight
 
 
-class LNWallet(LNWorker):
+class LNWallet(Logger):
 
     lnwatcher: Optional['LNWatcher']
     MPP_EXPIRY = 120
@@ -884,7 +981,7 @@ class LNWallet(LNWorker):
     MPP_SPLIT_PART_FRACTION = 0.2
     MPP_SPLIT_PART_MINAMT_MSAT = 5_000_000
 
-    def __init__(self, wallet: 'Abstract_Wallet', xprv):
+    def __init__(self, wallet: 'Abstract_Wallet', xprv, *, features: LnFeatures = None):
         self.wallet = wallet
         self.config = wallet.config
         self.db = wallet.db
@@ -894,16 +991,20 @@ class LNWallet(LNWorker):
         self.payment_secret_key = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.PAYMENT_SECRET_KEY).privkey
         self.funding_root_keypair = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.FUNDING_ROOT_KEY)
         Logger.__init__(self)
-        features = LNWALLET_FEATURES
-        if self.config.ENABLE_ANCHOR_CHANNELS:
-            features |= LnFeatures.OPTION_ANCHORS_ZERO_FEE_HTLC_OPT
-        if self.config.ACCEPT_ZEROCONF_CHANNELS:
-            features |= LnFeatures.OPTION_ZEROCONF_OPT
-        if self.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS or self.config.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS:
-            features |= LnFeatures.OPTION_ONION_MESSAGE_OPT
-        if self.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS and self.config.LIGHTNING_USE_GOSSIP:
-            features |= LnFeatures.GOSSIP_QUERIES_OPT  # signal we have gossip to fetch
-        LNWorker.__init__(self, self.node_keypair, features, config=self.config)
+        if features is None:
+            features = LNWALLET_FEATURES
+            if self.config.ENABLE_ANCHOR_CHANNELS:
+                features |= LnFeatures.OPTION_ANCHORS_ZERO_FEE_HTLC_OPT
+            if self.config.ACCEPT_ZEROCONF_CHANNELS:
+                features |= LnFeatures.OPTION_ZEROCONF_OPT
+            if self.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS or self.config.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS:
+                features |= LnFeatures.OPTION_ONION_MESSAGE_OPT
+            if self.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS and self.config.LIGHTNING_USE_GOSSIP:
+                features |= LnFeatures.GOSSIP_QUERIES_OPT  # signal we have gossip to fetch
+        Logger.__init__(self)
+        self.lock = threading.RLock()
+        self.lnpeermgr = LNPeerManager(self.node_keypair, features=features, config=self.config, lnwallet_or_lngossip=self)
+        self.taskgroup = OldTaskGroup()
         self.lnwatcher = LNWatcher(self)
         self.lnrater: LNRater = None
         # "RHASH:direction" -> amount_msat, status, min_final_cltv_delta, expiry_delay, creation_ts, invoice_features
@@ -998,6 +1099,21 @@ class LNWallet(LNWorker):
                    for chan in self.channels.values())
 
     @property
+    def features(self) -> 'LnFeatures':
+        return self.lnpeermgr.features
+
+    @property
+    def network(self) -> Optional['Network']:
+        return self.lnpeermgr.network
+
+    @property
+    def channel_db(self) -> 'ChannelDB':
+        return self.network.channel_db if self.network else None
+
+    def uses_trampoline(self) -> bool:
+        return not bool(self.channel_db)
+
+    @property
     def channels(self) -> Mapping[bytes, Channel]:
         """Returns a read-only copy of channels."""
         with self.lock:
@@ -1060,29 +1176,39 @@ class LNWallet(LNWorker):
                 await watchtower.add_sweep_tx(outpoint, ctn, tx.inputs()[0].prevout.to_str(), tx.serialize())
             self.watchtower_ctns[outpoint] = ctn
 
+    async def main_loop(self):
+        self.logger.info("starting taskgroup.")
+        try:
+            async with self.taskgroup as group:
+                await group.spawn(asyncio.Event().wait)  # run forever (until cancel)
+        except Exception as e:
+            self.logger.exception("taskgroup died.")
+        finally:
+            self.logger.info("taskgroup stopped.")
+
     def start_network(self, network: 'Network'):
-        super().start_network(network)
+        asyncio.run_coroutine_threadsafe(self.main_loop(), get_asyncio_loop())
+        self.lnpeermgr.start_network(network, listen=True)
         self.lnwatcher.start_network(network)
         self.swap_manager.start_network(network)
         self.lnrater = LNRater(self, network)
         self.onion_message_manager.start_network(network=network)
 
         for coro in [
-                self.maybe_listen(),
                 self.lnwatcher.trigger_callbacks(),  # shortcut (don't block) if funding tx locked and verified
                 self.reestablish_peers_and_channels(),
                 self.sync_with_remote_watchtower(),
         ]:
             tg_coro = self.taskgroup.spawn(coro)
-            asyncio.run_coroutine_threadsafe(tg_coro, self.network.asyncio_loop)
+            asyncio.run_coroutine_threadsafe(tg_coro, get_asyncio_loop())
 
     async def stop(self):
-        self.stopping_soon = True
-        if self.listen_server:  # stop accepting new peers
-            self.listen_server.close()
+        self.lnpeermgr.stopping_soon = True
+        if self.lnpeermgr.listen_server:  # stop accepting new peers
+            self.lnpeermgr.listen_server.close()
         async with ignore_after(self.TIMEOUT_SHUTDOWN_FAIL_PENDING_HTLCS):
             await self.wait_for_received_pending_htlcs_to_get_removed()
-        await LNWorker.stop(self)
+        await self.lnpeermgr.stop()
         if self.lnwatcher:
             self.lnwatcher.stop()
             self.lnwatcher = None
@@ -1090,29 +1216,24 @@ class LNWallet(LNWorker):
             await self.swap_manager.stop()
         if self.onion_message_manager:
             await self.onion_message_manager.stop()
+        await self.taskgroup.cancel_remaining()
 
     async def wait_for_received_pending_htlcs_to_get_removed(self):
-        assert self.stopping_soon is True
+        assert self.lnpeermgr.stopping_soon is True
         # We try to fail pending MPP HTLCs, and wait a bit for them to get removed.
         # Note: even without MPP, if we just failed/fulfilled an HTLC, it is good
         #       to wait a bit for it to become irrevocably removed.
         # Note: we don't wait for *all htlcs* to get removed, only for those
         #       that we can already fail/fulfill. e.g. forwarded htlcs cannot be removed
         async with OldTaskGroup() as group:
-            for peer in self.peers.values():
+            for peer in self.lnpeermgr.peers.values():
                 await group.spawn(peer.wait_one_htlc_switch_iteration())
         while True:
-            if all(not peer.received_htlcs_pending_removal for peer in self.peers.values()):
+            if all(not peer.received_htlcs_pending_removal for peer in self.lnpeermgr.peers.values()):
                 break
             async with OldTaskGroup(wait=any) as group:
-                for peer in self.peers.values():
+                for peer in self.lnpeermgr.peers.values():
                     await group.spawn(peer.received_htlc_removed_event.wait())
-
-    def peer_closed(self, peer):
-        for chan in self.channels_for_peer(peer.pubkey).values():
-            chan.peer_state = PeerState.DISCONNECTED
-            util.trigger_callback('channel', self.wallet, chan)
-        super().peer_closed(peer)
 
     def get_payments(self, *, status=None) -> Mapping[bytes, List[HTLCWithStatus]]:
         out = defaultdict(list)
@@ -1263,7 +1384,7 @@ class LNWallet(LNWorker):
         node_ids = [chan.node_id for chan in self.channels.values() if not chan.is_closed()]
         return node_ids
 
-    def channels_for_peer(self, node_id):
+    def channels_for_peer(self, node_id: bytes) -> Dict[bytes, Channel]:
         assert type(node_id) is bytes
         return {chan_id: chan for (chan_id, chan) in self.channels.items()
                 if chan.node_id == node_id}
@@ -1307,12 +1428,12 @@ class LNWallet(LNWorker):
             await self.schedule_force_closing(chan.channel_id)
 
         elif chan.get_state() == ChannelState.FUNDED:
-            peer = self._peers.get(chan.node_id)
+            peer = self.lnpeermgr.get_peer_by_pubkey(chan.node_id)
             if peer and peer.is_initialized() and chan.peer_state == PeerState.GOOD:
                 peer.send_channel_ready(chan)
 
         elif chan.get_state() == ChannelState.OPEN:
-            peer = self._peers.get(chan.node_id)
+            peer = self.lnpeermgr.get_peer_by_pubkey(chan.node_id)
             if peer and peer.is_initialized() and chan.peer_state == PeerState.GOOD:
                 peer.maybe_update_fee(chan)
                 peer.maybe_send_announcement_signatures(chan)
@@ -1326,9 +1447,10 @@ class LNWallet(LNWorker):
                 await self.network.try_broadcasting(force_close_tx, 'force-close')
 
     def get_peer_by_static_jit_scid_alias(self, scid_alias: bytes) -> Optional[Peer]:
-        for nodeid, peer in self.peers.items():
+        for nodeid, peer in self.lnpeermgr.peers.items():
             if scid_alias == self._scid_alias_of_node(nodeid):
                 return peer
+        return None
 
     def _scid_alias_of_node(self, nodeid: bytes) -> bytes:
         # scid alias for just-in-time channels
@@ -1480,6 +1602,74 @@ class LNWallet(LNWorker):
             self.remove_channel(chan.channel_id)
             raise
 
+    def make_local_config_for_new_channel(
+        self,
+        *,
+        funding_sat: int,
+        push_msat: int,
+        initiator: HTLCOwner,
+        channel_type: ChannelType,
+        multisig_funding_keypair: Optional[Keypair],  # if None, will get derived from channel_seed
+        peer_features: LnFeatures,
+        channel_seed: bytes = None,
+    ) -> LocalConfig:
+        if channel_seed is None:
+            channel_seed = os.urandom(32)
+        initial_msat = funding_sat * 1000 - push_msat if initiator == LOCAL else push_msat
+
+        # sending empty bytes as the upfront_shutdown_script will give us the
+        # flexibility to decide an address at closing time
+        upfront_shutdown_script = b''
+
+        assert channel_type is not None
+        if channel_type & ChannelType.OPTION_ANCHORS_ZERO_FEE_HTLC_TX:  # anchors
+            static_payment_key = self.static_payment_key
+            static_remotekey = None
+        else:  # static_remotekey
+            assert channel_type & channel_type.OPTION_STATIC_REMOTEKEY
+            wallet = self.wallet
+            assert wallet.txin_type == 'p2wpkh'
+            addr = wallet.get_new_sweep_address_for_channel()
+            static_payment_key = None
+            static_remotekey = bytes.fromhex(wallet.get_public_key(addr))
+
+        if multisig_funding_keypair:
+            for chan in self.channels.values():  # check against all chans of lnworker, for sanity
+                if multisig_funding_keypair.pubkey == chan.config[LOCAL].multisig_key.pubkey:
+                    raise Exception(
+                        "Refusing to reuse multisig_funding_keypair for new channel. "
+                        "Wait one block before opening another channel with this peer."
+                    )
+
+        dust_limit_sat = bitcoin.DUST_LIMIT_P2PKH
+        reserve_sat = max(funding_sat // 100, dust_limit_sat)
+        # for comparison of defaults, see
+        # https://github.com/ACINQ/eclair/blob/afa378fbb73c265da44856b4ad0f2128a88ae6c6/eclair-core/src/main/resources/reference.conf#L66
+        # https://github.com/ElementsProject/lightning/blob/0056dd75572a8857cff36fcbdb1a2295a1ac9253/lightningd/options.c#L657
+        # https://github.com/lightningnetwork/lnd/blob/56b61078c5b2be007d318673a5f3b40c6346883a/config.go#L81
+        max_htlc_value_in_flight_msat = self.network.config.LIGHTNING_MAX_HTLC_VALUE_IN_FLIGHT_MSAT or funding_sat * 1000
+        local_config = LocalConfig.from_seed(
+            channel_seed=channel_seed,
+            static_remotekey=static_remotekey,
+            static_payment_key=static_payment_key,
+            multisig_key=multisig_funding_keypair,
+            upfront_shutdown_script=upfront_shutdown_script,
+            to_self_delay=self.network.config.LIGHTNING_TO_SELF_DELAY_CSV,
+            dust_limit_sat=dust_limit_sat,
+            max_htlc_value_in_flight_msat=max_htlc_value_in_flight_msat,
+            max_accepted_htlcs=30,
+            initial_msat=initial_msat,
+            reserve_sat=reserve_sat,
+            funding_locked_received=False,
+            current_commitment_signature=None,
+            current_htlc_signatures=b'',
+            htlc_minimum_msat=1,
+            announcement_node_sig=b'',
+            announcement_bitcoin_sig=b'',
+        )
+        local_config.validate_params(funding_sat=funding_sat, config=self.network.config, peer_features=peer_features)
+        return local_config
+
     def cb_data(self, node_id: bytes) -> bytes:
         return CB_MAGIC_BYTES + node_id[0:NODE_ID_PREFIX_LEN]
 
@@ -1557,7 +1747,7 @@ class LNWallet(LNWorker):
             password: str = None,
     ) -> Tuple[Channel, PartialTransaction]:
 
-        fut = asyncio.run_coroutine_threadsafe(self.add_peer(connect_str), self.network.asyncio_loop)
+        fut = asyncio.run_coroutine_threadsafe(self.lnpeermgr.add_peer(connect_str), get_asyncio_loop())
         try:
             peer = fut.result()
         except concurrent.futures.TimeoutError:
@@ -1569,7 +1759,7 @@ class LNWallet(LNWorker):
             push_sat=push_amt_sat,
             public=public,
             password=password)
-        fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
+        fut = asyncio.run_coroutine_threadsafe(coro, get_asyncio_loop())
         try:
             chan, funding_tx = fut.result()
         except concurrent.futures.TimeoutError:
@@ -1860,7 +2050,7 @@ class LNWallet(LNWorker):
         short_channel_id = shi.route[0].short_channel_id
         chan = self.get_channel_by_short_id(short_channel_id)
         assert chan, ShortChannelID(short_channel_id)
-        peer = self._peers.get(shi.route[0].node_id)
+        peer = self.lnpeermgr.get_peer_by_pubkey(shi.route[0].node_id)
         if not peer:
             raise PaymentFailure('Dropped peer')
         await peer.initialized
@@ -2040,7 +2230,7 @@ class LNWallet(LNWorker):
         # until trampoline is advertised in lnfeatures, check against hardcoded list
         if is_hardcoded_trampoline(node_id):
             return True
-        peer = self._peers.get(node_id)
+        peer = self.lnpeermgr.get_peer_by_pubkey(node_id)
         if not peer:
             return False
         return (peer.their_features.supports(LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ECLAIR)
@@ -2794,7 +2984,7 @@ class LNWallet(LNWorker):
             return
         upstream_chan_scid, _ = deserialize_htlc_key(upstream_key)
         upstream_chan = self.get_channel_by_short_id(upstream_chan_scid)
-        upstream_peer = self.peers.get(upstream_chan.node_id) if upstream_chan else None
+        upstream_peer = self.lnpeermgr.get_peer_by_pubkey(upstream_chan.node_id) if upstream_chan else None
         if upstream_peer:
             upstream_peer.downstream_htlc_resolved_event.set()
             upstream_peer.downstream_htlc_resolved_event.clear()
@@ -3110,7 +3300,7 @@ class LNWallet(LNWorker):
             # invalid connection string
             return False
         # only return True if we are connected to the zeroconf provider
-        return node_id in self.peers
+        return self.lnpeermgr.get_peer_by_pubkey(node_id) is not None
 
     def _suggest_channels_for_rebalance(self, direction, amount_sat) -> Sequence[Tuple[Channel, int]]:
         """
@@ -3239,7 +3429,9 @@ class LNWallet(LNWorker):
 
     async def close_channel(self, chan_id):
         chan = self._channels[chan_id]
-        peer = self._peers[chan.node_id]
+        peer = self.lnpeermgr.get_peer_by_pubkey(chan.node_id)
+        if peer is None:
+            raise KeyError
         return await peer.close_channel(chan_id)
 
     def _force_close_channel(self, chan_id: bytes) -> Transaction:
@@ -3288,52 +3480,23 @@ class LNWallet(LNWorker):
         util.trigger_callback('channels_updated', self.wallet)
         util.trigger_callback('wallet_updated', self.wallet)
 
-    @ignore_exceptions
-    @log_exceptions
-    async def reestablish_peer_for_given_channel(self, chan: Channel) -> None:
-        now = time.time()
-        peer_addresses = []
-        if self.uses_trampoline():
-            addr = trampolines_by_id().get(chan.node_id)
-            if addr:
-                peer_addresses.append(addr)
-        else:
-            # will try last good address first, from gossip
-            last_good_addr = self.channel_db.get_last_good_address(chan.node_id)
-            if last_good_addr:
-                peer_addresses.append(last_good_addr)
-            # will try addresses for node_id from gossip
-            addrs_from_gossip = self.channel_db.get_node_addresses(chan.node_id) or []
-            for host, port, ts in addrs_from_gossip:
-                peer_addresses.append(LNPeerAddr(host, port, chan.node_id))
-        # will try addresses stored in channel storage
-        peer_addresses += list(chan.get_peer_addresses())
-        # Done gathering addresses.
-        # Now select first one that has not failed recently.
-        for peer in peer_addresses:
-            if self._can_retry_addr(peer, urgent=True, now=now):
-                await self._add_peer(peer.host, peer.port, peer.pubkey)
-                return
-
     async def reestablish_peers_and_channels(self):
         while True:
             await asyncio.sleep(1)
-            if self.stopping_soon:
+            if self.lnpeermgr.stopping_soon:
                 return
-            if self.config.ZEROCONF_TRUSTED_NODE:
-                peer = LNPeerAddr.from_str(self.config.ZEROCONF_TRUSTED_NODE)
-                if self._can_retry_addr(peer, urgent=True):
-                    await self._add_peer(peer.host, peer.port, peer.pubkey)
+            await self.lnpeermgr.reestablish_peer_for_zero_conf_trusted_node()
             for chan in self.channels.values():
                 # reestablish
                 # note: we delegate filtering out uninteresting chans to this:
                 if not chan.should_try_to_reestablish_peer():
                     continue
-                peer = self._peers.get(chan.node_id, None)
+                peer = self.lnpeermgr.get_peer_by_pubkey(chan.node_id)
                 if peer:
+                    # FIXME maybe this should be the responsibility of the peer itself, done in peer.main_loop:
                     await peer.taskgroup.spawn(peer.reestablish_channel(chan))
                 else:
-                    await self.taskgroup.spawn(self.reestablish_peer_for_given_channel(chan))
+                    await self.lnpeermgr.reestablish_peer_for_given_channel(chan)
 
     def current_target_feerate_per_kw(self, *, has_anchors: bool) -> Optional[int]:
         target: int = FEE_LN_MINIMUM_ETA_TARGET if has_anchors else FEE_LN_ETA_TARGET
@@ -3396,12 +3559,12 @@ class LNWallet(LNWorker):
 
     async def request_force_close(self, channel_id: bytes, *, connect_str=None) -> None:
         if chan := self.get_channel_by_id(channel_id):
-            peer = self._peers.get(chan.node_id)
+            peer = self.lnpeermgr.get_peer_by_pubkey(chan.node_id)
             chan.should_request_force_close = True
             if peer:
                 peer.close_and_cleanup()  # to force a reconnect
         elif connect_str:
-            peer = await self.add_peer(connect_str)
+            peer = await self.lnpeermgr.add_peer(connect_str)
             await peer.request_force_close(channel_id)
         elif channel_id in self.channel_backups:
             await self._request_force_close_from_backup(channel_id)
@@ -3688,7 +3851,7 @@ class LNWallet(LNWorker):
             f"maybe_forward_htlc. will forward HTLC: inc_chan={incoming_chan.short_channel_id}. inc_htlc={str(htlc)}. "
             f"next_chan={next_chan.get_id_for_log()}.")
 
-        next_peer = self.peers.get(next_chan.node_id)
+        next_peer = self.lnpeermgr.get_peer_by_pubkey(next_chan.node_id)
         if next_peer is None:
             log_fail_reason(f"next_peer offline ({next_chan.node_id.hex()})")
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=outgoing_chan_upd_message)
@@ -3774,7 +3937,7 @@ class LNWallet(LNWorker):
             raise OnionRoutingFailure(code=OnionFailureCode.TRAMPOLINE_EXPIRY_TOO_SOON, data=b'')
 
         # do we have a connection to the node?
-        next_peer = self.peers.get(outgoing_node_id)
+        next_peer = self.lnpeermgr.get_peer_by_pubkey(outgoing_node_id)
         if next_peer and next_peer.accepts_zeroconf():
             self.logger.info(f'JIT: found next_peer')
             for next_chan in next_peer.channels.values():

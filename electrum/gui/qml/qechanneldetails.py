@@ -94,7 +94,7 @@ class QEChannelDetails(AuthMixin, QObject, QtEventListener):
     def name(self) -> str:
         if not self._channel:
             return ''
-        return self._wallet.wallet.lnworker.get_node_alias(self._channel.node_id) or ''
+        return self._wallet.wallet.lnworker.lnpeermgr.get_node_alias(self._channel.node_id) or ''
 
     @pyqtProperty(str, notify=channelChanged)
     def pubkey(self) -> str:

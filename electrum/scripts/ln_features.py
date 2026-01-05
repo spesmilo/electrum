@@ -81,7 +81,7 @@ async def worker(work_queue: asyncio.Queue, results_queue: asyncio.Queue, flag):
 
         print(f"worker connecting to {connect_str}")
         try:
-            peer = await wallet.lnworker.add_peer(connect_str)
+            peer = await wallet.lnworker.lnpeermgr.add_peer(connect_str)
             res = await util.wait_for2(peer.initialized, TIMEOUT)
             if res:
                 if peer.features & flag == work['features'] & flag:

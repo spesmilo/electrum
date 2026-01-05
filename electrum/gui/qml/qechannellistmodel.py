@@ -88,7 +88,7 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
         item = {
             'cid': lnc.channel_id.hex(),
             'node_id': lnc.node_id.hex(),
-            'node_alias': lnworker.get_node_alias(lnc.node_id) or '',
+            'node_alias': lnworker.lnpeermgr.get_node_alias(lnc.node_id) or '',
             'short_cid': lnc.short_id_for_GUI(),
             'state': lnc.get_state_for_GUI(),
             'state_code': int(lnc.get_state()),
