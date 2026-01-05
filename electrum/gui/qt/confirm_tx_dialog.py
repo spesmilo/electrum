@@ -874,7 +874,7 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         self.update_submarine_tab()
 
     @qt_event_listener
-    def on_event_channels_updated(self, wallet):
+    def on_event_channel(self, wallet, _channel):
         # useful e.g. if the user quickly opens the tab after startup before the channels are initialized
         if wallet == self.wallet and self.swap_manager and self.swap_manager.is_initialized.is_set():
             self.update_submarine_tab()
