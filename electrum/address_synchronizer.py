@@ -652,6 +652,7 @@ class AddressSynchronizer(Logger, EventListener):
         with self.lock:
             self.unverified_tx.pop(tx_hash, None)
             self.db.add_verified_tx(tx_hash, info)
+            self.invalidate_cache()
         util.trigger_callback('adb_added_verified_tx', self, tx_hash)
 
     @with_lock
