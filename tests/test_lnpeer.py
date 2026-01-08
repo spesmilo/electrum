@@ -535,7 +535,7 @@ class TestPeer(ElectrumTestCase):
 
         # create peers
         for ab in channels.keys():
-            peers[ab] = Peer(workers[ab[0]], keys[ab[1]].pubkey, transports[ab])
+            peers[ab] = PeerInTests(workers[ab[0]], keys[ab[1]].pubkey, transports[ab])
 
         # add peers to workers
         for a, w in workers.items():
