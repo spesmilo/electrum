@@ -667,8 +667,35 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
                 messages.append(long_warning)
         if self.no_dynfee_estimates:
             self.error = _('Fee estimates not available. Please set a fixed fee or feerate.')
-        if self.tx.get_dummy_output(DummyAddress.SWAP):
-            messages.append(_('This transaction will send funds to a submarine swap.'))
+        if dummy_output := self.tx.get_dummy_output(DummyAddress.SWAP):
+            swap_msg = _('Will send change to lightning')
+            swap_fee_msg = "."
+            if self.swap_manager and self.swap_manager.is_initialized.is_set() and isinstance(dummy_output.value, int):
+                ln_amount_we_recv = self.swap_manager.get_recv_amount(send_amount=dummy_output.value, is_reverse=False)
+                if ln_amount_we_recv:
+                    swap_fees = dummy_output.value - ln_amount_we_recv
+                    swap_fee_msg = " [" + _("Swap fees:") + " " + self.main_window.format_amount_and_units(swap_fees) + "]."
+            messages.append(swap_msg + swap_fee_msg)
+        elif self.config.WALLET_SEND_CHANGE_TO_LIGHTNING and self.tx.has_change():
+            swap_msg = _('Will not send change to Lightning')
+            swap_msg_reason = None
+            change_amount = sum(c.value for c in self.tx.get_change_outputs() if isinstance(c.value, int))
+            if not self.wallet.has_lightning():
+                swap_msg_reason = _('Lightning is not enabled.')
+            elif change_amount > int(self.wallet.lnworker.num_sats_can_receive()):
+                swap_msg_reason = _("Your channels cannot receive this amount.")
+            elif self.wallet.lnworker.swap_manager.is_initialized.is_set():
+                min_amount = self.wallet.lnworker.swap_manager.get_min_amount()
+                max_amount = self.wallet.lnworker.swap_manager.get_provider_max_reverse_amount()
+                if change_amount < min_amount:
+                    swap_msg_reason = _("Below the swap providers minimum value of {}.").format(
+                        self.main_window.format_amount_and_units(min_amount)
+                    )
+                else:
+                    swap_msg_reason = _('Change amount exceeds the swap providers maximum value of {}.').format(
+                        self.main_window.format_amount_and_units(max_amount)
+                    )
+            messages.append(swap_msg + f": {swap_msg_reason}" if swap_msg_reason else '')
         # warn if spending unconf
         if any((txin.block_height is not None and txin.block_height<=0) for txin in self.tx.inputs()):
             messages.append(_('This transaction will spend unconfirmed coins.'))
