@@ -62,7 +62,7 @@ from .keystore import (
 )
 from .simple_config import SimpleConfig
 from .fee_policy import FeePolicy, FixedFeePolicy, FEE_RATIO_HIGH_WARNING, FEERATE_WARNING_HIGH_FEE
-from .storage import StorageEncryptionVersion, WalletStorage
+from .storage import PasswordType, WalletStorage
 from .wallet_db import WalletDB
 from .transaction import (
     Transaction, TxInput, TxOutput, PartialTransaction, PartialTxInput, PartialTxOutput, TxOutpoint, Sighash
@@ -458,8 +458,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
         self.test_addresses_sanity()
         if self.storage and self.has_storage_encryption():
-            if (se := self.storage.get_encryption_version()) not in (ae := self.get_available_storage_encryption_versions()):
-                raise WalletFileException(f"unexpected storage encryption type. found: {se!r}. allowed: {ae!r}")
+            ae = self.get_available_storage_encryption_versions()
+            for se in self.storage.get_encryption_versions():
+                if se not in ae:
+                    raise WalletFileException(f"unexpected storage encryption type. found: {se!r}. allowed: {ae!r}")
 
         self.register_callbacks()
 
@@ -3138,16 +3140,19 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def can_have_keystore_encryption(self):
         return self.keystore and self.keystore.may_have_password()
 
-    def get_available_storage_encryption_versions(self) -> Sequence[StorageEncryptionVersion]:
+    def get_available_storage_encryption_versions(self) -> Sequence[PasswordType]:
         """Returns the type of storage encryption offered to the user.
 
         A wallet file (storage) is either encrypted with this version
         or is stored in plaintext.
         """
-        out = [StorageEncryptionVersion.USER_PASSWORD]
+        out = [PasswordType.USER]
         if isinstance(self.keystore, Hardware_KeyStore):
-            out.append(StorageEncryptionVersion.XPUB_PASSWORD)
+            out.append(PasswordType.XPUB)
         return out
+
+    def is_hw_encryption_available(self):
+        return PasswordType.XPUB in self.get_available_storage_encryption_versions()
 
     def has_keystore_encryption(self) -> bool:
         """Returns whether encryption is enabled for the keystore.
@@ -3182,12 +3187,17 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             raise InvalidPassword()
         self.check_password(old_pw)
         if self.storage:
-            if encrypt_storage:
-                enc_version = StorageEncryptionVersion.XPUB_PASSWORD if xpub_encrypt else StorageEncryptionVersion.USER_PASSWORD
-                assert enc_version in self.get_available_storage_encryption_versions()
+            if encrypt_storage and new_pw:
+                password_type = PasswordType.XPUB if xpub_encrypt else PasswordType.USER
+                assert password_type in self.get_available_storage_encryption_versions()
+                if self.storage.is_encrypted():
+                    self.storage.update_password(old_pw, new_pw, password_type)
+                else:
+                    # we never add more than one password
+                    self.storage.add_password(new_pw, password_type)
             else:
-                enc_version = StorageEncryptionVersion.PLAINTEXT
-            self.storage.set_password(new_pw, enc_version)
+                if self.storage.is_encrypted():
+                    self.storage.remove_password(old_pw)
         # make sure next storage.write() saves changes
         self.db.set_modified(True)
 
@@ -4215,9 +4225,9 @@ class Multisig_Wallet(Deterministic_Wallet):
         if self.has_storage_encryption():
             self.storage.check_password(password)
 
-    def get_available_storage_encryption_versions(self) -> Sequence[StorageEncryptionVersion]:
+    def get_available_storage_encryption_versions(self) -> Sequence[PasswordType]:
         # multisig wallets are not offered hw device encryption
-        return [StorageEncryptionVersion.USER_PASSWORD]
+        return [PasswordType.USER]
 
     def has_seed(self):
         return self.keystore.has_seed()
