@@ -27,8 +27,9 @@ import asyncio
 from decimal import Decimal
 from functools import partial
 from typing import TYPE_CHECKING, Optional, Union
+from concurrent.futures import Future
 
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, pyqtSlot, pyqtSignal
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (QHBoxLayout, QVBoxLayout, QLabel, QGridLayout, QPushButton, QToolButton,
                              QComboBox, QTabWidget, QWidget, QStackedWidget)
@@ -60,6 +61,8 @@ if TYPE_CHECKING:
 
 
 class TxEditor(WindowModalDialog, QtEventListener, Logger):
+
+    swap_availability_changed = pyqtSignal()
 
     def __init__(
             self, *, title='',
@@ -98,7 +101,9 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
 
         self.swap_manager = self.wallet.lnworker.swap_manager if self.wallet.has_lightning() else None
         self.swap_transport = None  # type: Optional[Union[NostrTransport, HttpTransport]]
-        self.ongoing_swap_transport_connection_attempt = None  # type: Optional[asyncio.Task]
+        self.swap_availability_changed.connect(self.on_swap_availability_changed, Qt.ConnectionType.QueuedConnection)
+        self.swapserver_button = SwapProvidersButton(lambda: self.swap_transport, self.config, self.main_window)
+        self.ongoing_swap_transport_connection_attempt = None  # type: Optional[Future]
         self.did_swap = False  # used to clear the PI on send tab
 
         self.locktime_e = LockTimeEdit(self)
@@ -730,6 +735,105 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
     def can_pay_assuming_zero_fees(self, confirmed_only: bool) -> bool:
         raise NotImplementedError
 
+    ### --- Shared functionality for submarine swaps (change to ln and submarine payments) ---
+    def prepare_swap_transport(self):
+        if not self.swap_manager:
+            return  # no swaps possible, lightning disabled
+        if self.swap_transport is not None and self.swap_transport.is_connected.is_set():
+            # we already have a connected transport, no need to create a new one
+            return
+        if self.ongoing_swap_transport_connection_attempt:
+            # another task is currently trying to connect
+            return
+
+        # there should only be a connected transport.
+        # a useless transport should get cleaned up and not stored.
+        assert self.swap_transport is None, "swap transport wasn't cleaned up properly"
+
+        new_swap_transport = self.main_window.create_sm_transport()
+        if not new_swap_transport:
+            # user declined to enable Nostr and has no http server configured
+            self.swap_availability_changed.emit()
+            return
+
+        async def _initialize_transport(transport):
+            try:
+                if isinstance(transport, NostrTransport):
+                    asyncio.create_task(transport.main_loop())
+                else:
+                    assert isinstance(transport, HttpTransport)
+                    asyncio.create_task(transport.get_pairs_just_once())
+                if not await self.wait_for_swap_transport(transport):
+                    return
+                self.swap_transport = transport
+            except Exception:
+                self.logger.exception("failed to create swap transport")
+            finally:
+                self.ongoing_swap_transport_connection_attempt = None
+                self.swap_availability_changed.emit()
+
+        # this task will get cancelled if the TxEditor gets closed
+        self.ongoing_swap_transport_connection_attempt = asyncio.run_coroutine_threadsafe(
+            _initialize_transport(new_swap_transport),
+            get_asyncio_loop(),
+        )
+
+    async def wait_for_swap_transport(self, new_swap_transport: Union[HttpTransport, NostrTransport]) -> bool:
+        """
+        Wait until we found the announcement event of the configured swap server.
+        If it is not found but the relay connection is established return True anyway,
+        the user will then need to select a different swap server.
+        """
+        timeout = new_swap_transport.connect_timeout + 1
+        try:
+            # swap_manager.is_initialized gets set once we got pairs of the configured swap server
+            await wait_for2(self.swap_manager.is_initialized.wait(), timeout)
+        except asyncio.TimeoutError:
+            self.logger.debug(f"swap transport initialization timed out after {timeout} sec")
+
+        if self.swap_manager.is_initialized.is_set():
+            return True
+
+        # timed out above
+        if self.config.SWAPSERVER_URL:
+            # http swapserver didn't return pairs
+            self.logger.error(f"couldn't request pairs from {self.config.SWAPSERVER_URL=}")
+            return False
+        elif new_swap_transport.is_connected.is_set():
+            assert isinstance(new_swap_transport, NostrTransport)
+            # couldn't find announcement of configured swapserver, maybe it is gone.
+            # update_submarine_payment_tab will tell the user to select a different swap server.
+            return True
+
+        # we couldn't even connect to the relays, this transport is useless. maybe network issues.
+        return False
+
+    @qt_event_listener
+    def on_event_swap_provider_changed(self):
+        self.swap_availability_changed.emit()
+
+    @qt_event_listener
+    def on_event_channel(self, wallet, _channel):
+        # useful e.g. if the user quickly opens the tab after startup before the channels are initialized
+        if wallet == self.wallet and self.swap_manager and self.swap_manager.is_initialized.is_set():
+            self.swap_availability_changed.emit()
+
+    @qt_event_listener
+    def on_event_swap_offers_changed(self, _):
+        self.swapserver_button.update()
+        if self.ongoing_swap_transport_connection_attempt \
+            and not self.ongoing_swap_transport_connection_attempt.done():
+            return
+        self.swap_availability_changed.emit()
+
+    @pyqtSlot()
+    def on_swap_availability_changed(self):
+        # uses a signal/slot to update the gui so we can schedule an update from the asyncio thread
+        if self.tab_widget.currentWidget() == self.submarine_payment_tab:
+            self.update_submarine_payment_tab()
+        else:
+            pass
+
     ### --- Functionality for reverse submarine swaps to external address ---
     def create_submarine_payment_tab(self) -> QWidget:
         """Returns widget for submarine payment functionality to be added as tab"""
@@ -781,16 +885,14 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         vbox.addWidget(self.submarine_stacked_widget)
         vbox.addStretch(1)
 
-        self.server_button = SwapProvidersButton(lambda: self.swap_transport, self.config, self.main_window)
-
         self.submarine_ok_button = QPushButton(_('OK'))
         self.submarine_ok_button.setDefault(True)
         self.submarine_ok_button.setEnabled(False)
         # pay button must not self.accept() as this triggers closing the transport
-        self.submarine_ok_button.clicked.connect(self.start_submarine_swap)
+        self.submarine_ok_button.clicked.connect(self.start_submarine_payment)
 
         buttons = Buttons(CancelButton(self), self.submarine_ok_button)
-        buttons.insertWidget(0, self.server_button)
+        buttons.insertWidget(0, self.swapserver_button)
         vbox.addLayout(buttons)
 
         return tab_widget
@@ -800,97 +902,7 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         self.submarine_warning_label.setText(_("Connecting, please wait..."))
         self.submarine_ok_button.setEnabled(False)
 
-    def prepare_swap_transport(self):
-        if self.swap_transport is not None and self.swap_transport.is_connected.is_set():
-            # we already have a connected transport, no need to create a new one
-            return
-        if self.ongoing_swap_transport_connection_attempt \
-                and not self.ongoing_swap_transport_connection_attempt.done():
-            # another task is currently trying to connect
-            return
-
-        # there should only be a connected transport.
-        # a useless transport should get cleaned up and not stored.
-        assert self.swap_transport is None, "swap transport wasn't cleaned up properly"
-
-        # give user feedback that we are connection now
-        self.show_swap_transport_connection_message()
-        new_swap_transport = self.main_window.create_sm_transport()
-        if not new_swap_transport:
-            # user declined to enable Nostr and has no http server configured
-            self.update_submarine_tab()
-            return
-
-        async def connect_and_update_tab(transport):
-            try:
-                await self.initialize_swap_transport(transport)
-                self.update_submarine_tab()
-            except Exception:
-                self.logger.exception("failed to create swap transport")
-
-        task = asyncio.run_coroutine_threadsafe(
-            connect_and_update_tab(new_swap_transport),
-            get_asyncio_loop(),
-        )
-        # this task will get cancelled if the TxEditor gets closed
-        self.ongoing_swap_transport_connection_attempt = task
-
-    async def initialize_swap_transport(self, new_swap_transport):
-        # start the transport
-        if isinstance(new_swap_transport, NostrTransport):
-            asyncio.create_task(new_swap_transport.main_loop())
-        else:
-            assert isinstance(new_swap_transport, HttpTransport)
-            asyncio.create_task(new_swap_transport.get_pairs_just_once())
-        # wait for the transport to be connected
-        if not await self.wait_for_swap_transport(new_swap_transport):
-            return
-        self.swap_transport = new_swap_transport
-
-    async def wait_for_swap_transport(self, new_swap_transport: Union[HttpTransport, NostrTransport]) -> bool:
-        """
-        Wait until we found the announcement event of the configured swap server.
-        If it is not found but the relay connection is established return True anyway,
-        the user will then need to select a different swap server.
-        """
-        timeout = new_swap_transport.connect_timeout + 1
-        try:
-            # swap_manager.is_initialized gets set once we got pairs of the configured swap server
-            await wait_for2(self.swap_manager.is_initialized.wait(), timeout)
-        except asyncio.TimeoutError:
-            self.logger.debug(f"swap transport initialization timed out after {timeout} sec")
-        except Exception:
-            self.logger.exception("failed to initialize swap transport")
-            return False
-
-        if self.swap_manager.is_initialized.is_set():
-            return True
-
-        # timed out above
-        if self.config.SWAPSERVER_URL:
-            # http swapserver didn't return pairs
-            self.logger.error(f"couldn't request pairs from {self.config.SWAPSERVER_URL=}")
-            return False
-        elif new_swap_transport.is_connected.is_set():
-            assert isinstance(new_swap_transport, NostrTransport)
-            # couldn't find announcement of configured swapserver, maybe it is gone.
-            # update_submarine_tab will tell the user to select a different swap server.
-            return True
-
-        # we couldn't even connect to the relays, this transport is useless. maybe network issues.
-        return False
-
-    @qt_event_listener
-    def on_event_swap_provider_changed(self):
-        self.update_submarine_tab()
-
-    @qt_event_listener
-    def on_event_channel(self, wallet, _channel):
-        # useful e.g. if the user quickly opens the tab after startup before the channels are initialized
-        if wallet == self.wallet and self.swap_manager and self.swap_manager.is_initialized.is_set():
-            self.update_submarine_tab()
-
-    def start_submarine_swap(self):
+    def start_submarine_payment(self):
         assert self.payee_outputs and len(self.payee_outputs) == 1
         payee_output = self.payee_outputs[0]
 
@@ -920,23 +932,24 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         self.accept()
         self.main_window.on_swap_result(funding_txid, is_reverse=True)
 
-    def update_submarine_tab(self):
+    def update_submarine_payment_tab(self):
+        assert self.tab_widget.currentWidget() == self.submarine_payment_tab
         assert self.payee_outputs, "Opened submarine payment tab without outputs?"
         assert len(self.payee_outputs) == \
                len([o for o in self.payee_outputs if not o.is_change and not isinstance(o.value, str)])
         f = self.main_window.format_amount_and_units
-        self.logger.debug(f"TxEditor updating submarine tab")
+        self.logger.debug(f"TxEditor updating submarine payment tab")
 
         if not self.swap_manager:
-            self.set_swap_tab_warning(_("Enable Lightning in the 'Channels' tab to use Submarine Swaps."))
+            self.set_submarine_payment_tab_warning(_("Enable Lightning in the 'Channels' tab to use Submarine Swaps."))
             return
         if not self.swap_transport:
             # couldn't connect to nostr relays or http server didn't respond
-            self.set_swap_tab_warning(_("Submarine swap provider unavailable."))
+            self.set_submarine_payment_tab_warning(_("Submarine swap provider unavailable."))
             return
 
         # Update the swapserver selection button text
-        self.server_button.update()
+        self.swapserver_button.update()
 
         if not self.swap_manager.is_initialized.is_set():
             # connected to nostr relays but couldn't find swapserver announcement
@@ -946,7 +959,7 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
                 msg = _("Couldn't connect to your swap provider. Please select a different provider.")
             else:
                 msg = _('Please select a submarine swap provider.')
-            self.set_swap_tab_warning(msg)
+            self.set_submarine_payment_tab_warning(msg)
             return
 
         # update values
@@ -962,7 +975,7 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         # get warning
         warning_text = self.get_swap_warning()
         if warning_text:
-            self.set_swap_tab_warning(warning_text)
+            self.set_submarine_payment_tab_warning(warning_text)
             return
 
         # There is no warning, show the normal view (amounts etc.)
@@ -1030,21 +1043,11 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
 
         return None
 
-    def set_swap_tab_warning(self, warning: str):
+    def set_submarine_payment_tab_warning(self, warning: str):
         msg = _('Submarine Payment not possible:') + '\n' + warning
         self.submarine_warning_label.setText(msg)
         self.submarine_stacked_widget.setCurrentIndex(1)
         self.submarine_ok_button.setEnabled(False)
-
-    @qt_event_listener
-    def on_event_swap_offers_changed(self, _):
-        self.server_button.update()
-        if self.ongoing_swap_transport_connection_attempt \
-                and not self.ongoing_swap_transport_connection_attempt.done():
-            return
-        if not self.submarine_payment_tab.isVisible():
-            return
-        self.update_submarine_tab()
 
 
 class ConfirmTxDialog(TxEditor):
