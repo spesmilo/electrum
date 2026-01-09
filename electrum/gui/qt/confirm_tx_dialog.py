@@ -35,7 +35,7 @@ from PyQt6.QtWidgets import (QHBoxLayout, QVBoxLayout, QLabel, QGridLayout, QPus
 
 from electrum.i18n import _
 from electrum.util import (quantize_feerate, profiler, NotEnoughFunds, NoDynamicFeeEstimates,
-                           get_asyncio_loop, wait_for2, nostr_pow_worker)
+                           get_asyncio_loop, wait_for2)
 from electrum.plugin import run_hook
 from electrum.transaction import PartialTransaction, TxOutput
 from electrum.wallet import InternalAddressCorruption
@@ -43,10 +43,10 @@ from electrum.bitcoin import DummyAddress
 from electrum.fee_policy import FeePolicy, FixedFeePolicy, FeeMethod
 from electrum.logging import Logger
 from electrum.submarine_swaps import NostrTransport, HttpTransport
-from .seed_dialog import seed_warning_msg
+from electrum.gui.messages import MSG_SUBMARINE_PAYMENT_HELP_TEXT
 
 from .util import (WindowModalDialog, ColorScheme, HelpLabel, Buttons, CancelButton, WWLabel,
-                   read_QIcon, debug_widget_layouts, qt_event_listener, QtEventListener, IconLabel,
+                   read_QIcon, qt_event_listener, QtEventListener, IconLabel,
                    HelpButton)
 from .transaction_dialog import TxSizeLabel, TxFiatLabel, TxInOutWidget
 from .fee_slider import FeeSlider, FeeComboBox
@@ -60,22 +60,6 @@ if TYPE_CHECKING:
 
 
 class TxEditor(WindowModalDialog, QtEventListener, Logger):
-    SUBMARINE_PAYMENT_HELP_TEXT = ''.join((
-        _("Submarine Payments use a reverse submarine swap to do on-chain transactions directly "
-          "from your lightning balance."), '\n\n',
-        _("Submarine Payments happen in two stages. In the first stage, your wallet sends a lightning "
-          "payment to the submarine swap provider. The swap provider will lock funds to a "
-          "funding output in an on-chain transaction (the funding transaction)."), '\n',
-        _("Once the funding transaction has one confirmation, your wallet will broadcast a claim "
-          "transaction as the second stage of the payment. This claim transaction spends the funding "
-          "output to the payee's address."), '\n\n',
-        _("Warning:"), '\n',
-        _('The funding transaction is not visible to the payee. They will only see a pending '
-          'transaction in the mempool after your wallet broadcasts the claim transaction. '
-          'Since confirmation of the funding transaction can take over 30 minutes, avoid using '
-          'Submarine Payments when the payee expects to see the transaction within a limited '
-          'time frame (e.g., an online shop checkout). Use a regular on-chain payment instead.'),
-   ))
 
     def __init__(
             self, *, title='',
@@ -759,7 +743,7 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         # Normal layout page
         normal_page = QWidget()
         h = QGridLayout(normal_page)
-        help_button = HelpButton(self.SUBMARINE_PAYMENT_HELP_TEXT)
+        help_button = HelpButton(MSG_SUBMARINE_PAYMENT_HELP_TEXT)
         self.submarine_lightning_send_amount_label = QLabel()
         self.submarine_onchain_send_amount_label = QLabel()
         self.submarine_claim_mining_fee_label = QLabel()
