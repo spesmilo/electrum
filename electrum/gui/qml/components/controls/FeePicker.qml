@@ -19,6 +19,8 @@ Item {
     property bool showTxInfo: true
     property bool showPicker: true
 
+    property bool manualFeeEntry: finalizer.method == FeeSlider.FSMethod.MANUAL
+
     implicitHeight: rootLayout.height
 
     GridLayout {
@@ -91,6 +93,7 @@ Item {
                 id: feeslider
                 Layout.fillWidth: true
                 leftPadding: constants.paddingMedium
+                enabled: !manualFeeEntry
 
                 snapMode: Slider.SnapOnRelease
                 stepSize: 1
@@ -117,5 +120,66 @@ Item {
                 feeslider: finalizer
             }
         }
+
+        Label {
+            Layout.preferredWidth: 1
+            text: qsTr('Rate')
+            color: Material.accentColor
+            visible: showPicker && manualFeeEntry
+        }
+
+        GridLayout {
+            Layout.preferredWidth: 2
+            Layout.rowSpan: 2
+            visible: showPicker && manualFeeEntry
+            columns: 2
+            columnSpacing: constants.paddingMedium
+
+            TextField {
+                id: rate
+                Layout.fillWidth: true
+                text: finalizer.userFeerate
+                inputMethodHints: Qt.ImhDigitsOnly
+                validator: RegularExpressionValidator {
+                    regularExpression: /^[0-9]*\.[0-9]?$/
+                }
+                onTextEdited: {
+                    finalizer.userFeerate = text
+                }
+            }
+
+            Label {
+                Layout.fillWidth: true
+                color: Material.accentColor
+                text: qsTr('sat/vbyte')
+            }
+
+            TextField {
+                id: absolute
+                Layout.fillWidth: true
+                text: finalizer.userFee
+                inputMethodHints: Qt.ImhDigitsOnly
+                validator: RegularExpressionValidator {
+                    regularExpression: /^[0-9]*$/
+                }
+                onTextEdited: {
+                    finalizer.userFee = text
+                }
+            }
+
+            Label {
+                Layout.fillWidth: true
+                color: Material.accentColor
+                text: qsTr('sat')
+            }
+        }
+
+        Label {
+            Layout.preferredWidth: 1
+            visible: showPicker && manualFeeEntry
+            color: Material.accentColor
+            text: qsTr('Total')
+        }
+
     }
 }
