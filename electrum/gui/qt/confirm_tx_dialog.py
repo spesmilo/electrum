@@ -43,7 +43,7 @@ from electrum.wallet import InternalAddressCorruption
 from electrum.bitcoin import DummyAddress
 from electrum.fee_policy import FeePolicy, FixedFeePolicy, FeeMethod
 from electrum.logging import Logger
-from electrum.submarine_swaps import NostrTransport, HttpTransport
+from electrum.submarine_swaps import NostrTransport, HttpTransport, SwapServerTransport
 from electrum.gui.messages import MSG_SUBMARINE_PAYMENT_HELP_TEXT
 
 from .util import (WindowModalDialog, ColorScheme, HelpLabel, Buttons, CancelButton, WWLabel,
@@ -100,9 +100,8 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         self.batching_candidates = batching_candidates
 
         self.swap_manager = self.wallet.lnworker.swap_manager if self.wallet.has_lightning() else None
-        self.swap_transport = None  # type: Optional[Union[NostrTransport, HttpTransport]]
+        self.swap_transport = None  # type: Optional[SwapServerTransport]
         self.swap_availability_changed.connect(self.on_swap_availability_changed, Qt.ConnectionType.QueuedConnection)
-        self.swapserver_button = SwapProvidersButton(lambda: self.swap_transport, self.config, self.main_window)
         self.ongoing_swap_transport_connection_attempt = None  # type: Optional[Future]
         self.did_swap = False  # used to clear the PI on send tab
 
@@ -137,7 +136,7 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         self.tab_widget = QTabWidget()
         self.tab_widget.setTabBarAutoHide(True)  # hides the tab bar if there is only one tab
         self.tab_widget.setContentsMargins(0, 0, 0, 0)
-        self.tab_widget.tabBarClicked.connect(self.on_tab_clicked)
+        self.tab_widget.currentChanged.connect(self.on_tab_changed)
 
         self.main_layout = QVBoxLayout()
         self.main_layout.addWidget(self.tab_widget)
@@ -179,9 +178,12 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
             asyncio.run_coroutine_threadsafe(self.swap_transport.stop(), get_asyncio_loop())
         self.swap_transport = None  # HTTPTransport doesn't need to be closed
 
-    def on_tab_clicked(self, index):
+    def on_tab_changed(self, index):
         if self.tab_widget.widget(index) == self.submarine_payment_tab:
             self.prepare_swap_transport()
+            self.update_submarine_payment_tab()
+        else:
+            self.update()
 
     def is_batching(self) -> bool:
         return self._base_tx is not None
@@ -472,6 +474,7 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         self.update_fee_target()
 
     def create_buttons_bar(self):
+        self.change_to_ln_swap_providers_button = SwapProvidersButton(lambda: self.swap_transport, self.config, self.main_window)
         self.preview_button = QPushButton(_('Preview'))
         self.preview_button.clicked.connect(self.on_preview)
         self.preview_button.setVisible(self.allow_preview)
@@ -479,6 +482,7 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         self.ok_button.clicked.connect(self.on_send)
         self.ok_button.setDefault(True)
         buttons = Buttons(CancelButton(self), self.preview_button, self.ok_button)
+        buttons.insertWidget(0, self.change_to_ln_swap_providers_button)
 
         if self.batching_candidates is not None and len(self.batching_candidates) > 0:
             batching_combo = QComboBox()
@@ -509,7 +513,7 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         can_have_lightning = self.wallet.can_have_lightning()
         send_ch_to_ln = self.pref_menu.addConfig(
             self.config.cv.WALLET_SEND_CHANGE_TO_LIGHTNING,
-            callback=self.trigger_update,
+            callback=lambda: (self.prepare_swap_transport(), self.trigger_update()),  # type: ignore
             checked=False if not can_have_lightning else None,
         )
         sub_payments = self.pref_menu.addConfig(
@@ -595,6 +599,9 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
             w.setVisible(b)
 
     def run(self):
+        if self.config.WALLET_SEND_CHANGE_TO_LIGHTNING:
+            # if disabled but submarine payments are enabled we only connect once the other tab gets opened
+            self.prepare_swap_transport()
         cancelled = not self.exec()
         self.stop_editor_updates()
         self.deleteLater()  # see #3956
@@ -636,6 +643,13 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
             self.fee_label.setText(self.main_window.config.format_amount_and_units(self.tx.get_fee()))
             self._update_extra_fees()
 
+        if self.config.WALLET_SEND_CHANGE_TO_LIGHTNING:
+            self.change_to_ln_swap_providers_button.setVisible(True)
+            self.change_to_ln_swap_providers_button.fetching = bool(self.ongoing_swap_transport_connection_attempt)
+            self.change_to_ln_swap_providers_button.update()
+        else:
+            self.change_to_ln_swap_providers_button.setVisible(False)
+
         self._update_send_button()
         self._update_message()
 
@@ -665,7 +679,9 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
                     swap_fees = dummy_output.value - ln_amount_we_recv
                     swap_fee_msg = " [" + _("Swap fees:") + " " + self.main_window.format_amount_and_units(swap_fees) + "]."
             messages.append(swap_msg + swap_fee_msg)
-        elif self.config.WALLET_SEND_CHANGE_TO_LIGHTNING and self.tx.has_change():
+        elif self.config.WALLET_SEND_CHANGE_TO_LIGHTNING \
+                and not self.ongoing_swap_transport_connection_attempt \
+                and self.tx.has_change():
             swap_msg = _('Will not send change to Lightning')
             swap_msg_reason = None
             change_amount = sum(c.value for c in self.tx.get_change_outputs() if isinstance(c.value, int))
@@ -684,7 +700,9 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
                     swap_msg_reason = _('Change amount exceeds the swap providers maximum value of {}.').format(
                         self.main_window.format_amount_and_units(max_amount)
                     )
-            messages.append(swap_msg + f": {swap_msg_reason}" if swap_msg_reason else '')
+            messages.append(swap_msg + (f": {swap_msg_reason}" if swap_msg_reason else '.'))
+        elif self.ongoing_swap_transport_connection_attempt:
+            messages.append(_("Fetching submarine swap providers..."))
         # warn if spending unconf
         if any((txin.block_height is not None and txin.block_height<=0) for txin in self.tx.inputs()):
             messages.append(_('This transaction will spend unconfirmed coins.'))
@@ -820,9 +838,9 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
 
     @qt_event_listener
     def on_event_swap_offers_changed(self, _):
-        self.swapserver_button.update()
-        if self.ongoing_swap_transport_connection_attempt \
-            and not self.ongoing_swap_transport_connection_attempt.done():
+        self.change_to_ln_swap_providers_button.update()
+        self.submarine_payment_provider_button.update()
+        if self.ongoing_swap_transport_connection_attempt:
             return
         self.swap_availability_changed.emit()
 
@@ -832,7 +850,7 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         if self.tab_widget.currentWidget() == self.submarine_payment_tab:
             self.update_submarine_payment_tab()
         else:
-            pass
+            self.update()
 
     ### --- Functionality for reverse submarine swaps to external address ---
     def create_submarine_payment_tab(self) -> QWidget:
@@ -885,6 +903,8 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         vbox.addWidget(self.submarine_stacked_widget)
         vbox.addStretch(1)
 
+        self.submarine_payment_provider_button = SwapProvidersButton(lambda: self.swap_transport, self.config, self.main_window)
+
         self.submarine_ok_button = QPushButton(_('OK'))
         self.submarine_ok_button.setDefault(True)
         self.submarine_ok_button.setEnabled(False)
@@ -892,7 +912,7 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         self.submarine_ok_button.clicked.connect(self.start_submarine_payment)
 
         buttons = Buttons(CancelButton(self), self.submarine_ok_button)
-        buttons.insertWidget(0, self.swapserver_button)
+        buttons.insertWidget(0, self.submarine_payment_provider_button)
         vbox.addLayout(buttons)
 
         return tab_widget
@@ -943,13 +963,17 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         if not self.swap_manager:
             self.set_submarine_payment_tab_warning(_("Enable Lightning in the 'Channels' tab to use Submarine Swaps."))
             return
+        if not self.swap_manager.is_initialized.is_set() \
+                and self.ongoing_swap_transport_connection_attempt:
+            self.show_swap_transport_connection_message()
+            return
         if not self.swap_transport:
             # couldn't connect to nostr relays or http server didn't respond
             self.set_submarine_payment_tab_warning(_("Submarine swap provider unavailable."))
             return
 
         # Update the swapserver selection button text
-        self.swapserver_button.update()
+        self.submarine_payment_provider_button.update()
 
         if not self.swap_manager.is_initialized.is_set():
             # connected to nostr relays but couldn't find swapserver announcement
