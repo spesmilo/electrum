@@ -31,7 +31,7 @@ from aiorpcx import run_in_thread, NetAddress, ignore_after
 
 from .logging import Logger
 from .i18n import _
-from .json_db import stored_in
+from .stored_dict import stored_in
 from .channel_db import UpdateStatus, ChannelDBNotLoaded, get_mychannel_info, get_mychannel_policy
 
 from . import constants, util, lnutil
@@ -1592,8 +1592,6 @@ class LNWallet(Logger):
 
     def add_new_channel(self, chan: Channel):
         self.add_channel(chan)
-        channels_db = self.db.get_dict('channels')
-        channels_db[chan.channel_id.hex()] = chan.storage
         self.wallet.set_reserved_addresses_for_chan(chan, reserved=True)
         try:
             self.save_channel(chan)

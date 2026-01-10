@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import attr
 
-from .json_db import StoredObject, stored_in
+from .stored_dict import StoredObject, stored_in
 from .i18n import _
 from .util import age, InvoiceError, format_satoshis
 from .bip21 import create_bip21_uri

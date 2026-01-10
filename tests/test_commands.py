@@ -11,7 +11,7 @@ import shutil
 import electrum
 from electrum.commands import Commands, eval_bool
 from electrum import storage, wallet
-from electrum.lnutil import RECEIVED
+from electrum.lnutil import RECEIVED, ReceivedMPPStatus, UpdateAddHtlc, ReceivedMPPHtlc
 from electrum.lnworker import RecvMPPResolution
 from electrum.wallet import Abstract_Wallet
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
@@ -549,16 +549,28 @@ class TestCommandsTestnet(ElectrumTestCase):
                 wallet=wallet,
             )
 
-        mock_htlc1 = mock.Mock()
-        mock_htlc1.htlc.cltv_abs = 800_000
-        mock_htlc1.htlc.amount_msat = 4_500_000
-        mock_htlc2 = mock.Mock()
-        mock_htlc2.htlc.cltv_abs = 800_144
-        mock_htlc2.htlc.amount_msat = 5_500_000
-        mock_htlc_status = mock.Mock()
-        mock_htlc_status.htlcs = [mock_htlc1, mock_htlc2]
-        mock_htlc_status.resolution = RecvMPPResolution.COMPLETE
-
+        mock_htlc1 = ReceivedMPPHtlc(
+            channel_id='',
+            htlc = UpdateAddHtlc(
+                cltv_abs = 800_000,
+                amount_msat = 4_500_000,
+                payment_hash=bytes(32),
+            ),
+            unprocessed_onion='',
+        )
+        mock_htlc2 = ReceivedMPPHtlc(
+            channel_id = '',
+            htlc = UpdateAddHtlc(
+                cltv_abs = 800_144,
+                amount_msat = 5_500_000,
+                payment_hash=bytes(32),
+            ),
+            unprocessed_onion = '',
+        )
+        mock_htlc_status = ReceivedMPPStatus(
+            htlcs = [mock_htlc1, mock_htlc2],
+            resolution = RecvMPPResolution.COMPLETE,
+        )
         payment_key = wallet.lnworker._get_payment_key(bytes.fromhex(payment_hash)).hex()
         with mock.patch.dict(wallet.lnworker.received_mpp_htlcs, {payment_key: mock_htlc_status}):
             status: dict = await cmds.check_hold_invoice(payment_hash=payment_hash, wallet=wallet)
