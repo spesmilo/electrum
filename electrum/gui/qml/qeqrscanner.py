@@ -56,6 +56,11 @@ class QEQRScanner(QObject):
         activity.bind(on_activity_result=self.on_qr_activity_result)
         jpythonActivity.startActivityForResult(intent, 0)
 
+    @pyqtSlot()
+    def close(self):
+        # no-op to prevent qml type error
+        pass
+
     def on_qr_activity_result(self, requestCode, resultCode, intent):
         try:
             if resultCode == -1:  # RESULT_OK:
