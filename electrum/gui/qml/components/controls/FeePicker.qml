@@ -151,7 +151,7 @@ Item {
             Label {
                 Layout.fillWidth: true
                 color: Material.accentColor
-                text: qsTr('sat/vbyte')
+                text: UI_UNIT_NAME.FEERATE_SAT_PER_VBYTE
             }
 
             TextField {
@@ -170,7 +170,7 @@ Item {
             Label {
                 Layout.fillWidth: true
                 color: Material.accentColor
-                text: qsTr('sat')
+                text: UI_UNIT_NAME.FIXED_SAT
             }
         }
 
