@@ -74,14 +74,14 @@ Item {
             Layout.preferredWidth: 1
             text: targetLabel
             color: Material.accentColor
-            visible: showPicker
+            visible: showPicker && !manualFeeEntry
         }
 
         Label {
             Layout.fillWidth: true
             Layout.preferredWidth: 2
             text: finalizer.target
-            visible: showPicker
+            visible: showPicker && !manualFeeEntry
         }
 
         RowLayout {
@@ -122,6 +122,7 @@ Item {
         }
 
         Label {
+            Layout.fillWidth: true
             Layout.preferredWidth: 1
             text: qsTr('Rate')
             color: Material.accentColor
@@ -139,6 +140,7 @@ Item {
                 id: rate
                 Layout.fillWidth: true
                 text: finalizer.userFeerate
+                color: finalizer.isUserFeerateLast ? Material.foreground : Material.accentColor
                 inputMethodHints: Qt.ImhDigitsOnly
                 validator: RegularExpressionValidator {
                     regularExpression: /^[0-9]*\.[0-9]?$/
@@ -158,6 +160,7 @@ Item {
                 id: absolute
                 Layout.fillWidth: true
                 text: finalizer.userFee
+                color: finalizer.isUserFeerateLast ? Material.accentColor : Material.foreground
                 inputMethodHints: Qt.ImhDigitsOnly
                 validator: RegularExpressionValidator {
                     regularExpression: /^[0-9]*$/
@@ -175,6 +178,7 @@ Item {
         }
 
         Label {
+            Layout.fillWidth: true
             Layout.preferredWidth: 1
             visible: showPicker && manualFeeEntry
             color: Material.accentColor

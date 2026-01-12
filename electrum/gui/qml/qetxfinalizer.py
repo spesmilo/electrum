@@ -158,6 +158,7 @@ class TxFeeSlider(FeeSlider):
         self._feeRate = ''
         self._userFee = ''
         self._userFeerate = ''
+        self._is_user_feerate_last = True
         self._rbf = False
         self._tx = None  # type: Optional[PartialTransaction]
         self._inputs = []
@@ -201,6 +202,7 @@ class TxFeeSlider(FeeSlider):
             user_fee = int(userFee) if userFee else 0
             self._fee_policy = FeePolicy(f'fixed:{user_fee}')
             self.userFeeChanged.emit()
+            self.isUserFeerateLast = False
             self.update()
 
     userFeerateChanged = pyqtSignal()
@@ -217,7 +219,19 @@ class TxFeeSlider(FeeSlider):
             user_feerate = int(as_decimal * 1000)
             self._fee_policy = FeePolicy(f'feerate:{user_feerate}')
             self.userFeerateChanged.emit()
+            self.isUserFeerateLast = True
             self.update()
+
+    isUserFeerateLastChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=isUserFeerateLastChanged)
+    def isUserFeerateLast(self):
+        return self._is_user_feerate_last
+
+    @isUserFeerateLast.setter
+    def isUserFeerateLast(self, isUserFeerateLast):
+        if self._is_user_feerate_last != isUserFeerateLast:
+            self._is_user_feerate_last = isUserFeerateLast
+            self.isUserFeerateLastChanged.emit()
 
     rbfChanged = pyqtSignal()
     @pyqtProperty(bool, notify=rbfChanged)
