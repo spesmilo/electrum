@@ -40,7 +40,8 @@ from electrum.logging import Logger
 from electrum.plugin import BasePlugin
 from electrum.transaction import PartialTransaction, tx_from_any
 from electrum.util import (
-    log_exceptions, OldTaskGroup, ca_path, trigger_callback, event_listener, json_decode, make_aiohttp_proxy_connector
+    log_exceptions, OldTaskGroup, ca_path, trigger_callback, event_listener, json_decode,
+    make_aiohttp_proxy_connector, run_sync_function_on_asyncio_thread,
 )
 from electrum.wallet import Multisig_Wallet
 
@@ -73,7 +74,7 @@ class PsbtNostrPlugin(BasePlugin):
             self.cosigner_wallets.pop(wallet)
 
 
-class CosignerWallet(Logger):
+class CosignerWallet(Logger):  # children have to inherit EventListener and register callbacks
     # one for each open window (Qt) / open wallet (QML)
     # if user signs a tx, we have the password
     # if user receives a dm? needs to enter password first
@@ -123,6 +124,7 @@ class CosignerWallet(Logger):
 
     @event_listener
     async def on_event_proxy_set(self, *args):
+        # note: the callbacks get registered in the child classes of CosignerWallet
         if not (self.network and self.nostr_pubkey):
             return
         await self.stop()
@@ -250,7 +252,7 @@ class CosignerWallet(Logger):
     def mark_pending_event_rcvd(self, event_id):
         self.logger.debug('marking event rcvd')
         self.known_events[event_id] = now()
-        self.pending.set()
+        run_sync_function_on_asyncio_thread(self.pending.set, block=False)
 
     def prepare_messages(self, tx: Union[Transaction, PartialTransaction], label: str = None) -> List[Tuple[str, dict]]:
         messages = []
