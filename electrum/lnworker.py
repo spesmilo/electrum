@@ -1227,7 +1227,8 @@ class LNWallet(Logger):
         #       that we can already fail/fulfill. e.g. forwarded htlcs cannot be removed
         async with OldTaskGroup() as group:
             for peer in self.lnpeermgr.peers.values():
-                await group.spawn(peer.wait_one_htlc_switch_iteration())
+                if peer.is_initialized():
+                    await group.spawn(peer.wait_one_htlc_switch_iteration())
         while True:
             if all(not peer.received_htlcs_pending_removal for peer in self.lnpeermgr.peers.values()):
                 break
