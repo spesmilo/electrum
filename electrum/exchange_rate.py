@@ -209,7 +209,7 @@ class ExchangeBase(Logger):
         if ccy == 'BTC':
             return Decimal(1)
         rate = self._quotes.get(ccy)
-        if rate is None:
+        if not rate:  # don't return 0 to prevent DivisionByZero exceptions
             return Decimal('NaN')
         if self._quotes_timestamp + SPOT_RATE_EXPIRY < time.time():
             # Our rate is stale. Probably better to return no rate than an incorrect one.
