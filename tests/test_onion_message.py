@@ -283,6 +283,9 @@ class MockPeer:
     async def wait_one_htlc_switch_iteration(self, *args):
         pass
 
+    def is_initialized(self):
+        return True
+
     def send_message(self, *args, **kwargs):
         if self.on_send_message:
             self.on_send_message(*args, **kwargs)
