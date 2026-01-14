@@ -443,7 +443,7 @@ class QEInvoiceParser(QEInvoice):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        self._pi = None
+        self._pi = None  # type: Optional[PaymentIdentifier]
         self._lnurlData = None
         self._busy = False
 
