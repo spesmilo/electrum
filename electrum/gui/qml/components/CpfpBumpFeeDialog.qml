@@ -147,6 +147,7 @@ ElDialog {
                             Layout.fillWidth: true
                             finalizer: dialog.cpfpfeebumper
                             showTxInfo: false
+                            allowPickerFeeRates: false
                         }
                     }
                 }

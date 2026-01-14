@@ -116,7 +116,7 @@ ElDialog {
                         id: feepicker
                         width: parent.width
                         finalizer: dialog.rbffeebumper
-
+                        allowPickerAbsFees: false
                     }
                 }
 

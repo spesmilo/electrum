@@ -18,6 +18,8 @@ Item {
 
     property bool showTxInfo: true
     property bool showPicker: true
+    property bool allowPickerAbsFees: true
+    property bool allowPickerFeeRates: true
 
     property bool manualFeeEntry: finalizer.method == FeeSlider.FSMethod.MANUAL
 
@@ -121,24 +123,22 @@ Item {
             }
         }
 
-        Label {
+        RowLayout {
+            Layout.columnSpan: 2
             Layout.fillWidth: true
-            Layout.preferredWidth: 1
-            text: qsTr('Rate')
-            color: Material.accentColor
-            visible: showPicker && manualFeeEntry
-        }
+            visible: showPicker && manualFeeEntry && allowPickerFeeRates
 
-        GridLayout {
-            Layout.preferredWidth: 2
-            Layout.rowSpan: 2
-            visible: showPicker && manualFeeEntry
-            columns: 2
-            columnSpacing: constants.paddingMedium
+            Label {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                text: qsTr('Rate')
+                color: Material.accentColor
+            }
 
             TextField {
                 id: rate
                 Layout.fillWidth: true
+                Layout.preferredWidth: 2
                 text: finalizer.userFeerate
                 color: finalizer.isUserFeerateLast ? Material.foreground : Material.accentColor
                 inputMethodHints: Qt.ImhDigitsOnly
@@ -152,13 +152,28 @@ Item {
 
             Label {
                 Layout.fillWidth: true
+                Layout.preferredWidth: 1
                 color: Material.accentColor
                 text: UI_UNIT_NAME.FEERATE_SAT_PER_VBYTE
+            }
+        }
+
+        RowLayout {
+            Layout.columnSpan: 2
+            Layout.fillWidth: true
+            visible: showPicker && manualFeeEntry && allowPickerAbsFees
+
+            Label {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                color: Material.accentColor
+                text: qsTr('Total')
             }
 
             TextField {
                 id: absolute
                 Layout.fillWidth: true
+                Layout.preferredWidth: 2
                 text: finalizer.userFee
                 color: finalizer.isUserFeerateLast ? Material.accentColor : Material.foreground
                 inputMethodHints: Qt.ImhDigitsOnly
@@ -172,17 +187,10 @@ Item {
 
             Label {
                 Layout.fillWidth: true
+                Layout.preferredWidth: 1
                 color: Material.accentColor
                 text: UI_UNIT_NAME.FIXED_SAT
             }
-        }
-
-        Label {
-            Layout.fillWidth: true
-            Layout.preferredWidth: 1
-            visible: showPicker && manualFeeEntry
-            color: Material.accentColor
-            text: qsTr('Total')
         }
 
     }

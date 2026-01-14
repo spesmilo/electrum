@@ -88,7 +88,7 @@ ElDialog {
                         id: feepicker
                         width: parent.width
                         finalizer: dialog.txcanceller
-
+                        allowPickerAbsFees: false
                     }
                 }
 
