@@ -28,6 +28,7 @@ from decimal import Decimal
 from functools import partial
 from typing import TYPE_CHECKING, Optional, Union
 from concurrent.futures import Future
+from enum import Enum, auto
 
 from PyQt6.QtCore import Qt, QTimer, pyqtSlot, pyqtSignal
 from PyQt6.QtGui import QIcon
@@ -35,20 +36,20 @@ from PyQt6.QtWidgets import (QHBoxLayout, QVBoxLayout, QLabel, QGridLayout, QPus
                              QComboBox, QTabWidget, QWidget, QStackedWidget)
 
 from electrum.i18n import _
-from electrum.util import (quantize_feerate, profiler, NotEnoughFunds, NoDynamicFeeEstimates,
-                           get_asyncio_loop, wait_for2)
+from electrum.util import (UserCancelled, quantize_feerate, profiler, NotEnoughFunds, NoDynamicFeeEstimates,
+                           get_asyncio_loop, wait_for2, UserFacingException)
 from electrum.plugin import run_hook
-from electrum.transaction import PartialTransaction, TxOutput
+from electrum.transaction import PartialTransaction, PartialTxOutput
 from electrum.wallet import InternalAddressCorruption
 from electrum.bitcoin import DummyAddress
 from electrum.fee_policy import FeePolicy, FixedFeePolicy, FeeMethod
 from electrum.logging import Logger
-from electrum.submarine_swaps import NostrTransport, HttpTransport, SwapServerTransport
+from electrum.submarine_swaps import NostrTransport, HttpTransport, SwapServerTransport, SwapServerError
 from electrum.gui.messages import MSG_SUBMARINE_PAYMENT_HELP_TEXT
 
 from .util import (WindowModalDialog, ColorScheme, HelpLabel, Buttons, CancelButton, WWLabel,
                    read_QIcon, qt_event_listener, QtEventListener, IconLabel,
-                   HelpButton)
+                   HelpButton, RunCoroutineDialog)
 from .transaction_dialog import TxSizeLabel, TxFiatLabel, TxInOutWidget
 from .fee_slider import FeeSlider, FeeComboBox
 from .amountedit import FeerateEdit, BTCAmountEdit
@@ -60,6 +61,15 @@ if TYPE_CHECKING:
     from .main_window import ElectrumWindow
 
 
+class TxEditorContext(Enum):
+    """
+    Context for which the TxEditor gets launched.
+    Allows to enable/disable certain features.
+    """
+    PAYMENT = auto()
+    CHANNEL_FUNDING = auto()
+
+
 class TxEditor(WindowModalDialog, QtEventListener, Logger):
 
     swap_availability_changed = pyqtSignal()
@@ -69,8 +79,8 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
             window: 'ElectrumWindow',
             make_tx,
             output_value: Union[int, str],
-            payee_outputs: Optional[list[TxOutput]] = None,
-            allow_preview=True,
+            payee_outputs: Optional[list[PartialTxOutput]] = None,
+            context: TxEditorContext = TxEditorContext.PAYMENT,
             batching_candidates=None,
     ):
 
@@ -93,8 +103,7 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         self.not_enough_funds = False
         self.no_dynfee_estimates = False
         self.needs_update = False
-        # preview is disabled for lightning channel funding
-        self.allow_preview = allow_preview
+        self.context = context
         self.is_preview = False
         self._base_tx = None # for batching
         self.batching_candidates = batching_candidates
@@ -311,8 +320,7 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         # always show onchain payment tab
         self.tab_widget.addTab(self.onchain_tab, _('Onchain Transaction'))
 
-        # allow_preview is false for ln channel opening txs
-        allow_swaps = self.allow_preview and self.payee_outputs and self.swap_manager
+        allow_swaps = self.context == TxEditorContext.PAYMENT and self.payee_outputs and self.swap_manager
         if self.config.WALLET_ENABLE_SUBMARINE_PAYMENTS and allow_swaps:
             i = self.tab_widget.addTab(self.submarine_payment_tab, _('Submarine Payment'))
             tooltip = self.config.cv.WALLET_ENABLE_SUBMARINE_PAYMENTS.get_long_desc()
@@ -477,7 +485,7 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         self.change_to_ln_swap_providers_button = SwapProvidersButton(lambda: self.swap_transport, self.config, self.main_window)
         self.preview_button = QPushButton(_('Preview'))
         self.preview_button.clicked.connect(self.on_preview)
-        self.preview_button.setVisible(self.allow_preview)
+        self.preview_button.setVisible(self.context != TxEditorContext.CHANNEL_FUNDING)
         self.ok_button = QPushButton(_('OK'))
         self.ok_button.clicked.connect(self.on_send)
         self.ok_button.setDefault(True)
@@ -608,9 +616,13 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         return self.tx if not cancelled else None
 
     def on_send(self):
+        if self.tx and self.tx.get_dummy_output(DummyAddress.SWAP):
+            if not self.request_forward_swap():
+                return
         self.accept()
 
     def on_preview(self):
+        assert not self.tx.get_dummy_output(DummyAddress.SWAP), "no preview when sending change to ln"
         self.is_preview = True
         self.accept()
 
@@ -746,8 +758,12 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         self.message_label.setText(self.error or message_str)
 
     def _update_send_button(self):
+        # disable preview button when sending change to lightning to prevent the user from saving or
+        # exporting the transaction and broadcasting it later somehow.
+        send_change_to_ln = self.tx and self.tx.get_dummy_output(DummyAddress.SWAP)
         enabled = bool(self.tx) and not self.error
-        self.preview_button.setEnabled(enabled)
+        self.preview_button.setEnabled(enabled and not send_change_to_ln)
+        self.preview_button.setToolTip(_("Can't show preview when sending change to lightning") if send_change_to_ln else "")
         self.ok_button.setEnabled(enabled)
 
     def can_pay_assuming_zero_fees(self, confirmed_only: bool) -> bool:
@@ -1073,6 +1089,26 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         self.submarine_stacked_widget.setCurrentIndex(1)
         self.submarine_ok_button.setEnabled(False)
 
+    # --- send change to lightning swap functionality ---
+    def request_forward_swap(self):
+        swap_dummy_output = self.tx.get_dummy_output(DummyAddress.SWAP)
+        sm, transport = self.swap_manager, self.swap_transport
+        assert sm and transport and swap_dummy_output and isinstance(swap_dummy_output.value, int)
+        coro = sm.request_swap_for_amount(transport=transport, onchain_amount=int(swap_dummy_output.value))
+        coro_dialog = RunCoroutineDialog(self, _('Requesting swap invoice...'), coro)
+        try:
+            swap, swap_invoice = coro_dialog.run()
+        except (SwapServerError, UserFacingException) as e:
+            self.show_error(str(e))
+            return False
+        except UserCancelled:
+            return False
+        self.tx.replace_output_address(DummyAddress.SWAP, swap.lockup_address)
+        assert self.tx.get_dummy_output(DummyAddress.SWAP) is None
+        self.tx.swap_invoice = swap_invoice
+        self.tx.swap_payment_hash = swap.payment_hash
+        return True
+
 
 class ConfirmTxDialog(TxEditor):
     help_text = ''  #_('Set the mining fee of your transaction')
@@ -1082,8 +1118,8 @@ class ConfirmTxDialog(TxEditor):
         window: 'ElectrumWindow',
         make_tx,
         output_value: Union[int, str],
-        payee_outputs: Optional[list[TxOutput]] = None,
-        allow_preview=True,
+        payee_outputs: Optional[list[PartialTxOutput]] = None,
+        context: TxEditorContext = TxEditorContext.PAYMENT,
         batching_candidates=None,
     ):
 
@@ -1094,7 +1130,7 @@ class ConfirmTxDialog(TxEditor):
             output_value=output_value,
             payee_outputs=payee_outputs,
             title=_("New Transaction"), # todo: adapt title for channel funding tx, swaps
-            allow_preview=allow_preview, # false for channel funding
+            context=context,
             batching_candidates=batching_candidates,
         )
         self.trigger_update()
