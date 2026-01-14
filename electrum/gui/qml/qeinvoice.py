@@ -451,7 +451,7 @@ class QEInvoiceParser(QEInvoice):
 
     @pyqtSlot(object)
     def fromResolvedPaymentIdentifier(self, resolved_pi: PaymentIdentifier) -> None:
-        self.canPay = False
+        self.clear()
         self.amountOverride = QEAmount()
         if resolved_pi:
             assert not resolved_pi.need_resolve()
@@ -653,7 +653,8 @@ class QEInvoiceParser(QEInvoice):
         if orig_amount * 1000 != invoice.amount_msat:  # TODO msat precision can cause trouble here
             raise Exception('Unexpected amount in invoice, differs from lnurl-pay specified amount')
 
-        self.fromResolvedPaymentIdentifier(
+        self.amountOverride = QEAmount()
+        self.validateRecipient(
             PaymentIdentifier(self._wallet.wallet, invoice.lightning_invoice)
         )
 
