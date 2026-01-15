@@ -577,6 +577,25 @@ Pane {
         }
     }
 
+    Connections {
+        target: Biometrics
+        function onEnablingFailed(error) {
+            if (error === 'CANCELLED') {
+                var biometrics_disabled_dialog = app.messageDialog.createObject(app, {
+                    title: qsTr('Biometric Authentication'),
+                    iconSource: Qt.resolvedUrl('../../icons/warning.png'),
+                    text: qsTr('Biometric authentication disabled. You can enable it again in the settings.')
+                })
+                biometrics_disabled_dialog.open()
+                return
+            }
+            var err = app.messageDialog.createObject(app, {
+                text: qsTr('Failed to update biometric authentication to new password: ') + error
+            })
+            err.open()
+        }
+    }
+
     Component {
         id: importAddressesKeysDialog
         ImportAddressesKeysDialog {

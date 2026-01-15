@@ -388,7 +388,7 @@ class QEDaemon(AuthMixin, QObject):
         return f'wallet_{i}'
 
     @pyqtSlot()
-    @auth_protect(method='wallet')
+    @auth_protect(method='wallet_password_only')
     def startChangePassword(self):
         if self._use_single_password:
             self.requestNewPassword.emit()

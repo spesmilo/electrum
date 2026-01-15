@@ -153,23 +153,26 @@ class QEConfig(AuthMixin, QObject):
         self.config.WALLET_PAYREQ_EXPIRY_SECONDS = expiry
         self.requestExpiryChanged.emit()
 
-    pinCodeChanged = pyqtSignal()
-    @pyqtProperty(str, notify=pinCodeChanged)
-    def pinCode(self):
-        return self.config.CONFIG_PIN_CODE or ""
+    paymentAuthenticationChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=paymentAuthenticationChanged)
+    def paymentAuthentication(self):
+        return self.config.GUI_QML_PAYMENT_AUTHENTICATION
 
-    @pinCode.setter
-    def pinCode(self, pin_code):
-        if pin_code == '':
-            self.pinCodeRemoveAuth()
+    @paymentAuthentication.setter
+    def paymentAuthentication(self, enabled: bool):
+        if enabled:
+            self.config.GUI_QML_PAYMENT_AUTHENTICATION = True
+            self.paymentAuthenticationChanged.emit()
         else:
-            self.config.CONFIG_PIN_CODE = pin_code
-            self.pinCodeChanged.emit()
+            self._disable_payment_authentication()
 
-    @auth_protect(method='wallet_else_pin')
-    def pinCodeRemoveAuth(self):
-        self.config.CONFIG_PIN_CODE = ""
-        self.pinCodeChanged.emit()
+    @auth_protect(method='wallet', reject='_payment_auth_reject')
+    def _disable_payment_authentication(self):
+        self.config.GUI_QML_PAYMENT_AUTHENTICATION = False
+        self.paymentAuthenticationChanged.emit()
+
+    def _payment_auth_reject(self):
+        self.paymentAuthenticationChanged.emit()
 
     useGossipChanged = pyqtSignal()
     @pyqtProperty(bool, notify=useGossipChanged)

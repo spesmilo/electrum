@@ -10,10 +10,7 @@ public class BiometricHelper {
     public static boolean isAvailable(Context context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) { // API 30+
             BiometricManager biometricManager = context.getSystemService(BiometricManager.class);
-            return biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS;
-        } else if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) { // API 29
-            BiometricManager biometricManager = context.getSystemService(BiometricManager.class);
-            return biometricManager.canAuthenticate() == BiometricManager.BIOMETRIC_SUCCESS;
+            return biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG | BiometricManager.Authenticators.DEVICE_CREDENTIAL) == BiometricManager.BIOMETRIC_SUCCESS;
         }
         return false;
     }
