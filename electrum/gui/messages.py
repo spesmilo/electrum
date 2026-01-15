@@ -141,3 +141,8 @@ MSG_CONNECTMODE_ONESERVER_HELP = _(
     "This mode is only intended for connecting to your own fully trusted server. "
     "Using this option on a public server is a security risk and is discouraged."
 )
+
+MSG_RELAYFEE = ' '.join([
+    _("This transaction requires a higher fee, or it will not be propagated by your current server."),
+    _("Try to raise your transaction fee, or use a server with a lower relay fee.")
+])

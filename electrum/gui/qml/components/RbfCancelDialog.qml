@@ -88,14 +88,13 @@ ElDialog {
                         id: feepicker
                         width: parent.width
                         finalizer: dialog.txcanceller
-
+                        allowPickerAbsFees: false
                     }
                 }
 
                 InfoTextArea {
                     Layout.columnSpan: 2
-                    Layout.preferredWidth: parent.width * 3/4
-                    Layout.alignment: Qt.AlignHCenter
+                    Layout.fillWidth: true
                     Layout.topMargin: constants.paddingLarge
                     iconStyle: InfoTextArea.IconStyle.Warn
                     visible: txcanceller.warning != ''

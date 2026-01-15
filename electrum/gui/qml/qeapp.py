@@ -553,6 +553,7 @@ class ElectrumQmlApplication(QGuiApplication):
         self.context.setContextProperty('UI_UNIT_NAME', {
             "FEERATE_SAT_PER_VBYTE": electrum.util.UI_UNIT_NAME_FEERATE_SAT_PER_VBYTE,
             "FEERATE_SAT_PER_VB":    electrum.util.UI_UNIT_NAME_FEERATE_SAT_PER_VB,
+            "FIXED_SAT":             electrum.util.UI_UNIT_NAME_FIXED_SAT,
             "TXSIZE_VBYTES":         electrum.util.UI_UNIT_NAME_TXSIZE_VBYTES,
             "MEMPOOL_MB":            electrum.util.UI_UNIT_NAME_MEMPOOL_MB,
         })
