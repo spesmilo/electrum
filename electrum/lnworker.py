@@ -2807,7 +2807,7 @@ class LNWallet(Logger):
             self.logger.debug(f"creating new mpp set for {payment_key=}")
             mpp_status = ReceivedMPPStatus(
                 resolution=RecvMPPResolution.WAITING,
-                htlcs=set(),
+                htlcs=frozenset(),
             )
 
         if mpp_status.resolution > RecvMPPResolution.WAITING:
@@ -2827,8 +2827,9 @@ class LNWallet(Logger):
         )
         assert new_htlc not in mpp_status.htlcs, "each htlc should make it here only once?"
         assert isinstance(unprocessed_onion_packet, str)
-        mpp_status.htlcs.add(new_htlc)  # side-effecting htlc_set
-        self.received_mpp_htlcs[payment_key] = mpp_status
+        new_htlcs = set(mpp_status.htlcs)
+        new_htlcs.add(new_htlc)
+        self.received_mpp_htlcs[payment_key] = mpp_status._replace(htlcs=frozenset(new_htlcs))
 
     def set_mpp_resolution(self, payment_key: str, new_resolution: RecvMPPResolution) -> ReceivedMPPStatus:
         mpp_status = self.received_mpp_htlcs[payment_key]
@@ -2910,10 +2911,14 @@ class LNWallet(Logger):
         assert chan._state == ChannelState.REDEEMED
         for payment_key_hex, mpp_status in list(self.received_mpp_htlcs.items()):
             htlcs_to_remove = [htlc for htlc in mpp_status.htlcs if htlc.channel_id == chan.channel_id]
+            new_htlcs = set(mpp_status.htlcs)
             for stale_mpp_htlc in htlcs_to_remove:
                 assert mpp_status.resolution != RecvMPPResolution.WAITING
                 self.logger.info(f'maybe_cleanup_mpp: removing htlc of MPP {payment_key_hex}')
-                mpp_status.htlcs.remove(stale_mpp_htlc)  # side-effecting htlc_set
+                new_htlcs.remove(stale_mpp_htlc)
+            if htlcs_to_remove:
+                mpp_status = mpp_status._replace(htlcs=frozenset(new_htlcs))
+                self.received_mpp_htlcs[payment_key_hex] = mpp_status  # save changes to db
             if len(mpp_status.htlcs) == 0:
                 self.logger.info(f'maybe_cleanup_mpp: removing mpp {payment_key_hex}')
                 del self.received_mpp_htlcs[payment_key_hex]

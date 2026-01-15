@@ -2200,7 +2200,7 @@ class Peer(Logger, EventListener):
         # get payment hash of any htlc in the set (they are all the same)
         payment_hash = htlc_set.get_payment_hash()
         assert payment_hash is not None, htlc_set
-        assert payment_hash not in self.lnworker.dont_settle_htlcs
+        assert payment_hash.hex() not in self.lnworker.dont_settle_htlcs
         self.lnworker.dont_expire_htlcs.pop(payment_hash.hex(), None)  # htlcs wont get expired anymore
         for mpp_htlc in list(htlc_set.htlcs):
             htlc_id = mpp_htlc.htlc.htlc_id
@@ -2214,10 +2214,12 @@ class Peer(Logger, EventListener):
             if chan.hm.was_htlc_preimage_released(htlc_id=htlc_id, htlc_proposer=REMOTE):
                 # this check is intended to gracefully handle stale htlcs in the set, e.g. after a crash
                 self.logger.debug(f"{mpp_htlc=} was already settled before, dropping it.")
-                htlc_set.htlcs.remove(mpp_htlc)
+                htlc_set = htlc_set._replace(htlcs=htlc_set.htlcs - {mpp_htlc})
+                self.lnworker.received_mpp_htlcs[payment_key] = htlc_set
                 continue
             self._fulfill_htlc(chan, htlc_id, preimage)
-            htlc_set.htlcs.remove(mpp_htlc)
+            htlc_set = htlc_set._replace(htlcs=htlc_set.htlcs - {mpp_htlc})
+            self.lnworker.received_mpp_htlcs[payment_key] = htlc_set
             # reset just-in-time opening fee of channel
             chan.jit_opening_fee = None
 
@@ -2255,7 +2257,8 @@ class Peer(Logger, EventListener):
             if chan.hm.was_htlc_failed(htlc_id=htlc_id, htlc_proposer=REMOTE):
                 # this check is intended to gracefully handle stale htlcs in the set, e.g. after a crash
                 self.logger.debug(f"{mpp_htlc=} was already failed before, dropping it.")
-                htlc_set.htlcs.remove(mpp_htlc)
+                htlc_set = htlc_set._replace(htlcs=htlc_set.htlcs - {mpp_htlc})
+                self.lnworker.received_mpp_htlcs[payment_key] = htlc_set
                 continue
             onion_packet = self._parse_onion_packet(mpp_htlc.unprocessed_onion)
             processed_onion_packet = self._process_incoming_onion_packet(
@@ -2286,7 +2289,8 @@ class Peer(Logger, EventListener):
                 htlc_id=htlc_id,
                 error_bytes=error_bytes,
             )
-            htlc_set.htlcs.remove(mpp_htlc)
+            htlc_set = htlc_set._replace(htlcs=htlc_set.htlcs - {mpp_htlc})
+            self.lnworker.received_mpp_htlcs[payment_key] = htlc_set
 
     def fail_htlc(self, *, chan: Channel, htlc_id: int, error_bytes: bytes):
         self.logger.info(f"fail_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}.")
@@ -3148,11 +3152,12 @@ class Peer(Logger, EventListener):
             if not parent:
                 parent = ReceivedMPPStatus(
                     resolution=RecvMPPResolution.WAITING,
-                    htlcs=set(),
+                    htlcs=frozenset(),
                 )
-                self.lnworker.received_mpp_htlcs[mpp_set.parent_set_key] = parent
-            parent.htlcs.update(mpp_set.htlcs)
-            mpp_set.htlcs.clear()
+            self.lnworker.received_mpp_htlcs[mpp_set.parent_set_key] = parent._replace(
+                htlcs=parent.htlcs | mpp_set.htlcs
+            )
+            self.lnworker.received_mpp_htlcs[payment_key] = mpp_set._replace(htlcs=frozenset())
             return None, None, None  # this set will get deleted as there are no htlcs in it anymore
 
         assert not mpp_set.parent_set_key

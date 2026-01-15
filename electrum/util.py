@@ -331,7 +331,7 @@ class MyEncoder(json.JSONEncoder):
         if isinstance(obj, datetime):
             # note: if there is a timezone specified, this will include the offset
             return obj.isoformat(' ', timespec="minutes")
-        if isinstance(obj, set):
+        if isinstance(obj, (set, frozenset)):
             return list(obj)
         if isinstance(obj, bytes): # for nametuples in lnchannel
             return obj.hex()

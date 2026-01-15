@@ -1980,7 +1980,7 @@ class ReceivedMPPHtlc(NamedTuple):
 
 class ReceivedMPPStatus(NamedTuple):
     resolution: RecvMPPResolution
-    htlcs: set[ReceivedMPPHtlc]
+    htlcs: frozenset[ReceivedMPPHtlc]
     # parent_set_key is needed as trampoline allows MPP to be nested, the parent_set_key is the
     # payment key of the final mpp set (derived from inner trampoline onion payment secret)
     # to which the separate trampoline sets htlcs get added once they are complete.
@@ -2005,7 +2005,7 @@ class ReceivedMPPStatus(NamedTuple):
     @stored_in('received_mpp_htlcs', tuple)
     def from_tuple(resolution, htlc_list, parent_set_key=None) -> 'ReceivedMPPStatus':
         assert isinstance(resolution, int)
-        htlc_set = set(ReceivedMPPHtlc.from_tuple(*htlc_data) for htlc_data in htlc_list)
+        htlc_set = frozenset(ReceivedMPPHtlc.from_tuple(*htlc_data) for htlc_data in htlc_list)
         return ReceivedMPPStatus(
             resolution=RecvMPPResolution(resolution),
             htlcs=htlc_set,
