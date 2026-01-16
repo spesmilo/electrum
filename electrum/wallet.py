@@ -3532,16 +3532,27 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         """Returns the number of new addresses we generated."""
         return 0
 
-    def unlock(self, password):
+    def unlock(self, password: Optional[str]) -> None:
         self.logger.info(f'unlocking wallet')
+        password = password or None
         self.check_password(password)
         self._password_in_memory = password
 
     def lock_wallet(self):
         self._password_in_memory = None
 
-    def get_unlocked_password(self):
-        return self._password_in_memory
+    def get_unlocked_password(self) -> Optional[str]:
+        pw = self._password_in_memory
+        if not self.is_unlocked():
+            return None
+        try:
+            self.check_password(pw)
+        except InvalidPassword as e:
+            raise Exception("inconsistent _password_in_memory") from e
+        return pw
+
+    def is_unlocked(self) -> bool:
+        return self._password_in_memory is not None or not self.has_password()
 
     def get_text_not_enough_funds_mentioning_frozen(
             self,
