@@ -231,7 +231,7 @@ class QEDaemon(AuthMixin, QObject):
                     return
 
                 if self.daemon.config.WALLET_SHOULD_USE_SINGLE_PASSWORD:
-                    self._use_single_password = self.daemon.update_password_for_directory(old_password=local_password, new_password=local_password)
+                    self._use_single_password = self._update_password_for_directory_and_unlock_wallets(old_password=local_password, new_password=local_password)
                     if not self._use_single_password and self.daemon.config.WALLET_ANDROID_USE_BIOMETRIC_AUTHENTICATION:
                         # we need to disable biometric auth if the user creates wallets with different passwords as
                         # we only store one encrypted password which is not associated to a specific wallet
@@ -399,10 +399,23 @@ class QEDaemon(AuthMixin, QObject):
     def setPassword(self, password):
         assert self._use_single_password
         assert password
-        if not self.daemon.update_password_for_directory(old_password=self._password, new_password=password):
+        if not self._update_password_for_directory_and_unlock_wallets(old_password=self._password, new_password=password):
             return False
         self._password = password
         return True
+
+    def _update_password_for_directory_and_unlock_wallets(self, *, old_password, new_password):
+        # note: this assumes all wallet files are in a single directory.
+        # change wallet passwords:
+        ret = self.daemon.update_password_for_directory(old_password=old_password, new_password=new_password)
+        # If some wallets just had their password changed, they got "locked" by wallet.update_password().
+        # If the password is not unified yet, other loaded wallets might still be unlocked.
+        # restore the invariant that all loaded wallets in qml must be unlocked:
+        for w in self.daemon.get_wallets().values():
+            if not w.is_unlocked():
+                w.unlock(new_password)
+            assert w.is_unlocked()
+        return ret
 
     @pyqtProperty(QENewWalletWizard, notify=newWalletWizardChanged)
     def newWalletWizard(self):
