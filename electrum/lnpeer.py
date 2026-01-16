@@ -2215,13 +2215,13 @@ class Peer(Logger, EventListener):
                 # this check is intended to gracefully handle stale htlcs in the set, e.g. after a crash
                 self.logger.debug(f"{mpp_htlc=} was already settled before, dropping it.")
                 htlc_set = htlc_set._replace(htlcs=htlc_set.htlcs - {mpp_htlc})
-                self.lnworker.received_mpp_htlcs[payment_key] = htlc_set
                 continue
             self._fulfill_htlc(chan, htlc_id, preimage)
             htlc_set = htlc_set._replace(htlcs=htlc_set.htlcs - {mpp_htlc})
-            self.lnworker.received_mpp_htlcs[payment_key] = htlc_set
             # reset just-in-time opening fee of channel
             chan.jit_opening_fee = None
+
+        self.lnworker.received_mpp_htlcs[payment_key] = htlc_set  # save updated set
 
     def _fulfill_htlc(self, chan: Channel, htlc_id: int, preimage: bytes):
         assert chan.hm.is_htlc_irrevocably_added_yet(htlc_proposer=REMOTE, htlc_id=htlc_id)
@@ -2258,7 +2258,6 @@ class Peer(Logger, EventListener):
                 # this check is intended to gracefully handle stale htlcs in the set, e.g. after a crash
                 self.logger.debug(f"{mpp_htlc=} was already failed before, dropping it.")
                 htlc_set = htlc_set._replace(htlcs=htlc_set.htlcs - {mpp_htlc})
-                self.lnworker.received_mpp_htlcs[payment_key] = htlc_set
                 continue
             onion_packet = self._parse_onion_packet(mpp_htlc.unprocessed_onion)
             processed_onion_packet = self._process_incoming_onion_packet(
@@ -2290,7 +2289,8 @@ class Peer(Logger, EventListener):
                 error_bytes=error_bytes,
             )
             htlc_set = htlc_set._replace(htlcs=htlc_set.htlcs - {mpp_htlc})
-            self.lnworker.received_mpp_htlcs[payment_key] = htlc_set
+
+        self.lnworker.received_mpp_htlcs[payment_key] = htlc_set  # save updated set
 
     def fail_htlc(self, *, chan: Channel, htlc_id: int, error_bytes: bytes):
         self.logger.info(f"fail_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}.")
