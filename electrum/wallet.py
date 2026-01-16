@@ -410,7 +410,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         # load addresses needs to be called before constructor for sanity checks
         db.load_addresses(self.wallet_type)
         self.keystore = None  # type: Optional[KeyStore]  # will be set by load_keystore
-        self._password_in_memory = None  # see self.unlock
+        self._password_in_memory = (None, False)  # see self.unlock
         Logger.__init__(self)
 
         self.network = None
@@ -3202,8 +3202,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         # save changes. force full rewrite to rm remnants of old password
         if self.storage and self.storage.file_exists():
             self.db.write_and_force_consolidation()
-        # if wallet was previously unlocked, reset password_in_memory
-        self.lock_wallet()
+        # if wallet was previously unlocked, update password_in_memory
+        if self.is_unlocked():
+            self._password_in_memory = (new_pw, True)
 
     @abstractmethod
     def _update_password_for_keystore(self, old_pw: Optional[str], new_pw: Optional[str]) -> None:
@@ -3532,16 +3533,21 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         """Returns the number of new addresses we generated."""
         return 0
 
-    def unlock(self, password):
+    def unlock(self, password: Optional[str]):
         self.logger.info(f'unlocking wallet')
         self.check_password(password)
-        self._password_in_memory = password
+        self._password_in_memory = (password, True)
 
     def lock_wallet(self):
-        self._password_in_memory = None
+        self._password_in_memory = (None, False)
 
     def get_unlocked_password(self):
-        return self._password_in_memory
+        password, _is_unlocked = self._password_in_memory
+        return password
+
+    def is_unlocked(self):
+        _password, is_unlocked = self._password_in_memory
+        return is_unlocked
 
     def get_text_not_enough_funds_mentioning_frozen(
             self,

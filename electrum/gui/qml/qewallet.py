@@ -765,7 +765,6 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         try:
             self._logger.info('setting new password')
             self.wallet.update_password(current_password, password, encrypt_storage=True)
-            self.wallet.unlock(password)
             return True
         except InvalidPassword as e:
             self._logger.exception(repr(e))
