@@ -208,12 +208,13 @@ class AddressSynchronizer(Logger, EventListener):
             self.verifier = SPV(self.network, self)
             self.asyncio_loop = network.asyncio_loop
             self.register_callbacks()
+            self._update_stored_local_height()
 
     @event_listener
     @with_lock
     def on_event_blockchain_updated(self, *args):
         self.invalidate_cache()
-        self.db.put('stored_height', self.get_local_height())
+        self._update_stored_local_height()
 
     async def stop(self):
         if self.network:
@@ -693,6 +694,9 @@ class AddressSynchronizer(Logger, EventListener):
         if cached_local_height is not None:
             return cached_local_height
         return self.network.get_local_height() if self.network else self.db.get('stored_height', 0)
+
+    def _update_stored_local_height(self) -> None:
+        self.db.put('stored_height', self.get_local_height())
 
     def set_future_tx(self, txid: str, *, wanted_height: int):
         """Mark a local tx as "future" (encumbered by a timelock).
