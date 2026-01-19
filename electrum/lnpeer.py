@@ -199,7 +199,8 @@ class Peer(Logger, EventListener):
         return chan
 
     def diagnostic_name(self):
-        return self.lnworker.__class__.__name__ + ', ' + self.transport.name()
+        lnw_name = self.lnworker.diagnostic_name() or self.lnworker.__class__.__name__
+        return lnw_name + ', ' + self.transport.name()
 
     async def ping_if_required(self):
         if time.time() - self.last_message_time > 30:

@@ -225,7 +225,6 @@ class LNPeerManager(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         features: LnFeatures,
         config: 'SimpleConfig',
     ):
-        Logger.__init__(self)
         NetworkRetryManager.__init__(
             self,
             max_retry_delay_normal=3600,
@@ -236,6 +235,7 @@ class LNPeerManager(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         self.lock = threading.RLock()
         self.node_keypair = node_keypair
         self._lnwallet_or_lngossip = lnwallet_or_lngossip
+        Logger.__init__(self)
         self._peers = {}  # type: Dict[bytes, Peer]  # pubkey -> Peer  # needs self.lock
         self._channelless_incoming_peers = set()  # type: Set[bytes]  # node_ids  # needs self.lock
         self.taskgroup = OldTaskGroup()
@@ -245,6 +245,10 @@ class LNPeerManager(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         self.config = config
         self.stopping_soon = False  # whether we are being shut down
         self.register_callbacks()
+
+    def diagnostic_name(self):
+        lnw = self._lnwallet_or_lngossip
+        return lnw.diagnostic_name() or lnw.__class__.__name__
 
     @property
     def channel_db(self) -> 'ChannelDB':
