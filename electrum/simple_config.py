@@ -446,6 +446,7 @@ class SimpleConfig(Logger):
 
     def save_user_config(self):
         if self.CONFIG_FORGET_CHANGES:
+            self.logger.warning(f"not saving config changes to disk as {self.cv.CONFIG_FORGET_CHANGES.key()} is set", only_once=True)
             return
         if not self.path:
             return

@@ -2397,7 +2397,7 @@ def add_global_options(parser, suppress=False):
         "--rpcpassword", dest=SimpleConfig.RPC_PASSWORD.key(), default=argparse.SUPPRESS,
         help=argparse.SUPPRESS if suppress else "RPC password")
     group.add_argument(
-        "--forgetconfig", action="store_true", dest=SimpleConfig.CONFIG_FORGET_CHANGES.key(), default=False,
+        "--forgetconfig", action="store_true", dest=SimpleConfig.CONFIG_FORGET_CHANGES.key(), default=None,
         help=argparse.SUPPRESS if suppress else "Forget config on exit")
 
 
