@@ -69,6 +69,8 @@ Assuming `adb` is installed:
 $ adb -d install -r dist/Electrum-*-arm64-v8a-debug.apk
 $ adb shell monkey -p org.electrum.electrum 1
 ```
+Note `adb install` can take a `--user {userId}` option to install the app for a specific profile.
+Without that, the default is to install to *all* profiles.
 
 
 ### How do I get an interactive shell inside docker?
