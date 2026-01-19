@@ -679,6 +679,11 @@ class SimpleConfig(Logger):
     WALLET_SHOULD_USE_SINGLE_PASSWORD = ConfigVar('should_use_single_password', default=False, type_=bool)
     # TODO: consider removing WALLET_DID_USE_SINGLE_PASSWORD once encrypted wallet file headers are available
     WALLET_DID_USE_SINGLE_PASSWORD = ConfigVar('did_use_single_password', default=False, type_=bool)
+    WALLET_ANDROID_USE_BIOMETRIC_AUTHENTICATION = ConfigVar('android_use_biometrics', default=False, type_=bool)
+    # this is the wrap key encrypted with a secret stored in AndroidKeyStore
+    WALLET_ANDROID_BIOMETRIC_AUTH_ENCRYPTED_WRAP_KEY = ConfigVar('android_biometrics_encrypted_wrap_key', default='', type_=str)
+    # this is the "unified wallet password", encrypted with the wrap key
+    WALLET_ANDROID_BIOMETRIC_AUTH_WRAPPED_WALLET_PASSWORD = ConfigVar('android_biometrics_wrapped_wallet_password', default='', type_=str)
     # note: 'use_change' and 'multiple_change' are per-wallet settings
     WALLET_SEND_CHANGE_TO_LIGHTNING = ConfigVar(
         'send_change_to_lightning', default=False, type_=bool,
@@ -849,6 +854,7 @@ Warning: setting this to too low will result in lots of payment failures."""),
     GUI_QML_ADDRESS_LIST_SHOW_USED = ConfigVar('address_list_show_used', default=False, type_=bool)
     GUI_QML_ALWAYS_ALLOW_SCREENSHOTS = ConfigVar('android_always_allow_screenshots', default=False, type_=bool)
     GUI_QML_SET_MAX_BRIGHTNESS_ON_QR_DISPLAY = ConfigVar('android_set_max_brightness_on_qr_display', default=True, type_=bool)
+    GUI_QML_PAYMENT_AUTHENTICATION = ConfigVar('qml_payment_authentication', default=False, type_=bool)
 
     BTC_AMOUNTS_DECIMAL_POINT = ConfigVar('decimal_point', default=DECIMAL_POINT_DEFAULT, type_=int)
     BTC_AMOUNTS_FORCE_NZEROS_AFTER_DECIMAL_POINT = ConfigVar(
@@ -920,7 +926,6 @@ Warning: setting this to too low will result in lots of payment failures."""),
     RECENTLY_OPEN_WALLET_FILES = ConfigVar('recently_open', default=None)
     IO_DIRECTORY = ConfigVar('io_dir', default=os.path.expanduser('~'), type_=str)
     WALLET_BACKUP_DIRECTORY = ConfigVar('backup_dir', default=None, type_=str)
-    CONFIG_PIN_CODE = ConfigVar('pin_code', default=None, type_=str)
     QR_READER_FLIP_X = ConfigVar('qrreader_flip_x', default=True, type_=bool)
     WIZARD_DONT_CREATE_SEGWIT = ConfigVar('nosegwit', default=False, type_=bool)
     CONFIG_FORGET_CHANGES = ConfigVar('forget_config', default=False, type_=bool)

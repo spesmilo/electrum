@@ -158,58 +158,82 @@ Pane {
                     }
 
                     RowLayout {
+                        Layout.columnSpan: 2
                         Layout.fillWidth: true
                         spacing: 0
+                        // isAvailable checks phone support and if a fingerprint is enrolled on the system
+                        enabled: Biometrics.isAvailable && Daemon.currentWallet
+
+                        Connections {
+                            target: Biometrics
+                            function onEnablingFailed(error) {
+                                if (error === 'CANCELLED') {
+                                    return // don't show error popup
+                                }
+                                var err = app.messageDialog.createObject(app, {
+                                    text: qsTr('Failed to enable biometric authentication: ') + error
+                                })
+                                err.open()
+                            }
+                        }
+
                         Switch {
-                            id: usePin
-                            checked: Config.pinCode
+                            id: useBiometrics
+                            checked: Biometrics.isEnabled
                             onCheckedChanged: {
                                 if (activeFocus) {
-                                    console.log('PIN active ' + checked)
+                                    useBiometrics.focus = false
                                     if (checked) {
-                                        var dialog = pinSetup.createObject(preferences, {mode: 'enter'})
-                                        dialog.accepted.connect(function() {
-                                            Config.pinCode = dialog.pincode
-                                            dialog.close()
-                                        })
-                                        dialog.rejected.connect(function() {
-                                            checked = false
-                                        })
-                                        dialog.open()
+                                        if (Daemon.singlePasswordEnabled) {
+                                            Biometrics.enable(Daemon.singlePassword)
+                                        } else {
+                                            useBiometrics.checked = false
+                                            var err = app.messageDialog.createObject(app, {
+                                                title: qsTr('Unavailable'),
+                                                text: [
+                                                    qsTr("Cannot activate biometric authentication because you have wallets with different passwords."),
+                                                    qsTr("To use biometric authentication you first need to change all wallet passwords to the same password.")
+                                                ].join("\n")
+                                            })
+                                            err.open()
+                                        }
                                     } else {
-                                        focus = false
-                                        Config.pinCode = ''
-                                        // re-add binding, pincode still set if auth failed
-                                        checked = Qt.binding(function () { return Config.pinCode })
+                                        Biometrics.disableProtected()
                                     }
                                 }
-
                             }
                         }
                         Label {
                             Layout.fillWidth: true
-                            text: qsTr('PIN protect payments')
+                            text: qsTr('Biometric authentication')
                             wrapMode: Text.Wrap
                         }
                     }
 
-                    Pane {
-                        background: Rectangle { color: Material.dialogColor }
-                        padding: 0
-                        visible: Config.pinCode != ''
-                        FlatButton {
-                            text: qsTr('Modify')
-                            onClicked: {
-                                var dialog = pinSetup.createObject(preferences, {
-                                    mode: 'change',
-                                    pincode: Config.pinCode
-                                })
-                                dialog.accepted.connect(function() {
-                                    Config.pinCode = dialog.pincode
-                                    dialog.close()
-                                })
-                                dialog.open()
+                    RowLayout {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+                        spacing: 0
+
+                        property bool noWalletPassword: Daemon.currentWallet ? Daemon.currentWallet.verifyPassword('') : true
+                        enabled: Daemon.currentWallet && !noWalletPassword
+
+                        Switch {
+                            id: paymentAuthentication
+                            // showing the toggle as checked even if the wallet has no password would be misleading
+                            checked: Config.paymentAuthentication && !(Daemon.currentWallet && parent.noWalletPassword)
+                            onCheckedChanged: {
+                                if (activeFocus) {
+                                    // will request authentication when checked = false
+                                    console.log('paymentAuthentication: ' + checked)
+                                    Config.paymentAuthentication = checked;
+                                }
                             }
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            text: qsTr('Payment authentication')
+                            wrapMode: Text.Wrap
                         }
                     }
 
@@ -460,11 +484,6 @@ Pane {
                 }
             }
         }
-    }
-
-    Component {
-        id: pinSetup
-        Pin {}
     }
 
     Component.onCompleted: {

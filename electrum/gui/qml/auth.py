@@ -5,7 +5,18 @@ from PyQt6.QtCore import pyqtSignal, pyqtSlot
 from electrum.logging import get_logger
 
 
-def auth_protect(func=None, reject=None, method='pin', message=''):
+def auth_protect(func=None, reject=None, method='payment_auth', message=''):
+    """
+    Supported methods:
+        * payment_auth: If the user has enabled the 'Payment authentication' config
+                        they need to authenticate to continue. If biometrics are enabled they
+                        can authenticate using the Android system dialog, else they will see the
+                        wallet password dialog.
+                        If the option is disabled they will have to confirm a dialog.
+        * wallet: Same as payment_auth, but not dependent on user configuration,
+                  always requires authentication.
+        * wallet_password_only: No biometric/system authentication, user has to enter wallet password.
+    """
     if func is None:
         return partial(auth_protect, reject=reject, method=method, message=message)
 

@@ -475,6 +475,15 @@ Pane {
             })
             dialog.accepted.connect(function() {
                 var success = Daemon.setPassword(dialog.password)
+                if (success && Biometrics.isEnabled) {
+                    if (Biometrics.isAvailable) {
+                        // also update the biometric authentication
+                        Biometrics.enable(dialog.password)
+                    } else {
+                        // disable biometric authentication as it is not available
+                        Biometrics.disable()
+                    }
+                }
                 var done_dialog = app.messageDialog.createObject(app, {
                     title: success ? qsTr('Success') : qsTr('Error'),
                     iconSource: success
@@ -546,6 +555,11 @@ Pane {
                     }
                     var error_msg = qsTr('Password change failed')
                 }
+                if (success && Biometrics.isEnabled) {
+                    // unlikely to happen as this means the user somehow moved from
+                    // a unified password to differing passwords
+                    Biometrics.disable()
+                }
                 var done_dialog = app.messageDialog.createObject(app, {
                     title: success ? qsTr('Success') : qsTr('Error'),
                     iconSource: success
@@ -560,6 +574,25 @@ Pane {
         function onSeedRetrieved() {
             seedText.visible = true
             showSeedText.visible = false
+        }
+    }
+
+    Connections {
+        target: Biometrics
+        function onEnablingFailed(error) {
+            if (error === 'CANCELLED') {
+                var biometrics_disabled_dialog = app.messageDialog.createObject(app, {
+                    title: qsTr('Biometric Authentication'),
+                    iconSource: Qt.resolvedUrl('../../icons/warning.png'),
+                    text: qsTr('Biometric authentication disabled. You can enable it again in the settings.')
+                })
+                biometrics_disabled_dialog.open()
+                return
+            }
+            var err = app.messageDialog.createObject(app, {
+                text: qsTr('Failed to update biometric authentication to new password: ') + error
+            })
+            err.open()
         }
     }
 
