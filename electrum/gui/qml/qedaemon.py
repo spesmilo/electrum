@@ -192,12 +192,15 @@ class QEDaemon(AuthMixin, QObject):
 
         self._logger.debug('load wallet ' + str(self._path))
 
-        # map empty string password to None
+        # password unification helper:
+        # - if pw not given (None), try pw of current wallet.
+        # - but "" empty str passwords are kept as-is, to open passwordless wallets
+        if password is None:
+            password = self._password
+
+        # map explicit empty str password to None. the backend disallows empty str passwords.
         if password == '':
             password = None
-
-        if not password:
-            password = self._password
 
         wallet_already_open = self.daemon.get_wallet(self._path)
         if wallet_already_open is not None:
