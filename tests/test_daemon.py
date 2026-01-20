@@ -1,3 +1,5 @@
+import asyncio
+from collections import defaultdict
 import os
 from typing import Optional, Iterable
 
@@ -5,7 +7,10 @@ from electrum.commands import Commands
 from electrum.daemon import Daemon
 from electrum.simple_config import SimpleConfig
 from electrum.wallet import Abstract_Wallet
+from electrum.lnworker import LNWallet, LNPeerManager
+from electrum.lnwatcher import LNWatcher
 from electrum import util
+from electrum.utils.memory_leak import count_objects_in_memory
 
 from . import ElectrumTestCase, as_testnet, restore_wallet_from_text__for_unittest
 
@@ -30,7 +35,7 @@ class DaemonTestCase(ElectrumTestCase):
         await self.daemon.stop()
         await super().asyncTearDown()
 
-    def _restore_wallet_from_text(self, text, *, password: Optional[str], encrypt_file: bool = None) -> str:
+    def _restore_wallet_from_text(self, text, *, password: Optional[str], encrypt_file: bool = None, **kwargs) -> str:
         """Returns path for created wallet."""
         basename = util.get_new_wallet_name(self.wallet_dir)
         path = os.path.join(self.wallet_dir, basename)
@@ -40,6 +45,7 @@ class DaemonTestCase(ElectrumTestCase):
             password=password,
             encrypt_file=encrypt_file,
             config=self.config,
+            **kwargs,
         )
         # We return the path instead of the wallet object, as extreme
         # care would be needed to use the wallet object directly:
@@ -187,6 +193,40 @@ class TestUnifiedPassword(DaemonTestCase):
         is_unified = self.daemon.update_password_for_directory(old_password="123456", new_password="123456")
         self.assertTrue(is_unified)
         self._run_post_unif_sanity_checks(paths, password="123456")
+
+    # misc --->
+
+    async def test_wallet_objects_are_properly_garbage_collected_after_check_pw_for_dir(self):
+        orig_cb_count = util.callback_mgr.count_all_callbacks()
+        # GC sanity-check:
+        mclasses = [Abstract_Wallet, LNWallet, LNWatcher, LNPeerManager]
+        objmap = count_objects_in_memory(mclasses)
+        for mcls in mclasses:
+            self.assertEqual(len(objmap[mcls]), 0, msg=f"too many lingering objs of type={mcls}")
+        # restore some wallets
+        paths = []
+        paths.append(self._restore_wallet_from_text("9dk", password="123456", encrypt_file=True))
+        paths.append(self._restore_wallet_from_text("9dk", password="123456", encrypt_file=False))
+        paths.append(self._restore_wallet_from_text("9dk", password=None))
+        paths.append(self._restore_wallet_from_text("9dk", password="123456", encrypt_file=True, passphrase="hunter2"))
+        paths.append(self._restore_wallet_from_text("9dk", password="999999", encrypt_file=False, passphrase="hunter2"))
+        paths.append(self._restore_wallet_from_text("9dk", password=None, passphrase="hunter2"))
+        # test unification
+        can_be_unified, is_unified, paths_succeeded = self.daemon.check_password_for_directory(old_password="123456", wallet_dir=self.wallet_dir)
+        self.assertEqual((False, False, 5), (can_be_unified, is_unified, len(paths_succeeded)))
+        # gc
+        try:
+            async with util.async_timeout(5):
+                while True:
+                    objmap = count_objects_in_memory(mclasses)
+                    if sum(len(lst) for lst in objmap.values()) == 0:
+                        break  # all "mclasses"-type objects have been GC-ed
+                    await asyncio.sleep(0.01)
+        except asyncio.TimeoutError:
+            for mcls in mclasses:
+                self.assertEqual(len(objmap[mcls]), 0, msg=f"too many lingering objs of type={mcls}")
+        # also check callbacks have been cleaned up:
+        self.assertEqual(orig_cb_count, util.callback_mgr.count_all_callbacks())
 
 
 class TestCommandsWithDaemon(DaemonTestCase):

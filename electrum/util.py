@@ -57,6 +57,7 @@ import enum
 from contextlib import nullcontext, suppress
 import traceback
 import inspect
+import weakref
 
 import aiohttp
 from aiohttp_socks import ProxyConnector, ProxyType
@@ -1954,22 +1955,38 @@ class CallbackManager(Logger):
     def __init__(self):
         Logger.__init__(self)
         self.callback_lock = threading.Lock()
-        self.callbacks = defaultdict(set)  # type: Dict[str, Set[Callable]]  # note: needs self.callback_lock
+        self._wcallbacks = defaultdict(set)  # type: Dict[str, Set[weakref.ref[Callable]]]  # note: needs self.callback_lock
 
-    def register_callback(self, func: Callable, events: Sequence[str]) -> None:
+    @staticmethod
+    def _wcb_from_any_callback(cb: Callable) -> weakref.ref[Callable]:
+        assert callable(cb), type(cb)
+        if isinstance(cb, weakref.ref):  # no-op
+            return cb
+        elif inspect.ismethod(cb):  # instance method, such as for a subclass of EventListener
+            return WeakMethodProper(cb)
+        else:  # proper function? e.g. used by lnpeer unit tests
+            return weakref.ref(cb)
+
+    def register_callback(self, cb: Callable, events: Sequence[str]) -> None:
+        wcb = self._wcb_from_any_callback(cb)
         with self.callback_lock:
             for event in events:
-                self.callbacks[event].add(func)
+                self._wcallbacks[event].add(wcb)
 
-    def unregister_callback(self, callback: Callable) -> None:
+    def unregister_callback(self, cb: Callable) -> None:
+        wcb = self._wcb_from_any_callback(cb)
         with self.callback_lock:
-            for callbacks in self.callbacks.values():
-                if callback in callbacks:
-                    callbacks.remove(callback)
+            for callbacks in self._wcallbacks.values():
+                if wcb in callbacks:
+                    callbacks.remove(wcb)
+
+    def count_all_callbacks(self) -> int:
+        with self.callback_lock:
+            return sum(len(cbs) for cbs in self._wcallbacks.values())
 
     def clear_all_callbacks(self) -> None:
         with self.callback_lock:
-            self.callbacks.clear()
+            self._wcallbacks.clear()
 
     def trigger_callback(self, event: str, *args) -> None:
         """Trigger a callback with given arguments.
@@ -1979,8 +1996,11 @@ class CallbackManager(Logger):
         loop = get_asyncio_loop()
         assert loop.is_running(), "event loop not running"
         with self.callback_lock:
-            callbacks = copy.copy(self.callbacks[event])
-        for callback in callbacks:
+            wcallbacks = copy.copy(self._wcallbacks[event])
+        for wcb in wcallbacks:
+            callback = wcb()
+            if callback is None:
+                continue
             if inspect.iscoroutinefunction(callback):  # async cb
                 fut = asyncio.run_coroutine_threadsafe(callback(*args), loop)
 
@@ -2002,14 +2022,28 @@ unregister_callback = callback_mgr.unregister_callback
 _event_listeners = defaultdict(set)  # type: Dict[str, Set[str]]
 
 
+class WeakMethodProper(weakref.WeakMethod):
+    """Unlike weakref.WeakMethod, this class has an __eq__ I can trust."""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        meth = self()
+        self._my_id = (id(meth.__self__), id(meth.__func__))
+
+    def __hash__(self):
+        return hash(self._my_id)
+
+    def __eq__(self, other):
+        if not isinstance(other, WeakMethodProper):
+            return False
+        return self._my_id == other._my_id
+
+
 class EventListener:
     """Use as a mixin for a class that has methods to be triggered on events.
     - Methods that receive the callbacks should be named "on_event_*" and decorated with @event_listener.
     - register_callbacks() should be called once per instance of EventListener, e.g. in __init__
     - unregister_callbacks() should be called at least once, e.g. when the instance is destroyed
-        - if register_callbacks() is called in __init__, as opposed to a separate start() method,
-          extra care is needed that the call to unregister_callbacks() is not forgotten,
-          otherwise we will leak memory
+        - as fallback, __del__() also calls unregister_callbacks()
     """
 
     def _list_callbacks(self):
@@ -2030,6 +2064,9 @@ class EventListener:
         for name, method in self._list_callbacks():
             #_logger.debug(f'unregistering callback {method}')
             unregister_callback(method)
+
+    def __del__(self):
+        self.unregister_callbacks()
 
 
 def event_listener(func):

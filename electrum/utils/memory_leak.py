@@ -1,3 +1,4 @@
+import asyncio
 from collections import defaultdict
 import datetime
 import os
@@ -5,6 +6,7 @@ import time
 from typing import Sequence, Mapping, TypeVar, Optional
 import weakref
 
+from electrum import util
 from electrum.util import ThreadJob
 
 
@@ -50,6 +52,26 @@ class DebugMem(ThreadJob):
         if time.time() > self.next_time:
             self.mem_stats()
             self.next_time = time.time() + self.interval
+
+
+async def wait_until_obj_is_garbage_collected(wr: weakref.ref) -> None:
+    """Async wait until the object referenced by `wr` is GC-ed."""
+    obj = wr()
+    if obj is None:
+        return
+    evt_gc = asyncio.Event()  # set when obj is finally GC-ed.
+    wr2 = weakref.ref(obj, lambda _x: util.run_sync_function_on_asyncio_thread(evt_gc.set, block=False))
+    del obj
+    while True:
+        try:
+            async with util.async_timeout(0.01):
+                await evt_gc.wait()
+        except asyncio.TimeoutError:
+            import gc
+            gc.collect()
+        else:
+            break
+    assert evt_gc.is_set()
 
 
 def debug_memusage_list_all_objects(limit: int = 50) -> list[tuple[str, int]]:
