@@ -189,8 +189,8 @@ ElDialog {
                 enabled: _addressMine
                 icon.source: '../../icons/seal.png'
                 onClicked: {
-                    var sig = Daemon.currentWallet.signMessage(addressField.text, plaintext.text)
-                    signature.text = sig
+                    Daemon.currentWallet.signMessage(addressField.text, plaintext.text)
+                    // emits messageSigned(sig)
                 }
             }
             FlatButton {
@@ -207,7 +207,13 @@ ElDialog {
                 }
             }
         }
+    }
 
+    Connections {
+        target: Daemon.currentWallet
+        function onMessageSigned(sig) {
+            signature.text = sig
+        }
     }
 
     Component.onCompleted: {
