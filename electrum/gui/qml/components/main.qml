@@ -852,11 +852,13 @@ ApplicationWindow
         // 'payment_auth' should have been converted to 'wallet' at this point
         if (method === 'wallet' || method === 'wallet_password_only') {
             var dialog = app.passwordDialog.createObject(app, authMessage ? {'title': authMessage} : {})
-            dialog.accepted.connect(function() {
-                if (Daemon.currentWallet.verifyPassword(dialog.password)) {
+            dialog.passwordEntered.connect(function(password) {
+                if (Daemon.currentWallet.verifyPassword(password)) {
+                    dialog.close()
                     qtobject.authProceed()
                 } else {
-                    qtobject.authCancel()
+                    dialog.clearPassword()
+                    dialog.errorMessage = qsTr("Invalid Password")
                 }
             })
             dialog.rejected.connect(function() {
