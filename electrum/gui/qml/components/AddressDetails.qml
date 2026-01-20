@@ -346,4 +346,10 @@ Pane {
             dialog.open()
         }
     }
+
+    Binding {
+        target: AppController
+        property: 'secureWindow'
+        value: Boolean(addressdetails.privkey)
+    }
 }
