@@ -14,8 +14,10 @@ ElDialog {
     iconSource: Qt.resolvedUrl('../../icons/lock.png')
 
     property bool confirmPassword: false
-    property string password
     property string infotext
+    property string errorMessage
+
+    signal passwordEntered(string password)
 
     anchors.centerIn: parent
     width: parent.width * 4/5
@@ -84,6 +86,16 @@ ElDialog {
                     password: pw_1.text
                 }
             }
+
+            Label {
+                Layout.maximumWidth: parent.width
+                Layout.alignment: Qt.AlignHCenter
+                text: errorMessage
+                wrapMode: Text.Wrap
+                visible: errorMessage
+                color: constants.colorError
+                font.pixelSize: constants.fontSizeLarge
+            }
         }
 
         FlatButton {
@@ -92,10 +104,13 @@ ElDialog {
             icon.source: '../../icons/confirmed.png'
             enabled: confirmPassword ? pw_1.text.length >= 6 && pw_1.text == pw_2.text : true
             onClicked: {
-                password = pw_1.text
-                passworddialog.doAccept()
+                passwordEntered(pw_1.text)
             }
         }
     }
 
+    function clearPassword() {
+        pw_1.text = ""
+        pw_2.text = ""
+    }
 }
