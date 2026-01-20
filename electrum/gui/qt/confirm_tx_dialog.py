@@ -1043,14 +1043,16 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         if self.expected_onchain_amount_sat < self.swap_manager.get_min_amount():
             return '\n'.join([
                 _("Payment amount below the minimum possible swap amount."),
+                _("Minimum amount: {}").format(f(self.swap_manager.get_min_amount())), "",
                 _("You need to send a higher amount to be able to do a Submarine Payment."),
-                _("Minimum amount: {}").format(f(self.swap_manager.get_min_amount())),
             ])
 
-        too_low_outbound_liquidity_msg = '\n'.join([
-            _("You don't have enough outgoing capacity in your lightning channels."),
+        too_low_outbound_liquidity_msg = ''.join([
+            _("You don't have enough outgoing capacity in your lightning channels."), '\n',
+            _("Your lightning channels can send: {}").format(f(ln_can_send)), '\n',
+            _("For this transaction you need: {}").format(f(self.lightning_send_amount_sat)) if self.lightning_send_amount_sat else '',
+            '\n\n' if self.lightning_send_amount_sat else '\n',
             _("To add outgoing capacity you can open a new lightning channel or do a submarine swap."),
-            _("Your lightning channels can send: {}").format(f(ln_can_send)),
         ])
 
         # prioritize showing the swap provider liquidity warning before the channel liquidity warning
@@ -1062,8 +1064,8 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
                 provider_liquidity = 0
             msg = [
                 _("The selected swap provider is unable to offer a forward swap of this value."),
+                _("Available liquidity") + f": {f(provider_liquidity)}", "",
                 _("In order to continue select a different provider or try to send a smaller amount."),
-                _("Available liquidity") + f": {f(provider_liquidity)}",
             ]
             # we don't know exactly how much we need to send on ln yet, so we can assume 0 provider fees
             probably_too_low_outbound_liquidity = self.expected_onchain_amount_sat > ln_can_send
