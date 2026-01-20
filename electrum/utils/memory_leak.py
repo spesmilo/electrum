@@ -2,8 +2,27 @@ from collections import defaultdict
 import datetime
 import os
 import time
+from typing import Sequence, Mapping, TypeVar, Optional
+import weakref
 
 from electrum.util import ThreadJob
+
+
+_U = TypeVar('_U')
+
+def count_objects_in_memory(mclasses: Sequence[type[_U]]) -> Mapping[type[_U], Sequence[weakref.ref[_U]]]:
+    import gc
+    gc.collect()
+    objmap = defaultdict(list)
+    for obj in gc.get_objects():
+        for class_ in mclasses:
+            try:
+                _isinstance = isinstance(obj, class_)
+            except AttributeError:
+                _isinstance = False
+            if _isinstance:
+                objmap[class_].append(weakref.ref(obj))
+    return objmap
 
 
 class DebugMem(ThreadJob):
@@ -21,18 +40,8 @@ class DebugMem(ThreadJob):
         self.interval = interval
 
     def mem_stats(self):
-        import gc
         self.logger.info("Start memscan")
-        gc.collect()
-        objmap = defaultdict(list)
-        for obj in gc.get_objects():
-            for class_ in self.classes:
-                try:
-                    _isinstance = isinstance(obj, class_)
-                except AttributeError:
-                    _isinstance = False
-                if _isinstance:
-                    objmap[class_].append(obj)
+        objmap = count_objects_in_memory(self.classes)
         for class_, objs in objmap.items():
             self.logger.info(f"{class_.__name__}: {len(objs)}")
         self.logger.info("Finish memscan")
