@@ -52,7 +52,7 @@ def debug_memusage_list_all_objects(limit: int = 50) -> list[tuple[str, int]]:
     )
 
 
-def debug_memusage_dump_random_backref_chain(objtype: str) -> str:
+def debug_memusage_dump_random_backref_chain(objtype: str) -> Optional[str]:
     """Writes a dotfile to cwd, containing the backref chain
     for a randomly selected object of type objtype.
 
@@ -68,10 +68,14 @@ def debug_memusage_dump_random_backref_chain(objtype: str) -> str:
     import random
     timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     fpath = os.path.abspath(f"electrum_backref_chain_{timestamp}.dot")
+    objects = objgraph.by_type(objtype)
+    if not objects:
+        return None
+    random_obj = random.choice(objects)
     with open(fpath, "w") as f:
         objgraph.show_chain(
             objgraph.find_backref_chain(
-                random.choice(objgraph.by_type(objtype)),
+                random_obj,
                 objgraph.is_proper_module),
             output=f)
     return fpath
