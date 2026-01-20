@@ -300,6 +300,7 @@ Pane {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
                         spacing: 0
+                        enabled: AppController.isAndroid()
                         Switch {
                             id: disableScreenshots
                             onCheckedChanged: {
@@ -503,7 +504,7 @@ Pane {
         freezeReusedAddressUtxos.checked = Config.freezeReusedAddressUtxos
         useTrampolineRouting.checked = !Config.useGossip
         enableDebugLogs.checked = Config.enableDebugLogs
-        disableScreenshots.checked = !Config.alwaysAllowScreenshots
+        disableScreenshots.checked = !Config.alwaysAllowScreenshots && AppController.isAndroid()
         setMaxBrightnessOnQrDisplay.checked = Config.setMaxBrightnessOnQrDisplay
         useRecoverableChannels.checked = Config.useRecoverableChannels
         syncLabels.checked = AppController.isPluginEnabled('labels')
