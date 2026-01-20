@@ -21,6 +21,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import concurrent.futures
+import copy
 from dataclasses import dataclass
 import logging
 import os
@@ -1953,12 +1954,12 @@ class CallbackManager(Logger):
     def __init__(self):
         Logger.__init__(self)
         self.callback_lock = threading.Lock()
-        self.callbacks = defaultdict(list)  # type: Dict[str, List[Callable]]  # note: needs self.callback_lock
+        self.callbacks = defaultdict(set)  # type: Dict[str, Set[Callable]]  # note: needs self.callback_lock
 
     def register_callback(self, func: Callable, events: Sequence[str]) -> None:
         with self.callback_lock:
             for event in events:
-                self.callbacks[event].append(func)
+                self.callbacks[event].add(func)
 
     def unregister_callback(self, callback: Callable) -> None:
         with self.callback_lock:
@@ -1978,7 +1979,7 @@ class CallbackManager(Logger):
         loop = get_asyncio_loop()
         assert loop.is_running(), "event loop not running"
         with self.callback_lock:
-            callbacks = self.callbacks[event][:]
+            callbacks = copy.copy(self.callbacks[event])
         for callback in callbacks:
             if inspect.iscoroutinefunction(callback):  # async cb
                 fut = asyncio.run_coroutine_threadsafe(callback(*args), loop)
@@ -2004,8 +2005,11 @@ _event_listeners = defaultdict(set)  # type: Dict[str, Set[str]]
 class EventListener:
     """Use as a mixin for a class that has methods to be triggered on events.
     - Methods that receive the callbacks should be named "on_event_*" and decorated with @event_listener.
-    - register_callbacks() should be called exactly once per instance of EventListener, e.g. in __init__
+    - register_callbacks() should be called once per instance of EventListener, e.g. in __init__
     - unregister_callbacks() should be called at least once, e.g. when the instance is destroyed
+        - if register_callbacks() is called in __init__, as opposed to a separate start() method,
+          extra care is needed that the call to unregister_callbacks() is not forgotten,
+          otherwise we will leak memory
     """
 
     def _list_callbacks(self):
