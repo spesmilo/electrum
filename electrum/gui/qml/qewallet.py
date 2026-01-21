@@ -78,6 +78,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     otpFailed = pyqtSignal([str, str], arguments=['code', 'message'])
     peersUpdated = pyqtSignal()
     seedRetrieved = pyqtSignal()
+    messageSigned = pyqtSignal([str], arguments=['signature'])
 
     _network_signal = pyqtSignal(str, object)
 
@@ -848,10 +849,12 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def isAddressMine(self, addr):
         return self.wallet.is_mine(addr)
 
-    @pyqtSlot(str, str, result=str)
+    @pyqtSlot(str, str)
+    @auth_protect(message=_("Sign message?"))
     def signMessage(self, address, message):
         sig = self.wallet.sign_message(address, message, self.password)
-        return base64.b64encode(sig).decode('ascii')
+        result = base64.b64encode(sig).decode('ascii')
+        self.messageSigned.emit(result)
 
     def determine_max(self, *, mktx: Callable[[FeePolicy], PartialTransaction]) -> Tuple[Optional[int], Optional[str]]:
         # TODO: merge with SendTab.spend_max() and move to backend wallet

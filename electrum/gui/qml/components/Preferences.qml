@@ -161,6 +161,93 @@ Pane {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
                         spacing: 0
+                        Switch {
+                            id: syncLabels
+                            onCheckedChanged: {
+                                if (activeFocus)
+                                    AppController.setPluginEnabled('labels', checked)
+                            }
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            text: qsTr('Synchronize labels')
+                            wrapMode: Text.Wrap
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+                        spacing: 0
+                        Switch {
+                            id: psbtNostr
+                            onCheckedChanged: {
+                                if (activeFocus)
+                                    AppController.setPluginEnabled('psbt_nostr', checked)
+                            }
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            text: qsTr('Nostr Cosigner')
+                            wrapMode: Text.Wrap
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+                        spacing: 0
+                        enabled: AppController.isAndroid()
+                        Switch {
+                            id: setMaxBrightnessOnQrDisplay
+                            onCheckedChanged: {
+                                if (activeFocus)
+                                    Config.setMaxBrightnessOnQrDisplay = checked
+                            }
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            text: qsTr('Increase brightness when displaying QR codes')
+                            wrapMode: Text.Wrap
+                        }
+                    }
+
+                    PrefsHeading {
+                        Layout.columnSpan: 2
+                        text: qsTr('Security')
+                    }
+
+                    RowLayout {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+                        spacing: 0
+
+                        property bool noWalletPassword: Daemon.currentWallet ? Daemon.currentWallet.verifyPassword('') : true
+                        enabled: Daemon.currentWallet && !noWalletPassword
+
+                        Switch {
+                            id: paymentAuthentication
+                            // showing the toggle as checked even if the wallet has no password would be misleading
+                            checked: Config.paymentAuthentication && !(Daemon.currentWallet && parent.noWalletPassword)
+                            onCheckedChanged: {
+                                if (activeFocus) {
+                                    // will request authentication when checked = false
+                                    console.log('paymentAuthentication: ' + checked)
+                                    Config.paymentAuthentication = checked;
+                                }
+                            }
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            text: qsTr('Request authentication for payments')
+                            wrapMode: Text.Wrap
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+                        spacing: 0
                         // isAvailable checks phone support and if a fingerprint is enrolled on the system
                         enabled: Biometrics.isAvailable && Daemon.currentWallet
 
@@ -214,79 +301,17 @@ Pane {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
                         spacing: 0
-
-                        property bool noWalletPassword: Daemon.currentWallet ? Daemon.currentWallet.verifyPassword('') : true
-                        enabled: Daemon.currentWallet && !noWalletPassword
-
+                        enabled: AppController.isAndroid()
                         Switch {
-                            id: paymentAuthentication
-                            // showing the toggle as checked even if the wallet has no password would be misleading
-                            checked: Config.paymentAuthentication && !(Daemon.currentWallet && parent.noWalletPassword)
-                            onCheckedChanged: {
-                                if (activeFocus) {
-                                    // will request authentication when checked = false
-                                    console.log('paymentAuthentication: ' + checked)
-                                    Config.paymentAuthentication = checked;
-                                }
-                            }
-                        }
-                        Label {
-                            Layout.fillWidth: true
-                            text: qsTr('Payment authentication')
-                            wrapMode: Text.Wrap
-                        }
-                    }
-
-                    RowLayout {
-                        Layout.columnSpan: 2
-                        Layout.fillWidth: true
-                        spacing: 0
-                        Switch {
-                            id: syncLabels
+                            id: disableScreenshots
                             onCheckedChanged: {
                                 if (activeFocus)
-                                    AppController.setPluginEnabled('labels', checked)
+                                    Config.alwaysAllowScreenshots = !checked
                             }
                         }
                         Label {
                             Layout.fillWidth: true
-                            text: qsTr('Synchronize labels')
-                            wrapMode: Text.Wrap
-                        }
-                    }
-
-                    RowLayout {
-                        Layout.columnSpan: 2
-                        Layout.fillWidth: true
-                        spacing: 0
-                        Switch {
-                            id: psbtNostr
-                            onCheckedChanged: {
-                                if (activeFocus)
-                                    AppController.setPluginEnabled('psbt_nostr', checked)
-                            }
-                        }
-                        Label {
-                            Layout.fillWidth: true
-                            text: qsTr('Nostr Cosigner')
-                            wrapMode: Text.Wrap
-                        }
-                    }
-
-                    RowLayout {
-                        Layout.columnSpan: 2
-                        Layout.fillWidth: true
-                        spacing: 0
-                        Switch {
-                            id: setMaxBrightnessOnQrDisplay
-                            onCheckedChanged: {
-                                if (activeFocus)
-                                    Config.setMaxBrightnessOnQrDisplay = checked
-                            }
-                        }
-                        Label {
-                            Layout.fillWidth: true
-                            text: qsTr('Set display to max brightness when displaying QR codes')
+                            text: qsTr('Protect secrets from screenshots')
                             wrapMode: Text.Wrap
                         }
                     }
@@ -463,24 +488,6 @@ Pane {
                             wrapMode: Text.Wrap
                         }
                     }
-
-                    RowLayout {
-                        Layout.columnSpan: 2
-                        Layout.fillWidth: true
-                        spacing: 0
-                        Switch {
-                            id: alwaysAllowScreenshots
-                            onCheckedChanged: {
-                                if (activeFocus)
-                                    Config.alwaysAllowScreenshots = checked
-                            }
-                        }
-                        Label {
-                            Layout.fillWidth: true
-                            text: qsTr('Always allow screenshots')
-                            wrapMode: Text.Wrap
-                        }
-                    }
                 }
             }
         }
@@ -498,8 +505,8 @@ Pane {
         freezeReusedAddressUtxos.checked = Config.freezeReusedAddressUtxos
         useTrampolineRouting.checked = !Config.useGossip
         enableDebugLogs.checked = Config.enableDebugLogs
-        alwaysAllowScreenshots.checked = Config.alwaysAllowScreenshots
-        setMaxBrightnessOnQrDisplay.checked = Config.setMaxBrightnessOnQrDisplay
+        disableScreenshots.checked = !Config.alwaysAllowScreenshots && AppController.isAndroid()
+        setMaxBrightnessOnQrDisplay.checked = Config.setMaxBrightnessOnQrDisplay && AppController.isAndroid()
         useRecoverableChannels.checked = Config.useRecoverableChannels
         syncLabels.checked = AppController.isPluginEnabled('labels')
         psbtNostr.checked = AppController.isPluginEnabled('psbt_nostr')
