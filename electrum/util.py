@@ -378,10 +378,14 @@ class DaemonThread(threading.Thread, Logger):
         # malformed or malicious server responses
         with self.job_lock:
             for job in self.jobs:
+                start = time.perf_counter()
                 try:
                     job.run()
                 except Exception as e:
                     self.logger.exception('')
+                duration = time.perf_counter() - start
+                if duration > 0.5:
+                    self.logger.warning(f"thread job {job} blocked {self} DaemonThread for {duration:.2f} s")
 
     def remove_jobs(self, jobs):
         with self.job_lock:
