@@ -1954,7 +1954,7 @@ class CallbackManager(Logger):
 
     def __init__(self):
         Logger.__init__(self)
-        self.callback_lock = threading.Lock()
+        self.callback_lock = threading.RLock()
         self._wcallbacks = defaultdict(set)  # type: Dict[str, Set[weakref.ref[Callable]]]  # note: needs self.callback_lock
 
     @staticmethod
@@ -1976,6 +1976,7 @@ class CallbackManager(Logger):
     def unregister_callback(self, cb: Callable) -> None:
         wcb = self._wcb_from_any_callback(cb)
         with self.callback_lock:
+            # note: ^ callback_lock needs to be re-entrant, as we can now trigger __del__, which also takes the lock
             for callbacks in self._wcallbacks.values():
                 if wcb in callbacks:
                     callbacks.remove(wcb)
