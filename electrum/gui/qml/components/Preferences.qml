@@ -197,6 +197,7 @@ Pane {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
                         spacing: 0
+                        enabled: AppController.isAndroid()
                         Switch {
                             id: setMaxBrightnessOnQrDisplay
                             onCheckedChanged: {
@@ -206,7 +207,7 @@ Pane {
                         }
                         Label {
                             Layout.fillWidth: true
-                            text: qsTr('Set display to max brightness when displaying QR codes')
+                            text: qsTr('Increase brightness when displaying QR codes')
                             wrapMode: Text.Wrap
                         }
                     }
@@ -505,7 +506,7 @@ Pane {
         useTrampolineRouting.checked = !Config.useGossip
         enableDebugLogs.checked = Config.enableDebugLogs
         disableScreenshots.checked = !Config.alwaysAllowScreenshots && AppController.isAndroid()
-        setMaxBrightnessOnQrDisplay.checked = Config.setMaxBrightnessOnQrDisplay
+        setMaxBrightnessOnQrDisplay.checked = Config.setMaxBrightnessOnQrDisplay && AppController.isAndroid()
         useRecoverableChannels.checked = Config.useRecoverableChannels
         syncLabels.checked = AppController.isPluginEnabled('labels')
         psbtNostr.checked = AppController.isPluginEnabled('psbt_nostr')
