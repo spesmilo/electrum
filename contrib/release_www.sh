@@ -34,29 +34,71 @@ if [ -z "$ELECTRUM_SIGNING_WALLET" ] || [ -z "$ELECTRUM_SIGNING_ADDRESS" ]; then
     exit 1
 fi
 
-VERSION=$("$CONTRIB"/print_electrum_version.py)
-info "VERSION: $VERSION"
+# get previous versions from WWW_DIR
+VERSION_STABLE=$(jq -r '.version' "$WWW_DIR/version")
+PREVIOUS_STABLE_VERSION=$VERSION_STABLE
+# returns version 0.0 if previous alpha or beta is not found
+VERSION_ALPHA=$(jq -r '.extradata.version_alpha // "0.0"' "$WWW_DIR/version")
+VERSION_BETA=$(jq -r '.extradata.version_beta // "0.0"' "$WWW_DIR/version")
+if [ "$VERSION_STABLE" == null ]; then
+    echo "Couldn't find previous version in $WWW_DIR/version"
+    exit 1
+fi
 
-ANDROID_VERSIONCODE_NULLARCH=$("$CONTRIB"/android/get_apk_versioncode.py "null")
+# get current electrum version from electrum/version.py
+RELEASE_VERSION=$("$CONTRIB"/print_electrum_version.py)
+if [[ "$RELEASE_VERSION" =~ [a] ]]; then
+    VERSION_ALPHA=$RELEASE_VERSION
+elif [[ "$RELEASE_VERSION" =~ [b] ]]; then
+    VERSION_BETA=$RELEASE_VERSION
+else
+    VERSION_STABLE=$RELEASE_VERSION
+fi
+info "RELEASE_VERSION: $RELEASE_VERSION"
+
+# keep the android versioncode for the stable release version or generate new if RELEASE_VERSION is stable
+if [[ "$VERSION_STABLE" != "$PREVIOUS_STABLE_VERSION" ]]; then
+    ANDROID_VERSIONCODE_NULLARCH=$("$CONTRIB"/android/get_apk_versioncode.py "null")
+    info "ANDROID_VERSIONCODE_NULLARCH: $ANDROID_VERSIONCODE_NULLARCH"
+else
+    ANDROID_VERSIONCODE_NULLARCH=$(jq -r '.extradata.android_versioncode_nullarch' "$WWW_DIR/version")
+    info "reusing old android versioncode for unstable release: $ANDROID_VERSIONCODE_NULLARCH"
+fi
 # ^ note: should parse as an integer in the final json
-info "ANDROID_VERSIONCODE_NULLARCH: $ANDROID_VERSIONCODE_NULLARCH"
+
+if [ "$ANDROID_VERSIONCODE_NULLARCH" == null ]; then
+    echo "No valid ANDROID_VERSIONCODE_NULLARCH: $ANDROID_VERSIONCODE_NULLARCH"
+    exit 1
+fi
 
 set -x
 
-info "updating www repo"
+info "updating www repo in $WWW_DIR"
 ./contrib/make_download "$WWW_DIR"
-info "signing the version announcement file"
-sig=$(./run_electrum -o signmessage $ELECTRUM_SIGNING_ADDRESS $VERSION -w $ELECTRUM_SIGNING_WALLET)
-# note: the contents of "extradata" are currently not signed. We could add another field, extradata_sigs,
-#       containing signature(s) for "extradata". extradata, being json, would have to be canonically
-#       serialized before signing.
+
+info "signing the stable version field"
+version_sig=$(./run_electrum -o signmessage "$ELECTRUM_SIGNING_ADDRESS" "$VERSION_STABLE" -w "$ELECTRUM_SIGNING_WALLET")
+
+# serialize extradata msg using the same method as in update_checker.py to prevent differences
+extradata=$(python3 -c "import json, sys; print(json.dumps({
+    'android_versioncode_nullarch': int(sys.argv[1]),
+    'version_alpha': sys.argv[2],
+    'version_beta': sys.argv[3]
+}, sort_keys=True, separators=(',', ':')))" "$ANDROID_VERSIONCODE_NULLARCH" "$VERSION_ALPHA" "$VERSION_BETA")
+
+# signing the hash of extradata instead of passing extradata directly,
+# so it doesn't get parsed as dict when passing it into signmessage,
+# so the resulting sig is on a double sha256 of extradata
+extradata_hash=$(echo -n "$extradata" | sha256sum | awk '{print $1}')
+info "signing the extradata fields hash, extradata=$extradata extradata_hash=$extradata_hash"
+extradata_hash_sig=$(./run_electrum -o signmessage "$ELECTRUM_SIGNING_ADDRESS" "$extradata_hash" -w "$ELECTRUM_SIGNING_WALLET")
+
 cat <<EOF > "$WWW_DIR"/version
 {
-    "version": "$VERSION",
-    "signatures": {"$ELECTRUM_SIGNING_ADDRESS": "$sig"},
-    "extradata": {
-        "android_versioncode_nullarch": $ANDROID_VERSIONCODE_NULLARCH
-    }
+    "version": "$VERSION_STABLE",
+    "signatures": {"$ELECTRUM_SIGNING_ADDRESS": "$version_sig"},
+    "extradata": $extradata,
+    "extradata_hash_signatures": {"$ELECTRUM_SIGNING_ADDRESS": "$extradata_hash_sig"}
 }
 EOF
 
