@@ -96,7 +96,7 @@ from .wizard.wallet import WIF_HELP_TEXT
 from .history_list import HistoryList, HistoryModel
 from .update_checker import UpdateCheck, UpdateCheckThread
 from .channels_list import ChannelsList
-from .confirm_tx_dialog import ConfirmTxDialog
+from .confirm_tx_dialog import ConfirmTxDialog, TxEditorContext
 from .rbf_dialog import BumpFeeDialog, DSCancelDialog
 from .qrreader import scan_qrcode_from_camera
 from .swap_dialog import SwapDialog, InvalidSwapParameters
@@ -1504,7 +1504,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                 return
         # we need to know the fee before we broadcast, because the txid is required
         make_tx = self.mktx_for_open_channel(funding_sat=funding_sat, node_id=node_id)
-        funding_tx, _, _ = self.confirm_tx_dialog(make_tx, funding_sat, allow_preview=False)
+        funding_tx, _, _ = self.confirm_tx_dialog(make_tx, funding_sat, context=TxEditorContext.CHANNEL_FUNDING)
         if not funding_tx:
             return
         self._open_channel(connect_str, funding_sat, push_amt, funding_tx)
@@ -1514,7 +1514,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         make_tx,
         output_value, *,
         payee_outputs: Optional[list[TxOutput]] = None,
-        allow_preview=True,
+        context: TxEditorContext = TxEditorContext.PAYMENT,
         batching_candidates=None,
     ) -> tuple[Optional[PartialTransaction], bool, bool]:
         d = ConfirmTxDialog(
@@ -1522,7 +1522,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             make_tx=make_tx,
             output_value=output_value,
             payee_outputs=payee_outputs,
-            allow_preview=allow_preview,
+            context=context,
             batching_candidates=batching_candidates,
         )
         return d.run(), d.is_preview, d.did_swap

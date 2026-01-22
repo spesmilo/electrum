@@ -1,5 +1,5 @@
 import enum
-from typing import TYPE_CHECKING, Optional, Union, Tuple, Sequence
+from typing import TYPE_CHECKING, Optional, Union, Tuple, Sequence, Callable
 
 from PyQt6.QtCore import pyqtSignal, Qt, QTimer
 from PyQt6.QtGui import QIcon, QPixmap, QColor
@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from .main_window import ElectrumWindow
     from electrum.submarine_swaps import SwapServerTransport, SwapOffer
     from electrum.lnchannel import Channel
+    from electrum.simple_config import SimpleConfig
 
 CANNOT_RECEIVE_WARNING = _(
 """The requested amount is higher than what you can receive in your currently open channels.
@@ -45,16 +46,28 @@ class InvalidSwapParameters(Exception): pass
 
 class SwapProvidersButton(QPushButton):
 
-    def __init__(self, transport_getter, config, main_window):
+    def __init__(
+        self,
+        transport_getter: Callable[[], Optional['SwapServerTransport']],
+        config: 'SimpleConfig',
+        main_window: 'ElectrumWindow',
+    ):
         """parent must have a transport() method"""
         QPushButton.__init__(self)
         self.config = config
         self.transport_getter = transport_getter
         self.main_window = main_window
         self.clicked.connect(self.choose_swap_server)
+        self.fetching = False
         self.update()
 
     def update(self):
+        if self.fetching:
+            self.setEnabled(False)
+            self.setText(_("Fetching..."))
+            self.setVisible(True)
+            return
+
         transport = self.transport_getter()
         if not isinstance(transport, NostrTransport):
             # HTTPTransport or no Network, not showing server selection button
