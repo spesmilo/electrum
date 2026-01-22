@@ -1,4 +1,4 @@
-ELECTRUM_VERSION = '4.6.2'       # version of the client package
+ELECTRUM_VERSION = '4.7.0'       # version of the client package
 
 PROTOCOL_VERSION_MIN = '1.4'     # electrum protocol
 PROTOCOL_VERSION_MAX = '1.6'
