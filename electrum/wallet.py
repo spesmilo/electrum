@@ -562,11 +562,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self.unregister_callbacks()
         try:
             async with ignore_after(5):
+                if self.lnworker:
+                    await self.lnworker.stop()
+                    self.lnworker = None
                 if self.network:
-                    if self.lnworker:
-                        await self.lnworker.stop()
-                        self.lnworker = None
                     self.network = None
+                if self.taskgroup:
                     await self.taskgroup.cancel_remaining()
                     self.taskgroup = None
                 await self.adb.stop()
