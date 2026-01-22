@@ -3,7 +3,6 @@
 set -e
 
 PROJECT_ROOT="$(dirname "$(readlink -e "$0")")/../../.."
-PROJECT_ROOT_OR_FRESHCLONE_ROOT="$PROJECT_ROOT"
 CONTRIB="$PROJECT_ROOT/contrib"
 CONTRIB_APPIMAGE="$CONTRIB/build-linux/appimage"
 
@@ -14,7 +13,7 @@ TYPE2_RUNTIME_REPO="https://github.com/AppImage/type2-runtime.git"
 . "$CONTRIB"/build_tools_util.sh
 
 
-TYPE2_RUNTIME_REPO_DIR="$PROJECT_ROOT_OR_FRESHCLONE_ROOT/contrib/build-linux/appimage/.cache/appimage/type2-runtime"
+TYPE2_RUNTIME_REPO_DIR="$PROJECT_ROOT/contrib/build-linux/appimage/.cache/appimage/type2-runtime"
 if [ -f "$TYPE2_RUNTIME_REPO_DIR/runtime-x86_64" ]; then
     info "type2-runtime already built, skipping"
     exit 0

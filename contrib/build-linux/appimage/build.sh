@@ -48,7 +48,7 @@ fi
 
 # build the type2-runtime binary, this build step uses a separate docker container
 # defined in the type2-runtime repo (patched with type2-runtime-reproducible-build.patch)
-"$CONTRIB_APPIMAGE/make_type2_runtime.sh" || fail "Error building type2-runtime."
+"$PROJECT_ROOT_OR_FRESHCLONE_ROOT/contrib/build-linux/appimage/make_type2_runtime.sh" || fail "Error building type2-runtime."
 
 DOCKER_RUN_FLAGS=""
 if sh -c ": >/dev/tty" >/dev/null 2>/dev/null; then
