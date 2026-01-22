@@ -112,7 +112,7 @@ class WalletInfoDialog(WindowModalDialog):
         labels_clayout = None
 
         if wallet.is_deterministic():
-            keystores = wallet.get_keystores()
+            keystores = sorted(wallet.get_keystores(), key=lambda _ks: _ks.get_root_fingerprint() or '')
 
             self.keystore_tabs = QTabWidget()
 
