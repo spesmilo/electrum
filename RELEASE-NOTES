@@ -1,3 +1,80 @@
+# Release 4.7.0 (Jan 22, 2026)
+ * Qt GUI (desktop):
+   - new: "Submarine Payments": support reverse swaps to external address (#10303)
+          Allows doing onchain payments from the wallet's lightning balance.
+   - changed: flag console usage in crash reports (#10219)
+   - changed: add "Tools" text to the tools button for increased visibility (#10277)
+   - changed: improved UI feedback for send change to lightning function (#10247)
+   - fix: improve Network Tab behavior when switching connection mode (#10280)
+   - fix: re-add fiat values to csv/json history export (#10209)
+   - fix: not proposing tx batching in some cases (#10204)
+ * QML GUI & Android:
+   - new: allow manual editing of fee/feerate (#10371)
+          This also allows sending sub-1 sat/b transactions on Android.
+   - new: support biometric authentication (#10340)
+          Allows using the Android system lockscreen (e.g. fingerprints)
+          to unlock the wallet and authorize payments.
+          The previous optional built-in PIN code authentication is removed.
+   - changed: make UI compatible with edge-to-edge layout (#10178)
+   - changed: fee histogram colors: extend color palette to cover sub-1 s/b (#10307)
+   - changed: enforce the usage of a single password for all wallet files (#10345)
+   - changed: allow tap-to-focus in the qr code scanner (#10385)
+   - fix: allow opening passwordless wallets (#10423)
+   - fix: also protect address private keys from screenshots (#10426)
+ * Lightning:
+   - new: support LNURL-withdraw/LUD-3 (#9993)
+          Allows scanning QR codes to receive funds on lightning (e.g. ATMs, vouchers).
+   - changed: refactor handling of incoming htlcs (#10230)
+   - changed: collect htlcs failed back to us before re-splitting (#10274)
+   - fix: allow spending channel reserve if anchor channels are closed but not redeemed (2d17252)
+   - fix: logic bug in liquidity hint calculation (#10305)
+   - fix: race resulting in "Not enough balance" error when doing concurrent payments (#10325)
+   - fix: self payments (and rebalance function) (#10271)
+   - fix: gossip exchange with Core Lightning nodes (#10347)
+   - fix: only wait for pending htlcs to get removed if peer is connected (1845143)
+ * Electrum protocol:
+   - new: add support for Electrum Protocol version 1.6 (#10295)
+          See https://electrum-protocol.readthedocs.io/en/latest/protocol-changes.html#version-1-6
+          Min required version is still 1.4.
+   - changed: prevent connecting to server with different genesis hash (#10281)
+   - changed: add warmup budget before batching server rpc calls for faster startup (#10281)
+   - changed: optimistically guess scripthash status on new blocks to reduce network traffic
+              and improve privacy (#10290)
+   - fix: flush network buffer before disconnecting from server (6423323)
+ * Onchain / Wallet:
+   - changed: non-SPV verified transactions now considered unconfirmed (#10216)
+   - changed: always enforce dnssec validation for Openalias (#10349)
+ * Submarine swaps:
+   - new: cli commands to get swap statistics for swapserver operators (#10198):
+          'swapserver_get_history' and 'swapserver_get_summary'
+ * CLI/RPC:
+   - new: add 'export_lightning_preimage' command (#10242)
+   - changed: return lightning preimage from 'check_hold_invoice' command (#10242)
+   - changed: 'add_peer' now blocks until the connection is established (#10283)
+   - changed: 'version_info' now shows OpenSSL version (828fc56)
+   - fix: print warnings to stderr so output is still valid json (7bfe2dd)
+   - fix: imply enabled proxy when starting with proxy cli option (#10326)
+ * Plugins:
+   - changed: plugins can now use existing cli command names without colliding with builtin commands (9c4c7f0)
+   - changed: Timelock Recovery: check if locking address is ours or script (#10272)
+   - removed: payserver plugin, now an external plugin, moved to spesmilo/electrum-payserver (d36b753)
+ * Hardware wallets:
+   - Coldcard: fix: compatibility with ckcc-protocol v1.5.0 (2172dad)
+ * Contrib:
+   - new: add README to scripts/ directory (5a14a58)
+ * Dependencies:
+   - changed: bump min required electrum-aionostr to 0.1.0 (e188102)
+ * Builds/binaries:
+   - Android:
+     - new: support 16kb page size (#10148)
+     - changed: bump Android target SDK version to 35 (#10178)
+     - changed: bump OpenSSL from 1.1.1w to 3.0.18 (#10332)
+     - changed: switch from cryptography to pycryptodomex (#10332)
+     - changed: bump python version from 3.10.18 to 3.11.14 (#10388)
+   - AppImage:
+     - changed: migrate AppImage build to use modern/maintained appimagetool (#10019)
+
+
 # Release 4.6.2 (Aug 25, 2025)
  * General:
    - changed: minrelayfee clamps from [1, 50] to [0.1, 50] sat/vbyte (#10096)
