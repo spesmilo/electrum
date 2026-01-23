@@ -3784,7 +3784,10 @@ class Imported_Wallet(Simple_Wallet):
         return self.db.has_imported_address(address)
 
     def get_address_index(self, address) -> Optional[str]:
-        # returns None if address is not mine
+        # Return pubkey for address if we know it.
+        # If we don't know it, return None, which might happen:
+        # - if address is not is_mine
+        # - if this is an "imported address", we don't have the pubkey for. (watch-only imported wallet)
         return self.get_public_key(address)
 
     def get_address_path_str(self, address):

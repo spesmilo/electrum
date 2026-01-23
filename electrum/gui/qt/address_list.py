@@ -25,7 +25,7 @@
 
 import enum
 from enum import IntEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from PyQt6.QtCore import Qt, QPersistentModelIndex, QModelIndex
 from PyQt6.QtGui import QStandardItemModel, QStandardItem, QFont
@@ -244,8 +244,14 @@ class AddressList(MyTreeView):
         # update counter
         self.num_addr_label.setText(_("{} addresses").format(num_shown))
 
-    def address_index_as_sortable_key(self, address_index: 'AddressIndexGeneric'):
-        return address_index if isinstance(address_index, str) else ''.join(f'{i:08x}' for i in address_index)
+    @staticmethod
+    def address_index_as_sortable_key(address_index: Optional['AddressIndexGeneric']) -> str:
+        if isinstance(address_index, str):  # pubkey hex
+            return address_index
+        elif address_index is None:
+            return ""
+        else:
+            return "".join(f"{i:08x}" for i in address_index)
 
     def refresh_row(self, key, row):
         assert row is not None
