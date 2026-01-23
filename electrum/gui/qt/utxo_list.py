@@ -35,7 +35,7 @@ from electrum.i18n import _
 from electrum.bitcoin import is_address
 from electrum.transaction import PartialTxInput, PartialTxOutput
 from electrum.lnutil import MIN_FUNDING_SAT
-from electrum.util import profiler
+from electrum.util import profiler, format_time
 
 from .util import ColorScheme, MONOSPACE_FONT
 from .my_treeview import MyTreeView, MySortModel
@@ -56,6 +56,7 @@ class UTXOList(MyTreeView):
         LABEL = enum.auto()
         AMOUNT = enum.auto()
         PARENTS = enum.auto()
+        DATE = enum.auto()
 
     headers = {
         Columns.OUTPOINT: _('Output point'),
@@ -63,6 +64,7 @@ class UTXOList(MyTreeView):
         Columns.PARENTS: _('Parents'),
         Columns.LABEL: _('Label'),
         Columns.AMOUNT: _('Amount'),
+        Columns.DATE: _('Date'),
     }
     filter_columns = [Columns.ADDRESS, Columns.LABEL, Columns.OUTPOINT]
     stretch_column = Columns.LABEL
@@ -113,9 +115,12 @@ class UTXOList(MyTreeView):
                 utxo.value_sats(), whitespaces=True)
             amount_str_nots = self.main_window.format_amount(
                 utxo.value_sats(), whitespaces=False, add_thousands_sep=False)
+            timestamp = self.wallet.adb.get_tx_height(utxo.prevout.txid.hex()).timestamp
+            date = format_time(timestamp) if timestamp else _('Unknown')
             labels[self.Columns.OUTPOINT] = str(utxo.short_id)
             labels[self.Columns.ADDRESS] = utxo.address
             labels[self.Columns.AMOUNT] = amount_str
+            labels[self.Columns.DATE] = date
             utxo_item = [QStandardItem(x) for x in labels]
             self.set_editability(utxo_item)
             utxo_item[self.Columns.OUTPOINT].setData(name, self.ROLE_PREVOUT_STR)
