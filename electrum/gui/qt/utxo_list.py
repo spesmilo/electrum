@@ -36,6 +36,7 @@ from electrum.bitcoin import is_address
 from electrum.transaction import PartialTxInput, PartialTxOutput
 from electrum.lnutil import MIN_FUNDING_SAT
 from electrum.util import profiler
+from electrum.plugin import run_hook
 
 from .util import ColorScheme, MONOSPACE_FONT
 from .my_treeview import MyTreeView, MySortModel
@@ -367,6 +368,7 @@ class UTXOList(MyTreeView):
                 act = menu_freeze.addAction(_("Unfreeze Addresses"), lambda: self.main_window.set_frozen_state_of_addresses(addrs, False))
                 act.setToolTip(MSG_FREEZE_ADDRESS)
 
+        run_hook('qt_utxo_menu', menu, coins, self.wallet)
         menu.exec(self.viewport().mapToGlobal(position))
 
     def get_filter_data_from_coordinate(self, row, col):
