@@ -826,7 +826,7 @@ class ServerConnectWizard(AbstractWizard):
         self.navmap = {
             'welcome': {
                 'next': lambda d: 'proxy_config' if d['want_proxy'] else 'server_config',
-                'accept': self.do_configure_autoconnect,
+                'accept': lambda d: self.do_enable_autoconnect(d) if d['autoconnect'] else None,
                 'last': lambda d: bool(d['autoconnect'] and not d['want_proxy'])
             },
             'proxy_config': {
@@ -869,11 +869,13 @@ class ServerConnectWizard(AbstractWizard):
         )
         self._daemon.network.run_from_another_thread(self._daemon.network.set_parameters(net_params))
 
-    def do_configure_autoconnect(self, wizard_data: dict):
-        self._logger.debug(f'configuring autoconnect: {wizard_data!r}')
+    def do_enable_autoconnect(self, wizard_data: dict):
+        # NETWORK_AUTO_CONNECT will only get explicitly set True, 'autoconnect': False means
+        # the user requested manual server configuration
+        self._logger.debug(f'enabling autoconnect: {wizard_data!r}')
+        assert wizard_data.get('autoconnect'), wizard_data
         if self._daemon.config.cv.NETWORK_AUTO_CONNECT.is_modifiable():
-            if wizard_data.get('autoconnect') is not None:
-                self._daemon.config.NETWORK_AUTO_CONNECT = wizard_data.get('autoconnect')
+            self._daemon.config.NETWORK_AUTO_CONNECT = True
 
     def start(self, *, start_viewstate: WizardViewState = None) -> WizardViewState:
         self.reset()
