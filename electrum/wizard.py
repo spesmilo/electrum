@@ -855,16 +855,18 @@ class ServerConnectWizard(AbstractWizard):
     def do_configure_server(self, wizard_data: dict):
         self._logger.debug(f'configuring server: {wizard_data!r}')
         net_params = self._daemon.network.get_parameters()
-        server = ''
+        server = None
         oneserver = wizard_data.get('one_server', False)
         if not wizard_data['autoconnect']:
-            try:
-                server = ServerAddr.from_str_with_inference(wizard_data['server'])
-                if not server:
-                    raise Exception('failed to parse server %s' % wizard_data['server'])
-            except Exception:
-                return
-        net_params = net_params._replace(server=server, auto_connect=wizard_data['autoconnect'], oneserver=oneserver)
+            server = ServerAddr.from_str_with_inference(wizard_data.get('server', ''))
+            if not server:
+                self._logger.warn('failed to parse server %s' % wizard_data.get('server', ''))
+                return  # Network._start() will set autoconnect and default server
+        net_params = net_params._replace(
+            server=server or net_params.server,
+            auto_connect=wizard_data['autoconnect'],
+            oneserver=oneserver,
+        )
         self._daemon.network.run_from_another_thread(self._daemon.network.set_parameters(net_params))
 
     def do_configure_autoconnect(self, wizard_data: dict):
