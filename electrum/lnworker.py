@@ -2886,6 +2886,13 @@ class LNWallet(Logger):
             return resolution in (RecvMPPResolution.COMPLETE, RecvMPPResolution.SETTLING)
         return False
 
+    def is_incomplete_mpp(self, payment_hash: bytes) -> bool:
+        # not not is_complete_mpp: will return False if resolution is None
+        resolution = self.get_mpp_resolution(payment_hash)
+        if resolution is not None:
+            return resolution not in (RecvMPPResolution.COMPLETE, RecvMPPResolution.SETTLING)
+        return False
+
     def get_payment_mpp_amount_msat(self, payment_hash: bytes) -> Optional[int]:
         """Returns the received mpp amount for given payment hash."""
         payment_key = self._get_payment_key(payment_hash)

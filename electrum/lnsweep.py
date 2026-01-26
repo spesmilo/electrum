@@ -481,7 +481,7 @@ def _maybe_reveal_preimage_for_htlc(
     sweep_info_name: str,
 ) -> Tuple[Optional[bytes], Optional[KeepWatchingTXO]]:
     """Given a Remote-added-HTLC, return the preimage if it's okay to reveal it on-chain."""
-    if not chan.lnworker.is_complete_mpp(htlc.payment_hash):
+    if chan.lnworker.is_incomplete_mpp(htlc.payment_hash):
         # - do not redeem this, it might publish the preimage of an incomplete MPP
         # - OTOH maybe this chan just got closed, and we are still receiving new htlcs
         #   for this MPP set. So the MPP set might still transition to complete!
