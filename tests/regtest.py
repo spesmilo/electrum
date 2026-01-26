@@ -73,6 +73,9 @@ class TestLightningAB(TestLightning):
     def test_redeem_received_htlcs(self):
         self.run_shell(['redeem_received_htlcs'])
 
+    def test_redeem_received_htlcs2(self):
+        self.run_shell(['redeem_received_htlcs2'])
+
     def test_redeem_offered_htlcs(self):
         self.run_shell(['redeem_offered_htlcs'])
 

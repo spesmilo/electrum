@@ -243,6 +243,7 @@ class Peer(Logger, EventListener):
                     return
                 args = (chan, payload)
             else:
+                chan = None
                 args = (payload,)
             try:
                 f = getattr(self, 'on_' + message_type)
@@ -263,6 +264,10 @@ class Peer(Logger, EventListener):
                     await f(*args)
             else:
                 f(*args)
+            # tests: simulate receiving on_error, or force-closing for another reason
+            if chan and chan.get_oldest_unrevoked_ctn(REMOTE) == self.lnworker.channel_timebomb:
+                self.logger.info(f"Received channel timebomb")
+                self.schedule_force_closing(chan.channel_id)
 
     def non_blocking_msg_handler(func):
         """Makes a message handler non-blocking: while processing the message,

@@ -1020,6 +1020,7 @@ class LNWallet(Logger):
         # used in tests
         self.enable_htlc_settle = True
         self.enable_htlc_forwarding = True
+        self.channel_timebomb = None
 
         # note: accessing channels (besides simple lookup) needs self.lock!
         self._channels = {}  # type: Dict[bytes, Channel]

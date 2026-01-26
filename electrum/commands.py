@@ -1874,6 +1874,15 @@ class Commands(Logger):
         """
         wallet.lnworker.enable_htlc_settle = b
 
+    @command('wnl')
+    async def set_channel_timebomb(self, ctn: int, wallet: Abstract_Wallet = None):
+        """
+        command used in regtests
+
+        arg:int:ctn:remote ctn
+        """
+        wallet.lnworker.channel_timebomb = ctn
+
     @command('n')
     async def clear_ln_blacklist(self):
         if self.network.path_finder:

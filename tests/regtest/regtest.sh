@@ -569,6 +569,22 @@ if [[ $1 == "redeem_offered_htlcs" ]]; then
 fi
 
 
+if [[ $1 == "redeem_received_htlcs2" ]]; then
+    # bob force closes after revealing preimage
+    wait_for_balance alice 1
+    echo "alice opens channel"
+    bob_node=$($bob nodeid)
+    $alice open_channel $bob_node 0.15 --password=''
+    new_blocks 3
+    wait_until_channel_open alice
+    $bob set_channel_timebomb 3
+    # alice pays bob
+    invoice=$($bob add_request 0.04 --lightning --memo "test" | jq -r ".lightning_invoice")
+    $alice lnpay $invoice --timeout=1 || true
+    new_blocks 1
+    wait_for_balance bob 1.079
+fi
+
 if [[ $1 == "redeem_received_htlcs" ]]; then
     # bob force closes and redeems with the preimage
     $bob enable_htlc_settle false
