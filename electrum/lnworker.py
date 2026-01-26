@@ -1022,7 +1022,7 @@ class LNWallet(Logger):
         self.lnrater: LNRater = None
         # "RHASH:direction" -> amount_msat, status, min_final_cltv_delta, expiry_delay, creation_ts, invoice_features
         self.payment_info = self.db.get_dict('lightning_payments')  # type: dict[str, Tuple[Optional[int], int, int, int, int, int]]
-        self._preimages = self.db.get_dict('lightning_preimages')   # RHASH -> preimage
+        self._preimages = self.db.get_dict('lightning_preimages')   # RHASH -> (preimage, is_public)
         self._bolt11_cache = {}
         # note: this sweep_address is only used as fallback; as it might result in address-reuse
         self.logs = defaultdict(list)  # type: Dict[str, List[HtlcLog]]  # key is RHASH  # (not persisted)
@@ -2699,19 +2699,35 @@ class LNWallet(Logger):
                 del self._payment_bundles_pkey_to_canon[pkey]
             del self._payment_bundles_canon_to_pkeylist[canon_pkey]
 
-    def save_preimage(self, payment_hash: bytes, preimage: bytes, *, write_to_disk: bool = True):
+    def save_preimage(
+        self,
+        payment_hash: bytes,
+        preimage: bytes,
+        *,
+        write_to_disk: bool = True,
+        mark_as_public: Optional[bool] = None,  # see is_preimage_public
+    ):
+        assert isinstance(payment_hash, bytes), f"expected bytes, but got {type(payment_hash)}"
+        assert isinstance(preimage, bytes), f"expected bytes, but got {type(preimage)}"
         if sha256(preimage) != payment_hash:
             raise Exception("tried to save incorrect preimage for payment_hash")
-        if self._preimages.get(payment_hash.hex()) is not None:
-            return  # we already have this preimage
-        self.logger.debug(f"saving preimage for {payment_hash.hex()}")
-        self._preimages[payment_hash.hex()] = preimage.hex()
+        old_tuple = _, old_is_public = self._preimages.get(payment_hash.hex(), (None, None))
+        if mark_as_public is None:  # if unset, keep current DB value
+            mark_as_public = old_is_public or False
+        if old_is_public and not mark_as_public:
+            raise Exception("preimage mark_as_public: True->False transition is forbidden")
+        # sanity checks and conversions done.
+        new_tuple = preimage.hex(), mark_as_public
+        if old_tuple == new_tuple:  # no change
+            return
+        self.logger.debug(f"saving preimage for {payment_hash.hex()} (public={mark_as_public})")
+        self._preimages[payment_hash.hex()] = new_tuple
         if write_to_disk:
             self.wallet.save_db()
 
     def get_preimage(self, payment_hash: bytes) -> Optional[bytes]:
         assert isinstance(payment_hash, bytes), f"expected bytes, but got {type(payment_hash)}"
-        preimage_hex = self._preimages.get(payment_hash.hex())
+        preimage_hex, _ = self._preimages.get(payment_hash.hex(), (None, None))
         if preimage_hex is None:
             return None
         preimage_bytes = bytes.fromhex(preimage_hex)
@@ -2722,6 +2738,20 @@ class LNWallet(Logger):
     def get_preimage_hex(self, payment_hash: str) -> Optional[str]:
         preimage_bytes = self.get_preimage(bytes.fromhex(payment_hash)) or b""
         return preimage_bytes.hex() or None
+
+    def is_preimage_public(self, payment_hash: bytes) -> bool:
+        """If another LN node knows a preimage besides us, we consider it public.
+        If a preimage is public, it is safe to reveal it in an arbitrary context.
+
+        For example, if there is a pending incoming partial MPP for an invoice we created,
+        we must not reveal the preimage, otherwise we will get paid less than invoice amount.
+        What if there is a force-close around that time? When is it safe to reveal the preimage on-chain?
+        e.g. if we already revealed the preimage either offchain or onchain, it is fine to reveal it again.
+        """
+        assert isinstance(payment_hash, bytes), f"expected bytes, but got {type(payment_hash)}"
+        preimage_hex, is_public = self._preimages.get(payment_hash.hex(), (None, None))
+        assert preimage_hex is not None
+        return bool(is_public)
 
     def get_payment_info(self, payment_hash: bytes, *, direction: lnutil.Direction) -> Optional[PaymentInfo]:
         """returns None if payment_hash is a payment we are forwarding"""
