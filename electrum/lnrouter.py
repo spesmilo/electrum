@@ -42,7 +42,7 @@ from .channel_db import ChannelDB, Policy, NodeInfo
 if TYPE_CHECKING:
     from .lnchannel import Channel
 
-DEFAULT_PENALTY_BASE_MSAT = 500  # how much base fee we apply for unknown sending capability of a channel
+DEFAULT_PENALTY_BASE_MSAT = 2000  # how much base fee we apply for unknown sending capability of a channel
 DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH = 100  # how much relative fee we apply for unknown sending capability of a channel
 HINT_DURATION = 3600  # how long (in seconds) a liquidity hint remains valid
 

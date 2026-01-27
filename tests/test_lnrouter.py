@@ -354,7 +354,7 @@ class Test_LNRouter(ElectrumTestCase):
 
         # check penalties
         self.assertEqual(0., liquidity_hints.penalty(node_from, node_to, channel_id, 1_000_000))
-        self.assertEqual(650, liquidity_hints.penalty(node_from, node_to, channel_id, 1_500_000))
+        self.assertEqual(2150, liquidity_hints.penalty(node_from, node_to, channel_id, 1_500_000))
         self.assertEqual(inf, liquidity_hints.penalty(node_from, node_to, channel_id, 2_000_000))
 
         # test that we don't overwrite significant info with less significant info
@@ -372,8 +372,8 @@ class Test_LNRouter(ElectrumTestCase):
         liquidity_hints.reset_liquidity_hints()
         liquidity_hints.add_htlc(node_from, node_to, channel_id)
         liquidity_hints.get_hint(channel_id)
-        # we have got 600 (attempt) + 600 (inflight) penalty
-        self.assertEqual(1200, liquidity_hints.penalty(node_from, node_to, channel_id, 1_000_000))
+        # we have got 2100 (attempt) + 2100 (inflight) penalty
+        self.assertEqual(4200, liquidity_hints.penalty(node_from, node_to, channel_id, 1_000_000))
 
     @needs_test_with_all_chacha20_implementations
     def test_new_onion_packet(self):
