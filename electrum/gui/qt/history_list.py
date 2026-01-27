@@ -845,9 +845,9 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             return
         try:
             self.wallet.export_history_to_file(
-                self.main_window.fx if self.hm.should_show_fiat() else None,
-                filename,
-                csv_button.isChecked(),
+                fx=self.main_window.fx if self.hm.should_show_fiat() else None,
+                file_path=filename,
+                is_csv=csv_button.isChecked(),
             )
         except (IOError, os.error) as reason:
             export_error_label = _("Electrum was unable to produce a transaction export.")
