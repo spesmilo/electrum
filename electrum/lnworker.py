@@ -588,7 +588,7 @@ class LNPeerManager(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
                     host, port, timestamp = self.choose_preferred_address(list(addrs))
             port = int(port)
 
-            if not self.network.proxy:
+            if not self.network.proxy or not self.network.proxy.enabled:
                 # Try DNS-resolving the host (if needed). This is simply so that
                 # the caller gets a nice exception if it cannot be resolved.
                 # (we don't do the DNS lookup if a proxy is set, to avoid a DNS-leak)
