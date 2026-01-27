@@ -1597,7 +1597,6 @@ class Peer(Logger, EventListener):
             self._send_channel_reestablish(chan)
             return
         if self.network.blockchain().is_tip_stale() \
-                or not self.lnworker.wallet.is_up_to_date() \
                 or self.lnworker.current_target_feerate_per_kw(has_anchors=chan.has_anchors()) \
             is None:
             # don't try to reestablish until we can do fee estimation and are up-to-date

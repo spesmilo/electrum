@@ -3186,8 +3186,7 @@ class LNWallet(Logger):
     def get_channels_for_sending(self):
         for c in self.channels.values():
             if c.is_active() and not c.is_frozen_for_sending():
-                if self.channel_db or self.is_trampoline_peer(c.node_id):
-                    yield c
+                yield c
 
     def estimate_fee_reserve_for_total_amount(self, amount_sat: int | Decimal) -> int:
         """
