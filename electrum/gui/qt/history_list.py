@@ -27,7 +27,7 @@ import os
 import time
 import datetime
 from datetime import date
-from typing import TYPE_CHECKING, Tuple, Dict, Any
+from typing import TYPE_CHECKING, Tuple, Dict, Any, Optional
 import threading
 import enum
 from decimal import Decimal
@@ -55,6 +55,7 @@ from .my_treeview import MyTreeView
 
 if TYPE_CHECKING:
     from electrum.wallet import Abstract_Wallet
+    from electrum.exchange_rate import FxThread
     from .main_window import ElectrumWindow
 
 
@@ -844,32 +845,45 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         if not filename:
             return
         try:
-            self.do_export_history(filename, csv_button.isChecked())
+            self.do_export_history(
+                self.wallet,
+                self.main_window.fx if self.hm.should_show_fiat() else None,
+                filename,
+                csv_button.isChecked(),
+            )
         except (IOError, os.error) as reason:
             export_error_label = _("Electrum was unable to produce a transaction export.")
             self.main_window.show_critical(export_error_label + "\n" + str(reason), title=_("Unable to export history"))
             return
         self.main_window.show_message(_("Your wallet history has been successfully exported."))
 
-    def do_export_history(self, file_name, is_csv):
-        txns = self.wallet.get_full_history(fx=self.main_window.fx if self.hm.should_show_fiat() else None)
+    @staticmethod
+    def do_export_history(wallet: 'Abstract_Wallet', fx: Optional['FxThread'], file_path: str, is_csv: bool):
+        txns = wallet.get_full_history(fx=fx)
         lines = []
 
-        def get_all_fees_paid_by_item(h_item: dict) -> Tuple[int, Fiat]:
+        def get_all_fees_paid_by_item(h_item: dict) -> Tuple[int, Optional[Fiat]]:
             # gets all fees paid in an item (or group), as the outer group doesn't contain the
             # transaction fees paid by the children
             fees_sat = 0
-            fees_fiat = Fiat(ccy=self.main_window.fx.ccy, value=Decimal())
+            fees_fiat = Fiat(ccy=fx.ccy, value=Decimal()) if fx else None
             for child in h_item.get('children', []):
                 fees_sat += child['fee_sat'] or 0 if 'fee_sat' in child \
-                                else (child.get('fee_msat', 0) or 0) // 1000
-                if child_fiat_fee := child.get('fiat_fee'):
+                                else (child.get('fee_msat', 0) or 0) // 1000  # FIXME: loses msat precision
+                if fees_fiat is not None and (child_fiat_fee := child.get('fiat_fee')):
                     fees_fiat += child_fiat_fee
 
             fees_sat += h_item['fee_sat'] or 0 if 'fee_sat' in h_item \
-                            else (h_item.get('fee_msat', 0) or 0) // 1000
-            if h_item_fiat_fee := h_item.get('fiat_fee'):
+                            else (h_item.get('fee_msat', 0) or 0) // 1000  # FIXME: loses msat precision
+            if fees_fiat is not None and (h_item_fiat_fee := h_item.get('fiat_fee')):
                 fees_fiat += h_item_fiat_fee
+
+            fiat_value = h_item.get('fiat_value')
+            if fees_fiat is not None and isinstance(fiat_value, Fiat) \
+                    and (fiat_value.value is None or fiat_value.value.is_nan()):
+                # ensure that str(fees_fiat) == 'No Data' if str(fiat_value) == 'No Data'
+                fees_fiat = Fiat(ccy=fx.ccy, value=None)
+
             return fees_sat, fees_fiat
 
         if is_csv:
@@ -878,6 +892,9 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             for item in txns.values():
                 # tx groups will are shown as single element
                 fees_sat, fees_fiat = get_all_fees_paid_by_item(item)
+                # users are sensitive to changes of these fields as they have scripts/spreadsheets
+                # depending on them. E.g. https://github.com/spesmilo/electrum/issues/10445
+                assert str(fees_fiat) == 'No Data' if str(item.get('fiat_value')) == 'No Data' else True
                 line = [
                     item.get('txid', ''),
                     item.get('payment_hash', ''),
@@ -887,12 +904,12 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
                     item['ln_value'],
                     item.get('fiat_value', ''),
                     fees_sat,
-                    str(fees_fiat),
+                    str(fees_fiat or ''),
                     item['date']
                 ]
                 lines.append(line)
 
-        with open(file_name, "w+", encoding='utf-8') as f:
+        with open(file_path, "w+", encoding='utf-8') as f:
             if is_csv:
                 import csv
                 transaction = csv.writer(f, lineterminator='\n')
