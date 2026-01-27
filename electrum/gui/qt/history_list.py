@@ -886,7 +886,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
                     item['bc_value'],
                     item['ln_value'],
                     item.get('fiat_value', ''),
-                    fees_sat,
+                    Satoshis(fees_sat),
                     str(fees_fiat),
                     item['date']
                 ]
@@ -903,7 +903,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
                                       "amount_chain_bc",
                                       "amount_lightning_bc",
                                       "fiat_value",
-                                      "network_fee_satoshi",
+                                      "network_fee",
                                       "fiat_fee",
                                       "timestamp"])
                 for line in lines:
