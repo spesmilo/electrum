@@ -2,7 +2,9 @@
 # Distributed under the MIT software license, see the accompanying
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
 
+import asyncio
 import collections
+from functools import partial
 from typing import Optional, Sequence, Iterable, List, Set
 
 import aiorpcx
@@ -32,6 +34,9 @@ _BLOCK_HEADERS: List[bytes] = [
 class ToyServer:
     """Electrum Server backend"""
 
+    asyncio_server: asyncio.base_events.Server
+    server_port: int
+
     def __init__(self):
         self.sessions = set()  # type: Set[ToyServerSession]
         self._block_headers = _BLOCK_HEADERS[:]
@@ -39,6 +44,16 @@ class ToyServer:
         self.sh_to_funding_txids = collections.defaultdict(set)  # type: dict[str, set[str]]
         self.sh_to_spending_txids = collections.defaultdict(set)  # type: dict[str, set[str]]
         self.txs = {}  # type: dict[str, bytes]
+
+    async def start(self):
+        session_factory = partial(ToyServerSession, toyserver=self)
+        self.asyncio_server = await aiorpcx.serve_rs(session_factory, "127.0.0.1")
+        server_socket_addr = self.asyncio_server.sockets[0].getsockname()
+        self.server_port = server_socket_addr[1]
+
+    async def stop(self):
+        self.asyncio_server.close()
+        await self.asyncio_server.wait_closed()
 
     def get_session_by_name(self, client_name: str) -> 'ToyServerSession':
         found_sessions = [

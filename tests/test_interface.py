@@ -110,21 +110,17 @@ class TestInterface(ElectrumTestCase):
     async def asyncSetUp(self):
         await super().asyncSetUp()
         self._toyserver = ToyServer()
-        session_factory = partial(ToyServerSession, toyserver=self._toyserver)
-        self._server: asyncio.base_events.Server = await aiorpcx.serve_rs(session_factory, "127.0.0.1")
-        server_socket_addr = self._server.sockets[0].getsockname()
-        self._server_port = server_socket_addr[1]
+        await self._toyserver.start()
         self.network = MockNetwork(config=self.config)
 
     async def asyncTearDown(self):
         if self.network.interface:
             await self.network.interface.close()
-        self._server.close()
-        await self._server.wait_closed()
+        await self._toyserver.stop()
         await super().asyncTearDown()
 
     async def _start_iface_and_wait_for_sync(self):
-        interface = Interface(network=self.network, server=ServerAddr(host="127.0.0.1", port=self._server_port, protocol="t"))
+        interface = Interface(network=self.network, server=ServerAddr(host="127.0.0.1", port=self._toyserver.server_port, protocol="t"))
         interface.client_name = lambda: "alice"
         self.network.interface = interface
         async with util.async_timeout(5):
