@@ -751,3 +751,18 @@ class Daemon(Logger):
             recent = recent[:5]
         self.config.RECENTLY_OPEN_WALLET_FILES = recent
         util.trigger_callback('recently_opened_wallets_update')
+
+
+def check_fs_permissions(config: 'SimpleConfig'):
+    electrum_path = config.electrum_path()
+    if not os.access(electrum_path, os.R_OK | os.W_OK):
+        raise Exception('can not read/write root folder at ' + electrum_path)
+    for f in ['config', 'blockchain_headers', 'recent_servers']:
+        fpath = os.path.join(electrum_path, f)
+        if os.path.exists(fpath):
+            if not os.access(fpath, os.R_OK | os.W_OK):
+                raise Exception(f'can not read/write {f} file at ' + electrum_path)
+    fpath = os.path.join(electrum_path, 'wallets')
+    if not os.access(fpath, os.R_OK | os.W_OK):
+        raise Exception('can not read/write wallet folder at ' + fpath)
+
