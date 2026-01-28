@@ -12,7 +12,7 @@ import aiorpcx
 from aiorpcx import RPCError
 
 from electrum import blockchain
-from electrum.util import bfh
+from electrum.util import bfh, OrderedSet
 from electrum.logging import Logger
 from electrum.transaction import Transaction, TxOutput, TxInput, TxOutpoint, PartialTxOutput
 from electrum import constants
@@ -34,7 +34,11 @@ REGTEST_GENESIS_HEADER = bfh("01000000000000000000000000000000000000000000000000
 @dataclass(kw_only=True, slots=True, frozen=True)
 class FakeBlock:
     header: bytes
-    txids: Sequence[str] = ()
+    txids: OrderedSet[str] = None
+
+    def __post_init__(self):
+        if self.txids is None:
+            object.__setattr__(self, 'txids', OrderedSet())
 
 
 class ToyServer:
@@ -50,7 +54,7 @@ class ToyServer:
         # indexes:
         self.sh_to_funding_txids = collections.defaultdict(set)  # type: dict[str, set[str]]
         self.sh_to_spending_txids = collections.defaultdict(set)  # type: dict[str, set[str]]
-        self.txs = {}  # type: dict[str, bytes]
+        self.txs = {}  # type: dict[str, bytes]  # txid->raw_tx
         self._cache_blockheight_from_txid = {}  # type: dict[str, int]
         self.txo_to_spender_txid = {}  # type: dict[TxOutpoint, str | None]  # also contains UTXOs
 
@@ -80,6 +84,13 @@ class ToyServer:
                 self._cache_blockheight_from_txid[txid] = height
                 return height
         return None
+
+    def get_mempool_txids(self) -> set[str]:  # FIXME slow
+        mempool = set()
+        for txid in self.txs:
+            if self.block_height_from_txid(txid) is None:
+                mempool.add(txid)
+        return mempool
 
     def get_session_by_name(self, client_name: str) -> 'ToyServerSession':
         found_sessions = [
@@ -158,8 +169,41 @@ class ToyServer:
             self.sh_to_spending_txids[sh].add(txid)
         return funded_sh | spent_sh
 
+    def _remove_tx(self, tx: Transaction) -> set[str]:
+        txid = tx.txid()
+        assert txid
+        self.txs.pop(txid)
+        # un-fund UTXOs
+        for txout_idx, txout in enumerate(tx.outputs()):
+            outpoint = TxOutpoint(txid=bfh(txid), out_idx=txout_idx)
+            assert self.txo_to_spender_txid[outpoint] is None, "output already spent"
+            self.txo_to_spender_txid.pop(outpoint)
+        # un-spend UTXOs
+        for txin in tx.inputs():
+            if txin.is_coinbase_input():
+                continue
+            assert self.txo_to_spender_txid[txin.prevout] == txid
+            self.txo_to_spender_txid[txin.prevout] = None
+        # update touched scripthashes
+        funded_sh, spent_sh = self._get_funded_and_spent_scripthashes(tx)
+        for sh in funded_sh:
+            self.sh_to_funding_txids[sh].discard(txid)
+        for sh in spent_sh:
+            self.sh_to_spending_txids[sh].discard(txid)
+        return funded_sh | spent_sh
+
     async def mempool_add_tx(self, tx: Transaction) -> None:
         touched_sh = self._add_tx(tx)
+        # notify clients
+        for session in self.sessions:
+            await session.server_send_notifications(touched_sh=touched_sh)
+
+    async def mempool_rm_tx(self, tx: Transaction) -> None:
+        txid = tx.txid()
+        assert txid
+        assert txid in self.txs, "unknown tx"
+        assert self.block_height_from_txid(txid) is None, "tx already mined"
+        touched_sh = self._remove_tx(tx)
         # notify clients
         for session in self.sessions:
             await session.server_send_notifications(touched_sh=touched_sh)
@@ -167,15 +211,22 @@ class ToyServer:
     async def mine_block(
         self,
         *,
-        txs: Iterable[Transaction] = None,
-        coinbase_outputs: Iterable[TxOutput] = None,  # hmhm maturity?
+        coinbase_outputs: Iterable[TxOutput] = None,
+        include_mempool: bool = True,  # whether to mine (all) txs in the mempool
+        extra_txs: Iterable[Transaction] = None,  # additional txs to mine. can overlap with mempool
     ) -> tuple[FakeBlock, Transaction]:
-        if txs is None:
-            txs = []
+        if extra_txs is None:
+            extra_txs = []
         coinbase_tx = Transaction(None)
         coinbase_tx._inputs = [TxInput(prevout=TxOutpoint(txid=bytes(32), out_idx=0xffffffff))]
         coinbase_tx._outputs = list(coinbase_outputs or []) + [TxOutput(scriptpubkey=bfh("6a04deadbeef"), value=0)]
-        txs = [coinbase_tx] + txs
+        txs = OrderedSet()  # type: OrderedSet[Transaction]
+        txs.add(coinbase_tx)
+        txs |= OrderedSet(extra_txs)
+        if include_mempool:
+            for mempool_txid in self.get_mempool_txids():
+                mempool_tx = Transaction(self.txs[mempool_txid])
+                txs.add(mempool_tx)
         assert not any(tx.txid() is None for tx in txs)
         # new header
         prev_header = self._blocks[-1].header
@@ -188,7 +239,7 @@ class ToyServer:
             'bits': 0x1d00ffff,  # don't care
             'nonce': 1,  # don't care
         })
-        new_block = FakeBlock(header=new_header, txids=tuple(tx.txid() for tx in txs))
+        new_block = FakeBlock(header=new_header, txids=OrderedSet(tx.txid() for tx in txs))
         self._blocks.append(new_block)
         # process txs
         touched_sh = set()
@@ -198,6 +249,23 @@ class ToyServer:
         for session in self.sessions:
             await session.server_send_notifications(touched_sh=touched_sh, height_changed=True)
         return new_block, coinbase_tx
+
+    async def unmine_block(self) -> None:
+        if self.cur_height == 0:
+            raise Exception("cannot unmine genesis")
+        # Simply pop the block from the chain.
+        block = self._blocks.pop()
+        # process txs
+        # note: all txs in that block are now automatically considered to be in-mempool.
+        #       no need to call _remove_tx -- that would also rm them from the mempool.
+        touched_sh = set()
+        for txid in block.txids:
+            tx = Transaction(self.txs[txid])
+            funded_sh, spent_sh = self._get_funded_and_spent_scripthashes(tx)
+            touched_sh |= funded_sh | spent_sh
+        # notify clients
+        for session in self.sessions:
+            await session.server_send_notifications(touched_sh=touched_sh, height_changed=True)
 
     async def set_up_faucet(self, *, config: SimpleConfig):
         assert self._faucet_w is None

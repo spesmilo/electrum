@@ -191,7 +191,7 @@ class TestInterface(ElectrumTestCase):
             w1.adb.get_address_history(w1_addr),
             {funding_txid: 0})
         # mine funding tx
-        await self._toyserver.mine_block(txs=[funding_tx])
+        await self._toyserver.mine_block()
         server_blockheight += 1
         await w1.up_to_date_changed_event.wait()
         while not w1.is_up_to_date():

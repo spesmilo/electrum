@@ -29,6 +29,7 @@ import sys
 import re
 from collections import defaultdict, OrderedDict
 from concurrent.futures.process import ProcessPoolExecutor
+import typing
 from typing import (
     NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable, Any, Sequence, Dict, Generic, TypeVar, List, Iterable,
     Set, Awaitable
@@ -1852,6 +1853,36 @@ class OrderedDictWithIndex(OrderedDict):
             self._key_to_pos[key] = pos
             self._pos_to_key[pos] = key
         return ret
+
+
+T = typing.TypeVar("T")
+
+class OrderedSet(typing.MutableSet[T]):
+    """A set that preserves insertion order by internally using a dict."""
+
+    def __init__(self, iterable: typing.Iterable[T] = ()):
+        self._d = dict.fromkeys(iterable)
+
+    def add(self, value: T) -> None:
+        self._d[value] = None
+
+    def discard(self, value: T) -> None:
+        self._d.pop(value, None)
+
+    def __contains__(self, value: object) -> bool:
+        return self._d.__contains__(value)
+
+    def __len__(self) -> int:
+        return self._d.__len__()
+
+    def __iter__(self) -> typing.Iterator[T]:
+        return self._d.__iter__()
+
+    def __str__(self):
+        return f"{{{', '.join(str(i) for i in self)}}}"
+
+    def __repr__(self):
+        return f"<OrderedSet {self}>"
 
 
 def make_object_immutable(obj):
