@@ -1466,6 +1466,7 @@ class Channel(AbstractChannel):
         if preimage:
             assert ripemd(sha256(preimage)) == ripemd_payment_hash
             payment_hash = sha256(preimage)
+            self.lnworker.mark_preimage_as_public(payment_hash)
             if self.lnworker.get_preimage(payment_hash) is not None:
                 return
             # ^ note: log message text grepped for in regtests
@@ -1480,6 +1481,7 @@ class Channel(AbstractChannel):
         #       not committed yet - we should still make sure it gets removed on the incoming channel. (see #9631)
         if preimage:
             self.lnworker.save_preimage(payment_hash, preimage)
+            self.lnworker.mark_preimage_as_public(payment_hash)
             for htlc, is_sent in found.values():
                 if is_sent:
                     self.lnworker.htlc_fulfilled(self, payment_hash, htlc.htlc_id)
@@ -1720,6 +1722,7 @@ class Channel(AbstractChannel):
         assert htlc_id not in self.hm.log[REMOTE]['settles']
         self.hm.send_settle(htlc_id)
         self.htlc_settle_time[htlc_id] = now()
+        self.lnworker.mark_preimage_as_public(htlc.payment_hash)
 
     def get_payment_hash(self, htlc_id: int) -> bytes:
         htlc = self.hm.get_htlc_by_id(LOCAL, htlc_id)
@@ -1737,6 +1740,7 @@ class Channel(AbstractChannel):
         assert htlc_id not in self.hm.log[LOCAL]['settles']
         with self.db_lock:
             self.hm.recv_settle(htlc_id)
+        self.lnworker.mark_preimage_as_public(htlc.payment_hash)
 
     def fail_htlc(self, htlc_id: int) -> None:
         """Fail a pending received HTLC.

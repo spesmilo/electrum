@@ -1014,6 +1014,7 @@ class LNWallet(Logger):
         # "RHASH:direction" -> amount_msat, status, min_final_cltv_delta, expiry_delay, creation_ts, invoice_features
         self.payment_info = self.db.get_dict('lightning_payments')  # type: dict[str, Tuple[Optional[int], int, int, int, int, int]]
         self._preimages = self.db.get_dict('lightning_preimages')   # RHASH -> preimage
+        self._is_preimage_public_info = self.db.get_dict('lightning_preimage_is_public')  # RHASH -> bool  # FIXME xxxxx roll this into self._preimages dict
         self._bolt11_cache = {}
         # note: this sweep_address is only used as fallback; as it might result in address-reuse
         self.logs = defaultdict(list)  # type: Dict[str, List[HtlcLog]]  # key is RHASH  # (not persisted)
@@ -2711,6 +2712,22 @@ class LNWallet(Logger):
     def get_preimage_hex(self, payment_hash: str) -> Optional[str]:
         preimage_bytes = self.get_preimage(bytes.fromhex(payment_hash)) or b""
         return preimage_bytes.hex() or None
+
+    def mark_preimage_as_public(self, payment_hash: bytes) -> None:
+        assert isinstance(payment_hash, bytes), f"expected bytes, but got {type(payment_hash)}"
+        self._is_preimage_public_info[payment_hash.hex()] = True
+
+    def is_preimage_public(self, payment_hash: bytes) -> bool:
+        """If another LN node knows a preimage besides us, we consider it public.
+        If a preimage is public, it is safe to reveal it in an arbitrary context.
+
+        For example, if there is a pending incoming partial MPP for an invoice we created,
+        we must not reveal the preimage, otherwise we will get paid less than invoice amount.
+        What if there is a force-close around that time? When is it safe to reveal the preimage on-chain?
+        e.g. if we already revealed the preimage either offchain or onchain, it is fine to reveal it again.
+        """
+        assert isinstance(payment_hash, bytes), f"expected bytes, but got {type(payment_hash)}"
+        return bool(self._is_preimage_public_info.get(payment_hash.hex()))
 
     def get_payment_info(self, payment_hash: bytes, *, direction: lnutil.Direction) -> Optional[PaymentInfo]:
         """returns None if payment_hash is a payment we are forwarding"""
