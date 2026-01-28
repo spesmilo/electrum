@@ -40,7 +40,7 @@ from .lnchannel import Channel, RevokeAndAck, ChannelState, PeerState, ChanClose
 from . import lnutil
 from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc, ChannelConfig,
                      RemoteConfig, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore,
-                     funding_output_script, get_per_commitment_secret_from_seed,
+                     funding_output_script, get_pcp_from_seed,
                      secret_to_pubkey, PaymentFailure, LnFeatures,
                      LOCAL, REMOTE, HTLCOwner,
                      ln_compare_features, MIN_FINAL_CLTV_DELTA_ACCEPTED,
@@ -1022,13 +1022,6 @@ class Peer(Logger, EventListener):
             open_channel_tlvs['channel_opening_fee'] = {
                 'channel_opening_fee': opening_fee
             }
-        # for the first commitment transaction
-        per_commitment_secret_first = get_per_commitment_secret_from_seed(
-            local_config.per_commitment_secret_seed,
-            RevocationStore.START_INDEX
-        )
-        per_commitment_point_first = secret_to_pubkey(
-            int.from_bytes(per_commitment_secret_first, 'big'))
 
         # store the temp id now, so that it is recognized for e.g. 'error' messages
         self.temp_id_to_id[temp_channel_id] = None
@@ -1047,7 +1040,7 @@ class Peer(Logger, EventListener):
             htlc_basepoint=local_config.htlc_basepoint.pubkey,
             payment_basepoint=local_config.payment_basepoint.pubkey,
             delayed_payment_basepoint=local_config.delayed_basepoint.pubkey,
-            first_per_commitment_point=per_commitment_point_first,
+            first_per_commitment_point=local_config.current_per_commitment_point,
             to_self_delay=local_config.to_self_delay,
             max_htlc_value_in_flight_msat=local_config.max_htlc_value_in_flight_msat,
             channel_flags=channel_flags,
@@ -1096,6 +1089,8 @@ class Peer(Logger, EventListener):
             upfront_shutdown_script=upfront_shutdown_script,
             announcement_node_sig=b'',
             announcement_bitcoin_sig=b'',
+            current_commitment_signature=None,
+            current_htlc_signatures=b'',
         )
         ChannelConfig.cross_validate_params(
             local_config=local_config,
@@ -1157,6 +1152,7 @@ class Peer(Logger, EventListener):
         if isinstance(self.transport, LNTransport):
             chan.add_or_update_peer_addr(self.transport.peer_addr)
         sig_64, _ = chan.sign_next_commitment()
+        chan.config[REMOTE].current_commitment_signature = sig_64
         self.temp_id_to_id[temp_channel_id] = channel_id
 
         self.send_message("funding_created",
@@ -1297,6 +1293,8 @@ class Peer(Logger, EventListener):
             upfront_shutdown_script=upfront_shutdown_script,
             announcement_node_sig=b'',
             announcement_bitcoin_sig=b'',
+            current_commitment_signature=None,
+            current_htlc_signatures=b'',
         )
         ChannelConfig.cross_validate_params(
             local_config=local_config,
@@ -1312,14 +1310,6 @@ class Peer(Logger, EventListener):
         channel_flags = ord(payload['channel_flags'])
 
         # -> accept channel
-        # for the first commitment transaction
-        per_commitment_secret_first = get_per_commitment_secret_from_seed(
-            local_config.per_commitment_secret_seed,
-            RevocationStore.START_INDEX
-        )
-        per_commitment_point_first = secret_to_pubkey(
-            int.from_bytes(per_commitment_secret_first, 'big'))
-
         min_depth = 0 if is_zeroconf else 3
 
         accept_channel_tlvs = {
@@ -1346,7 +1336,7 @@ class Peer(Logger, EventListener):
             payment_basepoint=local_config.payment_basepoint.pubkey,
             delayed_payment_basepoint=local_config.delayed_basepoint.pubkey,
             htlc_basepoint=local_config.htlc_basepoint.pubkey,
-            first_per_commitment_point=per_commitment_point_first,
+            first_per_commitment_point=local_config.current_per_commitment_point,
             accept_channel_tlvs=accept_channel_tlvs,
         )
 
@@ -1382,6 +1372,7 @@ class Peer(Logger, EventListener):
         except LNProtocolWarning as e:
             self.send_warning(channel_id, message=str(e), close_connection=True)
         sig_64, _ = chan.sign_next_commitment()
+        chan.config[REMOTE].current_commitment_signature = sig_64
         self.send_message('funding_signed',
             channel_id=channel_id,
             signature=sig_64,
@@ -1693,8 +1684,8 @@ class Peer(Logger, EventListener):
             return
         channel_id = chan.channel_id
         per_commitment_secret_index = RevocationStore.START_INDEX - 1
-        second_per_commitment_point = secret_to_pubkey(int.from_bytes(
-            get_per_commitment_secret_from_seed(chan.config[LOCAL].per_commitment_secret_seed, per_commitment_secret_index), 'big'))
+        second_per_commitment_point = get_pcp_from_seed(chan.config[LOCAL].per_commitment_secret_seed, per_commitment_secret_index)
+
         channel_ready_tlvs = {}
         if self.features.supports(LnFeatures.OPTION_SCID_ALIAS_OPT):
             # LND requires that we send an alias if the option has been negotiated in INIT.
@@ -1866,7 +1857,13 @@ class Peer(Logger, EventListener):
             return False
         self.logger.info(f'send_commitment. chan {chan.short_channel_id}. ctn: {chan.get_next_ctn(REMOTE)}.')
         sig_64, htlc_sigs = chan.sign_next_commitment()
-        self.send_message("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=b"".join(htlc_sigs))
+        self.send_message(
+            "commitment_signed",
+            channel_id=chan.channel_id,
+            signature=sig_64,
+            num_htlcs=len(htlc_sigs),
+            htlc_signature=b"".join(htlc_sigs),
+        )
         return True
 
     def send_htlc(
@@ -1936,10 +1933,12 @@ class Peer(Logger, EventListener):
         self.logger.info(f'send_revoke_and_ack. chan {chan.short_channel_id}. ctn: {chan.get_oldest_unrevoked_ctn(LOCAL)}')
         rev = chan.revoke_current_commitment()
         self.lnworker.save_channel(chan)
-        self.send_message("revoke_and_ack",
+        self.send_message(
+            "revoke_and_ack",
             channel_id=chan.channel_id,
             per_commitment_secret=rev.per_commitment_secret,
-            next_per_commitment_point=rev.next_per_commitment_point)
+            next_per_commitment_point=rev.next_per_commitment_point,
+        )
         self.maybe_send_commitment(chan)
 
     def on_commitment_signed(self, chan: Channel, payload) -> None:

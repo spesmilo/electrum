@@ -114,6 +114,10 @@ class ChannelConfig(StoredObject):
     upfront_shutdown_script = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
     announcement_node_sig = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
     announcement_bitcoin_sig = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
+    current_commitment_signature = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
+    current_htlc_signatures = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
+    next_per_commitment_point = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
+    current_per_commitment_point = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
 
     def validate_params(self, *, funding_sat: int, config: 'SimpleConfig', peer_features: 'LnFeatures') -> None:
         conf_name = type(self).__name__
@@ -220,8 +224,6 @@ class ChannelConfig(StoredObject):
 class LocalConfig(ChannelConfig):
     channel_seed = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)  # type: Optional[bytes]
     funding_locked_received = attr.ib(type=bool)
-    current_commitment_signature = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
-    current_htlc_signatures = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
     per_commitment_secret_seed = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
 
     @classmethod
@@ -271,8 +273,7 @@ class LocalConfig(ChannelConfig):
 @stored_as('remote_config')
 @attr.s
 class RemoteConfig(ChannelConfig):
-    next_per_commitment_point = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
-    current_per_commitment_point = attr.ib(default=None, type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
+    pass
 
 
 @stored_in('fee_updates')
@@ -612,6 +613,10 @@ def get_per_commitment_secret_from_seed(seed: bytes, i: int, bits: int = 48) -> 
             per_commitment_secret = bytearray(sha256(per_commitment_secret))
     bajts = bytes(per_commitment_secret)
     return bajts
+
+def get_pcp_from_seed(seed: bytes, i: int) -> bytes:
+    per_commitment_secret = get_per_commitment_secret_from_seed(seed, i)
+    return secret_to_pubkey(int.from_bytes(per_commitment_secret, 'big'))
 
 
 def secret_to_pubkey(secret: int) -> bytes:

@@ -74,7 +74,7 @@ from .lnutil import (
     OnchainChannelBackupStorage, ln_compare_features, IncompatibleLightningFeatures, PaymentFeeBudget,
     NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, GossipForwardingMessage, MIN_FUNDING_SAT,
     MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE, RecvMPPResolution, ReceivedMPPStatus, ReceivedMPPHtlc,
-    PaymentSuccess, ChannelType, LocalConfig, Keypair,
+    PaymentSuccess, ChannelType, LocalConfig, Keypair, RevocationStore, get_pcp_from_seed
 )
 from .lnonion import (
     decode_onion_error, OnionFailureCode, OnionRoutingFailure, OnionPacket,
@@ -1680,6 +1680,17 @@ class LNWallet(Logger):
             htlc_minimum_msat=1,
             announcement_node_sig=b'',
             announcement_bitcoin_sig=b'',
+            current_per_commitment_point=None,
+            next_per_commitment_point=None,
+        )
+        # for the first commitment transaction
+        local_config.current_per_commitment_point = get_pcp_from_seed(
+            local_config.per_commitment_secret_seed,
+            RevocationStore.START_INDEX
+        )
+        local_config.next_per_commitment_point = get_pcp_from_seed(
+            local_config.per_commitment_secret_seed,
+            RevocationStore.START_INDEX - 1
         )
         local_config.validate_params(funding_sat=funding_sat, config=self.network.config, peer_features=peer_features)
         return local_config

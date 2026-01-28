@@ -69,7 +69,7 @@ class WalletUnfinished(WalletFileException):
 # seed_version is now used for the version of the wallet file
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 67     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 68     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -242,6 +242,7 @@ class WalletDBUpgrader(Logger):
         self._convert_version_65()
         self._convert_version_66()
         self._convert_version_67()
+        self._convert_version_68()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
     def _convert_wallet_type(self):
@@ -1353,6 +1354,19 @@ class WalletDBUpgrader(Logger):
             chan['log'][key]['fee_updates'] = {}
         self.data['channels'] = channels
         self.data['seed_version'] = 67
+
+    def _convert_version_68(self):
+        if not self._is_upgrade_method_needed(67, 67):
+            return
+        channels = self.data.get('channels', {})
+        for _key, chan in channels.items():
+            chan['local_config']['next_per_commitment_point'] = None
+            chan['local_config']['current_per_commitment_point'] = None
+            chan['remote_config']['current_commitment_signature'] = None
+            chan['remote_config']['current_htlc_signatures'] = None
+            chan['remote_config']['encrypted_seed'] = None
+        self.data['channels'] = channels
+        self.data['seed_version'] = 68
 
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):

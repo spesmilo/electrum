@@ -81,6 +81,8 @@ def _convert_to_rconfig_from_lconfig(lconfig: LocalConfig) -> RemoteConfig:
         announcement_bitcoin_sig=lconfig.announcement_bitcoin_sig,
         next_per_commitment_point=pcp_point,
         current_per_commitment_point=None,
+        current_commitment_signature=None,
+        current_htlc_signatures=None,
     )
     return rconfig
 
