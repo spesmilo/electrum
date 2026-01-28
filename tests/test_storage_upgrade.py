@@ -18,7 +18,6 @@ from . import as_testnet
 from .test_wallet import WalletTestCase
 
 
-WALLET_FILES_DIR = os.path.join(os.path.dirname(__file__), "test_storage_upgrade")
 
 
 # TODO add other wallet types: 2fa, xpub-only
@@ -30,7 +29,7 @@ class TestStorageUpgrade(WalletTestCase):
         assert isinstance(test_method_name, str)
         assert test_method_name.startswith("test_upgrade_from_")
         fname = test_method_name[len("test_upgrade_from_"):]
-        test_vector_file = os.path.join(WALLET_FILES_DIR, fname)
+        test_vector_file = self.get_wallet_file_path(fname)
         with open(test_vector_file, "r") as f:
             wallet_str = f.read()
         return wallet_str
