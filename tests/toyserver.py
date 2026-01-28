@@ -6,7 +6,7 @@ import asyncio
 import collections
 from dataclasses import dataclass
 from functools import partial
-from typing import Optional, Sequence, Iterable, List, Set
+from typing import Optional, Sequence, Iterable, List, Set, Callable, TypeVar
 
 import aiorpcx
 from aiorpcx import RPCError
@@ -29,6 +29,28 @@ from . import restore_wallet_from_text__for_unittest
 DAEMON_ERROR = 2
 
 REGTEST_GENESIS_HEADER = bfh("0100000000000000000000000000000000000000000000000000000000000000000000003ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4adae5494dffff7f2002000000")
+
+T = TypeVar("T")
+
+def topologically_sort_subgraph(
+    start_node: T,
+    *,
+    get_direct_children: Callable[[T], Iterable[T]],
+) -> Sequence[T]:
+    children = []
+    seen = set()
+
+    def recurse(node: str):
+        direct_children = get_direct_children(node)
+        for child in direct_children:
+            if child not in seen:
+                seen.add(child)
+                recurse(child)
+        children.append(node)
+
+    recurse(start_node)
+    return children[::-1]
+
 
 
 @dataclass(kw_only=True, slots=True, frozen=True)
@@ -169,9 +191,10 @@ class ToyServer:
             self.sh_to_spending_txids[sh].add(txid)
         return funded_sh | spent_sh
 
-    def _remove_tx(self, tx: Transaction) -> set[str]:
+    def _remove_tx_that_has_no_children(self, tx: Transaction) -> set[str]:
         txid = tx.txid()
         assert txid
+        assert self.block_height_from_txid(txid) is None, "tx already mined"
         self.txs.pop(txid)
         # un-fund UTXOs
         for txout_idx, txout in enumerate(tx.outputs()):
@@ -192,6 +215,48 @@ class ToyServer:
             self.sh_to_spending_txids[sh].discard(txid)
         return funded_sh | spent_sh
 
+    def _remove_tx_and_all_children(self, tx: Transaction) -> set[str]:
+        txid = tx.txid()
+        assert txid
+        children = self._get_transitive_children_txids(txid)
+        touched_sh = set()
+        for txid in children:
+            tx = Transaction(self.txs[txid])
+            touched_sh |= self._remove_tx_that_has_no_children(tx)
+        return touched_sh
+
+    def _get_direct_children_txids(self, txid: str) -> Sequence[str]:
+        res = []
+        tx = Transaction(self.txs[txid])
+        for txout_idx, txout in enumerate(tx.outputs()):
+            outpoint = TxOutpoint(txid=bfh(txid), out_idx=txout_idx)
+            if spender_txid := self.txo_to_spender_txid[outpoint]:
+                res.append(spender_txid)
+        return res
+
+    def _get_transitive_children_txids(self, txid: str) -> Sequence[str]:
+        """Returns all (grand-)children, including orig tx.
+        Topologically sorted, children first.
+        """
+        return topologically_sort_subgraph(txid, get_direct_children=self._get_direct_children_txids)[::-1]
+
+    def _get_direct_conflicts(self, tx: Transaction) -> Sequence[str]:
+        txid = tx.txid()
+        assert txid
+        res = []
+        for txin in tx.inputs():
+            if txin.is_coinbase_input():
+                continue
+            if double_spender_txid := self.txo_to_spender_txid.get(txin.prevout, None):
+                res.append(double_spender_txid)
+        return res
+
+    def _get_transitive_conflicts(self, tx: Transaction) -> Iterable[str]:
+        res = set()
+        for direct_conflict in self._get_direct_conflicts(tx):
+            res |= self._get_transitive_children_txids(direct_conflict)
+        return res
+
     async def mempool_add_tx(self, tx: Transaction) -> None:
         touched_sh = self._add_tx(tx)
         # notify clients
@@ -203,7 +268,7 @@ class ToyServer:
         assert txid
         assert txid in self.txs, "unknown tx"
         assert self.block_height_from_txid(txid) is None, "tx already mined"
-        touched_sh = self._remove_tx(tx)
+        touched_sh = self._remove_tx_and_all_children(tx)
         # notify clients
         for session in self.sessions:
             await session.server_send_notifications(touched_sh=touched_sh)
