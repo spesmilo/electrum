@@ -4,6 +4,7 @@
 
 import asyncio
 import collections
+from dataclasses import dataclass
 from functools import partial
 from typing import Optional, Sequence, Iterable, List, Set
 
@@ -13,22 +14,21 @@ from aiorpcx import RPCError
 from electrum import blockchain
 from electrum.util import bfh
 from electrum.logging import Logger
-from electrum.transaction import Transaction
+from electrum.transaction import Transaction, TxOutput, TxInput, TxOutpoint
 from electrum import constants
 from electrum.bitcoin import script_to_scripthash
 from electrum.synchronizer import history_status
 
 
-# regtest chain:
-_BLOCK_HEADERS: List[bytes] = [
-    bfh("0100000000000000000000000000000000000000000000000000000000000000000000003ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4adae5494dffff7f2002000000"),
-    bfh("0000002006226e46111a0b59caaf126043eb5bbf28c34f3a5e332a1fc7b2b73cf188910f186c8dfd970a4545f79916bc1d75c9d00432f57c89209bf3bb115b7612848f509c25f45bffff7f2000000000"),
-    bfh("00000020686bdfc6a3db73d5d93e8c9663a720a26ecb1ef20eb05af11b36cdbc57c19f7ebf2cbf153013a1c54abaf70e95198fcef2f3059cc6b4d0f7e876808e7d24d11cc825f45bffff7f2000000000"),
-    bfh("00000020122baa14f3ef54985ae546d1611559e3f487bd2a0f46e8dbb52fbacc9e237972e71019d7feecd9b8596eca9a67032c5f4641b23b5d731dc393e37de7f9c2f299e725f45bffff7f2000000000"),
-    bfh("00000020f8016f7ef3a17d557afe05d4ea7ab6bde1b2247b7643896c1b63d43a1598b747a3586da94c71753f27c075f57f44faf913c31177a0957bbda42e7699e3a2141aed25f45bffff7f2001000000"),
-    bfh("000000201d589c6643c1d121d73b0573e5ee58ab575b8fdf16d507e7e915c5fbfbbfd05e7aee1d692d1615c3bdf52c291032144ce9e3b258a473c17c745047f3431ff8e2ee25f45bffff7f2000000000"),
-    bfh("00000020b833ed46eea01d4c980f59feee44a66aa1162748b6801029565d1466790c405c3a141ce635cbb1cd2b3a4fcdd0a3380517845ba41736c82a79cab535d31128066526f45bffff7f2001000000"),
-]
+DAEMON_ERROR = 2
+
+REGTEST_GENESIS_HEADER = bfh("0100000000000000000000000000000000000000000000000000000000000000000000003ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4adae5494dffff7f2002000000")
+
+
+@dataclass(kw_only=True, slots=True, frozen=True)
+class FakeBlock:
+    header: bytes
+    txids: Sequence[str] = ()
 
 
 class ToyServer:
@@ -39,11 +39,14 @@ class ToyServer:
 
     def __init__(self):
         self.sessions = set()  # type: Set[ToyServerSession]
-        self._block_headers = _BLOCK_HEADERS[:]
-        self._txid_to_block_height = collections.defaultdict(int)  # type: dict[str, int]
+        self._blocks = [FakeBlock(header=REGTEST_GENESIS_HEADER)]  # type: list[FakeBlock]
+
+        # indexes:
         self.sh_to_funding_txids = collections.defaultdict(set)  # type: dict[str, set[str]]
         self.sh_to_spending_txids = collections.defaultdict(set)  # type: dict[str, set[str]]
         self.txs = {}  # type: dict[str, bytes]
+        self._cache_blockheight_from_txid = {}  # type: dict[str, int]
+        self.txo_to_spender_txid = {}  # type: dict[TxOutpoint, str | None]  # also contains UTXOs
 
     async def start(self):
         session_factory = partial(ToyServerSession, toyserver=self)
@@ -54,6 +57,21 @@ class ToyServer:
     async def stop(self):
         self.asyncio_server.close()
         await self.asyncio_server.wait_closed()
+
+    def block_height_from_txid(self, txid: str) -> Optional[int]:
+        # check cache first
+        if height := self._cache_blockheight_from_txid.get(txid) is not None:
+            if len(self._blocks) > height and txid in self._blocks[height].txids:
+                # valid cache hit
+                return height
+            else:  # stale cache
+                self._cache_blockheight_from_txid.pop(txid)
+        # linear search
+        for height, block in enumerate(self._blocks):
+            if txid in block.txids:
+                self._cache_blockheight_from_txid[txid] = height
+                return height
+        return None
 
     def get_session_by_name(self, client_name: str) -> 'ToyServerSession':
         found_sessions = [
@@ -70,51 +88,89 @@ class ToyServer:
     @property
     def cur_height(self) -> int:
         """chain tip"""
-        return len(self._block_headers) - 1
+        return len(self._blocks) - 1
 
     def get_block_header(self, height: int) -> bytes:
-        return self._block_headers[height]
+        return self._blocks[height].header
 
     def calc_sh_history(self, sh: str) -> Sequence[tuple[str, int]]:
         txids = self.sh_to_funding_txids[sh] | self.sh_to_spending_txids[sh]
         hist = []
         for txid in txids:
-            bh = self._txid_to_block_height[txid]
+            bh = self.block_height_from_txid(txid) or 0
             hist.append((txid, bh))
         hist.sort(key=lambda x: x[1])  # FIXME put mempool txs last
         return hist
 
+    def _get_funded_and_spent_scripthashes(self, tx: Transaction) -> tuple[set[str], set[str]]:
+        """Returns scripthashes touched by tx."""
+        txid = tx.txid()
+        assert txid
+        funded_sh = set()
+        for txout in tx.outputs():
+            sh = script_to_scripthash(txout.scriptpubkey)
+            funded_sh.add(sh)
+        spent_sh = set()
+        for txin in tx.inputs():
+            if txin.is_coinbase_input():
+                continue
+            parent_tx_raw = self.txs[txin.prevout.txid.hex()]  # parent must not be missing!
+            parent_tx = Transaction(parent_tx_raw)
+            ptxout = parent_tx.outputs()[txin.prevout.out_idx]
+            sh = script_to_scripthash(ptxout.scriptpubkey)
+            spent_sh.add(sh)
+        return funded_sh, spent_sh
+
     def _add_tx(self, tx: Transaction) -> set[str]:
-        """Returns touched scripthashes."""
         txid = tx.txid()
         assert txid
         self.txs[txid] = bfh(str(tx))
-        touched_sh = set()
-        # update sh_to_funding_txids
-        for txout in tx.outputs():
-            sh = script_to_scripthash(txout.scriptpubkey)
-            self.sh_to_funding_txids[sh].add(txid)
-            touched_sh.add(sh)
-        # update sh_to_spending_txids
+        # fund UTXOs
+        for txout_idx, txout in enumerate(tx.outputs()):
+            outpoint = TxOutpoint(txid=bfh(txid), out_idx=txout_idx)
+            self.txo_to_spender_txid[outpoint] = None
+        # spend UTXOs
         for txin in tx.inputs():
-            if parent_tx_raw := self.txs.get(txin.prevout.txid.hex()):
-                parent_tx = Transaction(parent_tx_raw)
-                ptxout = parent_tx.outputs()[txin.prevout.out_idx]
-                sh = script_to_scripthash(ptxout.scriptpubkey)
-                self.sh_to_spending_txids[sh].add(txid)
-                touched_sh.add(sh)
-        return touched_sh
+            if txin.is_coinbase_input():
+                continue
+            double_spender_txid = self.txo_to_spender_txid.get(txin.prevout, ...)
+            if double_spender_txid is ...:
+                raise RPCError(DAEMON_ERROR, f"cannot spend non-existent UTXO: {txin.prevout}")
+            elif double_spender_txid is None:  # UTXO exists and is unspent
+                self.txo_to_spender_txid[txin.prevout] = txid
+            elif double_spender_txid == txid:  # already marked?
+                pass                           # (duplicate calls, e.g. when added to mempool, and when mined)
+            else:  # conflict
+                raise RPCError(DAEMON_ERROR, f"cannot double-spend UTXO: {txin.prevout}. conflict: {txid} vs {double_spender_txid}")
+        # update touched scripthashes
+        funded_sh, spent_sh = self._get_funded_and_spent_scripthashes(tx)
+        for sh in funded_sh:
+            self.sh_to_funding_txids[sh].add(txid)
+        for sh in spent_sh:
+            self.sh_to_spending_txids[sh].add(txid)
+        return funded_sh | spent_sh
 
     async def mempool_add_tx(self, tx: Transaction) -> None:
         touched_sh = self._add_tx(tx)
+        # notify clients
         for session in self.sessions:
             await session.server_send_notifications(touched_sh=touched_sh)
 
-    async def mine_block(self, *, txs: Iterable[Transaction] = None):
+    async def mine_block(
+        self,
+        *,
+        txs: Iterable[Transaction] = None,
+        coinbase_outputs: Iterable[TxOutput] = None,  # hmhm maturity?
+    ) -> tuple[FakeBlock, Transaction]:
         if txs is None:
             txs = []
+        coinbase_tx = Transaction(None)
+        coinbase_tx._inputs = [TxInput(prevout=TxOutpoint(txid=bytes(32), out_idx=0xffffffff))]
+        coinbase_tx._outputs = list(coinbase_outputs or []) + [TxOutput(scriptpubkey=bfh("6a04deadbeef"), value=0)]
+        txs = [coinbase_tx] + txs
+        assert not any(tx.txid() is None for tx in txs)
         # new header
-        prev_header = self._block_headers[-1]
+        prev_header = self._blocks[-1].header
         prev_blockhash = blockchain.hash_raw_header(prev_header)
         new_header = blockchain.serialize_header({
             'version': 99999,  # don't care
@@ -124,16 +180,16 @@ class ToyServer:
             'bits': 0x1d00ffff,  # don't care
             'nonce': 1,  # don't care
         })
-        self._block_headers.append(new_header)
+        new_block = FakeBlock(header=new_header, txids=tuple(tx.txid() for tx in txs))
+        self._blocks.append(new_block)
         # process txs
         touched_sh = set()
         for tx in txs:
-            txid = tx.txid()
-            assert txid
-            self._txid_to_block_height[txid] = self.cur_height
             touched_sh |= self._add_tx(tx)
+        # notify clients
         for session in self.sessions:
             await session.server_send_notifications(touched_sh=touched_sh, height_changed=True)
+        return new_block, coinbase_tx
 
 
 class ToyServerSession(aiorpcx.RPCSession, Logger):
@@ -228,7 +284,6 @@ class ToyServerSession(aiorpcx.RPCSession, Logger):
         assert not verbose
         rawtx = self.svr.txs.get(tx_hash)
         if rawtx is None:
-            DAEMON_ERROR = 2
             raise RPCError(DAEMON_ERROR, f'daemon error: unknown txid={tx_hash}')
         return rawtx.hex()
 

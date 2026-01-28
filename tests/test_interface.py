@@ -4,11 +4,12 @@ from functools import partial
 import aiorpcx
 from aiorpcx import RPCError
 
+from electrum.bitcoin import COIN, COINBASE_MATURITY
 from electrum.interface import ServerAddr, Interface, PaddedRSTransport
 from electrum import util, blockchain
 from electrum.util import OldTaskGroup, bfh
 from electrum.simple_config import SimpleConfig
-from electrum.transaction import Transaction
+from electrum.transaction import Transaction, TxOutput
 from electrum.wallet import Abstract_Wallet
 from electrum.blockchain import Blockchain
 
@@ -112,6 +113,9 @@ class TestInterface(ElectrumTestCase):
         self._toyserver = ToyServer()
         await self._toyserver.start()
         self.network = MockNetwork(config=self.config)
+        for _ in range(10):  # mine some blocks
+            await self._toyserver.mine_block()
+
 
     async def asyncTearDown(self):
         if self.network.interface:
@@ -169,13 +173,14 @@ class TestInterface(ElectrumTestCase):
         If the guess is correct, we won't call the "blockchain.scripthash.get_history" RPC.
         """
         interface = await self._start_iface_and_wait_for_sync()
+        server_blockheight = interface.tip
         w1 = restore_wallet_from_text__for_unittest("9dk", path=None, config=self.config)['wallet']  # type: Abstract_Wallet
         w1.start_network(self.network)
         await w1.up_to_date_changed_event.wait()
         self.assertEqual(self._get_server_session()._method_counts["blockchain.scripthash.get_history"], 0)
         # fund w1 (in mempool)
-        funding_tx = "01000000000101e855888b77b1688d08985b863bfe85b354049b4eba923db9b5cf37089975d5d10000000000fdffffff0280969800000000001600140297bde2689a3c79ffe050583b62f86f2d9dae5460abe9000000000016001472df47551b6e7e0c8428814d2e572bc5ac773dda024730440220383efa2f0f5b87f8ce5d6b6eaf48cba03bf522b23fbb23b2ac54ff9d9a8f6a8802206f67d1f909f3c7a22ac0308ac4c19853ffca3a9317e1d7e0c88cc3a86853aaac0121035061949222555a0df490978fe6e7ebbaa96332ecb5c266918fd800c0eef736e7358d1400"
-        funding_txid = await self._get_server_session()._handle_transaction_broadcast(funding_tx)
+        funding_tx = Transaction("01000000000101e855888b77b1688d08985b863bfe85b354049b4eba923db9b5cf37089975d5d10000000000fdffffff0280969800000000001600140297bde2689a3c79ffe050583b62f86f2d9dae5460abe9000000000016001472df47551b6e7e0c8428814d2e572bc5ac773dda024730440220383efa2f0f5b87f8ce5d6b6eaf48cba03bf522b23fbb23b2ac54ff9d9a8f6a8802206f67d1f909f3c7a22ac0308ac4c19853ffca3a9317e1d7e0c88cc3a86853aaac0121035061949222555a0df490978fe6e7ebbaa96332ecb5c266918fd800c0eef736e7358d1400")
+        funding_txid = await self._toyserver.mempool_add_tx(funding_tx)
         await w1.up_to_date_changed_event.wait()
         while not w1.is_up_to_date():
             await w1.up_to_date_changed_event.wait()
@@ -185,6 +190,7 @@ class TestInterface(ElectrumTestCase):
             {funding_txid: 0})
         # mine funding tx
         await self._toyserver.mine_block(txs=[Transaction(funding_tx)])
+        server_blockheight += 1
         await w1.up_to_date_changed_event.wait()
         while not w1.is_up_to_date():
             await w1.up_to_date_changed_event.wait()
@@ -192,5 +198,5 @@ class TestInterface(ElectrumTestCase):
         self.assertEqual(self._get_server_session()._method_counts["blockchain.scripthash.get_history"], 1)
         self.assertEqual(
             w1.adb.get_address_history("bcrt1qq2tmmcngng78nllq2pvrkchcdukemtj5jnxz44"),
-            {funding_txid: 7})
+            {funding_txid: server_blockheight})
 
