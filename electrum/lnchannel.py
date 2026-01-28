@@ -625,6 +625,8 @@ class ChannelBackup(AbstractChannel):
             upfront_shutdown_script='',
             announcement_node_sig=b'',
             announcement_bitcoin_sig=b'',
+            next_per_commitment_point=None,
+            current_per_commitment_point=None,
         )
         self.config[REMOTE] = RemoteConfig(
             # payment_basepoint needed to deobfuscate ctn in our_ctx
@@ -642,6 +644,8 @@ class ChannelBackup(AbstractChannel):
             initial_msat = None,
             reserve_sat = None,
             htlc_minimum_msat=None,
+            current_commitment_signature=None,
+            current_htlc_signatures=b'',
             next_per_commitment_point=None,
             current_per_commitment_point=None,
             upfront_shutdown_script='',
@@ -1056,6 +1060,13 @@ class Channel(AbstractChannel):
         return out
 
     def open_with_first_pcp(self, remote_pcp: bytes, remote_sig: bytes) -> None:
+        # add local pcp for peerbackup
+        first_ctn = self.get_latest_ctn(LOCAL)
+        current_secret, current_point = self.get_secret_and_point(LOCAL, first_ctn)
+        next_secret, next_point = self.get_secret_and_point(LOCAL, first_ctn + 1)
+        with self.db_lock:
+            self.config[LOCAL].current_per_commitment_point = current_point
+            self.config[LOCAL].next_per_commitment_point = next_point
         with self.db_lock:
             self.config[REMOTE].current_per_commitment_point = remote_pcp
             self.config[REMOTE].next_per_commitment_point = None
@@ -1297,6 +1308,9 @@ class Channel(AbstractChannel):
         htlcsigs = [x[1] for x in htlcsigs]
         with self.db_lock:
             self.hm.send_ctx()
+            self.config[REMOTE].current_commitment_signature = sig_64
+            self.config[REMOTE].current_htlc_signatures = b''.join(htlcsigs)
+
         return sig_64, htlcsigs
 
     def receive_new_commitment(self, sig: bytes, htlc_sigs: Sequence[bytes]) -> None:
@@ -1390,13 +1404,15 @@ class Channel(AbstractChannel):
         assert not self.is_closed(), self.get_state()
         new_ctn = self.get_latest_ctn(LOCAL)
         new_ctx = self.get_latest_commitment(LOCAL)
+        last_secret, last_point = self.get_secret_and_point(LOCAL, new_ctn - 1)
+        next_secret, next_point = self.get_secret_and_point(LOCAL, new_ctn + 1)
         if not self.signature_fits(new_ctx):
             # this should never fail; as receive_new_commitment already did this test
             raise Exception("refusing to revoke as remote sig does not fit")
         with self.db_lock:
+            self.config[LOCAL].current_per_commitment_point = self.config[LOCAL].next_per_commitment_point
+            self.config[LOCAL].next_per_commitment_point = next_point
             self.hm.send_rev()
-        last_secret, last_point = self.get_secret_and_point(LOCAL, new_ctn - 1)
-        next_secret, next_point = self.get_secret_and_point(LOCAL, new_ctn + 1)
         return RevokeAndAck(last_secret, next_point)
 
     def receive_revocation(self, revocation: RevokeAndAck):
@@ -1411,8 +1427,8 @@ class Channel(AbstractChannel):
             self.revocation_store.add_next_entry(revocation.per_commitment_secret)
             ##### start applying fee/htlc changes
             self.hm.recv_rev()
-            self.config[REMOTE].current_per_commitment_point=self.config[REMOTE].next_per_commitment_point
-            self.config[REMOTE].next_per_commitment_point=revocation.next_per_commitment_point
+            self.config[REMOTE].current_per_commitment_point = self.config[REMOTE].next_per_commitment_point
+            self.config[REMOTE].next_per_commitment_point = revocation.next_per_commitment_point
         assert new_ctn == self.get_oldest_unrevoked_ctn(REMOTE)
         # lnworker callbacks
         sent = self.hm.sent_in_ctn(new_ctn)
