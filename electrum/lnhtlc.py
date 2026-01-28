@@ -7,25 +7,26 @@ from .util import bfh, with_lock
 if TYPE_CHECKING:
     from .json_db import StoredDict
 
+LOG_TEMPLATE = {
+    'adds': {},              # "side who offered htlc" -> htlc_id -> htlc
+    'locked_in': {},         # "side who offered htlc" -> action -> htlc_id -> whose ctx -> ctn
+    'settles': {},           # "side who offered htlc" -> action -> htlc_id -> whose ctx -> ctn
+    'fails': {},             # "side who offered htlc" -> action -> htlc_id -> whose ctx -> ctn
+    'fee_updates': {},       # "side who initiated fee update" -> index -> list of FeeUpdates
+    'revack_pending': False,
+    'next_htlc_id': 0,
+    'ctn': -1,               # oldest unrevoked ctx of sub
+}
+
 
 class HTLCManager:
 
     def __init__(self, log: 'StoredDict', *, initiator=None, initial_feerate=None):
 
         if len(log) == 0:
-            initial = {
-                'adds': {},              # "side who offered htlc" -> htlc_id -> htlc
-                'locked_in': {},         # "side who offered htlc" -> action -> htlc_id -> whose ctx -> ctn
-                'settles': {},           # "side who offered htlc" -> action -> htlc_id -> whose ctx -> ctn
-                'fails': {},             # "side who offered htlc" -> action -> htlc_id -> whose ctx -> ctn
-                'fee_updates': {},       # "side who initiated fee update" -> index -> list of FeeUpdates
-                'revack_pending': False,
-                'next_htlc_id': 0,
-                'ctn': -1,               # oldest unrevoked ctx of sub
-            }
             # note: "htlc_id" keys in dict are str! but due to json_db magic they can *almost* be treated as int...
-            log[LOCAL] = deepcopy(initial)
-            log[REMOTE] = deepcopy(initial)
+            log[LOCAL] = deepcopy(LOG_TEMPLATE)
+            log[REMOTE] = deepcopy(LOG_TEMPLATE)
             log[LOCAL]['unacked_updates'] = {}
             log[LOCAL]['was_revoke_last'] = False
 
