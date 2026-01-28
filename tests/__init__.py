@@ -35,9 +35,10 @@ electrum.util.AS_LIB_USER_I_WANT_TO_MANAGE_MY_OWN_ASYNCIO_LOOP = True
 class ElectrumTestCase(unittest.IsolatedAsyncioTestCase, Logger):
     """Base class for our unit tests."""
 
-    TESTNET = False
+    TESTNET = False  # there is also an @as_testnet decorator to run single tests in testnet mode
     REGTEST = False
     TEST_ANCHOR_CHANNELS = False
+    WALLET_FILES_DIR = os.path.join(os.path.dirname(__file__), "test_storage_upgrade")
     # maxDiff = None  # for debugging
 
     # some unit tests are modifying globals... so we run sequentially:
@@ -109,6 +110,9 @@ class ElectrumTestCase(unittest.IsolatedAsyncioTestCase, Logger):
         lnwallet = _create_mock_lnwallet(name=name, has_anchors=has_anchors, data_dir=data_dir)
         self._lnworkers_created.append(lnwallet)
         return lnwallet
+
+    def get_wallet_file_path(self, wallet_name: str) -> str:
+        return os.path.join(self.WALLET_FILES_DIR, wallet_name)
 
 
 def as_testnet(func):
