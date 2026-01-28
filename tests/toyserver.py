@@ -14,10 +14,16 @@ from aiorpcx import RPCError
 from electrum import blockchain
 from electrum.util import bfh
 from electrum.logging import Logger
-from electrum.transaction import Transaction, TxOutput, TxInput, TxOutpoint
+from electrum.transaction import Transaction, TxOutput, TxInput, TxOutpoint, PartialTxOutput
 from electrum import constants
-from electrum.bitcoin import script_to_scripthash
+from electrum.bitcoin import script_to_scripthash, COIN, COINBASE_MATURITY
+from electrum.simple_config import SimpleConfig
 from electrum.synchronizer import history_status
+from electrum.wallet import Abstract_Wallet
+from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
+from electrum.fee_policy import FixedFeePolicy
+
+from . import restore_wallet_from_text__for_unittest
 
 
 DAEMON_ERROR = 2
@@ -47,6 +53,8 @@ class ToyServer:
         self.txs = {}  # type: dict[str, bytes]
         self._cache_blockheight_from_txid = {}  # type: dict[str, int]
         self.txo_to_spender_txid = {}  # type: dict[TxOutpoint, str | None]  # also contains UTXOs
+
+        self._faucet_w = None  # type: Optional[Abstract_Wallet]
 
     async def start(self):
         session_factory = partial(ToyServerSession, toyserver=self)
@@ -190,6 +198,29 @@ class ToyServer:
         for session in self.sessions:
             await session.server_send_notifications(touched_sh=touched_sh, height_changed=True)
         return new_block, coinbase_tx
+
+    async def set_up_faucet(self, *, config: SimpleConfig):
+        assert self._faucet_w is None
+        self._faucet_w = restore_wallet_from_text__for_unittest(
+            "9dk", passphrase="faucet", path=None, config=config)['wallet']  # type: Abstract_Wallet
+        self._faucet_w.adb.get_local_height = lambda *args: self.cur_height
+        faucet_cb_txo = TxOutput.from_address_and_value(self._faucet_w.get_receiving_address(), 50 * COIN)
+        block, cb_tx = await self.mine_block(coinbase_outputs=[faucet_cb_txo])
+        faucet_tx_height = self.cur_height
+        for _ in range(COINBASE_MATURITY):  # need to mine some blocks for maturity
+            await self.mine_block()
+        self._faucet_w.adb.receive_tx_callback(cb_tx, tx_height=faucet_tx_height)
+        # note: balance is unverified due to lack of SPV, gets treated as "unconfirmed":
+        assert self._faucet_w.get_balance() == (0, 50 * COIN, 0), self._faucet_w.get_balance()
+
+    async def ask_faucet(self, outputs: Sequence[TxOutput]) -> Transaction:
+        assert self._faucet_w, "faucet must be set up first using set_up_faucet()"
+        outputs = [PartialTxOutput.from_txout(txout) for txout in outputs]
+        tx = self._faucet_w.make_unsigned_transaction(outputs=outputs, fee_policy=FixedFeePolicy(0))
+        self._faucet_w.sign_transaction(tx, password=None)
+        self._faucet_w.adb.receive_tx_callback(tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+        await self.mempool_add_tx(tx)
+        return tx
 
 
 class ToyServerSession(aiorpcx.RPCSession, Logger):

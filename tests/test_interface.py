@@ -11,6 +11,7 @@ from electrum.util import OldTaskGroup, bfh
 from electrum.simple_config import SimpleConfig
 from electrum.transaction import Transaction, TxOutput
 from electrum.wallet import Abstract_Wallet
+from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
 from electrum.blockchain import Blockchain
 
 from . import ElectrumTestCase
@@ -115,7 +116,7 @@ class TestInterface(ElectrumTestCase):
         self.network = MockNetwork(config=self.config)
         for _ in range(10):  # mine some blocks
             await self._toyserver.mine_block()
-
+        await self._toyserver.set_up_faucet(config=self.config)
 
     async def asyncTearDown(self):
         if self.network.interface:
@@ -179,17 +180,18 @@ class TestInterface(ElectrumTestCase):
         await w1.up_to_date_changed_event.wait()
         self.assertEqual(self._get_server_session()._method_counts["blockchain.scripthash.get_history"], 0)
         # fund w1 (in mempool)
-        funding_tx = Transaction("01000000000101e855888b77b1688d08985b863bfe85b354049b4eba923db9b5cf37089975d5d10000000000fdffffff0280969800000000001600140297bde2689a3c79ffe050583b62f86f2d9dae5460abe9000000000016001472df47551b6e7e0c8428814d2e572bc5ac773dda024730440220383efa2f0f5b87f8ce5d6b6eaf48cba03bf522b23fbb23b2ac54ff9d9a8f6a8802206f67d1f909f3c7a22ac0308ac4c19853ffca3a9317e1d7e0c88cc3a86853aaac0121035061949222555a0df490978fe6e7ebbaa96332ecb5c266918fd800c0eef736e7358d1400")
-        funding_txid = await self._toyserver.mempool_add_tx(funding_tx)
+        w1_addr = w1.get_receiving_address()
+        funding_tx = await self._toyserver.ask_faucet([TxOutput.from_address_and_value(w1_addr, 1 * COIN)])
+        funding_txid = funding_tx.txid()
         await w1.up_to_date_changed_event.wait()
         while not w1.is_up_to_date():
             await w1.up_to_date_changed_event.wait()
         self.assertEqual(self._get_server_session()._method_counts["blockchain.scripthash.get_history"], 1)
         self.assertEqual(
-            w1.adb.get_address_history("bcrt1qq2tmmcngng78nllq2pvrkchcdukemtj5jnxz44"),
+            w1.adb.get_address_history(w1_addr),
             {funding_txid: 0})
         # mine funding tx
-        await self._toyserver.mine_block(txs=[Transaction(funding_tx)])
+        await self._toyserver.mine_block(txs=[funding_tx])
         server_blockheight += 1
         await w1.up_to_date_changed_event.wait()
         while not w1.is_up_to_date():
@@ -197,6 +199,6 @@ class TestInterface(ElectrumTestCase):
         # see if we managed to guess new history, and hence did not need to call get_history RPC
         self.assertEqual(self._get_server_session()._method_counts["blockchain.scripthash.get_history"], 1)
         self.assertEqual(
-            w1.adb.get_address_history("bcrt1qq2tmmcngng78nllq2pvrkchcdukemtj5jnxz44"),
+            w1.adb.get_address_history(w1_addr),
             {funding_txid: server_blockheight})
 
