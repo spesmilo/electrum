@@ -91,7 +91,10 @@ class WCServerConfig(WizardComponent):
         WizardComponent.__init__(self, parent, wizard, title=_('Server'))
         self.sw = ServerWidget(wizard._daemon.network, self)
         self.layout().addWidget(self.sw)
-        self._valid = True
+        self.sw.server_e_valid.connect(self.on_server_e_valid)
+
+    def on_server_e_valid(self, valid):
+        self.valid = valid
 
     def apply(self):
         self.wizard_data['autoconnect'] = self.sw.server_e.text().strip() == ''
