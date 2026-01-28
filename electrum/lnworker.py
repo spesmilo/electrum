@@ -483,6 +483,8 @@ class LNPeerManager(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
                 continue
             if not self.is_good_peer(peer):
                 continue
+            if peer.is_onion() and not self.network.proxy or not self.network.proxy.enabled:
+                continue
             return [peer]
         # try random peer from graph
         unconnected_nodes = self.channel_db.get_200_randomly_sorted_nodes_not_in(self.peers.keys())
@@ -491,7 +493,10 @@ class LNPeerManager(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
                 addrs = self.channel_db.get_node_addresses(node_id)
                 if not addrs:
                     continue
-                host, port, timestamp = self.choose_preferred_address(list(addrs))
+                address = self.choose_preferred_address(list(addrs))
+                if not address:
+                    continue
+                host, port, timestamp = address
                 try:
                     peer = LNPeerAddr(host, port, node_id)
                 except ValueError:
@@ -550,15 +555,17 @@ class LNPeerManager(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         self.logger.info(f'got {len(peers)} ln peers from dns seed')
         return peers
 
-    @staticmethod
-    def choose_preferred_address(addr_list: Sequence[Tuple[str, int, int]]) -> Tuple[str, int, int]:
+    def choose_preferred_address(self, addr_list: Sequence[Tuple[str, int, int]]) -> Optional[Tuple[str, int, int]]:
         assert len(addr_list) >= 1
         # choose the most recent one that is an IP
         for host, port, timestamp in sorted(addr_list, key=lambda a: -a[2]):
             if is_ip_address(host):
                 return host, port, timestamp
+        if not self.network.proxy or not self.network.proxy.enabled:
+            addr_list = [(h, p, ts) for h, p, ts in addr_list if not h.endswith('.onion')]
+        if not addr_list:
+            return None
         # otherwise choose one at random
-        # TODO maybe filter out onion if not on tor?
         choice = random.choice(addr_list)
         return choice
 
@@ -583,12 +590,12 @@ class LNPeerManager(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
                     host, port = addr.host, addr.port
                 else:
                     addrs = self.channel_db.get_node_addresses(node_id)
-                    if not addrs:
+                    if not addrs or not (address := self.choose_preferred_address(list(addrs))):
                         raise ConnStringFormatError(_('Don\'t know any addresses for node:') + ' ' + node_id.hex())
-                    host, port, timestamp = self.choose_preferred_address(list(addrs))
+                    host, port, timestamp = address
             port = int(port)
 
-            if not self.network.proxy:
+            if not self.network.proxy or not self.network.proxy.enabled:
                 # Try DNS-resolving the host (if needed). This is simply so that
                 # the caller gets a nice exception if it cannot be resolved.
                 # (we don't do the DNS lookup if a proxy is set, to avoid a DNS-leak)

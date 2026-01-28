@@ -141,3 +141,35 @@ class TestLNTransport(ElectrumTestCase):
         self.assertEqual(extract_nodeid(f"{pubkey1.hex()}@[2001:41d0:e:734::1]:8888"), (pubkey1, "[2001:41d0:e:734::1]:8888"))
         # just pubkey
         self.assertEqual(extract_nodeid(f"{pubkey1.hex()}"), (pubkey1, None))
+
+
+class TestLNPeerAddr(ElectrumTestCase):
+
+    def test_validate_net_address(self):
+        # Test invalid host
+        with self.assertRaises(ValueError):
+            LNPeerAddr("", 9735, b'\x00'*33)
+        with self.assertRaises(ValueError):
+            LNPeerAddr("999.999.999.999", 9735, b'\x00'*33)
+        # Test invalid port
+        with self.assertRaises(ValueError):
+            LNPeerAddr("127.0.0.1", -1, b'\x00'*33)
+        with self.assertRaises(ValueError):
+            LNPeerAddr("127.0.0.1", 70000, b'\x00'*33)
+
+    def test_is_onion(self):
+        # Test onion addresses
+        addr1 = LNPeerAddr("example.onion", 9735, b'\x00'*33)
+        self.assertTrue(addr1.is_onion())
+        addr2 = LNPeerAddr("subdomain.example.onion", 9735, b'\x00'*33)
+        self.assertTrue(addr2.is_onion())
+
+        # Test non-onion
+        addr3 = LNPeerAddr("example.com", 9735, b'\x00'*33)
+        self.assertFalse(addr3.is_onion())
+        addr4 = LNPeerAddr("127.0.0.1", 9735, b'\x00'*33)
+        self.assertFalse(addr4.is_onion())
+        addr5 = LNPeerAddr("::1", 9735, b'\x00'*33)
+        self.assertFalse(addr5.is_onion())
+        addr6 = LNPeerAddr("onion", 9735, b'\x00'*33)
+        self.assertFalse(addr6.is_onion())
