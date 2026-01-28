@@ -37,7 +37,6 @@ from . import crypto
 from .util import (profiler, InvalidPassword, WalletFileException, bfh, standardize_path,
                    test_read_write_permissions, os_chmod)
 
-from .wallet_db import WalletDB
 from .logging import Logger
 
 
@@ -69,11 +68,25 @@ class WalletStorage(Logger):
         path,
         *,
         allow_partial_writes: bool = False,
+        use_levelDB: bool = False,
     ):
         Logger.__init__(self)
         self.path = standardize_path(path)
         self._file_exists = bool(self.path and os.path.exists(self.path))
         self.logger.info(f"wallet path {self.path}")
+
+        if not self._file_exists:
+            self.use_levelDB = use_levelDB
+        elif os.path.isdir(self.path):
+            # fixme: we should have a better detection, maybe use reserved path
+            self.use_levelDB = True
+        else:
+            self.use_levelDB = False
+
+        if self.use_levelDB:
+            self._encryption_version = StorageEncryptionVersion.PLAINTEXT
+            return
+
         self._allow_partial_writes = allow_partial_writes
         self.pubkey = None
         self.decrypted = ''
@@ -92,6 +105,20 @@ class WalletStorage(Logger):
             self._encryption_version = StorageEncryptionVersion.PLAINTEXT
             self.pos = 0
             self.init_pos = 0
+
+    def init_db(self):
+        assert self.is_past_initial_decryption()
+        if self.use_levelDB:
+            from .level_db import LevelDB
+            self._db = LevelDB(self.path)
+            self._db.storage = self
+        else:
+            from .json_db import JsonDB
+            self._db = JsonDB(self.read(), storage=self)
+
+    def get_stored_dict(self):
+        # raises if not decrypted
+        return self._db.get_stored_dict()
 
     def read(self):
         return self.decrypted if self.is_encrypted() else self.raw

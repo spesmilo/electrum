@@ -64,10 +64,11 @@ from .lnutil import CHANNEL_OPENING_TIMEOUT_BLOCKS, CHANNEL_OPENING_TIMEOUT_SEC
 from .lnutil import ChannelBackupStorage, ImportedChannelBackupStorage, OnchainChannelBackupStorage
 from .lnutil import format_short_channel_id
 from .fee_policy import FEERATE_PER_KW_MIN_RELAY_LIGHTNING
+from .stored_dict import stored_at
 
 if TYPE_CHECKING:
     from .lnworker import LNWallet
-    from .json_db import StoredDict
+    from .stored_dict import StoredDict
 
 
 # channel flags
@@ -164,6 +165,14 @@ class RevokeAndAck(NamedTuple):
     next_per_commitment_point: bytes
 
 
+@stored_at('funding_height', tuple)
+@stored_at('closing_height', tuple)
+class FundingHeight(NamedTuple):
+    txid: str
+    height: int
+    timestamp: int
+
+
 class RemoteCtnTooFarInFuture(Exception): pass
 
 
@@ -249,15 +258,13 @@ class AbstractChannel(Logger, ABC):
         # note: tx might not be directly related to the wallet, e.g. chan opened by remote
         if (funding_item := self.get_funding_height()) is None:
             return True
-        funding_txid, funding_height, funding_timestamp = funding_item
-        if self.lnworker.wallet.adb.get_transaction(funding_txid) is None:
+        if self.lnworker.wallet.adb.get_transaction(funding_item.txid) is None:
             return True
         # check we have closing tx
         # note: tx might not be directly related to the wallet, e.g. local-fclose
         if (closing_item := self.get_closing_height()) is None:
             return True
-        closing_txid, closing_height, closing_timestamp = closing_item
-        if self.lnworker.wallet.adb.get_transaction(closing_txid) is None:
+        if self.lnworker.wallet.adb.get_transaction(closing_item.txid) is None:
             return True
         return False
 
@@ -266,7 +273,7 @@ class AbstractChannel(Logger, ABC):
         pass
 
     def save_funding_height(self, *, txid: str, height: int, timestamp: Optional[int]) -> None:
-        self.storage['funding_height'] = txid, height, timestamp
+        self.storage['funding_height'] = FundingHeight(txid, height, timestamp)
 
     def get_funding_height(self) -> Optional[Tuple[str, int, Optional[int]]]:
         return self.storage.get('funding_height')
@@ -275,7 +282,7 @@ class AbstractChannel(Logger, ABC):
         self.storage.pop('funding_height', None)
 
     def save_closing_height(self, *, txid: str, height: int, timestamp: Optional[int]) -> None:
-        self.storage['closing_height'] = txid, height, timestamp
+        self.storage['closing_height'] = FundingHeight(txid, height, timestamp)
 
     def get_closing_height(self) -> Optional[Tuple[str, int, Optional[int]]]:
         return self.storage.get('closing_height')
@@ -784,7 +791,7 @@ class Channel(AbstractChannel):
         Logger.__init__(self)  # should be after short_channel_id is set
         self.lnworker = lnworker
         self.storage = state
-        self.db_lock = self.storage.lock
+        self.db_lock = threading.RLock() if isinstance(self.storage, dict) else self.storage.lock
         self.config = {}
         self.config[LOCAL] = state["local_config"]
         self.config[REMOTE] = state["remote_config"]
@@ -793,7 +800,7 @@ class Channel(AbstractChannel):
         self.node_id = bfh(state["node_id"])
         self.onion_keys = state['onion_keys']  # type: Dict[int, bytes]
         self.data_loss_protect_remote_pcp = state['data_loss_protect_remote_pcp']
-        self.hm = HTLCManager(log=state['log'], initial_feerate=initial_feerate)
+        self.hm = HTLCManager(state['log'], lock=self.db_lock, initial_feerate=initial_feerate)
         self.unfulfilled_htlcs = state["unfulfilled_htlcs"]  # type: Dict[int, Optional[str]]
         # ^ htlc_id -> onion_packet_hex
         self._state = ChannelState[state['state']]

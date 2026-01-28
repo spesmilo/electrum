@@ -52,7 +52,6 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc, ChannelConf
 from .lntransport import LNTransport, LNTransportBase, LightningPeerConnectionClosed, HandshakeFailed
 from .lnmsg import encode_msg, decode_msg, UnknownOptionalMsgType, FailedToParseMsg
 from .interface import GracefulDisconnect
-from .json_db import StoredDict
 from .invoices import PR_PAID
 from .fee_policy import FEE_LN_ETA_TARGET, FEERATE_PER_KW_MIN_RELAY_LIGHTNING
 
@@ -1147,7 +1146,7 @@ class Peer(Logger, EventListener):
             lnworker=self.lnworker,
             initial_feerate=feerate
         )
-        chan.storage['funding_inputs'] = [txin.prevout.to_json() for txin in funding_tx.inputs()]
+        chan.storage['funding_inputs'] = [txin.prevout for txin in funding_tx.inputs()]
         chan.storage['has_onchain_backup'] = has_onchain_backup
         chan.storage['init_height'] = self.lnworker.network.get_local_height()
         chan.storage['init_timestamp'] = int(time.time())
@@ -1197,7 +1196,9 @@ class Peer(Logger, EventListener):
             "revocation_store": {},
             "channel_type": channel_type,
         }
-        return StoredDict(chan_dict, self.lnworker.db)
+        channels_db = self.lnworker.db.get_dict('channels')
+        channels_db[channel_id.hex()] = chan_dict
+        return channels_db[channel_id.hex()]
 
     @non_blocking_msg_handler
     async def on_open_channel(self, payload):

@@ -76,11 +76,18 @@ from .util import log_exceptions, NotEnoughFunds, BelowDustLimit, NoDynamicFeeEs
 from .transaction import PartialTransaction, PartialTxOutput, Transaction, TxOutpoint, PartialTxInput
 from .address_synchronizer import TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE
 from .lnsweep import SweepInfo
-from .json_db import locked, StoredDict
 from .fee_policy import FeePolicy
 
 if TYPE_CHECKING:
     from .wallet import Abstract_Wallet
+    from .stored_dict import StoredDict
+
+
+def locked(func):
+    def wrapper(self, *args, **kwargs):
+        with self.lock:
+            return func(self, *args, **kwargs)
+    return wrapper
 
 
 class TxBatcher(Logger):
@@ -90,7 +97,7 @@ class TxBatcher(Logger):
     def __init__(self, wallet: 'Abstract_Wallet'):
         Logger.__init__(self)
         self.lock = threading.RLock()
-        self.storage = wallet.db.get_stored_item("tx_batches", {})
+        self.storage = wallet.db.get_dict("tx_batches")
         self.tx_batches = {}  # type: Dict[str, TxBatch]
         self.wallet = wallet
         for key, item_storage in self.storage.items():
@@ -228,7 +235,7 @@ class TxBatcher(Logger):
 
 class TxBatch(Logger):
 
-    def __init__(self, wallet: 'Abstract_Wallet', storage: StoredDict):
+    def __init__(self, wallet: 'Abstract_Wallet', storage: 'StoredDict'):
         Logger.__init__(self)
         self.wallet = wallet
         self.storage = storage
