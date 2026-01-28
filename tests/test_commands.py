@@ -591,8 +591,7 @@ class TestCommandsTestnet(ElectrumTestCase):
     @mock.patch.object(storage.WalletStorage, 'append')
     async def test_onchain_history(self, *mock_args):
         cmds = Commands(config=self.config, daemon=self.daemon)
-        WALLET_FILES_DIR = os.path.join(os.path.dirname(__file__), "test_storage_upgrade")
-        wallet_path = os.path.join(WALLET_FILES_DIR, "client_3_3_8_xpub_with_realistic_history")
+        wallet_path = self.get_wallet_file_path("client_3_3_8_xpub_with_realistic_history")
         await cmds.load_wallet(wallet_path=wallet_path)
 
         expected_last_history_item = {

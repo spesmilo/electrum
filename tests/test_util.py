@@ -1,17 +1,24 @@
 import asyncio
 from datetime import datetime
 from decimal import Decimal
+import shutil
+from unittest import mock
+from pathlib import Path
+import os
+import time
 
-from electrum import util
+from electrum import util, storage
 from electrum.util import (format_satoshis, format_fee_satoshis, is_hash256_str, chunks, is_ip_address,
                            list_enabled_bits, format_satoshis_plain, is_private_netaddress, is_hex_str,
                            is_integer, is_non_negative_integer, is_int_or_float, is_non_negative_int_or_float,
-                           ShortID)
+                           ShortID, create_wallet_history_export)
+from electrum.simple_config import SimpleConfig
+from electrum.daemon import Daemon
 from electrum.bip21 import parse_bip21_URI, InvalidBitcoinURI
 from . import ElectrumTestCase, as_testnet
 
 
-class TestUtil(ElectrumTestCase):
+class TestUtilMainnet(ElectrumTestCase):
 
     def test_format_satoshis(self):
         self.assertEqual("0.00001234", format_satoshis(1234))
@@ -517,3 +524,53 @@ class TestUtil(ElectrumTestCase):
         # refs should be cleaned up by now:
         self.assertEqual(0, len(util._running_asyncio_tasks))
 
+
+class TestUtilTestnet(ElectrumTestCase):
+    TESTNET = True
+
+    @mock.patch.object(storage.WalletStorage, 'write')
+    @mock.patch.object(storage.WalletStorage, 'append')
+    async def test_export_history_to_file(self, *mock_args):
+        # mock timezone, explicitly define timezone as the CI seems to miss a timezone db and cant resolve just 'CET'
+        patch_timezone = mock.patch.dict(os.environ, {'TZ': 'CET-1CEST,M3.5.0,M10.5.0/3'})
+        patch_timezone.start()
+        time.tzset()
+        self.addCleanup(time.tzset)  # cleanups are called in LIFO order
+        self.addCleanup(patch_timezone.stop)
+        # prepare wallet with realistic history
+        c = SimpleConfig({'electrum_path': self.electrum_path})
+        c.NETWORK_OFFLINE = True
+        c.FX_EXCHANGE, c.FX_CURRENCY, c.FX_USE_EXCHANGE_RATE, c.FX_HISTORY_RATES = "BitFinex", "EUR", True, True
+        shutil.copytree(Path(__file__).parent / "fiat_fx_data", Path(self.electrum_path) / "cache")
+        daemon = Daemon(config=c, listen_jsonrpc=False)
+        test_wallets = (
+            "client_3_3_8_xpub_with_realistic_history",
+            "client_4_5_2_9dk_with_ln",  # has labels, local tx, ln tx
+        )
+        for test_wallet_name in test_wallets:
+            wallet_path = self.get_wallet_file_path(test_wallet_name)
+            test_wallet = daemon.load_wallet(wallet_path, None, upgrade=True)
+            self.assertTrue(daemon.fx.has_history())
+
+            testcases = (
+                f'history_no_fx_{test_wallet_name}.csv',
+                f'history_with_fx_{test_wallet_name}.csv',
+                f'history_no_fx_{test_wallet_name}.json',
+                f'history_with_fx_{test_wallet_name}.json',
+            )
+            for filename in testcases:
+                test_export_path = Path(self.electrum_path) / filename
+                create_wallet_history_export(
+                    wallet=test_wallet,
+                    file_path=test_export_path.as_posix(),
+                    is_csv=filename.endswith('.csv'),
+                    fx=daemon.fx if 'with_fx' in filename else None,
+                )
+                reference_path = Path(__file__).parent / "test_history_export" / filename
+                with open(reference_path, 'r', encoding='utf-8') as reference:
+                    reference_text = reference.readlines()
+                with open(test_export_path, 'r', encoding='utf-8') as test_export:
+                    test_export_text = test_export.readlines()
+                # compare line by line for more readable traceback on difference
+                for reference, test in zip(reference_text, test_export_text):
+                    self.assertEqual(reference, test)
