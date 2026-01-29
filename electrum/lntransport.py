@@ -186,6 +186,9 @@ class LNPeerAddr:
     def net_addr_str(self) -> str:
         return str(self._net_addr)
 
+    def is_onion(self) -> bool:
+        return self.host.endswith('.onion')
+
     def __eq__(self, other):
         if not isinstance(other, LNPeerAddr):
             return False
