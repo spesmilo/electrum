@@ -634,7 +634,7 @@ class TestPeerDirect(TestPeer):
             self.assertEqual(alice_channel.peer_state, PeerState.GOOD)
             self.assertEqual(bob_channel.peer_state, PeerState.GOOD)
             gath.cancel()
-        gath = asyncio.gather(reestablish(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p1.htlc_switch())
+        gath = asyncio.gather(reestablish(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
         with self.assertRaises(asyncio.CancelledError):
             await gath
 
