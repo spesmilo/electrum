@@ -14,8 +14,9 @@ from electrum import util
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE
 from electrum.wallet import (sweep, Multisig_Wallet, Standard_Wallet, Imported_Wallet,
                              Abstract_Wallet, CannotBumpFee, BumpFeeStrategy,
-                             TransactionPotentiallyDangerousException, TransactionDangerousException,
-                             TxSighashRiskLevel)
+                             TransactionPotentiallyDangerousException,
+                             TransactionDangerousException,
+                             TxSighashRiskLevel, CannotDoubleSpendTx)
 from electrum.util import bfh, NotEnoughFunds, UnrelatedTransactionException, UserFacingException, TxMinedInfo
 from electrum.fee_policy import FixedFeePolicy
 from electrum.transaction import Transaction, PartialTxOutput, tx_from_any, Sighash
@@ -2684,6 +2685,10 @@ class TestWalletSending(ElectrumTestCase):
                 await self._dscancel_when_not_all_inputs_are_ismine(
                     simulate_moving_txs=simulate_moving_txs,
                     config=config)
+            with self.subTest(msg="_dscancel_sufficient_fee_increase", simulate_moving_txs=simulate_moving_txs):
+                await self._dscancel_sufficient_fee_increase(
+                    simulate_moving_txs=simulate_moving_txs,
+                    config=config)
 
     async def _dscancel_when_all_outputs_are_ismine(self, *, simulate_moving_txs, config):
         wallet = self.create_standard_wallet_from_seed('fold object utility erase deputy output stadium feed stereo usage modify bean',
@@ -2916,6 +2921,36 @@ class TestWalletSending(ElectrumTestCase):
         self.assertEqual('02000000000101a3a9d94039c1051102e36b835764b89985602608a3e121c91cb63d67277355080000000000fdffffff010c830700000000001600145dc80fd43eb70fd21a6c4446e3ce043df94f100c0247304402202e75e1edceb8ce27d75814bc7895bc48a0d5c423b492b980b655908612485cc8022072a947c4516ab220d0825634efd8b1ad3a5503e63ed8fbb97700b5d73786c63f012102a1c9b25b37aa31ccbb2d72caaffce81ec8253020a74017d92bbfc14a832fc9cb26f71c00',
                          str(tx_copy))
         self.assertEqual('3021a4fe24e33af9d0ccdf25c478387c97df671fe1fd8b4db0de4255b3a348c5', tx_copy.txid())
+
+    async def _dscancel_sufficient_fee_increase(self, *, simulate_moving_txs, config):
+        """
+        Tries to cancel a tx with a replacement tx of the same feerate as the original tx. This shouldn't
+        work as the feerate needs to be higher.
+        """
+        wallet = self.create_standard_wallet_from_seed('frost repair depend effort salon ring foam oak cancel receive save usage',
+                                                       config=config)
+        # create tx
+        tx_to_cancel_raw = '70736274ff0100d10200000002032b1c2c7d66e528905a11e148234ffe94cc9b4af7dbbc18dad13b9eb18050610000000000fdffffff032b1c2c7d66e528905a11e148234ffe94cc9b4af7dbbc18dad13b9eb18050610100000000fdffffff0378d4030000000000220020f381d0d2c633cdd890015bb438c8e73e9960b21defa126c594e5cf67bd06419f78d40300000000002200204a1c25db1aa7165cb655638fb32319a945262fee7c8ce6f2f17f1223679bb0b84072070000000000160014f0fe5c1867a174a12e70165e728a072619455ed5000000000001011f20a10700000000001600141ab4b6d2f79cb0a1b5be5a2372eb668bc09261f80100fd1c01020000000001012cdd7dfc38d14f2c95425bb0afc4ee93df4c7b46e9f8bd8d43d845382f88b2b60100000000fdffffff0420a10700000000001600141ab4b6d2f79cb0a1b5be5a2372eb668bc09261f820a107000000000016001483c3bc7234f17a209cc5dcce14903b54ee4dab9020a1070000000000160014d4ca56fcbad98fb4dcafdc573a75d6a6fffb09b7303b0c0100000000160014da837c758fa0bce9eb845f240a06484f8dfb862c0247304402201b47c7fe41a9b5b196f1ee628d8e5065d85cba4caa44a0f8199a603cb0ee40a80220159eb66a66a5a3a396922aa3ffd7101224de75b1b57dc0c4732e284cdd228c63012102d63196184adaa312705ec7f0d8c9565261e4c19a6746f5ac3ad30cc0b932501cc7d24900220603565a3904c7d2d6a6c2cf3fcdf89d9e5c60b509483104992cfdf85b196665170c10e8a903980000008000000000020000000001011f20a107000000000016001483c3bc7234f17a209cc5dcce14903b54ee4dab900100fd1c01020000000001012cdd7dfc38d14f2c95425bb0afc4ee93df4c7b46e9f8bd8d43d845382f88b2b60100000000fdffffff0420a10700000000001600141ab4b6d2f79cb0a1b5be5a2372eb668bc09261f820a107000000000016001483c3bc7234f17a209cc5dcce14903b54ee4dab9020a1070000000000160014d4ca56fcbad98fb4dcafdc573a75d6a6fffb09b7303b0c0100000000160014da837c758fa0bce9eb845f240a06484f8dfb862c0247304402201b47c7fe41a9b5b196f1ee628d8e5065d85cba4caa44a0f8199a603cb0ee40a80220159eb66a66a5a3a396922aa3ffd7101224de75b1b57dc0c4732e284cdd228c63012102d63196184adaa312705ec7f0d8c9565261e4c19a6746f5ac3ad30cc0b932501cc7d24900220602a6ff1ffc189b4776b78e20edca969cc45da3e610cc0cc79925604be43fee469f10e8a90398000000800000000001000000000000220202105dd9133f33cbd4e50443ef9af428c0be61f097f8942aaa916f50b530125aea10e8a9039800000080010000000000000000'
+        tx_to_cancel = tx_from_any(tx_to_cancel_raw)
+        if simulate_moving_txs:
+            partial_tx = tx_to_cancel.serialize_as_bytes().hex()
+            self.assertEqual(tx_to_cancel_raw,
+                             partial_tx)
+            tx_to_cancel = tx_from_any(partial_tx)  # simulates moving partial txn between cosigners
+        tx_to_cancel = wallet.sign_transaction(tx_to_cancel, password=None)
+        wallet.adb.receive_tx_callback(tx_to_cancel, tx_height=TX_HEIGHT_UNCONFIRMED)
+
+        self.assertTrue(tx_to_cancel.is_complete())
+        self.assertTrue(tx_to_cancel.is_segwit())
+        self.assertEqual(2, len(tx_to_cancel.inputs()))
+        self.assertEqual(3, len(tx_to_cancel.outputs()))
+
+        # cancel tx
+        tx_details = wallet.get_tx_info(tx_to_cancel)
+        self.assertTrue(tx_details.can_dscancel)
+        tx_to_cancel_feerate = tx_to_cancel.get_fee() / tx_to_cancel.estimated_size()
+        with self.assertRaises(CannotDoubleSpendTx):
+            wallet.dscancel(tx=tx_to_cancel, new_fee_rate=tx_to_cancel_feerate)
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_wallet_history_chain_of_unsigned_transactions(self, mock_save_db):
