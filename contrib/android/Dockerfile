@@ -1,6 +1,6 @@
 # based on https://github.com/kivy/python-for-android/blob/master/Dockerfile
 
-FROM debian:bookworm@sha256:d568e251e460295a8743e9d5ef7de673c5a8f9027db11f4e666e96fb5bed708e
+FROM debian:trixie@sha256:a3b5f4f0286249a124bfe9845b3aec0f88de32ff31dd8d7e1b945f9f98d116b0
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -94,7 +94,7 @@ RUN mkdir --parents "${ANDROID_SDK_HOME}/.android/" \
 # accept Android licenses (JDK necessary!)
 RUN apt -y update -qq \
     && apt -y install -qq --no-install-recommends --allow-downgrades \
-        openjdk-17-jdk-headless \
+        openjdk-21-jdk-headless \
     && apt -y autoremove
 RUN yes | ${ANDROID_SDK_MANAGER} --licenses > /dev/null
 
@@ -138,7 +138,6 @@ RUN apt -y update -q \
         lbzip2 \
         patch \
         sudo \
-        software-properties-common \
         git \
         zip \
         unzip \
@@ -150,9 +149,7 @@ RUN apt -y update -q \
         libtool \
         pkg-config \
         zlib1g-dev \
-        libncurses5-dev \
-        libncursesw5-dev \
-        libtinfo5 \
+        libncurses-dev \
         cmake \
         libffi-dev \
         libssl-dev \
