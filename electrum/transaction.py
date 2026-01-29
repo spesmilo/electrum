@@ -1349,7 +1349,14 @@ class Transaction:
         BIP-0141 defines 'Virtual transaction size' to be weight/4 rounded up.
         This definition is only for humans, and has little meaning otherwise.
         If we wanted sub-byte precision, fee calculation should use transaction
-        weights, but for simplicity we approximate that with (virtual_size)x4
+        weights, but for simplicity we approximate that with (virtual_size)x4.
+        note: while we try to estimate as close to the true value as possible,
+            whenever that's not possible, we should over-estimate. E.g. ecdsa DER sig
+            sizes can be 71 or 72 bytes (even 73 though that is non-standard).
+            Over-estimating is preferred as the typical use-case is the user selecting
+            a target_feerate, and the code calculating abs fees as target_feerate*est_size.
+            If we over-estimate est_size there, that means the final true_feerate is going to
+            be higher than target_feerate, which is desirable especially near the min_relay_fee.
         """
         weight = self.estimated_weight()
         return self.virtual_size_from_weight(weight)
