@@ -52,7 +52,7 @@ from .bitcoin import (
 from .crypto import sha256d, sha256
 from .logging import get_logger
 from .util import ShortID, OldTaskGroup
-from .descriptor import Descriptor, MissingSolutionPiece, create_dummy_descriptor_from_address
+from .descriptor import Descriptor, MissingSolutionPiece, create_dummy_descriptor_from_address, DUMMY_DER_SIG
 
 if TYPE_CHECKING:
     from .wallet import Abstract_Wallet
@@ -1008,8 +1008,7 @@ class Transaction:
             return construct_witness([])
 
         if estimate_size and hasattr(txin, 'make_witness'):
-            sig_dummy = b'\x00' * 71  # DER-encoded ECDSA sig, with low S and low R
-            txin.witness_sizehint = len(txin.make_witness(sig_dummy))
+            txin.witness_sizehint = len(txin.make_witness(DUMMY_DER_SIG))
 
         if estimate_size and txin.witness_sizehint is not None:
             return bytes(txin.witness_sizehint)
