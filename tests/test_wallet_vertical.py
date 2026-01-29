@@ -1294,6 +1294,9 @@ class TestWalletSending(ElectrumTestCase):
             with TmpConfig() as config:
                 with self.subTest(msg="_bump_fee_p2wpkh_csv", simulate_moving_txs=simulate_moving_txs):
                     await self._bump_fee_p2wpkh_csv(config=config)
+            with TmpConfig() as config:
+                with self.subTest(msg="_bump_fee_sufficient_fee_increase", simulate_moving_txs=simulate_moving_txs):
+                    await self._bump_fee_sufficient_fee_increase(config=config, simulate_moving_txs=simulate_moving_txs)
 
     async def _bump_fee_p2pkh_when_there_is_a_change_address(self, *, simulate_moving_txs, config):
         wallet = self.create_standard_wallet_from_seed('fold object utility erase deputy output stadium feed stereo usage modify bean',
@@ -1548,6 +1551,35 @@ class TestWalletSending(ElectrumTestCase):
         tx.version = 2
         self.assertEqual(tx.get_block_based_relative_locktime(), 1)
         self.assertEqual('9f1842ea9c4d7cf88ac58d55d1b73e6ad7d34693a046d428887ead2c22865483', tx.txid())
+
+    async def _bump_fee_sufficient_fee_increase(self, *, config, simulate_moving_txs):
+        """
+        Test that wallet.bump_fee raises if the replacement transaction has an equal feerate than the
+        transaction it tries to replace.
+        """
+        wallet = self.create_standard_wallet_from_seed('frost repair depend effort salon ring foam oak cancel receive save usage',
+                                                       config=config)
+        # create tx
+        tx_to_bump_raw = '70736274ff0100d10200000002032b1c2c7d66e528905a11e148234ffe94cc9b4af7dbbc18dad13b9eb18050610000000000fdffffff032b1c2c7d66e528905a11e148234ffe94cc9b4af7dbbc18dad13b9eb18050610100000000fdffffff0378d4030000000000220020f381d0d2c633cdd890015bb438c8e73e9960b21defa126c594e5cf67bd06419f78d40300000000002200204a1c25db1aa7165cb655638fb32319a945262fee7c8ce6f2f17f1223679bb0b84072070000000000160014f0fe5c1867a174a12e70165e728a072619455ed5000000000001011f20a10700000000001600141ab4b6d2f79cb0a1b5be5a2372eb668bc09261f80100fd1c01020000000001012cdd7dfc38d14f2c95425bb0afc4ee93df4c7b46e9f8bd8d43d845382f88b2b60100000000fdffffff0420a10700000000001600141ab4b6d2f79cb0a1b5be5a2372eb668bc09261f820a107000000000016001483c3bc7234f17a209cc5dcce14903b54ee4dab9020a1070000000000160014d4ca56fcbad98fb4dcafdc573a75d6a6fffb09b7303b0c0100000000160014da837c758fa0bce9eb845f240a06484f8dfb862c0247304402201b47c7fe41a9b5b196f1ee628d8e5065d85cba4caa44a0f8199a603cb0ee40a80220159eb66a66a5a3a396922aa3ffd7101224de75b1b57dc0c4732e284cdd228c63012102d63196184adaa312705ec7f0d8c9565261e4c19a6746f5ac3ad30cc0b932501cc7d24900220603565a3904c7d2d6a6c2cf3fcdf89d9e5c60b509483104992cfdf85b196665170c10e8a903980000008000000000020000000001011f20a107000000000016001483c3bc7234f17a209cc5dcce14903b54ee4dab900100fd1c01020000000001012cdd7dfc38d14f2c95425bb0afc4ee93df4c7b46e9f8bd8d43d845382f88b2b60100000000fdffffff0420a10700000000001600141ab4b6d2f79cb0a1b5be5a2372eb668bc09261f820a107000000000016001483c3bc7234f17a209cc5dcce14903b54ee4dab9020a1070000000000160014d4ca56fcbad98fb4dcafdc573a75d6a6fffb09b7303b0c0100000000160014da837c758fa0bce9eb845f240a06484f8dfb862c0247304402201b47c7fe41a9b5b196f1ee628d8e5065d85cba4caa44a0f8199a603cb0ee40a80220159eb66a66a5a3a396922aa3ffd7101224de75b1b57dc0c4732e284cdd228c63012102d63196184adaa312705ec7f0d8c9565261e4c19a6746f5ac3ad30cc0b932501cc7d24900220602a6ff1ffc189b4776b78e20edca969cc45da3e610cc0cc79925604be43fee469f10e8a90398000000800000000001000000000000220202105dd9133f33cbd4e50443ef9af428c0be61f097f8942aaa916f50b530125aea10e8a9039800000080010000000000000000'
+        tx_to_bump = tx_from_any(tx_to_bump_raw)
+        if simulate_moving_txs:
+            partial_tx = tx_to_bump.serialize_as_bytes().hex()
+            self.assertEqual(tx_to_bump_raw,
+                             partial_tx)
+            tx_to_bump = tx_from_any(partial_tx)  # simulates moving partial txn between cosigners
+        tx_to_bump = wallet.sign_transaction(tx_to_bump, password=None)
+        wallet.adb.receive_tx_callback(tx_to_bump, tx_height=TX_HEIGHT_UNCONFIRMED)
+
+        self.assertTrue(tx_to_bump.is_complete())
+        self.assertTrue(tx_to_bump.is_segwit())
+        self.assertEqual(2, len(tx_to_bump.inputs()))
+        self.assertEqual(3, len(tx_to_bump.outputs()))
+        self.assertTrue(wallet.can_rbf_tx(tx_to_bump))
+
+        # cancel tx
+        tx_to_bump_feerate = tx_to_bump.get_fee() / tx_to_bump.estimated_size()
+        with self.assertRaises(CannotBumpFee):
+            wallet.bump_fee(tx=tx_to_bump, new_fee_rate=tx_to_bump_feerate)
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_cpfp_p2pkh(self, mock_save_db):
