@@ -129,11 +129,6 @@ RUN curl --location --progress-bar \
 # https://github.com/kivy/buildozer/blob/master/docs/source/installation.rst#android-on-ubuntu-2004-64bit
 RUN apt -y update -q \
     && apt -y install -q --no-install-recommends --allow-downgrades \
-        python3 \
-        python3-dev \
-        python3-pip \
-        python3-setuptools \
-        python3-venv \
         wget \
         lbzip2 \
         patch \
@@ -182,9 +177,29 @@ RUN chown --recursive ${UID} ${WORK_DIR} ${ANDROID_SDK_HOME}
 RUN chown ${UID} /opt
 USER ${UID}
 
+# build cpython. FIXME we can't use the python3 from apt, as it is too new o.O
+# - p4a and buildozer require cython<3 (see https://github.com/kivy/python-for-android/issues/2919)
+#   but the last such version, cython 0.29.37, can only be built by up to python 3.12
+ENV VENV_PYTHON_VERSION="3.12.12"
+ENV VENV_PY_VER_MAJOR="3.12"
+ENV VENV_PYTHON_HASH="487c908ddf4097a1b9ba859f25fe46d22ccaabfb335880faac305ac62bffb79b"
+RUN mkdir --parents "/opt/cpython/download" && cd "/opt/cpython/download" \
+    && wget "https://www.python.org/ftp/python/${VENV_PYTHON_VERSION}/Python-${VENV_PYTHON_VERSION}.tgz" \
+    && echo "${VENV_PYTHON_HASH} Python-${VENV_PYTHON_VERSION}.tgz" | sha256sum -c - \
+    && tar xf "Python-${VENV_PYTHON_VERSION}.tgz" -C "/opt/cpython/download" \
+    && cd "Python-${VENV_PYTHON_VERSION}" \
+    && mkdir "/opt/cpython/install" \
+    && ./configure \
+        --prefix="/opt/cpython/install" \
+        -q \
+    && make "-j$(nproc)" -s \
+    && make -s altinstall \
+    && ln -s "/opt/cpython/install/bin/python${VENV_PY_VER_MAJOR}" "/opt/cpython/install/bin/python3"
+RUN "/opt/cpython/install/bin/python3" -m ensurepip
+
 # venv, VIRTUAL_ENV is used by buildozer to indicate a venv environment
 ENV VIRTUAL_ENV=/opt/venv
-RUN python3 -m venv ${VIRTUAL_ENV}
+RUN "/opt/cpython/install/bin/python3" -m venv ${VIRTUAL_ENV}
 ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
 
 COPY contrib/deterministic-build/requirements-build-base.txt /opt/deterministic-build/
