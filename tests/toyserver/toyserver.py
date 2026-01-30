@@ -23,7 +23,7 @@ from electrum.wallet import Abstract_Wallet
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
 from electrum.fee_policy import FixedFeePolicy
 
-from . import restore_wallet_from_text__for_unittest
+from .. import restore_wallet_from_text__for_unittest
 
 
 DAEMON_ERROR = 2

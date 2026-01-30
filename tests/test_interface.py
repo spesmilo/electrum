@@ -16,7 +16,7 @@ from electrum.blockchain import Blockchain
 
 from . import ElectrumTestCase
 from . import restore_wallet_from_text__for_unittest
-from .toyserver import ToyServer, ToyServerSession
+from .toyserver.toyserver import ToyServer, ToyServerSession
 
 
 class TestServerAddr(ElectrumTestCase):
