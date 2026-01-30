@@ -33,23 +33,29 @@ REGTEST_GENESIS_HEADER = bfh("01000000000000000000000000000000000000000000000000
 T = TypeVar("T")
 
 def topologically_sort_subgraph(
-    start_node: T,
+    start_nodes: Iterable[T],
     *,
     get_direct_children: Callable[[T], Iterable[T]],
 ) -> Sequence[T]:
-    children = []
-    seen = set()
+    # based on pseudo-code in https://en.wikipedia.org/wiki/Topological_sorting#Depth-first_search
+    res = OrderedSet()  # "permanent mark"
+    seen = set()        # "temporary mark"
 
     def recurse(node: str):
+        if node in res:
+            return
+        if node in seen:
+            raise Exception("cycle detected")
+        seen.add(node)
         direct_children = get_direct_children(node)
         for child in direct_children:
-            if child not in seen:
-                seen.add(child)
-                recurse(child)
-        children.append(node)
+            recurse(child)
+        res.add(node)
 
-    recurse(start_node)
-    return children[::-1]
+    for start_node in start_nodes:
+        if start_node not in res:
+            recurse(start_node)
+    return list(res)[::-1]
 
 
 
@@ -63,13 +69,20 @@ class FakeBlock:
             object.__setattr__(self, 'txids', OrderedSet())
 
 
-class ToyServer:
+class TxConflicts(Exception): pass
+class TxConflictsMempool(TxConflicts): pass
+class TxConflictsBlockchain(TxConflicts): pass
+
+
+class ToyServer(Logger):
     """Electrum Server backend"""
 
     asyncio_server: asyncio.base_events.Server
     server_port: int
+    min_relay_feerate = 2000  # in satoshi per kvbyte
 
     def __init__(self):
+        Logger.__init__(self)
         self.sessions = set()  # type: Set[ToyServerSession]
         self._blocks = [FakeBlock(header=REGTEST_GENESIS_HEADER)]  # type: list[FakeBlock]
 
@@ -165,6 +178,14 @@ class ToyServer:
     def _add_tx(self, tx: Transaction) -> set[str]:
         txid = tx.txid()
         assert txid
+        if txid in self.txs:  # already added
+            funded_sh, spent_sh = self._get_funded_and_spent_scripthashes(tx)
+            return funded_sh | spent_sh
+        # we forbid conflicting txs. for mempool replacement, the caller must already have rm-ed the conflicts.
+        conflict_txids = self._get_transitive_conflict_txids(tx)
+        assert not conflict_txids, "tx conflict"
+        self.logger.debug(f"_add_tx: {txid}")
+        # update txid->tx map
         self.txs[txid] = bfh(str(tx))
         # fund UTXOs
         for txout_idx, txout in enumerate(tx.outputs()):
@@ -176,13 +197,13 @@ class ToyServer:
                 continue
             double_spender_txid = self.txo_to_spender_txid.get(txin.prevout, ...)
             if double_spender_txid is ...:
-                raise RPCError(DAEMON_ERROR, f"cannot spend non-existent UTXO: {txin.prevout}")
+                raise Exception(f"cannot spend non-existent UTXO: {txin.prevout}")
             elif double_spender_txid is None:  # UTXO exists and is unspent
                 self.txo_to_spender_txid[txin.prevout] = txid
-            elif double_spender_txid == txid:  # already marked?
-                pass                           # (duplicate calls, e.g. when added to mempool, and when mined)
-            else:  # conflict
-                raise RPCError(DAEMON_ERROR, f"cannot double-spend UTXO: {txin.prevout}. conflict: {txid} vs {double_spender_txid}")
+            elif double_spender_txid == txid:
+                raise Exception("TXO already marked as spent by same txid?")
+            else:
+                raise Exception(f"cannot double-spend UTXO: {txin.prevout}. conflict: {txid} vs {double_spender_txid}")
         # update touched scripthashes
         funded_sh, spent_sh = self._get_funded_and_spent_scripthashes(tx)
         for sh in funded_sh:
@@ -194,6 +215,7 @@ class ToyServer:
     def _remove_tx_that_has_no_children(self, tx: Transaction) -> set[str]:
         txid = tx.txid()
         assert txid
+        self.logger.debug(f"_remove_tx_that_has_no_children: {txid}")
         assert self.block_height_from_txid(txid) is None, "tx already mined"
         self.txs.pop(txid)
         # un-fund UTXOs
@@ -218,6 +240,7 @@ class ToyServer:
     def _remove_tx_and_all_children(self, tx: Transaction) -> set[str]:
         txid = tx.txid()
         assert txid
+        assert txid in self.txs, "unknown tx"
         children = self._get_transitive_children_txids(txid)
         touched_sh = set()
         for txid in children:
@@ -238,9 +261,9 @@ class ToyServer:
         """Returns all (grand-)children, including orig tx.
         Topologically sorted, children first.
         """
-        return topologically_sort_subgraph(txid, get_direct_children=self._get_direct_children_txids)[::-1]
+        return topologically_sort_subgraph([txid], get_direct_children=self._get_direct_children_txids)[::-1]
 
-    def _get_direct_conflicts(self, tx: Transaction) -> Sequence[str]:
+    def _get_direct_conflict_txids(self, tx: Transaction, *, include_self: bool = True) -> Sequence[str]:
         txid = tx.txid()
         assert txid
         res = []
@@ -248,17 +271,52 @@ class ToyServer:
             if txin.is_coinbase_input():
                 continue
             if double_spender_txid := self.txo_to_spender_txid.get(txin.prevout, None):
-                res.append(double_spender_txid)
+                if double_spender_txid != txid or include_self:
+                    res.append(double_spender_txid)
         return res
 
-    def _get_transitive_conflicts(self, tx: Transaction) -> Iterable[str]:
+    def _get_transitive_conflict_txids(self, tx: Transaction, *, include_self: bool = True) -> Iterable[str]:
         res = set()
-        for direct_conflict in self._get_direct_conflicts(tx):
-            res |= self._get_transitive_children_txids(direct_conflict)
+        for direct_conflict in self._get_direct_conflict_txids(tx, include_self=include_self):
+            res |= set(self._get_transitive_children_txids(direct_conflict))
         return res
 
-    async def mempool_add_tx(self, tx: Transaction) -> None:
-        touched_sh = self._add_tx(tx)
+    def _txs_from_txids(self, txids: Iterable[str]) -> Iterable[Transaction]:
+        return [Transaction(self.txs[txid]) for txid in txids]
+
+    def _get_fee_sat_paid_by_tx(self, tx: Transaction) -> int:
+        input_sum = 0
+        for txin in tx.inputs():
+            parent_tx_raw = self.txs[txin.prevout.txid.hex()]  # parent must not be missing!
+            parent_tx = Transaction(parent_tx_raw)
+            ptxout = parent_tx.outputs()[txin.prevout.out_idx]
+            input_sum += ptxout.value
+        return input_sum - tx.output_value()
+
+    async def mempool_add_tx(self, newtx: Transaction) -> None:
+        touched_sh = set()
+        conflict_txids = self._get_transitive_conflict_txids(newtx, include_self=False)
+        conflict_txs = self._txs_from_txids(conflict_txids)
+        if conflict_txids:
+            if any(self.block_height_from_txid(txid) is not None for txid in conflict_txids):
+                raise TxConflictsBlockchain()
+            conflict_wu = sum(tx.estimated_weight() for tx in conflict_txs)
+            conflict_fee = sum(self._get_fee_sat_paid_by_tx(tx) for tx in conflict_txs)
+            conflict_sat_per_kvbyte = 4000 * conflict_fee // conflict_wu
+            repl_fee = self._get_fee_sat_paid_by_tx(newtx)
+            repl_sat_per_kvbyte = 4000 * repl_fee // newtx.estimated_weight()
+            # our mempool replacement policy is simple but still similar to bitcoin core:
+            if not (
+                repl_fee > conflict_fee
+                and repl_sat_per_kvbyte >= conflict_sat_per_kvbyte + self.min_relay_feerate
+            ):
+                raise TxConflictsMempool(f"mempool conflict. {len(conflict_txs)=}. {repl_fee=}, {conflict_fee=}. {repl_sat_per_kvbyte=}, {conflict_sat_per_kvbyte=}")
+            # rm conflicts
+            for tx in conflict_txs:
+                if tx.txid() in self.txs:  # might already be removed in an earlier loop iter
+                    touched_sh = self._remove_tx_and_all_children(tx)
+        # no more conflicts. add new tx.
+        touched_sh |= self._add_tx(newtx)
         # notify clients
         for session in self.sessions:
             await session.server_send_notifications(touched_sh=touched_sh)
@@ -285,6 +343,7 @@ class ToyServer:
         coinbase_tx = Transaction(None)
         coinbase_tx._inputs = [TxInput(prevout=TxOutpoint(txid=bytes(32), out_idx=0xffffffff))]
         coinbase_tx._outputs = list(coinbase_outputs or []) + [TxOutput(scriptpubkey=bfh("6a04deadbeef"), value=0)]
+        coinbase_tx._locktime = self.cur_height  # to prevent duplicate txids (our fake coinbase txs are low-entropy)
         txs = OrderedSet()  # type: OrderedSet[Transaction]
         txs.add(coinbase_tx)
         txs |= OrderedSet(extra_txs)
@@ -417,9 +476,9 @@ class ToyServerSession(aiorpcx.RPCSession, Logger):
 
     async def _handle_mempool_get_info(self):
         return {
-            "mempoolminfee": 0.00001000,
-            "minrelaytxfee": 0.00001000,
-            "incrementalrelayfee": 0.00001000,
+            "mempoolminfee": self.svr.min_relay_feerate / COIN,
+            "minrelaytxfee": self.svr.min_relay_feerate / COIN,
+            "incrementalrelayfee": self.svr.min_relay_feerate / COIN,
         }
 
     def _get_headersub_result(self):
@@ -475,7 +534,10 @@ class ToyServerSession(aiorpcx.RPCSession, Logger):
     async def _handle_transaction_broadcast(self, raw_tx: str) -> str:
         tx = Transaction(raw_tx)
         txid = tx.txid()
-        await self.svr.mempool_add_tx(tx)  # TODO don't await, just queue up? this sends notifs before response, lol
+        try:
+            await self.svr.mempool_add_tx(tx)  # TODO don't await, just queue up? this sends notifs before response, lol
+        except TxConflicts as e:
+            raise RPCError(DAEMON_ERROR, str(e)) from e
         return txid
 
     async def _handle_scripthash_subscribe(self, sh: str) -> Optional[str]:
