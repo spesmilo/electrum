@@ -507,19 +507,35 @@ class HTLCManager:
         return sent + received
 
     @with_lock
-    def get_balance_msat(self, whose: HTLCOwner, *, ctx_owner=HTLCOwner.LOCAL, ctn: int = None,
+    def get_balance_msat(self, whose: HTLCOwner, *, ctx_owner: HTLCOwner = None, ctn: int = None,
                          initial_balance_msat: int) -> int:
         """Returns the balance of 'whose' in 'ctx' at 'ctn'.
         Only HTLCs that have been settled by that ctn are counted.
         """
-        if ctn is None:
-            ctn = self.ctn_oldest_unrevoked(ctx_owner)
+        if ctx_owner is None:
+            # if ctx_owner is None, we want result to be consistent with get_lightning_history
+            # thus, we consider that htlcs are settled as soon as their preimage is released,
+            # because get_lightning_history calls self.was_htlc_preimage_released
+            ctx_owner = whose
+            ctx_owner_sent = whose
+            ctx_owner_recv = -whose
+        else:
+            ctx_owner_sent = ctx_owner
+            ctx_owner_recv = ctx_owner
+            if ctn is None:
+                ctn = self.ctn_oldest_unrevoked(ctx_owner)
+
         balance = initial_balance_msat
-        if ctn >= self.ctn_oldest_unrevoked(ctx_owner):
+        if ctn is None or ctn >= self.ctn_oldest_unrevoked(ctx_owner):
             balance += self._balance_delta * whose
             considered_sent_htlc_ids = self._maybe_active_htlc_ids[whose]
             considered_recv_htlc_ids = self._maybe_active_htlc_ids[-whose]
-        else:  # ctn is too old; need to consider full log (slow...)
+        elif ctn == 0:
+            considered_sent_htlc_ids = []
+            considered_recv_htlc_ids = []
+        else:
+            # ctn is too old; need to consider full log (slow...)
+            # used in sync_with_remote_watchtower
             considered_sent_htlc_ids = self.log[whose]['settles']
             considered_recv_htlc_ids = self.log[-whose]['settles']
         # sent htlcs
@@ -527,7 +543,7 @@ class HTLCManager:
             ctns = self.log[whose]['settles'].get(htlc_id, None)
             if ctns is None:
                 continue
-            if ctns[ctx_owner] is not None and ctns[ctx_owner] <= ctn:
+            if ctns[ctx_owner_sent] is not None and (ctn is None or ctns[ctx_owner_sent] <= ctn):
                 htlc = self.log[whose]['adds'][htlc_id]
                 balance -= htlc.amount_msat
         # recv htlcs
@@ -535,7 +551,7 @@ class HTLCManager:
             ctns = self.log[-whose]['settles'].get(htlc_id, None)
             if ctns is None:
                 continue
-            if ctns[ctx_owner] is not None and ctns[ctx_owner] <= ctn:
+            if ctns[ctx_owner_recv] is not None and (ctn is None or ctns[ctx_owner_recv] <= ctn):
                 htlc = self.log[-whose]['adds'][htlc_id]
                 balance += htlc.amount_msat
         return balance
