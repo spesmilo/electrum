@@ -1,6 +1,6 @@
 # based on https://github.com/kivy/python-for-android/blob/master/Dockerfile
 
-FROM debian:bookworm@sha256:d568e251e460295a8743e9d5ef7de673c5a8f9027db11f4e666e96fb5bed708e
+FROM debian:trixie@sha256:a3b5f4f0286249a124bfe9845b3aec0f88de32ff31dd8d7e1b945f9f98d116b0
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -91,11 +91,42 @@ RUN mkdir --parents "${ANDROID_SDK_HOME}/.android/" \
     && echo '### User Sources for Android SDK Manager' \
         > "${ANDROID_SDK_HOME}/.android/repositories.cfg"
 
-# accept Android licenses (JDK necessary!)
+# download Java-17 (debian 13 only packages Java-21 and Java-25)
+# - we download the amd64 binaries from debian 12 repos
+# - we should try to upgrade to Java-21...
+#   - the main blocker seems to be having to update Gradle (to a version compatible with Java-21)
+#     - make_barcode_scanner.sh: markusfisch/{zxing-cpp, ...} pins old Gradle
+ENV JAVA_JRE_DL_URL="https://snapshot.debian.org/archive/debian/20260130T143028Z/pool/main/o/openjdk-17/openjdk-17-jre-headless_17.0.18+8-1~deb12u1_amd64.deb"
+ENV JAVA_JRE_ARCHIVE="openjdk-17-jre-headless.deb"
+ENV JAVA_JRE_HASH="5bc36cbb4e383dbea4168d57b5fd9b42375ec8837dd62a1d56677632c3c960e0"
+ENV JAVA_JDK_DL_URL="https://snapshot.debian.org/archive/debian/20260130T143028Z/pool/main/o/openjdk-17/openjdk-17-jdk-headless_17.0.18+8-1~deb12u1_amd64.deb"
+ENV JAVA_JDK_ARCHIVE="openjdk-17-jdk-headless.deb"
+ENV JAVA_JDK_HASH="8841044caa66860a71039342fe3c02b7853b61c518e05970e501faa215b1788a"
 RUN apt -y update -qq \
-    && apt -y install -qq --no-install-recommends --allow-downgrades \
-        openjdk-17-jdk-headless \
-    && apt -y autoremove
+    && apt -y install -qq --no-install-recommends \
+        ca-certificates-java \
+        java-common \
+        libcups2 \
+        libfontconfig1 \
+        liblcms2-2 \
+        libjpeg62-turbo \
+        libnss3 \
+        libasound2 \
+        libfreetype6 \
+        libharfbuzz0b \
+        libpcsclite1 \
+    && apt -y autoremove \
+    && cd /opt \
+    && curl --location --progress-bar "${JAVA_JRE_DL_URL}" --output "${JAVA_JRE_ARCHIVE}" \
+    && echo "${JAVA_JRE_HASH} ${JAVA_JRE_ARCHIVE}" | sha256sum -c - \
+    && dpkg -i "${JAVA_JRE_ARCHIVE}" \
+    && rm "${JAVA_JRE_ARCHIVE}" \
+    && curl --location --progress-bar "${JAVA_JDK_DL_URL}" --output "${JAVA_JDK_ARCHIVE}" \
+    && echo "${JAVA_JDK_HASH} ${JAVA_JDK_ARCHIVE}" | sha256sum -c - \
+    && dpkg -i "${JAVA_JDK_ARCHIVE}" \
+    && rm "${JAVA_JDK_ARCHIVE}"
+
+# accept Android licenses (JDK necessary!)
 RUN yes | ${ANDROID_SDK_MANAGER} --licenses > /dev/null
 
 
@@ -129,16 +160,10 @@ RUN curl --location --progress-bar \
 # https://github.com/kivy/buildozer/blob/master/docs/source/installation.rst#android-on-ubuntu-2004-64bit
 RUN apt -y update -q \
     && apt -y install -q --no-install-recommends --allow-downgrades \
-        python3 \
-        python3-dev \
-        python3-pip \
-        python3-setuptools \
-        python3-venv \
         wget \
         lbzip2 \
         patch \
         sudo \
-        software-properties-common \
         git \
         zip \
         unzip \
@@ -150,9 +175,7 @@ RUN apt -y update -q \
         libtool \
         pkg-config \
         zlib1g-dev \
-        libncurses5-dev \
-        libncursesw5-dev \
-        libtinfo5 \
+        libncurses-dev \
         cmake \
         libffi-dev \
         libssl-dev \
@@ -185,9 +208,29 @@ RUN chown --recursive ${UID} ${WORK_DIR} ${ANDROID_SDK_HOME}
 RUN chown ${UID} /opt
 USER ${UID}
 
+# build cpython. FIXME we can't use the python3 from apt, as it is too new o.O
+# - p4a and buildozer require cython<3 (see https://github.com/kivy/python-for-android/issues/2919)
+#   but the last such version, cython 0.29.37, can only be built by up to python 3.12
+ENV VENV_PYTHON_VERSION="3.12.12"
+ENV VENV_PY_VER_MAJOR="3.12"
+ENV VENV_PYTHON_HASH="487c908ddf4097a1b9ba859f25fe46d22ccaabfb335880faac305ac62bffb79b"
+RUN mkdir --parents "/opt/cpython/download" && cd "/opt/cpython/download" \
+    && wget "https://www.python.org/ftp/python/${VENV_PYTHON_VERSION}/Python-${VENV_PYTHON_VERSION}.tgz" \
+    && echo "${VENV_PYTHON_HASH} Python-${VENV_PYTHON_VERSION}.tgz" | sha256sum -c - \
+    && tar xf "Python-${VENV_PYTHON_VERSION}.tgz" -C "/opt/cpython/download" \
+    && cd "Python-${VENV_PYTHON_VERSION}" \
+    && mkdir "/opt/cpython/install" \
+    && ./configure \
+        --prefix="/opt/cpython/install" \
+        -q \
+    && make "-j$(nproc)" -s \
+    && make -s altinstall \
+    && ln -s "/opt/cpython/install/bin/python${VENV_PY_VER_MAJOR}" "/opt/cpython/install/bin/python3"
+RUN "/opt/cpython/install/bin/python3" -m ensurepip
+
 # venv, VIRTUAL_ENV is used by buildozer to indicate a venv environment
 ENV VIRTUAL_ENV=/opt/venv
-RUN python3 -m venv ${VIRTUAL_ENV}
+RUN "/opt/cpython/install/bin/python3" -m venv ${VIRTUAL_ENV}
 ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
 
 COPY contrib/deterministic-build/requirements-build-base.txt /opt/deterministic-build/
