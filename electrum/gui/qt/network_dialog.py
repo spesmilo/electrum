@@ -361,6 +361,8 @@ class ServerWidget(QWidget, QtEventListener):
         ConnectMode.ONESERVER: messages.MSG_CONNECTMODE_ONESERVER,
     }
 
+    server_e_valid = pyqtSignal(bool)
+
     def __init__(self, network: Network, parent=None):
         super().__init__(parent)
         self.network = network
@@ -390,6 +392,7 @@ class ServerWidget(QWidget, QtEventListener):
         grid.addWidget(self.connect_combo, 0, 1, 1, 3)
 
         self.server_e = QLineEdit()
+        self.server_e.textChanged.connect(self.validate_server_e)
         self.server_e.editingFinished.connect(self.on_server_settings_changed)
         grid.addWidget(QLabel(_('Server') + ':'), 1, 0)
         grid.addWidget(self.server_e, 1, 1, 1, 3)
@@ -502,6 +505,7 @@ class ServerWidget(QWidget, QtEventListener):
                 self.status_label_header, self.status_label, self.status_label_helpbutton,
                 self.height_label_header, self.height_label, self.height_label_helpbutton]:
             item.setVisible(self.network._was_started)
+        self.validate_server_e()
         msg = _('Fork detection disabled') if self.is_one_server() else ''
         if self.network._was_started:
             # Network was started, so we don't run in initial setup wizard.
@@ -521,6 +525,15 @@ class ServerWidget(QWidget, QtEventListener):
                 else:
                     msg += _('Your server is on branch {0} ({1} blocks)').format(name, chain.get_branch_size())
         self.split_label.setText(msg)
+
+    def validate_server_e(self):
+        if not self.server_e.isEnabled():
+            self.server_e.setStyleSheet("")
+            self.server_e_valid.emit(True)
+            return
+        server = ServerAddr.from_str_with_inference(self.server_e.text())
+        self.server_e.setStyleSheet("background-color: rgba(255, 0, 0, 0.2);" if not server else "")
+        self.server_e_valid.emit(server is not None)
 
     def update_from_config(self):
         auto_connect = self.config.NETWORK_AUTO_CONNECT

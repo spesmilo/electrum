@@ -206,6 +206,10 @@ class QENetwork(QObject, QtEventListener):
     def server(self):
         return self._server
 
+    @pyqtSlot(str, result=bool)
+    def isValidServerAddress(self, server: str) -> bool:
+        return ServerAddr.from_str_with_inference(server) is not None
+
     @pyqtSlot(str, bool, bool)
     def setServerParameters(self, server_str: str, auto_connect: bool, one_server: bool):
         net_params = self.network.get_parameters()
