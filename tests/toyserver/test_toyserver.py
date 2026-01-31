@@ -1,10 +1,11 @@
 import electrum_ecc as ecc
 
+from electrum import bitcoin
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
 from electrum.bitcoin import COIN, construct_script, opcodes
 from electrum.fee_policy import FixedFeePolicy
 from electrum.simple_config import SimpleConfig
-from electrum.transaction import PartialTxInput, PartialTxOutput, TxOutput
+from electrum.transaction import PartialTxInput, PartialTxOutput, TxOutput, Transaction
 from electrum.wallet import Abstract_Wallet
 
 from .. import ElectrumTestCase
@@ -24,6 +25,7 @@ class TestToyServer(ElectrumTestCase):
         for _ in range(10):  # mine some blocks
             await self.toyserver.mine_block()
         await self.toyserver.set_up_faucet(config=self.config)
+        assert len(self.toyserver.get_mempool_txids()) == 0
 
     async def asyncTearDown(self):
         await self.toyserver.stop()
@@ -162,3 +164,92 @@ class TestToyServer(ElectrumTestCase):
         with self.assertRaises(TxConflictsBlockchain):
             await self.toyserver.mempool_add_tx(tx1d)
         self.assertEqual(self.toyserver.get_mempool_txids(), set())
+
+    async def test_sort_order_of_scripthash_get_history(self):
+        """txs touching a sh, as returned by 'blockchain.scripthash.get_history', must be in a canonical order"""
+        # create a "gateway" wallet with many UTXOs, so later it can send without chaining unconfirmed txs
+        w_gateway = restore_wallet_from_text__for_unittest(
+            "9dk", passphrase="gateway", gap_limit=10, path=None, config=self.config)['wallet']  # type: Abstract_Wallet
+        for gateway_addr in w_gateway.get_receiving_addresses():
+            tx = await self.toyserver.ask_faucet([TxOutput.from_address_and_value(gateway_addr, 2 * COIN)])
+            w_gateway.adb.add_transaction(tx)
+        await self.toyserver.mine_block()
+        coins_gateway = w_gateway.get_spendable_coins(w_gateway.get_addresses())
+        coins_gateway_ctr = -1
+
+        # create target wallet
+        w = restore_wallet_from_text__for_unittest("9dk", path=None, config=self.config)['wallet']  # type: Abstract_Wallet
+        w_addr0 = w.get_receiving_addresses()[0]
+        w_addr1 = w.get_receiving_addresses()[1]
+
+        async def send_1btc_from_gateway_to_target(addr) -> 'Transaction':
+            nonlocal coins_gateway_ctr
+            coins_gateway_ctr += 1
+            tx = w_gateway.make_unsigned_transaction(
+                coins=[coins_gateway[coins_gateway_ctr]],
+                outputs=[PartialTxOutput.from_address_and_value(addr, 1 * COIN)], fee_policy=FixedFeePolicy(5000))
+            w_gateway.sign_transaction(tx, password=None)
+            await self.toyserver.mempool_add_tx(tx)
+            return tx
+
+        # fund address multiple times in a block
+        tx1 = await send_1btc_from_gateway_to_target(w_addr0)
+        w.adb.add_transaction(tx1)
+        tx2 = await send_1btc_from_gateway_to_target(w_addr0)
+        w.adb.add_transaction(tx2)
+        tx3 = await send_1btc_from_gateway_to_target(w_addr0)
+        w.adb.add_transaction(tx3)
+
+        await self.toyserver.mine_block()
+
+        # fund address once in a new block
+        tx4 = await send_1btc_from_gateway_to_target(w_addr0)
+        w.adb.add_transaction(tx4)
+
+        await self.toyserver.mine_block()
+
+        # fund address multiple times with mempool txs
+        tx5 = await send_1btc_from_gateway_to_target(w_addr0)
+        w.adb.add_transaction(tx5)
+        tx6 = await send_1btc_from_gateway_to_target(w_addr0)
+        w.adb.add_transaction(tx6)
+        tx7 = await send_1btc_from_gateway_to_target(w_addr0)
+        w.adb.add_transaction(tx7)
+
+        # fund address twice with unconfirmed parent txs
+        coins_tx5_out = [c for c in w.get_spendable_coins(domain=[w_addr0]) if c.prevout.txid.hex() == tx5.txid()]
+        assert len(coins_tx5_out) == 1
+        tx8 = w.make_unsigned_transaction(
+            coins=coins_tx5_out,
+            outputs=[PartialTxOutput.from_address_and_value(w_addr1, 100_000)], fee_policy=FixedFeePolicy(5000))
+        w.sign_transaction(tx8, password=None)
+        w.adb.add_transaction(tx8)
+        await self.toyserver.mempool_add_tx(tx8)
+
+        coins_tx6_out = [c for c in w.get_spendable_coins(domain=[w_addr0]) if c.prevout.txid.hex() == tx6.txid()]
+        assert len(coins_tx6_out) == 1
+        tx9 = w.make_unsigned_transaction(
+            coins=coins_tx6_out,
+            outputs=[PartialTxOutput.from_address_and_value(w_addr1, 100_000)], fee_policy=FixedFeePolicy(5000))
+        w.sign_transaction(tx9, password=None)
+        w.adb.add_transaction(tx9)
+        await self.toyserver.mempool_add_tx(tx9)
+
+        self.assertEqual(len(self.toyserver.get_mempool_txids()), 5)
+        # finally, validate "blockchain.scripthash.get_history" sort order
+        sh_history = self.toyserver.calc_sh_history(bitcoin.address_to_scripthash(w_addr0))
+        self.assertEqual(len(sh_history), 9)
+        tx123_A, tx123_B, tx123_C = sorted([tx1.txid(), tx2.txid(), tx3.txid()], key=lambda x: self.toyserver.block_height_and_pos_from_txid(x))
+        tx567_A, tx567_B, tx567_C = sorted([tx5.txid(), tx6.txid(), tx7.txid()])
+        tx89_A, tx89_B = sorted([tx8.txid(), tx9.txid()])
+        self.assertEqual(sh_history, [
+            (tx123_A, self.toyserver.cur_height - 1),
+            (tx123_B, self.toyserver.cur_height - 1),
+            (tx123_C, self.toyserver.cur_height - 1),
+            (tx4.txid(), self.toyserver.cur_height),
+            (tx567_A, 0),
+            (tx567_B, 0),
+            (tx567_C, 0),
+            (tx89_A, -1),
+            (tx89_B, -1),
+        ])

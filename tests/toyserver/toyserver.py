@@ -62,11 +62,11 @@ def topologically_sort_subgraph(
 @dataclass(kw_only=True, slots=True, frozen=True)
 class FakeBlock:
     header: bytes
-    txids: OrderedSet[str] = None
+    txids: Sequence[str] = None  # FIXME needs OrderedSet with index-based lookup? >.<
 
     def __post_init__(self):
         if self.txids is None:
-            object.__setattr__(self, 'txids', OrderedSet())
+            object.__setattr__(self, 'txids', tuple())
 
 
 class TxConflicts(Exception): pass
@@ -90,7 +90,7 @@ class ToyServer(Logger):
         self.sh_to_funding_txids = collections.defaultdict(set)  # type: dict[str, set[str]]
         self.sh_to_spending_txids = collections.defaultdict(set)  # type: dict[str, set[str]]
         self.txs = {}  # type: dict[str, bytes]  # txid->raw_tx
-        self._cache_blockheight_from_txid = {}  # type: dict[str, int]
+        self._cache_blockheight_and_pos_from_txid = {}  # type: dict[str, tuple[int, int]]
         self.txo_to_spender_txid = {}  # type: dict[TxOutpoint, str | None]  # also contains UTXOs
 
         self._faucet_w = None  # type: Optional[Abstract_Wallet]
@@ -105,20 +105,32 @@ class ToyServer(Logger):
         self.asyncio_server.close()
         await self.asyncio_server.wait_closed()
 
-    def block_height_from_txid(self, txid: str) -> Optional[int]:
+    def block_height_and_pos_from_txid(self, txid: str) -> Optional[tuple[int, int]]:  # FIXME slow
         # check cache first
-        if height := self._cache_blockheight_from_txid.get(txid) is not None:
-            if len(self._blocks) > height and txid in self._blocks[height].txids:
+        if (bh_and_pos := self._cache_blockheight_and_pos_from_txid.get(txid)) is not None:
+            height, pos = bh_and_pos
+            if (len(self._blocks) > height
+                and len(self._blocks[height].txids) > pos
+                and txid == self._blocks[height].txids[pos]
+            ):
                 # valid cache hit
-                return height
+                return height, pos
             else:  # stale cache
-                self._cache_blockheight_from_txid.pop(txid)
+                self._cache_blockheight_and_pos_from_txid.pop(txid)
         # linear search
         for height, block in enumerate(self._blocks):
-            if txid in block.txids:
-                self._cache_blockheight_from_txid[txid] = height
-                return height
+            for pos, txid2 in enumerate(block.txids):
+                if txid == txid2:
+                    self._cache_blockheight_and_pos_from_txid[txid] = height, pos
+                    return height, pos
         return None
+
+    def block_height_from_txid(self, txid: str) -> Optional[int]:
+        bh_and_pos = self.block_height_and_pos_from_txid(txid)
+        if bh_and_pos is None:
+            return None
+        bh, pos = bh_and_pos
+        return bh
 
     def get_mempool_txids(self) -> set[str]:  # FIXME slow
         mempool = set()
@@ -147,14 +159,28 @@ class ToyServer(Logger):
     def get_block_header(self, height: int) -> bytes:
         return self._blocks[height].header
 
+    def _has_unconfirmed_inputs(self, txid: str) -> bool:
+        tx = Transaction(self.txs[txid])
+        return any(self.block_height_from_txid(txin.prevout.txid.hex()) is None for txin in tx.inputs())
+
     def calc_sh_history(self, sh: str) -> Sequence[tuple[str, int]]:
         txids = self.sh_to_funding_txids[sh] | self.sh_to_spending_txids[sh]
-        hist = []
+        hist1 = []
         for txid in txids:
-            bh = self.block_height_from_txid(txid) or 0
-            hist.append((txid, bh))
-        hist.sort(key=lambda x: x[1])  # FIXME put mempool txs last
-        return hist
+            bh_and_pos = self.block_height_and_pos_from_txid(txid)
+            if bh_and_pos is None:
+                bh_and_pos = (0, 0) if not self._has_unconfirmed_inputs(txid) else (-1, 0)
+            hist1.append((txid, bh_and_pos))
+
+        def sort_key(x):
+            txid, (bh, pos) = x
+            if bh <= 0:
+                bh = 10**9 - bh
+            return bh, pos, txid
+
+        hist1.sort(key=sort_key)
+        hist2 = [(txid, bh) for (txid, (bh, pos)) in hist1]
+        return hist2
 
     def _get_funded_and_spent_scripthashes(self, tx: Transaction) -> tuple[set[str], set[str]]:
         """Returns scripthashes touched by tx."""
@@ -363,7 +389,7 @@ class ToyServer(Logger):
             'bits': 0x1d00ffff,  # don't care
             'nonce': 1,  # don't care
         })
-        new_block = FakeBlock(header=new_header, txids=OrderedSet(tx.txid() for tx in txs))
+        new_block = FakeBlock(header=new_header, txids=tuple(tx.txid() for tx in txs))
         self._blocks.append(new_block)
         # process txs
         touched_sh = set()
@@ -393,17 +419,20 @@ class ToyServer(Logger):
 
     async def set_up_faucet(self, *, config: SimpleConfig):
         assert self._faucet_w is None
+        # FIXME we should give the faucet multiple UTXOs so that later it won't have to chain unconfirmed txs
+        #       but this is broken atm: the faucet does not have a network so can't know which coins are mined.
+        #       faucet_w considers all its UTXOs to be unconfirmed.
+        num_starting_utxos = 2
         self._faucet_w = restore_wallet_from_text__for_unittest(
-            "9dk", passphrase="faucet", path=None, config=config)['wallet']  # type: Abstract_Wallet
+            "9dk", passphrase="faucet", path=None, config=config, gap_limit=num_starting_utxos)['wallet']  # type: Abstract_Wallet
         self._faucet_w.adb.get_local_height = lambda *args: self.cur_height
-        faucet_cb_txo = TxOutput.from_address_and_value(self._faucet_w.get_receiving_address(), 50 * COIN)
-        block, cb_tx = await self.mine_block(coinbase_outputs=[faucet_cb_txo])
-        faucet_tx_height = self.cur_height
+        for faucet_addr in self._faucet_w.get_receiving_addresses():
+            block, cb_tx = await self.mine_block(coinbase_outputs=[TxOutput.from_address_and_value(faucet_addr, 50 * COIN)])
+            self._faucet_w.adb.receive_tx_callback(cb_tx, tx_height=self.cur_height)
         for _ in range(COINBASE_MATURITY):  # need to mine some blocks for maturity
             await self.mine_block()
-        self._faucet_w.adb.receive_tx_callback(cb_tx, tx_height=faucet_tx_height)
         # note: balance is unverified due to lack of SPV, gets treated as "unconfirmed":
-        assert self._faucet_w.get_balance() == (0, 50 * COIN, 0), self._faucet_w.get_balance()
+        assert self._faucet_w.get_balance() == (0, 50 * COIN * num_starting_utxos, 0), self._faucet_w.get_balance()
 
     async def ask_faucet(self, outputs: Sequence[TxOutput]) -> Transaction:
         assert self._faucet_w, "faucet must be set up first using set_up_faucet()"
