@@ -81,7 +81,7 @@ class ServerConnectWizardTestCase(WizardTestCase):
         self.assertFalse(w.is_last_view(v_init.view, d))
         v = w.resolve_next(v_init.view, d)
         self.assertEqual('server_config', v.view)
-        self.assertEqual(False, self.config.NETWORK_AUTO_CONNECT)
+        self.assertFalse(self.config.cv.NETWORK_AUTO_CONNECT.is_set())
 
     async def test_proxy(self):
         w = ServerConnectWizard(DaemonMock(self.config))
@@ -110,7 +110,7 @@ class ServerConnectWizardTestCase(WizardTestCase):
         self.assertFalse(w.is_last_view(v_init.view, d))
         v = w.resolve_next(v_init.view, d)
         self.assertEqual('proxy_config', v.view)
-        self.assertEqual(False, self.config.NETWORK_AUTO_CONNECT)
+        self.assertFalse(self.config.cv.NETWORK_AUTO_CONNECT.is_set())
         d_proxy = {'enabled': False}
         d.update({'proxy': d_proxy})
         v = w.resolve_next(v.view, d)

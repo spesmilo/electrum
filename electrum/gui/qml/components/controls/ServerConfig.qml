@@ -12,6 +12,7 @@ Item {
     property bool showAutoselectServer: true
     property alias address: address_tf.text
     property alias serverConnectMode: server_connect_mode_cb.currentValue
+    property alias addressValid: address_tf.valid
 
     implicitHeight: rootLayout.height
 
@@ -28,6 +29,11 @@ Item {
 
             ServerConnectModeComboBox {
                 id: server_connect_mode_cb
+                onCurrentValueChanged: {
+                    if (currentValue == ServerConnectModeComboBox.Mode.Autoconnect) {
+                        address_tf.text = ""
+                    }
+                }
             }
 
             Item {
@@ -63,6 +69,26 @@ Item {
                 enabled: server_connect_mode_cb.currentValue != ServerConnectModeComboBox.Mode.Autoconnect
                 width: parent.width
                 inputMethodHints: Qt.ImhNoPredictiveText
+
+                property bool valid: true
+
+                function validate() {
+                    if (!enabled) {
+                        valid = true
+                        return
+                    }
+                    valid = Network.isValidServerAddress(address_tf.text)
+                }
+
+                onTextChanged: validate()
+                onEnabledChanged: validate()
+
+                Rectangle {
+                    anchors.fill: parent
+                    color: "red"
+                    opacity: 0.2
+                    visible: !parent.valid
+                }
             }
         }
 

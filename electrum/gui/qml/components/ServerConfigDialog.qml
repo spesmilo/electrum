@@ -39,6 +39,7 @@ ElDialog {
         FlatButton {
             Layout.fillWidth: true
             text: qsTr('Ok')
+            enabled: serverconfig.addressValid
             icon.source: '../../icons/confirmed.png'
             onClicked: {
                 let auto_connect = serverconfig.serverConnectMode == ServerConnectModeComboBox.Mode.Autoconnect
