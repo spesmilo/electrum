@@ -63,6 +63,7 @@ class TestLNWallet(ElectrumTestCase):
 
         funding_tx = mock.Mock()
         funding_tx.txid.return_value = os.urandom(32).hex()
+        funding_tx.get_fee = lambda: 250
 
         wallet.open_channel_with_peer = mock.AsyncMock(return_value=(next_chan, funding_tx))
         wallet.network.try_broadcasting = mock.AsyncMock(return_value=True)

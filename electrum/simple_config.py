@@ -956,7 +956,13 @@ Warning: setting this to too low will result in lots of payment failures."""),
     # zeroconf channels
     OPEN_ZEROCONF_CHANNELS = ConfigVar('open_zeroconf_channels', default=False, type_=bool)
     ZEROCONF_TRUSTED_NODE = ConfigVar('zeroconf_trusted_node', default='', type_=str)
+    # minimum absolute fee in sat for which we will open a channel just in time
     ZEROCONF_MIN_OPENING_FEE = ConfigVar('zeroconf_min_opening_fee', default=5000, type_=int)
+    # fee in ppm of the outgoing htlcs value we charge for opening new channels just in time
+    ZEROCONF_OPENING_FEE_PPM = ConfigVar('zeroconf_opening_fee_ppm', default=10_000, type_=int)
+    # size of the channel the lsp opens to the client in percent of the outgoing htlcs value
+    # (before deducting fees). required to be at least 120% to leave some buffer for the channel reserve
+    ZEROCONF_CHANNEL_SIZE_PERCENT = ConfigVar('zeroconf_channel_size_percent', default=200, type_=int)
     LN_UTXO_RESERVE = ConfigVar(
         'ln_utxo_reserve',
         default=10000,

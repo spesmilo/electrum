@@ -1251,7 +1251,7 @@ class Peer(Logger, EventListener):
         channel_opening_fee = open_channel_tlvs.get('channel_opening_fee', {}).get('channel_opening_fee')
         if channel_opening_fee:  # just-in-time channel opening
             assert is_zeroconf
-            # the opening fee consists of the fee configured by the LSP
+            # the opening fee consists of the fee configured by the LSP + mining fees of the funding tx
             channel_opening_fee_sat = channel_opening_fee // 1000
             if channel_opening_fee_sat > funding_sat * 0.1:
                 # TODO: if there will be some discovery channel where LSPs announce their fees

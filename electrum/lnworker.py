@@ -1489,19 +1489,22 @@ class LNWallet(Logger):
         # prevent settling the htlc until the channel opening was successful so we can fail it if needed
         self.dont_settle_htlcs[payment_hash.hex()] = None
         try:
-            funding_sat = 2 * (next_amount_msat_htlc // 1000) # try to fully spend htlcs
+            assert self.config.ZEROCONF_CHANNEL_SIZE_PERCENT >= 120, "ZEROCONF_CHANNEL_SIZE_PERCENT below min of 120%"
+            assert self.config.ZEROCONF_OPENING_FEE_PPM >= 0, f"invalid {self.config.ZEROCONF_OPENING_FEE_PPM=}"
+            funding_sat = (self.config.ZEROCONF_CHANNEL_SIZE_PERCENT * (next_amount_msat_htlc // 1000)) // 100
             password = self.wallet.get_unlocked_password() if self.wallet.has_password() else None
-            channel_opening_fee = next_amount_msat_htlc // 100
-            if channel_opening_fee // 1000 < self.config.ZEROCONF_MIN_OPENING_FEE:
-                self.logger.info(f'rejecting JIT channel: payment too low')
+            channel_opening_base_fee_msat = (next_amount_msat_htlc * self.config.ZEROCONF_OPENING_FEE_PPM) // 1_000_000
+            if channel_opening_base_fee_msat // 1000 < self.config.ZEROCONF_MIN_OPENING_FEE:
+                self.logger.info(
+                    f'rejecting JIT channel: {(channel_opening_base_fee_msat // 1000)=} < {self.config.ZEROCONF_MIN_OPENING_FEE=}'
+                )
                 raise OnionRoutingFailure(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'payment too low')
-            self.logger.info(f'channel opening fee (sats): {channel_opening_fee//1000}')
             next_chan, funding_tx = await self.open_channel_with_peer(
                 next_peer, funding_sat,
                 push_sat=0,
                 zeroconf=True,
                 public=False,
-                opening_fee=channel_opening_fee,
+                opening_base_fee_msat=channel_opening_base_fee_msat,
                 password=password,
             )
             async def wait_for_channel():
@@ -1509,7 +1512,11 @@ class LNWallet(Logger):
                     await asyncio.sleep(1)
             await util.wait_for2(wait_for_channel(), LN_P2P_NETWORK_TIMEOUT)
             self.logger.info(f'JIT channel is open (will forward htlc and await preimage now)')
-            next_amount_msat_htlc -= channel_opening_fee
+            self.logger.info(f'channel opening fee (sats): {channel_opening_base_fee_msat//1000} + {funding_tx.get_fee()} mining fee')
+            next_amount_msat_htlc -= channel_opening_base_fee_msat + funding_tx.get_fee() * 1000
+            if next_amount_msat_htlc < 1_000:
+                self.logger.info(f'rejecting JIT channel: payment too low after deducting mining fees')
+                raise OnionRoutingFailure(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'payment too low after deducting mining fees')
             # fixme: some checks are missing
             htlc = next_peer.send_htlc(
                 chan=next_chan,
@@ -1542,6 +1549,7 @@ class LNWallet(Logger):
                     data=b'failed to broadcast funding transaction',
                 )
         except Exception as e:
+            self.logger.warning(f"failed to open just in time channel: {repr(e)}")
             if next_chan:
                 await self._cleanup_failed_jit_channel(next_chan)
             self._preimages.pop(payment_hash.hex(), None)
@@ -1577,7 +1585,7 @@ class LNWallet(Logger):
             push_sat: int = 0,
             public: bool = False,
             zeroconf: bool = False,
-            opening_fee: int = None,
+            opening_base_fee_msat: Optional[int] = None,
             password=None):
         if self.config.ENABLE_ANCHOR_CHANNELS:
             self.wallet.unlock(password)
@@ -1589,6 +1597,9 @@ class LNWallet(Logger):
             funding_sat=funding_sat,
             node_id=node_id,
             fee_policy=fee_policy)
+        if opening_base_fee_msat:
+            # add funding tx fee on top of the opening fee to avoid opening channels at a loss
+            opening_base_fee_msat += funding_tx.get_fee() * 1000
         chan, funding_tx = await self._open_channel_coroutine(
             peer=peer,
             funding_tx=funding_tx,
@@ -1596,7 +1607,7 @@ class LNWallet(Logger):
             push_sat=push_sat,
             public=public,
             zeroconf=zeroconf,
-            opening_fee=opening_fee,
+            opening_fee=opening_base_fee_msat,
             password=password)
         return chan, funding_tx
 
