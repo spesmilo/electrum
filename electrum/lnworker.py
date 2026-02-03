@@ -74,7 +74,7 @@ from .lnutil import (
     OnchainChannelBackupStorage, ln_compare_features, IncompatibleLightningFeatures, PaymentFeeBudget,
     NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, GossipForwardingMessage, MIN_FUNDING_SAT,
     MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE, RecvMPPResolution, ReceivedMPPStatus, ReceivedMPPHtlc,
-    PaymentSuccess, ChannelType, LocalConfig, Keypair,
+    PaymentSuccess, ChannelType, LocalConfig, Keypair, ZEROCONF_TIMEOUT,
 )
 from .lnonion import (
     decode_onion_error, OnionFailureCode, OnionRoutingFailure, OnionPacket,
@@ -1485,6 +1485,7 @@ class LNWallet(Logger):
         # if an exception is raised during negotiation, we raise an OnionRoutingFailure.
         # this will cancel the incoming HTLC
 
+        next_chan: Optional[Channel] = None
         # prevent settling the htlc until the channel opening was successful so we can fail it if needed
         self.dont_settle_htlcs[payment_hash.hex()] = None
         try:
@@ -1521,20 +1522,54 @@ class LNWallet(Logger):
                     await asyncio.sleep(1)
             await util.wait_for2(wait_for_preimage(), LN_P2P_NETWORK_TIMEOUT)
 
-            # We have been paid and can broadcast
-            # todo: if broadcasting raise an exception, we should try to rebroadcast
-            await self.network.broadcast_transaction(funding_tx)
-        except OnionRoutingFailure:
+            # We have been paid and can broadcast.
+            # Channel providers should run their own, trusted Electrum server as
+            # we could lose funds here if the server broadcasts the tx but omits it from us
+            first_broadcast_ts = time.time()
+            while time.time() - first_broadcast_ts < ZEROCONF_TIMEOUT * 0.75:
+                if await self.network.try_broadcasting(funding_tx, "jit channel funding"):
+                    break
+                await asyncio.sleep(30)
+                # we cannot rely on success of try_broadcasting to determine broadcasting success
+                # as broadcasting might fail with some harmless error like 'transaction already in mempool'
+                tx_mined_info = self.wallet.adb.get_tx_height(funding_tx.txid())
+                if tx_mined_info.height() > TX_HEIGHT_LOCAL:
+                    self.logger.debug(f"found our jit channel funding tx: {tx_mined_info.height()=}")
+                    break
+            else:
+                raise OnionRoutingFailure(
+                    code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS,
+                    data=b'failed to broadcast funding transaction',
+                )
+        except Exception as e:
+            if next_chan:
+                await self._cleanup_failed_jit_channel(next_chan)
             self._preimages.pop(payment_hash.hex(), None)
-            raise
-        except Exception:
-            self._preimages.pop(payment_hash.hex(), None)
+            if isinstance(e, OnionRoutingFailure):
+                raise
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
         finally:
             del self.dont_settle_htlcs[payment_hash.hex()]
 
         htlc_key = serialize_htlc_key(next_chan.get_scid_or_local_alias(), htlc.htlc_id)
         return htlc_key
+
+    async def _cleanup_failed_jit_channel(self, chan: Channel):
+        """
+        Removes a just in time channel where we didn't broadcast the funding
+        transaction, e.g. when the client didn't release the preimage.
+        """
+        funding_height = chan.get_funding_height()
+        if funding_height is not None and funding_height[1] > TX_HEIGHT_LOCAL:
+            raise Exception("must not delete the channel if it has been broadcast")
+        # try to be nice and send shutdown to signal peer that this channel is dead
+        try:
+            await util.wait_for2(self.close_channel(chan.channel_id), LN_P2P_NETWORK_TIMEOUT)
+        except Exception:
+            self.logger.debug(f"sending chan shutdown to failed zeroconf peer failed ", exc_info=True)
+        chan.set_state(ChannelState.REDEEMED, force=True)
+        self.lnwatcher.adb.remove_transaction(chan.funding_outpoint.txid)
+        self.remove_channel(chan.channel_id)
 
     @log_exceptions
     async def open_channel_with_peer(
