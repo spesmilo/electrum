@@ -11,9 +11,9 @@ from electrum.logging import Logger
 from electrum.plugin import runs_in_hwd_thread
 from electrum.hw_wallet.plugin import OutdatedHwFirmwareException, HardwareClientBase
 
-from trezorlib.client import TrezorClient, PASSPHRASE_ON_DEVICE
+from trezorlib.client import TrezorClient, PassphraseSetting, get_default_client
 from trezorlib.exceptions import TrezorFailure, Cancelled, OutdatedFirmwareError
-from trezorlib.messages import WordRequestType, FailureType, ButtonRequestType
+from trezorlib.messages import WordRequestType, FailureType, ButtonRequestType, Capability
 import trezorlib.btc
 import trezorlib.device
 
@@ -53,7 +53,14 @@ class TrezorClientBase(HardwareClientBase, Logger):
         HardwareClientBase.__init__(self, plugin=plugin)
         if plugin.is_outdated_fw_ignored():
             TrezorClient.is_outdated = lambda *args, **kwargs: False
-        self.client = TrezorClient(transport, ui=self)
+
+        self.client = get_default_client(
+            app_name="Electrum",
+            path_or_transport=transport,
+            button_callback=self.button_request,
+            pin_callback=self.get_pin,
+        )
+        self._session = None
         self.device = plugin.device
         self.handler = handler
         Logger.__init__(self)
@@ -64,6 +71,30 @@ class TrezorClientBase(HardwareClientBase, Logger):
         self.in_flow = False
 
         self.used()
+
+    @property
+    def session(self):
+        if self._session is None:
+            assert self.handler is not None
+
+            # If needed, unlock the device (triggering PIN entry dialog for legacy model).
+            with self.client.get_session(passphrase=PassphraseSetting.STANDARD_WALLET) as session:
+                session.ensure_unlocked()
+
+            passphrase = PassphraseSetting.STANDARD_WALLET  # (empty passphrase)
+            if self.client.features.passphrase_protection:
+                passphrase = self.get_passphrase(Capability.PassphraseEntry in self.client.features.capabilities)
+
+            # Then, derive a session for this wallet (possibly with a passphrase)
+            if passphrase == PassphraseSetting.STANDARD_WALLET:
+                self._session = session  # reuse the session above to avoid re-derivation
+                self.logger.info("Opened standard %s", self._session)
+            else:
+                self._session = self.client.get_session(passphrase)
+                self.logger.info("Re-opened passphrase %s", self._session)
+
+        return self._session
+
 
     def run_flow(self, message=None, creating_wallet=False):
         if self.in_flow:
@@ -123,8 +154,9 @@ class TrezorClientBase(HardwareClientBase, Logger):
             return True
 
         try:
-            self.client.init_device()
+            self.client.ping(message="")
         except BaseException:
+            self.logger.exception("Ping failed")
             return False
         return True
 
@@ -148,7 +180,7 @@ class TrezorClientBase(HardwareClientBase, Logger):
     def get_xpub(self, bip32_path, xtype, creating=False):
         address_n = parse_path(bip32_path)
         with self.run_flow(creating_wallet=creating):
-            node = trezorlib.btc.get_public_node(self.client, address_n).node
+            node = trezorlib.btc.get_public_node(self.session, address_n).node
         return BIP32Node(xtype=xtype,
                          eckey=ecc.ECPubkey(node.public_key),
                          chaincode=node.chain_code,
@@ -164,17 +196,17 @@ class TrezorClientBase(HardwareClientBase, Logger):
             msg = _("Confirm on your {} device to enable passphrases")
         enabled = not self.features.passphrase_protection
         with self.run_flow(msg):
-            trezorlib.device.apply_settings(self.client, use_passphrase=enabled)
+            trezorlib.device.apply_settings(self.session, use_passphrase=enabled)
 
     @runs_in_hwd_thread
     def change_label(self, label):
         with self.run_flow(_("Confirm the new label on your {} device")):
-            trezorlib.device.apply_settings(self.client, label=label)
+            trezorlib.device.apply_settings(self.session, label=label)
 
     @runs_in_hwd_thread
     def change_homescreen(self, homescreen):
         with self.run_flow(_("Confirm on your {} device to change your home screen")):
-            trezorlib.device.apply_settings(self.client, homescreen=homescreen)
+            trezorlib.device.apply_settings(self.session, homescreen=homescreen)
 
     @runs_in_hwd_thread
     def set_pin(self, remove):
@@ -185,7 +217,7 @@ class TrezorClientBase(HardwareClientBase, Logger):
         else:
             msg = _("Confirm on your {} device to set a PIN")
         with self.run_flow(msg):
-            trezorlib.device.change_pin(self.client, remove)
+            trezorlib.device.change_pin(self.session, remove)
 
     @runs_in_hwd_thread
     def clear_session(self):
@@ -194,7 +226,7 @@ class TrezorClientBase(HardwareClientBase, Logger):
         self.logger.info(f"clear session: {self}")
         self.prevent_timeouts()
         try:
-            self.client.clear_session()
+            self.close()
         except BaseException as e:
             # If the device was removed it has the same effect...
             self.logger.info(f"clear_session: ignoring error {e}")
@@ -202,8 +234,11 @@ class TrezorClientBase(HardwareClientBase, Logger):
     @runs_in_hwd_thread
     def close(self):
         '''Called when Our wallet was closed or the device removed.'''
-        self.logger.info("closing client")
-        self.clear_session()
+        self.logger.info("locking: %s", self.client)
+        self.client.lock()
+        self.logger.info("closing: %s", self._session)
+        if self._session is not None:
+            self._session.close()
 
     @runs_in_hwd_thread
     def is_uptodate(self):
@@ -233,7 +268,7 @@ class TrezorClientBase(HardwareClientBase, Logger):
         address_n = parse_path(address_str)
         with self.run_flow():
             return trezorlib.btc.get_address(
-                self.client,
+                self.session,
                 coin_name,
                 address_n,
                 show_display=True,
@@ -246,7 +281,7 @@ class TrezorClientBase(HardwareClientBase, Logger):
         address_n = parse_path(address_str)
         with self.run_flow():
             return trezorlib.btc.sign_message(
-                self.client,
+                self.session,
                 coin_name,
                 address_n,
                 message,
@@ -256,9 +291,9 @@ class TrezorClientBase(HardwareClientBase, Logger):
     @runs_in_hwd_thread
     def recover_device(self, recovery_type, *args, **kwargs):
         input_callback = self.mnemonic_callback(recovery_type)
-        with self.run_flow():
+        with self.run_flow(), self.client.get_session(None) as seedless_session:
             return trezorlib.device.recover(
-                self.client,
+                seedless_session,
                 *args,
                 input_callback=input_callback,
                 type=recovery_type,
@@ -269,27 +304,27 @@ class TrezorClientBase(HardwareClientBase, Logger):
     @runs_in_hwd_thread
     def sign_tx(self, *args, **kwargs):
         with self.run_flow():
-            return trezorlib.btc.sign_tx(self.client, *args, **kwargs)
+            return trezorlib.btc.sign_tx(self.session, *args, **kwargs)
 
     @runs_in_hwd_thread
     def get_ownership_id(self, *args, **kwargs):
         with self.run_flow():
-            return trezorlib.btc.get_ownership_id(self.client, *args, **kwargs)
+            return trezorlib.btc.get_ownership_id(self.session, *args, **kwargs)
 
     @runs_in_hwd_thread
     def get_ownership_proof(self, *args, **kwargs):
         with self.run_flow():
-            return trezorlib.btc.get_ownership_proof(self.client, *args, **kwargs)
+            return trezorlib.btc.get_ownership_proof(self.session, *args, **kwargs)
 
     @runs_in_hwd_thread
     def reset_device(self, *args, **kwargs):
-        with self.run_flow():
-            return trezorlib.device.reset(self.client, *args, **kwargs)
+        with self.run_flow(), self.client.get_session(None) as seedless_session:
+            return trezorlib.device.reset(seedless_session, *args, **kwargs)
 
     @runs_in_hwd_thread
     def wipe_device(self, *args, **kwargs):
-        with self.run_flow():
-            return trezorlib.device.wipe(self.client, *args, **kwargs)
+        with self.run_flow(), self.client.get_session(None) as seedless_session:
+            return trezorlib.device.wipe(seedless_session, *args, **kwargs)
 
     # ========= UI methods ==========
 
@@ -335,7 +370,7 @@ class TrezorClientBase(HardwareClientBase, Logger):
 
         self.handler.passphrase_on_device = available_on_device
         passphrase = self.handler.get_passphrase(msg, self.creating_wallet)
-        if passphrase is PASSPHRASE_ON_DEVICE:
+        if passphrase is PassphraseSetting.ON_DEVICE:
             return passphrase
         if passphrase is None:
             raise Cancelled
