@@ -954,7 +954,7 @@ Warning: setting this to too low will result in lots of payment failures."""),
     # anchor outputs channels
     ENABLE_ANCHOR_CHANNELS = ConfigVar('enable_anchor_channels', default=True, type_=bool)
     # zeroconf channels
-    ACCEPT_ZEROCONF_CHANNELS = ConfigVar('accept_zeroconf_channels', default=False, type_=bool)
+    OPEN_ZEROCONF_CHANNELS = ConfigVar('open_zeroconf_channels', default=False, type_=bool)
     ZEROCONF_TRUSTED_NODE = ConfigVar('zeroconf_trusted_node', default='', type_=str)
     ZEROCONF_MIN_OPENING_FEE = ConfigVar('zeroconf_min_opening_fee', default=5000, type_=int)
     LN_UTXO_RESERVE = ConfigVar(

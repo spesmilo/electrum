@@ -1006,7 +1006,7 @@ class LNWallet(Logger):
             features = LNWALLET_FEATURES
             if self.config.ENABLE_ANCHOR_CHANNELS:
                 features |= LnFeatures.OPTION_ANCHORS_ZERO_FEE_HTLC_OPT
-            if self.config.ACCEPT_ZEROCONF_CHANNELS:
+            if self.config.OPEN_ZEROCONF_CHANNELS:
                 features |= LnFeatures.OPTION_ZEROCONF_OPT
             if self.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS or self.config.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS:
                 features |= LnFeatures.OPTION_ONION_MESSAGE_OPT
@@ -1481,6 +1481,7 @@ class LNWallet(Logger):
         payment_hash: bytes,
         next_onion: OnionPacket,
     ) -> str:
+        assert self.config.OPEN_ZEROCONF_CHANNELS
         # if an exception is raised during negotiation, we raise an OnionRoutingFailure.
         # this will cancel the incoming HTLC
 
@@ -3310,7 +3311,7 @@ class LNWallet(Logger):
         return False
 
     def can_get_zeroconf_channel(self) -> bool:
-        if not self.config.ACCEPT_ZEROCONF_CHANNELS and self.config.ZEROCONF_TRUSTED_NODE:
+        if not self.config.OPEN_ZEROCONF_CHANNELS and self.config.ZEROCONF_TRUSTED_NODE:
             # check if zeroconf is accepted and client has trusted zeroconf node configured
             return False
         try:
@@ -3957,7 +3958,7 @@ class LNWallet(Logger):
 
         # do we have a connection to the node?
         next_peer = self.lnpeermgr.get_peer_by_pubkey(outgoing_node_id)
-        if next_peer and next_peer.accepts_zeroconf():
+        if next_peer and next_peer.accepts_zeroconf() and self.features.supports(LnFeatures.OPTION_ZEROCONF_OPT):
             self.logger.info(f'JIT: found next_peer')
             for next_chan in next_peer.channels.values():
                 if next_chan.can_pay(amt_to_forward):

@@ -151,12 +151,12 @@ class TestLightningABC(TestLightning):
 class TestLightningJIT(TestLightning):
     agents = {
         'alice': {
-            'accept_zeroconf_channels': 'true',
+            'open_zeroconf_channels': 'true',
         },
         'bob': {
             'lightning_listen': 'localhost:9735',
             'lightning_forward_payments': 'true',
-            'accept_zeroconf_channels': 'true',
+            'open_zeroconf_channels': 'true',
         },
         'carol': {
         }
@@ -170,13 +170,13 @@ class TestLightningJITTrampoline(TestLightningJIT):
     agents = {
         'alice': {
             'use_gossip': 'false',
-            'accept_zeroconf_channels': 'true',
+            'open_zeroconf_channels': 'true',
         },
         'bob': {
             'lightning_listen': 'localhost:9735',
             'lightning_forward_payments': 'true',
             'lightning_forward_trampoline_payments': 'true',
-            'accept_zeroconf_channels': 'true',
+            'open_zeroconf_channels': 'true',
         },
         'carol': {
             'use_gossip': 'false',

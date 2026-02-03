@@ -3462,7 +3462,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             zeroconf_nodeid = extract_nodeid(self.config.ZEROCONF_TRUSTED_NODE)[0]
         except Exception:
             zeroconf_nodeid = None
-        can_get_zeroconf_channel = (self.lnworker and self.config.ACCEPT_ZEROCONF_CHANNELS
+        can_get_zeroconf_channel = (self.lnworker and self.config.OPEN_ZEROCONF_CHANNELS
                                     and self.lnworker.lnpeermgr.get_peer_by_pubkey(zeroconf_nodeid) is not None)
         status = self.get_invoice_status(req)
 
