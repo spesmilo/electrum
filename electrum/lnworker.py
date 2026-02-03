@@ -1507,8 +1507,7 @@ class LNWallet(Logger):
                 while not next_chan.is_open():
                     await asyncio.sleep(1)
             await util.wait_for2(wait_for_channel(), LN_P2P_NETWORK_TIMEOUT)
-            next_chan.save_remote_scid_alias(self._scid_alias_of_node(next_peer.pubkey))
-            self.logger.info(f'JIT channel is open')
+            self.logger.info(f'JIT channel is open (will forward htlc and await preimage now)')
             next_amount_msat_htlc -= channel_opening_fee
             # fixme: some checks are missing
             htlc = next_peer.send_htlc(
