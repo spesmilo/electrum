@@ -3356,16 +3356,23 @@ class LNWallet(Logger):
         return False
 
     def can_get_zeroconf_channel(self) -> bool:
-        if not self.config.OPEN_ZEROCONF_CHANNELS and self.config.ZEROCONF_TRUSTED_NODE:
-            # check if zeroconf is accepted and client has trusted zeroconf node configured
+        if not self.config.OPEN_ZEROCONF_CHANNELS:
             return False
-        try:
-            node_id = extract_nodeid(self.config.ZEROCONF_TRUSTED_NODE)[0]
-        except ConnStringFormatError:
-            # invalid connection string
+        node_id = self.trusted_zeroconf_node_id
+        if not node_id:
             return False
         # only return True if we are connected to the zeroconf provider
         return self.lnpeermgr.get_peer_by_pubkey(node_id) is not None
+
+    @property
+    def trusted_zeroconf_node_id(self) -> Optional[bytes]:
+        if not self.config.ZEROCONF_TRUSTED_NODE:
+            return None
+        try:
+            return extract_nodeid(self.config.ZEROCONF_TRUSTED_NODE)[0]
+        except ConnStringFormatError:
+            self.logger.warning(f"invalid zeroconf node connection string configured")
+        return None
 
     def _suggest_channels_for_rebalance(self, direction, amount_sat) -> Sequence[Tuple[Channel, int]]:
         """
