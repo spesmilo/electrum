@@ -223,6 +223,8 @@ class TrezorClientBase(HardwareClientBase, Logger):
             return "Trezor T"
         elif model == "Safe 3":
             return "Trezor Safe 3"
+        elif model == "Safe 5":
+            return "Trezor Safe 5"
         return None
 
     @runs_in_hwd_thread
