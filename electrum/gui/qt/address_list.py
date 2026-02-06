@@ -118,6 +118,8 @@ class AddressList(MyTreeView):
         self.setModel(self.proxy)
         self.update()
         self.sortByColumn(self.Columns.TYPE, Qt.SortOrder.AscendingOrder)
+        self.currently_open_address_menu = None  # type: Optional[QMenu]
+        self.address_list_status: int = 0  # depends on the order and balances of the addresses
         if self.config:
             self.configvar_show_toolbar = self.config.cv.GUI_QT_ADDRESSES_TAB_SHOW_TOOLBAR
 
@@ -186,9 +188,9 @@ class AddressList(MyTreeView):
         self.proxy.setDynamicSortFilter(False)  # temp. disable re-sorting after every change
         self.std_model.clear()
         self.refresh_headers()
-        fx = self.main_window.fx
         set_address = None
         num_shown = 0
+        new_address_list_status = 0
         self.addresses_beyond_gap_limit = self.wallet.get_all_known_addresses_beyond_gap_limit()
         for address in addr_list:
             c, u, x = self.wallet.get_addr_balance(address)
@@ -203,6 +205,7 @@ class AddressList(MyTreeView):
             if self.show_used == AddressUsageStateFilter.FUNDED_OR_UNUSED and is_used_and_empty:
                 continue
             num_shown += 1
+            new_address_list_status = hash((new_address_list_status, address, c, u, x, is_used_and_empty))
             labels = [""] * len(self.Columns)
             labels[self.Columns.ADDRESS] = address
             address_item = [QStandardItem(e) for e in labels]
@@ -239,6 +242,13 @@ class AddressList(MyTreeView):
             self.showColumn(self.Columns.FIAT_BALANCE)
         else:
             self.hideColumn(self.Columns.FIAT_BALANCE)
+        if self.address_list_status != new_address_list_status:
+            self.address_list_status = new_address_list_status
+            # close the menu if the address list has changed through this update()
+            # otherwise the menu might operate on stale information
+            if self.currently_open_address_menu:
+                self.currently_open_address_menu.close()
+                self.currently_open_address_menu = None
         self.filter()
         self.proxy.setDynamicSortFilter(True)
         # update counter
@@ -343,7 +353,12 @@ class AddressList(MyTreeView):
                 menu.addAction(_("Add to coin control"), lambda: self.main_window.utxo_list.add_to_coincontrol(coins))
 
         run_hook('receive_menu', menu, addrs, self.wallet)
-        menu.exec(self.viewport().mapToGlobal(position))
+
+        try:
+            self.currently_open_address_menu = menu
+            menu.exec(self.viewport().mapToGlobal(position))
+        finally:
+            self.currently_open_address_menu = None
 
     def place_text_on_clipboard(self, text: str, *, title: str = None) -> None:
         if is_address(text):
