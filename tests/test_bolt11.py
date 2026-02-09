@@ -9,6 +9,7 @@ from electrum.segwit_addr import bech32_encode, bech32_decode
 from electrum import segwit_addr
 from electrum.lnutil import UnknownEvenFeatureBits, LnFeatures, IncompatibleLightningFeatures
 from electrum import constants
+from electrum.util import bfh, ShortID
 
 from . import ElectrumTestCase
 
@@ -169,3 +170,43 @@ class TestBolt11(ElectrumTestCase):
         lnaddr.validate_and_compare_features(LnFeatures((1 << 8) + (1 << 14) + (1 << 15)))
         with self.assertRaises(IncompatibleLightningFeatures):
             lnaddr.validate_and_compare_features(LnFeatures((1 << 8) + (1 << 14) + (1 << 16)))
+
+    def test_format_bolt11_routing_info_as_human_readable(self):
+        r_tags_expl = [
+            ['r', [(bfh('029e03a901b85534ff1e92c43c74431f7ce72046060fcf7a95c37e148f78c77255'), bfh('0102030405060708'), 1, 20, 3),
+                   (bfh('039e03a901b85534ff1e92c43c74431f7ce72046060fcf7a95c37e148f78c77255'), bfh('030405060708090a'), 2, 30, 4)]],
+            ['r', [(bfh('038863cf8ab91046230f561cd5b386cbff8309fa02e3f0c3ed161a3aeb64a643b9'), bfh('f4240000000002cd'), 0, 1, 40)]],
+        ]
+        self.assertEqual(
+            [
+                ('r', [('029e03a901b85534ff1e92c43c74431f7ce72046060fcf7a95c37e148f78c77255',
+                        '66051x263430x1800', 1, 20, 3),
+                       ('039e03a901b85534ff1e92c43c74431f7ce72046060fcf7a95c37e148f78c77255',
+                        '197637x395016x2314', 2, 30, 4)]
+                 ),
+                ('r', [('038863cf8ab91046230f561cd5b386cbff8309fa02e3f0c3ed161a3aeb64a643b9',
+                        '16000000x0x717', 0, 1, 40),]
+                 ),
+            ],
+            LnAddr.format_bolt11_routing_info_as_human_readable(r_tags_expl, has_explicit_r_tagtype=True))
+
+        r_tags_impl = [
+            [(bfh('029e03a901b85534ff1e92c43c74431f7ce72046060fcf7a95c37e148f78c77255'), bfh('0102030405060708'), 1, 20, 3),
+                   (bfh('039e03a901b85534ff1e92c43c74431f7ce72046060fcf7a95c37e148f78c77255'), bfh('030405060708090a'), 2, 30, 4)],
+            [(bfh('038863cf8ab91046230f561cd5b386cbff8309fa02e3f0c3ed161a3aeb64a643b9'), bfh('f4240000000002cd'), 0, 1, 40)],
+        ]
+        self.assertEqual(
+            [
+                [('029e03a901b85534ff1e92c43c74431f7ce72046060fcf7a95c37e148f78c77255',
+                  '66051x263430x1800', 1, 20, 3),
+                 ('039e03a901b85534ff1e92c43c74431f7ce72046060fcf7a95c37e148f78c77255',
+                  '197637x395016x2314', 2, 30, 4)],
+                [('038863cf8ab91046230f561cd5b386cbff8309fa02e3f0c3ed161a3aeb64a643b9',
+                  '16000000x0x717', 0, 1, 40),],
+            ],
+            LnAddr.format_bolt11_routing_info_as_human_readable(r_tags_impl, has_explicit_r_tagtype=False))
+
+        for has_explicit_r_tagtype in (False, True):
+            self.assertEqual(
+                [],
+                LnAddr.format_bolt11_routing_info_as_human_readable([], has_explicit_r_tagtype=has_explicit_r_tagtype))

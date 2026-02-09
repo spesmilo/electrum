@@ -302,6 +302,24 @@ class LnAddr(object):
         random.shuffle(r_tags)
         return r_tags
 
+    @staticmethod
+    def format_bolt11_routing_info_as_human_readable(r_tags, *, has_explicit_r_tagtype: bool = False):
+        """Converts the node-id bytes->hex, and the SCID bytes->"AAAxBBBxCC", e.g. for logging."""
+        from .util import format_short_id
+        r_tags2 = []
+        for r_tag in r_tags:
+            if has_explicit_r_tagtype:
+                (tagtype, path) = r_tag
+                assert tagtype == "r", f"found unexpected {tagtype=}"
+            else:
+                path = r_tag
+            path2 = [
+                (edge[0].hex(), format_short_id(edge[1]), edge[2], edge[3], edge[4])
+                for edge in path]
+            r_tag2 = (tagtype, path2) if has_explicit_r_tagtype else path2
+            r_tags2.append(r_tag2)
+        return r_tags2
+
     def get_amount_msat(self) -> Optional[int]:
         if self.amount is None:
             return None
@@ -374,8 +392,7 @@ class LnAddr(object):
             'unknown_tags': self.unknown_tags,
         }
         if ln_routing_info := self.get_routing_info('r'):
-            # show the last hop of routing hints. (our invoices only have one hop)
-            d['r_tags'] = [str((a.hex(),b.hex(),c,d,e)) for a,b,c,d,e in ln_routing_info[-1]]
+            d['r_tags'] = self.format_bolt11_routing_info_as_human_readable(ln_routing_info)
         return d
 
 
