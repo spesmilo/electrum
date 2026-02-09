@@ -131,8 +131,13 @@ class AbstractWizard:
 
     # check if this view is the final view
     def is_last_view(self, view: str, wizard_data: dict) -> bool:
-        assert view, f'view not defined: {repr(self.sanitize_stack_item(wizard_data))}'
-        assert view in self.navmap
+        # Gracefully handle empty/None view instead of crashing (Fixes #8815)
+        if not view:
+            self._logger.warning(f'is_last_view called with empty view: {repr(self.sanitize_stack_item(wizard_data))}')
+            return False
+        if view not in self.navmap:
+            self._logger.warning(f'is_last_view called with unknown view: {view}')
+            return False
 
         nav = self.navmap[view]
 
