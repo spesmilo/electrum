@@ -3614,6 +3614,82 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         util.trigger_callback('wallet_updated', self)
         self.adb.set_future_tx(tx.txid(), wanted_height=wanted_height)
 
+    def export_history_to_file(self, *, fx: Optional['FxThread'], file_path: str, is_csv: bool):
+        """Create a file containing the wallet history in either json or csv format, e.g. for bookkeeping."""
+        if run_hook('export_history_to_file', self, fx, file_path, is_csv):
+            return  # allow for plugins to create history fancy export
+        txns = self.get_full_history(fx=fx)
+        # remove unconfirmed/local tx as their ordering is not deterministic, and they don't seem
+        # useful for a wallet export (can't do accounting on a tx that hasn't happened yet)
+        txns = {k: v for k, v in txns.items() if v['timestamp'] not in (None, 0)}
+
+        def get_all_fees_paid_by_item(h_item: dict) -> Tuple[int, Optional[Fiat]]:
+            # gets all fees paid in an item (or group), as the outer group doesn't contain the
+            # transaction fees paid by the children
+            fees_sat = 0
+            fees_fiat = Fiat(ccy=fx.ccy, value=Decimal()) if fx else None
+            for child in h_item.get('children', []):
+                fees_sat += child['fee_sat'] or 0 if 'fee_sat' in child \
+                    else (child.get('fee_msat', 0) or 0) // 1000  # FIXME: loses msat precision
+                if fees_fiat is not None and (child_fiat_fee := child.get('fiat_fee')):
+                    fees_fiat += child_fiat_fee
+
+            fees_sat += h_item['fee_sat'] or 0 if 'fee_sat' in h_item \
+                else (h_item.get('fee_msat', 0) or 0) // 1000  # FIXME: loses msat precision
+            if fees_fiat is not None and (h_item_fiat_fee := h_item.get('fiat_fee')):
+                fees_fiat += h_item_fiat_fee
+
+            fiat_value = h_item.get('fiat_value')
+            if fees_fiat is not None and isinstance(fiat_value, Fiat) \
+                    and (fiat_value.value is None or fiat_value.value.is_nan()):
+                # ensure that str(fees_fiat) == 'No Data' if str(fiat_value) == 'No Data'
+                fees_fiat = Fiat(ccy=fx.ccy, value=None)
+
+            return fees_sat, fees_fiat
+
+        lines = []
+        if is_csv:
+            # sort by timestamp so the generated csv is more understandable on first sight
+            txns = dict(sorted(txns.items(), key=lambda h_item: h_item[1]['timestamp']))
+            for item in txns.values():
+                # tx groups will are shown as single element
+                fees_sat, fees_fiat = get_all_fees_paid_by_item(item)
+                # users are sensitive to changes of these fields as they have scripts/spreadsheets
+                # depending on them. E.g. https://github.com/spesmilo/electrum/issues/10445
+                assert str(fees_fiat) == 'No Data' if str(item.get('fiat_value')) == 'No Data' else True
+                line = [
+                    item.get('txid', ''),
+                    item.get('payment_hash', ''),
+                    item.get('label', ''),
+                    item.get('confirmations', ''),
+                    item['bc_value'],
+                    item['ln_value'],
+                    item.get('fiat_value', ''),
+                    util.format_satoshis(fees_sat),
+                    str(fees_fiat or ''),
+                    item['date']
+                ]
+                lines.append(line)
+
+        with open(file_path, "w+", encoding='utf-8') as f:
+            if is_csv:
+                import csv
+                transaction = csv.writer(f, lineterminator='\n')
+                transaction.writerow(["oc_transaction_hash",
+                                      "ln_payment_hash",
+                                      "label",
+                                      "confirmations",
+                                      "amount_chain_bc",
+                                      "amount_lightning_bc",
+                                      "fiat_value",
+                                      "network_fee_bc",
+                                      "fiat_fee",
+                                      "timestamp"])
+                for line in lines:
+                    transaction.writerow(line)
+            else:
+                f.write(util.json_encode(txns))
+
 
 class Simple_Wallet(Abstract_Wallet):
     # wallet with a single keystore
