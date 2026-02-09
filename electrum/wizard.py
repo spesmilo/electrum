@@ -512,7 +512,11 @@ class NewWalletWizard(KeystoreWizard):
         raise NotImplementedError()
 
     def on_wallet_type(self, wizard_data: dict) -> str:
-        t = wizard_data['wallet_type']
+        # Use .get() to avoid KeyError when wallet_type is missing (Fixes #8856)
+        t = wizard_data.get('wallet_type')
+        if not t:
+            self._logger.warning(f'on_wallet_type called with missing wallet_type: {self.sanitize_stack_item(wizard_data)}')
+            return None
         return {
             'standard': 'keystore_type',
             '2fa': 'trustedcoin_start',
@@ -521,7 +525,11 @@ class NewWalletWizard(KeystoreWizard):
         }.get(t)
 
     def on_keystore_type(self, wizard_data: dict) -> str:
-        t = wizard_data['keystore_type']
+        # Use .get() to avoid KeyError when keystore_type is missing
+        t = wizard_data.get('keystore_type')
+        if not t:
+            self._logger.warning(f'on_keystore_type called with missing keystore_type')
+            return None
         return {
             'createseed': 'create_seed',
             'haveseed': 'have_seed',
