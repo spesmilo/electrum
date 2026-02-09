@@ -73,7 +73,7 @@ from electrum.exchange_rate import FxThread
 from electrum.simple_config import SimpleConfig
 from electrum.logging import Logger
 from electrum.lntransport import extract_nodeid, ConnStringFormatError
-from electrum.lnaddr import lndecode
+from electrum.lnaddr import lndecode, LnAddr
 from electrum.submarine_swaps import SwapServerTransport, NostrTransport
 from electrum.fee_policy import FeePolicy
 
@@ -1746,7 +1746,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         grid.addWidget(QLabel(_('Text') + ':'), 8, 0)
         grid.addWidget(invoice_e, 8, 1)
         r_tags = lnaddr.get_routing_info('r')
-        r_tags = '\n'.join(repr([(x[0].hex(), format_short_id(x[1]), x[2], x[3]) for x in r]) for r in r_tags)
+        r_tags = '\n'.join(repr(r) for r in LnAddr.format_bolt11_routing_info_as_human_readable(r_tags))
         routing_e = QTextEdit(str(r_tags))
         routing_e.setReadOnly(True)
         grid.addWidget(QLabel(_("Routing Hints") + ':'), 9, 0)
