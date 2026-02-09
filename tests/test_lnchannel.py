@@ -104,7 +104,7 @@ def create_channel_state(
             "remote_config": remote_config,
             "local_config": local_config,
             "constraints":lnpeer.ChannelConstraints(
-                flags=0,
+                flags=lnchannel.CF_ANNOUNCE_CHANNEL,
                 capacity=funding_sat,
                 is_initiator=is_initiator,
                 funding_txn_minimum_depth=3,

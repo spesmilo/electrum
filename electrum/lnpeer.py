@@ -578,6 +578,7 @@ class Peer(Logger, EventListener):
                 for chan in public_channels:
                     if chan.is_open() and chan.peer_state == PeerState.GOOD:
                         self.maybe_send_channel_announcement(chan)
+                        self.maybe_send_channel_update(chan)
             await asyncio.sleep(600)
 
     def _should_forward_gossip(self) -> bool:
@@ -1782,6 +1783,10 @@ class Peer(Logger, EventListener):
         raw_msg = encode_msg(message_type, **payload)
         self.transport.send_bytes(raw_msg)
 
+    def maybe_send_channel_update(self, chan: Channel):
+        chan_upd = chan.get_outgoing_gossip_channel_update()
+        self.transport.send_bytes(chan_upd)
+
     def maybe_mark_open(self, chan: Channel):
         if not chan.sent_channel_ready:
             return
@@ -1806,13 +1811,12 @@ class Peer(Logger, EventListener):
         if pending_channel_update:
             chan.set_remote_update(pending_channel_update)
         self.logger.info(f"CHANNEL OPENING COMPLETED ({chan.get_id_for_log()})")
-        forwarding_enabled = self.network.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS
-        if forwarding_enabled and chan.short_channel_id:
+        if chan.is_public():
             # send channel_update of outgoing edge to peer,
             # so that channel can be used to receive payments
-            self.logger.info(f"sending channel update for outgoing edge ({chan.get_id_for_log()})")
-            chan_upd = chan.get_outgoing_gossip_channel_update()
-            self.transport.send_bytes(chan_upd)
+            # Note: this is only useful for our unit tests. peers may discard
+            # channel updates if the channel has not been announced
+            self.maybe_send_channel_update(chan)
 
     def maybe_send_announcement_signatures(self, chan: Channel, is_reply=False):
         if not chan.is_public():
