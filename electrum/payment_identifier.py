@@ -417,8 +417,11 @@ class PaymentIdentifier(Logger):
 
             bolt11_invoice = invoice_data.get('pr')
             invoice = Invoice.from_bech32(bolt11_invoice)
-            if invoice.get_amount_sat() != amount_sat:
-                raise Exception("lnurl returned invoice with wrong amount")
+            # Compare using msat to handle sub-satoshi precision (Fixes #10412)
+            amount_msat = amount_sat * 1000
+            invoice_amount_msat = invoice._lnaddr.get_amount_msat()
+            if invoice_amount_msat is not None and invoice_amount_msat != amount_msat:
+                raise Exception(\"lnurl returned invoice with wrong amount\")
             # this will change what is returned by get_fields_for_GUI
             self.bolt11 = invoice
             self.set_state(PaymentIdentifierState.AVAILABLE)

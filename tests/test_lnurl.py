@@ -102,3 +102,23 @@ class TestLnurl(TestCase):
 
         with self.assertRaises(lnurl.LNURLError):
             lnurl._parse_lnurl3_response(bad_amounts_response)
+
+    def test_parse_lnurl6_response_msat_precision(self):
+        """Regression test for #10412: lnurl with msat precision cannot be paid"""
+        # Test that msat precision is preserved when minSendable==maxSendable with sub-sat precision
+        sample_response = {
+            'callback': 'https://service.io/pay',
+            'metadata': '[["text/plain", "Test payment"]]',
+            'minSendable': 100_000_500,  # 100000.5 sat in msat
+            'maxSendable': 100_000_500,  # same amount
+        }
+        result = lnurl._parse_lnurl6_response(sample_response)
+        
+        # Verify msat values are preserved exactly
+        self.assertEqual(100_000_500, result.min_sendable_msat)
+        self.assertEqual(100_000_500, result.max_sendable_msat)
+        
+        # Verify sat conversion uses ceiling for min (conservative) and floor for max
+        self.assertEqual(100_001, result.min_sendable_sat)  # ceil(100000.5) = 100001
+        self.assertEqual(100_000, result.max_sendable_sat)  # floor(100000.5) = 100000
+
