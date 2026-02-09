@@ -95,6 +95,8 @@ class LNURL6Data(NamedTuple):
     min_sendable_sat: int
     metadata_plaintext: str
     comment_allowed: int
+    max_sendable_msat: int
+    min_sendable_msat: int
     #tag: str = "payRequest"
 
 # withdrawRequest
@@ -152,8 +154,11 @@ def _parse_lnurl6_response(lnurl_response: dict) -> LNURL6Data:
     callback_url = _parse_lnurl_response_callback_url(lnurl_response)
     # parse lnurl6 "minSendable"/"maxSendable"
     try:
-        max_sendable_sat = int(lnurl_response['maxSendable']) // 1000
-        min_sendable_sat = int(lnurl_response['minSendable']) // 1000
+        max_sendable_msat = int(lnurl_response['maxSendable'])
+        min_sendable_msat = int(lnurl_response['minSendable'])
+        # Convert to sat, rounding down for max and up for min to be conservative
+        max_sendable_sat = max_sendable_msat // 1000
+        min_sendable_sat = (min_sendable_msat + 999) // 1000  # ceiling division
     except Exception as e:
         raise LNURLError(
             f"Missing or malformed 'minSendable'/'maxSendable' field in lnurl6 response. {e=!r}") from e
@@ -168,6 +173,8 @@ def _parse_lnurl6_response(lnurl_response: dict) -> LNURL6Data:
         min_sendable_sat=min_sendable_sat,
         metadata_plaintext=metadata_plaintext,
         comment_allowed=comment_allowed,
+        max_sendable_msat=max_sendable_msat,
+        min_sendable_msat=min_sendable_msat,
     )
     return data
 
