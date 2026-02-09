@@ -783,6 +783,8 @@ class LNGossip(Logger):
             progress_percent = 0
         return current_est, total_est, progress_percent
 
+    @ignore_exceptions
+    @log_exceptions
     async def process_gossip(self, chan_anns, node_anns, chan_upds):
         # note: we run in the originating peer's TaskGroup, so we can safely raise here
         #       and disconnect only from that peer
