@@ -194,6 +194,13 @@ def _read_primitive_field(
         except UnicodeDecodeError as e:
             raise MalformedMsg(f'invalid utf-8: {buf.hex()}') from e
 
+    if field_type == 'point':
+        for point in chunks(buf, type_len):
+            try:
+                ecc.ECPubkey(b=point)
+            except ecc.keys.InvalidECPointException as e:
+                raise MalformedMsg(f"invalid point: {point.hex()}") from e
+
     return buf
 
 
