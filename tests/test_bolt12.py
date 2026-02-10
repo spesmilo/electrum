@@ -1,6 +1,8 @@
 import io
+import json
 import time
 from dataclasses import fields
+from pathlib import Path
 
 from electrum_ecc import ECPrivkey
 
@@ -38,6 +40,25 @@ class TestBolt12(ElectrumTestCase):
         for bolt12_str, expected_bytes_hex in valid_bolt12_strings:
             result = bolt12_bech32_to_bytes(bolt12_str)
             self.assertEqual(result.hex(), expected_bytes_hex)
+
+    def test_bolt12_string_formatting(self):
+        """
+        Test if we handle string formatting according to bolt 12 using the format-string-test.json
+        test vector.
+        https://github.com/lightning/bolts/blob/5f31faa0b6e2cdbe32171d79464305f90bda9585/bolt12/format-string-test.json
+        """
+        with open(Path(__file__).parent / 'bolt12_format_string_test.json', 'r') as f:
+            tests = json.load(f)
+        for test in tests:
+            valid, string, msg = test['valid'], test['string'], f"{test['comment']}: {test['string']}"
+            if valid:
+                self.assertTrue(is_offer(string), msg=msg)
+                result = BOLT12Offer.decode(string)
+                self.assertIsInstance(result, BOLT12Offer)
+            else:
+                self.assertFalse(is_offer(string), msg=msg)
+                with self.assertRaises(ValueError, msg=msg):
+                    BOLT12Offer.decode(string)
 
     def test_decode(self):
         # https://bootstrap.bolt12.org/examples
