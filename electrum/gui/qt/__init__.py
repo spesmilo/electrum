@@ -418,8 +418,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
                                    parent=None,
                                    title=_('Error'),
                                    text=_('Cannot load wallet') + '(2) :\n' + err_text)
-            elif isinstance(e, WalletFileException) and e.should_report_crash \
-                    or not isinstance(e, WalletFileException):
+            else:
                 send_exception_to_crash_reporter(e)
             if app_is_starting:
                 # If we raise in this context, there are no more fallbacks, we will shut down.
