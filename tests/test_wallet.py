@@ -10,7 +10,7 @@ import asyncio
 from unittest import mock
 from pathlib import Path
 
-from electrum.storage import WalletStorage
+from electrum.storage import WalletStorage, PasswordType
 from electrum.wallet_db import FINAL_SEED_VERSION
 from electrum.wallet import (Abstract_Wallet, Standard_Wallet, create_new_wallet,
                              Imported_Wallet, Wallet)
@@ -90,6 +90,28 @@ class TestWalletStorage(WalletTestCase):
         d = json.loads(contents)
         for key, value in some_dict.items():
             self.assertEqual(d[key], value)
+
+    def test_add_update_remove_password(self):
+        with open(self.wallet_path, "w") as f:
+            f.write("blah blah")
+        storage = WalletStorage(self.wallet_path)
+        pw1 = "123456"
+        pw2 = "789012"
+        pw3 = "tttttt"
+        storage.add_password(pw1, PasswordType.USER)
+        storage.add_password(pw2, PasswordType.USER)
+        self.assertTrue(storage.is_encrypted())
+        with self.assertRaises(InvalidPassword):
+            storage.remove_password(pw3)
+        storage.remove_password(pw1)
+        self.assertTrue(storage.is_encrypted())
+        with self.assertRaises(InvalidPassword):
+            storage.remove_password(pw1)
+        with self.assertRaises(InvalidPassword):
+            storage.update_password(pw1, pw3, PasswordType.USER)
+        storage.update_password(pw2, pw3, PasswordType.USER)
+        storage.remove_password(pw3)
+        self.assertFalse(storage.is_encrypted())
 
     async def test_storage_imported_add_privkeys_persistence_test(self):
         text = ' '.join([
