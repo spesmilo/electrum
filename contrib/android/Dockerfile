@@ -196,17 +196,16 @@ RUN apt -y update -qq \
 
 
 # create new user to avoid using root; but with sudo access and no password for convenience.
-ARG UID=1000
-RUN if [ "$UID" != "0" ] ; then useradd --uid $UID --create-home --shell /bin/bash "user" ; fi
-RUN usermod -append --groups sudo $(id -nu $UID || echo "user")
+# NOTE: UID *MUST* align with buildozer's Dockerfile "user"
+RUN useradd -u 1000 -m -s /usr/bin/bash -d /home/user user
+RUN usermod -aG sudo user
 RUN echo "%sudo ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
-RUN HOME_DIR=$(getent passwd $UID | cut -d: -f6)
-ENV WORK_DIR="${HOME_DIR}/wspace" \
-    PATH="${HOME_DIR}/.local/bin:${PATH}"
+ENV HOME_DIR=/home/user
+ENV WORK_DIR="${HOME_DIR}/wspace"
+ENV PATH="${HOME_DIR}/.local/bin:${PATH}"
 WORKDIR ${WORK_DIR}
-RUN chown --recursive ${UID} ${WORK_DIR} ${ANDROID_SDK_HOME}
-RUN chown ${UID} /opt
-USER ${UID}
+RUN chown -R user ${WORK_DIR} ${ANDROID_SDK_HOME} /opt
+USER user
 
 # build cpython. FIXME we can't use the python3 from apt, as it is too new o.O
 # - p4a and buildozer require cython<3 (see https://github.com/kivy/python-for-android/issues/2919)
