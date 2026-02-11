@@ -16,15 +16,13 @@ if [[ ! "$SYSTEM_PYTHON" ]] ; then
     echo "Please specify which python to use in \$SYSTEM_PYTHON" && exit 1
 fi
 
-which virtualenv > /dev/null 2>&1 || { echo "Please install virtualenv" && exit 1; }
-
 "${SYSTEM_PYTHON}" -m hashin -h > /dev/null 2>&1 || { "${SYSTEM_PYTHON}" -m pip install hashin; }
 
 for suffix in '' '-hw' '-binaries' '-binaries-mac' '-build-wine' '-build-mac' '-build-base' '-build-appimage' '-build-android'; do
     reqfile="requirements${suffix}.txt"
 
     rm -rf "$venv_dir"
-    virtualenv -p "${SYSTEM_PYTHON}" "$venv_dir"
+    "${SYSTEM_PYTHON}" -m venv "$venv_dir"
 
     source "$venv_dir/bin/activate"
 
