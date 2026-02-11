@@ -736,7 +736,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         return True
 
     def update_recently_opened_menu(self):
-        recent = self.config.RECENTLY_OPEN_WALLET_FILES
+        recent = self.config.RECENTLY_OPEN_WALLET_FILES or []
         self.recently_visited_menu.clear()
         for i, k in enumerate(recent):
             b = os.path.basename(k)
