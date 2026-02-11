@@ -22,6 +22,11 @@ but not everything. The following sections describe how to run from source, but 
 is a TL;DR:
 
 ```
+Note:
+- The following commands are intended for Linux systems.
+- The environment variable  `ELECTRUM_ECC_DONT_COMPILE=1` tells Electrum
+  to use the system-installed `libsecp256k1` instead of compiling it locally.
+
 $ sudo apt-get install libsecp256k1-dev
 $ ELECTRUM_ECC_DONT_COMPILE=1 python3 -m pip install --user ".[gui,crypto]"
 ```
