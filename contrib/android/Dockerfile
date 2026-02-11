@@ -232,8 +232,8 @@ ENV VIRTUAL_ENV=/opt/venv
 RUN "/opt/cpython/install/bin/python3" -m venv ${VIRTUAL_ENV}
 ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
 
-COPY contrib/deterministic-build/requirements-build-base.txt /opt/deterministic-build/
-COPY contrib/deterministic-build/requirements-build-android.txt /opt/deterministic-build/
+COPY --chown=user contrib/deterministic-build/requirements-build-base.txt /opt/deterministic-build/
+COPY --chown=user contrib/deterministic-build/requirements-build-android.txt /opt/deterministic-build/
 RUN /opt/venv/bin/python3 -m pip install --no-build-isolation --no-dependencies \
     -r /opt/deterministic-build/requirements-build-base.txt
 RUN /opt/venv/bin/python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: \
