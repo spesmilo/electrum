@@ -1,0 +1,596 @@
+[
+  {
+    "description": "Minimal bolt12 offer",
+    "valid": true,
+    "bolt12": "lno1zcss9mk8y3wkklfvevcrszlmu23kfrxh49px20665dqwmn4p72pksese",
+    "fields": [
+      {
+        "type": 22,
+        "length": 33,
+        "hex": "02eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619"
+      }
+    ]
+  },
+  {
+    "description": "with description (but no amount)",
+    "valid": true,
+    "bolt12": "lno1pgx9getnwss8vetrw3hhyuckyypwa3eyt44h6txtxquqh7lz5djge4afgfjn7k4rgrkuag0jsd5xvxg",
+    "field info": "description is 'Test vectors'",
+    "fields": [
+      {
+        "type": 10,
+        "length": 12,
+        "hex": "5465737420766563746f7273"
+      },
+      {
+        "type": 22,
+        "length": 33,
+        "hex": "02eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619"
+      }
+    ]
+  },
+  {
+    "description": "for testnet",
+    "valid": true,
+    "bolt12": "lno1qgsyxjtl6luzd9t3pr62xr7eemp6awnejusgf6gw45q75vcfqqqqqqq2p32x2um5ypmx2cm5dae8x93pqthvwfzadd7jejes8q9lhc4rvjxd022zv5l44g6qah82ru5rdpnpj",
+    "field info": "chains[0] is testnet",
+    "fields": [
+      {
+        "type": 2,
+        "length": 32,
+        "hex": "43497fd7f826957108f4a30fd9cec3aeba79972084e90ead01ea330900000000"
+      },
+      {
+        "type": 10,
+        "length": 12,
+        "hex": "5465737420766563746f7273"
+      },
+      {
+        "type": 22,
+        "length": 33,
+        "hex": "02eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619"
+      }
+    ]
+  },
+  {
+    "description": "for bitcoin (redundant)",
+    "valid": true,
+    "bolt12": "lno1qgsxlc5vp2m0rvmjcxn2y34wv0m5lyc7sdj7zksgn35dvxgqqqqqqqq2p32x2um5ypmx2cm5dae8x93pqthvwfzadd7jejes8q9lhc4rvjxd022zv5l44g6qah82ru5rdpnpj",
+    "field info": "chains[0] is bitcoin",
+    "fields": [
+      {
+        "type": 2,
+        "length": 32,
+        "hex": "6fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d6190000000000"
+      },
+      {
+        "type": 10,
+        "length": 12,
+        "hex": "5465737420766563746f7273"
+      },
+      {
+        "type": 22,
+        "length": 33,
+        "hex": "02eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619"
+      }
+    ]
+  },
+  {
+    "description": "for bitcoin or liquidv1",
+    "valid": true,
+    "bolt12": "lno1qfqpge38tqmzyrdjj3x2qkdr5y80dlfw56ztq6yd9sme995g3gsxqqm0u2xq4dh3kdevrf4zg6hx8a60jv0gxe0ptgyfc6xkryqqqqqqqq9qc4r9wd6zqan9vd6x7unnzcss9mk8y3wkklfvevcrszlmu23kfrxh49px20665dqwmn4p72pksese",
+    "field info": "chains[0] is liquidv1, chains[1] is bitcoin",
+    "fields": [
+      {
+        "type": 2,
+        "length": 64,
+        "hex": "1466275836220db2944ca059a3a10ef6fd2ea684b0688d2c379296888a2060036fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d6190000000000"
+      },
+      {
+        "type": 10,
+        "length": 12,
+        "hex": "5465737420766563746f7273"
+      },
+      {
+        "type": 22,
+        "length": 33,
+        "hex": "02eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619"
+      }
+    ]
+  },
+  {
+    "description": "with metadata",
+    "valid": true,
+    "bolt12": "lno1qsgqqqqqqqqqqqqqqqqqqqqqqqqqqzsv23jhxapqwejkxar0wfe3vggzamrjghtt05kvkvpcp0a79gmy3nt6jsn98ad2xs8de6sl9qmgvcvs",
+    "field info": "metadata is 16 zero bytes",
+    "fields": [
+      {
+        "type": 4,
+        "length": 16,
+        "hex": "00000000000000000000000000000000"
+      },
+      {
+        "type": 10,
+        "length": 12,
+        "hex": "5465737420766563746f7273"
+      },
+      {
+        "type": 22,
+        "length": 33,
+        "hex": "02eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619"
+      }
+    ]
+  },
+  {
+    "description": "with amount",
+    "valid": true,
+    "bolt12": "lno1pqpzwyq2p32x2um5ypmx2cm5dae8x93pqthvwfzadd7jejes8q9lhc4rvjxd022zv5l44g6qah82ru5rdpnpj",
+    "field info": "amount is 10000msat",
+    "fields": [
+      {
+        "type": 8,
+        "length": 2,
+        "hex": "2710"
+      },
+      {
+        "type": 10,
+        "length": 12,
+        "hex": "5465737420766563746f7273"
+      },
+      {
+        "type": 22,
+        "length": 33,
+        "hex": "02eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619"
+      }
+    ]
+  },
+  {
+    "description": "with currency",
+    "valid": true,
+    "bolt12": "lno1qcp4256ypqpzwyq2p32x2um5ypmx2cm5dae8x93pqthvwfzadd7jejes8q9lhc4rvjxd022zv5l44g6qah82ru5rdpnpj",
+    "field info": "amount is USD $100.00",
+    "fields": [
+      {
+        "type": 6,
+        "length": 3,
+        "hex": "555344"
+      },
+      {
+        "type": 8,
+        "length": 2,
+        "hex": "2710"
+      },
+      {
+        "type": 10,
+        "length": 12,
+        "hex": "5465737420766563746f7273"
+      },
+      {
+        "type": 22,
+        "length": 33,
+        "hex": "02eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619"
+      }
+    ]
+  },
+  {
+    "description": "with expiry",
+    "valid": true,
+    "bolt12": "lno1pgx9getnwss8vetrw3hhyucwq3ay997czcss9mk8y3wkklfvevcrszlmu23kfrxh49px20665dqwmn4p72pksese",
+    "field info": "expiry is 2035-01-01",
+    "fields": [
+      {
+        "type": 10,
+        "length": 12,
+        "hex": "5465737420766563746f7273"
+      },
+      {
+        "type": 14,
+        "length": 4,
+        "hex": "7a4297d8"
+      },
+      {
+        "type": 22,
+        "length": 33,
+        "hex": "02eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619"
+      }
+    ]
+  },
+  {
+    "description": "with issuer",
+    "valid": true,
+    "bolt12": "lno1pgx9getnwss8vetrw3hhyucjy358garswvaz7tmzdak8gvfj9ehhyeeqgf85c4p3xgsxjmnyw4ehgunfv4e3vggzamrjghtt05kvkvpcp0a79gmy3nt6jsn98ad2xs8de6sl9qmgvcvs",
+    "field info": "issuer is 'https://bolt12.org BOLT12 industries'",
+    "fields": [
+      {
+        "type": 10,
+        "length": 12,
+        "hex": "5465737420766563746f7273"
+      },
+      {
+        "type": 18,
+        "length": 36,
+        "hex": "68747470733a2f2f626f6c7431322e6f726720424f4c54313220696e6475737472696573"
+      },
+      {
+        "type": 22,
+        "length": 33,
+        "hex": "02eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619"
+      }
+    ]
+  },
+  {
+    "description": "with quantity",
+    "valid": true,
+    "bolt12": "lno1pgx9getnwss8vetrw3hhyuc5qyz3vggzamrjghtt05kvkvpcp0a79gmy3nt6jsn98ad2xs8de6sl9qmgvcvs",
+    "field info": "quantity_max is 5",
+    "fields": [
+      {
+        "type": 10,
+        "length": 12,
+        "hex": "5465737420766563746f7273"
+      },
+      {
+        "type": 20,
+        "length": 1,
+        "hex": "05"
+      },
+      {
+        "type": 22,
+        "length": 33,
+        "hex": "02eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619"
+      }
+    ]
+  },
+  {
+    "description": "with unlimited (or unknown) quantity",
+    "valid": true,
+    "bolt12": "lno1pgx9getnwss8vetrw3hhyuc5qqtzzqhwcuj966ma9n9nqwqtl032xeyv6755yeflt235pmww58egx6rxry",
+    "field info": "quantity_max is unknown/unlimited",
+    "fields": [
+      {
+        "type": 10,
+        "length": 12,
+        "hex": "5465737420766563746f7273"
+      },
+      {
+        "type": 20,
+        "length": 0,
+        "hex": ""
+      },
+      {
+        "type": 22,
+        "length": 33,
+        "hex": "02eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619"
+      }
+    ]
+  },
+  {
+    "description": "with single quantity (weird but valid)",
+    "valid": true,
+    "bolt12": "lno1pgx9getnwss8vetrw3hhyuc5qyq3vggzamrjghtt05kvkvpcp0a79gmy3nt6jsn98ad2xs8de6sl9qmgvcvs",
+    "field info": "quantity_max is 1",
+    "fields": [
+      {
+        "type": 10,
+        "length": 12,
+        "hex": "5465737420766563746f7273"
+      },
+      {
+        "type": 20,
+        "length": 1,
+        "hex": "01"
+      },
+      {
+        "type": 22,
+        "length": 33,
+        "hex": "02eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619"
+      }
+    ]
+  },
+  {
+    "description": "with feature",
+    "valid": true,
+    "bolt12": "lno1pgx9getnwss8vetrw3hhyucvp5yqqqqqqqqqqqqqqqqqqqqkyypwa3eyt44h6txtxquqh7lz5djge4afgfjn7k4rgrkuag0jsd5xvxg",
+    "field info": "feature bit 99 set",
+    "fields": [
+      {
+        "type": 10,
+        "length": 12,
+        "hex": "5465737420766563746f7273"
+      },
+      {
+        "type": 12,
+        "length": 13,
+        "hex": "08000000000000000000000000"
+      },
+      {
+        "type": 22,
+        "length": 33,
+        "hex": "02eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619"
+      }
+    ]
+  },
+  {
+    "description": "with blinded path via Bob (0x424242...), path_key 020202...",
+    "valid": true,
+    "bolt12": "lno1pgx9getnwss8vetrw3hhyucs5ypjgef743p5fzqq9nqxh0ah7y87rzv3ud0eleps9kl2d5348hq2k8qzqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgqpqqqqqqqqqqqqqqqqqqqqqqqqqqqzqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqqzq3zyg3zyg3zyg3vggzamrjghtt05kvkvpcp0a79gmy3nt6jsn98ad2xs8de6sl9qmgvcvs",
+    "field info": "path is [id=02020202..., enc=0x00*16], [id=02020202..., enc=0x11*8]",
+    "fields": [
+      {
+        "type": 10,
+        "length": 12,
+        "hex": "5465737420766563746f7273"
+      },
+      {
+        "type": 16,
+        "length": 161,
+        "hex": "0324653eac434488002cc06bbfb7f10fe18991e35f9fe4302dbea6d2353dc0ab1c0202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020200100000000000000000000000000000000002020202020202020202020202020202020202020202020202020202020202020200081111111111111111"
+      },
+      {
+        "type": 22,
+        "length": 33,
+        "hex": "02eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619"
+      }
+    ]
+  },
+  {
+    "description": "same, with blinded path first_node_id using sciddir",
+    "valid": true,
+    "bolt12": "lno1pgx9getnwss8vetrw3hhyucs3yqqqqqqqqqqqqp2qgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqqyqqqqqqqqqqqqqqqqqqqqqqqqqqqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqqgzyg3zyg3zyg3z93pqthvwfzadd7jejes8q9lhc4rvjxd022zv5l44g6qah82ru5rdpnpj",
+    "field info": "short_channel_id is 0x0x42, direction is 0",
+    "fields": [
+      {
+        "type": 10,
+        "length": 12,
+        "hex": "5465737420766563746f7273"
+      },
+      {
+        "type": 16,
+        "length": 137,
+        "hex": "00000000000000002a0202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020200100000000000000000000000000000000002020202020202020202020202020202020202020202020202020202020202020200081111111111111111"
+      },
+      {
+        "type": 22,
+        "length": 33,
+        "hex": "02eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619"
+      }
+    ]
+  },
+  {
+    "description": "with no issuer_id and blinded path via Bob (0x424242...), path_key 020202...",
+    "valid": true,
+    "bolt12": "lno1pgx9getnwss8vetrw3hhyucs5ypjgef743p5fzqq9nqxh0ah7y87rzv3ud0eleps9kl2d5348hq2k8qzqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgqpqqqqqqqqqqqqqqqqqqqqqqqqqqqzqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqqzq3zyg3zyg3zygs",
+    "field info": "path is [id=02020202..., enc=0x00*16], [id=02020202..., enc=0x11*8]",
+    "fields": [
+      {
+        "type": 10,
+        "length": 12,
+        "hex": "5465737420766563746f7273"
+      },
+      {
+        "type": 16,
+        "length": 161,
+        "hex": "0324653eac434488002cc06bbfb7f10fe18991e35f9fe4302dbea6d2353dc0ab1c0202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020200100000000000000000000000000000000002020202020202020202020202020202020202020202020202020202020202020200081111111111111111"
+      }
+    ]
+  },
+  {
+    "description": "... and with second blinded path via 1x2x3 (direction 1), path_key 020202...",
+    "valid": true,
+    "bolt12": "lno1pgx9getnwss8vetrw3hhyucsl5qj5qeyv5l2cs6y3qqzesrth7mlzrlp3xg7xhulusczm04x6g6nms9trspqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqqsqqqqqqqqqqqqqqqqqqqqqqqqqqpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqsqpqg3zyg3zyg3zygpqqqqzqqqqgqqxqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqqgqqqqqqqqqqqqqqqqqqqqqqqqqqqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgqqsg3zyg3zyg3zygtzzqhwcuj966ma9n9nqwqtl032xeyv6755yeflt235pmww58egx6rxry",
+    "field info": "path is [id=02020202..., enc=0x00*16], [id=02020202..., enc=0x22*8]",
+    "fields": [
+      {
+        "type": 10,
+        "length": 12,
+        "hex": "5465737420766563746f7273"
+      },
+      {
+        "type": 16,
+        "length": 298,
+        "hex": "0324653eac434488002cc06bbfb7f10fe18991e35f9fe4302dbea6d2353dc0ab1c02020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202001000000000000000000000000000000000020202020202020202020202020202020202020202020202020202020202020202000811111111111111110100000100000200030202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020200100000000000000000000000000000000002020202020202020202020202020202020202020202020202020202020202020200082222222222222222"
+      },
+      {
+        "type": 22,
+        "length": 33,
+        "hex": "02eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619"
+      }
+    ]
+  },
+  {
+    "description": "unknown odd field",
+    "valid": true,
+    "bolt12": "lno1pgx9getnwss8vetrw3hhyuckyypwa3eyt44h6txtxquqh7lz5djge4afgfjn7k4rgrkuag0jsd5xvxfppf5x2mrvdamk7unvvs",
+    "field info": "type 33 is 'helloworld'",
+    "fields": [
+      {
+        "type": 10,
+        "length": 12,
+        "hex": "5465737420766563746f7273"
+      },
+      {
+        "type": 22,
+        "length": 33,
+        "hex": "02eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619"
+      },
+      {
+        "type": 33,
+        "length": 10,
+        "hex": "68656c6c6f776f726c64"
+      }
+    ]
+  },
+  {
+    "description": "unknown odd experimental field",
+    "valid": true,
+    "bolt12": "lno1pgx9getnwss8vetrw3hhyuckyypwa3eyt44h6txtxquqh7lz5djge4afgfjn7k4rgrkuag0jsd5xvx078wdv5gg2dpjkcmr0wahhymry",
+    "field info": "type 1000000033 is 'helloworld'",
+    "fields": [
+      {
+        "type": 10,
+        "length": 12,
+        "hex": "5465737420766563746f7273"
+      },
+      {
+        "type": 22,
+        "length": 33,
+        "hex": "02eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619"
+      },
+      {
+        "type": 1000000033,
+        "length": 10,
+        "hex": "68656c6c6f776f726c64"
+      }
+    ]
+  },
+  {
+    "description": "Malformed: fields out of order",
+    "valid": false,
+    "bolt12": "lno1zcssyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszpgz5znzfgdzs"
+  },
+  {
+    "description": "Malformed: unknown even TLV type 78",
+    "valid": false,
+    "bolt12": "lno1pgz5znzfgdz3vggzqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpysgr0u2xq4dh3kdevrf4zg6hx8a60jv0gxe0ptgyfc6xkryqqqqqqqq"
+  },
+  {
+    "description": "Malformed: empty",
+    "valid": false,
+    "bolt12": "lno1"
+  },
+  {
+    "description": "Malformed: truncated at type",
+    "valid": false,
+    "bolt12": "lno1pg"
+  },
+  {
+    "description": "Malformed: truncated in length",
+    "valid": false,
+    "bolt12": "lno1pt7s"
+  },
+  {
+    "description": "Malformed: truncated after length",
+    "valid": false,
+    "bolt12": "lno1pgpq"
+  },
+  {
+    "description": "Malformed: truncated in description",
+    "valid": false,
+    "bolt12": "lno1pgpyz"
+  },
+  {
+    "description": "Malformed: invalid offer_chains length",
+    "valid": false,
+    "bolt12": "lno1qgqszzs9g9xyjs69zcssyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqsz"
+  },
+  {
+    "description": "Malformed: truncated currency UTF-8",
+    "valid": false,
+    "bolt12": "lno1qcqcqzs9g9xyjs69zcssyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqsz"
+  },
+  {
+    "description": "Malformed: invalid currency UTF-8",
+    "valid": false,
+    "bolt12": "lno1qcplllhapqpq86q2q4qkc6trv5tzzq6muh550qsfva9fdes0ruph7ctk2s8aqq06r4jxj3msc448wzwy9s"
+  },
+  {
+    "description": "Malformed: truncated description UTF-8",
+    "valid": false,
+    "bolt12": "lno1pgqcq93pqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqy"
+  },
+  {
+    "description": "Malformed: invalid description UTF-8",
+    "valid": false,
+    "bolt12": "lno1pgpgqsgkyypqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqs"
+  },
+  {
+    "description": "Malformed: truncated offer_paths",
+    "valid": false,
+    "bolt12": "lno1pgz5znzfgdz3qqgpzcssyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqsz"
+  },
+  {
+    "description": "Malformed: zero num_hops in blinded_path",
+    "valid": false,
+    "bolt12": "lno1pgz5znzfgdz3qqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqsqzcssyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqsz"
+  },
+  {
+    "description": "Malformed: truncated onionmsg_hop in blinded_path",
+    "valid": false,
+    "bolt12": "lno1pgz5znzfgdz3qqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqspqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqgkyypqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqs"
+  },
+  {
+    "description": "Malformed: bad first_node_id in blinded_path",
+    "valid": false,
+    "bolt12": "lno1pgz5znzfgdz3qqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqspqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqgqzcssyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqsz"
+  },
+  {
+    "description": "Malformed: bad path_key in blinded_path",
+    "valid": false,
+    "bolt12": "lno1pgz5znzfgdz3qqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcpqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqgqzcssyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqsz"
+  },
+  {
+    "description": "Malformed: bad blinded_node_id in onionmsg_hop",
+    "valid": false,
+    "bolt12": "lno1pgz5znzfgdz3qqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqspqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqgqzcssyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqsz"
+  },
+  {
+    "description": "Malformed: truncated issuer UTF-8",
+    "valid": false,
+    "bolt12": "lno1pgz5znzfgdz3yqvqzcssyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqsz"
+  },
+  {
+    "description": "Malformed: invalid issuer UTF-8",
+    "valid": false,
+    "bolt12": "lno1pgz5znzfgdz3yq5qgytzzqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqg"
+  },
+  {
+    "description": "Malformed: invalid offer_issuer_id",
+    "valid": false,
+    "bolt12": "lno1pgz5znzfgdz3vggzqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvps"
+  },
+  {
+    "description": "Contains type >= 80",
+    "valid": false,
+    "bolt12": "lno1pgz5znzfgdz3vggzqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgp9qgr0u2xq4dh3kdevrf4zg6hx8a60jv0gxe0ptgyfc6xkryqqqqqqqq"
+  },
+  {
+    "description": "Contains type > 1999999999",
+    "valid": false,
+    "bolt12": "lno1pgz5znzfgdz3vggzqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgp06ae4jsq9qgr0u2xq4dh3kdevrf4zg6hx8a60jv0gxe0ptgyfc6xkryqqqqqqqq"
+  },
+  {
+    "description": "Contains unknown even type (1000000002)",
+    "valid": false,
+    "bolt12": "lno1pgz5znzfgdz3vggzqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgp06wu6egp9qgr0u2xq4dh3kdevrf4zg6hx8a60jv0gxe0ptgyfc6xkryqqqqqqqq"
+  },
+  {
+    "description": "Contains unknown feature 122",
+    "valid": false,
+    "bolt12": "lno1pgx9getnwss8vetrw3hhyucvzqzqqqqqqqqqqqqqqqqqqqqqqqqpvggzamrjghtt05kvkvpcp0a79gmy3nt6jsn98ad2xs8de6sl9qmgvcvs"
+  },
+  {
+    "description": "Missing offer_description, but has offer_amount",
+    "valid": false,
+    "bolt12": "lno1pqpzwyqkyypwa3eyt44h6txtxquqh7lz5djge4afgfjn7k4rgrkuag0jsd5xvxg"
+  },
+  {
+    "description": "Missing offer_amount with offer_currency",
+    "valid": false,
+    "bolt12": "lno1qcp4256ypgx9getnwss8vetrw3hhyuckyypwa3eyt44h6txtxquqh7lz5djge4afgfjn7k4rgrkuag0jsd5xvxg"
+  },
+  {
+    "description": "Missing offer_issuer_id and no offer_path",
+    "valid": false,
+    "bolt12": "lno1pgx9getnwss8vetrw3hhyuc"
+  },
+  {
+    "description": "Second offer_path is empty",
+    "valid": false,
+    "bolt12": "lno1pgx9getnwss8vetrw3hhyucsespjgef743p5fzqq9nqxh0ah7y87rzv3ud0eleps9kl2d5348hq2k8qzqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgqpqqqqqqqqqqqqqqqqqqqqqqqqqqqzqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqqzq3zyg3zyg3zygszqqqqyqqqqsqqvpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqsq"
+  },
+  {
+    "description": "offer_chains with zero entries",
+    "valid": false,
+    "bolt12": "lno1qgqpvggrt0j7j3uzp9n549hxpu0sxlmpwe2ql5qplgwkg628wrzk5acfcskq"
+  }
+]
