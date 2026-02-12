@@ -301,10 +301,10 @@ class Coldcard_KeyStore(Hardware_KeyStore):
 
         return client
 
-    def give_error(self, message):
+    def give_error(self, message: str | BaseException):
         self.logger.info(message)
         if not self.ux_busy:
-            self.handler.show_error(message)
+            self.handler.show_error(str(message))
         else:
             self.ux_busy = False
         raise UserFacingException(message)
@@ -460,7 +460,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
                 _('Error showing address') + ':', str(exc)))
         except BaseException as exc:
             self.logger.exception('')
-            self.handler.show_error(exc)
+            self.handler.show_error(str(exc))
 
     @wrap_busy
     def show_p2sh_address(self, M, script, xfp_paths, txin_type):
@@ -482,7 +482,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
                 str(exc)))
         except BaseException as exc:
             self.logger.exception('')
-            self.handler.show_error(exc)
+            self.handler.show_error(str(exc))
 
 
 class ColdcardPlugin(HW_PluginBase):
