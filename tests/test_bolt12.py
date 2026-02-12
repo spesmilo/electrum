@@ -8,12 +8,13 @@ from electrum_ecc import ECPrivkey
 
 from electrum import segwit_addr, lnutil
 from electrum.bolt12 import (
-    is_offer, bolt12_bech32_to_bytes, BOLT12Offer, BOLT12InvoiceRequest, BOLT12Invoice,
+    is_offer, bolt12_bech32_to_bytes, BOLT12Offer, BOLT12InvoiceRequest, BOLT12Invoice, NoMatchingChainError
 )
 from electrum.crypto import privkey_to_pubkey
-from electrum.lnmsg import UnknownMandatoryTLVRecordType, MsgInvalidSignature, OnionWireSerializer
+from electrum.lnmsg import UnknownMandatoryTLVRecordType, MsgInvalidSignature, OnionWireSerializer, \
+    MsgInvalidFieldOrder, MalformedMsg
 from electrum.lnonion import OnionHopsDataSingle
-from electrum.lnutil import LnFeatures
+from electrum.lnutil import LnFeatures, UnknownEvenFeatureBits
 from electrum.segwit_addr import INVALID_BECH32, bech32_encode, Encoding, convertbits
 from electrum.util import bfh
 
@@ -138,6 +139,26 @@ class TestBolt12(ElectrumTestCase):
         od = BOLT12Offer.decode(offer)
         self.assertEqual(od.offer_description, 'first test offer')
         self.assertEqual(od.offer_issuer_id, bfh('03d430b71fd7d4f0f6df575be7d9f33b0fa549c152dc03f4fc13ee2a393d4a2a5a'))
+
+        # now test the bolt12 test vectors
+        # https://github.com/lightning/bolts/blob/34455ffe28b308dd7ac7552234d565890af8605b/bolt12/offers-test.json
+        with open(Path(__file__).parent / 'bolt12_offers_test.json', 'r') as f:
+            tests = json.load(f)
+        for test in tests:
+            valid, string, msg = test['valid'], test['bolt12'], f"{test['description']}: {test['bolt12']}"
+            try:
+                if valid:
+                    self.assertTrue(is_offer(string), msg=msg)
+                    try:
+                        BOLT12Offer.decode(string)
+                    except NoMatchingChainError:
+                        continue  # this unittest runs on mainnet, there are some testnet vectors
+                else:
+                    expected_exc = (ValueError, MsgInvalidFieldOrder, UnknownMandatoryTLVRecordType, NoMatchingChainError, MalformedMsg, UnknownEvenFeatureBits)
+                    with self.assertRaises(expected_exc, msg=msg):
+                        BOLT12Offer.decode(string)
+            except Exception as e:
+                raise Exception(msg) from e
 
     def test_decode_invreq(self):
         invreq_bech32 = "lnr1qqyqqqqqqqqqqqqqqcp4256ypqqkgzshgysy6ct5dpjk6ct5d93kzmpq23ex2ct5d9ek293pqthvwfzadd7jejes8q9lhc4rvjxd022zv5l44g6qah82ru5rdpnpjkppqvjx204vgdzgsqpvcp4mldl3plscny0rt707gvpdh6ndydfacz43euzqhrurageg3n7kafgsek6gz3e9w52parv8gs2hlxzk95tzeswywffxlkeyhml0hh46kndmwf4m6xma3tkq2lu04qz3slje2rfthc89vss"
