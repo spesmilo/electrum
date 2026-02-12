@@ -189,7 +189,7 @@ class MockLNWallet(LNWallet):
             amount_to_pay=amount_msat,
             invoice_pubkey=decoded_invoice.pubkey.serialize(),
             uses_trampoline=False,
-            use_two_trampolines=False,
+            next_trampolines={},
         )
         payment_key = decoded_invoice.paymenthash + decoded_invoice.payment_secret
         self._paysessions[payment_key] = paysession
@@ -339,7 +339,6 @@ _GRAPH_DEFINITIONS = {
             },
             'config': {
                 SimpleConfig.EXPERIMENTAL_LN_FORWARD_PAYMENTS: True,
-                SimpleConfig.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS: True,
             },
         },
         'carol': {
@@ -356,7 +355,6 @@ _GRAPH_DEFINITIONS = {
             },
             'config': {
                 SimpleConfig.EXPERIMENTAL_LN_FORWARD_PAYMENTS: True,
-                SimpleConfig.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS: True,
             },
         },
         'edward': {
@@ -2530,7 +2528,8 @@ class TestPeerForwarding(TestPeer):
             attempts=2,
             sender_name="alice",
             destination_name="dave",
-            tf_names=("bob", "carol"),
+            trampoline_forwarders=("bob", "carol"),
+            trampoline_users=(), # sender is also a trampoline user
     ):
 
         sender_w = graph.workers[sender_name]
@@ -2569,9 +2568,16 @@ class TestPeerForwarding(TestPeer):
 
         # declare routing nodes as trampoline nodes
         electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {}
-        for tf_name in tf_names:
-            peer_addr = LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers[tf_name].node_keypair.pubkey)
-            electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS[graph.workers[tf_name].name] = peer_addr
+        for name in trampoline_forwarders:
+            user_w = graph.workers[name]
+            user_w.config.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS = True
+            peer_addr = LNPeerAddr(host="127.0.0.1", port=9735, pubkey=user_w.node_keypair.pubkey)
+            electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS[user_w.name] = peer_addr
+
+        for user in trampoline_users:
+            user_w = graph.workers[user]
+            await self._activate_trampoline(user_w)
+            assert user_w.uses_trampoline()
 
         await f()
 
@@ -2659,7 +2665,31 @@ class TestPeerForwarding(TestPeer):
             node1name='carol', node2name='dave')
         with self.assertRaises(PaymentDone):
             await self._run_trampoline_payment(
-                graph, sender_name='alice', destination_name='edward',tf_names=('bob', 'dave'))
+                graph, sender_name='alice',
+                destination_name='edward',
+                trampoline_forwarders=('bob', 'dave'),
+            )
+
+    async def test_payment_trampoline_e2e_lazy(self):
+        # alice -> T1_bob -> T2_carol -> T3_dave -> edward
+        graph_definition = self.GRAPH_DEFINITIONS['line_graph']
+        graph = self.prepare_chans_and_peers_in_graph(graph_definition)
+        with self.assertRaises(NoPathFound):
+            await self._run_trampoline_payment(
+                graph, sender_name='alice',
+                destination_name='edward',
+                trampoline_forwarders=('bob', 'dave'),
+                trampoline_users=('alice', 'bob'),
+                attempts=3, # fails with only 2
+            )
+        with self.assertRaises(PaymentDone):
+            await self._run_trampoline_payment(
+                graph, sender_name='alice',
+                destination_name='edward',
+                trampoline_forwarders=('bob', 'carol', 'dave'),
+                trampoline_users=('alice', 'bob'),
+                attempts=3, # fails with only 2
+            )
 
     async def test_multi_trampoline_payment(self):
         """
@@ -2685,7 +2715,7 @@ class TestPeerForwarding(TestPeer):
                 g,
                 sender_name='alice',
                 destination_name='dave',
-                tf_names=('bob', 'carol'),
+                trampoline_forwarders=('bob', 'carol'),
                 attempts=30,  # the default used in LNWallet.pay_invoice()
             )
 
@@ -2807,9 +2837,12 @@ class TestPeerForwarding(TestPeer):
             peers = graph.peers.values()
 
             if test_trampoline:
+                # trampoline forwarder
+                graph.workers['bob'].config.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS = True
                 electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
                     graph.workers['bob'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['bob'].node_keypair.pubkey),
                 }
+                # trampoline users
                 await self._activate_trampoline(graph.workers['carol'])
                 await self._activate_trampoline(graph.workers['alice'])
 
