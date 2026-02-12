@@ -454,7 +454,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
         Hardware_KeyStore.__init__(self, d)
         self.maxInputs = 14 # maximum inputs per single sign command
 
-    def give_error(self, message):
+    def give_error(self, message: str | BaseException):
         raise Exception(message)
 
     def decrypt_message(self, pubkey, message, password):

@@ -403,10 +403,10 @@ class Ledger_Client_Legacy(Ledger_Client):
                 self.signing = False
         return wrapper
 
-    def give_error(self, message):
+    def give_error(self, message: str | BaseException):
         _logger.info(message)
         if not self.signing:
-            self.handler.show_error(message)
+            self.handler.show_error(str(message))
         else:
             self.signing = False
         raise UserFacingException(message)
@@ -545,10 +545,10 @@ class Ledger_Client_Legacy(Ledger_Client):
                     _('Your device might not have support for this functionality.')))
             else:
                 _logger.exception('')
-                self.handler.show_error(e)
+                self.handler.show_error(str(e))
         except BaseException as e:
             _logger.exception('')
-            self.handler.show_error(e)
+            self.handler.show_error(str(e))
         finally:
             self.handler.finished()
 
@@ -959,7 +959,7 @@ class Ledger_Client_New(Ledger_Client):
             pass  # cancelled by user
         except BaseException as e:
             _logger.exception('Error while showing an address')
-            self.handler.show_error(e)
+            self.handler.show_error(str(e))
         finally:
             self.handler.finished()
 
@@ -1139,7 +1139,7 @@ class Ledger_Client_New(Ledger_Client):
             pass  # cancelled by user
         except BaseException as e:
             _logger.exception('Error while signing')
-            self.handler.show_error(e)
+            self.handler.show_error(str(e))
         finally:
             self.handler.finished()
 
@@ -1166,7 +1166,7 @@ class Ledger_Client_New(Ledger_Client):
             pass  # cancelled by user
         except BaseException as e:
             _logger.exception('')
-            self.handler.show_error(e)
+            self.handler.show_error(str(e))
         finally:
             self.handler.finished()
 
