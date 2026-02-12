@@ -90,7 +90,7 @@ from .submarine_swaps import SwapManager
 from .mpp_split import suggest_splits, SplitConfigRating
 from .trampoline import (
     create_trampoline_route_and_onion, is_legacy_relay, trampolines_by_id, hardcoded_trampoline_nodes,
-    is_hardcoded_trampoline, decode_routing_info
+    is_hardcoded_trampoline, decode_routing_info, encode_next_trampolines, decode_next_trampolines
 )
 
 if TYPE_CHECKING:
@@ -860,7 +860,6 @@ class PaySession(Logger):
             amount_to_pay: int,  # total payment amount final receiver will get
             invoice_pubkey: bytes,
             uses_trampoline: bool,  # whether sender uses trampoline or gossip
-            use_two_trampolines: bool,  # whether legacy payments will try to use two trampolines
     ):
         assert payment_hash
         assert payment_secret
@@ -881,7 +880,7 @@ class PaySession(Logger):
         self.uses_trampoline = uses_trampoline
         self.trampoline_fee_level = initial_trampoline_fee_level
         self.failed_trampoline_routes = []
-        self.use_two_trampolines = use_two_trampolines
+        self.next_trampolines = dict() # node_id -> next_trampoline -> tuple
         self._sent_buckets = dict()  # psecret_bucket -> (amount_sent, amount_failed)
 
         self._amount_inflight = 0  # what we sent in htlcs (that receiver gets, without fees)
@@ -904,7 +903,7 @@ class PaySession(Logger):
         else:
             self.logger.info(f'NOT raising trampoline fee level, already at {self.trampoline_fee_level}')
 
-    def handle_failed_trampoline_htlc(self, *, htlc_log: HtlcLog, failure_msg: OnionRoutingFailure):
+    def handle_failed_trampoline_htlc(self, *, node_id, htlc_log: HtlcLog, failure_msg: OnionRoutingFailure):
         # FIXME The trampoline nodes in the path are chosen randomly.
         #       Some of the errors might depend on how we have chosen them.
         #       Having more attempts is currently useful in part because of the randomness,
@@ -919,18 +918,25 @@ class PaySession(Logger):
             # TODO: erring node is always the first trampoline even if second
             #  trampoline demands more fees, we can't influence this
             self.maybe_raise_trampoline_fee(htlc_log)
-        elif self.use_two_trampolines:
-            self.use_two_trampolines = False
         elif failure_msg.code in (
                 OnionFailureCode.UNKNOWN_NEXT_PEER,
                 OnionFailureCode.TEMPORARY_NODE_FAILURE):
             trampoline_route = htlc_log.route
-            r = [hop.end_node.hex() for hop in trampoline_route]
+            r = []
+            for hop in trampoline_route:
+                r.append(hop.end_node.hex())
+                if hop.end_node == node_id:
+                    # we break at the node sending the error, so that
+                    # _choose_next_trampoline can discard the last item
+                    break
             self.logger.info(f'failed trampoline route: {r}')
             if r not in self.failed_trampoline_routes:
                 self.failed_trampoline_routes.append(r)
             else:
                 pass  # maybe the route was reused between different MPP parts
+            if failure_msg.code == OnionFailureCode.UNKNOWN_NEXT_PEER:
+                self.next_trampolines[node_id] = decode_next_trampolines(failure_msg.data)
+                self.logger.info(f'received {self.next_trampolines[node_id]=}')
         else:
             raise PaymentFailure(failure_msg.code_name())
 
@@ -1928,6 +1934,7 @@ class LNWallet(Logger):
         log = self.logs[key]
         return success, log
 
+    @log_exceptions
     async def pay_to_node(
             self, *,
             node_pubkey: bytes,
@@ -1965,12 +1972,6 @@ class LNWallet(Logger):
             amount_to_pay=amount_to_pay,
             invoice_pubkey=node_pubkey,
             uses_trampoline=self.uses_trampoline(),
-            # the config option to use two trampoline hops for legacy payments has been removed as
-            # the trampoline onion is too small (400 bytes) to accommodate two trampoline hops and
-            # routing hints, making the functionality unusable for payments that require routing hints.
-            # TODO: if you read this, the year is 2027 and there is no use for the second trampoline
-            # hop code anymore remove the code completely.
-            use_two_trampolines=False,
         )
         self.logs[payment_hash.hex()] = log = []  # TODO incl payment_secret in key (re trampoline forwarding)
 
@@ -2096,7 +2097,9 @@ class LNWallet(Logger):
         # trampoline
         if self.uses_trampoline():
             paysession.handle_failed_trampoline_htlc(
-                htlc_log=htlc_log, failure_msg=failure_msg)
+                node_id=erring_node_id,
+                htlc_log=htlc_log,
+                failure_msg=failure_msg)
         else:
             self.handle_error_code_from_failed_htlc(
                 route=route, sender_idx=sender_idx, failure_msg=failure_msg, amount=htlc_log.amount_msat)
@@ -2427,7 +2430,7 @@ class LNWallet(Logger):
                             payment_secret=paysession.payment_secret,
                             local_height=local_height,
                             trampoline_fee_level=paysession.trampoline_fee_level,
-                            use_two_trampolines=paysession.use_two_trampolines,
+                            next_trampolines=paysession.next_trampolines.get(trampoline_node_id, {}),
                             failed_routes=paysession.failed_trampoline_routes,
                             budget=budget._replace(fee_msat=budget.fee_msat // len(per_trampoline_channel_amounts)),
                         )
@@ -4029,6 +4032,7 @@ class LNWallet(Logger):
         htlc_key = serialize_htlc_key(next_chan.get_scid_or_local_alias(), next_htlc.htlc_id)
         return htlc_key
 
+    @log_exceptions
     async def _maybe_forward_trampoline(
             self, *,
             payment_hash: bytes,
@@ -4090,21 +4094,17 @@ class LNWallet(Logger):
         local_height_of_onion_creator = self.network.get_local_height() - 1
         cltv_budget_for_rest_of_route = out_cltv_abs - local_height_of_onion_creator
 
-        if budget.fee_msat < 1000:
-            raise OnionRoutingFailure(code=OnionFailureCode.TRAMPOLINE_FEE_INSUFFICIENT, data=b'')
-        if budget.cltv < 576:
-            raise OnionRoutingFailure(code=OnionFailureCode.TRAMPOLINE_EXPIRY_TOO_SOON, data=b'')
-
         # do we have a connection to the node?
+        direct_channels = None
         next_peer = self.lnpeermgr.get_peer_by_pubkey(outgoing_node_id)
-        if next_peer and next_peer.accepts_zeroconf() and self.features.supports(LnFeatures.OPTION_ZEROCONF_OPT):
-            self.logger.info(f'JIT: found next_peer')
+        if next_peer:
             for next_chan in next_peer.channels.values():
                 if next_chan.can_pay(amt_to_forward):
                     # todo: detect if we can do mpp
-                    self.logger.info(f'jit: next_chan can pay')
+                    direct_channels = [next_chan]
                     break
-            else:
+            # open JIT channel
+            if not direct_channels and next_peer.accepts_zeroconf() and self.features.supports(LnFeatures.OPTION_ZEROCONF_OPT):
                 scid_alias = self._scid_alias_of_node(next_peer.pubkey)
                 route = [RouteEdge(
                     start_node=next_peer.pubkey,
@@ -4132,6 +4132,12 @@ class LNWallet(Logger):
                     next_onion=next_onion)
                 return
 
+        if not direct_channels:
+            if budget.fee_msat < 1000:
+                raise OnionRoutingFailure(code=OnionFailureCode.TRAMPOLINE_FEE_INSUFFICIENT, data=b'')
+            if budget.cltv < 576:
+                raise OnionRoutingFailure(code=OnionFailureCode.TRAMPOLINE_EXPIRY_TOO_SOON, data=b'')
+
         try:
             await self.pay_to_node(
                 node_pubkey=outgoing_node_id,
@@ -4145,6 +4151,7 @@ class LNWallet(Logger):
                 budget=budget,
                 attempts=100,
                 fw_payment_key=fw_payment_key,
+                channels=direct_channels,
             )
         except OnionRoutingFailure as e:
             raise
@@ -4153,7 +4160,18 @@ class LNWallet(Logger):
         except PaymentFailure as e:
             self.logger.debug(
                 f"maybe_forward_trampoline. PaymentFailure for {payment_hash.hex()=}, {payment_secret.hex()=}: {e!r}")
-            raise OnionRoutingFailure(code=OnionFailureCode.UNKNOWN_NEXT_PEER, data=b'')
+            if self.uses_trampoline():
+                # todo: use max fee & cltv if I have more than 1 channel to the same node
+                trampoline_channels = set(
+                    [chan for chan in self.channels.values()
+                     if chan.is_public() and chan.is_active()
+                     and self.is_trampoline_peer(chan.node_id)
+                     and chan.can_pay(amt_to_forward)
+                ])
+                data = encode_next_trampolines(trampoline_channels)
+            else:
+                data = b''
+            raise OnionRoutingFailure(code=OnionFailureCode.UNKNOWN_NEXT_PEER, data=data)
 
     def _maybe_refuse_to_forward_htlc_that_corresponds_to_payreq_we_created(self, payment_hash: bytes) -> bool:
         """Returns True if the HTLC should be failed.
