@@ -2351,7 +2351,10 @@ class LNWallet(Logger):
             self.logger.info(f"trying split configuration: {sc.config.values()} rating: {sc.rating}")
             routes = []
             try:
-                if self.uses_trampoline():
+                is_direct_path = all(node_id == paysession.invoice_pubkey for (chan_id, node_id) in sc.config.keys())
+                if self.uses_trampoline() and not is_direct_path:
+                    if fwd_trampoline_onion:
+                        raise NoPathFound()
                     per_trampoline_channel_amounts = defaultdict(list)
                     # categorize by trampoline nodes for trampoline mpp construction
                     for (chan_id, _), part_amounts_msat in sc.config.items():
@@ -2423,8 +2426,16 @@ class LNWallet(Logger):
                     for (chan_id, _), part_amounts_msat in sc.config.items():
                         for part_amount_msat in part_amounts_msat:
                             channel = self._channels[chan_id]
-                            route = await run_in_thread(
-                                partial(
+                            if is_direct_path:
+                                route = self.create_direct_route(
+                                    amount_msat=part_amount_msat,
+                                    min_final_cltv_delta=paysession.min_final_cltv_delta,
+                                    channel=channel,
+                                    budget=budget._replace(fee_msat=budget.fee_msat // sc.config.number_parts()),
+                                )
+                            else:
+                                assert not self.uses_trampoline()
+                                route = await run_in_thread(partial(
                                     self.create_route_for_single_htlc,
                                     amount_msat=part_amount_msat,
                                     invoice_pubkey=paysession.invoice_pubkey,
@@ -2458,6 +2469,34 @@ class LNWallet(Logger):
         if fee_related_error is not None:
             raise fee_related_error
         raise NoPathFound()
+
+    def create_direct_route(
+            self, *,
+            amount_msat: int,  # that final receiver gets
+            min_final_cltv_delta: int,
+            channel: Channel,
+            budget: PaymentFeeBudget,
+    ) -> LNPaymentRoute:
+        self.logger.info(f'create_direct_route {channel.node_id.hex()}')
+        my_sending_aliases = set([channel.get_local_scid_alias()])
+        my_sending_channels = {channel.short_channel_id: channel}
+        channel_policy = get_mychannel_policy(
+            short_channel_id=channel.short_channel_id,
+            node_id=self.node_keypair.pubkey,
+            my_channels=my_sending_channels)
+        fee_base_msat = channel_policy.fee_base_msat
+        fee_proportional_millionths = channel_policy.fee_proportional_millionths
+        cltv_delta = channel_policy.cltv_delta
+        route_edge = RouteEdge(
+            start_node=self.node_keypair.pubkey,
+            end_node=channel.node_id,
+            short_channel_id=channel.short_channel_id,
+            fee_base_msat=fee_base_msat,
+            fee_proportional_millionths=fee_proportional_millionths,
+            cltv_delta=cltv_delta,
+            node_features=0)
+        route = [route_edge]
+        return route
 
     @profiler
     def create_route_for_single_htlc(
