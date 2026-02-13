@@ -2401,7 +2401,10 @@ class LNWallet(Logger):
             self.logger.info(f"trying split configuration: {sc.config.values()} rating: {sc.rating}")
             routes = []
             try:
-                if self.uses_trampoline():
+                is_direct_path = all(node_id == paysession.invoice_pubkey for (chan_id, node_id) in sc.config.keys())
+                if self.uses_trampoline() and not is_direct_path:
+                    if fwd_trampoline_onion:
+                        raise NoPathFound()
                     per_trampoline_channel_amounts = defaultdict(list)
                     # categorize by trampoline nodes for trampoline mpp construction
                     for (chan_id, _), part_amounts_msat in sc.config.items():
@@ -2473,19 +2476,28 @@ class LNWallet(Logger):
                     for (chan_id, _), part_amounts_msat in sc.config.items():
                         for part_amount_msat in part_amounts_msat:
                             channel = self._channels[chan_id]
-                            route = await run_in_thread(
-                                partial(
+                            if is_direct_path:
+                                route = self.create_direct_route(
+                                    amount_msat=part_amount_msat,
+                                    channel=channel,
+                                )
+                            else:
+                                assert not self.uses_trampoline()
+                                route = await run_in_thread(partial(
                                     self.create_route_for_single_htlc,
                                     amount_msat=part_amount_msat,
                                     invoice_pubkey=paysession.invoice_pubkey,
-                                    min_final_cltv_delta=paysession.min_final_cltv_delta,
                                     r_tags=paysession.r_tags,
                                     invoice_features=paysession.invoice_features,
                                     my_sending_channels=[channel] if is_multichan_mpp else my_active_channels,
                                     full_path=full_path,
-                                    budget=budget._replace(fee_msat=budget.fee_msat // sc.config.number_parts()),
-                                )
-                            )
+                                ))
+                            if not is_route_within_budget(
+                                    route, budget=budget,
+                                    amount_msat_for_dest=amount_msat,
+                                    cltv_delta_for_dest=paysession.min_final_cltv_delta):
+                                self.logger.info(f"rejecting route (exceeds budget): {route=}. {budget=}")
+                                raise FeeBudgetExceeded()
                             shi = SentHtlcInfo(
                                 route=route,
                                 payment_secret_orig=paysession.payment_secret,
@@ -2509,17 +2521,40 @@ class LNWallet(Logger):
             raise fee_related_error
         raise NoPathFound()
 
+    def create_direct_route(
+            self, *,
+            amount_msat: int,  # that final receiver gets
+            channel: Channel,
+    ) -> LNPaymentRoute:
+        self.logger.info(f'create_direct_route {channel.node_id.hex()}')
+        my_sending_channels = {channel.short_channel_id: channel}
+        channel_policy = get_mychannel_policy(
+            short_channel_id=channel.short_channel_id,
+            node_id=self.node_keypair.pubkey,
+            my_channels=my_sending_channels)
+        fee_base_msat = channel_policy.fee_base_msat
+        fee_proportional_millionths = channel_policy.fee_proportional_millionths
+        cltv_delta = channel_policy.cltv_delta
+        route_edge = RouteEdge(
+            start_node=self.node_keypair.pubkey,
+            end_node=channel.node_id,
+            short_channel_id=channel.short_channel_id,
+            fee_base_msat=fee_base_msat,
+            fee_proportional_millionths=fee_proportional_millionths,
+            cltv_delta=cltv_delta,
+            node_features=0)
+        route = [route_edge]
+        return route
+
     @profiler
     def create_route_for_single_htlc(
             self, *,
             amount_msat: int,  # that final receiver gets
             invoice_pubkey: bytes,
-            min_final_cltv_delta: int,
             r_tags,
             invoice_features: int,
             my_sending_channels: List[Channel],
             full_path: Optional[LNPaymentPath],
-            budget: PaymentFeeBudget,
     ) -> LNPaymentRoute:
 
         my_sending_aliases = set(chan.get_local_scid_alias() for chan in my_sending_channels)
@@ -2579,11 +2614,6 @@ class LNWallet(Logger):
             raise NoPathFound() from e
         if not route:
             raise NoPathFound()
-        if not is_route_within_budget(
-            route, budget=budget, amount_msat_for_dest=amount_msat, cltv_delta_for_dest=min_final_cltv_delta,
-        ):
-            self.logger.info(f"rejecting route (exceeds budget): {route=}. {budget=}")
-            raise FeeBudgetExceeded()
         assert len(route) > 0
         if route[-1].end_node != invoice_pubkey:
             raise LNPathInconsistent("last node_id != invoice pubkey")
