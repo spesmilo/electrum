@@ -138,6 +138,8 @@ task:
     ELECTRUM_IMAGE: python:3.10
     ELECTRUM_REQUIREMENTS_CI: contrib/requirements/requirements-ci.txt
     # in addition, crowdin_api_key is set as an "override" in https://cirrus-ci.com/settings/...
+    #   - api key is for crowdin account: "SomberNight_CI_BOT"
+    #   - see https://crowdin.com/settings#api-key
   depends_on:
     - "unittests: py3.10"
   only_if: $CIRRUS_BRANCH == 'master'
