@@ -2735,10 +2735,7 @@ class TestPeerForwarding(TestPeer):
                 assert len(hops_data) == 1
                 new_payload = dict(hops_data[0].payload)
                 new_payload['trampoline_onion_packet'] = {
-                    "version": modified_trampoline_onion.version,
-                    "public_key": modified_trampoline_onion.public_key,
-                    "hops_data": modified_trampoline_onion.hops_data,
-                    "hmac": modified_trampoline_onion.hmac,
+                    "trampoline_onion_packet": modified_trampoline_onion.to_bytes()
                 }
                 hops_data[0] = dataclasses.replace(hops_data[0], payload=MappingProxyType(new_payload))
                 modified_trampoline_onion = None
