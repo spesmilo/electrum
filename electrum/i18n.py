@@ -127,8 +127,8 @@ def set_language(x: Optional[str]) -> None:
 
 # note: The values (human-visible lang names) should be either in English or in their own lang,
 #       but NOT translated to the currently selected lang.
-#       e.g. "fr_FR" we could show as either "French" or "Français", or even as "French - Français",
-#       but it is evil to show it as "Französisch". How am I supposed to switch back to English from Korean??? :)
+#       e.g. "fr_FR" we could show as either "French" or "Francais", or even as "French - Francais",
+#       but it is evil to show it as "Franzosisch". How am I supposed to switch back to English from Korean??? :)
 languages = {
     '': _('Default'),
     'ar_SA': 'Arabic',
