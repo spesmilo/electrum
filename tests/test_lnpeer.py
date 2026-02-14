@@ -2458,14 +2458,8 @@ class TestPeerForwarding(TestPeer):
             graph.workers['bob'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['bob'].node_keypair.pubkey),
             graph.workers['carol'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['carol'].node_keypair.pubkey),
         }
-        # end-to-end trampoline: we attempt
-        # * a payment with one trial: fails, because
-        #   we need at least one trial because the initial fees are too low
-        # * a payment with several trials: should succeed
-        with self.assertRaises(NoPathFound):
-            await self._run_mpp(graph, {'alice_uses_trampoline': True, 'attempts': 1})
         with self.assertRaises(PaymentDone):
-            await self._run_mpp(graph,{'alice_uses_trampoline': True, 'attempts': 30})
+            await self._run_mpp(graph,{'alice_uses_trampoline': True, 'attempts': 1})
 
     async def test_payment_multipart_trampoline_legacy(self):
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['square_graph'])
@@ -2663,11 +2657,22 @@ class TestPeerForwarding(TestPeer):
         inject_chan_into_gossipdb(
             channel_db=graph.workers['bob'].channel_db, graph=graph,
             node1name='carol', node2name='dave')
+        # end-to-end trampoline: we attempt
+        # * a payment with one trial: fails, because initial fees are too low
+        # * a payment with several trials: should succeed
+        with self.assertRaises(NoPathFound):
+            await self._run_trampoline_payment(
+                graph, sender_name='alice',
+                destination_name='edward',
+                trampoline_forwarders=('bob', 'dave'),
+                attempts=1,
+            )
         with self.assertRaises(PaymentDone):
             await self._run_trampoline_payment(
                 graph, sender_name='alice',
                 destination_name='edward',
                 trampoline_forwarders=('bob', 'dave'),
+                attempts=2,
             )
 
     async def test_payment_trampoline_e2e_lazy(self):

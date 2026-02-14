@@ -152,9 +152,8 @@ def is_legacy_relay(invoice_features, r_tags) -> Tuple[bool, Set[bytes]]:
             #   channel layouts where two TFs are needed for a payment to succeed, e.g. both
             #   endpoints connected to T1 and T2, and sender only has send-capacity with T1, while
             #   recipient only has recv-capacity with T2.
-            singlehop_r_tags = [x for x in r_tags if len(x) == 1]
-            invoice_trampolines = [x[0][0] for x in singlehop_r_tags]
-            invoice_trampolines = set(invoice_trampolines)
+            singlehop_rtags = set([x[0] for x in r_tags if len(x) == 1])
+            invoice_trampolines = dict([(node_id, (fee_base, fee, cltv)) for (node_id, scid, fee_base, fee, cltv) in singlehop_rtags])
             if invoice_trampolines:
                 return False, invoice_trampolines
     # if trampoline receiving is not supported or the forwarder is not known as a trampoline,
@@ -251,6 +250,7 @@ def create_trampoline_route(
 
     # we build a route of trampoline hops and extend the route list in place
     route = []
+    fee_info_for_last_hop = None
 
     # our first trampoline hop is decided by the channel we use
     _extend_trampoline_route(
@@ -275,24 +275,32 @@ def create_trampoline_route(
         route[-1].outgoing_node_id = invoice_pubkey
     else:
         if invoice_trampolines:
-            add_invoice_trampoline = True
-            next_trampoline = my_trampoline
-            if my_trampoline in invoice_trampolines:
+            if my_trampoline in invoice_trampolines.keys():
                 add_invoice_trampoline = False
-            elif next_trampolines:
-                trampoline_id = _choose_second_trampoline(my_trampoline, next_trampolines_ids, failed_routes)
-                _extend_trampoline_route(route, end_node=trampoline_id, fee_info = next_trampolines[trampoline_id])
-                if next_trampoline in invoice_trampolines:
-                    add_invoice_trampoline = False
+                add_next_trampoline = False
+            else:
+                add_invoice_trampoline = True
+                add_next_trampoline = bool(next_trampolines)
+        else:
+            add_invoice_trampoline = False
+            add_next_trampoline = bool(next_trampolines)
 
-            if add_invoice_trampoline:
-                invoice_trampoline = _choose_second_trampoline(next_trampoline, invoice_trampolines, failed_routes)
-                _extend_trampoline_route(route, end_node=invoice_trampoline)
+        if add_next_trampoline:
+            next_trampoline_id = _choose_second_trampoline(my_trampoline, next_trampolines_ids, failed_routes)
+            _extend_trampoline_route(route, end_node=next_trampoline_id, fee_info=next_trampolines[next_trampoline_id])
+            if next_trampoline_id in invoice_trampolines:
+                # fixme: we should choose it
+                add_invoice_trampoline = False
+
+        if add_invoice_trampoline:
+            invoice_trampoline = _choose_second_trampoline(route[-1].end_node, list(invoice_trampolines.keys()), failed_routes)
+            _extend_trampoline_route(route, end_node=invoice_trampoline)
+            fee_info_for_last_hop = invoice_trampolines[invoice_trampoline]
 
     # Add final edge. note: eclair requires an encrypted t-onion blob even in legacy case.
     # Also needed for fees for last TF!
     if route[-1].end_node != invoice_pubkey:
-        _extend_trampoline_route(route, end_node=invoice_pubkey)
+        _extend_trampoline_route(route, end_node=invoice_pubkey ) # , fee_info=fee_info_for_last_hop)
 
     # replace placeholder fees in route
     _allocate_fee_along_route(route, budget=budget, trampoline_fee_level=trampoline_fee_level)

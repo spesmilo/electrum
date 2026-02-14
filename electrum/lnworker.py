@@ -3989,24 +3989,17 @@ class LNWallet(Logger):
         local_height_of_onion_creator = self.network.get_local_height() - 1
         cltv_budget_for_rest_of_route = out_cltv_abs - local_height_of_onion_creator
 
-        # Note: We send next_trampolines only if self.uses_trampoline() is True, see below.
-        # We could relax that condition, but then the following check also needs to be relaxed
-        if not self.uses_trampoline():
-            if budget.fee_msat < 1000:
-                raise OnionRoutingFailure(code=OnionFailureCode.TRAMPOLINE_FEE_INSUFFICIENT, data=b'')
-            if budget.cltv < 576:
-                raise OnionRoutingFailure(code=OnionFailureCode.TRAMPOLINE_EXPIRY_TOO_SOON, data=b'')
-
         # do we have a connection to the node?
+        direct_channels = None
         next_peer = self.lnpeermgr.get_peer_by_pubkey(outgoing_node_id)
-        if next_peer and next_peer.accepts_zeroconf():
-            self.logger.info(f'JIT: found next_peer')
+        if next_peer:
             for next_chan in next_peer.channels.values():
                 if next_chan.can_pay(amt_to_forward):
                     # todo: detect if we can do mpp
-                    self.logger.info(f'jit: next_chan can pay')
+                    direct_channels = [next_chan]
                     break
-            else:
+            # open JIT channel
+            if not direct_channels and next_peer.accepts_zeroconf():
                 scid_alias = self._scid_alias_of_node(next_peer.pubkey)
                 route = [RouteEdge(
                     start_node=next_peer.pubkey,
@@ -4034,6 +4027,12 @@ class LNWallet(Logger):
                     next_onion=next_onion)
                 return
 
+        if not direct_channels:
+            if budget.fee_msat < 1000:
+                raise OnionRoutingFailure(code=OnionFailureCode.TRAMPOLINE_FEE_INSUFFICIENT, data=b'')
+            if budget.cltv < 576:
+                raise OnionRoutingFailure(code=OnionFailureCode.TRAMPOLINE_EXPIRY_TOO_SOON, data=b'')
+
         try:
             await self.pay_to_node(
                 node_pubkey=outgoing_node_id,
@@ -4047,6 +4046,7 @@ class LNWallet(Logger):
                 budget=budget,
                 attempts=100,
                 fw_payment_key=fw_payment_key,
+                channels=direct_channels,
             )
         except OnionRoutingFailure as e:
             raise
