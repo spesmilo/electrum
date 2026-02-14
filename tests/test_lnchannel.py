@@ -40,7 +40,7 @@ from electrum import lnutil
 from electrum.crypto import privkey_to_pubkey
 from electrum.lnutil import (
     SENT, LOCAL, REMOTE, RECEIVED, UpdateAddHtlc, LnFeatures, secret_to_pubkey, ChannelType,
-    effective_htlc_tx_weight, LocalConfig, RemoteConfig, OnlyPubkeyKeypair,
+    effective_htlc_tx_weight, LocalConfig, RemoteConfig, OnlyPubkeyKeypair, ZEROCONF_TIMEOUT,
 )
 from electrum.logging import console_stderr_handler
 from electrum.lnchannel import ChannelState, Channel
@@ -786,6 +786,53 @@ class TestChannel(ElectrumTestCase):
         self.assertTrue(self.alice_channel.is_initiator())
         self.alice_channel._state = ChannelState.OPENING
         self.assertFalse(self.alice_channel.can_be_deleted())
+
+    async def test_update_unfunded_zeroconf_channel(self):
+        """Cover the zeroconf branch of update_unfunded_state"""
+        chan = self.alice_channel
+        chan.storage['channel_type'] |= ChannelType.OPTION_ZEROCONF
+        self.assertTrue(chan.is_zeroconf())
+        # add channel to lnwallet/db
+        self.alice_lnwallet._channels[chan.channel_id] = chan
+        self.alice_lnwallet.db.get('channels')[chan.channel_id.hex()] = "something"
+        self.assertIsNotNone(self.alice_lnwallet.get_channel_by_id(chan.channel_id))
+        # set expired init timestamp, the lsp didn't broadcast the funding tx
+        chan.storage['init_timestamp'] = int(time.time())
+        self.assertEqual(chan.get_state(), ChannelState.OPEN)
+        self.assertEqual(chan.balance(LOCAL), 500000000000)
+        self.alice_lnwallet.config.ZEROCONF_TRUSTED_NODE = "ABCD"
+
+        chan.update_unfunded_state()
+
+        # assert nothing happened
+        self.assertIsNotNone(self.alice_lnwallet.get_channel_by_id(chan.channel_id))
+        self.assertIsNotNone(self.alice_lnwallet.db.get('channels').get(chan.channel_id.hex()))
+        self.assertEqual(chan.get_state(), ChannelState.OPEN)
+        self.assertEqual(self.alice_lnwallet.config.ZEROCONF_TRUSTED_NODE, "ABCD")
+
+        # now time out zeroconf funding and try again, however her wallet is not up to date
+        chan.storage['init_timestamp'] -= ZEROCONF_TIMEOUT + 1
+        self.alice_lnwallet.wallet.is_up_to_date = lambda: False
+
+        chan.update_unfunded_state()
+
+        # assert nothing happened again
+        self.assertIsNotNone(self.alice_lnwallet.get_channel_by_id(chan.channel_id))
+        self.assertIsNotNone(self.alice_lnwallet.db.get('channels').get(chan.channel_id.hex()))
+        self.assertEqual(chan.get_state(), ChannelState.OPEN)
+        self.assertEqual(self.alice_lnwallet.config.ZEROCONF_TRUSTED_NODE, "ABCD")
+
+        # now her wallet is synced, and the channel is still unfunded
+        self.alice_lnwallet.wallet.is_up_to_date = lambda: True
+
+        chan.update_unfunded_state()
+
+        # check zeroconf provider gets unset
+        self.assertEqual(self.alice_lnwallet.config.ZEROCONF_TRUSTED_NODE, "")
+        # check that channel got removed
+        self.assertIsNone(self.alice_lnwallet.get_channel_by_id(chan.channel_id))
+        self.assertIsNone(self.alice_lnwallet.db.get('channels').get(chan.channel_id.hex()))
+
 
 class TestChannelAnchors(TestChannel):
     TEST_ANCHOR_CHANNELS = True

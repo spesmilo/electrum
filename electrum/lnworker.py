@@ -74,7 +74,7 @@ from .lnutil import (
     OnchainChannelBackupStorage, ln_compare_features, IncompatibleLightningFeatures, PaymentFeeBudget,
     NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, GossipForwardingMessage, MIN_FUNDING_SAT,
     MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE, RecvMPPResolution, ReceivedMPPStatus, ReceivedMPPHtlc,
-    PaymentSuccess, ChannelType, LocalConfig, Keypair,
+    PaymentSuccess, ChannelType, LocalConfig, Keypair, ZEROCONF_TIMEOUT,
 )
 from .lnonion import (
     decode_onion_error, OnionFailureCode, OnionRoutingFailure, OnionPacket,
@@ -1008,7 +1008,7 @@ class LNWallet(Logger):
             features = LNWALLET_FEATURES
             if self.config.ENABLE_ANCHOR_CHANNELS:
                 features |= LnFeatures.OPTION_ANCHORS_ZERO_FEE_HTLC_OPT
-            if self.config.ACCEPT_ZEROCONF_CHANNELS:
+            if self.config.OPEN_ZEROCONF_CHANNELS:
                 features |= LnFeatures.OPTION_ZEROCONF_OPT
             if self.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS or self.config.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS:
                 features |= LnFeatures.OPTION_ONION_MESSAGE_OPT
@@ -1483,34 +1483,42 @@ class LNWallet(Logger):
         payment_hash: bytes,
         next_onion: OnionPacket,
     ) -> str:
+        assert self.config.OPEN_ZEROCONF_CHANNELS
         # if an exception is raised during negotiation, we raise an OnionRoutingFailure.
         # this will cancel the incoming HTLC
 
+        next_chan: Optional[Channel] = None
         # prevent settling the htlc until the channel opening was successful so we can fail it if needed
         self.dont_settle_htlcs[payment_hash.hex()] = None
         try:
-            funding_sat = 2 * (next_amount_msat_htlc // 1000) # try to fully spend htlcs
+            assert self.config.ZEROCONF_CHANNEL_SIZE_PERCENT >= 120, "ZEROCONF_CHANNEL_SIZE_PERCENT below min of 120%"
+            assert self.config.ZEROCONF_OPENING_FEE_PPM >= 0, f"invalid {self.config.ZEROCONF_OPENING_FEE_PPM=}"
+            funding_sat = (self.config.ZEROCONF_CHANNEL_SIZE_PERCENT * (next_amount_msat_htlc // 1000)) // 100
             password = self.wallet.get_unlocked_password() if self.wallet.has_password() else None
-            channel_opening_fee = next_amount_msat_htlc // 100
-            if channel_opening_fee // 1000 < self.config.ZEROCONF_MIN_OPENING_FEE:
-                self.logger.info(f'rejecting JIT channel: payment too low')
+            channel_opening_base_fee_msat = (next_amount_msat_htlc * self.config.ZEROCONF_OPENING_FEE_PPM) // 1_000_000
+            if channel_opening_base_fee_msat // 1000 < self.config.ZEROCONF_MIN_OPENING_FEE:
+                self.logger.info(
+                    f'rejecting JIT channel: {(channel_opening_base_fee_msat // 1000)=} < {self.config.ZEROCONF_MIN_OPENING_FEE=}'
+                )
                 raise OnionRoutingFailure(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'payment too low')
-            self.logger.info(f'channel opening fee (sats): {channel_opening_fee//1000}')
             next_chan, funding_tx = await self.open_channel_with_peer(
                 next_peer, funding_sat,
                 push_sat=0,
                 zeroconf=True,
                 public=False,
-                opening_fee=channel_opening_fee,
+                opening_base_fee_msat=channel_opening_base_fee_msat,
                 password=password,
             )
             async def wait_for_channel():
                 while not next_chan.is_open():
                     await asyncio.sleep(1)
             await util.wait_for2(wait_for_channel(), LN_P2P_NETWORK_TIMEOUT)
-            next_chan.save_remote_scid_alias(self._scid_alias_of_node(next_peer.pubkey))
-            self.logger.info(f'JIT channel is open')
-            next_amount_msat_htlc -= channel_opening_fee
+            self.logger.info(f'JIT channel is open (will forward htlc and await preimage now)')
+            self.logger.info(f'channel opening fee (sats): {channel_opening_base_fee_msat//1000} + {funding_tx.get_fee()} mining fee')
+            next_amount_msat_htlc -= channel_opening_base_fee_msat + funding_tx.get_fee() * 1000
+            if next_amount_msat_htlc < 1_000:
+                self.logger.info(f'rejecting JIT channel: payment too low after deducting mining fees')
+                raise OnionRoutingFailure(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'payment too low after deducting mining fees')
             # fixme: some checks are missing
             htlc = next_peer.send_htlc(
                 chan=next_chan,
@@ -1523,12 +1531,32 @@ class LNWallet(Logger):
                     await asyncio.sleep(1)
             await util.wait_for2(wait_for_preimage(), LN_P2P_NETWORK_TIMEOUT)
 
-            # We have been paid and can broadcast
-            # todo: if broadcasting raise an exception, we should try to rebroadcast
-            await self.network.broadcast_transaction(funding_tx)
-        except OnionRoutingFailure:
-            raise
-        except Exception:
+            # We have been paid and can broadcast.
+            # Channel providers should run their own, trusted Electrum server as
+            # we could lose funds here if the server broadcasts the tx but omits it from us
+            first_broadcast_ts = time.time()
+            while time.time() - first_broadcast_ts < ZEROCONF_TIMEOUT * 0.75:
+                if await self.network.try_broadcasting(funding_tx, "jit channel funding"):
+                    break
+                await asyncio.sleep(30)
+                # we cannot rely on success of try_broadcasting to determine broadcasting success
+                # as broadcasting might fail with some harmless error like 'transaction already in mempool'
+                tx_mined_info = self.wallet.adb.get_tx_height(funding_tx.txid())
+                if tx_mined_info.height() > TX_HEIGHT_LOCAL:
+                    self.logger.debug(f"found our jit channel funding tx: {tx_mined_info.height()=}")
+                    break
+            else:
+                raise OnionRoutingFailure(
+                    code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS,
+                    data=b'failed to broadcast funding transaction',
+                )
+        except Exception as e:
+            self.logger.warning(f"failed to open just in time channel: {repr(e)}")
+            if next_chan:
+                await self._cleanup_failed_jit_channel(next_chan)
+            self._preimages.pop(payment_hash.hex(), None)
+            if isinstance(e, OnionRoutingFailure):
+                raise
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
         finally:
             del self.dont_settle_htlcs[payment_hash.hex()]
@@ -1536,13 +1564,30 @@ class LNWallet(Logger):
         htlc_key = serialize_htlc_key(next_chan.get_scid_or_local_alias(), htlc.htlc_id)
         return htlc_key
 
+    async def _cleanup_failed_jit_channel(self, chan: Channel):
+        """
+        Removes a just in time channel where we didn't broadcast the funding
+        transaction, e.g. when the client didn't release the preimage.
+        """
+        funding_height = chan.get_funding_height()
+        if funding_height is not None and funding_height[1] > TX_HEIGHT_LOCAL:
+            raise Exception("must not delete the channel if it has been broadcast")
+        # try to be nice and send shutdown to signal peer that this channel is dead
+        try:
+            await util.wait_for2(self.close_channel(chan.channel_id), LN_P2P_NETWORK_TIMEOUT)
+        except Exception:
+            self.logger.debug(f"sending chan shutdown to failed zeroconf peer failed ", exc_info=True)
+        chan.set_state(ChannelState.REDEEMED, force=True)
+        self.lnwatcher.adb.remove_transaction(chan.funding_outpoint.txid)
+        self.remove_channel(chan.channel_id)
+
     @log_exceptions
     async def open_channel_with_peer(
             self, peer, funding_sat, *,
             push_sat: int = 0,
             public: bool = False,
             zeroconf: bool = False,
-            opening_fee: int = None,
+            opening_base_fee_msat: Optional[int] = None,
             password=None):
         if self.config.ENABLE_ANCHOR_CHANNELS:
             self.wallet.unlock(password)
@@ -1554,6 +1599,9 @@ class LNWallet(Logger):
             funding_sat=funding_sat,
             node_id=node_id,
             fee_policy=fee_policy)
+        if opening_base_fee_msat:
+            # add funding tx fee on top of the opening fee to avoid opening channels at a loss
+            opening_base_fee_msat += funding_tx.get_fee() * 1000
         chan, funding_tx = await self._open_channel_coroutine(
             peer=peer,
             funding_tx=funding_tx,
@@ -1561,7 +1609,7 @@ class LNWallet(Logger):
             push_sat=push_sat,
             public=public,
             zeroconf=zeroconf,
-            opening_fee=opening_fee,
+            opening_fee=opening_base_fee_msat,
             password=password)
         return chan, funding_tx
 
@@ -3312,16 +3360,23 @@ class LNWallet(Logger):
         return False
 
     def can_get_zeroconf_channel(self) -> bool:
-        if not self.config.ACCEPT_ZEROCONF_CHANNELS and self.config.ZEROCONF_TRUSTED_NODE:
-            # check if zeroconf is accepted and client has trusted zeroconf node configured
+        if not self.config.OPEN_ZEROCONF_CHANNELS:
             return False
-        try:
-            node_id = extract_nodeid(self.config.ZEROCONF_TRUSTED_NODE)[0]
-        except ConnStringFormatError:
-            # invalid connection string
+        node_id = self.trusted_zeroconf_node_id
+        if not node_id:
             return False
         # only return True if we are connected to the zeroconf provider
         return self.lnpeermgr.get_peer_by_pubkey(node_id) is not None
+
+    @property
+    def trusted_zeroconf_node_id(self) -> Optional[bytes]:
+        if not self.config.ZEROCONF_TRUSTED_NODE:
+            return None
+        try:
+            return extract_nodeid(self.config.ZEROCONF_TRUSTED_NODE)[0]
+        except ConnStringFormatError:
+            self.logger.warning(f"invalid zeroconf node connection string configured")
+        return None
 
     def _suggest_channels_for_rebalance(self, direction, amount_sat) -> Sequence[Tuple[Channel, int]]:
         """
@@ -3959,7 +4014,7 @@ class LNWallet(Logger):
 
         # do we have a connection to the node?
         next_peer = self.lnpeermgr.get_peer_by_pubkey(outgoing_node_id)
-        if next_peer and next_peer.accepts_zeroconf():
+        if next_peer and next_peer.accepts_zeroconf() and self.features.supports(LnFeatures.OPTION_ZEROCONF_OPT):
             self.logger.info(f'JIT: found next_peer')
             for next_chan in next_peer.channels.values():
                 if next_chan.can_pay(amt_to_forward):

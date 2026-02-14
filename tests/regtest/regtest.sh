@@ -779,10 +779,24 @@ if [[ $1 == "just_in_time" ]]; then
     echo "carol pays alice"
     # note: set amount to 0.001 to test failure: 'payment too low'
     invoice=$($alice add_request 0.01 --lightning --memo "invoice" | jq -r ".lightning_invoice")
-    success=$($carol lnpay $invoice| jq '.success')
-    if [[ $success != "true" ]]; then
-	echo "JIT payment failed"
-	exit 1
+    success=$($carol lnpay $invoice | jq -r ".success")
+    if [[ "$success" != "true" ]]; then
+        echo "jit payment failed"
+        exit 1
+    fi
+    # try again, multiple jit openings should work without issues
+    new_blocks 3
+    echo "carol pays alice again"
+    invoice=$($alice add_request 0.04 --lightning --memo "invoice2" | jq -r ".lightning_invoice")
+    success=$($carol lnpay $invoice | jq -r ".success")
+    if [[ "$success" != "true" ]]; then
+        echo "jit payment failed"
+        exit 1
+    fi
+    alice_chan_count=$($alice list_channels | jq '. | length')
+    if [[ "$alice_chan_count" != "2" ]]; then
+        echo "alice should have two jit channels"
+        exit 1
     fi
 fi
 
