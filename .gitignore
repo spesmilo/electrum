@@ -14,7 +14,6 @@ env/
 .buildozer
 .buildozer_*/
 bin/
-/app.fil
 .idea
 .mypy_cache
 .vscode

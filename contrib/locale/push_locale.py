@@ -6,6 +6,7 @@
 # Dependencies:
 # $ sudo apt-get install python3-requests gettext qt6-l10n-tools
 
+import glob
 import os
 import subprocess
 import sys
@@ -44,32 +45,31 @@ except (subprocess.CalledProcessError, OSError) as e1:
     except (subprocess.CalledProcessError, OSError) as e2:
         raise Exception("missing Qt lupdate/convert tools. Maybe try 'apt install qt6-l10n-tools'")
 
-
-cmd = "find electrum -type f -name '*.py' -o -name '*.kv'"
-files = subprocess.check_output(cmd, shell=True)
-
-with open("app.fil", "wb") as f:
-    f.write(files)
-
-print("Found {} files to translate".format(len(files.splitlines())))
-
-# Generate fresh translation template
+# create build dir
 build_dir = os.path.join(locale_dir, "build")
 if not os.path.exists(build_dir):
     os.mkdir(build_dir)
+
+# add .py files
+files_list = glob.glob("electrum/**/*.py", recursive=True)
+files_list = sorted(files_list)  # makes output deterministic across CI runs
+with open(f"{build_dir}/app.fil", "w", encoding="utf-8") as f:
+    for item in files_list:
+        f.writelines(item + "\n")
+print("Found {} .py files to translate".format(len(files_list)))
+
+# Generate fresh translation template
 print('Generating template...')
-cmd = ["xgettext", "-s", "--from-code", "UTF-8", "--language", "Python", "--no-wrap", "-f", "app.fil", f"--output={build_dir}/messages_gettext.pot"]
+cmd = ["xgettext", "-s", "--from-code", "UTF-8", "--language", "Python", "--no-wrap", "-f", f"{build_dir}/app.fil", f"--output={build_dir}/messages_gettext.pot"]
 subprocess.check_output(cmd)
 
-
 # add QML translations
-cmd = "find electrum/gui/qml -type f -name '*.qml'"
-files = subprocess.check_output(cmd, shell=True)
-
-with open(f"{build_dir}/qml.lst", "wb") as f:
-    f.write(files)
-
-print("Found {} QML files to translate".format(len(files.splitlines())))
+files_list = glob.glob("electrum/gui/qml/**/*.qml", recursive=True)
+files_list = sorted(files_list)  # makes output deterministic across CI runs
+with open(f"{build_dir}/qml.lst", "w", encoding="utf-8") as f:
+    for item in files_list:
+        f.write(item + "\n")
+print("Found {} QML files to translate".format(len(files_list)))
 
 # note: lupdate writes relative paths into its output .ts file, relative to the .ts file itself :/
 cmd = [QT_LUPDATE, f"@{build_dir}/qml.lst","-ts", f"{build_dir}/qml.ts"]
