@@ -481,12 +481,19 @@ def _maybe_reveal_preimage_for_htlc(
     sweep_info_name: str,
 ) -> Tuple[Optional[bytes], Optional[KeepWatchingTXO]]:
     """Given a Remote-added-HTLC, return the preimage if it's okay to reveal it on-chain."""
-    if not chan.lnworker.is_complete_mpp(htlc.payment_hash):
+    if not chan.lnworker.is_preimage_public(htlc.payment_hash):
         # - do not redeem this, it might publish the preimage of an incomplete MPP
         # - OTOH maybe this chan just got closed, and we are still receiving new htlcs
         #   for this MPP set. So the MPP set might still transition to complete!
         #   The MPP_TIMEOUT is only around 2 minutes, so this window is short.
         #   The default keep_watching logic in lnwatcher is sufficient to call us again.
+        # - if this is an incoming payment, where
+        #   - all the HTLCs have already been received (covering invoice amt) and are pending currently, and
+        #   - no one knows the preimage besides us, and
+        #   - this channel was just force-closed by either party
+        #   -> then we can freely decide whether to claim the HTLCs or let them time out.
+        #      Both choices are valid and safe. *Here* it is simpler to implement
+        #      letting the HTLC time out, so that's what we do.
         return None, None
     if htlc.payment_hash.hex() in chan.lnworker.dont_settle_htlcs:
         # we should not reveal the preimage *for now*, but we might still decide to reveal it later
