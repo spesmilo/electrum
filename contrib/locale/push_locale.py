@@ -55,7 +55,7 @@ files_list = glob.glob("electrum/**/*.py", recursive=True)
 files_list = sorted(files_list)  # makes output deterministic across CI runs
 with open(f"{build_dir}/app.fil", "w", encoding="utf-8") as f:
     for item in files_list:
-        f.writelines(item + "\n")
+        f.write(item + "\n")
 print("Found {} .py files to translate".format(len(files_list)))
 
 # Generate fresh translation template
