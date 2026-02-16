@@ -31,6 +31,7 @@ Item {
     property color darkerBackground: Qt.darker(Material.background, 1.20)
     property color lighterBackground: Qt.lighter(Material.background, 1.10)
     property color darkerDialogBackground: Qt.darker(Material.dialogColor, 1.20)
+    property color dialogColor: Material.dialogColor
     property color notificationBackground: Qt.lighter(Material.background, 1.5)
 
     property color colorCredit: "#ff80ff80"
