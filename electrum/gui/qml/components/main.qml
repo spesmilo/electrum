@@ -128,7 +128,7 @@ ApplicationWindow
 
         background: Rectangle {
             implicitHeight: 48
-            color: Material.dialogColor
+            color: constants.dialogColor
 
             layer.enabled: true
             layer.effect: ElevationEffect {

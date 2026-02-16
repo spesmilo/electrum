@@ -298,7 +298,7 @@ ElDialog {
         }
         onChannelOpening: (peer) => {
             console.log('Channel is opening')
-            app.channelOpenProgressDialog.reset()
+            app.channelOpenProgressDialog.resetDialog()
             app.channelOpenProgressDialog.peer = peer
             app.channelOpenProgressDialog.open()
         }
