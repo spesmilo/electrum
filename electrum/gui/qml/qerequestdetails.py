@@ -2,7 +2,7 @@ from enum import IntEnum
 from typing import Optional
 from urllib.parse import urlparse
 
-from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer, pyqtEnum
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer, pyqtEnum, QVariant
 
 from electrum.logging import get_logger
 from electrum.invoices import (
@@ -72,12 +72,13 @@ class QERequestDetails(QObject, QtEventListener):
             self.statusChanged.emit()
 
     walletChanged = pyqtSignal()
-    @pyqtProperty(QEWallet, notify=walletChanged)
+    @pyqtProperty(QVariant, notify=walletChanged)
     def wallet(self):
         return self._wallet
 
     @wallet.setter
     def wallet(self, wallet: QEWallet):
+        assert wallet is None or isinstance(wallet, QEWallet)
         if self._wallet != wallet:
             self._wallet = wallet
             self.walletChanged.emit()

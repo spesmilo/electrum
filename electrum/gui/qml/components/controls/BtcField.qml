@@ -16,7 +16,7 @@ TextField {
         regularExpression: msatPrecision ? Config.btcAmountRegexMsat : Config.btcAmountRegex
     }
 
-    property Amount textAsSats
+    property var textAsSats
     onTextChanged: {
         textAsSats = Config.unitsToSats(amount.text)
         if (fiatfield.activeFocus)

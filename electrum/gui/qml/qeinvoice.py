@@ -4,7 +4,7 @@ from enum import IntEnum
 from typing import Optional, Dict, Any, Tuple
 from urllib.parse import urlparse
 
-from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, pyqtEnum, QTimer
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, pyqtEnum, QTimer, QVariant
 
 from electrum.i18n import _
 from electrum.logging import get_logger
@@ -109,12 +109,13 @@ class QEInvoice(QObject, QtEventListener):
             self.determine_can_pay()
 
     walletChanged = pyqtSignal()
-    @pyqtProperty(QEWallet, notify=walletChanged)
+    @pyqtProperty(QVariant, notify=walletChanged)
     def wallet(self):
         return self._wallet
 
     @wallet.setter
     def wallet(self, wallet: QEWallet):
+        assert wallet is None or isinstance(wallet, QEWallet)
         if self._wallet != wallet:
             self._wallet = wallet
             self.walletChanged.emit()
@@ -151,12 +152,13 @@ class QEInvoice(QObject, QtEventListener):
         self._amount.copyFrom(QEAmount(from_invoice=self._effectiveInvoice))
         return self._amount
 
-    @pyqtProperty(QEAmount, notify=amountOverrideChanged)
+    @pyqtProperty(QVariant, notify=amountOverrideChanged)
     def amountOverride(self):
         return self._amountOverride
 
     @amountOverride.setter
     def amountOverride(self, new_amount: QEAmount):
+        assert new_amount is None or isinstance(new_amount, QEAmount)
         self._logger.debug(f'set new override amount {repr(new_amount)}')
         self._amountOverride.copyFrom(new_amount)
         self.amountOverrideChanged.emit()

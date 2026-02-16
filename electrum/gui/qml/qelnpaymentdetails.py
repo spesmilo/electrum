@@ -1,4 +1,4 @@
-from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QVariant
 
 from electrum.logging import get_logger
 from electrum.util import bfh, format_time
@@ -27,12 +27,13 @@ class QELnPaymentDetails(QObject):
         self._preimage = ''
 
     walletChanged = pyqtSignal()
-    @pyqtProperty(QEWallet, notify=walletChanged)
+    @pyqtProperty(QVariant, notify=walletChanged)
     def wallet(self):
         return self._wallet
 
     @wallet.setter
     def wallet(self, wallet: QEWallet):
+        assert wallet is None or isinstance(wallet, QEWallet)
         if self._wallet != wallet:
             self._wallet = wallet
             self.walletChanged.emit()

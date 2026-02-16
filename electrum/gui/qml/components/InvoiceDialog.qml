@@ -10,7 +10,7 @@ import "controls"
 ElDialog {
     id: dialog
 
-    property Invoice invoice
+    property var invoice  // type Invoice
     property bool payImmediately: false
     property string broadcastTxid
 
@@ -24,7 +24,7 @@ ElDialog {
 
     property bool _canMax: invoice.invoiceType == Invoice.OnchainInvoice
 
-    property Amount _invoice_amount: invoice.amount
+    property var _invoice_amount: invoice.amount  // type: Amount
 
     ColumnLayout {
         anchors.fill: parent

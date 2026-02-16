@@ -13,7 +13,7 @@ ElDialog {
     title: qsTr('LNURL Payment request')
     iconSource: '../../../icons/link.png'
 
-    property InvoiceParser invoiceParser
+    property var invoiceParser  // type: InvoiceParser
 
     padding: 0
     needsSystemBarPadding: false

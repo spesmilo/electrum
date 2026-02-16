@@ -6,7 +6,7 @@ import QtQuick.Controls.Material
 import org.electrum 1.0
 
 GridLayout {
-    required property Amount amount
+    required property var amount // type: Amount
     property bool showAlt: true
     property bool singleLine: true
     property bool valid: true

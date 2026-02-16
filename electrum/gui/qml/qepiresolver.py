@@ -1,7 +1,7 @@
 from enum import IntEnum
 from typing import Optional
 
-from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer, QVariant
 
 from electrum.logging import get_logger
 from electrum.i18n import _
@@ -51,12 +51,13 @@ class QEPIResolver(QObject):
             self.invoiceResolved.emit(self._pi)
 
     walletChanged = pyqtSignal()
-    @pyqtProperty(QEWallet, notify=walletChanged)
+    @pyqtProperty(QVariant, notify=walletChanged)
     def wallet(self) -> Optional[QEWallet]:
         return self._wallet
 
     @wallet.setter
     def wallet(self, wallet: QEWallet) -> None:
+        assert wallet is None or isinstance(wallet, QEWallet)
         self._wallet = wallet
 
     @pyqtProperty(bool, notify=busyChanged)

@@ -11,7 +11,7 @@ ElDialog {
     id: dialog
 
     required property QtObject finalizer
-    required property Amount satoshis
+    required property var satoshis  // type: Amount
     property string address
     property string message
     property bool showOptions: true

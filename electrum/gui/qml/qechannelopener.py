@@ -4,7 +4,7 @@ from asyncio.exceptions import TimeoutError
 from typing import Optional
 import electrum_ecc as ecc
 
-from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QVariant
 
 from electrum.i18n import _
 from electrum.gui import messages
@@ -14,7 +14,6 @@ from electrum.lntransport import extract_nodeid, ConnStringFormatError
 from electrum.bitcoin import DummyAddress
 from electrum.lnworker import hardcoded_trampoline_nodes
 from electrum.logging import get_logger
-from electrum.fee_policy import FeePolicy
 from electrum.transaction import PartialTransaction
 
 from .auth import AuthMixin, auth_protect
@@ -55,12 +54,13 @@ class QEChannelOpener(QObject, AuthMixin):
         self._updating_max = False
 
     walletChanged = pyqtSignal()
-    @pyqtProperty(QEWallet, notify=walletChanged)
+    @pyqtProperty(QVariant, notify=walletChanged)
     def wallet(self):
         return self._wallet
 
     @wallet.setter
     def wallet(self, wallet: QEWallet):
+        assert wallet is None or isinstance(wallet, QEWallet)
         if self._wallet != wallet:
             self._wallet = wallet
             self.walletChanged.emit()
@@ -79,12 +79,13 @@ class QEChannelOpener(QObject, AuthMixin):
             self.validate()
 
     amountChanged = pyqtSignal()
-    @pyqtProperty(QEAmount, notify=amountChanged)
+    @pyqtProperty(QVariant, notify=amountChanged)
     def amount(self):
         return self._amount
 
     @amount.setter
     def amount(self, amount: QEAmount):
+        assert amount is None or isinstance(amount, QEAmount)
         if self._amount != amount:
             self._amount.copyFrom(amount)
             self.amountChanged.emit()

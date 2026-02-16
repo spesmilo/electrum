@@ -23,7 +23,7 @@ ElDialog {
 
     property string channelBackup
 
-    function reset() {
+    function resetDialog() {
         state = ''
         errorText.text = ''
         peerText.text = ''

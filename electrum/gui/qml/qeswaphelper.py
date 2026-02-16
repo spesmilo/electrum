@@ -4,7 +4,7 @@ from enum import IntEnum
 from typing import Union, Optional, TYPE_CHECKING, Sequence
 
 from PyQt6.QtCore import (pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer, pyqtEnum, QAbstractListModel, Qt,
-                          QModelIndex)
+                          QModelIndex, QVariant)
 from PyQt6.QtGui import QColor
 
 from electrum.i18n import _
@@ -204,12 +204,13 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         self.unregister_callbacks()
 
     walletChanged = pyqtSignal()
-    @pyqtProperty(QEWallet, notify=walletChanged)
+    @pyqtProperty(QVariant, notify=walletChanged)
     def wallet(self):
         return self._wallet
 
     @wallet.setter
     def wallet(self, wallet: QEWallet):
+        assert wallet is None or isinstance(wallet, QEWallet)
         if self._wallet != wallet:
             self._wallet = wallet
             self.run_swap_manager()
@@ -293,34 +294,37 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
             self.userinfoChanged.emit()
 
     tosendChanged = pyqtSignal()
-    @pyqtProperty(QEAmount, notify=tosendChanged)
+    @pyqtProperty(QVariant, notify=tosendChanged)
     def tosend(self):
         return self._tosend
 
     @tosend.setter
     def tosend(self, tosend):
+        assert tosend is None or isinstance(tosend, QEAmount)
         if self._tosend != tosend:
             self._tosend = tosend
             self.tosendChanged.emit()
 
     toreceiveChanged = pyqtSignal()
-    @pyqtProperty(QEAmount, notify=toreceiveChanged)
+    @pyqtProperty(QVariant, notify=toreceiveChanged)
     def toreceive(self):
         return self._toreceive
 
     @toreceive.setter
     def toreceive(self, toreceive):
+        assert toreceive is None or isinstance(toreceive, QEAmount)
         if self._toreceive != toreceive:
             self._toreceive = toreceive
             self.toreceiveChanged.emit()
 
     serverMiningfeeChanged = pyqtSignal()
-    @pyqtProperty(QEAmount, notify=serverMiningfeeChanged)
+    @pyqtProperty(QVariant, notify=serverMiningfeeChanged)
     def serverMiningfee(self):
         return self._server_miningfee
 
     @serverMiningfee.setter
     def serverMiningfee(self, server_miningfee):
+        assert server_miningfee is None or isinstance(server_miningfee, QEAmount)
         if self._server_miningfee != server_miningfee:
             self._server_miningfee = server_miningfee
             self.serverMiningfeeChanged.emit()
@@ -337,12 +341,13 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
             self.serverfeepercChanged.emit()
 
     miningfeeChanged = pyqtSignal()
-    @pyqtProperty(QEAmount, notify=miningfeeChanged)
+    @pyqtProperty(QVariant, notify=miningfeeChanged)
     def miningfee(self):
         return self._miningfee
 
     @miningfee.setter
     def miningfee(self, miningfee):
+        assert miningfee is None or isinstance(miningfee, QEAmount)
         if self._miningfee != miningfee:
             self._miningfee = miningfee
             self.miningfeeChanged.emit()

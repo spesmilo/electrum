@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Optional, TYPE_CHECKING, Callable
 from functools import partial
 
-from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, pyqtEnum
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, pyqtEnum, QVariant
 
 from electrum.logging import get_logger
 from electrum.i18n import _
@@ -66,12 +66,13 @@ class FeeSlider(QObject):
         self._config = None  # type: Optional[SimpleConfig]
 
     walletChanged = pyqtSignal()
-    @pyqtProperty(QEWallet, notify=walletChanged)
+    @pyqtProperty(QVariant, notify=walletChanged)
     def wallet(self):
         return self._wallet
 
     @wallet.setter
     def wallet(self, wallet: QEWallet):
+        assert wallet is None or isinstance(wallet, QEWallet)
         if self._wallet != wallet:
             self._wallet = wallet
             self._config = self._wallet.wallet.config
@@ -168,12 +169,13 @@ class TxFeeSlider(FeeSlider):
         self._warning = ''
 
     feeChanged = pyqtSignal()
-    @pyqtProperty(QEAmount, notify=feeChanged)
+    @pyqtProperty(QVariant, notify=feeChanged)
     def fee(self):
         return self._fee
 
     @fee.setter
     def fee(self, fee):
+        assert fee is None or isinstance(fee, QEAmount)
         if self._fee != fee:
             self._fee.copyFrom(fee)
             self.feeChanged.emit()
@@ -417,12 +419,13 @@ class QETxFinalizer(TxFeeSlider):
             self.addressChanged.emit()
 
     amountChanged = pyqtSignal()
-    @pyqtProperty(QEAmount, notify=amountChanged)
+    @pyqtProperty(QVariant, notify=amountChanged)
     def amount(self):
         return self._amount
 
     @amount.setter
-    def amount(self, amount):
+    def amount(self, amount: QEAmount):
+        assert amount is None or isinstance(amount, QEAmount)
         if self._amount != amount:
             self._logger.debug(str(amount))
             self._amount.copyFrom(amount)
@@ -434,12 +437,13 @@ class QETxFinalizer(TxFeeSlider):
         return self._effectiveAmount
 
     extraFeeChanged = pyqtSignal()
-    @pyqtProperty(QEAmount, notify=extraFeeChanged)
+    @pyqtProperty(QVariant, notify=extraFeeChanged)
     def extraFee(self):
         return self._extraFee
 
     @extraFee.setter
-    def extraFee(self, extrafee):
+    def extraFee(self, extrafee: QEAmount):
+        assert extrafee is None or isinstance(extrafee, QEAmount)
         if self._extraFee != extrafee:
             self._extraFee.copyFrom(extrafee)
             self.extraFeeChanged.emit()
@@ -664,12 +668,13 @@ class QETxRbfFeeBumper(TxFeeSlider, TxMonMixin):
         self._bump_methods_available = []
 
     oldfeeChanged = pyqtSignal()
-    @pyqtProperty(QEAmount, notify=oldfeeChanged)
+    @pyqtProperty(QVariant, notify=oldfeeChanged)
     def oldfee(self):
         return self._oldfee
 
     @oldfee.setter
-    def oldfee(self, oldfee):
+    def oldfee(self, oldfee: QEAmount):
+        assert oldfee is None or isinstance(oldfee, QEAmount)
         if self._oldfee != oldfee:
             self._oldfee.copyFrom(oldfee)
             self.oldfeeChanged.emit()
@@ -797,12 +802,13 @@ class QETxCanceller(TxFeeSlider, TxMonMixin):
         self._rbf = True
 
     oldfeeChanged = pyqtSignal()
-    @pyqtProperty(QEAmount, notify=oldfeeChanged)
+    @pyqtProperty(QVariant, notify=oldfeeChanged)
     def oldfee(self):
         return self._oldfee
 
     @oldfee.setter
-    def oldfee(self, oldfee):
+    def oldfee(self, oldfee: QEAmount):
+        assert oldfee is None or isinstance(oldfee, QEAmount)
         if self._oldfee != oldfee:
             self._oldfee.copyFrom(oldfee)
             self.oldfeeChanged.emit()
@@ -923,12 +929,13 @@ class QETxCpfpFeeBumper(TxFeeSlider, TxMonMixin):
         self._rbf = True
 
     totalFeeChanged = pyqtSignal()
-    @pyqtProperty(QEAmount, notify=totalFeeChanged)
+    @pyqtProperty(QVariant, notify=totalFeeChanged)
     def totalFee(self):
         return self._total_fee
 
     @totalFee.setter
-    def totalFee(self, totalfee):
+    def totalFee(self, totalfee: QEAmount):
+        assert totalfee is None or isinstance(totalfee, QEAmount)
         if self._total_fee != totalfee:
             self._total_fee.copyFrom(totalfee)
             self.totalFeeChanged.emit()
