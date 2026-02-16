@@ -492,6 +492,8 @@ class Peer(Logger, EventListener):
                 self.orphan_channel_updates.popitem(last=False)
 
     def on_announcement_signatures(self, chan: Channel, payload):
+        if not chan.is_public() or chan.short_channel_id is None:
+            return
         h = chan.get_channel_announcement_hash()
         node_signature = payload["node_signature"]
         bitcoin_signature = payload["bitcoin_signature"]
@@ -1819,7 +1821,7 @@ class Peer(Logger, EventListener):
             self.maybe_send_channel_update(chan)
 
     def maybe_send_announcement_signatures(self, chan: Channel, is_reply=False):
-        if not chan.is_public():
+        if not chan.is_public() or chan.short_channel_id is None:
             return
         if chan.sent_announcement_signatures:
             return
