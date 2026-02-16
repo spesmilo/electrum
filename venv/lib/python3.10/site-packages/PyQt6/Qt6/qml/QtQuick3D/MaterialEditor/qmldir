@@ -1,0 +1,16 @@
+module QtQuick3D.MaterialEditor
+typeinfo plugins.qmltypes
+import QtQuick3D
+prefer :/qt-project.org/imports/QtQuick3D/MaterialEditor/
+ShaderEditor 1.0 ShaderEditor.qml
+EditorView 1.0 EditorView.qml
+Preview 1.0 Preview.qml
+PreviewControls 1.0 PreviewControls.qml
+FrostedGlass 1.0 FrostedGlass.qml
+AboutDialog 1.0 AboutDialog.qml
+MaterialPropertiesPane 1.0 MaterialPropertiesPane.qml
+InstancingPropertiesPane 1.0 InstancingPropertiesPane.qml
+SaveChangesDialog 1.0 SaveChangesDialog.qml
+UniformManagerPane 1.0 UniformManagerPane.qml
+depends QtQuick
+

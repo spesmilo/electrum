@@ -1,0 +1,8 @@
+module QtQml.StateMachine
+linktarget Qt6::qtqmlstatemachine
+optional plugin qtqmlstatemachineplugin
+classname QtQmlStateMachinePlugin
+typeinfo plugins.qmltypes
+depends QtQml
+prefer :/qt-project.org/imports/QtQml/StateMachine/
+

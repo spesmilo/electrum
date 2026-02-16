@@ -1,0 +1,7 @@
+module QtTextToSpeech
+linktarget Qt6::TextToSpeechQml
+optional plugin texttospeechqmlplugin
+classname QtTextToSpeechPlugin
+typeinfo plugins.qmltypes
+prefer :/qt-project.org/imports/QtTextToSpeech/
+

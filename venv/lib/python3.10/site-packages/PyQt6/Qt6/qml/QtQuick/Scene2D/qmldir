@@ -1,0 +1,9 @@
+module QtQuick.Scene2D
+linktarget Qt6::qtquickscene2dplugin
+optional plugin qtquickscene2dplugin
+classname QtQuickScene2DPlugin
+typeinfo plugins.qmltypes
+depends Qt3D.Core auto
+depends Qt3D.Render auto
+prefer :/qt-project.org/imports/QtQuick/Scene2D/
+

@@ -1,0 +1,3 @@
+[console_scripts]
+pylupdate6=PyQt6.lupdate.pylupdate:main
+pyuic6=PyQt6.uic.pyuic:main

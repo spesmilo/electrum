@@ -1,0 +1,8 @@
+module QtSensors
+linktarget Qt6::SensorsQuickplugin
+optional plugin sensorsquickplugin
+classname QtSensorsPlugin
+typeinfo plugins.qmltypes
+depends QtQml
+prefer :/qt-project.org/imports/QtSensors/
+

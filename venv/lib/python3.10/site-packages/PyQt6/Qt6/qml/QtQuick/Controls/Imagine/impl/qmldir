@@ -1,0 +1,10 @@
+module QtQuick.Controls.Imagine.impl
+linktarget Qt6::qtquickcontrols2imaginestyleimplplugin
+optional plugin qtquickcontrols2imaginestyleimplplugin
+classname QtQuickControls2ImagineStyleImplPlugin
+typeinfo QuickControls2ImagineStyleImpl.qmltypes
+import QtQuick.Controls.impl auto
+prefer :/qt-project.org/imports/QtQuick/Controls/Imagine/impl/
+OpacityMask 6.0 OpacityMask.qml
+depends QtQuick
+

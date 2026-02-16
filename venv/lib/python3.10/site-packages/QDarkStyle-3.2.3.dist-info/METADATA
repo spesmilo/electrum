@@ -1,0 +1,93 @@
+Metadata-Version: 2.1
+Name: QDarkStyle
+Version: 3.2.3
+Summary: The most complete dark/light style sheet for C++/Python and Qt applications
+Home-page: https://github.com/ColinDuquesnoy/QDarkStyleSheet
+Author: Colin Duquesnoy
+Author-email: colin.duquesnoy@gmail.com
+License: MIT
+Project-URL: Issues, https://github.com/ColinDuquesnoy/QDarkStyleSheet/issues
+Project-URL: Docs, https://qdarkstylesheet.readthedocs.io/en/stable
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Environment :: X11 Applications :: Qt
+Classifier: Environment :: Win32 (MS Windows)
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Operating System :: MacOS
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Topic :: Software Development :: Libraries :: Application Frameworks
+Description-Content-Type: text/x-rst
+License-File: LICENSE.rst
+License-File: AUTHORS.rst
+Requires-Dist: qtpy >=2
+Provides-Extra: develop
+Requires-Dist: qtsass ; extra == 'develop'
+Requires-Dist: watchdog ; extra == 'develop'
+Provides-Extra: docs
+Requires-Dist: sphinx ; extra == 'docs'
+Requires-Dist: sphinx-rtd-theme ; extra == 'docs'
+Provides-Extra: example
+Requires-Dist: pyqt5 ; extra == 'example'
+Requires-Dist: pyside2 ; extra == 'example'
+
+The most complete dark/light style sheet for Qt applications (Qt4, Qt5,
+PySide, PySide2, PyQt4, PySide6, PyQt5, PyQt6, QtPy, PyQtGraph, Qt.Py) for
+Python 2/3 and C++.
+
+Python 2, as well as Qt4 (PyQt4 and PySide), will not be supported anymore.
+They are still there as it is, but no back-compatibility, fixes, nor features
+will be implemented.
+
+
+Check the `documentation <https://qdarkstylesheet.readthedocs.io/en/stable>`__
+to see how to set the desirable theme palette.
+
+This module provides a function to load the stylesheets transparently
+with the right resources file.
+
+First, start importing our module
+
+.. code-block:: python
+
+    import qdarkstyle
+
+Then you can get the stylesheet provided by QDarkStyle for various Qt wrappers
+as shown below
+
+.. code-block:: python
+
+    # PySide 2
+    dark_stylesheet = qdarkstyle.load_stylesheet_pyside2()
+    # PyQt5
+    dark_stylesheet = qdarkstyle.load_stylesheet_pyqt5()
+    # PySide 6
+    dark_stylesheet = qdarkstyle.load_stylesheet_pyside6()
+    # PyQt6
+    dark_stylesheet = qdarkstyle.load_stylesheet_pyqt6()
+
+Alternatively, from environment variables provided by QtPy, PyQtGraph, Qt.Py
+
+.. code-block:: python
+
+    # QtPy
+    dark_stylesheet = qdarkstyle.load_stylesheet()
+    # PyQtGraph
+    dark_stylesheet = qdarkstyle.load_stylesheet(qt_api=os.environ('PYQTGRAPH_QT_LIB'))
+    # Qt.Py
+    dark_stylesheet = qdarkstyle.load_stylesheet(qt_api=Qt.__binding__)
+
+Finally, set your QApplication with it
+
+.. code-block:: python
+
+    app.setStyleSheet(dark_stylesheet)
+
+Enjoy!
+

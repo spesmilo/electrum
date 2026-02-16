@@ -1,0 +1,7 @@
+module QtWebSockets
+linktarget Qt6::qmlwebsockets
+optional plugin qmlwebsocketsplugin
+classname QtWebSocketsDeclarativeModule
+typeinfo plugins.qmltypes
+prefer :/qt-project.org/imports/QtWebSockets/
+

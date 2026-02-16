@@ -1,0 +1,9 @@
+module QtQuick3D.SpatialAudio
+linktarget Qt6::quick3dspatialaudio
+plugin quick3dspatialaudioplugin
+classname QQuick3DAudioModule
+typeinfo plugins.qmltypes
+depends QtQuick
+depends QtMultimedia
+prefer :/qt-project.org/imports/QtQuick3D/SpatialAudio/
+

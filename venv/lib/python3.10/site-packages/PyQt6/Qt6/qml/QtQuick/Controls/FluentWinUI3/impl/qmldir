@@ -1,0 +1,21 @@
+module QtQuick.Controls.FluentWinUI3.impl
+linktarget Qt6::qtquickcontrols2fluentwinui3styleimplplugin
+optional plugin qtquickcontrols2fluentwinui3styleimplplugin
+classname QtQuickControls2FluentWinUI3StyleImplPlugin
+typeinfo plugins.qmltypes
+depends QtQuick auto
+prefer :/qt-project.org/imports/QtQuick/Controls/FluentWinUI3/impl/
+ButtonBackground 6.0 ButtonBackground.qml
+ButtonBackground 2.0 ButtonBackground.qml
+CheckIndicator 6.0 CheckIndicator.qml
+CheckIndicator 2.0 CheckIndicator.qml
+RadioIndicator 6.0 RadioIndicator.qml
+RadioIndicator 2.0 RadioIndicator.qml
+SwitchIndicator 6.0 SwitchIndicator.qml
+SwitchIndicator 2.0 SwitchIndicator.qml
+FocusFrame 6.0 FocusFrame.qml
+FocusFrame 2.0 FocusFrame.qml
+StyleImage 6.0 StyleImage.qml
+StyleImage 2.0 StyleImage.qml
+depends QtQuick
+

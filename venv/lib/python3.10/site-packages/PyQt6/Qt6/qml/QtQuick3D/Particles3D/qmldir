@@ -1,0 +1,10 @@
+module QtQuick3D.Particles3D
+linktarget Qt6::qtquick3dparticles3dplugin
+optional plugin qtquick3dparticles3dplugin
+classname QtQuick3DParticles3DPlugin
+designersupported
+typeinfo plugins.qmltypes
+depends QtQuick3D auto
+prefer :/qt-project.org/imports/QtQuick3D/Particles3D/
+depends QtQuick
+

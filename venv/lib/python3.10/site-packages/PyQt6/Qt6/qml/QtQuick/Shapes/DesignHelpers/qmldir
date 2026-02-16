@@ -1,0 +1,8 @@
+module QtQuick.Shapes.DesignHelpers
+linktarget Qt6::qtquickshapesdesignhelpersplugin
+optional plugin qtquickshapesdesignhelpersplugin
+classname QtQuickShapesDesignHelpersPlugin
+typeinfo plugins.qmltypes
+depends QtQuick auto
+prefer :/qt-project.org/imports/QtQuick/Shapes/DesignHelpers/
+

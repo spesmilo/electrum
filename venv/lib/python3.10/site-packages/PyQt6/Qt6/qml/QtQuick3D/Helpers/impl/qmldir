@@ -1,0 +1,11 @@
+module QtQuick3D.Helpers.impl
+linktarget Qt6::qtquick3dhelpersimplplugin
+plugin qtquick3dhelpersimplplugin
+classname QtQuick3DHelpersImplPlugin
+typeinfo plugins.qmltypes
+depends QtQuick3D auto
+prefer :/qt-project.org/imports/QtQuick3D/Helpers/impl/
+DepthOfFieldBlur 6.0 DepthOfFieldBlur.qml
+SceneEffect 6.0 SceneEffect.qml
+depends QtQuick
+

@@ -34,6 +34,7 @@ import math
 from functools import partial
 from collections import defaultdict
 from decimal import Decimal
+from tkinter import messagebox
 from typing import TYPE_CHECKING, List, Optional, Tuple, Union, NamedTuple, Sequence, Dict, Any, Set, Iterable, Mapping
 from abc import ABC, abstractmethod
 import itertools
@@ -1294,6 +1295,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self._invoices[key] = invoice
         if write_to_disk:
             self.save_db()
+        if invoice.amount == '!':
+            messagebox.warning(self, "Invalid invoice", "Cannot save an invoice with 'Max' amount. Please specify an amount. ")
+            return
 
     def clear_invoices(self):
         self._invoices.clear()

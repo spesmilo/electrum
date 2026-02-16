@@ -1,0 +1,65 @@
+Metadata-Version: 2.4
+Name: electrum-ecc
+Version: 0.0.6
+Summary: Pure python ctypes wrapper for libsecp256k1
+Author: The Electrum developers
+License-Expression: MIT
+Project-URL: Homepage, https://github.com/spesmilo/electrum-ecc
+Project-URL: Repository, https://github.com/spesmilo/electrum-ecc
+Keywords: libsecp256k1,ecc
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Natural Language :: English
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Topic :: Security :: Cryptography
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE.txt
+Dynamic: license-file
+
+# electrum-ecc
+
+```
+Licence: MIT Licence
+Author: The Electrum developers
+Language: Python (>= 3.10)
+```
+
+[![Latest PyPI package](https://badge.fury.io/py/electrum_ecc.svg)](https://pypi.org/project/electrum-ecc/)
+[![Build Status](https://api.cirrus-ci.com/github/spesmilo/electrum-ecc.svg)](https://cirrus-ci.com/github/spesmilo/electrum-ecc)
+
+
+This package provides a pure python interface to
+[libsecp256k1](https://github.com/bitcoin-core/secp256k1).
+
+Unlike Coincurve, it uses ctypes, and has no dependency.
+
+
+### Tests
+
+```
+$ python3 -m unittest discover -s tests -t .
+```
+Or
+```
+$ pytest tests -v
+```
+
+
+### Maintainer notes
+
+Release checklist:
+- bump `__version__` in `__init__.py`
+- write changelog?
+- `$ git tag -s "$VERSION" -m "$VERSION"`
+- `$ git push "$REMOTE_ORIGIN" tag "$VERSION"`
+- build sdist (see [`contrib/sdist/`](contrib/sdist)):
+  - `$ ELECBUILD_COMMIT=HEAD ELECBUILD_NOCACHE=1 ./contrib/sdist/build.sh`
+- `$ python3 -m twine upload dist/$DISTNAME`

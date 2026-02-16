@@ -1,0 +1,12 @@
+module QtQuick3D.Physics.Helpers
+linktarget Qt6::qtquick3dphysicshelpersplugin
+optional plugin qtquick3dphysicshelpersplugin
+classname QtQuick3DPhysicsHelpersPlugin
+typeinfo plugins.qmltypes
+depends QtQuick3D.Physics auto
+depends QtQuick3D auto
+depends QtQuick auto
+depends QtQuick3D
+prefer :/qt-project.org/imports/QtQuick3D/Physics/Helpers/
+depends QtQuick
+

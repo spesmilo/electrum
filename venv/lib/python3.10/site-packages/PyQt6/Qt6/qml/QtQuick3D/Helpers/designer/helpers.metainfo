@@ -1,0 +1,261 @@
+MetaInfo {
+    Type {
+        name: "QtQuick3D.Helpers.LookAtNode"
+        icon: "images/lookatnode16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+        }
+
+        ItemLibraryEntry {
+            name: "Look-at Node"
+            category: "Helpers"
+            libraryIcon: "images/lookatnode.png"
+            version: "6.4"
+            requiredImport: "QtQuick3D.Helpers"
+        }
+    }
+
+    Type {
+        name: "QtQuick3D.Helpers.AxisHelper"
+        icon: "images/axishelper16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+        }
+
+        ItemLibraryEntry {
+            name: "Axis Helper"
+            category: "Helpers"
+            libraryIcon: "images/axishelper.png"
+            version: "6.0"
+            requiredImport: "QtQuick3D.Helpers"
+        }
+    }
+
+    Type {
+        name: "QtQuick3D.Helpers.DebugView"
+        icon: "images/debugview16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: true
+            canBeDroppedInView3D: false
+        }
+
+        ItemLibraryEntry {
+            name: "Debug View"
+            category: "Helpers"
+            libraryIcon: "images/debugview.png"
+            version: "6.0"
+            requiredImport: "QtQuick3D.Helpers"
+        }
+    }
+
+    Type {
+        name: "QtQuick3D.Helpers.GridGeometry"
+        icon: "images/gridgeometry16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+        }
+
+        ItemLibraryEntry {
+            name: "Grid Geometry"
+            category: "Helpers"
+            libraryIcon: "images/gridgeometry.png"
+            version: "6.0"
+            requiredImport: "QtQuick3D.Helpers"
+        }
+    }
+
+    Type {
+        name: "QtQuick3D.Helpers.HeightFieldGeometry"
+        icon: "images/heightfieldgeometry16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+        }
+
+        ItemLibraryEntry {
+            name: "Height Field Geometry"
+            category: "Helpers"
+            libraryIcon: "images/heightfieldgeometry.png"
+            version: "6.4"
+            requiredImport: "QtQuick3D.Helpers"
+        }
+    }
+
+    Type {
+        name: "QtQuick3D.Helpers.InstanceModel"
+        icon: "images/instancemodel16.png"
+
+        Hints {
+            visibleInNavigator: false
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: false
+        }
+
+        ItemLibraryEntry {
+            name: "Instance Model"
+            category: "Helpers"
+            libraryIcon: "images/instancemodel.png"
+            version: "6.4"
+            requiredImport: "QtQuick3D.Helpers"
+        }
+    }
+
+    Type {
+        name: "QtQuick3D.Helpers.InstanceRepeater"
+        icon: "images/instancerepeater16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+        }
+
+        ItemLibraryEntry {
+            name: "Instance Repeater"
+            category: "Helpers"
+            libraryIcon: "images/instancerepeater.png"
+            version: "6.4"
+            requiredImport: "QtQuick3D.Helpers"
+        }
+    }
+
+    Type {
+        name: "QtQuick3D.Helpers.WasdController"
+        icon: "images/wasdcontroller16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: true
+            canBeDroppedInView3D: false
+        }
+
+        ItemLibraryEntry {
+            name: "Wasd Controller"
+            category: "Helpers"
+            libraryIcon: "images/wasdcontroller.png"
+            version: "6.0"
+            requiredImport: "QtQuick3D.Helpers"
+        }
+    }
+
+    Type {
+        name: "QtQuick3D.Helpers.InfiniteGrid"
+        icon: "images/infinitegrid16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: false
+        }
+
+        ItemLibraryEntry {
+            name: "Infinite Grid"
+            category: "Helpers"
+            libraryIcon: "images/infinitegrid.png"
+            version: "6.5"
+            requiredImport: "QtQuick3D.Helpers"
+        }
+    }
+
+    Type {
+        name: "QtQuick3D.Helpers.OrbitCameraController"
+        icon: "images/orbitcameracontroller16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: true
+            canBeDroppedInView3D: false
+        }
+
+        ItemLibraryEntry {
+            name: "Orbit Camera Controller"
+            category: "Helpers"
+            libraryIcon: "images/orbitcameracontroller.png"
+            version: "6.4"
+            requiredImport: "QtQuick3D.Helpers"
+        }
+    }
+
+    Type {
+        name: "QtQuick3D.Helpers.ProceduralSkyTextureData"
+        icon: "images/proceduralskytexturedata16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: false
+        }
+
+        ItemLibraryEntry {
+            name: "Procedural Sky Texture Data"
+            category: "Helpers"
+            libraryIcon: "images/proceduralskytexturedata.png"
+            version: "6.4"
+            requiredImport: "QtQuick3D.Helpers"
+        }
+    }
+
+    Type {
+        name: "QtQuick3D.Helpers.ExtendedSceneEnvironment"
+        icon: "images/extendedsceneenvironment16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: false
+        }
+
+        ItemLibraryEntry {
+            name: "Extended Scene Environment"
+            category: "Helpers"
+            libraryIcon: "images/extendedsceneenvironment.png"
+            version: "6.5"
+            requiredImport: "QtQuick3D.Helpers"
+        }
+    }
+
+    Type {
+        name: "QtQuick3D.Helpers.LodManager"
+        icon: "images/lodmanager16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+        }
+
+        ItemLibraryEntry {
+            name: "Lod Manager"
+            category: "Helpers"
+            libraryIcon: "images/lodmanager.png"
+            version: "6.5"
+            requiredImport: "QtQuick3D.Helpers"
+        }
+    }
+}

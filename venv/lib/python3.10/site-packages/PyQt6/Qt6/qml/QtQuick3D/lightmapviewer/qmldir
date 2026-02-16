@@ -1,0 +1,7 @@
+module QtQuick3D.lightmapviewer
+typeinfo lightmapviewer.qmltypes
+import QtQuick3D
+prefer :/qt-project.org/imports/QtQuick3D/lightmapviewer/
+LightmapViewer 1.0 LightmapViewer.qml
+depends QtQuick
+

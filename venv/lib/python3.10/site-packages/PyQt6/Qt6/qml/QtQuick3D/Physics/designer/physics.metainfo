@@ -1,0 +1,261 @@
+MetaInfo {
+    Type {
+        name: "QtQuick3D.Physics.PhysicsWorld"
+        icon: "images/physicsworld16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: false
+        }
+
+        ItemLibraryEntry {
+            name: "Physics World"
+            category: "Components"
+            libraryIcon: "images/physicsworld.png"
+            version: "6.5"
+            requiredImport: "QtQuick3D.Physics"
+        }
+    }
+
+    Type {
+        name: "QtQuick3D.Physics.TriggerBody"
+        icon: "images/triggerbody16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+        }
+
+        ItemLibraryEntry {
+            name: "Trigger Body"
+            category: "Collision Bodies"
+            libraryIcon: "images/triggerbody.png"
+            version: "6.5"
+            requiredImport: "QtQuick3D.Physics"
+        }
+    }
+
+    Type {
+        name: "QtQuick3D.Physics.StaticRigidBody"
+        icon: "images/staticrigidbody16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+        }
+
+        ItemLibraryEntry {
+            name: "Static Rigid Body"
+            category: "Collision Bodies"
+            libraryIcon: "images/staticrigidbody.png"
+            version: "6.5"
+            requiredImport: "QtQuick3D.Physics"
+        }
+    }
+
+    Type {
+        name: "QtQuick3D.Physics.DynamicRigidBody"
+        icon: "images/dynamicrigidbody16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+        }
+
+        ItemLibraryEntry {
+            name: "Dynamic Rigid Body"
+            category: "Collision Bodies"
+            libraryIcon: "images/dynamicrigidbody.png"
+            version: "6.5"
+            requiredImport: "QtQuick3D.Physics"
+        }
+    }
+
+    Type {
+        name: "QtQuick3D.Physics.PhysicsMaterial"
+        icon: "images/physicsmaterial16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: false
+        }
+
+        ItemLibraryEntry {
+            name: "Physics Material"
+            category: "Components"
+            libraryIcon: "images/physicsmaterial.png"
+            version: "6.5"
+            requiredImport: "QtQuick3D.Physics"
+        }
+    }
+
+    Type {
+        name: "QtQuick3D.Physics.BoxShape"
+        icon: "images/boxshape16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+        }
+
+        ItemLibraryEntry {
+            name: "Box Shape"
+            category: "Collision Shapes"
+            libraryIcon: "images/boxshape.png"
+            version: "6.5"
+            requiredImport: "QtQuick3D.Physics"
+        }
+    }
+
+    Type {
+        name: "QtQuick3D.Physics.CapsuleShape"
+        icon: "images/capsuleshape16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+        }
+
+        ItemLibraryEntry {
+            name: "Capsule Shape"
+            category: "Collision Shapes"
+            libraryIcon: "images/capsuleshape.png"
+            version: "6.5"
+            requiredImport: "QtQuick3D.Physics"
+        }
+    }
+
+    Type {
+        name: "QtQuick3D.Physics.ConvexMeshShape"
+        icon: "images/convexmeshshape16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+        }
+
+        ItemLibraryEntry {
+            name: "Convex Mesh Shape"
+            category: "Collision Shapes"
+            libraryIcon: "images/convexmeshshape.png"
+            version: "6.5"
+            requiredImport: "QtQuick3D.Physics"
+        }
+    }
+
+    Type {
+        name: "QtQuick3D.Physics.HeightFieldShape"
+        icon: "images/heightfieldshape16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+        }
+
+        ItemLibraryEntry {
+            name: "Height Field Shape"
+            category: "Collision Shapes"
+            libraryIcon: "images/heightfieldshape.png"
+            version: "6.5"
+            requiredImport: "QtQuick3D.Physics"
+        }
+    }
+
+    Type {
+        name: "QtQuick3D.Physics.PlaneShape"
+        icon: "images/planeshape16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+        }
+
+        ItemLibraryEntry {
+            name: "Plane Shape"
+            category: "Collision Shapes"
+            libraryIcon: "images/planeshape.png"
+            version: "6.5"
+            requiredImport: "QtQuick3D.Physics"
+        }
+    }
+
+    Type {
+        name: "QtQuick3D.Physics.SphereShape"
+        icon: "images/sphereshape16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+        }
+
+        ItemLibraryEntry {
+            name: "Sphere Shape"
+            category: "Collision Shapes"
+            libraryIcon: "images/sphereshape.png"
+            version: "6.5"
+            requiredImport: "QtQuick3D.Physics"
+        }
+    }
+
+    Type {
+        name: "QtQuick3D.Physics.TriangleMeshShape"
+        icon: "images/trianglemeshshape16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+        }
+
+        ItemLibraryEntry {
+            name: "Triangle Mesh Shape"
+            category: "Collision Shapes"
+            libraryIcon: "images/trianglemeshshape.png"
+            version: "6.5"
+            requiredImport: "QtQuick3D.Physics"
+        }
+    }
+
+    Type {
+        name: "QtQuick3D.Physics.CharacterController"
+        icon: "images/charactercontroller16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+        }
+
+        ItemLibraryEntry {
+            name: "Character Controller"
+            category: "Collision Bodies"
+            libraryIcon: "images/charactercontroller.png"
+            version: "6.5"
+            requiredImport: "QtQuick3D.Physics"
+        }
+    }
+}

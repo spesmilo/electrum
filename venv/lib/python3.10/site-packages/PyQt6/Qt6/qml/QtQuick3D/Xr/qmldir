@@ -1,0 +1,11 @@
+module QtQuick3D.Xr
+linktarget Qt6::Quick3DXrplugin
+optional plugin quick3dxrplugin
+classname QtQuick3D_XrPlugin
+typeinfo plugins.qmltypes
+depends QtQuick
+depends QtQuick3D
+prefer :/qt-project.org/imports/QtQuick3D/Xr/
+XrErrorDialog 6.8 XrErrorDialog.qml
+depends QtQuick
+

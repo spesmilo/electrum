@@ -442,3 +442,28 @@ class TestWalletPassword(WalletTestCase):
         with self.assertRaises(InvalidPassword):
             wallet.check_password("wrong password")
         wallet.check_password("1234")
+
+
+import pytest
+from unittest.mock import patch
+from electrum.gui.qt.send_tab import SendTab  # adjust path if needed
+
+class DummyInvoice:
+    def __init__(self, amount):
+        self.amount = amount
+
+@pytest.fixture
+def send_tab(qtbot):  # qtbot is pytest-qt fixture
+    tab = SendTab(None)  # parent=None for test
+    qtbot.addWidget(tab)
+    return tab
+
+def test_save_max_invoice_triggers_warning(send_tab):
+    invoice = DummyInvoice(amount='!')
+
+    # Patch QMessageBox.warning so no dialog shows
+    with patch('PyQt6.QtWidgets.QMessageBox.warning') as mock_warning:
+        send_tab.save_invoice(invoice)  # call your save method
+        # Assert warning was called
+        mock_warning.assert_called_once_with(send_tab, "Invalid invoice", 
+            "Cannot save an invoice with 'Max' amount. Please specify an amount. ")

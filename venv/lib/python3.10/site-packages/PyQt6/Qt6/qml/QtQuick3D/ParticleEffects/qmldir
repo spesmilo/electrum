@@ -1,0 +1,11 @@
+module QtQuick3D.ParticleEffects
+linktarget Qt6::qtquick3dparticleeffectsplugin
+optional plugin qtquick3dparticleeffectsplugin
+classname QtQuick3DParticleEffectsPlugin
+designersupported
+typeinfo Quick3DParticleEffects.qmltypes
+depends QtQuick3D auto
+depends QtQuick3D.Particles3D auto
+prefer :/qt-project.org/imports/QtQuick3D/ParticleEffects/
+depends QtQuick
+

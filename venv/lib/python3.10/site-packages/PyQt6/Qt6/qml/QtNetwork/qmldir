@@ -1,0 +1,9 @@
+module QtNetwork
+linktarget Qt6::QmlNetworkplugin
+optional plugin qmlnetworkplugin
+classname QtNetworkPlugin
+designersupported
+typeinfo plugins.qmltypes
+depends QtQml auto
+prefer :/qt-project.org/imports/QtNetwork/
+

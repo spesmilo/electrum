@@ -1,0 +1,18 @@
+module QtQuick.Controls
+linktarget Qt6::qtquickcontrols2plugin
+plugin qtquickcontrols2plugin
+classname QtQuickControls2Plugin
+designersupported
+typeinfo plugins.qmltypes
+optional import QtQuick.Controls.Fusion auto
+optional import QtQuick.Controls.Material auto
+optional import QtQuick.Controls.Imagine auto
+optional import QtQuick.Controls.Universal auto
+optional import QtQuick.Controls.FluentWinUI3 auto
+optional import QtQuick.Controls.Windows auto
+optional import QtQuick.Controls.macOS auto
+optional import QtQuick.Controls.iOS auto
+default import QtQuick.Controls.Basic auto
+prefer :/qt-project.org/imports/QtQuick/Controls/
+depends QtQuick
+

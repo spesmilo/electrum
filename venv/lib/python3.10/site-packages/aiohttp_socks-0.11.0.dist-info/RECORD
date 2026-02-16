@@ -1,0 +1,17 @@
+aiohttp_socks-0.11.0.dist-info/INSTALLER,sha256=zuuue4knoyJ-UwPPXg8fezS7VCrXJQrAP7zeNuwvFQg,4
+aiohttp_socks-0.11.0.dist-info/METADATA,sha256=D5JFMcexiNoMeaiXpjWEo5zvHARQXU_xo2tnNDWtZNs,3644
+aiohttp_socks-0.11.0.dist-info/RECORD,,
+aiohttp_socks-0.11.0.dist-info/WHEEL,sha256=_zCd3N1l69ArxyTb8rzEoP9TpbYXkqRFSNOD5OuxnTs,91
+aiohttp_socks-0.11.0.dist-info/licenses/LICENSE.txt,sha256=tAkwu8-AdEyGxGoSvJ2gVmQdcicWw3j1ZZueVV74M-E,11357
+aiohttp_socks-0.11.0.dist-info/top_level.txt,sha256=AV2lnF7KdxoUZdO7YNCuVdPeaaxzBz_pFqG-IKWfRwE,14
+aiohttp_socks/__init__.py,sha256=Uu2iUfqxNmRYvIcCIvaKsiL0VcufM95-0sPiDR24WBE,746
+aiohttp_socks/__pycache__/__init__.cpython-310.pyc,,
+aiohttp_socks/__pycache__/_deprecated.cpython-310.pyc,,
+aiohttp_socks/__pycache__/_errors.cpython-310.pyc,,
+aiohttp_socks/__pycache__/connector.cpython-310.pyc,,
+aiohttp_socks/__pycache__/utils.cpython-310.pyc,,
+aiohttp_socks/_deprecated.py,sha256=Pn8YYxCyTqxx7eLLNmE26sLY-ZJ6ixWQS7XV76HXCck,907
+aiohttp_socks/_errors.py,sha256=uTXSM2zGr7xP-i-4mJRGAqls4rQ19jy6wDXVRAR0aU4,247
+aiohttp_socks/connector.py,sha256=_dI5VA9ez7lmkiRknwB1R7siIZad--7mquo9_5m4nP0,6979
+aiohttp_socks/py.typed,sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU,0
+aiohttp_socks/utils.py,sha256=2F8Ms9k1OHVyQ09CMgS-JfvHdBZVuftTosyTW9L4cuk,2525

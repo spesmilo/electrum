@@ -1,0 +1,10 @@
+module QtQuick.Controls.impl
+linktarget Qt6::qtquickcontrols2implplugin
+optional plugin qtquickcontrols2implplugin
+classname QtQuickControls2ImplPlugin
+typeinfo plugins.qmltypes
+depends QtQuick auto
+depends QtQuick.Templates auto
+prefer :/qt-project.org/imports/QtQuick/Controls/impl/
+depends QtQuick
+

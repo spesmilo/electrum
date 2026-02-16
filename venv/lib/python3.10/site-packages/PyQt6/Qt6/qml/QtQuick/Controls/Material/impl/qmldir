@@ -1,0 +1,28 @@
+module QtQuick.Controls.Material.impl
+linktarget Qt6::qtquickcontrols2materialstyleimplplugin
+optional plugin qtquickcontrols2materialstyleimplplugin
+classname QtQuickControls2MaterialStyleImplPlugin
+typeinfo plugins.qmltypes
+depends QtQuick auto
+depends QtQuick.Controls.impl auto
+prefer :/qt-project.org/imports/QtQuick/Controls/Material/impl/
+BoxShadow 6.0 BoxShadow.qml
+BoxShadow 2.0 BoxShadow.qml
+CheckIndicator 6.0 CheckIndicator.qml
+CheckIndicator 2.0 CheckIndicator.qml
+CursorDelegate 6.0 CursorDelegate.qml
+CursorDelegate 2.0 CursorDelegate.qml
+ElevationEffect 6.0 ElevationEffect.qml
+ElevationEffect 2.0 ElevationEffect.qml
+RadioIndicator 6.0 RadioIndicator.qml
+RadioIndicator 2.0 RadioIndicator.qml
+RectangularGlow 6.0 RectangularGlow.qml
+RectangularGlow 2.0 RectangularGlow.qml
+RoundedElevationEffect 6.0 RoundedElevationEffect.qml
+RoundedElevationEffect 2.0 RoundedElevationEffect.qml
+SliderHandle 6.0 SliderHandle.qml
+SliderHandle 2.0 SliderHandle.qml
+SwitchIndicator 6.0 SwitchIndicator.qml
+SwitchIndicator 2.0 SwitchIndicator.qml
+depends QtQuick
+

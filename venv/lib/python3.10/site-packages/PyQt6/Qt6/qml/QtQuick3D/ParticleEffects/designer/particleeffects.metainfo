@@ -1,0 +1,246 @@
+MetaInfo {
+    Type {
+        name: "QtQuick3D.Particle3D.ParticleSystem3D"
+        icon: "images/dummy16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Clouds"
+            category: "Qt Quick 3D Particle Effects"
+            libraryIcon: "images/dummy.png"
+            version: "6.2"
+            requiredImport: "QtQuick3D.ParticleEffects"
+            QmlSource { source: "./source/particleeffect_clouds.qml" }
+            ExtraFile { source: "images/smoke_sprite2.png" }
+        }
+    }
+
+    Type {
+        name: "QtQuick3D.Particle3D.ParticleSystem3D"
+        icon: "images/dummy16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Dust"
+            category: "Qt Quick 3D Particle Effects"
+            libraryIcon: "images/dummy.png"
+            version: "6.2"
+            requiredImport: "QtQuick3D.ParticleEffects"
+            QmlSource { source: "./source/particleeffect_dust.qml" }
+            ExtraFile { source: "images/sphere.png" }
+        }
+    }
+
+    Type {
+        name: "QtQuick3D.Particle3D.ParticleSystem3D"
+        icon: "images/dummy16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Exhaust"
+            category: "Qt Quick 3D Particle Effects"
+            libraryIcon: "images/dummy.png"
+            version: "6.2"
+            requiredImport: "QtQuick3D.ParticleEffects"
+            QmlSource { source: "./source/particleeffect_exhaust.qml" }
+            ExtraFile { source: "images/smoke2.png" }
+        }
+    }
+
+    Type {
+        name: "QtQuick3D.Particle3D.ParticleSystem3D"
+        icon: "images/dummy16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Fire"
+            category: "Qt Quick 3D Particle Effects"
+            libraryIcon: "images/dummy.png"
+            version: "6.2"
+            requiredImport: "QtQuick3D.ParticleEffects"
+            QmlSource { source: "./source/particleeffect_fire.qml" }
+            ExtraFile { source: "images/smoke_sprite.png" }
+            ExtraFile { source: "images/sphere.png" }
+            ExtraFile { source: "images/color_table.png" }
+            ExtraFile { source: "images/color_table2.png" }
+        }
+    }
+
+    Type {
+        name: "QtQuick3D.Particle3D.ParticleSystem3D"
+        icon: "images/dummy16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Heavy Rain"
+            category: "Qt Quick 3D Particle Effects"
+            libraryIcon: "images/dummy.png"
+            version: "6.2"
+            requiredImport: "QtQuick3D.ParticleEffects"
+            QmlSource { source: "./source/particleeffect_heavyrain.qml" }
+            ExtraFile { source: "images/rain.png" }
+            ExtraFile { source: "images/sphere.png" }
+            ExtraFile { source: "images/ripple.png" }
+            ExtraFile { source: "images/splash7.png" }
+        }
+    }
+
+    Type {
+        name: "QtQuick3D.Particle3D.ParticleSystem3D"
+        icon: "images/dummy16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Heavy Rain - Tire Spray"
+            category: "Qt Quick 3D Particle Effects"
+            libraryIcon: "images/dummy.png"
+            version: "6.2"
+            requiredImport: "QtQuick3D.ParticleEffects"
+            QmlSource { source: "./source/particleeffect_heavyrain_tirespray.qml" }
+            ExtraFile { source: "images/smoke2.png" }
+        }
+    }
+
+    Type {
+        name: "QtQuick3D.Particle3D.ParticleSystem3D"
+        icon: "images/dummy16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Light Rain"
+            category: "Qt Quick 3D Particle Effects"
+            libraryIcon: "images/dummy.png"
+            version: "6.2"
+            requiredImport: "QtQuick3D.ParticleEffects"
+            QmlSource { source: "./source/particleeffect_lightrain.qml" }
+            ExtraFile { source: "images/rain.png" }
+            ExtraFile { source: "images/splash7.png" }
+        }
+    }
+    Type {
+        name: "QtQuick3D.Particle3D.ParticleSystem3D"
+        icon: "images/dummy16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Light Rain - Tire Spray"
+            category: "Qt Quick 3D Particle Effects"
+            libraryIcon: "images/dummy.png"
+            version: "6.2"
+            requiredImport: "QtQuick3D.ParticleEffects"
+            QmlSource { source: "./source/particleeffect_lightrain_tirespray.qml" }
+            ExtraFile { source: "images/smoke2.png" }
+        }
+    }
+    Type {
+        name: "QtQuick3D.Particle3D.ParticleSystem3D"
+        icon: "images/dummy16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Rain Mist"
+            category: "Qt Quick 3D Particle Effects"
+            libraryIcon: "images/dummy.png"
+            version: "6.2"
+            requiredImport: "QtQuick3D.ParticleEffects"
+            QmlSource { source: "./source/particleeffect_rainmist.qml" }
+            ExtraFile { source: "images/smoke2.png" }
+        }
+    }
+    Type {
+        name: "QtQuick3D.Particle3D.ParticleSystem3D"
+        icon: "images/dummy16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Snow"
+            category: "Qt Quick 3D Particle Effects"
+            libraryIcon: "images/dummy.png"
+            version: "6.2"
+            requiredImport: "QtQuick3D.ParticleEffects"
+            QmlSource { source: "./source/particleeffect_snow.qml" }
+            ExtraFile { source: "images/snowflake.png" }
+        }
+    }
+    Type {
+        name: "QtQuick3D.Particle3D.ParticleSystem3D"
+        icon: "images/dummy16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Steam"
+            category: "Qt Quick 3D Particle Effects"
+            libraryIcon: "images/dummy.png"
+            version: "6.2"
+            requiredImport: "QtQuick3D.ParticleEffects"
+            QmlSource { source: "./source/particleeffect_steam.qml" }
+            ExtraFile { source: "images/smoke2.png" }
+        }
+    }
+}

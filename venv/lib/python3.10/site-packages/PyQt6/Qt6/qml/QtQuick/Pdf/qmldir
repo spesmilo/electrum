@@ -1,0 +1,23 @@
+module QtQuick.Pdf
+linktarget Qt6::PdfQuickplugin
+optional plugin pdfquickplugin
+classname QtQuick_PdfPlugin
+typeinfo plugins.qmltypes
+depends QtQuick auto
+prefer :/qt-project.org/imports/QtQuick/Pdf/
+PdfStyle 6.0 +Material/PdfStyle.qml
+PdfStyle 5.0 +Material/PdfStyle.qml
+PdfStyle 6.0 +Universal/PdfStyle.qml
+PdfStyle 5.0 +Universal/PdfStyle.qml
+PdfLinkDelegate 6.0 PdfLinkDelegate.qml
+PdfLinkDelegate 5.0 PdfLinkDelegate.qml
+PdfMultiPageView 6.0 PdfMultiPageView.qml
+PdfMultiPageView 5.0 PdfMultiPageView.qml
+PdfPageView 6.0 PdfPageView.qml
+PdfPageView 5.0 PdfPageView.qml
+PdfScrollablePageView 6.0 PdfScrollablePageView.qml
+PdfScrollablePageView 5.0 PdfScrollablePageView.qml
+PdfStyle 6.0 PdfStyle.qml
+PdfStyle 5.0 PdfStyle.qml
+depends QtQuick
+

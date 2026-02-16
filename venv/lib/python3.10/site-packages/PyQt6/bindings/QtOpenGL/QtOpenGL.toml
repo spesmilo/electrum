@@ -1,0 +1,6 @@
+# Automatically generated configuration for PyQt6.QtOpenGL.
+
+sip-version = "6.14.0"
+sip-abi-version = "13.8"
+module-tags = ["Qt_6_10_0", "Linux"]
+module-disabled-features = ["PyQt_OpenGL_ES2"]

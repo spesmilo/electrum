@@ -1,0 +1,10 @@
+module QtQuick3D.AssetUtils
+linktarget Qt6::qtquick3dassetutilsplugin
+optional plugin qtquick3dassetutilsplugin
+classname QtQuick3DAssetUtilsPlugin
+designersupported
+typeinfo plugins.qmltypes
+depends QtQuick3D auto
+prefer :/qt-project.org/imports/QtQuick3D/AssetUtils/
+depends QtQuick
+

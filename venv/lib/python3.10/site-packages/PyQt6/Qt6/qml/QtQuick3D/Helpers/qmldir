@@ -1,0 +1,23 @@
+module QtQuick3D.Helpers
+linktarget Qt6::qtquick3dhelpersplugin
+optional plugin qtquick3dhelpersplugin
+classname QtQuick3DHelpersPlugin
+designersupported
+typeinfo plugins.qmltypes
+depends QtQuick3D.Helpers.impl auto
+depends QtQuick3D auto
+prefer :/qt-project.org/imports/QtQuick3D/Helpers/
+AxisHelper 6.0 AxisHelper.qml
+AxisHelper 1.0 AxisHelper.qml
+DebugView 6.0 DebugView.qml
+DebugView 1.0 DebugView.qml
+WasdController 6.0 WasdController.qml
+WasdController 1.0 WasdController.qml
+OrbitCameraController 6.0 OrbitCameraController.qml
+OrbitCameraController 1.0 OrbitCameraController.qml
+LodManager 6.0 LodManager.qml
+LodManager 1.0 LodManager.qml
+ExtendedSceneEnvironment 6.0 ExtendedSceneEnvironment.qml
+ExtendedSceneEnvironment 1.0 ExtendedSceneEnvironment.qml
+depends QtQuick
+

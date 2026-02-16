@@ -1,0 +1,2 @@
+[console_scripts]
+aionostr = electrum_aionostr.cli:main

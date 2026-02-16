@@ -1,0 +1,90 @@
+module QtQuick.Controls.FluentWinUI3
+linktarget Qt6::qtquickcontrols2fluentwinui3styleplugin
+plugin qtquickcontrols2fluentwinui3styleplugin
+classname QtQuickControls2FluentWinUI3StylePlugin
+typeinfo plugins.qmltypes
+import QtQuick.Controls.Fusion auto
+prefer :/qt-project.org/imports/QtQuick/Controls/FluentWinUI3/
+ApplicationWindow 6.0 ApplicationWindow.qml
+ApplicationWindow 2.0 ApplicationWindow.qml
+BusyIndicator 6.0 BusyIndicator.qml
+BusyIndicator 2.0 BusyIndicator.qml
+Button 6.0 Button.qml
+Button 2.0 Button.qml
+CheckBox 6.0 CheckBox.qml
+CheckBox 2.0 CheckBox.qml
+CheckDelegate 6.0 CheckDelegate.qml
+CheckDelegate 2.0 CheckDelegate.qml
+ComboBox 6.0 ComboBox.qml
+ComboBox 2.0 ComboBox.qml
+DelayButton 6.0 DelayButton.qml
+DelayButton 2.0 DelayButton.qml
+Dialog 6.0 Dialog.qml
+Dialog 2.0 Dialog.qml
+DialogButtonBox 6.0 DialogButtonBox.qml
+DialogButtonBox 2.0 DialogButtonBox.qml
+Frame 6.0 Frame.qml
+Frame 2.0 Frame.qml
+GroupBox 6.0 GroupBox.qml
+GroupBox 2.0 GroupBox.qml
+ItemDelegate 6.0 ItemDelegate.qml
+ItemDelegate 2.0 ItemDelegate.qml
+Menu 6.0 Menu.qml
+Menu 2.0 Menu.qml
+MenuBar 6.0 MenuBar.qml
+MenuBar 2.0 MenuBar.qml
+MenuBarItem 6.0 MenuBarItem.qml
+MenuBarItem 2.0 MenuBarItem.qml
+MenuItem 6.0 MenuItem.qml
+MenuItem 2.0 MenuItem.qml
+MenuSeparator 6.0 MenuSeparator.qml
+MenuSeparator 2.0 MenuSeparator.qml
+Popup 6.0 Popup.qml
+Popup 2.0 Popup.qml
+ProgressBar 6.0 ProgressBar.qml
+ProgressBar 2.0 ProgressBar.qml
+PageIndicator 6.0 PageIndicator.qml
+PageIndicator 2.0 PageIndicator.qml
+RadioButton 6.0 RadioButton.qml
+RadioButton 2.0 RadioButton.qml
+RadioDelegate 6.0 RadioDelegate.qml
+RadioDelegate 2.0 RadioDelegate.qml
+RangeSlider 6.0 RangeSlider.qml
+RangeSlider 2.0 RangeSlider.qml
+RoundButton 6.0 RoundButton.qml
+RoundButton 2.0 RoundButton.qml
+SearchField 6.10 SearchField.qml
+Slider 6.0 Slider.qml
+Slider 2.0 Slider.qml
+SpinBox 6.0 SpinBox.qml
+SpinBox 2.0 SpinBox.qml
+SwipeDelegate 6.0 SwipeDelegate.qml
+SwipeDelegate 2.0 SwipeDelegate.qml
+Switch 6.0 Switch.qml
+Switch 2.0 Switch.qml
+SwitchDelegate 6.0 SwitchDelegate.qml
+SwitchDelegate 2.0 SwitchDelegate.qml
+TabBar 6.0 TabBar.qml
+TabBar 2.0 TabBar.qml
+TabButton 6.0 TabButton.qml
+TabButton 2.0 TabButton.qml
+TextField 6.0 TextField.qml
+TextField 2.0 TextField.qml
+TextArea 6.0 TextArea.qml
+TextArea 2.0 TextArea.qml
+ToolBar 6.0 ToolBar.qml
+ToolBar 2.0 ToolBar.qml
+ToolButton 6.0 ToolButton.qml
+ToolButton 2.0 ToolButton.qml
+ToolSeparator 6.0 ToolSeparator.qml
+ToolSeparator 2.0 ToolSeparator.qml
+ToolTip 6.0 ToolTip.qml
+ToolTip 2.0 ToolTip.qml
+singleton Config 6.0 Config.qml
+singleton Config 2.0 Config.qml
+StyleImage 6.0 StyleImage.qml
+StyleImage 2.0 StyleImage.qml
+FocusFrame 6.0 FocusFrame.qml
+FocusFrame 2.0 FocusFrame.qml
+depends QtQuick
+

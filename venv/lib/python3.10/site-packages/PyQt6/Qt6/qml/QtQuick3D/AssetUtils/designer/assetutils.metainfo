@@ -1,0 +1,21 @@
+MetaInfo {
+    Type {
+        name: "QtQuick3D.AssetUtils.RuntimeLoader"
+        icon: "images/runtimeloader16.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+        }
+
+        ItemLibraryEntry {
+            name: "Runtime Loader"
+            category: "AssetUtils"
+            libraryIcon: "images/runtimeloader.png"
+            version: "6.2"
+            requiredImport: "QtQuick3D.AssetUtils"
+        }
+    }
+}

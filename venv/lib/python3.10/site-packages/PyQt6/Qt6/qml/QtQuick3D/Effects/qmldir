@@ -1,0 +1,32 @@
+module QtQuick3D.Effects
+linktarget Qt6::qtquick3deffectplugin
+optional plugin qtquick3deffectplugin
+classname QtQuick3DEffectPlugin
+designersupported
+typeinfo Quick3DEffects.qmltypes
+depends QtQuick3D auto
+depends QtQuick.Window auto
+prefer :/qt-project.org/imports/QtQuick3D/Effects/
+Vignette 6.0 Vignette.qml
+TiltShift 6.0 TiltShift.qml
+SCurveTonemap 6.0 SCurveTonemap.qml
+Scatter 6.0 Scatter.qml
+MotionBlur 6.0 MotionBlur.qml
+HDRBloomTonemap 6.0 HDRBloomTonemap.qml
+GaussianBlur 6.0 GaussianBlur.qml
+Fxaa 6.0 Fxaa.qml
+Flip 6.0 Flip.qml
+Emboss 6.0 Emboss.qml
+EdgeDetect 6.0 EdgeDetect.qml
+DistortionSpiral 6.0 DistortionSpiral.qml
+DistortionSphere 6.0 DistortionSphere.qml
+DistortionRipple 6.0 DistortionRipple.qml
+Desaturate 6.0 Desaturate.qml
+DepthOfFieldHQBlur 6.0 DepthOfFieldHQBlur.qml
+ColorMaster 6.0 ColorMaster.qml
+ChromaticAberration 6.0 ChromaticAberration.qml
+BrushStrokes 6.0 BrushStrokes.qml
+Blur 6.0 Blur.qml
+AdditiveColorGradient 6.0 AdditiveColorGradient.qml
+depends QtQuick
+

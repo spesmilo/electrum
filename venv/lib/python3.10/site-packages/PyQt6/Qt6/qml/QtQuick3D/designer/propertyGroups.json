@@ -1,0 +1,55 @@
+{
+    "Material": {
+        "Base":           ["lightProbe", "cullMode", "depthDrawMode"]
+    },
+    "DefaultMaterial": {
+        "Base":           ["lighting", "blendMode", "vertexColorsEnabled", "pointSize", "lineWidth"],
+        "Diffuse":        ["diffuseColor", "diffuseMap"],
+        "Emissive":       ["emissiveFactor.x", "emissiveFactor.y", "emissiveFactor.z", "emissiveMap"],
+        "Specular":       ["specularTint", "specularAmount", "specularMap", "specularModel", "specularReflectionMap", "indexOfRefraction", "fresnelPower", "specularRoughness", "roughnessMap", "roughnessChannel"],
+        "Opacity":        ["opacity", "opacityMap", "opacityChannel"],
+        "Bump / Normal":  ["bumpAmount", "bumpMap", "normalMap"],
+        "Translucency":   ["translucentFalloff", "diffuseLightWrap", "translucencyMap", "translucencyChannel"]
+    },
+    "PrincipledMaterial": {
+        "Base":           ["alphaMode", "blendMode", "lighting"],
+        "Base Color":     ["baseColor", "baseColorMap", "baseColorSingleChannelEnabled", "baseColorChannel"],
+        "Metalness":      ["metalness", "metalnessMap", "metalnessChannel"],
+        "Roughness":      ["roughness", "roughnessMap", "roughnessChannel"],
+        "Normal":         ["normalMap", "normalStrength"],
+        "Occlusion":      ["occlusionAmount", "occlusionMap", "occlusionChannel"],
+        "Opacity":        ["opacity", "opacityMap", "opacityChannel", "invertOpacityMapValue"],
+        "Emissive":       ["emissiveMap", "emissiveFactor.x", "emissiveFactor.y", "emissiveFactor.z", "emissiveSingleChannelEnabled", "emissiveChannel"],
+        "Height":         ["heightAmount", "heightMap", "heightChannel", "minHeightMapSamples", "maxHeightMapSamples"],
+        "Clearcoat":      ["clearcoatAmount", "clearcoatMap", "clearcoatChannel", "clearcoatRoughnessAmount", "clearcoatRoughnessMap", "clearcoatRoughnessChannel", "clearcoatNormalMap", "clearcoatNormalStrength", "clearcoatFresnelPower", "clearcoatFresnelScaleBiasEnabled", "clearcoatFresnelScale", "clearcoatFresnelBias"],
+        "Refraction":     ["transmissionFactor", "transmissionMap", "transmissionChannel", "indexOfRefraction", "thicknessFactor", "thicknessMap", "thicknessChannel", "attenuationColor", "attenuationDistance"],
+        "Fresnel":        ["fresnelPower", "fresnelScaleBiasEnabled", "fresnelScale", "fresnelBias"],
+        "Vertex Color":   ["vertexColorsEnabled", "vertexColorsMaskEnabled", "vertexColorRedMask", "vertexColorGreenMask", "vertexColorBlueMask", "vertexColorAlphaMask"],
+        "Advanced":       ["pointSize", "lineWidth"],
+        "Overrides":      ["specularAmount", "specularMap", "specularSingleChannelEnabled", "specularChannel", "specularTint", "specularReflectionMap"]
+    },
+    "SpecularGlossyMaterial": {
+        "Base":           ["alphaMode", "blendMode", "lighting"],
+        "Albedo":         ["albedoColor", "albedoMap", "albedoSingleChannelEnabled", "albedoChannel"],
+        "Specular":       ["specularColor", "specularMap", "specularSingleChannelEnabled", "specularChannel"],
+        "Glossiness":     ["glossiness", "glossinessMap", "glossinessChannel"],
+        "Normal":         ["normalMap", "normalStrength"],
+        "Occlusion":      ["occlusionAmount", "occlusionMap", "occlusionChannel"],
+        "Opacity":        ["opacity", "opacityMap", "opacityChannel", "invertOpacityMapValue"],
+        "Emissive":       ["emissiveMap", "emissiveFactor.x", "emissiveFactor.y", "emissiveFactor.z", "emissiveSingleChannelEnabled", "emissiveChannel"],
+        "Height":         ["heightAmount", "heightMap", "heightChannel", "minHeightMapSamples", "maxHeightMapSamples"],
+        "Clearcoat":      ["clearcoatAmount", "clearcoatMap", "clearcoatChannel", "clearcoatRoughnessAmount", "clearcoatRoughnessMap", "clearcoatRoughnessChannel", "clearcoatNormalMap", "clearcoatNormalStrength", "clearcoatFresnelPower", "clearcoatFresnelScaleBiasEnabled", "clearcoatFresnelScale", "clearcoatFresnelBias"],
+        "Refraction":     ["transmissionFactor", "transmissionMap", "transmissionChannel", "thicknessFactor", "thicknessMap", "thicknessChannel", "attenuationColor", "attenuationDistance"],
+        "Fresnel":        ["fresnelPower", "fresnelScaleBiasEnabled", "fresnelScale", "fresnelBias"],
+        "Vertex Color":   ["vertexColorsEnabled", "vertexColorsMaskEnabled", "vertexColorRedMask", "vertexColorGreenMask", "vertexColorBlueMask", "vertexColorAlphaMask"],
+        "Advanced":       ["pointSize", "lineWidth"]
+    },
+    "CustomMaterial": {
+        "Base":           ["shadingMode", "vertexShader", "fragmentShader", "sourceBlend", "destinationBlend", "alwaysDirty", "lineWidth"]
+    },
+    "Model": {
+        "Base":           ["source", "geometry", "materials", "castsShadows", "receivesShadows", "castsReflections", "receivesReflections", "pickable", "depthBias", "levelOfDetailBias"],
+        "Instancing":     ["instancing", "instanceRoot"],
+        "Animation":      ["skeleton", "morphTargets"]
+    }
+}

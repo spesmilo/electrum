@@ -1,0 +1,562 @@
+MetaInfo {
+    Type {
+        name: "QtQuick3D.Particles3D.Attractor3D"
+        icon: "images/attractor-16px.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Attractor"
+            category: "Qt Quick 3D Particles 3D"
+            libraryIcon: "images/attractor-24px.png"
+            version: "6.2"
+            requiredImport: "QtQuick3D.Particles3D"
+        }
+    }
+    Type {
+        name: "QtQuick3D.Particles3D.DynamicBurst3D"
+        icon: "images/emit-burst-16px.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Dynamic Burst"
+            category: "Qt Quick 3D Particles 3D"
+            libraryIcon: "images/emit-burst-24px.png"
+            version: "6.3"
+            requiredImport: "QtQuick3D.Particles3D"
+        }
+    }
+    Type {
+        name: "QtQuick3D.Particles3D.EmitBurst3D"
+        icon: "images/emit-burst-16px.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Emit Burst"
+            category: "Qt Quick 3D Particles 3D"
+            libraryIcon: "images/emit-burst-24px.png"
+            version: "6.2"
+            requiredImport: "QtQuick3D.Particles3D"
+        }
+    }
+    Type {
+        name: "QtQuick3D.Particles3D.ParticleEmitter3D"
+        icon: "images/emitter-16px.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Emitter"
+            category: "Qt Quick 3D Particles 3D"
+            libraryIcon: "images/emitter-24px.png"
+            version: "6.2"
+            requiredImport: "QtQuick3D.Particles3D"
+        }
+    }
+    Type {
+        name: "QtQuick3D.Particles3D.Gravity3D"
+        icon: "images/gravity-16px.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Gravity"
+            category: "Qt Quick 3D Particles 3D"
+            libraryIcon: "images/gravity-24px.png"
+            version: "6.2"
+            requiredImport: "QtQuick3D.Particles3D"
+        }
+    }
+    Type {
+        name: "QtQuick3D.Particles3D.ModelBlendParticle3D"
+        icon: "images/model-blend-particle-16px.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Model Blend Particle"
+            category: "Qt Quick 3D Particles 3D"
+            libraryIcon: "images/model-blend-particle-24px.png"
+            version: "6.2"
+            requiredImport: "QtQuick3D.Particles3D"
+        }
+    }
+    Type {
+        name: "QtQuick3D.Particles3D.ModelParticle3D"
+        icon: "images/model-particle-16px.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Model Particle"
+            category: "Qt Quick 3D Particles 3D"
+            libraryIcon: "images/model-particle-24px.png"
+            version: "6.2"
+            requiredImport: "QtQuick3D.Particles3D"
+        }
+    }
+    Type {
+        name: "QtQuick3D.Particles3D.ParticleCustomShape3D"
+        icon: "images/particle-custom-shape-16px.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Custom Shape"
+            category: "Qt Quick 3D Particles 3D"
+            libraryIcon: "images/particle-custom-shape-24px.png"
+            version: "6.3"
+            requiredImport: "QtQuick3D.Particles3D"
+        }
+    }
+    Type {
+        name: "QtQuick3D.Particles3D.ParticleModelShape3D"
+        icon: "images/model-shape-16px.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Model Shape"
+            category: "Qt Quick 3D Particles 3D"
+            libraryIcon: "images/model-shape-24px.png"
+            version: "6.2"
+            requiredImport: "QtQuick3D.Particles3D"
+        }
+    }
+    Type {
+        name: "QtQuick3D.Particles3D.PointRotator3D"
+        icon: "images/point-rotator-16px.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Point Rotator"
+            category: "Qt Quick 3D Particles 3D"
+            libraryIcon: "images/point-rotator-24px.png"
+            version: "6.2"
+            requiredImport: "QtQuick3D.Particles3D"
+        }
+    }
+    Type {
+        name: "QtQuick3D.Particles3D.ParticleShape3D"
+        icon: "images/particle-shape-16px.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Particle Shape"
+            category: "Qt Quick 3D Particles 3D"
+            libraryIcon: "images/particle-shape-24px.png"
+            version: "6.2"
+            requiredImport: "QtQuick3D.Particles3D"
+        }
+    }
+    Type {
+        name: "QtQuick3D.Particles3D.SpriteParticle3D"
+        icon: "images/sprite-particle-16px.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Sprite Particle"
+            category: "Qt Quick 3D Particles 3D"
+            libraryIcon: "images/sprite-particle-24px.png"
+            version: "6.2"
+            requiredImport: "QtQuick3D.Particles3D"
+        }
+    }
+    Type {
+        name: "QtQuick3D.Particles3D.SpriteSequence3D"
+        icon: "images/sprite-sequence-16px.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Sprite Sequence"
+            category: "Qt Quick 3D Particles 3D"
+            libraryIcon: "images/sprite-sequence-24px.png"
+            version: "6.2"
+            requiredImport: "QtQuick3D.Particles3D"
+        }
+    }
+    Type {
+        name: "QtQuick3D.Particles3D.ParticleSystem3D"
+        icon: "images/particle-system-16px.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Particle System"
+            category: "Qt Quick 3D Particles 3D"
+            libraryIcon: "images/particle-system-24px.png"
+            version: "6.2"
+            requiredImport: "QtQuick3D.Particles3D"
+            QmlSource { source: "./source/particlesystem_template.qml" }
+        }
+    }
+    Type {
+        name: "QtQuick3D.Particles3D.TargetDirection3D"
+        icon: "images/target-direction-16px.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Target Direction"
+            category: "Qt Quick 3D Particles 3D"
+            libraryIcon: "images/target-direction-24px.png"
+            version: "6.2"
+            requiredImport: "QtQuick3D.Particles3D"
+        }
+    }
+    Type {
+        name: "QtQuick3D.Particles3D.TrailEmitter3D"
+        icon: "images/trail-emitter-16px.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Trail Emitter"
+            category: "Qt Quick 3D Particles 3D"
+            libraryIcon: "images/trail-emitter-24px.png"
+            version: "6.2"
+            requiredImport: "QtQuick3D.Particles3D"
+        }
+    }
+    Type {
+        name: "QtQuick3D.Particles3D.VectorDirection3D"
+        icon: "images/vector-direction-16px.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Vector Direction"
+            category: "Qt Quick 3D Particles 3D"
+            libraryIcon: "images/vector-direction-24px.png"
+            version: "6.2"
+            requiredImport: "QtQuick3D.Particles3D"
+        }
+    }
+    Type {
+        name: "QtQuick3D.Particles3D.Wander3D"
+        icon: "images/wander-16px.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Wander"
+            category: "Qt Quick 3D Particles 3D"
+            libraryIcon: "images/wander-24px.png"
+            version: "6.2"
+            requiredImport: "QtQuick3D.Particles3D"
+        }
+    }
+    Type {
+        name: "QtQuick3D.Particles3D.ParticleSystem3D"
+        icon: "images/particle-system-16px.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Animated Sprite"
+            category: "Qt Quick 3D Particle System Templates"
+            libraryIcon: "images/particle-system-24px.png"
+            version: "6.2"
+            requiredImport: "QtQuick3D.Particles3D"
+            QmlSource { source: "./source/particlesystem_animatedsprite_template.qml" }
+        }
+    }
+    Type {
+        name: "QtQuick3D.Particles3D.ParticleSystem3D"
+        icon: "images/particle-system-16px.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Attractor System"
+            category: "Qt Quick 3D Particle System Templates"
+            libraryIcon: "images/particle-system-24px.png"
+            version: "6.2"
+            requiredImport: "QtQuick3D.Particles3D"
+            QmlSource { source: "./source/particlesystem_attractor_template.qml" }
+        }
+    }
+    Type {
+        name: "QtQuick3D.Particles3D.ParticleSystem3D"
+        icon: "images/particle-system-16px.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Burst"
+            category: "Qt Quick 3D Particle System Templates"
+            libraryIcon: "images/particle-system-24px.png"
+            version: "6.2"
+            requiredImport: "QtQuick3D.Particles3D"
+            QmlSource { source: "./source/particlesystem_burst_template.qml" }
+        }
+    }
+    Type {
+        name: "QtQuick3D.Particles3D.ParticleSystem3D"
+        icon: "images/particle-system-16px.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Model Blend"
+            category: "Qt Quick 3D Particle System Templates"
+            libraryIcon: "images/particle-system-24px.png"
+            version: "6.2"
+            requiredImport: "QtQuick3D.Particles3D"
+            QmlSource { source: "./source/particlesystem_modelblend_template.qml" }
+        }
+    }
+    Type {
+        name: "QtQuick3D.Particles3D.ParticleSystem3D"
+        icon: "images/particle-system-16px.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Model Shape"
+            category: "Qt Quick 3D Particle System Templates"
+            libraryIcon: "images/particle-system-24px.png"
+            version: "6.2"
+            requiredImport: "QtQuick3D.Particles3D"
+            QmlSource { source: "./source/particlesystem_modelshape_template.qml" }
+        }
+    }
+    Type {
+        name: "QtQuick3D.Particles3D.ParticleSystem3D"
+        icon: "images/particle-system-16px.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Particle Trail"
+            category: "Qt Quick 3D Particle System Templates"
+            libraryIcon: "images/particle-system-24px.png"
+            version: "6.2"
+            requiredImport: "QtQuick3D.Particles3D"
+            QmlSource { source: "./source/particlesystem_particletrail_template.qml" }
+        }
+    }
+    Type {
+        name: "QtQuick3D.Particles3D.ParticleSystem3D"
+        icon: "images/particle-system-16px.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Sprite"
+            category: "Qt Quick 3D Particle System Templates"
+            libraryIcon: "images/particle-system-24px.png"
+            version: "6.2"
+            requiredImport: "QtQuick3D.Particles3D"
+            QmlSource { source: "./source/particlesystem_sprite_template.qml" }
+        }
+    }
+    Type {
+        name: "QtQuick3D.Particles3D.ParticleSystem3D"
+        icon: "images/particle-system-16px.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Wander"
+            category: "Qt Quick 3D Particle System Templates"
+            libraryIcon: "images/particle-system-24px.png"
+            version: "6.2"
+            requiredImport: "QtQuick3D.Particles3D"
+            QmlSource { source: "./source/particlesystem_wander_template.qml" }
+        }
+    }
+    Type {
+        name: "QtQuick3D.Particles3D.LineParticle3D"
+        icon: "images/line-particle-16px.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Line Particle"
+            category: "Qt Quick 3D Particles 3D"
+            libraryIcon: "images/line-particle-24px.png"
+            version: "6.4"
+            requiredImport: "QtQuick3D.Particles3D"
+        }
+    }
+    Type {
+        name: "QtQuick3D.Particles3D.Repeller3D"
+        icon: "images/repeller-16px.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Repeller"
+            category: "Qt Quick 3D Particles 3D"
+            libraryIcon: "images/repeller-24px.png"
+            version: "6.4"
+            requiredImport: "QtQuick3D.Particles3D"
+        }
+    }
+    Type {
+        name: "QtQuick3D.Particles3D.ScaleAffector3D"
+        icon: "images/scale-affector-16px.png"
+
+        Hints {
+            visibleInNavigator: true
+            canBeDroppedInNavigator: true
+            canBeDroppedInFormEditor: false
+            canBeDroppedInView3D: true
+         }
+
+        ItemLibraryEntry {
+            name: "Scale Affector"
+            category: "Qt Quick 3D Particles 3D"
+            libraryIcon: "images/scale-affector-24px.png"
+            version: "6.4"
+            requiredImport: "QtQuick3D.Particles3D"
+        }
+    }
+}

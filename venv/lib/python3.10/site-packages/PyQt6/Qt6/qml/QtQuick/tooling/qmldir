@@ -1,0 +1,23 @@
+module QtQuick.tooling
+linktarget Qt6::quicktooling
+plugin quicktoolingplugin
+classname QtQuick_toolingPlugin
+typeinfo quicktooling.qmltypes
+prefer :/qt-project.org/imports/QtQuick/tooling/
+Component 1.2 Component.qml
+Component 6.0 Component.qml
+Enum 1.2 Enum.qml
+Enum 6.0 Enum.qml
+Member 1.2 Member.qml
+Member 6.0 Member.qml
+Method 1.2 Method.qml
+Method 6.0 Method.qml
+Module 1.2 Module.qml
+Module 6.0 Module.qml
+Parameter 1.2 Parameter.qml
+Parameter 6.0 Parameter.qml
+Property 1.2 Property.qml
+Property 6.0 Property.qml
+Signal 1.2 Signal.qml
+Signal 6.0 Signal.qml
+

@@ -1,0 +1,10 @@
+module QtQuick.Scene3D
+linktarget Qt6::qtquickscene3dplugin
+optional plugin qtquickscene3dplugin
+classname QtQuick_Scene3DPlugin
+typeinfo plugins.qmltypes
+depends Qt3D.Core auto
+depends QtQuick auto
+prefer :/qt-project.org/imports/QtQuick/Scene3D/
+depends QtQuick
+

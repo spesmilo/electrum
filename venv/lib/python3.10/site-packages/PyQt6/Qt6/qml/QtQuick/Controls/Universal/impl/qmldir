@@ -1,0 +1,15 @@
+module QtQuick.Controls.Universal.impl
+linktarget Qt6::qtquickcontrols2universalstyleimplplugin
+optional plugin qtquickcontrols2universalstyleimplplugin
+classname QtQuickControls2UniversalStyleImplPlugin
+typeinfo plugins.qmltypes
+depends QtQuick auto
+prefer :/qt-project.org/imports/QtQuick/Controls/Universal/impl/
+CheckIndicator 6.0 CheckIndicator.qml
+CheckIndicator 2.0 CheckIndicator.qml
+RadioIndicator 6.0 RadioIndicator.qml
+RadioIndicator 2.0 RadioIndicator.qml
+SwitchIndicator 6.0 SwitchIndicator.qml
+SwitchIndicator 2.0 SwitchIndicator.qml
+depends QtQuick
+

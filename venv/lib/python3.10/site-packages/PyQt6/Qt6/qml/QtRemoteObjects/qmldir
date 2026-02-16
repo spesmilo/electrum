@@ -1,0 +1,7 @@
+module QtRemoteObjects
+linktarget Qt6::declarative_remoteobjects
+optional plugin declarative_remoteobjectsplugin
+classname QtRemoteObjectsPlugin
+typeinfo plugins.qmltypes
+prefer :/qt-project.org/imports/QtRemoteObjects/
+

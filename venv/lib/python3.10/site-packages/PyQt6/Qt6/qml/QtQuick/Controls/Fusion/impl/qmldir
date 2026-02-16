@@ -1,0 +1,23 @@
+module QtQuick.Controls.Fusion.impl
+linktarget Qt6::qtquickcontrols2fusionstyleimplplugin
+optional plugin qtquickcontrols2fusionstyleimplplugin
+classname QtQuickControls2FusionStyleImplPlugin
+typeinfo plugins.qmltypes
+depends QtQuick auto
+prefer :/qt-project.org/imports/QtQuick/Controls/Fusion/impl/
+ButtonPanel 6.0 ButtonPanel.qml
+ButtonPanel 2.0 ButtonPanel.qml
+CheckIndicator 6.0 CheckIndicator.qml
+CheckIndicator 2.0 CheckIndicator.qml
+RadioIndicator 6.0 RadioIndicator.qml
+RadioIndicator 2.0 RadioIndicator.qml
+SliderGroove 6.0 SliderGroove.qml
+SliderGroove 2.0 SliderGroove.qml
+SliderHandle 6.0 SliderHandle.qml
+SliderHandle 2.0 SliderHandle.qml
+SwitchIndicator 6.0 SwitchIndicator.qml
+SwitchIndicator 2.0 SwitchIndicator.qml
+TextFieldBackground 6.0 TextFieldBackground.qml
+TextFieldBackground 2.0 TextFieldBackground.qml
+depends QtQuick
+
