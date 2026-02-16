@@ -23,6 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import functools
+import json
 import os
 import string
 from typing import Optional
@@ -168,3 +169,54 @@ languages = {
     'zh_TW': 'Chinese Traditional',
 }
 assert '' in languages
+
+
+def get_gui_lang_names(*, show_completion_percent: bool = True) -> dict[str, str]:
+    """Returns a  lang_code -> lang_name  mapping, sorted.
+
+    If show_completion_percent is True, lang_name includes a % estimate for translation completeness.
+    """
+    # calc catalog sizes
+    if show_completion_percent:
+        stats = _get_stats()
+    # sort ("Default" first, then "English", then lexicographically sorted names)
+    languages_copy = languages.copy()
+    lang_pair_default = ("", languages_copy.pop("")) # pop "Default"
+    lang_pair_english = ("en_UK", languages_copy.pop("en_UK")) # pop "English"
+    lang_pairs_sorted = sorted(languages_copy.items(), key=lambda x: x[1])
+    # fancy names
+    gui_lang_names = {}  # type: dict[str, str]
+    gui_lang_names[lang_pair_default[0]] = lang_pair_default[1]
+    gui_lang_names[lang_pair_english[0]] = lang_pair_english[1]
+    for lang_code, lang_name in lang_pairs_sorted:
+        if show_completion_percent and stats:
+            source_str_cnt = max(stats["source_string_count"], 1)  # avoid div-by-zero
+            try:
+                lang_data = stats["translations"][lang_code]
+            except KeyError as e:
+                _logger.warning(f"missing language from stats.json: {e!r}")
+                catalog_percent = "??"
+            else:
+                translated_str_cnt = lang_data["string_count"]
+                catalog_percent = round(100 * translated_str_cnt / source_str_cnt)
+            gui_lang_names[lang_code] = f"{lang_name} ({catalog_percent}%)"
+        else:
+            gui_lang_names[lang_code] = lang_name
+    return gui_lang_names
+
+
+_stats = None
+def _get_stats() -> dict:
+    global _stats
+    if _stats is None:
+        fname = f"{LOCALE_DIR}/stats.json"
+        try:
+            with open(fname, "r", encoding="utf-8") as f:
+                text = f.read()
+        except OSError as e:  # we tolerate the file missing
+            # This can happen e.g. when running from git clone if user did not run build_locale.sh.
+            _logger.info(f"failed to open stats file {fname!r} - built locale (translations) missing??: {e!r}")
+            _stats = {}
+        else:  # found file. if it is there, it MUST parse correctly
+            _stats = json.loads(text)
+    return _stats

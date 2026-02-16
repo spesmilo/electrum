@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QRegularExpression
 
 from electrum.bitcoin import TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
-from electrum.i18n import set_language, languages
+from electrum.i18n import set_language, get_gui_lang_names
 from electrum.logging import get_logger
 from electrum.util import base_unit_name_to_decimal_point
 from electrum.gui import messages
@@ -52,7 +52,7 @@ class QEConfig(AuthMixin, QObject):
 
     @language.setter
     def language(self, language):
-        if language not in languages:
+        if language not in get_gui_lang_names():
             return
         if self.config.LOCALIZATION_LANGUAGE != language:
             self.config.LOCALIZATION_LANGUAGE = language
@@ -62,12 +62,9 @@ class QEConfig(AuthMixin, QObject):
     languagesChanged = pyqtSignal()
     @pyqtProperty('QVariantList', notify=languagesChanged)
     def languagesAvailable(self):
-        # sort on translated languages, then re-add Default on top
-        langs = copy.deepcopy(languages)
-        default = langs.pop('')
-        langs_sorted = sorted(list(map(lambda x: {'value': x[0], 'text': x[1]}, langs.items())), key=lambda x: x['text'])
-        langs_sorted.insert(0, {'value': '', 'text': default})
-        return langs_sorted
+        langs = get_gui_lang_names()
+        langs_list = list(map(lambda x: {'value': x[0], 'text': x[1]}, langs.items()))
+        return langs_list
 
     termsOfUseChanged = pyqtSignal()
     @pyqtProperty(bool, notify=termsOfUseChanged)
