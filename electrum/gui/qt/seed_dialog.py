@@ -102,7 +102,7 @@ class SeedWidget(QWidget):
         if options:
             self.seed_types = [
                 ChoiceItem(key=stype, label=label) for stype, label in (
-                    ('electrum', _('Electrum')),
+                    ('electrum', 'Electrum'),
                     ('bip39', _('BIP39 seed')),
                     ('slip39', _('SLIP39 seed')),
                 )
