@@ -137,6 +137,9 @@ print("", "source_files.update_file:", "-" * 20, response.text, "-" * 20, sep="\
 print(f"Rebuilding translations...")
 url = f'https://api.crowdin.com/api/v2/projects/{crowdin_project_id}/translations/builds'
 headers = {**global_headers, **{"content-type": "application/json"}}
-response = requests.request("POST", url, headers=headers)
+json_data = {
+    #"exportApprovedOnly": True,  # only include translated-strings approved by users with "Proofreader" permission
+}  # note: these settings MUST be verified by electrum-locale/update.py again, at download-time.
+response = requests.request("POST", url, json=json_data, headers=headers)
 response.raise_for_status()
 print("", "translations.build_crowdin_project_translation:", "-" * 20, response.text, "-" * 20, sep="\n")
