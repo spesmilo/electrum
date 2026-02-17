@@ -56,6 +56,7 @@ from .json_db import StoredDict
 from .invoices import PR_PAID
 from .fee_policy import FEE_LN_ETA_TARGET, FEERATE_PER_KW_MIN_RELAY_LIGHTNING
 from .peerbackup import PeerBackup, PEERBACKUP_VERSION
+from .lnhtlc import INITIAL_HISTORY_HASH
 
 if TYPE_CHECKING:
     from .lnworker import LNGossip, LNWallet
@@ -106,6 +107,7 @@ class Peer(Logger, EventListener):
         self.last_message_time = 0
         self.pong_event = asyncio.Event()
         self.reply_channel_range = None  # type: Optional[asyncio.Queue]
+        self.reply_htlc_history = defaultdict(asyncio.Queue)
         # gossip uses a single queue to preserve message order
         self.recv_gossip_queue = asyncio.Queue(maxsize=self.RECV_GOSSIP_QUEUE_HARD_MAXSIZE)
         self.our_gossip_timestamp_filter = None  # type: Optional[GossipTimestampFilter]
@@ -543,6 +545,8 @@ class Peer(Logger, EventListener):
             await group.spawn(self._forward_gossip())
             if self.network.lngossip != self.lnworker:
                 await group.spawn(self.htlc_switch())
+                await group.spawn(self.sync_htlc_history(LOCAL))
+                await group.spawn(self.sync_htlc_history(REMOTE))
 
     async def _process_gossip(self):
         while True:
@@ -727,6 +731,78 @@ class Peer(Logger, EventListener):
                     first_blockheight = sorted_scids[0].block_height
                     await asyncio.sleep(self.DELAY_INC_MSG_PROCESSING_SLEEP)
             self.outgoing_gossip_reply = False
+
+    def query_htlc_history(self, chan, proposer, htlc_id):
+        self.logger.info(f'query_htlc_history {proposer.name} {htlc_id=}')
+        self.send_message(
+            'query_htlc_history',
+            channel_id=chan.channel_id,
+            proposer=int(proposer is LOCAL),
+            htlc_id=htlc_id,
+        )
+
+    def on_query_htlc_history(self, chan, payload):
+        # we return an interval, with its initial hash
+        channel_id = payload['channel_id']
+        proposer = LOCAL if bool(payload['proposer']) else REMOTE
+        target_htlc_id = payload['htlc_id']
+        p = chan.get_their_peerbackup()
+        htlc_history, local_first_hash, remote_first_hash = p.get_htlc_history(proposer, target_htlc_id)
+        self.send_message(
+            'reply_htlc_history',
+            channel_id=channel_id,
+            proposer=proposer,
+            local_first_hash=local_first_hash,
+            remote_first_hash=remote_first_hash,
+            reply_htlc_history_tlvs={'htlc_history':{'htlc_history':htlc_history}},
+        )
+
+    def on_reply_htlc_history(self, chan, payload):
+        self.reply_htlc_history[chan.channel_id].put_nowait(payload)
+
+    async def sync_htlc_history(self, proposer):
+        # we query backward, so that we can attach the received history to the current hash
+        # we may be filling the gap
+        #
+        # [0 - K]
+        # my last one is N>K
+        # -> request interval from K to N
+        #
+        # fixme: allow the server to have an incomplete history
+        if self.is_peerbackup_server():
+            return
+        await self.initialized
+        while True:
+            await asyncio.sleep(1)
+            for chan in self.channels.values():
+                if chan.get_state() != ChannelState.OPEN:
+                    continue
+                k, target_htlc_id = chan.hm.get_missing_htlc_history_interval(proposer)
+                if k > target_htlc_id:
+                    continue
+                self.logger.info(f'{proposer.name}: missing htlcs from {k} to {target_htlc_id}')
+                self.query_htlc_history(
+                    chan,
+                    proposer,
+                    htlc_id=target_htlc_id,
+                )
+                response = await self.reply_htlc_history[chan.channel_id].get()
+                new_local_hash = response['local_first_hash']
+                new_remote_hash = response['remote_first_hash']
+                history_bytes = response['reply_htlc_history_tlvs']['htlc_history']['htlc_history']
+                htlc_log, old_local_hash, old_remote_hash, local_delta_msat, remote_delta_msat = PeerBackup.htlc_log_from_bytes(new_local_hash, new_remote_hash, history_bytes)
+                # check that it connects to our hash
+                assert old_local_hash == chan.hm.get_initial_hash(LOCAL, proposer)
+                assert old_remote_hash == chan.hm.get_initial_hash(REMOTE, proposer)
+                self.logger.info(f'adding htlcs {list(sorted(htlc_log.keys()))}')
+                chan.hm.update_htlc_history(proposer, htlc_log)
+                chan.hm.set_initial_hash(LOCAL, proposer, new_local_hash)
+                chan.hm.set_initial_hash(REMOTE, proposer, new_remote_hash)
+                chan.config[LOCAL].initial_msat -= local_delta_msat * int(proposer)
+                chan.config[REMOTE].initial_msat -= remote_delta_msat * int(proposer)
+                self.logger.info(f'htlc history synchronized for {chan.get_id_for_log()}')
+                util.trigger_callback('wallet_updated', self.lnworker.wallet)
+                util.trigger_callback('channels_updated', self.lnworker.wallet)
 
     async def get_channel_range(self):
         self.reply_channel_range = asyncio.Queue()
@@ -1462,7 +1538,7 @@ class Peer(Logger, EventListener):
             self.logger.info(f"tried to force-close channel {chan.get_id_for_log()} "
                              f"but close option is not allowed. {chan.get_state()=!r}")
 
-    def recreate_channel(self, peerbackup):
+    def recreate_channel(self, peerbackup, old_chan):
         self.logger.info('recreating channel')
         peerbackup = PeerBackup.from_bytes(peerbackup['state'])
         channel_state = peerbackup.recreate_channel_state(self.lnworker)
@@ -1471,6 +1547,11 @@ class Peer(Logger, EventListener):
         channels[channel_id] = self.lnworker.db._convert_dict_value(["channels", channel_id], channel_state)
         storage = channels[channel_id]
         chan = Channel(storage, lnworker=self.lnworker)
+        if old_chan:
+            for proposer in [LOCAL, REMOTE]:
+                for key in ['adds', 'locked_in', 'settles', 'fails']:
+                    # fixme: they may be active in old
+                    chan.hm.log[proposer][key].update(old_chan.hm.log[proposer][key])
         if isinstance(self.transport, LNTransport):
             chan.add_or_update_peer_addr(self.transport.peer_addr)
         self.lnworker.add_new_channel(chan)
@@ -1489,7 +1570,7 @@ class Peer(Logger, EventListener):
         peerbackup = msg['channel_reestablish_tlvs'].get('peerbackup') if self.is_peerbackup_client() else None
         if chan is None:
             if peerbackup:
-                chan = self.recreate_channel(peerbackup)
+                chan = self.recreate_channel(peerbackup, chan)
             else:
                 self.logger.info(f"Received 'channel_reestablish' for unknown channel {msg['channel_id'].hex()}")
                 return
@@ -1581,7 +1662,7 @@ class Peer(Logger, EventListener):
             # FIXME what if we have multiple chans with peer? timing...
             fut.set_exception(GracefulDisconnect("remote ahead of us"))
         elif they_are_ahead and peerbackup:
-            chan = self.recreate_channel(peerbackup)
+            chan = self.recreate_channel(peerbackup, chan)
             we_must_resend_revoke_and_ack = False
             fut.set_result((we_must_resend_revoke_and_ack, their_next_local_ctn))
         elif we_are_ahead:

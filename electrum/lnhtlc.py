@@ -7,6 +7,8 @@ from .util import bfh, with_lock
 if TYPE_CHECKING:
     from .json_db import StoredDict
 
+INITIAL_HISTORY_HASH = bytes(32)
+
 LOG_TEMPLATE = {
     'adds': {},              # "side who offered htlc" -> htlc_id -> htlc
     'locked_in': {},         # "side who offered htlc" -> action -> htlc_id -> whose ctx -> ctn
@@ -16,6 +18,8 @@ LOG_TEMPLATE = {
     'revack_pending': False,
     'next_htlc_id': 0,
     'ctn': -1,               # oldest unrevoked ctx of sub
+    'offered_history_hash': INITIAL_HISTORY_HASH.hex(),
+    'received_history_hash': INITIAL_HISTORY_HASH.hex(),
 }
 
 
@@ -46,6 +50,29 @@ class HTLCManager:
         self._is_local_ctn_reached = self.is_local_ctn_reached()
         self._local_next_htlc_id = self.get_next_htlc_id(LOCAL)
         self._remote_next_htlc_id = self.get_next_htlc_id(REMOTE)
+
+    def get_initial_hash(self, owner, proposer) -> bytes:
+        key = 'offered_history_hash' if proposer==LOCAL else 'received_history_hash'
+        return bytes.fromhex(self.log[owner][key])
+
+    def set_initial_hash(self, owner, proposer, _hash: bytes):
+        key = 'offered_history_hash' if proposer==LOCAL else 'received_history_hash'
+        self.log[owner][key] = _hash.hex()
+
+    def update_htlc_history(self, proposer, htlc_log):
+        target_log = self.log[proposer]
+        for htlc_id, v in htlc_log.items():
+            target_log['adds'][htlc_id] = UpdateAddHtlc(
+                amount_msat = v.amount_msat,
+                payment_hash = v.payment_hash,
+                cltv_abs = v.cltv_abs,
+                htlc_id = v.htlc_id,
+                timestamp = v.timestamp)
+            assert (v.local_ctn_in is not None or v.remote_ctn_in is not None), v
+            target_log['locked_in'][htlc_id] = {LOCAL:v.local_ctn_in, REMOTE:v.remote_ctn_in}
+            if v.local_ctn_out is not None or v.remote_ctn_out is not None:
+                target_log['settles' if v.is_success else 'fails'][htlc_id] = {LOCAL:v.local_ctn_out, REMOTE:v.remote_ctn_out}
+        self._init_maybe_active_htlc_ids()
 
     def is_local_ctn_reached(self):
         # detect whether local ctn is reached in log values
@@ -99,6 +126,26 @@ class HTLCManager:
 
     def get_next_htlc_id(self, sub: HTLCOwner) -> int:
         return self.log[sub]['next_htlc_id']
+
+    def get_missing_htlc_history_interval(self, proposer: HTLCOwner) -> int:
+        locked_in = self.log[proposer]['locked_in']
+        max_id = self.get_next_htlc_id(proposer) - 1
+        if max_id == -1:
+            return 0, -1
+        for i in range(max_id, -1, -1):
+            # skip active htlcs
+            settle = self.log[proposer]['settles'].get(i) or self.log[proposer]['fails'].get(i)
+            if settle is None:
+                break
+            if settle[LOCAL] is not None or settle[REMOTE] is None:
+                continue
+            break
+        N = i
+        #
+        s = [k for k in locked_in.keys() if k <=N]
+        # fixme: there may be gaps in the history. we need to detect that
+        K = max(s) + 1 if s else 0
+        return K, N
 
     ##### Actions on channel:
 
