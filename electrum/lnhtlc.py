@@ -3,9 +3,16 @@ from typing import Sequence, Tuple, Dict, TYPE_CHECKING, Set
 
 from .lnutil import SENT, RECEIVED, LOCAL, REMOTE, HTLCOwner, UpdateAddHtlc, Direction, FeeUpdate
 from .util import bfh, with_lock
+from .logging import get_logger
+
+_logger = get_logger(__name__)
 
 if TYPE_CHECKING:
     from .json_db import StoredDict
+
+INITIAL_HISTORY_HASH = bytes(32)
+
+HTLC_PAGE_SIZE = 5 # number of htlcs returned by query_htlcs_history. not consensus critical.
 
 LOG_TEMPLATE = {
     'adds': {},              # "side who offered htlc" -> htlc_id -> htlc
@@ -16,6 +23,7 @@ LOG_TEMPLATE = {
     'revack_pending': False,
     'next_htlc_id': 0,
     'ctn': -1,               # oldest unrevoked ctx of sub
+    'checkpoints': {},       # proposer -> 'checkpoints' -> htlc_id -> (local_hash, remote_hash, amount)
 }
 
 
@@ -46,6 +54,47 @@ class HTLCManager:
         self._is_local_ctn_reached = self.is_local_ctn_reached()
         self._local_next_htlc_id = self.get_next_htlc_id(LOCAL)
         self._remote_next_htlc_id = self.get_next_htlc_id(REMOTE)
+
+    def get_checkpoint(self, proposer, htlc_id) -> bytes:
+        # note: get_htlc_history and get_checkpoint recursively call eachother
+        from .peerbackup import hash_htlc_history
+        checkpoints = self.log[proposer]['checkpoints']
+        if htlc_id == -1:
+            return INITIAL_HISTORY_HASH, INITIAL_HISTORY_HASH, 0, 0
+        if htlc_id not in checkpoints:
+            prev_htlc_history, prev_local_hash, prev_remote_hash, prev_local_msat, prev_remote_msat = self.get_htlc_history(proposer, htlc_id + 1)
+            assert len(prev_htlc_history) == 5
+            local_first_hash, remote_first_hash, local_delta_msat, remote_delta_msat = hash_htlc_history(
+                prev_htlc_history,
+                proposer=proposer,
+                local_first_hash=prev_local_hash,
+                remote_first_hash=prev_remote_hash)
+            #assert local_delta_msat == remote_delta_msat
+            self.save_checkpoint(proposer, htlc_id, local_first_hash, remote_first_hash, prev_local_msat + local_delta_msat, prev_remote_msat + remote_delta_msat)
+        local_hash, remote_hash, local_msat, remote_msat = checkpoints[htlc_id]
+        return bytes.fromhex(local_hash), bytes.fromhex(remote_hash), local_msat, remote_msat
+
+    def save_checkpoint(self, proposer, htlc_id, local_hash: bytes, remote_hash: bytes, local_delta_msat:int, remote_delta_msat: int):
+        if htlc_id == -1:
+            return
+        checkpoints = self.log[proposer]['checkpoints']
+        checkpoints[htlc_id] = (local_hash.hex(), remote_hash.hex(), local_delta_msat, remote_delta_msat)
+        _logger.info(f'saved checkpoint {proposer.name} {htlc_id} {local_hash.hex()} {remote_hash.hex()}')
+
+    def update_htlc_history(self, proposer, htlc_log):
+        target_log = self.log[proposer]
+        for htlc_id, v in htlc_log.items():
+            target_log['adds'][htlc_id] = UpdateAddHtlc(
+                amount_msat = v.amount_msat,
+                payment_hash = v.payment_hash,
+                cltv_abs = v.cltv_abs,
+                htlc_id = v.htlc_id,
+                timestamp = v.timestamp)
+            assert (v.local_ctn_in is not None or v.remote_ctn_in is not None), v
+            target_log['locked_in'][htlc_id] = {LOCAL:v.local_ctn_in, REMOTE:v.remote_ctn_in}
+            if v.local_ctn_out is not None or v.remote_ctn_out is not None:
+                target_log['settles' if v.is_success else 'fails'][htlc_id] = {LOCAL:v.local_ctn_out, REMOTE:v.remote_ctn_out}
+        self._init_maybe_active_htlc_ids()
 
     def is_local_ctn_reached(self):
         # detect whether local ctn is reached in log values
@@ -99,6 +148,26 @@ class HTLCManager:
 
     def get_next_htlc_id(self, sub: HTLCOwner) -> int:
         return self.log[sub]['next_htlc_id']
+
+    def get_missing_htlc_history_interval(self, proposer: HTLCOwner) -> int:
+        locked_in = self.log[proposer]['locked_in']
+        max_id = self.get_next_htlc_id(proposer) - 1
+        if max_id == -1:
+            return 0, -1
+        for i in range(max_id, -1, -1):
+            # skip active htlcs
+            settle = self.log[proposer]['settles'].get(i) or self.log[proposer]['fails'].get(i)
+            if settle is None:
+                break
+            if settle[LOCAL] is not None or settle[REMOTE] is None:
+                continue
+            break
+        N = i
+        #
+        s = [k for k in locked_in.keys() if k <=N]
+        # fixme: there may be gaps in the history. we need to detect that
+        K = max(s) + 1 if s else 0
+        return K, N
 
     ##### Actions on channel:
 
@@ -214,11 +283,20 @@ class HTLCManager:
                 if ctns is None: continue
                 if ctns[REMOTE] is None and ctns[LOCAL] <= self.ctn_latest(LOCAL):
                     ctns[REMOTE] = self.ctn_latest(REMOTE) + 1
+                    self.invalidate_checkpoints_higher_than(LOCAL, htlc_id)
         self._update_maybe_active_htlc_ids()
         # fee updates
         for k, fee_update in list(self.log[REMOTE]['fee_updates'].items()):
             if fee_update.ctn_remote is None and fee_update.ctn_local <= self.ctn_latest(LOCAL):
                 fee_update.ctn_remote = self.ctn_latest(REMOTE) + 1
+
+    def invalidate_checkpoints_higher_than(self, proposer, htlc_id):
+        checkpoints = self.log[proposer]['checkpoints']
+        k = (htlc_id // HTLC_PAGE_SIZE) * HTLC_PAGE_SIZE - 1 + HTLC_PAGE_SIZE
+        while k in checkpoints:
+            checkpoints.pop(k)
+            _logger.info(f'invalidate checkpoint {proposer.name} {k} because of {htlc_id=}')
+            k += HTLC_PAGE_SIZE
 
     @with_lock
     def recv_rev(self) -> None:
@@ -237,6 +315,7 @@ class HTLCManager:
                 if ctns is None: continue
                 if ctns[LOCAL] is None and ctns[REMOTE] <= self.ctn_latest(REMOTE):
                     ctns[LOCAL] = next_local_ctn
+                    self.invalidate_checkpoints_higher_than(REMOTE, htlc_id)
         self._update_maybe_active_htlc_ids()
         # fee updates
         for k, fee_update in list(self.log[LOCAL]['fee_updates'].items()):
@@ -260,6 +339,22 @@ class HTLCManager:
                     continue
                 active_htlcs[proposer][htlc_id] = htlc_update
         return active_htlcs
+
+    def get_htlc_history(self, proposer, next_htlc_id: int):
+        # returns history between target and checkpoint
+        log = self.log[proposer]
+        locked_in_keys = log['locked_in'].keys()
+        first_known_id = min(locked_in_keys) if locked_in_keys else next_htlc_id
+        last_htlc_id = next_htlc_id - 1 # last of the requested interval
+        checkpoint = (last_htlc_id // HTLC_PAGE_SIZE) * HTLC_PAGE_SIZE
+        start = max(checkpoint, first_known_id)
+        local_first_hash, remote_first_hash, local_delta_msat, remote_delta_msat = self.get_checkpoint(proposer, start - 1)
+        htlc_log = {}
+        for htlc_id in range(start, next_htlc_id):
+            htlc_update = self.get_htlc_update(proposer, htlc_id)
+            htlc_log[htlc_id] = htlc_update
+        assert 0 <= len(htlc_log) <= HTLC_PAGE_SIZE
+        return htlc_log, local_first_hash, remote_first_hash, local_delta_msat, remote_delta_msat
 
     def get_htlc_update(self, proposer, htlc_id):
         from .peerbackup import HtlcUpdate
@@ -590,6 +685,17 @@ class HTLCManager:
         received = [(RECEIVED, htlc) for htlc in self.log[REMOTE]['adds'].values()]
         return sent + received
 
+    def get_initial_balance_offset(self, proposer, ctx_owner):
+        locked_in = self.log[proposer]['locked_in']
+        checkpoints = self.log[proposer]['checkpoints']
+        min_locked_in = min(locked_in.keys()) if locked_in else -1
+        min_checkpoint = min(checkpoints.keys()) if checkpoints else -1
+        if min_checkpoint < min_locked_in:
+            local_hash, remote_hash, local_delta_msat, remote_delta_msat = self.get_checkpoint(proposer, min_checkpoint)
+            return local_delta_msat if ctx_owner == LOCAL else remote_delta_msat
+        else:
+            return 0
+
     @with_lock
     def get_balance_msat(self, whose: HTLCOwner, *, ctx_owner=HTLCOwner.LOCAL, ctn: int = None,
                          initial_balance_msat: int) -> int:
@@ -599,6 +705,9 @@ class HTLCManager:
         if ctn is None:
             ctn = self.ctn_oldest_unrevoked(ctx_owner)
         balance = initial_balance_msat
+        balance -= self.get_initial_balance_offset(whose, ctx_owner)
+        balance += self.get_initial_balance_offset(-whose, ctx_owner)
+
         if ctn >= self.ctn_oldest_unrevoked(ctx_owner):
             balance += self._balance_delta * whose
             considered_sent_htlc_ids = self._maybe_active_htlc_ids[whose]

@@ -17,10 +17,14 @@ tlvtype,payload,feerate,12
 tlvdata,payload,feerate,current,u64,
 tlvdata,payload,feerate,pending,u64,
 tlvtype,payload,offered_htlcs,14
+tlvdata,payload,offered_htlcs,local_history_hash,sha256,
+tlvdata,payload,offered_htlcs,remote_history_hash,sha256,
 tlvdata,payload,offered_htlcs,local_msat,u64,
 tlvdata,payload,offered_htlcs,remote_msat,u64,
 tlvdata,payload,offered_htlcs,active_htlcs,byte,...
 tlvtype,payload,received_htlcs,16
+tlvdata,payload,received_htlcs,local_history_hash,sha256,
+tlvdata,payload,received_htlcs,remote_history_hash,sha256,
 tlvdata,payload,received_htlcs,local_msat,u64,
 tlvdata,payload,received_htlcs,remote_msat,u64,
 tlvdata,payload,received_htlcs,active_htlcs,byte,...

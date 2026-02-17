@@ -108,11 +108,11 @@ json_db.register_dict('contacts', tuple, None)
 # register dicts that require key conversion
 for key in [
         'adds', 'locked_in', 'settles', 'fails', 'fee_updates', 'buckets',
-        'unacked_updates', 'unfulfilled_htlcs', 'onion_keys']:
+        'unacked_updates', 'unfulfilled_htlcs', 'onion_keys', 'checkpoints']:
     json_db.register_dict_key(key, int)
 for key in ['log']:
     json_db.register_dict_key(key, lambda x: HTLCOwner(int(x)))
-for key in ['locked_in', 'fails', 'settles']:
+for key in ['locked_in', 'fails', 'settles', 'checkpoints']:
     json_db.register_parent_key(key, lambda x: HTLCOwner(int(x)))
 
 

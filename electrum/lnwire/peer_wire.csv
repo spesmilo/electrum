@@ -262,3 +262,15 @@ msgtype,onion_message,513
 msgdata,onion_message,path_key,point,
 msgdata,onion_message,len,u16,
 msgdata,onion_message,onion_message_packet,byte,len
+msgtype,query_htlc_history,35009
+msgdata,query_htlc_history,channel_id,channel_id,
+msgdata,query_htlc_history,proposer,u8,
+msgdata,query_htlc_history,htlc_id,u32,
+msgtype,reply_htlc_history,35010
+msgdata,reply_htlc_history,channel_id,channel_id,
+msgdata,reply_htlc_history,proposer,u8,
+msgdata,reply_htlc_history,local_first_hash,sha256,
+msgdata,reply_htlc_history,remote_first_hash,sha256,
+msgdata,reply_htlc_history,tlvs,reply_htlc_history_tlvs,
+tlvtype,reply_htlc_history_tlvs,htlc_history,1
+tlvdata,reply_htlc_history_tlvs,htlc_history,htlc_history,byte,...
