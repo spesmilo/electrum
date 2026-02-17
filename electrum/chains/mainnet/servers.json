@@ -366,11 +366,6 @@
         "t": "50001",
         "version": "1.4.2"
     },
-    "lavahost.org": {
-        "pruning": "-",
-        "s": "50002",
-        "version": "1.4.2"
-    },
     "node.degga.net": {
         "pruning": "-",
         "s": "50002",
