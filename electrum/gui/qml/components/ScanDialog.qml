@@ -6,7 +6,8 @@ import org.electrum
 
 import "controls"
 
-// currently not used on android, kept for future use when qt6 camera stops crashing
+// currently not used on android, kept for testing on desktop, and future use
+// on android when qt6 camera support becomes usable (i.e. stops crashing)
 ElDialog {
     id: scanDialog
 
@@ -50,4 +51,6 @@ ElDialog {
             onClicked: doReject()
         }
     }
+
+    onClosed: destroy()
 }
