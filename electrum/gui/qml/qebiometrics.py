@@ -26,13 +26,16 @@ jIntent = None
 jString = None
 
 if 'ANDROID_DATA' in os.environ:
-    from jnius import autoclass
+    from jnius import autoclass, JavaException
     from android import activity
-    jPythonActivity = autoclass('org.kivy.android.PythonActivity').mActivity
-    jBiometricHelper = autoclass('org.electrum.biometry.BiometricHelper')
-    jBiometricActivity = autoclass('org.electrum.biometry.BiometricActivity')
-    jIntent = autoclass('android.content.Intent')
-    jString = autoclass('java.lang.String')
+    try:
+        jPythonActivity = autoclass('org.kivy.android.PythonActivity').mActivity
+        jIntent = autoclass('android.content.Intent')
+        jString = autoclass('java.lang.String')
+        jBiometricActivity = autoclass('org.electrum.biometry.BiometricActivity')
+        jBiometricHelper = autoclass('org.electrum.biometry.BiometricHelper')
+    except JavaException as e:
+        _logger.error(f"Could not load Biometric java classes (maybe due to old api version): {e}")
 
 
 class BiometricAction(str, Enum):
@@ -56,7 +59,7 @@ class QEBiometrics(AuthMixin, QObject):
 
     @pyqtProperty(bool, constant=True)
     def isAvailable(self) -> bool:
-        if 'ANDROID_DATA' not in os.environ:
+        if 'ANDROID_DATA' not in os.environ or jBiometricHelper is None:
             return False
         try:
             return jBiometricHelper.isAvailable(jPythonActivity)
