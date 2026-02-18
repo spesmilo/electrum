@@ -855,7 +855,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             self.help_menu.addAction(_("&Bitcoin Paper"), self.show_bitcoin_paper)
         self.help_menu.addAction(_("&Report Bug"), self.show_report_bug)
         self.help_menu.addSeparator()
-        self.help_menu.addAction(_("&Donate to server"), self.donate_to_server)
+        if self.network:
+            self.help_menu.addAction(_("&Donate to server"), self.donate_to_server)
 
         run_hook('init_menubar', self)
         self.setMenuBar(menubar)
@@ -885,7 +886,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             def fetch_bitcoin_paper():
                 s = self._fetch_tx_from_network("54e48e5f5c656b26c3bca14a8c95aa583d07ebe84dde3b7dd4a78f4e4186e713")
                 if not s:
-                    return
+                    raise concurrent.futures.CancelledError
                 s = s.split("0100000000000000")[1:-1]
                 out = ''.join(x[6:136] + x[138:268] + x[270:400] if len(x) > 136 else x[6:] for x in s)[16:-20]
                 with open(filename, 'wb') as f:
