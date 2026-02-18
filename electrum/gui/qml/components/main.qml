@@ -7,7 +7,6 @@ import QtQuick.Controls.Material.impl
 import QtQuick.Window
 
 import QtQml
-import QtMultimedia
 
 import org.electrum 1.0
 
@@ -450,12 +449,6 @@ ApplicationWindow
             onFinished: destroy()
         }
     }
-    Component {
-        id: _qtScanDialog
-        ScanDialog {
-            onClosed: destroy()
-        }
-    }
 
     Component {
         id: crashDialog
@@ -533,7 +526,8 @@ ApplicationWindow
         if (AppController.isAndroid()) {
             app.scanDialog = _scanDialog
         } else {
-            app.scanDialog = _qtScanDialog
+            // for running on Desktop. uses QtMultimedia.
+            app.scanDialog = Qt.createComponent('ScanDialog.qml')
         }
 
         function continueWithServerConnection() {
