@@ -174,8 +174,8 @@ WizardComponent {
                 textRole: 'text'
                 valueRole: 'value'
                 model: [
-                    { text: qsTr('Electrum'), value: 'electrum' },
-                    { text: qsTr('BIP39'), value: 'bip39' }
+                    { text: 'Electrum', value: 'electrum' },
+                    { text: 'BIP39', value: 'bip39' }
                 ]
                 onActivated: {
                     setSeedTypeHelpText()
