@@ -37,15 +37,21 @@ class TestPaymentIdentifier(ElectrumTestCase):
 
     def test_maybe_extract_bech32_lightning_payment_identifier(self):
         bolt11 = "lnbc1ps9zprzpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqsp5zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygsdqq9qypqszpyrpe4tym8d3q87d43cgdhhlsrt78epu7u99mkzttmt2wtsx0304rrw50addkryfrd3vn3zy467vxwlmf4uz7yvntuwjr2hqjl9lw5cqwtp2dy"
+        bolt12 = "lno1pqpzacq2qqgwuquxfmcztl0gldv8mxy3sm8x5jscdz27u39fy6luxu8zcdn9j73l3uprukkghkdufdz6adxl0ejhy0lmzfykj08u6df9v4v2c93qknz8eggzq2jyyszrrt35mmkyl7efrv5x8a3wspk07pghey4a5kcm4ef76p0ksqpnh7fqgmq9eaf7ntqspcksqkqk8ngvjtjp585mqw3qata3xe8aycgkpprk87yqcxhh705dxauxkghsc9xywqpez7lt5gw67kqwejl83unmuc7r44h32durffs4rmpcgrhxa8x8y9gqxgy9w2tqgpxqk0tl487a9ssuchyh5p9t3le3n5ylhevggk6ly8wzxvds0jawct4spe2tzqfp5d34kah9ss"
         lnurl = "lnurl1dp68gurn8ghj7um9wfmxjcm99e5k7telwy7nxenrxvmrgdtzxsenjcm98pjnwxq96s9"
         self.assertEqual(bolt11, maybe_extract_bech32_lightning_payment_identifier(f"{bolt11}".upper()))
         self.assertEqual(bolt11, maybe_extract_bech32_lightning_payment_identifier(f"lightning:{bolt11}"))
         self.assertEqual(bolt11, maybe_extract_bech32_lightning_payment_identifier(f"  lightning:{bolt11}   ".upper()))
+        self.assertEqual(bolt12, maybe_extract_bech32_lightning_payment_identifier(f"{bolt12}".upper()))
+        self.assertEqual(bolt12, maybe_extract_bech32_lightning_payment_identifier(f"lightning:{bolt12}"))
+        self.assertEqual(bolt12, maybe_extract_bech32_lightning_payment_identifier(f"  lightning:{bolt12}   ".upper()))
         self.assertEqual(lnurl, maybe_extract_bech32_lightning_payment_identifier(lnurl))
         self.assertEqual(lnurl, maybe_extract_bech32_lightning_payment_identifier(f"  lightning:{lnurl}   ".upper()))
 
         self.assertEqual(None, maybe_extract_bech32_lightning_payment_identifier(f"bitcoin:{bolt11}"))
+        self.assertEqual(None, maybe_extract_bech32_lightning_payment_identifier(f"bitcoin:{bolt12}"))
         self.assertEqual(None, maybe_extract_bech32_lightning_payment_identifier(f":{bolt11}"))
+        self.assertEqual(None, maybe_extract_bech32_lightning_payment_identifier(f":{bolt12}"))
         self.assertEqual(None, maybe_extract_bech32_lightning_payment_identifier(f"garbage text"))
 
     def test_remove_uri_prefix(self):
@@ -108,6 +114,38 @@ class TestPaymentIdentifier(ElectrumTestCase):
         self.assertFalse(pi.need_resolve())
         self.assertFalse(pi.need_finalize())
         self.assertFalse(pi.is_multiline())
+
+    def test_bolt12(self):
+        offers = [
+            ('lno1pqpzacq2qqgwuquxfmcztl0gldv8mxy3sm8x5jscdz27u39fy6luxu8zcdn9j73l3up5nwlwchur9zukwx743mvm0rvftrhskna22pcvtkyhufn5rc97j3gzqffs859lkadpfasgwxj47xvml7jgekez0lpfuwzhegyxsn2lzdx86qpny7xrmgwj6lphxcfauu22kenqnty4tqdlgnh8tyg87lamqe84nmh2vn0a2n908l7z7cfjghjsuusv7k079upfw0x7dpzavqpwj8swx9ee9q9cumg07fk4gvlajyhy6lfjv0cfe9gqxg0gykehtgjkxwzz24rqdssj4fjcm8xhv2rwel04ed4up2h5sf8n6y7scr0q5rt65k06s6u3mvefzer7qq', True),
+            ('lno1pgqppmsrse80qf0aara4slvcjxrvu6j2rp5ftmjy4yntlsmsutpkvkt6878s9h02lqjy3hxc0x67pvwmu3evl6nsnvyy6adl2vn0dym4m2hdtrlnqgprp7jxwvnz5zj7xhz0fwel78cj0u90zgzpwr6we8j0nwzuv5tx9egqxdn72n27tdyers8ffdc2n75cydcl4tkd5lee0trwaekj9luzz5ydqh6cz07448ldts3yzkdk09ekl9t53ryq9lvvpuq90cmylys5saumem93wtvfd77z4alynefyj7ua7kr69dnfqqet7nsydwqa9ghdfy8udkc7x86ydl5l4nrsctfl8d3w4ejcceh9zqh0acy4cc4rcv6wv7zr6gh7fwsjzu8q', False),
+        ]
+        for bolt12, amount_locked in offers:
+            for valid_pi_str in [
+                f'{bolt12}',
+                f'  {bolt12}',
+                f'{bolt12}  ',
+                f'lightning:{bolt12}',
+                f'  lightning:{bolt12}',
+                f'lightning:{bolt12}  ',
+                f'lightning:{bolt12.upper()}',
+                f'lightning:{bolt12}'.upper(),
+            ]:
+                pi = PaymentIdentifier(None, valid_pi_str)
+                self.assertTrue(pi.is_valid())
+                self.assertEqual(PaymentIdentifierType.BOLT12_OFFER, pi.type)
+                self.assertEqual(pi.is_amount_locked(), amount_locked)
+                self.assertFalse(pi.is_error())
+                self.assertIsNotNone(pi.bolt12_offer)
+                self.assertTrue(pi.need_finalize())
+                self.assertFalse(pi.is_multiline())
+
+            for invalid_pi_str in [
+                f'lightning:  {bolt12}',
+                f'bitcoin:{bolt12}'
+            ]:
+                pi = PaymentIdentifier(None, invalid_pi_str)
+                self.assertFalse(pi.is_valid())
 
     def test_bip21(self):
         bip21 = 'bitcoin:bc1qj3zx2zc4rpv3npzmznxhdxzn0wm7pzqp8p2293?message=unit_test'
