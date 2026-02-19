@@ -60,7 +60,8 @@ print("Found {} .py files to translate".format(len(files_list)))
 
 # Generate fresh translation template
 print('Generating template...')
-cmd = ["xgettext", "-s", "--from-code", "UTF-8", "--language", "Python", "--no-wrap", "-f", f"{build_dir}/app.fil", f"--output={build_dir}/messages_gettext.pot"]
+# note: do not use xgettext option "--sort-output", as that makes human translators have to context-switch all the time
+cmd = ["xgettext", "--from-code", "UTF-8", "--language", "Python", "--no-wrap", "-f", f"{build_dir}/app.fil", f"--output={build_dir}/messages_gettext.pot"]
 subprocess.check_output(cmd)
 
 # add QML translations
