@@ -377,6 +377,7 @@ class SuccessfulTest(Exception): pass
 
 
 def inject_chan_into_gossipdb(*, channel_db: ChannelDB, graph: Graph, node1name: str, node2name: str) -> None:
+    print(f"injecting channel {node1name} -> {node2name} into channel_db")
     chan_ann_raw = graph.channels[(node1name, node2name)].construct_channel_announcement_without_sigs()[0]
     chan_ann_dict = decode_msg(chan_ann_raw)[1]
     channel_db.add_channel_announcements(chan_ann_dict, trusted=True)

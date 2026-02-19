@@ -5,8 +5,7 @@ import time
 import dataclasses
 import logging
 from functools import partial
-from unittest.mock import Mock
-from types import MappingProxyType
+from unittest.mock import patch
 from aiorpcx import NetAddress
 
 import electrum_ecc as ecc
@@ -17,18 +16,19 @@ from electrum.lnmsg import decode_msg, OnionWireSerializer
 from electrum.lnonion import (
     OnionHopsDataSingle, OnionPacket, process_onion_packet, get_bolt04_onion_key, encrypt_onionmsg_data_tlv,
     get_shared_secrets_along_route, new_onion_packet, ONION_MESSAGE_LARGE_SIZE, HOPS_DATA_SIZE, InvalidPayloadSize,
-    encrypt_hops_recipient_data, blinding_privkey)
+    encrypt_hops_recipient_data, blinding_privkey, decrypt_onionmsg_data_tlv)
 from electrum.crypto import get_ecdh, privkey_to_pubkey
 from electrum.lntransport import LNPeerAddr
 from electrum.lnutil import LnFeatures, Keypair, MIN_FINAL_CLTV_DELTA_ACCEPTED, REMOTE
 from electrum.onion_message import (
-    create_blinded_path, OnionMessageManager, NoRouteFound, Timeout, get_blinded_paths_to_me,
+    create_blinded_path, OnionMessageManager, NoRouteFound, Timeout,
+    create_route_to_introduction_point, get_blinded_paths_to_me
 )
 from electrum.util import bfh, read_json_file, OldTaskGroup, get_asyncio_loop
 from electrum.logging import console_stderr_handler
 
 from . import ElectrumTestCase
-from .test_lnpeer import TestPeer
+from .test_lnpeer import TestPeer, inject_chan_into_gossipdb
 
 
 TIME_STEP = 0.01  # run tests 100 x faster
@@ -531,3 +531,67 @@ class TestOnionMessageUtils(TestPeer):
         self.assertEqual(blinded_path['num_hops'], int.to_bytes(len(blinded_path['path'])))
         self.assertIn('blinded_node_id', blinded_path['path'][0])
         self.assertIn('encrypted_recipient_data', blinded_path['path'][0])
+
+    async def test_create_route_to_introduction_point(self):
+        # A -- B -- C -- D -- E
+        # Alice constructs route to Edward as introduction point to some blinded path
+        line_graph = self.GRAPH_DEFINITIONS['line_graph']
+        graph = self.prepare_chans_and_peers_in_graph(line_graph)
+        alice, bob, carol, dave, edward = graph.workers.values()
+
+        session_key = os.urandom(32)
+        introduction_point = edward.node_keypair.pubkey
+        first_path_key = ecc.ECPrivkey.generate_random_key().get_public_key_bytes()
+        blinded_path = {
+            'first_path_key': first_path_key,
+        }
+        with self.assertRaises(NoRouteFound):
+            create_route_to_introduction_point(alice, blinded_path, introduction_point, session_key)
+
+        for name, definition in line_graph.items():
+            for channel_partner in definition.get('channels', {}):
+                inject_chan_into_gossipdb(
+                    channel_db=alice.channel_db,
+                    graph=graph,
+                    node1name=name,
+                    node2name=channel_partner,
+                )
+
+        # patch is_onion_message_node so we don't have to inject node announcements
+        with patch('electrum.onion_message.is_onion_message_node', return_value=True):
+            r = create_route_to_introduction_point(alice, blinded_path, introduction_point, session_key)
+        peer, path_key, hops_data, blinded_node_ids = r
+        # alice hands the onion over to bob
+        self.assertEqual(peer.pubkey, bob.lnpeermgr.node_keypair.pubkey)
+
+        self.assertEqual(path_key, ecc.ECPrivkey(session_key).get_public_key_bytes())
+        self.assertEqual(len(hops_data), 3)
+        self.assertEqual(len(hops_data), len(blinded_node_ids))
+
+        # bob unwraps the first layer, sees the next peer, next peer should be carol
+        self.assertEqual(hops_data[0].blind_fields['next_node_id']['node_id'], carol.lnpeermgr.node_keypair.pubkey)
+        self.assertEqual(hops_data[1].blind_fields['next_node_id']['node_id'], dave.lnpeermgr.node_keypair.pubkey)
+        self.assertEqual(hops_data[2].blind_fields['next_node_id']['node_id'], edward.lnpeermgr.node_keypair.pubkey)
+        self.assertEqual(hops_data[2].blind_fields['next_path_key_override']['path_key'], first_path_key)
+
+        # verify that the recipient data is encrypted to the correct node
+        hop_shared_secrets, blinded_node_ids = get_shared_secrets_along_route(
+            (bob.node_keypair.pubkey, carol.node_keypair.pubkey, dave.node_keypair.pubkey),
+            session_key)
+        for hop, ss in zip(hops_data, hop_shared_secrets):
+            encrypted_recipient_data = hop.payload['encrypted_recipient_data']['encrypted_recipient_data']
+            decrypt_onionmsg_data_tlv(
+                shared_secret=ss,
+                encrypted_recipient_data=encrypted_recipient_data,
+            )
+
+        # now Bob is IP, Alice is directly connected to IP
+        introduction_point = bob.node_keypair.pubkey
+        r = create_route_to_introduction_point(alice, blinded_path, introduction_point, session_key)
+        peer, path_key, hops_data, blinded_node_ids = r
+        self.assertEqual(path_key, first_path_key)
+        self.assertEqual(len(hops_data), 0)
+        self.assertEqual(len(blinded_node_ids), 0)
+        alice_bob_peer = alice.lnpeermgr.get_peer_by_pubkey(bob.node_keypair.pubkey)
+        self.assertIsNotNone(alice_bob_peer)
+        self.assertEqual(peer, alice_bob_peer)
