@@ -208,51 +208,50 @@ def create_route_to_introduction_point(
 
     # last edge is to introduction point and start of blinded path. remove from route
     assert path[-1].end_node == introduction_point, 'last hop in route must be introduction point'
+    assert len(path) > 1, "if we are directly connected to the IP, why didn't we return the peer above?"
 
     peer = lnwallet.lnpeermgr.get_peer_by_pubkey(path[0].end_node)
     assert peer, "first hop is not a peer"
 
+    # rm last hop (ip-1 -> ip) as it is added explicitly from the blinded path we got (final_hop_pre_ip)
     path = path[:-1]
 
-    if len(path) == 0:
-        # we pass the onion directly to the introduction point
-        path_key = blinded_path['first_path_key']
-    else:
-        # we construct a route to the introduction point
-        payment_path_pubkeys = [edge.end_node for edge in path]
-        hop_shared_secrets, blinded_node_ids = get_shared_secrets_along_route(
-            payment_path_pubkeys,
-            session_key)
+    # we construct a route to the introduction point
+    payment_path_pubkeys = [edge.end_node for edge in path]
+    hop_shared_secrets, blinded_node_ids = get_shared_secrets_along_route(
+        payment_path_pubkeys,
+        session_key)
 
-        for edge in path[:-1]:
-            hop = OnionHopsDataSingle(
-                tlv_stream_name='onionmsg_tlv',
-                blind_fields={'next_node_id': {'node_id': edge.end_node}},
-            )
-            hops_data.append(hop)
-
-        # final hop pre-ip, add next_path_key_override
-        final_hop_pre_ip = OnionHopsDataSingle(
+    # exclude first hop (us to first node on path): we don't need to a layer for ourselves
+    for edge in path[1:]:
+        hop = OnionHopsDataSingle(
             tlv_stream_name='onionmsg_tlv',
-            blind_fields={
-                'next_node_id': {'node_id': introduction_point},
-                'next_path_key_override': {'path_key': blinded_path['first_path_key']},
-            },
+            blind_fields={'next_node_id': {'node_id': edge.end_node}},
         )
-        hops_data.append(final_hop_pre_ip)
+        hops_data.append(hop)
 
-        # encrypt encrypted_data_tlv here
-        for i, hop in enumerate(hops_data):
-            encrypted_recipient_data = encrypt_onionmsg_data_tlv(
-                shared_secret=hop_shared_secrets[i],
-                **hop.blind_fields)
-            payload = dict(hop.payload)
-            payload['encrypted_recipient_data'] = {
-                'encrypted_recipient_data': encrypted_recipient_data
-            }
-            hops_data[i] = dataclasses.replace(hop, payload=payload)
+    # final hop pre-ip, add next_path_key_override
+    final_hop_pre_ip = OnionHopsDataSingle(
+        tlv_stream_name='onionmsg_tlv',
+        blind_fields={
+            'next_node_id': {'node_id': introduction_point},
+            'next_path_key_override': {'path_key': blinded_path['first_path_key']},
+        },
+    )
+    hops_data.append(final_hop_pre_ip)
 
-        path_key = ecc.ECPrivkey(session_key).get_public_key_bytes()
+    # encrypt encrypted_data_tlv here
+    for i, hop in enumerate(hops_data):
+        encrypted_recipient_data = encrypt_onionmsg_data_tlv(
+            shared_secret=hop_shared_secrets[i],
+            **hop.blind_fields)
+        payload = dict(hop.payload)
+        payload['encrypted_recipient_data'] = {
+            'encrypted_recipient_data': encrypted_recipient_data
+        }
+        hops_data[i] = dataclasses.replace(hop, payload=payload)
+
+    path_key = ecc.ECPrivkey(session_key).get_public_key_bytes()
 
     return peer, path_key, hops_data, blinded_node_ids
 
@@ -628,7 +627,7 @@ class OnionMessageManager(Logger):
             try:
                 self._send_pending_message(key)
             except BaseException as e:
-                self.logger.debug(f'error while sending {key=} {e!r}')
+                self.logger.debug(f'error while sending {key=}: ', exc_info=True)
                 req.future.set_exception(copy.copy(e))
                 # NOTE: above, when passing the caught exception instance e directly it leads to GeneratorExit() in
                 if isinstance(e, NoRouteFound) and e.peer_address:
