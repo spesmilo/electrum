@@ -95,18 +95,19 @@ ElDialog {
             }
         }
 
-        GridLayout {
-            width: parent.width
-	    columns: 2
+        ButtonContainer {
+            Layout.fillWidth: true
 
             FlatButton {
                 Layout.fillWidth: true
+                Layout.preferredWidth: 1
                 text: qsTr('Onchain')
                 icon.source: '../../icons/bitcoin.png'
                 onClicked: { dialog.isLightning = false; doAccept() }
             }
             FlatButton {
                 Layout.fillWidth: true
+                Layout.preferredWidth: 1
                 enabled: Daemon.currentWallet.isLightning && (Daemon.currentWallet.lightningCanReceive.satsInt
                             > amountBtc.textAsSats.satsInt || Daemon.currentWallet.canGetZeroconfChannel)
                 text: qsTr('Lightning')
