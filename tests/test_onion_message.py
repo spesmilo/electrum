@@ -363,6 +363,13 @@ class TestOnionMessageManager(ElectrumTestCase):
         n = MockNetwork()
         lnw = self.create_mock_lnwallet(name='test_request_and_reply', has_anchors=False)
 
+        # mock add_peer for direct connection fallback
+        async def mock__add_peer(host, port, node_id):
+            mock_peer = MockPeer(pubkey=node_id)
+            # lnw.lnpeermgr._peers[node_id] = mock_peer
+            return mock_peer
+        lnw.lnpeermgr._add_peer = mock__add_peer
+
         def slow(*args, **kwargs):
             time.sleep(2*TIME_STEP)
 
