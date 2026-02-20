@@ -33,12 +33,8 @@ RUN apt -y update -qq \
 
 
 ENV ANDROID_NDK_HOME="${ANDROID_HOME}/android-ndk"
-#ENV ANDROID_NDK_VERSION="23b"
-#ENV ANDROID_NDK_HASH="c6e97f9c8cfe5b7be0a9e6c15af8e7a179475b7ded23e2d1c1fa0945d6fb4382"
-#ENV ANDROID_NDK_VERSION="27d"
-#ENV ANDROID_NDK_HASH="601246087a682d1944e1e16dd85bc6e49560fe8b6d61255be2829178c8ed15d9"
-ENV ANDROID_NDK_VERSION="23d-canary"
-ENV ANDROID_NDK_HASH="6944ffc20ab018ff4ef6a403048d0a99d50a0630c3eae690c8f803c452f46f3e"
+ENV ANDROID_NDK_VERSION="28c"
+ENV ANDROID_NDK_HASH="dfb20d396df28ca02a8c708314b814a4d961dc9074f9a161932746f815aa552f"
 ENV ANDROID_NDK_HOME_V="${ANDROID_NDK_HOME}-r${ANDROID_NDK_VERSION}"
 
 # get the latest version from https://developer.android.com/ndk/downloads/index.html
@@ -48,31 +44,21 @@ ENV ANDROID_NDK_DL_URL="https://dl.google.com/android/repository/${ANDROID_NDK_A
 # below disabled in favor of CI build download
 
 # download and install Android NDK
-#RUN curl --location --progress-bar \
-#        "${ANDROID_NDK_DL_URL}" \
-#        --output "${ANDROID_NDK_ARCHIVE}" \
-#    && echo "${ANDROID_NDK_HASH} ${ANDROID_NDK_ARCHIVE}" | sha256sum -c - \
-#    && mkdir --parents "${ANDROID_NDK_HOME_V}" \
-#    && unzip -q "${ANDROID_NDK_ARCHIVE}" -d "${ANDROID_HOME}" \
-#    && ln -sfn "${ANDROID_NDK_HOME_V}" "${ANDROID_NDK_HOME}" \
-#    && rm -rf "${ANDROID_NDK_ARCHIVE}"
-
-# temporary build using NDK from CI
-ENV CI_REV="12186248"
-ENV CI_NDK_FILE="android-ndk-${CI_REV}-linux-x86_64.zip"
-COPY contrib/android/dl-ndk-ci.sh /tmp/
-RUN /tmp/dl-ndk-ci.sh https://ci.android.com/builds/submitted/${CI_REV}/linux/latest/${CI_NDK_FILE} \
-    && echo "${ANDROID_NDK_HASH} android-ndk-ci-linux-x86_64.zip" | sha256sum -c - \
+RUN curl --location --progress-bar \
+        "${ANDROID_NDK_DL_URL}" \
+        --output "${ANDROID_NDK_ARCHIVE}" \
+    && echo "${ANDROID_NDK_HASH} ${ANDROID_NDK_ARCHIVE}" | sha256sum -c - \
     && mkdir --parents "${ANDROID_NDK_HOME_V}" \
-    && unzip -q "android-ndk-ci-linux-x86_64.zip" -d "${ANDROID_HOME}" \
+    && unzip -q "${ANDROID_NDK_ARCHIVE}" -d "${ANDROID_HOME}" \
     && ln -sfn "${ANDROID_NDK_HOME_V}" "${ANDROID_NDK_HOME}" \
-    && rm -rf "android-ndk-ci-linux-x86_64.zip"
+    && rm -rf "${ANDROID_NDK_ARCHIVE}"
 
 ENV ANDROID_SDK_HOME="${ANDROID_HOME}/android-sdk"
 
 # get the latest version from https://developer.android.com/studio/index.html
-ENV ANDROID_SDK_TOOLS_VERSION="9477386"
-ENV ANDROID_SDK_HASH="bd1aa17c7ef10066949c88dc6c9c8d536be27f992a1f3b5a584f9bd2ba5646a0"
+ENV ANDROID_SDK_TOOLS_VERSION="14742923"
+ENV ANDROID_SDK_HASH="04453066b540409d975c676d781da1477479dde3761310f1a7eb92a1dfb15af7"
+
 ENV ANDROID_SDK_TOOLS_ARCHIVE="commandlinetools-linux-${ANDROID_SDK_TOOLS_VERSION}_latest.zip"
 ENV ANDROID_SDK_TOOLS_DL_URL="https://dl.google.com/android/repository/${ANDROID_SDK_TOOLS_ARCHIVE}"
 ENV ANDROID_SDK_MANAGER="${ANDROID_SDK_HOME}/cmdline-tools/bin/sdkmanager --sdk_root=${ANDROID_SDK_HOME}"
@@ -130,8 +116,8 @@ RUN apt -y update -qq \
 RUN yes | ${ANDROID_SDK_MANAGER} --licenses > /dev/null
 
 
-ENV ANDROID_SDK_BUILD_TOOLS_MAJOR_V="31"
-ENV ANDROID_SDK_BUILD_TOOLS_VERSION="31.0.0"
+ENV ANDROID_SDK_BUILD_TOOLS_MAJOR_V="35"
+ENV ANDROID_SDK_BUILD_TOOLS_VERSION="35.0.0"
 
 # download platforms, API, build tools
 RUN ${ANDROID_SDK_MANAGER} "platforms;android-${ANDROID_SDK_BUILD_TOOLS_MAJOR_V}" > /dev/null && \
@@ -190,7 +176,6 @@ RUN apt -y update -qq \
     && apt -y install -qq --no-install-recommends --allow-downgrades \
         libopengl-dev \
         libegl-dev \
-        dos2unix \
     && apt -y autoremove \
     && apt -y clean
 
@@ -250,8 +235,8 @@ RUN cd /opt \
     && /opt/venv/bin/python3 -m pip install --no-build-isolation --no-dependencies -e .
 
 # install python-for-android
-ENV P4A_CHECKOUT_COMMIT="a01269f7799587ad74ee40e0b642d917b8db7d4e"
-# ^ from branch electrum_20251211 (note: careful with force-pushing! see #8162)
+ENV P4A_CHECKOUT_COMMIT="375a05de21b538d704174b1efeb3fc85d151f94e"
+# ^ from branch electrum_202602 (note: careful with force-pushing! see #8162)
 RUN cd /opt \
     && git clone https://github.com/spesmilo/python-for-android \
     && cd python-for-android \

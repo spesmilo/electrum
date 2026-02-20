@@ -6,14 +6,13 @@ from pythonforandroid.util import load_source
 util = load_source('util', os.path.join(os.path.dirname(os.path.dirname(__file__)), 'util.py'))
 
 
-assert CffiRecipe._version == "1.15.1"
-assert CffiRecipe.depends == ['setuptools', 'pycparser', 'libffi', 'python3']
+assert CffiRecipe._version == "2.0.0"
+assert CffiRecipe.depends == ['pycparser', 'libffi', 'python3'], CffiRecipe.depends
 assert CffiRecipe.python_depends == []
 
 
 class CffiRecipePinned(util.InheritedRecipeMixin, CffiRecipe):
-    version = "1.17.1"
-    sha512sum = "907129891d56351ca5cb885aae62334ad432321826d6eddfaa32195b4c7b7689a80333e6d14d0aab479a646aba148b9852c0815b80344dfffa4f183a5e74372c"
+    sha512sum = "a71b74e642e11eb50e9bb4ae0e7116bdb3c4a7c9622a3766d84506fa7994c02e09644b41b439b95ca99b0303e91891897cff38018d498eb087e0961f0ad4fb8b"
 
 
 recipe = CffiRecipePinned()
