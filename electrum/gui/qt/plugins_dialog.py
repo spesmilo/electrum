@@ -99,7 +99,7 @@ class PluginDialog(WindowModalDialog):
         if not self.plugins.is_available(self.name):
             msg = "\n".join([
                 _('This plugin requires installation of additional dependencies.'),
-                _('For Electrum to recognize external packages, you need to run it from source.')
+                _('For BTCmobick to recognize external packages, you need to run it from source.')
             ])
             self.window.show_message(msg)
             return
@@ -160,7 +160,7 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
     _logger = get_logger(__name__)
 
     def __init__(self, config: 'SimpleConfig', plugins: 'Plugins', *, gui_object: Optional['ElectrumGui'] = None):
-        WindowModalDialog.__init__(self, None, _('Electrum Plugins'))
+        WindowModalDialog.__init__(self, None, _('BTCmobick Plugins'))
         self.gui_object = gui_object
         self.config = config
         self.plugins = plugins

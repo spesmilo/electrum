@@ -33,7 +33,7 @@ class QETermsOfUseWizard(TermsOfUseWizard, QEAbstractWizard):
 class WCTermsOfUseScreen(WizardComponent):
     def __init__(self, parent, wizard):
         WizardComponent.__init__(self, parent, wizard, title='')
-        self.wizard_title = _('Electrum Terms of Use')
+        self.wizard_title = _('BTCmobick Terms of Use')
         self.img_label = QLabel()
         pixmap = QPixmap(icon_path('electrum_darkblue_1.png'))
         self.img_label.setPixmap(pixmap)

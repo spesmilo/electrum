@@ -47,7 +47,7 @@ WizardComponent {
         Label {
             Layout.alignment: Qt.AlignHCenter
             Layout.preferredWidth: parent.width
-            text: qsTr("If you are unsure what this is, leave them unchecked and Electrum will automatically select servers.")
+            text: qsTr("If you are unsure what this is, leave them unchecked and BTCmobick will automatically select servers.")
             wrapMode: Text.WordWrap
             horizontalAlignment: Text.AlignHLeft
             font.pixelSize: constants.fontSizeMedium

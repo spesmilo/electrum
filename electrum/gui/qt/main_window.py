@@ -301,8 +301,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         # If the option hasn't been set yet
         if not config.cv.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS.is_set():
             choice = self.question(title=f"{constants.APP_NAME_SHORT} - " + _("Enable update check"),
-                                   msg=_("For security reasons we advise that you always use the latest version of BTCMOBICK.") + " " +
-                                       _("Would you like to be notified when there is a newer version of BTCMOBICK available?"))
+                                   msg=_("For security reasons we advise that you always use the latest version of BTCmobick.") + " " +
+                                       _("Would you like to be notified when there is a newer version of BTCmobick available?"))
             config.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS = bool(choice)
 
         self._update_check_thread = None
@@ -311,7 +311,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             # to prevent GC from getting in our way.
             def on_version_received(v):
                 if UpdateCheck.is_newer(v):
-                    self.update_check_button.setText(_("Update to BTCMOBICK {} is available").format(v))
+                    self.update_check_button.setText(_("Update to BTCmobick {} is available").format(v))
                     self.update_check_button.clicked.connect(lambda: self.show_update_check(v))
                     self.update_check_button.show()
             self._update_check_thread = UpdateCheckThread()
@@ -652,8 +652,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         if self.wallet.is_watching_only():
             msg = ' '.join([
                 _("This wallet is watching-only."),
-                _("This means you will not be able to spend Bitcoins with it."),
-                _("Make sure you own the seed phrase or the private keys, before you request Bitcoins to be sent to this wallet.")
+                _("This means you will not be able to spend BTCmobick with it."),
+                _("Make sure you own the seed phrase or the private keys, before you request BTCmobick to be sent to this wallet.")
             ])
             self.show_warning(msg, title=_('Watch-only wallet'))
 
@@ -670,7 +670,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         msg = ''.join([
             _("You are in testnet mode."), ' ',
             _("Testnet coins are worthless."), '\n',
-            _("Testnet is separate from the main Bitcoin network. It is used for testing.")
+            _("Testnet is separate from the main BTCmobick network. It is used for testing.")
         ])
         cb = QCheckBox(_("Don't show this again."))
         cb_checked = False
@@ -730,7 +730,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         try:
             new_path = self.wallet.save_backup(backup_dir)
         except BaseException as reason:
-            self.show_critical(_("BTCMOBICK was unable to copy your wallet file to the specified location.") + "\n" + str(reason), title=_("Unable to create backup"))
+            self.show_critical(_("BTCmobick was unable to copy your wallet file to the specified location.") + "\n" + str(reason), title=_("Unable to create backup"))
             return
         msg = _("A copy of your wallet file was created in")+" '%s'" % str(new_path)
         self.show_message(msg, title=_("Wallet backup created"))
@@ -854,7 +854,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.help_menu.addSeparator()
         self.help_menu.addAction(_("&Documentation"), lambda: webopen(constants.APP_WEBSITE_URL)).setShortcut(QKeySequence.StandardKey.HelpContents)
         if not constants.net.TESTNET:
-            self.help_menu.addAction(_("&Bitcoin Paper"), self.show_bitcoin_paper)
+            self.help_menu.addAction(_("&BTCmobick Paper"), self.show_bitcoin_paper)
         self.help_menu.addAction(_("&Report Bug"), self.show_report_bug)
         self.help_menu.addSeparator()
         if self.network:
@@ -875,33 +875,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def show_about(self):
         QMessageBox.about(self, constants.APP_NAME,
                           (_("Version")+" %s" % ELECTRUM_VERSION + "\n\n" +
-                           _("BTCMOBICK focuses on speed and low resource usage for the BTCMOBICK network.") + " " +
+                           _("BTCmobick focuses on speed and low resource usage for the BTCmobick network.") + " " +
                            _("You do not need to perform regular backups, because your wallet can be "
                               "recovered from a secret phrase that you can memorize or write on paper.") + " " +
                            _("Startup times are instant because it operates in conjunction with high-performance "
-                              "servers that handle the most complicated parts of the Bitcoin system.") + "\n\n" +
+                              "servers that handle the most complicated parts of the BTCmobick system.") + "\n\n" +
                            _("Uses icons from the Icons8 icon pack (icons8.com).")))
 
     def show_bitcoin_paper(self):
-        filename = os.path.join(self.config.path, 'bitcoin.pdf')
-        if not os.path.exists(filename):
-            def fetch_bitcoin_paper():
-                s = self._fetch_tx_from_network("54e48e5f5c656b26c3bca14a8c95aa583d07ebe84dde3b7dd4a78f4e4186e713")
-                if not s:
-                    raise concurrent.futures.CancelledError
-                s = s.split("0100000000000000")[1:-1]
-                out = ''.join(x[6:136] + x[138:268] + x[270:400] if len(x) > 136 else x[6:] for x in s)[16:-20]
-                with open(filename, 'wb') as f:
-                    f.write(bytes.fromhex(out))
-            WaitingDialog(
-                self,
-                _("Fetching Bitcoin Paper..."),
-                fetch_bitcoin_paper,
-                on_success=lambda _: webopen('file:///' + filename),
-                on_error=self.on_error,
-            )
-            return
-        webopen('file:///' + filename)
+        webopen("https://drive.google.com/file/d/1AnP9LZ-h7u8piXq0LGjldXDpvtErQdZX/view?usp=sharing")
 
     def show_update_check(self, version=None):
         self.gui_object._update_check = UpdateCheck(latest_version=version)
@@ -910,7 +892,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         msg = ' '.join([
             _("Please report any bugs as issues on github:<br/>"),
             f'''<a href="{constants.GIT_REPO_ISSUES_URL}">{constants.GIT_REPO_ISSUES_URL}</a><br/><br/>''',
-            _("Before reporting a bug, upgrade to the most recent version of Electrum (latest release or git HEAD), and include the version number in your report."),
+            _("Before reporting a bug, upgrade to the most recent version of BTCmobick (latest release or git HEAD), and include the version number in your report."),
             _("Try to explain not only what the bug is, but how it occurs.")
          ])
         self.show_message(msg, title=f"{constants.APP_NAME_SHORT} - " + _("Reporting Bugs"), rich_text=True)
@@ -1316,7 +1298,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
         if not self.config.SWAPSERVER_URL and not self.config.SWAPSERVER_NPUB:
             if not self.question('\n'.join([
-                    _('Electrum uses Nostr in order to find liquidity providers.'),
+                    _('BTCmobick uses Nostr in order to find liquidity providers.'),
                     _('Do you want to enable Nostr?'),
             ])):
                 return None
@@ -2053,7 +2035,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         line2 = QLineEdit()
         line2.setFixedWidth(32 * char_width_in_lineedit())
         address_label = QLabel(_("Address"))
-        address_label.setToolTip(_("Bitcoin address"))
+        address_label.setToolTip(_("BTCmobick address"))
         grid.addWidget(address_label, 1, 0)
         grid.addWidget(line1, 1, 1)
         grid.addWidget(QLabel(_("Name")), 2, 0)
@@ -2069,7 +2051,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         assert not self.wallet.has_lightning()
         if self.wallet.can_have_deterministic_lightning():
             msg = _(
-                "Lightning is not enabled because this wallet was created with an old version of Electrum. "
+                "Lightning is not enabled because this wallet was created with an old version of BTCmobick. "
                 "Create lightning keys?")
         else:
             msg = _(
@@ -2176,14 +2158,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                 "private key, and verifying with the corresponding public key. The "
                 "address you have entered does not have a unique public key, so these "
                 "operations cannot be performed.") + '\n\n' + \
-               _('The operation is undefined. Not just in Electrum, but in general.')
+               _('The operation is undefined. Not just in BTCmobick, but in general.')
 
     @protected
     def do_sign(self, address, message, signature, password):
         address  = address.text().strip()
         message = message.toPlainText().strip()
         if not bitcoin.is_address(address):
-            self.show_message(_('Invalid Bitcoin address.'))
+            self.show_message(_('Invalid BTCmobick address.'))
             return
         if self.wallet.is_watching_only():
             self.show_message(_('This is a watching-only wallet.'))
@@ -2211,7 +2193,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         address  = address.text().strip()
         message = message.toPlainText().strip().encode('utf-8')
         if not bitcoin.is_address(address):
-            self.show_message(_('Invalid Bitcoin address.'))
+            self.show_message(_('Invalid BTCmobick address.'))
             return
         try:
             # This can throw on invalid base64
@@ -2338,7 +2320,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         try:
             return tx_from_any(data)
         except BaseException as e:
-            self.show_critical(_("Electrum was unable to parse your transaction") + ":\n" + repr(e))
+            self.show_critical(_("BTCmobick was unable to parse your transaction") + ":\n" + repr(e))
             return
 
     def import_channel_backup(self, encrypted: str):
@@ -2401,7 +2383,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                 with open(fileName, "rb") as f:
                     file_content = f.read()  # type: bytes
             except (ValueError, IOError, os.error) as reason:
-                self.show_critical(_("Electrum was unable to open your transaction file") + "\n" + str(reason),
+                self.show_critical(_("BTCmobick was unable to open your transaction file") + "\n" + str(reason),
                                    title=_("Unable to read file or no transaction found"))
         if file_content is None:
             return None
@@ -2560,7 +2542,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             self.do_export_privkeys(filename, private_keys, csv_button.isChecked())
         except (IOError, os.error) as reason:
             txt = "\n".join([
-                _("Electrum was unable to produce a private key-export."),
+                _("BTCmobick was unable to produce a private key-export."),
                 str(reason)
             ])
             self.show_critical(txt, title=_("Unable to create csv"))
@@ -2749,7 +2731,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             self.fx.trigger_update()
         run_hook('close_settings_dialog')
         if d.need_restart:
-            self.show_warning(_('Please restart Electrum to activate the new GUI settings'), title=_('Success'))
+            self.show_warning(_('Please restart BTCmobick to activate the new GUI settings'), title=_('Success'))
         else:
             # Some values might need to be updated if settings have changed.
             # For example 'Can send' in the lightning tab will change if the fees config is changed.
@@ -2765,7 +2747,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
         for warning in list(warnings)[:3]:
             warning = ''.join([
-                _("Are you sure you want to close Electrum?"),
+                _("Are you sure you want to close BTCmobick?"),
                 '\n\n',
                 _("An ongoing operation requires you to stay online."),
                 '\n',
@@ -3012,7 +2994,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.showing_cert_mismatch_error = True
         self.show_critical(title=_("Certificate mismatch"),
                            msg=_("The SSL certificate provided by the main server did not match the fingerprint passed in with the --serverfingerprint option.") + "\n\n" +
-                               _("Electrum will now exit."))
+                               _("BTCmobick will now exit."))
         self.showing_cert_mismatch_error = False
         self.close()
 

@@ -514,9 +514,10 @@ class NewWalletWizard(KeystoreWizard):
 
     def on_wallet_type(self, wizard_data: dict) -> str:
         t = wizard_data['wallet_type']
+        if t == '2fa':
+            raise UserFacingException(_('Wallet with two-factor authentication is disabled in BTCmobick for safety reasons.'))
         return {
             'standard': 'keystore_type',
-            '2fa': 'trustedcoin_start',
             'multisig': 'multisig',
             'imported': 'imported'
         }.get(t)

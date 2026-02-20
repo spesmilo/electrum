@@ -45,7 +45,7 @@ ElDialog {
                     visible: !Daemon.currentWallet.lightningHasDeterministicNodeId
                     iconStyle: InfoTextArea.IconStyle.Warn
                     text: Daemon.currentWallet.seedType == 'segwit'
-                        ? [ qsTr('Your channels cannot be recovered from seed, because they were created with an old version of Electrum.'), ' ',
+                        ? [ qsTr('Your channels cannot be recovered from seed, because they were created with an old version of BTCmobick.'), ' ',
                             qsTr('This means that you must save a backup of your wallet every time you create a new channel.'),
                             '\n\n',
                             qsTr('If you want this wallet to have recoverable channels, you must close your existing channels and restore this wallet from seed.')
@@ -53,7 +53,7 @@ ElDialog {
                         : [ qsTr('Your channels cannot be recovered from seed.'), ' ',
                             qsTr('This means that you must save a backup of your wallet every time you create a new channel.'),
                             '\n\n',
-                            qsTr('If you want to have recoverable channels, you must create a new wallet with an Electrum seed')
+                            qsTr('If you want to have recoverable channels, you must create a new wallet with a BTCmobick seed')
                           ].join('')
                 }
 

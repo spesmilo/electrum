@@ -76,7 +76,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             _("Recipient of the funds."),
             "\n\n",
             _("This field can contain:"), "\n",
-            _("- a Bitcoin address or BIP21 URI"), "\n",
+            _("- a BTCmobick address or BIP21 URI"), "\n",
         ]
         if constants.net.LIGHTNING_ENABLED:
             msg_parts.extend([_("- a Lightning invoice"), "\n"])
@@ -639,7 +639,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
 
         for o in outputs:
             if o.scriptpubkey is None:
-                self.show_error(_('Bitcoin Address is None'))
+                self.show_error(_('BTCmobick address is None'))
                 return True
             if o.value is None:
                 self.show_error(_('Invalid Amount'))

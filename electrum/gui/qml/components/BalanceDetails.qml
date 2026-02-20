@@ -41,7 +41,7 @@ Pane {
                         visible: Daemon.currentWallet.synchronizing || !Network.isConnected
                         text: Daemon.currentWallet.synchronizing
                                   ? qsTr('Your wallet is not synchronized. The displayed balance may be inaccurate.')
-                                  : qsTr('Your wallet is not connected to an Electrum server. The displayed balance may be outdated.')
+                                  : qsTr('Your wallet is not connected to a BTCmobick server. The displayed balance may be outdated.')
                         iconStyle: InfoTextArea.IconStyle.Warn
                     }
 

@@ -3,13 +3,13 @@
 # Note: This assumes $HOME/.local/bin is in your $PATH
 
 [Desktop Entry]
-Comment=Lightweight Bitcoin Client
+Comment=Lightweight BTCmobick Client
 Exec=electrum %u
-GenericName[en_US]=Bitcoin Wallet
-GenericName=Bitcoin Wallet
+GenericName[en_US]=BTCmobick Wallet
+GenericName=BTCmobick Wallet
 Icon=electrum
-Name[en_US]=Electrum Bitcoin Wallet
-Name=Electrum Bitcoin Wallet
+Name[en_US]=BTCmobick Wallet
+Name=BTCmobick Wallet
 Categories=Finance;Network;
 StartupNotify=true
 StartupWMClass=electrum

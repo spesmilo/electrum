@@ -14,8 +14,6 @@ WizardComponent {
         delete wizard_data['seed_type']
         if (wizard_data['wallet_type'] == 'standard')
             wizard_data['seed_type'] = 'segwit'
-        else if (wizard_data['wallet_type'] == '2fa')
-            wizard_data['seed_type'] = '2fa_segwit'
         else if (wizard_data['wallet_type'] == 'multisig')
             wizard_data['seed_type'] = 'segwit'
     }
@@ -42,12 +40,6 @@ WizardComponent {
         ElRadioButton {
             Layout.fillWidth: true
             ButtonGroup.group: wallettypegroup
-            property string wallettype: '2fa'
-            text: qsTr('Wallet with two-factor authentication')
-        }
-        ElRadioButton {
-            Layout.fillWidth: true
-            ButtonGroup.group: wallettypegroup
             property string wallettype: 'multisig'
             text: qsTr('Multi-signature wallet')
         }
@@ -55,7 +47,7 @@ WizardComponent {
             Layout.fillWidth: true
             ButtonGroup.group: wallettypegroup
             property string wallettype: 'imported'
-            text: qsTr('Import Bitcoin addresses or private keys')
+            text: qsTr('Import BTCmobick addresses or private keys')
         }
     }
 }

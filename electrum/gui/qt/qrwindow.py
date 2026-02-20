@@ -36,7 +36,7 @@ class QR_Window(QWidget):
     def __init__(self, win):
         QWidget.__init__(self)
         self.main_window = win
-        self.setWindowTitle('Electrum - '+_('Payment Request'))
+        self.setWindowTitle('BTCmobick - '+_('Payment Request'))
         self.setMinimumSize(800, 800)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         main_box = QHBoxLayout()

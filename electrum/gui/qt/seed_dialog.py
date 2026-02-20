@@ -52,7 +52,7 @@ MSG_PASSPHRASE_WARN_ISSUE4566 = _("Warning") + ": "\
                               + _("You have multiple consecutive whitespaces or leading/trailing "
                                   "whitespaces in your passphrase.") + " " \
                               + _("This is discouraged.") + " " \
-                              + _("Due to a bug, old versions of Electrum will NOT be creating the "
+                              + _("Due to a bug, old versions of BTCmobick will NOT be creating the "
                                   "same wallet as newer versions or other software.")
 
 
@@ -233,15 +233,15 @@ class SeedWidget(QWidget):
         if self.seed_type == 'bip39':
             message = ' '.join([
                 '<b>' + _('Warning') + ':</b>  ',
-                _('BIP39 seeds can be imported in Electrum, so that users can access funds locked in other wallets.'),
+                _('BIP39 seeds can be imported in BTCmobick, so that users can access funds locked in other wallets.'),
                 _('However, we do not generate BIP39 seeds, because they do not meet our safety standard.'),
                 _('BIP39 seeds do not include a version number, which compromises compatibility with future software.'),
-                _('We do not guarantee that BIP39 imports will always be supported in Electrum.'),
+                _('We do not guarantee that BIP39 imports will always be supported in BTCmobick.'),
             ])
         elif self.seed_type == 'slip39':
             message = ' '.join([
                 '<b>' + _('Warning') + ':</b>  ',
-                _('SLIP39 seeds can be imported in Electrum, so that users can access funds locked in other wallets.'),
+                _('SLIP39 seeds can be imported in BTCmobick, so that users can access funds locked in other wallets.'),
                 _('However, we do not generate SLIP39 seeds.'),
             ])
         else:
@@ -420,7 +420,7 @@ class KeysWidget(QWidget):
 class SeedDialog(WindowModalDialog):
 
     def __init__(self, parent, seed, passphrase, *, config: 'SimpleConfig'):
-        WindowModalDialog.__init__(self, parent, ('Electrum - ' + _('Seed')))
+        WindowModalDialog.__init__(self, parent, ('BTCmobick - ' + _('Seed')))
         self.setMinimumWidth(400)
         vbox = QVBoxLayout(self)
         title = _("Your wallet generation seed is:")

@@ -37,7 +37,7 @@ if TYPE_CHECKING:
     from electrum.plugin import Plugins, DeviceInfo
     from electrum.gui.qt import QElectrumApplication
 
-WIF_HELP_TEXT = (_('WIF keys are typed in Electrum, based on script type.') + '\n\n' +
+WIF_HELP_TEXT = (_('WIF keys are typed in BTCmobick, based on script type.') + '\n\n' +
                  _('A few examples') + ':\n' +
                  'p2pkh:KxZcY47uGp9a...       \t-> 1DckmggQM...\n' +
                  'p2wpkh-p2sh:KxZcY47uGp9a... \t-> 3NhNeZQXF...\n' +
@@ -158,7 +158,7 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard, MessageBoxMixin):
 
     def run_split(self, wallet_path, split_data) -> None:
         msg = _(
-            "The wallet '{}' contains multiple accounts, which are no longer supported since Electrum 2.7.\n\n"
+            "The wallet '{}' contains multiple accounts, which are no longer supported since BTCmobick 2.7.\n\n"
             "Do you want to split your wallet into multiple files?").format(wallet_path)
         if self.question(msg):
             file_list = WalletDB.split_accounts(wallet_path, split_data)
@@ -243,7 +243,7 @@ class WalletWizardComponent(WizardComponent, ABC):
 
 class WCWalletName(WalletWizardComponent, Logger):
     def __init__(self, parent, wizard):
-        WalletWizardComponent.__init__(self, parent, wizard, title=_('Electrum wallet'))
+        WalletWizardComponent.__init__(self, parent, wizard, title=_('BTCmobick wallet'))
         Logger.__init__(self)
 
         path = wizard._path
@@ -391,9 +391,8 @@ class WCWalletType(WalletWizardComponent):
         message = _('What kind of wallet do you want to create?')
         wallet_kinds = [
             ChoiceItem(key='standard', label=_('Standard wallet')),
-            ChoiceItem(key='2fa', label=_('Wallet with two-factor authentication')),
             ChoiceItem(key='multisig', label=_('Multi-signature wallet')),
-            ChoiceItem(key='imported', label=_('Import Bitcoin addresses or private keys')),
+            ChoiceItem(key='imported', label=_('Import BTCmobick addresses or private keys')),
         ]
         choices = [c for c in wallet_kinds if c.key in wallet_types]
 
@@ -962,14 +961,15 @@ class WCMultisig(WalletWizardComponent):
 
 class WCImport(WalletWizardComponent):
     def __init__(self, parent, wizard):
-        WalletWizardComponent.__init__(self, parent, wizard, title=_('Import Bitcoin Addresses or Private Keys'))
+        WalletWizardComponent.__init__(self, parent, wizard, title=_('Import BTCmobick Addresses or Private Keys'))
         message = _(
-            'Enter a list of Bitcoin addresses (this will create a watching-only wallet), or a list of private keys.')
+            'Enter a list of BTCmobick addresses (this will create a watching-only wallet), or a list of private keys.')
         header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(6)
         label = WWLabel(message)
-        label.setMinimumWidth(400)
-        header_layout.addWidget(label)
-        header_layout.addWidget(InfoButton(WIF_HELP_TEXT), alignment=Qt.AlignmentFlag.AlignRight)
+        header_layout.addWidget(label, 1)
+        header_layout.addWidget(InfoButton(WIF_HELP_TEXT), 0, Qt.AlignmentFlag.AlignTop)
 
         def is_valid(x) -> bool:
             return keystore.is_address_list(x) or keystore.is_private_key_list(x, raise_on_error=True)
@@ -1232,7 +1232,7 @@ class WCChooseHWDevice(WalletWizardComponent, Logger):
                 if sys.platform == 'win32':
                     msg += _('If your device is not detected on Windows, go to "Settings", "Devices", "Connected devices", '
                              'and do "Remove device". Then, plug your device again.') + '\n'
-                    msg += _('While this is less than ideal, it might help if you run Electrum as Administrator.') + '\n'
+                    msg += _('While this is less than ideal, it might help if you run BTCmobick as Administrator.') + '\n'
                 else:
                     msg += _('On Linux, you might have to add a new permission to your udev rules.') + '\n'
                 msg += '\n\n'

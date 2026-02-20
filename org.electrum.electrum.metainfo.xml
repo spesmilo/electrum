@@ -11,22 +11,22 @@
 <component type="desktop-application">
   <id>org.electrum.electrum</id>
 
-  <name>Electrum</name>
-  <summary>Bitcoin Wallet</summary>
+  <name>BTCmobick</name>
+  <summary>BTCmobick Wallet</summary>
 
   <metadata_license>MIT</metadata_license>
   <project_license>MIT</project_license>
 
   <description>
     <p>
-      Electrum is a lightweight Bitcoin wallet focused on speed, with low resource usage and simplifying Bitcoin.
-      Startup times are instant because it operates in conjunction with high-performance servers that handle the most complicated parts of the Bitcoin system.
+      BTCmobick is a lightweight wallet focused on speed, with low resource usage and simplifying BTCmobick.
+      Startup times are instant because it operates in conjunction with high-performance servers that handle the most complicated parts of the BTCmobick system.
     </p>
   </description>
 
-  <url type="homepage">https://www.electrum.org/</url>
+  <url type="homepage">https://www.btcmobick.org/</url>
   <developer id="org.electrum">
-      <name>The Electrum developers</name>
+      <name>The BTCmobick developers</name>
   </developer>
 
   <launchable type="desktop-id">electrum.desktop</launchable>

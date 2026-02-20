@@ -57,9 +57,9 @@ def create_fallback_node_list(fallback_nodes_dict: dict[str, dict]) -> List[LNPe
 
 GIT_REPO_URL = "https://github.com/hogusea/electrum"
 GIT_REPO_ISSUES_URL = "https://github.com/hogusea/electrum/issues"
-APP_NAME = "BTCMOBICK Genesis"
-APP_NAME_SHORT = "BTCMOBICK"
-APP_WEBSITE_URL = "https://blockchain.mobick.info"
+APP_NAME = "BTCmobick Genesis"
+APP_NAME_SHORT = "BTCmobick"
+APP_WEBSITE_URL = "https://btcmobick.org/"
 BIP39_WALLET_FORMATS = read_json('bip39_wallet_formats.json')
 
 

@@ -50,15 +50,15 @@ WizardComponent {
         var t = {
             'electrum': [
                 // not shown as electrum is the default seed type anyways and the name is self-explanatory
-                qsTr('Electrum seeds are the default seed type.'),
-                qsTr('If you are restoring from a seed previously created by Electrum, choose this option')
+                qsTr('BTCmobick seeds are the default seed type.'),
+                qsTr('If you are restoring from a seed previously created by BTCmobick, choose this option')
             ].join(' '),
             'bip39': [
-                qsTr('BIP39 seeds can be imported in Electrum, so that users can access funds locked in other wallets.'),
+                qsTr('BIP39 seeds can be imported in BTCmobick, so that users can access funds locked in other wallets.'),
                 qsTr('BIP39 seeds do not include a version number, which compromises compatibility with future software.'),
             ].join(' '),
             'slip39': [
-                qsTr('SLIP39 seeds can be imported in Electrum, so that users can access funds locked in other wallets.'),
+                qsTr('SLIP39 seeds can be imported in BTCmobick, so that users can access funds locked in other wallets.'),
             ].join(' ')
         }
         infotext.text = t[seed_variant_cb.currentValue]

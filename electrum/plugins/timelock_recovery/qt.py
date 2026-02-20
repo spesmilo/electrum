@@ -477,7 +477,7 @@ class Plugin(TimelockRecoveryPlugin):
         else:
             if not pi.is_available() or pi.type != PaymentIdentifierType.SPK or not pi.spk_is_address:
                 payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
-                payto_e.setToolTip(_("Invalid address type - must be a Bitcoin address."))
+                payto_e.setToolTip(_("Invalid address type - must be a BTCmobick address."))
                 return False
             assert pi.spk and pi.spk_is_address
             if context.wallet.is_mine(pi.text):

@@ -120,7 +120,7 @@ ElDialog {
             text_qr: dialog.channelBackup,
             text_help: qsTr('The channel you created is not recoverable from seed.')
             + ' ' + qsTr('To prevent fund losses, please save this backup on another device.')
-            + ' ' + qsTr('It may be imported in another Electrum wallet with the same seed.')
+            + ' ' + qsTr('It may be imported in another BTCmobick wallet with the same seed.')
         })
         sharedialog.open()
     }

@@ -2,7 +2,7 @@
 
 set -e
 
-PROJECT_ROOT="$(dirname "$(readlink -e "$0")")/../../.."
+PROJECT_ROOT="$(readlink -e "$(dirname "$(readlink -e "$0")")/../../..")"
 CONTRIB="$PROJECT_ROOT/contrib"
 CONTRIB_APPIMAGE="$CONTRIB/build-linux/appimage"
 DISTDIR="$PROJECT_ROOT/dist"
@@ -15,6 +15,9 @@ PIP_CACHE_DIR="$CONTRIB_APPIMAGE/.cache/pip_cache"
 
 . "$CONTRIB"/build_tools_util.sh
 
+# When building via docker on macOS, mounted volume ownership can differ and
+# trigger git's "dubious ownership" protection.
+git config --global --add safe.directory "$PROJECT_ROOT" >/dev/null 2>&1 || true
 git -C "$PROJECT_ROOT" rev-parse 2>/dev/null || fail "Building outside a git clone is not supported."
 
 export GCC_STRIP_BINARIES="1"

@@ -711,7 +711,7 @@ If disabled, the full wallet file is written to disk for every change. Experimen
     )
 
     FX_USE_EXCHANGE_RATE = ConfigVar('use_exchange_rate', default=False, type_=bool)
-    FX_CURRENCY = ConfigVar('currency', default='EUR', type_=str)
+    FX_CURRENCY = ConfigVar('currency', default='USD', type_=str)
     FX_EXCHANGE = ConfigVar('use_exchange', default='CoinGecko', type_=str)  # default exchange should ideally provide historical rates
     FX_HISTORY_RATES = ConfigVar(
         'history_rates', default=False, type_=bool,
@@ -868,11 +868,11 @@ Warning: setting this to too low will result in lots of payment failures."""),
     )
     BTC_AMOUNTS_ADD_THOUSANDS_SEP = ConfigVar(
         'amt_add_thousands_sep', default=False, type_=bool,
-        short_desc=lambda: _("Add thousand separators to bitcoin amounts"),
+        short_desc=lambda: _("Add thousand separators to BTCmobick amounts"),
     )
 
     BLOCK_EXPLORER = ConfigVar(
-        'block_explorer', default='Blockstream.info', type_=str,
+        'block_explorer', default='blockchain.mobick.info', type_=str,
         short_desc=lambda: _('Online Block Explorer'),
         long_desc=lambda: _('Choose which online block explorer to use for functions that open a web browser'),
     )

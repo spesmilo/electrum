@@ -449,7 +449,7 @@ def show_transaction(
             d.broadcast_button.setVisible(False)
     except SerializationError as e:
         _logger.exception('unable to deserialize the transaction')
-        parent.show_critical(_("Electrum was unable to deserialize the transaction:") + "\n" + str(e))
+        parent.show_critical(_("BTCmobick was unable to deserialize the transaction:") + "\n" + str(e))
     except UserCancelled:
         return
     else:
@@ -1128,4 +1128,3 @@ class TxOutputColoring:
         self.text_char_format = QTextCharFormat()
         self.text_char_format.setBackground(QBrush(self.color))
         self.text_char_format.setToolTip(tooltip)
-

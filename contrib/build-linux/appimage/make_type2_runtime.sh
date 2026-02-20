@@ -2,7 +2,22 @@
 
 set -e
 
-PROJECT_ROOT="$(dirname "$(readlink -e "$0")")/../../.."
+resolve_path() {
+    python3 - <<'PY' "$1"
+import os, sys
+print(os.path.realpath(sys.argv[1]))
+PY
+}
+
+sha256_cmd() {
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$1"
+    else
+        shasum -a 256 "$1"
+    fi
+}
+
+PROJECT_ROOT="$(dirname "$(resolve_path "$0")")/../../.."
 CONTRIB="$PROJECT_ROOT/contrib"
 CONTRIB_APPIMAGE="$CONTRIB/build-linux/appimage"
 
@@ -33,4 +48,4 @@ mv "./runtime-x86_64" "$TYPE2_RUNTIME_REPO_DIR/"
 # clean up the empty created 'out' dir to prevent permission issues
 rm -rf "$TYPE2_RUNTIME_REPO_DIR/out"
 
-info "runtime build successful: $(sha256sum "$TYPE2_RUNTIME_REPO_DIR/runtime-x86_64")"
+info "runtime build successful: $(sha256_cmd "$TYPE2_RUNTIME_REPO_DIR/runtime-x86_64")"

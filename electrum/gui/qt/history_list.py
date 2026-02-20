@@ -636,11 +636,11 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         grid.addWidget(QLabel(self.format_date(start_date)), 1, 1)
         grid.addWidget(QLabel(self.format_date(end_date)), 1, 2)
         #
-        grid.addWidget(QLabel(_("BTC balance")), 2, 0)
+        grid.addWidget(QLabel(_("BTCmobick balance")), 2, 0)
         grid.addWidget(QLabel(format_amount(start['BTC_balance'])), 2, 1)
         grid.addWidget(QLabel(format_amount(end['BTC_balance'])), 2, 2)
         #
-        grid.addWidget(QLabel(_("BTC Fiat price")), 3, 0)
+        grid.addWidget(QLabel(_("BTCmobick fiat price")), 3, 0)
         grid.addWidget(QLabel(format_fiat(start.get('BTC_fiat_price'))), 3, 1)
         grid.addWidget(QLabel(format_fiat(end.get('BTC_fiat_price'))), 3, 2)
         #
@@ -657,11 +657,11 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         grid.addWidget(QLabel(format_fiat(end.get('unrealized_gains', ''))), 6, 2)
         #
         grid2 = QGridLayout()
-        grid2.addWidget(QLabel(_("BTC incoming")), 0, 0)
+        grid2.addWidget(QLabel(_("BTCmobick incoming")), 0, 0)
         grid2.addWidget(QLabel(format_amount(flow['BTC_incoming'])), 0, 1)
         grid2.addWidget(QLabel(_("Fiat incoming")), 1, 0)
         grid2.addWidget(QLabel(format_fiat(flow.get('fiat_incoming'))), 1, 1)
-        grid2.addWidget(QLabel(_("BTC outgoing")), 2, 0)
+        grid2.addWidget(QLabel(_("BTCmobick outgoing")), 2, 0)
         grid2.addWidget(QLabel(format_amount(flow['BTC_outgoing'])), 2, 1)
         grid2.addWidget(QLabel(_("Fiat outgoing")), 3, 0)
         grid2.addWidget(QLabel(format_fiat(flow.get('fiat_outgoing'))), 3, 1)
@@ -682,8 +682,8 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             _logger.error(f"could not import electrum.plot. This feature needs matplotlib to be installed. exc={e!r}")
             self.main_window.show_message("\n\n".join([
                 _("This feature requires the 'matplotlib' Python library which is not "
-                  "included in Electrum by default."),
-                _("If you run Electrum from source you can install matplotlib to use this feature."),
+                  "included in BTCmobick by default."),
+                _("If you run BTCmobick from source you can install matplotlib to use this feature."),
                 _("It is not possible to install matplotlib inside the binary executables "
                   "(e.g. AppImage or Windows installation).")
             ]))
@@ -850,7 +850,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
                 is_csv=csv_button.isChecked(),
             )
         except (IOError, os.error) as reason:
-            export_error_label = _("Electrum was unable to produce a transaction export.")
+            export_error_label = _("BTCmobick was unable to produce a transaction export.")
             self.main_window.show_critical(export_error_label + "\n" + str(reason), title=_("Unable to export history"))
             return
         self.main_window.show_message(_("Your wallet history has been successfully exported."))

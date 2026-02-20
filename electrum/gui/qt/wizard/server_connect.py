@@ -36,7 +36,7 @@ class QEServerConnectWizard(ServerConnectWizard, QEAbstractWizard):
 class WCWelcome(WizardComponent):
     def __init__(self, parent, wizard):
         WizardComponent.__init__(self, parent, wizard, title='Network Configuration')
-        self.wizard_title = _('Electrum Bitcoin Wallet')
+        self.wizard_title = _('BTCmobick Wallet')
 
         self.first_help_label = QLabel()
         self.first_help_label.setText(_("Optional settings to customize your network connection") + ":")
@@ -45,7 +45,7 @@ class WCWelcome(WizardComponent):
         self.config_proxy_w = QCheckBox(_('Use Proxy'))
         self.config_proxy_w.setChecked(False)
         self.config_proxy_w.stateChanged.connect(self.on_updated)
-        self.config_server_w = QCheckBox(_('Select Electrum Server'))
+        self.config_server_w = QCheckBox(_('Select BTCmobick Server'))
         self.config_server_w.setChecked(False)
         self.config_server_w.stateChanged.connect(self.on_updated)
         options_w = QWidget()

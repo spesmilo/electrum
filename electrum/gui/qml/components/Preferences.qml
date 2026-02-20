@@ -55,7 +55,7 @@ Pane {
                                 if (Config.language != currentValue) {
                                     Config.language = currentValue
                                     var dialog = app.messageDialog.createObject(app, {
-                                        text: qsTr('Please restart Electrum to activate the new GUI settings')
+                                        text: qsTr('Please restart BTCmobick to activate the new GUI settings')
                                     })
                                     dialog.open()
                                 }
@@ -89,7 +89,7 @@ Pane {
                         }
                         Label {
                             Layout.fillWidth: true
-                            text: qsTr('Add thousands separators to bitcoin amounts')
+                            text: qsTr('Add thousands separators to BTCmobick amounts')
                             wrapMode: Text.Wrap
                         }
                     }
@@ -407,7 +407,7 @@ Pane {
                                     if (!checked) {
                                         var dialog = app.messageDialog.createObject(app, {
                                             title: qsTr('Are you sure?'),
-                                            text: qsTr('Electrum will have to download the Lightning Network graph, which is not recommended on mobile.'),
+                                            text: qsTr('BTCmobick will have to download the Lightning Network graph, which is not recommended on mobile.'),
                                             yesno: true
                                         })
                                         dialog.accepted.connect(function() {

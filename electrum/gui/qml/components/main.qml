@@ -613,7 +613,7 @@ ApplicationWindow
             stack.pop()
         } else {
             var dialog = app.messageDialog.createObject(app, {
-                title: qsTr('Close Electrum?'),
+                title: qsTr('Close BTCmobick?'),
                 yesno: true
             })
             dialog.accepted.connect(function() {

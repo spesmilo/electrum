@@ -29,7 +29,7 @@ WizardComponent {
         height: parent.height
         InfoTextArea {
             Layout.preferredWidth: parent.width
-            text: qsTr('Enter a list of Bitcoin addresses (this will create a watching-only wallet), or a list of private keys.')
+            text: qsTr('Enter a list of BTCmobick addresses (this will create a watching-only wallet), or a list of private keys.')
         }
 
         RowLayout {

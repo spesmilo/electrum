@@ -6,12 +6,28 @@
 
 set -e
 
-PROJECT_ROOT="$(dirname "$(readlink -e "$0")")/../../.."
+resolve_path() {
+    # macOS readlink does not support -e.
+    python3 - <<'PY' "$1"
+import os, sys
+print(os.path.realpath(sys.argv[1]))
+PY
+}
+
+stat_uid() {
+    if /usr/bin/stat -c %u "$1" >/dev/null 2>&1; then
+        /usr/bin/stat -c %u "$1"
+    else
+        /usr/bin/stat -f %u "$1"
+    fi
+}
+
+PROJECT_ROOT="$(dirname "$(resolve_path "$0")")/../../.."
 PROJECT_ROOT_OR_FRESHCLONE_ROOT="$PROJECT_ROOT"
 CONTRIB="$PROJECT_ROOT/contrib"
 CONTRIB_APPIMAGE="$CONTRIB/build-linux/appimage"
 DISTDIR="$PROJECT_ROOT/dist"
-BUILD_UID=$(/usr/bin/stat -c %u "$PROJECT_ROOT")
+BUILD_UID="$(stat_uid "$PROJECT_ROOT")"
 
 . "$CONTRIB"/build_tools_util.sh
 

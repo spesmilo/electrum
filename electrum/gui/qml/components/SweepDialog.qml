@@ -69,7 +69,7 @@ ElDialog {
                     HelpButton {
                         heading: qsTr('Sweep private keys')
                         helptext: qsTr('This will create a transaction sending all funds associated with the private keys to the current wallet') +
-                        '<br/><br/>' + qsTr('WIF keys are typed in Electrum, based on script type.') + '<br/><br/>' +
+                        '<br/><br/>' + qsTr('WIF keys are typed in BTCmobick, based on script type.') + '<br/><br/>' +
                         qsTr('A few examples') + ':<br/>' +
                         '<tt><b>p2pkh</b>:KxZcY47uGp9a...       \t-> 1DckmggQM...<br/>' +
                         '<b>p2wpkh-p2sh</b>:KxZcY47uGp9a... \t-> 3NhNeZQXF...<br/>' +

@@ -41,6 +41,39 @@ SPOT_RATE_REFRESH_TARGET = 150      # approx. every 2.5 minutes, try to refresh 
 SPOT_RATE_CLOSE_TO_STALE = 450      # try harder to fetch an update if price is getting old
 SPOT_RATE_EXPIRY = 600              # spot price becomes stale after 10 minutes -> we no longer show/use it
 
+ALLOWED_FIAT_CURRENCIES = ('USD', 'KRW')
+ALLOWED_FIAT_EXCHANGES = ('CoinGecko', 'Unblock', 'Lbank')
+COINGECKO_ASSET_ID = 'btcmobick'
+UNBLOCK_TICKER_PATH = '/api/v1/ticker/?currency_pair=KRW-BMB&forex=USD'
+UNBLOCK_TICKER_HOSTS = ('p2p.unblock.co.kr', 'mobickwallet.dobs.co.kr')
+
+
+def _to_decimal_or_none(value) -> Optional[Decimal]:
+    try:
+        return to_decimal(value)
+    except Exception:
+        return None
+
+
+def _build_usd_krw_rates(*, price_krw: Optional[Decimal], forex_krw_per_usd: Optional[Decimal]) -> Dict[str, Decimal]:
+    rates = {}
+    if price_krw is not None:
+        rates['KRW'] = price_krw
+    if price_krw is not None and forex_krw_per_usd and forex_krw_per_usd > 0:
+        rates['USD'] = price_krw / forex_krw_per_usd
+    return rates
+
+
+async def _get_unblock_ticker(exchange) -> Mapping[str, str]:
+    last_error = None
+    for host in UNBLOCK_TICKER_HOSTS:
+        try:
+            return await exchange.get_json(host, UNBLOCK_TICKER_PATH)
+        except Exception as e:
+            last_error = e
+    assert last_error is not None
+    raise last_error
+
 
 class ExchangeBase(Logger):
 
@@ -445,25 +478,57 @@ class CoinDesk(ExchangeBase):
 class CoinGecko(ExchangeBase):
 
     async def get_rates(self, ccy):
-        json = await self.get_json('api.coingecko.com', '/api/v3/exchange_rates')
-        return dict([(ccy.upper(), to_decimal(d['value']))
-                     for ccy, d in json['rates'].items()])
+        json = await self.get_json(
+            'api.coingecko.com',
+            f'/api/v3/coins/{COINGECKO_ASSET_ID}?localization=false&tickers=false'
+            '&market_data=true&community_data=false&developer_data=false&sparkline=false',
+        )
+        prices = (json.get('market_data') or {}).get('current_price') or {}
+        rates = {}
+        for ccy_code in ALLOWED_FIAT_CURRENCIES:
+            rate = _to_decimal_or_none(prices.get(ccy_code.lower()))
+            if rate is not None:
+                rates[ccy_code] = rate
+        if not rates:
+            raise Exception('failed to parse CoinGecko prices for BTCmobick')
+        return rates
 
     def history_ccys(self):
-        # CoinGecko seems to have historical data for all ccys it supports
-        return CURRENCIES[self.name()]
+        return list(ALLOWED_FIAT_CURRENCIES)
 
     async def request_history(self, ccy):
         # ref https://docs.coingecko.com/v3.0.1/reference/coins-id-market-chart
         num_days = 365
-        # Setting `num_days = "max"` started erroring (around 2024-04) with:
-        # > Your request exceeds the allowed time range. Public API users are limited to querying
-        # > historical data within the past 365 days. Upgrade to a paid plan to enjoy full historical data access
         history = await self.get_json('api.coingecko.com',
-                                      f"/api/v3/coins/bitcoin/market_chart?vs_currency={ccy}&days={num_days}")
+                                      f"/api/v3/coins/{COINGECKO_ASSET_ID}/market_chart?vs_currency={ccy.lower()}&days={num_days}")
 
         return dict([(timestamp_to_datetime(h[0]/1000, utc=True).strftime('%Y-%m-%d'), str(h[1]))
                      for h in history['prices']])
+
+
+class Unblock(CoinGecko):
+    async def get_rates(self, ccy):
+        json = await _get_unblock_ticker(self)
+        last_krw = _to_decimal_or_none(json.get('last'))
+        forex_rate = _to_decimal_or_none(json.get('rate'))
+        rates = _build_usd_krw_rates(price_krw=last_krw, forex_krw_per_usd=forex_rate)
+        if not rates:
+            raise Exception('failed to parse Unblock ticker for BTCmobick')
+        return rates
+
+
+class Lbank(CoinGecko):
+    async def get_rates(self, ccy):
+        json = await _get_unblock_ticker(self)
+        # We source Lbank quote fields from the Mobick ticker API mirror.
+        lbank_krw = _to_decimal_or_none(json.get('last_lbank'))
+        if lbank_krw is None:
+            lbank_krw = _to_decimal_or_none(json.get('last'))
+        forex_rate = _to_decimal_or_none(json.get('rate'))
+        rates = _build_usd_krw_rates(price_krw=lbank_krw, forex_krw_per_usd=forex_rate)
+        if not rates:
+            raise Exception('failed to parse Lbank ticker for BTCmobick')
+        return rates
 
 
 class Bit2C(ExchangeBase):
@@ -620,18 +685,31 @@ def get_exchanges_and_currencies():
 
 
 CURRENCIES = get_exchanges_and_currencies()
+CURRENCIES['CoinGecko'] = list(ALLOWED_FIAT_CURRENCIES)
+CURRENCIES['Unblock'] = list(ALLOWED_FIAT_CURRENCIES)
+CURRENCIES['Lbank'] = list(ALLOWED_FIAT_CURRENCIES)
+
+
+def _filter_to_allowed_fiat(ccy_to_exchanges: Dict[str, Sequence[str]]) -> Dict[str, Sequence[str]]:
+    filtered = {}
+    for ccy in ALLOWED_FIAT_CURRENCIES:
+        exchanges = ccy_to_exchanges.get(ccy, [])
+        allowed = [name for name in ALLOWED_FIAT_EXCHANGES if name in exchanges]
+        if allowed:
+            filtered[ccy] = allowed
+    return filtered
 
 
 def get_exchanges_by_ccy(history=True):
     if not history:
-        return dictinvert(CURRENCIES)
+        return _filter_to_allowed_fiat(dictinvert(CURRENCIES))
     d = {}
     exchanges = CURRENCIES.keys()
     for name in exchanges:
         klass = globals()[name]
         exchange = klass(None, None)
         d[name] = exchange.history_ccys()
-    return dictinvert(d)
+    return _filter_to_allowed_fiat(dictinvert(d))
 
 
 class FxThread(ThreadJob, EventListener, NetworkRetryManager[str]):
@@ -665,12 +743,14 @@ class FxThread(ThreadJob, EventListener, NetworkRetryManager[str]):
     @staticmethod
     def get_currencies(history: bool) -> Sequence[str]:
         d = get_exchanges_by_ccy(history)
-        return sorted(d.keys())
+        return [ccy for ccy in ALLOWED_FIAT_CURRENCIES if ccy in d]
 
     @staticmethod
     def get_exchanges_by_ccy(ccy: str, history: bool) -> Sequence[str]:
+        if ccy not in ALLOWED_FIAT_CURRENCIES:
+            return []
         d = get_exchanges_by_ccy(history)
-        return d.get(ccy, [])
+        return [name for name in ALLOWED_FIAT_EXCHANGES if name in d.get(ccy, [])]
 
     @staticmethod
     def remove_thousands_separator(text: str) -> str:
@@ -736,12 +816,23 @@ class FxThread(ThreadJob, EventListener, NetworkRetryManager[str]):
 
     def get_currency(self) -> str:
         '''Use when dynamic fetching is needed'''
-        return self.config.FX_CURRENCY
+        ccy = self.config.FX_CURRENCY
+        if ccy not in ALLOWED_FIAT_CURRENCIES:
+            ccy = ALLOWED_FIAT_CURRENCIES[0]
+            self.config.FX_CURRENCY = ccy
+        return ccy
 
     def config_exchange(self):
-        return self.config.FX_EXCHANGE
+        exchange = self.config.FX_EXCHANGE
+        allowed = self.get_exchanges_by_ccy(self.get_currency(), self.config.FX_HISTORY_RATES)
+        if exchange not in allowed:
+            exchange = allowed[0] if allowed else ALLOWED_FIAT_EXCHANGES[0]
+            self.config.FX_EXCHANGE = exchange
+        return exchange
 
     def set_currency(self, ccy: str):
+        if ccy not in ALLOWED_FIAT_CURRENCIES:
+            ccy = ALLOWED_FIAT_CURRENCIES[0]
         self.ccy = ccy
         self.config.FX_CURRENCY = ccy
         self.trigger_update()
@@ -753,6 +844,9 @@ class FxThread(ThreadJob, EventListener, NetworkRetryManager[str]):
         loop.call_soon_threadsafe(self._trigger.set)
 
     def set_exchange(self, name):
+        allowed = self.get_exchanges_by_ccy(self.get_currency(), self.config.FX_HISTORY_RATES)
+        if name not in allowed:
+            name = allowed[0] if allowed else ALLOWED_FIAT_EXCHANGES[0]
         class_ = globals().get(name) or globals().get(self.config.cv.FX_EXCHANGE.get_default_value())
         self.logger.info(f"using exchange {name}")
         if self.config_exchange() != name:

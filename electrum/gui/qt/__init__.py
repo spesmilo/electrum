@@ -622,7 +622,7 @@ def standalone_exception_dialog(exception: Union[str, BaseException]) -> None:
         app = QApplication([])
 
     msg_box = QMessageBox()
-    msg_box.setWindowTitle(_("Error starting Electrum"))
+    msg_box.setWindowTitle(_("Error starting BTCmobick"))
     msg_box.setIcon(QMessageBox.Icon.Critical)
     msg_box.setText(_("An error occurred") + ":")
     msg_box.setInformativeText(str(exception))

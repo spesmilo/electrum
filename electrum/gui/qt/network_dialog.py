@@ -244,7 +244,7 @@ class ProxyWidget(QWidget):
 
         grid.addWidget(self.proxy_cb, 0, 0, 1, 4)
         proxy_helpbutton = HelpButton(
-            _('Proxy settings apply to all connections: with Electrum servers, but also with third-party services.'))
+            _('Proxy settings apply to all connections: with BTCmobick servers, but also with third-party services.'))
         grid.addWidget(proxy_helpbutton, 0, 4, alignment=Qt.AlignmentFlag.AlignRight)
         grid.addWidget(self.proxy_mode, 1, 0, 1, 1)
         grid.addWidget(self.proxy_host, 1, 1, 1, 3)
