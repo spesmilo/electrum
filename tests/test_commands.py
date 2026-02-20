@@ -571,7 +571,7 @@ class TestCommandsTestnet(ElectrumTestCase):
                 wallet=wallet,
             )
         assert settle_result['settled'] == payment_hash
-        assert wallet.lnworker._preimages[payment_hash] == preimage.hex()
+        assert wallet.lnworker._preimages[payment_hash][0] == preimage.hex()
         with (mock.patch.object(
             wallet.lnworker,
             'get_payment_value',

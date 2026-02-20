@@ -472,11 +472,14 @@ class TestPeer(ElectrumTestCase):
     def prepare_recipient(self, w2, payment_hash, test_hold_invoice, test_failure):
         if not test_hold_invoice and not test_failure:
             return
-        preimage = bytes.fromhex(w2._preimages.pop(payment_hash.hex()))
+        preimage_hex, is_public = w2._preimages.pop(payment_hash.hex(), (None, None))
+        preimage = bytes.fromhex(preimage_hex)
         if test_hold_invoice:
             async def cb(payment_hash):
                 if not test_failure:
                     w2.save_preimage(payment_hash, preimage)
+                    if is_public:
+                        w2.mark_preimage_as_public(payment_hash)
                 else:
                     raise OnionRoutingFailure(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
             w2.register_hold_invoice(payment_hash, cb)
