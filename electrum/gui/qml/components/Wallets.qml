@@ -32,7 +32,6 @@ Pane {
 
         ColumnLayout {
             Layout.fillWidth: true
-            Layout.margins: constants.paddingLarge
 
             Heading {
                 text: qsTr('Wallets')

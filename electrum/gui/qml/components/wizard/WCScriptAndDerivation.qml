@@ -161,19 +161,19 @@ WizardComponent {
 
             InfoTextArea {
                 Layout.fillWidth: true
+                Layout.topMargin: constants.paddingMedium
+                Layout.bottomMargin: constants.paddingMedium
+                compact: true
+                backgroundColor: constants.darkerDialogBackground
                 text: qsTr('You can override the suggested derivation path.') + ' ' +
                     qsTr('If you are not sure what this is, leave this field unchanged.')
-            }
-
-            Label {
-                text: qsTr('Derivation path')
             }
 
             TextField {
                 id: derivationpathtext
                 Layout.fillWidth: true
-                Layout.leftMargin: constants.paddingMedium
                 inputMethodHints: Qt.ImhNoPredictiveText
+                placeholderText: qsTr('Derivation path')
 
                 onTextChanged: validate()
             }
@@ -181,6 +181,7 @@ WizardComponent {
             InfoTextArea {
                 id: validationtext
                 Layout.fillWidth: true
+                backgroundColor: constants.darkerDialogBackground
                 visible: text
                 iconStyle: InfoTextArea.IconStyle.Error
             }
