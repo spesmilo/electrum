@@ -45,12 +45,14 @@ WizardComponent {
 
         Label {
             Layout.fillWidth: true
-            text: !enforceExistingPassword ? qsTr('Enter password') : qsTr('Enter existing password')
+            Layout.bottomMargin: constants.paddingSmall
+            text: !enforceExistingPassword ? qsTr('Enter a password to secure access to your wallet') : qsTr('Enter your existing wallet password')
             wrapMode: Text.Wrap
         }
 
         PasswordField {
             id: password1
+            placeholderText: qsTr('Enter password')
             onTextChanged: {
                 if (enforceExistingPassword) {
                     root.passwordMatchesAnyExisting = false
@@ -59,16 +61,12 @@ WizardComponent {
             }
         }
 
-        Label {
-            text: qsTr('Enter password (again)')
-            visible: !enforceExistingPassword
-        }
-
         PasswordField {
             id: password2
             showReveal: false
             echoMode: password1.echoMode
             visible: !enforceExistingPassword
+            placeholderText: qsTr('Enter password (again)')
         }
 
         RowLayout {
@@ -100,12 +98,14 @@ WizardComponent {
             text: qsTr('Passwords don\'t match')
             visible: (password1.text != password2.text) && !enforceExistingPassword
             iconStyle: InfoTextArea.IconStyle.Warn
+            backgroundColor: constants.darkerDialogBackground
         }
         InfoTextArea {
             Layout.alignment: Qt.AlignCenter
             text: qsTr('Password too short')
-            visible: (password1.text == password2.text) && !valid && !enforceExistingPassword
+            visible: (password1.text == password2.text) && password1.text != '' && !valid && !enforceExistingPassword
             iconStyle: InfoTextArea.IconStyle.Warn
+            backgroundColor: constants.darkerDialogBackground
         }
         InfoTextArea {
             Layout.alignment: Qt.AlignCenter
@@ -116,6 +116,7 @@ WizardComponent {
                     qsTr("Creating new wallets with different passwords is not supported.")
                 ].join("\n")
             iconStyle: InfoTextArea.IconStyle.Info
+            backgroundColor: constants.darkerDialogBackground
         }
         InfoTextArea {
             Layout.alignment: Qt.AlignCenter
@@ -123,6 +124,13 @@ WizardComponent {
             visible: password1.text != "" && !valid && enforceExistingPassword
             text: qsTr('Password does not match any existing wallets password.')
             iconStyle: InfoTextArea.IconStyle.Warn
+            backgroundColor: constants.darkerDialogBackground
         }
+
+        Item {
+            Layout.preferredWidth: 1
+            Layout.fillHeight: true
+        }
+
     }
 }

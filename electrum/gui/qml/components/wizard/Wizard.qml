@@ -107,7 +107,7 @@ ElDialog {
         spacing: 0
 
         // root Item in Wizard, capture back button here and delegate to main
-        Keys.onReleased: {
+        Keys.onReleased: (event) => {
             if (event.key == Qt.Key_Back) {
                 console.log("Back button within wizard")
                 app.close() // this handles unwind of dialogs/stack
@@ -159,7 +159,7 @@ ElDialog {
             }
         }
 
-        ButtonContainer {
+        DialogButtonContainer {
             Layout.fillWidth: true
 
             FlatButton {
