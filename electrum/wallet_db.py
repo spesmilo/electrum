@@ -1246,11 +1246,11 @@ class WalletDBUpgrader(Logger):
                 ])
 
             if len(new_type_htlcs) == 0:
-                self.logger.debug(f"_convert_version_62: dropping mpp set {payment_key=}.")
+                self.logger.debug(f"_convert_version_63: dropping mpp set {payment_key=}.")
                 del mpp_sets[payment_key]
             else:
                 recv_mpp_status[1] = new_type_htlcs
-                self.logger.debug(f"_convert_version_62: migrated mpp set {payment_key=}")
+                self.logger.debug(f"_convert_version_63: migrated mpp set {payment_key=}")
                 if forwarding_key is not None:
                     # if the forwarding key is set for the old mpp set it was either a forwarding
                     # or a swap hold invoice. Assuming users of 4.6.2 don't use forwarding this update
@@ -1306,7 +1306,13 @@ class WalletDBUpgrader(Logger):
         mpp_sets = self.data.get('received_mpp_htlcs', {})
         new_mpp_sets = {}
         for payment_key, mpp_set in mpp_sets.items():
-            resolution, htlc_list, parent_set_key = mpp_set
+            if len(mpp_set) == 2:
+                # if the db has received_mpp_htlcs pre version 65 we cannot assume they have parent_set_key
+                # as _convert_version_63 doesn't set it
+                resolution, htlc_list = mpp_set
+                parent_set_key = None
+            else:
+                resolution, htlc_list, parent_set_key = mpp_set
             new_htlc_list = []
             for htlc_data_tuple in htlc_list:
                 scid, update_add_htlc, onion = htlc_data_tuple
