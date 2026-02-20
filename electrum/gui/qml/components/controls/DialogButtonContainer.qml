@@ -1,0 +1,3 @@
+ButtonContainer {
+    separatorColor: constants.darkerDialogBackground
+}

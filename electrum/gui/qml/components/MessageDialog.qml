@@ -46,8 +46,13 @@ ElDialog {
             }
         }
 
-        ButtonContainer {
+        DialogButtonContainer {
             Layout.fillWidth: true
+            function beforeLayout() {
+                if (!dialog.text) {
+                    headerComponent = null
+                }
+            }
 
             FlatButton {
                 Layout.fillWidth: true

@@ -282,7 +282,7 @@ ElDialog {
 
         Item { Layout.fillHeight: true; Layout.preferredWidth: 1 }
 
-        ButtonContainer {
+        DialogButtonContainer {
             Layout.columnSpan: 2
             Layout.fillWidth: true
             FlatButton {

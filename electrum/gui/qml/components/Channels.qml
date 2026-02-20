@@ -63,9 +63,6 @@ Pane {
             Layout.fillWidth: true
             Layout.fillHeight: true
             Layout.topMargin: constants.paddingLarge
-            Layout.bottomMargin: constants.paddingLarge
-            Layout.leftMargin: constants.paddingMedium
-            Layout.rightMargin: constants.paddingMedium
 
             verticalPadding: 0
             horizontalPadding: 0
@@ -121,6 +118,8 @@ Pane {
 
         ButtonContainer {
             Layout.fillWidth: true
+            headerComponent: null
+
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1

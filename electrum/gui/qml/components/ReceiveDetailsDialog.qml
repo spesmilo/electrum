@@ -95,7 +95,7 @@ ElDialog {
             }
         }
 
-        ButtonContainer {
+        DialogButtonContainer {
             Layout.fillWidth: true
 
             FlatButton {

@@ -35,7 +35,7 @@ ElDialog {
         implicitHeight: rootLayout.height + topPadding + bottomPadding
         padding: constants.paddingLarge
         background: Rectangle {
-            color: constants.lighterBackground
+            color: constants.highlightBackground
         }
         ColumnLayout {
             id: rootLayout

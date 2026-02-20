@@ -122,6 +122,7 @@ WizardComponent {
                 Layout.fillWidth: true
 
                 visible: cosigner
+                backgroundColor: constants.darkerDialogBackground
 
                 RowLayout {
                     width: parent.width
@@ -169,6 +170,7 @@ WizardComponent {
 
             ComboBox {
                 id: seed_variant_cb
+
                 visible: !is2fa
 
                 textRole: 'text'
@@ -188,13 +190,16 @@ WizardComponent {
                 id: infotext
                 Layout.fillWidth: true
                 Layout.columnSpan: 2
-                Layout.bottomMargin: constants.paddingLarge
+                Layout.topMargin: constants.paddingLarge
+                compact: true
+                backgroundColor: constants.darkerDialogBackground
             }
 
             SeedTextArea {
                 id: seedtext
                 Layout.fillWidth: true
                 Layout.columnSpan: 2
+                Layout.topMargin: constants.paddingLarge
 
                 placeholderText: cosigner ? qsTr('Enter cosigner seed') : qsTr('Enter your seed')
 

@@ -41,23 +41,20 @@ ElDialog {
 
             InfoTextArea {
                 id: notice
+                Layout.fillWidth: true
+                Layout.bottomMargin: constants.paddingSmall
                 text: Daemon.singlePasswordEnabled || isStartup
                     ? qsTr('Please enter password')
                     : qsTr('Wallet <b>%1</b> requires password to unlock').arg(name)
-                iconStyle: InfoTextArea.IconStyle.Warn
-                Layout.fillWidth: true
-            }
-
-            Label {
-                text: qsTr('Password')
-                Layout.fillWidth: true
-                color: Material.accentColor
+                compact: true
+                iconStyle: InfoTextArea.IconStyle.Info
+                backgroundColor: constants.darkerDialogBackground
             }
 
             PasswordField {
                 id: password
                 Layout.fillWidth: true
-                Layout.leftMargin: constants.paddingXLarge
+                placeholderText: qsTr('Password')
 
                 onTextChanged: {
                     unlockButton.enabled = true
@@ -77,16 +74,19 @@ ElDialog {
             }
         }
 
-        FlatButton {
-            id: unlockButton
+        DialogButtonContainer {
             Layout.fillWidth: true
-            icon.source: '../../icons/unlock.png'
-            text: qsTr("Unlock")
-            onClicked: {
-                unlock()
+
+            FlatButton {
+                id: unlockButton
+                Layout.fillWidth: true
+                icon.source: '../../icons/unlock.png'
+                text: qsTr("Unlock")
+                onClicked: {
+                    unlock()
+                }
             }
         }
-
     }
 
     function unlock() {

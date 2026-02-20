@@ -60,6 +60,8 @@ ElDialog {
                     Layout.fillWidth: true
                     TextHighlightPane {
                         Layout.fillWidth: true
+                        backgroundColor: constants.darkerDialogBackground
+
                         Label {
                             text: qsTr('Enter the list of private keys to sweep into this wallet')
                             width: parent.width
@@ -133,24 +135,29 @@ ElDialog {
                     iconStyle: InfoTextArea.IconStyle.Warn
                     Layout.fillWidth: true
                     Layout.margins: constants.paddingMedium
+                    backgroundColor: constants.darkerDialogBackground
                     visible: text
                 }
             }
         }
 
-        FlatButton {
+        DialogButtonContainer {
             Layout.fillWidth: true
-            Layout.preferredWidth: 1
-            enabled: valid
-            icon.source: '../../icons/tab_send.png'
-            text: qsTr('Sweep...')
-            onClicked: {
-                console.log('sweeping')
-                root.privateKeys = sweepkeys.text
-                root.accept()
+            headerComponent: null
+
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                enabled: valid
+                icon.source: '../../icons/tab_send.png'
+                text: qsTr('Sweep...')
+                onClicked: {
+                    console.log('sweeping')
+                    root.privateKeys = sweepkeys.text
+                    root.accept()
+                }
             }
         }
-
     }
 
     Bitcoin {

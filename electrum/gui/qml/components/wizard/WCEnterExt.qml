@@ -61,6 +61,7 @@ WizardComponent {
                 id: validationtext
                 Layout.fillWidth: true
                 Layout.columnSpan: 2
+                backgroundColor: constants.darkerDialogBackground
                 visible: text
                 iconStyle: InfoTextArea.IconStyle.Error
             }

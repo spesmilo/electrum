@@ -50,6 +50,7 @@ ElDialog {
             Layout.fillHeight: true
             Layout.leftMargin: constants.paddingLarge
             Layout.rightMargin: constants.paddingLarge
+            Layout.bottomMargin: constants.paddingLarge
 
             TextHighlightPane {
                 Layout.fillWidth: true
@@ -65,6 +66,7 @@ ElDialog {
 
             RowLayout {
                 Layout.fillWidth: true
+                Layout.topMargin: constants.paddingLarge
                 ElTextArea {
                     id: relays_ta
                     Layout.fillWidth: true
@@ -95,14 +97,18 @@ ElDialog {
             }
         }
 
-        FlatButton {
+        DialogButtonContainer {
             Layout.fillWidth: true
-            text: qsTr('Ok')
-            enabled: valid
-            icon.source: '../../icons/confirmed.png'
-            onClicked: {
-                Config.nostrRelays = clean_array(relays_ta.text).join(",")
-                rootItem.close()
+
+            FlatButton {
+                Layout.fillWidth: true
+                text: qsTr('Ok')
+                enabled: valid
+                icon.source: '../../icons/confirmed.png'
+                onClicked: {
+                    Config.nostrRelays = clean_array(relays_ta.text).join(",")
+                    rootItem.close()
+                }
             }
         }
     }

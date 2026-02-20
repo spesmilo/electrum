@@ -32,13 +32,17 @@ ElDialog {
 
         Item { Layout.fillHeight: true; Layout.preferredWidth: 1 }
 
-        FlatButton {
+        DialogButtonContainer {
             Layout.fillWidth: true
-            text: qsTr('Ok')
-            icon.source: '../../icons/confirmed.png'
-            onClicked: {
-                Network.proxy = proxyconfig.toProxyDict()
-                rootItem.close()
+
+            FlatButton {
+                Layout.fillWidth: true
+                text: qsTr('Ok')
+                icon.source: '../../icons/confirmed.png'
+                onClicked: {
+                    Network.proxy = proxyconfig.toProxyDict()
+                    rootItem.close()
+                }
             }
         }
     }

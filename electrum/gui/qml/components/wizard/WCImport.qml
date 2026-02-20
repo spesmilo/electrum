@@ -27,8 +27,10 @@ WizardComponent {
     ColumnLayout {
         width: parent.width
         height: parent.height
+
         InfoTextArea {
             Layout.preferredWidth: parent.width
+            backgroundColor: constants.darkerDialogBackground
             text: qsTr('Enter a list of Bitcoin addresses (this will create a watching-only wallet), or a list of private keys.')
         }
 
