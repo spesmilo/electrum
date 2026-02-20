@@ -75,6 +75,7 @@ WizardComponent {
             Layout.fillWidth: true
 
             visible: cosigner
+            backgroundColor: constants.darkerDialogBackground
 
             RowLayout {
                 width: parent.width

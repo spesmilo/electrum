@@ -143,7 +143,7 @@ ElDialog {
 
         }
 
-        ButtonContainer {
+        DialogButtonContainer {
             id: buttons
             Layout.fillWidth: true
 

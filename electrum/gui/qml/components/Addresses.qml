@@ -109,6 +109,7 @@ Pane {
 
                 verticalPadding: 0
                 horizontalPadding: 0
+                bottomPadding: 1
                 background: PaneInsetBackground {}
 
                 ElListView {
@@ -249,6 +250,8 @@ Pane {
 
         ButtonContainer {
             Layout.fillWidth: true
+            headerComponent: null
+
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1

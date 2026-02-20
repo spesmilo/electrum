@@ -7,11 +7,26 @@ Container {
     id: root
 
     property bool showSeparator: true
+    property color separatorColor: constants.darkerBackground
+    property Component headerComponent: Component {
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 2
+            Layout.leftMargin: constants.paddingSmall
+            Layout.rightMargin: constants.paddingSmall
+            color: root.separatorColor
+        }
+    }
 
+    property var _contentRootItem
+    property var _headerItem
     property Item _layout
 
     function fillContentItem() {
-        var contentRoot = containerLayout.createObject(root)
+        var outerLayout = rootLayout.createObject(root)
+        if (headerComponent != null)
+            _headerItem = headerComponent.createObject(outerLayout)
+        var contentRoot = containerLayout.createObject(outerLayout)
 
         contentRoot.children.length = 0 // empty array
         let total = contentChildren.length
@@ -32,7 +47,8 @@ Container {
             contentRoot.children.push(button)
         }
 
-        contentItem = contentRoot
+        contentItem = outerLayout //contentRoot
+        _contentRootItem = contentRoot
     }
 
     // override this function to dynamically add buttons.
@@ -41,6 +57,13 @@ Container {
     Component.onCompleted: {
         beforeLayout()
         fillContentItem()
+    }
+
+    Component {
+        id: rootLayout
+        ColumnLayout {
+            spacing: 0
+        }
     }
 
     Component {
@@ -59,7 +82,7 @@ Container {
             Layout.preferredWidth: showSeparator ? 2 : 0
             Layout.preferredHeight: pheight
             Layout.alignment: Qt.AlignVCenter
-            color: constants.darkerBackground
+            color: root.separatorColor
             Component.onCompleted: {
                 // create binding here, we need to be able to have stable ref master_idx
                 visible = Qt.binding(function() {
