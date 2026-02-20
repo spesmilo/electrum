@@ -39,7 +39,7 @@ import aiohttp
 from aiohttp import web, client_exceptions
 from aiorpcx import ignore_after
 
-from . import util
+from . import util, constants
 from .network import Network
 from .util import (
     json_decode, to_bytes, to_string, profiler, standardize_path, constant_time_compare, InvalidPassword,
@@ -447,7 +447,7 @@ class Daemon(Logger):
         assert self.network
         self.network.start(jobs=[self.fx.run])
         # prepare lightning functionality, also load channel db early
-        if self.config.LIGHTNING_USE_GOSSIP:
+        if constants.net.LIGHTNING_ENABLED and self.config.LIGHTNING_USE_GOSSIP:
             self.network.start_gossip()
 
     @staticmethod

@@ -152,8 +152,8 @@ class ElectrumGui(BaseElectrumGui, Logger):
         if hasattr(QtCore.Qt, "AA_ShareOpenGLContexts"):
             QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_ShareOpenGLContexts)
         if hasattr(QGuiApplication, 'setDesktopFileName'):
-            QGuiApplication.setDesktopFileName('electrum')
-        QGuiApplication.setApplicationName("Electrum")
+            QGuiApplication.setDesktopFileName('btcmobick-genesis')
+        QGuiApplication.setApplicationName(constants.APP_NAME)
         self.gui_thread = threading.current_thread()
         self.windows = []  # type: List[ElectrumWindow]
         self.open_file_efilter = OpenFileEventFilter(self.windows)
@@ -183,7 +183,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
 
     def _init_tray(self):
         self.tray = QSystemTrayIcon(self.tray_icon(), None)
-        self.tray.setToolTip('Electrum')
+        self.tray.setToolTip(constants.APP_NAME_SHORT)
         self.tray.activated.connect(self.tray_activated)
         self.build_tray_menu()
         self.tray.show()
@@ -229,7 +229,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         m.addAction(_("Plugins"), self.show_plugins_dialog)
         if network:
             m.addAction(_("Network"), self.show_network_dialog)
-        if network and network.lngossip:
+        if constants.net.LIGHTNING_ENABLED and network and network.lngossip:
             m.addAction(_("Lightning Network"), self.show_lightning_dialog)
         for window in self.windows:
             name = window.wallet.basename()
@@ -238,7 +238,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
             submenu.addAction(_("Close"), window.close)
         m.addAction(_("Dark/Light"), self.toggle_tray_icon)
         m.addSeparator()
-        m.addAction(_("Exit Electrum"), self.app.quit)
+        m.addAction(_(f"Exit {constants.APP_NAME_SHORT}"), self.app.quit)
 
     def tray_icon(self):
         if self.dark_icon:

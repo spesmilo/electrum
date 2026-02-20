@@ -55,8 +55,11 @@ def create_fallback_node_list(fallback_nodes_dict: dict[str, dict]) -> List[LNPe
     return fallback_nodes
 
 
-GIT_REPO_URL = "https://github.com/spesmilo/electrum"
-GIT_REPO_ISSUES_URL = "https://github.com/spesmilo/electrum/issues"
+GIT_REPO_URL = "https://github.com/hogusea/electrum"
+GIT_REPO_ISSUES_URL = "https://github.com/hogusea/electrum/issues"
+APP_NAME = "BTCMOBICK Genesis"
+APP_NAME_SHORT = "BTCMOBICK"
+APP_WEBSITE_URL = "https://blockchain.mobick.info"
 BIP39_WALLET_FORMATS = read_json('bip39_wallet_formats.json')
 
 
@@ -73,6 +76,7 @@ class AbstractNet:
     BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS: int = 0
     BIP44_COIN_TYPE: int
     LN_REALM_BYTE: int
+    LIGHTNING_ENABLED: bool = False
     DEFAULT_PORTS: Mapping[str, str]
     LN_DNS_SEEDS: Sequence[str]
     XPRV_HEADERS: Mapping[str, int]

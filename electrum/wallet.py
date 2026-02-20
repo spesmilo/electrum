@@ -45,7 +45,7 @@ from dataclasses import dataclass
 import electrum_ecc as ecc
 from aiorpcx import ignore_after, run_in_thread
 
-from . import util, keystore, transaction, bitcoin, coinchooser, bip32, descriptor
+from . import util, keystore, transaction, bitcoin, coinchooser, bip32, descriptor, constants
 from .i18n import _
 from .bip32 import BIP32Node, convert_bip32_intpath_to_strpath, convert_bip32_strpath_to_intpath
 from .logging import get_logger, Logger
@@ -521,6 +521,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def can_have_lightning(self) -> bool:
         """ whether this wallet can create new channels """
+        if not constants.net.LIGHTNING_ENABLED:
+            return False
         # we want static_remotekey to be a wallet address
         if not self.txin_type == 'p2wpkh':
             return False
@@ -3958,6 +3960,9 @@ class Deterministic_Wallet(Abstract_Wallet):
         self.synchronize()
 
     def _init_lnworker(self):
+        if not constants.net.LIGHTNING_ENABLED:
+            self.lnworker = None
+            return
         # lightning_privkey2 is not deterministic (legacy wallets, bip39)
         ln_xprv = self.db.get('lightning_xprv') or self.db.get('lightning_privkey2')
         # lnworker can only be initialized once receiving addresses are available

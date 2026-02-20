@@ -32,7 +32,7 @@ from PyQt6.QtWidgets import (QComboBox,  QTabWidget, QDialog, QSpinBox,  QCheckB
                              QVBoxLayout, QGridLayout, QLineEdit, QWidget, QHBoxLayout, QSlider)
 
 from electrum.i18n import _, languages
-from electrum import util
+from electrum import util, constants
 from electrum.util import base_units_list, event_listener
 
 from electrum.gui import messages
@@ -188,7 +188,7 @@ class SettingsDialog(QDialog, QtEventListener):
         # units
         units = base_units_list
         msg = (_('Base unit of your wallet.')
-               + '\n1 BTC = 1000 mBTC. 1 mBTC = 1000 bits. 1 bit = 100 sat.\n'
+               + '\n1 MO = 100,000,000 bick.\n'
                + _('This setting affects the Send tab, and all balance related fields.'))
         unit_label = HelpLabel(_('Base unit') + ':', msg)
         unit_combo = QComboBox()
@@ -384,7 +384,8 @@ class SettingsDialog(QDialog, QtEventListener):
         units_widgets = []
         units_widgets.append((unit_label, unit_combo))
         units_widgets.append((nz_label, nz))
-        units_widgets.append((msat_cb, None))
+        if constants.net.LIGHTNING_ENABLED:
+            units_widgets.append((msat_cb, None))
         units_widgets.append((thousandsep_cb, None))
         lightning_widgets = []
         lightning_widgets.append((trampoline_cb, None))
@@ -404,9 +405,10 @@ class SettingsDialog(QDialog, QtEventListener):
             (gui_widgets, _('Appearance')),
             (units_widgets, _('Units')),
             (fiat_widgets, _('Fiat')),
-            (lightning_widgets, _('Lightning')),
             (misc_widgets, _('Misc')),
         ]
+        if constants.net.LIGHTNING_ENABLED:
+            tabs_info.insert(3, (lightning_widgets, _('Lightning')))
         for widgets, name in tabs_info:
             tab = QWidget()
             tab_vbox = QVBoxLayout(tab)

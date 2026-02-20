@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (QLabel, QVBoxLayout, QGridLayout, QHBoxLayout,
                              QWidget, QToolTip, QPushButton, QApplication)
 
 from electrum.i18n import _
+from electrum import constants
 from electrum.logging import Logger
 from electrum.bitcoin import DummyAddress
 from electrum.plugin import run_hook
@@ -71,20 +72,26 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         from .paytoedit import PayToEdit
         self.amount_e = BTCAmountEdit(self.window.get_decimal_point)
         self.payto_e = PayToEdit(self)
-        msg = (_("Recipient of the funds.")
-               + "\n\n"
-               + _("This field can contain:") + "\n"
-               + _("- a Bitcoin address or BIP21 URI") + "\n"
-               + _("- a Lightning invoice") + "\n"
-               + _("- a label from your list of contacts") + "\n"
-               + _("- an openalias") + "\n"
-               + _("- an arbitrary on-chain script, e.g.:") + " script(OP_RETURN deadbeef)" + "\n"
-               + "\n"
-               + _("You can also pay to many outputs in a single transaction, "
-                   "specifying one output per line.") + "\n" + _("Format: address, amount") + "\n"
-               + _("To set the amount to 'max', use the '!' special character.") + "\n"
-               + _("Integers weights can also be used in conjunction with '!', "
-                   "e.g. set one amount to '2!' and another to '3!' to split your coins 40-60."))
+        msg_parts = [
+            _("Recipient of the funds."),
+            "\n\n",
+            _("This field can contain:"), "\n",
+            _("- a Bitcoin address or BIP21 URI"), "\n",
+        ]
+        if constants.net.LIGHTNING_ENABLED:
+            msg_parts.extend([_("- a Lightning invoice"), "\n"])
+        msg_parts.extend([
+            _("- a label from your list of contacts"), "\n",
+            _("- an openalias"), "\n",
+            _("- an arbitrary on-chain script, e.g.:"), " script(OP_RETURN deadbeef)\n",
+            "\n",
+            _("You can also pay to many outputs in a single transaction, "
+              "specifying one output per line."), "\n", _("Format: address, amount"), "\n",
+            _("To set the amount to 'max', use the '!' special character."), "\n",
+            _("Integers weights can also be used in conjunction with '!', "
+              "e.g. set one amount to '2!' and another to '3!' to split your coins 40-60."),
+        ])
+        msg = ''.join(msg_parts)
         self.payto_label = HelpLabel(_('Pay to'), msg)
         grid.addWidget(self.payto_label, 0, 0, Qt.AlignmentFlag.AlignLeft)
         grid.addWidget(self.payto_e, 0, 1, 1, 4)

@@ -179,7 +179,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         assert wallet, "no wallet"
         self.wallet = wallet
         self._protected_requires_password = self.wallet.has_keystore_encryption
-        if wallet.has_lightning() and not self.config.cv.GUI_QT_SHOW_TAB_CHANNELS.is_set():
+        if constants.net.LIGHTNING_ENABLED and wallet.has_lightning() and not self.config.cv.GUI_QT_SHOW_TAB_CHANNELS.is_set():
             self.config.GUI_QT_SHOW_TAB_CHANNELS = True  # override default, but still allow disabling tab manually
 
         Exception_Hook.maybe_setup(config=self.config, wallet=self.wallet)
@@ -231,7 +231,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                 tabs.addTab(tab, icon, description.replace("&", ""))
 
         add_optional_tab(tabs, self.addresses_tab, read_QIcon("tab_addresses.png"), _("&Addresses"))
-        add_optional_tab(tabs, self.channels_tab, read_QIcon("lightning.png"), _("Channels"))
+        if constants.net.LIGHTNING_ENABLED:
+            add_optional_tab(tabs, self.channels_tab, read_QIcon("lightning.png"), _("Channels"))
         add_optional_tab(tabs, self.utxo_tab, read_QIcon("tab_coins.png"), _("Co&ins"))
         add_optional_tab(tabs, self.contacts_tab, read_QIcon("tab_contacts.png"), _("Con&tacts"))
         add_optional_tab(tabs, self.console_tab, read_QIcon("tab_console.png"), _("Con&sole"))
@@ -299,9 +300,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
         # If the option hasn't been set yet
         if not config.cv.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS.is_set():
-            choice = self.question(title="Electrum - " + _("Enable update check"),
-                                   msg=_("For security reasons we advise that you always use the latest version of Electrum.") + " " +
-                                       _("Would you like to be notified when there is a newer version of Electrum available?"))
+            choice = self.question(title=f"{constants.APP_NAME_SHORT} - " + _("Enable update check"),
+                                   msg=_("For security reasons we advise that you always use the latest version of BTCMOBICK.") + " " +
+                                       _("Would you like to be notified when there is a newer version of BTCMOBICK available?"))
             config.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS = bool(choice)
 
         self._update_check_thread = None
@@ -310,7 +311,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             # to prevent GC from getting in our way.
             def on_version_received(v):
                 if UpdateCheck.is_newer(v):
-                    self.update_check_button.setText(_("Update to Electrum {} is available").format(v))
+                    self.update_check_button.setText(_("Update to BTCMOBICK {} is available").format(v))
                     self.update_check_button.clicked.connect(lambda: self.show_update_check(v))
                     self.update_check_button.show()
             self._update_check_thread = UpdateCheckThread()
@@ -629,7 +630,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
     @classmethod
     def get_app_name_and_version_str(cls) -> str:
-        name = "Electrum"
+        name = constants.APP_NAME
         if constants.net.TESTNET:
             name += " " + constants.net.NET_NAME.capitalize()
         return f"{name} {ELECTRUM_VERSION}"
@@ -729,7 +730,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         try:
             new_path = self.wallet.save_backup(backup_dir)
         except BaseException as reason:
-            self.show_critical(_("Electrum was unable to copy your wallet file to the specified location.") + "\n" + str(reason), title=_("Unable to create backup"))
+            self.show_critical(_("BTCMOBICK was unable to copy your wallet file to the specified location.") + "\n" + str(reason), title=_("Unable to create backup"))
             return
         msg = _("A copy of your wallet file was created in")+" '%s'" % str(new_path)
         self.show_message(msg, title=_("Wallet backup created"))
@@ -806,7 +807,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.view_menu = menubar.addMenu(_("&View"))
         add_toggle_action(self.addresses_tab)
         add_toggle_action(self.utxo_tab)
-        add_toggle_action(self.channels_tab)
+        if constants.net.LIGHTNING_ENABLED:
+            add_toggle_action(self.channels_tab)
         add_toggle_action(self.contacts_tab)
         add_toggle_action(self.console_tab)
         add_toggle_action(self.notes_tab)
@@ -820,7 +822,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             # Hence, this menu item will be at a "uniform location re macOS processes"
             preferences_action.setMenuRole(QAction.MenuRole.PreferencesRole)  # make sure OS recognizes it as preferences
             # Add another preferences item, to also have a "uniform location for Electrum between different OSes"
-            self.tools_menu.addAction(_("Electrum preferences"), self.settings_dialog)
+            self.tools_menu.addAction(_(f"{constants.APP_NAME_SHORT} preferences"), self.settings_dialog)
 
         self.tools_menu.addAction(_("&Network"), self.gui_object.show_network_dialog).setEnabled(bool(self.network))
         self.tools_menu.addAction(_("&Plugins"), self.gui_object.show_plugins_dialog)
@@ -848,9 +850,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             about_action.setMenuRole(QAction.MenuRole.AboutRole)  # make sure OS recognizes it as "About"
             self.help_menu.addAction(about_action)
         self.help_menu.addAction(_("&Check for updates"), self.show_update_check)
-        self.help_menu.addAction(_("&Official website"), lambda: webopen("https://electrum.org"))
+        self.help_menu.addAction(_("&Official website"), lambda: webopen(constants.APP_WEBSITE_URL))
         self.help_menu.addSeparator()
-        self.help_menu.addAction(_("&Documentation"), lambda: webopen("http://docs.electrum.org/")).setShortcut(QKeySequence.StandardKey.HelpContents)
+        self.help_menu.addAction(_("&Documentation"), lambda: webopen(constants.APP_WEBSITE_URL)).setShortcut(QKeySequence.StandardKey.HelpContents)
         if not constants.net.TESTNET:
             self.help_menu.addAction(_("&Bitcoin Paper"), self.show_bitcoin_paper)
         self.help_menu.addAction(_("&Report Bug"), self.show_report_bug)
@@ -871,9 +873,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             self.show_error(_('No donation address for this server'))
 
     def show_about(self):
-        QMessageBox.about(self, "Electrum",
+        QMessageBox.about(self, constants.APP_NAME,
                           (_("Version")+" %s" % ELECTRUM_VERSION + "\n\n" +
-                           _("Electrum's focus is speed, with low resource usage and simplifying Bitcoin.") + " " +
+                           _("BTCMOBICK focuses on speed and low resource usage for the BTCMOBICK network.") + " " +
                            _("You do not need to perform regular backups, because your wallet can be "
                               "recovered from a secret phrase that you can memorize or write on paper.") + " " +
                            _("Startup times are instant because it operates in conjunction with high-performance "
@@ -911,7 +913,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             _("Before reporting a bug, upgrade to the most recent version of Electrum (latest release or git HEAD), and include the version number in your report."),
             _("Try to explain not only what the bug is, but how it occurs.")
          ])
-        self.show_message(msg, title="Electrum - " + _("Reporting Bugs"), rich_text=True)
+        self.show_message(msg, title=f"{constants.APP_NAME_SHORT} - " + _("Reporting Bugs"), rich_text=True)
 
     def notify_transactions(self):
         if self.tx_notification_queue.qsize() == 0:
@@ -949,7 +951,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
     def notify(self, message):
         if self.tray:
-            self.tray.showMessage("Electrum", message, read_QIcon("electrum_dark_icon"), 20000)
+            self.tray.showMessage(constants.APP_NAME_SHORT, message, read_QIcon("electrum_dark_icon"), 20000)
 
     def timer_actions(self):
         # refresh invoices and requests because they show ETA
@@ -1076,16 +1078,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             else:
                 network_text = _("Connected")
                 p_bal = self.wallet.get_balances_for_piechart()
-                self.balance_label.update_list(
-                    [
-                        (_('Frozen'), COLOR_FROZEN, p_bal.frozen),
-                        (_('Unmatured'), COLOR_UNMATURED, p_bal.unmatured),
-                        (_('Unconfirmed'), COLOR_UNCONFIRMED, p_bal.unconfirmed),
-                        (_('On-chain'), COLOR_CONFIRMED, p_bal.confirmed),
+                pie_items = [
+                    (_('Frozen'), COLOR_FROZEN, p_bal.frozen),
+                    (_('Unmatured'), COLOR_UNMATURED, p_bal.unmatured),
+                    (_('Unconfirmed'), COLOR_UNCONFIRMED, p_bal.unconfirmed),
+                    (_('On-chain'), COLOR_CONFIRMED, p_bal.confirmed),
+                ]
+                if constants.net.LIGHTNING_ENABLED:
+                    pie_items.extend([
                         (_('Lightning'), COLOR_LIGHTNING, p_bal.lightning),
                         (_('Lightning frozen'), COLOR_FROZEN_LIGHTNING, p_bal.lightning_frozen),
-                    ],
-                    warning = self.wallet.is_low_reserve(),
+                    ])
+                self.balance_label.update_list(
+                    pie_items,
+                    warning=self.wallet.is_low_reserve(),
                 )
                 balance = p_bal.total()
                 balance_text =  _("Balance") + ": %s "%(self.format_amount_and_units(balance))
@@ -1870,9 +1876,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         sb.addPermanentWidget(StatusBarButton(read_QIcon("preferences.png"), _("Preferences"), self.settings_dialog, sb_height))
         self.seed_button = StatusBarButton(read_QIcon("seed.png"), _("Seed"), self.show_seed_dialog, sb_height)
         sb.addPermanentWidget(self.seed_button)
-        self.lightning_button = StatusBarButton(read_QIcon("lightning.png"), _("Lightning Network"), self.gui_object.show_lightning_dialog, sb_height)
-        sb.addPermanentWidget(self.lightning_button)
-        self.update_lightning_icon()
+        if constants.net.LIGHTNING_ENABLED:
+            self.lightning_button = StatusBarButton(read_QIcon("lightning.png"), _("Lightning Network"), self.gui_object.show_lightning_dialog, sb_height)
+            sb.addPermanentWidget(self.lightning_button)
+            self.update_lightning_icon()
+        else:
+            self.lightning_button = None
         self.status_button = None
         self.tor_button = None
         if self.network:
@@ -1924,6 +1933,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.coincontrol_sb.setVisible(True)
 
     def update_lightning_icon(self):
+        if self.lightning_button is None:
+            return
         if not self.wallet.has_lightning():
             self.lightning_button.setVisible(False)
             return
@@ -2012,6 +2023,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def new_channel_dialog(self, *, amount_sat=None, min_amount_sat=None):
         from electrum.lnutil import MIN_FUNDING_SAT
         from .new_channel_dialog import NewChannelDialog
+        if not constants.net.LIGHTNING_ENABLED:
+            self.show_error(_('Lightning is disabled in this build.'))
+            return
         assert self.wallet.can_have_lightning()
         confirmed = self.wallet.get_spendable_balance_sat(confirmed_only=True)
         min_amount_sat = min_amount_sat or MIN_FUNDING_SAT
@@ -2039,7 +2053,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         line2 = QLineEdit()
         line2.setFixedWidth(32 * char_width_in_lineedit())
         address_label = QLabel(_("Address"))
-        address_label.setToolTip(_("Bitcoin- or Lightning address"))
+        address_label.setToolTip(_("Bitcoin address"))
         grid.addWidget(address_label, 1, 0)
         grid.addWidget(line1, 1, 1)
         grid.addWidget(QLabel(_("Name")), 2, 0)
@@ -2050,6 +2064,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             self.set_contact(line2.text(), line1.text())
 
     def init_lightning_dialog(self, close_dialog: Optional[QDialog] = None) -> bool:
+        if not constants.net.LIGHTNING_ENABLED:
+            return False
         assert not self.wallet.has_lightning()
         if self.wallet.can_have_deterministic_lightning():
             msg = _(

@@ -409,7 +409,7 @@ class SimpleConfig(Logger):
         base_unit = self.user_config.get('base_unit')
         if isinstance(base_unit, str):
             self._set_key_in_user_config('base_unit', None)
-            map_ = {'btc': 8, 'mbtc': 5, 'ubtc': 2, 'bits': 2, 'sat': 0}
+            map_ = {'mo': 8, 'mmo': 5, 'umo': 2, 'bick': 0, 'btc': 8, 'mbtc': 5, 'ubtc': 2, 'bits': 2, 'sat': 0}
             decimal_point = map_.get(base_unit.lower())
             self._set_key_in_user_config('decimal_point', decimal_point)
         self.set_key('config_version', 3)
@@ -848,7 +848,7 @@ Warning: setting this to too low will result in lots of payment failures."""),
             'There is no guarantee Windows will respect this signal.'),
     )
 
-    GUI_QML_PREFERRED_REQUEST_TYPE = ConfigVar('preferred_request_type', default='bolt11', type_=str)
+    GUI_QML_PREFERRED_REQUEST_TYPE = ConfigVar('preferred_request_type', default='bip21', type_=str)
     GUI_QML_USER_KNOWS_PRESS_AND_HOLD = ConfigVar('user_knows_press_and_hold', default=False, type_=bool)
     GUI_QML_ADDRESS_LIST_SHOW_TYPE = ConfigVar('address_list_show_type', default=1, type_=int)
     GUI_QML_ADDRESS_LIST_SHOW_USED = ConfigVar('address_list_show_used', default=False, type_=bool)

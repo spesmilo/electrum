@@ -5,7 +5,7 @@ set -e
 # Parameterize
 PYTHON_VERSION=3.12.10
 PY_VER_MAJOR="3.12"  # as it appears in fs paths
-PACKAGE=Electrum
+PACKAGE=BTCMOBICK-Genesis
 GIT_REPO=https://github.com/spesmilo/electrum
 
 export GCC_STRIP_BINARIES="1"
@@ -110,7 +110,7 @@ PYINSTALLER_COMMIT="306d4d92580fea7be7ff2c89ba112cdc6f73fac1"
     rm -fv PyInstaller/bootloader/Darwin-*/run* || true
     # add reproducible randomness. this ensures we build a different bootloader for each commit.
     # if we built the same one for all releases, that might also get anti-virus false positives
-    echo "const char *electrum_tag = \"tagged by Electrum@$ELECTRUM_COMMIT_HASH\";" >> ./bootloader/src/pyi_main.c
+    echo "const char *electrum_tag = \"tagged by BTCMOBICK@$ELECTRUM_COMMIT_HASH\";" >> ./bootloader/src/pyi_main.c
     pushd bootloader
     # compile bootloader
     python3 ./waf all CFLAGS="-static"
@@ -221,7 +221,7 @@ info "Finished building unsigned dist/${PACKAGE}.app. This hash should be reprod
 find "dist/${PACKAGE}.app" -type f -print0 | sort -z | xargs -0 shasum -a 256 | shasum -a 256
 
 info "Creating unsigned .DMG"
-hdiutil create -fs HFS+ -volname $PACKAGE -srcfolder dist/$PACKAGE.app dist/electrum-$VERSION-unsigned.dmg || fail "Could not create .DMG"
+hdiutil create -fs HFS+ -volname $PACKAGE -srcfolder dist/$PACKAGE.app dist/btcmobick-genesis-$VERSION-unsigned.dmg || fail "Could not create .DMG"
 
 info "App was built successfully but was not code signed. Users may get security warnings from macOS."
 info "Now you also need to run sign_osx.sh to codesign/notarize the binary."

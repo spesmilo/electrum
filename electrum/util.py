@@ -92,11 +92,11 @@ def all_subclasses(cls) -> Set:
 ca_path = certifi.where()
 
 
-base_units = {'BTC':8, 'mBTC':5, 'bits':2, 'sat':0}
+base_units = {'MO': 8, 'mMO': 5, 'uMO': 2, 'bick': 0}
 base_units_inverse = inv_dict(base_units)
-base_units_list = ['BTC', 'mBTC', 'bits', 'sat']  # list(dict) does not guarantee order
+base_units_list = ['MO', 'mMO', 'uMO', 'bick']  # list(dict) does not guarantee order
 
-DECIMAL_POINT_DEFAULT = 5  # mBTC
+DECIMAL_POINT_DEFAULT = 8  # MO
 
 
 class UnknownBaseUnit(Exception): pass
@@ -864,11 +864,11 @@ def format_satoshis(
 
 FEERATE_PRECISION = 1  # num fractional decimal places for sat/byte fee rates
 _feerate_quanta = Decimal(10) ** (-FEERATE_PRECISION)
-UI_UNIT_NAME_FEERATE_SAT_PER_VBYTE = "sat/vbyte"
-UI_UNIT_NAME_FEERATE_SAT_PER_VB = "sat/vB"
+UI_UNIT_NAME_FEERATE_SAT_PER_VBYTE = "bick/vbyte"
+UI_UNIT_NAME_FEERATE_SAT_PER_VB = "bick/vB"
 UI_UNIT_NAME_TXSIZE_VBYTES = "vbytes"
 UI_UNIT_NAME_MEMPOOL_MB = "vMB"
-UI_UNIT_NAME_FIXED_SAT = "sat"
+UI_UNIT_NAME_FIXED_SAT = "bick"
 
 
 def format_fee_satoshis(fee, *, num_zeros=0, precision=None):
