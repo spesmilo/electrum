@@ -607,6 +607,55 @@ class TestPeerUtils(TestPeer):
             Peer.decode_short_ids(encoded_unsupported)
         self.assertIn("unexpected first byte", str(ctx.exception))
 
+    async def test_zeroconf_feature_bit(self):
+        workers = self.prepare_lnwallets(self.GRAPH_DEFINITIONS['single_chan'])
+
+        with self.subTest(msg="zeroconf is disabled in Alice LNWallet, so peers shouldn't signal it either"):
+            graph = self.prepare_chans_and_peers_in_graph(
+                self.GRAPH_DEFINITIONS['single_chan'],
+                workers=workers,
+            )
+            alice, _ = graph.peers.values()
+            self.assertFalse(alice.features.supports(LnFeatures.OPTION_ZEROCONF_OPT))
+
+        # enable zeroconf in alice LNWallet
+        workers['alice'].features |= LnFeatures.OPTION_ZEROCONF_OPT
+
+        with self.subTest(msg="no trusted zeroconf node, zeroconf should be signaled in new peers"):
+            graph = self.prepare_chans_and_peers_in_graph(
+                self.GRAPH_DEFINITIONS['single_chan'],
+                workers=workers,
+            )
+            alice, _ = graph.peers.values()   # alice is LSP
+            self.assertTrue(alice.features.supports(LnFeatures.OPTION_ZEROCONF_OPT))
+
+        with self.subTest(msg="trusted node is configured, but it is not bob"):
+            workers['alice'].config.ZEROCONF_TRUSTED_NODE = f"{os.urandom(33).hex()}@1.1.1.1:9735"
+            graph = self.prepare_chans_and_peers_in_graph(
+                self.GRAPH_DEFINITIONS['single_chan'],
+                workers=workers,
+            )
+            alice, _ = graph.peers.values()  # alice is client
+            self.assertFalse(alice.features.supports(LnFeatures.OPTION_ZEROCONF_OPT))
+
+        with self.subTest(msg="trusted node is configured, but it is invalid"):
+            workers['alice'].config.ZEROCONF_TRUSTED_NODE = f"{os.urandom(8).hex()}@1.1.1.1:9735"
+            graph = self.prepare_chans_and_peers_in_graph(
+                self.GRAPH_DEFINITIONS['single_chan'],
+                workers=workers,
+            )
+            alice, _ = graph.peers.values()  # alice is client
+            self.assertFalse(alice.features.supports(LnFeatures.OPTION_ZEROCONF_OPT))
+
+        with self.subTest(msg="Alice uses Bob as her trusted LSP"):
+            workers['alice'].config.ZEROCONF_TRUSTED_NODE = workers['bob'].node_keypair.pubkey.hex()
+            graph = self.prepare_chans_and_peers_in_graph(
+                self.GRAPH_DEFINITIONS['single_chan'],
+                workers=workers,
+            )
+            alice, _ = graph.peers.values()
+            self.assertTrue(alice.features.supports(LnFeatures.OPTION_ZEROCONF_OPT))
+
 
 class TestPeerDirect(TestPeer):
 
