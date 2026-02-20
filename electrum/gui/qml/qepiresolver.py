@@ -57,7 +57,7 @@ class QEPIResolver(QObject):
 
     @wallet.setter
     def wallet(self, wallet: QEWallet) -> None:
-        assert isinstance(wallet, QEWallet)
+        assert wallet is None or isinstance(wallet, QEWallet)
         self._wallet = wallet
 
     @pyqtProperty(bool, notify=busyChanged)

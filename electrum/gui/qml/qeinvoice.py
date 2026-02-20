@@ -115,7 +115,7 @@ class QEInvoice(QObject, QtEventListener):
 
     @wallet.setter
     def wallet(self, wallet: QEWallet):
-        assert isinstance(wallet, QEWallet)
+        assert wallet is None or isinstance(wallet, QEWallet)
         if self._wallet != wallet:
             self._wallet = wallet
             self.walletChanged.emit()
