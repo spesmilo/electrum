@@ -58,9 +58,9 @@ ElDialog {
 
                 RowLayout {
                     Layout.fillWidth: true
-                    TextHighlightPane {
+
+                    DialogHighlightPane {
                         Layout.fillWidth: true
-                        backgroundColor: constants.darkerDialogBackground
 
                         Label {
                             text: qsTr('Enter the list of private keys to sweep into this wallet')

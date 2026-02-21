@@ -70,7 +70,7 @@ ElDialog {
                     color: Material.accentColor
                 }
 
-                TextHighlightPane {
+                DialogHighlightPane {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
 
@@ -91,6 +91,7 @@ ElDialog {
                     Layout.fillWidth: true
                     Layout.bottomMargin: constants.paddingLarge
                     text: channeldetails.messageForceClose
+                    backgroundColor: constants.darkerDialogBackground
                 }
 
                 Label {
@@ -140,6 +141,7 @@ ElDialog {
                         Layout.maximumWidth: parent.width
                         visible: !channeldetails.isClosing && errorText.text
                         iconStyle: InfoTextArea.IconStyle.Error
+                        backgroundColor: constants.darkerDialogBackground
                     }
                     Label {
                         Layout.alignment: Qt.AlignHCenter
