@@ -39,7 +39,7 @@ ElDialog {
                 width: parent.width
                 spacing: constants.paddingMedium
 
-                TextHighlightPane {
+                DialogHighlightPane {
                     Layout.fillWidth: true
                     Layout.leftMargin: constants.paddingMedium
                     Layout.rightMargin: constants.paddingMedium
@@ -61,6 +61,7 @@ ElDialog {
                     Layout.margins: constants.paddingLarge
                     visible: dialog.text_help
                     text: dialog.text_help
+                    backgroundColor: constants.darkerDialogBackground
                 }
 
                 InfoTextArea {
@@ -72,6 +73,7 @@ ElDialog {
                     visible: dialog.text_warn
                     text: dialog.text_warn
                     iconStyle: InfoTextArea.IconStyle.Warn
+                    backgroundColor: constants.darkerDialogBackground
                 }
             }
         }

@@ -67,6 +67,7 @@ ElDialog {
                                             ? InfoTextArea.IconStyle.Pending
                                             : InfoTextArea.IconStyle.Error
                                         : InfoTextArea.IconStyle.Info
+                    backgroundColor: constants.darkerDialogBackground
                 }
 
                 Label {
@@ -77,7 +78,7 @@ ElDialog {
                     color: Material.accentColor
                 }
 
-                TextHighlightPane {
+                DialogHighlightPane {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
                     visible: invoice.invoiceType == Invoice.OnchainInvoice
@@ -114,7 +115,7 @@ ElDialog {
                     color: Material.accentColor
                 }
 
-                TextHighlightPane {
+                DialogHighlightPane {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
 
@@ -137,7 +138,7 @@ ElDialog {
                     color: Material.accentColor
                 }
 
-                TextHighlightPane {
+                DialogHighlightPane {
                     id: amountContainer
 
                     Layout.columnSpan: 2
@@ -320,7 +321,7 @@ ElDialog {
                     color: Material.accentColor
                 }
 
-                TextHighlightPane {
+                DialogHighlightPane {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
 
@@ -358,7 +359,7 @@ ElDialog {
                     color: Material.accentColor
                 }
 
-                TextHighlightPane {
+                DialogHighlightPane {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
 
@@ -401,7 +402,7 @@ ElDialog {
                     visible: 'r' in invoice.lnprops && invoice.lnprops.r.length
                     model: invoice.lnprops.r
 
-                    TextHighlightPane {
+                    DialogHighlightPane {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
 
@@ -428,7 +429,7 @@ ElDialog {
                     color: Material.accentColor
                 }
 
-                TextHighlightPane {
+                DialogHighlightPane {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
                     visible: invoice.invoiceType == Invoice.LightningInvoice && invoice.address

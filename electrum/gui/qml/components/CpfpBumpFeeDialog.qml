@@ -59,7 +59,7 @@ ElDialog {
                     color: Material.accentColor
                 }
 
-                TextHighlightPane {
+                DialogHighlightPane {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
                     height: feepicker_childinfo.height
@@ -82,7 +82,7 @@ ElDialog {
                     color: Material.accentColor
                 }
 
-                TextHighlightPane {
+                DialogHighlightPane {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
 
@@ -159,6 +159,7 @@ ElDialog {
                     visible: cpfpfeebumper.warning != ''
                     text: cpfpfeebumper.warning
                     iconStyle: InfoTextArea.IconStyle.Warn
+                    backgroundColor: constants.darkerDialogBackground
                 }
 
                 ToggleLabel {
@@ -213,13 +214,16 @@ ElDialog {
             }
         }
 
-        FlatButton {
-            id: sendButton
+        DialogButtonContainer {
             Layout.fillWidth: true
-            text: qsTr('Ok')
-            icon.source: '../../icons/confirmed.png'
-            enabled: cpfpfeebumper.valid
-            onClicked: doAccept()
+            FlatButton {
+                id: sendButton
+                Layout.fillWidth: true
+                text: qsTr('Ok')
+                icon.source: '../../icons/confirmed.png'
+                enabled: cpfpfeebumper.valid
+                onClicked: doAccept()
+            }
         }
     }
 }

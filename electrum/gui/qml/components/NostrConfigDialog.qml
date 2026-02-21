@@ -52,7 +52,7 @@ ElDialog {
             Layout.rightMargin: constants.paddingLarge
             Layout.bottomMargin: constants.paddingLarge
 
-            TextHighlightPane {
+            DialogHighlightPane {
                 Layout.fillWidth: true
                 Label {
                     text: qsTr('Enter the list of Nostr relays') + '<br/><br/>' +

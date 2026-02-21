@@ -18,7 +18,6 @@ Pane {
 
         ColumnLayout {
             Layout.fillWidth: true
-            Layout.margins: constants.paddingLarge
 
             InfoTextArea {
                 Layout.fillWidth: true
@@ -32,9 +31,9 @@ Pane {
             }
 
             Frame {
-                background: PaneInsetBackground {}
+                background: PaneInsetBackground {id: bg; vertical: false}
 
-                verticalPadding: 0
+                verticalPadding: bg.lineWidth
                 horizontalPadding: 0
                 Layout.fillHeight: true
                 Layout.fillWidth: true
@@ -87,6 +86,7 @@ Pane {
 
         ButtonContainer {
             Layout.fillWidth: true
+
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1

@@ -50,7 +50,7 @@ ElDialog {
                 width: parent.width
                 spacing: constants.paddingMedium
 
-                TextHighlightPane {
+                DialogHighlightPane {
                     Layout.alignment: Qt.AlignHCenter
                     Layout.fillWidth: true
 

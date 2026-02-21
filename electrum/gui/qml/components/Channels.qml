@@ -64,9 +64,9 @@ Pane {
             Layout.fillHeight: true
             Layout.topMargin: constants.paddingLarge
 
-            verticalPadding: 0
+            verticalPadding: bg.lineWidth
             horizontalPadding: 0
-            background: PaneInsetBackground {}
+            background: PaneInsetBackground { id: bg; vertical: false }
 
             ColumnLayout {
                 spacing: 0
@@ -118,7 +118,6 @@ Pane {
 
         ButtonContainer {
             Layout.fillWidth: true
-            headerComponent: null
 
             FlatButton {
                 Layout.fillWidth: true

@@ -117,12 +117,11 @@ WizardComponent {
                 wrapMode: Text.Wrap
             }
 
-            TextHighlightPane {
+            DialogHighlightPane {
                 Layout.columnSpan: 2
                 Layout.fillWidth: true
 
                 visible: cosigner
-                backgroundColor: constants.darkerDialogBackground
 
                 RowLayout {
                     width: parent.width
