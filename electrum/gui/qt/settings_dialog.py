@@ -31,7 +31,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (QComboBox,  QTabWidget, QDialog, QSpinBox,  QCheckBox, QLabel,
                              QVBoxLayout, QGridLayout, QLineEdit, QWidget, QHBoxLayout, QSlider)
 
-from electrum.i18n import _, languages
+from electrum.i18n import _, get_gui_lang_names
 from electrum import util
 from electrum.util import base_units_list, event_listener
 
@@ -76,8 +76,9 @@ class SettingsDialog(QDialog, QtEventListener):
         # language
         lang_label = HelpLabel.from_configvar(self.config.cv.LOCALIZATION_LANGUAGE)
         lang_combo = QComboBox()
-        lang_combo.addItems(list(languages.values()))
-        lang_keys = list(languages.keys())
+        _languages = get_gui_lang_names()
+        lang_combo.addItems(list(_languages.values()))
+        lang_keys = list(_languages.keys())
         lang_cur_setting = self.config.LOCALIZATION_LANGUAGE
         try:
             index = lang_keys.index(lang_cur_setting)
@@ -88,7 +89,7 @@ class SettingsDialog(QDialog, QtEventListener):
             for w in [lang_combo, lang_label]: w.setEnabled(False)
 
         def on_lang(x):
-            lang_request = list(languages.keys())[lang_combo.currentIndex()]
+            lang_request = list(_languages.keys())[lang_combo.currentIndex()]
             if lang_request != self.config.LOCALIZATION_LANGUAGE:
                 self.config.LOCALIZATION_LANGUAGE = lang_request
                 self.need_restart = True
