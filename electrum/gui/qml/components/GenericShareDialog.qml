@@ -42,7 +42,7 @@ ElDialog {
                 width: parent.width
                 spacing: constants.paddingMedium
 
-                TextHighlightPane {
+                DialogHighlightPane {
                     Layout.alignment: Qt.AlignHCenter
                     Layout.fillWidth: true
                     Layout.leftMargin: constants.paddingMedium
@@ -60,7 +60,7 @@ ElDialog {
                             Layout.bottomMargin: constants.paddingMedium
                         }
 
-                        TextHighlightPane {
+                        DialogHighlightPane {
                             Layout.fillWidth: true
                             visible: dialog.text
 
@@ -84,6 +84,7 @@ ElDialog {
                     visible: dialog.text_help
                     text: dialog.text_help
                     Layout.fillWidth: true
+                    backgroundColor: constants.darkerDialogBackground
                 }
             }
         }

@@ -21,7 +21,6 @@ Pane {
 
         ColumnLayout {
             Layout.fillWidth: true
-            Layout.margins: constants.paddingLarge
 
             InfoTextArea {
                 Layout.fillWidth: true
@@ -31,13 +30,13 @@ Pane {
             }
 
             Heading {
-                text: qsTr('Pending requests')
+                text: qsTr('Pending payment requests')
             }
 
             Frame {
-                background: PaneInsetBackground {}
+                background: PaneInsetBackground {id: bg; vertical: false}
 
-                verticalPadding: 0
+                verticalPadding: bg.lineWidth
                 horizontalPadding: 0
                 Layout.fillHeight: true
                 Layout.fillWidth: true
