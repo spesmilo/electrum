@@ -13,8 +13,8 @@ ElDialog {
     title: qsTr('LNURL Withdraw request')
     iconSource: '../../../icons/link.png'
 
-    property Wallet wallet: Daemon.currentWallet
-    property RequestDetails requestDetails
+    property var wallet: Daemon.currentWallet  // type: Wallet
+    property var requestDetails  // type: RequestDetails
 
     padding: 0
     needsSystemBarPadding: false

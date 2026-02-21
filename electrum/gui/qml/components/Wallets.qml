@@ -32,7 +32,6 @@ Pane {
 
         ColumnLayout {
             Layout.fillWidth: true
-            Layout.margins: constants.paddingLarge
 
             Heading {
                 text: qsTr('Wallets')
@@ -42,9 +41,9 @@ Pane {
                 id: detailsFrame
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                verticalPadding: 0
+                verticalPadding: bg.lineWidth
                 horizontalPadding: 0
-                background: PaneInsetBackground {}
+                background: PaneInsetBackground { id: bg; vertical: false }
 
                 ElListView {
                     id: listview

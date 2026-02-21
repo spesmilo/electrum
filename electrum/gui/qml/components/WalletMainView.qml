@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Controls.Material
+import QtQuick.Controls.Material.impl
 import QtQml
 
 import org.electrum 1.0

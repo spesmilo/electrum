@@ -42,6 +42,7 @@ ElDialog {
                         : swaphelper.state == SwapHelper.NoService
                             ? InfoTextArea.IconStyle.Warn
                             : InfoTextArea.IconStyle.Info
+            backgroundColor: constants.darkerDialogBackground
         }
 
         GridLayout {
@@ -282,7 +283,7 @@ ElDialog {
 
         Item { Layout.fillHeight: true; Layout.preferredWidth: 1 }
 
-        ButtonContainer {
+        DialogButtonContainer {
             Layout.columnSpan: 2
             Layout.fillWidth: true
             FlatButton {

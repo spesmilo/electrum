@@ -106,10 +106,10 @@ Dialog {
 
         Rectangle {
             Layout.fillWidth: true
-            Layout.leftMargin: constants.paddingXXSmall
-            Layout.rightMargin: constants.paddingXXSmall
-            height: 1
-            color: Qt.rgba(0,0,0,0.5)
+            Layout.leftMargin: constants.paddingSmall
+            Layout.rightMargin: constants.paddingSmall
+            Layout.preferredHeight: 2
+            color: constants.darkerDialogBackground
         }
     }
 

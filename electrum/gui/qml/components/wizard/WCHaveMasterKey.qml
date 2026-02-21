@@ -71,7 +71,7 @@ WizardComponent {
             wrapMode: Text.Wrap
         }
 
-        TextHighlightPane {
+        DialogHighlightPane {
             Layout.fillWidth: true
 
             visible: cosigner
