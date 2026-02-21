@@ -165,6 +165,7 @@ ElDialog {
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
+                Layout.preferredHeight: constants.fingerWidth
                 visible: pages.currentIndex == 0
                 text: qsTr("Cancel")
                 onClicked: wizard.doReject()
@@ -172,6 +173,7 @@ ElDialog {
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
+                Layout.preferredHeight: constants.fingerWidth
                 visible: pages.currentIndex > 0
                 text: qsTr('Back')
                 onClicked: pages.prev()
@@ -179,6 +181,7 @@ ElDialog {
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
+                Layout.preferredHeight: constants.fingerWidth
                 text: qsTr("Next")
                 visible: !pages.lastpage
                 enabled: pages.pagevalid
@@ -188,6 +191,7 @@ ElDialog {
                 id: finishButton
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
+                Layout.preferredHeight: constants.fingerWidth
                 text: qsTr("Finish")
                 visible: pages.lastpage
                 enabled: pages.pagevalid
