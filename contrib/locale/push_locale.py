@@ -91,6 +91,20 @@ cmd = ["msgcat", "-u", "-o", f"{build_dir}/messages.pot", f"{build_dir}/messages
 print('Generate template')
 subprocess.check_output(cmd)
 
+# Add a custom PO header entry to messages.pot. This header survives crowdin,
+# and will still be in the translated .po files, and will get compiled into the final .mo files.
+cnt_src_strings = 0
+with open(f"{build_dir}/messages.pot", "r", encoding="utf-8") as f:
+    for line in f.readlines():
+        if line.startswith('msgid '):
+            cnt_src_strings += 1
+with open(f"{build_dir}/messages_customheader.pot", "w", encoding="utf-8") as f:
+    f.write('''msgid ""\n''')
+    f.write('''msgstr ""\n''')
+    f.write(f'''"X-Electrum-SourceStringCount: {cnt_src_strings}"\n''')
+cmd = ["msgcat", "-u", "-o", f"{build_dir}/messages.pot", f"{build_dir}/messages.pot", f"{build_dir}/messages_customheader.pot"]
+print('Add custom header to template')
+subprocess.check_output(cmd)
 
 # prepare uploading to crowdin
 os.chdir(os.path.join(project_root, "electrum"))
