@@ -42,6 +42,7 @@ ElDialog {
                         : swaphelper.state == SwapHelper.NoService
                             ? InfoTextArea.IconStyle.Warn
                             : InfoTextArea.IconStyle.Info
+            backgroundColor: constants.darkerDialogBackground
         }
 
         GridLayout {

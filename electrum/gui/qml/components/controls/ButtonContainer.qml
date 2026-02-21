@@ -8,19 +8,15 @@ Container {
 
     property bool showSeparator: true
     property color separatorColor: constants.darkerBackground
-    property Component headerComponent: Component {
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 2
-            Layout.leftMargin: constants.paddingSmall
-            Layout.rightMargin: constants.paddingSmall
-            color: root.separatorColor
-        }
-    }
+    property Component headerComponent: null
 
     property var _contentRootItem
     property var _headerItem
     property Item _layout
+
+    background: Rectangle {
+        color: constants.highlightBackground
+    }
 
     function fillContentItem() {
         var outerLayout = rootLayout.createObject(root)
@@ -97,3 +93,4 @@ Container {
     }
 
 }
+
