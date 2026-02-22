@@ -518,6 +518,7 @@ Pane {
             }
         }
     }
+    property color navigationBarBackgroundColor: constants.highlightBackground
 
     Connections {
         target: Daemon

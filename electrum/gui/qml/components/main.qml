@@ -36,6 +36,7 @@ ApplicationWindow
     property alias stack: mainStackView
     property alias keyboardFreeZone: _keyboardFreeZone
     property alias infobanner: _infobanner
+    property color _navigationBarBackgroundColor: 'transparent'
 
     property string pendingIntent: ""
 
@@ -287,13 +288,21 @@ ApplicationWindow
                 mainStackView.clear()
                 mainStackView.push(Qt.resolvedUrl(item_url))
             }
+            function updateStylingFromItem(item) {
+                _navigationBarBackgroundColor = item && 'navigationBarBackgroundColor' in item
+                    ? item.navigationBarBackgroundColor
+                    : 'transparent'
+            }
+            onCurrentItemChanged: updateStylingFromItem(currentItem)
         }
 
         // Add bottom padding for navigation bar on Android when UI is edge-to-edge
         Item {
-            visible: app.navigationBarHeight > 0
+            visible: app.navigationBarHeight > 0 && _keyboardFreeZone.state != 'visible'
             Layout.fillWidth: true
             Layout.preferredHeight: app.navigationBarHeight
+
+            Rectangle { anchors.fill: parent; color: _navigationBarBackgroundColor }
         }
     }
 
