@@ -155,8 +155,8 @@ Pane {
                 icon.source: '../../icons/lightning.png'
             }
         }
-
     }
+    property color navigationBarBackgroundColor: constants.highlightBackground
 
     Component {
         id: openChannelDialog
