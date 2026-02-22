@@ -325,6 +325,7 @@ Item {
             }
         }
     }
+    property color navigationBarBackgroundColor: constants.highlightBackground
 
     PIResolver {
         id: piResolver

@@ -17,7 +17,7 @@ Dialog {
     property bool _wasOpened: false
 
     // Add bottom padding for Android navigation bar if needed
-    bottomPadding: needsSystemBarPadding ? app.navigationBarHeight : 0
+    bottomPadding: needsSystemBarPadding && app.keyboardFreeZone.state != 'visible' ? app.navigationBarHeight : 0
 
     // called to finally close dialog after checks by onClosing handler in main.qml
     function doClose() {

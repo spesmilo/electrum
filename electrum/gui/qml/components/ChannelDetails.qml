@@ -466,8 +466,8 @@ Pane {
                 }
             }
         }
-
     }
+    property color navigationBarBackgroundColor: constants.highlightBackground
 
     ChannelDetails {
         id: channeldetails

@@ -276,6 +276,7 @@ Pane {
         }
 
     }
+    property color navigationBarBackgroundColor: constants.highlightBackground
 
     Component {
         id: sectionDelegate
