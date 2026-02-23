@@ -1,0 +1,99 @@
+name: Build Signed macOS DMG
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - mobick-mainnet-genesis-fix
+
+jobs:
+  build-sign-notarize:
+    runs-on: macos-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate required secrets
+        env:
+          MACOS_CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+          MACOS_CERT_P12_PASSWORD: ${{ secrets.MACOS_CERT_P12_PASSWORD }}
+          MACOS_CODESIGN_CERT: ${{ secrets.MACOS_CODESIGN_CERT }}
+          APPLE_ID_USER: ${{ secrets.APPLE_ID_USER }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for key in MACOS_CERT_P12_BASE64 MACOS_CERT_P12_PASSWORD MACOS_CODESIGN_CERT APPLE_ID_USER APPLE_ID_PASSWORD APPLE_TEAM_ID; do
+            value="${!key:-}"
+            if [ -z "$value" ]; then
+              echo "Missing secret: $key"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Import signing certificate into temporary keychain
+        env:
+          MACOS_CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+          MACOS_CERT_P12_PASSWORD: ${{ secrets.MACOS_CERT_P12_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN_PATH="$RUNNER_TEMP/build-signing.keychain-db"
+          KEYCHAIN_PASSWORD="temp_keychain_password"
+          CERT_PATH="$RUNNER_TEMP/codesign.p12"
+
+          echo "$MACOS_CERT_P12_BASE64" | base64 --decode > "$CERT_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$MACOS_CERT_P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          echo "TEMP_KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+          echo "TEMP_KEYCHAIN_PASSWORD=$KEYCHAIN_PASSWORD" >> "$GITHUB_ENV"
+
+      - name: Build unsigned macOS app/dmg
+        run: |
+          set -euo pipefail
+          ./contrib/osx/make_osx.sh
+
+      - name: Sign and notarize app + dmg
+        env:
+          CODESIGN_CERT: ${{ secrets.MACOS_CODESIGN_CERT }}
+          APPLE_ID_USER: ${{ secrets.APPLE_ID_USER }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          security unlock-keychain -p "$TEMP_KEYCHAIN_PASSWORD" "$TEMP_KEYCHAIN_PATH"
+          security list-keychains -d user -s "$TEMP_KEYCHAIN_PATH" login.keychain-db
+          ./contrib/osx/sign_osx.sh
+
+      - name: Upload signed DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: electrum-macos-signed-dmg
+          path: dist/electrum-*.dmg
+          retention-days: 14
+
+      - name: Upload app bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: electrum-macos-app
+          path: dist/Electrum.app
+          retention-days: 14
+
+      - name: Cleanup temporary keychain
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ -n "${TEMP_KEYCHAIN_PATH:-}" ]; then
+            security delete-keychain "$TEMP_KEYCHAIN_PATH" || true
+          fi
