@@ -47,7 +47,20 @@ jobs:
           KEYCHAIN_PASSWORD="temp_keychain_password"
           CERT_PATH="$RUNNER_TEMP/codesign.p12"
 
-          echo "$MACOS_CERT_P12_BASE64" | base64 --decode > "$CERT_PATH"
+          # Decode secret and verify it is a real PKCS#12 container before import.
+          printf '%s' "$MACOS_CERT_P12_BASE64" | tr -d '\r' | base64 --decode > "$CERT_PATH" || {
+            echo "Invalid MACOS_CERT_P12_BASE64: base64 decode failed."
+            exit 1
+          }
+          if [ ! -s "$CERT_PATH" ]; then
+            echo "Decoded certificate file is empty."
+            exit 1
+          fi
+          openssl pkcs12 -in "$CERT_PATH" -passin pass:"$MACOS_CERT_P12_PASSWORD" -nokeys -info -noout >/dev/null 2>&1 || {
+            echo "Invalid PKCS#12 or wrong MACOS_CERT_P12_PASSWORD."
+            echo "Make sure MACOS_CERT_P12_BASE64 is generated from a .p12 export (not .cer)."
+            exit 1
+          }
 
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
