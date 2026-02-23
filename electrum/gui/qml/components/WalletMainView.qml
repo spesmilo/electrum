@@ -303,6 +303,7 @@ Item {
                     var dialog = receiveDetailsDialog.createObject(mainView)
                     dialog.open()
                 }
+                pressAndHoldIndicator: true
                 onPressAndHold: {
                     Config.userKnowsPressAndHold = true
                     Daemon.currentWallet.deleteExpiredRequests()
@@ -317,6 +318,7 @@ Item {
                 text: qsTr('Send')
                 enabled: !invoiceParser.busy && !piResolver.busy && !requestDetails.busy
                 onClicked: openSendDialog()
+                pressAndHoldIndicator: true
                 onPressAndHold: {
                     Config.userKnowsPressAndHold = true
                     app.stack.push(Qt.resolvedUrl('Invoices.qml'))
