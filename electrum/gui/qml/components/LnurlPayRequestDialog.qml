@@ -129,15 +129,18 @@ ElDialog {
             }
         }
 
-        FlatButton {
+        DialogButtonContainer {
             Layout.topMargin: constants.paddingLarge
             Layout.fillWidth: true
-            text: qsTr('Pay...')
-            icon.source: '../../icons/confirmed.png'
-            enabled: valid
-            onClicked: {
-                invoiceParser.lnurlGetInvoice(comment.text)
-                dialog.close()
+            FlatButton {
+                Layout.fillWidth: true
+                text: qsTr('Pay...')
+                icon.source: '../../icons/confirmed.png'
+                enabled: valid
+                onClicked: {
+                    invoiceParser.lnurlGetInvoice(comment.text)
+                    dialog.close()
+                }
             }
         }
     }
