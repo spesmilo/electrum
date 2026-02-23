@@ -55,6 +55,7 @@ ElDialog {
                             '\n\n',
                             qsTr('If you want to have recoverable channels, you must create a new wallet with an Electrum seed')
                           ].join('')
+                    backgroundColor: constants.darkerDialogBackground
                 }
 
                 InfoTextArea {
@@ -65,6 +66,7 @@ ElDialog {
                     text: [ qsTr('You currently have recoverable channels setting disabled.'),
                             qsTr('This means your channels cannot be recovered from seed.')
                           ].join(' ')
+                    backgroundColor: constants.darkerDialogBackground
                 }
 
                 // gossip
@@ -158,10 +160,11 @@ ElDialog {
                     }
                 }
 
+                Item { Layout.columnSpan: 3; width: 1; height: constants.paddingLarge }
+
                 BtcField {
                     id: amountBtc
                     fiatfield: amountFiat
-                    Layout.topMargin: constants.paddingLarge
                     Layout.preferredWidth: amountFontMetrics.advanceWidth('0') * 14 + leftPadding + rightPadding
                     onTextAsSatsChanged: {
                         if (!is_max.checked)

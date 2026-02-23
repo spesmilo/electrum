@@ -329,6 +329,7 @@ Pane {
             }
         }
     }
+    property color navigationBarBackgroundColor: constants.highlightBackground
 
     AddressDetails {
         id: addressdetails
