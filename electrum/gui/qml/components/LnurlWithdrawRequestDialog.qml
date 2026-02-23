@@ -50,6 +50,7 @@ ElDialog {
 
     ColumnLayout {
         width: parent.width
+        spacing: 0
 
         GridLayout {
             id: rootLayout
@@ -160,16 +161,19 @@ ElDialog {
             }
         }
 
-        FlatButton {
+        DialogButtonContainer {
             Layout.topMargin: constants.paddingLarge
             Layout.fillWidth: true
-            text: qsTr('Withdraw...')
-            icon.source: '../../icons/confirmed.png'
-            enabled: valid && !requestDetails.busy
-            onClicked: {
-                var satsAmount = amountBtc.textAsSats.satsInt;
-                requestDetails.lnurlRequestWithdrawal(satsAmount);
-                dialog.close();
+            FlatButton {
+                Layout.fillWidth: true
+                text: qsTr('Withdraw...')
+                icon.source: '../../icons/confirmed.png'
+                enabled: valid && !requestDetails.busy
+                onClicked: {
+                    var satsAmount = amountBtc.textAsSats.satsInt;
+                    requestDetails.lnurlRequestWithdrawal(satsAmount);
+                    dialog.close();
+                }
             }
         }
     }

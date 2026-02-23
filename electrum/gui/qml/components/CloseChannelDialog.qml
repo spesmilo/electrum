@@ -156,17 +156,21 @@ ElDialog {
             }
         }
 
-        FlatButton {
+        DialogButtonContainer {
             Layout.columnSpan: 2
             Layout.fillWidth: true
-            text: qsTr('Close channel')
-            icon.source: '../../icons/closebutton.png'
-            enabled: !channeldetails.isClosing
-            onClicked: {
-                if (closetypegroup.checkedButton.closetype == 'local_force') {
-                    showBackupThenClose()
-                } else {
-                    doCloseChannel()
+
+            FlatButton {
+                Layout.fillWidth: true
+                text: qsTr('Close channel')
+                icon.source: '../../icons/closebutton.png'
+                enabled: !channeldetails.isClosing
+                onClicked: {
+                    if (closetypegroup.checkedButton.closetype == 'local_force') {
+                        showBackupThenClose()
+                    } else {
+                        doCloseChannel()
+                    }
                 }
             }
         }
