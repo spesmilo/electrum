@@ -99,6 +99,10 @@ class Peer(Logger, EventListener):
         self.pubkey = pubkey  # remote pubkey
         self.privkey = self.transport.privkey  # local privkey
         self.features = self.lnworker.features  # type: LnFeatures
+        if lnworker.config.ZEROCONF_TRUSTED_NODE and pubkey != lnworker.trusted_zeroconf_node_id:
+            # don't signal zeroconf support if we are client (a trusted node is configured),
+            # and Peer is not our trusted node
+            self.features &= ~LnFeatures.OPTION_ZEROCONF_OPT
         self.their_features = LnFeatures(0)  # type: LnFeatures
         self.node_ids = [self.pubkey, privkey_to_pubkey(self.privkey)]
         assert self.node_ids[0] != self.node_ids[1]
@@ -1251,13 +1255,16 @@ class Peer(Logger, EventListener):
         # store the temp id now, so that it is recognized for e.g. 'error' messages
         self.temp_id_to_id[temp_chan_id] = None
         self._cleanup_temp_channelids()
-        channel_opening_fee_tlv = open_channel_tlvs.get('channel_opening_fee', {})
-        channel_opening_fee = channel_opening_fee_tlv.get('channel_opening_fee')
-        if channel_opening_fee:
-            # todo check that the fee is reasonable
+        channel_opening_fee = open_channel_tlvs.get('channel_opening_fee', {}).get('channel_opening_fee')
+        if channel_opening_fee:  # just-in-time channel opening
             assert is_zeroconf
-            self.logger.info(f"just-in-time opening fee: {channel_opening_fee} msat")
-            pass
+            # the opening fee consists of the fee configured by the LSP + mining fees of the funding tx
+            channel_opening_fee_sat = channel_opening_fee // 1000
+            if channel_opening_fee_sat > funding_sat * 0.1:
+                # TODO: if there will be some discovery channel where LSPs announce their fees
+                #  we should compare against the fees they announced here.
+                raise Exception(f"{channel_opening_fee_sat=} exceeding fee limit, rejecting channel ({funding_sat=})")
+            self.logger.info(f"just-in-time channel: {channel_opening_fee_sat=}")
 
         if channel_type & ChannelType.OPTION_ANCHORS_ZERO_FEE_HTLC_TX:
             multisig_funding_keypair = lnutil.derive_multisig_funding_key_if_they_opened(
