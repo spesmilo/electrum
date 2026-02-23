@@ -186,39 +186,31 @@ WizardComponent {
                 iconStyle: InfoTextArea.IconStyle.Error
             }
 
-            Pane {
+            Button {
                 Layout.alignment: Qt.AlignHCenter
                 Layout.topMargin: constants.paddingLarge
-                padding: 0
                 visible: !isMultisig
-                background: Rectangle {
-                    color: Qt.lighter(Material.dialogColor, 1.5)
-                }
-
-                FlatButton {
-                    text: qsTr('Detect Existing Accounts')
-                    onClicked: {
-                        var dialog = bip39recoveryDialog.createObject(mainLayout, {
-                            walletType: wizard_data['wallet_type'],
-                            seed: wizard_data['seed'],
-                            seedExtraWords: wizard_data['seed_extra_words']
-                        })
-                        dialog.accepted.connect(function () {
-                            // select matching script type button and set derivation path
-                            for (var i = 0; i < scripttypegroup.buttons.length; i++) {
-                                var btn = scripttypegroup.buttons[i]
-                                if (btn.visible && btn.scripttype == dialog.scriptType) {
-                                    btn.checked = true
-                                    derivationpathtext.text = dialog.derivationPath
-                                    return
-                                }
+                text: qsTr('Detect Existing Accounts')
+                onClicked: {
+                    var dialog = bip39recoveryDialog.createObject(mainLayout, {
+                        walletType: wizard_data['wallet_type'],
+                        seed: wizard_data['seed'],
+                        seedExtraWords: wizard_data['seed_extra_words']
+                    })
+                    dialog.accepted.connect(function () {
+                        // select matching script type button and set derivation path
+                        for (var i = 0; i < scripttypegroup.buttons.length; i++) {
+                            var btn = scripttypegroup.buttons[i]
+                            if (btn.visible && btn.scripttype == dialog.scriptType) {
+                                btn.checked = true
+                                derivationpathtext.text = dialog.derivationPath
+                                return
                             }
-                        })
-                        dialog.open()
-                    }
+                        }
+                    })
+                    dialog.open()
                 }
             }
-
         }
     }
 
