@@ -55,6 +55,7 @@ from .interface import GracefulDisconnect
 from .json_db import StoredDict
 from .invoices import PR_PAID
 from .fee_policy import FEE_LN_ETA_TARGET, FEERATE_PER_KW_MIN_RELAY_LIGHTNING
+from .channel_db import FLAG_DIRECTION
 
 if TYPE_CHECKING:
     from .lnworker import LNGossip, LNWallet
@@ -470,6 +471,12 @@ class Peer(Logger, EventListener):
             return
         for chan in self.channels.values():
             if payload['short_channel_id'] in [chan.short_channel_id, chan.get_local_scid_alias()]:
+                # originator: node_id_1 if the least-significant bit of flags is 0 or node_id_2 otherwise
+                flags = int.from_bytes(payload['channel_flags'], byteorder='big', signed=False)
+                originator = sorted(self.node_ids)[flags & FLAG_DIRECTION]
+                if originator == self.lnworker.node_keypair.pubkey:
+                    self.logger.debug(f"peer sent us our own channel update for chan {chan.get_id_for_log()}")
+                    return
                 chan.set_remote_update(payload)
                 self.logger.info(f"saved remote channel_update gossip msg for chan {chan.get_id_for_log()}")
                 break
