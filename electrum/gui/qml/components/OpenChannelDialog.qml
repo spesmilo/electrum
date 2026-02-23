@@ -67,76 +67,75 @@ ElDialog {
                           ].join(' ')
                 }
 
-                Label {
-                    text: qsTr('Node')
-                    Layout.columnSpan: 3
-                    color: Material.accentColor
-                }
-
                 // gossip
-                TextArea {
-                    id: node
-                    visible: Config.useGossip
-                    Layout.columnSpan: 2
-                    Layout.fillWidth: true
-                    font.family: FixedFont
-                    wrapMode: Text.Wrap
-                    placeholderText: qsTr('Paste or scan node uri/pubkey')
-                    inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
-                    onTextChanged: {
-                        if (activeFocus)
-                            channelopener.connectStr = text
-                    }
-                    onActiveFocusChanged: {
-                        if (!activeFocus)
-                            channelopener.connectStr = text
-                    }
-                }
-
                 RowLayout {
+                    Layout.columnSpan: 3
                     visible: Config.useGossip
                     spacing: 0
-                    ToolButton {
-                        icon.source: '../../icons/paste.png'
-                        icon.height: constants.iconSizeMedium
-                        icon.width: constants.iconSizeMedium
-                        onClicked: {
-                            var cliptext = AppController.clipboardToText()
-                            if (!cliptext)
-                                return
-                            if (channelopener.validateConnectString(cliptext)) {
-                                channelopener.connectStr = cliptext
-                                node.text = channelopener.connectStr
-                            } else {
-                                var dialog = app.messageDialog.createObject(app, {
-                                    text: qsTr('Invalid node-id or connect string')
+
+                    TextArea {
+                        id: nodeUri
+                        visible: Config.useGossip
+                        Layout.fillWidth: true
+                        Layout.minimumHeight: nodeUriFontMetrics.lineSpacing * 4 + topPadding + bottomPadding
+                        Layout.topMargin: constants.paddingSmall
+                        font.family: FixedFont
+                        wrapMode: Text.Wrap
+                        placeholderText: qsTr('Paste or scan node uri/pubkey')
+                        inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
+                        onTextChanged: {
+                            if (activeFocus)
+                                channelopener.connectStr = text
+                        }
+                        onActiveFocusChanged: {
+                            if (!activeFocus)
+                                channelopener.connectStr = text
+                        }
+                    }
+                    ColumnLayout {
+                        spacing: 0
+                        ToolButton {
+                            icon.source: '../../icons/paste.png'
+                            icon.height: constants.iconSizeMedium
+                            icon.width: constants.iconSizeMedium
+                            onClicked: {
+                                var cliptext = AppController.clipboardToText()
+                                if (!cliptext)
+                                    return
+                                if (channelopener.validateConnectString(cliptext)) {
+                                    channelopener.connectStr = cliptext
+                                    nodeUri.text = channelopener.connectStr
+                                } else {
+                                    var dialog = app.messageDialog.createObject(app, {
+                                        text: qsTr('Invalid node-id or connect string')
+                                    })
+                                    dialog.open()
+                                }
+                            }
+                        }
+                        ToolButton {
+                            icon.source: '../../icons/qrcode.png'
+                            icon.height: constants.iconSizeMedium
+                            icon.width: constants.iconSizeMedium
+                            scale: 1.2
+                            onClicked: {
+                                var dialog = app.scanDialog.createObject(app, {
+                                    hint: qsTr('Scan a node-id or a connect string')
+                                })
+                                dialog.onFoundText.connect(function(data) {
+                                    if (channelopener.validateConnectString(data)) {
+                                        channelopener.connectStr = data
+                                        nodeUri.text = channelopener.connectStr
+                                    } else {
+                                        var errdialog = app.messageDialog.createObject(app, {
+                                            text: qsTr('Invalid node-id or connect string')
+                                        })
+                                        errdialog.open()
+                                    }
+                                    dialog.close()
                                 })
                                 dialog.open()
                             }
-                        }
-                    }
-                    ToolButton {
-                        icon.source: '../../icons/qrcode.png'
-                        icon.height: constants.iconSizeMedium
-                        icon.width: constants.iconSizeMedium
-                        scale: 1.2
-                        onClicked: {
-                            var dialog = app.scanDialog.createObject(app, {
-                                hint: qsTr('Scan a node-id or a connect string')
-                            })
-                            dialog.onFoundText.connect(function(data) {
-                                if (channelopener.validateConnectString(data)) {
-                                    channelopener.connectStr = data
-                                    node.text = channelopener.connectStr
-                                } else {
-                                    var errdialog = app.messageDialog.createObject(app, {
-                                        text: qsTr('Invalid node-id or connect string')
-                                    })
-                                    errdialog.open()
-                                }
-                                dialog.close()
-                            })
-                            dialog.open()
                         }
                     }
                 }
@@ -160,15 +159,10 @@ ElDialog {
                     }
                 }
 
-                Label {
-                    text: qsTr('Amount')
-                    Layout.columnSpan: 3
-                    color: Material.accentColor
-                }
-
                 BtcField {
                     id: amountBtc
                     fiatfield: amountFiat
+                    Layout.topMargin: constants.paddingLarge
                     Layout.preferredWidth: amountFontMetrics.advanceWidth('0') * 14 + leftPadding + rightPadding
                     onTextAsSatsChanged: {
                         if (!is_max.checked)
@@ -326,5 +320,9 @@ ElDialog {
     FontMetrics {
         id: amountFontMetrics
         font: amountBtc.font
+    }
+    FontMetrics {
+        id: nodeUriFontMetrics
+        font: nodeUri.font
     }
 }
