@@ -38,7 +38,7 @@ from electrum.crypto import privkey_to_pubkey
 from electrum.lnutil import Keypair, PaymentFailure, LnFeatures, HTLCOwner, PaymentFeeBudget, RECEIVED
 from electrum.lnchannel import ChannelState, PeerState, Channel
 from electrum.lnrouter import LNPathFinder, PathEdge, LNPathInconsistent
-from electrum.channel_db import ChannelDB
+from electrum.channel_db import ChannelDB, InvalidGossipMsg
 from electrum.lnworker import LNWallet, NoPathFound, SentHtlcInfo, PaySession, LNPeerManager
 from electrum.lnmsg import encode_msg, decode_msg
 from electrum import lnmsg
@@ -606,6 +606,32 @@ class TestPeerUtils(TestPeer):
         with self.assertRaises(Exception) as ctx:
             Peer.decode_short_ids(encoded_unsupported)
         self.assertIn("unexpected first byte", str(ctx.exception))
+
+    async def test_maybe_save_remote_update(self):
+        graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
+        alice_bob_peer, bob_alice_peer = graph.peers[('alice', 'bob')], graph.peers[('bob', 'alice')]
+        alice_bob_chan, bob_alice_chan = graph.channels[('alice', 'bob')], graph.channels[('bob', 'alice')]
+
+        # prepare channel update from alice
+        alice_to_bob_chan_update = alice_bob_chan.get_outgoing_gossip_channel_update()
+        raw = alice_to_bob_chan_update
+        payload = decode_msg(alice_to_bob_chan_update)[1]
+        payload['raw'] = raw
+
+        # bob should accept the update and save it
+        self.assertIsNone(bob_alice_chan.storage.get('remote_update'))
+        bob_alice_peer.maybe_save_remote_update(payload)
+        self.assertEqual(bob_alice_chan.storage.get('remote_update'), raw.hex())
+
+        # alice shouldn't save her own channel update as remote update
+        self.assertIsNone(alice_bob_chan.storage.get('remote_update'))
+        alice_bob_peer.maybe_save_remote_update(payload)
+        self.assertIsNone(alice_bob_chan.storage.get('remote_update'))
+
+        ChannelDB.verify_channel_update(payload, start_node=bob_alice_peer.pubkey)
+        # trying to verify the sig against the wrong pubkey should fail obviously
+        with self.assertRaises(InvalidGossipMsg):
+            ChannelDB.verify_channel_update(payload, start_node=alice_bob_peer.pubkey)
 
 
 class TestPeerDirect(TestPeer):
