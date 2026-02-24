@@ -2019,16 +2019,17 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 # make sure we don't try to spend change from the tx-to-be-replaced:
                 coins = [c for c in coins if c.prevout.txid.hex() != base_tx.txid()]
                 is_local = self.adb.get_tx_height(base_tx.txid()).height() == TX_HEIGHT_LOCAL
+                # estimate base tx fee before stripping tx for more accurate estimate
+                base_tx_fee = base_tx.get_fee()
+                base_feerate = Decimal(base_tx_fee)/base_tx.estimated_size()
+                relayfeerate = Decimal(self.relayfee()) / 1000
+                original_fee_estimator = fee_estimator
                 if not isinstance(base_tx, PartialTransaction):
                     base_tx = PartialTransaction.from_tx(base_tx)
                     base_tx.add_info_from_wallet(self)
                 else:
                     # don't cast PartialTransaction, because it removes make_witness
                     base_tx.remove_signatures()
-                base_tx_fee = base_tx.get_fee()
-                base_feerate = Decimal(base_tx_fee)/base_tx.estimated_size()
-                relayfeerate = Decimal(self.relayfee()) / 1000
-                original_fee_estimator = fee_estimator
                 def fee_estimator(size: Union[int, float, Decimal]) -> int:
                     size = Decimal(size)
                     lower_bound_relayfee = int(base_tx_fee + round(size * relayfeerate)) if not is_local else 0
@@ -2302,6 +2303,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
               Without that, all txins must be ismine.
         """
         assert tx
+        old_tx_size = tx.estimated_size()  # estimate before stripping tx for more accurate estimate
         if not isinstance(tx, PartialTransaction):
             tx = PartialTransaction.from_tx(tx)
         assert isinstance(tx, PartialTransaction)
@@ -2312,7 +2314,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         tx.add_info_from_wallet(self)
         if tx.is_missing_info_from_network():
             raise Exception("tx missing info from network")
-        old_tx_size = tx.estimated_size()
         old_fee = tx.get_fee()
         assert old_fee is not None
         old_fee_rate = old_fee / old_tx_size  # sat/vbyte
@@ -2572,6 +2573,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
               Without that, all txins must be ismine.
         """
         assert tx
+        old_tx_size = tx.estimated_size()  # estimate before stripping tx for more accurate estimate
         if not isinstance(tx, PartialTransaction):
             tx = PartialTransaction.from_tx(tx)
         assert isinstance(tx, PartialTransaction)
@@ -2583,7 +2585,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         tx.add_info_from_wallet(self)
         if tx.is_missing_info_from_network():
             raise Exception("tx missing info from network")
-        old_tx_size = tx.estimated_size()
         old_fee = tx.get_fee()
         assert old_fee is not None
         old_fee_rate = old_fee / old_tx_size  # sat/vbyte
