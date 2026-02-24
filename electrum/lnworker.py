@@ -2705,17 +2705,14 @@ class LNWallet(Logger):
         preimage: bytes,
         *,
         write_to_disk: bool = True,
-        mark_as_public: Optional[bool] = None,  # see is_preimage_public
+        mark_as_public: bool = False,  # see is_preimage_public
     ):
         assert isinstance(payment_hash, bytes), f"expected bytes, but got {type(payment_hash)}"
         assert isinstance(preimage, bytes), f"expected bytes, but got {type(preimage)}"
         if sha256(preimage) != payment_hash:
             raise Exception("tried to save incorrect preimage for payment_hash")
-        old_tuple = _, old_is_public = self._preimages.get(payment_hash.hex(), (None, None))
-        if mark_as_public is None:  # if unset, keep current DB value
-            mark_as_public = old_is_public or False
-        if old_is_public and not mark_as_public:
-            raise Exception("preimage mark_as_public: True->False transition is forbidden")
+        old_tuple = _, old_is_public = self._preimages.get(payment_hash.hex(), (None, False))
+        mark_as_public |= old_is_public  # disallow True->False transition
         # sanity checks and conversions done.
         new_tuple = preimage.hex(), mark_as_public
         if old_tuple == new_tuple:  # no change
