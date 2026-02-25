@@ -208,6 +208,15 @@ class HtlcUpdate:
             )
         return htlc_update
 
+def deserialize_htlcs(htlc_log_bytes):
+    htlc_log = {}
+    while htlc_log_bytes:
+        chunk = htlc_log_bytes[0:HTLC_UPDATE_LENGTH]
+        htlc_log_bytes = htlc_log_bytes[HTLC_UPDATE_LENGTH:]
+        htlc_update = HtlcUpdate.from_bytes(chunk)
+        htlc_log[htlc_update.htlc_id] = htlc_update
+    return htlc_log
+
 
 @attr.s
 class PeerBackup:
@@ -223,8 +232,13 @@ class PeerBackup:
     remote_ctn = attr.ib(default=None, type=int)
     local_next_htlc_id = attr.ib(default=None, type=int)
     remote_next_htlc_id = attr.ib(default=None, type=int)
-    htlc_log = attr.ib(default=None, type=str)
+    active_htlcs = attr.ib(default=None, type=str)
     revocation_store = attr.ib(default=None, type=str)
+    #
+    local_offered_msat = attr.ib(default=None, type=bytes)
+    local_received_msat = attr.ib(default=None, type=bytes)
+    remote_offered_msat = attr.ib(default=None, type=bytes)
+    remote_received_msat = attr.ib(default=None, type=bytes)
     current_feerate = attr.ib(type=int, default=None)
     pending_feerate = attr.ib(type=int, default=None)
 
@@ -247,37 +261,8 @@ class PeerBackup:
         state['local_config']['encrypted_seed'] = encrypted_seed.hex()
         # convert log to a list of HtlcUpdate
         log = chan.hm.log
-        htlc_log = {LOCAL:{}, REMOTE:{}}
-        for proposer in [LOCAL, REMOTE]:
-            for htlc_id, add in log[proposer]['adds'].items():
-                local_ctn_in = chan.hm.get_ctn_if_lower_than_latest(proposer, 'locked_in', htlc_id, LOCAL)
-                local_ctn_settle = chan.hm.get_ctn_if_lower_than_latest(proposer, 'settles', htlc_id, LOCAL)
-                local_ctn_fail = chan.hm.get_ctn_if_lower_than_latest(proposer, 'fails', htlc_id, LOCAL)
-                remote_ctn_in = chan.hm.get_ctn_if_lower_than_latest(proposer, 'locked_in', htlc_id, REMOTE)
-                remote_ctn_settle = chan.hm.get_ctn_if_lower_than_latest(proposer, 'settles', htlc_id, REMOTE)
-                remote_ctn_fail = chan.hm.get_ctn_if_lower_than_latest(proposer, 'fails', htlc_id, REMOTE)
-                if local_ctn_in is None and remote_ctn_in is None:
-                    continue
-                is_success = local_ctn_settle is not None or remote_ctn_settle is not None
-                if is_success:
-                    local_ctn_out = local_ctn_settle
-                    remote_ctn_out = remote_ctn_settle
-                else:
-                    local_ctn_out = local_ctn_fail
-                    remote_ctn_out = remote_ctn_fail
-                htlc_update = HtlcUpdate(
-                    amount_msat = add.amount_msat,
-                    payment_hash = add.payment_hash,
-                    cltv_abs = add.cltv_abs,
-                    timestamp = add.timestamp,
-                    htlc_id = add.htlc_id,
-                    is_success = is_success,
-                    local_ctn_in = local_ctn_in,
-                    local_ctn_out = local_ctn_out,
-                    remote_ctn_in = remote_ctn_in,
-                    remote_ctn_out = remote_ctn_out,
-                )
-                htlc_log[proposer][htlc_id] = htlc_update
+        # active htlcs
+        active_htlcs = chan.hm.get_active_htlcs()
 
         initiator = LOCAL if state['constraints']['is_initiator'] else REMOTE
         fee_updates = log[initiator]['fee_updates']
@@ -328,9 +313,13 @@ class PeerBackup:
             remote_config = state['remote_config'],
             local_ctn = state['log']['1']['ctn'],
             remote_ctn = state['log']['-1']['ctn'],
+            local_received_msat = local_received_msat,
+            local_offered_msat = local_offered_msat,
+            remote_received_msat= remote_received_msat,
+            remote_offered_msat= remote_offered_msat,
             local_next_htlc_id = local_next_htlc_id,
             remote_next_htlc_id = remote_next_htlc_id,
-            htlc_log = htlc_log,
+            active_htlcs = active_htlcs,
             revocation_store = state['revocation_store'],
             current_feerate = current_feerate,
             pending_feerate = pending_feerate,
@@ -353,7 +342,7 @@ class PeerBackup:
             'remote_config': p.remote_config,
             'local_ctn': p.local_ctn,
             'remote_ctn': p.remote_ctn,
-            'htlc_log': p.htlc_log,
+            'active_htlcs': p.active_htlcs,
             'revocation_store': p.revocation_store,
             'current_feerate': p.current_feerate,
             'pending_feerate': p.pending_feerate,
@@ -465,28 +454,23 @@ class PeerBackup:
             if 'encrypted_seed' in payload:
                 state['local_config']['encrypted_seed'] = payload['encrypted_seed']['seed'].hex()
 
-
-        def htlc_log_from_bytes(active_htlcs):
-            log = {}
-            while active_htlcs:
-                chunk = active_htlcs[0:HTLC_UPDATE_LENGTH]
-                active_htlcs = active_htlcs[HTLC_UPDATE_LENGTH:]
-                htlc_update = HtlcUpdate.from_bytes(chunk)
-                log[htlc_update.htlc_id] = htlc_update
-            return log
-        state['htlc_log'] = {
-            LOCAL: htlc_log_from_bytes(payload['offered_htlcs']['active_htlcs']),
-            REMOTE: htlc_log_from_bytes(payload['received_htlcs']['active_htlcs'])
+        state['active_htlcs'] = {
+            LOCAL: deserialize_htlcs(payload['offered_htlcs']['active_htlcs']),
+            REMOTE: deserialize_htlcs(payload['received_htlcs']['active_htlcs'])
         }
+        state['local_offered_msat'] = payload['offered_htlcs']['local_msat']
+        state['remote_offered_msat'] = payload['offered_htlcs']['remote_msat']
+        state['local_received_msat'] = payload['received_htlcs']['local_msat']
+        state['remote_received_msat'] = payload['received_htlcs']['remote_msat']
+
         return PeerBackup(**state)
 
 
-    def _get_htlc_log(self, owner: HTLCOwner, proposer: HTLCOwner, blank_timestamps=False) -> bytes:
-        local_msat = 0
-        remote_msat = 0
-        active_htlcs = b''
-
-        for htlc_id, htlc_update in list(sorted(self.htlc_log[proposer].items())):
+    def serialize_active_htlcs(self, owner, proposer, blank_timestamps):
+        # for creation of state.
+        s = b''
+        htlc_log = self.active_htlcs[proposer] # active htlcs
+        for htlc_id, htlc_update in sorted(htlc_log.items()):
             _bytes = htlc_update.to_bytes(owner, blank_timestamps)
             if _bytes is None:
                 continue
@@ -495,35 +479,23 @@ class PeerBackup:
             remote_ctn_in = None if owner == LOCAL else htlc_update.remote_ctn_in
             remote_ctn_out = None if owner == LOCAL else htlc_update.remote_ctn_out
 
-            if (remote_ctn_in is not None and remote_ctn_out is None)\
-               or (local_ctn_in is not None and local_ctn_out is None):
-                active_htlcs += _bytes
-
-            if local_ctn_in is not None and local_ctn_out is not None:
-                local_msat -= htlc_update.amount_msat * int(proposer)
-
-            if remote_ctn_in is not None and remote_ctn_out is not None:
-                remote_msat += htlc_update.amount_msat * int(proposer)
-
-        return (
-            local_msat,
-            remote_msat,
-            active_htlcs,
-        )
+            if local_ctn_in is None and remote_ctn_in is None:
+                continue
+            if owner == LOCAL and local_ctn_in is not None and local_ctn_out is not None:
+                continue
+            if owner == REMOTE and remote_ctn_in is not None and remote_ctn_out is not None:
+                continue
+            s += _bytes
+        return s
 
     def to_bytes(self, owner=None, blank_timestamps=False) -> bytes:
-        # for creation of state.
+        active_offered_htlcs = self.serialize_active_htlcs(owner, proposer=LOCAL, blank_timestamps=blank_timestamps)
+        active_received_htlcs = self.serialize_active_htlcs(owner, proposer=REMOTE, blank_timestamps=blank_timestamps)
 
-        local_offered_msat, remote_offered_msat,\
-        active_offered_htlcs = self._get_htlc_log(owner, proposer=LOCAL, blank_timestamps=blank_timestamps)
-
-        local_received_msat, remote_received_msat,\
-        active_received_htlcs = self._get_htlc_log(owner, proposer=REMOTE, blank_timestamps=blank_timestamps)
-
-        local_initial_msat = self.local_config['initial_msat'] + local_received_msat + local_offered_msat
-        remote_initial_msat = self.remote_config['initial_msat'] + remote_received_msat + remote_offered_msat
-        assert local_initial_msat >=0
-        assert remote_initial_msat >=0
+        remote_offered_msat = 0 if owner == LOCAL else self.remote_offered_msat
+        remote_received_msat = 0 if owner == LOCAL else self.remote_received_msat
+        local_offered_msat = 0 if owner == REMOTE else self.local_offered_msat
+        local_received_msat = 0 if owner == REMOTE else self.local_received_msat
 
         # if we are initiator, the pending feerate applies to REMOTE
         # if we are not initiator, the pending feerate applies to LOCAL
@@ -545,9 +517,13 @@ class PeerBackup:
             'channel_type': {'type': ChannelType(self.channel_type).to_bytes_minimal()},
             'node_id': {'node_id': bytes.fromhex(self.node_id)},
             'offered_htlcs': {
+                'local_msat': local_offered_msat,
+                'remote_msat': remote_offered_msat,
                 'active_htlcs': active_offered_htlcs,
             },
             'received_htlcs': {
+                'local_msat': local_received_msat,
+                'remote_msat': remote_received_msat,
                 'active_htlcs': active_received_htlcs,
             },
             'constraints': self.constraints,
@@ -572,12 +548,10 @@ class PeerBackup:
             }
             a, b = self.convert_config_to_payload(self.remote_config, self.remote_ctn, self.local_next_htlc_id)
             payload['remote_config'] = a
-            payload['remote_config']['initial_msat'] = remote_initial_msat
             payload['remote_ctx'] = b
         if owner != REMOTE:
             a, b = self.convert_config_to_payload(self.local_config, self.local_ctn, self.remote_next_htlc_id)
             payload['local_config'] = a
-            payload['local_config']['initial_msat'] = local_initial_msat
             payload['local_ctx'] = b
             if 'encrypted_seed' in self.local_config:
                 encrypted_seed = self.local_config['encrypted_seed']
@@ -606,9 +580,14 @@ class PeerBackup:
         #
         remote_peerbackup.remote_next_htlc_id = local_peerbackup.remote_next_htlc_id
         local_peerbackup.local_next_htlc_id = remote_peerbackup.local_next_htlc_id
+        #
+        remote_peerbackup.local_offered_msat = local_peerbackup.local_offered_msat
+        remote_peerbackup.local_received_msat = local_peerbackup.local_received_msat
+        local_peerbackup.remote_offered_msat = remote_peerbackup.remote_offered_msat
+        local_peerbackup.remote_received_msat = remote_peerbackup.remote_received_msat
         # merge htlc logs
-        local_htlc_log = local_peerbackup.htlc_log
-        remote_htlc_log = remote_peerbackup.htlc_log
+        local_htlc_log = local_peerbackup.active_htlcs
+        remote_htlc_log = remote_peerbackup.active_htlcs
         for proposer in [LOCAL, REMOTE]:
             for htlc_id, local_v in list(local_htlc_log[proposer].items()):
                 remote_v = remote_htlc_log[proposer].get(htlc_id)
@@ -663,9 +642,14 @@ class PeerBackup:
         self.local_ctn, self.remote_ctn = self.remote_ctn, self.local_ctn
         self.local_next_htlc_id, self.remote_next_htlc_id = self.remote_next_htlc_id, self.local_next_htlc_id
         self.local_config, self.remote_config = self.remote_config, self.local_config
-        flip_dict_values(self.htlc_log, LOCAL, REMOTE)
+        #
+        self.local_received_msat, self.remote_offered_msat = self.remote_offered_msat, self.local_received_msat
+        self.local_offered_msat, self.remote_received_msat = self.remote_received_msat, self.local_offered_msat
+        self.local_offered_msat, self.remote_offered_msat = self.remote_offered_msat, self.local_offered_msat
+
+        flip_dict_values(self.active_htlcs, LOCAL, REMOTE)
         for proposer in [LOCAL, REMOTE]:
-            for htlc_id, v in self.htlc_log[proposer].items():
+            for htlc_id, v in self.active_htlcs[proposer].items():
                 v.flip()
         self.constraints['is_initiator'] = not self.constraints['is_initiator']
 
@@ -696,10 +680,10 @@ class PeerBackup:
             '1': deepcopy(LOG_TEMPLATE),
             '-1': deepcopy(LOG_TEMPLATE),
         }
-        htlc_log = state.pop('htlc_log')
+        active_htlcs = state.pop('active_htlcs')
         for proposer in [LOCAL, REMOTE]:
             target_log = log[str(int(proposer))]
-            for htlc_id, v in htlc_log[proposer].items():
+            for htlc_id, v in active_htlcs[proposer].items():
                 target_log['adds'][htlc_id] = (v.amount_msat, v.payment_hash, v.cltv_abs, v.htlc_id, v.timestamp)
                 assert (v.local_ctn_in is not None or v.remote_ctn_in is not None), v
                 target_log['locked_in'][htlc_id] = {'1':v.local_ctn_in, '-1':v.remote_ctn_in}
@@ -725,7 +709,6 @@ class PeerBackup:
         else:
             fee_log['0'] = {'rate':current_feerate, 'ctn_local':local_ctn, 'ctn_remote':remote_ctn}
 
-        lnworker.logger.info(f'{log}')
         state['log'] = log
         state['log']['1']['was_revoke_last'] = False
         state['log']['1']['unacked_updates'] = {}

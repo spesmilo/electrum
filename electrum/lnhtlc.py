@@ -248,6 +248,49 @@ class HTLCManager:
         # reset this
         self._is_local_ctn_reached = True
 
+    def get_active_htlcs(self):
+        active_htlcs = {LOCAL:{}, REMOTE:{}}
+        for proposer in [LOCAL, REMOTE]:
+            for htlc_id in self._maybe_active_htlc_ids[proposer]:
+                htlc_update = self.get_htlc_update(proposer, htlc_id)
+                if htlc_update.local_ctn_in is None and htlc_update.remote_ctn_in is None:
+                    continue
+                # remove inactive htlcs
+                if htlc_update.local_ctn_out is not None and htlc_update.remote_ctn_out is not None:
+                    continue
+                active_htlcs[proposer][htlc_id] = htlc_update
+        return active_htlcs
+
+    def get_htlc_update(self, proposer, htlc_id):
+        from .peerbackup import HtlcUpdate
+        add = self.log[proposer]['adds'][htlc_id]
+        local_ctn_in = self.get_ctn_if_lower_than_latest(proposer, 'locked_in', htlc_id, LOCAL)
+        local_ctn_settle = self.get_ctn_if_lower_than_latest(proposer, 'settles', htlc_id, LOCAL)
+        local_ctn_fail = self.get_ctn_if_lower_than_latest(proposer, 'fails', htlc_id, LOCAL)
+        remote_ctn_in = self.get_ctn_if_lower_than_latest(proposer, 'locked_in', htlc_id, REMOTE)
+        remote_ctn_settle = self.get_ctn_if_lower_than_latest(proposer, 'settles', htlc_id, REMOTE)
+        remote_ctn_fail = self.get_ctn_if_lower_than_latest(proposer, 'fails', htlc_id, REMOTE)
+        is_success = local_ctn_settle is not None or remote_ctn_settle is not None
+        if is_success:
+            local_ctn_out = local_ctn_settle
+            remote_ctn_out = remote_ctn_settle
+        else:
+            local_ctn_out = local_ctn_fail
+            remote_ctn_out = remote_ctn_fail
+        htlc_update = HtlcUpdate(
+            amount_msat = add.amount_msat,
+            payment_hash = add.payment_hash,
+            cltv_abs = add.cltv_abs,
+            timestamp = add.timestamp,
+            htlc_id = add.htlc_id,
+            is_success = is_success,
+            local_ctn_in = local_ctn_in,
+            local_ctn_out = local_ctn_out,
+            remote_ctn_in = remote_ctn_in,
+            remote_ctn_out = remote_ctn_out,
+        )
+        return htlc_update
+
     @with_lock
     def _update_maybe_active_htlc_ids(self) -> None:
         # - Loosely, we want a set that contains the htlcs that are
