@@ -295,6 +295,8 @@ ElDialog {
                                 id: maxAmountMessage
                                 visible: amountMax.checked && text
                                 compact: true
+                                backgroundColor: constants.darkerDialogBackground
+
                                 Connections {
                                     target: invoice
                                     function onMaxAmountMessage(message) {
