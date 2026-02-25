@@ -234,17 +234,21 @@ ElDialog {
                     text: channelopener.warning
                     visible: text
                     compact: true
+                    backgroundColor: constants.darkerDialogBackground
                 }
 
             }
         }
 
-        FlatButton {
+        DialogButtonContainer {
             Layout.fillWidth: true
-            text: qsTr('Open Channel...')
-            icon.source: '../../icons/confirmed.png'
-            enabled: channelopener.valid
-            onClicked: channelopener.openChannel()
+            FlatButton {
+                Layout.fillWidth: true
+                text: qsTr('Open Channel...')
+                icon.source: '../../icons/confirmed.png'
+                enabled: channelopener.valid
+                onClicked: channelopener.openChannel()
+            }
         }
     }
 

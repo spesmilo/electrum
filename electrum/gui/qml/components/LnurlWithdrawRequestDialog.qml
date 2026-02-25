@@ -76,6 +76,7 @@ ElDialog {
                           + '\n\n'
                           + qsTr('Do a submarine swap in the \'Channels\' tab to get more incoming liquidity.')
                 iconStyle: InfoTextArea.IconStyle.Error
+                backgroundColor: constants.darkerDialogBackground
             }
 
             InfoTextArea {
@@ -84,9 +85,10 @@ ElDialog {
                 compact: true
                 visible: !dialog.insufficientLiquidity && dialog.providerMinWithdrawable != dialog.providerMaxWithdrawable
                 text: qsTr('Amount must be between %1 and %2 %3')
-                .arg(Config.formatSats(dialog.effectiveMinWithdrawable))
-                .arg(Config.formatSats(dialog.effectiveMaxWithdrawable))
-                .arg(Config.baseUnit)
+                        .arg(Config.formatSats(dialog.effectiveMinWithdrawable))
+                        .arg(Config.formatSats(dialog.effectiveMaxWithdrawable))
+                        .arg(Config.baseUnit)
+                backgroundColor: constants.darkerDialogBackground
             }
 
             InfoTextArea {
@@ -100,6 +102,7 @@ ElDialog {
                         + ' '
                         + qsTr('You may need to do a submarine swap to increase your incoming liquidity.')
                 iconStyle: InfoTextArea.IconStyle.Warn
+                backgroundColor: constants.darkerDialogBackground
             }
 
             Label {
