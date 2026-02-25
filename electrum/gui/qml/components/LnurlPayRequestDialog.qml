@@ -43,6 +43,7 @@ ElDialog {
                 compact: true
                 visible: invoiceParser.lnurlData['min_sendable_sat'] != invoiceParser.lnurlData['max_sendable_sat']
                 text: qsTr('Amount must be between %1 and %2 %3').arg(Config.formatSats(invoiceParser.lnurlData['min_sendable_sat'])).arg(Config.formatSats(invoiceParser.lnurlData['max_sendable_sat'])).arg(Config.baseUnit)
+                backgroundColor: constants.darkerDialogBackground
             }
 
             Label {
