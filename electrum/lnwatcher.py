@@ -48,6 +48,12 @@ class LNWatcher(Logger, EventListener):
         subscribe: bool = True,
     ) -> None:
         if subscribe:
+            # FIXME even when called with subscribe=False, adb likely already has this address.
+            #   wallet.adb==lnwatcher.adb, and adb.db==wallet.db, which is persisted to disk.
+            #   A call to adb.add_address at any time will add the address to the persistent DB.
+            #   So in practice adb has the channel-related and swap-related addresses we *ever*
+            #   subscribed to, and will have adb.synchronizer sub to them again.
+            #   (even for old redeemed channels and old swaps)
             self.adb.add_address(address)
         self.callbacks[address] = callback
 
