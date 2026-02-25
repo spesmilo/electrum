@@ -1479,7 +1479,7 @@ class Channel(AbstractChannel):
         #       small value htlcs: even a large htlc might not appear in the outgoing channel's ctx, e.g. maybe it was
         #       not committed yet - we should still make sure it gets removed on the incoming channel. (see #9631)
         if preimage:
-            self.lnworker.save_preimage(payment_hash, preimage)
+            self.lnworker.save_preimage(payment_hash, preimage, mark_as_public=True)
             for htlc, is_sent in found.values():
                 if is_sent:
                     self.lnworker.htlc_fulfilled(self, payment_hash, htlc.htlc_id)
@@ -1720,6 +1720,7 @@ class Channel(AbstractChannel):
         assert htlc_id not in self.hm.log[REMOTE]['settles']
         self.hm.send_settle(htlc_id)
         self.htlc_settle_time[htlc_id] = now()
+        self.lnworker.save_preimage(htlc.payment_hash, preimage, mark_as_public=True)
 
     def get_payment_hash(self, htlc_id: int) -> bytes:
         htlc = self.hm.get_htlc_by_id(LOCAL, htlc_id)
@@ -1737,6 +1738,7 @@ class Channel(AbstractChannel):
         assert htlc_id not in self.hm.log[LOCAL]['settles']
         with self.db_lock:
             self.hm.recv_settle(htlc_id)
+        self.lnworker.save_preimage(htlc.payment_hash, preimage, mark_as_public=True)
 
     def fail_htlc(self, htlc_id: int) -> None:
         """Fail a pending received HTLC.
