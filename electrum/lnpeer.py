@@ -1983,7 +1983,6 @@ class Peer(Logger, EventListener):
                 f"chan={chan.get_id_for_log()}. {htlc_id=}. {chan.get_state()=!r}. {chan.peer_state=!r}")
             return
         chan.receive_htlc_settle(preimage, htlc_id)  # TODO handle exc and maybe fail channel (e.g. bad htlc_id)
-        self.lnworker.save_preimage(payment_hash, preimage)
         self.maybe_send_commitment(chan)
 
     def on_update_fail_malformed_htlc(self, chan: Channel, payload):

@@ -488,7 +488,7 @@ class SwapManager(Logger):
                     if preimage:
                         swap.preimage = preimage
                         self.logger.info(f'found preimage: {preimage.hex()}')
-                        self.lnworker.save_preimage(swap.payment_hash, preimage)
+                        self.lnworker.save_preimage(swap.payment_hash, preimage, mark_as_public=True)
                     else:
                         # this is our refund tx
                         if spent_height > 0:

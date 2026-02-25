@@ -480,14 +480,22 @@ def _maybe_reveal_preimage_for_htlc(
     htlc: 'UpdateAddHtlc',
     sweep_info_name: str,
 ) -> Tuple[Optional[bytes], Optional[KeepWatchingTXO]]:
-    """Given a Remote-added-HTLC, return the preimage if it's okay to reveal it on-chain."""
-    if not chan.lnworker.is_complete_mpp(htlc.payment_hash):
+    """Given a Remote-added-HTLC, return the preimage if it's okay to reveal it on-chain.
+
+    note: to be safe, even if we don't/can't reveal the preimage now, we should tell lnwatcher to
+          keep watching this HTLC at least until its CLTV, in case circumstances change.
+    """
+    if not chan.lnworker.is_preimage_public(htlc.payment_hash) and not chan.lnworker.is_complete_mpp(htlc.payment_hash):
         # - do not redeem this, it might publish the preimage of an incomplete MPP
         # - OTOH maybe this chan just got closed, and we are still receiving new htlcs
         #   for this MPP set. So the MPP set might still transition to complete!
         #   The MPP_TIMEOUT is only around 2 minutes, so this window is short.
         #   The default keep_watching logic in lnwatcher is sufficient to call us again.
-        return None, None
+        keep_watching_txo = KeepWatchingTXO(
+            name=sweep_info_name + "_preimage_not_public",
+            until_height=htlc.cltv_abs,
+        )
+        return None, keep_watching_txo
     if htlc.payment_hash.hex() in chan.lnworker.dont_settle_htlcs:
         # we should not reveal the preimage *for now*, but we might still decide to reveal it later
         keep_watching_txo = KeepWatchingTXO(
@@ -496,6 +504,15 @@ def _maybe_reveal_preimage_for_htlc(
         )
         return None, keep_watching_txo
     preimage = chan.lnworker.get_preimage(htlc.payment_hash)
+    if preimage is None:
+        keep_watching_txo = KeepWatchingTXO(
+            name=sweep_info_name + "_preimage_missing",
+            until_height=htlc.cltv_abs,
+        )
+        return None, keep_watching_txo
+    # this preimage will be revealed
+    assert preimage
+    chan.lnworker.save_preimage(htlc.payment_hash, preimage, mark_as_public=True)
     return preimage, None
 
 
