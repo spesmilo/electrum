@@ -1,3 +1,58 @@
+# Release 4.7.1 (Feb 26, 2026)
+ * Qt GUI (desktop):
+   - new: changelog website accessible from "Help" toolbar menu (#10433)
+   - new: show translation completion percentage in language names (#10479)
+   - new: allow changing font size in console (#10494)
+   - changed: validate Electrum server address input with UI feedback (#10441)
+   - changed: stop showing anchor icon for lightning channels with anchor outputs (3979d70)
+   - fix: broken addresses tab for imported watch-only wallets (#10436)
+ * QML GUI & Android:
+   - new: show translation completion percentage in language names (#10479)
+   - changed: validate Electrum server address input with UI feedback (#10441)
+   - fix: handle Java import error causing startup crash on Android 7 and 8 devices (#10484)
+ * Onchain / Wallet:
+   - fix: improved fee estimation for replacement transactions (#10453)
+ * Database:
+   - fix: handle upgrade failure for users with pending Lightning HTLCs (#10489)
+ * Lightning:
+   - changed: send channel_update alongside node_announcement gossip messages (#10475)
+   - fix: improved safety when revealing preimage on-chain (#10442)
+   - fix: don't attempt to fetch gossip from Tor peers without a proxy enabled (#10448)
+   - fix: handle peer sending back our own channel_update (#10493)
+ * Dependencies:
+   - changed: bump electrum-ecc (and libsecp256k1) from 0.7.0 to 0.7.1 (#10495)
+ * Builds/binaries:
+   - Android:
+     - changed: bump docker base image to Debian 13 (#10452)
+ * Contrib:
+   - changed: translation: stop sorting source strings (6c1e085)
+   - changed: freeze_packages.py: use stdlib "venv" instead of 3rd party virtualenv (4f7b6e8)
+   - fix: add_cosigner.py: compatibility with Python 3.13 (b495ee7)
+ * Plugins:
+   - new: hook 'qt_utxo_menu' for Qt GUI UTXO list (cfe2a57)
+ * Hardware wallets:
+   - new: support Ledger Nano Gen 5 (#10457)
+ * Translations: Call for Proofreaders and Translators.
+  - Localisation of the UI has always been a community effort.
+    Recently we found several examples of vandalism and malicious behaviour
+    among the translated strings, including multiple bitcoin addresses
+    injected into UI strings. One user sent funds to one such address
+    and hence lost money. (see spesmilo/electrum-locale#46)
+  - We added some automated safeguards to try and prevent this in the future,
+    including basic regexes and an LLM proofreader. We also made the ongoing
+    git diffs for updating the frozen translations much smaller to make it
+    realistic to ~review. (see spesmilo/electrum-locale#47, #49, #51)
+  - However, the best solution would be per-language human review.
+    If we had 1-3 proofreaders per language on Crowdin, we could restrict
+    the set of translated strings that gets included in the binaries to the
+    "proofreader-approved" strings. We ask interested people to start contributing
+    and apply to be proofreaders. To get proofreader permissions, send us an email
+    or come to irc, with your crowdin username and some proof of work (such as
+    activity on crowdin in our or another project, contributions to open-source,
+    having an established identity on github/bitcointalk/stackoverflow/...,
+    having met us in person, etc -- just prove being a human and being well-intentioned).
+    (see https://github.com/spesmilo/electrum-locale/issues/47#issuecomment-3914866337)
+
 # Release 4.7.0 (Jan 22, 2026)
  * Qt GUI (desktop):
    - new: "Submarine Payments": support reverse swaps to external address (#10303)
