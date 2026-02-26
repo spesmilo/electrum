@@ -20,6 +20,7 @@ RUN apt-get update -q && \
         sudo \
         git \
         wget \
+        python3 \
         make \
         autotools-dev \
         autoconf \
