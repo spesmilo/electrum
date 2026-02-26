@@ -746,7 +746,9 @@ class Peer(Logger, EventListener):
         proposer = LOCAL if bool(payload['proposer']) else REMOTE
         target_htlc_id = payload['htlc_id']
         self.logger.info(f'on_query_htlc_history {proposer.name} {target_htlc_id=}')
-        htlc_history, local_first_hash, remote_first_hash, local_delta_msat, remote_delta_msat = chan.hm.get_htlc_history(-proposer, target_htlc_id + 1)
+        htlc_history, local_first_hash, local_delta_msat = chan.hm.get_htlc_history(-proposer, LOCAL, target_htlc_id + 1)
+        htlc_history2, remote_first_hash, remote_delta_msat = chan.hm.get_htlc_history(-proposer, REMOTE, target_htlc_id + 1)
+        htlc_history.update(htlc_history2)
         # flip hashes
         local_first_hash, remote_first_hash = remote_first_hash, local_first_hash
         # flip and serialize history
@@ -800,15 +802,23 @@ class Peer(Logger, EventListener):
                 new_remote_hash = response['remote_first_hash']
                 htlc_history_bytes = response['reply_htlc_history_tlvs']['htlc_history']['htlc_history']
                 htlc_history = deserialize_htlcs(htlc_history_bytes)
-                old_local_hash, old_remote_hash, local_delta_msat, remote_delta_msat = hash_htlc_history(
+                old_local_hash, local_delta_msat, _ = hash_htlc_history(
                     htlc_history,
                     proposer=proposer,
-                    local_first_hash=new_local_hash,
-                    remote_first_hash=new_remote_hash)
+                    owner=LOCAL,
+                    first_hash=new_local_hash,
+                    ctn_latest=-1)
+                old_remote_hash, remote_delta_msat, _ = hash_htlc_history(
+                    htlc_history,
+                    proposer=proposer,
+                    owner=REMOTE,
+                    first_hash=new_remote_hash,
+                    ctn_latest=-1)
                 # local_deltas must be equal because history contains only inactive htlcs
                 #assert local_delta_msat == remote_delta_msat
                 # check that it connects to our checkpoint
-                expected_local_hash, expected_remote_hash, expected_local_delta, expected_remote_delta = chan.hm.get_checkpoint(proposer, target_htlc_id)
+                expected_local_hash, expected_local_delta, max_ctn = chan.hm.get_checkpoint(proposer, LOCAL, target_htlc_id)
+                expected_remote_hash, expected_remote_delta, max_ctn = chan.hm.get_checkpoint(proposer, REMOTE, target_htlc_id)
                 assert old_local_hash == expected_local_hash
                 assert old_remote_hash == expected_remote_hash
                 htlc_id = target_htlc_id - len(htlc_history)

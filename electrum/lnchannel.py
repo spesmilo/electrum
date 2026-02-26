@@ -2028,6 +2028,7 @@ class Channel(AbstractChannel):
         if not ECPubkey(pubkey).ecdsa_verify(signature, sighash):
             filename = "their_local_state" if owner == LOCAL else "their_remote_state"
             peerbackup.save_debug_file(self.diagnostic_name() + '_' + filename + '_%d'%ctn, peerbackup_bytes, sighash=sighash)
+            self.logger.info(f'receive_new_peerbackup {str(owner)} {ctn=}: incorrect signature')
             raise Exception(f'receive_new_peerbackup {str(owner)} {ctn=}: incorrect signature')
         else:
             self.logger.info(f'receive_new_peerbackup {str(owner)} {ctn=}: good signature')

@@ -30,6 +30,9 @@ from .lnmsg import LNSerializer
 from .lnutil import BIP32Node, generate_keypair, LnKeyFamily
 from .lnhtlc import LOG_TEMPLATE
 from .crypto import sha256
+from .logging import get_logger
+
+_logger = get_logger(__name__)
 
 
 
@@ -113,6 +116,41 @@ from .crypto import sha256
 #
 #
 
+#
+# checkpoints:
+#  - two approaches: invalidation or permanent
+#     -permanent: we would need to sort them by ctn_out
+#
+#
+#   <checkpoint hash_remote, max_ctn>
+#    <htlc>
+#    <htlc>
+#    <htlc: ctn_out_local, ctn_out_remote>  <-- if_lower_than_latest returns None  -> the computed checkpoint must be invalidated when we increase the ctn
+#    <htlc>
+#   <checkpoint>
+#
+#
+# when we increase ctn_latest:
+#  - if max_ctn >= ctn_latest: we must invalidate the checkpoint
+#  - if max_ctn < ctn_latest: we are good
+# 
+# get_checkpoint: if current ctn_remote is higher than max, then we must invalidate
+#   if max_ctn <= cp_ctn_latest -> will not be invalidated
+#   else:
+#      max_ctn > checkpoint_ctn_latest and
+#
+#
+#   if there are active htlcs, we should also know it: maybe set max to None?
+#
+#
+# if curent_ctn_latest > checkpoint_ctn_latest 
+# 
+# 
+# 
+# 
+# 
+# when we reestablish: do not send updates before syncing?
+#
 
 
 PEERBACKUP_VERSION = 0
@@ -169,7 +207,9 @@ class HtlcUpdate:
         local_ctn_out = None if owner == REMOTE else self.local_ctn_out
         remote_ctn_in = None if owner == LOCAL else self.remote_ctn_in
         remote_ctn_out = None if owner == LOCAL else self.remote_ctn_out
-        is_success = self.is_success
+        is_success = self.is_success # fixme
+        if blank_timestamps:
+            is_success = False
         if owner == LOCAL and self.local_ctn_out is None:
             is_success = False
         if owner == REMOTE and self.remote_ctn_out is None:
@@ -218,43 +258,54 @@ def deserialize_htlcs(htlc_log_bytes):
     return htlc_log
 
 
-def hash_htlc_history(htlc_log, proposer:HTLCOwner, local_first_hash, remote_first_hash) -> bytes:
-    local_msat = 0
-    remote_msat = 0
-    if proposer == LOCAL:
-        local_hash = local_first_hash
-        remote_hash = remote_first_hash
-    else:
-        local_hash = remote_first_hash
-        remote_hash = local_first_hash
+def hash_htlc_history(htlc_log, proposer:HTLCOwner, owner, first_hash, ctn_latest) -> bytes:
+    _msat = 0
+    _hash = first_hash
 
-    prev_htlc_id = None
+    # hashes are from the perspective of the proposer
+    if proposer == REMOTE:
+        owner = -owner
+
+    if htlc_log:
+        htlc_id = min(htlc_log.keys()) - 1
+        _logger.info(f'checkpoint: hash_htlc_history {proposer.name} {owner.name} {htlc_id} {first_hash.hex()[0:10]}')
+
+    def cap(ctn):
+        return ctn if ctn is not None and ctn <= ctn_latest else None
+
+    max_ctn = -1
     for htlc_id, htlc_update in list(sorted(htlc_log.items())):
-        if prev_htlc_id is not None:
-            assert htlc_id == prev_htlc_id + 1
-            prev_htlc_id = htlc_id
         # hashes are from the perspective of the proposer
         if proposer == REMOTE:
             htlc_update.flip()
-        local_ctn_in = htlc_update.local_ctn_in
-        local_ctn_out = htlc_update.local_ctn_out
-        remote_ctn_in = htlc_update.remote_ctn_in
-        remote_ctn_out = htlc_update.remote_ctn_out
-        # we only hash htlcs that are no longer active
-        if local_ctn_in is not None and local_ctn_out is not None:
-            _bytes2 = htlc_update.to_bytes(LOCAL, blank_timestamps=True)
-            local_hash = sha256(local_hash + _bytes2)
-            local_msat += htlc_update.amount_msat
-        if remote_ctn_in is not None and remote_ctn_out is not None:
-            _bytes2 = htlc_update.to_bytes(REMOTE, blank_timestamps=True)
-            remote_hash = sha256(remote_hash + _bytes2)
-            remote_msat += htlc_update.amount_msat
 
-    if proposer == LOCAL:
-        return (local_hash, remote_hash, local_msat, remote_msat)
-    else:
-        # un-flip
-        return (remote_hash, local_hash, remote_msat, local_msat)
+        if owner == LOCAL and htlc_update.local_ctn_out is not None:
+            max_ctn = max(max_ctn, htlc_update.local_ctn_out)
+        if owner == REMOTE and htlc_update.remote_ctn_out is not None:
+            max_ctn = max(max_ctn, htlc_update.remote_ctn_out)
+
+        local_ctn_in = cap(htlc_update.local_ctn_in)
+        local_ctn_out = cap(htlc_update.local_ctn_out)
+        remote_ctn_in = cap(htlc_update.remote_ctn_in)
+        remote_ctn_out = cap(htlc_update.remote_ctn_out)
+
+        if owner == LOCAL and local_ctn_in is not None and local_ctn_out is not None:
+            _bytes2 = htlc_update.to_bytes(LOCAL, blank_timestamps=True)
+            _hash = sha256(_hash + _bytes2)
+            _msat += htlc_update.amount_msat
+            _logger.info(f'checkpoints: hashing {proposer.name} {htlc_id} local')
+
+        if owner == REMOTE and remote_ctn_in is not None and remote_ctn_out is not None:
+            _bytes2 = htlc_update.to_bytes(REMOTE, blank_timestamps=True)
+            _hash = sha256(_hash + _bytes2)
+            _msat += htlc_update.amount_msat
+            _logger.info(f'checkpoints: hashing {proposer.name} {htlc_id} remote')
+
+    if htlc_log:
+        htlc_id = max(htlc_log.keys())
+        _logger.info(f'checkpoint: hash_htlc_history {proposer.name} {owner.name} {htlc_id} {_hash.hex()[0:10]}')
+
+    return _hash, _msat, max_ctn
 
 
 @attr.s
@@ -348,33 +399,45 @@ class PeerBackup:
         #assert local_next_htlc_id == state['log']['1']['next_htlc_id']
 
         # hash offered history
-        offered_htlc_history, local_offered_first_hash, remote_offered_first_hash, local_offered_msat, remote_offered_msat = chan.hm.get_htlc_history(LOCAL, next_htlc_id=local_next_htlc_id)
-        local_offered_history_hash, remote_offered_history_hash, local_offered_delta_msat, remote_offered_delta_msat = hash_htlc_history(
+        offered_htlc_history, offered_first_hash, offered_msat = chan.hm.get_htlc_history(LOCAL, owner, next_htlc_id=local_next_htlc_id)
+        offered_history_hash, offered_delta_msat, max_ctn = hash_htlc_history(
             offered_htlc_history,
             proposer=LOCAL,
-            local_first_hash=local_offered_first_hash,
-            remote_first_hash=remote_offered_first_hash)
-
-        # hash received history
-        received_htlc_history, local_received_first_hash, remote_received_first_hash, local_received_msat, remote_received_msat = chan.hm.get_htlc_history(REMOTE, next_htlc_id=remote_next_htlc_id)
-        local_received_history_hash, remote_received_history_hash, local_received_delta_msat, remote_received_delta_msat = hash_htlc_history(
+            owner=owner,
+            ctn_latest=chan.hm.ctn_latest(owner),
+            first_hash=offered_first_hash)
+        # received
+        received_htlc_history, received_first_hash, received_msat = chan.hm.get_htlc_history(REMOTE, owner, next_htlc_id=remote_next_htlc_id)
+        received_history_hash, received_delta_msat, max_ctn = hash_htlc_history(
             received_htlc_history,
             proposer=REMOTE,
-            local_first_hash=local_received_first_hash,
-            remote_first_hash=remote_received_first_hash)
+            owner=owner,
+            ctn_latest=chan.hm.ctn_latest(owner),
+            first_hash=received_first_hash)
 
-        local_offered_msat += local_offered_delta_msat
-        remote_offered_msat += remote_offered_delta_msat
-        local_received_msat += local_received_delta_msat
-        remote_received_msat += remote_received_delta_msat
+        offered_msat += offered_delta_msat
+        received_msat += received_delta_msat
 
-        local_delta_msat = local_received_msat + local_offered_msat
-        remote_delta_msat = remote_received_msat + remote_offered_msat
+        if owner == LOCAL:
+            local_received_msat = received_msat
+            local_offered_msat = offered_msat
+            local_offered_history_hash = offered_history_hash
+            local_received_history_hash = received_history_hash
 
-        state['local_received_msat'] = local_received_msat
-        state['local_offered_msat'] = local_offered_msat
-        state['remote_received_msat'] = remote_received_msat
-        state['remote_offered_msat'] = remote_offered_msat
+            remote_received_msat = 0
+            remote_received_history_hash = bytes(32)
+            remote_offered_msat = 0
+            remote_offered_history_hash = bytes(32)
+        else:
+            remote_received_msat = received_msat
+            remote_offered_msat = offered_msat
+            remote_offered_history_hash = offered_history_hash
+            remote_received_history_hash = received_history_hash
+
+            local_received_msat = 0
+            local_received_history_hash = bytes(32)
+            local_offered_msat = 0
+            local_offered_history_hash = bytes(32)
         #
         if owner == REMOTE:
             remote_received_history_hash, local_received_history_hash = local_received_history_hash, remote_received_history_hash
@@ -833,22 +896,30 @@ class PeerBackup:
         # max inactive htlc id
         prev_offered_htlc_id = min(active_htlcs[LOCAL].keys()) - 1 if active_htlcs[LOCAL] else self.local_next_htlc_id - 1
         prev_received_htlc_id = min(active_htlcs[REMOTE].keys()) - 1 if active_htlcs[REMOTE] else  self.remote_next_htlc_id - 1
-        # fixme: check this assert
-        assert self.remote_offered_msat == self.local_offered_msat
+        # rebuild checkpoint
+        # fixme: max_ctn is missing
         if prev_offered_htlc_id > -1:
-            log['1']['checkpoints'][str(prev_offered_htlc_id)] = (
-                self.local_offered_history_hash.hex(),
-                self.remote_offered_history_hash.hex(),
-                self.local_offered_msat,
-                self.remote_offered_msat,
-            )
+            log['1']['checkpoints'][str(prev_offered_htlc_id)] = {
+                '1': (
+                    self.local_offered_history_hash.hex(),
+                    self.local_offered_msat, -1
+                ),
+                '-1': (
+                    self.remote_offered_history_hash.hex(),
+                    self.remote_offered_msat, -1
+                )
+            }
         if prev_received_htlc_id > -1:
-            log['-1']['checkpoints'][str(prev_received_htlc_id)] = (
-                self.local_received_history_hash.hex(),
-                self.remote_received_history_hash.hex(),
-                self.local_received_msat,
-                self.remote_received_msat,
-            )
+            log['-1']['checkpoints'][str(prev_received_htlc_id)] = {
+                '1': (
+                    self.local_received_history_hash.hex(),
+                    self.local_received_msat, -1
+                ),
+                '-1': (
+                    self.remote_received_history_hash.hex(),
+                    self.remote_received_msat, -1
+                )
+            }
         # assume OPEN
         state['state'] = 'OPEN'
         state['short_channel_id'] = None
