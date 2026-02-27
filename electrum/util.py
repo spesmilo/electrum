@@ -1178,7 +1178,7 @@ def make_dir(path, *, allow_symlink=True):
     """
     if not os.path.exists(path):
         if not allow_symlink and os.path.islink(path):
-            raise Exception('Dangling link: ' + path)
+            raise FileNotFoundError('Dangling link: ' + path)
         try:
             os.mkdir(path)
         except FileExistsError:
