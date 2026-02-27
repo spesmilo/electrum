@@ -22,6 +22,8 @@ RUN dpkg --add-architecture i386 && \
         git \
         p7zip-full \
         make \
+        cmake \
+        pkgconf \
         mingw-w64 \
         mingw-w64-tools \
         autotools-dev \
