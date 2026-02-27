@@ -67,6 +67,7 @@ if sys.platform == "linux" and os.environ.get("APPIMAGE"):
     os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
 
 from electrum.i18n import _, set_language
+from electrum.daemon import check_fs_permissions
 from electrum.plugin import run_hook
 from electrum.util import (UserCancelled, profiler, send_exception_to_crash_reporter,
                            WalletFileException, get_new_wallet_name, InvalidPassword,
@@ -571,6 +572,14 @@ class ElectrumGui(BaseElectrumGui, Logger):
         signal.signal(signal.SIGINT, lambda *args: self.app.quit())
         # hook for crash reporter
         Exception_Hook.maybe_setup(config=self.config)
+
+        # check filesystem
+        try:
+            check_fs_permissions(self.daemon.config)
+        except Exception as e:
+            custom_message_box(icon=QMessageBox.Icon.Critical, parent=None, title=_('filesystem error'), text=str(e))
+            raise
+
         # start network, and maybe show first-start network-setup
         try:
             self.ask_terms_of_use()
