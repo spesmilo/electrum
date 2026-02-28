@@ -392,8 +392,8 @@ class QETxFinalizer(TxFeeSlider):
         self,
         parent=None,
         *,
-        make_tx: Callable[[int, FeePolicy], PartialTransaction] = None,
-        accept: Callable[[PartialTransaction], None] = None,
+        make_tx: Optional[Callable[[int | str, Optional[FeePolicy]], PartialTransaction]] = None,
+        accept: Optional[Callable[[PartialTransaction], None]] = None
     ):
         super().__init__(parent)
         self.f_make_tx = make_tx
@@ -404,6 +404,7 @@ class QETxFinalizer(TxFeeSlider):
         self._effectiveAmount = QEAmount()
         self._extraFee = QEAmount()
         self._canRbf = False
+        self._deadline = 0  # if deadline is set > 0, finalizer should only allow ETA feepolicies
 
     addressChanged = pyqtSignal()
     @pyqtProperty(str, notify=addressChanged)
@@ -456,8 +457,24 @@ class QETxFinalizer(TxFeeSlider):
             self.canRbfChanged.emit()
         self.rbf = self._canRbf  # if we can RbF, we do RbF
 
+    deadlineChanged = pyqtSignal()
+    @pyqtProperty(int, notify=deadlineChanged)
+    def deadline(self):
+        return self._deadline
+
+    @deadline.setter
+    def deadline(self, relative_num_blocks: int) -> None:
+        """if set, limits the finalizer to ETA fee policies that meet the deadline.
+           deadline is in relative blocks"""
+        if self._deadline != relative_num_blocks:
+            self._deadline = relative_num_blocks
+            self.deadlineChanged.emit()
+            if self._deadline > 0:
+                self.method = FeeSlider.FSMethod.ETA
+            self.update()
+
     @profiler
-    def make_tx(self, amount):
+    def make_tx(self, amount: int | str) -> PartialTransaction:
         self._logger.debug(f'make_tx amount={amount}')
 
         if self.f_make_tx:
@@ -501,6 +518,14 @@ class QETxFinalizer(TxFeeSlider):
             self._valid = False
             self.validChanged.emit()
             return
+
+        if self._deadline:
+            if self._deadline < self._fee_policy.value:
+                self._logger.info(f"current fee '{str(self._fee_policy)}' below deadline {str(self._deadline)}")
+                self.warning = _("Current fee doesn't meet deadline of {} blocks").format(self._deadline)
+                self._valid = False
+                self.validChanged.emit()
+                return
 
         self._tx = tx
 
