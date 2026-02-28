@@ -1358,7 +1358,6 @@ class LNWallet(Logger):
         lb = sum(chan.balance(LOCAL) if not chan.is_closed_or_closing() else 0
                  for chan in self.channels.values())
         if balance_msat != lb:
-            # this typically happens when a channel is recently force closed
             self.logger.info(f'get_lightning_history: balance mismatch {balance_msat - lb}')
         return out
 

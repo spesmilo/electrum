@@ -573,7 +573,7 @@ class TestChannel(ElectrumTestCase):
         tx4 = str(alice_channel.force_close_tx())
         self.assertNotEqual(tx3, tx4)
 
-        self.assertEqual(alice_channel.balance(LOCAL), 500000000000)
+        self.assertEqual(alice_channel.balance(LOCAL, ctx_owner=LOCAL), 500000000000)
         self.assertEqual(1, alice_channel.get_oldest_unrevoked_ctn(LOCAL))
         self.assertEqual(len(alice_channel.included_htlcs(LOCAL, RECEIVED, ctn=2)), 0)
         aliceRevocation2 = alice_channel.revoke_current_commitment()
