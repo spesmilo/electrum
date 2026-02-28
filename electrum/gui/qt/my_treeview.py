@@ -256,11 +256,25 @@ class MyTreeView(QTreeView):
         self._pending_update = False
         self._forced_update = False
 
+        self._currently_open_menu = None  # type: Optional[QMenu]
+
         self._default_bg_brush = QStandardItem().background()
         self.proxy = None # history, and address tabs use a proxy
 
     def create_menu(self, position: QPoint) -> None:
         pass
+
+    def open_menu(self, menu: QMenu, position) -> None:
+        try:
+            self._currently_open_menu = menu
+            menu.exec(self.viewport().mapToGlobal(position))
+        finally:
+            self._currently_open_menu = None
+
+    def close_menu(self):
+        if self._currently_open_menu:
+            self._currently_open_menu.close()
+            self._currently_open_menu = None
 
     def set_editability(self, items):
         for idx, i in enumerate(items):

@@ -281,7 +281,7 @@ class ChannelsList(MyTreeView):
                 menu.addAction(_("Delete"), lambda: self.remove_channel_backup(channel_id))
             else:
                 menu.addAction(_("Delete"), lambda: self.remove_channel(channel_id))
-        menu.exec(self.viewport().mapToGlobal(position))
+        self.open_menu(menu, position)
 
     @QtCore.pyqtSlot(Abstract_Wallet, AbstractChannel)
     def do_update_single_row(self, wallet: Abstract_Wallet, chan: AbstractChannel):
