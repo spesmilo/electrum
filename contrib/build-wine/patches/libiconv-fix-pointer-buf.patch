@@ -1,0 +1,37 @@
+--- a/lib/iconv.c	2018-05-03 23:18:55.997221700 -0400
++++ b/lib/iconv.c	2018-05-03 23:26:47.611682700 -0400
+@@ -170,12 +170,12 @@ static const struct stringpool2_t string
+ #include "aliases2.h"
+ #undef S
+ };
+ #define stringpool2 ((const char *) &stringpool2_contents)
+ static const struct alias sysdep_aliases[] = {
+-#define S(tag,name,encoding_index) { (int)(long)&((struct stringpool2_t *)0)->stringpool_##tag, encoding_index },
++#define S(tag,name,encoding_index) { (int)(intptr_t)&((struct stringpool2_t *)0)->stringpool_##tag, encoding_index },
+ #include "aliases2.h"
+ #undef S
+ };
+ #ifdef __GNUC__
+ __inline
+ #else
+--- a/lib/genaliases.c	2023-01-14 00:00:00.000000000 +0000
++++ b/lib/genaliases.c	2023-01-14 10:18:00.000000000 +0000
+@@ -50,7 +50,7 @@
+       putc(c, out2);
+     }
+   }
+-  fprintf(out2,"\")' tmp.h | sed -e 's|^.*\\(stringpool_str[0-9]*\\).*$|  (int)(long)\\&((struct stringpool_t *)0)->\\1,|'\n");
++  fprintf(out2,"\")' tmp.h | sed -e 's|^.*\\(stringpool_str[0-9]*\\).*$|  (int)(intptr_t)\\&((struct stringpool_t *)0)->\\1,|'\n");
+   for (; n > 0; names++, n--)
+     emit_alias(out1, *names, c_name);
+ }
+--- a/lib/genaliases2.c	2023-01-14 00:00:00.000000000 +0000
++++ b/lib/genaliases2.c	2023-01-14 10:18:00.000000000 +0000
+@@ -44,6 +44,6 @@
+ static void emit_encoding (FILE* out1, FILE* out2, const char* tag, const char* const* names, size_t n, const char* c_name)
+ {
+-  fprintf(out2,"  (int)(long)&((struct stringpool2_t *)0)->stringpool_%s_%u,\n",tag,counter);
++  fprintf(out2,"  (int)(intptr_t)&((struct stringpool2_t *)0)->stringpool_%s_%u,\n",tag,counter);
+   for (; n > 0; names++, n--)
+     emit_alias(out1, tag, *names, c_name);
+ }

@@ -53,28 +53,34 @@ if [ -f "$DLL_TARGET_DIR/libzbar-0.dll" ]; then
     info "libzbar already built, skipping"
 else
     (
-        # As debian bullseye doesn't provide win-iconv-mingw-w64-dev, we need to build it:
-        WIN_ICONV_COMMIT="9f98392dfecadffd62572e73e9aba878e03496c4"
-        # ^ tag "v0.0.8"
-        info "Building win-iconv..."
-        cd "$CACHEDIR"
-        if [ ! -d win-iconv ]; then
-            git clone https://github.com/win-iconv/win-iconv.git
-        fi
-        cd win-iconv
-        if ! $(git cat-file -e ${WIN_ICONV_COMMIT}) ; then
-            info "Could not find requested version $WIN_ICONV_COMMIT in local clone; fetching..."
-            git fetch --all
-        fi
-        git reset --hard
-        git clean -dfxq
-        git checkout "${WIN_ICONV_COMMIT}^{commit}"
-
-        # note: "-j1" as parallel jobs lead to non-reproducibility seemingly due to ordering issues
-        #       see https://github.com/win-iconv/win-iconv/issues/42
-        CC="${GCC_TRIPLET_HOST}-gcc" make -j1 || fail "Could not build win-iconv"
+        # iconv is needed for zbar. see https://github.com/mchehab/zbar/blob/a549566ea11eb03622bd4458a1728ffe3f589163/README-windows.md
+        # (previously were using win-iconv, but changed to GNU libiconv due to compilation errors with modern gcc)
+        LIBICONV_VER="1.18"
+        download_if_not_exist "$CACHEDIR/libiconv-${LIBICONV_VER}.tar.gz" "https://ftp.gnu.org/pub/gnu/libiconv/libiconv-${LIBICONV_VER}.tar.gz"
+        verify_hash "$CACHEDIR/libiconv-${LIBICONV_VER}.tar.gz" "3b08f5f4f9b4eb82f151a7040bfd6fe6c6fb922efe4b1659c66ea933276965e8"
+        tar xf "$CACHEDIR/libiconv-${LIBICONV_VER}.tar.gz" -C "$CACHEDIR"
+        # ref https://github.com/msys2/MINGW-packages/blob/7f68e9f2488737bbe03888ade094eaee8021d1c5/mingw-w64-libiconv/PKGBUILD
+        info "Building libiconv..."
+        cd "$CACHEDIR/libiconv-${LIBICONV_VER}"
+        # Patches taken from msys2/MINGW-packages
+        patch -p1 < "$here/patches/libiconv-fix-pointer-buf.patch"
+        ./configure \
+            $AUTOCONF_FLAGS \
+            --prefix="/usr/${GCC_TRIPLET_HOST}" \
+            --disable-static \
+            --enable-shared \
+            --enable-extra-encodings \
+            --enable-relocatable \
+            --disable-rpath \
+            --enable-silent-rules \
+            --enable-nls
+        CC="${GCC_TRIPLET_HOST}-gcc" make "-j$CPU_COUNT" || fail "Could not build libiconv"
+        cp -fpv "libcharset/lib/.libs/libcharset-1.dll" "$DLL_TARGET_DIR/" || fail "Could not copy the libcharset binary to DLL_TARGET_DIR"
+        cp -fpv "lib/.libs/libiconv-2.dll" "$DLL_TARGET_DIR/" || fail "Could not copy the libiconv binary to DLL_TARGET_DIR"
         # FIXME avoid using sudo
-        sudo make install prefix="/usr/${GCC_TRIPLET_HOST}"  || fail "Could not install win-iconv"
+        sudo make install  || fail "Could not install libiconv"
+        # workaround to delete files owned by root, created by "make install":
+        make clean
     )
     "$CONTRIB"/make_zbar.sh || fail "Could not build zbar"
 fi
