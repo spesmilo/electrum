@@ -77,7 +77,7 @@ _logger = get_logger(__name__)
 
 PEERBACKUP_VERSION = 0
 
-HTLC_UPDATE_LENGTH = 89
+HTLC_UPDATE_LENGTH = 95
 
 PeerBackupWireSerializer = LNSerializer(name='peerbackup_wire')
 
@@ -139,6 +139,7 @@ class HtlcUpdate:
     payment_hash = attr.ib(type=bytes)
     cltv_abs = attr.ib(type=int)
     timestamp = attr.ib(type=int)
+    rm_index = attr.ib(type=int, default=None) # removal index
     is_success = attr.ib(type=bool, default=False)
     local_ctn_in = attr.ib(type=int, default=None)
     local_ctn_out = attr.ib(type=int, default=None)
@@ -158,6 +159,7 @@ class HtlcUpdate:
         self.remote_ctn_in = self.remote_ctn_in or v.remote_ctn_in
         self.remote_ctn_out = self.remote_ctn_out or v.remote_ctn_out
         self.is_success = self.is_success or v.is_success
+        self.rm_index = self.rm_index if self.rm_index is not None else v.rm_index  # careful: 0 or None == None
 
     def apply_mask(self, owner, proposer):
         if owner == LOCAL:
@@ -174,6 +176,9 @@ class HtlcUpdate:
                 self.remote_ctn_in = None
             else:
                 self.remote_ctn_out = None
+        # blank rm_index
+        if self.remote_ctn_out is None and self.local_ctn_out is None:
+            self.rm_index = None
 
     def to_bytes(self, proposer, owner, blank_timestamps=False):
         # if we are server, the fields have already been flipped
@@ -184,6 +189,8 @@ class HtlcUpdate:
         if owner is not None:
             self.apply_mask(owner, proposer)
         is_success = self.is_success
+        if blank_timestamps:
+            is_success = False
         if self.remote_ctn_out is None and self.local_ctn_out is None:
             is_success = False
         # not (yet) active in both sides
@@ -193,6 +200,7 @@ class HtlcUpdate:
             return
         r = b''
         r += int.to_bytes(self.htlc_id, length=8, byteorder="big", signed=False)
+        r += ctn_to_bytes(self.rm_index) # fixme: use 8 bytes
         r += int.to_bytes(self.amount_msat, length=8, byteorder="big", signed=False)
         r += self.payment_hash
         r += int.to_bytes(self.cltv_abs, length=8, byteorder="big", signed=False)
@@ -211,6 +219,7 @@ class HtlcUpdate:
         with io.BytesIO(bytes(chunk)) as s:
             htlc_update = HtlcUpdate(
                 htlc_id = int.from_bytes(s.read(8), byteorder="big"),
+                rm_index = bytes_to_ctn(s.read(6)),
                 amount_msat = int.from_bytes(s.read(8), byteorder="big"),
                 payment_hash = s.read(32),
                 cltv_abs = int.from_bytes(s.read(8), byteorder="big"),
@@ -231,6 +240,23 @@ def deserialize_htlcs(htlc_log_bytes):
         htlc_update = HtlcUpdate.from_bytes(chunk)
         htlc_log[htlc_update.htlc_id] = htlc_update
     return htlc_log
+
+def deserialize_inactive_htlcs(htlc_log_bytes, owner):
+    htlcs = []
+    while htlc_log_bytes:
+        chunk = htlc_log_bytes[0:HTLC_UPDATE_LENGTH]
+        htlc_log_bytes = htlc_log_bytes[HTLC_UPDATE_LENGTH:]
+        htlc_update = HtlcUpdate.from_bytes(chunk)
+        if owner == LOCAL:
+            ctn_out = htlc_update.local_ctn_out
+        elif owner == REMOTE:
+            ctn_out = htlc_update.remote_ctn_out
+        else:
+            ctn_out = True
+        if ctn_out is not None:
+            htlcs.append(htlc_update)
+    return htlcs
+
 
 
 @attr.s
@@ -691,7 +717,6 @@ class PeerBackup:
         state = p.as_dict() # fixme: rebuild from scratch
         state.pop('revocation_store')
         local_config = state['local_config']
-        remote_config = state['remote_config']
         encrypted_seed = bytes.fromhex(local_config.pop('encrypted_seed'))
         channel_seed = lnworker.decrypt_channel_seed(encrypted_seed)
         local_config['channel_seed'] = channel_seed.hex()
@@ -730,15 +755,8 @@ class PeerBackup:
                 if v.local_ctn_out is not None or v.remote_ctn_out is not None:
                     key = 'settles' if v.is_success else 'fails'
                     target_log[key][str(htlc_id)] = {'1':v.local_ctn_out, '-1':v.remote_ctn_out}
-
-        log['1']['initial_state'] = {
-            '-1':(self.remote_offered_msat, self.remote_offered_history_hash.hex()),
-            '1': (self.local_offered_msat, self.local_offered_history_hash.hex())
-        }
-        log['-1']['initial_state'] = {
-            '-1':(self.remote_received_msat, self.remote_received_history_hash.hex()),
-            '1':(self.local_received_msat, self.local_received_history_hash.hex())
-        }
+                    assert v.rm_index is not None
+                    target_log['removals'][str(v.rm_index)] = htlc_id
 
         local_ctn = state.pop('local_ctn')
         remote_ctn = state.pop('remote_ctn')
@@ -763,6 +781,51 @@ class PeerBackup:
         # set revack_pending
         log['1']['revack_pending'] = False
         log['-1']['revack_pending'] = True
+
+        # rebuild checkpoint
+        def num_active(proposer, owner):
+            n = 0
+            for u in active_htlcs[proposer].values():
+                x = deepcopy(u)
+                x.apply_mask(owner, proposer)
+                #_logger.info(f'mask {proposer.name} {owner.name} {x}')
+                if owner is LOCAL and x.local_ctn_in is not None:# and x.local_ctn_out is None:
+                    n += 1
+                if owner is REMOTE and x.remote_ctn_in is not None:# and x.remote_ctn_out is None:
+                    n += 1
+            #_logger.info(f'num_active {proposer.name} {owner.name} {n}')
+            return n
+
+        local_offered_checkpoint = self.local_next_htlc_id - num_active(LOCAL, LOCAL) - 1
+        remote_offered_checkpoint = self.local_next_htlc_id - num_active(LOCAL, REMOTE) - 1
+        local_received_checkpoint = self.remote_next_htlc_id - num_active(REMOTE, LOCAL) - 1
+        remote_received_checkpoint = self.remote_next_htlc_id - num_active(REMOTE, REMOTE) - 1
+
+        if local_offered_checkpoint > -1:
+            if str(local_offered_checkpoint) not in log['1']['checkpoints']:
+                log['1']['checkpoints'][str(local_offered_checkpoint)] = {'1': None, '-1': None}
+            log['1']['checkpoints'][str(local_offered_checkpoint)]['1'] = (
+                self.local_offered_history_hash.hex(), self.local_offered_msat, True
+            )
+        if remote_offered_checkpoint > -1:
+            if str(remote_offered_checkpoint) not in log['1']['checkpoints']:
+                log['1']['checkpoints'][str(remote_offered_checkpoint)] = {'1': None, '-1': None}
+            log['1']['checkpoints'][str(remote_offered_checkpoint)]['-1'] = (
+                self.remote_offered_history_hash.hex(), self.remote_offered_msat, True
+            )
+        if local_received_checkpoint > -1:
+            if str(local_received_checkpoint) not in log['-1']['checkpoints']:
+                log['-1']['checkpoints'][str(local_received_checkpoint)] = {'1': None, '-1': None}
+            log['-1']['checkpoints'][str(local_received_checkpoint)]['1'] = (
+                self.local_received_history_hash.hex(), self.local_received_msat, True
+            )
+        if remote_received_checkpoint > -1:
+            if str(remote_received_checkpoint) not in log['-1']['checkpoints']:
+                log['-1']['checkpoints'][str(remote_received_checkpoint)] = {'1': None, '-1': None}
+            log['-1']['checkpoints'][str(remote_received_checkpoint)]['-1'] = (
+                self.remote_received_history_hash.hex(), self.remote_received_msat, True
+            )
+
         # assume OPEN
         state['state'] = 'OPEN'
         state['short_channel_id'] = None
