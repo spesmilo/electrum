@@ -29,7 +29,6 @@ from .lnutil import UpdateAddHtlc, ChannelType, RevocationStore, derive_payment_
 from .lnmsg import LNSerializer
 from .lnutil import BIP32Node, generate_keypair, LnKeyFamily
 from .lnhtlc import LOG_TEMPLATE
-from .crypto import sha256
 from .logging import get_logger
 
 _logger = get_logger(__name__)
@@ -165,6 +164,8 @@ class HtlcUpdate:
         remote_ctn_in = None if owner == LOCAL else self.remote_ctn_in
         remote_ctn_out = None if owner == LOCAL else self.remote_ctn_out
         is_success = self.is_success
+        if blank_timestamps:
+            is_success = False
         if owner == LOCAL and self.local_ctn_out is None:
             is_success = False
         if owner == REMOTE and self.remote_ctn_out is None:
@@ -212,6 +213,18 @@ def deserialize_htlcs(htlc_log_bytes):
         htlc_log[htlc_update.htlc_id] = htlc_update
     return htlc_log
 
+def deserialize_inactive_htlcs(htlc_log_bytes, owner):
+    htlcs = []
+    while htlc_log_bytes:
+        chunk = htlc_log_bytes[0:HTLC_UPDATE_LENGTH]
+        htlc_log_bytes = htlc_log_bytes[HTLC_UPDATE_LENGTH:]
+        htlc_update = HtlcUpdate.from_bytes(chunk)
+        ctn_out = htlc_update.local_ctn_out if owner == LOCAL else htlc_update.remote_ctn_out
+        if ctn_out is not None:
+            htlcs.append(htlc_update)
+    return htlcs
+
+
 
 @attr.s
 class PeerBackup:
@@ -229,6 +242,10 @@ class PeerBackup:
     remote_next_htlc_id = attr.ib(default=None, type=int)
     active_htlcs = attr.ib(default=None, type=str)
     revocation_store = attr.ib(default=None, type=str)
+    local_offered_history_hash = attr.ib(default=None, type=bytes)
+    local_received_history_hash = attr.ib(default=None, type=bytes)
+    remote_offered_history_hash = attr.ib(default=None, type=bytes)
+    remote_received_history_hash = attr.ib(default=None, type=bytes)
     #
     local_offered_msat = attr.ib(default=None, type=bytes)
     local_received_msat = attr.ib(default=None, type=bytes)
@@ -283,10 +300,10 @@ class PeerBackup:
         # proposed by local -> part of REMOTE ctx
         local_next_htlc_id = chan.hm._local_next_htlc_id
 
-        local_offered_msat = chan.hm.get_inactive_htlc_balance(proposer=LOCAL, owner=LOCAL)
-        local_received_msat = chan.hm.get_inactive_htlc_balance(proposer=REMOTE, owner=LOCAL)
-        remote_offered_msat = chan.hm.get_inactive_htlc_balance(proposer=LOCAL, owner=REMOTE)
-        remote_received_msat = chan.hm.get_inactive_htlc_balance(proposer=REMOTE, owner=REMOTE)
+        local_offered_history_hash, local_offered_msat = chan.hm.get_htlc_history_hash(LOCAL, LOCAL)
+        remote_offered_history_hash, remote_offered_msat = chan.hm.get_htlc_history_hash(LOCAL, REMOTE)
+        local_received_history_hash, local_received_msat = chan.hm.get_htlc_history_hash(REMOTE, LOCAL)
+        remote_received_history_hash, remote_received_msat = chan.hm.get_htlc_history_hash(REMOTE, REMOTE)
 
         p = PeerBackup(
             channel_id = state['channel_id'],
@@ -298,6 +315,10 @@ class PeerBackup:
             remote_config = state['remote_config'],
             local_ctn = state['log']['1']['ctn'],
             remote_ctn = state['log']['-1']['ctn'],
+            local_offered_history_hash=local_offered_history_hash,
+            remote_offered_history_hash=remote_offered_history_hash,
+            local_received_history_hash=local_received_history_hash,
+            remote_received_history_hash=remote_received_history_hash,
             local_received_msat = local_received_msat,
             local_offered_msat = local_offered_msat,
             remote_received_msat= remote_received_msat,
@@ -328,6 +349,10 @@ class PeerBackup:
             'remote_ctn': p.remote_ctn,
             'active_htlcs': p.active_htlcs,
             'revocation_store': p.revocation_store,
+            'local_offered_history_hash': p.local_offered_history_hash,
+            'local_received_history_hash': p.local_received_history_hash,
+            'remote_offered_history_hash': p.remote_offered_history_hash,
+            'remote_received_history_hash': p.remote_received_history_hash,
             'local_offered_msat': p.local_offered_msat,
             'local_received_msat': p.local_received_msat,
             'remote_offered_msat': p.remote_offered_msat,
@@ -446,12 +471,18 @@ class PeerBackup:
             LOCAL: deserialize_htlcs(payload['offered_htlcs']['active_htlcs']),
             REMOTE: deserialize_htlcs(payload['received_htlcs']['active_htlcs'])
         }
+        state['local_offered_history_hash'] = payload['offered_htlcs']['local_history_hash']
+        state['remote_offered_history_hash'] = payload['offered_htlcs']['remote_history_hash']
+        state['local_received_history_hash'] = payload['received_htlcs']['local_history_hash']
+        state['remote_received_history_hash'] = payload['received_htlcs']['remote_history_hash']
+
         state['local_offered_msat'] = payload['offered_htlcs']['local_msat']
         state['remote_offered_msat'] = payload['offered_htlcs']['remote_msat']
         state['local_received_msat'] = payload['received_htlcs']['local_msat']
         state['remote_received_msat'] = payload['received_htlcs']['remote_msat']
 
         return PeerBackup(**state)
+
 
     def serialize_active_htlcs(self, owner, proposer, blank_timestamps):
         # for creation of state.
@@ -465,22 +496,23 @@ class PeerBackup:
             local_ctn_out = None if owner == REMOTE else htlc_update.local_ctn_out
             remote_ctn_in = None if owner == LOCAL else htlc_update.remote_ctn_in
             remote_ctn_out = None if owner == LOCAL else htlc_update.remote_ctn_out
-
             if local_ctn_in is None and remote_ctn_in is None:
                 continue
             if owner == LOCAL and local_ctn_in is not None and local_ctn_out is not None:
                 continue
-
             if owner == REMOTE and remote_ctn_in is not None and remote_ctn_out is not None:
                 continue
-
             active_htlcs += _bytes
-
         return active_htlcs
 
     def to_bytes(self, owner=None, blank_timestamps=False) -> bytes:
         active_offered_htlcs = self.serialize_active_htlcs(owner, proposer=LOCAL, blank_timestamps=blank_timestamps)
         active_received_htlcs = self.serialize_active_htlcs(owner, proposer=REMOTE, blank_timestamps=blank_timestamps)
+
+        remote_offered_history_hash = bytes(32) if owner == LOCAL else self.remote_offered_history_hash
+        remote_received_history_hash = bytes(32) if owner == LOCAL else self.remote_received_history_hash
+        local_offered_history_hash = bytes(32) if owner == REMOTE else self.local_offered_history_hash
+        local_received_history_hash = bytes(32) if owner == REMOTE else self.local_received_history_hash
 
         remote_offered_msat = 0 if owner == LOCAL else self.remote_offered_msat
         remote_received_msat = 0 if owner == LOCAL else self.remote_received_msat
@@ -498,11 +530,15 @@ class PeerBackup:
             'channel_type': {'type': ChannelType(self.channel_type).to_bytes_minimal()},
             'node_id': {'node_id': bytes.fromhex(self.node_id)},
             'offered_htlcs': {
+                'local_history_hash': local_offered_history_hash,
+                'remote_history_hash': remote_offered_history_hash,
                 'local_msat': local_offered_msat,
                 'remote_msat': remote_offered_msat,
                 'active_htlcs': active_offered_htlcs,
             },
             'received_htlcs': {
+                'local_history_hash': local_received_history_hash,
+                'remote_history_hash': remote_received_history_hash,
                 'local_msat': local_received_msat,
                 'remote_msat': remote_received_msat,
                 'active_htlcs': active_received_htlcs,
@@ -562,6 +598,11 @@ class PeerBackup:
         remote_peerbackup.remote_next_htlc_id = local_peerbackup.remote_next_htlc_id
         local_peerbackup.local_next_htlc_id = remote_peerbackup.local_next_htlc_id
         #
+        remote_peerbackup.local_offered_history_hash = local_peerbackup.local_offered_history_hash
+        remote_peerbackup.local_received_history_hash = local_peerbackup.local_received_history_hash
+        local_peerbackup.remote_offered_history_hash = remote_peerbackup.remote_offered_history_hash
+        local_peerbackup.remote_received_history_hash = remote_peerbackup.remote_received_history_hash
+        #
         remote_peerbackup.local_offered_msat = local_peerbackup.local_offered_msat
         remote_peerbackup.local_received_msat = local_peerbackup.local_received_msat
         local_peerbackup.remote_offered_msat = remote_peerbackup.remote_offered_msat
@@ -618,6 +659,9 @@ class PeerBackup:
         self.local_received_msat, self.remote_offered_msat = self.remote_offered_msat, self.local_received_msat
         self.local_offered_msat, self.remote_received_msat = self.remote_received_msat, self.local_offered_msat
 
+        self.local_received_history_hash, self.remote_offered_history_hash = self.remote_offered_history_hash, self.local_received_history_hash
+        self.local_offered_history_hash, self.remote_received_history_hash = self.remote_received_history_hash, self.local_offered_history_hash
+
         self.current_fee_update.flip()
         if self.pending_fee_update:
             self.pending_fee_update.flip()
@@ -635,7 +679,6 @@ class PeerBackup:
         state = p.as_dict() # fixme: rebuild from scratch
         state.pop('revocation_store')
         local_config = state['local_config']
-        remote_config = state['remote_config']
         encrypted_seed = bytes.fromhex(local_config.pop('encrypted_seed'))
         channel_seed = lnworker.decrypt_channel_seed(encrypted_seed)
         local_config['channel_seed'] = channel_seed.hex()
@@ -673,10 +716,6 @@ class PeerBackup:
                 if v.local_ctn_out is not None or v.remote_ctn_out is not None:
                     target_log['settles' if v.is_success else 'fails'][str(htlc_id)] = {'1':v.local_ctn_out, '-1':v.remote_ctn_out}
 
-        # set delta_msat
-        log['1']['delta_msat'] = {'-1':self.remote_offered_msat, '1': self.local_offered_msat}
-        log['-1']['delta_msat'] = {'-1':self.remote_received_msat, '1': self.local_received_msat}
-
         local_ctn = state.pop('local_ctn')
         remote_ctn = state.pop('remote_ctn')
         log['1']['ctn'] = local_ctn
@@ -700,6 +739,32 @@ class PeerBackup:
         # set revack_pending
         log['1']['revack_pending'] = False
         log['-1']['revack_pending'] = True
+        # rebuild checkpoint
+        # fixme: test this
+        prev_offered_checkpoint = self.local_next_htlc_id - len(active_htlcs[LOCAL]) - 1
+        prev_received_checkpoint = self.remote_next_htlc_id - len(active_htlcs[REMOTE]) - 1
+        if prev_offered_checkpoint > -1:
+            log['1']['checkpoints'][str(prev_offered_checkpoint)] = {
+                '1': (
+                    self.local_offered_history_hash.hex(),
+                    self.local_offered_msat,
+                ),
+                '-1': (
+                    self.remote_offered_history_hash.hex(),
+                    self.remote_offered_msat,
+                )
+            }
+        if prev_received_checkpoint > -1:
+            log['-1']['checkpoints'][str(prev_received_checkpoint)] = {
+                '1': (
+                    self.local_received_history_hash.hex(),
+                    self.local_received_msat,
+                ),
+                '-1': (
+                    self.remote_received_history_hash.hex(),
+                    self.remote_received_msat,
+                )
+            }
         # assume OPEN
         state['state'] = 'OPEN'
         state['short_channel_id'] = None
