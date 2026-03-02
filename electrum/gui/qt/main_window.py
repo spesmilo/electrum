@@ -1264,9 +1264,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
     def run_swap_dialog(
         self,
+        *,
         is_reverse: Optional[bool] = None,
         recv_amount_sat_or_max: Optional[Union[int, str]] = None,
         channels: Optional[Sequence['Channel']] = None,
+        get_coins: Optional[Callable[..., Sequence[PartialTxInput]]] = None,
     ) -> bool:
         if not self.network:
             self.show_error(_("You are offline."))
@@ -1290,7 +1292,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                 transport,
                 is_reverse=is_reverse,
                 recv_amount_sat_or_max=recv_amount_sat_or_max,
-                channels=channels
+                channels=channels,
+                get_coins=get_coins
             )
             try:
                 return d.run(transport)
@@ -1484,17 +1487,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         msg = _('Signing transaction...')
         WaitingDialog(self, msg, task, on_success, on_failure)
 
-    def mktx_for_open_channel(self, *, funding_sat, node_id):
+    def mktx_for_open_channel(self, *, funding_sat, node_id, get_coins=None):
         def make_tx(fee_policy, *, confirmed_only=False, base_tx=None):
             assert base_tx is None
+            coins = get_coins() if get_coins else self.get_coins(nonlocal_only=True, confirmed_only=confirmed_only)
             return self.wallet.lnworker.mktx_for_open_channel(
-                coins=self.get_coins(nonlocal_only=True, confirmed_only=confirmed_only),
+                coins=coins,
                 funding_sat=funding_sat,
                 node_id=node_id,
                 fee_policy=fee_policy)
         return make_tx
 
-    def open_channel(self, connect_str, funding_sat, push_amt):
+    def open_channel(self, connect_str, funding_sat, *, push_amt=0, get_coins=None):
         try:
             node_id, rest = extract_nodeid(connect_str)
         except ConnStringFormatError as e:
@@ -1505,7 +1509,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             if not self.question(msg):
                 return
         # we need to know the fee before we broadcast, because the txid is required
-        make_tx = self.mktx_for_open_channel(funding_sat=funding_sat, node_id=node_id)
+        make_tx = self.mktx_for_open_channel(funding_sat=funding_sat, node_id=node_id, get_coins=get_coins)
         funding_tx, _, _ = self.confirm_tx_dialog(make_tx, funding_sat, context=TxEditorContext.CHANNEL_FUNDING)
         if not funding_tx:
             return
@@ -2027,7 +2031,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             msg = _('Do you want to create your first channel?') + '\n\n' + messages.MSG_LIGHTNING_WARNING
             if not self.question(msg):
                 return
-        d = NewChannelDialog(self, amount_sat, min_amount_sat)
+        d = NewChannelDialog(self, amount_sat=amount_sat, min_amount_sat=min_amount_sat)
         return d.run()
 
     def new_contact_dialog(self):
