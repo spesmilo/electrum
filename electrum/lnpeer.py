@@ -56,7 +56,7 @@ from .json_db import StoredDict
 from .invoices import PR_PAID
 from .fee_policy import FEE_LN_ETA_TARGET, FEERATE_PER_KW_MIN_RELAY_LIGHTNING
 from .channel_db import FLAG_DIRECTION
-from .peerbackup import PeerBackup, PEERBACKUP_VERSION
+from .peerbackup import PeerBackup, PEERBACKUP_VERSION, deserialize_inactive_htlcs
 
 if TYPE_CHECKING:
     from .lnworker import LNGossip, LNWallet
@@ -107,6 +107,7 @@ class Peer(Logger, EventListener):
         self.last_message_time = 0
         self.pong_event = asyncio.Event()
         self.reply_channel_range = None  # type: Optional[asyncio.Queue]
+        self.reply_htlc_history = defaultdict(asyncio.Queue)
         # gossip uses a single queue to preserve message order
         self.recv_gossip_queue = asyncio.Queue(maxsize=self.RECV_GOSSIP_QUEUE_HARD_MAXSIZE)
         self.our_gossip_timestamp_filter = None  # type: Optional[GossipTimestampFilter]
@@ -550,6 +551,8 @@ class Peer(Logger, EventListener):
             await group.spawn(self._forward_gossip())
             if self.network.lngossip != self.lnworker:
                 await group.spawn(self.htlc_switch())
+                await group.spawn(self.sync_htlc_history(LOCAL))
+                await group.spawn(self.sync_htlc_history(REMOTE))
 
     async def _process_gossip(self):
         while True:
@@ -734,6 +737,102 @@ class Peer(Logger, EventListener):
                     first_blockheight = sorted_scids[0].block_height
                     await asyncio.sleep(self.DELAY_INC_MSG_PROCESSING_SLEEP)
             self.outgoing_gossip_reply = False
+
+    def query_htlc_history(self, chan, proposer, index):
+        self.logger.info(f'query_htlc_history {proposer.name} {index=}')
+        self.send_message(
+            'query_htlc_history',
+            channel_id=chan.channel_id,
+            proposer=int(proposer is LOCAL),
+            htlc_id=index,
+        )
+
+    def on_query_htlc_history(self, chan, payload):
+        # we return an interval, with its initial hash
+        channel_id = payload['channel_id']
+        proposer = LOCAL if bool(payload['proposer']) else REMOTE
+        index = payload['htlc_id']
+        self.logger.info(f'on_query_htlc_history {proposer.name} {index=}')
+        htlc_history, checkpoint = chan.hm.get_htlc_history(REMOTE, -proposer, None, index)
+        local_first_hash, local_delta_msat = chan.hm.get_checkpoint(REMOTE, -proposer, LOCAL, checkpoint)
+        remote_first_hash, remote_delta_msat = chan.hm.get_checkpoint(REMOTE, -proposer, REMOTE, checkpoint)
+        # flip hashes
+        local_first_hash, remote_first_hash = remote_first_hash, local_first_hash
+        # flip and serialize history
+        htlc_history_bytes = b''
+        for htlc_update in htlc_history:
+            htlc_update.flip()
+            _bytes = htlc_update.to_bytes(-proposer, owner=None, blank_timestamps=False)
+            htlc_history_bytes += _bytes
+
+        self.send_message(
+            'reply_htlc_history',
+            channel_id=channel_id,
+            proposer=int(payload['proposer']),
+            local_first_hash=local_first_hash,
+            remote_first_hash=remote_first_hash,
+            reply_htlc_history_tlvs={'htlc_history':{'htlc_history':htlc_history_bytes}},
+        )
+
+    def on_reply_htlc_history(self, chan, payload):
+        proposer = LOCAL if int(payload['proposer']) else REMOTE
+        self.reply_htlc_history[(chan.channel_id, proposer)].put_nowait(payload)
+
+    async def sync_htlc_history(self, proposer):
+        if not self.lnworker.config.PEERBACKUPS_SYNC_HTLCS:
+            # use this to test behavior without all htlcs
+            return
+        # we query backward, so that we can attach the received history to the current hash
+        # fixme: allow the server to have an incomplete history
+        # -> if the reply does not contain htlcs, stop querying
+        if self.is_peerbackup_server():
+            return
+        await self.initialized
+        while True:
+            await asyncio.sleep(1)
+            for chan in self.channels.values():
+                if chan.get_state() != ChannelState.OPEN:
+                    continue
+                target_cp = chan.hm.get_root_checkpoint(proposer)
+                if target_cp == -1:
+                    continue
+                self.query_htlc_history(
+                    chan,
+                    proposer,
+                    index=target_cp + 1,
+                )
+                response = await self.reply_htlc_history[(chan.channel_id, proposer)].get()
+                new_local_hash = response['local_first_hash']
+                new_remote_hash = response['remote_first_hash']
+                htlc_history_bytes = response['reply_htlc_history_tlvs']['htlc_history']['htlc_history']
+                local_htlc_history = deserialize_inactive_htlcs(htlc_history_bytes, owner=LOCAL)
+                self.logger.info(f'{proposer.name}: received {len(local_htlc_history)} htlcs for checkpoint {target_cp}')
+                old_local_hash, local_delta_msat  = chan.hm.hash_htlc_history(
+                    local_htlc_history,
+                    proposer=proposer,
+                    owner=LOCAL,
+                    first_hash=new_local_hash)
+                remote_htlc_history = deserialize_inactive_htlcs(htlc_history_bytes, owner=REMOTE)
+                old_remote_hash, remote_delta_msat = chan.hm.hash_htlc_history(
+                    remote_htlc_history,
+                    proposer=proposer,
+                    owner=REMOTE,
+                    first_hash=new_remote_hash)
+                # check that it connects to our checkpoint
+                expected_local_hash, expected_local_delta = chan.hm.get_checkpoint(proposer, LOCAL, target_cp)
+                expected_remote_hash, expected_remote_delta = chan.hm.get_checkpoint(proposer, REMOTE, target_cp)
+                assert old_local_hash == expected_local_hash, (expected_local_hash.hex(), old_local_hash.hex())
+                assert old_remote_hash == expected_remote_hash
+                new_cp = target_cp - len(local_htlc_history)
+                chan.hm.update_htlc_history(proposer, new_cp + 1, local_htlc_history) # todo: use owner=None to disable filter
+                new_local_delta = expected_local_delta - local_delta_msat
+                new_remote_delta = expected_remote_delta - remote_delta_msat
+                # save new checkpoint
+                chan.hm.save_checkpoint(proposer, LOCAL, new_cp, new_local_hash, new_local_delta)
+                chan.hm.save_checkpoint(proposer, REMOTE, new_cp, new_remote_hash, new_remote_delta)
+                self.logger.info(f'added {len(local_htlc_history)} htlcs for {chan.get_id_for_log()}')
+                util.trigger_callback('wallet_updated', self.lnworker.wallet)
+                util.trigger_callback('channels_updated', self.lnworker.wallet)
 
     async def get_channel_range(self):
         self.reply_channel_range = asyncio.Queue()
@@ -1469,7 +1568,7 @@ class Peer(Logger, EventListener):
             self.logger.info(f"tried to force-close channel {chan.get_id_for_log()} "
                              f"but close option is not allowed. {chan.get_state()=!r}")
 
-    def recreate_channel(self, peerbackup_tlvs: dict):
+    def recreate_channel(self, peerbackup_tlvs: dict, old_chan):
         self.logger.info('recreating channel')
         peerbackup_bytes = peerbackup_tlvs['state']
         peerbackup = PeerBackup.from_bytes(peerbackup_bytes)
@@ -1483,6 +1582,11 @@ class Peer(Logger, EventListener):
         chan.verify_peerbackup(LOCAL, peerbackup_bytes, peerbackup_tlvs['local_signature'])
         chan.verify_peerbackup(REMOTE, peerbackup_bytes, peerbackup_tlvs['remote_signature'])
         # all good
+        if old_chan:
+            for proposer in [LOCAL, REMOTE]:
+                for key in ['adds', 'locked_in', 'settles', 'fails']:
+                    # fixme: they may be active in old
+                    chan.hm.log[proposer][key].update(old_chan.hm.log[proposer][key])
         if isinstance(self.transport, LNTransport):
             chan.add_or_update_peer_addr(self.transport.peer_addr)
         self.logger.info(f'recreated channel: ctn_latest = {chan.hm.ctn_latest(LOCAL)}, {chan.hm.ctn_latest(REMOTE)}')
@@ -1504,7 +1608,7 @@ class Peer(Logger, EventListener):
         peerbackup_tlvs = msg['channel_reestablish_tlvs'].get('peerbackup') if self.is_peerbackup_client() else None
         if chan is None:
             if peerbackup_tlvs:
-                chan = self.recreate_channel(peerbackup_tlvs)
+                chan = self.recreate_channel(peerbackup_tlvs, chan)
             else:
                 self.logger.info(f"Received 'channel_reestablish' for unknown channel {msg['channel_id'].hex()}")
                 return
@@ -1596,7 +1700,7 @@ class Peer(Logger, EventListener):
             # FIXME what if we have multiple chans with peer? timing...
             fut.set_exception(GracefulDisconnect("remote ahead of us"))
         elif they_are_ahead and peerbackup_tlvs:
-            chan = self.recreate_channel(peerbackup_tlvs)
+            chan = self.recreate_channel(peerbackup_tlvs, chan)
             we_must_resend_revoke_and_ack = False
             fut.set_result((we_must_resend_revoke_and_ack, their_next_local_ctn))
         elif we_are_ahead:

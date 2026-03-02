@@ -915,6 +915,7 @@ Warning: setting this to too low will result in lots of payment failures."""),
             "and also separately the max size of the current log file. "
             "Hence, the max disk usage will be twice this value."),
     )
+    PEERBACKUPS_SYNC_HTLCS = ConfigVar('peerbackups_sync_htlcs', default=True, type_=bool)
     DEBUG_PEERBACKUPS = ConfigVar('debug_peerbackups', default=False, type_=bool)
     GUI_ENABLE_DEBUG_LOGS = ConfigVar('gui_enable_debug_logs', default=False, type_=bool)
     LOCALIZATION_LANGUAGE = ConfigVar(
