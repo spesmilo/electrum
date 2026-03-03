@@ -15,12 +15,13 @@ from electrum.transaction import PartialTxOutput, PartialTransaction
 from electrum.fee_policy import FeePolicy
 from electrum.submarine_swaps import NostrTransport
 
+from electrum.gui.common_qt.util import QtEventListener, qt_event_listener
 from electrum.gui import messages
+
 from . import util
 from .util import (WindowModalDialog, Buttons, OkButton, CancelButton,
                    EnterButton, ColorScheme, WWLabel, read_QIcon, IconLabel, char_width_in_lineedit,
                    pubkey_to_q_icon)
-from .util import qt_event_listener, QtEventListener
 from .amountedit import BTCAmountEdit
 from .fee_slider import FeeSlider, FeeComboBox
 from .my_treeview import create_toolbar_with_menu, MyTreeView

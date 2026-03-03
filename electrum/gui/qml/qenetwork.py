@@ -7,8 +7,10 @@ from electrum import constants
 from electrum.network import ProxySettings
 from electrum.interface import ServerAddr
 from electrum.fee_policy import FEERATE_DEFAULT_RELAY
+from electrum.util import event_listener
 
-from .util import QtEventListener, event_listener
+from electrum.gui.common_qt.util import QtEventListener
+
 from .qeconfig import QEConfig
 from .qeserverlistmodel import QEServerListModel
 

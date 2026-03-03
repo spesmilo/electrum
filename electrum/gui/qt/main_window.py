@@ -58,7 +58,7 @@ from electrum.util import (format_time, UserCancelled, profiler, bfh, InvalidPas
                            UserFacingException, get_new_wallet_name,
                            send_exception_to_crash_reporter,
                            AddTransactionException, os_chmod, UI_UNIT_NAME_TXSIZE_VBYTES,
-                           is_valid_email, ChoiceItem)
+                           is_valid_email, ChoiceItem, event_listener)
 from electrum.bip21 import BITCOIN_BIP21_URI_SCHEME
 from electrum.payment_identifier import PaymentIdentifier
 from electrum.invoices import PR_PAID, Invoice
@@ -77,6 +77,8 @@ from electrum.lnaddr import lndecode, LnAddr
 from electrum.submarine_swaps import SwapServerTransport, NostrTransport
 from electrum.fee_policy import FeePolicy
 
+from electrum.gui.common_qt.util import TaskThread, QtEventListener, qt_event_listener
+
 from .rate_limiter import rate_limited
 from .exception_window import Exception_Hook
 from .amountedit import BTCAmountEdit
@@ -90,8 +92,7 @@ from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialo
                    CloseButton, MessageBoxMixin, EnterButton, import_meta_gui, export_meta_gui,
                    filename_field, address_field, char_width_in_lineedit, webopen,
                    TRANSACTION_FILE_EXTENSION_FILTER_ANY, MONOSPACE_FONT,
-                   getOpenFileName, getSaveFileName, ShowQRLineEdit, QtEventListener, qt_event_listener,
-                   event_listener, scan_qr_from_screenshot)
+                   getOpenFileName, getSaveFileName, ShowQRLineEdit, scan_qr_from_screenshot)
 from .wizard.wallet import WIF_HELP_TEXT
 from .history_list import HistoryList, HistoryModel
 from .update_checker import UpdateCheck, UpdateCheckThread
@@ -102,8 +103,6 @@ from .qrreader import scan_qrcode_from_camera
 from .swap_dialog import SwapDialog, InvalidSwapParameters
 from .balance_dialog import (BalanceToolButton, COLOR_FROZEN, COLOR_UNMATURED, COLOR_UNCONFIRMED, COLOR_CONFIRMED,
                              COLOR_LIGHTNING, COLOR_FROZEN_LIGHTNING)
-
-from electrum.gui.common_qt.util import TaskThread
 
 if TYPE_CHECKING:
     from . import ElectrumGui
