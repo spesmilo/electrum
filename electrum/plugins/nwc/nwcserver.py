@@ -40,7 +40,7 @@ from electrum.logging import Logger
 from electrum.util import log_exceptions, ca_path, OldTaskGroup, get_asyncio_loop, InvoiceError, \
     LightningHistoryItem, event_listener, EventListener, make_aiohttp_proxy_connector, \
     get_running_loop, run_sync_function_on_asyncio_thread
-from electrum.invoices import Invoice, Request, PR_UNKNOWN, PR_PAID, BaseInvoice, PR_INFLIGHT
+from electrum.invoices import Invoice, Request, PR_UNKNOWN, PR_PAID, BaseInvoice, PR_INFLIGHT, PR_FAILED, PR_EXPIRED, PR_UNPAID
 from electrum import constants
 from electrum.lnutil import RECEIVED
 
@@ -480,6 +480,7 @@ class NWCServer(Logger, EventListener):
             "result_type": "make_invoice",
             "result": {
                 "type": "incoming",
+                "state": "pending",
                 "invoice": b11,
                 "description": description,
                 "payment_hash": lnaddr.paymenthash.hex(),
@@ -543,6 +544,8 @@ class NWCServer(Logger, EventListener):
         }
         if payment_hash:  # if client requested by payment hash we add the invoice
             response['result']['invoice'] = b11
+        if nip47_status := self.invoice_status_to_nip47_state(status):
+            response['result']['state'] = nip47_status
 
         info = self.get_payment_info(invoice.rhash)
         if info:
@@ -696,19 +699,19 @@ class NWCServer(Logger, EventListener):
             elif history_tx.direction == PaymentDirection.SENT:
                 tx['type'] = "outgoing"
                 payment = self.wallet.get_invoice(history_tx.payment_hash)
-            else:
-                tx['type'] = req_type
-            if payment:
-                if include_unpaid_outgoing and history_tx.type == 'pending':
-                    tx['description'] = f"pending! {payment.message}"
-                else:
-                    tx['description'] = payment.message
-                tx['expires_at'] = payment.get_expiration_date()
-                tx['created_at'] = payment.time
-            else:
+            if not payment:
                 # don't include txs with semi complete information as this will cause some clients
                 # to fail displaying any transaction at all
                 continue
+            if include_unpaid_outgoing and history_tx.type == 'pending':
+                tx['description'] = f"pending! {payment.message}"
+            else:
+                tx['description'] = payment.message
+            tx['expires_at'] = payment.get_expiration_date()
+            tx['created_at'] = payment.time
+            status = self.wallet.get_invoice_status(payment)
+            if nip47_status := self.invoice_status_to_nip47_state(status):
+                tx['state'] = nip47_status
             if (not include_unpaid_reqs and not include_unpaid_outgoing) or history_tx.type == 'payment':
                 tx['settled_at'] = history_tx.timestamp
                 tx['preimage'] = history_tx.preimage
@@ -758,6 +761,7 @@ class NWCServer(Logger, EventListener):
             "fees_paid": 0
         }
         if settled_at:
+            notification['state'] = 'settled'
             notification['settled_at'] = settled_at
 
         self.publish_notification_event({
@@ -793,6 +797,7 @@ class NWCServer(Logger, EventListener):
         if fee_msat:
             notification['fees_paid'] = fee_msat
         if settled_at:
+            notification['state'] = 'settled'
             notification['settled_at'] = settled_at
         content = {
             "notification_type": "payment_sent",
@@ -958,3 +963,15 @@ class NWCServer(Logger, EventListener):
 
     def is_receive_only(self, pubkey: str) -> bool:
         return self.connections[pubkey].get('daily_limit_sat') == 0
+
+    @staticmethod
+    def invoice_status_to_nip47_state(status) -> Optional[str]:
+        if status == PR_EXPIRED:
+            return "expired"
+        elif status == PR_FAILED:
+            return "failed"
+        elif status == PR_PAID:
+            return "settled"
+        elif status == PR_UNPAID:
+            return "pending"
+        return None
