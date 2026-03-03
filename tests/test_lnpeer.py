@@ -1376,6 +1376,7 @@ class TestPeerDirect(TestPeer):
 
     #@unittest.skip("too expensive")
     async def test_payments_stresstest(self):
+        import random
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
         p1, p2 = graph.peers.values()
         w1, w2 = graph.workers.values()
@@ -1387,14 +1388,22 @@ class TestPeerDirect(TestPeer):
         max_htlcs_in_flight = asyncio.Semaphore(5)
         async def single_payment(pay_req):
             async with max_htlcs_in_flight:
+                w2.dont_settle_htlcs[pay_req.rhash] = None
                 await w1.pay_invoice(pay_req)
+        async def allow_settle():
+            # ensures that htlcs settle in random order
+            while True:
+                await asyncio.sleep(random.uniform(0, 0.2))
+                if w2.dont_settle_htlcs:
+                    k = random.choice(list(w2.dont_settle_htlcs.keys()))
+                    del w2.dont_settle_htlcs[k]
         async def many_payments():
             async with OldTaskGroup() as group:
                 for i in range(num_payments):
                     lnaddr, pay_req = self.prepare_invoice(w2, amount_msat=payment_value_msat)
                     await group.spawn(single_payment(pay_req))
             gath.cancel()
-        gath = asyncio.gather(many_payments(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
+        gath = asyncio.gather(many_payments(), allow_settle(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
         with self.assertRaises(asyncio.CancelledError):
             await gath
         self.assertEqual(alice_init_balance_msat - num_payments * payment_value_msat, alice_channel.balance(HTLCOwner.LOCAL))

@@ -1734,7 +1734,7 @@ class Channel(AbstractChannel):
         """Settle/fulfill a pending received HTLC.
         Action must be initiated by LOCAL.
         """
-        self.logger.info("settle_htlc")
+        self.logger.info(f"settle_htlc {htlc_id}")
         assert self.can_update_ctx(proposer=LOCAL), f"cannot update channel. {self.get_state()!r} {self.peer_state!r}"
         htlc = self.hm.get_htlc_by_id(REMOTE, htlc_id)
         if htlc.payment_hash != sha256(preimage):
@@ -1752,7 +1752,7 @@ class Channel(AbstractChannel):
         """Settle/fulfill a pending offered HTLC.
         Action must be initiated by REMOTE.
         """
-        self.logger.info("receive_htlc_settle")
+        self.logger.info(f"receive_htlc_settle {htlc_id}")
         assert self.can_update_ctx(proposer=REMOTE), f"cannot update channel. {self.get_state()!r} {self.peer_state!r}"
         htlc = self.hm.get_htlc_by_id(LOCAL, htlc_id)
         if htlc.payment_hash != sha256(preimage):
