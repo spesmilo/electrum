@@ -258,7 +258,8 @@ class UTXOList(MyTreeView):
             return False
         return True
 
-    def swap_coins(self, coins):
+    def swap_coins(self, coins: list[PartialTxInput]) -> None:
+        assert coins, "no coins selected?"
         #self.clear_coincontrol()
         self.add_to_coincontrol(coins)
         self.main_window.run_swap_dialog(is_reverse=False, recv_amount_sat_or_max='!')
@@ -270,7 +271,8 @@ class UTXOList(MyTreeView):
         value = sum(x.value_sats() for x in coins)
         return value >= MIN_FUNDING_SAT and value <= self.config.LIGHTNING_MAX_FUNDING_SAT
 
-    def open_channel_with_coins(self, coins):
+    def open_channel_with_coins(self, coins: list[PartialTxInput]) -> None:
+        assert coins, "no coins selected?"
         # todo : use a single dialog in new flow
         #self.clear_coincontrol()
         self.add_to_coincontrol(coins)
@@ -284,11 +286,12 @@ class UTXOList(MyTreeView):
         d.run()
         self.clear_coincontrol()
 
-    def clipboard_contains_address(self):
+    def clipboard_contains_address(self) -> bool:
         text = self.main_window.app.clipboard().text()
         return is_address(text)
 
-    def pay_to_clipboard_address(self, coins):
+    def pay_to_clipboard_address(self, coins: list[PartialTxInput]) -> None:
+        assert coins, "no coins selected?"
         if not self.clipboard_contains_address():
             self.main_window.show_error(_('Clipboard doesn\'t contain a valid address'))
             return
@@ -306,11 +309,15 @@ class UTXOList(MyTreeView):
 
     def create_menu(self, position):
         selected = self.get_selected_outpoints()
-        menu = QMenu()
-        menu.setSeparatorsCollapsible(True)  # consecutive separators are merged together
         coins = [self._utxo_dict[name] for name in selected]
+
         if not coins:
             return
+
+        unfrozen_coins = self._filter_frozen_coins(coins)
+        menu = QMenu()
+        menu.setSeparatorsCollapsible(True)  # consecutive separators are merged together
+
         if len(coins) == 1:
             idx = self.indexAt(position)
             if not idx.isValid():
@@ -325,18 +332,20 @@ class UTXOList(MyTreeView):
             cc = self.add_copy_menu(menu, idx)
             cc.addAction(_("Long Output point"), lambda: self.place_text_on_clipboard(utxo.prevout.to_str(), title="Long Output point"))
         # fully spend
-        menu_spend = menu.addMenu(_("Fully spend") + '…')
-        m = menu_spend.addAction(_("send to address in clipboard"), lambda: self.pay_to_clipboard_address(coins))
+        m = menu_spend = menu.addMenu(_("Fully spend") + '…')
+        m.setEnabled(bool(unfrozen_coins))
+        m = menu_spend.addAction(_("send to address in clipboard"), lambda: self.pay_to_clipboard_address(unfrozen_coins))
         m.setEnabled(self.clipboard_contains_address())
-        m = menu_spend.addAction(_("in new channel"), lambda: self.open_channel_with_coins(coins))
-        m.setEnabled(self.can_open_channel(coins))
-        m = menu_spend.addAction(_("in submarine swap"), lambda: self.swap_coins(coins))
-        m.setEnabled(self.can_swap_coins(coins))
+        m = menu_spend.addAction(_("in new channel"), lambda: self.open_channel_with_coins(unfrozen_coins))
+        m.setEnabled(self.can_open_channel(unfrozen_coins))
+        m = menu_spend.addAction(_("in submarine swap"), lambda: self.swap_coins(unfrozen_coins))
+        m.setEnabled(self.can_swap_coins(unfrozen_coins))
         # coin control
         if self.are_in_coincontrol(coins):
             menu.addAction(_("Remove from coin control"), lambda: self.remove_from_coincontrol(coins))
         else:
-            menu.addAction(_("Add to coin control"), lambda: self.add_to_coincontrol(coins))
+            m = menu.addAction(_("Add to coin control"), lambda: self.add_to_coincontrol(coins))
+            m.setEnabled(bool(unfrozen_coins))
         # Freeze menu
         if len(coins) == 1:
             utxo = coins[0]
