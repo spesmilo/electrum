@@ -28,8 +28,6 @@ class SubmarineSwapMixin(QtEventListener):
         self.swap_wallet = wallet
         self.config = wallet.config
         self.swap_manager = wallet.lnworker.swap_manager if wallet.has_lightning() else None
-        if self.swap_manager and not self.create_sm_transport:
-            self.create_sm_transport = self.swap_manager.create_transport
 
     # --- Shared functionality for submarine swaps (change to ln and submarine payments) ---
     def prepare_swap_transport(self):
@@ -46,9 +44,11 @@ class SubmarineSwapMixin(QtEventListener):
         # a useless transport should get cleaned up and not stored.
         assert self.swap_transport is None, "swap transport wasn't cleaned up properly"
 
-        new_swap_transport = self.create_sm_transport()
+        new_swap_transport = self.create_sm_transport() if self.create_sm_transport \
+            else self.swap_manager.create_transport()
+        
         if not new_swap_transport:
-            # user declined to enable Nostr and has no http server configured
+            # could not create transport, e.g. user declined to enable Nostr and has no http server configured
             self.swapAvailabilityChanged.emit()
             return
 

@@ -25,6 +25,7 @@ from electrum.network import NetworkException
 
 from electrum.gui import messages
 from electrum.gui.common_qt.util import QtEventListener
+from electrum.gui.common_qt.swaps import SubmarineSwapMixin
 
 from .qewallet import QEWallet
 from .qetypes import QEAmount
@@ -60,7 +61,7 @@ class FeeSlider(QObject):
             }[fm]
 
     def __init__(self, parent=None):
-        super().__init__(parent)
+        QObject.__init__(self, parent)
 
         self._wallet = None  # type: Optional[QEWallet]
         self._sliderSteps = 0
@@ -157,7 +158,7 @@ class FeeSlider(QObject):
 
 class TxFeeSlider(FeeSlider):
     def __init__(self, parent=None):
-        super().__init__(parent)
+        FeeSlider.__init__(self, parent)
 
         self._fee = QEAmount()
         self._feeRate = ''
@@ -387,7 +388,7 @@ class TxFeeSlider(FeeSlider):
         super().save_config()
 
 
-class QETxFinalizer(TxFeeSlider):
+class QETxFinalizer(TxFeeSlider, SubmarineSwapMixin):
     _logger = get_logger(__name__)
 
     finished = pyqtSignal([bool, bool, bool], arguments=['signed', 'saved', 'complete'])
@@ -403,7 +404,9 @@ class QETxFinalizer(TxFeeSlider):
         make_tx: Callable[[int, FeePolicy], PartialTransaction] = None,
         accept: Callable[[PartialTransaction], None] = None,
     ):
-        super().__init__(parent)
+        TxFeeSlider.__init__(self, parent)
+        SubmarineSwapMixin.__init__(self, None)
+
         self.f_make_tx = make_tx
         self.f_accept = accept
 
@@ -414,6 +417,15 @@ class QETxFinalizer(TxFeeSlider):
         self._canRbf = False
 
         self.swap_task: Future = None
+
+        self.walletChanged.connect(self.on_wallet_changed)  # wallet set after constructor
+        self.swapAvailabilityChanged.connect(self.on_swap_availability_changed)
+
+    def on_wallet_changed(self):
+        self.set_wallet_for_swap(self._wallet.wallet)
+
+    def on_swap_availability_changed(self):
+        self.update()
 
     addressChanged = pyqtSignal()
     @pyqtProperty(str, notify=addressChanged)
@@ -492,6 +504,10 @@ class QETxFinalizer(TxFeeSlider):
             self._logger.debug('wallet not set, ignoring update()')
             return
 
+        if self._config.WALLET_SEND_CHANGE_TO_LIGHTNING:
+            self._logger.debug('sending change to lightning')
+            self.prepare_swap_transport()
+            # self.
         try:
             # make unsigned transaction
             amount = '!' if self._amount.isMax else self._amount.satsInt
