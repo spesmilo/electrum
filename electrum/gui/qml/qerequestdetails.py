@@ -14,9 +14,11 @@ from electrum.payment_identifier import PaymentIdentifier, PaymentIdentifierType
 from electrum.i18n import _
 from electrum.network import Network
 
+from electrum.gui.common_qt.util import QtEventListener, qt_event_listener
+
 from .qewallet import QEWallet
 from .qetypes import QEAmount
-from .util import QtEventListener, qt_event_listener, status_update_timer_interval
+from .util import status_update_timer_interval
 
 
 class QERequestDetails(QObject, QtEventListener):

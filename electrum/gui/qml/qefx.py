@@ -7,9 +7,11 @@ from electrum.bitcoin import COIN
 from electrum.exchange_rate import FxThread
 from electrum.logging import get_logger
 from electrum.simple_config import SimpleConfig
+from electrum.util import event_listener
+
+from electrum.gui.common_qt.util import QtEventListener
 
 from .qetypes import QEAmount
-from .util import QtEventListener, event_listener
 
 
 class QEFX(QObject, QtEventListener):

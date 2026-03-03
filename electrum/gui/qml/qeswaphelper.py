@@ -18,10 +18,11 @@ from electrum.fee_policy import FeePolicy
 
 from electrum.gui import messages
 
+from electrum.gui.common_qt.util import QtEventListener, qt_event_listener
+
 from .auth import AuthMixin, auth_protect
 from .qetypes import QEAmount
 from .qewallet import QEWallet
-from .util import QtEventListener, qt_event_listener
 
 if TYPE_CHECKING:
     import concurrent.futures

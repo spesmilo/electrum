@@ -29,8 +29,9 @@ from PyQt6.QtWidgets import (QDialog, QLabel, QVBoxLayout, QPushButton)
 
 from electrum.i18n import _
 
+from electrum.gui.common_qt.util import QtEventListener, qt_event_listener
+
 from .util import Buttons
-from .util import QtEventListener, qt_event_listener
 
 if TYPE_CHECKING:
     from . import ElectrumGui

@@ -7,7 +7,7 @@ import queue
 import os
 import webbrowser
 import ctypes
-from functools import partial, lru_cache, wraps
+from functools import partial, lru_cache
 from typing import (NamedTuple, Callable, Optional, TYPE_CHECKING, List, Any, Sequence, Tuple, Union)
 
 from PyQt6 import QtCore
@@ -21,7 +21,7 @@ from PyQt6.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout, QVBo
                              QFrame, QAbstractButton)
 
 from electrum.i18n import _
-from electrum.util import (FileImportFailed, FileExportFailed, resource_path, EventListener, event_listener,
+from electrum.util import (FileImportFailed, FileExportFailed, resource_path, EventListener,
                            get_logger, UserCancelled, UserFacingException, ChoiceItem)
 from electrum.invoices import (PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT, PR_UNKNOWN, PR_FAILED, PR_ROUTING,
                                PR_UNCONFIRMED, PR_BROADCASTING, PR_BROADCAST)
@@ -1478,36 +1478,6 @@ class ImageGraphicsEffect(QObject):
         self.graphics_scene.render(painter)
         self.graphics_item.setPixmap(QPixmap())
         return result
-
-
-class QtEventListener(EventListener):
-    qt_callback_signal = QtCore.pyqtSignal(tuple)
-
-    def register_callbacks(self):
-        self.qt_callback_signal.connect(self.on_qt_callback_signal)
-        EventListener.register_callbacks(self)
-
-    def unregister_callbacks(self):
-        try:
-            self.qt_callback_signal.disconnect()
-        except (RuntimeError, TypeError):  # wrapped Qt object might be deleted
-            # "TypeError: disconnect() failed between 'qt_callback_signal' and all its connections"
-            pass
-        EventListener.unregister_callbacks(self)
-
-    def on_qt_callback_signal(self, args):
-        func = args[0]
-        return func(self, *args[1:])
-
-
-# decorator for members of the QtEventListener class
-def qt_event_listener(func):
-    func = event_listener(func)
-
-    @wraps(func)
-    def decorator(self, *args):
-        self.qt_callback_signal.emit( (func,) + args)
-    return decorator
 
 
 def insert_spaces(text: str, every_chars: int) -> str:

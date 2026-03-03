@@ -11,7 +11,9 @@ from electrum.logging import get_logger
 from electrum.i18n import _
 from electrum.bitcoin import DummyAddress
 from electrum.transaction import PartialTxOutput, PartialTransaction, Transaction, TxOutpoint
-from electrum.util import NotEnoughFunds, profiler, quantize_feerate, UserFacingException, NoDynamicFeeEstimates
+from electrum.util import (
+    NotEnoughFunds, profiler, quantize_feerate, UserFacingException, NoDynamicFeeEstimates, event_listener
+)
 from electrum.wallet import CannotBumpFee, CannotDoubleSpendTx, CannotCPFP, BumpFeeStrategy, sweep_preparations
 from electrum import keystore
 from electrum.plugin import run_hook
@@ -19,10 +21,10 @@ from electrum.fee_policy import FeePolicy, FeeMethod
 from electrum.network import NetworkException
 
 from electrum.gui import messages
+from electrum.gui.common_qt.util import QtEventListener
 
 from .qewallet import QEWallet
 from .qetypes import QEAmount
-from .util import QtEventListener, event_listener
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
