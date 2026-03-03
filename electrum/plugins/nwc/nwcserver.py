@@ -183,6 +183,7 @@ class NWCServer(Logger, EventListener):
     SUPPORTED_METHODS: set[str] = {'make_invoice', 'lookup_invoice', 'get_balance', 'get_info',
                                    'list_transactions', 'notifications'}.union(SUPPORTED_SPENDING_METHODS)
     SUPPORTED_NOTIFICATIONS: list[str] = ["payment_sent", "payment_received"]
+    SUPPORTED_ENCRYPTION_SCHEMES: set[str] = {'nip04'}
 
     def __init__(
         self,
@@ -327,6 +328,13 @@ class NWCServer(Logger, EventListener):
                 self.logger.debug(f"old nwc request event: {event.content}")
                 await self.send_error(event, "OTHER", f"not handling too old request")
                 continue
+
+            # check encryption scheme
+            for tag in event.tags:
+                if len(tag) == 2 and tag[0] == 'encryption':
+                    if tag[1] not in self.SUPPORTED_ENCRYPTION_SCHEMES:
+                        await self.send_error(event, "UNSUPPORTED_ENCRYPTION", " ".join(self.SUPPORTED_ENCRYPTION_SCHEMES))
+                    break
 
             # decrypt the requests content
             our_secret: str = self.connections[event.pubkey]['our_secret']
@@ -875,10 +883,11 @@ class NWCServer(Logger, EventListener):
         We publish one info event for each client connection.
         https://github.com/nostr-protocol/nips/blob/75f246ed987c23c99d77bfa6aeeb1afb669e23f7/47.md#example-nip-47-info-event
         """
+        tags = []
         if self.SUPPORTED_NOTIFICATIONS:
-            tags = [['notifications', ' '.join(self.SUPPORTED_NOTIFICATIONS)]]
-        else:
-            tags = None
+            tags.append(['notifications', ' '.join(self.SUPPORTED_NOTIFICATIONS)])
+        if self.SUPPORTED_ENCRYPTION_SCHEMES:
+            tags.append(['encryption', ' '.join(self.SUPPORTED_ENCRYPTION_SCHEMES)])
         for client_pubkey, connection in list(self.connections.items()):
             supported_methods = self.SUPPORTED_METHODS.copy()
             if self.is_receive_only(client_pubkey):
@@ -887,7 +896,7 @@ class NWCServer(Logger, EventListener):
             event_id = await aionostr._add_event(
                 self.manager,
                 kind=self.INFO_EVENT_KIND,
-                tags=tags,  # only needed if we support notification events
+                tags=tags or None,
                 content=content,
                 private_key=connection['our_secret']
             )
