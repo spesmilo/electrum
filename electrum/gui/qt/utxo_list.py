@@ -253,7 +253,8 @@ class UTXOList(MyTreeView):
             return False
         return True
 
-    def swap_coins(self, coins):
+    def swap_coins(self, coins: list[PartialTxInput]) -> None:
+        assert coins, "no coins selected?"
         #self.clear_coincontrol()
         self.add_to_coincontrol(coins)
         self.main_window.run_swap_dialog(is_reverse=False, recv_amount_sat_or_max='!')
@@ -265,7 +266,8 @@ class UTXOList(MyTreeView):
         value = sum(x.value_sats() for x in coins)
         return value >= MIN_FUNDING_SAT and value <= self.config.LIGHTNING_MAX_FUNDING_SAT
 
-    def open_channel_with_coins(self, coins):
+    def open_channel_with_coins(self, coins: list[PartialTxInput]) -> None:
+        assert coins, "no coins selected?"
         # todo : use a single dialog in new flow
         #self.clear_coincontrol()
         self.add_to_coincontrol(coins)
@@ -279,11 +281,12 @@ class UTXOList(MyTreeView):
         d.run()
         self.clear_coincontrol()
 
-    def clipboard_contains_address(self):
+    def clipboard_contains_address(self) -> bool:
         text = self.main_window.app.clipboard().text()
         return is_address(text)
 
-    def pay_to_clipboard_address(self, coins):
+    def pay_to_clipboard_address(self, coins: list[PartialTxInput]) -> None:
+        assert coins, "no coins selected?"
         if not self.clipboard_contains_address():
             self.main_window.show_error(_('Clipboard doesn\'t contain a valid address'))
             return
