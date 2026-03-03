@@ -3020,7 +3020,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         amount_msat = req.get_amount_msat() or None
         assert (amount_msat is None or amount_msat > 0), amount_msat
         info = self.lnworker.get_payment_info(payment_hash, direction=RECEIVED)
-        assert info.amount_msat == amount_msat, f"{info.amount_msat=} != {amount_msat=}"
+        assert info.amount_msat == amount_msat, f"{info.amount_msat=} != {amount_msat=}"  # info.amount_msat or None
         lnaddr, invoice = self.lnworker.get_bolt11_invoice(
             payment_info=info,
             message=req.message,
