@@ -1,6 +1,6 @@
 import asyncio
 from asyncio import Future
-from typing import Optional, Union
+from typing import Optional, Union, Callable
 
 from PyQt6.QtCore import pyqtSignal
 
@@ -15,14 +15,21 @@ class SubmarineSwapMixin(QtEventListener):
     _swaps_logger = get_logger(__name__)
     swapAvailabilityChanged = pyqtSignal()
 
-    def __init__(self, wallet, create_sm_transport):
-        self.swap_wallet = wallet
-        self.config = wallet.config
+    def __init__(self, create_sm_transport: Callable = None):
+        self.swap_wallet = None
+        self.config = None
         self.create_sm_transport = create_sm_transport
-        self.swap_manager = wallet.lnworker.swap_manager if wallet.has_lightning() else None
+        self.swap_manager = None
         self.swap_transport = None  # type: Optional[SwapServerTransport]
         # self.swapAvailabilityChanged.connect(self.on_swap_availability_changed, Qt.ConnectionType.QueuedConnection)
         self.ongoing_swap_transport_connection_attempt = None  # type: Optional[Future]
+
+    def set_wallet_for_swap(self, wallet):
+        self.swap_wallet = wallet
+        self.config = wallet.config
+        self.swap_manager = wallet.lnworker.swap_manager if wallet.has_lightning() else None
+        if self.swap_manager and not self.create_sm_transport:
+            self.create_sm_transport = self.swap_manager.create_transport
 
     # --- Shared functionality for submarine swaps (change to ln and submarine payments) ---
     def prepare_swap_transport(self):

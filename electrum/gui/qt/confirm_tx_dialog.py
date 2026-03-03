@@ -84,7 +84,7 @@ class TxEditor(WindowModalDialog, SubmarineSwapMixin, Logger):
 
         WindowModalDialog.__init__(self, window, title=title)
         Logger.__init__(self)
-        SubmarineSwapMixin.__init__(self, window.wallet, window.create_sm_transport)
+        SubmarineSwapMixin.__init__(self, window.create_sm_transport)
         self.main_window = window
         self.make_tx = make_tx
         self.output_value = output_value
@@ -108,6 +108,7 @@ class TxEditor(WindowModalDialog, SubmarineSwapMixin, Logger):
         self.batching_candidates = batching_candidates
 
         self.swapAvailabilityChanged.connect(self.on_swap_availability_changed, Qt.ConnectionType.QueuedConnection)
+        self.set_wallet_for_swap(window.wallet)
         self.did_swap = False  # used to clear the PI on send tab
 
         self.locktime_e = LockTimeEdit(self)
