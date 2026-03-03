@@ -25,6 +25,7 @@
 from typing import TYPE_CHECKING, Optional
 from functools import partial
 from datetime import datetime
+from decimal import Decimal
 
 from PyQt6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QTreeWidget, QTreeWidgetItem,
@@ -117,7 +118,8 @@ class Plugin(NWCServerPlugin):
                 else:
                     budget = self.config.format_amount(conn['daily_limit_sat'])
                     used = self.config.format_amount(
-                        self.nwc_server.get_used_budget(conn['client_pub']))
+                        amount_sat=round(Decimal(self.nwc_server.get_used_budget_msat(conn['client_pub'])) / 1000)
+                    )
                     limit = f"{used}/{budget}"
                 item = QTreeWidgetItem(
                     [

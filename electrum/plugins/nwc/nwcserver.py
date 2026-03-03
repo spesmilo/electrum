@@ -811,7 +811,7 @@ class NWCServer(Logger, EventListener):
         elif invoice.get_amount_msat() is None:
             invoice.set_amount_msat(amount_msat)
 
-        if not self.budget_allows_spend(request_pub, invoice.get_amount_sat()):
+        if not self.budget_allows_spend(request_pub, msat_requested=amount_msat or invoice.get_amount_msat()):
             return self.get_error_response("QUOTA_EXCEEDED", "Payment exceeds daily limit")
 
         self.wallet.save_invoice(invoice)
@@ -828,7 +828,7 @@ class NWCServer(Logger, EventListener):
         if not success or not preimage:
             return self.get_error_response("PAYMENT_FAILED", str(log))
         else:
-            self.add_to_budget(request_pub, invoice.get_amount_sat())
+            self.add_to_budget(request_pub, amount_msat=amount_msat or invoice.get_amount_msat())
             response['result'] = {
                 'preimage': preimage.hex(),
             }
@@ -838,7 +838,7 @@ class NWCServer(Logger, EventListener):
             self.logger.info(f"failed to pay invoice request from NWC: {log}")
         return response
 
-    def add_to_budget(self, client_pub: str, amount_sat: int) -> None:
+    def add_to_budget(self, client_pub: str, *, amount_msat: int) -> None:
         """
         If client_pub has a budget, check if the amount is within the budget and add it to the budget.
         Return True if the payment is allowed (within the budget)
@@ -846,34 +846,34 @@ class NWCServer(Logger, EventListener):
         if 'budget_spends' not in self.connections[client_pub]:
             self.connections[client_pub]['budget_spends'] = []
         # tuples don't work because jsondb converts them to lists on reload
-        self.connections[client_pub]['budget_spends'].append([amount_sat, int(time.time())])
+        self.connections[client_pub]['budget_spends'].append([amount_msat, int(time.time())])
 
-    def get_used_budget(self, client_pub: str) -> int:
+    def get_used_budget_msat(self, client_pub: str) -> int:
         """
-        Returns the used budget for the given client_pubkey.
+        Returns the used budget for the given client_pubkey in millisatoshi.
         """
         if 'budget_spends' not in self.connections[client_pub]:
             return 0
         used_budget: int = 0
         budget_spends = self.connections[client_pub]['budget_spends']
-        for amount, timestamp in list(budget_spends):
+        for amount_msat, timestamp in list(budget_spends):
             if timestamp > int(time.time()) - 24 * 3600:
-                used_budget += amount
+                used_budget += amount_msat
             elif timestamp < int(time.time()) - 24 * 3600:
                 # remove old expense
                 try:
-                    budget_spends.remove([amount, timestamp])
+                    budget_spends.remove([amount_msat, timestamp])
                 except ValueError:
                     self.logger.debug("", exc_info=True)
                     continue  # could happen if there is a race
         return used_budget
 
-    def budget_allows_spend(self, client_pub: str, sats_to_spend: int) -> bool:
+    def budget_allows_spend(self, client_pub: str, *, msat_requested: int) -> bool:
         client_budget_sat: Optional[int] = self.connections[client_pub].get('daily_limit_sat')
         if client_budget_sat is None:
             return True  # unlimited budget
-        used_budget: int = self.get_used_budget(client_pub)
-        if used_budget + sats_to_spend > client_budget_sat:
+        used_budget_msat: int = self.get_used_budget_msat(client_pub)
+        if used_budget_msat + msat_requested > client_budget_sat * 1000:
             return False
         return True
 
