@@ -813,8 +813,10 @@ class NWCServer(Logger, EventListener):
 
         if not self.budget_allows_spend(request_pub, msat_requested=amount_msat or invoice.get_amount_msat()):
             return self.get_error_response("QUOTA_EXCEEDED", "Payment exceeds daily limit")
+        budget_item = self.add_to_budget(request_pub, amount_msat=amount_msat or invoice.get_amount_msat())
 
         self.wallet.save_invoice(invoice)
+        success = None
         try:
             success, log = await self.wallet.lnworker.pay_invoice(
                 invoice=invoice,
@@ -823,22 +825,25 @@ class NWCServer(Logger, EventListener):
         except Exception as e:
             self.logger.exception(f"failed to pay nwc invoice")
             return self.get_error_response("PAYMENT_FAILED", str(e))
+        finally:
+            if success is False:
+                # If the user shuts down or the application crashes before the payment ends, it will not
+                # get deducted from the budget, even if the htlcs later get failed on wallet restart.
+                self.remove_from_budget(request_pub, budget_item)
         preimage: bytes = self.wallet.lnworker.get_preimage(bytes.fromhex(invoice.rhash))
         response = {}
         if not success or not preimage:
             return self.get_error_response("PAYMENT_FAILED", str(log))
-        else:
-            self.add_to_budget(request_pub, amount_msat=amount_msat or invoice.get_amount_msat())
-            response['result'] = {
-                'preimage': preimage.hex(),
-            }
+        response['result'] = {
+            'preimage': preimage.hex(),
+        }
         if success:
             self.logger.info(f"paid invoice request from NWC for {invoice.get_amount_sat()} sat")
         else:
             self.logger.info(f"failed to pay invoice request from NWC: {log}")
         return response
 
-    def add_to_budget(self, client_pub: str, *, amount_msat: int) -> None:
+    def add_to_budget(self, client_pub: str, *, amount_msat: int) -> list[int]:
         """
         If client_pub has a budget, check if the amount is within the budget and add it to the budget.
         Return True if the payment is allowed (within the budget)
@@ -846,7 +851,17 @@ class NWCServer(Logger, EventListener):
         if 'budget_spends' not in self.connections[client_pub]:
             self.connections[client_pub]['budget_spends'] = []
         # tuples don't work because jsondb converts them to lists on reload
-        self.connections[client_pub]['budget_spends'].append([amount_msat, int(time.time())])
+        budget_item = [amount_msat, int(time.time())]
+        self.connections[client_pub]['budget_spends'].append(budget_item)
+        return budget_item
+
+    def remove_from_budget(self, client_pub: str, budget_item: list[int]) -> None:
+        assert len(budget_item) == 2, budget_item
+        budget_spends = self.connections[client_pub].get('budget_spends', [])
+        try:
+            budget_spends.remove(budget_item)
+        except ValueError:
+            pass
 
     def get_used_budget_msat(self, client_pub: str) -> int:
         """
