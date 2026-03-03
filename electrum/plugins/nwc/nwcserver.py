@@ -179,7 +179,7 @@ class NWCServer(Logger, EventListener):
     REQUEST_EVENT_KIND: int     = 23194
     RESPONSE_EVENT_KIND: int    = 23195
     NOTIFICATION_EVENT_KIND: int = 23196
-    SUPPORTED_SPENDING_METHODS: set[str] = {'pay_invoice', 'multi_pay_invoice'}
+    SUPPORTED_SPENDING_METHODS: set[str] = {'pay_invoice'}
     SUPPORTED_METHODS: set[str] = {'make_invoice', 'lookup_invoice', 'get_balance', 'get_info',
                                    'list_transactions', 'notifications'}.union(SUPPORTED_SPENDING_METHODS)
     SUPPORTED_NOTIFICATIONS: list[str] = ["payment_sent", "payment_received"]
@@ -349,8 +349,6 @@ class NWCServer(Logger, EventListener):
             task: Optional[Awaitable] = None
             if method == "pay_invoice" and not self.is_receive_only(event.pubkey):
                 task = self.handle_pay_invoice(event, params)
-            elif method == "multi_pay_invoice" and not self.is_receive_only(event.pubkey):
-                task = self.handle_multi_pay_invoice(event, params)
             elif method == "make_invoice":
                 task = self.handle_make_invoice(event, params)
             elif method == "lookup_invoice":
@@ -441,33 +439,6 @@ class NWCServer(Logger, EventListener):
         response = await self.pay_invoice(invoice, amount_msat, request_event.pubkey)
         response['result_type'] = 'pay_invoice'
         await self.send_encrypted_response(request_event.pubkey, json.dumps(response), request_event.id)
-
-    @log_exceptions
-    async def handle_multi_pay_invoice(self, request_event: nEvent, params: dict) -> None:
-        """
-        Handler for multi_pay_invoice method.
-        https://github.com/nostr-protocol/nips/blob/75f246ed987c23c99d77bfa6aeeb1afb669e23f7/47.md#multi_pay_invoice
-        """
-        invoices: List[dict] = params.get('invoices', [])
-        for invoice_req in invoices:
-            invoice: str = invoice_req.get('invoice', "")
-            amount_msat: Optional[int] = invoice_req.get('amount')
-            inv_id: Optional[str] = invoice_req.get('id')
-            response = await self.pay_invoice(invoice, amount_msat, request_event.pubkey)
-            if not inv_id:
-                # if we have no id we need the payment hash
-                try:
-                    inv_id = Invoice.from_bech32(invoice).rhash
-                except InvoiceError:
-                    inv_id = "none"
-            response['result_type'] = 'multi_pay_invoice'
-            id_tag = [['d', inv_id]]
-            await self.send_encrypted_response(
-                request_event.pubkey,
-                json.dumps(response),
-                request_event.id,
-                add_tags=id_tag
-            )
 
     @log_exceptions
     async def handle_make_invoice(self, request_event: nEvent, params: dict):
