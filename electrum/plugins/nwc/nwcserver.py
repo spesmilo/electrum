@@ -40,7 +40,7 @@ from electrum.logging import Logger
 from electrum.util import log_exceptions, ca_path, OldTaskGroup, get_asyncio_loop, InvoiceError, \
     LightningHistoryItem, event_listener, EventListener, make_aiohttp_proxy_connector, \
     get_running_loop, run_sync_function_on_asyncio_thread
-from electrum.invoices import Invoice, Request, PR_UNKNOWN, PR_PAID, BaseInvoice, PR_INFLIGHT
+from electrum.invoices import Invoice, Request, PR_UNKNOWN, PR_PAID, BaseInvoice, PR_INFLIGHT, PR_FAILED, PR_EXPIRED, PR_UNPAID
 from electrum import constants
 from electrum.lnutil import RECEIVED
 
@@ -179,10 +179,11 @@ class NWCServer(Logger, EventListener):
     REQUEST_EVENT_KIND: int     = 23194
     RESPONSE_EVENT_KIND: int    = 23195
     NOTIFICATION_EVENT_KIND: int = 23196
-    SUPPORTED_SPENDING_METHODS: set[str] = {'pay_invoice', 'multi_pay_invoice'}
+    SUPPORTED_SPENDING_METHODS: set[str] = {'pay_invoice'}
     SUPPORTED_METHODS: set[str] = {'make_invoice', 'lookup_invoice', 'get_balance', 'get_info',
                                    'list_transactions', 'notifications'}.union(SUPPORTED_SPENDING_METHODS)
     SUPPORTED_NOTIFICATIONS: list[str] = ["payment_sent", "payment_received"]
+    SUPPORTED_ENCRYPTION_SCHEMES: set[str] = {'nip04'}
 
     def __init__(
         self,
@@ -328,6 +329,13 @@ class NWCServer(Logger, EventListener):
                 await self.send_error(event, "OTHER", f"not handling too old request")
                 continue
 
+            # check encryption scheme
+            for tag in event.tags:
+                if len(tag) == 2 and tag[0] == 'encryption':
+                    if tag[1] not in self.SUPPORTED_ENCRYPTION_SCHEMES:
+                        await self.send_error(event, "UNSUPPORTED_ENCRYPTION", " ".join(self.SUPPORTED_ENCRYPTION_SCHEMES))
+                    break
+
             # decrypt the requests content
             our_secret: str = self.connections[event.pubkey]['our_secret']
             our_connection_secret = PrivateKey(raw_secret=bytes.fromhex(our_secret))
@@ -349,8 +357,6 @@ class NWCServer(Logger, EventListener):
             task: Optional[Awaitable] = None
             if method == "pay_invoice" and not self.is_receive_only(event.pubkey):
                 task = self.handle_pay_invoice(event, params)
-            elif method == "multi_pay_invoice" and not self.is_receive_only(event.pubkey):
-                task = self.handle_multi_pay_invoice(event, params)
             elif method == "make_invoice":
                 task = self.handle_make_invoice(event, params)
             elif method == "lookup_invoice":
@@ -443,33 +449,6 @@ class NWCServer(Logger, EventListener):
         await self.send_encrypted_response(request_event.pubkey, json.dumps(response), request_event.id)
 
     @log_exceptions
-    async def handle_multi_pay_invoice(self, request_event: nEvent, params: dict) -> None:
-        """
-        Handler for multi_pay_invoice method.
-        https://github.com/nostr-protocol/nips/blob/75f246ed987c23c99d77bfa6aeeb1afb669e23f7/47.md#multi_pay_invoice
-        """
-        invoices: List[dict] = params.get('invoices', [])
-        for invoice_req in invoices:
-            invoice: str = invoice_req.get('invoice', "")
-            amount_msat: Optional[int] = invoice_req.get('amount')
-            inv_id: Optional[str] = invoice_req.get('id')
-            response = await self.pay_invoice(invoice, amount_msat, request_event.pubkey)
-            if not inv_id:
-                # if we have no id we need the payment hash
-                try:
-                    inv_id = Invoice.from_bech32(invoice).rhash
-                except InvoiceError:
-                    inv_id = "none"
-            response['result_type'] = 'multi_pay_invoice'
-            id_tag = [['d', inv_id]]
-            await self.send_encrypted_response(
-                request_event.pubkey,
-                json.dumps(response),
-                request_event.id,
-                add_tags=id_tag
-            )
-
-    @log_exceptions
     async def handle_make_invoice(self, request_event: nEvent, params: dict):
         """
         Handler for make_invoice method.
@@ -501,6 +480,7 @@ class NWCServer(Logger, EventListener):
             "result_type": "make_invoice",
             "result": {
                 "type": "incoming",
+                "state": "pending",
                 "invoice": b11,
                 "description": description,
                 "payment_hash": lnaddr.paymenthash.hex(),
@@ -564,6 +544,8 @@ class NWCServer(Logger, EventListener):
         }
         if payment_hash:  # if client requested by payment hash we add the invoice
             response['result']['invoice'] = b11
+        if nip47_status := self.invoice_status_to_nip47_state(status):
+            response['result']['state'] = nip47_status
 
         info = self.get_payment_info(invoice.rhash)
         if info:
@@ -717,19 +699,19 @@ class NWCServer(Logger, EventListener):
             elif history_tx.direction == PaymentDirection.SENT:
                 tx['type'] = "outgoing"
                 payment = self.wallet.get_invoice(history_tx.payment_hash)
-            else:
-                tx['type'] = req_type
-            if payment:
-                if include_unpaid_outgoing and history_tx.type == 'pending':
-                    tx['description'] = f"pending! {payment.message}"
-                else:
-                    tx['description'] = payment.message
-                tx['expires_at'] = payment.get_expiration_date()
-                tx['created_at'] = payment.time
-            else:
+            if not payment:
                 # don't include txs with semi complete information as this will cause some clients
                 # to fail displaying any transaction at all
                 continue
+            if include_unpaid_outgoing and history_tx.type == 'pending':
+                tx['description'] = f"pending! {payment.message}"
+            else:
+                tx['description'] = payment.message
+            tx['expires_at'] = payment.get_expiration_date()
+            tx['created_at'] = payment.time
+            status = self.wallet.get_invoice_status(payment)
+            if nip47_status := self.invoice_status_to_nip47_state(status):
+                tx['state'] = nip47_status
             if (not include_unpaid_reqs and not include_unpaid_outgoing) or history_tx.type == 'payment':
                 tx['settled_at'] = history_tx.timestamp
                 tx['preimage'] = history_tx.preimage
@@ -779,6 +761,7 @@ class NWCServer(Logger, EventListener):
             "fees_paid": 0
         }
         if settled_at:
+            notification['state'] = 'settled'
             notification['settled_at'] = settled_at
 
         self.publish_notification_event({
@@ -814,6 +797,7 @@ class NWCServer(Logger, EventListener):
         if fee_msat:
             notification['fees_paid'] = fee_msat
         if settled_at:
+            notification['state'] = 'settled'
             notification['settled_at'] = settled_at
         content = {
             "notification_type": "payment_sent",
@@ -832,10 +816,12 @@ class NWCServer(Logger, EventListener):
         elif invoice.get_amount_msat() is None:
             invoice.set_amount_msat(amount_msat)
 
-        if not self.budget_allows_spend(request_pub, invoice.get_amount_sat()):
+        if not self.budget_allows_spend(request_pub, msat_requested=amount_msat or invoice.get_amount_msat()):
             return self.get_error_response("QUOTA_EXCEEDED", "Payment exceeds daily limit")
+        budget_item = self.add_to_budget(request_pub, amount_msat=amount_msat or invoice.get_amount_msat())
 
         self.wallet.save_invoice(invoice)
+        success = None
         try:
             success, log = await self.wallet.lnworker.pay_invoice(
                 invoice=invoice,
@@ -844,22 +830,25 @@ class NWCServer(Logger, EventListener):
         except Exception as e:
             self.logger.exception(f"failed to pay nwc invoice")
             return self.get_error_response("PAYMENT_FAILED", str(e))
+        finally:
+            if success is False:
+                # If the user shuts down or the application crashes before the payment ends, it will not
+                # get deducted from the budget, even if the htlcs later get failed on wallet restart.
+                self.remove_from_budget(request_pub, budget_item)
         preimage: bytes = self.wallet.lnworker.get_preimage(bytes.fromhex(invoice.rhash))
         response = {}
         if not success or not preimage:
             return self.get_error_response("PAYMENT_FAILED", str(log))
-        else:
-            self.add_to_budget(request_pub, invoice.get_amount_sat())
-            response['result'] = {
-                'preimage': preimage.hex(),
-            }
+        response['result'] = {
+            'preimage': preimage.hex(),
+        }
         if success:
             self.logger.info(f"paid invoice request from NWC for {invoice.get_amount_sat()} sat")
         else:
             self.logger.info(f"failed to pay invoice request from NWC: {log}")
         return response
 
-    def add_to_budget(self, client_pub: str, amount_sat: int) -> None:
+    def add_to_budget(self, client_pub: str, *, amount_msat: int) -> list[int]:
         """
         If client_pub has a budget, check if the amount is within the budget and add it to the budget.
         Return True if the payment is allowed (within the budget)
@@ -867,34 +856,44 @@ class NWCServer(Logger, EventListener):
         if 'budget_spends' not in self.connections[client_pub]:
             self.connections[client_pub]['budget_spends'] = []
         # tuples don't work because jsondb converts them to lists on reload
-        self.connections[client_pub]['budget_spends'].append([amount_sat, int(time.time())])
+        budget_item = [amount_msat, int(time.time())]
+        self.connections[client_pub]['budget_spends'].append(budget_item)
+        return budget_item
 
-    def get_used_budget(self, client_pub: str) -> int:
+    def remove_from_budget(self, client_pub: str, budget_item: list[int]) -> None:
+        assert len(budget_item) == 2, budget_item
+        budget_spends = self.connections[client_pub].get('budget_spends', [])
+        try:
+            budget_spends.remove(budget_item)
+        except ValueError:
+            pass
+
+    def get_used_budget_msat(self, client_pub: str) -> int:
         """
-        Returns the used budget for the given client_pubkey.
+        Returns the used budget for the given client_pubkey in millisatoshi.
         """
         if 'budget_spends' not in self.connections[client_pub]:
             return 0
         used_budget: int = 0
         budget_spends = self.connections[client_pub]['budget_spends']
-        for amount, timestamp in list(budget_spends):
+        for amount_msat, timestamp in list(budget_spends):
             if timestamp > int(time.time()) - 24 * 3600:
-                used_budget += amount
+                used_budget += amount_msat
             elif timestamp < int(time.time()) - 24 * 3600:
                 # remove old expense
                 try:
-                    budget_spends.remove([amount, timestamp])
+                    budget_spends.remove([amount_msat, timestamp])
                 except ValueError:
                     self.logger.debug("", exc_info=True)
                     continue  # could happen if there is a race
         return used_budget
 
-    def budget_allows_spend(self, client_pub: str, sats_to_spend: int) -> bool:
+    def budget_allows_spend(self, client_pub: str, *, msat_requested: int) -> bool:
         client_budget_sat: Optional[int] = self.connections[client_pub].get('daily_limit_sat')
         if client_budget_sat is None:
             return True  # unlimited budget
-        used_budget: int = self.get_used_budget(client_pub)
-        if used_budget + sats_to_spend > client_budget_sat:
+        used_budget_msat: int = self.get_used_budget_msat(client_pub)
+        if used_budget_msat + msat_requested > client_budget_sat * 1000:
             return False
         return True
 
@@ -904,10 +903,11 @@ class NWCServer(Logger, EventListener):
         We publish one info event for each client connection.
         https://github.com/nostr-protocol/nips/blob/75f246ed987c23c99d77bfa6aeeb1afb669e23f7/47.md#example-nip-47-info-event
         """
+        tags = []
         if self.SUPPORTED_NOTIFICATIONS:
-            tags = [['notifications', ' '.join(self.SUPPORTED_NOTIFICATIONS)]]
-        else:
-            tags = None
+            tags.append(['notifications', ' '.join(self.SUPPORTED_NOTIFICATIONS)])
+        if self.SUPPORTED_ENCRYPTION_SCHEMES:
+            tags.append(['encryption', ' '.join(self.SUPPORTED_ENCRYPTION_SCHEMES)])
         for client_pubkey, connection in list(self.connections.items()):
             supported_methods = self.SUPPORTED_METHODS.copy()
             if self.is_receive_only(client_pubkey):
@@ -916,7 +916,7 @@ class NWCServer(Logger, EventListener):
             event_id = await aionostr._add_event(
                 self.manager,
                 kind=self.INFO_EVENT_KIND,
-                tags=tags,  # only needed if we support notification events
+                tags=tags or None,
                 content=content,
                 private_key=connection['our_secret']
             )
@@ -963,3 +963,15 @@ class NWCServer(Logger, EventListener):
 
     def is_receive_only(self, pubkey: str) -> bool:
         return self.connections[pubkey].get('daily_limit_sat') == 0
+
+    @staticmethod
+    def invoice_status_to_nip47_state(status) -> Optional[str]:
+        if status == PR_EXPIRED:
+            return "expired"
+        elif status == PR_FAILED:
+            return "failed"
+        elif status == PR_PAID:
+            return "settled"
+        elif status == PR_UNPAID:
+            return "pending"
+        return None
