@@ -230,12 +230,17 @@ class UTXOList(MyTreeView):
         return copy.deepcopy(utxos)  # copy so that side-effects don't affect utxo_dict
 
     def _maybe_reset_coincontrol(self, current_wallet_utxos: Sequence[PartialTxInput]) -> None:
-        if not bool(self._spend_set):
+        if not self._spend_set and not self._currently_open_menu:
             return
-        # if we spent one of the selected UTXOs, just reset selection
         utxo_set = {utxo.prevout.to_str() for utxo in current_wallet_utxos}
-        if not all([prevout_str in utxo_set for prevout_str in self._spend_set]):
-            self._spend_set.clear()
+        if self._currently_open_menu:
+            # if we spent one of the qt-highlighted UTXOs, close context-menu
+            if not all(prevout_str in utxo_set for prevout_str in self.get_selected_outpoints()):
+                self.close_menu()
+        if self._spend_set:
+            # if we spent one of the green-marked UTXOs, just reset selection
+            if not all([prevout_str in utxo_set for prevout_str in self._spend_set]):
+                self._spend_set.clear()
 
     def can_swap_coins(self, coins):
         # fixme: min and max_amounts are known only after first request
@@ -369,7 +374,7 @@ class UTXOList(MyTreeView):
                 act.setToolTip(MSG_FREEZE_ADDRESS)
 
         run_hook('qt_utxo_menu', menu, coins, self.wallet)
-        menu.exec(self.viewport().mapToGlobal(position))
+        self.open_menu(menu, position)
 
     def get_filter_data_from_coordinate(self, row, col):
         if col == self.Columns.OUTPOINT:

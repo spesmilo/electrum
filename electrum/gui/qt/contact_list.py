@@ -101,7 +101,7 @@ class ContactList(MyTreeView):
                 menu.addAction(_("View on block explorer"), lambda: [webopen(u) for u in URLs])
 
         run_hook('create_contact_menu', menu, selected_keys)
-        menu.exec(self.viewport().mapToGlobal(position))
+        self.open_menu(menu, position)
 
     def update(self):
         if self.maybe_defer_update():
