@@ -8,8 +8,9 @@ from electrum.logging import get_logger
 from electrum.util import Satoshis, TxMinedInfo
 from electrum.address_synchronizer import TX_HEIGHT_FUTURE, TX_HEIGHT_LOCAL
 
+from electrum.gui.common_qt.util import QtEventListener, qt_event_listener
+
 from .qetypes import QEAmount
-from .util import QtEventListener, qt_event_listener
 
 if TYPE_CHECKING:
     from electrum.wallet import Abstract_Wallet
