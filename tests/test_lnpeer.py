@@ -1532,7 +1532,9 @@ class TestPeerDirect(TestPeer):
                 assert bob_wallet.received_mpp_htlcs[bob_payment_key].resolution == RecvMPPResolution.WAITING
                 assert len(bob_wallet.received_mpp_htlcs[bob_payment_key].htlcs) == 2
                 # now wait until bob expires the mpp (set)
-                await asyncio.wait_for(alice_htlc_resolved.wait(), bob_wallet.MPP_EXPIRY * 3)  # this can take some time, esp. on CI
+                async with util.async_timeout(bob_wallet.MPP_EXPIRY * 3):  # this can take some time, esp. on CI
+                    while nhtlc_success + nhtlc_failed < 2:
+                        await alice_htlc_resolved.wait()
                 # check that bob failed the htlc
                 assert nhtlc_success == 0 and nhtlc_failed == 2
                 # check that bob deleted the mpp set as it should be expired and resolved now
