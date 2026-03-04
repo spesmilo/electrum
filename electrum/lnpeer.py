@@ -1859,7 +1859,6 @@ class Peer(Logger, EventListener):
                 f"chan={chan.get_id_for_log()}. {htlc_id=}. {chan.get_state()=!r}. {chan.peer_state=!r}")
             return
         chan.receive_fail_htlc(htlc_id, error_bytes=reason)  # TODO handle exc and maybe fail channel (e.g. bad htlc_id)
-        self.maybe_send_commitment(chan)
 
     def maybe_send_commitment(self, chan: Channel) -> bool:
         assert util.get_running_loop() == util.get_asyncio_loop(), f"this must be run on the asyncio thread!"
@@ -1871,6 +1870,10 @@ class Peer(Logger, EventListener):
         # if there are no changes, we will not (and must not) send a new commitment
         if not chan.has_pending_changes(REMOTE):
             return False
+        # TODO possible optimisation: we could explicitly allow batching updates we send. e.g.:
+        #   - store timestamp of last "send_commitment" in a field
+        #   - if prev timestamp is recent, early "return False" here
+        #   note: no need for a timer to delay "send_commitment", existing htlc_switch polling is sufficient
         self.logger.info(f'send_commitment. chan {chan.short_channel_id}. ctn: {chan.get_next_ctn(REMOTE)}.')
         sig_64, htlc_sigs = chan.sign_next_commitment()
         self.send_message("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=b"".join(htlc_sigs))
@@ -1983,7 +1986,6 @@ class Peer(Logger, EventListener):
                 f"chan={chan.get_id_for_log()}. {htlc_id=}. {chan.get_state()=!r}. {chan.peer_state=!r}")
             return
         chan.receive_htlc_settle(preimage, htlc_id)  # TODO handle exc and maybe fail channel (e.g. bad htlc_id)
-        self.maybe_send_commitment(chan)
 
     def on_update_fail_malformed_htlc(self, chan: Channel, payload):
         htlc_id = payload["id"]
@@ -2000,7 +2002,6 @@ class Peer(Logger, EventListener):
             raise RemoteMisbehaving(f"received update_fail_malformed_htlc with unexpected failure code: {failure_code}")
         reason = OnionRoutingFailure(code=failure_code, data=payload["sha256_of_onion"])
         chan.receive_fail_htlc(htlc_id, error_bytes=None, reason=reason)
-        self.maybe_send_commitment(chan)
 
     def on_update_add_htlc(self, chan: Channel, payload):
         payment_hash = payload["payment_hash"]
@@ -2316,6 +2317,7 @@ class Peer(Logger, EventListener):
             id=htlc_id,
             len=len(error_bytes),
             reason=error_bytes)
+        self.maybe_send_commitment(chan)
 
     def fail_malformed_htlc(self, *, chan: Channel, htlc_id: int, reason: OnionParsingError):
         self.logger.info(f"fail_malformed_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}.")
@@ -2330,6 +2332,7 @@ class Peer(Logger, EventListener):
             id=htlc_id,
             sha256_of_onion=reason.data,
             failure_code=reason.code)
+        self.maybe_send_commitment(chan)
 
     def on_revoke_and_ack(self, chan: Channel, payload) -> None:
         self.logger.info(f'on_revoke_and_ack. chan {chan.short_channel_id}. ctn: {chan.get_oldest_unrevoked_ctn(REMOTE)}')
@@ -2341,7 +2344,6 @@ class Peer(Logger, EventListener):
         rev = RevokeAndAck(payload["per_commitment_secret"], payload["next_per_commitment_point"])
         chan.receive_revocation(rev)
         self.lnworker.save_channel(chan)
-        self.maybe_send_commitment(chan)
         self._received_revack_event.set()
         self._received_revack_event.clear()
 
