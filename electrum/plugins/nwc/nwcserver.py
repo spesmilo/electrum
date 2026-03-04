@@ -816,9 +816,9 @@ class NWCServer(Logger, EventListener):
         elif invoice.get_amount_msat() is None:
             invoice.set_amount_msat(amount_msat)
 
-        if not self.budget_allows_spend(request_pub, msat_requested=amount_msat or invoice.get_amount_msat()):
+        budget_item = self.add_to_budget(request_pub, msat_requested=amount_msat or invoice.get_amount_msat())
+        if not budget_item:
             return self.get_error_response("QUOTA_EXCEEDED", "Payment exceeds daily limit")
-        budget_item = self.add_to_budget(request_pub, amount_msat=amount_msat or invoice.get_amount_msat())
 
         self.wallet.save_invoice(invoice)
         success = None
@@ -848,18 +848,6 @@ class NWCServer(Logger, EventListener):
             self.logger.info(f"failed to pay invoice request from NWC: {log}")
         return response
 
-    def add_to_budget(self, client_pub: str, *, amount_msat: int) -> list[int]:
-        """
-        If client_pub has a budget, check if the amount is within the budget and add it to the budget.
-        Return True if the payment is allowed (within the budget)
-        """
-        if 'budget_spends' not in self.connections[client_pub]:
-            self.connections[client_pub]['budget_spends'] = []
-        # tuples don't work because jsondb converts them to lists on reload
-        budget_item = [amount_msat, int(time.time())]
-        self.connections[client_pub]['budget_spends'].append(budget_item)
-        return budget_item
-
     def remove_from_budget(self, client_pub: str, budget_item: list[int]) -> None:
         assert len(budget_item) == 2, budget_item
         budget_spends = self.connections[client_pub].get('budget_spends', [])
@@ -888,14 +876,21 @@ class NWCServer(Logger, EventListener):
                     continue  # could happen if there is a race
         return used_budget
 
-    def budget_allows_spend(self, client_pub: str, *, msat_requested: int) -> bool:
+    def add_to_budget(self, client_pub: str, *, msat_requested: int) -> Optional[list[int]]:
+        if 'budget_spends' not in self.connections[client_pub]:
+            self.connections[client_pub]['budget_spends'] = []
+
+        # check if budget allows this spend
         client_budget_sat: Optional[int] = self.connections[client_pub].get('daily_limit_sat')
-        if client_budget_sat is None:
-            return True  # unlimited budget
-        used_budget_msat: int = self.get_used_budget_msat(client_pub)
-        if used_budget_msat + msat_requested > client_budget_sat * 1000:
-            return False
-        return True
+        if client_budget_sat is not None:
+            used_budget_msat: int = self.get_used_budget_msat(client_pub)
+            if used_budget_msat + msat_requested > client_budget_sat * 1000:
+                return None
+
+        # tuples don't work because jsondb converts them to lists on reload
+        budget_item = [msat_requested, int(time.time())]
+        self.connections[client_pub]['budget_spends'].append(budget_item)
+        return budget_item
 
     async def publish_info_event(self):
         """
