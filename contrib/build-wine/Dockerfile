@@ -1,4 +1,4 @@
-FROM debian:bookworm@sha256:b37bc259c67238d814516548c17ad912f26c3eed48dd9bb54893eafec8739c89
+FROM debian:trixie@sha256:13f29b6806e531c3ff3b565bb6eed73f2132506c8c9d41bb996065ca20fb27f2
 
 # need ca-certificates before using snapshot packages
 RUN apt update -qq > /dev/null && apt install -qq --yes --no-install-recommends \
@@ -14,14 +14,16 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN dpkg --add-architecture i386 && \
     apt-get update -q && \
     apt-get install -qy --allow-downgrades \
+        lsb-release \
         wget \
         gnupg2 \
         dirmngr \
-        python3-software-properties \
-        software-properties-common \
+        python3 \
         git \
         p7zip-full \
         make \
+        cmake \
+        pkgconf \
         mingw-w64 \
         mingw-w64-tools \
         autotools-dev \
@@ -37,7 +39,7 @@ RUN dpkg --add-architecture i386 && \
     apt-get clean
 
 RUN DEBIAN_CODENAME=$(lsb_release --codename --short) && \
-    WINEVERSION="10.0.0.0~${DEBIAN_CODENAME}-1" && \
+    WINEVERSION="11.0.0.0~${DEBIAN_CODENAME}-1" && \
     wget -nc https://dl.winehq.org/wine-builds/winehq.key && \
         echo "d965d646defe94b3dfba6d5b4406900ac6c81065428bf9d9303ad7a72ee8d1b8 winehq.key" | sha256sum -c - && \
         cat winehq.key | gpg --dearmor -o /etc/apt/keyrings/winehq.gpg && \
@@ -49,8 +51,6 @@ RUN DEBIAN_CODENAME=$(lsb_release --codename --short) && \
         wine-stable-i386:i386=${WINEVERSION} \
         wine-stable:amd64=${WINEVERSION} \
         winehq-stable:amd64=${WINEVERSION} \
-        libvkd3d1:amd64=1.3~${DEBIAN_CODENAME}-1 \
-        libvkd3d1:i386=1.3~${DEBIAN_CODENAME}-1 \
         && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get autoremove -y && \
