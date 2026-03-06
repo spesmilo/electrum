@@ -806,12 +806,17 @@ class TestPeerDirect(TestPeer):
         )
         return htlc
 
-    async def _test_reestablish_replay_messages(self, rev_then_sig: bool):
+    async def _test_reestablish_replay_messages(self, rev_then_sig: bool, alice_peerbackup_server: bool):
         alice_lnwallet, bob_lnwallet = self.prepare_lnwallets(self.GRAPH_DEFINITIONS['single_chan']).values()
-        chan_AB, chan_BA = create_test_channels(alice_lnwallet=alice_lnwallet, bob_lnwallet=bob_lnwallet)
+        chan_AB, chan_BA = create_test_channels(alice_lnwallet=alice_lnwallet, bob_lnwallet=bob_lnwallet, anchor_outputs=True)
         # note: we don't start peer.htlc_switch() so that the fake htlcs are left alone.
         async def f():
-            p1, p2, w1, w2 = self.prepare_peers(chan_AB, chan_BA)
+            p1, p2, w1, w2 = self.prepare_peers(
+                chan_AB, chan_BA,
+                alice_peerbackup_server=alice_peerbackup_server,
+                bob_peerbackup_server=not alice_peerbackup_server,
+                workers={'alice':alice_lnwallet, 'bob':bob_lnwallet},
+            )
             async with OldTaskGroup() as group:
                 await group.spawn(p1._message_loop())
                 await group.spawn(p2._message_loop())
@@ -830,7 +835,12 @@ class TestPeerDirect(TestPeer):
                 await group.cancel_remaining()
             # simulating disconnection. recreate transports.
             self.logger.info("simulating disconnection. recreating transports.")
-            p1, p2, w1, w2 = self.prepare_peers(chan_AB, chan_BA)
+            p1, p2, w1, w2 = self.prepare_peers(
+                chan_AB, chan_BA,
+                alice_peerbackup_server=alice_peerbackup_server,
+                bob_peerbackup_server=not alice_peerbackup_server,
+                workers={'alice':alice_lnwallet, 'bob':bob_lnwallet},
+            )
             for chan in (chan_AB, chan_BA):
                 chan.peer_state = PeerState.DISCONNECTED
             async with OldTaskGroup() as group:
@@ -868,7 +878,8 @@ class TestPeerDirect(TestPeer):
         ----add-->
         ----sig-->
         """
-        await self._test_reestablish_replay_messages(True)
+        await self._test_reestablish_replay_messages(True, True)
+        await self._test_reestablish_replay_messages(True, False)
 
     async def test_reestablish_replay_messages_sig_then_rev(self):
         """
@@ -887,7 +898,8 @@ class TestPeerDirect(TestPeer):
         ----sig-->
         ----rev-->
         """
-        await self._test_reestablish_replay_messages(False)
+        await self._test_reestablish_replay_messages(False, True)
+        await self._test_reestablish_replay_messages(False, False)
 
     async def _peerbackup_order_init_task(self, p1, p2, w1, w2, chan_AB, chan_BA, rev_then_sig):
         async with OldTaskGroup() as group:
