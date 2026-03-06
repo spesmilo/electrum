@@ -523,7 +523,7 @@ class NWCServer(Logger, EventListener):
             b11 = invoice.lightning_invoice
         elif self.wallet.get_request(invoice.rhash):
             direction = "incoming"
-            info = self.wallet.lnworker.get_payment_info(invoice.payment_hash, direction=RECEIVED)
+            info = self.wallet.lnworker.get_payment_info(bytes.fromhex(invoice.rhash), direction=RECEIVED)
             _, b11 = self.wallet.lnworker.get_bolt11_invoice(
                 payment_info=info,
                 message=invoice.message,
@@ -539,11 +539,10 @@ class NWCServer(Logger, EventListener):
                 "created_at": invoice.time,
                 "expires_at": invoice.get_expiration_date(),
                 "fees_paid": 0,
+                "invoice": b11,
                 "metadata": {}
             }
         }
-        if payment_hash:  # if client requested by payment hash we add the invoice
-            response['result']['invoice'] = b11
         if nip47_status := self.invoice_status_to_nip47_state(status):
             response['result']['state'] = nip47_status
 
