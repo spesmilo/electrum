@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
 import sys
-
-try:
-    import requests
-except ImportError as e:
-    sys.exit(f"Error: {str(e)}. Try 'python3 -m pip install <module-name>'")
+from importlib.metadata import requires, PackageNotFoundError
 
 def is_dependency_edge_blacklisted(*, parent_pkg: str, dep: str) -> bool:
     """Sometimes a package declares a hard dependency
@@ -38,26 +34,24 @@ def main():
         if not p:
             continue
         assert "==" in p, "This script expects a list of packages with pinned version, e.g. package==1.2.3, not {}".format(p)
-        p, v = p.rsplit("==", 1)
+        pkg_name, _ = p.rsplit("==", 1)
         try:
-            data = requests.get("https://pypi.org/pypi/{}/{}/json".format(p, v)).json()["info"]
-        except ValueError:
-            raise Exception("Package could not be found: {}=={}".format(p, v))
-        try:
-            for r in data["requires_dist"]:  # type: str
-                if ";" not in r:
-                    continue
-                # example value for "r" at this point: "pefile (>=2017.8.1) ; sys_platform == \"win32\""
-                dep, restricted = r.split(";", 1)
-                dep = dep.strip()
-                restricted = restricted.strip()
-                dep_basename = dep.split(" ")[0]
-                if check_restriction(dep=dep, restricted=restricted, parent_pkg=p):
-                    print(dep_basename, sep=" ")
-                    print("Installing {} from {} although it is only needed for {}".format(dep, p, restricted), file=sys.stderr)
-        except TypeError:
-            # Has no dependencies at all
+            reqs = requires(pkg_name)
+        except PackageNotFoundError:
+            raise Exception("Package not found in this environment: {}. Install it first.".format(p))
+        if reqs is None:
             continue
+        for r in reqs:
+            if ";" not in r:
+                continue
+            # example value for "r": "pefile (>=2017.8.1) ; sys_platform == \"win32\""
+            dep, restricted = r.split(";", 1)
+            dep = dep.strip()
+            restricted = restricted.strip()
+            dep_basename = dep.split(" ")[0]
+            if check_restriction(dep=dep, restricted=restricted, parent_pkg=pkg_name):
+                print(dep_basename, sep=" ")
+                print("Installing {} from {} although it is only needed for {}".format(dep, pkg_name, restricted), file=sys.stderr)
 
 if __name__ == "__main__":
     main()
