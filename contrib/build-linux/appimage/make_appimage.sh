@@ -245,10 +245,10 @@ rm -rf "$PYDIR"/site-packages/PyQt6/Qt.so
 find "$APPDIR" -path '*/__pycache__*' -delete
 # although note that *.dist-info might be needed by certain packages...
 # e.g. slip10 uses importlib that needs it
-for f in "$PYDIR"/site-packages/slip10-*.dist-info; do mv "$f" "$(echo "$f" | sed s/\.dist-info/\.dist-info2/)"; done
+for f in "$PYDIR"/site-packages/{slip10,trezor}-*.dist-info; do mv "$f" "$(echo "$f" | sed s/\.dist-info/\.dist-info2/)"; done
 rm -rf "$PYDIR"/site-packages/*.dist-info/
 rm -rf "$PYDIR"/site-packages/*.egg-info/
-for f in "$PYDIR"/site-packages/slip10-*.dist-info2; do mv "$f" "$(echo "$f" | sed s/\.dist-info2/\.dist-info/)"; done
+for f in "$PYDIR"/site-packages/{slip10,trezor}-*.dist-info2; do mv "$f" "$(echo "$f" | sed s/\.dist-info2/\.dist-info/)"; done
 
 
 find -exec touch -h -d '2000-11-11T11:11:11+00:00' {} +
