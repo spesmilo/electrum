@@ -728,6 +728,51 @@ class TestPeerDirect(TestPeer):
         )
         return htlc
 
+    async def _test_reestablish_replay_messages(self, rev_then_sig: bool):
+        alice_lnwallet, bob_lnwallet = self.prepare_lnwallets(self.GRAPH_DEFINITIONS['single_chan']).values()
+        chan_AB, chan_BA = create_test_channels(alice_lnwallet=alice_lnwallet, bob_lnwallet=bob_lnwallet)
+        # note: we don't start peer.htlc_switch() so that the fake htlcs are left alone.
+        async def f():
+            p1, p2, w1, w2 = self.prepare_peers(chan_AB, chan_BA)
+            async with OldTaskGroup() as group:
+                await group.spawn(p1._message_loop())
+                await group.spawn(p2._message_loop())
+                await p1.initialized
+                await p2.initialized
+                self._send_fake_htlc(p2, chan_BA)
+                self._send_fake_htlc(p1, chan_AB)
+                p2.transport.queue.put_nowait(asyncio.Event())  # break Bob's incoming pipe
+                if rev_then_sig:
+                    self.assertTrue(p2.maybe_send_commitment(chan_BA))
+                    await p1.received_commitsig_event.wait()
+                else:
+                    self.assertTrue(p1.maybe_send_commitment(chan_AB))
+                    self.assertTrue(p2.maybe_send_commitment(chan_BA))
+                    await p1.received_commitsig_event.wait()
+                await group.cancel_remaining()
+            # simulating disconnection. recreate transports.
+            self.logger.info("simulating disconnection. recreating transports.")
+            p1, p2, w1, w2 = self.prepare_peers(chan_AB, chan_BA)
+            for chan in (chan_AB, chan_BA):
+                chan.peer_state = PeerState.DISCONNECTED
+            async with OldTaskGroup() as group:
+                await group.spawn(p1._message_loop())
+                await group.spawn(p2._message_loop())
+                with self.assertLogs('electrum', level='INFO') as logs:
+                    async with OldTaskGroup() as group2:
+                        await group2.spawn(p1.reestablish_channel(chan_AB))
+                        await group2.spawn(p2.reestablish_channel(chan_BA))
+                s = "replaying a revoke_and_ack " + ("first" if rev_then_sig else "last")
+                self.assertTrue(any(("alice->bob" in msg and s in msg) for msg in logs.output))
+                self.assertTrue(any(("alice->bob" in msg and
+                                     "replayed 2 unacked messages. ['update_add_htlc', 'commitment_signed']" in msg) for msg in logs.output))
+                self.assertEqual(chan_AB.peer_state, PeerState.GOOD)
+                self.assertEqual(chan_BA.peer_state, PeerState.GOOD)
+                await group.cancel_remaining()
+            raise SuccessfulTest()
+        with self.assertRaises(SuccessfulTest):
+            await f()
+
     async def test_reestablish_replay_messages_rev_then_sig(self):
         """
         See https://github.com/lightning/bolts/pull/810#issue-728299277
@@ -745,44 +790,7 @@ class TestPeerDirect(TestPeer):
         ----add-->
         ----sig-->
         """
-        alice_lnwallet, bob_lnwallet = self.prepare_lnwallets(self.GRAPH_DEFINITIONS['single_chan']).values()
-        chan_AB, chan_BA = create_test_channels(alice_lnwallet=alice_lnwallet, bob_lnwallet=bob_lnwallet)
-        # note: we don't start peer.htlc_switch() so that the fake htlcs are left alone.
-        async def f():
-            p1, p2, w1, w2 = self.prepare_peers(chan_AB, chan_BA)
-            async with OldTaskGroup() as group:
-                await group.spawn(p1._message_loop())
-                await group.spawn(p2._message_loop())
-                await p1.initialized
-                await p2.initialized
-                self._send_fake_htlc(p2, chan_BA)
-                self._send_fake_htlc(p1, chan_AB)
-                p2.transport.queue.put_nowait(asyncio.Event())  # break Bob's incoming pipe
-                self.assertTrue(p2.maybe_send_commitment(chan_BA))
-                await p1.received_commitsig_event.wait()
-                await group.cancel_remaining()
-            # simulating disconnection. recreate transports.
-            self.logger.info("simulating disconnection. recreating transports.")
-            p1, p2, w1, w2 = self.prepare_peers(chan_AB, chan_BA)
-            for chan in (chan_AB, chan_BA):
-                chan.peer_state = PeerState.DISCONNECTED
-            async with OldTaskGroup() as group:
-                await group.spawn(p1._message_loop())
-                await group.spawn(p2._message_loop())
-                with self.assertLogs('electrum', level='INFO') as logs:
-                    async with OldTaskGroup() as group2:
-                        await group2.spawn(p1.reestablish_channel(chan_AB))
-                        await group2.spawn(p2.reestablish_channel(chan_BA))
-                self.assertTrue(any(("alice->bob" in msg and
-                                     "replaying a revoke_and_ack first" in msg) for msg in logs.output))
-                self.assertTrue(any(("alice->bob" in msg and
-                                     "replayed 2 unacked messages. ['update_add_htlc', 'commitment_signed']" in msg) for msg in logs.output))
-                self.assertEqual(chan_AB.peer_state, PeerState.GOOD)
-                self.assertEqual(chan_BA.peer_state, PeerState.GOOD)
-                await group.cancel_remaining()
-            raise SuccessfulTest()
-        with self.assertRaises(SuccessfulTest):
-            await f()
+        await self._test_reestablish_replay_messages(True)
 
     async def test_reestablish_replay_messages_sig_then_rev(self):
         """
@@ -801,45 +809,7 @@ class TestPeerDirect(TestPeer):
         ----sig-->
         ----rev-->
         """
-        alice_lnwallet, bob_lnwallet = self.prepare_lnwallets(self.GRAPH_DEFINITIONS['single_chan']).values()
-        chan_AB, chan_BA = create_test_channels(alice_lnwallet=alice_lnwallet, bob_lnwallet=bob_lnwallet)
-        # note: we don't start peer.htlc_switch() so that the fake htlcs are left alone.
-        async def f():
-            p1, p2, w1, w2 = self.prepare_peers(chan_AB, chan_BA)
-            async with OldTaskGroup() as group:
-                await group.spawn(p1._message_loop())
-                await group.spawn(p2._message_loop())
-                await p1.initialized
-                await p2.initialized
-                self._send_fake_htlc(p2, chan_BA)
-                self._send_fake_htlc(p1, chan_AB)
-                p2.transport.queue.put_nowait(asyncio.Event())  # break Bob's incoming pipe
-                self.assertTrue(p1.maybe_send_commitment(chan_AB))
-                self.assertTrue(p2.maybe_send_commitment(chan_BA))
-                await p1.received_commitsig_event.wait()
-                await group.cancel_remaining()
-            # simulating disconnection. recreate transports.
-            self.logger.info("simulating disconnection. recreating transports.")
-            p1, p2, w1, w2 = self.prepare_peers(chan_AB, chan_BA)
-            for chan in (chan_AB, chan_BA):
-                chan.peer_state = PeerState.DISCONNECTED
-            async with OldTaskGroup() as group:
-                await group.spawn(p1._message_loop())
-                await group.spawn(p2._message_loop())
-                with self.assertLogs('electrum', level='INFO') as logs:
-                    async with OldTaskGroup() as group2:
-                        await group2.spawn(p1.reestablish_channel(chan_AB))
-                        await group2.spawn(p2.reestablish_channel(chan_BA))
-                self.assertTrue(any(("alice->bob" in msg and
-                                     "replaying a revoke_and_ack last" in msg) for msg in logs.output))
-                self.assertTrue(any(("alice->bob" in msg and
-                                     "replayed 2 unacked messages. ['update_add_htlc', 'commitment_signed']" in msg) for msg in logs.output))
-                self.assertEqual(chan_AB.peer_state, PeerState.GOOD)
-                self.assertEqual(chan_BA.peer_state, PeerState.GOOD)
-                await group.cancel_remaining()
-            raise SuccessfulTest()
-        with self.assertRaises(SuccessfulTest):
-            await f()
+        await self._test_reestablish_replay_messages(False)
 
     async def _test_simple_payment(
             self,
