@@ -260,10 +260,7 @@ class UTXOList(MyTreeView):
 
     def swap_coins(self, coins: list[PartialTxInput]) -> None:
         assert coins, "no coins selected?"
-        #self.clear_coincontrol()
-        self.add_to_coincontrol(coins)
-        self.main_window.run_swap_dialog(is_reverse=False, recv_amount_sat_or_max='!')
-        self.clear_coincontrol()
+        self.main_window.run_swap_dialog(is_reverse=False, recv_amount_sat_or_max='!', get_coins=lambda *args, **kwargs: coins)
 
     def can_open_channel(self, coins):
         if self.wallet.lnworker is None:
@@ -274,9 +271,7 @@ class UTXOList(MyTreeView):
     def open_channel_with_coins(self, coins: list[PartialTxInput]) -> None:
         assert coins, "no coins selected?"
         # todo : use a single dialog in new flow
-        #self.clear_coincontrol()
-        self.add_to_coincontrol(coins)
-        d = NewChannelDialog(self.main_window)
+        d = NewChannelDialog(self.main_window, get_coins=lambda *args, **kwargs: coins)
         d.max_button.setChecked(True)
         d.max_button.setEnabled(False)
         d.min_button.setEnabled(False)
@@ -284,7 +279,6 @@ class UTXOList(MyTreeView):
         d.amount_e.setFrozen(True)
         d.spend_max()
         d.run()
-        self.clear_coincontrol()
 
     def clipboard_contains_address(self) -> bool:
         text = self.main_window.app.clipboard().text()
@@ -297,10 +291,8 @@ class UTXOList(MyTreeView):
             return
         addr = self.main_window.app.clipboard().text()
         outputs = [PartialTxOutput.from_address_and_value(addr, '!')]
-        #self.clear_coincontrol()
-        self.add_to_coincontrol(coins)
-        self.main_window.send_tab.pay_onchain_dialog(outputs)
-        self.clear_coincontrol()
+
+        self.main_window.send_tab.pay_onchain_dialog(outputs, get_coins=lambda *args, **kwargs: coins)
 
     def on_double_click(self, idx):
         outpoint = idx.sibling(idx.row(), self.Columns.OUTPOINT).data(self.ROLE_PREVOUT_STR)
