@@ -32,7 +32,7 @@ from PyQt6.QtWidgets import (
     QTextEdit, QApplication, QSpinBox, QSizePolicy, QComboBox, QLineEdit,
 )
 from PyQt6.QtGui import QPixmap, QImage
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 
 from electrum.i18n import _
 from electrum.plugin import hook
@@ -196,6 +196,11 @@ class Plugin(NWCServerPlugin):
         vbox.addWidget(connections_list)
         vbox.addLayout(footer_buttons)
         d.setLayout(main_layout)
+
+        # update the list from time to time to see if budgets have changed
+        refresh_timer = QTimer(d)
+        refresh_timer.timeout.connect(update_connections_list)
+        refresh_timer.start(5_000)  # msec
 
         return bool(d.exec())
 
