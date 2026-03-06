@@ -979,13 +979,15 @@ class NWCServer(Logger, EventListener):
     def get_payment_info(self, payment_hash: str) \
         -> Optional[Tuple[PaymentDirection, int, Optional[int], int]]:
         payment_hash: bytes = bytes.fromhex(payment_hash)
-        payments = self.wallet.lnworker.get_payments(status='settled')
+        payments = self.wallet.lnworker.get_payments(status=None)
         plist = payments.get(payment_hash)
-        if plist:
+        if plist and any(htlc.status == 'settled' for htlc in plist):
             direction = plist[0].direction
             info = self.wallet.lnworker.get_payment_info(payment_hash, direction=direction)
             if info:
-                dir, amount, fee, ts = self.wallet.lnworker.get_payment_value(info, plist)
+                # assumes inflight htlcs will get settled and counts them into the payment values
+                active_htlcs = [htlc for htlc in plist if htlc.status in ('settled', 'inflight')]
+                dir, amount, fee, ts = self.wallet.lnworker.get_payment_value(info, active_htlcs)
                 fee = abs(fee) if fee else None
                 return dir, abs(amount), fee, ts
         return None
