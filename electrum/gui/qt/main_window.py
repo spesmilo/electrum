@@ -933,19 +933,35 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         # Combine the transactions if there are at least three
         if len(txns) >= 3:
             total_amount = 0
+            total_debit = 0
+            total_credit = 0
             for tx in txns:
                 tx_wallet_delta = self.wallet.get_wallet_delta(tx)
                 if not tx_wallet_delta.is_relevant:
                     continue
+                if tx_wallet_delta.delta < 0:
+                    total_debit += -tx_wallet_delta.delta
+                else:
+                    total_credit += tx_wallet_delta.delta
                 total_amount += tx_wallet_delta.delta
-            self.notify(_("{} new transactions: Total amount received in the new transactions {}")
-                        .format(len(txns), self.format_amount_and_units(total_amount)))
+            message = _('{} new transactions:').format(len(txns))
+            if total_debit:
+                message += '\n' + _('Total amount sent {}').format(self.format_amount_and_units(total_debit))
+            if total_credit:
+                message += '\n' + _('Total amount received {}').format(self.format_amount_and_units(total_credit))
+            if total_debit and total_credit:
+                message += '\n' + _('Total balance change: {}').format(self.format_amount_and_units(total_amount))
+            self.notify(message)
         else:
             for tx in txns:
                 tx_wallet_delta = self.wallet.get_wallet_delta(tx)
                 if not tx_wallet_delta.is_relevant:
                     continue
-                self.notify(_("New transaction: {}").format(self.format_amount_and_units(tx_wallet_delta.delta)))
+                if tx_wallet_delta.delta < 0:
+                    message = _('sent {}').format(self.format_amount_and_units(-tx_wallet_delta.delta))
+                else:
+                    message = _('received {}').format(self.format_amount_and_units(tx_wallet_delta.delta))
+                self.notify(_("New transaction: {}").format(message))
 
     def notify(self, message):
         if self.tray:

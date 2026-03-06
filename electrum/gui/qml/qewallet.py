@@ -289,19 +289,35 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         # Combine the transactions if there are at least three
         if len(txns) >= 3:
             total_amount = 0
+            total_debit = 0
+            total_credit = 0
             for tx in txns:
                 tx_wallet_delta = self.wallet.get_wallet_delta(tx)
                 if not tx_wallet_delta.is_relevant:
                     continue
+                if tx_wallet_delta.delta < 0:
+                    total_debit += -tx_wallet_delta.delta
+                else:
+                    total_credit += tx_wallet_delta.delta
                 total_amount += tx_wallet_delta.delta
-            self.userNotify.emit(self.wallet, _("{} new transactions: Total amount received in the new transactions {}").format(len(txns), config.format_amount_and_units(total_amount)))
+            message = _('{} new transactions:').format(len(txns))
+            if total_debit:
+                message += '\n' + _('Total amount sent {}').format(config.format_amount_and_units(total_debit))
+            if total_credit:
+                message += '\n' + _('Total amount received {}').format(config.format_amount_and_units(total_credit))
+            if total_debit and total_credit:
+                message += '\n' + _('Total balance change: {}').format(config.format_amount_and_units(total_amount))
+            self.userNotify.emit(self.wallet, message)
         else:
             for tx in txns:
                 tx_wallet_delta = self.wallet.get_wallet_delta(tx)
                 if not tx_wallet_delta.is_relevant:
                     continue
-                self.userNotify.emit(self.wallet,
-                    _("New transaction: {}").format(config.format_amount_and_units(tx_wallet_delta.delta)))
+                if tx_wallet_delta.delta < 0:
+                    message = _('sent {}').format(config.format_amount_and_units(-tx_wallet_delta.delta))
+                else:
+                    message = _('received {}').format(config.format_amount_and_units(tx_wallet_delta.delta))
+                self.userNotify.emit(self.wallet, _("New transaction: {}").format(message))
 
     def update_sync_progress(self):
         if self.wallet.network and self.wallet.network.is_connected():
