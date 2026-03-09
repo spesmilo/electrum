@@ -758,6 +758,13 @@ class QETxRbfFeeBumper(TxFeeSlider, TxMonMixin):
             self.validChanged.emit()
             self.warning = _("The new fee rate needs to be higher than the old fee rate.")
             return
+
+        if not self._orig_tx.add_info_from_wallet_and_network(wallet=self._wallet.wallet, show_error=self._logger.error):
+            self._valid = False
+            self.validChanged.emit()
+            self.warning = _("Transaction is missing info from network")
+            return
+
         try:
             self._tx = self._wallet.wallet.bump_fee(
                 tx=self._orig_tx,
@@ -875,6 +882,12 @@ class QETxCanceller(TxFeeSlider, TxMonMixin):
             self.validChanged.emit()
             self._logger.warning('feerate too low for relay')
             self.warning = messages.MSG_RELAYFEE
+            return
+
+        if not self._orig_tx.add_info_from_wallet_and_network(wallet=self._wallet.wallet, show_error=self._logger.error):
+            self._valid = False
+            self.validChanged.emit()
+            self.warning = _("Transaction is missing info from network")
             return
 
         try:
