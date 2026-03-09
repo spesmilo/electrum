@@ -659,7 +659,7 @@ class QETxRbfFeeBumper(TxFeeSlider, TxMonMixin):
         super().__init__(parent)
 
         self._oldfee = QEAmount()
-        self._oldfee_rate = 0
+        self._oldfee_rate = '0'
         self._orig_tx = None
         self._rbf = True
         self._bump_method = BumpFeeStrategy.PRESERVE_PAYMENT.name
@@ -800,7 +800,7 @@ class QETxCanceller(TxFeeSlider, TxMonMixin):
         super().__init__(parent)
 
         self._oldfee = QEAmount()
-        self._oldfee_rate = 0
+        self._oldfee_rate = '0'
         self._orig_tx = None
         self._txid = ''
         self._rbf = True
