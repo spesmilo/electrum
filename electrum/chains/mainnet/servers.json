@@ -249,11 +249,11 @@
         "t": "50001",
         "version": "1.4"
     },
-    "electrum.jochen-hoenicke.de": {
+    "electrum.jhoenicke.de": {
         "pruning": "-",
-        "s": "50006",
-        "t": "50099",
-        "version": "1.4.5"
+        "s": "50002",
+        "t": "50001",
+        "version": "1.6"
     },
     "electrum.pabu.io": {
         "pruning": "-",
