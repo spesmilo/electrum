@@ -901,13 +901,92 @@ class TestPeerDirect(TestPeer):
         await self._test_reestablish_replay_messages(False, True)
         await self._test_reestablish_replay_messages(False, False)
 
+    async def _peerbackup_before_task(p1, p2, w1, w2, chan_AB, chan_BA):
+        async with OldTaskGroup() as group:
+            await group.spawn(p1._message_loop())
+            await group.spawn(p2._message_loop())
+            await p1.initialized
+            await p2.initialized
+            assert p1.is_peerbackup_client()
+            assert p2.is_peerbackup_server()
+            self._send_fake_htlc(p1, chan_AB) # alice sends update
+            self._send_fake_htlc(p2, chan_BA) # bob sends update
+            if rev_then_sig:
+                # alice sends rev then sig
+                self.assertTrue(p2.maybe_send_commitment(chan_BA)) # bob sends sig (ctn=1)
+                await p1.received_commitsig_event.wait() # <--- alice has received cs and sent rev
+                await p1._received_revack_event.wait() # <--- alice has send sig and received rev
+                # bob will also send another sig, with ctn=2
+            else:
+                # alice sends sig then rev
+                self.assertTrue(p1.maybe_send_commitment(chan_AB)) # alice sends sig
+                await p2.received_commitsig_event.wait() # <--- bob has received cs and sent revack
+                await p2._received_revack_event.wait() # <--- bob has send cs and received revack.
+            await group.cancel_remaining()
+
     async def test_peerbackup_rev_then_sig(self):
+        """
+        Alice sends rev first (local state), then sig (remote state).
+        The local state will be older than the remote state
+        """
         await self._test_peerbackup(rev_then_sig=True)
 
     async def test_peerbackup_sig_then_rev(self):
+        """
+        Alice sends sig (remote state), then rev (local state).
+        The local state will be more recent than the remote state.
+        """
         await self._test_peerbackup(rev_then_sig=False)
 
-    async def _test_peerbackup(self, rev_then_sig: bool):
+    async def test_peerbackup_asymmetry(self):
+        """
+        htlc is still active in local, but not in remote
+        A            B
+        -----add----->
+        -----sig----->
+        <----rev------
+        <----sig------ ctn=1
+        -----rev----->
+
+        <---fulfill---
+        ----sig------>
+        <----rev------
+        # bob does not send second sig
+        # mockup
+
+        """
+        async def before_task(p1, p2, w1, w2, chan_AB, chan_BA):
+            p1._maybe_send_commitment = p1.maybe_send_commitment
+            def mockup_maybe_send_commitment(chan):
+                next_remote_ctn = chan.get_next_ctn(REMOTE)
+                if next_remote_ctn == 2:
+                    if not chan.can_update_ctx(proposer=LOCAL):
+                        return False
+                    if chan.hm.is_revack_pending(REMOTE):
+                        return False
+                    if not chan.has_pending_changes(REMOTE):
+                        return False
+                    p1.logger.info(f'YYYYYYYY Not sending COMMITMENT_SIGNED: {next_remote_ctn}')
+                    return
+                return p1._maybe_send_commitment(chan)
+            p1.maybe_send_commitment = mockup_maybe_send_commitment
+
+            async def pay():
+                lnaddr, pay_req = self.prepare_invoice(w2)
+                with self.assertRaises(asyncio.TimeoutError):
+                    async with util.async_timeout(1):
+                        result, log = await w1.pay_invoice(pay_req)
+                gath.cancel()
+
+            gath = asyncio.gather(pay(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
+            with self.assertRaises(asyncio.CancelledError):
+                await gath
+
+            await asyncio.sleep(1)
+
+        await self._test_peerbackup(before_task)
+
+    async def _test_peerbackup(self, before_task):
         random_seed = os.urandom(32)
         alice_lnwallet, bob_lnwallet = self.prepare_lnwallets(self.GRAPH_DEFINITIONS['single_chan']).values()
         chan_AB, chan_BA = create_test_channels(random_seed=random_seed, alice_lnwallet=alice_lnwallet, bob_lnwallet=bob_lnwallet, anchor_outputs=True)
@@ -922,27 +1001,7 @@ class TestPeerDirect(TestPeer):
             )
             assert w1 == alice_lnwallet
             assert w2 == bob_lnwallet
-            async with OldTaskGroup() as group:
-                await group.spawn(p1._message_loop())
-                await group.spawn(p2._message_loop())
-                await p1.initialized
-                await p2.initialized
-                assert p1.is_peerbackup_client()
-                assert p2.is_peerbackup_server()
-                self._send_fake_htlc(p1, chan_AB) # alice sends update
-                self._send_fake_htlc(p2, chan_BA) # bob sends update
-                if rev_then_sig:
-                    self.assertTrue(p2.maybe_send_commitment(chan_BA)) # bob sends sig (ctn=1)
-                    await p1.received_commitsig_event.wait() # <--- alice has received cs and sent rev
-                    await p1._received_revack_event.wait() # <--- alice has send sig and received rev
-                    # bob will also send another sig, with ctn=2
-                else:
-                    # sig then rev
-                    self.assertTrue(p1.maybe_send_commitment(chan_AB)) # alice sends sig
-                    await p2.received_commitsig_event.wait() # <--- bob has received cs and sent revack
-                    await p2._received_revack_event.wait() # <--- bob has send cs and received revack.
-                await group.cancel_remaining()
-
+            await before_task(p1, p2, w1, w2, chan_AB, chan_BA)
             self.logger.info(f"xxxxxxxxxxxxxxxxxxx")
 
             p1, p2, ww1, ww2 = self.prepare_peers(
@@ -951,17 +1010,11 @@ class TestPeerDirect(TestPeer):
                 bob_peerbackup_server=True,
                 workers={'alice':alice_lnwallet, 'bob':bob_lnwallet}
             )
-            assert w1==ww1
-            self.logger.info(f'{w1.static_payment_key.privkey.hex()}')
-            self.logger.info(f'{ww1.static_payment_key.privkey.hex()}')
-            assert w2==ww2
             for chan in (chan_AB0, chan_BA):
                 chan.peer_state = PeerState.DISCONNECTED
             async with OldTaskGroup() as group:
                 await group.spawn(p1._message_loop())
                 await group.spawn(p2._message_loop())
-                #await group.spawn(p1.htlc_switch())
-                #await group.spawn(p2.htlc_switch())
                 await p1.initialized
                 await p2.initialized
                 assert p1.is_peerbackup_client()
