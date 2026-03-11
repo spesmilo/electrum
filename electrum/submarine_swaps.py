@@ -38,7 +38,7 @@ from .util import (
 )
 from . import lnutil
 from .lnutil import hex_to_bytes, REDEEM_AFTER_DOUBLE_SPENT_DELAY, Keypair
-from .lnaddr import lndecode
+from .bolt11 import decode_bolt11_invoice
 from .json_db import StoredObject, stored_in
 from . import constants
 from .address_synchronizer import (TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE, TX_HEIGHT_UNCONFIRMED,
@@ -997,7 +997,7 @@ class SwapManager(Logger):
         }
         await transport.send_request_to_server('addswapinvoice', request_data)
         # wait for funding tx
-        lnaddr = lndecode(invoice)
+        lnaddr = decode_bolt11_invoice(invoice)
         while swap.funding_txid is None and not lnaddr.is_expired():
             await asyncio.sleep(0.1)
         return swap.funding_txid

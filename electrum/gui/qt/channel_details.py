@@ -10,7 +10,7 @@ from electrum.i18n import _
 from electrum.util import format_time
 from electrum.lnutil import format_short_channel_id, LOCAL, REMOTE, UpdateAddHtlc, Direction
 from electrum.lnchannel import htlcsum, Channel, AbstractChannel, HTLCWithStatus
-from electrum.lnaddr import LnAddr, lndecode
+from electrum.bolt11 import BOLT11Addr, decode_bolt11_invoice
 from electrum.bitcoin import COIN
 from electrum.wallet import Abstract_Wallet
 

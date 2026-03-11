@@ -29,7 +29,7 @@ from electrum import constants
 from electrum import bip32
 from electrum.network import Network, ProxySettings
 from electrum import simple_config, lnutil
-from electrum.lnaddr import lnencode, LnAddr, lndecode
+from electrum.bolt11 import encode_bolt11_invoice, BOLT11Addr, decode_bolt11_invoice
 from electrum.bitcoin import COIN, sha256
 from electrum.transaction import Transaction
 from electrum.util import NetworkRetryManager, bfh, OldTaskGroup, EventListener, InvoiceError
@@ -179,7 +179,7 @@ class MockLNWallet(LNWallet):
             self.channel_db.stop()
             await self.channel_db.stopped_event.wait()
 
-    async def create_routes_from_invoice(self, amount_msat: int, decoded_invoice: LnAddr, *, full_path=None):
+    async def create_routes_from_invoice(self, amount_msat: int, decoded_invoice: BOLT11Addr, *, full_path=None):
         paysession = PaySession(
             payment_hash=decoded_invoice.paymenthash,
             payment_secret=decoded_invoice.payment_secret,
@@ -419,7 +419,7 @@ class TestPeer(ElectrumTestCase):
             invoice_features: LnFeatures = None,
             min_final_cltv_delta: int = None,
             expiry: int = None,
-    ) -> Tuple[LnAddr, Invoice]:
+    ) -> Tuple[BOLT11Addr, Invoice]:
         amount_btc = amount_msat/Decimal(COIN*1000)
         if payment_preimage is None and not payment_hash:
             payment_preimage = os.urandom(32)
@@ -450,7 +450,7 @@ class TestPeer(ElectrumTestCase):
             invoice_features=invoice_features,
         )
         w2.save_payment_info(info)
-        lnaddr1 = LnAddr(
+        lnaddr1 = BOLT11Addr(
             paymenthash=payment_hash,
             amount=amount_btc,
             tags=[
@@ -461,8 +461,8 @@ class TestPeer(ElectrumTestCase):
             ] + routing_hints,
             payment_secret=payment_secret,
         )
-        invoice = lnencode(lnaddr1, w2.node_keypair.privkey)
-        lnaddr2 = lndecode(invoice)  # unlike lnaddr1, this now has a pubkey set
+        invoice = encode_bolt11_invoice(lnaddr1, w2.node_keypair.privkey)
+        lnaddr2 = decode_bolt11_invoice(invoice)  # unlike lnaddr1, this now has a pubkey set
         return lnaddr2, Invoice.from_bech32(invoice)
 
     async def _activate_trampoline(self, w: MockLNWallet):
@@ -1052,7 +1052,7 @@ class TestPeerDirect(TestPeer):
                 self.assertEqual(PR_UNPAID, w2.get_payment_status(lnaddr.paymenthash, direction=RECEIVED))
                 assert lnaddr.get_min_final_cltv_delta() == 400  # what the receiver expects
                 lnaddr.tags = [tag for tag in lnaddr.tags if tag[0] != 'c'] + [['c', 144]]
-                b11 = lnencode(lnaddr, w2.node_keypair.privkey)
+                b11 = encode_bolt11_invoice(lnaddr, w2.node_keypair.privkey)
                 pay_req = Invoice.from_bech32(b11)
                 assert pay_req._lnaddr.get_min_final_cltv_delta() == 144  # what w1 will use to pay
                 result, log = await w1.pay_invoice(pay_req)
@@ -1095,7 +1095,7 @@ class TestPeerDirect(TestPeer):
             # create lightning invoice in the past, so it is expired
             with mock.patch('time.time', return_value=int(time.time()) - 10000):
                 lnaddr, _pay_req = self.prepare_invoice(w2, expiry=3600)
-                b11 = lnencode(lnaddr, w2.node_keypair.privkey)
+                b11 = encode_bolt11_invoice(lnaddr, w2.node_keypair.privkey)
                 pay_req = Invoice.from_bech32(b11)
 
             async def try_pay_expired_invoice(pay_req: Invoice, w1=w1):
@@ -2044,7 +2044,7 @@ class TestPeerDirect(TestPeer):
         }
 
         # create 10 invoices (10 pending htlc sets with 1 htlc each)
-        invoices = []  # type: list[tuple[LnAddr, Invoice]]
+        invoices = []  # type: list[tuple[BOLT11Addr, Invoice]]
         for i in range(10):
             lnaddr, pay_req = self.prepare_invoice(bob_w)
             # prevent bob from settling so that htlc switch will have to iterate through all pending htlcs

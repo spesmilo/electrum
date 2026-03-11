@@ -50,9 +50,9 @@ def parse_bip21(text):
 
 
 def parse_bolt11(text):
-    from electrum.lnaddr import lndecode
+    from electrum.bolt11 import decode_bolt11_invoice
     try:
-        return lndecode(text)
+        return decode_bolt11_invoice(text)
     except Exception:
         return
 

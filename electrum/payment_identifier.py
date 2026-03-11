@@ -18,7 +18,7 @@ from .lnurl import (decode_lnurl, request_lnurl, callback_lnurl, LNURLError,
                     lightning_address_to_url, try_resolve_lnurlpay, LNURL6Data,
                     LNURL3Data, LNURLData, SUPPORTED_LNURL_SCHEMES)
 from .bitcoin import opcodes, construct_script
-from .lnaddr import LnInvoiceException
+from .bolt11 import BOLT11InvoiceException
 from .lnutil import IncompatibleOrInsaneFeatures
 from .bip21 import parse_bip21_URI, InvalidBitcoinURI, LIGHTNING_URI_SCHEME, BITCOIN_BIP21_URI_SCHEME
 from .segwit_addr import bech32_decode
@@ -520,7 +520,7 @@ class PaymentIdentifier(Logger):
         error = _("Error parsing Lightning invoice") + f":\n{e!r}"
         if e.args and len(e.args):
             arg = e.args[0]
-            if isinstance(arg, LnInvoiceException):
+            if isinstance(arg, BOLT11InvoiceException):
                 error = _("Error parsing Lightning invoice") + f":\n{e}"
             elif isinstance(arg, IncompatibleOrInsaneFeatures):
                 error = _("Invoice requires unknown or incompatible Lightning feature") + f":\n{e!r}"

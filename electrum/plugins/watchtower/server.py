@@ -8,7 +8,7 @@ from aiohttp import web
 from electrum.util import log_exceptions, ignore_exceptions
 from electrum.logging import Logger
 from electrum.util import EventListener
-from electrum.lnaddr import lndecode
+from electrum.bolt11 import decode_bolt11_invoice
 from electrum.daemon import AuthenticatedServer
 
 
