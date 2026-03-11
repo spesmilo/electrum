@@ -37,6 +37,12 @@ public class SimpleScannerActivity extends Activity {
 
     private boolean mAlreadyRequestedPermissions = false;
 
+    private static ScanCallback callback;
+
+    public static void setCallback(ScanCallback cb) {
+        callback = cb;
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -64,7 +70,8 @@ public class SimpleScannerActivity extends Activity {
                         Toast.makeText(SimpleScannerActivity.this, "Clipboard contents too large.", Toast.LENGTH_SHORT).show();
                         return;
                     }
-                    SimpleScannerActivity.this.setResultAndClose(null, clipboardText);
+                    Log.v(TAG, "clipboard contentType TEXT");
+                    SimpleScannerActivity.this.setResultAndClose(clipboardText, null);
                 } else {
                     Toast.makeText(SimpleScannerActivity.this, "Clipboard is empty.", Toast.LENGTH_SHORT).show();
                 }
@@ -104,32 +111,38 @@ public class SimpleScannerActivity extends Activity {
             contentFrame.addView(mScannerView);
             mScannerView.setOnBarcodeListener(result -> {
                 // Handle the scan result
-                this.setResultAndClose(result, null);
-                // Return false to stop scanning after first result
-                return false;
+                String text = null;
+                byte[] binary = null;
+                if (result.getContentType() == ContentType.TEXT) {
+                    Log.v(TAG, "scanResult contentType TEXT");
+                    text = result.getText();
+                } else if (result.getContentType() == ContentType.BINARY) {
+                    Log.v(TAG, "scanResult contentType BINARY");
+                    binary = result.getRawBytes();
+                } else {
+                    Log.v(TAG, "scanResult contentType unknown");
+                    return true;
+                }
+                return !this.setResultAndClose(text, binary);
             });
         }
         mScannerView.openAsync();  // Start camera on resume
     }
 
-    private void setResultAndClose(Result scanResult, String textOnly) {
-        Intent resultIntent = new Intent();
-        if (textOnly != null) {
-            Log.v(TAG, "clipboard contentType TEXT");
-            resultIntent.putExtra("text", textOnly);
-        } else if (scanResult != null) {
-            if (scanResult.getContentType() == ContentType.TEXT) {
-                Log.v(TAG, "scanResult contentType TEXT");
-                resultIntent.putExtra("text", scanResult.getText());
-            } else if (scanResult.getContentType() == ContentType.BINARY) {
-                Log.v(TAG, "scanResult contentType BINARY");
-                resultIntent.putExtra("binary", scanResult.getRawBytes());
-            } else {
-                Log.v(TAG, "scanresult contenttype unknown");
+    private boolean setResultAndClose(String text, byte[] binary) {
+        boolean done = false;
+        if (callback != null) {
+            try {
+                done = callback.onPart(text, binary);
+            } catch (Exception e) {
+                Log.e(TAG, "callback failed", e);
             }
         }
-        setResult(Activity.RESULT_OK, resultIntent);
-        this.finish();
+        if (done) {
+            setResult(Activity.RESULT_OK, new Intent());
+            this.finish();
+        }
+        return done;
     }
 
     private boolean hasPermission() {

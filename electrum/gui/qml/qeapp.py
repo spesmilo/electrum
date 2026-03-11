@@ -36,7 +36,7 @@ from .qetxfinalizer import QETxFinalizer, QETxRbfFeeBumper, QETxCpfpFeeBumper, Q
 from .qeinvoice import QEInvoice, QEInvoiceParser
 from .qepiresolver import QEPIResolver
 from .qerequestdetails import QERequestDetails
-from .qetypes import QEAmount, QEBytes
+from .qetypes import QEAmount, QEBytes, QEUR
 from .qeaddressdetails import QEAddressDetails
 from .qetxdetails import QETxDetails
 from .qechannelopener import QEChannelOpener
@@ -479,6 +479,7 @@ class ElectrumQmlApplication(QGuiApplication):
         # TODO QT6 order of declaration is important now?
         qmlRegisterType(QEAmount, 'org.electrum', 1, 0, 'Amount')
         qmlRegisterType(QEBytes, 'org.electrum', 1, 0, 'Bytes')
+        qmlRegisterType(QEUR, 'org.electrum', 1, 0, 'UR')
         qmlRegisterType(QENewWalletWizard, 'org.electrum', 1, 0, 'QNewWalletWizard')
         qmlRegisterType(QETermsOfUseWizard, 'org.electrum', 1, 0, 'QTermsOfUseWizard')
         qmlRegisterType(QEServerConnectWizard, 'org.electrum', 1, 0, 'QServerConnectWizard')
