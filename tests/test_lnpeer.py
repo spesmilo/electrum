@@ -734,6 +734,8 @@ class TestPeerDirect(TestPeer):
         # note: we don't start peer.htlc_switch() so that the fake htlcs are left alone.
         async def f():
             p1, p2, w1, w2 = self.prepare_peers(chan_AB, chan_BA)
+            p1.MIN_TIME_BETWEEN_SENDING_COMMITSIGS = 0
+            p2.MIN_TIME_BETWEEN_SENDING_COMMITSIGS = 0
             async with OldTaskGroup() as group:
                 await group.spawn(p1._message_loop())
                 await group.spawn(p2._message_loop())
@@ -753,6 +755,8 @@ class TestPeerDirect(TestPeer):
             # simulating disconnection. recreate transports.
             self.logger.info("simulating disconnection. recreating transports.")
             p1, p2, w1, w2 = self.prepare_peers(chan_AB, chan_BA)
+            p1.MIN_TIME_BETWEEN_SENDING_COMMITSIGS = 0
+            p2.MIN_TIME_BETWEEN_SENDING_COMMITSIGS = 0
             for chan in (chan_AB, chan_BA):
                 chan.peer_state = PeerState.DISCONNECTED
             async with OldTaskGroup() as group:
@@ -1607,6 +1611,7 @@ class TestPeerDirect(TestPeer):
                    payment_hash=lnaddr.paymenthash,
                    min_final_cltv_delta=lnaddr.get_min_final_cltv_delta(),
                    payment_secret=lnaddr.payment_secret)
+            await p2.received_commitsig_event.wait()
             # alice closes
             await p1.close_channel(alice_channel.channel_id)
             gath.cancel()

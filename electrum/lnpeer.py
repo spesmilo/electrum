@@ -77,6 +77,7 @@ class Peer(Logger, EventListener):
         'query_short_channel_ids', 'reply_short_channel_ids', 'reply_short_channel_ids_end')
 
     DELAY_INC_MSG_PROCESSING_SLEEP = 0.01
+    MIN_TIME_BETWEEN_SENDING_COMMITSIGS = 0.05
     RECV_GOSSIP_QUEUE_SOFT_MAXSIZE = 2000
     RECV_GOSSIP_QUEUE_HARD_MAXSIZE = 5000
 
@@ -132,6 +133,7 @@ class Peer(Logger, EventListener):
         self.register_callbacks()
         self._num_gossip_messages_forwarded = 0
         self._processed_onion_cache = LRUCache(maxsize=100)  # type: LRUCache[bytes, ProcessedOnionPacket]
+        self._last_commitsig_sent_time = time.monotonic()
 
     def send_message(self, message_name: str, **kwargs):
         assert util.get_running_loop() == util.get_asyncio_loop(), f"this must be run on the asyncio thread!"
@@ -1870,10 +1872,12 @@ class Peer(Logger, EventListener):
         # if there are no changes, we will not (and must not) send a new commitment
         if not chan.has_pending_changes(REMOTE):
             return False
-        # TODO possible optimisation: we could explicitly allow batching updates we send. e.g.:
-        #   - store timestamp of last "send_commitment" in a field
-        #   - if prev timestamp is recent, early "return False" here
-        #   note: no need for a timer to delay "send_commitment", existing htlc_switch polling is sufficient
+        now = time.monotonic()
+        if now - self._last_commitsig_sent_time < self.MIN_TIME_BETWEEN_SENDING_COMMITSIGS:
+            # We recently sent "commitment_signed". Delay sending again, to allow batching updates.
+            # No need to set a timer, htlc_switch polling will call us again.
+            return False
+        self._last_commitsig_sent_time = now
         self.logger.info(f'send_commitment. chan {chan.short_channel_id}. ctn: {chan.get_next_ctn(REMOTE)}.')
         sig_64, htlc_sigs = chan.sign_next_commitment()
         self.send_message("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=b"".join(htlc_sigs))
