@@ -104,7 +104,7 @@ class QETxDetails(QObject, QtEventListener):
 
     walletChanged = pyqtSignal()
     @pyqtProperty(QVariant, notify=walletChanged)
-    def wallet(self):
+    def wallet(self) -> QEWallet:
         return self._wallet
 
     @wallet.setter
