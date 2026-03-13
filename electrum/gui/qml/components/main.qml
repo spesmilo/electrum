@@ -7,7 +7,6 @@ import QtQuick.Controls.Material.impl
 import QtQuick.Window
 
 import QtQml
-import QtMultimedia
 
 import org.electrum 1.0
 
@@ -37,6 +36,7 @@ ApplicationWindow
     property alias stack: mainStackView
     property alias keyboardFreeZone: _keyboardFreeZone
     property alias infobanner: _infobanner
+    property color _navigationBarBackgroundColor: 'transparent'
 
     property string pendingIntent: ""
 
@@ -128,7 +128,7 @@ ApplicationWindow
 
         background: Rectangle {
             implicitHeight: 48
-            color: Material.dialogColor
+            color: constants.dialogColor
 
             layer.enabled: true
             layer.effect: ElevationEffect {
@@ -288,13 +288,21 @@ ApplicationWindow
                 mainStackView.clear()
                 mainStackView.push(Qt.resolvedUrl(item_url))
             }
+            function updateStylingFromItem(item) {
+                _navigationBarBackgroundColor = item && 'navigationBarBackgroundColor' in item
+                    ? item.navigationBarBackgroundColor
+                    : 'transparent'
+            }
+            onCurrentItemChanged: updateStylingFromItem(currentItem)
         }
 
         // Add bottom padding for navigation bar on Android when UI is edge-to-edge
         Item {
-            visible: app.navigationBarHeight > 0
+            visible: app.navigationBarHeight > 0 && _keyboardFreeZone.state != 'visible'
             Layout.fillWidth: true
             Layout.preferredHeight: app.navigationBarHeight
+
+            Rectangle { anchors.fill: parent; color: _navigationBarBackgroundColor }
         }
     }
 
@@ -450,12 +458,6 @@ ApplicationWindow
             onFinished: destroy()
         }
     }
-    Component {
-        id: _qtScanDialog
-        ScanDialog {
-            onClosed: destroy()
-        }
-    }
 
     Component {
         id: crashDialog
@@ -533,7 +535,8 @@ ApplicationWindow
         if (AppController.isAndroid()) {
             app.scanDialog = _scanDialog
         } else {
-            app.scanDialog = _qtScanDialog
+            // for running on Desktop. uses QtMultimedia.
+            app.scanDialog = Qt.createComponent('ScanDialog.qml')
         }
 
         function continueWithServerConnection() {
