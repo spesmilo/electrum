@@ -1469,15 +1469,20 @@ class Peer(Logger, EventListener):
             self.logger.info(f"tried to force-close channel {chan.get_id_for_log()} "
                              f"but close option is not allowed. {chan.get_state()=!r}")
 
-    def recreate_channel(self, peerbackup):
+    def recreate_channel(self, peerbackup_tlvs: dict):
         self.logger.info('recreating channel')
-        peerbackup = PeerBackup.from_bytes(peerbackup['state'])
+        peerbackup_bytes = peerbackup_tlvs['state']
+        peerbackup = PeerBackup.from_bytes(peerbackup_bytes)
         channel_state = peerbackup.recreate_channel_state(self.lnworker)
         channel_id = channel_state["channel_id"]
         channels = self.lnworker.db.get_dict("channels")
         channels[channel_id] = self.lnworker.db._convert_dict_value(["channels", channel_id], channel_state)
         storage = channels[channel_id]
         chan = Channel(storage, lnworker=self.lnworker)
+        # verify signatures
+        chan.verify_peerbackup(LOCAL, peerbackup_bytes, peerbackup_tlvs['local_signature'])
+        chan.verify_peerbackup(REMOTE, peerbackup_bytes, peerbackup_tlvs['remote_signature'])
+        # all good
         if isinstance(self.transport, LNTransport):
             chan.add_or_update_peer_addr(self.transport.peer_addr)
         self.logger.info(f'recreated channel: ctn_latest = {chan.hm.ctn_latest(LOCAL)}, {chan.hm.ctn_latest(REMOTE)}')
@@ -1496,10 +1501,10 @@ class Peer(Logger, EventListener):
         their_local_pcp = msg.get("my_current_per_commitment_point")
         their_claim_of_our_last_per_commitment_secret = msg.get("your_last_per_commitment_secret")
 
-        peerbackup = msg['channel_reestablish_tlvs'].get('peerbackup') if self.is_peerbackup_client() else None
+        peerbackup_tlvs = msg['channel_reestablish_tlvs'].get('peerbackup') if self.is_peerbackup_client() else None
         if chan is None:
-            if peerbackup:
-                chan = self.recreate_channel(peerbackup)
+            if peerbackup_tlvs:
+                chan = self.recreate_channel(peerbackup_tlvs)
             else:
                 self.logger.info(f"Received 'channel_reestablish' for unknown channel {msg['channel_id'].hex()}")
                 return
@@ -1578,7 +1583,7 @@ class Peer(Logger, EventListener):
         if not are_datalossprotect_fields_valid():
             raise RemoteMisbehaving("channel_reestablish: data loss protect fields invalid")
         fut = self.channel_reestablish_msg[chan.channel_id]
-        if they_are_ahead and not peerbackup:
+        if they_are_ahead and not peerbackup_tlvs:
             self.logger.warning(
                 f"channel_reestablish ({chan.get_id_for_log()}): "
                 f"remote is ahead of us! They should force-close. Remote PCP: {their_local_pcp.hex()}")
@@ -1590,8 +1595,8 @@ class Peer(Logger, EventListener):
             # raise after we send channel_reestablish, so the remote can realize they are ahead
             # FIXME what if we have multiple chans with peer? timing...
             fut.set_exception(GracefulDisconnect("remote ahead of us"))
-        elif they_are_ahead and peerbackup:
-            chan = self.recreate_channel(peerbackup)
+        elif they_are_ahead and peerbackup_tlvs:
+            chan = self.recreate_channel(peerbackup_tlvs)
             we_must_resend_revoke_and_ack = False
             fut.set_result((we_must_resend_revoke_and_ack, their_next_local_ctn))
         elif we_are_ahead:
@@ -1601,15 +1606,17 @@ class Peer(Logger, EventListener):
             fut.set_exception(GracefulDisconnect("we are ahead of remote"))
         else:
             # all good
-            if peerbackup:
+            if peerbackup_tlvs:
                 # verify signatures
-                peerbackup_bytes = peerbackup['state']
-                remote_ctn = chan.verify_peerbackup(REMOTE, peerbackup_bytes, peerbackup['remote_signature'])
-                local_ctn = chan.verify_peerbackup(LOCAL, peerbackup_bytes, peerbackup['local_signature'])
+                peerbackup_bytes = peerbackup_tlvs['state']
+                local_signature = peerbackup_tlvs['local_signature']
+                remote_signature = peerbackup_tlvs['remote_signature']
+                local_ctn = chan.verify_peerbackup(LOCAL, peerbackup_bytes, local_signature)
+                remote_ctn = chan.verify_peerbackup(REMOTE, peerbackup_bytes, remote_signature)
                 self.logger.info(f'verified peerbackup {local_ctn, remote_ctn}')
                 # verify time commitments
-                chan.receive_time_commitment(LOCAL, local_ctn, peerbackup['local_timestamp'], peerbackup['local_time_signature'])
-                chan.receive_time_commitment(REMOTE, remote_ctn, peerbackup['remote_timestamp'], peerbackup['remote_time_signature'])
+                chan.receive_time_commitment(LOCAL, local_ctn, peerbackup_tlvs['local_timestamp'], peerbackup_tlvs['local_time_signature'])
+                chan.receive_time_commitment(REMOTE, remote_ctn, peerbackup_tlvs['remote_timestamp'], peerbackup_tlvs['remote_time_signature'])
 
             fut.set_result((we_must_resend_revoke_and_ack, their_next_local_ctn))
             # Block processing of further incoming messages until we finished our part of chan-reest.

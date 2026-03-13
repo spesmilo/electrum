@@ -3,6 +3,9 @@ from typing import Sequence, Tuple, Dict, TYPE_CHECKING, Set
 
 from .lnutil import SENT, RECEIVED, LOCAL, REMOTE, HTLCOwner, UpdateAddHtlc, Direction, FeeUpdate
 from .util import bfh, with_lock
+from .logging import get_logger
+
+_logger = get_logger(__name__)
 
 if TYPE_CHECKING:
     from .json_db import StoredDict
@@ -239,32 +242,52 @@ class HTLCManager:
                 x = True
         return x
 
-    def get_active_htlcs(self):
+    def get_active_htlcs(self, role, owner):
         active_htlcs = {LOCAL:{}, REMOTE:{}}
         for proposer in [LOCAL, REMOTE]:
             for htlc_id in self._maybe_active_htlc_ids[proposer]:
-                htlc_update = self.get_htlc_update(proposer, htlc_id)
-                if htlc_update.local_ctn_in is None and htlc_update.remote_ctn_in is None:
+                u = self.get_htlc_update(proposer, role, owner, htlc_id)
+                # remove empty
+                if u.local_ctn_in is None and u.remote_ctn_in is None:
                     continue
                 # remove inactive htlcs
-                if htlc_update.local_ctn_out is not None and htlc_update.remote_ctn_out is not None:
-                    continue
-                active_htlcs[proposer][htlc_id] = htlc_update
+                if owner == REMOTE:
+                    # this is CS: remote matters
+                    if role == LOCAL and u.remote_ctn_out is not None:
+                        continue
+                    if role == REMOTE and u.local_ctn_out is not None:
+                        continue
+                if owner == LOCAL:
+                    # this is revack
+                    if role == LOCAL and u.local_ctn_out is not None:
+                        if proposer == LOCAL and u.remote_ctn_out is not None:
+                            if u.remote_ctn_out == self.ctn_latest(REMOTE) + 1:
+                                # still active
+                                pass
+                        else:
+                            continue
+                    if role == REMOTE and u.remote_ctn_out is not None:
+                        if proposer == REMOTE and u.local_ctn_out is not None:
+                            if u.local_ctn_out == self.ctn_latest(LOCAL) + 1:
+                                # still active
+                                pass
+                        else:
+                            continue
+                active_htlcs[proposer][htlc_id] = u
         return active_htlcs
 
-    def get_inactive_htlc_balance(self, proposer: HTLCOwner, owner) -> bytes:
+    def get_inactive_htlc_balance(self, role: HTLCOwner, proposer: HTLCOwner, owner: HTLCOwner) -> int:
+        active_htlcs = self.get_active_htlcs(role, owner)
         _msat = self.log[proposer]['delta_msat'].get(owner, 0)
-
         for htlc_id in self.log[proposer]['adds'].keys():
-            htlc_update = self.get_htlc_update(proposer, htlc_id)
-            local_ctn_in = htlc_update.local_ctn_in
-            local_ctn_out = htlc_update.local_ctn_out
-            remote_ctn_in = htlc_update.remote_ctn_in
-            remote_ctn_out = htlc_update.remote_ctn_out
-            if owner == LOCAL and local_ctn_in is not None and local_ctn_out is not None:
-                _msat += htlc_update.amount_msat
-            if owner == REMOTE and remote_ctn_in is not None and remote_ctn_out is not None:
-                _msat += htlc_update.amount_msat
+            if htlc_id in active_htlcs[proposer]:
+                continue
+            u = self.get_htlc_update(proposer, role, owner, htlc_id)
+            assert u.remote_ctn_out is None or u.remote_ctn_out <= self.ctn_latest(REMOTE)
+            assert u.local_ctn_out is None or u.local_ctn_out <= self.ctn_latest(LOCAL)
+            if u.local_ctn_in is None and u.remote_ctn_in is None:
+                continue
+            _msat += u.amount_msat
         return _msat
 
     def get_fee_update(self, initiator, key):
@@ -280,25 +303,62 @@ class HTLCManager:
             remote_ctn=ctn_remote,
         )
 
-    def get_htlc_update(self, proposer, htlc_id):
+    def get_htlc_update(self, proposer, role, owner, htlc_id):
+        # role = owner of the peerbackup
+        # owner: LOCAL for revack, REMOTE for sig
         from .peerbackup import HtlcUpdate
         add = self.log[proposer]['adds'][htlc_id]
         locked_in = self.log[proposer]['locked_in'].get(htlc_id, {})
         settles = self.log[proposer]['settles'].get(htlc_id, {})
         fails = self.log[proposer]['fails'].get(htlc_id, {})
-        local_ctn_in = self.get_agreeable_ctn(locked_in.get(LOCAL), LOCAL)
-        local_ctn_settle = self.get_agreeable_ctn(settles.get(LOCAL), LOCAL)
-        local_ctn_fail = self.get_agreeable_ctn(fails.get(LOCAL), LOCAL)
-        remote_ctn_in = self.get_agreeable_ctn(locked_in.get(REMOTE), REMOTE)
-        remote_ctn_settle = self.get_agreeable_ctn(settles.get(REMOTE), REMOTE)
-        remote_ctn_fail = self.get_agreeable_ctn(fails.get(REMOTE), REMOTE)
-        is_success = local_ctn_settle is not None or remote_ctn_settle is not None
+        local_in = locked_in.get(LOCAL)
+        local_settle = settles.get(LOCAL)
+        local_fail = fails.get(LOCAL)
+        remote_in = locked_in.get(REMOTE)
+        remote_settle = settles.get(REMOTE)
+        remote_fail = fails.get(REMOTE)
+        is_success = local_settle is not None or remote_settle is not None
         if is_success:
-            local_ctn_out = local_ctn_settle
-            remote_ctn_out = remote_ctn_settle
+            local_out = local_settle
+            remote_out = remote_settle
         else:
-            local_ctn_out = local_ctn_fail
-            remote_ctn_out = remote_ctn_fail
+            local_out = local_fail
+            remote_out = remote_fail
+
+        ctn_latest_remote = self.ctn_latest(REMOTE)
+        ctn_latest_local = self.ctn_latest(LOCAL)
+
+        # filter agreeable ctns
+        if role == LOCAL:
+            if owner == LOCAL:
+                # this is revack:
+                local_in = self.get_agreeable_ctn(local_in, LOCAL)
+                local_out = self.get_agreeable_ctn(local_out, LOCAL)
+                # remote values are unchanged. written down for clarity
+                remote_in = remote_in
+                remote_out = remote_out
+            if owner == REMOTE:
+                # this is CS
+                local_in = None
+                local_out = None
+                remote_out = self.get_agreeable_ctn(remote_out, REMOTE)
+                remote_in = self.get_agreeable_ctn(remote_in, REMOTE)
+
+        elif role == REMOTE:
+            if owner == LOCAL:
+                # this is revack:
+                remote_in = self.get_agreeable_ctn(remote_in, REMOTE)
+                remote_out = self.get_agreeable_ctn(remote_out, REMOTE)
+                # unchanged
+                local_in = local_in
+                local_out = local_out
+            if owner == REMOTE:
+                # this is CS
+                remote_in = None
+                remote_out = None
+                local_out = self.get_agreeable_ctn(local_out, LOCAL)
+                local_in = self.get_agreeable_ctn(local_in, LOCAL)
+
         htlc_update = HtlcUpdate(
             amount_msat = add.amount_msat,
             payment_hash = add.payment_hash,
@@ -306,10 +366,10 @@ class HTLCManager:
             timestamp = add.timestamp,
             htlc_id = add.htlc_id,
             is_success = is_success,
-            local_ctn_in = local_ctn_in,
-            local_ctn_out = local_ctn_out,
-            remote_ctn_in = remote_ctn_in,
-            remote_ctn_out = remote_ctn_out,
+            local_ctn_in = local_in,
+            local_ctn_out = local_out,
+            remote_ctn_in = remote_in,
+            remote_ctn_out = remote_out,
         )
         return htlc_update
 

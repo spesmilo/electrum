@@ -2021,7 +2021,7 @@ class Channel(AbstractChannel):
         return True
 
     def receive_peerbackup_signature(self, signature: bytes, owner: HTLCOwner):
-        peerbackup = self.get_their_peerbackup()
+        peerbackup = self.get_their_peerbackup(owner)
         peerbackup_bytes = peerbackup.to_bytes(owner=owner, blank_timestamps=True)
         sighash = sha256d(peerbackup_bytes)
         pubkey = self.config[REMOTE].multisig_key.pubkey
@@ -2031,29 +2031,42 @@ class Channel(AbstractChannel):
             filename = "their_local_state" if owner == LOCAL else "their_remote_state"
             filename = self.diagnostic_name() + '_' + filename + '_%d'%ctn
             peerbackup.save_debug_file(self.lnworker.config, filename, peerbackup_bytes, sighash=sighash)
-            self.logger.info(f'receive_new_peerbackup {str(owner)} {ctn=}: incorrect signature')
-            raise Exception(f'receive_new_peerbackup {str(owner)} {ctn=}: incorrect signature')
+            self.logger.info(f'receive_new_peerbackup {owner.name} {ctn=}: incorrect signature')
+            raise Exception(f'receive_new_peerbackup {owner.name} {ctn=}: incorrect signature')
         else:
-            self.logger.info(f'receive_new_peerbackup {str(owner)} {ctn=}: good signature')
-        peerbackup_bytes = peerbackup.to_bytes(owner=owner)
+            self.logger.info(f'receive_new_peerbackup {owner.name} {ctn=}: good signature')
+        peerbackup_bytes_with_timestamps = peerbackup.to_bytes(owner=owner)
         ctn = peerbackup.local_ctn if owner == LOCAL else peerbackup.remote_ctn
         key = 'their_signed_remote_peerbackup' if owner == REMOTE else 'their_signed_local_peerbackup'
-        self.storage[key] = ctn, peerbackup_bytes.hex(), signature.hex()
+        self.storage[key] = ctn, peerbackup_bytes_with_timestamps.hex(), signature.hex()
+        # test serialization after merge
+        merged_pb_bytes = self.get_their_peerbackup_for_reestablish()
+        if merged_pb_bytes:
+            merged_pb = PeerBackup.from_bytes(merged_pb_bytes)
+            merge_bytes = merged_pb.to_bytes(owner=owner, blank_timestamps=True)
+            if peerbackup_bytes != merge_bytes:
+                filename = "their_local_state" if owner == LOCAL else "their_remote_state"
+                filename = self.diagnostic_name() + '_' + filename + '_%d'%ctn
+                peerbackup.save_debug_file(self.lnworker.config, filename, peerbackup_bytes, sighash=sighash)
+                filename = "merged"
+                filename = self.diagnostic_name() + '_' + filename + '_%d'%ctn
+                peerbackup.save_debug_file(self.lnworker.config, filename, merge_bytes, sighash=sighash)
+                raise Exception(f'receive_new_peerbackup: merge error')
 
-    def get_our_peerbackup(self) -> dict:
+    def get_our_peerbackup(self, owner) -> dict:
         with self.hm.lock:
-            return PeerBackup.from_channel(self, LOCAL)
+            return PeerBackup.from_channel(self, LOCAL, owner)
 
-    def get_their_peerbackup(self) -> dict:
+    def get_their_peerbackup(self, owner) -> dict:
         with self.hm.lock:
-            return PeerBackup.from_channel(self, REMOTE)
+            return PeerBackup.from_channel(self, REMOTE, owner)
 
     def get_our_peerbackup_hash_key(self, owner, ctn) -> str:
         # we may have to store two hashes simultaneously, if there are two unrevoked states
         return ('our_local_state_hash' if owner == LOCAL else 'our_remote_state_hash') + '_%d'%ctn
 
     def get_our_peerbackup_signature(self, owner):
-        peerbackup = self.get_our_peerbackup()
+        peerbackup = self.get_our_peerbackup(owner)
         peerbackup_bytes = peerbackup.to_bytes(owner=owner, blank_timestamps=True)
         sighash = sha256d(peerbackup_bytes)
         privkey = self.config[LOCAL].multisig_key.privkey
@@ -2142,6 +2155,7 @@ class Channel(AbstractChannel):
             raise Exception(f'received peerbackup does not match our last sent {owner.name}')
         pubkey = self.config[LOCAL].multisig_key.pubkey
         if not ECPubkey(pubkey).ecdsa_verify(signature, sighash):
+            peerbackup.save_debug_file(self.lnworker.config, 'received_'+ key, peerbackup_bytes, sighash=sighash)
             raise Exception(f'incorrect peerbackup signature: {owner.name}')
         self.logger.info(f'good peerbackup signature {owner.name}')
         return ctn

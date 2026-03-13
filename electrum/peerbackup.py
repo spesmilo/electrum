@@ -151,25 +151,43 @@ class HtlcUpdate:
         self.local_ctn_in, self.remote_ctn_in = self.remote_ctn_in, self.local_ctn_in
         self.local_ctn_out, self.remote_ctn_out = self.remote_ctn_out, self.local_ctn_out
 
-    def update_local(self, v):
-        self.local_ctn_in = v.local_ctn_in
-        self.local_ctn_out = v.local_ctn_out
+    def merge(self, v):
+        self.local_ctn_in = self.local_ctn_in or v.local_ctn_in
+        self.local_ctn_out = self.local_ctn_out or v.local_ctn_out
+        self.remote_ctn_in = self.remote_ctn_in or v.remote_ctn_in
+        self.remote_ctn_out = self.remote_ctn_out or v.remote_ctn_out
+        self.is_success = self.is_success or v.is_success
 
-    def update_remote(self, v):
-        self.remote_ctn_in = v.remote_ctn_in
-        self.remote_ctn_out = v.remote_ctn_out
+    def to_bytes(self, proposer, owner, blank_timestamps=False):
+        # if we are server, the fields have already been flipped
+        # proposer = proposer of the htlc
+        # owner: REMOTE means clients sends sig, LOCAL means client sends revack
 
-    def to_bytes(self, owner=None, blank_timestamps=False):
-        local_ctn_in = None if owner == REMOTE else self.local_ctn_in
-        local_ctn_out = None if owner == REMOTE else self.local_ctn_out
-        remote_ctn_in = None if owner == LOCAL else self.remote_ctn_in
-        remote_ctn_out = None if owner == LOCAL else self.remote_ctn_out
+        local_in = self.local_ctn_in
+        local_out = self.local_ctn_out
+        remote_in = self.remote_ctn_in
+        remote_out = self.remote_ctn_out
+
+        # apply mask
+        if owner == LOCAL:
+            # this is revack:
+            if proposer == REMOTE:
+                remote_out = None
+            else:
+                remote_in = None
+        if owner == REMOTE:
+            # this is CS
+            local_in = None
+            local_out = None
+            if proposer == REMOTE:
+                remote_in = None
+            else:
+                remote_out = None
+
         is_success = self.is_success
-        if owner == LOCAL and self.local_ctn_out is None:
+        if remote_out is None and local_out is None:
             is_success = False
-        if owner == REMOTE and self.remote_ctn_out is None:
-            is_success = False
-        if local_ctn_in is None and remote_ctn_in is None:
+        if local_in is None and remote_in is None:
             return
         r = b''
         r += int.to_bytes(self.htlc_id, length=8, byteorder="big", signed=False)
@@ -178,10 +196,10 @@ class HtlcUpdate:
         r += int.to_bytes(self.cltv_abs, length=8, byteorder="big", signed=False)
         r += int.to_bytes(0 if blank_timestamps else self.timestamp, length=8, byteorder="big", signed=False)
         r += b'\x01' if is_success else b'\x00'
-        r += ctn_to_bytes(local_ctn_in)
-        r += ctn_to_bytes(local_ctn_out)
-        r += ctn_to_bytes(remote_ctn_in)
-        r += ctn_to_bytes(remote_ctn_out)
+        r += ctn_to_bytes(local_in)
+        r += ctn_to_bytes(local_out)
+        r += ctn_to_bytes(remote_in)
+        r += ctn_to_bytes(remote_out)
         assert len(r) == HTLC_UPDATE_LENGTH, len(r)
         return r
 
@@ -238,7 +256,10 @@ class PeerBackup:
     pending_fee_update = attr.ib(type=FeeUpdateX, default=None)
 
     @classmethod
-    def from_channel(cls, chan, owner):
+    def from_channel(cls, chan, role: HTLCOwner, owner: HTLCOwner):
+        # role: LOCAL for client, REMOTE for server
+        # owner: LOCAL if client sends revack, REMOTE if client sends sig
+
         # convert StoredDict to dict
         with chan.db_lock:
             state = json.loads(json.dumps(chan.storage, cls=util.MyEncoder))
@@ -256,7 +277,7 @@ class PeerBackup:
         # convert log to a list of HtlcUpdate
         log = chan.hm.log
         # active htlcs
-        active_htlcs = chan.hm.get_active_htlcs()
+        active_htlcs = chan.hm.get_active_htlcs(role, owner)
         # fee updates
         initiator = LOCAL if state['constraints']['is_initiator'] else REMOTE
         fee_updates = log[initiator]['fee_updates']
@@ -283,10 +304,10 @@ class PeerBackup:
         # proposed by local -> part of REMOTE ctx
         local_next_htlc_id = chan.hm._local_next_htlc_id
 
-        local_offered_msat = chan.hm.get_inactive_htlc_balance(proposer=LOCAL, owner=LOCAL)
-        local_received_msat = chan.hm.get_inactive_htlc_balance(proposer=REMOTE, owner=LOCAL)
-        remote_offered_msat = chan.hm.get_inactive_htlc_balance(proposer=LOCAL, owner=REMOTE)
-        remote_received_msat = chan.hm.get_inactive_htlc_balance(proposer=REMOTE, owner=REMOTE)
+        local_offered_msat = chan.hm.get_inactive_htlc_balance(role, proposer=LOCAL, owner=LOCAL)
+        local_received_msat = chan.hm.get_inactive_htlc_balance(role, proposer=REMOTE, owner=LOCAL)
+        remote_offered_msat = chan.hm.get_inactive_htlc_balance(role, proposer=LOCAL, owner=REMOTE)
+        remote_received_msat = chan.hm.get_inactive_htlc_balance(role, proposer=REMOTE, owner=REMOTE)
 
         p = PeerBackup(
             channel_id = state['channel_id'],
@@ -309,10 +330,12 @@ class PeerBackup:
             current_fee_update = current_fee_update,
             pending_fee_update = pending_fee_update,
         )
-        if owner == REMOTE:
+        if role == REMOTE:
             p.flip_values()
             p.node_id = chan.lnworker.node_keypair.pubkey.hex()
             p.revocation_store = json.loads(json.dumps(chan.storage['remote_revocation_store'], cls=util.MyEncoder))
+
+        chan.logger.info(f'peerbackup: {owner.name} {active_htlcs=}')
         return p
 
     def as_dict(p):
@@ -458,27 +481,18 @@ class PeerBackup:
         active_htlcs = b''
         htlc_log = self.active_htlcs[proposer] # active htlcs
         for htlc_id, htlc_update in sorted(htlc_log.items()):
-            _bytes = htlc_update.to_bytes(owner, blank_timestamps)
+            _bytes = htlc_update.to_bytes(
+                proposer,
+                owner,
+                blank_timestamps=blank_timestamps)
             if _bytes is None:
                 continue
-            local_ctn_in = None if owner == REMOTE else htlc_update.local_ctn_in
-            local_ctn_out = None if owner == REMOTE else htlc_update.local_ctn_out
-            remote_ctn_in = None if owner == LOCAL else htlc_update.remote_ctn_in
-            remote_ctn_out = None if owner == LOCAL else htlc_update.remote_ctn_out
-
-            if local_ctn_in is None and remote_ctn_in is None:
-                continue
-            if owner == LOCAL and local_ctn_in is not None and local_ctn_out is not None:
-                continue
-
-            if owner == REMOTE and remote_ctn_in is not None and remote_ctn_out is not None:
-                continue
-
             active_htlcs += _bytes
-
         return active_htlcs
 
     def to_bytes(self, owner=None, blank_timestamps=False) -> bytes:
+        # owner is LOCAL if we send rev, REMOTE if we send CS
+        #
         active_offered_htlcs = self.serialize_active_htlcs(owner, proposer=LOCAL, blank_timestamps=blank_timestamps)
         active_received_htlcs = self.serialize_active_htlcs(owner, proposer=REMOTE, blank_timestamps=blank_timestamps)
 
@@ -548,6 +562,7 @@ class PeerBackup:
 
     @classmethod
     def merge_peerbackup_bytes(cls, config, local_peerbackup_bytes, remote_peerbackup_bytes):
+        #
         local_peerbackup = PeerBackup.from_bytes(local_peerbackup_bytes)
         remote_peerbackup = PeerBackup.from_bytes(remote_peerbackup_bytes)
         #
@@ -569,11 +584,12 @@ class PeerBackup:
         # merge htlc logs
         local_htlc_log = local_peerbackup.active_htlcs
         remote_htlc_log = remote_peerbackup.active_htlcs
+
         for proposer in [LOCAL, REMOTE]:
             for htlc_id, local_v in list(local_htlc_log[proposer].items()):
                 remote_v = remote_htlc_log[proposer].get(htlc_id)
                 if remote_v:
-                    local_v.update_remote(remote_v)
+                    local_v.merge(remote_v)
                     local_htlc_log[proposer][htlc_id] = local_v
                 else:
                     remote_htlc_log[proposer][htlc_id] = local_v
@@ -581,7 +597,7 @@ class PeerBackup:
             for htlc_id, remote_v in list(remote_htlc_log[proposer].items()):
                 local_v = local_htlc_log[proposer].get(htlc_id)
                 if local_v:
-                    remote_v.update_local(local_v)
+                    remote_v.merge(local_v)
                     remote_htlc_log[proposer][htlc_id] = remote_v
                 else:
                     local_htlc_log[proposer][htlc_id] = remote_v
@@ -589,15 +605,19 @@ class PeerBackup:
 
         local_peerbackup.current_fee_update.remote_ctn = remote_peerbackup.current_fee_update.remote_ctn
         remote_peerbackup.current_fee_update.local_ctn = local_peerbackup.current_fee_update.local_ctn
-        if local_peerbackup.pending_fee_update:
-            assert remote_peerbackup.pending_fee_update
+        if local_peerbackup.pending_fee_update and not remote_peerbackup.pending_fee_update:
+            remote_peerbackup.pending_fee_update = local_peerbackup.pending_fee_update
+        elif not local_peerbackup.pending_fee_update and remote_peerbackup.pending_fee_update:
+            local_peerbackup.pending_fee_update = remote_peerbackup.pending_fee_update
+        elif local_peerbackup.pending_fee_update and remote_peerbackup.pending_fee_update:
             local_peerbackup.pending_fee_update.remote_ctn = remote_peerbackup.pending_fee_update.remote_ctn
             remote_peerbackup.pending_fee_update.local_ctn = local_peerbackup.pending_fee_update.local_ctn
 
         if local_peerbackup != remote_peerbackup:
-            cls.save_debug_file(config, 'local_peerbackup', local_peerbackup_bytes)
-            cls.save_debug_file(config, 'remote_peerbackup', remote_peerbackup_bytes)
+            cls.save_debug_file(config, 'local_peerbackup', local_peerbackup.to_bytes())
+            cls.save_debug_file(config, 'remote_peerbackup', remote_peerbackup.to_bytes())
             raise Exception('merge error')
+
         return local_peerbackup.to_bytes()
 
     def flip_values(self):
@@ -609,14 +629,12 @@ class PeerBackup:
             d[key_b] = a
 
         self.local_ctn, self.remote_ctn = self.remote_ctn, self.local_ctn
+
         self.local_next_htlc_id, self.remote_next_htlc_id = self.remote_next_htlc_id, self.local_next_htlc_id
         self.local_config, self.remote_config = self.remote_config, self.local_config
 
-        # flip owner and proposer:  a b  ->  d c
-        #                           c d      b a
-
-        self.local_received_msat, self.remote_offered_msat = self.remote_offered_msat, self.local_received_msat
-        self.local_offered_msat, self.remote_received_msat = self.remote_received_msat, self.local_offered_msat
+        self.local_received_msat, self.local_offered_msat = self.local_offered_msat, self.local_received_msat
+        self.remote_received_msat, self.remote_offered_msat = self.remote_offered_msat, self.remote_received_msat
 
         self.current_fee_update.flip()
         if self.pending_fee_update:
@@ -664,11 +682,15 @@ class PeerBackup:
             '-1': deepcopy(LOG_TEMPLATE),
         }
         active_htlcs = state.pop('active_htlcs')
+        _logger.info(f'www {active_htlcs}')
         for proposer in [LOCAL, REMOTE]:
             target_log = log[str(int(proposer))]
             for htlc_id, v in active_htlcs[proposer].items():
                 target_log['adds'][str(htlc_id)] = (v.amount_msat, v.payment_hash.hex(), v.cltv_abs, v.htlc_id, v.timestamp)
                 assert (v.local_ctn_in is not None or v.remote_ctn_in is not None), v
+                # blank leftover remote_ctn_out, if the htlc is no longer active
+                if v.remote_ctn_in is None:
+                    v.remote_ctn_out = None
                 target_log['locked_in'][str(htlc_id)] = {'1':v.local_ctn_in, '-1':v.remote_ctn_in}
                 if v.local_ctn_out is not None or v.remote_ctn_out is not None:
                     target_log['settles' if v.is_success else 'fails'][str(htlc_id)] = {'1':v.local_ctn_out, '-1':v.remote_ctn_out}
