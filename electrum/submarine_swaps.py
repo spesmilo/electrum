@@ -1847,7 +1847,6 @@ class NostrTransport(SwapServerTransport):
             "#d": [f"electrum-swapserver-{self.NOSTR_EVENT_VERSION}"],
             "#r": [f"net:{constants.net.NET_NAME}"],
             "since": int(time.time()) - 60 * 60,
-            "until": int(time.time()) + 60 * 60,
         }
         async for event in self.relay_manager.get_events(query, single_event=False, only_stored=False):
             try:
