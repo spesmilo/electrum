@@ -12,9 +12,10 @@ from electrum.address_synchronizer import TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNC
 from electrum.wallet import TxSighashDanger
 from electrum.fee_policy import FeePolicy
 
+from electrum.gui.common_qt.util import QtEventListener, qt_event_listener
+
 from .qewallet import QEWallet
 from .qetypes import QEAmount
-from .util import QtEventListener, qt_event_listener
 
 
 class QETxDetails(QObject, QtEventListener):

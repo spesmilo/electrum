@@ -799,7 +799,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
                 menu_invs.addAction(_("View invoice"), lambda inv=inv: self.main_window.show_onchain_invoice(inv))
         if tx_URL:
             menu.addAction(_("View on block explorer"), lambda: webopen(tx_URL))
-        menu.exec(self.viewport().mapToGlobal(position))
+        self.open_menu(menu, position)
 
     def remove_local_tx(self, tx_hash: str):
         num_child_txs = len(self.wallet.adb.get_depending_transactions(tx_hash))

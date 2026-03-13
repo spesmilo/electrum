@@ -14,8 +14,8 @@ from electrum.lnaddr import LnAddr, lndecode
 from electrum.bitcoin import COIN
 from electrum.wallet import Abstract_Wallet
 
-from .util import Buttons, CloseButton, ShowQRLineEdit, MessageBoxMixin, WWLabel
-from .util import QtEventListener, qt_event_listener, VLine
+from electrum.gui.common_qt.util import QtEventListener, qt_event_listener
+from .util import Buttons, CloseButton, ShowQRLineEdit, MessageBoxMixin, WWLabel, VLine
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow

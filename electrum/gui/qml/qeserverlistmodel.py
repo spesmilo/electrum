@@ -6,7 +6,7 @@ from electrum.util import Satoshis
 from electrum.interface import ServerAddr, PREFERRED_NETWORK_PROTOCOL
 from electrum import blockchain
 
-from .util import QtEventListener, qt_event_listener
+from electrum.gui.common_qt.util import QtEventListener, qt_event_listener
 
 
 class QEServerListModel(QAbstractListModel, QtEventListener):

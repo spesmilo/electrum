@@ -19,10 +19,13 @@ from electrum.bitcoin import COIN, address_to_script
 from electrum.paymentrequest import PaymentRequest
 from electrum.payment_identifier import PaymentIdentifier, PaymentIdentifierState, PaymentIdentifierType
 from electrum.network import Network
+from electrum.util import event_listener
+
+from electrum.gui.common_qt.util import QtEventListener
 
 from .qetypes import QEAmount
 from .qewallet import QEWallet
-from .util import status_update_timer_interval, QtEventListener, event_listener
+from .util import status_update_timer_interval
 from ...util import InvoiceError
 
 

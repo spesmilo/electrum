@@ -47,9 +47,10 @@ from electrum.logging import Logger
 from electrum.submarine_swaps import NostrTransport, HttpTransport, SwapServerTransport, SwapServerError
 from electrum.gui.messages import MSG_SUBMARINE_PAYMENT_HELP_TEXT
 
+from electrum.gui.common_qt.util import QtEventListener, qt_event_listener
+
 from .util import (WindowModalDialog, ColorScheme, HelpLabel, Buttons, CancelButton, WWLabel,
-                   read_QIcon, qt_event_listener, QtEventListener, IconLabel,
-                   HelpButton, RunCoroutineDialog)
+                   read_QIcon, IconLabel, HelpButton, RunCoroutineDialog)
 from .transaction_dialog import TxSizeLabel, TxFiatLabel, TxInOutWidget
 from .fee_slider import FeeSlider, FeeComboBox
 from .amountedit import FeerateEdit, BTCAmountEdit
