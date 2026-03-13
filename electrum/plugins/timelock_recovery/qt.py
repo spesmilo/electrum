@@ -687,7 +687,7 @@ class Plugin(TimelockRecoveryPlugin):
         # object whose fields can be ordered in multiple ways).
         return hashlib.sha256(json.dumps(
             sorted(json_data.items()),
-            skipkeys=False, ensure_ascii=True, check_circular=True,
+            skipkeys=False, ensure_ascii=False, check_circular=True,
             allow_nan=True, cls=None, indent=None, separators=(',', ':'),
             default=None, sort_keys=False,
         ).encode()).hexdigest()
