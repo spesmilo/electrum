@@ -55,7 +55,7 @@ class QEChannelOpener(QObject, AuthMixin):
 
     walletChanged = pyqtSignal()
     @pyqtProperty(QVariant, notify=walletChanged)
-    def wallet(self):
+    def wallet(self) -> QEWallet:
         return self._wallet
 
     @wallet.setter
@@ -80,7 +80,7 @@ class QEChannelOpener(QObject, AuthMixin):
 
     amountChanged = pyqtSignal()
     @pyqtProperty(QVariant, notify=amountChanged)
-    def amount(self):
+    def amount(self) -> QEAmount:
         return self._amount
 
     @amount.setter
