@@ -1498,7 +1498,7 @@ class Channel(AbstractChannel):
                         error_bytes=None,
                         failure_message=failure)
 
-    def balance(self, whose: HTLCOwner, *, ctx_owner=HTLCOwner.LOCAL, ctn: int = None) -> int:
+    def balance(self, whose: HTLCOwner, *, ctx_owner: HTLCOwner = None, ctn: int = None) -> int:
         assert type(whose) is HTLCOwner
         initial = self.config[whose].initial_msat
         return self.hm.get_balance_msat(whose=whose,
