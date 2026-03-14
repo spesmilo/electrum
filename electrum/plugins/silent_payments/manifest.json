@@ -1,0 +1,10 @@
+{
+    "name": "silent_payments",
+    "fullname": "Silent Payments",
+    "description": "BIP 352 Silent Payments support for Electrum, utilizing external index servers for efficient scanning.",
+    "available_for": ["qt"],
+    "author": "securitybrahh@empiresec.co",
+    "license": "MIT",
+    "version": "1.0.0",
+    "min_electrum_version": "4.0.0"
+}
