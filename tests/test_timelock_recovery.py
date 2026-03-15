@@ -9,6 +9,7 @@ from electrum.storage import WalletStorage
 from electrum.transaction import PartialTxOutput
 from electrum.wallet import Wallet
 from electrum.wallet_db import WalletDB
+from electrum.plugins.timelock_recovery.qt import Plugin as TimelockRecoveryQtPlugin
 
 from . import ElectrumTestCase
 
@@ -119,3 +120,10 @@ class TestTimelockRecovery(ElectrumTestCase):
         self.assertEqual(cancellation_tx_outputs, [
             ('tb1q6k5h4cz6ra8nzhg90xm9wldvadgh0fpttfthcg', 737065),
         ])
+
+    def test_checksum_non_ascii(self):
+        # Non-ASCII characters must be serialized as-is (ensure_ascii=False),
+        # not escaped as \uXXXX sequences, before hashing.
+        json_data = {"wallet_name": "Ωmega Wörld Ñoño 日本語 中文 עברית العربية", "id": "abc-123"}
+        result = TimelockRecoveryQtPlugin._checksum(json_data)
+        self.assertEqual(result, "74674eca")
