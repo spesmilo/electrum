@@ -168,7 +168,7 @@ def now():
 
 @attr.s(frozen=True)
 class SwapFees:
-    percentage = attr.ib(type=int)
+    percentage = attr.ib(type=Decimal)
     mining_fee = attr.ib(type=int)
     min_amount = attr.ib(type=int)
     max_forward = attr.ib(type=int)
@@ -235,7 +235,7 @@ class SwapManager(Logger):
     def __init__(self, *, wallet: 'Abstract_Wallet', lnworker: 'LNWallet'):
         Logger.__init__(self)
         self.mining_fee = None
-        self.percentage = None
+        self.percentage = None  # type: Optional[Decimal]
         self._min_amount = None
         self._max_forward = None
         self._max_reverse = None
@@ -1193,7 +1193,7 @@ class SwapManager(Logger):
 
     def server_update_pairs(self) -> None:
         """ for server """
-        self.percentage = float(self.config.SWAPSERVER_FEE_MILLIONTHS) / 10000  # type: ignore
+        self.percentage = Decimal(self.config.SWAPSERVER_FEE_MILLIONTHS) / 10000  # type: ignore
         self._min_amount = MIN_SWAP_AMOUNT_SAT
         oc_balance_sat: int = self.wallet.get_spendable_balance_sat()
         max_forward: int = min(int(self.lnworker.num_sats_can_receive()), oc_balance_sat, 10000000)
@@ -1259,7 +1259,7 @@ class SwapManager(Logger):
         if send_amount is None:
             return None
         x = Decimal(send_amount)
-        percentage = Decimal(self.percentage)
+        percentage = self.percentage
         if is_reverse:
             if not self.check_invoice_amount(x, is_reverse):
                 return None
@@ -1289,7 +1289,7 @@ class SwapManager(Logger):
         if not recv_amount:
             return None
         x = Decimal(recv_amount)
-        percentage = Decimal(self.percentage)
+        percentage = self.percentage
         if is_reverse:
             # see/ref:
             # https://github.com/BoltzExchange/boltz-backend/blob/e7e2d30f42a5bea3665b164feb85f84c64d86658/lib/service/Service.ts#L928
@@ -1638,7 +1638,7 @@ class HttpTransport(SwapServerTransport):
             fees = response['pairs']['BTC/BTC']['fees']
             limits = response['pairs']['BTC/BTC']['limits']
             pairs = SwapFees(
-                percentage=fees['percentage'],
+                percentage=Decimal(str(fees['percentage'])),
                 mining_fee=fees['minerFees']['baseAsset']['mining_fee'],
                 min_amount=limits['minimal'],
                 max_forward=limits['max_forward_amount'],
@@ -1777,7 +1777,7 @@ class NostrTransport(SwapServerTransport):
             self.logger.warning(f"not publishing swap offer, no liquidity available: {sm._max_forward=}, {sm._max_reverse=}")
             return
         offer = {
-            'percentage_fee': sm.percentage,
+            'percentage_fee': float(sm.percentage),  # cast to float for <= 4.7.1 backwards compatibility
             'mining_fee': sm.mining_fee,
             'min_amount': sm._min_amount,
             'max_forward_amount': sm._max_forward,
@@ -1883,7 +1883,7 @@ class NostrTransport(SwapServerTransport):
                 continue
             try:
                 pairs = SwapFees(
-                    percentage=content['percentage_fee'],
+                    percentage=Decimal(str(content['percentage_fee'])),
                     mining_fee=content['mining_fee'],
                     min_amount=content['min_amount'],
                     max_forward=content['max_forward_amount'],

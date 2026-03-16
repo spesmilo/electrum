@@ -2016,7 +2016,7 @@ class Commands(Logger):
         result = {}
         for offer in offers:
             result[offer.server_npub] = {
-                "percentage_fee": offer.pairs.percentage,
+                "percentage_fee": float(offer.pairs.percentage),
                 "max_forward_sat": offer.pairs.max_forward,
                 "max_reverse_sat": offer.pairs.max_reverse,
                 "min_amount_sat": offer.pairs.min_amount,
