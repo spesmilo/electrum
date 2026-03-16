@@ -1,15 +1,16 @@
 from io import StringIO
-import json
-import os, sys
+import os
+import sys
+
 from electrum.bitcoin import address_to_script
 from electrum.fee_policy import FixedFeePolicy
-from electrum.plugins.timelock_recovery.timelock_recovery import TimelockRecoveryContext
 from electrum.simple_config import SimpleConfig
 from electrum.storage import WalletStorage
 from electrum.transaction import PartialTxOutput
 from electrum.wallet import Wallet
 from electrum.wallet_db import WalletDB
-from electrum.plugins.timelock_recovery.qt import Plugin as TimelockRecoveryQtPlugin
+
+from electrum.plugins.timelock_recovery.timelock_recovery import TimelockRecoveryContext, TimelockRecoveryPlugin
 
 from . import ElectrumTestCase
 
@@ -125,7 +126,7 @@ class TestTimelockRecovery(ElectrumTestCase):
         # Non-ASCII characters must be serialized as-is (ensure_ascii=False),
         # not escaped as \uXXXX sequences, before hashing.
         json_data = {"wallet_name": "Ωmega Wörld Ñoño 日本語 中文 עברית العربية", "id": "abc-123"}
-        result = TimelockRecoveryQtPlugin._checksum(json_data)
+        result = TimelockRecoveryPlugin.json_checksum(json_data)
         self.assertEqual(result, "74674eca")
 
     def test_checksum_bip_example(self):
@@ -167,5 +168,5 @@ class TestTimelockRecovery(ElectrumTestCase):
           ],
           "metadata": "sig:825d6b3858c175c7fc16da3134030e095c4f9089c3c89722247eeedc08a7ef4f",
         }
-        result = TimelockRecoveryQtPlugin._checksum(json_data)
+        result = TimelockRecoveryPlugin.json_checksum(json_data)
         self.assertEqual(result, "92f8b3da")

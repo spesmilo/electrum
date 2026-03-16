@@ -681,17 +681,6 @@ class Plugin(TimelockRecoveryPlugin):
 
         return bool(download_dialog.exec())
 
-    @classmethod
-    def _checksum(cls, json_data: dict[str, Any]) -> str:
-        # Assumes the values have a consistent json representation (not a key-value
-        # object whose fields can be ordered in multiple ways).
-        return hashlib.sha256(json.dumps(
-            sorted(json_data.items()),
-            skipkeys=False, ensure_ascii=False, check_circular=True,
-            allow_nan=True, cls=None, indent=None, separators=(',', ':'),
-            default=None, sort_keys=False,
-        ).encode()).hexdigest()[:8]
-
     def _save_recovery_plan_json(self, context: TimelockRecoveryContext, download_dialog: WindowModalDialog):
         try:
             # Open a Save As dialog to get the file path
@@ -728,7 +717,7 @@ class Plugin(TimelockRecoveryPlugin):
                     "recovery_outputs": [[tx_output.address, tx_output.value] for tx_output in context.recovery_tx.outputs()],
                 }
                 # Simple checksum to ensure the file is not corrupted by foolish users
-                json_data["checksum"] = self._checksum(json_data)
+                json_data["checksum"] = self.json_checksum(json_data)
                 json.dump(json_data, json_file, indent=2)
             download_dialog.show_message(_("File saved successfully"))
             context.recovery_plan_saved = True
@@ -766,7 +755,7 @@ class Plugin(TimelockRecoveryPlugin):
                     "cancellation_amount": context.cancellation_tx.output_value(),
                 }
                 # Simple checksum to ensure the file is not corrupted by foolish users
-                json_data["checksum"] = self._checksum(json_data)
+                json_data["checksum"] = self.json_checksum(json_data)
                 json.dump(json_data, f, indent=2)
             download_dialog.show_message(_("File saved successfully"))
             context.cancellation_plan_saved = True
