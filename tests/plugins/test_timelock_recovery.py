@@ -12,7 +12,7 @@ from electrum.wallet_db import WalletDB
 
 from electrum.plugins.timelock_recovery.timelock_recovery import TimelockRecoveryContext, TimelockRecoveryPlugin
 
-from . import ElectrumTestCase
+from .. import ElectrumTestCase
 
 
 class TestTimelockRecovery(ElectrumTestCase):
