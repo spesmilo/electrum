@@ -2155,6 +2155,28 @@ class PaymentFeeBudget(NamedTuple):
         fees_msat = min(fees_msat, total_amount_msat)  # to handle (invalid?) inputs below cutoff_clamped
         return fees_msat
 
+    def subtract_blinded_path_fees(self, blinded_payinfo: 'BlindedPayInfo', amount_msat: int) -> 'PaymentFeeBudget':
+        """Subtract the blinded path's aggregate fees from this budget, returning the remaining budget
+        available for the non-blinded part of the route (e.g. trampoline fees).
+
+        Raises FeeBudgetExceeded if the blinded path fees or cltv exceed the budget.
+        """
+        from .lnrouter import fee_for_edge_msat
+        blinded_fee_msat = fee_for_edge_msat(
+            forwarded_amount_msat=amount_msat,
+            fee_base_msat=blinded_payinfo.fee_base_msat,
+            fee_proportional_millionths=blinded_payinfo.fee_proportional_millionths,
+        )
+        remaining_fee_msat = self.fee_msat - blinded_fee_msat
+        remaining_cltv = self.cltv - blinded_payinfo.cltv_expiry_delta
+        if remaining_fee_msat < 0 or remaining_cltv < 0:
+            raise FeeBudgetExceeded(
+                f"blinded path fees exceed budget: "
+                f"{blinded_fee_msat=}, fee budget: {self.fee_msat}, "
+                f"{blinded_payinfo.cltv_expiry_delta=}, cltv budget: {self.cltv=}"
+            )
+        return PaymentFeeBudget(fee_msat=remaining_fee_msat, cltv=remaining_cltv)
+
 
 @dataclasses.dataclass(kw_only=True, frozen=True)
 class UnblindedRoutingInfo:
