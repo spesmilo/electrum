@@ -1,7 +1,7 @@
 import os
 
 from pythonforandroid.recipes.pyjnius import PyjniusRecipe
-from pythonforandroid.util import load_source
+from pythonforandroid.util import load_source, HashPinnedDependency
 
 util = load_source('util', os.path.join(os.path.dirname(os.path.dirname(__file__)), 'util.py'))
 
@@ -12,6 +12,11 @@ assert PyjniusRecipe.python_depends == []
 
 
 class PyjniusRecipePinned(util.InheritedRecipeMixin, PyjniusRecipe):
+    hostpython_prerequisites = [
+        HashPinnedDependency(package="Cython==3.1.8",
+                             hashes=['sha256:282b3c8e6abc3fea421919e862e898ffdd86fc0796009bdb5ffdf8211413219f'])
+    ]
+
     sha512sum = "a192c30ef87ca9601455976feb49f03dfdb8e1bf2545744a7b771a6d0930a56b334c7a2a39d30fb8855c070f16e4673dc5ff6920b04a6155ab5f9247b271df76"
 
 
