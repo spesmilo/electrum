@@ -10,8 +10,9 @@ from electrum.lnutil import (
     derive_privkey, derive_pubkey, make_htlc_tx, extract_ctn_from_tx, get_compressed_pubkey_from_bech32,
     ScriptHtlc, calc_fees_for_commitment_tx, UpdateAddHtlc, LnFeatures, ln_compare_features,
     IncompatibleLightningFeatures, ChannelType, offered_htlc_trim_threshold_sat, received_htlc_trim_threshold_sat,
-    ImportedChannelBackupStorage, list_enabled_ln_feature_bits, PaymentFeeBudget, LnFeatureContexts
+    ImportedChannelBackupStorage, list_enabled_ln_feature_bits, PaymentFeeBudget, LnFeatureContexts, FeeBudgetExceeded
 )
+from electrum.lnonion import BlindedPayInfo
 from electrum.util import bfh, MyEncoder
 from electrum.transaction import Transaction, PartialTransaction, Sighash
 from electrum.lnworker import LNWallet
@@ -1190,4 +1191,22 @@ class TestLNUtil(ElectrumTestCase):
         self.assertEqual(budget.fee_msat, config.LIGHTNING_PAYMENT_FEE_CUTOFF_MSAT)
         self.assertEqual(reversed_fee_msat, budget.fee_msat)
 
+        # test subtract_blinded_path_fees
+        budget = PaymentFeeBudget(fee_msat=10_000, cltv=500)
+        payinfo = BlindedPayInfo(
+            fee_base_msat=1000,
+            fee_proportional_millionths=100,
+            cltv_expiry_delta=144,
+            htlc_minimum_msat=0,
+            htlc_maximum_msat=2**32,
+            features=LnFeatures(0),
+        )
+        # blinded fee: 1000 + (100 * 100_000) // 1_000_000 = 1010
+        remaining = budget.subtract_blinded_path_fees(payinfo, amount_msat=100_000)
+        self.assertEqual(remaining.fee_msat, 10_000 - 1010)
+        self.assertEqual(remaining.cltv, 500 - 144)
 
+        # test that exceeding the budget raises
+        small_budget = PaymentFeeBudget(fee_msat=500, cltv=500)
+        with self.assertRaises(FeeBudgetExceeded):
+            small_budget.subtract_blinded_path_fees(payinfo, amount_msat=100_000)
