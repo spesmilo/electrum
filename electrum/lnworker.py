@@ -4188,7 +4188,7 @@ class LNWallet(Logger):
             if "invoice_features" in payload:
                 self.logger.info('forward_trampoline: legacy')
                 next_trampoline_onion = None
-                invoice_features = payload["invoice_features"]["invoice_features"]
+                invoice_features = int.from_bytes(payload["invoice_features"]["invoice_features"], byteorder="big")
                 invoice_routing_info = payload["invoice_routing_info"]["invoice_routing_info"]
                 r_tags = decode_routing_info(invoice_routing_info)
                 self.logger.info(f'r_tags {BOLT11Addr.format_bolt11_routing_info_as_human_readable(r_tags)}')
