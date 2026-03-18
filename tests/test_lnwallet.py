@@ -508,7 +508,7 @@ class TestLNWallet(ElectrumTestCase):
                     'outgoing_node_id': {'outgoing_node_id': next_node_id},
                     'amt_to_forward': {'amt_to_forward': amount_msat},
                     'outgoing_cltv_value': {'outgoing_cltv_value': out_cltv_abs},
-                    'invoice_features': {'invoice_features': 0},
+                    'invoice_features': {'invoice_features': b''},
                     'invoice_routing_info': {'invoice_routing_info': b''},
                 }),
                 next_packet=mock.Mock(spec=OnionPacket),

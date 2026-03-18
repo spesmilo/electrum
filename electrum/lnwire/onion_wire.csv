@@ -16,7 +16,7 @@ tlvdata,payload,payment_metadata,payment_metadata,byte,...
 tlvtype,payload,total_amount_msat,18
 tlvdata,payload,total_amount_msat,total_msat,tu64,
 tlvtype,payload,invoice_features,66097
-tlvdata,payload,invoice_features,invoice_features,u64,
+tlvdata,payload,invoice_features,invoice_features,byte,...
 tlvtype,payload,outgoing_node_id,66098
 tlvdata,payload,outgoing_node_id,outgoing_node_id,byte,33
 tlvtype,payload,invoice_routing_info,66099
