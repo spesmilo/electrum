@@ -38,6 +38,7 @@ from electrum.simple_config import SimpleConfig
 from electrum.i18n import _
 from electrum.qrreader import get_qr_reader, QrCodeResult, MissingQrDetectionLib
 from electrum.logging import Logger
+from electrum.ur.ur_decoder import URDecoder
 
 from electrum.gui.qt.util import MessageBoxMixin, FixedAspectRatioLayout, ImageGraphicsEffect
 
@@ -91,6 +92,7 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
         self._ok_done: bool = False
         self.camera_sc_conn = None
         self.resolution: QSize = None
+        self.ur_decoder = URDecoder()
 
         self.config = config
 
@@ -245,6 +247,7 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
                     and self.validator_res and self.validator_res.accepted
                     and self.validator_res.simple_result)
                 or '' )
+        res = res and (self.ur_decoder.result or res)
 
         self.validator = None
 
@@ -291,8 +294,9 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
 
             # Close the dialog if the validator accepted the result
             if self.validator_res.accepted:
-                self.accept()
-                return
+                if not self.ur_decoder.receive_part(self.validator_res.simple_result):
+                    self.accept()
+                    return
 
         # Apply the crop blur effect
         if self.image_effect:
