@@ -1,13 +1,13 @@
 import os
 
 from pythonforandroid.recipes.pyqt6 import PyQt6Recipe
-from pythonforandroid.util import load_source
+from pythonforandroid.util import load_source, HashPinnedDependency
 
 util = load_source('util', os.path.join(os.path.dirname(os.path.dirname(__file__)), 'util.py'))
 
 
 assert PyQt6Recipe._version == "6.10.2"
-assert PyQt6Recipe.depends == ['qt6', 'pyjnius', 'setuptools', 'pyqt6sip', 'hostpython3', 'python3'], PyQt6Recipe.depends
+assert PyQt6Recipe.depends == ['qt6', 'pyjnius', 'setuptools', 'pyqt6sip', 'hostpython3', 'pyqt_builder', 'python3'], PyQt6Recipe.depends
 assert PyQt6Recipe.python_depends == []
 
 
