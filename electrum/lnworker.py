@@ -2751,7 +2751,6 @@ class LNWallet(Logger):
         """
         assert isinstance(payment_hash, bytes), f"expected bytes, but got {type(payment_hash)}"
         preimage_hex, is_public = self._preimages.get(payment_hash.hex(), (None, None))
-        assert preimage_hex is not None
         return bool(is_public)
 
     def get_payment_info(self, payment_hash: bytes, *, direction: lnutil.Direction) -> Optional[PaymentInfo]:
