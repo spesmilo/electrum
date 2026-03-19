@@ -47,7 +47,6 @@ if TYPE_CHECKING:
 
 
 HOPS_DATA_SIZE = 1300      # also sometimes called routingInfoSize in bolt-04
-TRAMPOLINE_HOPS_DATA_SIZE = 400
 PER_HOP_HMAC_SIZE = 32
 ONION_MESSAGE_LARGE_SIZE = 32768
 
@@ -134,7 +133,6 @@ class OnionPacket:
 
     def __post_init__(self):
         assert len(self.public_key) == 33
-        assert len(self.hops_data) in [HOPS_DATA_SIZE, TRAMPOLINE_HOPS_DATA_SIZE, ONION_MESSAGE_LARGE_SIZE]
         assert len(self.hmac) == PER_HOP_HMAC_SIZE
         if not ecc.ECPubkey.is_pubkey_bytes(self.public_key):
             raise InvalidOnionPubkey()
@@ -144,14 +142,10 @@ class OnionPacket:
         ret += self.public_key
         ret += self.hops_data
         ret += self.hmac
-        if len(ret) - 66 not in [HOPS_DATA_SIZE, TRAMPOLINE_HOPS_DATA_SIZE, ONION_MESSAGE_LARGE_SIZE]:
-            raise Exception('unexpected length {}'.format(len(ret)))
         return ret
 
     @classmethod
     def from_bytes(cls, b: bytes) -> 'OnionPacket':
-        if len(b) - 66 not in [HOPS_DATA_SIZE, TRAMPOLINE_HOPS_DATA_SIZE, ONION_MESSAGE_LARGE_SIZE]:
-            raise Exception('unexpected length {}'.format(len(b)))
         return OnionPacket(
             public_key=b[1:34],
             hops_data=b[34:-32],
@@ -217,7 +211,7 @@ def new_onion_packet(
         # FIXME: serializing here and again below. cache bytes in OnionHopsDataSingle? _raw_bytes_payload?
         payload_size += PER_HOP_HMAC_SIZE + len(hops_data[i].to_bytes())
     if trampoline:
-        data_size = TRAMPOLINE_HOPS_DATA_SIZE
+        data_size = payload_size
     elif onion_message:
         if payload_size <= HOPS_DATA_SIZE:
             data_size = HOPS_DATA_SIZE
@@ -446,7 +440,7 @@ def process_onion_packet(
         raise InvalidOnionMac()
     # peel an onion layer off
     rho_key = get_bolt04_onion_key(b'rho', shared_secret)
-    data_size = TRAMPOLINE_HOPS_DATA_SIZE if is_trampoline else HOPS_DATA_SIZE
+    data_size = len(onion_packet.hops_data) if is_trampoline else HOPS_DATA_SIZE
     if is_onion_message and len(onion_packet.hops_data) > HOPS_DATA_SIZE:
         data_size = ONION_MESSAGE_LARGE_SIZE
     stream_bytes = generate_cipher_stream(rho_key, 2 * data_size)
@@ -459,15 +453,8 @@ def process_onion_packet(
     if trampoline_onion_packet:
         if is_trampoline:
             raise Exception("found nested trampoline inside trampoline")
-        top_version = trampoline_onion_packet.get('version')
-        top_public_key = trampoline_onion_packet.get('public_key')
-        top_hops_data = trampoline_onion_packet.get('hops_data')
-        top_hops_data_fd = io.BytesIO(top_hops_data)
-        top_hmac = trampoline_onion_packet.get('hmac')
-        trampoline_onion_packet = OnionPacket(
-            public_key=top_public_key,
-            hops_data=top_hops_data_fd.read(TRAMPOLINE_HOPS_DATA_SIZE),
-            hmac=top_hmac)
+        trampoline_onion_packet = trampoline_onion_packet['trampoline_onion_packet']
+        trampoline_onion_packet = OnionPacket.from_bytes(trampoline_onion_packet)
     # calc next ephemeral key
     blinding_factor = sha256(onion_packet.public_key + shared_secret)
     blinding_factor_int = int.from_bytes(blinding_factor, byteorder="big")
