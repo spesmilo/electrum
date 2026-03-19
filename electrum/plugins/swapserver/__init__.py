@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING, List
 
 from electrum.simple_config import ConfigVar, SimpleConfig
 from electrum.commands import plugin_command
+from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
 
 if TYPE_CHECKING:
     from electrum.commands import Commands
@@ -19,7 +20,7 @@ SimpleConfig.SWAPSERVER_ANN_POW_NONCE = ConfigVar('plugins.swapserver.ann_pow_no
 @plugin_command('wl', plugin_name)
 async def get_history(self: 'Commands', wallet: 'Abstract_Wallet' = None, plugin = None) -> List[dict]:
     """
-    Get a list of all swaps provided by this swapserver.
+    Get a list of all confirmed swaps provided by this swapserver.
     Single elements can potentially cover multiple swaps if transactions have been batched.
 
     Example result:
@@ -42,12 +43,20 @@ async def get_history(self: 'Commands', wallet: 'Abstract_Wallet' = None, plugin
     assert wallet.lnworker, "lightning not available"
     assert wallet.lnworker.swap_manager, "swap manager not available"
 
-    full_history = wallet.get_full_history()
-    swap_group_ids = set(
-        x['group_id'] for x in wallet.lnworker.swap_manager.get_groups_for_onchain_history().values()
-    )
+    sm = wallet.lnworker.swap_manager
+    swap_group_ids = set()
+    for swap in sm._swaps.values():
+        group_id = swap.spending_txid if swap.is_reverse else swap.funding_txid
+        if group_id is None:
+            continue
+        if swap.spending_txid is None \
+                or wallet.adb.get_tx_height(swap.spending_txid).height() <= TX_HEIGHT_UNCONFIRMED:
+            # get only final swaps so the history is stable and doesn't include pending swaps
+            continue
+        swap_group_ids.add(group_id)
 
     swap_history_items = []
+    full_history = wallet.get_full_history()
     for swap_group_id in swap_group_ids:
         if swap_history_item := full_history.get('group:' + swap_group_id):
             swap_history_items.append(swap_history_item)
@@ -66,7 +75,7 @@ async def get_history(self: 'Commands', wallet: 'Abstract_Wallet' = None, plugin
 
 @plugin_command('wl', plugin_name)
 async def get_summary(self: 'Commands', wallet: 'Abstract_Wallet' = None, plugin = None) -> dict:
-    """Get a summary of all swaps provided by this swapserver.
+    """Get a summary of all confirmed swaps provided by this swapserver.
     Can become incorrect if closed lightning channels have been deleted in this wallet.
 
     Example result:
