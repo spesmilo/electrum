@@ -6,6 +6,8 @@ from fractions import Fraction
 from typing import Mapping, Tuple, Optional, List, Iterable, Sequence, Set, Any, TYPE_CHECKING
 from types import MappingProxyType
 
+import electrum_ecc as ecc
+
 from .lnutil import LnFeatures, PaymentFeeBudget, FeeBudgetExceeded
 from .lnonion import (
     calc_hops_data_for_payment, new_onion_packet, OnionPacket, PER_HOP_HMAC_SIZE
