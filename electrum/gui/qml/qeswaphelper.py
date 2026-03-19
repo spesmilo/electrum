@@ -75,7 +75,7 @@ class QESwapServerNPubListModel(QAbstractListModel):
         return {
             'npub': x.server_npub,
             'server_pubkey': x.server_pubkey,
-            'percentage_fee': x.pairs.percentage,
+            'percentage_fee': float(x.pairs.percentage),
             'mining_fee': x.pairs.mining_fee,
             'min_amount': x.pairs.min_amount,
             'max_forward_amount': x.pairs.max_forward,
