@@ -1829,12 +1829,28 @@ class Commands(Logger):
         return wallet.lnworker.node_keypair.pubkey.hex() + (('@' + listen_addr) if listen_addr else '')
 
     @command('wl')
-    async def list_channels(self, public: bool = False, wallet: Abstract_Wallet = None):
-        """Return the list of private channels in the wallet
+    async def list_channels(self, public: bool = False, private: bool = False, active: bool = False, open: bool = False, wallet: Abstract_Wallet = None):
+        """Return the list of channels in the wallet
 
-        arg:bool:public:list public channels instead.
+        arg:bool:public:list only public channels
+        arg:bool:private:list only private channels
+        arg:bool:open:list only open channels
+        arg:bool:active:list only active channels
         """
         from .lnutil import LOCAL, REMOTE, format_short_channel_id
+        if public and private:
+            raise Exception("incompatible options")
+        def _filter(chan):
+            if public and not chan.is_public():
+                return False
+            if private and chan.is_public():
+                return False
+            if active and not chan.is_redeemed():
+                return False
+            if open and not chan.is_open():
+                return False
+            return True
+
         return [
             {
                 'short_channel_id': format_short_channel_id(chan.short_channel_id) if chan.short_channel_id else None,
@@ -1852,7 +1868,7 @@ class Commands(Logger):
                 'remote_reserve': chan.config[LOCAL].reserve_sat,
                 'local_unsettled_sent': chan.balance_tied_up_in_htlcs_by_direction(LOCAL, direction=SENT) // 1000,
                 'remote_unsettled_sent': chan.balance_tied_up_in_htlcs_by_direction(REMOTE, direction=SENT) // 1000,
-            } for chan in wallet.lnworker.channels.values() if not (public != chan.is_public())
+            } for chan in wallet.lnworker.channels.values() if _filter(chan)
         ]
 
     @command('wl')
