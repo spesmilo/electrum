@@ -1,7 +1,7 @@
 hidapi
 
 # device plugin: trezor
-trezor[hidapi]>=0.13.0,<0.14
+trezor[hidapi]>=0.20.0,<0.21
 
 # device plugin: safe_t
 safet>=0.1.5
