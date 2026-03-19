@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Callable, Sequence
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton, QComboBox, QLineEdit, QHBoxLayout
 
 import electrum_ecc as ecc
@@ -16,12 +16,20 @@ from .amountedit import BTCAmountEdit
 from .my_treeview import create_toolbar_with_menu
 
 if TYPE_CHECKING:
+    from electrum.transaction import PartialTxInput
     from .main_window import ElectrumWindow
 
 
 class NewChannelDialog(WindowModalDialog):
 
-    def __init__(self, window: 'ElectrumWindow', amount_sat: Optional[int] = None, min_amount_sat: Optional[int] = None):
+    def __init__(
+        self,
+        window: 'ElectrumWindow',
+        *,
+        amount_sat: Optional[int] = None,
+        min_amount_sat: Optional[int] = None,
+        get_coins: Optional[Callable[..., Sequence['PartialTxInput']]] = None,
+    ):
         WindowModalDialog.__init__(self, window, _('Open Channel'))
         self.window = window
         self.network = window.network
@@ -30,6 +38,7 @@ class NewChannelDialog(WindowModalDialog):
         self.trampolines = hardcoded_trampoline_nodes()
         self.trampoline_names = list(self.trampolines.keys())
         self.min_amount_sat = min_amount_sat or MIN_FUNDING_SAT
+        self.get_coins = get_coins
         vbox = QVBoxLayout(self)
         toolbar, menu = create_toolbar_with_menu(self.config, '')
         menu.addConfig(
@@ -141,7 +150,7 @@ class NewChannelDialog(WindowModalDialog):
         if not self.max_button.isChecked():
             return
         dummy_nodeid = ecc.GENERATOR.get_public_key_bytes(compressed=True)
-        make_tx = self.window.mktx_for_open_channel(funding_sat='!', node_id=dummy_nodeid)
+        make_tx = self.window.mktx_for_open_channel(funding_sat='!', node_id=dummy_nodeid, get_coins=self.get_coins)
         try:
             tx = make_tx(FeePolicy(self.config.FEE_POLICY))
         except (NotEnoughFunds, NoDynamicFeeEstimates) as e:
@@ -176,5 +185,5 @@ class NewChannelDialog(WindowModalDialog):
             connect_str = str(self.trampolines[name])
         if not connect_str:
             return
-        self.window.open_channel(connect_str, funding_sat, 0)
+        self.window.open_channel(connect_str, funding_sat, get_coins=self.get_coins)
         return True
