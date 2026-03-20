@@ -397,9 +397,16 @@ class Commands(Logger):
 
     def _setconfig(self, key, value):
         value = self._setconfig_normalize_value(key, value)
-        if self.daemon and key == SimpleConfig.RPC_USERNAME.key():
+        if self.daemon and key == SimpleConfig.RPC_USERNAME.key():  # update RPC creds for currently running daemon
             self.daemon.commands_server.rpc_user = value
-        if self.daemon and key == SimpleConfig.RPC_PASSWORD.key():
+        if self.daemon and key == SimpleConfig.RPC_PASSWORD.key():  # update RPC creds for currently running daemon
+            if not value:
+                # We always want the daemon RPC to be password-protected.
+                # (user can still set a weak password, but not an empty one)
+                # When the daemon starts, finding an empty password, will result in generating a new strong pw.
+                # So it is useful to allow `electrum -o setconfig rpcpassword ""` - to force regenerating
+                # a random password the next time the daemon starts.
+                raise UserFacingException("error: cannot unset RPC password when daemon is running")
             self.daemon.commands_server.rpc_password = value
         if Plugins.is_plugin_enabler_config_key(key):
             self.config.set_key(key, value)

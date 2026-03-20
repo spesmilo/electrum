@@ -180,6 +180,7 @@ def wait_until_daemon_becomes_ready(*, config: SimpleConfig, timeout=5) -> bool:
 def get_rpc_credentials(config: SimpleConfig) -> Tuple[str, str]:
     rpc_user = config.RPC_USERNAME or None
     rpc_password = config.RPC_PASSWORD or None
+    # note: we explicitly forbid empty/unset password, and will generate one now instead
     if rpc_user is None or rpc_password is None:
         rpc_user = 'user'
         bits = 128
@@ -219,9 +220,8 @@ class AuthenticatedServer(Logger):
         self._methods[name] = f
 
     async def authenticate(self, headers):
-        if self.rpc_password == '':
-            # RPC authentication is disabled
-            return
+        if not self.rpc_password:
+            raise Exception('Server RPC password is unset. This should not happen.')
         auth_string = headers.get('Authorization', None)
         if auth_string is None:
             raise AuthenticationInvalidOrMissing('CredentialsMissing')
