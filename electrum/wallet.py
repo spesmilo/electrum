@@ -3691,6 +3691,43 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             else:
                 f.write(util.json_encode(txns))
 
+    def get_user_notifications_for_new_txns(self, txns: Sequence[Transaction]) -> Sequence[str]:
+        notifications = []
+        # Combine the transactions if there are at least three
+        if len(txns) >= 3:
+            total_amount = 0
+            total_debit = 0
+            total_credit = 0
+            for tx in txns:
+                tx_wallet_delta = self.get_wallet_delta(tx)
+                if not tx_wallet_delta.is_relevant:
+                    continue
+                if tx_wallet_delta.delta < 0:
+                    total_debit += -tx_wallet_delta.delta
+                else:
+                    total_credit += tx_wallet_delta.delta
+                total_amount += tx_wallet_delta.delta
+            message = _('{} new transactions:').format(len(txns))
+            if total_debit:
+                message += '\n' + _('Total amount sent {}').format(self.config.format_amount_and_units(total_debit))
+            if total_credit:
+                message += '\n' + _('Total amount received {}').format(self.config.format_amount_and_units(total_credit))
+            if total_debit and total_credit:
+                message += '\n' + _('Total balance change: {}').format(self.config.format_amount_and_units(total_amount))
+            notifications.append(message)
+        else:
+            for tx in txns:
+                tx_wallet_delta = self.get_wallet_delta(tx)
+                if not tx_wallet_delta.is_relevant:
+                    continue
+                if tx_wallet_delta.delta < 0:
+                    message = _('sent {}').format(self.config.format_amount_and_units(-tx_wallet_delta.delta))
+                else:
+                    message = _('received {}').format(self.config.format_amount_and_units(tx_wallet_delta.delta))
+                message = _("New transaction: {}").format(message)
+                notifications.append(message)
+        return notifications
+
 
 class Simple_Wallet(Abstract_Wallet):
     # wallet with a single keystore
