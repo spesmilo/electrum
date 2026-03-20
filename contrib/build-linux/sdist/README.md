@@ -53,5 +53,3 @@ The differences are as follows:
 - the normal tarball includes compiled (.mo) locale files, the source-only tarball does not.
   Both tarballs contain (.po) source locale files. If you are packaging for a Linux distro,
   you probably want to compile the .mo locale files yourself (see `contrib/locale/build_locale.sh`).
-- the normal tarball includes generated `*_pb2.py` files. These are created
-  using `protobuf-compiler` from `.proto` files (see `contrib/generate_payreqpb2.sh`)

@@ -50,7 +50,7 @@ import electrum_ecc as ecc
 import electrum
 from electrum.gui import messages
 from electrum import (keystore, constants, util, bitcoin, commands,
-                      paymentrequest, lnutil)
+                      lnutil)
 from electrum.bitcoin import COIN, is_address, DummyAddress
 from electrum.plugin import run_hook
 from electrum.i18n import _
@@ -1667,32 +1667,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         if invoice.exp:
             grid.addWidget(QLabel(_("Expires") + ':'), 4, 0)
             grid.addWidget(QLabel(format_time(invoice.exp + invoice.time)), 4, 1)
-        if invoice.bip70:
-            pr = paymentrequest.PaymentRequest(bytes.fromhex(invoice.bip70))
-            Network.run_from_another_thread(pr.verify())
-            grid.addWidget(QLabel(_("Requestor") + ':'), 5, 0)
-            grid.addWidget(QLabel(pr.get_requestor()), 5, 1)
-            grid.addWidget(QLabel(_("Signature") + ':'), 6, 0)
-            grid.addWidget(QLabel(pr.get_verify_status()), 6, 1)
-            def do_export():
-                name = pr.get_name_for_export() or "payment_request"
-                name = f"{name}.bip70"
-                fn = getSaveFileName(
-                    parent=self,
-                    title=_("Save invoice to file"),
-                    filename=name,
-                    filter="*.bip70",
-                    config=self.config,
-                )
-                if not fn:
-                    return
-                with open(fn, 'wb') as f:
-                    data = f.write(pr.raw)
-                self.show_message(_('BIP70 invoice saved as {}').format(fn))
-            exportButton = EnterButton(_('Export'), do_export)
-            buttons = Buttons(exportButton, CloseButton(d))
-        else:
-            buttons = Buttons(CloseButton(d))
+        buttons = Buttons(CloseButton(d))
         vbox.addLayout(grid)
         vbox.addLayout(buttons)
         d.exec()
