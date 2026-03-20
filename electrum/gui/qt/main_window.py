@@ -474,7 +474,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             self.need_update.set()
 
     @event_listener
-    def on_event_new_transaction(self, wallet, tx):
+    def on_event_new_transaction(self, wallet: Abstract_Wallet, tx: Transaction):
         if wallet == self.wallet:
             self.tx_notification_queue.put(tx)
             self.need_update.set()
@@ -930,22 +930,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                 txns.append(self.tx_notification_queue.get_nowait())
             except queue.Empty:
                 break
-        # Combine the transactions if there are at least three
-        if len(txns) >= 3:
-            total_amount = 0
-            for tx in txns:
-                tx_wallet_delta = self.wallet.get_wallet_delta(tx)
-                if not tx_wallet_delta.is_relevant:
-                    continue
-                total_amount += tx_wallet_delta.delta
-            self.notify(_("{} new transactions: Total amount received in the new transactions {}")
-                        .format(len(txns), self.format_amount_and_units(total_amount)))
-        else:
-            for tx in txns:
-                tx_wallet_delta = self.wallet.get_wallet_delta(tx)
-                if not tx_wallet_delta.is_relevant:
-                    continue
-                self.notify(_("New transaction: {}").format(self.format_amount_and_units(tx_wallet_delta.delta)))
+
+        for notification in self.wallet.get_user_notifications_for_new_txns(txns):
+            self.notify(notification)
 
     def notify(self, message):
         if self.tray:
