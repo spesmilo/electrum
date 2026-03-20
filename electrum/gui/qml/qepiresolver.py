@@ -76,8 +76,6 @@ class QEPIResolver(QObject):
                     msg = _('Could not resolve address')
                 elif pi.type == PaymentIdentifierType.LNURL:
                     msg = _('Could not resolve LNURL') + "\n\n" + pi.get_error()
-                elif pi.type == PaymentIdentifierType.BIP70:
-                    msg = _('Could not resolve BIP70 payment request: {}').format(pi.error)
                 else:
                     msg = _('Could not resolve')
                 self.resolveError.emit('resolve', msg)

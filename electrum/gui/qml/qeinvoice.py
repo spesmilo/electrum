@@ -16,7 +16,6 @@ from electrum.transaction import PartialTxOutput, TxOutput
 from electrum.lnutil import format_short_channel_id
 from electrum.lnurl import LNURL6Data
 from electrum.bitcoin import COIN, address_to_script
-from electrum.paymentrequest import PaymentRequest
 from electrum.payment_identifier import PaymentIdentifier, PaymentIdentifierState, PaymentIdentifierType
 from electrum.network import Network
 from electrum.util import event_listener
@@ -500,27 +499,12 @@ class QEInvoiceParser(QEInvoice):
         self._effectiveInvoice = None
         self.invoiceChanged.emit()
 
-    def create_onchain_invoice(self, outputs, message, payment_request, uri):
+    def create_onchain_invoice(self, *, outputs, message, uri):
         return self._wallet.wallet.create_invoice(
             outputs=outputs,
             message=message,
-            pr=payment_request,
-            URI=uri
-            )
-
-    def _bip70_payment_request_resolved(self, pr: 'PaymentRequest'):
-        self._logger.debug('resolved payment request')
-        if Network.run_from_another_thread(pr.verify()):
-            invoice = Invoice.from_bip70_payreq(pr, height=0)
-            if self._wallet.wallet.get_invoice_status(invoice) == PR_PAID:
-                self.validationError.emit('unknown', _('Invoice already paid'))
-            elif pr.has_expired():
-                self.validationError.emit('unknown', _('Payment request has expired'))
-            else:
-                self.setValidOnchainInvoice(invoice)
-                self.validationSuccess.emit()
-        else:
-            self.validationError.emit('unknown', f'invoice error:\n{pr.error}')
+            URI=uri,
+        )
 
     def validateRecipient(self, pi: PaymentIdentifier):
         if not pi:
@@ -530,7 +514,7 @@ class QEInvoiceParser(QEInvoice):
         self._pi = pi
         if not self._pi.is_valid() or self._pi.type not in [
             PaymentIdentifierType.SPK, PaymentIdentifierType.BIP21,
-            PaymentIdentifierType.BIP70, PaymentIdentifierType.BOLT11,
+            PaymentIdentifierType.BOLT11,
             PaymentIdentifierType.LNADDR, PaymentIdentifierType.LNURLP,
             PaymentIdentifierType.EMAILLIKE, PaymentIdentifierType.DOMAINLIKE,
             PaymentIdentifierType.OPENALIAS,
@@ -556,14 +540,10 @@ class QEInvoiceParser(QEInvoice):
             self.on_lnurl_pay(self._pi.lnurl_data)
             return
 
-        if self._pi.type == PaymentIdentifierType.BIP70:
-            self._bip70_payment_request_resolved(self._pi.bip70_data)
-            return
-
         if self._pi.is_available():
             if self._pi.type in [PaymentIdentifierType.SPK, PaymentIdentifierType.OPENALIAS]:
                 outputs = [PartialTxOutput(scriptpubkey=self._pi.spk, value=0)]
-                invoice = self.create_onchain_invoice(outputs, None, None, None)
+                invoice = self.create_onchain_invoice(outputs=outputs, message=None, uri=None)
                 self._logger.debug(repr(invoice))
                 self.setValidOnchainInvoice(invoice)
                 self.validationSuccess.emit()
@@ -597,7 +577,7 @@ class QEInvoiceParser(QEInvoice):
         outputs = [PartialTxOutput.from_address_and_value(bip21['address'], amount)]
         self._logger.debug(outputs)
         message = bip21.get('message', '')
-        invoice = self.create_onchain_invoice(outputs, message, None, bip21)
+        invoice = self.create_onchain_invoice(outputs=outputs, message=message, uri=bip21)
         self._logger.debug(repr(invoice))
         self.setValidOnchainInvoice(invoice)
         self.validationSuccess.emit()
