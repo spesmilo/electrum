@@ -198,7 +198,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self.invoiceStatusChanged.emit(key, status)
 
     @qt_event_listener
-    def on_event_new_transaction(self, wallet: Abstract_Wallet, tx: Transaction):
+    def on_event_new_transaction(self, wallet: 'Abstract_Wallet', tx: Transaction):
         if wallet == self.wallet:
             self._logger.info(f'new transaction {tx.txid()}')
             self.add_tx_notification(tx)
