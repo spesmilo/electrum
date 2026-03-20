@@ -1805,36 +1805,3 @@ def sanitize_tx_broadcast_response(server_msg) -> str:
             return msg if msg else substring
     # otherwise:
     return _("Unknown error")
-
-
-def check_cert(host, cert):
-    try:
-        b = pem.dePem(cert, 'CERTIFICATE')
-        x = x509.X509(b)
-    except Exception:
-        traceback.print_exc(file=sys.stdout)
-        return
-
-    try:
-        x.check_date()
-        expired = False
-    except Exception:
-        expired = True
-
-    m = "host: %s\n"%host
-    m += "has_expired: %s\n"% expired
-    util.print_msg(m)
-
-def test_certificates():
-    from .simple_config import SimpleConfig
-    config = SimpleConfig()
-    mydir = os.path.join(config.path, "certs")
-    certs = os.listdir(mydir)
-    for c in certs:
-        p = os.path.join(mydir,c)
-        with open(p, encoding='utf-8') as f:
-            cert = f.read()
-        check_cert(c, cert)
-
-if __name__ == "__main__":
-    test_certificates()
