@@ -1825,15 +1825,6 @@ def check_cert(host, cert):
     m += "has_expired: %s\n"% expired
     util.print_msg(m)
 
-
-# Used by tests
-def _match_hostname(name, val):
-    if val == name:
-        return True
-
-    return val.startswith('*.') and name.endswith(val[1:])
-
-
 def test_certificates():
     from .simple_config import SimpleConfig
     config = SimpleConfig()
