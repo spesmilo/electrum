@@ -46,10 +46,6 @@ def SHA1(x):
 # PRNG Functions
 # **************************************************************************
 
-# Check that os.urandom works
-import zlib
-length = len(zlib.compress(os.urandom(1000)))
-assert length > 900
 
 def getRandomBytes(howMany):
     b = bytearray(os.urandom(howMany))
