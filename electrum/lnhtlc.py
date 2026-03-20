@@ -4,11 +4,14 @@ from typing import Sequence, Tuple, Dict, TYPE_CHECKING, Set
 from .lnutil import SENT, RECEIVED, LOCAL, REMOTE, HTLCOwner, UpdateAddHtlc, Direction, FeeUpdate
 from .util import bfh, with_lock
 from .logging import get_logger
+from .crypto import sha256
 
 _logger = get_logger(__name__)
 
 if TYPE_CHECKING:
     from .json_db import StoredDict
+
+INITIAL_HISTORY_HASH = bytes(32)
 
 LOG_TEMPLATE = {
     'adds': {},              # "side who offered htlc" -> htlc_id -> htlc
@@ -19,7 +22,8 @@ LOG_TEMPLATE = {
     'revack_pending': False,
     'next_htlc_id': 0,
     'ctn': -1,               # oldest unrevoked ctx of sub
-    'delta_msat': {}
+    'delta_msat': {},        # proposer -> 'delta_msats' -> ctx_owner -> (hash, amount_msat)
+    'removals': {},          # proposer -> 'removals' -> index -> htlc_id
 }
 
 
@@ -49,6 +53,22 @@ class HTLCManager:
         self._init_maybe_active_htlc_ids()
         self._local_next_htlc_id = self.get_next_htlc_id(LOCAL)
         self._remote_next_htlc_id = self.get_next_htlc_id(REMOTE)
+
+    def hash_htlc_history(self, htlc_history, role, proposer:HTLCOwner, owner, first_hash) -> bytes:
+        _msat = 0
+        _hash = first_hash
+        for htlc_update in htlc_history:
+            # in order to achieve consensus, hashes are from the perspective of the proposer
+            if role == REMOTE:
+                htlc_update.flip()
+            #_logger.info(f'hash_htlc_history {role.name} {proposer.name} {owner.name} {htlc_update}')
+            _bytes2 = htlc_update.to_bytes(LOCAL, owner=None, blank_timestamps=True)
+            if _bytes2:
+                _hash = sha256(_hash + _bytes2)
+                _msat += htlc_update.amount_msat
+        if htlc_history:
+            _logger.info(f'hash_htlc_history {role.name} {proposer.name} {owner.name} len {len(htlc_history)} {first_hash.hex()[0:20]} -> {_hash.hex()[0:20]}')
+        return _hash, _msat
 
     @with_lock
     def ctn_latest(self, sub: HTLCOwner) -> int:
@@ -276,9 +296,9 @@ class HTLCManager:
                 active_htlcs[proposer][htlc_id] = u
         return active_htlcs
 
-    def get_inactive_htlc_balance(self, role: HTLCOwner, proposer: HTLCOwner, owner: HTLCOwner) -> int:
+    def get_htlc_history(self, role: HTLCOwner, proposer: HTLCOwner, owner: HTLCOwner) -> int:
         active_htlcs = self.get_active_htlcs(role, owner)
-        _msat = self.log[proposer]['delta_msat'].get(owner, 0)
+        htlc_history = []
         for htlc_id in self.log[proposer]['adds'].keys():
             if htlc_id in active_htlcs[proposer]:
                 continue
@@ -287,8 +307,21 @@ class HTLCManager:
             assert u.local_ctn_out is None or u.local_ctn_out <= self.ctn_latest(LOCAL)
             if u.local_ctn_in is None and u.remote_ctn_in is None:
                 continue
-            _msat += u.amount_msat
-        return _msat
+            htlc_history.append(u)
+        return htlc_history
+
+    def get_htlc_history_hash(self, role, proposer, owner) -> Tuple[bytes, int]:
+        htlc_history = self.get_htlc_history(role, proposer, owner)
+        # read delta_msat here
+        delta_msat, first_hash_hex = self.log[proposer]['delta_msat'].get(owner, (0, INITIAL_HISTORY_HASH.hex()))
+        first_hash = bytes.fromhex(first_hash_hex)
+        history_hash, msat = self.hash_htlc_history(
+            htlc_history,
+            role,
+            proposer=proposer,
+            owner=owner,
+            first_hash=first_hash)
+        return history_hash, delta_msat + msat
 
     def get_fee_update(self, initiator, key):
         from .peerbackup import FeeUpdateX
@@ -684,8 +717,10 @@ class HTLCManager:
 
         # fixme: we should use a channel flag
         if 'delta_msat' in self.log[whose]:
-            balance -= self.log[whose]['delta_msat'].get(ctx_owner, 0)
-            balance += self.log[-whose]['delta_msat'].get(ctx_owner, 0)
+            delta_offered, _ = self.log[whose]['delta_msat'].get(ctx_owner, (0, 0))
+            delta_received, _ = self.log[-whose]['delta_msat'].get(ctx_owner, (0, 0))
+            balance -= delta_offered
+            balance += delta_received
 
         if ctn >= self.ctn_oldest_unrevoked(ctx_owner):
             balance += self._balance_delta * whose
