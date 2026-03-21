@@ -726,7 +726,9 @@ class TestPeerDirect(TestPeer):
             p1, p2, w1, w2 = self.prepare_peers(
                 alice_channel, bob_channel,
                 alice_peerbackup_server=alice_peerbackup_server,
-                bob_peerbackup_server=bob_peerbackup_server)
+                bob_peerbackup_server=bob_peerbackup_server,
+                workers={'alice':alice_lnwallet, 'bob':bob_lnwallet},
+            )
 
             lnaddr, pay_req = self.prepare_invoice(w2)
             async def pay():
@@ -739,7 +741,9 @@ class TestPeerDirect(TestPeer):
             p1, p2, w1, w2 = self.prepare_peers(
                 alice_channel_0, bob_channel,
                 alice_peerbackup_server=alice_peerbackup_server,
-                bob_peerbackup_server=bob_peerbackup_server)
+                bob_peerbackup_server=bob_peerbackup_server,
+                workers={'alice':alice_lnwallet, 'bob':bob_lnwallet},
+            )
 
             for chan in (alice_channel_0, bob_channel):
                 chan.peer_state = PeerState.DISCONNECTED
@@ -756,6 +760,8 @@ class TestPeerDirect(TestPeer):
                     alice_channel = w1.get_channel_by_id(chan_id)
                     self.assertEqual(alice_channel.peer_state, PeerState.GOOD)
                     self.assertEqual(bob_channel.peer_state, PeerState.GOOD)
+                    # wait so that alice has time to receive revocation
+                    await asyncio.sleep(1)
                     gath.cancel()
                 gath = asyncio.gather(reestablish(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p1.htlc_switch())
                 with self.assertRaises(asyncio.CancelledError):
@@ -911,6 +917,8 @@ class TestPeerDirect(TestPeer):
             await group.spawn(p2._message_loop())
             await p1.initialized
             await p2.initialized
+            p1.MIN_TIME_BETWEEN_SENDING_COMMITSIGS = 0
+            p2.MIN_TIME_BETWEEN_SENDING_COMMITSIGS = 0
             assert p1.is_peerbackup_client()
             assert p2.is_peerbackup_server()
             self._send_fake_htlc(p1, chan_AB) # alice sends update
