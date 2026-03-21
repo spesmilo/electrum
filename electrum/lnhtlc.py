@@ -62,7 +62,7 @@ class HTLCManager:
             if role == REMOTE:
                 htlc_update.flip()
             #_logger.info(f'hash_htlc_history {role.name} {proposer.name} {owner.name} {htlc_update}')
-            _bytes2 = htlc_update.to_bytes(LOCAL, owner=None, blank_timestamps=True)
+            _bytes2 = htlc_update.to_bytes(LOCAL, owner=owner, blank_timestamps=True)
             if _bytes2:
                 _hash = sha256(_hash + _bytes2)
                 _msat += htlc_update.amount_msat
@@ -280,14 +280,14 @@ class HTLCManager:
                 if owner == LOCAL:
                     # this is revack
                     if role == LOCAL and u.local_ctn_out is not None:
-                        if proposer == LOCAL and u.remote_ctn_out is not None:
+                        if proposer == LOCAL and u.remote_ctn_in is not None and u.remote_ctn_out is not None:
                             if u.remote_ctn_out == self.ctn_latest(REMOTE) + 1:
                                 # still active
                                 pass
                         else:
                             continue
                     if role == REMOTE and u.remote_ctn_out is not None:
-                        if proposer == REMOTE and u.local_ctn_out is not None:
+                        if proposer == REMOTE and u.local_ctn_in is not None and u.local_ctn_out is not None:
                             if u.local_ctn_out == self.ctn_latest(LOCAL) + 1:
                                 # still active
                                 pass
@@ -731,6 +731,9 @@ class HTLCManager:
             considered_recv_htlc_ids = self.log[-whose]['settles']
         # sent htlcs
         for htlc_id in considered_sent_htlc_ids:
+            locked_in = self.log[whose]['locked_in'].get(htlc_id, None)
+            if locked_in and locked_in[ctx_owner] is None:
+                continue
             ctns = self.log[whose]['settles'].get(htlc_id, None)
             if ctns is None:
                 continue
@@ -739,6 +742,9 @@ class HTLCManager:
                 balance -= htlc.amount_msat
         # recv htlcs
         for htlc_id in considered_recv_htlc_ids:
+            locked_in = self.log[-whose]['locked_in'].get(htlc_id, None)
+            if locked_in and locked_in[ctx_owner] is None:
+                continue
             ctns = self.log[-whose]['settles'].get(htlc_id, None)
             if ctns is None:
                 continue

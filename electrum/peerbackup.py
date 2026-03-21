@@ -728,8 +728,11 @@ class PeerBackup:
                 target_log['adds'][str(htlc_id)] = (v.amount_msat, v.payment_hash.hex(), v.cltv_abs, v.htlc_id, v.timestamp)
                 assert (v.local_ctn_in is not None or v.remote_ctn_in is not None), v
                 # blank leftover remote_ctn_out, if the htlc is no longer active
-                if v.remote_ctn_in is None and v.remote_ctn_out is not None:
-                    v.remote_ctn_out = None
+                #if v.remote_ctn_in is None and v.remote_ctn_out is not None:
+                #    v.remote_ctn_out = None
+                # fixme: we need to handle that differently
+                # this htlc hash is in the remote history.
+                # not yet in the local history
                 target_log['locked_in'][str(htlc_id)] = {'1':v.local_ctn_in, '-1':v.remote_ctn_in}
                 if v.local_ctn_out is not None or v.remote_ctn_out is not None:
                     target_log['settles' if v.is_success else 'fails'][str(htlc_id)] = {'1':v.local_ctn_out, '-1':v.remote_ctn_out}
