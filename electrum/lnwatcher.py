@@ -111,6 +111,7 @@ class LNWatcher(Logger, EventListener):
         closing_txid = self.adb.get_spender(funding_outpoint)
         closing_height = self.adb.get_tx_height(closing_txid)
         if closing_txid:
+            self.adb.subscribe_to_outputs(closing_txid)
             closing_tx = self.adb.get_transaction(closing_txid)
             if closing_tx:
                 keep_watching = await self.sweep_commitment_transaction(funding_outpoint, closing_tx)
@@ -189,6 +190,8 @@ class LNWatcher(Logger, EventListener):
             if spender_tx:
                 # the spender might be the remote, revoked or not
                 htlc_sweepinfo = chan.maybe_sweep_htlcs(closing_tx, spender_tx)
+                if htlc_sweepinfo:
+                    self.adb.subscribe_to_outputs(spender_txid)
                 for prevout2, htlc_sweep_info in htlc_sweepinfo.items():
                     self.lnworker.wallet.set_default_label(prevout2, htlc_sweep_info.name)
                     if isinstance(htlc_sweep_info, KeepWatchingTXO):  # haven't yet decided if we want to sweep

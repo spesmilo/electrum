@@ -140,6 +140,7 @@ class WatchTower(Logger, EventListener):
         # inspect_tx_candidate might have added new addresses, in which case we return early
         closing_txid = self.adb.get_spender(funding_outpoint)
         if closing_txid:
+            self.adb.subscribe_to_outputs(closing_txid)
             closing_tx = self.adb.get_transaction(closing_txid)
             if closing_tx:
                 keep_watching = await self.sweep_commitment_transaction(funding_outpoint, closing_tx)
