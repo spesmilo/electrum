@@ -16,8 +16,6 @@ from .bitcoin import address_to_script
 from .transaction import PartialTxOutput
 from .crypto import sha256d
 
-if TYPE_CHECKING:
-    from .paymentrequest import PaymentRequest
 
 # convention: 'invoices' = outgoing , 'request' = incoming
 
@@ -114,14 +112,15 @@ class BaseInvoice(StoredObject):
 
     # optional fields.
     # an request (incoming) can be satisfied onchain, using lightning or using a swap
-    # an invoice (outgoing) is constructed from a source: bip21, bip70, lnaddr
+    # an invoice (outgoing) is constructed from a source: bip21, lnaddr
 
     # onchain only
     outputs = attr.ib(kw_only=True, converter=_decode_outputs)  # type: Optional[List[PartialTxOutput]]
     height = attr.ib(  # only for receiving
         type=int, kw_only=True, validator=attr.validators.instance_of(int), on_setattr=attr.setters.validate)
-    bip70 = attr.ib(type=str, kw_only=True)  # type: Optional[str]
-    #bip70_requestor = attr.ib(type=str, kw_only=True)  # type: Optional[str]
+
+    # (unused) historical bip70 invoice data, for BIP70 invoices paid in the past
+    bip70 = attr.ib(type=str, kw_only=True, default=None)  # type: Optional[str]
 
     def is_lightning(self) -> bool:
         raise NotImplementedError()
@@ -227,22 +226,8 @@ class BaseInvoice(StoredObject):
             time=timestamp,
             exp=exp_delay,
             outputs=None,
-            bip70=None,
             height=0,
             lightning_invoice=invoice,
-        )
-
-    @classmethod
-    def from_bip70_payreq(cls, pr: 'PaymentRequest', *, height: int = 0) -> 'Invoice':
-        return Invoice(
-            amount_msat=pr.get_amount()*1000,
-            message=pr.get_memo(),
-            time=pr.get_time(),
-            exp=pr.get_expiration_date() - pr.get_time(),
-            outputs=pr.get_outputs(),
-            bip70=pr.raw.hex(),
-            height=height,
-            lightning_invoice=None,
         )
 
     def get_id(self) -> str:

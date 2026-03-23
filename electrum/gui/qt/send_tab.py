@@ -24,7 +24,7 @@ from electrum.transaction import Transaction, PartialTxInput, PartialTxOutput
 from electrum.network import TxBroadcastError, BestEffortRequestFailed
 from electrum.payment_identifier import (PaymentIdentifierType, PaymentIdentifier,
                                          invoice_from_payment_identifier,
-                                         payment_identifier_from_invoice, PaymentIdentifierState)
+                                         PaymentIdentifierState)
 from electrum.submarine_swaps import SwapServerError
 from electrum.fee_policy import FeePolicy, FixedFeePolicy
 from electrum.lnurl import LNURL3Data, request_lnurl_withdraw_callback, LNURLError
@@ -44,7 +44,6 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
 
     resolve_done_signal = pyqtSignal(object)
     finalize_done_signal = pyqtSignal(object)
-    notify_merchant_done_signal = pyqtSignal(object)
 
     def __init__(self, window: 'ElectrumWindow'):
         QWidget.__init__(self, window)
@@ -210,7 +209,6 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
 
         self.resolve_done_signal.connect(self.on_resolve_done)
         self.finalize_done_signal.connect(self.on_finalize_done)
-        self.notify_merchant_done_signal.connect(self.on_notify_merchant_done)
         self.payto_e.paymentIdentifierChanged.connect(self._handle_payment_identifier)
 
         self.setTabOrder(self.send_button, self.invoice_list)
@@ -392,10 +390,6 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             btn.setEnabled(False)
         self.spinner.setVisible(True)
 
-    def payment_request_error(self, error):
-        self.show_message(error)
-        self.do_clear()
-
     def set_field_validated(self, w, *, validated: Optional[bool] = None):
         if validated is not None:
             w.setStyleSheet(ColorScheme.GREEN.as_stylesheet(True) if validated else ColorScheme.RED.as_stylesheet(True))
@@ -443,7 +437,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
 
         lock_recipient = pi.type in [PaymentIdentifierType.LNURL, PaymentIdentifierType.LNURLW,
                                      PaymentIdentifierType.LNURLP, PaymentIdentifierType.LNADDR,
-                                     PaymentIdentifierType.OPENALIAS, PaymentIdentifierType.BIP70,
+                                     PaymentIdentifierType.OPENALIAS,
                                      PaymentIdentifierType.BIP21, PaymentIdentifierType.BOLT11] and not pi.need_resolve()
         lock_amount = pi.is_amount_locked()
         lock_max = lock_amount or pi.type not in [PaymentIdentifierType.SPK, PaymentIdentifierType.BIP21]
@@ -542,7 +536,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         if not self.wallet.has_lightning() and not invoice.can_be_paid_onchain():
             self.show_error(_('Lightning is disabled'))
         if self.wallet.get_invoice_status(invoice) == PR_PAID:
-            # fixme: this is only for bip70 and lightning
+            # fixme: this is only for lightning
             self.show_error(_('Invoice already paid'))
             return
         #if not invoice.is_lightning():
@@ -766,16 +760,6 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             except BestEffortRequestFailed as e:
                 return False, repr(e)
             # success
-            if invoice and invoice.bip70:
-                payment_identifier = payment_identifier_from_invoice(invoice)
-                # FIXME: this should move to backend
-                if payment_identifier and payment_identifier.need_merchant_notify():
-                    refund_address = self.wallet.get_receiving_address()
-                    payment_identifier.notify_merchant(
-                        tx=tx,
-                        refund_address=refund_address,
-                        on_finished=self.notify_merchant_done_signal.emit
-                    )
             return True, tx.txid()
 
         # Capture current TL window; override might be removed on return
@@ -799,14 +783,6 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
 
         WaitingDialog(self, _('Broadcasting transaction...'),
                       broadcast_thread, broadcast_done, self.window.on_error)
-
-    def on_notify_merchant_done(self, pi: PaymentIdentifier):
-        if pi.is_error():
-            self.logger.debug(f'merchant notify error: {pi.get_error()}')
-        else:
-            self.logger.debug(f'merchant notify result: {pi.merchant_ack_status}: {pi.merchant_ack_message}')
-        # TODO: show user? if we broadcasted the tx successfully, do we care?
-        # BitPay complains with a NAK if tx is RbF
 
     def toggle_paytomany(self):
         self.payto_e.toggle_paytomany()

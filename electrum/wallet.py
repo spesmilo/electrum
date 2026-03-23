@@ -1252,10 +1252,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
         return transactions
 
-    def create_invoice(self, *, outputs: List[PartialTxOutput], message, pr, URI) -> Invoice:
+    def create_invoice(self, *, outputs: List[PartialTxOutput], message, URI) -> Invoice:
         height = self.adb.get_local_height()
-        if pr:
-            return Invoice.from_bip70_payreq(pr, height=height)
         amount_msat = 0
         for x in outputs:
             if parse_max_spend(x.value):
@@ -1277,7 +1275,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             time=timestamp,
             exp=exp,
             outputs=outputs,
-            bip70=None,
             height=height,
             lightning_invoice=None,
         )
@@ -2970,8 +2967,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             amount_sat = x.get_amount_sat()
             assert isinstance(amount_sat, (int, str, type(None)))
             d['outputs'] = [y.to_legacy_tuple() for y in x.get_outputs()]
-            if x.bip70:
-                d['bip70'] = x.bip70
         return d
 
     def get_invoices_and_requests_touched_by_tx(self, tx):
@@ -3055,7 +3050,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             amount_msat=amount_msat,
             exp=exp_delay,
             height=height,
-            bip70=None,
             payment_hash=payment_hash,
         )
         key = self.add_payment_request(req)
