@@ -11,8 +11,8 @@ from .contacts import AliasNotFoundException
 from .i18n import _
 from .invoices import Invoice
 from .logging import Logger
-from .util import parse_max_spend, InvoiceError
-from .util import get_asyncio_loop, log_exceptions
+from .util import get_asyncio_loop, log_exceptions, UserFacingException, parse_max_spend, InvoiceError, \
+    send_exception_to_crash_reporter
 from .transaction import PartialTxOutput
 from .lnurl import (decode_lnurl, request_lnurl, callback_lnurl, LNURLError,
                     lightning_address_to_url, try_resolve_lnurlpay, LNURL6Data,
@@ -386,7 +386,7 @@ class PaymentIdentifier(Logger):
         from .invoices import Invoice
         try:
             if not self.lnurl_data:
-                raise Exception("Unexpected missing LNURL data")
+                assert self.lnurl_data, "Unexpected missing LNURL data"
 
             if not (self.lnurl_data.min_sendable_sat <= amount_sat <= self.lnurl_data.max_sendable_sat):
                 self.error = _('Amount must be between {} and {} sat.').format(
@@ -418,6 +418,8 @@ class PaymentIdentifier(Logger):
             self.error = str(e)
             self.logger.error(f"_do_finalize() got error: {e!r}")
             self.set_state(PaymentIdentifierState.ERROR)
+            if not isinstance(e, UserFacingException):
+                send_exception_to_crash_reporter(e)
         finally:
             if on_finished:
                 on_finished(self)
