@@ -413,11 +413,10 @@ class ElectrumGui(BaseElectrumGui, Logger):
             self.logger.exception('')
             if isinstance(e, UserFacingException) \
                     or isinstance(e, WalletFileException) and not e.should_report_crash:
-                err_text = str(e) if isinstance(e, WalletFileException) else repr(e)
                 custom_message_box(icon=QMessageBox.Icon.Warning,
                                    parent=None,
                                    title=_('Error'),
-                                   text=_('Cannot load wallet') + '(2) :\n' + err_text)
+                                   text=_('Cannot load wallet') + '(2) :\n' + str(e))
             else:
                 send_exception_to_crash_reporter(e)
             if app_is_starting:
