@@ -3,7 +3,7 @@ from pythonforandroid.util import HashPinnedDependency
 
 
 assert PyQtBuilderRecipe._version == "1.19.1"
-assert PyQtBuilderRecipe.depends == ["packaging", "sip", "python3"], PyQtBuilderRecipe.depends
+assert PyQtBuilderRecipe.depends == ["sip", "python3"], PyQtBuilderRecipe.depends
 assert PyQtBuilderRecipe.python_depends == []
 
 

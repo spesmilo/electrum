@@ -7,7 +7,7 @@ util = load_source('util', os.path.join(os.path.dirname(os.path.dirname(__file__
 
 
 assert PyQt6SipRecipe._version == "13.10.3"
-assert PyQt6SipRecipe.depends == ['setuptools', 'python3']
+assert PyQt6SipRecipe.depends == ['python3']
 assert PyQt6SipRecipe.python_depends == []
 
 

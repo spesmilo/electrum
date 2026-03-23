@@ -2,7 +2,7 @@ from pythonforandroid.recipes.sip import SipRecipe
 
 
 assert SipRecipe._version == "6.15.1"
-assert SipRecipe.depends == ["setuptools", "packaging", "python3"], SipRecipe.depends
+assert SipRecipe.depends == ["python3"], SipRecipe.depends
 assert SipRecipe.python_depends == []
 
 
