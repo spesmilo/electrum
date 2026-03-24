@@ -42,13 +42,25 @@ WizardComponent {
             render: plugin.otpSecret
         }
 
-        TextHighlightPane {
+        Item {
             Layout.alignment: Qt.AlignHCenter
             visible: plugin.otpSecret
-            Label {
-                text: plugin.otpSecret
-                font.family: FixedFont
-                font.bold: true
+            implicitWidth: otpSecretPane.implicitWidth
+            implicitHeight: otpSecretPane.implicitHeight
+            TextHighlightPane {
+                id: otpSecretPane
+                Label {
+                    text: plugin.otpSecret
+                    font.family: FixedFont
+                    font.bold: true
+                }
+            }
+            MouseArea {
+                anchors.fill: parent
+                onClicked: {
+                    AppController.textToClipboard(plugin.otpSecret)
+                    toaster.show(otpSecretPane, qsTr('Copied!'))
+                }
             }
         }
 
@@ -116,6 +128,10 @@ WizardComponent {
         plugin = AppController.plugin('trustedcoin')
         plugin.createKeystore()
         otp_auth.forceActiveFocus()
+    }
+
+    Toaster {
+        id: toaster
     }
 
     Connections {
