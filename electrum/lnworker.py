@@ -2545,7 +2545,8 @@ class LNWallet(Logger):
 
     def _get_invoice_features(self, amount_msat: Optional[int]) -> LnFeatures:
         invoice_features = self.features.for_invoice()
-        if not self.uses_trampoline():
+        if not all((not c.is_open() or c.is_frozen_for_receiving()) or self.is_trampoline_peer(c.node_id) \
+                        for c in self.channels.values()):
             invoice_features &= ~ LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM
         needs_jit: bool = self.receive_requires_jit_channel(amount_msat)
         if needs_jit:
