@@ -22,10 +22,7 @@ tlvdata,payload,outgoing_node_id,outgoing_node_id,byte,33
 tlvtype,payload,invoice_routing_info,66099
 tlvdata,payload,invoice_routing_info,invoice_routing_info,byte,...
 tlvtype,payload,trampoline_onion_packet,66100
-tlvdata,payload,trampoline_onion_packet,version,byte,1
-tlvdata,payload,trampoline_onion_packet,public_key,byte,33
-tlvdata,payload,trampoline_onion_packet,hops_data,byte,400
-tlvdata,payload,trampoline_onion_packet,hmac,byte,32
+tlvdata,payload,trampoline_onion_packet,trampoline_onion_packet,byte,...
 tlvtype,encrypted_data_tlv,padding,1
 tlvdata,encrypted_data_tlv,padding,padding,byte,...
 tlvtype,encrypted_data_tlv,short_channel_id,2
