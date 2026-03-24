@@ -40,6 +40,16 @@ WizardComponent {
             qrdata: encodeURI('otpauth://totp/Electrum 2FA ' + wizard_data['wallet_name']
                     + '?secret=' + plugin.otpSecret + '&digits=6')
             render: plugin.otpSecret
+            onClicked: {
+                if (plugin.otpSecret) {
+                    if (AppController.isAndroid()) {
+                        Qt.openUrlExternally(qrdata)
+                    } else {
+                        AppController.textToClipboard(plugin.otpSecret)
+                        toaster.show(this, qsTr('Copied!'))
+                    }
+                }
+            }
         }
 
         Item {
@@ -68,7 +78,7 @@ WizardComponent {
             Layout.fillWidth: true
             visible: !otpVerified && plugin.otpSecret
             wrapMode: Text.Wrap
-            text: qsTr('Enter or scan into authenticator app. Then authenticate below')
+            text: qsTr('Tap the QR code to open in your authenticator app, or scan it manually. Then authenticate below')
         }
 
         Label {
