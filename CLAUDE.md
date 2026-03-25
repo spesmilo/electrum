@@ -1,4 +1,4 @@
-# Electrum — Lightweight Bitcoin Client
+# Electrum  --  Lightweight Bitcoin Client
 
 ## Project Overview
 
@@ -36,32 +36,32 @@ Electrum is a lightweight Bitcoin wallet written in Python. Focuses on speed, lo
 
 ### GUI (`electrum/gui/`)
 
-- `qt/` — Qt6-based GUI (full-featured)
-- `qml/` — QML-based GUI (touch-friendly, Android)
-- `text.py` — Terminal/text-mode interface
-- `stdio.py` — JSON-RPC stdio interface
-- `common_qt/` — Shared Qt utilities
+- `qt/`  --  Qt6-based GUI (full-featured)
+- `qml/`  --  QML-based GUI (touch-friendly, Android)
+- `text.py`  --  Terminal/text-mode interface
+- `stdio.py`  --  JSON-RPC stdio interface
+- `common_qt/`  --  Shared Qt utilities
 
 ### Network Layers
 
-- `chains/` — Network configurations (mainnet, testnet, signet, testnet4, mutinynet)
+- `chains/`  --  Network configurations (mainnet, testnet, signet, testnet4, mutinynet)
 - Servers defined in `electrum/chains/<network>/servers.json`
 - Checkpoints in `electrum/chains/<network>/checkpoints.json`
 
 ### Testing
 
-- `tests/` — Test suite (pytest-based)
+- `tests/`  --  Test suite (pytest-based)
 - Coverage tracked at Coveralls
 
 ### Build & Packaging
 
-- `contrib/` — Build scripts, OS packaging, localization
-  - `contrib/build-wine/` — Windows builds
-  - `contrib/osx/` — macOS builds
-  - `contrib/android/` — Android builds (via python-for-android)
-  - `contrib/locale/` — Translation tooling
-- `setup.py` / `setup.cfg` — Python package configuration
-- `pubkeys/` — Signing keys for release verification
+- `contrib/`  --  Build scripts, OS packaging, localization
+  - `contrib/build-wine/`  --  Windows builds
+  - `contrib/osx/`  --  macOS builds
+  - `contrib/android/`  --  Android builds (via python-for-android)
+  - `contrib/locale/`  --  Translation tooling
+- `setup.py` / `setup.cfg`  --  Python package configuration
+- `pubkeys/`  --  Signing keys for release verification
 
 ## Build & Development
 
@@ -108,7 +108,7 @@ ELECTRUM_ECC_DONT_COMPILE=1 python3 -m pip install --user ".[gui,crypto]"
 
 ## Key Features
 
-- SPV (Simplified Payment Verification) — doesn't download full blockchain
+- SPV (Simplified Payment Verification)  --  doesn't download full blockchain
 - Multi-signature wallets
 - Hardware wallet support (Ledger, Trezor, BitBox, KeepKey, etc.)
 - Lightning Network support
