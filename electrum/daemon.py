@@ -327,10 +327,10 @@ class CommandsServer(AuthenticatedServer):
             await site.start()
         except Exception as e:
             raise Exception(f"failed to start CommandsServer at {self._socket_config_str()}. got exc: {e!r}") from None
-        socket = site._server.sockets[0]
         if self.socktype == 'unix':
             addr = self.sockpath
         elif self.socktype == 'tcp':
+            socket = site._server.sockets[0]
             addr = socket.getsockname()
         else:
             raise Exception(f"impossible socktype ({self.socktype!r})")
