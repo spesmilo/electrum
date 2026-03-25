@@ -8,7 +8,7 @@ import urllib.parse
 
 from PyQt6.QtCore import pyqtSignal, QPoint, Qt
 from PyQt6.QtWidgets import (QLabel, QVBoxLayout, QGridLayout, QHBoxLayout,
-                             QWidget, QToolTip, QPushButton, QApplication)
+                             QWidget, QToolTip, QPushButton, QApplication, QSlider)
 
 from electrum.i18n import _
 from electrum.logging import Logger
@@ -156,12 +156,6 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.send_button = EnterButton(_("Pay") + "...", self.do_pay_or_get_invoice)
         self.send_button.setEnabled(False)
         self.clear_button = EnterButton(_("Clear"), self.do_clear)
-
-        #buttons1 = QHBoxLayout()
-        #buttons1.addWidget(self.paste_button)
-        #buttons1.addWidget(self.clear_button)
-        #buttons1.addStretch(1)
-        #grid.addLayout(buttons1, 0, 1, 1, 4)
 
         buttons = QHBoxLayout()
         buttons.addWidget(self.paste_button)
@@ -728,8 +722,49 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         assert lnworker is not None
         # FIXME this is currently lying to user as we truncate to satoshis
         amount_msat = invoice.get_amount_msat()
-        msg = _("Pay lightning invoice?") + '\n\n' + _("This will send {}?").format(self.format_amount_and_units(Decimal(amount_msat)/1000))
-        if not self.question(msg):
+        label = QLabel(
+            _("This will send {} to the recipient").format(self.format_amount_and_units(Decimal(amount_msat)/1000)))
+
+        dialog = WindowModalDialog(self, _("Pay lightning invoice?"))
+        dialog.setMinimumWidth(400)
+        vbox = QVBoxLayout()
+        dialog.setLayout(vbox)
+        vbox.addWidget(label)
+        vbox.addStretch(1)
+
+        lnfee_hlabel = HelpLabel.from_configvar(self.config.cv.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS)
+        lnfee_hlabel.setText(_('Max routing fee') + ' :')
+        lnfee_map = [500, 1_000, 3_000, 5_000, 10_000, 20_000, 30_000, 50_000]
+        def lnfee_update_vlabel(fee_val: int):
+            lnfee_vlabel.setText(_("{}% of payment").format(f"{fee_val / 10 ** 4:.2f}"))
+        def lnfee_slider_moved():
+            pos = lnfee_slider.sliderPosition()
+            fee_val = lnfee_map[pos]
+            lnfee_update_vlabel(fee_val)
+            self.config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS = fee_val
+        lnfee_slider = QSlider(Qt.Orientation.Horizontal)
+        lnfee_slider.setRange(0, len(lnfee_map)-1)
+        lnfee_slider.setTracking(True)
+        try:
+            lnfee_spos = lnfee_map.index(self.config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS)
+        except ValueError:
+            lnfee_spos = 0
+        lnfee_slider.setSliderPosition(lnfee_spos)
+        lnfee_vlabel = QLabel("")
+        lnfee_update_vlabel(self.config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS)
+        lnfee_slider.valueChanged.connect(lnfee_slider_moved)
+        grid = QGridLayout()
+        grid.setSpacing(8)
+        grid.setColumnStretch(3, 1)  # Make the last column stretch
+        grid.addWidget(lnfee_hlabel, 0, 0)
+        grid.addWidget(lnfee_vlabel, 0, 1)
+        grid.addWidget(lnfee_slider, 1, 1)
+        vbox.addLayout(grid)
+
+        pay_button = OkButton(dialog, _("Pay"))
+        cancel_button = CancelButton(dialog)
+        vbox.addLayout(Buttons(cancel_button, pay_button))
+        if not dialog.exec():
             return
         self.save_pending_invoice()
         coro = lnworker.pay_invoice(invoice, amount_msat=amount_msat)
