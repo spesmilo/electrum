@@ -1101,8 +1101,6 @@ class Channel(AbstractChannel):
         util.trigger_callback('channel', self.lnworker.wallet, self)
 
     def is_frozen_for_receiving(self) -> bool:
-        if self.lnworker.uses_trampoline() and not self.lnworker.is_trampoline_peer(self.node_id):
-            return True
         return self.storage.get('frozen_for_receiving', False)
 
     def set_frozen_for_receiving(self, b: bool) -> None:
