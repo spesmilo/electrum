@@ -589,6 +589,8 @@ class Plugins(DaemonThread):
 
     def maybe_load_plugin_init_method(self, name: str) -> None:
         """Loads the __init__.py module of the plugin if it is not already loaded."""
+        if not self.is_authorized(name):
+            return
         base_name = ('electrum_external_plugins.' if self.is_external(name) else 'electrum.plugins.') + name
         if base_name not in sys.modules:
             metadata = self.get_metadata(name)
@@ -609,14 +611,13 @@ class Plugins(DaemonThread):
             self.exec_module_from_spec(init_spec, base_name)
 
     def load_plugin_by_name(self, name: str) -> 'BasePlugin':
+        if not self.is_authorized(name):
+            return
         if name in self.plugins:
             return self.plugins[name]
         # if the plugin was not enabled on startup the init module hasn't been loaded yet
         self.maybe_load_plugin_init_method(name)
         is_external = self.is_external(name)
-        if is_external and not self.is_authorized(name):
-            self.logger.info(f'plugin not authorized {name}')
-            return
         if not is_external:
             full_name = f'electrum.plugins.{name}.{self.gui_name}'
         else:
@@ -728,6 +729,11 @@ class Plugins(DaemonThread):
     def get_hardware_support(self):
         out = []
         for name, details in self._hw_wallets.items():
+            if not self.is_authorized(name):
+                # we allow non-authorized plugins to populate self._hw_wallets
+                # so that a plugin can be loaded and authorized without having
+                # to start a new session
+                continue
             try:
                 p = self.get_plugin(name)
                 if p.is_available():
@@ -766,6 +772,7 @@ class Plugins(DaemonThread):
             register_keystore(details[1], dynamic_constructor)
 
     def get_plugin(self, name: str) -> 'BasePlugin':
+        assert self.is_authorized(name)
         if name not in self.plugins:
             self.load_plugin(name)
         return self.plugins[name]
