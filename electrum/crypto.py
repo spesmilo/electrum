@@ -83,7 +83,7 @@ else:
 
 
 if not (HAS_CRYPTODOME or HAS_CRYPTOGRAPHY):
-    sys.exit(f"Error: at least one of ('pycryptodomex', 'cryptography') needs to be installed.")
+    raise ImportError(f"Error: at least one of ('pycryptodomex', 'cryptography') needs to be installed.")
 
 
 def version_info() -> Mapping[str, Optional[str]]:
