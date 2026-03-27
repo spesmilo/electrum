@@ -127,11 +127,12 @@ class SettingsDialog(QDialog, QtEventListener):
                     trampoline_cb.setCheckState(Qt.CheckState.Checked)
                     return
             self.config.LIGHTNING_USE_GOSSIP = not use_trampoline
-            if not use_trampoline:
-                self.network.start_gossip()
-            else:
-                self.network.run_from_another_thread(
-                    self.network.stop_gossip())
+            if self.network:
+                if not use_trampoline:
+                    self.network.start_gossip()
+                else:
+                    self.network.run_from_another_thread(
+                        self.network.stop_gossip())
             util.trigger_callback('ln_gossip_sync_progress')
             # FIXME: update all wallet windows
             util.trigger_callback('channels_updated', self.wallet)
