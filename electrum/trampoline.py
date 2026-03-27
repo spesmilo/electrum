@@ -224,6 +224,8 @@ def create_trampoline_route(
 ) -> LNPaymentTRoute:
     # we decide whether to convert to a legacy payment
     is_legacy, invoice_trampolines = is_legacy_relay(invoice_features, r_tags)
+    # we can be in the invoice_trampolines e.g. if we have a direct channel with the recipient
+    invoice_trampolines.discard(my_pubkey)
     _logger.debug(f"Creating trampoline route for invoice_pubkey={invoice_pubkey.hex()}, {is_legacy=}")
 
     # we build a route of trampoline hops and extend the route list in place
