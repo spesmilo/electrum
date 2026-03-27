@@ -610,9 +610,9 @@ class Plugins(DaemonThread):
 
             self.exec_module_from_spec(init_spec, base_name)
 
-    def load_plugin_by_name(self, name: str) -> 'BasePlugin':
+    def load_plugin_by_name(self, name: str) -> Optional['BasePlugin']:
         if not self.is_authorized(name):
-            return
+            return None
         if name in self.plugins:
             return self.plugins[name]
         # if the plugin was not enabled on startup the init module hasn't been loaded yet
@@ -639,6 +639,7 @@ class Plugins(DaemonThread):
     def close_plugin(self, plugin):
         self.remove_jobs(plugin.thread_jobs())
 
+    @staticmethod
     def derive_privkey(self, pw: str, salt:bytes) -> ECPrivkey:
         from hashlib import pbkdf2_hmac
         secret = pbkdf2_hmac('sha256', pw.encode('utf-8'), salt, iterations=10**5)
@@ -809,8 +810,7 @@ class Plugins(DaemonThread):
             with open(path, 'rb') as myfile:
                 return myfile.read()
         else:
-            # no icon
-            return None
+            raise Exception(f"plugin not found: {name!r}")
 
 
 def get_file_hash256(path: str) -> bytes:
