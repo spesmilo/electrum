@@ -17,14 +17,15 @@ from electrum.lnonion import (
     get_shared_secrets_along_route, new_onion_packet, ONION_MESSAGE_LARGE_SIZE, HOPS_DATA_SIZE, InvalidPayloadSize,
     encrypt_hops_recipient_data)
 from electrum.crypto import get_ecdh, privkey_to_pubkey
-from electrum.lnutil import LnFeatures, Keypair
+from electrum.lnutil import LnFeatures, Keypair, MIN_FINAL_CLTV_DELTA_ACCEPTED, REMOTE
 from electrum.onion_message import (
-    blinding_privkey, create_blinded_path,OnionMessageManager, NoRouteFound, Timeout
+    blinding_privkey, create_blinded_path,OnionMessageManager, NoRouteFound, Timeout, get_blinded_paths_to_me,
 )
 from electrum.util import bfh, read_json_file, OldTaskGroup, get_asyncio_loop
 from electrum.logging import console_stderr_handler
 
 from . import ElectrumTestCase
+from .test_lnpeer import TestPeer
 
 
 TIME_STEP = 0.01  # run tests 100 x faster
@@ -461,3 +462,43 @@ class TestOnionMessageManager(ElectrumTestCase):
             self.logger.debug('stopping manager')
             await t.stop()
             await lnw.stop()
+
+
+class TestOnionMessageUtils(TestPeer):
+
+    async def test_get_blinded_paths_to_me_payment(self):
+        # A <- B (alice generates blinded path from bob to herself)
+        graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
+        alice, bob = graph.workers.values()
+
+        # store bobs channel_update in alice
+        alice_chan = graph.channels[('alice', 'bob')]
+        bob_chan = graph.channels[('bob', 'alice')]
+        bob_update_raw = bob_chan.get_outgoing_gossip_channel_update()
+        bob_update = decode_msg(bob_update_raw)[1]
+        bob_update['raw'] = bob_update_raw
+        alice_chan.set_remote_update(bob_update)
+
+        final_recipient_data = {'path_id': {'data': os.urandom(32)}}
+        paths, payinfos = get_blinded_paths_to_me(alice, final_recipient_data, onion_message=False)
+
+        self.assertEqual(len(paths), 1)
+        self.assertEqual(len(payinfos), 1)
+
+        self.assertEqual(payinfos[0], {
+            'fee_base_msat': bob_chan.forwarding_fee_base_msat,
+            'fee_proportional_millionths': bob_chan.forwarding_fee_proportional_millionths,
+            'cltv_expiry_delta': bob_chan.forwarding_cltv_delta + MIN_FINAL_CLTV_DELTA_ACCEPTED,
+            'htlc_minimum_msat': bob_chan.config[REMOTE].htlc_minimum_msat,
+            'htlc_maximum_msat': min(bob_chan.config[REMOTE].max_htlc_value_in_flight_msat, 1000 * bob_chan.constraints.capacity),
+            'flen': 0,
+            'features': bytes(0),
+        })
+
+        blinded_path = paths[0]
+        self.assertEqual(len(blinded_path['path']), 2)
+        self.assertEqual(blinded_path['first_node_id'], bob.node_keypair.pubkey)
+        self.assertEqual(len(blinded_path['first_path_key']), 33)
+        self.assertEqual(blinded_path['num_hops'], int.to_bytes(len(blinded_path['path'])))
+        self.assertIn('blinded_node_id', blinded_path['path'][0])
+        self.assertIn('encrypted_recipient_data', blinded_path['path'][0])
