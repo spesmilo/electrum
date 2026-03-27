@@ -5,7 +5,8 @@ import time
 import dataclasses
 import logging
 from functools import partial
-from types import MappingProxyType
+from unittest.mock import patch
+from aiorpcx import NetAddress
 
 import electrum_ecc as ecc
 from electrum_ecc import ECPrivkey
@@ -15,16 +16,19 @@ from electrum.lnmsg import decode_msg, OnionWireSerializer
 from electrum.lnonion import (
     OnionHopsDataSingle, OnionPacket, process_onion_packet, get_bolt04_onion_key, encrypt_onionmsg_data_tlv,
     get_shared_secrets_along_route, new_onion_packet, ONION_MESSAGE_LARGE_SIZE, HOPS_DATA_SIZE, InvalidPayloadSize,
-    encrypt_hops_recipient_data)
+    encrypt_hops_recipient_data, blinding_privkey, decrypt_onionmsg_data_tlv)
 from electrum.crypto import get_ecdh, privkey_to_pubkey
-from electrum.lnutil import LnFeatures, Keypair
+from electrum.lntransport import LNPeerAddr
+from electrum.lnutil import LnFeatures, Keypair, MIN_FINAL_CLTV_DELTA_ACCEPTED, REMOTE
 from electrum.onion_message import (
-    blinding_privkey, create_blinded_path,OnionMessageManager, NoRouteFound, Timeout
+    create_blinded_path, OnionMessageManager, NoRouteFound, Timeout,
+    create_route_to_introduction_point, get_blinded_paths_to_me
 )
 from electrum.util import bfh, read_json_file, OldTaskGroup, get_asyncio_loop
 from electrum.logging import console_stderr_handler
 
 from . import ElectrumTestCase
+from .test_lnpeer import TestPeer, inject_chan_into_gossipdb
 
 
 TIME_STEP = 0.01  # run tests 100 x faster
@@ -310,11 +314,12 @@ class TestOnionMessageManager(ElectrumTestCase):
         self.carol = keypair(ECPrivkey(privkey_bytes=b'\x43'*32))
         self.dave = keypair(ECPrivkey(privkey_bytes=b'\x44'*32))
         self.eve = keypair(ECPrivkey(privkey_bytes=b'\x45'*32))
+        self.fred = keypair(ECPrivkey(privkey_bytes=b'\x46'*32))
 
     async def run_test1(self, t):
         t1 = t.submit_send(
             payload={'message': {'text': 'alice_timeout'.encode('utf-8')}},
-            node_id_or_blinded_path=self.alice.pubkey)
+            node_id_or_blinded_paths=self.alice.pubkey)
 
         with self.assertRaises(Timeout):
             await t1
@@ -322,7 +327,7 @@ class TestOnionMessageManager(ElectrumTestCase):
     async def run_test2(self, t):
         t2 = t.submit_send(
             payload={'message': {'text': 'bob_slow_timeout'.encode('utf-8')}},
-            node_id_or_blinded_path=self.bob.pubkey)
+            node_id_or_blinded_paths=self.bob.pubkey)
 
         with self.assertRaises(Timeout):
             await t2
@@ -330,7 +335,7 @@ class TestOnionMessageManager(ElectrumTestCase):
     async def run_test3(self, t, rkey):
         t3 = t.submit_send(
             payload={'message': {'text': 'carol_with_immediate_reply'.encode('utf-8')}},
-            node_id_or_blinded_path=self.carol.pubkey,
+            node_id_or_blinded_paths=self.carol.pubkey,
             key=rkey)
 
         t3_result = await t3
@@ -339,7 +344,7 @@ class TestOnionMessageManager(ElectrumTestCase):
     async def run_test4(self, t, rkey):
         t4 = t.submit_send(
             payload={'message': {'text': 'dave_with_slow_reply'.encode('utf-8')}},
-            node_id_or_blinded_path=self.dave.pubkey,
+            node_id_or_blinded_paths=self.dave.pubkey,
             key=rkey)
 
         t4_result = await t4
@@ -348,14 +353,34 @@ class TestOnionMessageManager(ElectrumTestCase):
     async def run_test5(self, t):
         t5 = t.submit_send(
             payload={'message': {'text': 'no_peer'.encode('utf-8')}},
-            node_id_or_blinded_path=self.eve.pubkey)
+            node_id_or_blinded_paths=self.eve.pubkey)
 
-        with self.assertRaises(NoRouteFound):
+        # will not find route to eve, but has eve's address, but we are configured to not direct connect
+        with self.assertRaises(NoRouteFound) as c:
             await t5
+        self.assertEqual(c.exception.peer_address, LNPeerAddr('localhost', 1234, self.eve.pubkey))
+
+    async def run_test6(self, t, rkey):
+        # bob will not reply, fred will
+        t6 = t.submit_send(
+            payload={'message': {'text': 'send_dest_roundrobin'.encode('utf-8')}},
+            node_id_or_blinded_paths=[self.bob.pubkey, self.fred.pubkey],
+            key=rkey
+        )
+
+        t6_result = await t6
+        self.assertEqual(t6_result, ({'path_id': {'data': b'electrum' + rkey}}, {}))
 
     async def test_request_and_reply(self):
         n = MockNetwork()
         lnw = self.create_mock_lnwallet(name='test_request_and_reply', has_anchors=False)
+
+        # mock add_peer for direct connection fallback
+        async def mock__add_peer(host, port, node_id):
+            mock_peer = MockPeer(pubkey=node_id)
+            # lnw.lnpeermgr._peers[node_id] = mock_peer
+            return mock_peer
+        lnw.lnpeermgr._add_peer = mock__add_peer
 
         def slow(*args, **kwargs):
             time.sleep(2*TIME_STEP)
@@ -369,11 +394,14 @@ class TestOnionMessageManager(ElectrumTestCase):
 
         rkey1 = bfh('0102030405060708')
         rkey2 = bfh('0102030405060709')
+        rkey3 = bfh('010203040506070a')
 
         lnw.lnpeermgr._peers[self.alice.pubkey] = MockPeer(self.alice.pubkey)
         lnw.lnpeermgr._peers[self.bob.pubkey] = MockPeer(self.bob.pubkey, on_send_message=slow)
         lnw.lnpeermgr._peers[self.carol.pubkey] = MockPeer(self.carol.pubkey, on_send_message=partial(withreply, rkey1))
         lnw.lnpeermgr._peers[self.dave.pubkey] = MockPeer(self.dave.pubkey, on_send_message=partial(slowwithreply, rkey2))
+        lnw.channel_db._addresses[self.eve.pubkey] = {NetAddress('localhost', '1234'): int(time.time())}
+        lnw.lnpeermgr._peers[self.fred.pubkey] = MockPeer(self.fred.pubkey, on_send_message=partial(withreply, rkey3))
         t = OnionMessageManager(lnw)
         t.start_network(network=n)
 
@@ -385,6 +413,7 @@ class TestOnionMessageManager(ElectrumTestCase):
             await self.run_test3(t, rkey1)
             await self.run_test4(t, rkey2)
             await self.run_test5(t)
+            await self.run_test6(t, rkey3)
             self.logger.debug('tests in parallel')
             async with OldTaskGroup() as group:
                 await group.spawn(self.run_test1(t))
@@ -392,6 +421,7 @@ class TestOnionMessageManager(ElectrumTestCase):
                 await group.spawn(self.run_test3(t, rkey1))
                 await group.spawn(self.run_test4(t, rkey2))
                 await group.spawn(self.run_test5(t))
+                await group.spawn(self.run_test6(t, rkey3))
         finally:
             await asyncio.sleep(TIME_STEP)
 
@@ -461,3 +491,107 @@ class TestOnionMessageManager(ElectrumTestCase):
             self.logger.debug('stopping manager')
             await t.stop()
             await lnw.stop()
+
+
+class TestOnionMessageUtils(TestPeer):
+
+    async def test_get_blinded_paths_to_me_payment(self):
+        # A <- B (alice generates blinded path from bob to herself)
+        graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
+        alice, bob = graph.workers.values()
+
+        # store bobs channel_update in alice
+        alice_chan = graph.channels[('alice', 'bob')]
+        bob_chan = graph.channels[('bob', 'alice')]
+        bob_update_raw = bob_chan.get_outgoing_gossip_channel_update()
+        bob_update = decode_msg(bob_update_raw)[1]
+        bob_update['raw'] = bob_update_raw
+        alice_chan.set_remote_update(bob_update)
+
+        final_recipient_data = {'path_id': {'data': os.urandom(32)}}
+        paths, payinfos = get_blinded_paths_to_me(alice, final_recipient_data, onion_message=False)
+
+        self.assertEqual(len(paths), 1)
+        self.assertEqual(len(payinfos), 1)
+
+        self.assertEqual(payinfos[0], {
+            'fee_base_msat': bob_chan.forwarding_fee_base_msat,
+            'fee_proportional_millionths': bob_chan.forwarding_fee_proportional_millionths,
+            'cltv_expiry_delta': bob_chan.forwarding_cltv_delta + MIN_FINAL_CLTV_DELTA_ACCEPTED,
+            'htlc_minimum_msat': bob_chan.config[REMOTE].htlc_minimum_msat,
+            'htlc_maximum_msat': min(bob_chan.config[REMOTE].max_htlc_value_in_flight_msat, 1000 * bob_chan.constraints.capacity),
+            'flen': 0,
+            'features': bytes(0),
+        })
+
+        blinded_path = paths[0]
+        self.assertEqual(len(blinded_path['path']), 2)
+        self.assertEqual(blinded_path['first_node_id'], bob.node_keypair.pubkey)
+        self.assertEqual(len(blinded_path['first_path_key']), 33)
+        self.assertEqual(blinded_path['num_hops'], int.to_bytes(len(blinded_path['path'])))
+        self.assertIn('blinded_node_id', blinded_path['path'][0])
+        self.assertIn('encrypted_recipient_data', blinded_path['path'][0])
+
+    async def test_create_route_to_introduction_point(self):
+        # A -- B -- C -- D -- E
+        # Alice constructs route to Edward as introduction point to some blinded path
+        line_graph = self.GRAPH_DEFINITIONS['line_graph']
+        graph = self.prepare_chans_and_peers_in_graph(line_graph)
+        alice, bob, carol, dave, edward = graph.workers.values()
+
+        session_key = os.urandom(32)
+        introduction_point = edward.node_keypair.pubkey
+        first_path_key = ecc.ECPrivkey.generate_random_key().get_public_key_bytes()
+        blinded_path = {
+            'first_path_key': first_path_key,
+        }
+        with self.assertRaises(NoRouteFound):
+            create_route_to_introduction_point(alice, blinded_path, introduction_point, session_key)
+
+        for name, definition in line_graph.items():
+            for channel_partner in definition.get('channels', {}):
+                inject_chan_into_gossipdb(
+                    channel_db=alice.channel_db,
+                    graph=graph,
+                    node1name=name,
+                    node2name=channel_partner,
+                )
+
+        # patch is_onion_message_node so we don't have to inject node announcements
+        with patch('electrum.onion_message.is_onion_message_node', return_value=True):
+            r = create_route_to_introduction_point(alice, blinded_path, introduction_point, session_key)
+        peer, path_key, hops_data, blinded_node_ids = r
+        # alice hands the onion over to bob
+        self.assertEqual(peer.pubkey, bob.lnpeermgr.node_keypair.pubkey)
+
+        self.assertEqual(path_key, ecc.ECPrivkey(session_key).get_public_key_bytes())
+        self.assertEqual(len(hops_data), 3)
+        self.assertEqual(len(hops_data), len(blinded_node_ids))
+
+        # bob unwraps the first layer, sees the next peer, next peer should be carol
+        self.assertEqual(hops_data[0].blind_fields['next_node_id']['node_id'], carol.lnpeermgr.node_keypair.pubkey)
+        self.assertEqual(hops_data[1].blind_fields['next_node_id']['node_id'], dave.lnpeermgr.node_keypair.pubkey)
+        self.assertEqual(hops_data[2].blind_fields['next_node_id']['node_id'], edward.lnpeermgr.node_keypair.pubkey)
+        self.assertEqual(hops_data[2].blind_fields['next_path_key_override']['path_key'], first_path_key)
+
+        # verify that the recipient data is encrypted to the correct node
+        hop_shared_secrets, blinded_node_ids = get_shared_secrets_along_route(
+            (bob.node_keypair.pubkey, carol.node_keypair.pubkey, dave.node_keypair.pubkey),
+            session_key)
+        for hop, ss in zip(hops_data, hop_shared_secrets):
+            encrypted_recipient_data = hop.payload['encrypted_recipient_data']['encrypted_recipient_data']
+            decrypt_onionmsg_data_tlv(
+                shared_secret=ss,
+                encrypted_recipient_data=encrypted_recipient_data,
+            )
+
+        # now Bob is IP, Alice is directly connected to IP
+        introduction_point = bob.node_keypair.pubkey
+        r = create_route_to_introduction_point(alice, blinded_path, introduction_point, session_key)
+        peer, path_key, hops_data, blinded_node_ids = r
+        self.assertEqual(path_key, first_path_key)
+        self.assertEqual(len(hops_data), 0)
+        self.assertEqual(len(blinded_node_ids), 0)
+        alice_bob_peer = alice.lnpeermgr.get_peer_by_pubkey(bob.node_keypair.pubkey)
+        self.assertIsNotNone(alice_bob_peer)
+        self.assertEqual(peer, alice_bob_peer)
