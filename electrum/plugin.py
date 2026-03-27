@@ -640,7 +640,7 @@ class Plugins(DaemonThread):
         self.remove_jobs(plugin.thread_jobs())
 
     @staticmethod
-    def derive_privkey(self, pw: str, salt:bytes) -> ECPrivkey:
+    def derive_privkey(pw: str, salt: bytes) -> ECPrivkey:
         from hashlib import pbkdf2_hmac
         secret = pbkdf2_hmac('sha256', pw.encode('utf-8'), salt, iterations=10**5)
         return ECPrivkey(secret)
