@@ -13,8 +13,8 @@ ElDialog {
     title: qsTr('LNURL Withdraw request')
     iconSource: '../../../icons/link.png'
 
-    property Wallet wallet: Daemon.currentWallet
-    property RequestDetails requestDetails
+    property var wallet: Daemon.currentWallet  // type: Wallet
+    property var requestDetails  // type: RequestDetails
 
     padding: 0
     needsSystemBarPadding: false
@@ -50,6 +50,7 @@ ElDialog {
 
     ColumnLayout {
         width: parent.width
+        spacing: 0
 
         GridLayout {
             id: rootLayout
@@ -75,6 +76,7 @@ ElDialog {
                           + '\n\n'
                           + qsTr('Do a submarine swap in the \'Channels\' tab to get more incoming liquidity.')
                 iconStyle: InfoTextArea.IconStyle.Error
+                backgroundColor: constants.darkerDialogBackground
             }
 
             InfoTextArea {
@@ -83,9 +85,10 @@ ElDialog {
                 compact: true
                 visible: !dialog.insufficientLiquidity && dialog.providerMinWithdrawable != dialog.providerMaxWithdrawable
                 text: qsTr('Amount must be between %1 and %2 %3')
-                .arg(Config.formatSats(dialog.effectiveMinWithdrawable))
-                .arg(Config.formatSats(dialog.effectiveMaxWithdrawable))
-                .arg(Config.baseUnit)
+                        .arg(Config.formatSats(dialog.effectiveMinWithdrawable))
+                        .arg(Config.formatSats(dialog.effectiveMaxWithdrawable))
+                        .arg(Config.baseUnit)
+                backgroundColor: constants.darkerDialogBackground
             }
 
             InfoTextArea {
@@ -99,6 +102,7 @@ ElDialog {
                         + ' '
                         + qsTr('You may need to do a submarine swap to increase your incoming liquidity.')
                 iconStyle: InfoTextArea.IconStyle.Warn
+                backgroundColor: constants.darkerDialogBackground
             }
 
             Label {
@@ -160,16 +164,19 @@ ElDialog {
             }
         }
 
-        FlatButton {
+        DialogButtonContainer {
             Layout.topMargin: constants.paddingLarge
             Layout.fillWidth: true
-            text: qsTr('Withdraw...')
-            icon.source: '../../icons/confirmed.png'
-            enabled: valid && !requestDetails.busy
-            onClicked: {
-                var satsAmount = amountBtc.textAsSats.satsInt;
-                requestDetails.lnurlRequestWithdrawal(satsAmount);
-                dialog.close();
+            FlatButton {
+                Layout.fillWidth: true
+                text: qsTr('Withdraw...')
+                icon.source: '../../icons/confirmed.png'
+                enabled: valid && !requestDetails.busy
+                onClicked: {
+                    var satsAmount = amountBtc.textAsSats.satsInt;
+                    requestDetails.lnurlRequestWithdrawal(satsAmount);
+                    dialog.close();
+                }
             }
         }
     }

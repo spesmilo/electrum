@@ -14,8 +14,8 @@ Pane {
     padding: 0
     clip: true
 
-    background: Rectangle {
-        color: constants.darkerBackground
+    background: PaneInsetBackground {
+        vertical: false
     }
 
     ElListView {
