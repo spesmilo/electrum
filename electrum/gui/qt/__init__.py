@@ -439,6 +439,14 @@ class ElectrumGui(BaseElectrumGui, Logger):
         window.activateWindow()
         if uri:
             window.show_send_tab()
+            # Handle URI defensively - local attacker with access to RPC server and config file could get here:
+            #   - tell user something happened
+            window.notify(_("Updated 'Pay To' field to handle external URI"))
+            #   - clear all fields in Send tab:
+            #     - perhaps user was just filling out the fields, trying to make another payment.
+            #       e.g. if the given URI does not have an amount, we should clear the amount field
+            window.send_tab.do_clear()
+            #   - update "Pay To" field (and maybe others)
             window.send_tab.set_payment_identifier(uri)
         return window
 
