@@ -95,7 +95,7 @@ class HttpSwapServer(Logger, EventListener):
                         "minimal": sm._min_amount,
                     },
                     "fees": {
-                        "percentage": sm.percentage,
+                        "percentage": float(sm.percentage),  # cast to float for <= 4.7.1 backwards compatibility
                         "minerFees": {
                             "baseAsset": {
                                 "normal": sm.mining_fee,

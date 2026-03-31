@@ -11,7 +11,7 @@ from electrum_aionostr.util import from_nip19
 from electrum.i18n import _
 from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, UserCancelled, trigger_callback
 from electrum.bitcoin import DummyAddress
-from electrum.transaction import PartialTxOutput, PartialTransaction
+from electrum.transaction import PartialTxOutput, PartialTransaction, PartialTxInput
 from electrum.fee_policy import FeePolicy
 from electrum.submarine_swaps import NostrTransport
 
@@ -93,16 +93,16 @@ class SwapProvidersButton(QPushButton):
         trigger_callback('swap_provider_changed')
 
 
-
 class SwapDialog(WindowModalDialog, QtEventListener):
-
     def __init__(
         self,
         window: 'ElectrumWindow',
         transport: 'SwapServerTransport',
+        *,
         is_reverse: Optional[bool] = None,
         recv_amount_sat_or_max: Optional[Union[int, str]] = None,  # sat or '!'
         channels: Optional[Sequence['Channel']] = None,
+        get_coins: Optional[Callable[..., Sequence['PartialTxInput']]] = None,
     ):
         WindowModalDialog.__init__(self, window, _('Submarine Swap'))
         self.window = window
@@ -112,6 +112,8 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         self.network = window.network
         self.channels = channels
         self.is_reverse = is_reverse if is_reverse is not None else True
+        self.get_coins = get_coins
+
         vbox = QVBoxLayout(self)
 
         self.transport = transport
@@ -188,12 +190,17 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         self.timer.timeout.connect(self.timer_actions)
         self.timer.start()
 
+        self.finished.connect(self.on_finished)
+
         self.fee_slider.update()
         self.register_callbacks()
 
     def closeEvent(self, event):
         self.unregister_callbacks()
         event.accept()
+
+    def on_finished(self, *args):
+        self.timer.stop()
 
     @qt_event_listener
     def on_event_fee_histogram(self, *args):
@@ -426,7 +433,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         assert not self.is_reverse
         if onchain_amount is None:
             raise InvalidSwapParameters("onchain_amount is None")
-        coins = self.window.get_coins()
+        coins = self.get_coins() if self.get_coins else self.window.get_coins()
         if onchain_amount == '!':
             max_amount = sum(c.value_sats() for c in coins)
             max_swap_amount = self.swap_manager.client_max_amount_forward_swap()
@@ -534,8 +541,8 @@ class SwapServerDialog(WindowModalDialog, QtEventListener):
         vbox = QVBoxLayout()
         self.setLayout(vbox)
         vbox.addWidget(WWLabel(msg))
-        vbox.addWidget(self.servers_list)
-        vbox.addStretch()
+        vbox.addWidget(self.servers_list, stretch=1)
+        vbox.addSpacing(10)
         self.ok_button = OkButton(self)
         vbox.addLayout(Buttons(CancelButton(self), self.ok_button))
         self.setMinimumWidth(650)

@@ -344,7 +344,7 @@ class NWCServer(Logger, EventListener):
                 content = json.loads(content)
                 if not isinstance(content, dict):
                     raise Exception("malformed content, not dict")
-                params: dict = content['params']
+                params: dict = content.get('params', {})
                 if not isinstance(params, dict):
                     raise Exception("malformed params, not dict")
             except Exception:

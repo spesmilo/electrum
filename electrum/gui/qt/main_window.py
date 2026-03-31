@@ -50,7 +50,7 @@ import electrum_ecc as ecc
 import electrum
 from electrum.gui import messages
 from electrum import (keystore, constants, util, bitcoin, commands,
-                      paymentrequest, lnutil)
+                      lnutil)
 from electrum.bitcoin import COIN, is_address, DummyAddress
 from electrum.plugin import run_hook
 from electrum.i18n import _
@@ -474,7 +474,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             self.need_update.set()
 
     @event_listener
-    def on_event_new_transaction(self, wallet, tx):
+    def on_event_new_transaction(self, wallet: Abstract_Wallet, tx: Transaction):
         if wallet == self.wallet:
             self.tx_notification_queue.put(tx)
             self.need_update.set()
@@ -930,22 +930,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                 txns.append(self.tx_notification_queue.get_nowait())
             except queue.Empty:
                 break
-        # Combine the transactions if there are at least three
-        if len(txns) >= 3:
-            total_amount = 0
-            for tx in txns:
-                tx_wallet_delta = self.wallet.get_wallet_delta(tx)
-                if not tx_wallet_delta.is_relevant:
-                    continue
-                total_amount += tx_wallet_delta.delta
-            self.notify(_("{} new transactions: Total amount received in the new transactions {}")
-                        .format(len(txns), self.format_amount_and_units(total_amount)))
-        else:
-            for tx in txns:
-                tx_wallet_delta = self.wallet.get_wallet_delta(tx)
-                if not tx_wallet_delta.is_relevant:
-                    continue
-                self.notify(_("New transaction: {}").format(self.format_amount_and_units(tx_wallet_delta.delta)))
+
+        for notification in self.wallet.get_user_notifications_for_new_txns(txns):
+            self.notify(notification)
 
     def notify(self, message):
         if self.tray:
@@ -1263,9 +1250,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
     def run_swap_dialog(
         self,
+        *,
         is_reverse: Optional[bool] = None,
         recv_amount_sat_or_max: Optional[Union[int, str]] = None,
         channels: Optional[Sequence['Channel']] = None,
+        get_coins: Optional[Callable[..., Sequence[PartialTxInput]]] = None,
     ) -> bool:
         if not self.network:
             self.show_error(_("You are offline."))
@@ -1289,7 +1278,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                 transport,
                 is_reverse=is_reverse,
                 recv_amount_sat_or_max=recv_amount_sat_or_max,
-                channels=channels
+                channels=channels,
+                get_coins=get_coins
             )
             try:
                 return d.run(transport)
@@ -1483,17 +1473,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         msg = _('Signing transaction...')
         WaitingDialog(self, msg, task, on_success, on_failure)
 
-    def mktx_for_open_channel(self, *, funding_sat, node_id):
+    def mktx_for_open_channel(self, *, funding_sat, node_id, get_coins=None):
         def make_tx(fee_policy, *, confirmed_only=False, base_tx=None):
             assert base_tx is None
+            coins = get_coins() if get_coins else self.get_coins(nonlocal_only=True, confirmed_only=confirmed_only)
             return self.wallet.lnworker.mktx_for_open_channel(
-                coins=self.get_coins(nonlocal_only=True, confirmed_only=confirmed_only),
+                coins=coins,
                 funding_sat=funding_sat,
                 node_id=node_id,
                 fee_policy=fee_policy)
         return make_tx
 
-    def open_channel(self, connect_str, funding_sat, push_amt):
+    def open_channel(self, connect_str, funding_sat, *, push_amt=0, get_coins=None):
         try:
             node_id, rest = extract_nodeid(connect_str)
         except ConnStringFormatError as e:
@@ -1504,7 +1495,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             if not self.question(msg):
                 return
         # we need to know the fee before we broadcast, because the txid is required
-        make_tx = self.mktx_for_open_channel(funding_sat=funding_sat, node_id=node_id)
+        make_tx = self.mktx_for_open_channel(funding_sat=funding_sat, node_id=node_id, get_coins=get_coins)
         funding_tx, _, _ = self.confirm_tx_dialog(make_tx, funding_sat, context=TxEditorContext.CHANNEL_FUNDING)
         if not funding_tx:
             return
@@ -1680,32 +1671,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         if invoice.exp:
             grid.addWidget(QLabel(_("Expires") + ':'), 4, 0)
             grid.addWidget(QLabel(format_time(invoice.exp + invoice.time)), 4, 1)
-        if invoice.bip70:
-            pr = paymentrequest.PaymentRequest(bytes.fromhex(invoice.bip70))
-            Network.run_from_another_thread(pr.verify())
-            grid.addWidget(QLabel(_("Requestor") + ':'), 5, 0)
-            grid.addWidget(QLabel(pr.get_requestor()), 5, 1)
-            grid.addWidget(QLabel(_("Signature") + ':'), 6, 0)
-            grid.addWidget(QLabel(pr.get_verify_status()), 6, 1)
-            def do_export():
-                name = pr.get_name_for_export() or "payment_request"
-                name = f"{name}.bip70"
-                fn = getSaveFileName(
-                    parent=self,
-                    title=_("Save invoice to file"),
-                    filename=name,
-                    filter="*.bip70",
-                    config=self.config,
-                )
-                if not fn:
-                    return
-                with open(fn, 'wb') as f:
-                    data = f.write(pr.raw)
-                self.show_message(_('BIP70 invoice saved as {}').format(fn))
-            exportButton = EnterButton(_('Export'), do_export)
-            buttons = Buttons(exportButton, CloseButton(d))
-        else:
-            buttons = Buttons(CloseButton(d))
+        buttons = Buttons(CloseButton(d))
         vbox.addLayout(grid)
         vbox.addLayout(buttons)
         d.exec()
@@ -2026,7 +1992,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             msg = _('Do you want to create your first channel?') + '\n\n' + messages.MSG_LIGHTNING_WARNING
             if not self.question(msg):
                 return
-        d = NewChannelDialog(self, amount_sat, min_amount_sat)
+        d = NewChannelDialog(self, amount_sat=amount_sat, min_amount_sat=min_amount_sat)
         return d.run()
 
     def new_contact_dialog(self):

@@ -40,15 +40,37 @@ WizardComponent {
             qrdata: encodeURI('otpauth://totp/Electrum 2FA ' + wizard_data['wallet_name']
                     + '?secret=' + plugin.otpSecret + '&digits=6')
             render: plugin.otpSecret
+            onClicked: {
+                if (plugin.otpSecret) {
+                    if (AppController.isAndroid()) {
+                        Qt.openUrlExternally(qrdata)
+                    } else {
+                        AppController.textToClipboard(plugin.otpSecret)
+                        toaster.show(this, qsTr('Copied!'))
+                    }
+                }
+            }
         }
 
-        TextHighlightPane {
+        Item {
             Layout.alignment: Qt.AlignHCenter
             visible: plugin.otpSecret
-            Label {
-                text: plugin.otpSecret
-                font.family: FixedFont
-                font.bold: true
+            implicitWidth: otpSecretPane.implicitWidth
+            implicitHeight: otpSecretPane.implicitHeight
+            TextHighlightPane {
+                id: otpSecretPane
+                Label {
+                    text: plugin.otpSecret
+                    font.family: FixedFont
+                    font.bold: true
+                }
+            }
+            MouseArea {
+                anchors.fill: parent
+                onClicked: {
+                    AppController.textToClipboard(plugin.otpSecret)
+                    toaster.show(otpSecretPane, qsTr('Copied!'))
+                }
             }
         }
 
@@ -56,7 +78,7 @@ WizardComponent {
             Layout.fillWidth: true
             visible: !otpVerified && plugin.otpSecret
             wrapMode: Text.Wrap
-            text: qsTr('Enter or scan into authenticator app. Then authenticate below')
+            text: qsTr('Tap the QR code to open in your authenticator app, or scan it manually. Then authenticate below')
         }
 
         Label {
@@ -116,6 +138,10 @@ WizardComponent {
         plugin = AppController.plugin('trustedcoin')
         plugin.createKeystore()
         otp_auth.forceActiveFocus()
+    }
+
+    Toaster {
+        id: toaster
     }
 
     Connections {

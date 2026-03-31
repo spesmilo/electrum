@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 from electrum.gui.qml.qetransactionlistmodel import QETransactionListModel
 
-from . import ElectrumTestCase
+from .. import ElectrumTestCase
 
 
 class TestQETransactionListModel(ElectrumTestCase):

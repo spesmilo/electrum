@@ -1,7 +1,9 @@
 from typing import TYPE_CHECKING
+
 from electrum import SimpleConfig
 from electrum.gui.qml.qeconfig import QEConfig
-from tests.qt_util import QETestCase, qt_test
+
+from .qt_util import QETestCase, qt_test
 
 if TYPE_CHECKING:
     from PyQt6.QtCore import QRegularExpression

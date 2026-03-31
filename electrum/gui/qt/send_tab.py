@@ -8,7 +8,7 @@ import urllib.parse
 
 from PyQt6.QtCore import pyqtSignal, QPoint, Qt
 from PyQt6.QtWidgets import (QLabel, QVBoxLayout, QGridLayout, QHBoxLayout,
-                             QWidget, QToolTip, QPushButton, QApplication)
+                             QWidget, QToolTip, QPushButton, QApplication, QSlider)
 
 from electrum.i18n import _
 from electrum.logging import Logger
@@ -24,7 +24,7 @@ from electrum.transaction import Transaction, PartialTxInput, PartialTxOutput
 from electrum.network import TxBroadcastError, BestEffortRequestFailed
 from electrum.payment_identifier import (PaymentIdentifierType, PaymentIdentifier,
                                          invoice_from_payment_identifier,
-                                         payment_identifier_from_invoice, PaymentIdentifierState)
+                                         PaymentIdentifierState)
 from electrum.submarine_swaps import SwapServerError
 from electrum.fee_policy import FeePolicy, FixedFeePolicy
 from electrum.lnurl import LNURL3Data, request_lnurl_withdraw_callback, LNURLError
@@ -44,7 +44,6 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
 
     resolve_done_signal = pyqtSignal(object)
     finalize_done_signal = pyqtSignal(object)
-    notify_merchant_done_signal = pyqtSignal(object)
 
     def __init__(self, window: 'ElectrumWindow'):
         QWidget.__init__(self, window)
@@ -158,12 +157,6 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.send_button.setEnabled(False)
         self.clear_button = EnterButton(_("Clear"), self.do_clear)
 
-        #buttons1 = QHBoxLayout()
-        #buttons1.addWidget(self.paste_button)
-        #buttons1.addWidget(self.clear_button)
-        #buttons1.addStretch(1)
-        #grid.addLayout(buttons1, 0, 1, 1, 4)
-
         buttons = QHBoxLayout()
         buttons.addWidget(self.paste_button)
         buttons.addWidget(self.clear_button)
@@ -210,7 +203,6 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
 
         self.resolve_done_signal.connect(self.on_resolve_done)
         self.finalize_done_signal.connect(self.on_finalize_done)
-        self.notify_merchant_done_signal.connect(self.on_notify_merchant_done)
         self.payto_e.paymentIdentifierChanged.connect(self._handle_payment_identifier)
 
         self.setTabOrder(self.send_button, self.invoice_list)
@@ -392,10 +384,6 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             btn.setEnabled(False)
         self.spinner.setVisible(True)
 
-    def payment_request_error(self, error):
-        self.show_message(error)
-        self.do_clear()
-
     def set_field_validated(self, w, *, validated: Optional[bool] = None):
         if validated is not None:
             w.setStyleSheet(ColorScheme.GREEN.as_stylesheet(True) if validated else ColorScheme.RED.as_stylesheet(True))
@@ -443,7 +431,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
 
         lock_recipient = pi.type in [PaymentIdentifierType.LNURL, PaymentIdentifierType.LNURLW,
                                      PaymentIdentifierType.LNURLP, PaymentIdentifierType.LNADDR,
-                                     PaymentIdentifierType.OPENALIAS, PaymentIdentifierType.BIP70,
+                                     PaymentIdentifierType.OPENALIAS,
                                      PaymentIdentifierType.BIP21, PaymentIdentifierType.BOLT11] and not pi.need_resolve()
         lock_amount = pi.is_amount_locked()
         lock_max = lock_amount or pi.type not in [PaymentIdentifierType.SPK, PaymentIdentifierType.BIP21]
@@ -542,7 +530,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         if not self.wallet.has_lightning() and not invoice.can_be_paid_onchain():
             self.show_error(_('Lightning is disabled'))
         if self.wallet.get_invoice_status(invoice) == PR_PAID:
-            # fixme: this is only for bip70 and lightning
+            # fixme: this is only for lightning
             self.show_error(_('Invoice already paid'))
             return
         #if not invoice.is_lightning():
@@ -734,8 +722,49 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         assert lnworker is not None
         # FIXME this is currently lying to user as we truncate to satoshis
         amount_msat = invoice.get_amount_msat()
-        msg = _("Pay lightning invoice?") + '\n\n' + _("This will send {}?").format(self.format_amount_and_units(Decimal(amount_msat)/1000))
-        if not self.question(msg):
+        label = QLabel(
+            _("This will send {} to the recipient").format(self.format_amount_and_units(Decimal(amount_msat)/1000)))
+
+        dialog = WindowModalDialog(self, _("Pay lightning invoice?"))
+        dialog.setMinimumWidth(400)
+        vbox = QVBoxLayout()
+        dialog.setLayout(vbox)
+        vbox.addWidget(label)
+        vbox.addStretch(1)
+
+        lnfee_hlabel = HelpLabel.from_configvar(self.config.cv.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS)
+        lnfee_hlabel.setText(_('Max routing fee') + ' :')
+        lnfee_map = [500, 1_000, 3_000, 5_000, 10_000, 20_000, 30_000, 50_000]
+        def lnfee_update_vlabel(fee_val: int):
+            lnfee_vlabel.setText(_("{}% of payment").format(f"{fee_val / 10 ** 4:.2f}"))
+        def lnfee_slider_moved():
+            pos = lnfee_slider.sliderPosition()
+            fee_val = lnfee_map[pos]
+            lnfee_update_vlabel(fee_val)
+            self.config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS = fee_val
+        lnfee_slider = QSlider(Qt.Orientation.Horizontal)
+        lnfee_slider.setRange(0, len(lnfee_map)-1)
+        lnfee_slider.setTracking(True)
+        try:
+            lnfee_spos = lnfee_map.index(self.config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS)
+        except ValueError:
+            lnfee_spos = 0
+        lnfee_slider.setSliderPosition(lnfee_spos)
+        lnfee_vlabel = QLabel("")
+        lnfee_update_vlabel(self.config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS)
+        lnfee_slider.valueChanged.connect(lnfee_slider_moved)
+        grid = QGridLayout()
+        grid.setSpacing(8)
+        grid.setColumnStretch(3, 1)  # Make the last column stretch
+        grid.addWidget(lnfee_hlabel, 0, 0)
+        grid.addWidget(lnfee_vlabel, 0, 1)
+        grid.addWidget(lnfee_slider, 1, 1)
+        vbox.addLayout(grid)
+
+        pay_button = OkButton(dialog, _("Pay"))
+        cancel_button = CancelButton(dialog)
+        vbox.addLayout(Buttons(cancel_button, pay_button))
+        if not dialog.exec():
             return
         self.save_pending_invoice()
         coro = lnworker.pay_invoice(invoice, amount_msat=amount_msat)
@@ -766,16 +795,6 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             except BestEffortRequestFailed as e:
                 return False, repr(e)
             # success
-            if invoice and invoice.bip70:
-                payment_identifier = payment_identifier_from_invoice(invoice)
-                # FIXME: this should move to backend
-                if payment_identifier and payment_identifier.need_merchant_notify():
-                    refund_address = self.wallet.get_receiving_address()
-                    payment_identifier.notify_merchant(
-                        tx=tx,
-                        refund_address=refund_address,
-                        on_finished=self.notify_merchant_done_signal.emit
-                    )
             return True, tx.txid()
 
         # Capture current TL window; override might be removed on return
@@ -799,14 +818,6 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
 
         WaitingDialog(self, _('Broadcasting transaction...'),
                       broadcast_thread, broadcast_done, self.window.on_error)
-
-    def on_notify_merchant_done(self, pi: PaymentIdentifier):
-        if pi.is_error():
-            self.logger.debug(f'merchant notify error: {pi.get_error()}')
-        else:
-            self.logger.debug(f'merchant notify result: {pi.merchant_ack_status}: {pi.merchant_ack_message}')
-        # TODO: show user? if we broadcasted the tx successfully, do we care?
-        # BitPay complains with a NAK if tx is RbF
 
     def toggle_paytomany(self):
         self.payto_e.toggle_paytomany()

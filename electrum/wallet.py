@@ -1252,10 +1252,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
         return transactions
 
-    def create_invoice(self, *, outputs: List[PartialTxOutput], message, pr, URI) -> Invoice:
+    def create_invoice(self, *, outputs: List[PartialTxOutput], message, URI) -> Invoice:
         height = self.adb.get_local_height()
-        if pr:
-            return Invoice.from_bip70_payreq(pr, height=height)
         amount_msat = 0
         for x in outputs:
             if parse_max_spend(x.value):
@@ -1277,7 +1275,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             time=timestamp,
             exp=exp,
             outputs=outputs,
-            bip70=None,
             height=height,
             lightning_invoice=None,
         )
@@ -2970,8 +2967,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             amount_sat = x.get_amount_sat()
             assert isinstance(amount_sat, (int, str, type(None)))
             d['outputs'] = [y.to_legacy_tuple() for y in x.get_outputs()]
-            if x.bip70:
-                d['bip70'] = x.bip70
         return d
 
     def get_invoices_and_requests_touched_by_tx(self, tx):
@@ -3055,7 +3050,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             amount_msat=amount_msat,
             exp=exp_delay,
             height=height,
-            bip70=None,
             payment_hash=payment_hash,
         )
         key = self.add_payment_request(req)
@@ -3408,7 +3402,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             txid: Optional[str]) -> Optional[Tuple[bool, str, str]]:
 
         assert invoice_amt >= 0, f"{invoice_amt=!r} must be non-negative satoshis"
-        assert fee >= 0, f"{fee=!r} must be non-negative satoshis"
+        if fee < 0:
+            self.logger.warning(f"transaction {txid=} has negative {fee=}")
         is_future_tx = txid is not None and txid in self.adb.future_tx
         feerate = Decimal(fee) / tx_size  # sat/byte
         fee_ratio = Decimal(fee) / invoice_amt if invoice_amt else 0
@@ -3690,6 +3685,43 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     transaction.writerow(line)
             else:
                 f.write(util.json_encode(txns))
+
+    def get_user_notifications_for_new_txns(self, txns: Sequence[Transaction]) -> Sequence[str]:
+        notifications = []
+        # Combine the transactions if there are at least three
+        if len(txns) >= 3:
+            total_amount = 0
+            total_debit = 0
+            total_credit = 0
+            for tx in txns:
+                tx_wallet_delta = self.get_wallet_delta(tx)
+                if not tx_wallet_delta.is_relevant:
+                    continue
+                if tx_wallet_delta.delta < 0:
+                    total_debit += -tx_wallet_delta.delta
+                else:
+                    total_credit += tx_wallet_delta.delta
+                total_amount += tx_wallet_delta.delta
+            message = _('{} new transactions:').format(len(txns))
+            if total_debit:
+                message += '\n' + _('Total amount sent {}').format(self.config.format_amount_and_units(total_debit))
+            if total_credit:
+                message += '\n' + _('Total amount received {}').format(self.config.format_amount_and_units(total_credit))
+            if total_debit and total_credit:
+                message += '\n' + _('Total balance change: {}').format(self.config.format_amount_and_units(total_amount))
+            notifications.append(message)
+        else:
+            for tx in txns:
+                tx_wallet_delta = self.get_wallet_delta(tx)
+                if not tx_wallet_delta.is_relevant:
+                    continue
+                if tx_wallet_delta.delta < 0:
+                    message = _('sent {}').format(self.config.format_amount_and_units(-tx_wallet_delta.delta))
+                else:
+                    message = _('received {}').format(self.config.format_amount_and_units(tx_wallet_delta.delta))
+                message = _("New transaction: {}").format(message)
+                notifications.append(message)
+        return notifications
 
 
 class Simple_Wallet(Abstract_Wallet):

@@ -397,10 +397,19 @@ class Commands(Logger):
 
     def _setconfig(self, key, value):
         value = self._setconfig_normalize_value(key, value)
-        if self.daemon and key == SimpleConfig.RPC_USERNAME.key():
-            self.daemon.commands_server.rpc_user = value
-        if self.daemon and key == SimpleConfig.RPC_PASSWORD.key():
-            self.daemon.commands_server.rpc_password = value
+        if self.daemon and key in (
+            SimpleConfig.RPC_USERNAME.key(),
+            SimpleConfig.RPC_PASSWORD.key(),
+            SimpleConfig.RPC_HOST.key(),
+            SimpleConfig.RPC_PORT.key(),
+            SimpleConfig.RPC_SOCKET_TYPE.key(),
+            SimpleConfig.RPC_SOCKET_FILEPATH.key(),
+        ):
+            raise UserFacingException(
+                "error: RPC server settings cannot be changed for already running daemon. "
+                "Stop the daemon first, and run 'setconfig' in --offline mode. "
+                "\nFor example: '$ electrum -o setconfig rpcport 7777'."
+            )
         if Plugins.is_plugin_enabler_config_key(key):
             self.config.set_key(key, value)
         else:
@@ -1829,12 +1838,28 @@ class Commands(Logger):
         return wallet.lnworker.node_keypair.pubkey.hex() + (('@' + listen_addr) if listen_addr else '')
 
     @command('wl')
-    async def list_channels(self, public: bool = False, wallet: Abstract_Wallet = None):
-        """Return the list of private channels in the wallet
+    async def list_channels(self, public: bool = False, private: bool = False, active: bool = False, open: bool = False, wallet: Abstract_Wallet = None):
+        """Return the list of channels in the wallet
 
-        arg:bool:public:list public channels instead.
+        arg:bool:public:list only public channels
+        arg:bool:private:list only private channels
+        arg:bool:open:list only open channels
+        arg:bool:active:list only active channels
         """
         from .lnutil import LOCAL, REMOTE, format_short_channel_id
+        if public and private:
+            raise Exception("incompatible options")
+        def _filter(chan):
+            if public and not chan.is_public():
+                return False
+            if private and chan.is_public():
+                return False
+            if active and not chan.is_redeemed():
+                return False
+            if open and not chan.is_open():
+                return False
+            return True
+
         return [
             {
                 'short_channel_id': format_short_channel_id(chan.short_channel_id) if chan.short_channel_id else None,
@@ -1852,7 +1877,7 @@ class Commands(Logger):
                 'remote_reserve': chan.config[LOCAL].reserve_sat,
                 'local_unsettled_sent': chan.balance_tied_up_in_htlcs_by_direction(LOCAL, direction=SENT) // 1000,
                 'remote_unsettled_sent': chan.balance_tied_up_in_htlcs_by_direction(REMOTE, direction=SENT) // 1000,
-            } for chan in wallet.lnworker.channels.values() if not (public != chan.is_public())
+            } for chan in wallet.lnworker.channels.values() if _filter(chan)
         ]
 
     @command('wl')
@@ -2016,7 +2041,7 @@ class Commands(Logger):
         result = {}
         for offer in offers:
             result[offer.server_npub] = {
-                "percentage_fee": offer.pairs.percentage,
+                "percentage_fee": float(offer.pairs.percentage),
                 "max_forward_sat": offer.pairs.max_forward,
                 "max_reverse_sat": offer.pairs.max_reverse,
                 "min_amount_sat": offer.pairs.min_amount,
@@ -2436,7 +2461,7 @@ def get_parser():
     subparsers = parser.add_subparsers(dest='cmd', metavar='<command>')
     # gui
     parser_gui = subparsers.add_parser('gui', description="Run Electrum's Graphical User Interface.", help="Run GUI (default)")
-    parser_gui.add_argument("url", nargs='?', default=None, help="bitcoin URI (or bip70 file)")
+    parser_gui.add_argument("url", nargs='?', default=None, help="bitcoin URI")
     parser_gui.add_argument("-g", "--gui", dest=SimpleConfig.GUI_NAME.key(), help="select graphical user interface", choices=['qt', 'text', 'stdio', 'qml'])
     parser_gui.add_argument("-m", action="store_true", dest=SimpleConfig.GUI_QT_HIDE_ON_STARTUP.key(), default=False, help="hide GUI on startup")
     parser_gui.add_argument("-L", "--lang", dest=SimpleConfig.LOCALIZATION_LANGUAGE.key(), default=None, help="default language used in GUI")

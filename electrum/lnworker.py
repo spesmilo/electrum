@@ -2545,7 +2545,8 @@ class LNWallet(Logger):
 
     def _get_invoice_features(self, amount_msat: Optional[int]) -> LnFeatures:
         invoice_features = self.features.for_invoice()
-        if not self.uses_trampoline():
+        if not all((not c.is_open() or c.is_frozen_for_receiving()) or self.is_trampoline_peer(c.node_id) \
+                        for c in self.channels.values()):
             invoice_features &= ~ LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM
         needs_jit: bool = self.receive_requires_jit_channel(amount_msat)
         if needs_jit:
@@ -2572,7 +2573,13 @@ class LNWallet(Logger):
 
         assert amount_msat is None or amount_msat > 0
         timestamp = int(time.time())
-        routing_hints = self.calc_routing_hints_for_invoice(amount_msat, channels=channels)
+        routing_hints = self.calc_routing_hints_for_invoice(
+            amount_msat,
+            channels=channels,
+            # if the invoice_features signal trampoline support all included r_tags should support trampoline forwarding
+            # TODO: make invoice_features dynamic depending on available trampoline channels
+            only_trampoline=payment_info.invoice_features.supports(LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM),
+        )
         formatted_r_hints = LnAddr.format_bolt11_routing_info_as_human_readable(routing_hints, has_explicit_r_tagtype=True)
         self.logger.info(f"creating bolt11 invoice with routing_hints: {formatted_r_hints}, sat: {(amount_msat or 0) // 1000}")
         payment_secret = self.get_payment_secret(payment_info.payment_hash)
@@ -2751,7 +2758,6 @@ class LNWallet(Logger):
         """
         assert isinstance(payment_hash, bytes), f"expected bytes, but got {type(payment_hash)}"
         preimage_hex, is_public = self._preimages.get(payment_hash.hex(), (None, None))
-        assert preimage_hex is not None
         return bool(is_public)
 
     def get_payment_info(self, payment_hash: bytes, *, direction: lnutil.Direction) -> Optional[PaymentInfo]:
@@ -3160,7 +3166,7 @@ class LNWallet(Logger):
             else:
                 self.logger.info(f'htlc_failed: waiting for other htlcs to fail (phash={payment_hash.hex()})')
 
-    def calc_routing_hints_for_invoice(self, amount_msat: Optional[int], channels=None):
+    def calc_routing_hints_for_invoice(self, amount_msat: Optional[int], *, channels=None, only_trampoline: bool = False):
         """calculate routing hints (BOLT-11 'r' field)"""
         routing_hints = []
         if self.receive_requires_jit_channel(amount_msat):
@@ -3179,6 +3185,8 @@ class LNWallet(Logger):
                 if chan.short_channel_id is not None
             }
         for chan in channels:
+            if only_trampoline and not self.is_trampoline_peer(chan.node_id):
+                continue
             alias_or_scid = chan.get_remote_scid_alias() or chan.short_channel_id
             assert isinstance(alias_or_scid, bytes), alias_or_scid
             channel_info = get_mychannel_info(chan.short_channel_id, scid_to_my_channels)
@@ -4094,10 +4102,7 @@ class LNWallet(Logger):
             self.logger.info(f'adding trampoline onion to final payload')
             trampoline_payload = dict(hops_data[-1].payload)
             trampoline_payload["trampoline_onion_packet"] = {
-                "version": trampoline_onion.version,
-                "public_key": trampoline_onion.public_key,
-                "hops_data": trampoline_onion.hops_data,
-                "hmac": trampoline_onion.hmac
+                "trampoline_onion_packet": trampoline_onion.to_bytes()
             }
             hops_data[-1] = dataclasses.replace(hops_data[-1], payload=trampoline_payload)
             if t_hops_data := trampoline_onion._debug_hops_data:  # None if trampoline-forwarding
