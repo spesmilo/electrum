@@ -13,13 +13,16 @@ from electrum.invoices import InvoiceError, PR_PAID, PR_BROADCASTING, PR_BROADCA
 from electrum.logging import get_logger
 from electrum.network import TxBroadcastError, BestEffortRequestFailed
 from electrum.transaction import PartialTransaction, Transaction
-from electrum.util import InvalidPassword, event_listener, AddTransactionException, get_asyncio_loop, NotEnoughFunds, \
-    NoDynamicFeeEstimates
+from electrum.util import (
+    InvalidPassword, event_listener, AddTransactionException, get_asyncio_loop, NotEnoughFunds, NoDynamicFeeEstimates
+)
 from electrum.lnutil import MIN_FUNDING_SAT
 from electrum.plugin import run_hook
 from electrum.wallet import Multisig_Wallet
 from electrum.crypto import pw_decode_with_version_and_mac
 from electrum.fee_policy import FeePolicy, FixedFeePolicy
+
+from electrum.gui.common_qt.util import QtEventListener, qt_event_listener
 
 from .auth import AuthMixin, auth_protect
 from .qeaddresslistmodel import QEAddressCoinListModel
@@ -27,7 +30,6 @@ from .qechannellistmodel import QEChannelListModel
 from .qeinvoicelistmodel import QEInvoiceListModel, QERequestListModel
 from .qetransactionlistmodel import QETransactionListModel
 from .qetypes import QEAmount
-from .util import QtEventListener, qt_event_listener
 
 if TYPE_CHECKING:
     from electrum.wallet import Abstract_Wallet
@@ -196,7 +198,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self.invoiceStatusChanged.emit(key, status)
 
     @qt_event_listener
-    def on_event_new_transaction(self, wallet, tx):
+    def on_event_new_transaction(self, wallet: 'Abstract_Wallet', tx: Transaction):
         if wallet == self.wallet:
             self._logger.info(f'new transaction {tx.txid()}')
             self.add_tx_notification(tx)
@@ -256,7 +258,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def on_destroy(self):
         self.unregister_callbacks()
 
-    def add_tx_notification(self, tx):
+    def add_tx_notification(self, tx: Transaction):
         self._logger.debug('new transaction event')
         self.tx_notification_queue.put(tx)
         if not self.notification_timer.isActive():
@@ -283,23 +285,8 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             except queue.Empty:
                 break
 
-        config = self.wallet.config
-        # Combine the transactions if there are at least three
-        if len(txns) >= 3:
-            total_amount = 0
-            for tx in txns:
-                tx_wallet_delta = self.wallet.get_wallet_delta(tx)
-                if not tx_wallet_delta.is_relevant:
-                    continue
-                total_amount += tx_wallet_delta.delta
-            self.userNotify.emit(self.wallet, _("{} new transactions: Total amount received in the new transactions {}").format(len(txns), config.format_amount_and_units(total_amount)))
-        else:
-            for tx in txns:
-                tx_wallet_delta = self.wallet.get_wallet_delta(tx)
-                if not tx_wallet_delta.is_relevant:
-                    continue
-                self.userNotify.emit(self.wallet,
-                    _("New transaction: {}").format(config.format_amount_and_units(tx_wallet_delta.delta)))
+        for notification in self.wallet.get_user_notifications_for_new_txns(txns):
+            self.userNotify.emit(self.wallet, notification)
 
     def update_sync_progress(self):
         if self.wallet.network and self.wallet.network.is_connected():

@@ -143,8 +143,10 @@ class PaymentInfo:
 
     def validate(self):
         assert isinstance(self.payment_hash, bytes) and len(self.payment_hash) == 32
-        assert self.amount_msat is None or isinstance(self.amount_msat, int)
         assert isinstance(self.direction, int)
+        assert self.amount_msat is None or isinstance(self.amount_msat, int)
+        if self.direction == RECEIVED:
+            assert self.amount_msat != 0  # use amount_msat=None instead!
         assert isinstance(self.status, int)
         assert isinstance(self.min_final_cltv_delta, int)
         assert isinstance(self.expiry_delay, int) and self.expiry_delay > 0, repr(self.expiry_delay)
@@ -2611,6 +2613,8 @@ class LNWallet(Logger):
         exp_delay: int = LN_EXPIRY_NEVER,
         write_to_disk=True
     ) -> bytes:
+        if amount_msat == 0:
+            raise ValueError("amount_msat must not be 0. Use None instead.")
         payment_preimage = os.urandom(32)
         payment_hash = sha256(payment_preimage)
         min_final_cltv_delta = min_final_cltv_delta or MIN_FINAL_CLTV_DELTA_ACCEPTED
@@ -2747,7 +2751,6 @@ class LNWallet(Logger):
         """
         assert isinstance(payment_hash, bytes), f"expected bytes, but got {type(payment_hash)}"
         preimage_hex, is_public = self._preimages.get(payment_hash.hex(), (None, None))
-        assert preimage_hex is not None
         return bool(is_public)
 
     def get_payment_info(self, payment_hash: bytes, *, direction: lnutil.Direction) -> Optional[PaymentInfo]:

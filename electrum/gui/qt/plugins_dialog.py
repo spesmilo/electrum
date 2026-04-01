@@ -3,7 +3,7 @@ from functools import partial
 import shutil
 import os
 
-from PyQt6.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton, QWidget, QScrollArea, \
+from PyQt6.QtWidgets import QLabel, QVBoxLayout, QHBoxLayout, QGridLayout, QPushButton, QWidget, QScrollArea, \
     QFormLayout, QFileDialog, QMenu, QApplication, QMessageBox
 from PyQt6.QtCore import QTimer
 
@@ -12,7 +12,8 @@ from electrum.gui import messages
 from electrum.logging import get_logger
 
 from .util import (WindowModalDialog, Buttons, CloseButton, WWLabel, insert_spaces, MessageBoxMixin,
-                   EnterButton, read_QIcon_from_bytes, IconLabel, RunCoroutineDialog)
+                   EnterButton, read_QIcon_from_bytes, IconLabel, RunCoroutineDialog, read_QIcon,
+                   webopen)
 
 
 if TYPE_CHECKING:
@@ -178,7 +179,15 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
         add_button = QPushButton(_('Add'))
         add_button.setMinimumWidth(40)  # looks better on windows, no difference on linux
         add_button.clicked.connect(self.add_plugin_dialog)
-        vbox.addLayout(Buttons(add_button, CloseButton(self)))
+        website_button = QPushButton(read_QIcon('globe.png'), _('Help'))
+        website_button.setToolTip(_('Visit plugins website'))
+        website_button.clicked.connect(lambda: webopen('https://plugins.electrum.org/'))
+        hbox = QHBoxLayout()
+        hbox.addWidget(website_button)
+        hbox.addStretch(1)
+        hbox.addWidget(add_button)
+        hbox.addWidget(CloseButton(self))
+        vbox.addLayout(hbox)
         self.show_list()
 
     def get_plugins_privkey(self) -> Optional['ECPrivkey']:

@@ -679,7 +679,7 @@ class TestCommandsTestnet(ElectrumTestCase):
 
         offer1 = SwapOffer(
             pairs=SwapFees(
-                percentage=0.5,
+                percentage=Decimal('0.5'),
                 mining_fee=2000,
                 min_amount=10000,
                 max_forward=1000000,
@@ -693,7 +693,7 @@ class TestCommandsTestnet(ElectrumTestCase):
 
         offer2 = SwapOffer(
             pairs=SwapFees(
-                percentage=1.0,
+                percentage=Decimal('1.0'),
                 mining_fee=3000,
                 min_amount=20000,
                 max_forward=2000000,

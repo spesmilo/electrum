@@ -69,7 +69,7 @@ class WalletUnfinished(WalletFileException):
 # seed_version is now used for the version of the wallet file
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 68     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 70     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -243,6 +243,8 @@ class WalletDBUpgrader(Logger):
         self._convert_version_66()
         self._convert_version_67()
         self._convert_version_68()
+        self._convert_version_69()
+        self._convert_version_70()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
     def _convert_wallet_type(self):
@@ -1364,6 +1366,39 @@ class WalletDBUpgrader(Logger):
             new_preimages[_hash] = (preimage, False)
         self.data['lightning_preimages'] = new_preimages
         self.data['seed_version'] = 68
+
+    def _convert_version_69(self):
+        """Convert PaymentInfo amounts from 0 to None"""
+        if not self._is_upgrade_method_needed(68, 68):
+            return
+        new_payment_infos = {}
+        old_payment_infos = self.data.get('lightning_payments', {})
+        for key, old_v in old_payment_infos.items():
+            #amount_msat, status, min_final_cltv_delta, expiry_delay, creation_ts, invoice_features = old_v
+            amount_msat = old_v[0]
+            rhash, direction = key.split(":")  # key is "RHASH:direction"
+            direction = int(direction)
+            if direction == 1:  # RECEIVED
+                if amount_msat == 0:
+                    amount_msat = None
+            new_v = (amount_msat, *old_v[1:])
+            new_payment_infos[key] = new_v
+        self.data['lightning_payments'] = new_payment_infos
+        self.data['seed_version'] = 69
+
+    def _convert_version_70(self):
+        """
+        Converts spending budget values of nwc plugin from sat to msat.
+        """
+        if not self._is_upgrade_method_needed(69, 69):
+            return
+        nwc_connections = self.data.get('plugin_data', {}).get('nwc', {}).get('connections', {})
+        for pubkey, connection in nwc_connections.items():
+            new_budget_spends = []
+            for amount_sat, timestamp in connection.get('budget_spends', []):
+                new_budget_spends.append([amount_sat * 1000, timestamp])
+            connection['budget_spends'] = new_budget_spends
+        self.data['seed_version'] = 70
 
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):

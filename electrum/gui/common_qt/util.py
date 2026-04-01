@@ -1,5 +1,6 @@
 import queue
 import sys
+from functools import wraps
 from typing import Optional, NamedTuple, Callable
 import os.path
 
@@ -10,6 +11,7 @@ import qrcode
 
 from electrum.i18n import _
 from electrum.logging import Logger
+from electrum.util import EventListener, event_listener
 
 _cached_font_ids: dict[str, int] = {}
 
@@ -190,3 +192,33 @@ class TaskThread(QThread, Logger):
         self.tasks.put(None)  # in case the thread is still waiting on the queue
         self.exit()
         self.wait()
+
+
+class QtEventListener(EventListener):
+    qt_callback_signal = pyqtSignal(tuple)
+
+    def register_callbacks(self):
+        self.qt_callback_signal.connect(self.on_qt_callback_signal)
+        EventListener.register_callbacks(self)
+
+    def unregister_callbacks(self):
+        try:
+            self.qt_callback_signal.disconnect()
+        except (RuntimeError, TypeError):  # wrapped Qt object might be deleted
+            # "TypeError: disconnect() failed between 'qt_callback_signal' and all its connections"
+            pass
+        EventListener.unregister_callbacks(self)
+
+    def on_qt_callback_signal(self, args):
+        func = args[0]
+        return func(self, *args[1:])
+
+
+# decorator for members of the QtEventListener class
+def qt_event_listener(func):
+    func = event_listener(func)
+
+    @wraps(func)
+    def decorator(self, *args):
+        self.qt_callback_signal.emit((func,) + args)
+    return decorator

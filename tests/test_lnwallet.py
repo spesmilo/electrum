@@ -24,7 +24,6 @@ class TestLNWallet(ElectrumTestCase):
         wallet = self.lnwallet_anchors
         tests = (
             (100_000, 200, 100),
-            (0, 200, 100),
             (None, 200, 100),
             (None, None, LN_EXPIRY_NEVER),
             (100_000, None, 0),
@@ -43,3 +42,13 @@ class TestLNWallet(ElectrumTestCase):
             self.assertEqual(pi.db_key, f"{payment_hash.hex()}:{int(pi.direction)}")
             self.assertEqual(pi.status, PR_UNPAID)
         self.assertIsNone(wallet.get_payment_info(os.urandom(32), direction=RECEIVED))
+
+    def test_create_payment_info__amount_must_not_be_zero(self):
+        wallet = self.lnwallet_anchors
+        amount_msat, min_final_cltv_delta, exp_delay = (0, 200, 100)
+        with self.assertRaises(ValueError):
+            wallet.create_payment_info(
+                amount_msat=amount_msat,
+                min_final_cltv_delta=min_final_cltv_delta,
+                exp_delay=exp_delay,
+            )

@@ -1269,6 +1269,7 @@ class Transaction:
         timeout=None,
     ) -> None:
         """note: it is recommended to call add_info_from_wallet first, as this can save some network requests"""
+        from .interface import NetworkException
         if not self.is_missing_info_from_network():
             return
         if progress_cb is None:
@@ -1302,6 +1303,8 @@ class Transaction:
         except Exception as e:
             has_errored = True
             _logger.error(f"tx.add_info_from_network() got exc: {e!r}")
+            if isinstance(e, NetworkException) and not ignore_network_issues:
+                raise
         finally:
             has_finished = True
             progress_cb(TxinDataFetchProgress(num_tasks_done, num_tasks_total, has_errored, has_finished))

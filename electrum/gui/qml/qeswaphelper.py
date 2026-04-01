@@ -18,10 +18,11 @@ from electrum.fee_policy import FeePolicy
 
 from electrum.gui import messages
 
+from electrum.gui.common_qt.util import QtEventListener, qt_event_listener
+
 from .auth import AuthMixin, auth_protect
 from .qetypes import QEAmount
 from .qewallet import QEWallet
-from .util import QtEventListener, qt_event_listener
 
 if TYPE_CHECKING:
     import concurrent.futures
@@ -74,7 +75,7 @@ class QESwapServerNPubListModel(QAbstractListModel):
         return {
             'npub': x.server_npub,
             'server_pubkey': x.server_pubkey,
-            'percentage_fee': x.pairs.percentage,
+            'percentage_fee': float(x.pairs.percentage),
             'mining_fee': x.pairs.mining_fee,
             'min_amount': x.pairs.min_amount,
             'max_forward_amount': x.pairs.max_forward,

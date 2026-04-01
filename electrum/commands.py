@@ -397,10 +397,19 @@ class Commands(Logger):
 
     def _setconfig(self, key, value):
         value = self._setconfig_normalize_value(key, value)
-        if self.daemon and key == SimpleConfig.RPC_USERNAME.key():
-            self.daemon.commands_server.rpc_user = value
-        if self.daemon and key == SimpleConfig.RPC_PASSWORD.key():
-            self.daemon.commands_server.rpc_password = value
+        if self.daemon and key in (
+            SimpleConfig.RPC_USERNAME.key(),
+            SimpleConfig.RPC_PASSWORD.key(),
+            SimpleConfig.RPC_HOST.key(),
+            SimpleConfig.RPC_PORT.key(),
+            SimpleConfig.RPC_SOCKET_TYPE.key(),
+            SimpleConfig.RPC_SOCKET_FILEPATH.key(),
+        ):
+            raise UserFacingException(
+                "error: RPC server settings cannot be changed for already running daemon. "
+                "Stop the daemon first, and run 'setconfig' in --offline mode. "
+                "\nFor example: '$ electrum -o setconfig rpcport 7777'."
+            )
         if Plugins.is_plugin_enabler_config_key(key):
             self.config.set_key(key, value)
         else:
@@ -2011,7 +2020,7 @@ class Commands(Logger):
         result = {}
         for offer in offers:
             result[offer.server_npub] = {
-                "percentage_fee": offer.pairs.percentage,
+                "percentage_fee": float(offer.pairs.percentage),
                 "max_forward_sat": offer.pairs.max_forward,
                 "max_reverse_sat": offer.pairs.max_reverse,
                 "min_amount_sat": offer.pairs.min_amount,

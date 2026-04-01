@@ -11,7 +11,9 @@ from electrum.logging import get_logger
 from electrum.i18n import _
 from electrum.bitcoin import DummyAddress
 from electrum.transaction import PartialTxOutput, PartialTransaction, Transaction, TxOutpoint
-from electrum.util import NotEnoughFunds, profiler, quantize_feerate, UserFacingException, NoDynamicFeeEstimates
+from electrum.util import (
+    NotEnoughFunds, profiler, quantize_feerate, UserFacingException, NoDynamicFeeEstimates, event_listener
+)
 from electrum.wallet import CannotBumpFee, CannotDoubleSpendTx, CannotCPFP, BumpFeeStrategy, sweep_preparations
 from electrum import keystore
 from electrum.plugin import run_hook
@@ -19,10 +21,10 @@ from electrum.fee_policy import FeePolicy, FeeMethod
 from electrum.network import NetworkException
 
 from electrum.gui import messages
+from electrum.gui.common_qt.util import QtEventListener
 
 from .qewallet import QEWallet
 from .qetypes import QEAmount
-from .util import QtEventListener, event_listener
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
@@ -657,7 +659,7 @@ class QETxRbfFeeBumper(TxFeeSlider, TxMonMixin):
         super().__init__(parent)
 
         self._oldfee = QEAmount()
-        self._oldfee_rate = 0
+        self._oldfee_rate = '0'
         self._orig_tx = None
         self._rbf = True
         self._bump_method = BumpFeeStrategy.PRESERVE_PAYMENT.name
@@ -756,6 +758,13 @@ class QETxRbfFeeBumper(TxFeeSlider, TxMonMixin):
             self.validChanged.emit()
             self.warning = _("The new fee rate needs to be higher than the old fee rate.")
             return
+
+        if not self._orig_tx.add_info_from_wallet_and_network(wallet=self._wallet.wallet, show_error=self._logger.error):
+            self._valid = False
+            self.validChanged.emit()
+            self.warning = _("Transaction is missing info from network")
+            return
+
         try:
             self._tx = self._wallet.wallet.bump_fee(
                 tx=self._orig_tx,
@@ -791,7 +800,7 @@ class QETxCanceller(TxFeeSlider, TxMonMixin):
         super().__init__(parent)
 
         self._oldfee = QEAmount()
-        self._oldfee_rate = 0
+        self._oldfee_rate = '0'
         self._orig_tx = None
         self._txid = ''
         self._rbf = True
@@ -873,6 +882,12 @@ class QETxCanceller(TxFeeSlider, TxMonMixin):
             self.validChanged.emit()
             self._logger.warning('feerate too low for relay')
             self.warning = messages.MSG_RELAYFEE
+            return
+
+        if not self._orig_tx.add_info_from_wallet_and_network(wallet=self._wallet.wallet, show_error=self._logger.error):
+            self._valid = False
+            self.validChanged.emit()
+            self.warning = _("Transaction is missing info from network")
             return
 
         try:

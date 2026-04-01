@@ -1,3 +1,35 @@
+# Release 4.7.2 (April 1, 2026)
+ * General:
+   - changed: set restrictive unix umask (0077) application-wide by default (#10547)
+   - fix: failing assert for wallets with old (2023) still unpaid LN payment requests (#10502)
+ * Qt GUI (desktop):
+   - changed: move LN fee slider to payment dialog (#10516)
+   - fix: auto-close context menu in Addresses and Coins tab when underlying state changes (#10467)
+   - fix: Coins tab: only enable 'fully spend' menu if there are unfrozen coins in selection (#10503)
+ * QML GUI & Android:
+   - changed: wizard: make trustedcoin 2fa secret copyable, open 2fa app for user (#10543)
+   - fix: bump_fee not handling NetworkException properly (#10514)
+ * GUIs:
+   - changed: for new txn OS notifications, don't sum signed balance deltas as they can cancel out,
+              instead explicitly say sent/received (#10507)
+   - fix: wizard: better handle NotLegacySinglesigScriptType exc during private key import (#10538)
+ * Submarine swaps:
+   - changed: cli: skip pending swaps in swapserver history commands (#10528)
+   - fix: Swap Providers window loses track of swap providers if opened for too long (#10528)
+   - fix: use Decimal for SwapManager.percentage: rounding errors would sometimes cause an exception
+          in the fee calculation inverse sanity check, preventing making a swap (#10528)
+ * Lightning:
+   - changed: lnwatcher now subscribes to fewer non-channel-related addresses (#10533)
+ * CLI/RPC:
+   - changed: daemon: forbid "setconfig" command to change rpcserver settings in-flight (#10534)
+   - changed: in GUI mode, only start a limited minimal RPC server (#10548)
+ * Plugins:
+   - nwc (Nostr Wallet Connect):
+     - sync with spec, fix some bugs (#10505, #10511, #10555)
+   - timelock_recovery:
+     - fix: checksum calculation to follow corresponding BIP-0128 (#10524)
+
+
 # Release 4.7.1 (Feb 26, 2026)
  * Qt GUI (desktop):
    - new: changelog website accessible from "Help" toolbar menu (#10433)

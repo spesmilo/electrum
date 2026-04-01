@@ -3020,7 +3020,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         amount_msat = req.get_amount_msat() or None
         assert (amount_msat is None or amount_msat > 0), amount_msat
         info = self.lnworker.get_payment_info(payment_hash, direction=RECEIVED)
-        assert info.amount_msat == amount_msat, f"{info.amount_msat=} != {amount_msat=}"
+        assert info.amount_msat == amount_msat, f"{info.amount_msat=} != {amount_msat=}"  # info.amount_msat or None
         lnaddr, invoice = self.lnworker.get_bolt11_invoice(
             payment_info=info,
             message=req.message,
@@ -3408,7 +3408,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             txid: Optional[str]) -> Optional[Tuple[bool, str, str]]:
 
         assert invoice_amt >= 0, f"{invoice_amt=!r} must be non-negative satoshis"
-        assert fee >= 0, f"{fee=!r} must be non-negative satoshis"
+        if fee < 0:
+            self.logger.warning(f"transaction {txid=} has negative {fee=}")
         is_future_tx = txid is not None and txid in self.adb.future_tx
         feerate = Decimal(fee) / tx_size  # sat/byte
         fee_ratio = Decimal(fee) / invoice_amt if invoice_amt else 0
@@ -3614,6 +3615,43 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self.logger.info(f'added future tx: {name}. prevout: {prevout}')
         util.trigger_callback('wallet_updated', self)
         self.adb.set_future_tx(tx.txid(), wanted_height=wanted_height)
+
+    def get_user_notifications_for_new_txns(self, txns: Sequence[Transaction]) -> Sequence[str]:
+        notifications = []
+        # Combine the transactions if there are at least three
+        if len(txns) >= 3:
+            total_amount = 0
+            total_debit = 0
+            total_credit = 0
+            for tx in txns:
+                tx_wallet_delta = self.get_wallet_delta(tx)
+                if not tx_wallet_delta.is_relevant:
+                    continue
+                if tx_wallet_delta.delta < 0:
+                    total_debit += -tx_wallet_delta.delta
+                else:
+                    total_credit += tx_wallet_delta.delta
+                total_amount += tx_wallet_delta.delta
+            message = _('{} new transactions:').format(len(txns))
+            if total_debit:
+                message += '\n' + _('Total amount sent {}').format(self.config.format_amount_and_units(total_debit))
+            if total_credit:
+                message += '\n' + _('Total amount received {}').format(self.config.format_amount_and_units(total_credit))
+            if total_debit and total_credit:
+                message += '\n' + _('Total balance change: {}').format(self.config.format_amount_and_units(total_amount))
+            notifications.append(message)
+        else:
+            for tx in txns:
+                tx_wallet_delta = self.get_wallet_delta(tx)
+                if not tx_wallet_delta.is_relevant:
+                    continue
+                if tx_wallet_delta.delta < 0:
+                    message = _('sent {}').format(self.config.format_amount_and_units(-tx_wallet_delta.delta))
+                else:
+                    message = _('received {}').format(self.config.format_amount_and_units(tx_wallet_delta.delta))
+                message = _("New transaction: {}").format(message)
+                notifications.append(message)
+        return notifications
 
 
 class Simple_Wallet(Abstract_Wallet):

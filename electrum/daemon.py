@@ -34,6 +34,7 @@ from typing import Dict, Optional, Tuple, Callable, Union, Sequence, Mapping, TY
 from base64 import b64decode, b64encode
 import json
 import socket
+import stat
 
 import aiohttp
 from aiohttp import web, client_exceptions
@@ -43,7 +44,7 @@ from . import util
 from .network import Network
 from .util import (
     json_decode, to_bytes, to_string, profiler, standardize_path, constant_time_compare, InvalidPassword,
-    log_exceptions, randrange, OldTaskGroup, UserFacingException, JsonRPCError
+    log_exceptions, randrange, OldTaskGroup, UserFacingException, JsonRPCError, os_chmod
 )
 from .wallet import Wallet, Abstract_Wallet
 from .storage import WalletStorage
@@ -180,6 +181,7 @@ def wait_until_daemon_becomes_ready(*, config: SimpleConfig, timeout=5) -> bool:
 def get_rpc_credentials(config: SimpleConfig) -> Tuple[str, str]:
     rpc_user = config.RPC_USERNAME or None
     rpc_password = config.RPC_PASSWORD or None
+    # note: we explicitly forbid empty/unset password, and will generate one now instead
     if rpc_user is None or rpc_password is None:
         rpc_user = 'user'
         bits = 128
@@ -219,9 +221,8 @@ class AuthenticatedServer(Logger):
         self._methods[name] = f
 
     async def authenticate(self, headers):
-        if self.rpc_password == '':
-            # RPC authentication is disabled
-            return
+        if not self.rpc_password:
+            raise Exception('Server RPC password is unset. This should not happen.')
         auth_string = headers.get('Authorization', None)
         if auth_string is None:
             raise AuthenticationInvalidOrMissing('CredentialsMissing')
@@ -286,25 +287,31 @@ class AuthenticatedServer(Logger):
 
 class CommandsServer(AuthenticatedServer):
 
-    def __init__(self, daemon: 'Daemon', fd):
+    def __init__(self, daemon: 'Daemon', fd, *, only_minimal_jsonrpc: bool):
         rpc_user, rpc_password = get_rpc_credentials(daemon.config)
         AuthenticatedServer.__init__(self, rpc_user, rpc_password)
         self.daemon = daemon
         self.fd = fd
+        self._only_minimal_jsonrpc = only_minimal_jsonrpc
         self.config = daemon.config
         sockettype = self.config.RPC_SOCKET_TYPE
         self.socktype = sockettype if sockettype != 'auto' else get_rpcsock_default_type(self.config)
         self.sockpath = self.config.RPC_SOCKET_FILEPATH or get_rpcsock_defaultpath(self.config)
         self.host = self.config.RPC_HOST
         self.port = self.config.RPC_PORT
+        self.cmd_runner = Commands(config=self.config, network=self.daemon.network, daemon=self.daemon)
         self.app = web.Application()
         self.app.router.add_post("/", self.handle)
+        # First add always-enabled commands that are also available for "minimal" rpc server.
+        # - "ping" RPC is needed for the lockfile fd to work.
         self.register_method('ping', self.ping)
+        # - "gui" RPC is needed for URI handling. (TODO restrict further: disallow opening arbitrary file paths)
         self.register_method('gui', self.gui)
-        self.cmd_runner = Commands(config=self.config, network=self.daemon.network, daemon=self.daemon)
-        for cmdname in known_commands:
-            self.register_method(cmdname, getattr(self.cmd_runner, cmdname))
-        self.register_method('run_cmdline', self.run_cmdline)
+        # Add other commands:
+        if not only_minimal_jsonrpc:
+            for cmdname in known_commands:
+                self.register_method(cmdname, getattr(self.cmd_runner, cmdname))
+            self.register_method('run_cmdline', self.run_cmdline)
 
     def _socket_config_str(self) -> str:
         if self.socktype == 'unix':
@@ -327,16 +334,24 @@ class CommandsServer(AuthenticatedServer):
             await site.start()
         except Exception as e:
             raise Exception(f"failed to start CommandsServer at {self._socket_config_str()}. got exc: {e!r}") from None
-        socket = site._server.sockets[0]
+        # now server has started.
+        if self.socktype == 'unix':
+            # set restrictive permissions on unix domain socket.
+            # FIXME race? we are late. should set this during socket-file creation but aiohttp API does not let us.
+            os_chmod(self.sockpath, stat.S_IREAD | stat.S_IWRITE)
+        # write server conn details into lockfile fd
         if self.socktype == 'unix':
             addr = self.sockpath
         elif self.socktype == 'tcp':
+            socket = site._server.sockets[0]
             addr = socket.getsockname()
         else:
             raise Exception(f"impossible socktype ({self.socktype!r})")
         os.write(self.fd, bytes(repr((self.socktype, addr, time.time())), 'utf8'))
         os.close(self.fd)
-        self.logger.info(f"now running and listening. socktype={self.socktype}, addr={addr}")
+        self.logger.info(
+            f"now running and listening. socktype={self.socktype}, addr={addr}. "
+            f"only_minimal_jsonrpc={self._only_minimal_jsonrpc}")
 
     async def ping(self):
         return True
@@ -394,6 +409,7 @@ class Daemon(Logger):
         fd=None,
         *,
         listen_jsonrpc: bool = True,
+        only_minimal_jsonrpc: bool = True,
         start_network: bool = True,  # setting to False allows customising network settings before starting it
     ):
         Logger.__init__(self)
@@ -423,7 +439,7 @@ class Daemon(Logger):
         # Setup commands server
         self.commands_server = None
         if listen_jsonrpc:
-            self.commands_server = CommandsServer(self, fd)
+            self.commands_server = CommandsServer(self, fd, only_minimal_jsonrpc=only_minimal_jsonrpc)
             asyncio.run_coroutine_threadsafe(self.taskgroup.spawn(self.commands_server.run()), self.asyncio_loop)
 
     @log_exceptions
