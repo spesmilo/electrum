@@ -50,7 +50,7 @@ import electrum_ecc as ecc
 import electrum
 from electrum.gui import messages
 from electrum import (keystore, constants, util, bitcoin, commands,
-                      lnutil)
+                      lnutil, bolt12)
 from electrum.bitcoin import COIN, is_address, DummyAddress
 from electrum.plugin import run_hook
 from electrum.i18n import _
@@ -1677,15 +1677,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         d.exec()
 
     def show_lightning_invoice(self, invoice: Invoice):
-        from electrum.util import format_short_id
-        lnaddr = decode_bolt11_invoice(invoice.lightning_invoice)
+        assert invoice.is_lightning()  # bolt11 or bolt12
         d = WindowModalDialog(self, _("Lightning Invoice"))
         vbox = QVBoxLayout(d)
         grid = QGridLayout()
-        pubkey_e = ShowQRLineEdit(lnaddr.pubkey.serialize().hex(), self.config, title=_("Public Key"))
-        pubkey_e.setMinimumWidth(700)
-        grid.addWidget(QLabel(_("Public Key") + ':'), 0, 0)
-        grid.addWidget(pubkey_e, 0, 1)
+        if pubkey := invoice.issuer_pubkey:
+            pubkey_e = ShowQRLineEdit(pubkey, self.config, title=_("Public Key"))
+            pubkey_e.setMinimumWidth(700)
+            grid.addWidget(QLabel(_("Public Key") + ':'), 0, 0)
+            grid.addWidget(pubkey_e, 0, 1)
         grid.addWidget(QLabel(_("Amount") + ':'), 1, 0)
         amount_str = self.format_amount(invoice.get_amount_sat()) + ' ' + self.base_unit()
         grid.addWidget(QLabel(amount_str), 1, 1)
@@ -1697,11 +1697,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             grid.addWidget(QLabel(_("Expiration time") + ':'), 4, 0)
             grid.addWidget(QLabel(format_time(invoice.time + invoice.exp)), 4, 1)
         grid.addWidget(QLabel(_('Features') + ':'), 5, 0)
-        grid.addWidget(QLabel(', '.join(lnaddr.get_features().get_names())), 5, 1)
-        payhash_e = ShowQRLineEdit(lnaddr.paymenthash.hex(), self.config, title=_("Payment Hash"))
+        grid.addWidget(QLabel(', '.join(invoice.features.get_names())), 5, 1)
+        payhash_e = ShowQRLineEdit(invoice.rhash, self.config, title=_("Payment Hash"))
         grid.addWidget(QLabel(_("Payment Hash") + ':'), 6, 0)
         grid.addWidget(payhash_e, 6, 1)
-        fallback = lnaddr.get_fallback_address()
+        fallback = invoice.get_lightning_fallback_address()
         if fallback:
             fallback_e = ShowQRLineEdit(fallback, self.config, title=_("Fallback address"))
             grid.addWidget(QLabel(_("Fallback address") + ':'), 7, 0)
@@ -1712,12 +1712,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         invoice_e.setText(invoice.lightning_invoice)
         grid.addWidget(QLabel(_('Text') + ':'), 8, 0)
         grid.addWidget(invoice_e, 8, 1)
-        r_tags = lnaddr.get_routing_info('r')
-        r_tags = '\n'.join(repr(r) for r in BOLT11Addr.format_bolt11_routing_info_as_human_readable(r_tags))
-        routing_e = QTextEdit(str(r_tags))
-        routing_e.setReadOnly(True)
-        grid.addWidget(QLabel(_("Routing Hints") + ':'), 9, 0)
-        grid.addWidget(routing_e, 9, 1)
+        if b11 := invoice.bolt11_invoice:
+            # TODO: show path/introduction point for b12?
+            r_tags = b11.get_routing_info('r')
+            r_tags = '\n'.join(repr(r) for r in BOLT11Addr.format_bolt11_routing_info_as_human_readable(r_tags))
+            routing_e = QTextEdit(str(r_tags))
+            routing_e.setReadOnly(True)
+            grid.addWidget(QLabel(_("Routing Hints") + ':'), 9, 0)
+            grid.addWidget(routing_e, 9, 1)
         vbox.addLayout(grid)
         vbox.addLayout(Buttons(CloseButton(d),))
         d.exec()
