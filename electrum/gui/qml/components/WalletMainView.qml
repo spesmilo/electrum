@@ -404,6 +404,20 @@ Item {
             })
             dialog.open()
         }
+        onBolt12Offer: {
+            closeSendDialog()
+            var dialog = bolt12OfferDialog.createObject(app, {
+                invoiceParser: invoiceParser
+            })
+            dialog.open()
+        }
+        onBolt12Invoice: {
+            closeSendDialog()
+            var dialog = invoiceDialog.createObject(app, {
+                invoice: invoiceParser
+            })
+            dialog.open()
+        }
     }
 
     Bitcoin {
@@ -676,6 +690,16 @@ Item {
     Component {
         id: lnurlWithdrawDialog
         LnurlWithdrawRequestDialog {
+            width: parent.width * 0.9
+            anchors.centerIn: parent
+
+            onClosed: destroy()
+        }
+    }
+
+    Component {
+        id: bolt12OfferDialog
+        Bolt12OfferDialog {
             width: parent.width * 0.9
             anchors.centerIn: parent
 
