@@ -45,7 +45,7 @@ from . import lnmsg
 from . import util
 
 if TYPE_CHECKING:
-    from .lnrouter import LNPaymentRoute
+    from .lnrouter import LNPaymentRoute, FinalForwardFees
 
 _logger = get_logger(__name__)
 
@@ -427,7 +427,8 @@ def calc_hops_data_for_payment(
         *,
         final_cltv_abs: int,
         total_msat: int,
-        payment_secret: bytes,
+        payment_secret: Optional[bytes],
+        final_forward_fees: Optional['FinalForwardFees'] = None,
 ) -> Tuple[List[OnionHopsDataSingle], int, int]:
     """Returns the hops_data to be used for constructing an onion packet,
     and the amount_msat and cltv_abs to be used on our immediate channel.
@@ -439,15 +440,20 @@ def calc_hops_data_for_payment(
     # payload that will be seen by the last hop:
     # for multipart payments we need to tell the receiver about the total and
     # partial amounts
-    hop_payload = {
+    final_hop_payload: dict = {
         "amt_to_forward": {"amt_to_forward": amt},
         "outgoing_cltv_value": {"outgoing_cltv_value": cltv_abs},
-        "payment_data": {
+    }
+    if payment_secret:  # None if blinded legacy trampoline payment
+        final_hop_payload["payment_data"] = {
             "payment_secret": payment_secret,
             "total_msat": total_msat,
             "amount_msat": amt,
-        }}
-    hops_data = [OnionHopsDataSingle(payload=hop_payload)]
+        }
+    hops_data = [OnionHopsDataSingle(payload=final_hop_payload)]
+    if final_forward_fees is not None:
+        amt += final_forward_fees.fee_for_edge(amt)
+        cltv_abs += final_forward_fees.forwarder_cltv_delta + final_forward_fees.blinded_path_cltv_delta
     # payloads, backwards from last hop (but excluding the first edge):
     for route_edge in reversed(route[1:]):
         hop_payload = {
