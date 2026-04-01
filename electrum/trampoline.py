@@ -4,15 +4,17 @@ import random
 import dataclasses
 from fractions import Fraction
 from typing import Mapping, Tuple, Optional, List, Iterable, Sequence, Set, Any, TYPE_CHECKING
-from types import MappingProxyType
 
 import electrum_ecc as ecc
 
-from .lnutil import LnFeatures, PaymentFeeBudget, FeeBudgetExceeded
-from .lnonion import (
-    calc_hops_data_for_payment, new_onion_packet, OnionPacket
+from .lnutil import (
+    LnFeatures, PaymentFeeBudget, FeeBudgetExceeded, UnblindedRoutingInfo, BlindedRoutingInfo,
+    MIN_FINAL_CLTV_DELTA_ACCEPTED,
 )
-from .lnrouter import TrampolineEdge, is_route_within_budget, LNPaymentTRoute
+from .lnonion import (
+    new_onion_packet, OnionPacket, calc_hops_data_for_blinded_payment, calc_hops_data_for_payment, BlindedPathInfo
+)
+from .lnrouter import TrampolineEdge, is_route_within_budget, fee_for_edge_msat, FinalForwardFees
 from .lnutil import NoPathFound
 from .lntransport import LNPeerAddr
 from . import constants
@@ -20,6 +22,7 @@ from .logging import get_logger
 from .util import random_shuffled_copy
 
 if TYPE_CHECKING:
+    from .lnutil import RoutingInfo
     from .lnchannel import Channel
 
 
@@ -147,17 +150,22 @@ def decode_routing_info(rinfo: bytes) -> Sequence[Sequence[Sequence[Any]]]:
     return r_tags
 
 
-def is_legacy_relay(invoice_features, r_tags) -> Tuple[bool, Set[bytes]]:
+def is_legacy_relay(invoice_features, r_tags: Optional[Iterable]) -> Tuple[bool, Set[bytes]]:
     """Returns if we deal with a legacy payment and the list of trampoline pubkeys in the invoice.
     """
     invoice_features = LnFeatures(invoice_features)
     # trampoline-supporting wallets:
     if invoice_features.supports(LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ECLAIR)\
        or invoice_features.supports(LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM):
+        # Unblinded payment (BOLT11):
         # If there are no r_tags (routing hints) included, the wallet doesn't have
         # private channels and is probably directly connected to a trampoline node.
         # Any trampoline node should be able to figure out a path to the receiver and
         # we can use an e2e payment.
+        # Blinded payment (BOLT12):
+        # https://github.com/lightning/bolts/blob/bc7a1a0bc97b2293e7f43dd8a06529e5fdcf7cd2/proposals/trampoline.md#with-bolt-12-invoices
+        # r_tags are always None, if the invoice signals trampoline we assume every node id on the
+        # blinded path is a trampoline node. Otherwise, it is 'legacy', but without the risks of bolt11 legacy payments.
         if not r_tags:
             return False, set()
         else:
@@ -179,6 +187,21 @@ def is_legacy_relay(invoice_features, r_tags) -> Tuple[bool, Set[bytes]]:
 
 
 PLACEHOLDER_FEE = None
+DEFAULT_TRAMPOLINE_CLTV_DELTA = 576
+
+
+@dataclasses.dataclass(kw_only=True)
+class _FinalForwardPlaceholder:
+    """Mutable placeholder for route fee allocation"""
+    fee_base_msat: Optional[int] = PLACEHOLDER_FEE
+    fee_proportional_millionths: Optional[int] = PLACEHOLDER_FEE
+
+
+@dataclasses.dataclass(kw_only=True)
+class TrampolineRoute:
+    edges: List[TrampolineEdge]
+    is_legacy: bool
+    final_forward_fees: Optional[FinalForwardFees]
 
 
 def _extend_trampoline_route(
@@ -197,7 +220,7 @@ def _extend_trampoline_route(
     # note: trampoline nodes are supposed to advertise their fee and cltv in node_update message.
     #       However, in the temporary spec, they do not.
     #       They also don't send their fee policy in the error message if we lowball the fee...
-    fee_base, fee_proportional, cltv_delta = fee_info if fee_info else (PLACEHOLDER_FEE, PLACEHOLDER_FEE, 576)
+    fee_base, fee_proportional, cltv_delta = fee_info if fee_info else (PLACEHOLDER_FEE, PLACEHOLDER_FEE, DEFAULT_TRAMPOLINE_CLTV_DELTA)
     route.append(
         TrampolineEdge(
             start_node=start_node,
@@ -221,7 +244,7 @@ def get_trampoline_budget(trampoline_fee_level: int, budget_msat: int) -> int:
 
 
 def _allocate_fee_budget_among_route(
-    route: Sequence[TrampolineEdge],
+    route: Sequence[TrampolineEdge | _FinalForwardPlaceholder],
     *,
     usable_budget_msat: int,
     amount_msat_for_dest: int,
@@ -291,45 +314,68 @@ def _choose_next_trampoline(
 def create_trampoline_route(
         *,
         amount_msat: int,
-        min_final_cltv_delta: int,
-        invoice_pubkey: bytes,
-        invoice_features: int,
+        routing_info: 'RoutingInfo',
         my_pubkey: bytes,
         my_trampoline: bytes,  # the first trampoline in the path; which we are directly connected to
-        r_tags,
         trampoline_fee_level: int,
         next_trampolines: dict,
         failed_routes: Iterable[Sequence[str]],
         budget: PaymentFeeBudget,
-) -> LNPaymentTRoute:
+        blinded_path: Optional['BlindedPathInfo'],
+) -> TrampolineRoute:
     # we decide whether to convert to a legacy payment
-    is_legacy, invoice_trampolines = is_legacy_relay(invoice_features, r_tags)
+    unblinded_payment_r_tags = routing_info.r_tags if isinstance(routing_info, UnblindedRoutingInfo) else None
+    is_legacy, invoice_trampolines = is_legacy_relay(routing_info.invoice_features, unblinded_payment_r_tags)
     # we can be in the invoice_trampolines e.g. if we have a direct channel with the recipient
     invoice_trampolines.discard(my_pubkey)
-    _logger.debug(f"Creating trampoline route for invoice_pubkey={invoice_pubkey.hex()}, {is_legacy=}")
+    if blinded_path:
+        assert isinstance(routing_info, BlindedRoutingInfo) and blinded_path.payinfo
+        # FIXME: eclair doesn't yet implement end-to-end blinded payments, so we have to fall back to legacy.
+        #        see: https://github.com/ACINQ/eclair/pull/2819
+        is_legacy = True
+
+        _logger.debug(f"Creating trampoline route for blinded payment. "
+                      f"IP={blinded_path.path.first_node_id.hex()} {blinded_path.path.hop_count=}, {is_legacy=}")
+    else:
+        assert isinstance(routing_info, UnblindedRoutingInfo)
+        _logger.debug(f"Creating trampoline route for invoice_pubkey={routing_info.node_pubkey.hex()}, {is_legacy=}")
 
     # we build a route of trampoline hops and extend the route list in place
-    route = []
+    route: list[TrampolineEdge] = []
+    final_node_pubkey = blinded_path.path.first_node_id if blinded_path else routing_info.node_pubkey
 
     # our first trampoline hop is decided by the channel we use
     _extend_trampoline_route(
         route, start_node=my_pubkey, end_node=my_trampoline, fee_info=(0, 0, 0)
     )
 
+    next_trampolines = next_trampolines.copy()  # don't mutate PaySessions next_trampolines
     next_trampolines.pop(my_pubkey, None)
+    # prevent routing through the final node
+    next_trampolines.pop(final_node_pubkey, None)
     next_trampolines_ids = list(next_trampolines.keys())
+    final_forward_placeholder: Optional[_FinalForwardPlaceholder] = None
     if is_legacy:
         if next_trampolines:
             trampoline_id = _choose_next_trampoline(my_trampoline, next_trampolines_ids, failed_routes)
             _extend_trampoline_route(route, end_node=trampoline_id, fee_info = next_trampolines[trampoline_id])
-        # the last trampoline onion must contain routing hints for the last trampoline
-        # node to find the recipient
-        # Due to space constraints it is not guaranteed for all route hints to get included in the onion
-        invoice_routing_info: List[bytes] = encode_routing_info(r_tags)
-        assert invoice_routing_info == encode_routing_info(decode_routing_info(b''.join(invoice_routing_info)))
-        route[-1].invoice_routing_info = invoice_routing_info
-        route[-1].invoice_features = invoice_features
-        route[-1].outgoing_node_id = invoice_pubkey
+        # the last trampoline onion must contain routing information for the last trampoline node to find the recipient
+        route[-1].invoice_features = routing_info.invoice_features
+        if blinded_path:
+            # The last trampoline forwarder will use one of the provided paths and forward to its introduction point.
+            # We could include multiple blinded paths and let the trampoline node decide which one to use.
+            # However, considering that we ourselves are stuffing a lot of (recipient-) data into the blinded path
+            # space might get tight when putting multiple paths into the trampoline onion. Also, fee allocation
+            # for the last trampoline node seems simpler when we know which path will be used, otherwise we'd have
+            # to assume it uses the most expensive one to not under-allocate?
+            route[-1].invoice_routing_info = [blinded_path]
+        else:
+            # Due to space constraints it is not guaranteed for all route hints to get included in the onion
+            invoice_routing_info: List[bytes] = encode_routing_info(routing_info.r_tags)
+            assert invoice_routing_info == encode_routing_info(decode_routing_info(b''.join(invoice_routing_info)))
+            route[-1].invoice_routing_info = invoice_routing_info
+        # set fee placeholder for final trampoline so it can pay for the route to the recipient/IP
+        final_forward_placeholder = _FinalForwardPlaceholder()
     else:
         next_trampoline = my_trampoline
         # maybe add second trampoline
@@ -340,96 +386,190 @@ def create_trampoline_route(
         if invoice_trampolines and next_trampoline not in invoice_trampolines:
             invoice_trampoline = _choose_next_trampoline(next_trampoline, invoice_trampolines, failed_routes)
             _extend_trampoline_route(route, end_node=invoice_trampoline)
+        # the recipient is itself a trampoline node, so it is the last hop and gets its own trampoline onion
+        if route[-1].end_node != final_node_pubkey:
+            # fee_info is not passed for e2e blinded paths, even though we know from the blinded_payinfo,
+            # because `calc_hops_data_for_blinded_payment` itself takes the payinfo and allocates the fee
+            _extend_trampoline_route(route, end_node=final_node_pubkey)
 
-    # Add final edge. note: eclair requires an encrypted t-onion blob even in legacy case.
-    # Also needed for fees for last TF!
-    if route[-1].end_node != invoice_pubkey:
-        _extend_trampoline_route(route, end_node=invoice_pubkey)
-
-    # replace placeholder fees in route
-    usable_budget_msat = get_trampoline_budget(trampoline_fee_level, budget.fee_msat)
+    # trampoline fee allocation
+    # if there is a blinded path, the fees required for the blinded path are accounted into the available budget.
+    unblinded_path_budget = budget.subtract_blinded_path_fees(blinded_path.payinfo, amount_msat) if blinded_path else budget
+    usable_budget_msat = get_trampoline_budget(trampoline_fee_level, unblinded_path_budget.fee_msat)
     _logger.debug(f"create_trampoline_route: {trampoline_fee_level=}, {usable_budget_msat=}")
+    # the trampolines need to carry the fee for the blinded path, so add it to the recipient (IP) amount for the allocation
+    amount_for_dest = amount_msat + fee_for_edge_msat(
+        forwarded_amount_msat=amount_msat,
+        fee_base_msat=blinded_path.payinfo.fee_base_msat,
+        fee_proportional_millionths=blinded_path.payinfo.fee_proportional_millionths,
+    ) if blinded_path else amount_msat
+    fee_carrying_edges: list[TrampolineEdge | _FinalForwardPlaceholder] = list(route)
+    if final_forward_placeholder is not None:
+        fee_carrying_edges.append(final_forward_placeholder)
     _allocate_fee_budget_among_route(
-        route,
+        fee_carrying_edges,
         usable_budget_msat=usable_budget_msat,
-        amount_msat_for_dest=amount_msat,
+        amount_msat_for_dest=amount_for_dest,  # dest is IP (blinded) or payment recipient (unblinded)
     )
 
+    # Allocate additional blinded path fees to the budget for the last unblinded trampoline so it can pay for the blinded path.
+    blinded_payinfo = blinded_path.payinfo if blinded_path else None
+    final_forward_fees: Optional[FinalForwardFees] = None
+    budget_final_forward_fees: Optional[FinalForwardFees] = None  # only used for the budget check below, excluding bp cltv
+    if final_forward_placeholder is not None:
+        # unblinded or blinded legacy payment
+        assert final_forward_placeholder.fee_base_msat is not None, "no base trampoline fee allocated?"
+        budget_final_forward_fees = final_forward_fees = FinalForwardFees(
+            fee_base_msat=final_forward_placeholder.fee_base_msat \
+                            + (blinded_payinfo.fee_base_msat if blinded_payinfo else 0),
+            fee_proportional_millionths=final_forward_placeholder.fee_proportional_millionths \
+                                            + (blinded_payinfo.fee_proportional_millionths if blinded_payinfo else 0),
+            forwarder_cltv_delta=DEFAULT_TRAMPOLINE_CLTV_DELTA,
+            blinded_path_cltv_delta=blinded_payinfo.cltv_expiry_delta if blinded_payinfo else 0,
+        )
+    elif blinded_payinfo is not None:
+        # e2e blinded payment, the recipient/IP is already made part of the route above and got its own allocation.
+        # But we still need to consider the blinded path fees in the budget check below. They have not been added to
+        # the route edge as 'calc_hops_data_for_blinded_payment' handles them internally.
+        budget_final_forward_fees = FinalForwardFees(
+            fee_base_msat=blinded_payinfo.fee_base_msat,
+            fee_proportional_millionths=blinded_payinfo.fee_proportional_millionths,
+        )
+
+    trampoline_route = TrampolineRoute(edges=route, is_legacy=is_legacy, final_forward_fees=final_forward_fees)
+
     # check that we can pay amount and fees
+    min_final_cltv_delta = blinded_path.payinfo.cltv_expiry_delta + routing_info.final_cltv_delta \
+                                if blinded_path else routing_info.final_cltv_delta
     if not is_route_within_budget(
-        route=route,
-        budget=budget,
+        route=trampoline_route.edges,  # unblinded route (forwarders only)
+        budget=budget,  # whole budget
         amount_msat_for_dest=amount_msat,
         cltv_delta_for_dest=min_final_cltv_delta,
+        final_forward_fees=budget_final_forward_fees,
     ):
-        raise FeeBudgetExceeded(f"route exceeds budget: budget: {budget}")
-    return route
+        raise FeeBudgetExceeded(f"route exceeds budget: budget: {budget=} {unblinded_path_budget=}")
+
+    return trampoline_route
 
 
 def create_trampoline_onion(
     *,
-    route: LNPaymentTRoute,
+    trampoline_route: TrampolineRoute,
+    routing_info: 'BlindedRoutingInfo | UnblindedRoutingInfo',
+    blinded_path: Optional['BlindedPathInfo'],
     amount_msat: int,
-    final_cltv_abs: int,
+    local_height: int,
     total_msat: int,
     payment_hash: bytes,
-    payment_secret: bytes,
 ) -> Tuple[OnionPacket, int, int]:
-    # all edges are trampoline
-    hops_data, amount_msat, cltv_abs = calc_hops_data_for_payment(
-        route,
-        amount_msat,
-        final_cltv_abs=final_cltv_abs,
-        total_msat=total_msat,
-        payment_secret=payment_secret)
-    # detect trampoline hops.
-    payment_path_pubkeys = [x.node_id for x in route]
-    num_hops = len(payment_path_pubkeys)
+    route, is_legacy = trampoline_route.edges, trampoline_route.is_legacy
+    final_cltv_abs = local_height + routing_info.final_cltv_delta
+    if blinded_path and not is_legacy:  # every node on the blinded path is a trampoline
+        assert blinded_path.payinfo
+        hops_data, blinded_path_pubkeys, amount_msat, cltv_abs = calc_hops_data_for_blinded_payment(
+            route_to_introduction_point=route,
+            recipient_amount_msat=amount_msat,
+            final_cltv_abs=final_cltv_abs,
+            total_msat=total_msat,
+            invoice_blinded_path_info=blinded_path,
+        )
+    else:
+        hops_data, amount_msat, cltv_abs = calc_hops_data_for_payment(
+            route,
+            amount_msat,
+            final_cltv_abs=final_cltv_abs,
+            total_msat=total_msat,
+            payment_secret=routing_info.payment_secret if not blinded_path else None,
+            final_forward_fees=trampoline_route.final_forward_fees,
+        )
+
+    # detect trampoline hops. mutate hops_data payloads to make them trampoline payloads.
+    payment_path_pubkeys = [e.end_node for e in trampoline_route.edges]
+    num_unblinded_hops = len(payment_path_pubkeys)
     routing_info_payload_index: Optional[int] = None
-    for i in range(num_hops):
+    for i in range(num_unblinded_hops):
         route_edge = route[i]
         assert route_edge.is_trampoline()
         payload = dict(hops_data[i].payload)
-        if i < num_hops - 1:
-            payload.pop('short_channel_id')
+
+        # replace `short_channel_id` with next `outgoing_node_id`
+        if i < num_unblinded_hops - 1:
             next_edge = route[i+1]
             assert next_edge.is_trampoline()
+            del payload["short_channel_id"]
             payload["outgoing_node_id"] = {"outgoing_node_id": next_edge.node_id}
-        # only for final
-        if i == num_hops - 1:
-            payload["payment_data"] = {
-                "payment_secret": payment_secret,
-                "total_msat": total_msat
-            }
-        # legacy
-        if i == num_hops - 2 and route_edge.invoice_features:
-            payload["invoice_features"] = {"invoice_features": LnFeatures(route_edge.invoice_features).to_tlv_bytes()}
-            routing_info_payload_index = i
-            payload["payment_data"] = {
-                "payment_secret": payment_secret,
-                "total_msat": total_msat
-            }
+
+        # final (unblinded) hop
+        elif i == num_unblinded_hops - 1:
+            if blinded_path:
+                assert "payment_data" not in payload, hops_data
+                if is_legacy:
+                    assert route_edge.invoice_routing_info is not None, route
+                    # include blinded paths so the trampoline can route to the recipient
+                    routing_info_payload_index = i
+                    payload["invoice_features"] = {"invoice_features": LnFeatures(route_edge.invoice_features).to_tlv_bytes()}
+                else:
+                    assert "short_channel_id" not in payload, hops_data
+                    assert "current_path_key" in payload, payload
+            else:
+                payload["payment_data"] = {
+                    "payment_secret": routing_info.payment_secret,
+                    "total_msat": total_msat
+                }
+                if is_legacy:
+                    # payload for the last trampoline forwarder to find the recipient
+                    assert route_edge.invoice_features is not None, route
+                    routing_info_payload_index = i
+                    payload["outgoing_node_id"] = {"outgoing_node_id": routing_info.node_pubkey}
+                    payload["invoice_features"] = {
+                        "invoice_features": LnFeatures(route_edge.invoice_features).to_tlv_bytes()
+                    }
+
         hops_data[i] = dataclasses.replace(hops_data[i], payload=payload)
 
+    if blinded_path and not is_legacy:
+        payment_path_pubkeys = payment_path_pubkeys + blinded_path_pubkeys
+        assert len(hops_data) == len(payment_path_pubkeys), (hops_data, payment_path_pubkeys)
+
     if (index := routing_info_payload_index) is not None:
-        # fill the remaining payload space with available routing hints (r_tags)
         payload = dict(hops_data[index].payload)
-        # try different r_tag order on each attempt
-        invoice_routing_info = random_shuffled_copy(route[index].invoice_routing_info)
         remaining_payload_space = TRAMPOLINE_HOPS_MAX_DATA_SIZE - sum(len(hop.to_bytes()) for hop in hops_data)
-        routing_info_to_use = []
-        for encoded_r_tag in invoice_routing_info:
-            if remaining_payload_space < 50:
-                break  # no r_tag will fit here anymore
-            r_tag_size = len(encoded_r_tag)
-            if r_tag_size > remaining_payload_space:
-                continue
-            routing_info_to_use.append(encoded_r_tag)
-            remaining_payload_space -= r_tag_size
-        # add the chosen r_tags to the payload
-        payload["invoice_routing_info"] = {"invoice_routing_info": b''.join(routing_info_to_use)}
+        if blinded_path:
+            assert route[index].invoice_routing_info, route
+            paths = []
+            hop_base_size = len(hops_data[index].to_bytes())
+            for bpi in route[index].invoice_routing_info:
+                assert isinstance(bpi, BlindedPathInfo)
+                candidate_paths = paths + [{
+                    'blinded_path': dataclasses.asdict(bpi.path),
+                    'payment_info': bpi.payinfo.to_dict(),
+                }]
+                candidate_payload = {**payload, "outgoing_blinded_paths": {"paths": candidate_paths}}
+                paths_size = len(dataclasses.replace(hops_data[index], payload=candidate_payload).to_bytes()) - hop_base_size
+                if paths_size > remaining_payload_space:
+                    if not paths:
+                        raise NoPathFound(f"couldn't fit a single blinded path in trampoline onion. {paths_size=}")
+                    break
+                paths = candidate_paths
+            payload["outgoing_blinded_paths"] = {"paths": paths}
+        else:
+            # fill the remaining payload space with available routing hints (r_tags)
+            # try different r_tag order on each attempt
+            invoice_routing_info = random_shuffled_copy(route[index].invoice_routing_info)
+            routing_info_to_use = []
+            for encoded_r_tag in invoice_routing_info:
+                if remaining_payload_space < 50:
+                    break  # no r_tag will fit here anymore
+                r_tag_size = len(encoded_r_tag)
+                if r_tag_size > remaining_payload_space:
+                    continue
+                routing_info_to_use.append(encoded_r_tag)
+                remaining_payload_space -= r_tag_size
+            # add the chosen r_tags to the payload
+            payload["invoice_routing_info"] = {"invoice_routing_info": b''.join(routing_info_to_use)}
+            _logger.debug(f"Using {len(routing_info_to_use)} of {len(invoice_routing_info)} r_tags")
         hops_data[index] = dataclasses.replace(hops_data[index], payload=payload)
-        _logger.debug(f"Using {len(routing_info_to_use)} of {len(invoice_routing_info)} r_tags")
 
     trampoline_session_key = os.urandom(32)
     trampoline_onion = new_onion_packet(payment_path_pubkeys, trampoline_session_key, hops_data, associated_data=payment_hash, trampoline=True)
@@ -445,42 +585,39 @@ def create_trampoline_route_and_onion(
         *,
         amount_msat: int,  # that final receiver gets
         total_msat: int,
-        min_final_cltv_delta: int,
-        invoice_pubkey: bytes,
-        invoice_features,
+        routing_info: 'UnblindedRoutingInfo | BlindedRoutingInfo',
         my_pubkey: bytes,
-        node_id: bytes,
-        r_tags,
+        my_trampoline: bytes,
         payment_hash: bytes,
-        payment_secret: bytes,
         local_height: int,
         trampoline_fee_level: int,
         next_trampolines: dict,
         failed_routes: Iterable[Sequence[str]],
         budget: PaymentFeeBudget,
-) -> Tuple[LNPaymentTRoute, OnionPacket, int, int]:
+        blinded_path: Optional['BlindedPathInfo'],
+) -> Tuple[TrampolineRoute, OnionPacket, int, int]:
     # create route for the trampoline_onion
+    # blinded path hops are not appended to this route
     trampoline_route = create_trampoline_route(
         amount_msat=amount_msat,
-        min_final_cltv_delta=min_final_cltv_delta,
+        routing_info=routing_info,
         my_pubkey=my_pubkey,
-        invoice_pubkey=invoice_pubkey,
-        invoice_features=invoice_features,
-        my_trampoline=node_id,
-        r_tags=r_tags,
+        my_trampoline=my_trampoline,
         trampoline_fee_level=trampoline_fee_level,
         next_trampolines=next_trampolines,
         failed_routes=failed_routes,
         budget=budget,
+        blinded_path=blinded_path,
     )
     # compute onion and fees
-    final_cltv_abs = local_height + min_final_cltv_delta
     trampoline_onion, amount_with_fees, bucket_cltv_abs = create_trampoline_onion(
-        route=trampoline_route,
+        trampoline_route=trampoline_route,
+        routing_info=routing_info,
+        blinded_path=blinded_path,
         amount_msat=amount_msat,
-        final_cltv_abs=final_cltv_abs,
+        local_height=local_height,
         total_msat=total_msat,
         payment_hash=payment_hash,
-        payment_secret=payment_secret)
+    )
     bucket_cltv_delta = bucket_cltv_abs - local_height
     return trampoline_route, trampoline_onion, amount_with_fees, bucket_cltv_delta

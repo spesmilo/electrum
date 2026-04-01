@@ -90,7 +90,7 @@ from .lnonion import (
 from .lnmsg import decode_msg, OnionWireSerializer
 from .lnrouter import (
     RouteEdge, LNPaymentRoute, LNPaymentPath, is_route_within_budget, NoChannelPolicy,
-    LNPathInconsistent, fee_for_edge_msat, FinalForwardFees
+    LNPathInconsistent, fee_for_edge_msat, FinalForwardFees,
 )
 from .lnwatcher import LNWatcher
 from .submarine_swaps import SwapManager
@@ -2405,18 +2405,26 @@ class LNWallet(Logger):
         have_direct_channel = any(chan.node_id in recipient_pubkeys for chan in my_active_channels)
         self.logger.info(f"channels_with_funds: {channels_with_funds}, {have_direct_channel=}")
         exclude_single_part_payments = False
+        exclude_multinode_payments = False
         if self.uses_trampoline():
-            # in the case of a legacy payment, we don't allow splitting via different
-            # trampoline nodes, because of https://github.com/ACINQ/eclair/issues/2127
-            exclude_multinode_payments = False
             if isinstance(routing_info, UnblindedRoutingInfo):
+                # in the case of a legacy payment, we don't allow splitting via different
+                # trampoline nodes, because of https://github.com/ACINQ/eclair/issues/2127
                 is_legacy, _ = is_legacy_relay(invoice_features, routing_info.r_tags)
-                exclude_multinode_payments = is_legacy
+            else:
+                # In blinded payments the total_amount has to be included in the payment recipients onion.
+                # During blinded legacy payments the last trampoline forwarder gets the blinded path(s) in his trampoline onion
+                # and constructs the onion for the recipient. There is no specified mechanism to tell the
+                # last trampoline forwarder the total payment amount, and Eclair just uses the amount_to_forward
+                # as total_amount when forwarding the payment, so multinode cannot work. See:
+                # https://github.com/ACINQ/eclair/blob/2dda79468a8b69a2acf7962cdac63245f7cc3ee8/eclair-core/src/main/scala/fr/acinq/eclair/payment/relay/NodeRelay.scala#L281
+                is_legacy, _ = is_legacy_relay(invoice_features, None)
+                is_legacy = True  # FIXME: blinded payments are always legacy, see create_trampoline_route().
+            exclude_multinode_payments = is_legacy
             # we don't split within a channel when sending to a trampoline node,
             # the trampoline node will split for us
             exclude_single_channel_splits = not self.config.TEST_FORCE_MPP
         else:
-            exclude_multinode_payments = False
             exclude_single_channel_splits = False
             if invoice_features.supports(LnFeatures.BASIC_MPP_OPT) and not self.config.TEST_FORCE_DISABLE_MPP:
                 # if amt is still large compared to total_msat, split it:
@@ -2483,6 +2491,7 @@ class LNWallet(Logger):
             routes = []
             try:
                 destination_pubkey = blinded_path.path.first_node_id if blinded_path else routing_info.node_pubkey
+                # FIXME: determine is_direct_path per sc key
                 is_direct_path = all(node_id == destination_pubkey for (chan_id, node_id) in sc.config.keys())
                 if self.uses_trampoline() and not is_direct_path:
                     if fwd_trampoline_onion:
@@ -2496,30 +2505,25 @@ class LNWallet(Logger):
                     # for each trampoline forwarder, construct mpp trampoline
                     for trampoline_node_id, trampoline_parts in per_trampoline_channel_amounts.items():
                         per_trampoline_amount = sum([x[1] for x in trampoline_parts])
-                        if not isinstance(routing_info, UnblindedRoutingInfo):
-                            raise NotImplementedError
                         trampoline_route, trampoline_onion, per_trampoline_amount_with_fees, per_trampoline_cltv_delta = create_trampoline_route_and_onion(
                             amount_msat=per_trampoline_amount,
                             total_msat=paysession.amount_to_pay,
                             my_pubkey=self.node_keypair.pubkey,
-                            min_final_cltv_delta=routing_info.final_cltv_delta,
-                            invoice_pubkey=routing_info.node_pubkey,
-                            invoice_features=routing_info.invoice_features,
-                            r_tags=routing_info.r_tags,
-                            payment_secret=routing_info.payment_secret,
-                            node_id=trampoline_node_id,
+                            my_trampoline=trampoline_node_id,
                             payment_hash=paysession.payment_hash,
                             local_height=local_height,
                             trampoline_fee_level=paysession.trampoline_fee_level,
                             next_trampolines=paysession.next_trampolines.get(trampoline_node_id, {}),
                             failed_routes=paysession.failed_trampoline_routes,
                             budget=budget._replace(fee_msat=budget.fee_msat // len(per_trampoline_channel_amounts)),
+                            routing_info=routing_info,
+                            blinded_path=blinded_path,
                         )
                         # node_features is only used to determine is_tlv
                         per_trampoline_secret = os.urandom(32)
                         per_trampoline_fees = per_trampoline_amount_with_fees - per_trampoline_amount
                         self.logger.info(f'created route with trampoline fee level={paysession.trampoline_fee_level}')
-                        self.logger.info(f'trampoline hops: {[hop.end_node.hex() for hop in trampoline_route]}')
+                        self.logger.info(f'trampoline hops: {[hop.end_node.hex() for hop in trampoline_route.edges]}')
                         self.logger.info(f'per trampoline fees: {per_trampoline_fees}')
                         for chan_id, part_amount_msat in trampoline_parts:
                             chan = self._channels[chan_id]
@@ -2546,7 +2550,7 @@ class LNWallet(Logger):
                                 bucket_msat=per_trampoline_amount_with_fees,
                                 amount_receiver_msat=part_amount_msat,
                                 trampoline_fee_level=paysession.trampoline_fee_level,
-                                trampoline_route=trampoline_route,
+                                trampoline_route=trampoline_route.edges,
                                 per_trampoline_payment_secret=per_trampoline_secret,
                                 # blinded path is embedded in the trampoline onion for last trampoline forwarder
                                 blinded_path=None,

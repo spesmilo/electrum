@@ -34,6 +34,7 @@ from dataclasses import dataclass
 
 import attr
 
+from .lnonion import BlindedPathInfo
 from .util import profiler, with_lock
 from .logging import Logger
 from .lnutil import (NUM_MAX_EDGES_IN_PAYMENT_PATH, ShortChannelID, LnFeatures,
@@ -117,7 +118,8 @@ class RouteEdge(PathEdge):
 
 @attr.s
 class TrampolineEdge(RouteEdge):
-    invoice_routing_info = attr.ib(type=Sequence[bytes], default=None)
+    # r-tags (non e2e bolt11) or a sequence of `payment_blinded_path` (non e2e bolt12)
+    invoice_routing_info = attr.ib(type=Sequence[bytes] | Sequence[BlindedPathInfo], default=None)
     invoice_features = attr.ib(type=int, default=None)
     # this is re-defined from parent just to specify a default value:
     short_channel_id = attr.ib(default=ShortChannelID(8), repr=lambda val: str(val))
