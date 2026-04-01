@@ -32,6 +32,7 @@ from threading import RLock
 from math import inf
 import dataclasses
 
+from .lnonion import BlindedPathInfo
 from .util import profiler, with_lock, now, repr_dataclass
 from .logging import Logger
 from .lnutil import (NUM_MAX_EDGES_IN_PAYMENT_PATH, ShortChannelID, LnFeatures,
@@ -131,7 +132,8 @@ class RouteEdge(PathEdge):
 
 @dataclasses.dataclass(kw_only=True, repr=False)
 class TrampolineEdge(RouteEdge):
-    invoice_routing_info: Optional[Sequence[bytes]] = None
+    # r-tags (non e2e bolt11) or a sequence of `payment_blinded_path` (non e2e bolt12)
+    invoice_routing_info: Optional[Sequence[bytes] | Sequence[BlindedPathInfo]] = None
     invoice_features: Optional[int] = None
     # this is re-defined from parent just to specify a default value:
     short_channel_id: ShortChannelID = ShortChannelID(8)
