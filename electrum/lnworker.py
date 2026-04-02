@@ -3610,6 +3610,20 @@ class LNWallet(Logger):
         )
 
     def export_channel_backup(self, channel_id):
+        """Historically, we allowed watching-only wallets and hardware wallets
+        to have lightning channels.  Since these wallets do not have
+        private keys, we use their master public key to encrypt
+        channel backups. This allows users to import channel backups
+        in these wallets. Note that these are static backups: they
+        only allow to request a force close (and, in some scenarios,
+        to sweep funds after a channel has been force closed).
+
+        The creation of lightning channels in watching-only wallets
+        has been disabled for anchor channels. Note that it is still
+        possible to create non-anchor channels, see
+        config.ENABLE_ANCHOR_CHANNELS.
+
+        """
         xpub = self.wallet.get_fingerprint()
         backup_bytes = self.create_channel_backup(channel_id).to_bytes()
         assert backup_bytes == ImportedChannelBackupStorage.from_bytes(backup_bytes).to_bytes(), "roundtrip failed"

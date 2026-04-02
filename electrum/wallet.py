@@ -548,6 +548,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             ln_xprv = self.keystore.get_lightning_xprv(password)
             self.db.put('lightning_xprv', ln_xprv)
         else:
+            # bip39 seeds and imported zprv.
+            # also, watching-only and hw wallets, if the user disables anchors.
+            # todo: we should kill that branch, it is a footgun.
             seed = os.urandom(32)
             node = BIP32Node.from_rootseed(seed, xtype='standard')
             ln_xprv = node.to_xprv()
