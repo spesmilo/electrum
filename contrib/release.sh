@@ -164,7 +164,12 @@ do
         if [ ! -z "$RELEASEMANAGER" ] ; then
             ./contrib/android/build.sh qml $arch release $password
         else
-            ./contrib/android/build.sh qml $arch release-unsigned
+            if test -f "dist/$apk_unsigned"; then
+                # has already been built separately before
+                info "found unsigned: $apk_unsigned"
+            else
+                ./contrib/android/build.sh qml $arch release-unsigned
+            fi
             mv "dist/$apk_unsigned" "dist/$apk"
         fi
     fi
