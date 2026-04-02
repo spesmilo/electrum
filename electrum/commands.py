@@ -172,6 +172,12 @@ def command(s):
             cmd = known_commands[name]  # type: Command
             password = kwargs.get('password')
             daemon = cmd_runner.daemon
+            if isinstance(kwargs.get('wallet'), str):
+                # a wallet path has been passed as 'wallet' arg (instead of 'wallet_path')
+                wallet_str = kwargs.pop('wallet')
+                # still prioritize 'wallet_path' over a 'wallet' str
+                if 'wallet_path' not in kwargs:
+                    kwargs['wallet_path'] = wallet_str
             if daemon:
                 if 'wallet_path' in cmd.options or cmd.requires_wallet:
                     kwargs['wallet_path'] = daemon.config.maybe_complete_wallet_path(kwargs.get('wallet_path'))
