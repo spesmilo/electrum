@@ -660,6 +660,13 @@ class Test_bitcoin(ElectrumTestCase):
         self.assertEqual(DecodedBech32(None, None, None),
                          segwit_addr.bech32_decode('1p2gdwpf'))
 
+        # without checksum
+        bolt12_str = 'lno1pqps7sjqpgtyzm3qv4uxzmtsd3jjqer9wd3hy6tsw35k7msjzfpy7nz5yqcnygrfdej82um5wf5k2uckyypwa3eyt44h6txtxquqh7lz5djge4afgfjn7k4rgrkuag0jsd5xvxg'
+        self.assertEqual(DecodedBech32(None, None, None),
+                         segwit_addr.bech32_decode(bolt12_str, with_checksum=True, ignore_long_length=True))
+        self.assertEqual(DecodedBech32(None, 'lno', [1, 0, 1, 16, 30, 16, 18, 0, 1, 8, 11, 4, 2, 27, 17, 0, 12, 21, 28, 6, 2, 27, 11, 16, 13, 17, 18, 18, 0, 25, 3, 5, 14, 13, 17, 23, 4, 26, 11, 16, 14, 17, 20, 22, 30, 27, 16, 18, 2, 9, 1, 4, 30, 19, 2, 20, 4, 0, 24, 19, 4, 8, 3, 9, 13, 25, 18, 7, 10, 28, 27, 20, 14, 9, 20, 22, 10, 28, 24, 22, 4, 4, 1, 14, 29, 17, 25, 4, 11, 21, 21, 23, 26, 11, 6, 11, 6, 0, 28, 0, 23, 30, 31, 2, 20, 13, 18, 8, 25, 21, 29, 9, 8, 9, 18, 19, 30, 22, 21, 3, 8, 3, 22, 28, 29, 8, 15, 18, 16, 13, 20, 6, 12, 6, 8]),
+                         segwit_addr.bech32_decode(bolt12_str, with_checksum=False, ignore_long_length=True))
+
 
 class Test_xprv_xpub(ElectrumTestCase):
 
