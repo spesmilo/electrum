@@ -13,7 +13,7 @@ ElDialog {
     title: qsTr('LNURL Payment request')
     iconSource: '../../../icons/link.png'
 
-    property InvoiceParser invoiceParser
+    property var invoiceParser  // type: InvoiceParser
 
     padding: 0
     needsSystemBarPadding: false
@@ -43,6 +43,7 @@ ElDialog {
                 compact: true
                 visible: invoiceParser.lnurlData['min_sendable_sat'] != invoiceParser.lnurlData['max_sendable_sat']
                 text: qsTr('Amount must be between %1 and %2 %3').arg(Config.formatSats(invoiceParser.lnurlData['min_sendable_sat'])).arg(Config.formatSats(invoiceParser.lnurlData['max_sendable_sat'])).arg(Config.baseUnit)
+                backgroundColor: constants.darkerDialogBackground
             }
 
             Label {
@@ -129,15 +130,18 @@ ElDialog {
             }
         }
 
-        FlatButton {
+        DialogButtonContainer {
             Layout.topMargin: constants.paddingLarge
             Layout.fillWidth: true
-            text: qsTr('Pay...')
-            icon.source: '../../icons/confirmed.png'
-            enabled: valid
-            onClicked: {
-                invoiceParser.lnurlGetInvoice(comment.text)
-                dialog.close()
+            FlatButton {
+                Layout.fillWidth: true
+                text: qsTr('Pay...')
+                icon.source: '../../icons/confirmed.png'
+                enabled: valid
+                onClicked: {
+                    invoiceParser.lnurlGetInvoice(comment.text)
+                    dialog.close()
+                }
             }
         }
     }
