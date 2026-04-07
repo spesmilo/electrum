@@ -307,6 +307,8 @@ def configure_logging(config: 'SimpleConfig', *, log_to_file: Optional[bool] = N
     from .util import is_android_debug_apk
 
     verbosity = config.get('verbosity')
+    if not verbosity:
+        verbosity = os.environ.get('ELECTRUM_LOGGING_VERBOSITY')
     if not verbosity and config.GUI_ENABLE_DEBUG_LOGS:
         verbosity = '*'
     _configure_stderr_logging(verbosity=verbosity)
