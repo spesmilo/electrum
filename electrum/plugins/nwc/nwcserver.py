@@ -344,9 +344,9 @@ class NWCServer(Logger, EventListener):
                 content = json.loads(content)
                 if not isinstance(content, dict):
                     raise Exception("malformed content, not dict")
-                params: dict = content.get('params', {})
+                params: dict = content.get('params') or {}  # some clients send 'params: null' or no params key at all
                 if not isinstance(params, dict):
-                    raise Exception("malformed params, not dict")
+                    raise Exception(f"malformed params, not dict: {content=}")
             except Exception:
                 self.logger.debug(f"Invalid request event content: {event.content}", exc_info=True)
                 continue
