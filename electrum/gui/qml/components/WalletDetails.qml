@@ -133,6 +133,64 @@ Pane {
                         Label {
                             Layout.columnSpan: 2
                             Layout.topMargin: constants.paddingSmall
+                            text: qsTr('Name')
+                            color: Material.accentColor
+                        }
+
+                        TextHighlightPane {
+                            id: walletNameContent
+                            property bool editmode: false
+                            Layout.columnSpan: 2
+                            Layout.fillWidth: true
+
+                            RowLayout {
+                                width: parent.width
+                                Label {
+                                    visible: !walletNameContent.editmode
+                                    text: Daemon.currentWallet.name
+                                    wrapMode: Text.Wrap
+                                    Layout.fillWidth: true
+                                    font.pixelSize: constants.fontSizeLarge
+                                }
+                                ToolButton {
+                                    visible: !walletNameContent.editmode
+                                    icon.source: '../../icons/pen.png'
+                                    icon.color: 'transparent'
+                                    onClicked: {
+                                        walletNameEdit.text = Daemon.currentWallet.name
+                                        walletNameContent.editmode = true
+                                        walletNameEdit.focus = true
+                                    }
+                                }
+                                TextField {
+                                    id: walletNameEdit
+                                    visible: walletNameContent.editmode
+                                    Layout.fillWidth: true
+                                    font.pixelSize: constants.fontSizeLarge
+                                }
+                                ToolButton {
+                                    visible: walletNameContent.editmode
+                                    icon.source: '../../icons/confirmed.png'
+                                    icon.color: enabled ? 'transparent' : constants.mutedForeground
+                                    enabled: walletNameEdit.text !== Daemon.currentWallet.name
+                                             && Daemon.isValidWalletName(walletNameEdit.text)
+                                    onClicked: {
+                                        walletNameContent.editmode = false
+                                        Daemon.renameWallet(walletNameEdit.text)
+                                    }
+                                }
+                                ToolButton {
+                                    visible: walletNameContent.editmode
+                                    icon.source: '../../icons/closebutton.png'
+                                    icon.color: 'transparent'
+                                    onClicked: walletNameContent.editmode = false
+                                }
+                            }
+                        }
+
+                        Label {
+                            Layout.columnSpan: 2
+                            Layout.topMargin: constants.paddingSmall
                             visible: Daemon.currentWallet.hasSeed
                             text: qsTr('Seed')
                             color: Material.accentColor
@@ -525,6 +583,14 @@ Pane {
                 })
                 dialog.open()
             }
+        }
+        function onWalletRenameError(message) {
+            var dialog = app.messageDialog.createObject(app, {
+                title: qsTr('Error'),
+                iconSource: Qt.resolvedUrl('../../icons/warning.png'),
+                text: message
+            })
+            dialog.open()
         }
     }
 
