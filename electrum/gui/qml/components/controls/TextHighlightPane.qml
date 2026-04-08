@@ -6,7 +6,7 @@ import QtQuick.Controls.Material
 Pane {
     padding: constants.paddingSmall
 
-    property color backgroundColor: Qt.lighter(Material.background, 1.15)
+    property color backgroundColor: constants.highlightBackground
     property color borderColor: 'transparent'
 
     background: Rectangle {

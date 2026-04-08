@@ -63,13 +63,10 @@ Pane {
             Layout.fillWidth: true
             Layout.fillHeight: true
             Layout.topMargin: constants.paddingLarge
-            Layout.bottomMargin: constants.paddingLarge
-            Layout.leftMargin: constants.paddingMedium
-            Layout.rightMargin: constants.paddingMedium
 
-            verticalPadding: 0
+            verticalPadding: bg.lineWidth
             horizontalPadding: 0
-            background: PaneInsetBackground {}
+            background: PaneInsetBackground { id: bg; vertical: false }
 
             ColumnLayout {
                 spacing: 0
@@ -121,6 +118,7 @@ Pane {
 
         ButtonContainer {
             Layout.fillWidth: true
+
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
@@ -157,8 +155,8 @@ Pane {
                 icon.source: '../../icons/lightning.png'
             }
         }
-
     }
+    property color navigationBarBackgroundColor: constants.highlightBackground
 
     Component {
         id: openChannelDialog

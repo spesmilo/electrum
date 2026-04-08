@@ -10,7 +10,7 @@ import "controls"
 ElDialog {
     id: dialog
 
-    property Invoice invoice
+    property var invoice  // type Invoice
     property bool payImmediately: false
     property string broadcastTxid
 
@@ -24,7 +24,7 @@ ElDialog {
 
     property bool _canMax: invoice.invoiceType == Invoice.OnchainInvoice
 
-    property Amount _invoice_amount: invoice.amount
+    property var _invoice_amount: invoice.amount  // type: Amount
 
     ColumnLayout {
         anchors.fill: parent
@@ -67,6 +67,7 @@ ElDialog {
                                             ? InfoTextArea.IconStyle.Pending
                                             : InfoTextArea.IconStyle.Error
                                         : InfoTextArea.IconStyle.Info
+                    backgroundColor: constants.darkerDialogBackground
                 }
 
                 Label {
@@ -77,7 +78,7 @@ ElDialog {
                     color: Material.accentColor
                 }
 
-                TextHighlightPane {
+                DialogHighlightPane {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
                     visible: invoice.invoiceType == Invoice.OnchainInvoice
@@ -114,7 +115,7 @@ ElDialog {
                     color: Material.accentColor
                 }
 
-                TextHighlightPane {
+                DialogHighlightPane {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
 
@@ -137,7 +138,7 @@ ElDialog {
                     color: Material.accentColor
                 }
 
-                TextHighlightPane {
+                DialogHighlightPane {
                     id: amountContainer
 
                     Layout.columnSpan: 2
@@ -294,6 +295,8 @@ ElDialog {
                                 id: maxAmountMessage
                                 visible: amountMax.checked && text
                                 compact: true
+                                backgroundColor: constants.darkerDialogBackground
+
                                 Connections {
                                     target: invoice
                                     function onMaxAmountMessage(message) {
@@ -320,7 +323,7 @@ ElDialog {
                     color: Material.accentColor
                 }
 
-                TextHighlightPane {
+                DialogHighlightPane {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
 
@@ -358,7 +361,7 @@ ElDialog {
                     color: Material.accentColor
                 }
 
-                TextHighlightPane {
+                DialogHighlightPane {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
 
@@ -401,7 +404,7 @@ ElDialog {
                     visible: 'r' in invoice.lnprops && invoice.lnprops.r.length
                     model: invoice.lnprops.r
 
-                    TextHighlightPane {
+                    DialogHighlightPane {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
 
@@ -428,7 +431,7 @@ ElDialog {
                     color: Material.accentColor
                 }
 
-                TextHighlightPane {
+                DialogHighlightPane {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
                     visible: invoice.invoiceType == Invoice.LightningInvoice && invoice.address
@@ -458,7 +461,7 @@ ElDialog {
             }
         }
 
-        ButtonContainer {
+        DialogButtonContainer {
             Layout.fillWidth: true
 
             FlatButton {
