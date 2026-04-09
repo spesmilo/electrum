@@ -184,6 +184,17 @@ class TestPaymentIdentifier(ElectrumTestCase):
         self.assertEqual(PaymentIdentifierType.LNURL, pi.type)
         self.assertTrue(pi.need_resolve())
 
+        # test with lud17 prefix
+        unsupported_lud_17_lnurl_c = f"lnurlc://service.io/?q=3fc3645b439ce8e7"
+        pi = PaymentIdentifier(None, unsupported_lud_17_lnurl_c)
+        self.assertFalse(pi.is_valid())
+
+        valid_lud_17_lnurl_w = f"lnurlw://service.io/?q=3fc3645b439ce8e7"
+        pi = PaymentIdentifier(None, valid_lud_17_lnurl_w)
+        self.assertTrue(pi.is_valid())
+        self.assertEqual(PaymentIdentifierType.LNURL, pi.type)
+        self.assertTrue(pi.need_resolve())
+
     @patch('electrum.payment_identifier.request_lnurl')
     def test_lnurl_pay_resolve(self, mock_request_lnurl):
         """Test LNURL-pay (LNURL6) with mocked resolve"""

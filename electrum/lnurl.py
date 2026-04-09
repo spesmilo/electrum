@@ -21,6 +21,9 @@ from electrum.i18n import _
 _logger = get_logger(__name__)
 
 
+SUPPORTED_LNURL_SCHEMES = ('lnurlp', 'lnurlw')
+
+
 class LNURLError(Exception): pass
 
 class UntrustedLNURLError(LNURLError):

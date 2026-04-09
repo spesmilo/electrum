@@ -16,7 +16,7 @@ from .util import get_asyncio_loop, log_exceptions
 from .transaction import PartialTxOutput
 from .lnurl import (decode_lnurl, request_lnurl, callback_lnurl, LNURLError,
                     lightning_address_to_url, try_resolve_lnurlpay, LNURL6Data,
-                    LNURL3Data, LNURLData)
+                    LNURL3Data, LNURLData, SUPPORTED_LNURL_SCHEMES)
 from .bitcoin import opcodes, construct_script
 from .lnaddr import LnInvoiceException
 from .lnutil import IncompatibleOrInsaneFeatures
@@ -43,6 +43,22 @@ def remove_uri_prefix(data: str, *, prefix: str) -> str:
     data = data.lower().strip()
     data = data.removeprefix(prefix + ':')
     return data
+
+
+def maybe_extract_url_from_lud_17_uri(data: str) -> Optional[str]:
+    """https://github.com/lnurl/luds/blob/luds/17.md"""
+    data = data.strip()
+    try:
+        parsed = urllib.parse.urlsplit(data)
+    except ValueError:
+        return None
+    if parsed.scheme not in SUPPORTED_LNURL_SCHEMES:
+        return None
+    if not (host := parsed.hostname) or not parsed.path:
+        return None
+    is_onion = host.endswith('.onion')
+    url_scheme = 'http' if is_onion else 'https'
+    return urllib.parse.urlunsplit(parsed._replace(scheme=url_scheme))
 
 
 RE_ALIAS = r'(.*?)\s*\<([0-9A-Za-z]{1,})\>'
@@ -98,6 +114,7 @@ class PaymentIdentifier(Logger):
         * openalias
         * bip21 URI
         * lightning-URI (containing bolt11 or lnurl)
+        * lnurl-URI (lud17 lnurlw/lnurlp URI)
         * bolt11 invoice
         * lnurl
         * lightning address
@@ -228,6 +245,10 @@ class PaymentIdentifier(Logger):
                     self.logger.debug(f'Exception cause {e.args!r}')
                     return
                 self.set_state(PaymentIdentifierState.AVAILABLE)
+        elif lnurl_url := maybe_extract_url_from_lud_17_uri(text):
+            self._type = PaymentIdentifierType.LNURL
+            self.lnurl = lnurl_url
+            self.set_state(PaymentIdentifierState.NEED_RESOLVE)
         elif text.lower().startswith(BITCOIN_BIP21_URI_SCHEME + ':'):
             try:
                 out = parse_bip21_URI(text)
