@@ -65,7 +65,7 @@ from .lntransport import (
 )
 from .lnpeer import Peer, LN_P2P_NETWORK_TIMEOUT
 from .lnaddr import lnencode, LnAddr, lndecode
-from .lnchannel import Channel, AbstractChannel, ChannelState, PeerState, HTLCWithStatus, ChannelBackup
+from .lnchannel import Channel, AbstractChannel, ChannelState, ChanCloseReason, PeerState, HTLCWithStatus, ChannelBackup
 from .lnrater import LNRater
 from .lnutil import (
     get_compressed_pubkey_from_bech32, serialize_htlc_key, deserialize_htlc_key, PaymentFailure, generate_keypair,
@@ -3502,6 +3502,7 @@ class LNWallet(Logger):
         # not safe to keep using the channel even if the broadcast errors (server could be lying).
         # Until the tx is seen in the mempool, there will be automatic rebroadcasts.
         chan.set_state(ChannelState.FORCE_CLOSING)
+        chan.save_close_reason(ChanCloseReason.LOCAL_FORCE)
         # Add local tx to wallet to also allow manual rebroadcasts.
         try:
             self.wallet.adb.add_transaction(tx)

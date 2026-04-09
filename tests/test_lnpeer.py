@@ -36,7 +36,7 @@ from electrum.lnpeer import Peer
 from electrum.lntransport import LNPeerAddr
 from electrum.crypto import privkey_to_pubkey
 from electrum.lnutil import Keypair, PaymentFailure, LnFeatures, HTLCOwner, PaymentFeeBudget, RECEIVED
-from electrum.lnchannel import ChannelState, PeerState, Channel
+from electrum.lnchannel import ChannelState, ChanCloseReason, PeerState, Channel
 from electrum.lnrouter import LNPathFinder, PathEdge, LNPathInconsistent
 from electrum.channel_db import ChannelDB, InvalidGossipMsg
 from electrum.lnworker import LNWallet, NoPathFound, SentHtlcInfo, PaySession, LNPeerManager
@@ -1617,11 +1617,35 @@ class TestPeerDirect(TestPeer):
             await p2.received_commitsig_event.wait()
             # alice closes
             await p1.close_channel(alice_channel.channel_id)
+            self.assertEqual(alice_channel.get_close_reason(), ChanCloseReason.LOCAL_COOP)
             gath.cancel()
         async def set_settle():
             await asyncio.sleep(0.1)
             w2.enable_htlc_settle = True
         gath = asyncio.gather(pay(), set_settle(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
+        with self.assertRaises(asyncio.CancelledError):
+            await gath
+
+    async def test_close_reason(self):
+        # Verify ChanCloseReason is set correctly on both sides for each close type.
+        graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
+        p1, p2 = graph.peers.values()
+        w1, w2 = graph.workers.values()
+        alice_channel, bob_channel = graph.channels.values()
+        w1.network.config.TEST_SHUTDOWN_FEE = 100
+        w2.network.config.TEST_SHUTDOWN_FEE = 100
+        w1.network.config.TEST_SHUTDOWN_LEGACY = True
+        w2.network.config.TEST_SHUTDOWN_LEGACY = True
+        async def action():
+            await util.wait_for2(p1.initialized, 1)
+            await util.wait_for2(p2.initialized, 1)
+            await p1.close_channel(alice_channel.channel_id)
+            # alice's side is completed, but bob need to wait to see the reason.
+            await asyncio.sleep(1)  # FIXME: use a better wait
+            self.assertEqual(alice_channel.get_close_reason(), ChanCloseReason.LOCAL_COOP)
+            self.assertEqual(bob_channel.get_close_reason(), ChanCloseReason.REMOTE_COOP)
+            gath.cancel()
+        gath = asyncio.gather(action(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
         with self.assertRaises(asyncio.CancelledError):
             await gath
 
@@ -1745,6 +1769,7 @@ class TestPeerDirect(TestPeer):
         await w1.force_close_channel(alice_channel.channel_id)
         # check if a tx (commitment transaction) was broadcasted:
         assert w1.network.tx_queue.qsize() == 1
+        self.assertEqual(alice_channel.get_close_reason(), ChanCloseReason.LOCAL_FORCE)
 
         with self.assertRaises(NoPathFound) as e:
             await w1.create_routes_from_invoice(lnaddr.get_amount_msat(), decoded_invoice=lnaddr)
