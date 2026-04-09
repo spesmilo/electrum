@@ -18,6 +18,8 @@ ElDialog {
     property alias amountLabelText: amountLabel.text
     property alias sendButtonText: sendButton.text
 
+    signal confirmed
+
     title: qsTr('Transaction Fee')
     iconSource: Qt.resolvedUrl('../../icons/question.png')
 
@@ -284,7 +286,7 @@ ElDialog {
                         : qsTr('Pay...')
                 icon.source: '../../icons/confirmed.png'
                 enabled: finalizer.valid
-                onClicked: doAccept()
+                onClicked: confirmed()
             }
         }
     }
