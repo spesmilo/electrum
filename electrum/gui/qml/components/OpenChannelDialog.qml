@@ -18,6 +18,8 @@ ElDialog {
     width: parent.width
     height: parent.height
 
+    property var _openerConfirmTxDialog: null
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
@@ -255,14 +257,18 @@ ElDialog {
     Component {
         id: confirmOpenChannelDialog
         ConfirmTxDialog {
+            id: _confirmOpenChannelDialog
             amountLabelText: qsTr('Channel capacity')
             sendButtonText: qsTr('Open Channel')
             finalizer: channelopener.finalizer
+
+            onClosed: destroy()
         }
     }
 
     ChannelOpener {
         id: channelopener
+
         wallet: Daemon.currentWallet
         onAuthRequired: (method, authMessage) => {
             app.handleAuthRequired(channelopener, method, authMessage)
@@ -288,13 +294,13 @@ ElDialog {
             })
         }
         onFinalizerChanged: {
-            var dialog = confirmOpenChannelDialog.createObject(app, {
+            _openerConfirmTxDialog = confirmOpenChannelDialog.createObject(app, {
                 satoshis: channelopener.amount
             })
-            dialog.accepted.connect(function() {
-                dialog.finalizer.signAndSend()
+            _openerConfirmTxDialog.confirmed.connect(function() {
+                _openerConfirmTxDialog.finalizer.signAndSend()
             })
-            dialog.open()
+            _openerConfirmTxDialog.open()
         }
         onChannelOpening: (peer) => {
             console.log('Channel is opening')
@@ -318,6 +324,7 @@ ElDialog {
             if (!has_onchain_backup) {
                 app.channelOpenProgressDialog.channelBackup = channelopener.channelBackup(cid)
             }
+            openerConfirmTxDialog.close()
             // TODO: handle incomplete TX
             root.close()
         }

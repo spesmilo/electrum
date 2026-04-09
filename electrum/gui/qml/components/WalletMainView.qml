@@ -111,10 +111,12 @@ Item {
                 message: invoice.message
         })
         var canComplete = !Daemon.currentWallet.isWatchOnly && Daemon.currentWallet.canSignWithoutCosigner
-        dialog.accepted.connect(function() {
+        dialog.confirmed.connect(function() {
             if (invoice.canSave)
-                if (!invoice.saveInvoice())
+                if (!invoice.saveInvoice()) {
+                    dialog.close()
                     return
+                }
             if (!canComplete) {
                 if (Daemon.currentWallet.isWatchOnly) {
                     dialog.finalizer.saveOrShow()
@@ -147,7 +149,7 @@ Item {
                     ? qsTr('Sweep...')
                     : qsTr('Sweep')
             })
-            finalizerDialog.accepted.connect(function() {
+            finalizerDialog.confirmed.connect(function() {
                 if (Daemon.currentWallet.isWatchOnly) {
                     var confirmdialog = app.messageDialog.createObject(mainView, {
                         title: qsTr('Confirm Sweep'),
@@ -163,6 +165,7 @@ Item {
                 }
                 console.log("Sending sweep transaction")
                 finalizerDialog.finalizer.send()
+                finalizerDialog.close()
             })
             finalizerDialog.open()
         })
@@ -689,7 +692,7 @@ Item {
                         }
                         showExport(getSerializedTx(), msg)
                     }
-                    _confirmPaymentDialog.destroy()
+                    _confirmPaymentDialog.close()
                 }
                 onSignError: (message) => {
                     var dialog = app.messageDialog.createObject(mainView, {
@@ -701,10 +704,11 @@ Item {
                 }
             }
 
-            // TODO: lingering confirmPaymentDialogs can raise exceptions in
-            // the child finalizer when currentWallet disappears, but we need
-            // it long enough for the finalizer to finish..
-            // onClosed: destroy()
+            // NOTE: destroy-on-close was previously disabled due to the 'accept' signal implicitly
+            // closing the dialog, while the finalizer could still trigger a callback.
+            // ConfirmTxDialog now instead emits a custom 'confirmed' signal when user ok's, but
+            // keep in mind this requires explicit closing of the dialog afterwards
+            onClosed: destroy()
         }
     }
 
@@ -721,6 +725,8 @@ Item {
                 canRbf: true
                 privateKeys: _confirmSweepDialog.privateKeys
             }
+
+            onClosed: destroy()
         }
     }
 
