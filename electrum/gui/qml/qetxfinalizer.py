@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Optional, TYPE_CHECKING, Callable
 from functools import partial
 
-from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, pyqtEnum
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, pyqtEnum, Qt
 
 from electrum.logging import get_logger
 from electrum.i18n import _
@@ -27,6 +27,7 @@ from electrum.gui import messages
 from electrum.gui.common_qt.util import QtEventListener
 from electrum.gui.common_qt.swaps import SubmarineSwapMixin
 
+from .auth import auth_protect, AuthMixin
 from .qewallet import QEWallet
 from .qetypes import QEAmount
 
@@ -81,8 +82,12 @@ class FeeSlider(QObject):
         if self._wallet != wallet:
             self._wallet = wallet
             self._config = self._wallet.wallet.config
+            self.on_wallet_changed()
             self.read_config()
             self.walletChanged.emit()
+
+    def on_wallet_changed(self):
+        pass
 
     sliderStepsChanged = pyqtSignal()
     @pyqtProperty(int, notify=sliderStepsChanged)
@@ -388,7 +393,7 @@ class TxFeeSlider(FeeSlider):
         super().save_config()
 
 
-class QETxFinalizer(TxFeeSlider, SubmarineSwapMixin):
+class QETxFinalizer(TxFeeSlider, AuthMixin, SubmarineSwapMixin):
     _logger = get_logger(__name__)
 
     finished = pyqtSignal([bool, bool, bool], arguments=['signed', 'saved', 'complete'])
@@ -415,16 +420,22 @@ class QETxFinalizer(TxFeeSlider, SubmarineSwapMixin):
         self._effectiveAmount = QEAmount()
         self._extraFee = QEAmount()
         self._canRbf = False
-
         self.swap_task: Future = None
 
-        self.walletChanged.connect(self.on_wallet_changed)  # wallet set after constructor
-        self.swapAvailabilityChanged.connect(self.on_swap_availability_changed)
+        # self.walletChanged.connect(self.on_wallet_changed)  # wallet set after constructor
+        self.swapAvailabilityChanged.connect(self.on_swap_availability_changed, Qt.ConnectionType.QueuedConnection)
+
+        self.destroyed.connect(lambda: self.on_destroy())
+
+    def on_destroy(self):
+        self._logger.debug('on_destroy')
+        self.swap_transport_cleanup()
 
     def on_wallet_changed(self):
         self.set_wallet_for_swap(self._wallet.wallet)
 
     def on_swap_availability_changed(self):
+        self._logger.debug('on_swap_availability_changed')
         self.update()
 
     addressChanged = pyqtSignal()
@@ -507,11 +518,45 @@ class QETxFinalizer(TxFeeSlider, SubmarineSwapMixin):
         if self._config.WALLET_SEND_CHANGE_TO_LIGHTNING:
             self._logger.debug('sending change to lightning')
             self.prepare_swap_transport()
-            # self.
+
         try:
             # make unsigned transaction
             amount = '!' if self._amount.isMax else self._amount.satsInt
             tx = self.make_tx(amount=amount)
+            msg = ''
+            if self.config.WALLET_SEND_CHANGE_TO_LIGHTNING:
+                # TODO: these messages are duplicated in desktop client.
+                if self.ongoing_swap_transport_connection_attempt:
+                    msg = _("Fetching submarine swap providers...")
+                elif dummy_output := tx.get_dummy_output(DummyAddress.SWAP):
+                    msg = _('Will send change to lightning')
+                    if self.swap_manager and self.swap_manager.is_initialized.is_set() and isinstance(dummy_output.value, int):
+                        ln_amount_we_recv = self.swap_manager.get_recv_amount(send_amount=dummy_output.value,
+                                                                              is_reverse=False)
+                        if ln_amount_we_recv:
+                            swap_fees = dummy_output.value - ln_amount_we_recv
+                            msg += " [" + _("Swap fees:") + " " + self._config.format_amount_and_units(swap_fees) + "]."
+                elif not tx.has_change():
+                    msg = _('No change output, so no swap')
+                else:
+                    change_amount = sum(c.value for c in tx.get_change_outputs() if isinstance(c.value, int))
+                    if change_amount > int(self._wallet.wallet.lnworker.num_sats_can_receive()):
+                        msg = _("Your channels cannot receive this amount.")
+                    elif self._wallet.wallet.lnworker.swap_manager.is_initialized.is_set():
+                        min_amount = self._wallet.wallet.lnworker.swap_manager.get_min_amount()
+                        max_amount = self._wallet.wallet.lnworker.swap_manager.get_provider_max_reverse_amount()
+                        if change_amount < min_amount:
+                            msg = _("Below the swap providers minimum value of {}.").format(
+                                self._config.format_amount_and_units(min_amount)
+                            )
+                        elif change_amount > max_amount:
+                            msg = _('Change amount exceeds the swap providers maximum value of {}.').format(
+                                self._config.format_amount_and_units(max_amount)
+                            )
+                    else:
+                        msg = _('Will not send change to Lightning')
+            self.swapStatus = msg
+
         except NotEnoughFunds:
             self.warning = self._wallet.wallet.get_text_not_enough_funds_mentioning_frozen(for_amount=amount)
             self._valid = False
@@ -579,55 +624,29 @@ class QETxFinalizer(TxFeeSlider, SubmarineSwapMixin):
             self._logger.debug('no valid tx')
             return
 
+        tx = self._tx
+
         if self.f_accept:
             self.f_accept(self._tx)
             return
 
-        loop = get_asyncio_loop()
-
-        async def prepare_swap_task():
-            tx = self._tx
-            try:
-                await self.maybe_prepare_tx_for_swap(tx, loop)
-            except Exception as e:
-                self.warning = str(e)
-                self.swapError.emit(str(e))
-                return
-
-            if hasattr(tx, 'swap_payment_hash'):
-                try:
-                    sm = self._wallet.wallet.lnworker.swap_manager
-                    swap = sm.get_swap(tx.swap_payment_hash)
-                    async with sm.create_transport() as transport:
-                        self.swapStart.emit()
-                        funding_txid = await sm.wait_for_htlcs_and_broadcast(transport=transport, swap=swap, invoice=tx.swap_invoice, tx=tx)
-                        self._logger.debug(f'{funding_txid=}')
-                        self.swapFunded.emit()
-                except Exception as e:
-                    self.swapError.emit(str(e))
-                    return
-                else:
-                    # swap cancelled?
-                    if not sm.get_swap(tx.swap_payment_hash):
-                        return
-
-            self._wallet.sign_and_broadcast(self._tx, on_success=partial(self.on_signed_tx, False),
+        if tx.get_dummy_output(DummyAddress.SWAP):
+            self._send_with_swap_change(tx)
+        else:
+            self._wallet.sign_and_broadcast(tx, on_success=partial(self.on_signed_tx, False),
                                             on_failure=self.on_sign_failed)
 
+    @auth_protect(message=_('Sign and send on-chain transaction?'))
+    def _send_with_swap_change(self, tx):
+        assert self._wallet.wallet.lnworker
+        assert tx.get_dummy_output(DummyAddress.SWAP)
+
         async def handle_swap_task():
-            # ensures that swap_task is always set None if transport closes
             try:
-                await prepare_swap_task()
-            finally:
-                self.swap_task = None
+                swap_dummy_output = tx.get_dummy_output(DummyAddress.SWAP)
+                swap_manager = self.swap_manager
+                transport = self.swap_transport
 
-        self.swap_task = asyncio.run_coroutine_threadsafe(handle_swap_task(), get_asyncio_loop())
-
-    async def maybe_prepare_tx_for_swap(self, tx, loop):
-        if swap_dummy_output := tx.get_dummy_output(DummyAddress.SWAP):
-            assert self._wallet.wallet.lnworker
-            swap_manager = self._wallet.wallet.lnworker.swap_manager
-            async with swap_manager.create_transport() as transport:
                 try:
                     if not swap_manager.is_initialized.is_set():
                         await asyncio.wait_for(swap_manager.is_initialized.wait(), timeout=5)
@@ -637,7 +656,7 @@ class QETxFinalizer(TxFeeSlider, SubmarineSwapMixin):
                         self.warning = str(e)
                     except RuntimeError:
                         pass
-
+                self._logger.debug('request_swap_for_amount')
                 swap, invoice = await swap_manager.request_swap_for_amount(
                     transport=transport, onchain_amount=swap_dummy_output.value)
 
@@ -645,6 +664,30 @@ class QETxFinalizer(TxFeeSlider, SubmarineSwapMixin):
                 assert tx.get_dummy_output(DummyAddress.SWAP) is None
                 tx.swap_invoice = invoice
                 tx.swap_payment_hash = swap.payment_hash
+
+                try:
+                    if not self._wallet.wallet.sign_transaction(tx, self._wallet.password):
+                        raise Exception('tx not signed')
+                    self.swapStart.emit()
+                    funding_txid = await swap_manager.wait_for_htlcs_and_broadcast(
+                        transport=transport, swap=swap, invoice=tx.swap_invoice, tx=tx)
+                    self._logger.debug(f'{funding_txid=}')
+                    self.swapFunded.emit()
+                    self.finished.emit(True, False, tx.is_complete())  # closes ConfirmTxDialog
+                except Exception as e:
+                    self.swapError.emit(str(e))
+                    return
+                else:
+                    # swap cancelled?
+                    if not swap_manager.get_swap(tx.swap_payment_hash):
+                        self._logger.warning('swap cancelled?')
+                        return
+
+            finally:
+                # ensures that swap_task is always set None if transport closes
+                self.swap_task = None
+
+        self.swap_task = asyncio.run_coroutine_threadsafe(handle_swap_task(), get_asyncio_loop())
 
     @pyqtSlot()
     def cancelSwap(self):

@@ -671,6 +671,7 @@ Item {
             id: _confirmPaymentDialog
             title: qsTr('Confirm Payment')
             finalizer: TxFinalizer {
+                id: _txfinalizer
                 property var _swapwaitdialog
                 wallet: Daemon.currentWallet
                 canRbf: true
@@ -728,6 +729,9 @@ Item {
                 }
                 onSwapFunded: {
                     _swapwaitdialog.close()
+                }
+                onAuthRequired: (method, authMessage) => {
+                    app.handleAuthRequired(_txfinalizer, method, authMessage)
                 }
             }
 
