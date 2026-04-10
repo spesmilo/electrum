@@ -18,6 +18,8 @@ ElDialog {
     property alias amountLabelText: amountLabel.text
     property alias sendButtonText: sendButton.text
 
+    signal confirmed
+
     title: qsTr('Transaction Fee')
     iconSource: Qt.resolvedUrl('../../icons/question.png')
 
@@ -203,6 +205,27 @@ ElDialog {
                             helptext: Config.longDescFor('WALLET_COIN_CHOOSER_OUTPUT_ROUNDING')
                         }
 
+                        ElCheckBox {
+                            Layout.fillWidth: true
+                            visible: Daemon.currentWallet.isLightning && Daemon.currentWallet.lightningCanReceive.satsInt > 0
+                            text: Config.shortDescFor('WALLET_SEND_CHANGE_TO_LIGHTNING')
+                            onCheckedChanged: {
+                                if (activeFocus) {
+                                    Config.sendChangeToLightning = checked
+                                    finalizer.doUpdate()
+                                }
+                            }
+                            Component.onCompleted: {
+                                checked = Config.sendChangeToLightning
+                            }
+                        }
+
+                        HelpButton {
+                            visible: Daemon.currentWallet.isLightning && Daemon.currentWallet.lightningCanReceive.satsInt > 0
+                            heading: Config.shortDescFor('WALLET_SEND_CHANGE_TO_LIGHTNING')
+                            helptext: Config.longDescFor('WALLET_SEND_CHANGE_TO_LIGHTNING')
+                        }
+
                     }
                 }
 
@@ -278,7 +301,7 @@ ElDialog {
                     : qsTr('Pay...')
             icon.source: '../../icons/confirmed.png'
             enabled: finalizer.valid
-            onClicked: doAccept()
+            onClicked: confirmed()
         }
     }
 

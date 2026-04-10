@@ -111,10 +111,12 @@ Item {
                 message: invoice.message
         })
         var canComplete = !Daemon.currentWallet.isWatchOnly && Daemon.currentWallet.canSignWithoutCosigner
-        dialog.accepted.connect(function() {
+        dialog.confirmed.connect(function() {
             if (invoice.canSave)
-                if (!invoice.saveInvoice())
+                if (!invoice.saveInvoice()) {
+                    dialog.close()
                     return
+                }
             if (!canComplete) {
                 if (Daemon.currentWallet.isWatchOnly) {
                     dialog.finalizer.saveOrShow()
@@ -147,7 +149,7 @@ Item {
                     ? qsTr('Sweep...')
                     : qsTr('Sweep')
             })
-            finalizerDialog.accepted.connect(function() {
+            finalizerDialog.confirmed.connect(function() {
                 if (Daemon.currentWallet.isWatchOnly) {
                     var confirmdialog = app.messageDialog.createObject(mainView, {
                         title: qsTr('Confirm Sweep'),
@@ -163,6 +165,7 @@ Item {
                 }
                 console.log("Sending sweep transaction")
                 finalizerDialog.finalizer.send()
+                finalizerDialog.close()
             })
             finalizerDialog.open()
         })
@@ -668,6 +671,8 @@ Item {
             id: _confirmPaymentDialog
             title: qsTr('Confirm Payment')
             finalizer: TxFinalizer {
+                id: _txfinalizer
+                property var _swapwaitdialog
                 wallet: Daemon.currentWallet
                 canRbf: true
                 onFinished: (signed, saved, complete) => {
@@ -689,7 +694,7 @@ Item {
                         }
                         showExport(getSerializedTx(), msg)
                     }
-                    _confirmPaymentDialog.destroy()
+                    _confirmPaymentDialog.close()
                 }
                 onSignError: (message) => {
                     var dialog = app.messageDialog.createObject(mainView, {
@@ -699,12 +704,42 @@ Item {
                     })
                     dialog.open()
                 }
+                onSwapError: (message) => {
+                    if (_swapwaitdialog)
+                        _swapwaitdialog.close()
+                    var dialog = app.messageDialog.createObject(mainView, {
+                        title: qsTr('Error'),
+                        text: [qsTr('Could not swap change'), message].join('\n\n'),
+                        iconSource: '../../../icons/warning.png'
+                    })
+                    dialog.open()
+                }
+                onSwapStart: {
+                    _swapwaitdialog = app.messageDialog.createObject(mainView, {
+                        title: qsTr('Please wait...'),
+                        text: [qsTr('waiting for lightning invoice'), ''].join('\n\n'),
+                        iconSource: Qt.resolvedUrl('../../icons/info.png'),
+                        buttonText: qsTr('Cancel'),
+                        buttonIcon: Qt.resolvedUrl('../../icons/closebutton.png')
+                    })
+                    _swapwaitdialog.accepted.connect(function() {
+                        cancelSwap()
+                    })
+                    _swapwaitdialog.open()
+                }
+                onSwapFunded: {
+                    _swapwaitdialog.close()
+                }
+                onAuthRequired: (method, authMessage) => {
+                    app.handleAuthRequired(_txfinalizer, method, authMessage)
+                }
             }
 
-            // TODO: lingering confirmPaymentDialogs can raise exceptions in
-            // the child finalizer when currentWallet disappears, but we need
-            // it long enough for the finalizer to finish..
-            // onClosed: destroy()
+            // NOTE: destroy-on-close was previously disabled due to the 'accept' signal implicitly
+            // closing the dialog, while the finalizer could still trigger a callback.
+            // ConfirmTxDialog now instead emits a custom 'confirmed' signal when user ok's, but
+            // keep in mind this requires explicit closing of the dialog afterwards
+            onClosed: destroy()
         }
     }
 
@@ -721,6 +756,8 @@ Item {
                 canRbf: true
                 privateKeys: _confirmSweepDialog.privateKeys
             }
+
+            onClosed: destroy()
         }
     }
 
