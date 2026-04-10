@@ -36,7 +36,7 @@ from .lnonion import (OnionFailureCode, OnionPacket, obfuscate_onion_error,
                       OnionRoutingFailure, ProcessedOnionPacket, UnsupportedOnionPacketVersion,
                       InvalidOnionMac, InvalidOnionPubkey, OnionFailureCodeMetaFlag,
                       OnionParsingError)
-from .lnchannel import Channel, RevokeAndAck, ChannelState, PeerState, ChanCloseOption, CF_ANNOUNCE_CHANNEL
+from .lnchannel import Channel, RevokeAndAck, ChannelState, ChanCloseReason, PeerState, ChanCloseOption, CF_ANNOUNCE_CHANNEL
 from . import lnutil
 from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc, ChannelConfig,
                      RemoteConfig, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore,
@@ -2731,6 +2731,7 @@ class Peer(Logger, EventListener):
             self.lnworker.wallet.adb.add_transaction(closing_tx)
         except UnrelatedTransactionException:
             pass  # this can happen if (~all the balance goes to REMOTE)
+        chan.save_close_reason(ChanCloseReason.LOCAL_COOP if is_local else ChanCloseReason.REMOTE_COOP)
         chan.set_state(ChannelState.CLOSING)
         # broadcast
         await self.network.try_broadcasting(closing_tx, 'closing')
