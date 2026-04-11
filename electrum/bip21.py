@@ -13,6 +13,12 @@ from .lnaddr import lndecode, LnDecodeException
 BITCOIN_BIP21_URI_SCHEME = 'bitcoin'
 LIGHTNING_URI_SCHEME = 'lightning'
 
+# note: URI scheme handler registrations are duplicated all over the codebase:
+# - for Android:  contrib/android/bitcoin_intent.xml
+# - for Linux Desktop:  electrum.desktop
+# - for Windows (setup.exe):  contrib/build-wine/electrum.nsi
+# - for macOS:  contrib/osx/pyinstaller.spec
+
 
 class InvalidBitcoinURI(Exception):
     pass
