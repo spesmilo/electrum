@@ -237,6 +237,9 @@ Section "Uninstall"
   RMDir  "$SMPROGRAMS\${PRODUCT_NAME}"
 
   DeleteRegKey HKCU "Software\Classes\bitcoin"
+  DeleteRegKey HKCU "Software\Classes\lightning"
+  DeleteRegKey HKCU "Software\Classes\lnurlp"
+  DeleteRegKey HKCU "Software\Classes\lnurlw"
   DeleteRegKey HKCU "Software\${PRODUCT_NAME}"
   DeleteRegKey HKCU "${PRODUCT_UNINST_KEY}"
 SectionEnd
