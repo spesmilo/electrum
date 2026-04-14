@@ -15,7 +15,7 @@ from electrum.bolt11 import BOLT11Addr
 from electrum.lnpeer import Peer
 from electrum.lnutil import (
     LnFeatures, PaymentFeeBudget, LOCAL, REMOTE, ChannelType, LocalConfig, RemoteConfig,
-    OnlyPubkeyKeypair, secret_to_pubkey,
+    OnlyPubkeyKeypair, secret_to_pubkey, UnblindedRoutingInfo,
 )
 from electrum.lnchannel import ChannelState, Channel
 from electrum.lnrouter import LNPathFinder
@@ -155,15 +155,19 @@ class MockLNWallet(LNWallet):
             await self.channel_db.stopped_event.wait()
 
     async def create_routes_from_invoice(self, amount_msat: int, decoded_invoice: BOLT11Addr, *, full_path=None):
-        paysession = PaySession(
-            payment_hash=decoded_invoice.paymenthash,
+        routing_info = UnblindedRoutingInfo(
+            node_pubkey=decoded_invoice.pubkey.serialize(),
+            r_tags=decoded_invoice.get_routing_info('r'),
             payment_secret=decoded_invoice.payment_secret,
+            final_cltv_delta=decoded_invoice.get_min_final_cltv_delta() + lnutil.get_final_cltv_offset(),
+            invoice_features=decoded_invoice.get_features(),
+        )
+        paysession = PaySession(
+            routing_info=routing_info,
+            payment_hash=decoded_invoice.paymenthash,
             initial_trampoline_fee_level=0,
             invoice_features=decoded_invoice.get_features(),
-            r_tags=decoded_invoice.get_routing_info('r'),
-            min_final_cltv_delta=decoded_invoice.get_min_final_cltv_delta(),
             amount_to_pay=amount_msat,
-            invoice_pubkey=decoded_invoice.pubkey.serialize(),
             uses_trampoline=False,
         )
         payment_key = decoded_invoice.paymenthash + decoded_invoice.payment_secret

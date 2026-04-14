@@ -2172,10 +2172,24 @@ class UnblindedRoutingInfo:
     r_tags: Sequence[Sequence[Sequence[bytes | int]]]
     invoice_features: LnFeatures
 
+    @property
+    def id(self):
+        """key to prevent concurrent attempts of this payment (invoice)"""
+        return self.payment_secret
+
 @dataclasses.dataclass(kw_only=True, frozen=True)
 class BlindedRoutingInfo:
     paths: tuple['BlindedPathInfo', ...]
     final_cltv_delta: int  # random offset
     invoice_features: LnFeatures
+
+    def __post_init__(self):
+        assert self.paths
+        assert all(p.payinfo for p in self.paths)
+
+    @property
+    def id(self):
+        first_path = self.paths[0].path
+        return sha256(first_path.first_node_id + first_path.first_path_key)
 
 RoutingInfo = Union[UnblindedRoutingInfo, BlindedRoutingInfo]
