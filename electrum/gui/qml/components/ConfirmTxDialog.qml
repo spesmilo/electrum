@@ -165,7 +165,7 @@ ElDialog {
                         id: optionslayout
                         width: parent.width
                         columns: 2
-
+                        rowSpacing: 0
                         ElCheckBox {
                             Layout.fillWidth: true
                             text: qsTr('Use multiple change addresses')
@@ -206,6 +206,7 @@ ElDialog {
                         }
 
                         ElCheckBox {
+                            id: cb_send_change_to_lightning
                             Layout.fillWidth: true
                             visible: Daemon.currentWallet.isLightning && Daemon.currentWallet.lightningCanReceive.satsInt > 0
                             text: Config.shortDescFor('WALLET_SEND_CHANGE_TO_LIGHTNING')
@@ -226,6 +227,15 @@ ElDialog {
                             helptext: Config.longDescFor('WALLET_SEND_CHANGE_TO_LIGHTNING')
                         }
 
+                        Label {
+                            visible: cb_send_change_to_lightning.visible && cb_send_change_to_lightning.checked
+                            color: constants.mutedForeground
+                            font.pixelSize: constants.fontSizeSmall
+                            text: finalizer.swapStatusMsg
+                            Layout.topMargin: -constants.paddingSmall
+                            Layout.leftMargin: cb_send_change_to_lightning.contentItem.leftPadding
+                                + cb_send_change_to_lightning.padding
+                        }
                     }
                 }
 

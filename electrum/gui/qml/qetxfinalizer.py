@@ -529,37 +529,8 @@ class QETxFinalizer(TxFeeSlider, AuthMixin, SubmarineSwapMixin):
             tx = self.make_tx(amount=amount)
             msg = ''
             if self.config.WALLET_SEND_CHANGE_TO_LIGHTNING:
-                # TODO: these messages are duplicated in desktop client.
-                if self.ongoing_swap_transport_connection_attempt:
-                    msg = _("Fetching submarine swap providers...")
-                elif dummy_output := tx.get_dummy_output(DummyAddress.SWAP):
-                    msg = _('Will send change to lightning')
-                    if self.swap_manager and self.swap_manager.is_initialized.is_set() and isinstance(dummy_output.value, int):
-                        ln_amount_we_recv = self.swap_manager.get_recv_amount(send_amount=dummy_output.value,
-                                                                              is_reverse=False)
-                        if ln_amount_we_recv:
-                            swap_fees = dummy_output.value - ln_amount_we_recv
-                            msg += " [" + _("Swap fees:") + " " + self._config.format_amount_and_units(swap_fees) + "]."
-                elif not tx.has_change():
-                    msg = _('No change output, so no swap')
-                else:
-                    change_amount = sum(c.value for c in tx.get_change_outputs() if isinstance(c.value, int))
-                    if change_amount > int(self._wallet.wallet.lnworker.num_sats_can_receive()):
-                        msg = _("Your channels cannot receive this amount.")
-                    elif self._wallet.wallet.lnworker.swap_manager.is_initialized.is_set():
-                        min_amount = self._wallet.wallet.lnworker.swap_manager.get_min_amount()
-                        max_amount = self._wallet.wallet.lnworker.swap_manager.get_provider_max_reverse_amount()
-                        if change_amount < min_amount:
-                            msg = _("Below the swap providers minimum value of {}.").format(
-                                self._config.format_amount_and_units(min_amount)
-                            )
-                        elif change_amount > max_amount:
-                            msg = _('Change amount exceeds the swap providers maximum value of {}.').format(
-                                self._config.format_amount_and_units(max_amount)
-                            )
-                    else:
-                        msg = _('Will not send change to Lightning')
-            self.swapStatus = msg
+                msg = self.get_message_for_swap_change(tx)
+            self.swapStatusMsg = msg
 
         except NotEnoughFunds:
             self.warning = self._wallet.wallet.get_text_not_enough_funds_mentioning_frozen(for_amount=amount)
