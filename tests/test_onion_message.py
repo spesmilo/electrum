@@ -17,7 +17,7 @@ from electrum.lnmsg import decode_msg, OnionWireSerializer
 from electrum.lnonion import (
     OnionHopsDataSingle, OnionPacket, process_onion_packet, get_bolt04_onion_key, encrypt_onionmsg_data_tlv,
     get_shared_secrets_along_route, new_onion_packet, ONION_MESSAGE_LARGE_SIZE, HOPS_DATA_SIZE, InvalidPayloadSize,
-    encrypt_hops_recipient_data, blinding_privkey, decrypt_onionmsg_data_tlv)
+    encrypt_hops_recipient_data, blinding_privkey, decrypt_onionmsg_data_tlv, BlindedPath)
 from electrum.crypto import get_ecdh, privkey_to_pubkey
 from electrum.channel_db import NodeInfo
 from electrum.lntransport import LNPeerAddr
@@ -204,14 +204,14 @@ class TestOnionMessage(ElectrumTestCase):
         final_recipient_data = {'path_id': {'data': bfh('0102')}}
         rp = create_blinded_path(session_key, [pubkey], final_recipient_data)
 
-        self.assertEqual(pubkey, rp['first_node_id'])
-        self.assertEqual(bfh('022ed557f5ad336b31a49857e4e9664954ac33385aa20a93e2d64bfe7f08f51277'), rp['first_path_key'])
-        self.assertEqual(b"\x01", rp['num_hops'])
+        self.assertEqual(pubkey, rp.first_node_id)
+        self.assertEqual(bfh('022ed557f5ad336b31a49857e4e9664954ac33385aa20a93e2d64bfe7f08f51277'), rp.first_path_key)
+        self.assertEqual(b"\x01", rp.num_hops)
         self.assertEqual([{
             'blinded_node_id': bfh('031e5d91e6c417f6e8c16d1086db1887edef7be9334f5e744d04edb8da7507481e'),
             'enclen': 20,
             'encrypted_recipient_data': bfh('2dbaa54a819775aa0548ab85db68c5099e7b1180')
-        }], rp['path'])
+        }], [dataclasses.asdict(p) for p in rp.path])
 
         # TODO: serialization test to test_lnmsg.py
         with io.BytesIO() as blinded_path_fd:
@@ -219,7 +219,7 @@ class TestOnionMessage(ElectrumTestCase):
                 fd=blinded_path_fd,
                 field_type='blinded_path',
                 count=1,
-                value=rp)
+                value=dataclasses.asdict(rp))
             blinded_path = blinded_path_fd.getvalue()
         self.assertEqual(blinded_path, bfh('02eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619022ed557f5ad336b31a49857e4e9664954ac33385aa20a93e2d64bfe7f08f5127701031e5d91e6c417f6e8c16d1086db1887edef7be9334f5e744d04edb8da7507481e00142dbaa54a819775aa0548ab85db68c5099e7b1180'))
 
@@ -251,10 +251,10 @@ class TestOnionMessage(ElectrumTestCase):
         encrypt_hops_recipient_data(hops_data, hop_shared_secrets)
 
         blinded_path_blinded_ids = []
-        for i, x in enumerate(blinded_path_to_dave.get('path')):
-            blinded_path_blinded_ids.append(x.get('blinded_node_id'))
-            payload = {'encrypted_recipient_data': {'encrypted_recipient_data': x.get('encrypted_recipient_data')}}
-            if i == len(blinded_path_to_dave.get('path')) - 1:
+        for i, x in enumerate(blinded_path_to_dave.path):
+            blinded_path_blinded_ids.append(x.blinded_node_id)
+            payload = {'encrypted_recipient_data': {'encrypted_recipient_data': x.encrypted_recipient_data}}
+            if i == len(blinded_path_to_dave.path) - 1:
                 # add final recipient payload
                 payload['message'] = {'text': bfh(test_vectors['onionmessage']['unknown_tag_1'])}
             hops_data.append(
@@ -953,12 +953,11 @@ class TestOnionMessageUtils(TestPeer):
         alice.lnpeermgr.get_peer_by_pubkey(bob.node_keypair.pubkey).their_features |= LnFeatures.OPTION_ROUTE_BLINDING_OPT
 
         final_recipient_data = {'path_id': {'data': os.urandom(32)}}
-        paths, payinfos = get_blinded_paths_to_me(alice, final_recipient_data, onion_message=False)
+        blinded_path_infos = get_blinded_paths_to_me(alice, final_recipient_data, onion_message=False)
 
-        self.assertEqual(len(paths), 1)
-        self.assertEqual(len(payinfos), 1)
+        self.assertEqual(len(blinded_path_infos), 1)
 
-        self.assertEqual(payinfos[0], {
+        self.assertEqual(blinded_path_infos[0].payinfo.to_dict(), {
             'fee_base_msat': bob_chan.forwarding_fee_base_msat,
             'fee_proportional_millionths': bob_chan.forwarding_fee_proportional_millionths,
             'cltv_expiry_delta': bob_chan.forwarding_cltv_delta + MIN_FINAL_CLTV_DELTA_ACCEPTED + MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE,
@@ -968,13 +967,13 @@ class TestOnionMessageUtils(TestPeer):
             'features': bytes(0),
         })
 
-        blinded_path = paths[0]
-        self.assertEqual(len(blinded_path['path']), 2)
-        self.assertEqual(blinded_path['first_node_id'], bob.node_keypair.pubkey)
-        self.assertEqual(len(blinded_path['first_path_key']), 33)
-        self.assertEqual(blinded_path['num_hops'], len(blinded_path['path']).to_bytes(length=1, byteorder='big'))
-        self.assertIn('blinded_node_id', blinded_path['path'][0])
-        self.assertIn('encrypted_recipient_data', blinded_path['path'][0])
+        blinded_path = blinded_path_infos[0].path
+        self.assertEqual(len(blinded_path.path), 2)
+        self.assertEqual(blinded_path.first_node_id, bob.node_keypair.pubkey)
+        self.assertEqual(len(blinded_path.first_path_key), 33)
+        self.assertEqual(blinded_path.num_hops, len(blinded_path.path).to_bytes(length=1, byteorder='big'))
+        self.assertIsNotNone(blinded_path.path[0].blinded_node_id)
+        self.assertIsNotNone(blinded_path.path[0].encrypted_recipient_data)
 
     async def test_create_route_to_introduction_point(self):
         # A -- B -- C -- D -- E
@@ -986,9 +985,13 @@ class TestOnionMessageUtils(TestPeer):
         session_key = os.urandom(32)
         introduction_point = edward.node_keypair.pubkey
         first_path_key = ecc.ECPrivkey.generate_random_key().get_public_key_bytes()
-        blinded_path = {
-            'first_path_key': first_path_key,
-        }
+        BlindedPath.__post_init__ = lambda _: None   # disable sanity checks
+        blinded_path = BlindedPath(
+            first_path_key=first_path_key,
+            first_node_id=None,
+            num_hops=None,
+            path=None,
+        )
         with self.assertRaises(NoRouteFound):
             create_route_to_introduction_point(alice, blinded_path, introduction_point, session_key)
 

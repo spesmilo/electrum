@@ -1444,6 +1444,7 @@ class LnFeatureContexts(enum.Flag):
     BOLT12_INVREQ = enum.auto()
     BOLT12_INVOICE = enum.auto()
     BLINDED_PATH = enum.auto()
+    BLINDED_PAYINFO = enum.auto()
 
 
 LNFC = LnFeatureContexts
