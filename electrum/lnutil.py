@@ -1,8 +1,11 @@
 # Copyright (C) 2018 The Electrum developers
 # Distributed under the MIT software license, see the accompanying
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
+import os
 from enum import IntFlag, IntEnum
 import enum
+from abc import ABC, abstractmethod
+from collections import defaultdict
 from typing import NamedTuple, List, Tuple, Mapping, Optional, TYPE_CHECKING, Union, Dict, Set, Sequence, FrozenSet
 import sys
 import time
@@ -35,7 +38,7 @@ from .stored_dict import StoredObject, stored_at
 if TYPE_CHECKING:
     from .lnchannel import Channel, AbstractChannel
     from .lnrouter import LNPaymentRoute
-    from .lnonion import OnionRoutingFailure
+    from .lnonion import OnionRoutingFailure, BlindedPathInfo, BlindedPayInfo
     from .simple_config import SimpleConfig
 
 
@@ -2139,3 +2142,19 @@ class PaymentFeeBudget(NamedTuple):
         fees_msat = max(total_amount_msat - amount_minus_fees, cutoff_clamped)
         fees_msat = min(fees_msat, total_amount_msat)  # to handle (invalid?) inputs below cutoff_clamped
         return fees_msat
+
+
+@dataclasses.dataclass(kw_only=True, frozen=True)
+class UnblindedRoutingInfo:
+    node_pubkey: bytes
+    payment_secret: bytes
+    final_cltv_delta: int
+    r_tags: Sequence[Sequence[Sequence[bytes | int]]]
+    invoice_features: LnFeatures
+
+@dataclasses.dataclass(kw_only=True, frozen=True)
+class BlindedRoutingInfo:
+    paths: tuple['BlindedPathInfo', ...]
+    invoice_features: LnFeatures
+
+RoutingInfo = Union[UnblindedRoutingInfo, BlindedRoutingInfo]
