@@ -1011,11 +1011,12 @@ class TestPeerDirect(TestPeer):
             # alice sends htlc BUT NOT COMMITMENT_SIGNED
             p1.maybe_send_commitment = lambda x: None
             route1 = (await w1.create_routes_from_invoice(lnaddr2.get_amount_msat(), decoded_invoice=lnaddr2))[0][0].route
-            paysession1 = w1._paysessions[lnaddr2.paymenthash + lnaddr2.payment_secret]
+            paysession1 = w1._paysessions[lnaddr2.paymenthash + pay_req2.get_routing_info().id]
             shi1 = SentHtlcInfo(
                 route=route1,
-                payment_secret_orig=lnaddr2.payment_secret,
-                payment_secret_bucket=lnaddr2.payment_secret,
+                payment_key=paysession1.payment_key,
+                per_trampoline_payment_secret=None,
+                blinded_path=None,
                 amount_msat=lnaddr2.get_amount_msat(),
                 bucket_msat=lnaddr2.get_amount_msat(),
                 amount_receiver_msat=lnaddr2.get_amount_msat(),
@@ -1031,11 +1032,12 @@ class TestPeerDirect(TestPeer):
             # bob sends htlc BUT NOT COMMITMENT_SIGNED
             p2.maybe_send_commitment = lambda x: None
             route2 = (await w2.create_routes_from_invoice(lnaddr1.get_amount_msat(), decoded_invoice=lnaddr1))[0][0].route
-            paysession2 = w2._paysessions[lnaddr1.paymenthash + lnaddr1.payment_secret]
+            paysession2 = w2._paysessions[lnaddr1.paymenthash + pay_req1.get_routing_info().id]
             shi2 = SentHtlcInfo(
                 route=route2,
-                payment_secret_orig=lnaddr1.payment_secret,
-                payment_secret_bucket=lnaddr1.payment_secret,
+                payment_key=paysession2.payment_key,
+                per_trampoline_payment_secret=None,
+                blinded_path=None,
                 amount_msat=lnaddr1.get_amount_msat(),
                 bucket_msat=lnaddr1.get_amount_msat(),
                 amount_receiver_msat=lnaddr1.get_amount_msat(),
@@ -1635,17 +1637,18 @@ class TestPeerDirect(TestPeer):
         # AssertionError is ok since we shouldn't use old routes, and the
         # route finding should fail when channel is closed
         async def f():
+            paysession = w1._paysessions[lnaddr.paymenthash + pay_req.get_routing_info().id]
             shi = SentHtlcInfo(
                 route=route,
-                payment_secret_orig=lnaddr.payment_secret,
-                payment_secret_bucket=lnaddr.payment_secret,
+                payment_key=paysession.payment_key,
+                per_trampoline_payment_secret=None,
+                blinded_path=None,
                 amount_msat=amount_msat,
                 bucket_msat=amount_msat,
                 amount_receiver_msat=amount_msat,
                 trampoline_fee_level=None,
                 trampoline_route=None,
             )
-            paysession = w1._paysessions[lnaddr.paymenthash + lnaddr.payment_secret]
             pay = w1.pay_to_route(
                 sent_htlc_info=shi,
                 paysession=paysession,

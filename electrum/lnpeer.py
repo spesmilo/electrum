@@ -20,6 +20,7 @@ from electrum_ecc import ecdsa_sig64_from_r_and_s, ecdsa_der_sig_from_ecdsa_sig6
 import aiorpcx
 from aiorpcx import ignore_after
 
+from electrum.lnonion import BlindedPathInfo
 from .lrucache import LRUCache
 from .crypto import sha256, sha256d, privkey_to_pubkey, get_ecdh
 from . import bitcoin, util
@@ -2031,7 +2032,8 @@ class Peer(Logger, EventListener):
             total_msat: int,
             payment_hash: bytes,
             min_final_cltv_delta: int,
-            payment_secret: bytes,
+            payment_secret: Optional[bytes],
+            blinded_path_info: Optional['BlindedPathInfo'] = None,
             trampoline_onion: Optional[OnionPacket] = None,
         ) -> UpdateAddHtlc:
 
@@ -2046,7 +2048,8 @@ class Peer(Logger, EventListener):
             payment_hash=payment_hash,
             min_final_cltv_delta=min_final_cltv_delta,
             payment_secret=payment_secret,
-            trampoline_onion=trampoline_onion
+            blinded_path_info=blinded_path_info,
+            trampoline_onion=trampoline_onion,
         )
         htlc = self.send_htlc(
             chan=chan,
