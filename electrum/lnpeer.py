@@ -1419,14 +1419,14 @@ class Peer(Logger, EventListener):
         self.logger.info(f"trying to get remote peer to force-close chan {channel_id.hex()}")
         # First, we intentionally send a "channel_reestablish" msg with an old state.
         # Many nodes (but not all) automatically force-close when seeing this.
-        latest_point = secret_to_pubkey(42) # we need a valid point (BOLT2)
+        ignored_point = ecc.GENERATOR.get_public_key_bytes(compressed=True)  # ignored but valid point (BOLT2)
         self.send_message(
             "channel_reestablish",
             channel_id=channel_id,
             next_commitment_number=0,
             next_revocation_number=0,
             your_last_per_commitment_secret=0,
-            my_current_per_commitment_point=latest_point)
+            my_current_per_commitment_point=ignored_point)
         # Newish nodes that have lightning/bolts/pull/950 force-close upon receiving an "error" msg,
         # so send that too. E.g. old "channel_reestablish" is not enough for eclair 0.7+,
         # but "error" is. see https://github.com/ACINQ/eclair/pull/2036
@@ -1568,7 +1568,7 @@ class Peer(Logger, EventListener):
         oldest_unrevoked_remote_ctn = chan.get_oldest_unrevoked_ctn(REMOTE)
         # send message
         assert chan.is_static_remotekey_enabled()
-        latest_secret, latest_point = chan.get_secret_and_point(LOCAL, 0)
+        ignored_point = ecc.GENERATOR.get_public_key_bytes(compressed=True)  # ignored but valid point (BOLT2)
         if oldest_unrevoked_remote_ctn == 0:
             last_rev_secret = 0
         else:
@@ -1580,7 +1580,7 @@ class Peer(Logger, EventListener):
             next_commitment_number=next_local_ctn,
             next_revocation_number=oldest_unrevoked_remote_ctn,
             your_last_per_commitment_secret=last_rev_secret,
-            my_current_per_commitment_point=latest_point)
+            my_current_per_commitment_point=ignored_point)
         self.logger.info(
             f'channel_reestablish ({chan.get_id_for_log()}): sent channel_reestablish with '
             f'(next_local_ctn={next_local_ctn}, '
