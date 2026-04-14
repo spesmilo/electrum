@@ -48,6 +48,7 @@ from .lnmsg import OnionWireSerializer
 from .lnworker import LN_P2P_NETWORK_TIMEOUT
 from .logging import Logger
 from .onion_message import create_blinded_path, send_onion_message_to
+from .lnonion import BlindedPath
 from .submarine_swaps import NostrTransport
 from .util import (
     bfh, json_decode, json_normalize, is_hash256_str, is_hex_str, to_bytes, parse_max_spend, to_decimal,
@@ -2265,6 +2266,8 @@ class Commands(Logger):
 
         node_id_or_blinded_path = bfh(node_id_or_blinded_path_hex)
         assert len(node_id_or_blinded_path) >= 33
+        if len(node_id_or_blinded_path) > 33:  # assume blinded path
+            node_id_or_blinded_path = [BlindedPath.decode(node_id_or_blinded_path)]
 
         destination_payload = {
             'message': {'text': message.encode('utf-8')}
