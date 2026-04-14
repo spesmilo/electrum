@@ -8,7 +8,8 @@ from .stored_dict import StoredObject, stored_at
 from .i18n import _
 from .util import age, InvoiceError, format_satoshis
 from .bip21 import create_bip21_uri
-from .lnutil import hex_to_bytes, LnFeatures
+from .lnutil import hex_to_bytes, RoutingInfo, BlindedRoutingInfo, UnblindedRoutingInfo, LnFeatures
+from .lnonion import BlindedPathInfo
 from .bolt11 import decode_bolt11_invoice, BOLT11Addr
 from .bolt12 import BOLT12Invoice
 from .bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
@@ -332,6 +333,26 @@ class Invoice(BaseInvoice):
             return b11.pubkey.serialize().hex()
         # Note: b12 invoice_node_id can be blinded, so showing it to the user could be potentially misleading
         return self.bolt12_invoice.invoice_node_id.hex()
+
+    def get_routing_info(self) -> 'RoutingInfo':
+        assert self.is_lightning(), self
+        if b12 := self.bolt12_invoice:
+            return BlindedRoutingInfo(
+                paths=tuple(
+                    BlindedPathInfo(path=path, payinfo=payinfo)
+                        for path, payinfo in zip(b12.invoice_paths, b12.invoice_blindedpay)
+                ),
+                invoice_features=b12.invoice_features or LnFeatures(0),
+            )
+        else:
+            b11 = self.bolt11_invoice
+            return UnblindedRoutingInfo(
+                node_pubkey=b11.pubkey.serialize(),
+                r_tags=b11.get_routing_info('r'),
+                payment_secret=b11.payment_secret,
+                final_cltv_delta=b11.get_min_final_cltv_delta(),
+                invoice_features=b11.get_features(),
+            )
 
     @lightning_invoice.validator
     def _validate_invoice_str(self, attribute, value):
