@@ -36,8 +36,9 @@ import electrum_ecc as ecc
 
 from .crypto import sha256, hmac_oneshot, chacha20_encrypt, get_ecdh, chacha20_poly1305_encrypt, chacha20_poly1305_decrypt
 from .util import profiler, xor_bytes, bfh
-from .lnutil import (PaymentFailure, NUM_MAX_HOPS_IN_PAYMENT_PATH,
-                     NUM_MAX_EDGES_IN_PAYMENT_PATH, ShortChannelID, OnionFailureCodeMetaFlag)
+from .lnutil import (PaymentFailure, NUM_MAX_HOPS_IN_PAYMENT_PATH, LnFeatureContexts,
+                     NUM_MAX_EDGES_IN_PAYMENT_PATH, ShortChannelID, OnionFailureCodeMetaFlag, LnFeatures,
+                     NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, validate_features, IncompatibleOrInsaneFeatures)
 from .lnmsg import OnionWireSerializer, read_bigsize_int, write_bigsize_int
 from . import lnmsg
 from . import util
@@ -156,6 +157,116 @@ class OnionPacket:
     @cached_property
     def onion_hash(self) -> bytes:
         return sha256(self.to_bytes())
+
+
+@dataclass(frozen=True, kw_only=True)
+class BlindedPathHop:
+    blinded_node_id: bytes
+    enclen: int
+    encrypted_recipient_data: bytes
+
+    def __post_init__(self):
+        ecc.ECPubkey(b=self.blinded_node_id)
+
+
+@dataclass(frozen=True, kw_only=True)
+class BlindedPath:
+    """
+    https://github.com/lightning/bolts/blob/34455ffe28b308dd7ac7552234d565890af8605b/04-onion-routing.md?plain=1#L441
+    """
+    first_node_id: bytes
+    first_path_key: bytes
+    num_hops: bytes
+    path: list[BlindedPathHop]
+
+    @property
+    def hop_count(self) -> int:
+        return int.from_bytes(self.num_hops, byteorder='big', signed=False)
+
+    def __post_init__(self):
+        # if num_hops is 0 in any blinded_path in offer_paths: MUST NOT respond to the offer
+        assert isinstance(self.num_hops, bytes), type(self.num_hops)
+        assert isinstance(self.path, list), self.path
+        if self.hop_count == 0:
+            raise ValueError('invalid num_hops of 0')
+        if not self.path:
+            raise ValueError('empty path')
+        if not len(self.path) == self.hop_count:
+            raise ValueError(f'{len(self.path)=} != {self.hop_count=}')
+        # ecc.ECPubkey(b=self.first_node_id)  # fails bolt 12 test vectors using dummy node ids
+        ecc.ECPubkey(b=self.first_path_key)
+
+    @classmethod
+    def decode(cls, blinded_path: bytes) -> 'BlindedPath':
+        with io.BytesIO(blinded_path) as blinded_path_fd:
+            blinded_path = OnionWireSerializer.read_field(
+                fd=blinded_path_fd,
+                field_type='blinded_path',
+                count=1)
+        return cls.from_dict(blinded_path)
+
+    @classmethod
+    def from_dict(cls, d: dict) -> 'BlindedPath':
+        if isinstance(d['path'], Mapping):  # single path
+            d['path'] = [d['path']]
+        return BlindedPath(
+            first_node_id=d['first_node_id'],
+            first_path_key=d['first_path_key'],
+            num_hops=d['num_hops'],
+            path=[BlindedPathHop(**p) for p in d['path']],
+        )
+
+
+@dataclass(frozen=True)
+class BlindedPayInfo:
+    fee_base_msat: int
+    fee_proportional_millionths: int
+    cltv_expiry_delta: int
+    htlc_minimum_msat: int
+    htlc_maximum_msat: int
+    features: LnFeatures
+
+    def __post_init__(self):
+        if self.cltv_expiry_delta > NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE:
+            raise ValueError(f"unreasonably long {self.cltv_expiry_delta=}")
+
+    @property
+    def requires_unknown_mandatory_features(self) -> bool:
+        """
+        MUST NOT use the corresponding invoice_paths.path if payinfo.features has any unknown even bits set.
+        """
+        try:
+            validate_features(self.features, context=LnFeatureContexts.BLINDED_PATH)
+        except IncompatibleOrInsaneFeatures:
+            return True
+        return False
+
+    @classmethod
+    def from_dict(cls, d: dict) -> 'BlindedPayInfo':
+        return BlindedPayInfo(
+            fee_base_msat=int(d['fee_base_msat']),
+            fee_proportional_millionths=int(d['fee_proportional_millionths']),
+            cltv_expiry_delta=int(d['cltv_expiry_delta']),
+            htlc_minimum_msat=int(d['htlc_minimum_msat']),
+            htlc_maximum_msat=int(d['htlc_maximum_msat']),
+            features=LnFeatures(int.from_bytes(d['features'], byteorder="big", signed=False))
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            'fee_base_msat': self.fee_base_msat,
+            'fee_proportional_millionths': self.fee_proportional_millionths,
+            'cltv_expiry_delta': self.cltv_expiry_delta,
+            'htlc_minimum_msat': self.htlc_minimum_msat,
+            'htlc_maximum_msat': self.htlc_maximum_msat,
+            'flen': len(self.features.to_tlv_bytes()),
+            'features': self.features.to_tlv_bytes()
+        }
+
+
+class BlindedPathInfo(NamedTuple):
+    path: BlindedPath
+    payinfo: Optional[BlindedPayInfo]
 
 
 def get_bolt04_onion_key(key_type: bytes, secret: bytes) -> bytes:
