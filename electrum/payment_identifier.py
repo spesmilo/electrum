@@ -544,7 +544,9 @@ class PaymentIdentifier(Logger):
             recipient = key + ' <' + address + '>'
 
         elif self.bolt11:
-            recipient, amount, description = self._get_bolt11_fields()
+            recipient = self.bolt11.issuer_pubkey
+            amount = self.bolt11.get_amount_sat()
+            description = self.bolt11.get_message()
 
         elif self.lnurl and self.lnurl_data:
             assert isinstance(self.lnurl_data, LNURL6Data), f"{self.lnurl_data=}"
@@ -576,18 +578,6 @@ class PaymentIdentifier(Logger):
 
         return FieldsForGUI(recipient=recipient, amount=amount, description=description,
                             comment=comment, validated=validated, amount_range=amount_range)
-
-    def _get_bolt11_fields(self):
-        lnaddr = self.bolt11._lnaddr # TODO: improve access to lnaddr
-        pubkey = lnaddr.pubkey.serialize().hex()
-        for k, v in lnaddr.tags:
-            if k == 'd':
-                description = v
-                break
-        else:
-            description = ''
-        amount = lnaddr.get_amount_sat()
-        return pubkey, amount, description
 
     async def resolve_openalias(self, key: str) -> Optional[dict]:
         parts = key.split(sep=',')  # assuming single line
@@ -626,7 +616,7 @@ def invoice_from_payment_identifier(
         invoice = pi.bolt11
         if not invoice:
             return
-        if invoice._lnaddr.get_amount_msat() is None:
+        if invoice.get_amount_msat() is None:
             invoice.set_amount_msat(int(amount_sat * 1000))
         return invoice
     else:

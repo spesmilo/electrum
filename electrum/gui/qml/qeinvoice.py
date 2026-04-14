@@ -248,7 +248,7 @@ class QEInvoice(QObject, QtEventListener):
         if not self.invoiceType == QEInvoice.Type.LightningInvoice:
             return
 
-        lnaddr = self._effectiveInvoice._lnaddr
+        lnaddr = self._effectiveInvoice.bolt11_invoice
         ln_routing_info = lnaddr.get_routing_info('r')
         self._logger.debug(str(ln_routing_info))
 
@@ -366,7 +366,7 @@ class QEInvoice(QObject, QtEventListener):
         assert self.status in [PR_UNPAID, PR_FAILED]
         if self.invoiceType == QEInvoice.Type.LightningInvoice:
             if self.get_max_spendable_lightning() * 1000 >= amount.msatsInt:
-                lnaddr = self._effectiveInvoice._lnaddr
+                lnaddr = self._effectiveInvoice.bolt11_invoice
                 if lnaddr.amount and amount.msatsInt < lnaddr.amount * COIN * 1000:
                     return False, _('Cannot pay less than the amount specified in the invoice')
                 else:
