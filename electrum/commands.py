@@ -25,6 +25,7 @@
 import io
 import sys
 import datetime
+import dataclasses
 import time
 import argparse
 import json
@@ -2315,7 +2316,7 @@ class Commands(Logger):
                 fd=blinded_path_fd,
                 field_type='blinded_path',
                 count=1,
-                value=blinded_path)
+                value=dataclasses.asdict(blinded_path))
             encoded_blinded_path = blinded_path_fd.getvalue()
 
         return encoded_blinded_path.hex()

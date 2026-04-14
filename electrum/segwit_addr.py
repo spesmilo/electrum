@@ -74,7 +74,7 @@ def bech32_verify_checksum(hrp, data):
         return None
 
 
-def bech32_create_checksum(encoding: Encoding, hrp: str, data: List[int]) -> List[int]:
+def bech32_create_checksum(encoding: Encoding, hrp: str, data: Sequence[int]) -> List[int]:
     """Compute the checksum values given HRP and data."""
     values = bech32_hrp_expand(hrp) + data
     const = BECH32M_CONST if encoding == Encoding.BECH32M else BECH32_CONST
@@ -82,9 +82,9 @@ def bech32_create_checksum(encoding: Encoding, hrp: str, data: List[int]) -> Lis
     return [(polymod >> 5 * (5 - i)) & 31 for i in range(6)]
 
 
-def bech32_encode(encoding: Encoding, hrp: str, data: List[int]) -> str:
+def bech32_encode(encoding: Encoding, hrp: str, data: Sequence[int], *, with_checksum=True) -> str:
     """Compute a Bech32 or Bech32m string given HRP and data values."""
-    combined = data + bech32_create_checksum(encoding, hrp, data)
+    combined = (data + bech32_create_checksum(encoding, hrp, data)) if with_checksum else data
     return hrp + '1' + ''.join([CHARSET[d] for d in combined])
 
 
