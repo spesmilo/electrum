@@ -1909,13 +1909,12 @@ class LNWallet(Logger):
         bolt11 = invoice.lightning_invoice
         lnaddr = self._check_bolt11_invoice(bolt11, amount_msat=amount_msat)
         min_final_cltv_delta = lnaddr.get_min_final_cltv_delta()
-        payment_hash = lnaddr.paymenthash
-        key = payment_hash.hex()
+        payment_hash = invoice.payment_hash
+        key = invoice.rhash
         payment_secret = lnaddr.payment_secret
         invoice_pubkey = lnaddr.pubkey.serialize()
-        invoice_features = lnaddr.get_features()
         r_tags = lnaddr.get_routing_info('r')
-        amount_to_pay = lnaddr.get_amount_msat()
+        amount_to_pay = invoice.get_amount_msat()
         status = self.get_payment_status(payment_hash, direction=SENT)
         if status == PR_PAID:
             raise PaymentFailure(_("This invoice has been paid already"))
@@ -1930,7 +1929,7 @@ class LNWallet(Logger):
             status=PR_UNPAID,
             min_final_cltv_delta=min_final_cltv_delta,
             expiry_delay=LN_EXPIRY_NEVER,
-            invoice_features=invoice_features,
+            invoice_features=invoice.features,
         )
         self.save_payment_info(info)
         self.wallet.set_label(key, lnaddr.get_description())
@@ -1949,7 +1948,7 @@ class LNWallet(Logger):
                 amount_to_pay=amount_to_pay,
                 min_final_cltv_delta=min_final_cltv_delta,
                 r_tags=r_tags,
-                invoice_features=invoice_features,
+                invoice_features=invoice.features,
                 attempts=attempts,
                 full_path=full_path,
                 channels=channels,

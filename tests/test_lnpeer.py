@@ -866,7 +866,7 @@ class TestPeerDirect(TestPeer):
                 lnaddr.tags = [tag for tag in lnaddr.tags if tag[0] != 'c'] + [['c', 144]]
                 b11 = encode_bolt11_invoice(lnaddr, w2.node_keypair.privkey)
                 pay_req = Invoice.from_bech32(b11)
-                assert pay_req._lnaddr.get_min_final_cltv_delta() == 144  # what w1 will use to pay
+                assert pay_req.bolt11_invoice.get_min_final_cltv_delta() == 144  # what w1 will use to pay
                 result, log = await w1.pay_invoice(pay_req)
                 if not result:
                     raise PaymentFailure()
@@ -995,7 +995,7 @@ class TestPeerDirect(TestPeer):
                 result, log = await w1.pay_invoice(pay_req)
                 assert result is True
                 # now pay the same invoice again, the payment should be rejected by w2
-                w1.set_payment_status(pay_req._lnaddr.paymenthash, PR_UNPAID, direction=lnutil.SENT)
+                w1.set_payment_status(pay_req.bolt11_invoice.paymenthash, PR_UNPAID, direction=lnutil.SENT)
                 result, log = await w1.pay_invoice(pay_req)
                 if not result:
                     # w1.pay_invoice returned a payment failure as the payment got rejected by w2
