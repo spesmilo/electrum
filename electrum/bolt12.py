@@ -460,6 +460,17 @@ class BOLT12Invoice(BOLT12InvoiceRequest):
         return None
 
 
+def extract_shared_fields(source_instance: BOLT12Invoice | BOLT12InvoiceRequest, target_class: type[TBOLT12Base]) -> TBOLT12Base:
+    """
+    Allows to extract the fields of a subclass from the given instance,
+    e.g. all Offer fields from a given invoice request instance.
+    """
+    return target_class(**{
+        f.name: getattr(source_instance, f.name)
+        for f in fields(target_class) if not f.name.startswith('_')
+    })
+
+
 def is_offer(data: str) -> bool:
     try:
         data = remove_bolt12_whitespace(data)
@@ -498,6 +509,10 @@ def bolt12_tlv_bytes_to_bech32(bolt12_tlv: bytes, bolt12_type: type[BOLT12Base])
 
 # offer/request/invoice uses different chain than we do
 class NoMatchingChainError(Exception): pass
+
+
+# wraps remote invoice_error
+class Bolt12InvoiceError(Exception): pass
 
 
 def remove_bolt12_whitespace(bolt12_bech32: str) -> str:
