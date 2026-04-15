@@ -2131,6 +2131,7 @@ class LnKeyFamily(IntEnum):
     PAYMENT_SECRET_KEY = 8 | BIP32_PRIME
     NOSTR_KEY = 9 | BIP32_PRIME
     FUNDING_ROOT_KEY = 10 | BIP32_PRIME
+    BOLT12_SECRET_KEY = 11 | BIP32_PRIME
 
 
 # Basepoints of our local channel config that we derive from the channel seed, instead
