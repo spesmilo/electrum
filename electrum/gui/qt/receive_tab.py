@@ -315,7 +315,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
 
         # generate even if we cannot receive
         try:
-            key = self.wallet.create_request(amount_sat, message, expiry, address)
+            key = self.wallet.create_request(amount_sat=amount_sat, message=message, exp_delay=expiry, address=address)
         except InvoiceError as e:
             self.show_error(_('Error creating payment request') + ':\n' + str(e))
             return
