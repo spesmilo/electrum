@@ -578,7 +578,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
 
         message = self.str_recv_description
         expiry = self.config.WALLET_PAYREQ_EXPIRY_SECONDS
-        key = self.wallet.create_request(amount_sat, message, expiry, address)
+        key = self.wallet.create_request(amount_sat=amount_sat, message=message, exp_delay=expiry, address=address)
         self.do_clear_request()
         self.pos = self.max_pos
         self.show_request(key)
