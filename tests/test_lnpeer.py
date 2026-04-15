@@ -1640,8 +1640,10 @@ class TestPeerDirect(TestPeer):
             await util.wait_for2(p1.initialized, 1)
             await util.wait_for2(p2.initialized, 1)
             await p1.close_channel(alice_channel.channel_id)
-            # alice's side is completed, but bob need to wait to see the reason.
-            await asyncio.sleep(1)  # FIXME: use a better wait
+            # alice's side is completed, but bob needs to wait to see the reason.
+            async with util.async_timeout(1):
+                while not bob_channel.is_closed_or_closing():
+                    await asyncio.sleep(0.01)
             self.assertEqual(alice_channel.get_close_reason(), ChanCloseReason.LOCAL_COOP)
             self.assertEqual(bob_channel.get_close_reason(), ChanCloseReason.REMOTE_COOP)
             gath.cancel()

@@ -102,6 +102,8 @@ class PeerState(IntEnum):
     BAD            = 3
 
 
+# Note: these states are persisted by name (for a given channel) in the wallet file,
+#       so consider doing a wallet db upgrade when changing them.
 class ChanCloseReason(IntEnum):
     LOCAL_FORCE  = 0  # we broadcast our own commitment tx
     REMOTE_FORCE = 1  # remote broadcast their commitment tx
@@ -339,6 +341,7 @@ class AbstractChannel(Logger, ABC):
             self._who_closed = who_closed
             if who_closed == LOCAL:
                 self.logger.info(f'we (local) force closed')
+                self.save_close_reason(ChanCloseReason.LOCAL_FORCE)
             elif who_closed == REMOTE:
                 self.logger.info(f'they (remote) force closed.')
                 self.save_close_reason(ChanCloseReason.REMOTE_FORCE)

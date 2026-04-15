@@ -40,7 +40,6 @@ class ChannelsList(MyTreeView):
         LOCAL_BALANCE = enum.auto()
         REMOTE_BALANCE = enum.auto()
         CHANNEL_STATUS = enum.auto()
-        CLOSE_REASON = enum.auto()
         LONG_CHANID = enum.auto()
 
     headers = {
@@ -52,7 +51,6 @@ class ChannelsList(MyTreeView):
         Columns.LOCAL_BALANCE: _('Can send'),
         Columns.REMOTE_BALANCE: _('Can receive'),
         Columns.CHANNEL_STATUS: _('Status'),
-        Columns.CLOSE_REASON: _('Close reason'),
     }
 
     filter_columns = [
@@ -60,7 +58,6 @@ class ChannelsList(MyTreeView):
         Columns.LONG_CHANID,
         Columns.NODE_ALIAS,
         Columns.CHANNEL_STATUS,
-        Columns.CLOSE_REASON,
     ]
 
     _default_item_bg_brush = None  # type: Optional[QBrush]
@@ -112,7 +109,6 @@ class ChannelsList(MyTreeView):
             self.Columns.LOCAL_BALANCE: '' if closed else labels[LOCAL],
             self.Columns.REMOTE_BALANCE: '' if closed else labels[REMOTE],
             self.Columns.CHANNEL_STATUS: status,
-            self.Columns.CLOSE_REASON: '' if not closed else chan.get_close_reason_for_GUI(),
         }
 
     def on_channel_closed(self, txid):
