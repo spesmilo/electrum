@@ -14,7 +14,7 @@ from electrum.util import InvoiceError, ChoiceItem
 from electrum.invoices import pr_expiration_values
 from electrum.logging import Logger
 
-from .amountedit import AmountEdit, BTCAmountEdit, SizedFreezableLineEdit
+from .amountedit import BTCAmountEdit, SizedFreezableLineEdit, FiatAmountEdit
 from .qrcodewidget import QRCodeWidget
 from .util import read_QIcon, WWLabel, MessageBoxMixin, MONOSPACE_FONT, get_icon_qrcode
 
@@ -56,7 +56,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         grid.addWidget(QLabel(_('Requested amount')), 1, 0)
         grid.addWidget(self.receive_amount_e, 1, 1)
 
-        self.fiat_receive_e = AmountEdit(self.fx.get_currency if self.fx else '')
+        self.fiat_receive_e = FiatAmountEdit(self.fx)
         if not self.fx or not self.fx.is_enabled():
             self.fiat_receive_e.setVisible(False)
         grid.addWidget(self.fiat_receive_e, 1, 2, Qt.AlignmentFlag.AlignLeft)
