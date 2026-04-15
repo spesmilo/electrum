@@ -52,7 +52,12 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         grid.addWidget(QLabel(_('Description')), 0, 0)
         grid.addWidget(self.receive_message_e, 0, 1, 1, 4)
 
-        self.receive_amount_e = BTCAmountEdit(self.window.get_decimal_point)
+        def amount_e_text_changed():
+            amt = self.receive_amount_e.get_amount()
+            self.create_onchain_invoice_button.setEnabled(amt is None or isinstance(amt, int))
+
+        self.receive_amount_e = BTCAmountEdit(self.window.get_decimal_point, millisat_precision=self.wallet.has_lightning())
+        self.receive_amount_e.textChanged.connect(amount_e_text_changed)
         grid.addWidget(QLabel(_('Requested amount')), 1, 0)
         grid.addWidget(self.receive_amount_e, 1, 1)
 
@@ -304,7 +309,9 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         expiry = self.config.WALLET_PAYREQ_EXPIRY_SECONDS
         if is_lightning:
             address = None
+            amount_msat = int(amount_sat * 1000) if amount_sat is not None else None
         else:
+            assert amount_sat is None or isinstance(amount_sat, int), 'no msat precision allowed for onchain'
             if amount_sat and amount_sat < self.wallet.dust_threshold():
                 self.show_error(_('Amount too small to be received onchain'))
                 return
@@ -315,7 +322,10 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
 
         # generate even if we cannot receive
         try:
-            key = self.wallet.create_request(amount_sat=amount_sat, message=message, exp_delay=expiry, address=address)
+            if is_lightning:
+                key = self.wallet.create_request(amount_msat=amount_msat, message=message, exp_delay=expiry, address=address)
+            else:
+                key = self.wallet.create_request(amount_sat=amount_sat, message=message, exp_delay=expiry, address=address)
         except InvoiceError as e:
             self.show_error(_('Error creating payment request') + ':\n' + str(e))
             return
