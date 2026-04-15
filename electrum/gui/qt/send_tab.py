@@ -29,7 +29,7 @@ from electrum.submarine_swaps import SwapServerError
 from electrum.fee_policy import FeePolicy, FixedFeePolicy
 from electrum.lnurl import LNURL3Data, request_lnurl_withdraw_callback, LNURLError
 
-from .amountedit import AmountEdit, BTCAmountEdit, SizedFreezableLineEdit
+from .amountedit import BTCAmountEdit, SizedFreezableLineEdit, FiatAmountEdit
 from .paytoedit import InvalidPaymentIdentifier
 from .util import (WaitingDialog, HelpLabel, MessageBoxMixin, EnterButton, char_width_in_lineedit,
                    get_icon_camera, read_QIcon, ColorScheme, IconLabel, Spinner, Buttons, WWLabel,
@@ -119,7 +119,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         amount_widgets = QHBoxLayout()
         amount_widgets.addWidget(self.amount_e)
 
-        self.fiat_send_e = AmountEdit(self.fx.get_currency if self.fx else '')
+        self.fiat_send_e = FiatAmountEdit(self.fx)
         if not self.fx or not self.fx.is_enabled():
             self.fiat_send_e.setVisible(False)
         amount_widgets.addWidget(self.fiat_send_e)
