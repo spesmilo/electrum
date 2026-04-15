@@ -779,6 +779,7 @@ def format_satoshis_plain(
         x: Union[int, float, Decimal, str],  # amount in satoshis,
         *,
         decimal_point: int = 8,  # how much to shift decimal point to left (default: sat->BTC)
+        precision: int = 0,  # extra digits after satoshi precision (e.g. for msat)
         is_max_allowed: bool = True,
 ) -> str:
     """Display a satoshi amount scaled.  Always uses a '.' as a decimal
@@ -789,7 +790,7 @@ def format_satoshis_plain(
     # TODO(ghost43) just hard-fail if x is a float. do we even use floats for money anywhere?
     x = to_decimal(x)
     scale_factor = pow(10, decimal_point)
-    return "{:.8f}".format(x / scale_factor).rstrip('0').rstrip('.')
+    return "{:.{}f}".format(x / scale_factor, 8 + precision).rstrip('0').rstrip('.')
 
 
 # Check that Decimal precision is sufficient.
