@@ -1380,7 +1380,7 @@ class Commands(Logger):
         else:
             addr = None
         expiry = int(expiry) if expiry else None
-        key = wallet.create_request(amount, memo, expiry, addr)
+        key = wallet.create_request(amount_sat=amount, message=memo, exp_delay=expiry, address=addr)
         req = wallet.get_request(key)
         return wallet.export_request(req)
 

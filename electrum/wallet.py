@@ -3019,12 +3019,27 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             fallback_address=None)
         return invoice
 
-    def create_request(self, amount_sat: Optional[int], message: Optional[str], exp_delay: Optional[int], address: Optional[str]):
+    def create_request(
+            self,
+            *,
+            amount_sat: Optional[int] = None,
+            amount_msat: Optional[int] = None,
+            message: Optional[str] = None,
+            exp_delay: Optional[int] = None,
+            address: Optional[str] = None
+    ):
         """ will create a lightning request if address is None """
         # for receiving
-        amount_sat = amount_sat or 0
-        assert isinstance(amount_sat, int), f"{amount_sat!r}"
-        amount_msat = None if not amount_sat else amount_sat * 1000  # amount_sat in [None, 0] implies undefined.
+        assert amount_sat is None or amount_msat is None, 'both amount_sat and amount_msat are specified'
+        assert amount_msat is None if address else True, 'onchain request must not pass amount_msat'
+        if amount_msat is not None:
+            assert isinstance(amount_msat, int), f"{amount_sat!r}"
+        elif amount_sat is not None:
+            assert isinstance(amount_sat, int), f"{amount_msat!r}"
+            amount_msat = amount_sat * 1000
+        else:
+            amount_msat = None
+
         message = message or ''
         address = address or None  # converts "" to None
         exp_delay = exp_delay or 0

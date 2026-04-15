@@ -704,7 +704,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             else:
                 addr = None
 
-            key = self.wallet.create_request(amount, message, expiration, addr)
+            key = self.wallet.create_request(amount_sat=amount, message=message, exp_delay=expiration, address=addr)
         except InvoiceError as e:
             self.requestCreateError.emit(_('Error creating payment request') + ':\n' + str(e))
             return
