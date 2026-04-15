@@ -4,9 +4,11 @@
 
 import asyncio
 import os
+import io
 from decimal import Decimal
 import random
 import time
+import hmac
 from enum import IntEnum
 from typing import (
     Optional, Sequence, Tuple, List, Set, Dict, TYPE_CHECKING, NamedTuple, Mapping, Any, Iterable, AsyncGenerator,
@@ -27,8 +29,10 @@ from math import ceil
 import aiohttp
 import dns.asyncresolver
 import dns.exception
+from electrum_ecc import ECPrivkey, ECPubkey
 from aiorpcx import run_in_thread, NetAddress, ignore_after
 
+from .bolt12 import BOLT12Offer, BOLT12Invoice, BOLT12InvoiceRequest, Bolt12InvoiceError, extract_shared_fields
 from .logging import Logger
 from .i18n import _
 from .channel_db import UpdateStatus, ChannelDBNotLoaded, get_mychannel_info, get_mychannel_policy
@@ -54,10 +58,11 @@ from .transaction import (
     Transaction, get_script_type_from_output_script, PartialTxOutput, PartialTransaction, PartialTxInput
 )
 from .crypto import (
-    sha256, chacha20_encrypt, chacha20_decrypt, pw_encode_with_version_and_mac, pw_decode_with_version_and_mac
+    sha256, chacha20_encrypt, chacha20_decrypt, pw_encode_with_version_and_mac, pw_decode_with_version_and_mac,
+    hmac_oneshot
 )
 
-from .onion_message import OnionMessageManager
+from .onion_message import OnionMessageManager, get_blinded_reply_paths, NoOnionMessagePeers
 from .lntransport import (
     LNTransport, LNResponderTransport, LNTransportBase, LNPeerAddr, split_host_port, extract_nodeid,
     ConnStringFormatError
@@ -79,7 +84,7 @@ from .lnonion import (
     decode_onion_error, OnionFailureCode, OnionRoutingFailure, OnionPacket,
     ProcessedOnionPacket, calc_hops_data_for_payment, new_onion_packet,
 )
-from .lnmsg import decode_msg
+from .lnmsg import decode_msg, OnionWireSerializer
 from .lnrouter import (
     RouteEdge, LNPaymentRoute, LNPaymentPath, is_route_within_budget, NoChannelPolicy,
     LNPathInconsistent, fee_for_edge_msat, amount_after_fee_msat,
@@ -1018,6 +1023,7 @@ class LNWallet(Logger):
         self.backup_key = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.BACKUP_CIPHER).privkey
         self.static_payment_key = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.PAYMENT_BASE)
         self.payment_secret_key = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.PAYMENT_SECRET_KEY).privkey
+        self.bolt12_secret_key = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.BOLT12_SECRET_KEY).privkey
         self.funding_root_keypair = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.FUNDING_ROOT_KEY)
         Logger.__init__(self)
         if features is None:
@@ -1087,6 +1093,9 @@ class LNWallet(Logger):
         # how close to expiry. Doesn't prevent htlcs from getting expired or failed if there is no
         # preimage available. Might be used in combination with dont_expire_htlcs.
         self.dont_settle_htlcs = self.db.get_dict('dont_settle_htlcs')  # type: Dict[str, None]
+
+        # invoice requests awaiting bolt 12 invoice response. path_id: concurrent.futures.Future[BOLT12Invoice, invoice_tlv]
+        self._pending_bolt12_invoice_requests = {}  # type: dict[bytes, asyncio.Future[tuple[BOLT12Invoice, bytes]]]
 
         # payment_hash -> callback:
         self.hold_invoice_callbacks = {}                # type: Dict[bytes, Callable[[bytes], Awaitable[None]]]
@@ -4335,3 +4344,197 @@ class LNWallet(Logger):
         error_bytes = bytes.fromhex(error_hex) if error_hex else None
         failure_message = OnionRoutingFailure.from_bytes(bytes.fromhex(failure_hex)) if failure_hex else None
         return error_bytes, failure_message
+
+    async def request_bolt12_invoice(
+        self,
+        bolt12_offer: BOLT12Offer,
+        *,
+        amount_msat: int,
+        payer_note: Optional[str] = None,
+        quantity: Optional[int] = None,
+        timeout: int = LN_P2P_NETWORK_TIMEOUT,
+    ) -> tuple[BOLT12Invoice, bytes]:
+        """
+        Creates an invoice_request, sends it to payee, returns the Invoice response once it arrived.
+        """
+        unsigned_invreq, invreq_signing_key = self.create_bolt12_invoice_request(
+            offer=bolt12_offer,
+            amount_msat=amount_msat,
+            payer_note=payer_note,
+            quantity=quantity,
+        )
+
+        node_id_or_blinded_paths = bolt12_offer.offer_paths or bolt12_offer.offer_issuer_id
+        assert node_id_or_blinded_paths
+        invreq_tlv = unsigned_invreq.encode(signing_key=invreq_signing_key.get_secret_bytes(), as_bech32=False)
+        path_id = invreq_signing_key.get_secret_bytes()
+        reply_paths = get_blinded_reply_paths(self, path_id=path_id, max_paths=1)
+        req_payload = {
+            'invoice_request': {'invoice_request': invreq_tlv},
+            'reply_path': {'path': dataclasses.asdict(reply_paths[0].path)},
+        }
+        self._pending_bolt12_invoice_requests[invreq_signing_key.get_secret_bytes()] = fut = asyncio.Future()
+        self.logger.debug(f"sending bolt 12 invoice request")
+        send_task = self.onion_message_manager.submit_send(
+            payload=req_payload,
+            node_id_or_blinded_paths=node_id_or_blinded_paths,
+        )
+        try:
+            async with util.async_timeout(timeout):
+                return await fut
+        finally:
+            del self._pending_bolt12_invoice_requests[path_id]
+            send_task.cancel()
+
+    def create_bolt12_invoice_request(
+        self,
+        offer: Optional[BOLT12Offer],
+        *,
+        amount_msat: int,
+        payer_note: Optional[str] = None,
+        quantity: Optional[int] = None,
+        allow_unblinded: bool = False,
+        invreq_expiry: Optional[int] = None,
+    ) -> tuple[BOLT12InvoiceRequest, ECPrivkey]:
+        """
+        Creates an unsigned invoice_request, as response to an offer (payment request), or standalone (e.g. voucher).
+        """
+        invreq_chain = None if constants.net == constants.BitcoinMainnet else constants.net.rev_genesis_bytes()
+        payer_note = payer_note[:10_000] if payer_note else None  # keep the size somewhat sane
+
+        # we could also put the signing key into the path_id, saving some bytes in the invreq, however this is simpler
+        invreq_key_derivation_entropy = os.urandom(16)
+        invreq_signing_key = ECPrivkey(hmac_oneshot(
+            key=self.bolt12_secret_key,
+            msg=b'invreq_key' + invreq_key_derivation_entropy,
+            digest='sha-256',
+        ))
+
+        if offer:  # we got an offer and want to pay it, the 'default' flow.
+            assert invreq_expiry is None, "invreq_expiry is intended for standalone invreq"
+            if offer.offer_amount is not None:
+                assert amount_msat >= offer.offer_amount, (amount_msat, offer.offer_amount)
+
+            invreq = BOLT12InvoiceRequest(
+                **offer.__dict__,
+                invreq_amount=amount_msat,
+                invreq_metadata=invreq_key_derivation_entropy,
+                invreq_payer_id=invreq_signing_key.get_public_key_bytes(),
+                invreq_payer_note=payer_note,
+                invreq_features=None,
+                invreq_chain=invreq_chain,
+                invreq_quantity=quantity,
+            )
+        else:  # standalone invoice_request as offer to pay someone
+            assert not quantity, "quantity is only allowed for offer requests"
+            reply_path_infos = None
+            try:
+                reply_path_infos = get_blinded_reply_paths(self, path_id=invreq_signing_key.get_secret_bytes())
+            except NoOnionMessagePeers as e:
+                self.logger.debug(f"create_offer: no onion message peers: {str(e)}")
+                if not allow_unblinded:
+                    raise
+
+            reply_paths = tuple(p.path for p in reply_path_infos) if reply_path_infos else None
+            invreq_signing_key = invreq_signing_key if reply_paths else ECPrivkey(self.node_keypair.privkey)
+            invreq = BOLT12InvoiceRequest(
+                offer_description=payer_note,
+                offer_absolute_expiry=int(time.time()) + invreq_expiry if invreq_expiry else None,
+                invreq_amount=amount_msat,
+                # add some randomness, even when using the node keypair (unblinded), to prevent creating equal invreqs
+                invreq_metadata=invreq_key_derivation_entropy,
+                invreq_payer_id=invreq_signing_key.get_public_key_bytes(),
+                invreq_features=None,
+                invreq_chain=invreq_chain,
+                invreq_paths=reply_paths,
+            )
+
+        signed_invreq = invreq.encode(signing_key=invreq_signing_key.get_secret_bytes(), as_bech32=False)
+        # this allows us to verify the authenticity of invreq & offer fields contained in an invoice we receive.
+        # we can re-assemble & sign the invreq without the signed_invreq hash and compare the hashes
+        new_metadata = invreq.invreq_metadata + sha256(signed_invreq)
+        unsigned_invreq = dataclasses.replace(invreq, invreq_metadata=new_metadata)
+
+        return unsigned_invreq, invreq_signing_key
+
+    def on_bolt12_invoice(self, recipient_data: Mapping, payload: Mapping):
+        # if we hand out an unblinded invreq we might get an empty recipient_data (or malicious fake data?)
+        path_id: Optional[bytes] = recipient_data.get('path_id', {}).get('data')
+        # we embedded our random signing key as path_id, so the sender can't guess any valid path id
+        pending_invoice_request: Optional[asyncio.Future] = self._pending_bolt12_invoice_requests.get(path_id or b'')
+
+        if invoice_error_tlv := payload.get('invoice_error', {}).get('invoice_error'):
+            self.logger.debug("received bolt 12 invoice error")
+            if pending_invoice_request:
+                with io.BytesIO(invoice_error_tlv) as fd:
+                    invoice_error = OnionWireSerializer.read_tlv_stream(fd=fd, tlv_stream_name='invoice_error')
+                pending_invoice_request.set_exception(Bolt12InvoiceError(invoice_error.get('error', {}).get('msg')))
+            return
+
+        try:
+            invoice_tlv = payload['invoice']['invoice']
+            invoice = BOLT12Invoice.decode(invoice_tlv)  # __post_init__ does spec validation
+        except Exception as e:
+            if pending_invoice_request:
+                pending_invoice_request.set_exception(Bolt12InvoiceError(f"received invalid invoice: {e}"))
+            return
+
+        # TODO: persist paid offerless invreqs, early return if already paid or ongoing payment attempt
+        is_offerless_invreq = invoice.invreq_paths or invoice.invreq_payer_id == self.node_keypair.pubkey
+        if not pending_invoice_request and not is_offerless_invreq:
+            return
+
+        if not self._verify_bolt12_invoice_requested_by_us(invoice):
+            if pending_invoice_request:
+                pending_invoice_request.set_exception(Bolt12InvoiceError(f"unable to verify invoice content {invoice=}"))
+            return
+        self.logger.debug(f'received bolt 12 invoice: {invoice=}')
+
+        # the usage of our reply path for offer based invreqs is already indirectly verified through the
+        # pending_invoice_request lookup above (if sender uses incorrect path we simply don't handle the invoice)
+        if invoice.invreq_paths:
+            assert is_offerless_invreq
+            encrypted_recipient_data = payload['encrypted_recipient_data']['encrypted_recipient_data']
+            if encrypted_recipient_data not in (p.path[-1].encrypted_recipient_data for p in invoice.invreq_paths):
+                self.logger.warning(f"received invoice for offerless invreq on incorrect path")
+                return
+
+        if invoice.is_expired:
+            if pending_invoice_request:
+                pending_invoice_request.set_exception(Bolt12InvoiceError(f"received expired invoice: {invoice=}"))
+            return
+
+        if invoice.invoice_features is not None:
+            try:
+                ln_compare_features(self.features.for_bolt12_invoice(), invoice.invoice_features)
+            except lnutil.IncompatibleLightningFeatures:
+                if pending_invoice_request:
+                    pending_invoice_request.set_exception(Bolt12InvoiceError(f"incompatible features: {invoice.invoice_features.get_names()}"))
+                return
+
+        if pending_invoice_request:
+            pending_invoice_request.set_result((invoice, invoice_tlv))
+            return
+
+        if is_offerless_invreq:  # and not already_paid:
+            raise NotImplementedError("initiate payment of invoice?")
+
+    def _verify_bolt12_invoice_requested_by_us(self, invoice: BOLT12Invoice) -> bool:
+        if not invoice.invreq_metadata or not len(invoice.invreq_metadata) == 48:
+            return False
+        invreq_from_invoice: BOLT12InvoiceRequest = extract_shared_fields(invoice, BOLT12InvoiceRequest)
+        invreq_sig_digest, remaining_metadata = invoice.invreq_metadata[-32:], invoice.invreq_metadata[:-32]
+        assert len(invreq_sig_digest) == 32 and len(remaining_metadata) == 16, invoice
+        if invoice.invreq_payer_id == self.node_keypair.pubkey:
+            signing_key = self.node_keypair.privkey
+        else:
+            signing_key = hmac_oneshot(
+                key=self.bolt12_secret_key,
+                msg=b'invreq_key' + remaining_metadata,
+                digest='sha-256',
+            )
+        signed_invreq = dataclasses.replace(invreq_from_invoice, invreq_metadata=remaining_metadata)
+        our_sig = signed_invreq.encode(signing_key=signing_key.get_secret_bytes(), as_bech32=False)
+        if not util.constant_time_compare(sha256(our_sig), invreq_sig_digest):
+            return False
+        return True
