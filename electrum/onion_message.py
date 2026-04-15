@@ -880,8 +880,16 @@ class OnionMessageManager(Logger):
         # e.g. via a decorator, something like
         # @onion_message_request_handler(payload_key='invoice_request') for BOLT12 invoice requests.
 
-        if 'message' not in payload:
+        known_payloads = ('message', 'invoice', 'invoice_error')
+        if not any(known_payload in payload for known_payload in known_payloads):
             self.logger.error('Unsupported onion message payload')
+            return
+
+        if 'invoice' in payload or 'invoice_error' in payload:
+            try:
+                self.lnwallet.on_bolt12_invoice(recipient_data, payload)
+            except Exception as e:
+                self.logger.warning(f"failed to handle incoming invoice: {e!r}")
             return
 
         if 'text' not in payload['message'] or not isinstance(payload['message']['text'], bytes):
