@@ -3045,16 +3045,34 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             fallback_address=None)
         return invoice
 
-    def create_request(self, amount_sat: Optional[int], message: Optional[str], exp_delay: Optional[int], address: Optional[str]):
+    def create_request(
+            self,
+            *,
+            amount_sat: Optional[int] = None,
+            amount_msat: Optional[int] = None,
+            message: Optional[str] = None,
+            exp_delay: Optional[int] = None,
+            address: Optional[str] = None
+    ):
         """ will create a lightning request if address is None """
         # for receiving
-        amount_sat = amount_sat or 0
-        assert isinstance(amount_sat, int), f"{amount_sat!r}"
-        amount_msat = None if not amount_sat else amount_sat * 1000  # amount_sat in [None, 0] implies undefined.
+        assert amount_sat is None or amount_msat is None, 'both amount_sat and amount_msat are specified'
+        assert amount_msat is None if address else True, 'onchain request must not pass amount_msat'
+        if amount_msat is not None:
+            assert isinstance(amount_msat, int), f"{amount_msat!r}"
+        elif amount_sat is not None:
+            assert isinstance(amount_sat, int), f"{amount_sat!r}"
+            amount_msat = amount_sat * 1000
+
+        amount_msat = amount_msat or None  # 0 -> None
         message = message or ''
         address = address or None  # converts "" to None
         exp_delay = exp_delay or 0
         timestamp = int(Request._get_cur_time())
+        payment_hash = None
+        outputs = []
+
+        # lightning/onchain
         if address is None:
             assert self.has_lightning()
             payment_hash = self.lnworker.create_payment_info(
@@ -3063,8 +3081,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 write_to_disk=False,
             )
         else:
-            payment_hash = None
-        outputs = [PartialTxOutput.from_address_and_value(address, amount_sat)] if address else []
+            amount_sat = 0 if amount_sat is None else amount_sat
+            outputs = [PartialTxOutput.from_address_and_value(address, amount_sat)]
+
         height = self.adb.get_local_height()
         req = Request(
             outputs=outputs,
