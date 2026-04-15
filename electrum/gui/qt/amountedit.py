@@ -10,7 +10,8 @@ from PyQt6.QtWidgets import (QLineEdit, QStyle, QStyleOptionFrame, QSizePolicy)
 from .util import char_width_in_lineedit, ColorScheme
 
 from electrum.util import (format_satoshis_plain, decimal_point_to_base_unit_name,
-                           FEERATE_PRECISION, quantize_feerate, DECIMAL_POINT, UI_UNIT_NAME_FEERATE_SAT_PER_VBYTE)
+                           FEERATE_PRECISION, quantize_feerate, DECIMAL_POINT, UI_UNIT_NAME_FEERATE_SAT_PER_VBYTE,
+                           to_decimal)
 from electrum.bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
 
 _NOT_GIVEN = object()  # sentinel value
@@ -109,7 +110,12 @@ class AmountEdit(SizedFreezableLineEdit):
         return amt
 
     def _get_text_from_amount(self, amount) -> str:
-        return "%d" % amount
+        x = to_decimal(amount)
+        scale_factor = pow(10, self.decimal_point())
+        nfmt = "{:." + str(self.decimal_point() + self.extra_precision) + "f}"
+        text = nfmt.format(x / scale_factor).rstrip('0').rstrip('.')
+        text = text.replace('.', DECIMAL_POINT)
+        return text
 
     def setAmount(self, amount):
         text = self._get_text_from_amount(amount)
@@ -159,19 +165,17 @@ class BTCAmountEdit(AmountEdit):
         self.repaint()  # macOS hack for #6269
 
 
-class FeerateEdit(BTCAmountEdit):
-
-    def __init__(self, decimal_point, is_int=False, parent=None, *, max_amount=_NOT_GIVEN):
-        super().__init__(decimal_point, is_int, parent, max_amount=max_amount)
+class FeerateEdit(AmountEdit):
+    def __init__(self, parent=None, *, max_amount=None):
+        super().__init__(lambda: self._base_unit(), False, parent, max_amount=max_amount)
         self.extra_precision = FEERATE_PRECISION
+        self.decimal_point = lambda: 0
 
     def _base_unit(self):
         return UI_UNIT_NAME_FEERATE_SAT_PER_VBYTE
 
     def _get_amount_from_text(self, text):
-        sat_per_byte_amount = super()._get_amount_from_text(text)
-        return quantize_feerate(sat_per_byte_amount)
+        return quantize_feerate(super()._get_amount_from_text(text))
 
     def _get_text_from_amount(self, amount):
-        amount = quantize_feerate(amount)
-        return super()._get_text_from_amount(amount)
+        return super()._get_text_from_amount(quantize_feerate(amount))
