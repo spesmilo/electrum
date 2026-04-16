@@ -347,8 +347,9 @@ class Ledger_Client(HardwareClientBase, ABC):
     def __init__(self, *, plugin: HW_PluginBase):
         HardwareClientBase.__init__(self, plugin=plugin)
 
+    @abstractmethod
     def get_master_fingerprint(self) -> bytes:
-        return self.request_root_fingerprint_from_device()
+        pass
 
     @abstractmethod
     def show_address(self, address_path: str, txin_type: str):
@@ -390,6 +391,25 @@ class Ledger_Client_Legacy(Ledger_Client):
         self._product_key = product_key
         self._soft_device_id = None
 
+    def _get_master_fingerprint(self, bip32_path: str = "") -> bytes:
+        """Return the 4-byte fingerprint for a BIP32 node.
+
+        If bip32_path is empty (root / master key), tries the dedicated
+        GET_MASTER_FINGERPRINT APDU first (INS 0xD0), which does NOT
+        require DERIVE_MASTER permission.  If the device does not support
+        it (old firmware), falls back to getWalletPublicKey + HASH160.
+
+        For non-empty paths the fingerprint is always computed via
+        getWalletPublicKey + HASH160.
+        """
+        if bip32_path == "":
+            try:
+                return self.dongleObject.getMasterFingerprint()
+            except Exception:
+                _logger.info("getMasterFingerprint APDU not supported, falling back to getWalletPublicKey")
+        nodeData = self.dongleObject.getWalletPublicKey(bip32_path)
+        return hash_160(compress_public_key(nodeData['publicKey']))[0:4]
+
     def is_pairable(self):
         return True
 
@@ -424,7 +444,7 @@ class Ledger_Client_Legacy(Ledger_Client):
             # modern ledger can provide xpub without user interaction
             # (hw1 would prompt for PIN)
             if not self.is_hw1():
-                self._soft_device_id = self.request_root_fingerprint_from_device()
+                self._soft_device_id = self._get_master_fingerprint().hex()
         return self._soft_device_id
 
     def is_hw1(self) -> bool:
@@ -432,6 +452,13 @@ class Ledger_Client_Legacy(Ledger_Client):
 
     def device_model_name(self):
         return LedgerPlugin.device_name_from_product_key(self._product_key)
+
+    @runs_in_hwd_thread
+    def request_root_fingerprint_from_device(self) -> str:
+        return self._get_master_fingerprint().hex()
+
+    def get_master_fingerprint(self) -> bytes:
+        return self._get_master_fingerprint()
 
     @runs_in_hwd_thread
     def has_usable_connection_with_device(self):
@@ -460,9 +487,7 @@ class Ledger_Client_Legacy(Ledger_Client):
         bip32_path = bip32_path[2:]  # cut off "m/"
         if len(bip32_intpath) >= 1:
             prevPath = bip32.convert_bip32_intpath_to_strpath(bip32_intpath[:-1])[2:]
-            nodeData = self.dongleObject.getWalletPublicKey(prevPath)
-            publicKey = compress_public_key(nodeData['publicKey'])
-            fingerprint_bytes = hash_160(publicKey)[0:4]
+            fingerprint_bytes = self._get_master_fingerprint(prevPath)
             childnum_bytes = bip32_intpath[-1].to_bytes(length=4, byteorder="big")
         else:
             fingerprint_bytes = bytes(4)
