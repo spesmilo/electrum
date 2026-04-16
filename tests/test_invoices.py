@@ -1,5 +1,6 @@
 import os
 import time
+from decimal import Decimal
 
 from electrum.simple_config import SimpleConfig
 from electrum.wallet import Standard_Wallet, Abstract_Wallet
@@ -241,6 +242,10 @@ class TestBaseInvoice(ElectrumTestCase):
         with self.assertRaises(InvoiceError):
             invoice.set_amount_msat(10**20)
         with self.assertRaises(InvoiceError):
+            invoice.amount_msat = Decimal(amount_sat * 1000)
+        with self.assertRaises(AssertionError):
+            invoice.set_amount_msat(Decimal(amount_sat * 1000))
+        with self.assertRaises(InvoiceError):
             invoice2 = Invoice(
                 amount_msat=10**20,
                 message="mymsg",
@@ -255,3 +260,29 @@ class TestBaseInvoice(ElectrumTestCase):
         with self.assertRaises(TypeError):
             invoice.exp = "asd"
 
+    async def test_get_amount_sat_msat_precision(self):
+        amount_sat = 10_000
+        outputs = [PartialTxOutput.from_address_and_value("tb1qmjzmg8nd4z56ar4fpngzsr6euktrhnjg9td385", amount_sat)]
+        invoice = Invoice(
+            amount_msat=amount_sat * 1000,
+            message="mymsg",
+            time=1692716965,
+            exp=LN_EXPIRY_NEVER,
+            outputs=outputs,
+            height=0,
+            lightning_invoice=None,
+        )
+        self.assertTrue(isinstance(invoice.get_amount_sat_msat_precision(), int))
+        invoice.set_amount_msat(500)
+        self.assertTrue(isinstance(invoice.get_amount_sat_msat_precision(), Decimal))
+        self.assertEqual(invoice.get_amount_sat_msat_precision(), Decimal('0.500'))
+        invoice.set_amount_msat(1000)
+        self.assertTrue(isinstance(invoice.get_amount_sat_msat_precision(), int))
+        self.assertEqual(invoice.get_amount_sat_msat_precision(), 1)
+        invoice.set_amount_msat('!')
+        self.assertTrue(isinstance(invoice.get_amount_sat_msat_precision(), str))
+        self.assertEqual(invoice.get_amount_sat_msat_precision(), '!')
+        with self.assertRaises(AssertionError):
+            invoice.set_amount_msat(None)  # different semantics than just setting the property w validator.
+        invoice.amount_msat = None
+        self.assertIsNone(invoice.get_amount_sat_msat_precision())
