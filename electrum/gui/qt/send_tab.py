@@ -552,7 +552,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.invoice_list.update()
         self.pending_invoice = None
 
-    def get_amount(self) -> int:
+    def get_amount(self) -> int | Decimal:
         # must not be None
         return self.amount_e.get_amount() or 0
 
@@ -586,7 +586,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.pay_onchain_dialog(outputs)
 
     def do_edit_invoice(self, invoice: 'Invoice'):  # FIXME broken
-        assert not bool(invoice.get_amount_sat())
+        assert not bool(invoice.get_amount_msat())
         text = invoice.lightning_invoice if invoice.is_lightning() else invoice.get_address()
         self.set_payment_identifier(text)
         self.amount_e.setFocus()
@@ -606,7 +606,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         else:
             self.pay_onchain_dialog(invoice.outputs, invoice=invoice)
 
-    def read_amount(self) -> Union[int, str]:
+    def read_amount(self) -> Union[int, str, Decimal]:
         amount = '!' if self.max_button.isChecked() else self.get_amount()
         return amount
 
@@ -673,7 +673,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             can_pay_with_swap = False
             can_rebalance = False
             if lnworker:
-                amount_sat = invoice.get_amount_sat()  # use rounded up sats
+                amount_sat = invoice.get_amount_sat()  # lose precision for suggestions, they are not msat based
                 can_pay_with_new_channel = lnworker.suggest_funding_amount(amount_sat, coins=coins)
                 can_pay_with_swap = lnworker.suggest_swap_to_send(amount_sat, coins=coins)
                 rebalance_suggestion = lnworker.suggest_rebalance_to_send(amount_sat)
