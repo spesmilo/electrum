@@ -345,6 +345,13 @@ class TestPaymentIdentifier(ElectrumTestCase):
         self.assertEqual(1000, pi.multiline_outputs[0].value)
         self.assertEqual(0, pi.multiline_outputs[1].value)
 
+        pi_str = '\n'.join([
+            'bc1qj3zx2zc4rpv3npzmznxhdxzn0wm7pzqp8p2293,0.01',
+            'bc1q66ex4c3vek4cdmrfjxtssmtguvs3r30pf42jpj,0.000001',  # msat precision should invalidate multiline
+        ])
+        pi = PaymentIdentifier(self.wallet, pi_str)
+        self.assertFalse(pi.is_valid())
+
     def test_spk(self):
         address = 'bc1qj3zx2zc4rpv3npzmznxhdxzn0wm7pzqp8p2293'
         for pi_str in [

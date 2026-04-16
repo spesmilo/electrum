@@ -509,7 +509,10 @@ class PaymentIdentifier(Logger):
             return x
         p = pow(10, self.config.BTC_AMOUNTS_DECIMAL_POINT)
         try:
-            return int(p * Decimal(x))
+            x = Decimal(x) * p
+            if int(x) != x:
+                raise InvalidOperation("no millisat precision allowed")
+            return int(x)
         except InvalidOperation:
             raise Exception("Invalid amount")
 
