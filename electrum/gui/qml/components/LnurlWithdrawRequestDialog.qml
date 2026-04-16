@@ -20,20 +20,20 @@ ElDialog {
     needsSystemBarPadding: false
 
     property int walletCanReceive: 0
-    property int providerMinWithdrawable: parseInt(requestDetails.lnurlData['min_withdrawable_sat'])
-    property int providerMaxWithdrawable: parseInt(requestDetails.lnurlData['max_withdrawable_sat'])
+    property int providerMinWithdrawable: parseInt(requestDetails.lnurlData['min_withdrawable_msat'])
+    property int providerMaxWithdrawable: parseInt(requestDetails.lnurlData['max_withdrawable_msat'])
     property int effectiveMinWithdrawable: Math.max(providerMinWithdrawable, 1)
     property int effectiveMaxWithdrawable: Math.min(providerMaxWithdrawable, walletCanReceive)
     property bool insufficientLiquidity: effectiveMinWithdrawable > walletCanReceive
     property bool liquidityWarning: providerMaxWithdrawable > walletCanReceive
 
     property bool amountValid: !dialog.insufficientLiquidity &&
-        amountBtc.textAsSats.satsInt >= dialog.effectiveMinWithdrawable &&
-        amountBtc.textAsSats.satsInt <= dialog.effectiveMaxWithdrawable
+        amountBtc.textAsSats.msatsInt >= dialog.effectiveMinWithdrawable &&
+        amountBtc.textAsSats.msatsInt <= dialog.effectiveMaxWithdrawable
     property bool valid: amountValid
 
     Component.onCompleted: {
-        dialog.walletCanReceive = wallet.lightningCanReceive.satsInt
+        dialog.walletCanReceive = wallet.lightningCanReceive.msatsInt
     }
 
     Connections {
@@ -43,7 +43,7 @@ ElDialog {
             if (!requestDetails.busy) {
                 // don't assign while busy to prevent the view from changing while receiving
                 // the incoming payment
-                dialog.walletCanReceive = wallet.lightningCanReceive.satsInt
+                dialog.walletCanReceive = wallet.lightningCanReceive.msatsInt
             }
         }
     }
@@ -69,10 +69,10 @@ ElDialog {
                 text: qsTr('Too little incoming liquidity to satisfy this withdrawal request.')
                           + '\n\n'
                           + qsTr('Can receive: %1')
-                            .arg(Config.formatSats(dialog.walletCanReceive) + ' ' + Config.baseUnit)
+                            .arg(Config.formatMilliSats(dialog.walletCanReceive) + ' ' + Config.baseUnit)
                           + '\n'
                           + qsTr('Minimum withdrawal amount: %1')
-                            .arg(Config.formatSats(dialog.providerMinWithdrawable) + ' ' + Config.baseUnit)
+                            .arg(Config.formatMilliSats(dialog.providerMinWithdrawable) + ' ' + Config.baseUnit)
                           + '\n\n'
                           + qsTr('Do a submarine swap in the \'Channels\' tab to get more incoming liquidity.')
                 iconStyle: InfoTextArea.IconStyle.Error
@@ -85,8 +85,8 @@ ElDialog {
                 compact: true
                 visible: !dialog.insufficientLiquidity && dialog.providerMinWithdrawable != dialog.providerMaxWithdrawable
                 text: qsTr('Amount must be between %1 and %2 %3')
-                        .arg(Config.formatSats(dialog.effectiveMinWithdrawable))
-                        .arg(Config.formatSats(dialog.effectiveMaxWithdrawable))
+                        .arg(Config.formatMilliSats(dialog.effectiveMinWithdrawable))
+                        .arg(Config.formatMilliSats(dialog.effectiveMaxWithdrawable))
                         .arg(Config.baseUnit)
                 backgroundColor: constants.darkerDialogBackground
             }
@@ -97,8 +97,8 @@ ElDialog {
                 compact: true
                 visible: dialog.liquidityWarning && !dialog.insufficientLiquidity
                 text: qsTr('The maximum withdrawable amount (%1) is larger than what your channels can receive (%2).')
-                            .arg(Config.formatSats(dialog.providerMaxWithdrawable) + ' ' + Config.baseUnit)
-                            .arg(Config.formatSats(dialog.walletCanReceive) + ' ' + Config.baseUnit)
+                            .arg(Config.formatMilliSats(dialog.providerMaxWithdrawable) + ' ' + Config.baseUnit)
+                            .arg(Config.formatMilliSats(dialog.walletCanReceive) + ' ' + Config.baseUnit)
                         + ' '
                         + qsTr('You may need to do a submarine swap to increase your incoming liquidity.')
                 iconStyle: InfoTextArea.IconStyle.Warn
@@ -135,10 +135,11 @@ ElDialog {
                 BtcField {
                     id: amountBtc
                     Layout.preferredWidth: rootLayout.width / 3
-                    text: Config.formatSatsForEditing(dialog.effectiveMaxWithdrawable)
+                    text: Config.formatMilliSatsForEditing(dialog.effectiveMaxWithdrawable)
                     enabled: !dialog.insufficientLiquidity && (dialog.providerMinWithdrawable != dialog.providerMaxWithdrawable)
                     color: Material.foreground // override gray-out on disabled
                     fiatfield: amountFiat
+                    msatPrecision: true
                 }
                 Label {
                     text: Config.baseUnit
@@ -173,8 +174,8 @@ ElDialog {
                 icon.source: '../../icons/confirmed.png'
                 enabled: valid && !requestDetails.busy
                 onClicked: {
-                    var satsAmount = amountBtc.textAsSats.satsInt;
-                    requestDetails.lnurlRequestWithdrawal(satsAmount);
+                    var msatsAmount = amountBtc.textAsSats.msatsInt;
+                    requestDetails.lnurlRequestWithdrawal(msatsAmount);
                     dialog.close();
                 }
             }
