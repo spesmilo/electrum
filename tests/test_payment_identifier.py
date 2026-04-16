@@ -203,8 +203,8 @@ class TestPaymentIdentifier(ElectrumTestCase):
         # Mock lnurl-p response
         mock_lnurl6_data = LNURL6Data(
             callback_url='https://example.com/lnurl-pay',
-            max_sendable_sat=1_000_000,
-            min_sendable_sat=1_000,
+            max_sendable_msat=1_000_000_000,
+            min_sendable_msat=1_000_000,
             metadata_plaintext='Test payment',
             comment_allowed=100,
         )
@@ -224,8 +224,8 @@ class TestPaymentIdentifier(ElectrumTestCase):
         self.assertTrue(pi.need_finalize())
         self.assertIsNotNone(pi.lnurl_data)
         self.assertTrue(isinstance(pi.lnurl_data, LNURL6Data))
-        self.assertEqual(1_000, pi.lnurl_data.min_sendable_sat)
-        self.assertEqual(1_000_000, pi.lnurl_data.max_sendable_sat)
+        self.assertEqual(1_000_000, pi.lnurl_data.min_sendable_msat)
+        self.assertEqual(1_000_000_000, pi.lnurl_data.max_sendable_msat)
         self.assertEqual('Test payment', pi.lnurl_data.metadata_plaintext)
         self.assertEqual(100, pi.lnurl_data.comment_allowed)
 
@@ -241,8 +241,8 @@ class TestPaymentIdentifier(ElectrumTestCase):
             callback_url='https://example.com/lnurl-withdraw',
             k1='test-k1-value',
             default_description='Test withdrawal',
-            min_withdrawable_sat=1_000,
-            max_withdrawable_sat=500_000,
+            min_withdrawable_msat=1_000,
+            max_withdrawable_msat=500_000,
         )
         mock_request_lnurl.return_value = mock_lnurl3_data
 
@@ -260,8 +260,8 @@ class TestPaymentIdentifier(ElectrumTestCase):
         self.assertIsNotNone(pi.lnurl_data)
         self.assertEqual('test-k1-value', pi.lnurl_data.k1)
         self.assertEqual('Test withdrawal', pi.lnurl_data.default_description)
-        self.assertEqual(1000, pi.lnurl_data.min_withdrawable_sat)
-        self.assertEqual(500000, pi.lnurl_data.max_withdrawable_sat)
+        self.assertEqual(1000, pi.lnurl_data.min_withdrawable_msat)
+        self.assertEqual(500000, pi.lnurl_data.max_withdrawable_msat)
 
     @patch('electrum.payment_identifier.request_lnurl')
     def test_lnurl_resolve_error(self, mock_request_lnurl):

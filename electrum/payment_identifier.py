@@ -99,11 +99,11 @@ class PaymentIdentifierType(IntEnum):
 
 class FieldsForGUI(NamedTuple):
     recipient: Optional[str]
-    amount: Optional[int]
+    amount: Optional[int | Decimal]
     description: Optional[str]
     validated: Optional[bool]
     comment: Optional[int]
-    amount_range: Optional[Tuple[int, int]]
+    amount_range: Optional[Tuple[int | Decimal, int | Decimal]]
 
 
 class PaymentIdentifier(Logger):
@@ -182,6 +182,7 @@ class PaymentIdentifier(Logger):
             return bool(self.bolt11) and bool(self.bolt11.get_address())
         if self._type == PaymentIdentifierType.BIP21:
             return bool(self.bip21.get('address', None)) or (bool(self.bolt11) and bool(self.bolt11.get_address()))
+        return False
 
     def is_multiline(self):
         return bool(self.multiline_outputs)
@@ -193,14 +194,14 @@ class PaymentIdentifier(Logger):
         if self._type == PaymentIdentifierType.BIP21:
             return bool(self.bip21.get('amount'))
         elif self._type == PaymentIdentifierType.BOLT11:
-            return bool(self.bolt11.get_amount_sat())
+            return bool(self.bolt11.get_amount_msat())
         elif self._type in [PaymentIdentifierType.LNURLP, PaymentIdentifierType.LNADDR]:
             # amount limits known after resolve, might be specific amount or locked to range
             if self.need_resolve():
                 return False
             if self.need_finalize():
-                self.logger.debug(f'lnurl f {self.lnurl_data.min_sendable_sat}-{self.lnurl_data.max_sendable_sat}')
-                return not (self.lnurl_data.min_sendable_sat < self.lnurl_data.max_sendable_sat)
+                self.logger.debug(f'lnurl f {self.lnurl_data.min_sendable_msat}-{self.lnurl_data.max_sendable_msat}')
+                return not (self.lnurl_data.min_sendable_msat < self.lnurl_data.max_sendable_msat)
             return True
         elif self._type == PaymentIdentifierType.MULTILINE:
             return True
@@ -367,7 +368,7 @@ class PaymentIdentifier(Logger):
     def finalize(
         self,
         *,
-        amount_sat: int = 0,
+        amount_sat: int | Decimal = 0,
         comment: str = None,
         on_finished: Callable[['PaymentIdentifier'], None] = None,
     ):
@@ -379,7 +380,7 @@ class PaymentIdentifier(Logger):
     async def _do_finalize(
         self,
         *,
-        amount_sat: int = None,
+        amount_sat: int | Decimal = None,
         comment: str = None,
         on_finished: Callable[['PaymentIdentifier'], None] = None,
     ):
@@ -388,15 +389,18 @@ class PaymentIdentifier(Logger):
             if not self.lnurl_data:
                 raise Exception("Unexpected missing LNURL data")
 
-            if not (self.lnurl_data.min_sendable_sat <= amount_sat <= self.lnurl_data.max_sendable_sat):
+            amount_msat = amount_sat * 1000
+            if not (self.lnurl_data.min_sendable_msat <= amount_msat <= self.lnurl_data.max_sendable_msat):
                 self.error = _('Amount must be between {} and {} sat.').format(
-                    self.lnurl_data.min_sendable_sat, self.lnurl_data.max_sendable_sat)
+                    Decimal(self.lnurl_data.min_sendable_msat) / 1000,
+                    Decimal(self.lnurl_data.max_sendable_msat) / 1000
+                )
                 self.set_state(PaymentIdentifierState.INVALID_AMOUNT)
                 return
 
             if self.lnurl_data.comment_allowed == 0:
                 comment = None
-            params = {'amount': amount_sat * 1000}
+            params = {'amount': amount_msat}
             if comment:
                 params['comment'] = comment
 
@@ -409,7 +413,7 @@ class PaymentIdentifier(Logger):
 
             bolt11_invoice = invoice_data.get('pr')
             invoice = Invoice.from_bech32(bolt11_invoice)
-            if invoice.get_amount_sat() != amount_sat:
+            if invoice.get_amount_msat() != amount_msat:
                 raise Exception("lnurl returned invoice with wrong amount")
             # this will change what is returned by get_fields_for_GUI
             self.bolt11 = invoice
@@ -551,10 +555,13 @@ class PaymentIdentifier(Logger):
             description = self.lnurl_data.metadata_plaintext
             if self.lnurl_data.comment_allowed:
                 comment = self.lnurl_data.comment_allowed
-            if self.lnurl_data.min_sendable_sat:
-                amount = self.lnurl_data.min_sendable_sat
-                if self.lnurl_data.min_sendable_sat != self.lnurl_data.max_sendable_sat:
-                    amount_range = (self.lnurl_data.min_sendable_sat, self.lnurl_data.max_sendable_sat)
+            if self.lnurl_data.min_sendable_msat:
+                amount = Decimal(self.lnurl_data.min_sendable_msat) / 1000
+                if self.lnurl_data.min_sendable_msat != self.lnurl_data.max_sendable_msat:
+                    amount_range = (
+                        Decimal(self.lnurl_data.min_sendable_msat) / 1000,
+                        Decimal(self.lnurl_data.max_sendable_msat) / 1000
+                    )
 
         elif self.spk:
             pass
@@ -614,7 +621,7 @@ class PaymentIdentifier(Logger):
 def invoice_from_payment_identifier(
     pi: 'PaymentIdentifier',
     wallet: 'Abstract_Wallet',
-    amount_sat: Union[int, str],
+    amount_sat: Union[int, str, Decimal],
     message: str = None
 ) -> Optional[Invoice]:
     assert pi.state in [PaymentIdentifierState.AVAILABLE,]
@@ -628,6 +635,7 @@ def invoice_from_payment_identifier(
             invoice.set_amount_msat(int(amount_sat * 1000))
         return invoice
     else:
+        assert isinstance(amount_sat, (str, int))  # disallow fractional sats
         outputs = pi.get_onchain_outputs(amount_sat)
         message = pi.bip21.get('message') if pi.bip21 else message
         return wallet.create_invoice(
