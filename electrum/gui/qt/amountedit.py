@@ -130,9 +130,12 @@ class BTCAmountEdit(AmountEdit):
     def __init__(self, decimal_point, parent=None, *, is_int=False, max_amount=_NOT_GIVEN, millisat_precision=False):
         if max_amount is _NOT_GIVEN:
             max_amount = TOTAL_COIN_SUPPLY_LIMIT_IN_BTC * COIN
-        extra_precision = lambda: 3 if millisat_precision else 0
-        AmountEdit.__init__(self, parent, base_unit=self._base_unit, is_int=is_int, max_amount=max_amount, extra_precision=extra_precision)
+        self.millisat_precision = millisat_precision
+        AmountEdit.__init__(self, parent, base_unit=self._base_unit, is_int=is_int, max_amount=max_amount, extra_precision=self.extra_precision)
         self.decimal_point = decimal_point
+
+    def extra_precision(self):
+        return 3 if self.millisat_precision else 0
 
     def _base_unit(self):
         return decimal_point_to_base_unit_name(self.decimal_point())
@@ -167,6 +170,11 @@ class BTCAmountEdit(AmountEdit):
             self.setText(text)
         self.setFrozen(self.isFrozen()) # re-apply styling, as it is nuked by setText (?)
         self.repaint()  # macOS hack for #6269
+
+    def setMillisatPrecision(self, millisat_precision: bool):
+        if self.millisat_precision != millisat_precision:
+            self.millisat_precision = millisat_precision
+            self.setAmount(self._get_amount_from_text(self.text()))
 
 
 class FeerateEdit(AmountEdit):
