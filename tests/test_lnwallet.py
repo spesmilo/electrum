@@ -1,13 +1,22 @@
+import asyncio
+import dataclasses
 import logging
 import os
-import asyncio
 from unittest import mock
 from decimal import Decimal
 from typing import Optional
+import time
+from unittest.mock import patch
+
+from electrum_ecc import ECPrivkey
 
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
 from electrum import bitcoin
 import electrum.trampoline
+from electrum import constants
+from electrum.bolt12 import BOLT12Offer, BOLT12InvoiceRequest, BOLT12Invoice
+from electrum.crypto import sha256, hmac_oneshot
+from electrum.lnonion import BlindedPath, BlindedPathHop, BlindedPathInfo, BlindedPayInfo
 from electrum.lnutil import RECEIVED, MIN_FINAL_CLTV_DELTA_ACCEPTED, serialize_htlc_key, LnFeatures, HTLCOwner
 from electrum.logging import console_stderr_handler
 from electrum.lntransport import LNPeerAddr
@@ -474,3 +483,182 @@ class TestLNWallet(ElectrumTestCase):
         chan1.set_frozen_for_sending(True)  # shouldn't matter, this channel will receive
         success, log = await alice.rebalance_channels(chan0, chan1, amount_msat=150_000_000)
         self.assertTrue(success, msg=log)
+
+    async def test_request_bolt12_invoice(self):
+        wallet = self.lnwallet_anchors
+
+        offer_issuer_id = ECPrivkey.generate_random_key().get_public_key_bytes()
+        offer = BOLT12Offer(
+            offer_chains=[constants.net.rev_genesis_bytes()],
+            offer_description="test",
+            offer_issuer_id=offer_issuer_id,
+        )
+
+        introduction_point = ECPrivkey.generate_random_key().get_public_key_bytes()
+        reply_paths = [BlindedPathInfo(
+            path=BlindedPath(
+                first_node_id=introduction_point,
+                first_path_key=ECPrivkey.generate_random_key().get_public_key_bytes(),
+                num_hops=(1).to_bytes(1, 'big'),
+                path=[BlindedPathHop(
+                    blinded_node_id=ECPrivkey.generate_random_key().get_public_key_bytes(),
+                    enclen=5,
+                    encrypted_recipient_data=b'12345',
+                )],
+            ),
+            payinfo=None,
+        )]
+
+        submit_send_calls = []
+        def fake_submit_send(*, payload, node_id_or_blinded_paths, key=None):
+            submit_send_calls.append((payload, node_id_or_blinded_paths))
+            return asyncio.Future()
+
+        with patch('electrum.lnworker.get_blinded_reply_paths', return_value=reply_paths), \
+             patch.object(wallet.onion_message_manager, 'submit_send', side_effect=fake_submit_send):
+            task = asyncio.create_task(
+                wallet.request_bolt12_invoice(bolt12_offer=offer, amount_msat=21_000)
+            )
+
+            start = time.time()
+            while not wallet._pending_bolt12_invoice_requests:
+                await asyncio.sleep(0.05)
+                if time.time() - start > 2:
+                    task.cancel()
+                    self.fail(f"invreq future wasn't registered")
+
+            self.assertEqual(len(submit_send_calls), 1)
+            payload, destination = submit_send_calls[0]
+            self.assertEqual(destination, offer_issuer_id)
+            self.assertIn('invoice_request', payload)
+            self.assertIn('reply_path', payload)
+
+            self.assertEqual(len(wallet._pending_bolt12_invoice_requests), 1)
+            path_id, fut = next(iter(wallet._pending_bolt12_invoice_requests.items()))
+            fut.set_result("invoice")
+
+            self.assertIs(await task, "invoice")
+
+        self.assertNotIn(path_id, wallet._pending_bolt12_invoice_requests)
+
+    def test_create_bolt12_invoice_request_with_offer(self):
+        wallet = self.lnwallet_anchors
+
+        amount_msat = 10_000
+        offer_issuer_id = ECPrivkey.generate_random_key().get_public_key_bytes()
+        offer = BOLT12Offer(
+            offer_chains=[constants.net.rev_genesis_bytes()],
+            offer_amount=amount_msat,
+            offer_description="test offer",
+            offer_issuer_id=offer_issuer_id,
+        )
+
+        # raises if amount is much higher than offer_amount
+        with self.assertRaises(ValueError):
+            _ = wallet.create_bolt12_invoice_request(offer=offer, amount_msat=40000)
+
+        unsigned_invreq, signing_key = wallet.create_bolt12_invoice_request(
+            offer=offer,
+            amount_msat=amount_msat,
+            payer_note="pls send invoice",
+        )
+
+        self.assertIsInstance(unsigned_invreq, BOLT12InvoiceRequest)
+        self.assertIsInstance(signing_key, ECPrivkey)
+
+        # offer fields propagated into the invreq
+        self.assertEqual(unsigned_invreq.offer_issuer_id, offer_issuer_id)
+        self.assertEqual(unsigned_invreq.offer_amount, 10_000)
+        self.assertEqual(unsigned_invreq.offer_description, "test offer")
+        self.assertEqual(unsigned_invreq.offer_chains, [constants.net.rev_genesis_bytes()])
+
+        # invreq fields set from our parameters
+        self.assertEqual(unsigned_invreq.invreq_amount, amount_msat)
+        self.assertEqual(unsigned_invreq.invreq_payer_note, "pls send invoice")
+        self.assertEqual(unsigned_invreq.invreq_payer_id, signing_key.get_public_key_bytes())
+        self.assertEqual(unsigned_invreq.invreq_chain, constants.net.rev_genesis_bytes())
+        # invreq_metadata is the 16-byte entropy concatenated with sha256(signed_invreq_tlv)
+        self.assertEqual(len(unsigned_invreq.invreq_metadata), 16 + 32)
+
+        # standalone-only fields are absent
+        self.assertIsNone(unsigned_invreq.invreq_paths)
+
+        # derived signing key is not the node key
+        self.assertNotEqual(signing_key.get_secret_bytes(), wallet.node_keypair.privkey)
+
+        # test the stateless authenticity scheme
+        entropy, invreq_sig_digest = unsigned_invreq.invreq_metadata[:16], unsigned_invreq.invreq_metadata[-32:]
+        derived_privkey = hmac_oneshot(
+            key=wallet.bolt12_secret_key,
+            msg=b'invreq_key' + entropy,
+            digest='sha-256',
+        )
+        self.assertEqual(derived_privkey, signing_key.get_secret_bytes())
+
+        signable_invreq = dataclasses.replace(unsigned_invreq, invreq_metadata=entropy)
+        resigned = signable_invreq.encode(signing_key=signing_key.get_secret_bytes(), as_bech32=False)
+        self.assertEqual(sha256(resigned), invreq_sig_digest)
+
+    def test_create_bolt12_invoice_request_without_offer(self):
+        wallet = self.lnwallet_anchors
+
+        fake_pubkey = ECPrivkey.generate_random_key().get_public_key_bytes()
+        reply_paths = [BlindedPathInfo(
+            path=BlindedPath(
+                first_node_id=fake_pubkey,
+                first_path_key=fake_pubkey,
+                num_hops=(1).to_bytes(1, 'big'),
+                path=[BlindedPathHop(
+                    blinded_node_id=fake_pubkey,
+                    enclen=5,
+                    encrypted_recipient_data=b'12345',
+                )],
+            ),
+            payinfo=None,
+        )]
+
+        amount_msat = 42_000
+        with patch('electrum.lnworker.get_blinded_reply_paths', return_value=reply_paths):
+            unsigned_invreq, signing_key = wallet.create_bolt12_invoice_request(
+                offer=None,
+                amount_msat=amount_msat,
+                payer_note="standalone invreq",
+                allow_unblinded=False,
+            )
+
+        self.assertIsInstance(unsigned_invreq, BOLT12InvoiceRequest)
+        self.assertIsInstance(signing_key, ECPrivkey)
+
+        # not a response to an offer: offer identity fields must be empty
+        self.assertIsNone(unsigned_invreq.offer_issuer_id)
+        self.assertIsNone(unsigned_invreq.offer_paths)
+        self.assertIsNone(unsigned_invreq.offer_amount)
+        self.assertIsNone(unsigned_invreq.offer_chains)
+        # payer_note is stored in offer_description for standalone invreqs
+        self.assertEqual(unsigned_invreq.offer_description, "standalone invreq")
+
+        # invreq fields set from our parameters
+        self.assertEqual(unsigned_invreq.invreq_amount, amount_msat)
+        self.assertEqual(unsigned_invreq.invreq_payer_id, signing_key.get_public_key_bytes())
+        self.assertEqual(unsigned_invreq.invreq_chain, constants.net.rev_genesis_bytes())
+        self.assertEqual(len(unsigned_invreq.invreq_metadata), 16 + 32)
+
+        # blinded reply paths are attached so the payee can respond
+        self.assertEqual(len(unsigned_invreq.invreq_paths), 1)
+        self.assertEqual(unsigned_invreq.invreq_paths[0], reply_paths[0].path)
+
+        # with reply paths available, the derived signing key is used (not node key)
+        self.assertNotEqual(signing_key.get_secret_bytes(), wallet.node_keypair.privkey)
+
+        # authenticity scheme (same as offer-based invreqs)
+        entropy, stored_digest = unsigned_invreq.invreq_metadata[:16], unsigned_invreq.invreq_metadata[-32:]
+        derived_privkey = hmac_oneshot(
+            key=wallet.bolt12_secret_key,
+            msg=b'invreq_key' + entropy,
+            digest='sha-256',
+        )
+        self.assertEqual(derived_privkey, signing_key.get_secret_bytes())
+
+        signable_invreq = dataclasses.replace(unsigned_invreq, invreq_metadata=entropy)
+        resigned = signable_invreq.encode(signing_key=signing_key.get_secret_bytes(), as_bech32=False)
+        self.assertEqual(sha256(resigned), stored_digest)
