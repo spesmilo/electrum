@@ -13,6 +13,7 @@ from electrum_ecc import ECPrivkey
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
 from electrum import bitcoin
 import electrum.trampoline
+from electrum.onion_message import NoOnionMessagePeers
 from electrum import constants
 from electrum.bolt12 import BOLT12Offer, BOLT12InvoiceRequest, BOLT12Invoice
 from electrum.crypto import sha256, hmac_oneshot
@@ -662,3 +663,48 @@ class TestLNWallet(ElectrumTestCase):
         signable_invreq = dataclasses.replace(unsigned_invreq, invreq_metadata=entropy)
         resigned = signable_invreq.encode(signing_key=signing_key.get_secret_bytes(), as_bech32=False)
         self.assertEqual(sha256(resigned), stored_digest)
+
+    def test_create_offer(self):
+        wallet = self.lnwallet_anchors
+
+        amount_msat = 10_000
+        memo = "test"
+        expiry = 4000
+        issuer = "pizza italy"
+        with self.assertRaises(NoOnionMessagePeers):
+            wallet.create_offer(
+                amount_msat=amount_msat,
+                description=memo,
+                relative_expiry=expiry,
+                issuer_name=issuer,
+                allow_unblinded=False,
+            )
+
+        offer = wallet.create_offer(
+            amount_msat=amount_msat,
+            description=memo,
+            relative_expiry=expiry,
+            issuer_name=issuer,
+            allow_unblinded=True,
+        )
+
+        self.assertEqual(offer.offer_amount, amount_msat)
+        self.assertEqual(offer.offer_description, memo)
+        self.assertEqual(offer.offer_issuer, issuer)
+        self.assertEqual(offer.offer_issuer_id, wallet.node_keypair.pubkey)
+        self.assertIsNone(offer.offer_paths)
+        absolute_expiry = int(time.time()) + expiry
+        self.assertLess(offer.offer_absolute_expiry - absolute_expiry,  2)
+
+        # test that offer metadata is a mac of encoded offer
+        mac, remaining_metadata = offer.offer_metadata[-32:], offer.offer_metadata[:-32]
+        offer = dataclasses.replace(offer, offer_metadata=remaining_metadata)
+        encoded_offer = offer.encode(as_bech32=False)
+        our_mac = hmac_oneshot(key=wallet.bolt12_secret_key, msg=b'offer' + encoded_offer, digest='sha-256')
+        self.assertEqual(our_mac, mac)
+
+        # assert two offers signed with node keypair are not equal
+        # this allows for example to blacklist/revoke certain offers
+        offer1 = wallet.create_offer(allow_unblinded=True).encode()
+        offer2 = wallet.create_offer(allow_unblinded=True).encode()
+        self.assertNotEqual(offer1, offer2)
