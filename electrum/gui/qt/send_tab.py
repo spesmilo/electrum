@@ -68,7 +68,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         grid.setColumnStretch(3, 1)
 
         from .paytoedit import PayToEdit
-        self.amount_e = BTCAmountEdit(self.window.get_decimal_point)
+        self.amount_e = BTCAmountEdit(self.window.get_decimal_point, millisat_precision=True)
         self.payto_e = PayToEdit(self)
         msg = (_("Recipient of the funds.")
                + "\n\n"
@@ -373,6 +373,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             w.setToolTip('')
         for w in [self.save_button, self.send_button]:
             w.setEnabled(False)
+        self.amount_e.setMillisatPrecision(True)
         self.window.update_status()
         self.paytomany_menu.setChecked(self.payto_e.multiline)
         self.invoice_error.setText('')
@@ -412,6 +413,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         pi = self.payto_e.payment_identifier
 
         self.clear_button.setEnabled(True)
+        self.amount_e.setMillisatPrecision(not pi.is_valid() or pi.is_lightning())
 
         if pi.is_multiline():
             self.lock_fields(lock_recipient=False, lock_amount=True, lock_max=True, lock_description=False)
