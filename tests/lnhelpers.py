@@ -2,7 +2,9 @@ import asyncio
 import copy
 import os
 from pprint import pformat
-from typing import NamedTuple, Tuple, Dict, Mapping, TYPE_CHECKING, Sequence
+from typing import NamedTuple, Tuple, Dict, Mapping, TYPE_CHECKING, Optional
+
+from electrum_ecc import ECPrivkey
 
 import electrum
 import electrum.trampoline
@@ -20,10 +22,11 @@ from electrum.lnutil import (
 from electrum.lnchannel import ChannelState, Channel
 from electrum.lnrouter import LNPathFinder
 from electrum.channel_db import ChannelDB
-from electrum.lnworker import LNWallet, PaySession
+from electrum.lnworker import LNWallet, PaySession, LNWALLET_FEATURES
 from electrum.simple_config import SimpleConfig
 from electrum.fee_policy import FeeTimeEstimates, FEE_ETA_TARGETS
 from electrum.wallet import  Standard_Wallet
+from electrum.lnonion import BlindedPathInfo, BlindedPayInfo, BlindedPath, BlindedPathHop
 
 from . import restore_wallet_from_text__for_unittest
 
@@ -534,3 +537,29 @@ def create_test_channels(
     assert alice.channel_id == bob.channel_id
 
     return alice, bob
+
+
+def get_dummy_paths(first_node_id: Optional[bytes] = None) -> list[BlindedPathInfo]:
+    ip_node_id = first_node_id or ECPrivkey.generate_random_key().get_public_key_bytes()
+    first_path_key = ECPrivkey.generate_random_key().get_public_key_bytes()
+    dummy_paths = [BlindedPathInfo(
+        path=BlindedPath(
+            first_node_id=ip_node_id,
+            first_path_key=first_path_key,
+            num_hops=(1).to_bytes(1, 'big'),
+            path=[BlindedPathHop(
+                blinded_node_id=ECPrivkey.generate_random_key().get_public_key_bytes(),  # dummy
+                enclen=5,
+                encrypted_recipient_data=b'12345',
+            )],
+        ),
+        payinfo=BlindedPayInfo(
+            fee_base_msat=1000,
+            fee_proportional_millionths=1000,
+            cltv_expiry_delta=221,
+            htlc_minimum_msat=1,
+            htlc_maximum_msat=10000000000,
+            features=LNWALLET_FEATURES.for_blinded_path(),
+        ),
+    )]
+    return dummy_paths

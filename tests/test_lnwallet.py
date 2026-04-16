@@ -4,21 +4,20 @@ import logging
 import os
 from unittest import mock
 from decimal import Decimal
-from typing import Optional
 import time
+from typing import Optional
 from unittest.mock import patch
 
 from electrum_ecc import ECPrivkey
 
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
-from electrum import bitcoin
 import electrum.trampoline
-from electrum.gui.qt.wizard import wallet
 from electrum.onion_message import NoOnionMessagePeers
+from .test_wallet_vertical import UNICODE_HORROR
+
 from electrum import constants
-from electrum.bolt12 import BOLT12Offer, BOLT12InvoiceRequest, BOLT12Invoice, BOLT12InvoicePathIDPayload
-from electrum.crypto import sha256, hmac_oneshot
-from electrum.lnonion import BlindedPath, BlindedPathHop, BlindedPathInfo, BlindedPayInfo
+from electrum.bolt12 import BOLT12Offer, BOLT12InvoiceRequest, BOLT12Invoice, BOLT12InvoicePathIDPayload, Bolt12InvoiceError
+from electrum.crypto import hmac_oneshot
 from electrum.lnutil import RECEIVED, MIN_FINAL_CLTV_DELTA_ACCEPTED, serialize_htlc_key, LnFeatures, HTLCOwner
 from electrum.logging import console_stderr_handler
 from electrum.lntransport import LNPeerAddr
@@ -31,7 +30,7 @@ from electrum.simple_config import SimpleConfig
 from electrum.lnworker import LNWALLET_FEATURES
 
 from . import ElectrumTestCase, lnhelpers
-from .lnhelpers import create_test_channels
+from .lnhelpers import create_test_channels, get_dummy_paths
 
 
 class TestLNWallet(ElectrumTestCase):
@@ -528,27 +527,12 @@ class TestLNWallet(ElectrumTestCase):
             offer_issuer_id=offer_issuer_id,
         )
 
-        introduction_point = ECPrivkey.generate_random_key().get_public_key_bytes()
-        reply_paths = [BlindedPathInfo(
-            path=BlindedPath(
-                first_node_id=introduction_point,
-                first_path_key=ECPrivkey.generate_random_key().get_public_key_bytes(),
-                num_hops=(1).to_bytes(1, 'big'),
-                path=[BlindedPathHop(
-                    blinded_node_id=ECPrivkey.generate_random_key().get_public_key_bytes(),
-                    enclen=5,
-                    encrypted_recipient_data=b'12345',
-                )],
-            ),
-            payinfo=None,
-        )]
-
         submit_send_calls = []
         def fake_submit_send(*, payload, node_id_or_blinded_paths, key=None):
             submit_send_calls.append((payload, node_id_or_blinded_paths))
             return asyncio.Future()
 
-        with patch('electrum.lnworker.get_blinded_reply_paths', return_value=reply_paths), \
+        with patch('electrum.lnworker.get_blinded_reply_paths', return_value=get_dummy_paths()), \
              patch.object(wallet.onion_message_manager, 'submit_send', side_effect=fake_submit_send):
             task = asyncio.create_task(
                 wallet.request_bolt12_invoice(bolt12_offer=offer, amount_msat=21_000)
@@ -636,21 +620,7 @@ class TestLNWallet(ElectrumTestCase):
     def test_create_bolt12_invoice_request_without_offer(self):
         wallet = self.lnwallet_anchors
 
-        fake_pubkey = ECPrivkey.generate_random_key().get_public_key_bytes()
-        reply_paths = [BlindedPathInfo(
-            path=BlindedPath(
-                first_node_id=fake_pubkey,
-                first_path_key=fake_pubkey,
-                num_hops=(1).to_bytes(1, 'big'),
-                path=[BlindedPathHop(
-                    blinded_node_id=fake_pubkey,
-                    enclen=5,
-                    encrypted_recipient_data=b'12345',
-                )],
-            ),
-            payinfo=None,
-        )]
-
+        reply_paths = get_dummy_paths()
         amount_msat = 42_000
         with patch('electrum.lnworker.get_blinded_reply_paths', return_value=reply_paths):
             unsigned_invreq, signing_key = wallet.create_bolt12_invoice_request(
@@ -757,3 +727,377 @@ class TestLNWallet(ElectrumTestCase):
 
         offer_modified = dataclasses.replace(offer_created_by_us, offer_amount=1001)
         self.assertFalse(wallet._verify_bolt_12_offer_created_by_us(offer_modified))
+
+    async def test_on_bolt12_invoice_request(self):
+        wallet = self.lnwallet_anchors
+
+        reply_paths = get_dummy_paths()
+        with patch('electrum.lnworker.get_blinded_reply_paths', return_value=reply_paths) as mock:
+            offer = wallet.create_offer(
+                amount_msat=1000,
+                description="test",
+                relative_expiry=None,
+                issuer_name="tester",
+                allow_unblinded=False,
+            )
+            # invoice needs to get signed with the offer_issuer_id's secret from offer paths path_id
+            offer_encrypted_recipient_data_path_id = mock.call_args.args[1]
+
+        # create invoice request for our own offer
+        unsigned_invreq, signing_key = wallet.create_bolt12_invoice_request(
+            offer=offer,
+            amount_msat=1000,
+            payer_note="pls send invoice",
+        )
+        invreq_tlv = unsigned_invreq.encode(signing_key=signing_key.get_secret_bytes(), as_bech32=False)
+
+        # create payload that we receive when someone (we as well) requests the invoice for our offer
+        incoming_payload = {
+            'invoice_request': {'invoice_request': invreq_tlv},
+            'reply_path': {'path': dataclasses.asdict(get_dummy_paths()[0].path)},
+            'encrypted_recipient_data': {'encrypted_recipient_data': offer.offer_paths[0].path[-1].encrypted_recipient_data},
+        }
+        # decrypted encrypted recipient data
+        recipient_data = {
+            'path_id': {'data': offer_encrypted_recipient_data_path_id}
+        }
+
+        with patch.object(wallet.onion_message_manager, 'submit_send') as mock_submit_send:
+            wallet.on_bolt12_invoice_request(payload=incoming_payload, recipient_data=recipient_data)
+        self.assertIn(
+            b'no active channels',
+            mock_submit_send.call_args.kwargs['payload']['invoice_error']['invoice_error'],
+        )
+
+        # add a channel so the active channel check passes
+        regular_peer = self.create_mock_lnwallet(name='regular_peer')
+        chan_r, _ = create_test_channels(alice_lnwallet=wallet, bob_lnwallet=regular_peer)
+        wallet._add_channel(chan_r)
+        invoice_paths = get_dummy_paths()
+        with patch('electrum.lnworker.get_blinded_paths_to_me', return_value=invoice_paths), \
+                patch.object(wallet.onion_message_manager, 'submit_send') as mock_submit_send:
+            wallet.on_bolt12_invoice_request(payload=incoming_payload, recipient_data=recipient_data)
+        sent_invoice_tlv = mock_submit_send.call_args.kwargs['payload']['invoice']['invoice']
+        sent_invoice = BOLT12Invoice.decode(sent_invoice_tlv)
+
+        self.assertEqual(offer.offer_issuer_id, sent_invoice.invoice_node_id)
+
+        # invreq for an offer that was not created by us (MAC verification fails)
+        foreign_offer = dataclasses.replace(offer, offer_description="tampered description")
+        foreign_invreq, foreign_signing_key = wallet.create_bolt12_invoice_request(
+            offer=foreign_offer,
+            amount_msat=1000,
+            payer_note="pls send invoice",
+        )
+        foreign_invreq_tlv = foreign_invreq.encode(
+            signing_key=foreign_signing_key.get_secret_bytes(), as_bech32=False)
+        foreign_payload = {
+            'invoice_request': {'invoice_request': foreign_invreq_tlv},
+            'reply_path': {'path': dataclasses.asdict(get_dummy_paths()[0].path)},
+            'encrypted_recipient_data': {'encrypted_recipient_data': foreign_offer.offer_paths[0].path[-1].encrypted_recipient_data},
+        }
+        with patch('electrum.lnworker.get_blinded_paths_to_me', return_value=invoice_paths), \
+                patch.object(wallet.onion_message_manager, 'submit_send') as mock_submit_send:
+            wallet.on_bolt12_invoice_request(payload=foreign_payload, recipient_data=recipient_data)
+        self.assertIn(
+            b'no matching offer for this invoice request',
+            mock_submit_send.call_args.kwargs['payload']['invoice_error']['invoice_error'],
+        )
+
+        # invreq arrived with encrypted_recipient_data that doesn't belong to any of the offer paths
+        wrong_path_payload = {
+            'invoice_request': {'invoice_request': invreq_tlv},
+            'reply_path': {'path': dataclasses.asdict(get_dummy_paths()[0].path)},
+            'encrypted_recipient_data': {'encrypted_recipient_data': b'not_in_offer_paths'},
+        }
+        with patch.object(wallet.onion_message_manager, 'submit_send') as mock_submit_send:
+            wallet.on_bolt12_invoice_request(payload=wrong_path_payload, recipient_data=recipient_data)
+        self.assertFalse(mock_submit_send.called)
+
+        # invreq arrives for an offer that is already expired
+        with patch('electrum.lnworker.get_blinded_reply_paths', return_value=get_dummy_paths()):
+            expiring_offer = wallet.create_offer(
+                amount_msat=1000,
+                description="expiring offer",
+                relative_expiry=3600,
+                allow_unblinded=False,
+            )
+        expiring_invreq, expiring_signing_key = wallet.create_bolt12_invoice_request(
+            offer=expiring_offer,
+            amount_msat=1000,
+            payer_note="pls send invoice",
+        )
+        expiring_invreq_tlv = expiring_invreq.encode(
+            signing_key=expiring_signing_key.get_secret_bytes(), as_bech32=False)
+        expiring_payload = {
+            'invoice_request': {'invoice_request': expiring_invreq_tlv},
+            'reply_path': {'path': dataclasses.asdict(get_dummy_paths()[0].path)},
+            'encrypted_recipient_data': {'encrypted_recipient_data': expiring_offer.offer_paths[0].path[-1].encrypted_recipient_data},
+        }
+        with patch('electrum.lnworker.time.time', return_value=expiring_offer.offer_absolute_expiry + 1), \
+                patch('electrum.lnworker.get_blinded_paths_to_me', return_value=invoice_paths), \
+                patch.object(wallet.onion_message_manager, 'submit_send') as mock_submit_send:
+            wallet.on_bolt12_invoice_request(payload=expiring_payload, recipient_data=recipient_data)
+        self.assertIn(
+            b'offer already expired',
+            mock_submit_send.call_args.kwargs['payload']['invoice_error']['invoice_error'],
+        )
+
+    async def test_on_bolt12_offerless_invoice_request(self):
+        wallet = self.lnwallet_anchors
+
+        # add a channel so for receive capacity
+        regular_peer = self.create_mock_lnwallet(name='regular_peer')
+        chan_r, _ = create_test_channels(alice_lnwallet=wallet, bob_lnwallet=regular_peer)
+        wallet._add_channel(chan_r)
+
+        # offerless invoice_request, with invreq_paths (blinded)
+        with patch('electrum.lnworker.get_blinded_reply_paths', return_value=get_dummy_paths()):
+            unsigned_invreq, signing_key = wallet.create_bolt12_invoice_request(
+                offer=None,
+                amount_msat=1000,
+                payer_note="sats for you",
+            )
+
+        self.assertIsNone(unsigned_invreq.offer_issuer_id)
+        self.assertIsNone(unsigned_invreq.offer_paths)
+        self.assertIsNotNone(unsigned_invreq.invreq_paths)
+        self.assertEqual(unsigned_invreq.offer_description, "sats for you")
+
+        invreq_tlv = unsigned_invreq.encode(signing_key=signing_key.get_secret_bytes(), as_bech32=False)
+        incoming_payload = {
+            'invoice_request': {'invoice_request': invreq_tlv},
+            'reply_path': {'path': dataclasses.asdict(get_dummy_paths()[0].path)},
+            'encrypted_recipient_data': {'encrypted_recipient_data': b'is_unused'},
+        }
+
+        with patch('electrum.lnworker.get_blinded_paths_to_me', return_value=get_dummy_paths()), \
+                patch.object(wallet.onion_message_manager, 'submit_send') as mock_submit_send:
+            wallet.on_bolt12_invoice_request(payload=incoming_payload, recipient_data={})
+
+        sent_kwargs = mock_submit_send.call_args.kwargs
+        self.assertEqual(
+            sent_kwargs['node_id_or_blinded_paths'],
+            unsigned_invreq.invreq_paths,
+        )
+        sent_invoice = BOLT12Invoice.decode(sent_kwargs['payload']['invoice']['invoice'])
+        self.assertEqual(sent_invoice.invoice_amount, 1000)
+        self.assertEqual(sent_invoice.offer_description, "sats for you")
+
+    async def test__verify_bolt12_invoice_requested_by_us(self):
+        wallet = self.lnwallet_anchors
+
+        # pretend we're paying a peer's offer
+        peer_offer_key = ECPrivkey.generate_random_key()
+        peer_offer = BOLT12Offer(
+            offer_chains=[constants.net.rev_genesis_bytes()],
+            offer_amount=1000,
+            offer_description="peer offer",
+            offer_issuer_id=peer_offer_key.get_public_key_bytes(),
+        )
+        # invoice request for this offer
+        unsigned_invreq, _ = wallet.create_bolt12_invoice_request(offer=peer_offer, amount_msat=1000)
+
+        def build_invoice(invreq: BOLT12InvoiceRequest) -> BOLT12Invoice:
+            dummy_path = get_dummy_paths()
+            return BOLT12Invoice(
+                **invreq.__dict__,
+                invoice_amount=invreq.invreq_amount,
+                invoice_created_at=int(time.time()),
+                invoice_payment_hash=os.urandom(32),
+                invoice_node_id=peer_offer_key.get_public_key_bytes(),
+                invoice_paths=tuple(p.path for p in dummy_path),
+                invoice_blindedpay=tuple(p.payinfo for p in dummy_path),
+            )
+
+        invoice = build_invoice(unsigned_invreq)
+        self.assertTrue(wallet._verify_bolt12_invoice_requested_by_us(invoice))
+
+        # tampering with any invreq field invalidates the stored metadata digest
+        self.assertFalse(wallet._verify_bolt12_invoice_requested_by_us(
+            build_invoice(dataclasses.replace(unsigned_invreq, invreq_amount=1001))
+        ))
+        self.assertFalse(wallet._verify_bolt12_invoice_requested_by_us(
+            dataclasses.replace(invoice, invreq_payer_note="tampered")
+        ))
+        self.assertFalse(wallet._verify_bolt12_invoice_requested_by_us(
+            dataclasses.replace(invoice, offer_description="tampered")
+        ))
+
+        self.assertFalse(wallet._verify_bolt12_invoice_requested_by_us(
+            dataclasses.replace(invoice, invreq_metadata=b'\x00' * 10)
+        ))
+
+        # metadata with wrong entropy yields a different derived key: verification fails
+        wrong_entropy_meta = os.urandom(16) + invoice.invreq_metadata[-32:]
+        self.assertFalse(wallet._verify_bolt12_invoice_requested_by_us(
+            dataclasses.replace(invoice, invreq_metadata=wrong_entropy_meta)
+        ))
+
+        # invoice carrying an invreq created by a different wallet: verification fails
+        other_wallet = self.create_mock_lnwallet(name='other_wallet')
+        other_invreq, _ = other_wallet.create_bolt12_invoice_request(
+            offer=peer_offer,
+            amount_msat=1000,
+        )
+        self.assertFalse(wallet._verify_bolt12_invoice_requested_by_us(build_invoice(other_invreq)))
+
+        # offerless unblinded invreq is signed with the node keypair
+        with patch('electrum.lnworker.get_blinded_reply_paths', side_effect=NoOnionMessagePeers("no peers")):
+            unblinded_invreq, node_signing_key = wallet.create_bolt12_invoice_request(
+                offer=None,
+                amount_msat=2000,
+                allow_unblinded=True,
+            )
+        self.assertEqual(node_signing_key.get_secret_bytes(), wallet.node_keypair.privkey)
+        self.assertEqual(unblinded_invreq.invreq_payer_id, wallet.node_keypair.pubkey)
+
+        unblinded_invoice = build_invoice(unblinded_invreq)
+        self.assertTrue(wallet._verify_bolt12_invoice_requested_by_us(unblinded_invoice))
+
+    async def test_on_bolt12_invoice(self):
+        wallet = self.lnwallet_anchors
+
+        offer_issuer_key = ECPrivkey.generate_random_key()
+        offer = BOLT12Offer(
+            offer_chains=[constants.net.rev_genesis_bytes()],
+            offer_amount=1000,
+            offer_description=UNICODE_HORROR,
+            offer_issuer_id=offer_issuer_key.get_public_key_bytes(),
+        )
+        unsigned_invreq, invreq_signing_key = wallet.create_bolt12_invoice_request(
+            offer=offer,
+            amount_msat=1000,
+            payer_note=UNICODE_HORROR,
+        )
+        path_id = invreq_signing_key.get_secret_bytes()
+        recipient_data = {'path_id': {'data': path_id}}
+
+        def register_pending_invoice() -> asyncio.Future:
+            fut = asyncio.Future()
+            wallet._pending_bolt12_invoice_requests[path_id] = fut
+            return fut
+
+        def build_invoice_tlv(
+            *, invreq: BOLT12InvoiceRequest = unsigned_invreq,
+            amount: int = unsigned_invreq.offer_amount,
+            created_at: Optional[int] = None,
+            relative_expiry: int = 3600,
+        ) -> bytes:
+            dummy_paths = get_dummy_paths()
+            invoice = BOLT12Invoice(
+                **invreq.__dict__,
+                invoice_amount=amount,
+                invoice_created_at=created_at if created_at is not None else int(time.time()),
+                invoice_relative_expiry=relative_expiry,
+                invoice_payment_hash=os.urandom(32),
+                invoice_node_id=offer_issuer_key.get_public_key_bytes(),
+                invoice_paths=tuple(p.path for p in dummy_paths),
+                invoice_blindedpay=tuple(p.payinfo for p in dummy_paths),
+            )
+            return invoice.encode(signing_key=offer_issuer_key.get_secret_bytes(), as_bech32=False)
+
+        # happy path: a valid invoice resolves the pending future
+        fut = register_pending_invoice()
+        wallet.on_bolt12_invoice(
+            recipient_data=recipient_data,
+            payload={'invoice': {'invoice': build_invoice_tlv()}},
+        )
+        received, _ = await fut
+        self.assertIsInstance(received, BOLT12Invoice)
+        self.assertEqual(received.invoice_amount, 1000)
+        self.assertEqual(received.offer_issuer_id, offer.offer_issuer_id)
+
+        # invoice_error payload sets the exception on the pending future
+        fut = register_pending_invoice()
+        err_tlv = Bolt12InvoiceError("something went wrong").to_tlv()
+        wallet.on_bolt12_invoice(
+            recipient_data=recipient_data,
+            payload={'invoice_error': {'invoice_error': err_tlv}},
+        )
+        with self.assertRaises(Bolt12InvoiceError) as ctx:
+            await fut
+        self.assertIn("something went wrong", str(ctx.exception))
+
+        # malformed invoice TLV: decode error is surfaced on the future
+        fut = register_pending_invoice()
+        wallet.on_bolt12_invoice(
+            recipient_data=recipient_data,
+            payload={'invoice': {'invoice': os.urandom(32)}},
+        )
+        with self.assertRaises(Bolt12InvoiceError) as ctx:
+            await fut
+        self.assertIn("received invalid invoice", str(ctx.exception))
+
+        # invoice with modified invreq content
+        fut = register_pending_invoice()
+        tampered_invreq = dataclasses.replace(unsigned_invreq, invreq_payer_note="hello")
+        wallet.on_bolt12_invoice(
+            recipient_data=recipient_data,
+            payload={'invoice': {'invoice': build_invoice_tlv(invreq=tampered_invreq)}},
+        )
+        with self.assertRaises(Bolt12InvoiceError) as ctx:
+            await fut
+        self.assertIn("unable to verify invoice content", str(ctx.exception))
+
+        # expired invoice: exception on the future
+        fut = register_pending_invoice()
+        wallet.on_bolt12_invoice(
+            recipient_data=recipient_data,
+            payload={'invoice': {'invoice': build_invoice_tlv(created_at=1000, relative_expiry=1)}},
+        )
+        with self.assertRaises(Bolt12InvoiceError) as ctx:
+            await fut
+        self.assertIn("received expired invoice", str(ctx.exception))
+
+        # unknown path_id and not an offerless invreq: silently dropped
+        del wallet._pending_bolt12_invoice_requests[path_id]
+        wallet.on_bolt12_invoice(
+            recipient_data={'path_id': {'data': os.urandom(32)}},
+            payload={'invoice': {'invoice': build_invoice_tlv()}},
+        )
+        self.assertEqual(wallet._pending_bolt12_invoice_requests, {})
+
+        # offerless invreq: invoice must arrive on a reply path we sent in invreq_paths
+        with patch('electrum.lnworker.get_blinded_reply_paths', return_value=get_dummy_paths()):
+            offerless_invreq, offerless_signing_key = wallet.create_bolt12_invoice_request(
+                offer=None,
+                amount_msat=2000,
+            )
+
+        def build_offerless_invoice_tlv() -> bytes:
+            invoice_node_key = ECPrivkey.generate_random_key()
+            dummy_paths = get_dummy_paths()
+            invoice = BOLT12Invoice(
+                **offerless_invreq.__dict__,
+                invoice_amount=offerless_invreq.invreq_amount,
+                invoice_created_at=int(time.time()),
+                invoice_payment_hash=os.urandom(32),
+                invoice_node_id=invoice_node_key.get_public_key_bytes(),
+                invoice_paths=tuple(p.path for p in dummy_paths),
+                invoice_blindedpay=tuple(p.payinfo for p in dummy_paths),
+            )
+            return invoice.encode(signing_key=invoice_node_key.get_secret_bytes(), as_bech32=False)
+
+        expected_encrypted_recipient_data = offerless_invreq.invreq_paths[0].path[-1].encrypted_recipient_data
+
+        # offerless happy path: encrypted_recipient_data matches one of invreq_paths
+        with self.assertRaises(NotImplementedError):
+            wallet.on_bolt12_invoice(
+                recipient_data={},
+                payload={
+                    'invoice': {'invoice': build_offerless_invoice_tlv()},
+                    'encrypted_recipient_data': {'encrypted_recipient_data': expected_encrypted_recipient_data},
+                },
+            )
+
+        # offerless on incorrect reply path: invoice is silently dropped, future stays pending
+        with self.assertLogs('electrum', level='WARN') as logs:
+            wallet.on_bolt12_invoice(
+                recipient_data={},
+                payload={
+                    'invoice': {'invoice': build_offerless_invoice_tlv()},
+                    'encrypted_recipient_data': {'encrypted_recipient_data': os.urandom(32)},
+                },
+            )
+            self.assertTrue(any('received invoice for offerless invreq on incorrect path' in msg for msg in logs.output))
