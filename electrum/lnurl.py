@@ -94,11 +94,12 @@ def _parse_lnurl_response_callback_url(lnurl_response: dict) -> str:
 # https://github.com/lnurl/luds/blob/227f850b701e9ba893c080103c683273e2feb521/06.md
 class LNURL6Data(NamedTuple):
     callback_url: str
-    max_sendable_sat: int
-    min_sendable_sat: int
+    max_sendable_msat: int
+    min_sendable_msat: int
     metadata_plaintext: str
     comment_allowed: int
     #tag: str = "payRequest"
+
 
 # withdrawRequest
 # https://github.com/lnurl/luds/blob/227f850b701e9ba893c080103c683273e2feb521/03.md
@@ -110,10 +111,11 @@ class LNURL3Data(NamedTuple):
     # A default withdrawal invoice description
     default_description: str
     # Min amount the user can withdraw from LN SERVICE, or 0
-    min_withdrawable_sat: int
+    min_withdrawable_msat: int
     # Max amount the user can withdraw from LN SERVICE,
     # or equal to minWithdrawable if the user has no choice over the amounts
-    max_withdrawable_sat: int
+    max_withdrawable_msat: int
+
 
 LNURLData = LNURL6Data | LNURL3Data
 
@@ -155,8 +157,8 @@ def _parse_lnurl6_response(lnurl_response: dict) -> LNURL6Data:
     callback_url = _parse_lnurl_response_callback_url(lnurl_response)
     # parse lnurl6 "minSendable"/"maxSendable"
     try:
-        max_sendable_sat = int(lnurl_response['maxSendable']) // 1000
-        min_sendable_sat = int(lnurl_response['minSendable']) // 1000
+        max_sendable_msat = int(lnurl_response['maxSendable'])
+        min_sendable_msat = int(lnurl_response['minSendable'])
     except Exception as e:
         raise LNURLError(
             f"Missing or malformed 'minSendable'/'maxSendable' field in lnurl6 response. {e=!r}") from e
@@ -167,8 +169,8 @@ def _parse_lnurl6_response(lnurl_response: dict) -> LNURL6Data:
         raise LNURLError(f"Malformed 'commentAllowed' field in lnurl6 response. {e=!r}") from e
     data = LNURL6Data(
         callback_url=callback_url,
-        max_sendable_sat=max_sendable_sat,
-        min_sendable_sat=min_sendable_sat,
+        max_sendable_msat=max_sendable_msat,
+        min_sendable_msat=min_sendable_msat,
         metadata_plaintext=metadata_plaintext,
         comment_allowed=comment_allowed,
     )
@@ -182,10 +184,10 @@ def _parse_lnurl3_response(lnurl_response: dict) -> LNURL3Data:
         raise UntrustedLNURLError(f"Missing k1 value in LNURL3 response: {lnurl_response=}")
     default_description = lnurl_response.get('defaultDescription', '')
     try:
-        min_withdrawable_sat = int(lnurl_response['minWithdrawable'] or 0) // 1000
-        max_withdrawable_sat = int(lnurl_response['maxWithdrawable']) // 1000
-        assert max_withdrawable_sat >= min_withdrawable_sat, f"Invalid amounts: max < min amount"
-        assert max_withdrawable_sat > 0, f"Invalid max amount: {max_withdrawable_sat} sat"
+        min_withdrawable_msat = int(lnurl_response['minWithdrawable'] or 0)
+        max_withdrawable_msat = int(lnurl_response['maxWithdrawable'])
+        assert max_withdrawable_msat >= min_withdrawable_msat, f"Invalid amounts: max < min amount"
+        assert max_withdrawable_msat > 0, f"Invalid max amount: {max_withdrawable_msat} msat"
     except Exception as e:
         raise LNURLError(
             f"Missing or malformed 'minWithdrawable'/'minWithdrawable' field in lnurl3 response. {e=!r}") from e
@@ -193,8 +195,8 @@ def _parse_lnurl3_response(lnurl_response: dict) -> LNURL3Data:
         callback_url=callback_url,
         k1=k1,
         default_description=default_description,
-        min_withdrawable_sat=min_withdrawable_sat,
-        max_withdrawable_sat=max_withdrawable_sat,
+        min_withdrawable_msat=min_withdrawable_msat,
+        max_withdrawable_msat=max_withdrawable_msat,
     )
 
 
@@ -218,6 +220,7 @@ async def try_resolve_lnurlpay(lnurl: Optional[str]) -> Optional[LNURL6Data]:
             _logger.debug(f"Error resolving lnurl: {request_error!r}")
     return None
 
+
 async def request_lnurl_withdraw_callback(callback_url: str, k1: str, bolt_11: str) -> None:
     assert bolt_11
     params = {
@@ -228,6 +231,7 @@ async def request_lnurl_withdraw_callback(callback_url: str, k1: str, bolt_11: s
         url=callback_url,
         params=params
     )
+
 
 async def callback_lnurl(url: str, params: dict) -> dict:
     """Requests an invoice from a lnurl supporting server."""
