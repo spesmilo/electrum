@@ -1589,6 +1589,9 @@ class LnFeatures(IntFlag):
     def for_blinded_path(self) -> 'LnFeatures':
         return self._for_context(LnFeatureContexts.BLINDED_PATH)
 
+    def for_blinded_payinfo(self) -> 'LnFeatures':
+        return self._for_context(LnFeatureContexts.BLINDED_PAYINFO)
+
     def for_channel_announcement(self) -> 'LnFeatures':
         features = LnFeatures(0)
         for flag in list_enabled_ln_feature_bits(self):
