@@ -1856,7 +1856,7 @@ class LNWallet(Logger):
 
     def can_pay_invoice(self, invoice: Invoice) -> bool:
         assert invoice.is_lightning()
-        return (invoice.get_amount_sat() or 0) <= self.num_sats_can_send()
+        return (invoice.get_amount_sat_msat_precision() or 0) <= self.num_sats_can_send()
 
     @log_exceptions
     async def pay_invoice(
@@ -3573,7 +3573,7 @@ class LNWallet(Logger):
 
     def can_receive_invoice(self, invoice: BaseInvoice) -> bool:
         assert invoice.is_lightning()
-        return (invoice.get_amount_sat() or 0) <= self.num_sats_can_receive()
+        return (invoice.get_amount_sat_msat_precision() or 0) <= self.num_sats_can_receive()
 
     async def close_channel(self, chan_id):
         chan = self._channels[chan_id]

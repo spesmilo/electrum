@@ -594,7 +594,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.save_button.setEnabled(False)
 
     def do_pay_invoice(self, invoice: 'Invoice'):
-        if not bool(invoice.get_amount_sat()):
+        if not bool(invoice.get_amount_msat()):
             pi = self.payto_e.payment_identifier
             if pi.type == PaymentIdentifierType.SPK and not pi.spk_is_address:
                 pass
@@ -661,8 +661,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         return False  # no errors
 
     def pay_lightning_invoice(self, invoice: Invoice):
-        amount_sat = invoice.get_amount_sat()
-        if amount_sat is None:
+        amount_msat = invoice.get_amount_msat()
+        if amount_msat is None:
             raise Exception("missing amount for LN invoice")
         # note: lnworker might be None if LN is disabled,
         #       in which case we should still offer the user to pay onchain.
@@ -673,6 +673,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             can_pay_with_swap = False
             can_rebalance = False
             if lnworker:
+                amount_sat = invoice.get_amount_sat()  # use rounded up sats
                 can_pay_with_new_channel = lnworker.suggest_funding_amount(amount_sat, coins=coins)
                 can_pay_with_swap = lnworker.suggest_swap_to_send(amount_sat, coins=coins)
                 rebalance_suggestion = lnworker.suggest_rebalance_to_send(amount_sat)
@@ -720,10 +721,9 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             return
 
         assert lnworker is not None
-        # FIXME this is currently lying to user as we truncate to satoshis
-        amount_msat = invoice.get_amount_msat()
+
         label = QLabel(
-            _("This will send {} to the recipient").format(self.format_amount_and_units(Decimal(amount_msat)/1000)))
+            _("This will send {} to the recipient").format(self.format_amount_and_units(invoice.get_amount_sat_msat_precision())))
 
         dialog = WindowModalDialog(self, _("Pay lightning invoice?"))
         dialog.setMinimumWidth(400)
@@ -735,13 +735,16 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         lnfee_hlabel = HelpLabel.from_configvar(self.config.cv.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS)
         lnfee_hlabel.setText(_('Max routing fee') + ' :')
         lnfee_map = [500, 1_000, 3_000, 5_000, 10_000, 20_000, 30_000, 50_000]
+
         def lnfee_update_vlabel(fee_val: int):
             lnfee_vlabel.setText(_("{}% of payment").format(f"{fee_val / 10 ** 4:.2f}"))
+
         def lnfee_slider_moved():
             pos = lnfee_slider.sliderPosition()
             fee_val = lnfee_map[pos]
             lnfee_update_vlabel(fee_val)
             self.config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS = fee_val
+
         lnfee_slider = QSlider(Qt.Orientation.Horizontal)
         lnfee_slider.setRange(0, len(lnfee_map)-1)
         lnfee_slider.setTracking(True)
@@ -767,7 +770,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         if not dialog.exec():
             return
         self.save_pending_invoice()
-        coro = lnworker.pay_invoice(invoice, amount_msat=amount_msat)
+        coro = lnworker.pay_invoice(invoice, amount_msat=invoice.get_amount_msat())
         self.window.run_coroutine_from_thread(coro, _('Sending payment'))
 
     def broadcast_transaction(self, tx: Transaction, *, invoice: Invoice = None):
