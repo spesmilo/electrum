@@ -58,6 +58,7 @@ ElDialog {
                 id: amountBtc
                 fiatfield: amountFiat
                 Layout.fillWidth: true
+                msatPrecision: true
             }
 
             Label {
@@ -103,22 +104,23 @@ ElDialog {
                 Layout.preferredWidth: 1
                 text: qsTr('Onchain')
                 icon.source: '../../icons/bitcoin.png'
+                enabled: !amountBtc.textAsSats.hasMsatPrecision
                 onClicked: { dialog.isLightning = false; doAccept() }
             }
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
-                enabled: Daemon.currentWallet.isLightning && (Daemon.currentWallet.lightningCanReceive.satsInt
-                            > amountBtc.textAsSats.satsInt || Daemon.currentWallet.canGetZeroconfChannel)
+                enabled: Daemon.currentWallet.isLightning && (Daemon.currentWallet.lightningCanReceive.msatsInt
+                            > amountBtc.textAsSats.msatsInt || Daemon.currentWallet.canGetZeroconfChannel)
                 text: qsTr('Lightning')
                 icon.source: '../../icons/lightning.png'
                 onClicked: {
-                    if (Daemon.currentWallet.lightningCanReceive.satsInt > amountBtc.textAsSats.satsInt) {
+                    if (Daemon.currentWallet.lightningCanReceive.msatsInt > amountBtc.textAsSats.msatsInt) {
                         // can receive on existing channel
                         dialog.isLightning = true
                         doAccept()
-                    } else if (Daemon.currentWallet.canGetZeroconfChannel && amountBtc.textAsSats.satsInt
-                                >= Daemon.currentWallet.minChannelFunding.satsInt) {
+                    } else if (Daemon.currentWallet.canGetZeroconfChannel && amountBtc.textAsSats.msatsInt
+                                >= Daemon.currentWallet.minChannelFunding.msatsInt) {
                         // ask for confirmation of zeroconf channel to prevent fee surprise
                         var confirmdialog = app.messageDialog.createObject(dialog, {
                             title: qsTr('Confirm just-in-time channel'),
