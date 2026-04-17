@@ -18,7 +18,7 @@ TextField {
 
     property var textAsSats
     onTextChanged: {
-        textAsSats = Config.unitsToSats(amount.text)
+        textAsSats = Config.baseunitStrToAmount(amount.text)
         if (fiatfield.activeFocus)
             return
         fiatfield.text = text == '' ? '' : Daemon.fx.fiatValue(amount.textAsSats)
@@ -28,7 +28,7 @@ TextField {
         target: Config
         function onBaseUnitChanged() {
             amount.text = amount.textAsSats.msatsInt != 0
-                ? Config.satsToUnits(amount.textAsSats)
+                ? Config.amountToBaseunitStr(amount.textAsSats)
                 : ''
         }
     }
