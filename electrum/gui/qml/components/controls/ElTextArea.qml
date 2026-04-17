@@ -49,6 +49,7 @@ Flickable {
         width: root.width
         height: Math.max(root.height, edit.height + topPadding + bottomPadding)
         padding: constants.paddingXSmall
+        topPadding: constants.paddingLarge
         TextArea {
             id: edit
             width: parent.width
