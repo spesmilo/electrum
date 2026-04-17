@@ -410,7 +410,7 @@ class QEConfig(AuthMixin, QObject):
             return self.config.format_amount(sats, precision=precision)
 
     @pyqtSlot(str, result=QEAmount)
-    def unitsToSats(self, unitAmount):
+    def baseunitStrToAmount(self, unitAmount):
         self._amount = QEAmount()
         try:
             x = Decimal(unitAmount)
@@ -422,6 +422,14 @@ class QEConfig(AuthMixin, QObject):
         self._amount = QEAmount(amount_msat=msat_max_prec_amount)
         return self._amount
 
-    @pyqtSlot('quint64', result=float)
-    def satsToUnits(self, satoshis):
-        return satoshis / pow(10, self.config.BTC_AMOUNTS_DECIMAL_POINT)
+    @pyqtSlot('quint64', result=str)
+    @pyqtSlot(QEAmount, result=str)
+    def amountToBaseunitStr(self, amount) -> str:
+        assert isinstance(amount, (QEAmount, int))
+        if isinstance(amount, QEAmount):
+            satoshis = Decimal(amount.msatsInt) / 1000
+        elif isinstance(amount, int):
+            satoshis = Decimal(amount)
+        msat_max_precision = self.config.BTC_AMOUNTS_DECIMAL_POINT + 3
+        unit_str = self.config.format_amount(satoshis, precision=msat_max_precision, add_thousands_sep=False)
+        return unit_str.rstrip('.')

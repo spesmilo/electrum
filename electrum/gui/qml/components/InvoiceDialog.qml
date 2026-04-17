@@ -472,7 +472,7 @@ ElDialog {
                 enabled: !invoice.isSaved && invoice.canSave
                 onClicked: {
                     if (invoice.amount.isEmpty) {
-                        invoice.amountOverride = Config.unitsToSats(amountBtc.text)
+                        invoice.amountOverride = Config.baseunitStrToAmount(amountBtc.text)
                         if (amountMax.checked)
                             invoice.amountOverride.isMax = true
                     }
@@ -490,7 +490,7 @@ ElDialog {
                 enabled: invoice.invoiceType != Invoice.Invalid && invoice.canPay
                 onClicked: {
                     if (invoice.amount.isEmpty) {
-                        invoice.amountOverride = Config.unitsToSats(amountBtc.text)
+                        invoice.amountOverride = Config.baseunitStrToAmount(amountBtc.text)
                         if (amountMax.checked)
                             invoice.amountOverride.isMax = true
                     }
