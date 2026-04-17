@@ -37,6 +37,7 @@ class TestTypes(QETestCase):
         a.satsInt = 1
         self.assertTrue(bool(a_er.received))
         self.assertFalse(a.isEmpty)
+        self.assertEqual(1000, a.msatsInt)
         self.assertEqual('1', a.satsStr)
 
         a_er.clear()
@@ -55,10 +56,30 @@ class TestTypes(QETestCase):
 
         a.clear()
         a_er.clear()
-        a.msatsInt = 1
+        a.msatsInt = 1500
         self.assertTrue(bool(a_er.received))
         self.assertFalse(a.isEmpty)
-        self.assertEqual('1', a.msatsStr)
+        self.assertEqual(1, a.satsInt)
+        self.assertEqual('1500', a.msatsStr)
+        self.assertTrue(a.hasMsatPrecision)
+
+        b = QEAmount(amount_sat=100)
+        self.assertFalse(b.isEmpty)
+        self.assertEqual(100, b.satsInt)
+        self.assertEqual(100_000, b.msatsInt)
+        self.assertFalse(b.hasMsatPrecision)
+
+        c = QEAmount(amount_msat=1500)
+        self.assertFalse(c.isEmpty)
+        self.assertEqual(1, c.satsInt)
+        self.assertEqual(1500, c.msatsInt)
+        self.assertTrue(c.hasMsatPrecision)
+
+        with self.assertRaises(AssertionError):
+            QEAmount(amount_sat=2, amount_msat=1500)
+
+        with self.assertRaises(AssertionError):
+            QEAmount(amount_msat=1500, is_max=True)
 
     @qt_test
     def test_qeamount_copy(self):
@@ -82,12 +103,14 @@ class TestTypes(QETestCase):
         t.copyFrom(b)
         self.assertFalse(t.isEmpty)
         self.assertEqual(t.satsInt, 1)
+        self.assertEqual(t.msatsInt, 1000)
         self.assertEqual(1, len(t_er.received))
 
         t.clear()
         t_er.clear()
         t.copyFrom(c)
         self.assertFalse(t.isEmpty)
+        self.assertEqual(t.satsInt, 0)
         self.assertEqual(t.msatsInt, 1)
         self.assertEqual(1, len(t_er.received))
 
@@ -115,6 +138,12 @@ class TestTypes(QETestCase):
         self.assertEqual(10_000, a.satsInt)
         self.assertEqual(10_000_000, a.msatsInt)
         self.assertFalse(a.isMax)
+
+        with self.assertRaises(AssertionError):
+            QEAmount(amount_msat=amount_sat * 1000, from_invoice=invoice)
+
+        with self.assertRaises(AssertionError):
+            QEAmount(amount_sat=amount_sat, from_invoice=invoice)
 
         outputs = [PartialTxOutput.from_address_and_value('bc1qj3zx2zc4rpv3npzmznxhdxzn0wm7pzqp8p2293', '!')]
         invoice = Invoice(
