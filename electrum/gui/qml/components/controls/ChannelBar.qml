@@ -22,7 +22,7 @@ Item {
     }
 
     function do_update() {
-        var cap = capacity.satsInt * 1000
+        var cap = capacity.msatsInt
         var twocap = cap * 2
         l1.width = width * (cap - localCapacity.msatsInt) / twocap
         if (frozenForSending) {
@@ -48,22 +48,22 @@ Item {
 
     Connections {
         target: localCapacity
-        function onMsatsIntChanged() { update() }
+        function onValueChanged() { update() }
     }
 
     Connections {
         target: remoteCapacity
-        function onMsatsIntChanged() { update() }
+        function onValueChanged() { update() }
     }
 
     Connections {
         target: canSend
-        function onMsatsIntChanged() { update() }
+        function onValueChanged() { update() }
     }
 
     Connections {
         target: canReceive
-        function onMsatsIntChanged() { update() }
+        function onValueChanged() { update() }
     }
 
     Rectangle {

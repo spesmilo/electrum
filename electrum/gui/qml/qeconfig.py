@@ -391,11 +391,9 @@ class QEConfig(AuthMixin, QObject):
         except Exception:
             return self._amount
 
-        sat_max_precision = self.config.BTC_AMOUNTS_DECIMAL_POINT
         msat_max_precision = self.config.BTC_AMOUNTS_DECIMAL_POINT + 3
-        sat_max_prec_amount = int(pow(10, sat_max_precision) * x)
         msat_max_prec_amount = int(pow(10, msat_max_precision) * x)
-        self._amount = QEAmount(amount_sat=sat_max_prec_amount, amount_msat=msat_max_prec_amount)
+        self._amount = QEAmount(amount_msat=msat_max_prec_amount)
         return self._amount
 
     @pyqtSlot('quint64', result=float)
