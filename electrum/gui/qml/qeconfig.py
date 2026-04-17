@@ -361,10 +361,27 @@ class QEConfig(AuthMixin, QObject):
         )
 
     @pyqtSlot('qint64', result=str)
+    @pyqtSlot(QEAmount, result=str)
+    def formatMilliSatsForEditing(self, satoshis):
+        if isinstance(satoshis, QEAmount):
+            satoshis = Decimal(satoshis.msatsInt) / 1000
+        elif isinstance(satoshis, int):
+            satoshis = Decimal(satoshis) / 1000
+
+        precision = 3  # config.amt_precision_post_satoshi is not exposed in preferences
+        return self.config.format_amount(
+            satoshis,
+            add_thousands_sep=False,
+            precision=precision,
+        )
+
+    @pyqtSlot('qint64', result=str)
     @pyqtSlot('qint64', bool, result=str)
     @pyqtSlot(QEAmount, result=str)
     @pyqtSlot(QEAmount, bool, result=str)
     def formatSats(self, satoshis, with_unit=False):
+        if satoshis is None:
+            return ''
         if isinstance(satoshis, QEAmount):
             satoshis = satoshis.satsInt
         if with_unit:
@@ -372,16 +389,25 @@ class QEConfig(AuthMixin, QObject):
         else:
             return self.config.format_amount(satoshis)
 
+    @pyqtSlot('qint64', result=str)
+    @pyqtSlot('qint64', bool, result=str)
     @pyqtSlot(QEAmount, result=str)
     @pyqtSlot(QEAmount, bool, result=str)
     def formatMilliSats(self, amount, with_unit=False):
-        assert isinstance(amount, QEAmount), f"unexpected type for amount: {type(amount)}"
-        msats = amount.msatsInt
+        if amount is None:
+            return ''
+        if isinstance(amount, QEAmount):
+            msats = amount.msatsInt
+        elif isinstance(amount, int):
+            msats = amount
+        else:
+            raise Exception(f"Unknown amount type: {str(type(amount))}")
+        sats = Decimal(msats) / 1000
         precision = 3  # config.amt_precision_post_satoshi is not exposed in preferences
         if with_unit:
-            return self.config.format_amount_and_units(msats/1000, precision=precision)
+            return self.config.format_amount_and_units(sats, precision=precision)
         else:
-            return self.config.format_amount(msats/1000, precision=precision)
+            return self.config.format_amount(sats, precision=precision)
 
     @pyqtSlot(str, result=QEAmount)
     def unitsToSats(self, unitAmount):
