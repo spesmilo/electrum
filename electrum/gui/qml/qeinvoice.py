@@ -398,11 +398,8 @@ class QEInvoice(QObject, QtEventListener):
 
     @pyqtSlot()
     def payLightningInvoice(self):
-        if not self.canPay:
-            raise Exception('can not pay invoice, canPay is false')
-
-        if self.invoiceType != QEInvoice.Type.LightningInvoice:
-            raise Exception('payLightningInvoice can only pay lightning invoices')
+        assert self.canPay, 'can not pay invoice, canPay is false'
+        assert self.invoiceType == QEInvoice.Type.LightningInvoice, 'can only pay lightning invoices'
 
         amount_msat = None
         if self.amount.isEmpty:
@@ -413,10 +410,10 @@ class QEInvoice(QObject, QtEventListener):
         self._paid_in_this_session = True
         self._wallet.pay_lightning_invoice(self._effectiveInvoice, amount_msat)
 
-    def get_max_spendable_onchain(self):
+    def get_max_spendable_onchain(self) -> int:
         return self._wallet.wallet.get_spendable_balance_sat()
 
-    def get_max_spendable_lightning(self):
+    def get_max_spendable_lightning(self) -> int | Decimal:
         return self._wallet.wallet.lnworker.num_sats_can_send() if self._wallet.wallet.lnworker else 0
 
     def count_connecting_channels(self) -> int:
@@ -689,7 +686,7 @@ class QEInvoiceParser(QEInvoice):
                 if self.invoiceType == QEInvoice.Type.OnchainInvoice and self.amountOverride.isMax:
                     self._effectiveInvoice.set_amount_msat('!')
                 else:
-                    self._effectiveInvoice.set_amount_msat(self.amountOverride.satsInt * 1000)
+                    self._effectiveInvoice.set_amount_msat(self.amountOverride.msatsInt)
         except InvoiceError as e:
             self.invoiceCreateError.emit('validation', str(e))
             return False
