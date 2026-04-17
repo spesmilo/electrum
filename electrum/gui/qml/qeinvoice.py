@@ -1,5 +1,6 @@
 import copy
 import threading
+from decimal import Decimal
 from enum import IntEnum
 from typing import Optional, Dict, Any, Tuple
 from urllib.parse import urlparse
@@ -592,8 +593,8 @@ class QEInvoiceParser(QEInvoice):
         self._lnurlData = {
             'domain': urlparse(lnurldata.callback_url).netloc,
             'callback_url': lnurldata.callback_url,
-            'min_sendable_sat': lnurldata.min_sendable_sat,
-            'max_sendable_sat': lnurldata.max_sendable_sat,
+            'min_sendable_msat': lnurldata.min_sendable_msat,
+            'max_sendable_msat': lnurldata.max_sendable_msat,
             'metadata_plaintext': lnurldata.metadata_plaintext,
             'comment_allowed': lnurldata.comment_allowed,
         }
@@ -608,7 +609,7 @@ class QEInvoiceParser(QEInvoice):
         assert self.invoiceType == QEInvoice.Type.LNURLPayRequest
         self._logger.debug(f'{repr(self._lnurlData)}')
 
-        amount = self.amountOverride.satsInt
+        amount = Decimal(self.amountOverride.msatsInt) / 1000
 
         if self._lnurlData['comment_allowed'] == 0:
             comment = None
@@ -623,19 +624,19 @@ class QEInvoiceParser(QEInvoice):
                 else:
                     self.lnurlError.emit('lnurl', pi.get_error())
             else:
-                self.on_lnurl_invoice(self.amountOverride.satsInt, pi.bolt11)
+                self.on_lnurl_invoice(self.amountOverride.msatsInt, pi.bolt11)
 
         self._busy = True
         self.busyChanged.emit()
 
         self._pi.finalize(amount_sat=amount, comment=comment, on_finished=on_finished)
 
-    def on_lnurl_invoice(self, orig_amount, invoice):
+    def on_lnurl_invoice(self, orig_amount_msat, invoice):
         self._logger.debug('on_lnurl_invoice')
         self._logger.debug(f'{repr(invoice)}')
 
         # assure no shenanigans with the bolt11 invoice we get back
-        if orig_amount * 1000 != invoice.amount_msat:  # TODO msat precision can cause trouble here
+        if orig_amount_msat != invoice.amount_msat:
             raise Exception('Unexpected amount in invoice, differs from lnurl-pay specified amount')
 
         self.amountOverride = QEAmount()
