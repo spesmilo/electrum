@@ -147,7 +147,7 @@ class QERequestDetails(QObject, QtEventListener):
         wallet = self._wallet.wallet
         if not wallet.lnworker:
             return ''
-        amount_sat = self._req.get_amount_sat() or 0 if self._req else 0
+        amount_sat = self._req.get_amount_sat_msat_precision() or 0 if self._req else 0
         can_receive = wallet.lnworker.num_sats_can_receive()
         will_req_zeroconf = wallet.lnworker.receive_requires_jit_channel(amount_msat=amount_sat*1000)
         if self._req and ((can_receive > 0 and amount_sat <= can_receive)

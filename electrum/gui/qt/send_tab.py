@@ -557,7 +557,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.invoice_list.update()
         self.pending_invoice = None
 
-    def get_amount(self) -> int:
+    def get_amount(self) -> int | Decimal:
         # must not be None
         return self.amount_e.get_amount() or 0
 
@@ -591,7 +591,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.pay_onchain_dialog(outputs)
 
     def do_edit_invoice(self, invoice: 'Invoice'):  # FIXME broken
-        assert not bool(invoice.get_amount_sat())
+        assert not bool(invoice.get_amount_msat())
         text = invoice.lightning_invoice if invoice.is_lightning() else invoice.get_address()
         if len(invoice.get_outputs()) > 1 or text is None:
             # invoice is not standard single-address-out, it's one of
@@ -616,7 +616,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         else:
             self.pay_onchain_dialog(invoice.outputs, invoice=invoice)
 
-    def read_amount(self) -> Union[int, str]:
+    def read_amount(self) -> Union[int, str, Decimal]:
         amount = '!' if self.max_button.isChecked() else self.get_amount()
         return amount
 
