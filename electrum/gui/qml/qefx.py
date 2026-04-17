@@ -115,7 +115,7 @@ class QEFX(QObject, QtEventListener):
     def fiatValue(self, satoshis, plain=True):
         rate = self.fx.exchange_rate()
         if isinstance(satoshis, QEAmount):
-            satoshis = satoshis.msatsInt / 1000 if satoshis.msatsInt != 0 else satoshis.satsInt
+            satoshis = Decimal(satoshis.msatsInt) / 1000
         else:
             try:
                 sd = Decimal(satoshis)
@@ -132,7 +132,7 @@ class QEFX(QObject, QtEventListener):
     @pyqtSlot(QEAmount, str, bool, result=str)
     def fiatValueHistoric(self, satoshis, timestamp, plain=True):
         if isinstance(satoshis, QEAmount):
-            satoshis = satoshis.msatsInt / 1000 if satoshis.msatsInt != 0 else satoshis.satsInt
+            satoshis = Decimal(satoshis.msatsInt) / 1000
         else:
             try:
                 sd = Decimal(satoshis)

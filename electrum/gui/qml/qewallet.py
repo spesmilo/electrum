@@ -475,31 +475,31 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def lightningBalance(self):
         if self.isLightning:
-            self._lightningbalance.satsInt = int(self.wallet.lnworker.get_balance())
+            self._lightningbalance.msatsInt = int(self.wallet.lnworker.get_balance() * 1000)
         return self._lightningbalance
 
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def lightningBalanceFrozen(self):
         if self.isLightning:
-            self._lightningbalancefrozen.satsInt = int(self.wallet.lnworker.get_balance(frozen=True))
+            self._lightningbalancefrozen.msatsInt = int(self.wallet.lnworker.get_balance(frozen=True) * 1000)
         return self._lightningbalancefrozen
 
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def totalBalance(self):
-        total = self.confirmedBalance.satsInt + self.lightningBalance.satsInt
-        self._totalbalance.satsInt = total
+        total = self.confirmedBalance.msatsInt + self.lightningBalance.msatsInt
+        self._totalbalance.msatsInt = total
         return self._totalbalance
 
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def lightningCanSend(self):
         if self.isLightning:
-            self._lightningcansend.satsInt = int(self.wallet.lnworker.num_sats_can_send())
+            self._lightningcansend.msatsInt = int(self.wallet.lnworker.num_sats_can_send() * 1000)
         return self._lightningcansend
 
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def lightningCanReceive(self):
         if self.isLightning:
-            self._lightningcanreceive.satsInt = int(self.wallet.lnworker.num_sats_can_receive())
+            self._lightningcanreceive.msatsInt = int(self.wallet.lnworker.num_sats_can_receive() * 1000)
         return self._lightningcanreceive
 
     @pyqtProperty(bool, notify=balanceChanged)
@@ -687,7 +687,6 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def createRequest(self, amount: QEAmount, message: str, expiration: int, lightning: bool = False, reuse_address: bool = False):
         self.deleteExpiredRequests()
         try:
-            amount = amount.satsInt
             if not lightning:
                 addr = self.wallet.get_unused_address()
                 if addr is None:
@@ -704,7 +703,10 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             else:
                 addr = None
 
-            key = self.wallet.create_request(amount_sat=amount, message=message, exp_delay=expiration, address=addr)
+            if lightning:
+                key = self.wallet.create_request(amount_msat=amount.msatsInt, message=message, exp_delay=expiration)
+            else:
+                key = self.wallet.create_request(amount_sat=amount.satsInt, message=message, exp_delay=expiration, address=addr)
         except InvoiceError as e:
             self.requestCreateError.emit(_('Error creating payment request') + ':\n' + str(e))
             return
