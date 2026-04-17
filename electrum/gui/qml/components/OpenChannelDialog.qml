@@ -177,7 +177,7 @@ ElDialog {
 
                     Connections {
                         target: channelopener.amount
-                        function onSatsIntChanged() {
+                        function onValueChanged() {
                             if (is_max.checked)  // amount updated by max amount estimate
                                 amountBtc.text = Config.formatSatsForEditing(channelopener.amount.satsInt)
                         }
