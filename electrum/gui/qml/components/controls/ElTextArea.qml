@@ -17,7 +17,7 @@ Flickable {
     property alias background: rootpane.background
     property alias font: edit.font
     property alias inputMethodHints: edit.inputMethodHints
-    property alias placeholderText: edit.placeholderText
+    property string placeholderText
     property alias color: edit.color
     property alias topPadding: rootpane.topPadding
     readonly property bool anyActiveFocus: activeFocus || edit.activeFocus
@@ -55,6 +55,7 @@ Flickable {
             width: parent.width
             focus: true
             wrapMode: TextEdit.Wrap
+            placeholderText: edit.text.length ? "" : root.placeholderText
             onCursorRectangleChanged: root.ensureVisible(cursorRectangle)
             onTextChanged: root.textChanged()
             background: Rectangle {
