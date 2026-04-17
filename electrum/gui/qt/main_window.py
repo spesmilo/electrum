@@ -973,7 +973,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             add_thousands_sep=add_thousands_sep,
         )
 
-    def format_amount_and_units(self, amount_sat, *, timestamp: int = None) -> str:
+    def format_amount_and_units(self, amount_sat: int | Decimal | None, *, timestamp: int = None) -> str:
         """Returns string with both bitcoin and fiat amounts, in desired units.
         E.g. 500_000 -> '0.005 BTC (191.42 EUR)'
         """
@@ -983,7 +983,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             text += f' ({fiat})'
         return text
 
-    def format_fiat_and_units(self, amount_sat) -> str:
+    def format_fiat_and_units(self, amount_sat: int | Decimal | None) -> str:
         """Returns string of FX fiat amount, in desired units.
         E.g. 500_000 -> '191.42 EUR'
         """
@@ -1373,7 +1373,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         if status == PR_PAID:
             # FIXME notification should only be shown if request was not PAID before
             msg = _('Payment received')
-            amount = req.get_amount_sat()
+            amount = req.get_amount_sat_msat_precision()
             if amount:
                 msg += ': ' + self.format_amount_and_units(amount)
             msg += '\n' + req.get_message()
