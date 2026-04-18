@@ -19,6 +19,7 @@ import statistics
 
 from aiorpcx import timeout_after, TaskTimeout
 from electrum_ecc import ECPrivkey
+import electrum_ecc as ecc
 
 import electrum
 import electrum.trampoline
@@ -45,7 +46,7 @@ from electrum import lnmsg
 from electrum.logging import console_stderr_handler, Logger
 from electrum.lnworker import PaymentInfo
 from electrum.lnonion import OnionFailureCode, OnionRoutingFailure, OnionHopsDataSingle, OnionPacket
-from electrum.lnutil import LOCAL, REMOTE, UpdateAddHtlc, RecvMPPResolution
+from electrum.lnutil import LOCAL, REMOTE, UpdateAddHtlc, RecvMPPResolution, RevocationStore
 from electrum.invoices import PR_PAID, PR_UNPAID, Invoice, LN_EXPIRY_NEVER
 from electrum.interface import GracefulDisconnect
 from electrum.simple_config import SimpleConfig
@@ -712,6 +713,99 @@ class TestPeerDirect(TestPeer):
             await f(alice_slow=True, bob_slow=False)
         with self.subTest(msg="bob is slow"):
             await f(alice_slow=False, bob_slow=True)
+
+    async def test_reestablish_fake_data(self):
+        async def f(
+            alice_slow: bool,
+            bob_slow: bool,
+            *,
+            ctn_delta: int = 0,
+            revnum_delta: int = 0,
+            last_rev_secret: bytes = None,
+        ) -> tuple[Channel, Channel]:
+            alice_lnwallet, bob_lnwallet = self.prepare_lnwallets(self.GRAPH_DEFINITIONS['single_chan']).values()
+            alice_channel, bob_channel = create_test_channels(alice_lnwallet=alice_lnwallet, bob_lnwallet=bob_lnwallet)
+            p1, p2, w1, w2 = self.prepare_peers(alice_channel, bob_channel)
+            # first make some payments, to bump the channel ctns a bit
+            async def pay():
+                for pnum in range(2):
+                    lnaddr, pay_req = self.prepare_invoice(w2)
+                    result, log = await w1.pay_invoice(pay_req)
+                    self.assertEqual(result, True)
+                gath.cancel()
+            gath = asyncio.gather(pay(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
+            with self.assertRaises(asyncio.CancelledError):
+                await gath
+            for chan in (alice_channel, bob_channel):
+                chan.peer_state = PeerState.DISCONNECTED
+
+            # now reestablish the channel
+            async def alice_sends_reest():
+                nonlocal last_rev_secret
+                if alice_slow: await asyncio.sleep(0.05)
+                chan = alice_channel
+                next_local_ctn = chan.get_next_ctn(LOCAL) + ctn_delta
+                assert next_local_ctn >= 0, next_local_ctn
+                oldest_unrevoked_remote_ctn = chan.get_oldest_unrevoked_ctn(REMOTE) + revnum_delta
+                assert oldest_unrevoked_remote_ctn >= 0, oldest_unrevoked_remote_ctn
+                if last_rev_secret is None:
+                    if revnum_delta <= 0:
+                        last_rev_secret = chan.revocation_store.retrieve_secret(RevocationStore.START_INDEX - oldest_unrevoked_remote_ctn + 1)
+                    else:  # Alice is using *magic* here, i.e. cheating: she uses Bob's channel to learn future unrevealed secrets
+                        last_rev_secret, _point = bob_channel.get_secret_and_point(LOCAL, oldest_unrevoked_remote_ctn - 1)
+                p1.send_message(
+                    "channel_reestablish",
+                    channel_id=chan.channel_id,
+                    next_commitment_number=next_local_ctn,
+                    next_revocation_number=oldest_unrevoked_remote_ctn,
+                    your_last_per_commitment_secret=last_rev_secret,
+                    my_current_per_commitment_point=ecc.GENERATOR.get_public_key_bytes(compressed=True),
+                )
+            async def bob_sends_reest():
+                if bob_slow: await asyncio.sleep(0.05)
+                await p2.reestablish_channel(bob_channel)
+
+            async def exit_after_bob_receives_reest():
+                await p2.channel_reestablish_msg[bob_channel.channel_id]
+
+            with self.assertRaises((GracefulDisconnect, lnutil.RemoteMisbehaving)):
+                async with OldTaskGroup() as group:
+                    await group.spawn(p1._message_loop())
+                    await group.spawn(p1.htlc_switch())
+                    await group.spawn(p2._message_loop())
+                    await group.spawn(p2.htlc_switch())
+                    await p1.initialized
+                    await p2.initialized
+                    await group.spawn(alice_sends_reest)
+                    await group.spawn(bob_sends_reest)
+                    await group.spawn(exit_after_bob_receives_reest)
+            return alice_channel, bob_channel
+
+        cs = ChannelState
+        for (alice_slow, bob_slow) in (
+            (False, False),  # both fast: FIXME: we want to test the case where both Alice and Bob sends channel-reestablish before
+                             #                   receiving what the other sent. This is not a reliable way to do that...
+            (True, False),
+            (False, True),
+        ):
+            kwargs = {"alice_slow": alice_slow, "bob_slow": bob_slow}
+            # note: Alice's channel state will stay OPEN in every case:
+            #       she is intentionally sending weird data that does not reflect her true state.
+            with self.subTest(msg="next_local_ctn from past", **kwargs):
+                a_chan, b_chan = await f(ctn_delta=-2, **kwargs)
+                self.assertEqual((a_chan._state, b_chan._state), (cs.OPEN, cs.FORCE_CLOSING))
+            with self.subTest(msg="next_local_ctn from future", **kwargs):
+                a_chan, b_chan = await f(ctn_delta=1000, **kwargs)
+                self.assertEqual((a_chan._state, b_chan._state), (cs.OPEN, cs.FORCE_CLOSING))
+            with self.subTest(msg="oldest_unrevoked_remote_ctn from past", **kwargs):
+                a_chan, b_chan = await f(revnum_delta=-2, **kwargs)
+                self.assertEqual((a_chan._state, b_chan._state), (cs.OPEN, cs.FORCE_CLOSING))
+            with self.subTest(msg="oldest_unrevoked_remote_ctn from future", **kwargs):
+                a_chan, b_chan = await f(revnum_delta=1000, **kwargs)
+                self.assertEqual((a_chan._state, b_chan._state), (cs.OPEN, cs.WE_ARE_TOXIC))
+            with self.subTest(msg="invalid last_rev_secret", **kwargs):
+                a_chan, b_chan = await f(last_rev_secret=sha256("fake_data"), **kwargs)
+                self.assertEqual((a_chan._state, b_chan._state), (cs.OPEN, cs.FORCE_CLOSING))
 
     @staticmethod
     def _send_fake_htlc(peer: Peer, chan: Channel) -> UpdateAddHtlc:
