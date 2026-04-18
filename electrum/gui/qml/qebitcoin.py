@@ -5,7 +5,7 @@ from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from electrum import mnemonic
 from electrum import keystore
 from electrum.i18n import _
-from electrum.bip32 import is_bip32_derivation, xpub_type, is_xkey_consistent_with_key_origin_info
+from electrum.bip32 import is_bip32_derivation, xpub_type, is_xkey_consistent_with_key_origin_info, BIP32Node
 from electrum.logging import get_logger
 from electrum.util import get_asyncio_loop
 from electrum.transaction import tx_from_any
@@ -133,6 +133,24 @@ class QEBitcoin(QObject):
             except Exception:
                 return _('Could not validate key origin info against the master key')
         return ''
+
+    @pyqtSlot(str, result=int)
+    def masterKeyDepth(self, key: str) -> int:
+        """Return the BIP32 depth of *key* (xpub or xprv), or -1 if invalid.
+
+        Depth 0: key is the root; fingerprint computed locally.
+        Depth 1: parent_fingerprint in the xpub IS the master fingerprint;
+                 Electrum can recover it automatically.
+        Depth > 1: only the immediate parent fingerprint is encoded (e.g.
+                   a Coldcard zpub at m/84'/0'/0' has depth 3); neither the
+                   master fingerprint nor the full path can be recovered —
+                   the user must supply them.
+        Returns -1 for empty or invalid input.
+        """
+        try:
+            return BIP32Node.from_xkey(key.strip()).depth
+        except Exception:
+            return -1
 
     @pyqtSlot(str, result=bool)
     def isRawTx(self, rawtx):
