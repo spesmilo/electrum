@@ -749,6 +749,25 @@ class NewWalletWizard(KeystoreWizard):
                 else:
                     if t1 not in ['standard', 'p2wpkh', 'p2wpkh-p2sh']:
                         raise UserFacingException(_('Wrong key type {}').format(t1))
+                # Apply optional key-origin metadata supplied by the user.
+                # A raw xpub exported from a hardware wallet (e.g. Coldcard at
+                # m/84'/0'/0', depth=3) cannot encode the master fingerprint or
+                # the full derivation path by itself.  Without these values the
+                # keystore generates PSBTs whose bip32_derivations use only the
+                # xpub's own intermediate fingerprint, which hardware signers
+                # that verify key-origin (Coldcard fw >= 3.2.1) will reject.
+                _der = data.get('key_origin_derivation', '').strip()
+                _fp  = data.get('key_origin_fingerprint', '').strip().lower()
+                if _der or _fp:
+                    try:
+                        k.add_key_origin(
+                            derivation_prefix=_der or None,
+                            root_fingerprint=_fp  or None,
+                        )
+                    except Exception as e:
+                        raise UserFacingException(
+                            _('Invalid key origin info: {}').format(e)
+                        ) from e
             elif isinstance(k, keystore.Old_KeyStore):
                 pass
             else:
