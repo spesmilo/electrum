@@ -152,7 +152,7 @@ WizardComponent {
                        qsTr('Enter their master private key (xprv) if you want to be able to sign for them.')
                        ].join('\n')
                     : [qsTr('Please enter your master private key (xprv).'),
-                       qsTr('You can also enter a public key (xpub) here, but be aware you will then create a watch-only wallet if all cosigners are added using public keys')
+                       qsTr('You can also enter a public key (xpub) here, but be aware you will then create a watch-only wallet if all cosigners are added using public keys.')
                        ].join('\n')
             wrapMode: Text.Wrap
         }
@@ -226,6 +226,15 @@ WizardComponent {
         // Only shown for standard single-sig imports (not multisig/cosigner)
         // where the key depth is > 1.
         //
+        // Both fields are optional.
+        // 
+        // Hardware wallets export xpubs at derivation depth > 1 (e.g.
+        // Coldcard exports a zpub at m/84'/0'/0', depth=3).  Electrum
+        // cannot infer the master fingerprint or the full derivation path
+        // from such an xpub alone, so without these values the generated
+        // PSBTs will be missing key-origin metadata and hardware signers
+        // that verify it will refuse to sign the transaction.
+        // 
         // At depth 0 the node IS the root — fingerprint is computed locally.
         // At depth 1 the node encodes the master fingerprint directly in its
         // parent_fingerprint bytes, so Electrum can infer it automatically.
@@ -244,28 +253,8 @@ WizardComponent {
             Layout.topMargin: constants.paddingMedium
             spacing: constants.paddingSmall
 
-            // Section separator matching the app's existing style
-            RowLayout {
-                Layout.fillWidth: true
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 1
-                    color: Material.accentColor
-                    opacity: 0.5
-                }
-                Label {
+            Heading {
                     text: qsTr('Key Origin Info')
-                    font.pixelSize: constants.fontSizeSmall
-                    color: Material.accentColor
-                    leftPadding: constants.paddingSmall
-                    rightPadding: constants.paddingSmall
-                }
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 1
-                    color: Material.accentColor
-                    opacity: 0.5
-                }
             }
 
             InfoTextArea {
