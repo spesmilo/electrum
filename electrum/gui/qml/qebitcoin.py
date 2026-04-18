@@ -102,7 +102,7 @@ class QEBitcoin(QObject):
     def verifyKeyOriginInfo(self, xpub: str, derivation: str, fingerprint: str) -> str:
         """Validate optional key-origin fields against the given xpub.
 
-        Both fields are optional — passing empty strings is valid.  When
+        Both fields are optional, passing empty strings is valid.  When
         non-empty each field is checked for format, and if the xpub is also
         provided the combination is checked for internal consistency
         (derivation path depth must match the xpub depth, last child number
@@ -143,7 +143,7 @@ class QEBitcoin(QObject):
                  Electrum can recover it automatically.
         Depth > 1: only the immediate parent fingerprint is encoded (e.g.
                    a Coldcard zpub at m/84'/0'/0' has depth 3); neither the
-                   master fingerprint nor the full path can be recovered —
+                   master fingerprint nor the full path can be recovered,
                    the user must supply them.
         Returns -1 for empty or invalid input.
         """

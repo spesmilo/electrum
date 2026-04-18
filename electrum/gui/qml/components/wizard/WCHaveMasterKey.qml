@@ -235,13 +235,13 @@ WizardComponent {
         // PSBTs will be missing key-origin metadata and hardware signers
         // that verify it will refuse to sign the transaction.
         // 
-        // At depth 0 the node IS the root — fingerprint is computed locally.
+        // At depth 0 the node IS the root -> fingerprint is computed locally.
         // At depth 1 the node encodes the master fingerprint directly in its
         // parent_fingerprint bytes, so Electrum can infer it automatically.
         // At depth > 1 the xpub only carries the *immediate parent's*
         // fingerprint (e.g. Coldcard zpub at m/84'/0'/0' has depth 3), so
         // Electrum cannot recover the master fingerprint or full path on its
-        // own — the user must supply them.
+        // own -> the user must supply them.
         ColumnLayout {
             id: keyOriginSection
             // masterKeyDepth returns -1 for invalid/empty input, so the
