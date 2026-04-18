@@ -27,6 +27,11 @@ WizardComponent {
             wizard_data['multisig_cosigner_data'][cosigner.toString()]['master_key'] = key
         } else {
             wizard_data['master_key'] = key
+            // Pass key-origin fields through to create_storage() so the
+            // keystore is stored with the correct derivation prefix and master
+            // fingerprint.  Both fields are optional; empty strings are ignored.
+            wizard_data['key_origin_derivation'] = derivation_tf.text.trim()
+            wizard_data['key_origin_fingerprint'] = fingerprint_tf.text.trim().toLowerCase()
         }
     }
 
@@ -41,7 +46,7 @@ WizardComponent {
         }
 
         if (!bitcoin.verifyMasterKey(key, wizard_data['wallet_type'])) {
-            validationtext.text = qsTr('Error: invalid master key')
+            validationtext.text = bitcoin.validationMessage
             return false
         }
 
@@ -58,6 +63,33 @@ WizardComponent {
         }
 
         return valid = true
+    }
+
+    // Validate the key-origin fields and update the inline error label.
+    // Returns true when everything is OK (or when the section is not shown).
+    function validateKeyOrigin() {
+        if (cosigner || wizard_data['wallet_type'] === 'multisig')
+            return true
+        // Section is hidden for depth <= 1: no validation needed.
+        if (bitcoin.masterKeyDepth(masterkey_ta.text.trim()) <= 1)
+            return true
+        var msg = bitcoin.verifyKeyOriginInfo(
+            masterkey_ta.text.trim(),
+            derivation_tf.text.trim(),
+            fingerprint_tf.text.trim()
+        )
+        keyOriginError.text = msg
+        return msg === ''
+    }
+
+    // Revalidate both the master key and the key-origin fields together,
+    // then commit the current values to wizard_data.
+    function revalidate() {
+        var keyOk = verifyMasterKey(masterkey_ta.text)
+        var originOk = validateKeyOrigin()
+        valid = keyOk && originOk
+        if (keyOk)
+            apply()
     }
 
     ColumnLayout {
@@ -134,7 +166,7 @@ WizardComponent {
                 wrapMode: TextEdit.WrapAnywhere
                 onTextChanged: {
                     if (anyActiveFocus) {
-                        verifyMasterKey(text)
+                        revalidate()
                     }
                 }
                 inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
@@ -187,6 +219,96 @@ WizardComponent {
             wrapMode: TextInput.WordWrap
             background: Rectangle {
                 color: 'transparent'
+            }
+        }
+
+        // ── Key-origin section ─────────────────────────────────────────────
+        // Only shown for standard single-sig imports (not multisig/cosigner)
+        // where the key depth is > 1.
+        //
+        // At depth 0 the node IS the root — fingerprint is computed locally.
+        // At depth 1 the node encodes the master fingerprint directly in its
+        // parent_fingerprint bytes, so Electrum can infer it automatically.
+        // At depth > 1 the xpub only carries the *immediate parent's*
+        // fingerprint (e.g. Coldcard zpub at m/84'/0'/0' has depth 3), so
+        // Electrum cannot recover the master fingerprint or full path on its
+        // own — the user must supply them.
+        ColumnLayout {
+            id: keyOriginSection
+            // masterKeyDepth returns -1 for invalid/empty input, so the
+            // section stays hidden until a valid key of depth > 1 is entered.
+            visible: !cosigner
+                     && wizard_data['wallet_type'] !== 'multisig'
+                     && bitcoin.masterKeyDepth(masterkey_ta.text.trim()) > 1
+            Layout.fillWidth: true
+            Layout.topMargin: constants.paddingMedium
+            spacing: constants.paddingSmall
+
+            // Section separator matching the app's existing style
+            RowLayout {
+                Layout.fillWidth: true
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 1
+                    color: Material.accentColor
+                    opacity: 0.5
+                }
+                Label {
+                    text: qsTr('Key Origin Info')
+                    font.pixelSize: constants.fontSizeSmall
+                    color: Material.accentColor
+                    leftPadding: constants.paddingSmall
+                    rightPadding: constants.paddingSmall
+                }
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 1
+                    color: Material.accentColor
+                    opacity: 0.5
+                }
+            }
+
+            InfoTextArea {
+                Layout.fillWidth: true
+                text: qsTr('These fields may be required for a hardware wallet to sign the generated PSBTs.')
+                font.pixelSize: constants.fontSizeSmall
+            }
+
+            Label {
+                text: qsTr('Derivation path (optional)')
+                font.pixelSize: constants.fontSizeSmall
+            }
+            TextField {
+                id: derivation_tf
+                Layout.fillWidth: true
+                placeholderText: "m/84'/0'/0'"
+                inputMethodHints: Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
+                onTextChanged: {
+                    if (anyActiveFocus) revalidate()
+                }
+            }
+
+            Label {
+                text: qsTr('BIP32 master fingerprint (optional)')
+                font.pixelSize: constants.fontSizeSmall
+            }
+            TextField {
+                id: fingerprint_tf
+                Layout.fillWidth: true
+                placeholderText: qsTr('8 hex chars, e.g. deadbeef')
+                maximumLength: 8
+                inputMethodHints: Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
+                onTextChanged: {
+                    if (anyActiveFocus) revalidate()
+                }
+            }
+
+            InfoTextArea {
+                id: keyOriginError
+                Layout.fillWidth: true
+                visible: text !== ''
+                iconStyle: InfoTextArea.IconStyle.Error
+                font.pixelSize: constants.fontSizeSmall
             }
         }
     }
