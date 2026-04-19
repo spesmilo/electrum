@@ -19,9 +19,13 @@ ElDialog {
     needsSystemBarPadding: false
 
     property bool commentValid: comment.text.length <= invoiceParser.lnurlData['comment_allowed']
-    property bool amountValid: amountBtc.textAsSats.msatsInt >= parseInt(invoiceParser.lnurlData['min_sendable_msat'])
-        && amountBtc.textAsSats.msatsInt <= parseInt(invoiceParser.lnurlData['max_sendable_msat'])
+    property bool amountValid: false
     property bool valid: commentValid && amountValid
+
+    function isValidAmount() {
+        return amountBtc.textAsSats.gte(invoiceParser.lnurlData['min_sendable_msat'])
+            && amountBtc.textAsSats.lte(invoiceParser.lnurlData['max_sendable_msat'])
+    }
 
     ColumnLayout {
         width: parent.width
@@ -41,7 +45,7 @@ ElDialog {
                 Layout.columnSpan: 2
                 Layout.fillWidth: true
                 compact: true
-                visible: invoiceParser.lnurlData['min_sendable_msat'] != invoiceParser.lnurlData['max_sendable_msat']
+                visible: !invoiceParser.lnurlData['min_sendable_msat'].eq(invoiceParser.lnurlData['max_sendable_msat'])
                 text: qsTr('Amount must be between %1 and %2 %3')
                     .arg(Config.formatMilliSats(invoiceParser.lnurlData['min_sendable_msat']))
                     .arg(Config.formatMilliSats(invoiceParser.lnurlData['max_sendable_msat']))
@@ -77,12 +81,13 @@ ElDialog {
                     id: amountBtc
                     Layout.preferredWidth: rootLayout.width /3
                     text: Config.formatMilliSatsForEditing(invoiceParser.lnurlData['min_sendable_msat'])
-                    enabled: invoiceParser.lnurlData['min_sendable_msat'] != invoiceParser.lnurlData['max_sendable_msat']
+                    enabled: !invoiceParser.lnurlData['min_sendable_msat'].eq(invoiceParser.lnurlData['max_sendable_msat'])
                     color: Material.foreground // override gray-out on disabled
                     fiatfield: amountFiat
                     msatPrecision: true
-                    onTextAsSatsChanged: {
+                    onValueChanged: {
                         invoiceParser.amountOverride = textAsSats
+                        dialog.amountValid = isValidAmount()
                     }
                 }
                 Label {

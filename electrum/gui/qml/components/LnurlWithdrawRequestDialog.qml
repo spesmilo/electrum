@@ -15,25 +15,26 @@ ElDialog {
 
     property var wallet: Daemon.currentWallet  // type: Wallet
     property var requestDetails  // type: RequestDetails
+    property var onemsat: Amount { Component.onCompleted: { msatsInt = 1 } }
 
     padding: 0
     needsSystemBarPadding: false
 
-    property int walletCanReceive: 0
-    property int providerMinWithdrawable: parseInt(requestDetails.lnurlData['min_withdrawable_msat'])
-    property int providerMaxWithdrawable: parseInt(requestDetails.lnurlData['max_withdrawable_msat'])
-    property int effectiveMinWithdrawable: Math.max(providerMinWithdrawable, 1)
-    property int effectiveMaxWithdrawable: Math.min(providerMaxWithdrawable, walletCanReceive)
-    property bool insufficientLiquidity: effectiveMinWithdrawable > walletCanReceive
-    property bool liquidityWarning: providerMaxWithdrawable > walletCanReceive
+    property var walletCanReceive: Amount {}
+    property var providerMinWithdrawable: requestDetails.lnurlData['min_withdrawable_msat']
+    property var providerMaxWithdrawable: requestDetails.lnurlData['max_withdrawable_msat']
+    property var effectiveMinWithdrawable: onemsat.max(providerMinWithdrawable, onemsat)
+    property var effectiveMaxWithdrawable: onemsat.min(providerMaxWithdrawable, walletCanReceive)
+    property bool insufficientLiquidity: effectiveMinWithdrawable.gt(walletCanReceive)
+    property bool liquidityWarning: providerMaxWithdrawable.gt(walletCanReceive)
 
     property bool amountValid: !dialog.insufficientLiquidity &&
-        amountBtc.textAsSats.msatsInt >= dialog.effectiveMinWithdrawable &&
-        amountBtc.textAsSats.msatsInt <= dialog.effectiveMaxWithdrawable
+        amountBtc.textAsSats.gte(dialog.effectiveMinWithdrawable) &&
+        amountBtc.textAsSats.lte(dialog.effectiveMaxWithdrawable)
     property bool valid: amountValid
 
     Component.onCompleted: {
-        dialog.walletCanReceive = wallet.lightningCanReceive.msatsInt
+        dialog.walletCanReceive.copyFrom(wallet.lightningCanReceive)
     }
 
     Connections {
@@ -43,7 +44,7 @@ ElDialog {
             if (!requestDetails.busy) {
                 // don't assign while busy to prevent the view from changing while receiving
                 // the incoming payment
-                dialog.walletCanReceive = wallet.lightningCanReceive.msatsInt
+                dialog.walletCanReceive.copyFrom(wallet.lightningCanReceive)
             }
         }
     }
@@ -136,7 +137,7 @@ ElDialog {
                     id: amountBtc
                     Layout.preferredWidth: rootLayout.width / 3
                     text: Config.formatMilliSatsForEditing(dialog.effectiveMaxWithdrawable)
-                    enabled: !dialog.insufficientLiquidity && (dialog.providerMinWithdrawable != dialog.providerMaxWithdrawable)
+                    enabled: !dialog.insufficientLiquidity && !(dialog.providerMinWithdrawable.eq(dialog.providerMaxWithdrawable))
                     color: Material.foreground // override gray-out on disabled
                     fiatfield: amountFiat
                     msatPrecision: true
@@ -155,7 +156,7 @@ ElDialog {
                     id: amountFiat
                     Layout.preferredWidth: rootLayout.width / 3
                     btcfield: amountBtc
-                    enabled: !dialog.insufficientLiquidity && (dialog.providerMinWithdrawable != dialog.providerMaxWithdrawable)
+                    enabled: !dialog.insufficientLiquidity && !(dialog.providerMinWithdrawable.eq(dialog.providerMaxWithdrawable))
                     color: Material.foreground
                 }
                 Label {
@@ -174,8 +175,7 @@ ElDialog {
                 icon.source: '../../icons/confirmed.png'
                 enabled: valid && !requestDetails.busy
                 onClicked: {
-                    var msatsAmount = amountBtc.textAsSats.msatsInt;
-                    requestDetails.lnurlRequestWithdrawal(msatsAmount);
+                    requestDetails.lnurlRequestWithdrawal(amountBtc.textAsSats);
                     dialog.close();
                 }
             }
