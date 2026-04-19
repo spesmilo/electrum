@@ -1507,7 +1507,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         output_value, *,
         payee_outputs: Optional[list[TxOutput]] = None,
         context: TxEditorContext = TxEditorContext.PAYMENT,
-        batching_candidates=None,
+        batching_candidates: Sequence[Transaction] = None,
     ) -> tuple[Optional[PartialTransaction], bool, bool]:
         d = ConfirmTxDialog(
             window=self,
