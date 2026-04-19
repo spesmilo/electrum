@@ -1882,25 +1882,15 @@ class TestPeerDirect(TestPeer):
             del bob_w._preimages[pay_req.rhash]  # del preimage so bob doesn't settle
             payment_key = bob_w._get_payment_key(lnaddr.paymenthash).hex()
 
-            cb_got_called = False
+            cb_got_called = asyncio.Event()
             async def cb(_payment_hash):
                 self.logger.debug(f"hold invoice callback called. {bob_w.network.get_local_height()=}")
-                nonlocal cb_got_called
-                cb_got_called = True
+                cb_got_called.set()
 
             bob_w.register_hold_invoice(lnaddr.paymenthash, cb)
 
             async def check_mpp_state():
-                async def wait_for_resolution():
-                    while True:
-                        await asyncio.sleep(0.1)
-                        if payment_key not in bob_w.received_mpp_htlcs:
-                            continue
-                        if not bob_w.received_mpp_htlcs[payment_key].resolution == RecvMPPResolution.SETTLING:
-                            continue
-                        return
-                await util.wait_for2(wait_for_resolution(), timeout=2)
-                assert cb_got_called
+                await util.wait_for2(cb_got_called.wait(), timeout=2)
                 mpp_set = bob_w.received_mpp_htlcs[payment_key]
                 self.assertEqual(mpp_set.resolution, RecvMPPResolution.SETTLING, msg=mpp_set.resolution)
                 self.assertEqual(len(mpp_set.htlcs), 1, f"should get only one htlc: {mpp_set.htlcs=}")
