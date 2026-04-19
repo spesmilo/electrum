@@ -218,8 +218,8 @@ class QERequestDetails(QObject, QtEventListener):
             self._lnurlData = {
                 'domain': urlparse(lnurldata.callback_url).netloc,
                 'callback_url': lnurldata.callback_url,
-                'min_withdrawable_msat': lnurldata.min_withdrawable_msat,
-                'max_withdrawable_msat': lnurldata.max_withdrawable_msat,
+                'min_withdrawable_msat': QEAmount(amount_msat=lnurldata.min_withdrawable_msat),
+                'max_withdrawable_msat': QEAmount(amount_msat=lnurldata.max_withdrawable_msat),
                 'default_description': lnurldata.default_description,
                 'k1': lnurldata.k1,
             }
@@ -227,14 +227,14 @@ class QERequestDetails(QObject, QtEventListener):
         else:
             raise NotImplementedError("Cannot request withdrawal for this payment identifier type")
 
-    @pyqtSlot('quint64')
-    def lnurlRequestWithdrawal(self, amount_msat: int) -> None:
+    @pyqtSlot(QEAmount)
+    def lnurlRequestWithdrawal(self, amount: QEAmount) -> None:
         assert self._lnurlData
         self._logger.debug(f'requesting lnurlw: {repr(self._lnurlData)}')
 
         try:
             key = self._wallet.wallet.create_request(
-                amount_msat=amount_msat,
+                amount_msat=amount.msatsInt,
                 message=self._lnurlData.get('default_description', ''),
                 exp_delay=120,
                 address=None,

@@ -49,7 +49,7 @@ Pane {
             }
 
             Label {
-                text: lnpaymentdetails.amount.msatsInt > 0
+                text: lnpaymentdetails.amount.positive
                         ? qsTr('Amount received')
                         : qsTr('Amount sent')
                 color: Material.accentColor
@@ -61,13 +61,13 @@ Pane {
             }
 
             Label {
-                visible: lnpaymentdetails.amount.msatsInt < 0
+                visible: !lnpaymentdetails.amount.positive
                 text: qsTr('Transaction fee')
                 color: Material.accentColor
             }
 
             FormattedAmount {
-                visible: lnpaymentdetails.amount.msatsInt < 0
+                visible: !lnpaymentdetails.amount.positive
                 amount: lnpaymentdetails.fee
                 timestamp: lnpaymentdetails.timestamp
             }
