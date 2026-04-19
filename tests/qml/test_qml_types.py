@@ -166,3 +166,74 @@ class TestTypes(QETestCase):
         self.assertEqual(2_000_000, a.satsInt)
         self.assertEqual(2_000_000_000, a.msatsInt)
         self.assertFalse(a.isMax)
+
+    @qt_test
+    def test_lt_gt_eq(self):
+        a = QEAmount(amount_msat=100)
+        b = QEAmount(amount_msat=200)
+
+        self.assertTrue(a.lt(b))
+        self.assertTrue(b.gt(a))
+        self.assertFalse(a.lt(a))
+        self.assertTrue(a.lte(b))
+        self.assertTrue(b.gte(a))
+        self.assertTrue(a.lte(a))
+
+        c = QEAmount()
+
+        self.assertTrue(a.gt(c))
+        self.assertTrue(c.lt(a))
+
+        d = QEAmount(is_max=True)
+
+        with self.assertRaises(AssertionError):
+            d.lt(a)
+        with self.assertRaises(AssertionError):
+            d.gt(a)
+        with self.assertRaises(AssertionError):
+            a.lt(d)
+        with self.assertRaises(AssertionError):
+            a.gt(d)
+
+        e = QEAmount(amount_msat=200)
+        self.assertTrue(e.lte(b))
+        self.assertTrue(b.lte(e))
+        self.assertTrue(e.eq(b))
+
+        f = QEAmount()
+        self.assertFalse(f.eq(a))
+        self.assertFalse(f.eq(b))
+        self.assertTrue(f.eq(c))
+        self.assertFalse(f.eq(d))
+
+        g = QEAmount(is_max=True)
+        self.assertFalse(g.eq(a))
+        self.assertFalse(g.eq(b))
+        self.assertFalse(g.eq(c))
+        self.assertTrue(g.eq(d))
+
+    @qt_test
+    def test_min_max(self):
+        o = QEAmount()
+        a = QEAmount(amount_msat=100)
+        b = QEAmount(amount_msat=200)
+        c = QEAmount(amount_msat=200)
+        d = QEAmount()
+
+        def assert_min(one, two, expected):
+            o.setToMin(one, two)
+            self.assertTrue(expected.eq(o))
+
+        def assert_max(one, two, expected):
+            o.setToMax(one, two)
+            self.assertTrue(expected.eq(o))
+
+        assert_min(a, b, a)
+        assert_max(a, b, b)
+        assert_max(b, c, b)
+        assert_max(b, c, c)
+
+        assert_max(a, None, a)
+        assert_max(None, a, a)
+        assert_min(a, None, d)
+        assert_min(None, a, d)
