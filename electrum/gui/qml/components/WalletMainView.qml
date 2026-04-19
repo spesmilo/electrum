@@ -544,9 +544,9 @@ Item {
                 if (invoice.invoiceType == Invoice.LightningInvoice && invoice.address) {
                     // ln invoice with fallback
                     var amountToSend = invoice.amountOverride.isEmpty
-                        ? invoice.amount.satsInt
-                        : invoice.amountOverride.satsInt
-                    if (amountToSend > Daemon.currentWallet.lightningCanSend.satsInt) {
+                        ? invoice.amount
+                        : invoice.amountOverride
+                    if (amountToSend.gt(Daemon.currentWallet.lightningCanSend)) {
                         lninvoiceButPayOnchain = true
                     }
                 }
