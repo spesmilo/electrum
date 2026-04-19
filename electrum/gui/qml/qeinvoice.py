@@ -588,8 +588,8 @@ class QEInvoiceParser(QEInvoice):
         self._lnurlData = {
             'domain': urlparse(lnurldata.callback_url).netloc,
             'callback_url': lnurldata.callback_url,
-            'min_sendable_msat': lnurldata.min_sendable_msat,
-            'max_sendable_msat': lnurldata.max_sendable_msat,
+            'min_sendable_msat': QEAmount(amount_msat=lnurldata.min_sendable_msat),
+            'max_sendable_msat': QEAmount(amount_msat=lnurldata.max_sendable_msat),
             'metadata_plaintext': lnurldata.metadata_plaintext,
             'comment_allowed': lnurldata.comment_allowed,
         }

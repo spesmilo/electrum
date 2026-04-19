@@ -230,16 +230,16 @@ ElDialog {
                                 color: readOnly
                                     ? Material.accentColor
                                     : Material.foreground
-                                onTextAsSatsChanged: {
+                                onValueChanged: {
                                     if (!amountMax.checked)
                                         invoice.amountOverride.copyFrom(textAsSats)
                                 }
                                 Connections {
                                     target: invoice.amountOverride
                                     function onValueChanged() {
-                                        console.log('amountOverride valueChanged, sats=' + invoice.amountOverride.satsInt)
+                                        console.log('amountOverride valueChanged, sats=' + invoice.amountOverride.satsStr)
                                         if (amountMax.checked)  // amountOverride updated by max amount estimate
-                                            amountBtc.text = Config.formatSatsForEditing(invoice.amountOverride.satsInt)
+                                            amountBtc.text = Config.formatSatsForEditing(invoice.amountOverride)
                                     }
                                 }
                             }

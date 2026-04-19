@@ -166,3 +166,62 @@ class TestTypes(QETestCase):
         self.assertEqual(2_000_000, a.satsInt)
         self.assertEqual(2_000_000_000, a.msatsInt)
         self.assertFalse(a.isMax)
+
+    @qt_test
+    def test_lt_gt_eq(self):
+        a = QEAmount(amount_msat=100)
+        b = QEAmount(amount_msat=200)
+
+        self.assertTrue(a.lt(b))
+        self.assertTrue(b.gt(a))
+        self.assertFalse(a.lt(a))
+        self.assertTrue(a.lte(b))
+        self.assertTrue(b.gte(a))
+        self.assertTrue(a.lte(a))
+
+        c = QEAmount()
+
+        self.assertTrue(a.gt(c))
+        self.assertTrue(c.lt(a))
+
+        d = QEAmount(is_max=True)
+
+        self.assertFalse(d.lt(a))
+        self.assertFalse(d.gt(a))
+        self.assertFalse(a.lt(d))
+        self.assertFalse(a.gt(d))
+
+        e = QEAmount(amount_msat=200)
+        self.assertTrue(e.lte(b))
+        self.assertTrue(b.lte(e))
+        self.assertTrue(e.eq(b))
+
+        f = QEAmount()
+        self.assertFalse(f.eq(a))
+        self.assertFalse(f.eq(b))
+        self.assertTrue(f.eq(c))
+        self.assertFalse(f.eq(d))
+
+        g = QEAmount(is_max=True)
+        self.assertFalse(g.eq(a))
+        self.assertFalse(g.eq(b))
+        self.assertFalse(g.eq(c))
+        self.assertTrue(g.eq(d))
+
+    @qt_test
+    def test_min_max(self):
+        o = QEAmount()
+        a = QEAmount(amount_msat=100)
+        b = QEAmount(amount_msat=200)
+        c = QEAmount(amount_msat=200)
+        d = QEAmount()
+
+        self.assertTrue(a.eq(o.min(a, b)))
+        self.assertTrue(b.eq(o.max(a, b)))
+        self.assertTrue(b.eq(o.max(b, c)))
+        self.assertTrue(c.eq(o.max(b, c)))
+
+        self.assertTrue(a.eq(o.max(a, None)))
+        self.assertTrue(a.eq(o.max(None, a)))
+        self.assertTrue(d.eq(o.min(a, None)))
+        self.assertTrue(d.eq(o.min(None, a)))

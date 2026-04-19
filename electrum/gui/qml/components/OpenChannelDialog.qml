@@ -166,7 +166,7 @@ ElDialog {
                     id: amountBtc
                     fiatfield: amountFiat
                     Layout.preferredWidth: amountFontMetrics.advanceWidth('0') * 14 + leftPadding + rightPadding
-                    onTextAsSatsChanged: {
+                    onValueChanged: {
                         if (!is_max.checked)
                             channelopener.amount = amountBtc.textAsSats
                     }
@@ -179,7 +179,7 @@ ElDialog {
                         target: channelopener.amount
                         function onValueChanged() {
                             if (is_max.checked)  // amount updated by max amount estimate
-                                amountBtc.text = Config.formatSatsForEditing(channelopener.amount.satsInt)
+                                amountBtc.text = Config.formatSatsForEditing(channelopener.amount)
                         }
                     }
                 }

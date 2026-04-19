@@ -23,7 +23,7 @@ class QEAmount(QObject):
 
     valueChanged = pyqtSignal()
 
-    def __init__(self, *, amount_sat: int = None, amount_msat: int = None, is_max: bool = False, from_invoice=None, parent=None):
+    def __init__(self, parent=None, *, amount_sat: int = None, amount_msat: int = None, is_max: bool = False, from_invoice=None):
         super().__init__(parent)
 
         self._amount_msat = None
@@ -103,8 +103,12 @@ class QEAmount(QObject):
         return not (self._is_max or self._amount_msat)
 
     @pyqtProperty(bool, notify=valueChanged)
-    def hasMsatPrecision(self):
+    def hasMsatPrecision(self) -> bool:
         return not (self._amount_msat == self._sat_to_msat(self._msat_to_sat(self._amount_msat)))
+
+    @pyqtProperty(bool, notify=valueChanged)
+    def positive(self) -> bool:
+        return self.isEmpty or self.isMax or self.msatsInt >= 0
 
     @pyqtSlot()
     def clear(self):
@@ -113,7 +117,7 @@ class QEAmount(QObject):
         self.valueChanged.emit()
 
     @pyqtSlot('QVariant')
-    def copyFrom(self, amount):
+    def copyFrom(self, amount: 'QEAmount|None'):
         if not amount:
             self._logger.warning('copyFrom with None argument. assuming 0')  # TODO
             amount = QEAmount()
@@ -127,6 +131,60 @@ class QEAmount(QObject):
             changed = True
         if changed:
             self.valueChanged.emit()
+
+    @pyqtSlot('QVariant', result=bool)
+    def lt(self, other: 'QEAmount|None') -> bool:
+        if other is None:
+            other = QEAmount()
+        assert isinstance(other, QEAmount)
+        if self.isMax or other.isMax:
+            return False
+        if self.isEmpty and not other.isEmpty:
+            return True
+        return self.msatsInt < other.msatsInt
+
+    @pyqtSlot('QVariant', result=bool)
+    def lte(self, other: 'QEAmount|None') -> bool:
+        return self.lt(other) or self == other
+
+    @pyqtSlot('QVariant', result=bool)
+    def gt(self, other: 'QEAmount|None') -> bool:
+        if other is None:
+            other = QEAmount()
+        assert isinstance(other, QEAmount)
+        if self.isMax or other.isMax:
+            return False
+        if self.isEmpty and not other.isEmpty:
+            return False
+        return self.msatsInt > other.msatsInt
+
+    @pyqtSlot('QVariant', result=bool)
+    def gte(self, other: 'QEAmount|None') -> bool:
+        return self.gt(other) or self == other
+
+    @pyqtSlot('QVariant', result=bool)
+    def eq(self, other: 'QEAmount|None') -> bool:
+        return self == other
+
+    @pyqtSlot('QVariant', 'QVariant', result='QVariant')
+    def max(self, one: 'QEAmount|None', two: 'QEAmount|None'):
+        if one is None:
+            one = QEAmount()
+        if two is None:
+            two = QEAmount()
+        assert isinstance(one, QEAmount)
+        assert isinstance(two, QEAmount)
+        return one if one.gt(two) else two
+
+    @pyqtSlot('QVariant', 'QVariant', result='QVariant')
+    def min(self, one: 'QEAmount|None', two: 'QEAmount|None'):
+        if one is None:
+            one = QEAmount()
+        if two is None:
+            two = QEAmount()
+        assert isinstance(one, QEAmount)
+        assert isinstance(two, QEAmount)
+        return one if one.lt(two) else two
 
     def __eq__(self, other):
         if isinstance(other, QEAmount):
