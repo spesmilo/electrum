@@ -896,12 +896,12 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             grid.addWidget(desc_text, row, 1, 1, 3)
             row += 1
 
-        min_amount = max(lnurl_data.min_withdrawable_sat, 1)
+        min_amount = max(Decimal(lnurl_data.min_withdrawable_msat) / 1000, 1)
         max_amount = min(
-            lnurl_data.max_withdrawable_sat,
-            int(self.wallet.lnworker.num_sats_can_receive())
+            Decimal(lnurl_data.max_withdrawable_msat) / 1000,
+            self.wallet.lnworker.num_sats_can_receive()
         )
-        min_text = self.format_amount_and_units(lnurl_data.min_withdrawable_sat)
+        min_text = self.format_amount_and_units(Decimal(lnurl_data.min_withdrawable_msat) / 1000)
         if min_amount > int(self.wallet.lnworker.num_sats_can_receive()):
             self.show_error("".join([
                 _("Too little incoming liquidity to satisfy this withdrawal request."), "\n\n",
@@ -913,14 +913,14 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             ]))
             return
 
-        is_fixed_amount = lnurl_data.min_withdrawable_sat == lnurl_data.max_withdrawable_sat
+        is_fixed_amount = lnurl_data.min_withdrawable_msat == lnurl_data.max_withdrawable_msat
 
         # Range information (only for non-fixed amounts)
         if not is_fixed_amount:
             range_label_text = QLabel(_("Range") + ":")
             range_value = QLabel("{} - {}".format(
                 min_text,
-                self.format_amount_and_units(lnurl_data.max_withdrawable_sat)
+                self.format_amount_and_units(Decimal(lnurl_data.max_withdrawable_msat) / 1000)
             ))
             grid.addWidget(range_label_text, row, 0)
             grid.addWidget(range_value, row, 1, 1, 2)
@@ -928,7 +928,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
 
         # Amount section
         amount_label = QLabel(_("Amount") + ":")
-        amount_edit = BTCAmountEdit(self.window.get_decimal_point, max_amount=max_amount)
+        amount_edit = BTCAmountEdit(self.window.get_decimal_point, max_amount=max_amount, millisat_precision=True)
         amount_edit.setAmount(max_amount)
         grid.addWidget(amount_label, row, 0)
         grid.addWidget(amount_edit, row, 1)
@@ -946,7 +946,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         row += 1
 
         # Warning for insufficient liquidity
-        if lnurl_data.max_withdrawable_sat > int(self.wallet.lnworker.num_sats_can_receive()):
+        if Decimal(lnurl_data.max_withdrawable_msat) / 1000 > self.wallet.lnworker.num_sats_can_receive():
             warning_text = WWLabel(
                 _("The maximum withdrawable amount is larger than what your channels can receive. "
                   "You may need to do a submarine swap to increase your incoming liquidity.")
@@ -965,18 +965,19 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         # Show dialog and handle result
         if dialog.exec():
             if is_fixed_amount:
-                amount_sat = lnurl_data.max_withdrawable_sat
+                amount_msat = lnurl_data.max_withdrawable_msat
             else:
-                amount_sat = amount_edit.get_amount()
-                if not amount_sat or not (min_amount <= int(amount_sat) <= max_amount):
-                    self.show_error(_("Enter a valid amount. You entered: {}").format(amount_sat))
+                amount = amount_edit.get_amount()
+                if not amount or not (min_amount <= amount <= max_amount):
+                    self.show_error(_("Enter a valid amount. You entered: {}").format(amount))
                     return
+                amount_msat = int(amount_edit.get_amount() * 1000)
         else:
             return
 
         try:
             key = self.wallet.create_request(
-                amount_sat=amount_sat,
+                amount_msat=amount_msat,
                 message=lnurl_data.default_description,
                 exp_delay=120,
                 address=None,
