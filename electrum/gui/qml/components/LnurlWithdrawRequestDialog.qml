@@ -57,7 +57,6 @@ ElDialog {
             if (!requestDetails.busy) {
                 // don't assign while busy to prevent the view from changing while receiving
                 // the incoming payment
-                console.log('UPDATING')
                 updateLimits()
             }
         }
