@@ -240,17 +240,7 @@ def create_route_to_introduction_point(
     )
     hops_data.append(final_hop_pre_ip)
 
-    # encrypt encrypted_data_tlv here
-    for i, hop in enumerate(hops_data):
-        encrypted_recipient_data = encrypt_onionmsg_data_tlv(
-            shared_secret=hop_shared_secrets[i],
-            **hop.blind_fields)
-        payload = dict(hop.payload)
-        payload['encrypted_recipient_data'] = {
-            'encrypted_recipient_data': encrypted_recipient_data
-        }
-        hops_data[i] = dataclasses.replace(hop, payload=payload)
-
+    encrypt_hops_recipient_data(tlv_stream_name='onionmsg_tlv', hops_data=hops_data, hop_shared_secrets=hop_shared_secrets)
     path_key = ecc.ECPrivkey(session_key).get_public_key_bytes()
 
     return peer, path_key, hops_data, blinded_node_ids
@@ -340,8 +330,6 @@ def send_onion_message_to(
                 hops_data.append(hop)
 
             payment_path_pubkeys = blinded_node_ids + blinded_path_blinded_ids
-            hop_shared_secrets, _ = get_shared_secrets_along_route(payment_path_pubkeys, session_key)
-            encrypt_hops_recipient_data('onionmsg_tlv', hops_data, hop_shared_secrets)
             packet = new_onion_packet(payment_path_pubkeys, session_key, hops_data, onion_message=True)
             packet_b = packet.to_bytes()
 
