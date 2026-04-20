@@ -25,6 +25,7 @@ ElDialog {
     function isValidAmount() {
         return amountBtc.textAsSats.gte(invoiceParser.lnurlData['min_sendable_msat'])
             && amountBtc.textAsSats.lte(invoiceParser.lnurlData['max_sendable_msat'])
+            && amountBtc.textAsSats.lte(invoiceParser.wallet.lightningCanSend)
     }
 
     ColumnLayout {
