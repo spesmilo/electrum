@@ -1415,9 +1415,10 @@ class WalletDBUpgrader(Logger):
         if len(recv_addrs) > 0:
             first_address = recv_addrs[0]
             if not bitcoin.is_address(first_address):
+                neutered_addr = first_address[:5] + '..' + first_address[-2:]
                 raise WalletFileException(
                     f"The addresses in this wallet are not bitcoin addresses. "
-                    f"e.g. {first_address!r}")
+                    f"e.g. {neutered_addr} (len={len(first_address)})")
         # if so, save genesis hash
         self.data['genesis_blockhash'] = constants.net.GENESIS
         self.data['seed_version'] = 71
