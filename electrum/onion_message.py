@@ -27,9 +27,6 @@ import io
 import os
 import threading
 import time
-import dataclasses
-from random import random
-from types import MappingProxyType
 
 from typing import TYPE_CHECKING, Optional, Sequence, NamedTuple, Tuple, Union
 
@@ -44,7 +41,7 @@ from electrum.lnonion import (get_bolt04_onion_key, OnionPacket, process_onion_p
                               OnionHopsDataSingle, decrypt_onionmsg_data_tlv, encrypt_onionmsg_data_tlv,
                               get_shared_secrets_along_route, new_onion_packet, encrypt_hops_recipient_data)
 from electrum.lnutil import LnFeatures, MIN_FINAL_CLTV_DELTA_ACCEPTED, MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED
-from electrum.util import OldTaskGroup, log_exceptions
+from electrum.util import OldTaskGroup, log_exceptions, random_shuffled_copy
 
 
 def now():
@@ -425,8 +422,7 @@ def get_blinded_paths_to_me(
     local_height = lnwallet.network.get_local_height()
 
     if len(my_channels):
-        # randomize list
-        rchans = sorted(my_channels, key=lambda x: random())
+        rchans = random_shuffled_copy(my_channels)
         for chan in rchans[:max_paths]:
             hop_extras = None
             if not onion_message:  # add hop_extras and payinfo, assumption: len(blinded_path) == 2 (us and peer)
@@ -482,8 +478,7 @@ def get_blinded_paths_to_me(
         my_onionmsg_peers = [peer for peer in lnwallet.lnpeermgr.peers.values() if
                              peer.their_features.supports(LnFeatures.OPTION_ONION_MESSAGE_OPT)]
         if len(my_onionmsg_peers):
-            # randomize list
-            rpeers = sorted(my_onionmsg_peers, key=lambda x: random())
+            rpeers = random_shuffled_copy(my_onionmsg_peers)
             for peer in rpeers[:max_paths]:
                 blinded_path = create_blinded_path(os.urandom(32), [peer.pubkey, mynodeid], final_recipient_data)
                 result.append(blinded_path)
