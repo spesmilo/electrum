@@ -1991,6 +1991,36 @@ class Commands(Logger):
         return tx.serialize()
 
     @command('wnl')
+    async def list_channel_htlcs(self, channel_point, password=None, wallet: Abstract_Wallet = None):
+        """
+        return the settled, inflight and failed htlcs of a channel
+
+        arg:str:channel_point:Channel outpoint
+        """
+        txid, index = channel_point.split(':')
+        chan_id, _ = channel_id_from_funding_tx(txid, int(index))
+        if chan_id not in wallet.lnworker.channels:
+            raise UserFacingException(f'Unknown channel {channel_point}')
+        chan = wallet.lnworker.channels[chan_id]
+        folders = {
+            'settled': [],
+            'inflight': [],
+            'failed': [],
+        }
+        for rhash, plist in chan.get_payments().items():
+            for htlc_with_status in plist:
+                if (fl := folders.get(htlc_with_status.status)) is None:
+                    continue
+                fl.append({
+                    'id': htlc_with_status.htlc.htlc_id,
+                    'direction': 'OUT' if htlc_with_status.direction == SENT else 'IN',
+                    'amount': htlc_with_status.htlc.amount_msat,
+                    'timestamp': htlc_with_status.htlc.timestamp,
+                    'payment_hash': htlc_with_status.htlc.payment_hash.hex()
+                })
+        return folders
+
+    @command('wnl')
     async def get_watchtower_ctn(self, channel_point, wallet: Abstract_Wallet = None):
         """
         Return the local watchtower's ctn of channel. used in regtests
