@@ -27,9 +27,6 @@ WizardComponent {
             wizard_data['multisig_cosigner_data'][cosigner.toString()]['master_key'] = key
         } else {
             wizard_data['master_key'] = key
-            // Pass key-origin fields through to create_storage() so the
-            // keystore is stored with the correct derivation prefix and master
-            // fingerprint.  Both fields are optional; empty strings are ignored.
             wizard_data['key_origin_derivation'] = derivation_tf.text.trim()
             wizard_data['key_origin_fingerprint'] = fingerprint_tf.text.trim().toLowerCase()
         }
@@ -65,12 +62,9 @@ WizardComponent {
         return valid = true
     }
 
-    // Validate the key-origin fields and update the inline error label.
-    // Returns true when everything is OK (or when the section is not shown).
     function validateKeyOrigin() {
         if (cosigner || wizard_data['wallet_type'] === 'multisig')
             return true
-        // Section is hidden for depth <= 1: no validation needed.
         if (bitcoin.masterKeyDepth(masterkey_ta.text.trim()) <= 1)
             return true
         var msg = bitcoin.verifyKeyOriginInfo(
@@ -82,8 +76,6 @@ WizardComponent {
         return msg === ''
     }
 
-    // Revalidate both the master key and the key-origin fields together,
-    // then commit the current values to wizard_data.
     function revalidate() {
         var keyOk = verifyMasterKey(masterkey_ta.text)
         var originOk = validateKeyOrigin()
@@ -222,30 +214,8 @@ WizardComponent {
             }
         }
 
-        // ── Key-origin section ─────────────────────────────────────────────
-        // Only shown for standard single-sig imports (not multisig/cosigner)
-        // where the key depth is > 1.
-        //
-        // Both fields are optional.
-        // 
-        // Hardware wallets export xpubs at derivation depth > 1 (e.g.
-        // Coldcard exports a zpub at m/84'/0'/0', depth=3).  Electrum
-        // cannot infer the master fingerprint or the full derivation path
-        // from such an xpub alone, so without these values the generated
-        // PSBTs will be missing key-origin metadata and hardware signers
-        // that verify it will refuse to sign the transaction.
-        // 
-        // At depth 0 the node IS the root -> fingerprint is computed locally.
-        // At depth 1 the node encodes the master fingerprint directly in its
-        // parent_fingerprint bytes, so Electrum can infer it automatically.
-        // At depth > 1 the xpub only carries the *immediate parent's*
-        // fingerprint (e.g. Coldcard zpub at m/84'/0'/0' has depth 3), so
-        // Electrum cannot recover the master fingerprint or full path on its
-        // own -> the user must supply them.
         ColumnLayout {
             id: keyOriginSection
-            // masterKeyDepth returns -1 for invalid/empty input, so the
-            // section stays hidden until a valid key of depth > 1 is entered.
             visible: !cosigner
                      && wizard_data['wallet_type'] !== 'multisig'
                      && bitcoin.masterKeyDepth(masterkey_ta.text.trim()) > 1

@@ -100,17 +100,6 @@ class QEBitcoin(QObject):
 
     @pyqtSlot(str, str, str, result=str)
     def verifyKeyOriginInfo(self, xpub: str, derivation: str, fingerprint: str) -> str:
-        """Validate optional key-origin fields against the given xpub.
-
-        Both fields are optional, passing empty strings is valid.  When
-        non-empty each field is checked for format, and if the xpub is also
-        provided the combination is checked for internal consistency
-        (derivation path depth must match the xpub depth, last child number
-        must match, etc.).
-
-        Returns an empty string if everything is valid, or a translated
-        human-readable error message describing the problem.
-        """
         derivation = derivation.strip()
         fingerprint = fingerprint.strip().lower()
         if not derivation and not fingerprint:
@@ -136,17 +125,6 @@ class QEBitcoin(QObject):
 
     @pyqtSlot(str, result=int)
     def masterKeyDepth(self, key: str) -> int:
-        """Return the BIP32 depth of *key* (xpub or xprv), or -1 if invalid.
-
-        Depth 0: key is the root; fingerprint computed locally.
-        Depth 1: parent_fingerprint in the xpub IS the master fingerprint;
-                 Electrum can recover it automatically.
-        Depth > 1: only the immediate parent fingerprint is encoded (e.g.
-                   a Coldcard zpub at m/84'/0'/0' has depth 3); neither the
-                   master fingerprint nor the full path can be recovered,
-                   the user must supply them.
-        Returns -1 for empty or invalid input.
-        """
         try:
             return BIP32Node.from_xkey(key.strip()).depth
         except Exception:
