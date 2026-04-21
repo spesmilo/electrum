@@ -515,6 +515,17 @@ class OnionMessageManager(Logger):
             self.node_id_or_blinded_paths = node_id_or_blinded_paths
             self.current_index: int = 0
 
+            # ensure node_id_or_blinded_paths is list
+            if isinstance(self.node_id_or_blinded_paths, bytes):
+                self.node_id_or_blinded_paths = [self.node_id_or_blinded_paths]
+
+        def get_next_destination(self) -> bytes:
+            """get next path (round-robin)"""
+            dests = self.node_id_or_blinded_paths
+            dest = dests[self.current_index]
+            self.current_index = (self.current_index + 1) % len(dests)
+            return dest
+
     def __init__(self, lnwallet: 'LNWallet'):
         Logger.__init__(self)
         self.network = None  # type: Optional['Network']
@@ -663,15 +674,9 @@ class OnionMessageManager(Logger):
 
     def _send_pending_message(self, key: bytes) -> None:
         """adds reply_path to payload"""
-        req = self.pending.get(key)
+        req = self.pending[key]
         payload = req.payload
-
-        # get next path (round robin)
-        dests = req.node_id_or_blinded_paths
-        if isinstance(req.node_id_or_blinded_paths, bytes):
-            dests = [req.node_id_or_blinded_paths]
-        dest = dests[req.current_index]
-        req.current_index = (req.current_index + 1) % len(dests)
+        dest = req.get_next_destination()
 
         self.logger.debug(f'send_pending_message {key=} {payload=} {dest=}')
 
