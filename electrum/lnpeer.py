@@ -1455,35 +1455,34 @@ class Peer(Logger, EventListener):
         #       until this msg is processed. If we are behind (lost state), and send chan_reest to the remote,
         #       when the remote realizes we are behind, they might send an "error" message - but the spec mandates
         #       they send chan_reest first. If we processed the error first, we might force-close and lose money!
+        # FIXME there are a lot of "SHOULD send an error and fail the channel" BOLT-02 cases here
+        #       where we don't send the error, but directly fail the channel
         their_next_local_ctn = msg["next_commitment_number"]
         their_oldest_unrevoked_remote_ctn = msg["next_revocation_number"]
-        their_local_pcp = msg.get("my_current_per_commitment_point")
-        their_claim_of_our_last_per_commitment_secret = msg.get("your_last_per_commitment_secret")
+        their_local_pcp = msg["my_current_per_commitment_point"]
+        their_claim_of_our_last_per_commitment_secret = msg["your_last_per_commitment_secret"]
         self.logger.info(
             f'channel_reestablish ({chan.get_id_for_log()}): received channel_reestablish with '
             f'(their_next_local_ctn={their_next_local_ctn}, '
             f'their_oldest_unrevoked_remote_ctn={their_oldest_unrevoked_remote_ctn})')
-        if chan.get_state() >= ChannelState.CLOSED:
+        if chan.get_state() >= ChannelState.FORCE_CLOSING:
             self.logger.warning(
                 f"on_channel_reestablish. dropping message. illegal action. "
                 f"chan={chan.get_id_for_log()}. {chan.get_state()=!r}. {chan.peer_state=!r}")
             return
         # sanity checks of received values
-        if their_next_local_ctn < 0:
-            raise RemoteMisbehaving(f"channel reestablish: their_next_local_ctn < 0")
-        if their_oldest_unrevoked_remote_ctn < 0:
-            raise RemoteMisbehaving(f"channel reestablish: their_oldest_unrevoked_remote_ctn < 0")
+        assert their_next_local_ctn >= 0  # already done by lnmsg, as type is u64
+        assert their_oldest_unrevoked_remote_ctn >= 0
         # ctns
         oldest_unrevoked_local_ctn = chan.get_oldest_unrevoked_ctn(LOCAL)
-        latest_local_ctn = chan.get_latest_ctn(LOCAL)
-        next_local_ctn = chan.get_next_ctn(LOCAL)
-        oldest_unrevoked_remote_ctn = chan.get_oldest_unrevoked_ctn(REMOTE)
         latest_remote_ctn = chan.get_latest_ctn(REMOTE)
         next_remote_ctn = chan.get_next_ctn(REMOTE)
         # compare remote ctns
         we_are_ahead = False
-        they_are_ahead = False
+        they_are_ahead_with_proof = False
+        they_are_ahead_without_proof = False
         we_must_resend_revoke_and_ack = False
+        # check "next_commitment_number"
         if next_remote_ctn != their_next_local_ctn:
             if their_next_local_ctn == latest_remote_ctn and chan.hm.is_revack_pending(REMOTE):
                 # We will replay the local updates (see reestablish_channel), which should contain a commitment_signed
@@ -1496,8 +1495,8 @@ class Peer(Logger, EventListener):
                 if their_next_local_ctn < next_remote_ctn:
                     we_are_ahead = True
                 else:
-                    they_are_ahead = True
-        # compare local ctns
+                    they_are_ahead_without_proof = True
+        # check "next_revocation_number"
         if oldest_unrevoked_local_ctn != their_oldest_unrevoked_remote_ctn:
             if oldest_unrevoked_local_ctn - 1 == their_oldest_unrevoked_remote_ctn:
                 # A node:
@@ -1512,12 +1511,10 @@ class Peer(Logger, EventListener):
                 if their_oldest_unrevoked_remote_ctn < oldest_unrevoked_local_ctn:
                     we_are_ahead = True
                 else:
-                    they_are_ahead = True
-        # option_data_loss_protect
+                    they_are_ahead_with_proof = True  # the claimed value will be checked against DLP
+        # option_data_loss_protect (DLP)
         assert self.features.supports(LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT)
         def are_datalossprotect_fields_valid() -> bool:
-            if their_local_pcp is None or their_claim_of_our_last_per_commitment_secret is None:
-                return False
             if their_oldest_unrevoked_remote_ctn > 0:
                 our_pcs, __ = chan.get_secret_and_point(LOCAL, their_oldest_unrevoked_remote_ctn - 1)
             else:
@@ -1531,12 +1528,13 @@ class Peer(Logger, EventListener):
             assert chan.is_static_remotekey_enabled()
             return True
         if not are_datalossprotect_fields_valid():
+            self.schedule_force_closing(chan.channel_id)
             raise RemoteMisbehaving("channel_reestablish: data loss protect fields invalid")
         fut = self.channel_reestablish_msg[chan.channel_id]
-        if they_are_ahead:
+        if they_are_ahead_with_proof:  # order matters, WE_ARE_TOXIC case must be checked first.
             self.logger.warning(
                 f"channel_reestablish ({chan.get_id_for_log()}): "
-                f"remote is ahead of us! They should force-close. Remote PCP: {their_local_pcp.hex()}")
+                f"remote is ahead of us (with proof)! They should force-close.")
             # data_loss_protect_remote_pcp is used in lnsweep
             chan.set_data_loss_protect_remote_pcp(their_next_local_ctn - 1, their_local_pcp)
             chan.set_state(ChannelState.WE_ARE_TOXIC)
@@ -1544,7 +1542,14 @@ class Peer(Logger, EventListener):
             chan.peer_state = PeerState.BAD
             # raise after we send channel_reestablish, so the remote can realize they are ahead
             # FIXME what if we have multiple chans with peer? timing...
-            fut.set_exception(GracefulDisconnect("remote ahead of us"))
+            fut.set_exception(GracefulDisconnect("remote ahead of us (with proof)"))
+        elif they_are_ahead_without_proof:
+            self.logger.warning(
+                f"channel_reestablish ({chan.get_id_for_log()}): "
+                f"remote is ahead of us (without proof)! trying to force-close.")
+            self.schedule_force_closing(chan.channel_id)
+            # FIXME what if we have multiple chans with peer? timing...
+            fut.set_exception(GracefulDisconnect("remote ahead of us (without proof)"))
         elif we_are_ahead:
             self.logger.warning(f"channel_reestablish ({chan.get_id_for_log()}): we are ahead of remote! trying to force-close.")
             self.schedule_force_closing(chan.channel_id)
