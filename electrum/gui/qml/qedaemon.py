@@ -150,6 +150,7 @@ class QEDaemon(AuthMixin, QObject):
     walletRequiresPassword = pyqtSignal([str, str], arguments=['name', 'path'])
     walletOpenError = pyqtSignal([str], arguments=["error"])
     walletDeleteError = pyqtSignal([str, str], arguments=['code', 'message'])
+    walletRenameError = pyqtSignal([str], arguments=['message'])
 
     def __init__(self, daemon: 'Daemon', plugins: 'Plugins', parent=None):
         super().__init__(parent)
@@ -309,6 +310,34 @@ class QEDaemon(AuthMixin, QObject):
             return
 
         self.availableWallets.remove_wallet(path)
+
+    @pyqtSlot(str, result=bool)
+    def isValidWalletName(self, wallet_name: str) -> bool:
+        if not wallet_name:
+            return False
+        if self.availableWallets.wallet_name_exists(wallet_name):
+            return False
+        # ensure wallet_name is not interpreted as path
+        if os.path.basename(wallet_name) != wallet_name:  # '/foo/bar/' returns 'bar'
+            return False
+        return True
+
+    @pyqtSlot(str)
+    def renameWallet(self, new_name: str):
+        wallet = self._current_wallet
+        assert wallet, "name change without wallet?"
+        old_path = standardize_path(wallet.wallet.storage.path)
+        wallet_dir = os.path.dirname(old_path)
+        new_path = standardize_path(os.path.join(wallet_dir, new_name))
+        if old_path == new_path:
+            return
+        self._current_wallet = None
+        self.daemon.stop_wallet(old_path)
+        try:
+            self.daemon.rename_wallet_file(old_path, new_path)
+        except Exception as e:
+            self.walletRenameError.emit(_('Error renaming wallet:\n') + str(e))
+        self.walletLoaded.emit(None, None)
 
     @pyqtProperty(bool, notify=loadingChanged)
     def loading(self):
