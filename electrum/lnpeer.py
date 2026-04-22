@@ -1465,7 +1465,7 @@ class Peer(Logger, EventListener):
             f'channel_reestablish ({chan.get_id_for_log()}): received channel_reestablish with '
             f'(their_next_local_ctn={their_next_local_ctn}, '
             f'their_oldest_unrevoked_remote_ctn={their_oldest_unrevoked_remote_ctn})')
-        if chan.get_state() >= ChannelState.CLOSED:
+        if chan.get_state() >= ChannelState.FORCE_CLOSING:
             self.logger.warning(
                 f"on_channel_reestablish. dropping message. illegal action. "
                 f"chan={chan.get_id_for_log()}. {chan.get_state()=!r}. {chan.peer_state=!r}")
