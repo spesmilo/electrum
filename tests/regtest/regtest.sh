@@ -758,13 +758,8 @@ if [[ $1 == "fw_fail_htlc" ]]; then
     wait_until_spent $ctx_id $output_index
     new_blocks 1   # confirm 2nd stage.
     sleep 1
-    new_blocks 100 # deep
-    sleep 5        # give bob time to fail incoming htlc
-    unsettled=$($alice list_channels | jq '.[] | .local_unsettled_sent')
-    if [[ "$unsettled" != "0" ]]; then
-        echo 'alice htlc was not failed'
-        exit 1
-    fi
+    new_blocks 100 # deep enough for is_deeply_mined (>20 confs)
+    wait_until_htlcs_settled alice  # bob propagates the failure back once the HTLC-timeout tx is deeply mined
 fi
 
 if [[ $1 == "just_in_time" ]]; then
