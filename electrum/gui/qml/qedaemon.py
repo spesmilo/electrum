@@ -13,7 +13,7 @@ from electrum.plugin import run_hook
 from electrum.lnchannel import ChannelState
 from electrum.bitcoin import is_address
 from electrum.bitcoin import verify_usermessage_with_address
-from electrum.storage import StorageReadWriteError
+from electrum.storage import StorageReadWriteError, WalletStorage
 
 from .auth import AuthMixin, auth_protect
 from .qefx import QEFX
@@ -311,14 +311,32 @@ class QEDaemon(AuthMixin, QObject):
 
         self.availableWallets.remove_wallet(path)
 
+    def wallet_path_from_wallet_name(self, wallet_name: str) -> str:
+        return os.path.join(self.daemon.config.get_datadir_wallet_path(), wallet_name)
+
     @pyqtSlot(str, result=bool)
     def isValidWalletName(self, wallet_name: str) -> bool:
         if not wallet_name:
             return False
         if self.availableWallets.wallet_name_exists(wallet_name):
             return False
-        # ensure wallet_name is not interpreted as path
+        # note: we should probably restrict wallet names to be alphanumeric (plus underscore, etc)...
+        # try to prevent sketchy path traversals:
+        for forbidden_char in ("/", "\\", ):
+            if forbidden_char in wallet_name:
+                return False
         if os.path.basename(wallet_name) != wallet_name:  # '/foo/bar/' returns 'bar'
+            return False
+        wallet_path = self.wallet_path_from_wallet_name(wallet_name)
+        # validate that the path looks sane to the filesystem:
+        try:
+            temp_storage = WalletStorage(wallet_path)
+        except (StorageReadWriteError, WalletFileException):
+            return False
+        except Exception:
+            self._logger.exception("")
+            return False
+        if temp_storage.file_exists():
             return False
         return True
 

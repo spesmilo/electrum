@@ -172,8 +172,7 @@ Pane {
                                     visible: walletNameContent.editmode
                                     icon.source: '../../icons/confirmed.png'
                                     icon.color: enabled ? 'transparent' : constants.mutedForeground
-                                    enabled: walletNameEdit.text !== Daemon.currentWallet.name
-                                             && Daemon.isValidWalletName(walletNameEdit.text)
+                                    enabled: Daemon.isValidWalletName(walletNameEdit.text)
                                     onClicked: {
                                         walletNameContent.editmode = false
                                         Daemon.renameWallet(walletNameEdit.text)
