@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Controls.Material
+import QtQuick.Controls.Material.impl
 import QtQml
 
 import org.electrum 1.0
@@ -302,6 +303,7 @@ Item {
                     var dialog = receiveDetailsDialog.createObject(mainView)
                     dialog.open()
                 }
+                pressAndHoldIndicator: true
                 onPressAndHold: {
                     Config.userKnowsPressAndHold = true
                     Daemon.currentWallet.deleteExpiredRequests()
@@ -316,6 +318,7 @@ Item {
                 text: qsTr('Send')
                 enabled: !invoiceParser.busy && !piResolver.busy && !requestDetails.busy
                 onClicked: openSendDialog()
+                pressAndHoldIndicator: true
                 onPressAndHold: {
                     Config.userKnowsPressAndHold = true
                     app.stack.push(Qt.resolvedUrl('Invoices.qml'))
@@ -324,6 +327,7 @@ Item {
             }
         }
     }
+    property color navigationBarBackgroundColor: constants.highlightBackground
 
     PIResolver {
         id: piResolver

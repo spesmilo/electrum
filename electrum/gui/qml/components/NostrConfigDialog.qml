@@ -50,21 +50,25 @@ ElDialog {
             Layout.fillHeight: true
             Layout.leftMargin: constants.paddingLarge
             Layout.rightMargin: constants.paddingLarge
+            Layout.bottomMargin: constants.paddingLarge
 
-            TextHighlightPane {
+            InfoTextArea {
                 Layout.fillWidth: true
-                Label {
-                    text: qsTr('Enter the list of Nostr relays') + '<br/><br/>' +
-                        qsTr('Nostr relays are used to send and receive submarine swap offers.') +
-                        ' ' + qsTr('For multisig wallets, nostr is also used to relay transactions to your co-signers.') +
-                        ' ' + qsTr('Connections to nostr are only made when required, and ephemerally.')
-                    width: parent.width
-                    wrapMode: Text.Wrap
-                }
+                Layout.bottomMargin: constants.paddingLarge
+                compact: true
+                text: qsTr('Nostr relays are used to send and receive submarine swap offers.') +
+                    ' ' + qsTr('For multisig wallets, nostr is also used to relay transactions to your co-signers.') +
+                    ' ' + qsTr('Connections to nostr are only made when required, and ephemerally.')
+                backgroundColor: constants.darkerDialogBackground
+            }
+
+            Label {
+                text: qsTr('Enter the list of Nostr relays')
             }
 
             RowLayout {
                 Layout.fillWidth: true
+                Layout.topMargin: constants.paddingLarge
                 ElTextArea {
                     id: relays_ta
                     Layout.fillWidth: true
@@ -96,14 +100,18 @@ ElDialog {
             }
         }
 
-        FlatButton {
+        DialogButtonContainer {
             Layout.fillWidth: true
-            text: qsTr('Ok')
-            enabled: valid
-            icon.source: '../../icons/confirmed.png'
-            onClicked: {
-                Config.nostrRelays = clean_array(relays_ta.text).join(",")
-                rootItem.close()
+
+            FlatButton {
+                Layout.fillWidth: true
+                text: qsTr('Ok')
+                enabled: valid
+                icon.source: '../../icons/confirmed.png'
+                onClicked: {
+                    Config.nostrRelays = clean_array(relays_ta.text).join(",")
+                    rootItem.close()
+                }
             }
         }
     }

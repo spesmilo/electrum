@@ -35,10 +35,11 @@ Pane {
         TextArea {
             id: seedtextarea
             Layout.fillWidth: true
-            Layout.minimumHeight: fontMetrics.height * 3 + topPadding + bottomPadding
+            Layout.minimumHeight: fontMetrics.lineSpacing * 3 + topPadding + bottomPadding
 
             rightPadding: constants.paddingLarge
             leftPadding: constants.paddingLarge
+            bottomPadding: constants.paddingXLarge
 
             wrapMode: TextInput.WordWrap
             font.bold: true
@@ -47,8 +48,9 @@ Pane {
             inputMethodHints: Qt.ImhSensitiveData | Qt.ImhLowercaseOnly | Qt.ImhNoPredictiveText
             readOnly: AppController.isAndroid()
 
-            background: Rectangle {
-                color: constants.darkerBackground
+            Component.onCompleted: {
+                background.filled = true
+                background.fillColor = constants.seedTextAreaBackground
             }
 
             onTextChanged: {
@@ -66,16 +68,19 @@ Pane {
             Rectangle {
                 anchors.fill: contentText
                 color: root.indicatorValid ? 'green' : 'red'
-                border.color: Material.accentColor
-                radius: 2
+                radius: 3
             }
             Label {
                 id: contentText
                 text: root.indicatorText
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
-                leftPadding: root.indicatorText != '' ? constants.paddingLarge : 0
-                rightPadding: root.indicatorText != '' ? constants.paddingLarge : 0
+                anchors.rightMargin: constants.paddingXXSmall
+                anchors.bottomMargin: constants.paddingXXSmall
+                leftPadding: root.indicatorText != '' ? constants.paddingMedium : 0
+                rightPadding: root.indicatorText != '' ? constants.paddingMedium : 0
+                topPadding: root.indicatorText != '' ? constants.paddingXXSmall/2 : 0
+                bottomPadding: root.indicatorText != '' ? constants.paddingXXSmall/2 : 0
                 font.bold: false
                 font.pixelSize: constants.fontSizeSmall
             }
@@ -99,7 +104,7 @@ Pane {
                         Layout.margins: constants.paddingXXSmall
                         width: suggestionLabel.width
                         height: suggestionLabel.height
-                        color: constants.lighterBackground
+                        color: constants.darkerDialogBackground
                         radius: constants.paddingXXSmall
                         Label {
                             id: suggestionLabel
@@ -127,7 +132,7 @@ Pane {
             Layout.fillWidth: true
             Layout.preferredHeight: kbd.width / 1.75
             visible: !root.readOnly
-            onKeyEvent: {
+            onKeyEvent: (keycode, text) => {
                 if (keycode == Qt.Key_Backspace) {
                     if (seedtextarea.text.length > 0)
                         seedtextarea.text = seedtextarea.text.substring(0, seedtextarea.text.length-1)
