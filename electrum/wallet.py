@@ -1803,6 +1803,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         domain = self.get_addresses()
         for hist_item in self.adb.get_history(domain):
             # tx should not be mined yet
+            if hist_item.tx_mined_status.conf is None: continue
             if hist_item.tx_mined_status.conf > 0: continue
             # conservative future proofing of code: only allow known unconfirmed types
             if hist_item.tx_mined_status.height() not in (
@@ -2008,20 +2009,21 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             coin_chooser = coinchooser.get_coin_chooser(self.config)
             # If there is an unconfirmed RBF tx, merge with it
             if base_tx:
+                assert base_tx.txid() is not None  # pre-segwit and incomplete?
                 # make sure we don't try to spend change from the tx-to-be-replaced:
                 coins = [c for c in coins if c.prevout.txid.hex() != base_tx.txid()]
                 is_local = self.adb.get_tx_height(base_tx.txid()).height() == TX_HEIGHT_LOCAL
-                # estimate base tx fee before stripping tx for more accurate estimate
-                base_tx_fee = base_tx.get_fee()
-                base_feerate = Decimal(base_tx_fee)/base_tx.estimated_size()
-                relayfeerate = Decimal(self.relayfee()) / 1000
-                original_fee_estimator = fee_estimator
+                base_tx_size = base_tx.estimated_size()  # estimate before stripping tx for more accurate estimate
                 if not isinstance(base_tx, PartialTransaction):
                     base_tx = PartialTransaction.from_tx(base_tx)
                     base_tx.add_info_from_wallet(self)
                 else:
                     # don't cast PartialTransaction, because it removes make_witness
                     base_tx.remove_signatures()
+                base_tx_fee = base_tx.get_fee()  # FIXME could be None if some inputs are non-ismine
+                base_feerate = Decimal(base_tx_fee) / base_tx_size
+                relayfeerate = Decimal(self.relayfee()) / 1000
+                original_fee_estimator = fee_estimator
                 def fee_estimator(size: Union[int, float, Decimal]) -> int:
                     size = Decimal(size)
                     lower_bound_relayfee = int(base_tx_fee + round(size * relayfeerate)) if not is_local else 0
