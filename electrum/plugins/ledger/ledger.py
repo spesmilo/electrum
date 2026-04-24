@@ -1251,7 +1251,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
 
 class LedgerPlugin(HW_PluginBase):
     keystore_class = Ledger_KeyStore
-    minimum_library = (0, 2, 0)
+    minimum_library = (0, 4, 1)
     maximum_library = (1, 0)
     DEVICE_IDS = [(0x2581, 0x1807),  # HW.1 legacy btchip            # not supported anymore (but we log an exception)
                   (0x2581, 0x2b7c),  # HW.1 transitional production  # not supported anymore
