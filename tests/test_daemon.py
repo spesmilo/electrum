@@ -2,6 +2,7 @@ import asyncio
 from collections import defaultdict
 import os
 from typing import Optional, Iterable
+from unittest import mock
 
 from electrum.commands import Commands
 from electrum.daemon import Daemon
@@ -11,6 +12,7 @@ from electrum.lnworker import LNWallet, LNPeerManager
 from electrum.lnwatcher import LNWatcher
 from electrum import util
 from electrum.utils.memory_leak import count_objects_in_memory
+from electrum import constants
 
 from . import ElectrumTestCase, as_testnet, restore_wallet_from_text__for_unittest
 
@@ -347,3 +349,27 @@ class TestLoadWallet(DaemonTestCase):
         wallet1 = self.daemon.load_wallet(path1, password="garbage")
         with self.assertRaises(util.InvalidPassword):
             wallet1 = self.daemon.load_wallet(path1, password="garbage", force_check_password=True)
+
+    async def test_mainnet_testnet_mixup(self):
+        """version bytes in addresses, xpubs, etc. differ between mainnet and testnet.
+        If the user tries to open a wallet for a different chain, try to show a reasonable error message.
+        """
+        # we are on mainnet, and will try to open testnet wallets:
+        assert constants.net.TESTNET is False
+
+        # case 1: fresh wallet created on wrong network
+        with mock.patch("electrum.constants.net", constants.BitcoinTestnet):
+            path = self._restore_wallet_from_text("9dk", password=None)
+        with self.assertRaises(util.WalletFileException):
+            wallet = self.daemon.load_wallet(path, password=None, upgrade=True)
+
+        # case 2: existing older wallet (db v57) that gets populated with 'genesis_blockhash' in convert_version_71
+        path = self.get_wallet_file_path("client_4_5_2_9dk_with_ln")
+        with self.assertRaises(util.WalletFileException):
+            wallet = self.daemon.load_wallet(path, password=None, upgrade=True)
+
+        # case 3: existing older wallet (db v18) that gets populated with 'genesis_blockhash' in convert_version_71
+        # // this test does not work:  convert_version_20 raises InvalidMasterKeyVersionBytes
+        # path = self.get_wallet_file_path("client_3_3_8_xpub_with_realistic_history")
+        # with self.assertRaises(util.WalletFileException):
+        #     wallet = self.daemon.load_wallet(path, password=None, upgrade=True)

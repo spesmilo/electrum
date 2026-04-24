@@ -46,6 +46,7 @@ import electrum_ecc as ecc
 from aiorpcx import ignore_after, run_in_thread
 
 from . import util, keystore, transaction, bitcoin, coinchooser, bip32, descriptor
+from . import constants
 from .i18n import _
 from .bip32 import BIP32Node, convert_bip32_intpath_to_strpath, convert_bip32_strpath_to_intpath
 from .logging import get_logger, Logger
@@ -456,7 +457,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self._up_to_date = False
         self.up_to_date_changed_event = asyncio.Event()
 
-        self.test_addresses_sanity()
+        assert self.db.get('genesis_blockhash') == constants.net.GENESIS, self.db.get('genesis_blockhash')
         if self.storage and self.has_storage_encryption():
             if (se := self.storage.get_encryption_version()) not in (ae := self.get_available_storage_encryption_versions()):
                 raise WalletFileException(f"unexpected storage encryption type. found: {se!r}. allowed: {ae!r}")
@@ -694,15 +695,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def basename(self) -> str:
         return self.storage.basename() if self.storage else 'no_name'
-
-    def test_addresses_sanity(self) -> None:
-        addrs = self.get_receiving_addresses()
-        if len(addrs) > 0:
-            addr = str(addrs[0])
-            if not bitcoin.is_address(addr):
-                neutered_addr = addr[:5] + '..' + addr[-2:]
-                raise WalletFileException(f'The addresses in this wallet are not bitcoin addresses.\n'
-                                          f'e.g. {neutered_addr} (length: {len(addr)})')
 
     def check_returned_address_for_corruption(func):
         def wrapper(self, *args, **kwargs):
