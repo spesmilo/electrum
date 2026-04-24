@@ -193,6 +193,7 @@ def _allocate_fee_budget_among_route(
     The constraint total_fee(x) <= usable_budget_msat gives
         x = (usable_budget_msat - total_fee_const) / total_fee_coeff
     which we floor to an integer msat.
+    (note: the code is equivalent to the above description but has been simplified a bit)
     """
     placeholder_edges = [e for e in route[1:] if e.fee_base_msat == PLACEHOLDER_FEE]
     known_edges =       [e for e in route[1:] if e.fee_base_msat != PLACEHOLDER_FEE]
@@ -205,17 +206,17 @@ def _allocate_fee_budget_among_route(
     budget_const = amt_in_const - amount_msat_for_dest
     budget_remaining = Fraction(usable_budget_msat) - budget_const
 
-    coeff = Fraction(0)
+    amt_in_coeff = Fraction(0)
     for edge in reversed(route[1:]):  # known_edges AND placeholder_edges
         if edge.fee_base_msat == PLACEHOLDER_FEE:
-            coeff += Fraction(1)
+            amt_in_coeff += Fraction(1)
         else:  # for a known-edge, allocate same small fee for each placeholder-edge later in path
-            coeff += coeff * edge.fee_proportional_millionths / 1_000_000
+            amt_in_coeff += amt_in_coeff * edge.fee_proportional_millionths / 1_000_000
 
-    if budget_remaining <= 0 or coeff <= 0:
+    if budget_remaining <= 0 or amt_in_coeff <= 0:
         placeholder_fee = 0
     else:
-        placeholder_fee_exact = budget_remaining / coeff
+        placeholder_fee_exact = budget_remaining / amt_in_coeff
         placeholder_fee = placeholder_fee_exact.numerator // placeholder_fee_exact.denominator  # floor
     _logger.debug(f"_allocate_fee_along_route: {placeholder_fee=}, placeholders={len(placeholder_edges)}")
     for edge in placeholder_edges:
