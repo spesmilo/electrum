@@ -1,14 +1,7 @@
-import os
-import asyncio
-from collections import defaultdict
 from typing import TYPE_CHECKING
 
 from aiohttp import web
 
-from electrum.util import log_exceptions, ignore_exceptions
-from electrum.logging import Logger
-from electrum.util import EventListener
-from electrum.bolt11 import decode_bolt11_invoice
 from electrum.daemon import AuthenticatedServer
 
 
