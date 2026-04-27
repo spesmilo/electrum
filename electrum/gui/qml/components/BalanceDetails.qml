@@ -214,7 +214,7 @@ Pane {
                 Layout.preferredWidth: 1
                 text: qsTr('Lightning swap');
                 visible: Daemon.currentWallet.isLightning
-                enabled: Daemon.currentWallet.lightningCanSend.satsInt > 0 || Daemon.currentWallet.lightningCanReceive.satInt > 0
+                enabled: Daemon.currentWallet.lightningCanSend.satsInt > 0 || Daemon.currentWallet.lightningCanReceive.satsInt > 0
                 icon.source: Qt.resolvedUrl('../../icons/update.png')
                 onClicked: app.startSwap()
             }
