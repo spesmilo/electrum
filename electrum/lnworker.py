@@ -3654,7 +3654,7 @@ class LNWallet(Logger):
         assert chan.can_be_deleted()
         with self.lock:
             self._channels.pop(chan_id)
-            self.db.get('channels').pop(chan_id.hex())
+            self.db.get_dict('channels').pop(chan_id.hex())
         self.wallet.set_reserved_addresses_for_chan(chan, reserved=False)
 
         util.trigger_callback('channels_updated', self.wallet)

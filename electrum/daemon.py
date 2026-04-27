@@ -47,7 +47,7 @@ from .util import (
     log_exceptions, randrange, OldTaskGroup, UserFacingException, JsonRPCError, os_chmod
 )
 from .wallet import Wallet, Abstract_Wallet
-from .storage import WalletStorage
+from .stored_dict import WalletStorage
 from .wallet_db import WalletDB, WalletUnfinished
 from .commands import known_commands, Commands
 from .simple_config import SimpleConfig
@@ -551,8 +551,7 @@ class Daemon(Logger):
             if not password:
                 raise InvalidPassword('No password given')
             storage.decrypt(password)
-        # read data, pass it to db
-        db = WalletDB(storage.read(), storage=storage, upgrade=upgrade)
+        db = WalletDB(storage, upgrade=upgrade)
         if db.get_action():
             raise WalletUnfinished(db)
         wallet = Wallet(db, config=config)
