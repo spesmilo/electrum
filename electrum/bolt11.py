@@ -332,7 +332,8 @@ class BOLT11Addr:
     def validate_and_compare_features(self, myfeatures: 'LnFeatures') -> None:
         """Raises IncompatibleOrInsaneFeatures.
 
-        note: these checks are not done by the parser (in lndecode), as then when we started requiring a new feature,
+        note: these checks are not done by the parser (in decode_bolt11_invoice),
+              as then when we started requiring a new feature,
               old saved already paid invoices could no longer be parsed.
         """
         from .lnutil import validate_features, ln_compare_features
@@ -404,8 +405,8 @@ class SerializableKey:
 
 
 def decode_bolt11_invoice(invoice: str, *, verbose=False, net=None) -> BOLT11Addr:
-    """Parses a string into an LnAddr object.
-    Can raise LnDecodeException or IncompatibleOrInsaneFeatures.
+    """Parses a string into a BOLT11Addr object.
+    Can raise BOLT11DecodeException or IncompatibleOrInsaneFeatures.
     """
     if net is None:
         net = constants.net

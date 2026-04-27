@@ -2220,7 +2220,7 @@ class LNWallet(Logger):
                 return None
 
     def _check_bolt11_invoice(self, bolt11_invoice: str, *, amount_msat: int = None) -> BOLT11Addr:
-        """Parses and validates a bolt11 invoice str into a LnAddr.
+        """Parses and validates a bolt11 invoice str into a BOLT11Addr.
         Includes pre-payment checks external to the parser.
         """
         addr = decode_bolt11_invoice(bolt11_invoice)
