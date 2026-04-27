@@ -29,7 +29,7 @@ from typing import Callable
 from functools import partial
 
 from electrum.wallet import Wallet, Abstract_Wallet
-from electrum.storage import WalletStorage
+from electrum.stored_dict import WalletStorage
 from electrum.wallet_db import WalletDB
 from electrum.simple_config import SimpleConfig
 from electrum.util import InvalidPassword
@@ -84,7 +84,7 @@ if __name__ == '__main__':
         test_password = partial(test_password_for_storage_encryption, storage)
         print(f"wallet found: with storage encryption.")
     else:
-        db = WalletDB(storage.read(), storage=storage, upgrade=False)
+        db = WalletDB(storage, upgrade=False)
         wallet = Wallet(db, config=config)
         if not wallet.has_password():
             print("wallet found but it is not encrypted.")

@@ -65,7 +65,7 @@ from .fee_policy import FEERATE_PER_KW_MIN_RELAY_LIGHTNING
 
 if TYPE_CHECKING:
     from .lnworker import LNWallet
-    from .json_db import StoredDict
+    from .stored_dict import StoredDict
 
 
 # channel flags

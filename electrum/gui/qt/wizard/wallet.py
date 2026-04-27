@@ -316,7 +316,7 @@ class WCWalletName(WalletWizardComponent, Logger):
                         temp_storage = wallet_from_memory.storage  # type: Optional[WalletStorage]
                         self.wallet_is_open = True
                     else:
-                        temp_storage = WalletStorage(_path)
+                        temp_storage = WalletStorage(_path, init_db=False)
                     self.wallet_exists = temp_storage.file_exists()
                 except (StorageReadWriteError, WalletFileException) as e:
                     msg = _('Cannot read file') + f'\n{repr(e)}'
@@ -327,7 +327,7 @@ class WCWalletName(WalletWizardComponent, Logger):
                 msg = ""
             self.valid = temp_storage is not None
             user_needs_to_enter_password = False
-            if temp_storage:
+            if temp_storage is not None:
                 if not temp_storage.file_exists():
                     msg = _("This file does not exist.") + '\n' \
                           + _("Press 'Next' to create this wallet, or choose another file.")
