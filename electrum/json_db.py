@@ -277,6 +277,8 @@ class JsonDB(BaseDB):
                 return self.load_data(s[0:-2])
 
     def set_modified(self, b):
+        # todo: use this only if we dont use partial writes
+        # this seems to be redundant, bool(self.pending_changes)
         with self.lock:
             self._modified = b
 

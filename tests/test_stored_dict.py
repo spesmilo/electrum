@@ -15,6 +15,7 @@ from . import ElectrumTestCase
 
 
 class TestStorage(ElectrumTestCase):
+    use_levelDB = True
 
     def setUp(self):
         super(TestStorage, self).setUp()
@@ -30,7 +31,7 @@ class TestStorage(ElectrumTestCase):
         sys.stdout = self._saved_stdout
 
     def test_db_roundtrip(self):
-        sd = DictStorage(self.path)
+        sd = DictStorage(self.path, use_levelDB=self.use_levelDB)
         # list containing list and dict
         some_list = [[1, 2], {"c": "d"} ]
         sd['1'] = some_list
@@ -51,7 +52,7 @@ class TestStorage(ElectrumTestCase):
         self.assertEqual(sd['4'][2].dump(), complex_tuple[2])
 
     def test_db_iterators(self):
-        sd = DictStorage(self.path)
+        sd = DictStorage(self.path, use_levelDB=self.use_levelDB)
         sd['a'] = [0, 1, 2, 3, 4]
         sl = sd.get('a')
         self.assertEqual(len(sl), 5)
@@ -60,7 +61,7 @@ class TestStorage(ElectrumTestCase):
 
     def test_write_batch(self):
         # test that batches are written atomically
-        sd = DictStorage(self.path)
+        sd = DictStorage(self.path, use_levelDB=self.use_levelDB)
         with sd.write_batch():
             sd['a'] = 0
         self.assertEqual(len(sd), 1)
@@ -74,15 +75,16 @@ class TestStorage(ElectrumTestCase):
         except Exception as e:
             pass
         self.assertEqual(sd._db._write_batch, False)
-        # at this point, the StoredDict length is 2
-        self.assertEqual(len(sd), 2)
+        # at this point, the StoredDict length is 1 with LevelDB, 2 with JsonDB
+        # this is because LevelDB reflects what's on disk
+        self.assertEqual(len(sd), 1 if self.use_levelDB else 2)
         sd.close()
         # check that changes have not been written to disk
-        sd = DictStorage(self.path)
+        sd = DictStorage(self.path, use_levelDB=self.use_levelDB)
         self.assertEqual(len(sd), 1)
 
     async def test_dangling_dict(self):
-        storage = DictStorage(self.path)
+        storage = DictStorage(self.path, use_levelDB=self.use_levelDB)
         storage['a'] = {'b': {'c': 0}}
         storage.write()
         a = storage.get('a')
@@ -95,6 +97,9 @@ class TestStorage(ElectrumTestCase):
             b['c'] = 42
         storage.write()
         storage.close()
-        storage = DictStorage(self.path)
+        storage = DictStorage(self.path, use_levelDB=self.use_levelDB)
         self.assertEqual(storage.dump(), {'a':{}})
 
+
+class TestStorageJsonDB(TestStorage):
+    use_levelDB = False

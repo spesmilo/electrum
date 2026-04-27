@@ -613,6 +613,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     async def on_event_adb_set_up_to_date(self, adb):
         if self.adb != adb:
             return
+        if self.storage.is_closed():
+            return
         num_new_addrs = await run_in_thread(self.synchronize)
         up_to_date = self.adb.is_up_to_date() and num_new_addrs == 0
         with self.lock:
@@ -4418,11 +4420,14 @@ def create_new_wallet(
     seed_type: Optional[str] = None,
     gap_limit: Optional[int] = None,
     gap_limit_for_change: Optional[int] = None,
+    use_levelDB: bool = False,
 ) -> dict:
     """Create a new wallet"""
     if os.path.exists(standardize_path(path)):
         raise UserFacingException("Remove the existing wallet first!")
-    storage = DictStorage(path, allow_partial_writes=config.WALLET_PARTIAL_WRITES)
+    if encrypt_file and use_levelDB:
+        raise UserFacingException("LevelDB wallets cannot be encrypted")
+    storage = DictStorage(path, use_levelDB=use_levelDB, allow_partial_writes=config.WALLET_PARTIAL_WRITES)
     if encrypt_file:
         storage.set_password(password, StorageEncryptionVersion.USER_PASSWORD)
     db = WalletDB(storage)
@@ -4441,6 +4446,8 @@ def create_new_wallet(
     wallet = Wallet(db, config=config)
     wallet.synchronize()
     msg = "Please keep your seed in a safe place; if you lose it, you will not be able to restore your wallet."
+    if not encrypt_file:
+        msg += "\nWarning: wallet file not encrypted. Lightning keys will not be encrypted on disk"
     wallet.save_db()
     return {'seed': seed, 'wallet': wallet, 'msg': msg}
 
@@ -4455,6 +4462,7 @@ def restore_wallet_from_text(
     encrypt_file: Optional[bool] = None,
     gap_limit: Optional[int] = None,
     gap_limit_for_change: Optional[int] = None,
+    use_levelDB: bool = False,
     wallet_factory = Wallet,  # used in tests
 ) -> dict:
     """Restore a wallet from text. Text can be a seed phrase, a master
@@ -4462,15 +4470,16 @@ def restore_wallet_from_text(
     or bitcoin private keys."""
     if encrypt_file is None:
         encrypt_file = True
+    if encrypt_file and use_levelDB:
+        raise UserFacingException("LevelDB wallets cannot be encrypted")
     if path is None:  # create wallet in-memory
         storage = DictStorage(None)
     else:
         if os.path.exists(standardize_path(path)):
             raise UserFacingException("Remove the existing wallet first!")
-        storage = DictStorage(path, allow_partial_writes=config.WALLET_PARTIAL_WRITES)
+        storage = DictStorage(path, use_levelDB=use_levelDB, allow_partial_writes=config.WALLET_PARTIAL_WRITES)
         if encrypt_file:
             storage.set_password(password, StorageEncryptionVersion.USER_PASSWORD)
-
     db = WalletDB(storage)
     db.set_keystore_encryption(bool(password))
     text = text.strip()
@@ -4513,5 +4522,7 @@ def restore_wallet_from_text(
     wallet.synchronize()
     msg = ("This wallet was restored offline. It may contain more addresses than displayed. "
            "Start a daemon and use load_wallet to sync its history.")
+    if not encrypt_file:
+        msg += "\nWarning: wallet file not encrypted. Lightning keys will not be encrypted on disk."
     wallet.save_db()
     return {'wallet': wallet, 'msg': msg}

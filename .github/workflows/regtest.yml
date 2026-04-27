@@ -53,7 +53,7 @@ jobs:
       - name: Install OS deps
         run: |
           sudo apt-get update
-          sudo apt-get -y install curl jq bc automake libtool
+          sudo apt-get -y install curl jq bc automake libtool libleveldb-dev
       - name: Install Electrum and ElectrumX
         # installs e-x some commits after 1.18.0 tag
         # uses --ignore-installed to ignore installed system installed attrs

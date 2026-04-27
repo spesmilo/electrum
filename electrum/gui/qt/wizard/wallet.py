@@ -248,9 +248,6 @@ class WCWalletName(WalletWizardComponent, Logger):
 
         path = wizard._path
 
-        if os.path.isdir(path):
-            raise Exception("wallet path cannot point to a directory")
-
         self.wallet_exists = False
         self.wallet_is_open = False
         self.wallet_needs_hw_unlock = False

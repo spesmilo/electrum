@@ -101,7 +101,7 @@ jobs:
       - name: Install Qt/QML runtime deps
         run: |
           sudo apt-get update
-          sudo apt-get -y install libgl1 libegl1 libxkbcommon0 libdbus-1-3
+          sudo apt-get -y install libgl1 libegl1 libxkbcommon0 libdbus-1-3 libleveldb-dev
       - name: Install Python dependencies
         run: |
           pip install -r contrib/requirements/requirements-ci.txt

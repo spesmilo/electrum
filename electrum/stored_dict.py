@@ -469,9 +469,23 @@ class StoredList(BaseStoredObject):
 class DictStorage(StoredDict):
     """ stored dict at the root of the file """
 
-    def __init__(self, path: str, init_db: bool = True, allow_partial_writes: bool = True):
-        from .json_db import JsonDB
-        db = JsonDB(path=path, init_db=init_db, allow_partial_writes=allow_partial_writes)
+    def __init__(self, path: str, init_db: bool = True, use_levelDB: bool = False, allow_partial_writes: bool = True):
+        file_exists = bool(path) and os.path.exists(path)
+        if not file_exists:
+            use_levelDB = use_levelDB
+        elif os.path.isdir(path):
+            from .level_db import VERSION_FILENAME
+            if not os.path.exists(os.path.join(path, VERSION_FILENAME)):
+                raise Exception("Not an Electrum LevelDB wallet")
+            use_levelDB = True
+        else:
+            use_levelDB = False
+        if use_levelDB:
+            from .level_db import LevelDB
+            db = LevelDB(path, init_db=init_db)
+        else:
+            from .json_db import JsonDB
+            db = JsonDB(path=path, init_db=init_db, allow_partial_writes=allow_partial_writes)
         StoredDict.__init__(self, db, key='', parent=None)
 
     def file_exists(self):
