@@ -46,6 +46,7 @@ from electrum.util import TxMinedInfo
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
 from electrum.lnsweep import SweepInfo
 from electrum.transaction import PartialTransaction, PartialTxOutput, Transaction, TxInput, tx_from_any
+from electrum.coinchooser import PRNG
 
 from . import ElectrumTestCase
 from .lnhelpers import create_test_channels
@@ -752,7 +753,7 @@ class TestChannel(ElectrumTestCase):
         self.assertTrue(chan.is_zeroconf())
         # add channel to lnwallet/db
         bob._channels[chan.channel_id] = chan
-        bob.db.get('channels')[chan.channel_id.hex()] = "something"
+        bob.db.get_dict('channels')[chan.channel_id.hex()] = "something"
         self.assertIsNotNone(bob.get_channel_by_id(chan.channel_id))
         chan.storage['init_height'] = 0  # checked by has_funding_timed_out
         chan.storage['init_timestamp'] = int(time.time())
@@ -770,7 +771,7 @@ class TestChannel(ElectrumTestCase):
 
         # assert nothing happened
         self.assertIsNotNone(bob.get_channel_by_id(chan.channel_id))
-        self.assertIsNotNone(bob.db.get('channels').get(chan.channel_id.hex()))
+        self.assertIsNotNone(bob.db.get_dict('channels').get(chan.channel_id.hex()))
         self.assertEqual(chan.get_state(), ChannelState.OPEN)
         self.assertEqual(bob.config.ZEROCONF_TRUSTED_NODE, trusted_node)
 
@@ -788,7 +789,7 @@ class TestChannel(ElectrumTestCase):
 
         # assert nothing happened again
         self.assertIsNotNone(bob.get_channel_by_id(chan.channel_id))
-        self.assertIsNotNone(bob.db.get('channels').get(chan.channel_id.hex()))
+        self.assertIsNotNone(bob.db.get_dict('channels').get(chan.channel_id.hex()))
         self.assertEqual(chan.get_state(), ChannelState.OPEN)
         self.assertEqual(bob.config.ZEROCONF_TRUSTED_NODE, trusted_node)
         self.assertFalse(chan.is_frozen_for_receiving())
@@ -826,7 +827,7 @@ class TestChannel(ElectrumTestCase):
 
         # check that channel got removed, now that funding has timed out
         self.assertIsNone(self.alice_lnwallet.get_channel_by_id(chan.channel_id))
-        self.assertIsNone(self.alice_lnwallet.db.get('channels').get(chan.channel_id.hex()))
+        self.assertIsNone(self.alice_lnwallet.db.get_dict('channels').get(chan.channel_id.hex()))
 
     async def test_should_be_closed_due_to_expiring_htlcs_offered_htlcs(self):
         alice_lnwallet = self.create_mock_lnwallet(name="alice")
@@ -915,6 +916,21 @@ class TestChannel(ElectrumTestCase):
         self.assertEqual({}, self.alice_channel.get_payments(status='inflight', direction=RECEIVED))
         self.assertIn(phash, self.bob_channel.get_payments(status='inflight', direction=RECEIVED))
         self.assertEqual({}, self.bob_channel.get_payments(status='inflight', direction=SENT))
+
+
+    async def test_remove_channel(self):
+        # the channel's addresses are unreserved before the channel is removed from the db:
+        # its storage cannot be read afterwards
+        lnw = self.alice_lnwallet
+        chan = lnw.add_new_channel(self.alice_channel)
+        chan.set_state(ChannelState.REDEEMED, force=True)
+        addrs = chan.get_wallet_addresses_channel_might_want_reserved()
+        self.assertTrue(addrs)
+        lnw.remove_channel(chan.channel_id)
+        self.assertNotIn(chan.channel_id, lnw.channels)
+        self.assertNotIn(chan.channel_id.hex(), lnw.db.get_dict('channels'))
+        for addr in addrs:
+            self.assertFalse(lnw.wallet.is_address_reserved(addr))
 
 
 class TestChannelNoAnchors(TestChannel):
@@ -1391,7 +1407,7 @@ class TestHtlcSpendWitnesses(ElectrumTestCase):
             self.bob_channel.extract_preimage_from_htlc_txin(txin, is_deeply_mined=True)
 
         # the revocationpubkey must not have been mistaken for a preimage (or cause any crash)
-        self.assertEqual({}, self.bob_lnwallet._preimages)
+        self.assertEqual({}, dict(self.bob_lnwallet._preimages))
 
 
 class TestHtlcSpendWitnessesSRK(TestHtlcSpendWitnesses):

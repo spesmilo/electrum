@@ -316,6 +316,7 @@ class SwapManager(Logger):
         for k, swap in swaps_items:
             if swap.is_redeemed:
                 continue
+            swap._payment_hash = bytes.fromhex(k)
             self.add_lnwatcher_callback(swap)
         asyncio.run_coroutine_threadsafe(self.main_loop(), self.network.asyncio_loop)
 

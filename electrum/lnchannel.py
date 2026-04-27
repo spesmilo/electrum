@@ -65,7 +65,7 @@ from .fee_policy import FEERATE_PER_KW_MIN_RELAY_LIGHTNING
 
 if TYPE_CHECKING:
     from .lnworker import LNWallet
-    from .json_db import StoredDict
+    from .stored_dict import StoredDict
 
 
 # channel flags
@@ -396,10 +396,11 @@ class AbstractChannel(Logger, ABC):
                     self.lnworker.config.ZEROCONF_TRUSTED_NODE = ''
 
             if self.has_funding_timed_out():
+                local_balance_sat = int(self.balance(LOCAL) // 1000)  # before the removal: the channel's storage is gone afterwards
                 self.lnworker.remove_channel(self.channel_id)
                 # remove remaining local transactions from the wallet, this will also remove child transactions (closing tx)
                 # self.lnworker.lnwatcher.adb.remove_transaction(self.funding_outpoint.txid)
-                if (local_balance_sat := int(self.balance(LOCAL) // 1000)) > 0:
+                if local_balance_sat > 0:
                     self.logger.warning(
                         f"we may have been scammed out of {local_balance_sat} sat by our "
                         f"JIT provider: {self.lnworker.config.ZEROCONF_TRUSTED_NODE} or he didn't use our preimage")

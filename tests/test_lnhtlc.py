@@ -4,7 +4,6 @@ from typing import NamedTuple
 
 from electrum.lnutil import RECEIVED, LOCAL, REMOTE, SENT, HTLCOwner, Direction
 from electrum.lnhtlc import HTLCManager
-from electrum.json_db import StoredDict
 
 from . import ElectrumTestCase
 
@@ -16,8 +15,8 @@ class H(NamedTuple):
 
 class TestHTLCManager(ElectrumTestCase):
     def test_adding_htlcs_race(self):
-        A = HTLCManager(StoredDict({}, None))
-        B = HTLCManager(StoredDict({}, None))
+        A = HTLCManager({})
+        B = HTLCManager({})
         A.channel_open_finished()
         B.channel_open_finished()
         ah0, bh0 = H('A', 0), H('B', 0)
@@ -63,8 +62,8 @@ class TestHTLCManager(ElectrumTestCase):
 
     def test_single_htlc_full_lifecycle(self):
         def htlc_lifecycle(htlc_success: bool):
-            A = HTLCManager(StoredDict({}, None))
-            B = HTLCManager(StoredDict({}, None))
+            A = HTLCManager({})
+            B = HTLCManager({})
             A.channel_open_finished()
             B.channel_open_finished()
             B.recv_htlc(A.send_htlc(H('A', 0)))
@@ -136,8 +135,8 @@ class TestHTLCManager(ElectrumTestCase):
 
     def test_remove_htlc_while_owing_commitment(self):
         def htlc_lifecycle(htlc_success: bool):
-            A = HTLCManager(StoredDict({}, None))
-            B = HTLCManager(StoredDict({}, None))
+            A = HTLCManager({})
+            B = HTLCManager({})
             A.channel_open_finished()
             B.channel_open_finished()
             ah0 = H('A', 0)
@@ -173,8 +172,8 @@ class TestHTLCManager(ElectrumTestCase):
         htlc_lifecycle(htlc_success=False)
 
     def test_get_all_not_irrevocably_removed_htlcs(self):
-        A = HTLCManager(StoredDict({}, None))
-        B = HTLCManager(StoredDict({}, None))
+        A = HTLCManager({})
+        B = HTLCManager({})
         A.channel_open_finished()
         B.channel_open_finished()
         ah0 = H('A', 0)
@@ -235,8 +234,8 @@ class TestHTLCManager(ElectrumTestCase):
         assert B.get_all_not_irrevocably_removed_htlcs(htlc_proposer=REMOTE) == []
 
     def test_adding_htlc_between_send_ctx_and_recv_rev(self):
-        A = HTLCManager(StoredDict({}, None))
-        B = HTLCManager(StoredDict({}, None))
+        A = HTLCManager({})
+        B = HTLCManager({})
         A.channel_open_finished()
         B.channel_open_finished()
         A.send_ctx()
@@ -285,8 +284,8 @@ class TestHTLCManager(ElectrumTestCase):
         Bob refuses to send commitsig for a while, but is otherwise cooperating.
         Meanwhile, Alice has lots of updates to send, and she keeps signing them whenever allowed.
         """
-        A = HTLCManager(StoredDict({}, None))
-        B = HTLCManager(StoredDict({}, None))
+        A = HTLCManager({})
+        B = HTLCManager({})
         A.channel_open_finished()
         B.channel_open_finished()
         ah0, ah1, ah2, ah3 = H('A', 0), H('A', 1), H('A', 2), H('A', 3)
@@ -341,8 +340,8 @@ class TestHTLCManager(ElectrumTestCase):
         """We must never revoke our 'last' remaining valid local commitment.
         (At any time *we* should have either one or two valid commitments)
         """
-        A = HTLCManager(StoredDict({}, None))
-        B = HTLCManager(StoredDict({}, None))
+        A = HTLCManager({})
+        B = HTLCManager({})
         A.channel_open_finished()
         B.channel_open_finished()
 
@@ -357,8 +356,8 @@ class TestHTLCManager(ElectrumTestCase):
         """We must never sign another remote commitment if they already have two valid ctxs.
         (At any time *they* should have either one or two valid commitments)
         """
-        A = HTLCManager(StoredDict({}, None))
-        B = HTLCManager(StoredDict({}, None))
+        A = HTLCManager({})
+        B = HTLCManager({})
         A.channel_open_finished()
         B.channel_open_finished()
 
@@ -369,8 +368,8 @@ class TestHTLCManager(ElectrumTestCase):
             B.recv_ctx()
 
     def test_unacked_local_updates(self):
-        A = HTLCManager(StoredDict({}, None))
-        B = HTLCManager(StoredDict({}, None))
+        A = HTLCManager({})
+        B = HTLCManager({})
         A.channel_open_finished()
         B.channel_open_finished()
         self.assertEqual({}, A.get_unacked_local_updates())
