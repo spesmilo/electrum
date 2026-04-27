@@ -74,7 +74,6 @@ ElDialog {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     font.family: FixedFont
-                    topPadding: constants.paddingLarge
                     wrapMode: TextEdit.WrapAnywhere
                     onTextChanged: valid = verify(text)
                     inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
