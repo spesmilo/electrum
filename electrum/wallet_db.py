@@ -905,7 +905,7 @@ class WalletDBUpgrader(Logger):
         self.data['seed_version'] = 44
 
     def _convert_version_45(self):
-        from .lnaddr import lndecode
+        from .bolt11 import decode_bolt11_invoice
         if not self._is_upgrade_method_needed(44, 44):
             return
         swaps = self.data.get('submarine_swaps', {})
@@ -921,7 +921,7 @@ class WalletDBUpgrader(Logger):
                 outputs = item['outputs'] if not is_lightning else None
                 bip70 = item['bip70'] if not is_lightning else None
                 if is_lightning:
-                    lnaddr = lndecode(item['invoice'])
+                    lnaddr = decode_bolt11_invoice(item['invoice'])
                     amount_msat = lnaddr.get_amount_msat()
                     timestamp = lnaddr.date
                     exp_delay = lnaddr.get_expiry()
@@ -974,7 +974,7 @@ class WalletDBUpgrader(Logger):
         self.data['seed_version'] = 46
 
     def _convert_version_47(self):
-        from .lnaddr import lndecode
+        from .bolt11 import decode_bolt11_invoice
         if not self._is_upgrade_method_needed(46, 46):
             return
         # recalc keys of requests
@@ -982,7 +982,7 @@ class WalletDBUpgrader(Logger):
         for key, item in list(requests.items()):
             lnaddr = item.get('lightning_invoice')
             if lnaddr:
-                lnaddr = lndecode(lnaddr)
+                lnaddr = decode_bolt11_invoice(lnaddr)
                 rhash = lnaddr.paymenthash.hex()
                 if key != rhash:
                     requests[rhash] = item
@@ -1023,7 +1023,7 @@ class WalletDBUpgrader(Logger):
         self.data['seed_version'] = 50
 
     def _convert_version_51(self):
-        from .lnaddr import lndecode
+        from .bolt11 import decode_bolt11_invoice
         if not self._is_upgrade_method_needed(50, 50):
             return
         requests = self.data.get('payment_requests', {})
@@ -1032,7 +1032,7 @@ class WalletDBUpgrader(Logger):
             if lightning_invoice is None:
                 payment_hash = None
             else:
-                lnaddr = lndecode(lightning_invoice)
+                lnaddr = decode_bolt11_invoice(lightning_invoice)
                 payment_hash = lnaddr.paymenthash.hex()
             item['payment_hash'] = payment_hash
         self.data['seed_version'] = 51

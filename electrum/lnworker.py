@@ -64,7 +64,7 @@ from .lntransport import (
     ConnStringFormatError
 )
 from .lnpeer import Peer, LN_P2P_NETWORK_TIMEOUT
-from .lnaddr import lnencode, LnAddr, lndecode
+from .bolt11 import encode_bolt11_invoice, BOLT11Addr, decode_bolt11_invoice
 from .lnchannel import Channel, AbstractChannel, ChannelState, PeerState, HTLCWithStatus, ChannelBackup
 from .lnrater import LNRater
 from .lnutil import (
@@ -123,7 +123,7 @@ class PaymentInfo:
 
     - Historically, we used to store "bolt11, direction, status", but deserializing bolt11 was too slow.
       (even deserializing just once - all bolt11 during wallet-open - was slow)
-      - note: the deserialization code in lnaddr.py has been significantly sped up since
+      - note: the deserialization code in bolt11.py has been significantly sped up since
     - For incoming payments, for unpaid requests, ~every time the user displays the unpaid bolt11,
       we get a chance to display a new bolt11, with same payment_hash/amount, but with updated
       routing_hints (channels might get closed/opened, or just liquidity changed drastically).
@@ -1930,7 +1930,7 @@ class LNWallet(Logger):
             f"pay_to_node starting session for RHASH={payment_hash.hex()}. "
             f"using_trampoline={self.uses_trampoline()}. "
             f"invoice_features={paysession.invoice_features.get_names()}. "
-            f"r_tags={LnAddr.format_bolt11_routing_info_as_human_readable(r_tags)}. "
+            f"r_tags={BOLT11Addr.format_bolt11_routing_info_as_human_readable(r_tags)}. "
             f"{amount_to_pay=} msat. {budget=}")
         if not self.uses_trampoline():
             self.logger.info(
@@ -2219,11 +2219,11 @@ class LNWallet(Logger):
             except Exception:
                 return None
 
-    def _check_bolt11_invoice(self, bolt11_invoice: str, *, amount_msat: int = None) -> LnAddr:
-        """Parses and validates a bolt11 invoice str into a LnAddr.
+    def _check_bolt11_invoice(self, bolt11_invoice: str, *, amount_msat: int = None) -> BOLT11Addr:
+        """Parses and validates a bolt11 invoice str into a BOLT11Addr.
         Includes pre-payment checks external to the parser.
         """
-        addr = lndecode(bolt11_invoice)
+        addr = decode_bolt11_invoice(bolt11_invoice)
         if addr.is_expired():
             raise InvoiceError(_("This invoice has expired"))
         # check amount
@@ -2563,7 +2563,7 @@ class LNWallet(Logger):
             message: str,
             fallback_address: Optional[str],
             channels: Optional[Sequence[Channel]] = None,
-    ) -> Tuple[LnAddr, str]:
+    ) -> Tuple[BOLT11Addr, str]:
         amount_msat = payment_info.amount_msat
         pair = self._bolt11_cache.get(payment_info.payment_hash)
         if pair:
@@ -2580,12 +2580,12 @@ class LNWallet(Logger):
             # TODO: make invoice_features dynamic depending on available trampoline channels
             only_trampoline=payment_info.invoice_features.supports(LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM),
         )
-        formatted_r_hints = LnAddr.format_bolt11_routing_info_as_human_readable(routing_hints, has_explicit_r_tagtype=True)
+        formatted_r_hints = BOLT11Addr.format_bolt11_routing_info_as_human_readable(routing_hints, has_explicit_r_tagtype=True)
         self.logger.info(f"creating bolt11 invoice with routing_hints: {formatted_r_hints}, sat: {(amount_msat or 0) // 1000}")
         payment_secret = self.get_payment_secret(payment_info.payment_hash)
         amount_btc = amount_msat/Decimal(COIN*1000) if amount_msat else None
         min_final_cltv_delta = payment_info.min_final_cltv_delta + MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE
-        lnaddr = LnAddr(
+        lnaddr = BOLT11Addr(
             paymenthash=payment_info.payment_hash,
             amount=amount_btc,
             tags=[
@@ -2597,7 +2597,7 @@ class LNWallet(Logger):
             ] + routing_hints,
             date=timestamp,
             payment_secret=payment_secret)
-        invoice = lnencode(lnaddr, self.node_keypair.privkey)
+        invoice = encode_bolt11_invoice(lnaddr, self.node_keypair.privkey)
         pair = lnaddr, invoice
         self._bolt11_cache[payment_info.payment_hash] = pair
         return pair
@@ -3971,7 +3971,7 @@ class LNWallet(Logger):
                 invoice_features = payload["invoice_features"]["invoice_features"]
                 invoice_routing_info = payload["invoice_routing_info"]["invoice_routing_info"]
                 r_tags = decode_routing_info(invoice_routing_info)
-                self.logger.info(f'r_tags {LnAddr.format_bolt11_routing_info_as_human_readable(r_tags)}')
+                self.logger.info(f'r_tags {BOLT11Addr.format_bolt11_routing_info_as_human_readable(r_tags)}')
                 # TODO legacy mpp payment, use total_msat from trampoline onion
             else:
                 self.logger.info('forward_trampoline: end-to-end')
