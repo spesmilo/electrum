@@ -21,7 +21,7 @@ from electrum.bitcoin import is_address, address_to_script
 from electrum.transaction import PartialTxOutput
 from electrum.wallet import Wallet, Abstract_Wallet
 from electrum.wallet_db import WalletDB
-from electrum.storage import WalletStorage
+from electrum.stored_dict import WalletStorage
 from electrum.network import NetworkParameters, TxBroadcastError, BestEffortRequestFailed, ProxySettings
 from electrum.interface import ServerAddr
 from electrum.invoices import Invoice

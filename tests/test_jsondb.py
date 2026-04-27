@@ -2,6 +2,7 @@ import contextlib
 import copy
 import traceback
 import json
+import os
 from typing import Any
 
 import jsonpatch
@@ -10,7 +11,7 @@ from jsonpointer import JsonPointerException
 
 from . import ElectrumTestCase
 
-from electrum.json_db import JsonDB
+from electrum.stored_dict import WalletStorage
 
 class TestJsonpatch(ElectrumTestCase):
 
@@ -89,16 +90,6 @@ class TestJsonpatch(ElectrumTestCase):
             fail_if_leaking_secret(ctx)
 
 
-def pop1_from_dict(d: dict, key: str) -> Any:
-    return d.pop(key)
-
-
-def pop2_from_dict(d: dict, key: str) -> Any:
-    val = d[key]
-    del d[key]
-    return val
-
-
 class TestJsonDB(ElectrumTestCase):
 
     async def test_jsonpatch_replace_after_remove(self):
@@ -119,36 +110,22 @@ class TestJsonDB(ElectrumTestCase):
         with self.assertRaises(JsonPatchException):
             data = jpatch.apply(data)
 
-    async def test_jsondb_replace_after_remove(self):
-        for pop_from_dict in [pop1_from_dict, pop2_from_dict]:
-            with self.subTest(pop_from_dict):
-                data = { 'a': {'b': {'c': 0}}, 'd': 3}
-                db = JsonDB(repr(data))
-                a = db.get_dict('a')
-                # remove
-                b = pop_from_dict(a, 'b')
-                self.assertEqual(len(db.pending_changes), 1)
-                # replace item. this must not been written to db
-                b['c'] = 42
-                self.assertEqual(len(db.pending_changes), 1)
-                patches = json.loads('[' + ','.join(db.pending_changes) + ']')
-                jpatch = jsonpatch.JsonPatch(patches)
-                data = jpatch.apply(data)
-                self.assertEqual(data, {'a': {}, 'd': 3})
+    async def test_jsondb_partial_write_round_test(self):
+        wallet_path = os.path.join(self.electrum_path, "somewallet")
+        storage = WalletStorage(wallet_path, allow_partial_writes=True)
+        storage['a'] = [1, 2, 3]
+        storage._db.write_and_force_consolidation()
+        storage['a'].append(4)
+        storage._db._append_pending_changes()
+        storage = WalletStorage(wallet_path, allow_partial_writes=True)
+        self.assertEqual(len(storage['a']), 4)
 
-    async def test_jsondb_replace_after_remove_nested(self):
-        for pop_from_dict in [pop1_from_dict, pop2_from_dict]:
-            with self.subTest(pop_from_dict):
-                data = { 'a': {'b': {'c': 0}}, 'd': 3}
-                db = JsonDB(repr(data))
-                # remove
-                a = pop_from_dict(db.data, "a")
-                self.assertEqual(len(db.pending_changes), 1)
-                b = a['b']
-                # replace item. this must not be written to db
-                b['c'] = 42
-                self.assertEqual(len(db.pending_changes), 1)
-                patches = json.loads('[' + ','.join(db.pending_changes) + ']')
-                jpatch = jsonpatch.JsonPatch(patches)
-                data = jpatch.apply(data)
-                self.assertEqual(data, {'d': 3})
+    async def test_jsondb_list_clear(self):
+        wallet_path = os.path.join(self.electrum_path, "somewallet")
+        storage = WalletStorage(wallet_path, allow_partial_writes=True)
+        storage['a'] = [1, 2, 3]
+        storage._db.write()
+        storage['a'].clear()
+        storage._db.write()
+        storage = WalletStorage(wallet_path, allow_partial_writes=True)
+        self.assertEqual(len(storage['a']), 0)
