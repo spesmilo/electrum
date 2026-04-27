@@ -121,12 +121,9 @@ for key in ['locked_in', 'fails', 'settles']:
 
 
 class WalletDBUpgrader(Logger):
-    def __init__(self, data: dict):
+    def __init__(self, data: StoredDict):
         Logger.__init__(self)
         self.data = data
-        # self.data must be in-memory dict (not a StoredDict or similar),
-        # so a failed, partial upgrade won't get commited to disk
-        assert type(self.data) == dict, type(self.data)
 
     def get(self, key, default=None):
         return self.data.get(key, default)
