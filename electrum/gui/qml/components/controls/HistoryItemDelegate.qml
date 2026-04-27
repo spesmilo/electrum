@@ -13,6 +13,17 @@ Item {
     // expose delegate model for scroll indicator
     property var delegateModel: model
 
+    // reuseItems is enabled on the parent ListView. If a delegate item goes out of view it is not destroyed but
+    // stored in a pool and re-used when a new delegate is required.
+    property bool pooled: false
+    ListView.onPooled: pooled = true
+    ListView.onReused: {
+        // Variables that are not bound directly to the model have to be updated when the delegate instance is reused.
+        pooled = false
+        valueLabel.updateText()
+        fiatLabel.updateText()
+    }
+
     ColumnLayout {
         id: delegateLayout
         width: parent.width
@@ -21,6 +32,8 @@ Item {
         ItemDelegate {
             Layout.fillWidth: true
             Layout.preferredHeight: txinfo.height
+            // suppress Material press overlay, it flickers on rows during touch scroll
+            background: null
 
             onClicked: {
                 if (model.lightning) {
@@ -103,7 +116,7 @@ Item {
                     color: constants.mutedForeground
 
                     function updateText() {
-                        if (!Daemon.fx.enabled) {
+                        if (delegate.pooled || !Daemon.fx.enabled) {
                             text = ''
                         } else if (Daemon.fx.historicRates && model.timestamp) {
                             text = Daemon.fx.fiatValueHistoric(model.value, model.timestamp) + ' ' + Daemon.fx.fiatCurrency
