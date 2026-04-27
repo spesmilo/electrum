@@ -195,6 +195,7 @@ BASE_FEATURES = (
 )
 
 # we do not want to receive unrequested gossip (see lnpeer.maybe_save_remote_update)
+# NOTE: Also update lnutil.LN_FEATURES_IMPLEMENTED when adding a new feature
 LNWALLET_FEATURES = (
     BASE_FEATURES
     | LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
