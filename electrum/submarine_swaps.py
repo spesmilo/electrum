@@ -99,6 +99,8 @@ WITNESS_TEMPLATE_SWAP = [
     opcodes.OP_CHECKSIG
 ]
 
+CAP_FORWARD_V1 = "forwardv1"               # supports forward swaps with v1 flow
+
 
 def _check_swap_scriptcode(
     *,
@@ -1785,6 +1787,7 @@ class NostrTransport(SwapServerTransport):
             'max_reverse_amount': sm._max_reverse,
             'relays': sm.config.NOSTR_RELAYS,
             'pow_nonce': hex(sm.config.SWAPSERVER_ANN_POW_NONCE),
+            'capabilities': [ CAP_FORWARD_V1 ], # announce support for the old forward swap protocol flow
         }
         # the first value of a single letter tag is indexed and can be filtered for
         tags = [['d', f'electrum-swapserver-{self.NOSTR_EVENT_VERSION}'],
