@@ -75,6 +75,8 @@ Item {
                     Layout.preferredHeight: constants.iconSizeLarge
                     Layout.alignment: Qt.AlignVCenter
                     Layout.rowSpan: 2
+                    sourceSize.width: constants.iconSizeLarge
+                    sourceSize.height: constants.iconSizeLarge
                     source: model.lightning
                         ? '../../../icons/lightning.png'
                         : model.complete && model.section != 'local'
