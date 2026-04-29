@@ -69,7 +69,7 @@ class QERequestDetails(QObject, QtEventListener):
 
     @qt_event_listener
     def on_event_request_status(self, wallet, key, status):
-        if wallet == self._wallet.wallet and key == self._key:
+        if self._wallet and wallet == self._wallet.wallet and key == self._key:
             self._logger.debug('request status %d for key %s' % (status, key))
             self.statusChanged.emit()
 
