@@ -10,7 +10,7 @@ from electrum.lnutil import (
     derive_privkey, derive_pubkey, make_htlc_tx, extract_ctn_from_tx, get_compressed_pubkey_from_bech32,
     ScriptHtlc, calc_fees_for_commitment_tx, UpdateAddHtlc, LnFeatures, ln_compare_features,
     IncompatibleLightningFeatures, ChannelType, offered_htlc_trim_threshold_sat, received_htlc_trim_threshold_sat,
-    ImportedChannelBackupStorage, list_enabled_ln_feature_bits, PaymentFeeBudget,
+    ImportedChannelBackupStorage, list_enabled_ln_feature_bits, PaymentFeeBudget, LnFeatureContexts
 )
 from electrum.util import bfh, MyEncoder
 from electrum.transaction import Transaction, PartialTransaction, Sighash
@@ -919,19 +919,21 @@ class TestLNUtil(ElectrumTestCase):
 
     def test_ln_features_validate_transitive_dependencies(self):
         features = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
-        self.assertTrue(features.validate_transitive_dependencies())
+        self.assertTrue(features.validate_transitive_dependencies(context=LnFeatureContexts.INIT))
         features = LnFeatures.PAYMENT_SECRET_OPT
-        self.assertFalse(features.validate_transitive_dependencies())
+        self.assertFalse(features.validate_transitive_dependencies(context=LnFeatureContexts.BOLT11_INVOICE))
         features = LnFeatures.PAYMENT_SECRET_REQ
-        self.assertFalse(features.validate_transitive_dependencies())
+        self.assertFalse(features.validate_transitive_dependencies(context=LnFeatureContexts.BOLT11_INVOICE))
         features = LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_REQ
-        self.assertTrue(features.validate_transitive_dependencies())
+        self.assertTrue(features.validate_transitive_dependencies(context=LnFeatureContexts.BOLT11_INVOICE))
         features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ
-        self.assertFalse(features.validate_transitive_dependencies())
+        self.assertFalse(features.validate_transitive_dependencies(context=LnFeatureContexts.BOLT11_INVOICE))
         features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_OPT
-        self.assertTrue(features.validate_transitive_dependencies())
+        self.assertTrue(features.validate_transitive_dependencies(context=LnFeatureContexts.BOLT11_INVOICE))
         features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_REQ
-        self.assertTrue(features.validate_transitive_dependencies())
+        self.assertTrue(features.validate_transitive_dependencies(context=LnFeatureContexts.BOLT11_INVOICE))
+        features = LnFeatures.BASIC_MPP_OPT
+        self.assertTrue(features.validate_transitive_dependencies(context=LnFeatureContexts.BOLT12_INVOICE))
 
     def test_ln_features_for_init_message(self):
         features = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
@@ -949,7 +951,7 @@ class TestLNUtil(ElectrumTestCase):
         features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_REQ
         self.assertEqual(features, features.for_init_message())
 
-    def test_ln_features_for_invoice(self):
+    def test_ln_features_for_bolt11_invoice(self):
         features = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
         self.assertEqual(LnFeatures(0), features.for_bolt11_invoice())
         features = LnFeatures.PAYMENT_SECRET_OPT
@@ -966,6 +968,10 @@ class TestLNUtil(ElectrumTestCase):
                          features.for_bolt11_invoice())
         features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_REQ
         self.assertEqual(features, features.for_bolt11_invoice())
+
+    def test_ln_features_for_bolt12_invoice(self):
+        features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_OPT | LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
+        self.assertEqual(LnFeatures.BASIC_MPP_OPT, features.for_bolt12_invoice())
 
     def test_ln_compare_features(self):
         f1 = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ | LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT

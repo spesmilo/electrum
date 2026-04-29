@@ -336,9 +336,9 @@ class BOLT11Addr:
               as then when we started requiring a new feature,
               old saved already paid invoices could no longer be parsed.
         """
-        from .lnutil import validate_features, ln_compare_features
+        from .lnutil import validate_features, ln_compare_features, LnFeatureContexts
         invoice_features = self.get_features()
-        validate_features(invoice_features)
+        validate_features(invoice_features, context=LnFeatureContexts.BOLT11_INVOICE)
         ln_compare_features(myfeatures.for_bolt11_invoice(), invoice_features)
 
     def __str__(self):

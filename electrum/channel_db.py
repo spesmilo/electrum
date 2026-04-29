@@ -43,7 +43,7 @@ from .sql_db import SqlDB, sql
 from . import constants, util
 from .util import profiler, get_headers_dir, is_ip_address, json_normalize, UserFacingException, is_private_netaddress
 from .lntransport import LNPeerAddr
-from .lnutil import (ShortChannelID, validate_features, IncompatibleOrInsaneFeatures,
+from .lnutil import (ShortChannelID, validate_features, IncompatibleOrInsaneFeatures, LnFeatureContexts,
                      InvalidGossipMsg, GossipForwardingMessage, GossipTimestampFilter)
 from .lnverifier import LNChannelVerifier, verify_sig_for_channel_update
 from .lnmsg import decode_msg
@@ -74,7 +74,7 @@ class ChannelInfo(NamedTuple):
     @staticmethod
     def from_msg(payload: dict) -> 'ChannelInfo':
         features = int.from_bytes(payload['features'], 'big')
-        features = validate_features(features)
+        features = validate_features(features, context=LnFeatureContexts.CHAN_ANN_AS_IS)
         channel_id = payload['short_channel_id']
         node_id_1 = payload['node_id_1']
         node_id_2 = payload['node_id_2']
@@ -176,7 +176,7 @@ class NodeInfo(NamedTuple):
     def from_msg(payload) -> Tuple['NodeInfo', Sequence['LNPeerAddr']]:
         node_id = payload['node_id']
         features = int.from_bytes(payload['features'], "big")
-        features = validate_features(features)
+        features = validate_features(features, context=LnFeatureContexts.NODE_ANN)
         addresses = NodeInfo.parse_addresses_field(payload['addresses'])
         peer_addrs = []
         for host, port in addresses:
