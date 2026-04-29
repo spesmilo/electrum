@@ -951,21 +951,21 @@ class TestLNUtil(ElectrumTestCase):
 
     def test_ln_features_for_invoice(self):
         features = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
-        self.assertEqual(LnFeatures(0), features.for_invoice())
+        self.assertEqual(LnFeatures(0), features.for_bolt11_invoice())
         features = LnFeatures.PAYMENT_SECRET_OPT
-        self.assertEqual(features, features.for_invoice())
+        self.assertEqual(features, features.for_bolt11_invoice())
         features = LnFeatures.PAYMENT_SECRET_REQ
-        self.assertEqual(features, features.for_invoice())
+        self.assertEqual(features, features.for_bolt11_invoice())
         features = LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_REQ
-        self.assertEqual(features, features.for_invoice())
+        self.assertEqual(features, features.for_bolt11_invoice())
         features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
         self.assertEqual(LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ,
-                         features.for_invoice())
+                         features.for_bolt11_invoice())
         features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_OPT | LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
         self.assertEqual(LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_OPT,
-                         features.for_invoice())
+                         features.for_bolt11_invoice())
         features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_REQ
-        self.assertEqual(features, features.for_invoice())
+        self.assertEqual(features, features.for_bolt11_invoice())
 
     def test_ln_compare_features(self):
         f1 = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ | LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT

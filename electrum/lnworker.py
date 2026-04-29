@@ -2631,7 +2631,7 @@ class LNWallet(Logger):
         return route
 
     def _get_invoice_features(self, amount_msat: Optional[int]) -> LnFeatures:
-        invoice_features = self.features.for_invoice()
+        invoice_features = self.features.for_bolt11_invoice()
         if not all((not c.is_open() or c.is_frozen_for_receiving()) or self.is_trampoline_peer(c.node_id) \
                         for c in self.channels.values()):
             invoice_features &= ~ LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM

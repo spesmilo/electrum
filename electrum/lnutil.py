@@ -1409,7 +1409,11 @@ class LnFeatureContexts(enum.Flag):
     CHAN_ANN_AS_IS = enum.auto()
     CHAN_ANN_ALWAYS_ODD = enum.auto()
     CHAN_ANN_ALWAYS_EVEN = enum.auto()
-    INVOICE = enum.auto()
+    BOLT11_INVOICE = enum.auto()
+    BOLT12_OFFER = enum.auto()
+    BOLT12_INVREQ = enum.auto()
+    BOLT12_INVOICE = enum.auto()
+    BLINDED_PATH = enum.auto()
 
 
 LNFC = LnFeatureContexts
@@ -1439,8 +1443,8 @@ class LnFeatures(IntFlag):
 
     VAR_ONION_REQ = 1 << 8
     VAR_ONION_OPT = 1 << 9
-    _ln_feature_contexts[VAR_ONION_OPT] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.INVOICE)
-    _ln_feature_contexts[VAR_ONION_REQ] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.INVOICE)
+    _ln_feature_contexts[VAR_ONION_OPT] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.BOLT11_INVOICE)
+    _ln_feature_contexts[VAR_ONION_REQ] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.BOLT11_INVOICE)
 
     GOSSIP_QUERIES_EX_REQ = 1 << 10
     GOSSIP_QUERIES_EX_OPT = 1 << 11
@@ -1456,14 +1460,14 @@ class LnFeatures(IntFlag):
     PAYMENT_SECRET_REQ = 1 << 14
     PAYMENT_SECRET_OPT = 1 << 15
     _ln_feature_direct_dependencies[PAYMENT_SECRET_OPT] = {VAR_ONION_OPT}
-    _ln_feature_contexts[PAYMENT_SECRET_OPT] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.INVOICE)
-    _ln_feature_contexts[PAYMENT_SECRET_REQ] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.INVOICE)
+    _ln_feature_contexts[PAYMENT_SECRET_OPT] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.BOLT11_INVOICE)
+    _ln_feature_contexts[PAYMENT_SECRET_REQ] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.BOLT11_INVOICE)
 
     BASIC_MPP_REQ = 1 << 16
     BASIC_MPP_OPT = 1 << 17
     _ln_feature_direct_dependencies[BASIC_MPP_OPT] = {PAYMENT_SECRET_OPT}
-    _ln_feature_contexts[BASIC_MPP_OPT] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.INVOICE)
-    _ln_feature_contexts[BASIC_MPP_REQ] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.INVOICE)
+    _ln_feature_contexts[BASIC_MPP_OPT] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.BOLT11_INVOICE | LNFC.BOLT12_INVOICE)
+    _ln_feature_contexts[BASIC_MPP_REQ] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.BOLT11_INVOICE | LNFC.BOLT12_INVOICE)
 
     OPTION_SUPPORT_LARGE_CHANNEL_REQ = 1 << 18
     OPTION_SUPPORT_LARGE_CHANNEL_OPT = 1 << 19
@@ -1479,44 +1483,37 @@ class LnFeatures(IntFlag):
     # Temporary number.
     OPTION_TRAMPOLINE_ROUTING_REQ_ECLAIR = 1 << 148
     OPTION_TRAMPOLINE_ROUTING_OPT_ECLAIR = 1 << 149
-
-    _ln_feature_contexts[OPTION_TRAMPOLINE_ROUTING_REQ_ECLAIR] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.INVOICE)
-    _ln_feature_contexts[OPTION_TRAMPOLINE_ROUTING_OPT_ECLAIR] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.INVOICE)
+    _ln_feature_contexts[OPTION_TRAMPOLINE_ROUTING_REQ_ECLAIR] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.BOLT11_INVOICE | LNFC.BOLT12_INVOICE)
+    _ln_feature_contexts[OPTION_TRAMPOLINE_ROUTING_OPT_ECLAIR] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.BOLT11_INVOICE | LNFC.BOLT12_INVOICE)
 
     # We use a different bit because Phoenix cannot do end-to-end multi-trampoline routes
     OPTION_TRAMPOLINE_ROUTING_REQ_ELECTRUM = 1 << 150
     OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM = 1 << 151
-
-    _ln_feature_contexts[OPTION_TRAMPOLINE_ROUTING_REQ_ELECTRUM] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.INVOICE)
-    _ln_feature_contexts[OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.INVOICE)
+    _ln_feature_contexts[OPTION_TRAMPOLINE_ROUTING_REQ_ELECTRUM] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.BOLT11_INVOICE | LNFC.BOLT12_INVOICE)
+    _ln_feature_contexts[OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.BOLT11_INVOICE | LNFC.BOLT12_INVOICE)
 
     OPTION_SHUTDOWN_ANYSEGWIT_REQ = 1 << 26
     OPTION_SHUTDOWN_ANYSEGWIT_OPT = 1 << 27
-
     _ln_feature_contexts[OPTION_SHUTDOWN_ANYSEGWIT_REQ] = (LNFC.INIT | LNFC.NODE_ANN)
     _ln_feature_contexts[OPTION_SHUTDOWN_ANYSEGWIT_OPT] = (LNFC.INIT | LNFC.NODE_ANN)
 
     OPTION_ONION_MESSAGE_REQ = 1 << 38
     OPTION_ONION_MESSAGE_OPT = 1 << 39
-
     _ln_feature_contexts[OPTION_ONION_MESSAGE_REQ] = (LNFC.INIT | LNFC.NODE_ANN)
     _ln_feature_contexts[OPTION_ONION_MESSAGE_OPT] = (LNFC.INIT | LNFC.NODE_ANN)
 
     OPTION_CHANNEL_TYPE_REQ = 1 << 44
     OPTION_CHANNEL_TYPE_OPT = 1 << 45
-
     _ln_feature_contexts[OPTION_CHANNEL_TYPE_REQ] = (LNFC.INIT | LNFC.NODE_ANN)
     _ln_feature_contexts[OPTION_CHANNEL_TYPE_OPT] = (LNFC.INIT | LNFC.NODE_ANN)
 
     OPTION_SCID_ALIAS_REQ = 1 << 46
     OPTION_SCID_ALIAS_OPT = 1 << 47
-
     _ln_feature_contexts[OPTION_SCID_ALIAS_REQ] = (LNFC.INIT | LNFC.NODE_ANN)
     _ln_feature_contexts[OPTION_SCID_ALIAS_OPT] = (LNFC.INIT | LNFC.NODE_ANN)
 
     OPTION_ZEROCONF_REQ = 1 << 50
     OPTION_ZEROCONF_OPT = 1 << 51
-
     _ln_feature_direct_dependencies[OPTION_ZEROCONF_OPT] = {OPTION_SCID_ALIAS_OPT}
     _ln_feature_contexts[OPTION_ZEROCONF_REQ] = (LNFC.INIT | LNFC.NODE_ANN)
     _ln_feature_contexts[OPTION_ZEROCONF_OPT] = (LNFC.INIT | LNFC.NODE_ANN)
@@ -1551,10 +1548,10 @@ class LnFeatures(IntFlag):
                 features |= (1 << flag)
         return features
 
-    def for_invoice(self) -> 'LnFeatures':
+    def for_bolt11_invoice(self) -> 'LnFeatures':
         features = LnFeatures(0)
         for flag in list_enabled_ln_feature_bits(self):
-            if LnFeatureContexts.INVOICE & _ln_feature_contexts[1 << flag]:
+            if LnFeatureContexts.BOLT11_INVOICE & _ln_feature_contexts[1 << flag]:
                 features |= (1 << flag)
         return features
 

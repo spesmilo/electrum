@@ -339,7 +339,7 @@ class BOLT11Addr:
         from .lnutil import validate_features, ln_compare_features
         invoice_features = self.get_features()
         validate_features(invoice_features)
-        ln_compare_features(myfeatures.for_invoice(), invoice_features)
+        ln_compare_features(myfeatures.for_bolt11_invoice(), invoice_features)
 
     def __str__(self):
         return "BOLT11Addr[{}, amount={}{} tags=[{}]]".format(
