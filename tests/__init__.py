@@ -37,7 +37,7 @@ class ElectrumTestCase(unittest.IsolatedAsyncioTestCase, Logger):
 
     TESTNET = False  # there is also an @as_testnet decorator to run single tests in testnet mode
     REGTEST = False
-    TEST_ANCHOR_CHANNELS = False
+    TEST_ANCHOR_CHANNELS = True
     WALLET_FILES_DIR = os.path.join(os.path.dirname(__file__), "test_storage_upgrade")
     # maxDiff = None  # for debugging
 
@@ -103,11 +103,10 @@ class ElectrumTestCase(unittest.IsolatedAsyncioTestCase, Logger):
         self,
         *,
         name: str,
-        has_anchors: bool,
     ) -> 'MockLNWallet':
         from .test_lnpeer import _create_mock_lnwallet
         data_dir = tempfile.mkdtemp(prefix="lnwallet-", dir=self.unittest_base_path)
-        lnwallet = _create_mock_lnwallet(name=name, has_anchors=has_anchors, data_dir=data_dir)
+        lnwallet = _create_mock_lnwallet(name=name, has_anchors=self.TEST_ANCHOR_CHANNELS, data_dir=data_dir)
         self._lnworkers_created.append(lnwallet)
         return lnwallet
 

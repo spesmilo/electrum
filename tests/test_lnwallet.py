@@ -21,6 +21,7 @@ from electrum.crypto import sha256
 
 class TestLNWallet(ElectrumTestCase):
     TESTNET = True
+    TEST_ANCHOR_CHANNELS = True
 
     @classmethod
     def setUpClass(cls):
@@ -28,7 +29,7 @@ class TestLNWallet(ElectrumTestCase):
         console_stderr_handler.setLevel(logging.DEBUG)
 
     async def asyncSetUp(self):
-        self.lnwallet_anchors = self.create_mock_lnwallet(name='mock_lnwallet_anchors', has_anchors=True)
+        self.lnwallet_anchors = self.create_mock_lnwallet(name='mock_lnwallet_anchors')
         await super().asyncSetUp()
 
     def test_create_payment_info(self):
@@ -73,10 +74,10 @@ class TestLNWallet(ElectrumTestCase):
         wallet = self.lnwallet_anchors
         self.assertFalse(wallet.uses_trampoline())
 
-        trampoline_peer = self.create_mock_lnwallet(name='trampoline_peer', has_anchors=True)
+        trampoline_peer = self.create_mock_lnwallet(name='trampoline_peer')
         trampoline_pubkey = trampoline_peer.node_keypair.pubkey
 
-        regular_peer = self.create_mock_lnwallet(name='regular_peer', has_anchors=True)
+        regular_peer = self.create_mock_lnwallet(name='regular_peer')
         regular_pubkey = regular_peer.node_keypair.pubkey
 
         chan_t, _ = create_test_channels(alice_lnwallet=wallet, bob_lnwallet=trampoline_peer)

@@ -373,7 +373,7 @@ class TestOnionMessageManager(ElectrumTestCase):
 
     async def test_request_and_reply(self):
         n = MockNetwork()
-        lnw = self.create_mock_lnwallet(name='test_request_and_reply', has_anchors=False)
+        lnw = self.create_mock_lnwallet(name='test_request_and_reply')
 
         # mock add_peer for direct connection fallback
         async def mock__add_peer(host, port, node_id):
@@ -431,7 +431,7 @@ class TestOnionMessageManager(ElectrumTestCase):
 
     async def test_forward(self):
         n = MockNetwork()
-        lnw = self.create_mock_lnwallet(name='alice', has_anchors=False)
+        lnw = self.create_mock_lnwallet(name='alice')
         lnw.node_keypair = self.alice
 
         self.was_sent = False
@@ -468,7 +468,7 @@ class TestOnionMessageManager(ElectrumTestCase):
 
     async def test_receive_unsolicited(self):
         n = MockNetwork()
-        lnw = self.create_mock_lnwallet(name='dave', has_anchors=False)
+        lnw = self.create_mock_lnwallet(name='dave')
         lnw.node_keypair = self.dave
 
         t = OnionMessageManager(lnw)

@@ -266,8 +266,8 @@ class TestFee(ElectrumTestCase):
 
     async def asyncSetUp(self):
         await super().asyncSetUp()
-        self.alice_lnwallet = self.create_mock_lnwallet(name="alice", has_anchors=self.TEST_ANCHOR_CHANNELS)
-        self.bob_lnwallet = self.create_mock_lnwallet(name="bob", has_anchors=self.TEST_ANCHOR_CHANNELS)
+        self.alice_lnwallet = self.create_mock_lnwallet(name="alice")
+        self.bob_lnwallet = self.create_mock_lnwallet(name="bob")
 
     async def test_fee(self):
         alice_channel, bob_channel = create_test_channels(
@@ -301,8 +301,8 @@ class TestChannel(ElectrumTestCase):
 
     async def asyncSetUp(self):
         await super().asyncSetUp()
-        self.alice_lnwallet = self.create_mock_lnwallet(name="alice", has_anchors=self.TEST_ANCHOR_CHANNELS)
-        self.bob_lnwallet = self.create_mock_lnwallet(name="bob", has_anchors=self.TEST_ANCHOR_CHANNELS)
+        self.alice_lnwallet = self.create_mock_lnwallet(name="alice")
+        self.bob_lnwallet = self.create_mock_lnwallet(name="bob")
 
         # Create a test channel which will be used for the duration of this
         # unittest. The channel will be funded evenly with Alice having 5 BTC,
@@ -856,8 +856,8 @@ class TestChannelAnchors(TestChannel):
 class TestAvailableToSpend(ElectrumTestCase):
     async def asyncSetUp(self):
         await super().asyncSetUp()
-        self.alice_lnwallet = self.create_mock_lnwallet(name="alice", has_anchors=self.TEST_ANCHOR_CHANNELS)
-        self.bob_lnwallet = self.create_mock_lnwallet(name="bob", has_anchors=self.TEST_ANCHOR_CHANNELS)
+        self.alice_lnwallet = self.create_mock_lnwallet(name="alice")
+        self.bob_lnwallet = self.create_mock_lnwallet(name="bob")
 
     async def test_DesyncHTLCs(self):
         alice_channel, bob_channel = create_test_channels(
@@ -972,8 +972,8 @@ class TestAvailableToSpendAnchors(TestAvailableToSpend):
 class TestChanReserve(ElectrumTestCase):
     async def asyncSetUp(self):
         await super().asyncSetUp()
-        alice_lnwallet = self.create_mock_lnwallet(name="alice", has_anchors=self.TEST_ANCHOR_CHANNELS)
-        bob_lnwallet = self.create_mock_lnwallet(name="bob", has_anchors=self.TEST_ANCHOR_CHANNELS)
+        alice_lnwallet = self.create_mock_lnwallet(name="alice")
+        bob_lnwallet = self.create_mock_lnwallet(name="bob")
         alice_channel, bob_channel = create_test_channels(alice_lnwallet=alice_lnwallet, bob_lnwallet=bob_lnwallet)
         alice_min_reserve = int(.5 * one_bitcoin_in_msat // 1000)
         # We set Bob's channel reserve to a value that is larger than
@@ -1109,8 +1109,8 @@ class TestChanReserveAnchors(TestChanReserve):
 class TestDust(ElectrumTestCase):
     async def asyncSetUp(self):
         await super().asyncSetUp()
-        self.alice_lnwallet = self.create_mock_lnwallet(name="alice", has_anchors=self.TEST_ANCHOR_CHANNELS)
-        self.bob_lnwallet = self.create_mock_lnwallet(name="bob", has_anchors=self.TEST_ANCHOR_CHANNELS)
+        self.alice_lnwallet = self.create_mock_lnwallet(name="alice")
+        self.bob_lnwallet = self.create_mock_lnwallet(name="bob")
 
     async def test_DustLimit(self):
         """Test that addition of an HTLC below the dust limit changes the balances."""

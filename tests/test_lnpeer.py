@@ -484,7 +484,7 @@ class TestPeer(ElectrumTestCase):
     def prepare_lnwallets(self, graph_definition) -> Mapping[str, MockLNWallet]:
         workers = {}  # type: Dict[str, MockLNWallet]
         for a, definition in graph_definition.items():
-            workers[a] = self.create_mock_lnwallet(name=a, has_anchors=self.TEST_ANCHOR_CHANNELS)
+            workers[a] = self.create_mock_lnwallet(name=a)
         return workers
 
     def prepare_chans_and_peers_in_graph(
@@ -3047,11 +3047,13 @@ class TestPeerForwarding(TestPeer):
                 await run_test(trampoline)
 
 
-class TestPeerDirectAnchors(TestPeerDirect):
-    TEST_ANCHOR_CHANNELS = True
+class TestPeerDirectNoAnchors(TestPeerDirect):
+    assert TestPeerDirect.TEST_ANCHOR_CHANNELS is True
+    TEST_ANCHOR_CHANNELS = False
 
-class TestPeerForwardingAnchors(TestPeerForwarding):
-    TEST_ANCHOR_CHANNELS = True
+class TestPeerForwardinNoAnchors(TestPeerForwarding):
+    assert TestPeerForwarding.TEST_ANCHOR_CHANNELS is True
+    TEST_ANCHOR_CHANNELS = False
 
 
 def run(coro):
