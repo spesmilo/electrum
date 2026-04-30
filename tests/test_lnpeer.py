@@ -517,7 +517,6 @@ class TestPeer(ElectrumTestCase):
                         bob_lnwallet=workers[b],
                         local_msat=channel_def['local_balance_msat'],
                         remote_msat=channel_def['remote_balance_msat'],
-                        anchor_outputs=self.TEST_ANCHOR_CHANNELS
                     )
                     channels[(a, b)], channels[(b, a)] = channel_ab, channel_ba
                 workers[a]._add_channel(channel_ab)

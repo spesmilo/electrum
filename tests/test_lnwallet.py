@@ -79,8 +79,8 @@ class TestLNWallet(ElectrumTestCase):
         regular_peer = self.create_mock_lnwallet(name='regular_peer', has_anchors=True)
         regular_pubkey = regular_peer.node_keypair.pubkey
 
-        chan_t, _ = create_test_channels(alice_lnwallet=wallet, bob_lnwallet=trampoline_peer, anchor_outputs=True)
-        chan_r, _ = create_test_channels(alice_lnwallet=wallet, bob_lnwallet=regular_peer, anchor_outputs=True)
+        chan_t, _ = create_test_channels(alice_lnwallet=wallet, bob_lnwallet=trampoline_peer)
+        chan_r, _ = create_test_channels(alice_lnwallet=wallet, bob_lnwallet=regular_peer)
         wallet._add_channel(chan_t)
         wallet._add_channel(chan_r)
 
