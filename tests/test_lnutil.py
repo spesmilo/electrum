@@ -1054,14 +1054,42 @@ class TestLNUtil(ElectrumTestCase):
             None,
             LNWallet._decode_channel_update_msg(bytes.fromhex("0101") + msg_without_prefix))
 
-    def test_channel_type(self):
-        # test compliance and non compliance with LN features
-        features = LnFeatures(LnFeatures.BASIC_MPP_OPT | LnFeatures.OPTION_STATIC_REMOTEKEY_OPT)
-        self.assertTrue(ChannelType.OPTION_STATIC_REMOTEKEY.complies_with_features(features))
+    def test_channel_type__complies_with_features(self):
+        """test compliance and-non compliance with LN features"""
+        # non-cflag-related peer_features should be ignored (e.g. BASIC_MPP_REQ):
+        pfeatures = LnFeatures(LnFeatures.BASIC_MPP_REQ | LnFeatures.OPTION_STATIC_REMOTEKEY_OPT)
+        ctype = ChannelType.OPTION_STATIC_REMOTEKEY
+        self.assertTrue(ctype.complies_with_features(pfeatures))
 
-        features = LnFeatures(LnFeatures.BASIC_MPP_OPT | LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM)
-        self.assertFalse(ChannelType.OPTION_STATIC_REMOTEKEY.complies_with_features(features))
+        # SRK missing from pfeatures:
+        pfeatures = LnFeatures(LnFeatures.BASIC_MPP_REQ | LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM)
+        ctype = ChannelType.OPTION_STATIC_REMOTEKEY
+        self.assertFalse(ctype.complies_with_features(pfeatures))
 
+        # ANCHORS missing from pfeatures:
+        pfeatures = LnFeatures(LnFeatures.BASIC_MPP_REQ | LnFeatures.OPTION_STATIC_REMOTEKEY_OPT)
+        ctype = ChannelType.OPTION_STATIC_REMOTEKEY | ChannelType.OPTION_ANCHORS
+        self.assertFalse(ctype.complies_with_features(pfeatures))
+
+        # SRK channel_type still allowed, even though ANCHORS has been negotiated:
+        pfeatures = LnFeatures(LnFeatures.BASIC_MPP_REQ | LnFeatures.OPTION_STATIC_REMOTEKEY_OPT | LnFeatures.OPTION_ANCHORS_OPT)
+        ctype = ChannelType.OPTION_STATIC_REMOTEKEY
+        self.assertTrue(ctype.complies_with_features(pfeatures))
+        # same, *even if* ANCHORS is set to REQ. OPT or REQ no longer matters after negotiation finishes:
+        pfeatures = LnFeatures(LnFeatures.BASIC_MPP_REQ | LnFeatures.OPTION_STATIC_REMOTEKEY_OPT | LnFeatures.OPTION_ANCHORS_REQ)
+        ctype = ChannelType.OPTION_STATIC_REMOTEKEY
+        self.assertTrue(ctype.complies_with_features(pfeatures))
+
+        # ANCHORS ctype allowed if pfeatures are correctly negotiated:
+        pfeatures = LnFeatures(LnFeatures.BASIC_MPP_REQ | LnFeatures.OPTION_STATIC_REMOTEKEY_OPT | LnFeatures.OPTION_ANCHORS_OPT)
+        ctype = ChannelType.OPTION_STATIC_REMOTEKEY | ChannelType.OPTION_ANCHORS
+        self.assertTrue(ctype.complies_with_features(pfeatures))
+        # again, OPT or REQ does not matter:
+        pfeatures = LnFeatures(LnFeatures.BASIC_MPP_REQ | LnFeatures.OPTION_STATIC_REMOTEKEY_OPT | LnFeatures.OPTION_ANCHORS_REQ)
+        ctype = ChannelType.OPTION_STATIC_REMOTEKEY | ChannelType.OPTION_ANCHORS
+        self.assertTrue(ctype.complies_with_features(pfeatures))
+
+    def test_channel_type__ignore_unknown(self):
         # ignore unknown channel types
         channel_type = ChannelType(0b10000000001000000000010).discard_unknown_and_check()
         self.assertEqual(ChannelType(0b10000000001000000000000), channel_type)

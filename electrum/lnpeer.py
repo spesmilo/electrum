@@ -1243,12 +1243,15 @@ class Peer(Logger, EventListener):
         if channel_type is None:
             raise Exception("channel_type MUST be present in open_channel, but missing")
         # MUST fail the channel if channel_type is not suitable.
-        # TODO fail if channel_type does not have anchors
-        else:
-            channel_type = ChannelType.from_bytes(channel_type['type'], byteorder='big').discard_unknown_and_check()
-            if not channel_type.complies_with_features(self.features):
-                raise Exception("sender has sent a channel type we don't support")
-        assert isinstance(channel_type, ChannelType)
+        channel_type = ChannelType.from_bytes(channel_type['type'], byteorder='big').discard_unknown_and_check()
+        if not channel_type.complies_with_features(self.features):
+            raise Exception("sender has sent a channel type we don't support")
+        assert channel_type & ChannelType.OPTION_STATIC_REMOTEKEY, "new legacy channel?!"
+        if not self.config.TEST_LN_OPEN_SRK_CHANNELS:
+            if not channel_type & ChannelType.OPTION_ANCHORS:
+                # note: BOLT-02 does NOT forbid opening new SRK chan
+                #       just because ANCHORS has been negotiated as peer feature
+                raise Exception("refusing to open new static_remotekey channel")
 
         is_zeroconf = bool(channel_type & ChannelType.OPTION_ZEROCONF)
         if is_zeroconf and not self.config.ZEROCONF_TRUSTED_NODE.startswith(self.pubkey.hex()):

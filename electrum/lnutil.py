@@ -1619,8 +1619,8 @@ class ChannelType(IntFlag):
     OPTION_LEGACY_CHANNEL = 0
     OPTION_STATIC_REMOTEKEY = 1 << 12
     OPTION_ANCHORS = 1 << 22
-    OPTION_SCID_ALIAS = 1 << 46
-    OPTION_ZEROCONF = 1 << 50
+    OPTION_SCID_ALIAS = 1 << 46  # variation flag
+    OPTION_ZEROCONF = 1 << 50    # variation flag
 
     def discard_unknown_and_check(self) -> 'ChannelType':
         """Discards unknown flags and checks flag combination."""
@@ -1638,6 +1638,7 @@ class ChannelType(IntFlag):
         return final_channel_type
 
     def check_combinations(self):
+        """Raises if invalid flag combination."""
         basic_type = self & ~(ChannelType.OPTION_SCID_ALIAS | ChannelType.OPTION_ZEROCONF)
         if basic_type not in [
                 ChannelType.OPTION_STATIC_REMOTEKEY,
@@ -1645,13 +1646,22 @@ class ChannelType(IntFlag):
         ]:
             raise ValueError("Channel type is not a valid flag combination.")
 
-    def complies_with_features(self, features: LnFeatures) -> bool:
-        flags = list_enabled_bits(self)
-        complies = True
-        for flag in flags:
-            feature = LnFeatures(1 << flag)
-            complies &= features.supports(feature)
-        return complies
+    def complies_with_features(self, peer_features: LnFeatures) -> bool:
+        """Returns whether channel_type complies with peer_features.
+        peer_features is negotiated features for the peer session.
+
+        note: enforces channel_type is-SUBSET-of peer_features
+              but does NOT enforce cflag-related-peer_features is-SUBSET-of channel_type.
+              For example, even if opt_anchors is a negotiated peer_feature, (as per my reading of BOLT-02),
+              it is still allowed to open an SRK channel (by setting channel_type accordingly).
+        """
+        cflags = list_enabled_bits(self)
+        # channel flags must be a SUBSET of peer_features
+        for cflag in cflags:
+            feature = LnFeatures(1 << cflag)
+            if not peer_features.supports(feature):
+                return False
+        return True
 
     def to_bytes_minimal(self):
         # MUST use the smallest bitmap possible to represent the channel type.
