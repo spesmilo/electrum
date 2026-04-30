@@ -525,7 +525,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         # we want static_remotekey to be a wallet address
         if not self.txin_type == 'p2wpkh':
             return False
-        if self.config.ENABLE_ANCHOR_CHANNELS:
+        if not self.config.TEST_LN_OPEN_SRK_CHANNELS:  # anchors
             if not self.keystore:
                 return False
             if self.keystore.is_watching_only():

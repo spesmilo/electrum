@@ -133,7 +133,7 @@ class MockStandardWallet(Standard_Wallet):
 
 def _create_mock_lnwallet(*, name, has_anchors, data_dir: str) -> 'MockLNWallet':
     config = SimpleConfig({}, read_user_dir_function=lambda: data_dir)
-    config.ENABLE_ANCHOR_CHANNELS = has_anchors
+    config.TEST_LN_OPEN_SRK_CHANNELS = not has_anchors
     config.INITIAL_TRAMPOLINE_FEE_LEVEL = 0
 
     network = MockNetwork(config=config)

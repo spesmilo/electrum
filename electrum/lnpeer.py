@@ -922,9 +922,6 @@ class Peer(Logger, EventListener):
     def is_upfront_shutdown_script(self):
         return self.features.supports(LnFeatures.OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT)
 
-    def use_anchors(self) -> bool:
-        return self.features.supports(LnFeatures.OPTION_ANCHORS_OPT)
-
     def upfront_shutdown_script_from_payload(self, payload, msg_identifier: str) -> Optional[bytes]:
         if msg_identifier not in ['accept', 'open']:
             raise ValueError("msg_identifier must be either 'accept' or 'open'")
@@ -994,16 +991,18 @@ class Peer(Logger, EventListener):
 
         channel_flags = CF_ANNOUNCE_CHANNEL if public else 0
         feerate: Optional[int] = self.lnworker.current_target_feerate_per_kw(
-            has_anchors=self.use_anchors()
+            has_anchors=not self.config.TEST_LN_OPEN_SRK_CHANNELS,
         )
         if feerate is None:
             raise NoDynamicFeeEstimates()
         # we set a channel type for internal bookkeeping
         open_channel_tlvs = {}
-        assert self.their_features.supports(LnFeatures.OPTION_STATIC_REMOTEKEY_OPT)
-        our_channel_type = ChannelType(ChannelType.OPTION_STATIC_REMOTEKEY)
-        if self.use_anchors():
-            our_channel_type |= ChannelType(ChannelType.OPTION_ANCHORS)
+        assert self.features.supports(LnFeatures.OPTION_STATIC_REMOTEKEY_OPT)
+        assert self.features.supports(LnFeatures.OPTION_ANCHORS_OPT)
+        if self.config.TEST_LN_OPEN_SRK_CHANNELS:
+            our_channel_type = ChannelType(ChannelType.OPTION_STATIC_REMOTEKEY)
+        else:  # anchors
+            our_channel_type = ChannelType(ChannelType.OPTION_STATIC_REMOTEKEY | ChannelType.OPTION_ANCHORS)
         if zeroconf:
             our_channel_type |= ChannelType(ChannelType.OPTION_ZEROCONF)
         # We do not set the option_scid_alias bit in channel_type because LND rejects it.
@@ -1094,8 +1093,6 @@ class Peer(Logger, EventListener):
         if their_channel_type is None:
             raise Exception("channel_type MUST be present in accept_channel, but missing")
         their_channel_type = ChannelType.from_bytes(their_channel_type['type'], byteorder='big').discard_unknown_and_check()
-        # if channel_type is set, and channel_type was set in open_channel,
-        # and they are not equal types: MUST reject the channel.
         if their_channel_type != our_channel_type:
             raise Exception("channel_type is not the one that we sent.")
 
@@ -1245,8 +1242,8 @@ class Peer(Logger, EventListener):
         channel_type = open_channel_tlvs.get('channel_type')
         if channel_type is None:
             raise Exception("channel_type MUST be present in open_channel, but missing")
-        # MUST fail the channel if it supports channel_type,
-        # channel_type was set, and the type is not suitable.
+        # MUST fail the channel if channel_type is not suitable.
+        # TODO fail if channel_type does not have anchors
         else:
             channel_type = ChannelType.from_bytes(channel_type['type'], byteorder='big').discard_unknown_and_check()
             if not channel_type.complies_with_features(self.features):

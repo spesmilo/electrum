@@ -199,6 +199,7 @@ LNWALLET_FEATURES = (
     BASE_FEATURES
     | LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
     | LnFeatures.OPTION_STATIC_REMOTEKEY_REQ
+    | LnFeatures.OPTION_ANCHORS_REQ
     | LnFeatures.VAR_ONION_REQ
     | LnFeatures.PAYMENT_SECRET_REQ
     | LnFeatures.BASIC_MPP_OPT
@@ -1014,8 +1015,6 @@ class LNWallet(Logger):
         Logger.__init__(self)
         if features is None:
             features = LNWALLET_FEATURES
-            if self.config.ENABLE_ANCHOR_CHANNELS:
-                features |= LnFeatures.OPTION_ANCHORS_OPT
             if self.config.OPEN_ZEROCONF_CHANNELS:
                 features |= LnFeatures.OPTION_ZEROCONF_OPT
             if self.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS or self.config.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS:
@@ -1597,8 +1596,7 @@ class LNWallet(Logger):
             zeroconf: bool = False,
             opening_base_fee_msat: Optional[int] = None,
             password=None):
-        if self.config.ENABLE_ANCHOR_CHANNELS:
-            self.wallet.unlock(password)
+        self.wallet.unlock(password)
         coins = self.wallet.get_spendable_coins(None)
         node_id = peer.pubkey
         fee_policy = FeePolicy(self.config.FEE_POLICY)
@@ -1697,6 +1695,7 @@ class LNWallet(Logger):
             static_remotekey = None
         else:  # static_remotekey
             assert channel_type & channel_type.OPTION_STATIC_REMOTEKEY
+            #assert self.config.TEST_LN_OPEN_SRK_CHANNELS
             wallet = self.wallet
             assert wallet.txin_type == 'p2wpkh'
             addr = wallet.get_new_sweep_address_for_channel()
@@ -1772,8 +1771,7 @@ class LNWallet(Logger):
             coins=coins,
             outputs=outputs,
             fee_policy=fee_policy,
-            # we do not know yet if peer accepts anchors, just assume they do
-            is_anchor_channel_opening=self.config.ENABLE_ANCHOR_CHANNELS,
+            is_anchor_channel_opening=not self.config.TEST_LN_OPEN_SRK_CHANNELS,
         )
         tx.set_rbf(False)
         # rm randomness from locktime, as we use the locktime as entropy for deriving the funding_privkey
@@ -3707,10 +3705,7 @@ class LNWallet(Logger):
         to sweep funds after a channel has been force closed).
 
         The creation of lightning channels in watching-only wallets
-        has been disabled for anchor channels. Note that it is still
-        possible to create non-anchor channels, see
-        config.ENABLE_ANCHOR_CHANNELS.
-
+        has been disabled for anchor channels.
         """
         xpub = self.wallet.get_fingerprint()
         backup_bytes = self.create_channel_backup(channel_id).to_bytes()
