@@ -156,7 +156,7 @@ def create_test_channels(
     peer_features = alice_lnwallet.features | LnFeatures.OPTION_SUPPORT_LARGE_CHANNEL_OPT
     channel_type = ChannelType.OPTION_STATIC_REMOTEKEY
     if anchor_outputs:
-        channel_type |= ChannelType.OPTION_ANCHORS_ZERO_FEE_HTLC_TX
+        channel_type |= ChannelType.OPTION_ANCHORS
     # create alice's local config
     alice_lconfig = alice_lnwallet.make_local_config_for_new_channel(
         funding_sat=funding_sat,

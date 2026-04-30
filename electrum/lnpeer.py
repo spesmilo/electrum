@@ -918,7 +918,7 @@ class Peer(Logger, EventListener):
         return self.features.supports(LnFeatures.OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT)
 
     def use_anchors(self) -> bool:
-        return self.features.supports(LnFeatures.OPTION_ANCHORS_ZERO_FEE_HTLC_OPT)
+        return self.features.supports(LnFeatures.OPTION_ANCHORS_OPT)
 
     def upfront_shutdown_script_from_payload(self, payload, msg_identifier: str) -> Optional[bytes]:
         if msg_identifier not in ['accept', 'open']:
@@ -998,7 +998,7 @@ class Peer(Logger, EventListener):
         assert self.their_features.supports(LnFeatures.OPTION_STATIC_REMOTEKEY_OPT)
         our_channel_type = ChannelType(ChannelType.OPTION_STATIC_REMOTEKEY)
         if self.use_anchors():
-            our_channel_type |= ChannelType(ChannelType.OPTION_ANCHORS_ZERO_FEE_HTLC_TX)
+            our_channel_type |= ChannelType(ChannelType.OPTION_ANCHORS)
         if zeroconf:
             our_channel_type |= ChannelType(ChannelType.OPTION_ZEROCONF)
         # We do not set the option_scid_alias bit in channel_type because LND rejects it.
@@ -1010,7 +1010,7 @@ class Peer(Logger, EventListener):
             'type': our_channel_type.to_bytes_minimal()
         }
 
-        if our_channel_type & ChannelType.OPTION_ANCHORS_ZERO_FEE_HTLC_TX:
+        if our_channel_type & ChannelType.OPTION_ANCHORS:
             multisig_funding_keypair = lnutil.derive_multisig_funding_key_if_we_opened(
                 funding_root_secret=self.lnworker.funding_root_keypair.privkey,
                 remote_node_id_or_prefix=self.pubkey,
@@ -1275,7 +1275,7 @@ class Peer(Logger, EventListener):
                 raise Exception(f"{channel_opening_fee_sat=} exceeding fee limit, rejecting channel ({funding_sat=})")
             self.logger.info(f"just-in-time channel: {channel_opening_fee_sat=}")
 
-        if channel_type & ChannelType.OPTION_ANCHORS_ZERO_FEE_HTLC_TX:
+        if channel_type & ChannelType.OPTION_ANCHORS:
             multisig_funding_keypair = lnutil.derive_multisig_funding_key_if_they_opened(
                 funding_root_secret=self.lnworker.funding_root_keypair.privkey,
                 remote_node_id_or_prefix=self.pubkey,

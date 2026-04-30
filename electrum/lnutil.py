@@ -172,7 +172,7 @@ class ChannelConfig(StoredObject):
             peer_features: 'LnFeatures',
             channel_type: 'ChannelType',
     ) -> None:
-        has_anchors = bool(channel_type & ChannelType.OPTION_ANCHORS_ZERO_FEE_HTLC_TX)
+        has_anchors = bool(channel_type & ChannelType.OPTION_ANCHORS)
         # first we validate the configs separately
         local_config.validate_params(funding_sat=funding_sat, config=config, peer_features=peer_features)
         remote_config.validate_params(funding_sat=funding_sat, config=config, peer_features=peer_features)
@@ -1470,11 +1470,11 @@ class LnFeatures(IntFlag):
     _ln_feature_contexts[OPTION_SUPPORT_LARGE_CHANNEL_OPT] = (LNFC.INIT | LNFC.NODE_ANN)
     _ln_feature_contexts[OPTION_SUPPORT_LARGE_CHANNEL_REQ] = (LNFC.INIT | LNFC.NODE_ANN)
 
-    OPTION_ANCHORS_ZERO_FEE_HTLC_REQ = 1 << 22
-    OPTION_ANCHORS_ZERO_FEE_HTLC_OPT = 1 << 23
-    _ln_feature_direct_dependencies[OPTION_ANCHORS_ZERO_FEE_HTLC_OPT] = {OPTION_STATIC_REMOTEKEY_OPT}
-    _ln_feature_contexts[OPTION_ANCHORS_ZERO_FEE_HTLC_REQ] = (LNFC.INIT | LNFC.NODE_ANN)
-    _ln_feature_contexts[OPTION_ANCHORS_ZERO_FEE_HTLC_OPT] = (LNFC.INIT | LNFC.NODE_ANN)
+    OPTION_ANCHORS_REQ = 1 << 22
+    OPTION_ANCHORS_OPT = 1 << 23
+    _ln_feature_direct_dependencies[OPTION_ANCHORS_OPT] = {OPTION_STATIC_REMOTEKEY_OPT}
+    _ln_feature_contexts[OPTION_ANCHORS_REQ] = (LNFC.INIT | LNFC.NODE_ANN)
+    _ln_feature_contexts[OPTION_ANCHORS_OPT] = (LNFC.INIT | LNFC.NODE_ANN)
 
     # Temporary number.
     OPTION_TRAMPOLINE_ROUTING_REQ_ECLAIR = 1 << 148
@@ -1618,7 +1618,7 @@ class LnFeatures(IntFlag):
 class ChannelType(IntFlag):
     OPTION_LEGACY_CHANNEL = 0
     OPTION_STATIC_REMOTEKEY = 1 << 12
-    OPTION_ANCHORS_ZERO_FEE_HTLC_TX = 1 << 22
+    OPTION_ANCHORS = 1 << 22
     OPTION_SCID_ALIAS = 1 << 46
     OPTION_ZEROCONF = 1 << 50
 
@@ -1641,7 +1641,7 @@ class ChannelType(IntFlag):
         basic_type = self & ~(ChannelType.OPTION_SCID_ALIAS | ChannelType.OPTION_ZEROCONF)
         if basic_type not in [
                 ChannelType.OPTION_STATIC_REMOTEKEY,
-                ChannelType.OPTION_ANCHORS_ZERO_FEE_HTLC_TX | ChannelType.OPTION_STATIC_REMOTEKEY
+                ChannelType.OPTION_ANCHORS | ChannelType.OPTION_STATIC_REMOTEKEY
         ]:
             raise ValueError("Channel type is not a valid flag combination.")
 
@@ -1684,7 +1684,7 @@ LN_FEATURES_IMPLEMENTED = (
         | LnFeatures.OPTION_SHUTDOWN_ANYSEGWIT_OPT | LnFeatures.OPTION_SHUTDOWN_ANYSEGWIT_REQ
         | LnFeatures.OPTION_CHANNEL_TYPE_OPT | LnFeatures.OPTION_CHANNEL_TYPE_REQ
         | LnFeatures.OPTION_SCID_ALIAS_OPT | LnFeatures.OPTION_SCID_ALIAS_REQ
-        | LnFeatures.OPTION_ANCHORS_ZERO_FEE_HTLC_OPT | LnFeatures.OPTION_ANCHORS_ZERO_FEE_HTLC_REQ
+        | LnFeatures.OPTION_ANCHORS_OPT | LnFeatures.OPTION_ANCHORS_REQ
 )
 
 

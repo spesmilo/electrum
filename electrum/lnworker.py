@@ -1015,7 +1015,7 @@ class LNWallet(Logger):
         if features is None:
             features = LNWALLET_FEATURES
             if self.config.ENABLE_ANCHOR_CHANNELS:
-                features |= LnFeatures.OPTION_ANCHORS_ZERO_FEE_HTLC_OPT
+                features |= LnFeatures.OPTION_ANCHORS_OPT
             if self.config.OPEN_ZEROCONF_CHANNELS:
                 features |= LnFeatures.OPTION_ZEROCONF_OPT
             if self.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS or self.config.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS:
@@ -1692,7 +1692,7 @@ class LNWallet(Logger):
         upfront_shutdown_script = b''
 
         assert channel_type is not None
-        if channel_type & ChannelType.OPTION_ANCHORS_ZERO_FEE_HTLC_TX:  # anchors
+        if channel_type & ChannelType.OPTION_ANCHORS:  # anchors
             static_payment_key = self.static_payment_key
             static_remotekey = None
         else:  # static_remotekey
