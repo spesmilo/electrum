@@ -1622,21 +1622,6 @@ class ChannelType(IntFlag):
     OPTION_SCID_ALIAS = 1 << 46  # variation flag
     OPTION_ZEROCONF = 1 << 50    # variation flag
 
-    def discard_unknown_and_check(self) -> 'ChannelType':
-        """Discards unknown flags and checks flag combination."""
-        flags = list_enabled_bits(self)
-        known_channel_types = []
-        for flag in flags:
-            channel_type = ChannelType(1 << flag)
-            if channel_type.name:
-                known_channel_types.append(channel_type)
-        final_channel_type = known_channel_types[0]
-        for channel_type in known_channel_types[1:]:
-            final_channel_type |= channel_type
-
-        final_channel_type.check_combinations()
-        return final_channel_type
-
     def check_combinations(self):
         """Raises if invalid flag combination."""
         basic_type = self & ~(ChannelType.OPTION_SCID_ALIAS | ChannelType.OPTION_ZEROCONF)
@@ -1644,7 +1629,7 @@ class ChannelType(IntFlag):
                 ChannelType.OPTION_STATIC_REMOTEKEY,
                 ChannelType.OPTION_ANCHORS | ChannelType.OPTION_STATIC_REMOTEKEY
         ]:
-            raise ValueError("Channel type is not a valid flag combination.")
+            raise ValueError(f"Channel type is not a valid flag combination: {self}")
 
     def complies_with_features(self, peer_features: LnFeatures) -> bool:
         """Returns whether channel_type complies with peer_features.
@@ -1655,6 +1640,7 @@ class ChannelType(IntFlag):
               For example, even if opt_anchors is a negotiated peer_feature, (as per my reading of BOLT-02),
               it is still allowed to open an SRK channel (by setting channel_type accordingly).
         """
+        self.check_combinations()  # test if raises
         cflags = list_enabled_bits(self)
         # channel flags must be a SUBSET of peer_features
         for cflag in cflags:

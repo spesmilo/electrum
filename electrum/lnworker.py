@@ -1690,6 +1690,7 @@ class LNWallet(Logger):
         upfront_shutdown_script = b''
 
         assert channel_type is not None
+        channel_type.check_combinations()  # test if raises
         if channel_type & ChannelType.OPTION_ANCHORS:  # anchors
             static_payment_key = self.static_payment_key
             static_remotekey = None
