@@ -1534,6 +1534,9 @@ class Commands(Logger):
         """
         Returns the stored preimage of the given payment_hash if it is known.
 
+        note: Exporting a preimage does not require the wallet password (RPC access is enough).
+              We don't consider preimages as sensitive as private keys.
+
         arg:str:payment_hash: Hash of the preimage
         """
         preimage = wallet.lnworker.get_preimage_hex(payment_hash)

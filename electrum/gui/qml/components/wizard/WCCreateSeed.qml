@@ -47,6 +47,7 @@ WizardComponent {
             InfoTextArea {
                 id: warningtext
                 Layout.fillWidth: true
+                backgroundColor: constants.darkerDialogBackground
                 iconStyle: InfoTextArea.IconStyle.Warn
             }
 

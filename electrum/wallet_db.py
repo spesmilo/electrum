@@ -34,6 +34,7 @@ from functools import partial
 import attr
 
 from . import bitcoin
+from . import constants
 from .util import profiler, WalletFileException, multisig_type, TxMinedInfo, MyEncoder
 from .keystore import bip44_derivation
 from .transaction import Transaction, TxOutpoint, tx_from_any, PartialTransaction, PartialTxOutput, BadHeaderMagic
@@ -69,7 +70,7 @@ class WalletUnfinished(WalletFileException):
 # seed_version is now used for the version of the wallet file
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 70     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 71     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -245,6 +246,7 @@ class WalletDBUpgrader(Logger):
         self._convert_version_68()
         self._convert_version_69()
         self._convert_version_70()
+        self._convert_version_71()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
     def _convert_wallet_type(self):
@@ -903,7 +905,7 @@ class WalletDBUpgrader(Logger):
         self.data['seed_version'] = 44
 
     def _convert_version_45(self):
-        from .lnaddr import lndecode
+        from .bolt11 import decode_bolt11_invoice
         if not self._is_upgrade_method_needed(44, 44):
             return
         swaps = self.data.get('submarine_swaps', {})
@@ -919,7 +921,7 @@ class WalletDBUpgrader(Logger):
                 outputs = item['outputs'] if not is_lightning else None
                 bip70 = item['bip70'] if not is_lightning else None
                 if is_lightning:
-                    lnaddr = lndecode(item['invoice'])
+                    lnaddr = decode_bolt11_invoice(item['invoice'])
                     amount_msat = lnaddr.get_amount_msat()
                     timestamp = lnaddr.date
                     exp_delay = lnaddr.get_expiry()
@@ -972,7 +974,7 @@ class WalletDBUpgrader(Logger):
         self.data['seed_version'] = 46
 
     def _convert_version_47(self):
-        from .lnaddr import lndecode
+        from .bolt11 import decode_bolt11_invoice
         if not self._is_upgrade_method_needed(46, 46):
             return
         # recalc keys of requests
@@ -980,7 +982,7 @@ class WalletDBUpgrader(Logger):
         for key, item in list(requests.items()):
             lnaddr = item.get('lightning_invoice')
             if lnaddr:
-                lnaddr = lndecode(lnaddr)
+                lnaddr = decode_bolt11_invoice(lnaddr)
                 rhash = lnaddr.paymenthash.hex()
                 if key != rhash:
                     requests[rhash] = item
@@ -1021,7 +1023,7 @@ class WalletDBUpgrader(Logger):
         self.data['seed_version'] = 50
 
     def _convert_version_51(self):
-        from .lnaddr import lndecode
+        from .bolt11 import decode_bolt11_invoice
         if not self._is_upgrade_method_needed(50, 50):
             return
         requests = self.data.get('payment_requests', {})
@@ -1030,7 +1032,7 @@ class WalletDBUpgrader(Logger):
             if lightning_invoice is None:
                 payment_hash = None
             else:
-                lnaddr = lndecode(lightning_invoice)
+                lnaddr = decode_bolt11_invoice(lightning_invoice)
                 payment_hash = lnaddr.paymenthash.hex()
             item['payment_hash'] = payment_hash
         self.data['seed_version'] = 51
@@ -1400,6 +1402,27 @@ class WalletDBUpgrader(Logger):
             connection['budget_spends'] = new_budget_spends
         self.data['seed_version'] = 70
 
+    def _convert_version_71(self):
+        """Save 'genesis_blockhash' in DB."""
+        if not self._is_upgrade_method_needed(70, 70):
+            return
+        # first, check we are trying to open this DB on the correct chain (mainnet vs testnet)
+        addresses = self.data.get("addresses", {})
+        if self.data['wallet_type'] == 'imported':
+            recv_addrs = list(addresses.keys())
+        else:
+            recv_addrs = addresses.get("receiving", [])
+        if len(recv_addrs) > 0:
+            first_address = recv_addrs[0]
+            if not bitcoin.is_address(first_address):
+                neutered_addr = first_address[:5] + '..' + first_address[-2:]
+                raise WalletFileException(
+                    f"The addresses in this wallet are not bitcoin addresses. "
+                    f"e.g. {neutered_addr} (len={len(first_address)})")
+        # if so, save genesis hash
+        self.data['genesis_blockhash'] = constants.net.GENESIS
+        self.data['seed_version'] = 71
+
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):
             return
@@ -1503,6 +1526,7 @@ def upgrade_wallet_db(data: dict, do_upgrade: bool) -> Tuple[dict, bool]:
     if len(data) == 0:
         # create new DB
         data['seed_version'] = FINAL_SEED_VERSION
+        data["genesis_blockhash"] = constants.net.GENESIS
         # store this for debugging purposes
         v = DBMetadata(
             creation_timestamp=int(time.time()),
@@ -1511,6 +1535,13 @@ def upgrade_wallet_db(data: dict, do_upgrade: bool) -> Tuple[dict, bool]:
         assert data.get("db_metadata", None) is None
         data["db_metadata"] = v.to_json()
         was_upgraded = True
+    # Test mainnet/testnet mixup. Do this before DB upgrades, as those might assume
+    # network magic bytes (e.g. if they parse an address or an xpub).
+    if data.get("genesis_blockhash", None) not in (constants.net.GENESIS, None):
+        raise WalletFileException(
+            _("This wallet file was created for a different network/chain.\n"
+              "Current chain: {}").format(constants.net.NET_NAME)
+        )
 
     dbu = WalletDBUpgrader(data)
     if dbu.requires_split():

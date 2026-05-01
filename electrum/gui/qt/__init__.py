@@ -368,6 +368,17 @@ class ElectrumGui(BaseElectrumGui, Logger):
             self.logger.warning(f"terms of use not accepted, rejecting to start new window")
             return None
 
+        def __handle_wallet_loading_exc(exc: Exception, pos):
+            if isinstance(exc, UserFacingException) \
+                    or isinstance(exc, WalletFileException) and not exc.should_report_crash:
+                self.logger.exception(f"{pos=}")
+                custom_message_box(icon=QMessageBox.Icon.Warning,
+                                   parent=None,
+                                   title=_('Error'),
+                                   text=_('Cannot load wallet') + f' ({pos}):\n' + str(exc))
+            else:
+                send_exception_to_crash_reporter(exc)
+
         wallet = None
         # Try to open with daemon first. If this succeeds, there won't be a wizard at all
         # (the wallet main window will appear directly).
@@ -385,14 +396,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
             except WalletUnfinished:
                 pass  # open with wizard below
             except Exception as e:
-                self.logger.exception('')
-                err_text = str(e) if isinstance(e, WalletFileException) else repr(e)
-                custom_message_box(icon=QMessageBox.Icon.Warning,
-                                   parent=None,
-                                   title=_('Error'),
-                                   text=_('Cannot load wallet') + ' (1):\n' + err_text)
-                if isinstance(e, WalletFileException) and e.should_report_crash:
-                    send_exception_to_crash_reporter(e)
+                __handle_wallet_loading_exc(e, 1)
                 # if app is starting, still let wizard appear
                 if not app_is_starting:
                     return
@@ -410,15 +414,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         except UserCancelled:
             return
         except Exception as e:
-            self.logger.exception('')
-            if isinstance(e, UserFacingException) \
-                    or isinstance(e, WalletFileException) and not e.should_report_crash:
-                custom_message_box(icon=QMessageBox.Icon.Warning,
-                                   parent=None,
-                                   title=_('Error'),
-                                   text=_('Cannot load wallet') + '(2) :\n' + str(e))
-            else:
-                send_exception_to_crash_reporter(e)
+            __handle_wallet_loading_exc(e, 2)
             if app_is_starting:
                 # If we raise in this context, there are no more fallbacks, we will shut down.
                 # Worst case scenario, we might have gotten here without user interaction,

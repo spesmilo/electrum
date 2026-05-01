@@ -60,6 +60,7 @@ from .channel_db import FLAG_DIRECTION
 if TYPE_CHECKING:
     from .lnworker import LNGossip, LNWallet
     from .lnrouter import LNPaymentRoute
+    from .simple_config import SimpleConfig
     from .transaction import PartialTransaction
 
 
@@ -101,6 +102,11 @@ class Peer(Logger, EventListener):
         self.pubkey = pubkey  # remote pubkey
         self.privkey = self.transport.privkey  # local privkey
         self.features = self.lnworker.features  # type: LnFeatures
+        if lnworker == lnworker.network.lngossip or \
+            self.config.ZEROCONF_TRUSTED_NODE and pubkey != lnworker.trusted_zeroconf_node_id:
+            # don't signal zeroconf support if we are client (a trusted node is configured),
+            # and Peer is not our trusted node
+            self.features &= ~LnFeatures.OPTION_ZEROCONF_OPT
         self.their_features = LnFeatures(0)  # type: LnFeatures
         self.node_ids = [self.pubkey, privkey_to_pubkey(self.privkey)]
         assert self.node_ids[0] != self.node_ids[1]
@@ -200,6 +206,10 @@ class Peer(Logger, EventListener):
         if chan.node_id != self.pubkey:
             return None
         return chan
+
+    @property
+    def config(self) -> 'SimpleConfig':
+        return self.lnworker.config
 
     def diagnostic_name(self):
         lnw_name = self.lnworker.diagnostic_name() or self.lnworker.__class__.__name__
@@ -582,8 +592,8 @@ class Peer(Logger, EventListener):
         while True:
             public_channels = [chan for chan in self.lnworker.channels.values() if chan.is_public()]
             if public_channels:
-                alias = self.lnworker.config.LIGHTNING_NODE_ALIAS
-                color = self.lnworker.config.LIGHTNING_NODE_COLOR_RGB
+                alias = self.config.LIGHTNING_NODE_ALIAS
+                color = self.config.LIGHTNING_NODE_COLOR_RGB
                 self.send_node_announcement(alias, color)
                 for chan in public_channels:
                     if chan.is_open() and chan.peer_state == PeerState.GOOD:
@@ -913,7 +923,7 @@ class Peer(Logger, EventListener):
         return self.features.supports(LnFeatures.OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT)
 
     def use_anchors(self) -> bool:
-        return self.features.supports(LnFeatures.OPTION_ANCHORS_ZERO_FEE_HTLC_OPT)
+        return self.features.supports(LnFeatures.OPTION_ANCHORS_OPT)
 
     def upfront_shutdown_script_from_payload(self, payload, msg_identifier: str) -> Optional[bytes]:
         if msg_identifier not in ['accept', 'open']:
@@ -969,7 +979,7 @@ class Peer(Logger, EventListener):
         Channel configurations are initialized in this method.
         """
 
-        if public and not self.lnworker.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS:
+        if public and not self.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS:
             raise Exception('Cannot create public channels')
 
         if not self.lnworker.wallet.can_have_lightning():
@@ -993,7 +1003,7 @@ class Peer(Logger, EventListener):
         assert self.their_features.supports(LnFeatures.OPTION_STATIC_REMOTEKEY_OPT)
         our_channel_type = ChannelType(ChannelType.OPTION_STATIC_REMOTEKEY)
         if self.use_anchors():
-            our_channel_type |= ChannelType(ChannelType.OPTION_ANCHORS_ZERO_FEE_HTLC_TX)
+            our_channel_type |= ChannelType(ChannelType.OPTION_ANCHORS)
         if zeroconf:
             our_channel_type |= ChannelType(ChannelType.OPTION_ZEROCONF)
         # We do not set the option_scid_alias bit in channel_type because LND rejects it.
@@ -1005,7 +1015,7 @@ class Peer(Logger, EventListener):
             'type': our_channel_type.to_bytes_minimal()
         }
 
-        if our_channel_type & ChannelType.OPTION_ANCHORS_ZERO_FEE_HTLC_TX:
+        if our_channel_type & ChannelType.OPTION_ANCHORS:
             multisig_funding_keypair = lnutil.derive_multisig_funding_key_if_we_opened(
                 funding_root_secret=self.lnworker.funding_root_keypair.privkey,
                 remote_node_id_or_prefix=self.pubkey,
@@ -1111,7 +1121,7 @@ class Peer(Logger, EventListener):
             funding_sat=funding_sat,
             is_local_initiator=True,
             initial_feerate_per_kw=feerate,
-            config=self.network.config,
+            config=self.config,
             peer_features=self.features,
             channel_type=our_channel_type,
         )
@@ -1241,7 +1251,7 @@ class Peer(Logger, EventListener):
         assert isinstance(channel_type, ChannelType)
 
         is_zeroconf = bool(channel_type & ChannelType.OPTION_ZEROCONF)
-        if is_zeroconf and not self.network.config.ZEROCONF_TRUSTED_NODE.startswith(self.pubkey.hex()):
+        if is_zeroconf and not self.config.ZEROCONF_TRUSTED_NODE.startswith(self.pubkey.hex()):
             raise Exception(f"not accepting zeroconf from node {self.pubkey}")
 
         if self.lnworker.has_recoverable_channels() and not is_zeroconf:
@@ -1259,15 +1269,18 @@ class Peer(Logger, EventListener):
         # store the temp id now, so that it is recognized for e.g. 'error' messages
         self.temp_id_to_id[temp_chan_id] = None
         self._cleanup_temp_channelids()
-        channel_opening_fee_tlv = open_channel_tlvs.get('channel_opening_fee', {})
-        channel_opening_fee = channel_opening_fee_tlv.get('channel_opening_fee')
-        if channel_opening_fee:
-            # todo check that the fee is reasonable
+        channel_opening_fee = open_channel_tlvs.get('channel_opening_fee', {}).get('channel_opening_fee')
+        if channel_opening_fee:  # just-in-time channel opening
             assert is_zeroconf
-            self.logger.info(f"just-in-time opening fee: {channel_opening_fee} msat")
-            pass
+            # the opening fee consists of the fee configured by the LSP + mining fees of the funding tx
+            channel_opening_fee_sat = channel_opening_fee // 1000
+            if channel_opening_fee_sat > funding_sat * 0.1:
+                # TODO: if there will be some discovery channel where LSPs announce their fees
+                #  we should compare against the fees they announced here.
+                raise Exception(f"{channel_opening_fee_sat=} exceeding fee limit, rejecting channel ({funding_sat=})")
+            self.logger.info(f"just-in-time channel: {channel_opening_fee_sat=}")
 
-        if channel_type & ChannelType.OPTION_ANCHORS_ZERO_FEE_HTLC_TX:
+        if channel_type & ChannelType.OPTION_ANCHORS:
             multisig_funding_keypair = lnutil.derive_multisig_funding_key_if_they_opened(
                 funding_root_secret=self.lnworker.funding_root_keypair.privkey,
                 remote_node_id_or_prefix=self.pubkey,
@@ -1312,7 +1325,7 @@ class Peer(Logger, EventListener):
             funding_sat=funding_sat,
             is_local_initiator=False,
             initial_feerate_per_kw=feerate,
-            config=self.network.config,
+            config=self.config,
             peer_features=self.features,
             channel_type=channel_type,
         )
@@ -1752,8 +1765,8 @@ class Peer(Logger, EventListener):
         rgb_color = bytes.fromhex(color_hex)
         alias = bytes(alias, 'utf8')
         alias += bytes(32 - len(alias))
-        if self.lnworker.config.LIGHTNING_LISTEN is not None:
-            addr = self.lnworker.config.LIGHTNING_LISTEN
+        if self.config.LIGHTNING_LISTEN is not None:
+            addr = self.config.LIGHTNING_LISTEN
             try:
                 hostname, port = addr.split(':')
                 if port is None:  # use default port if not specified
@@ -2534,7 +2547,7 @@ class Peer(Logger, EventListener):
 
     def get_shutdown_fee_range(self, chan, closing_tx, is_local):
         """ return the closing fee and fee range we initially try to enforce """
-        config = self.network.config
+        config = self.config
         our_fee = None
         if config.TEST_SHUTDOWN_FEE:
             our_fee = config.TEST_SHUTDOWN_FEE
@@ -2642,7 +2655,7 @@ class Peer(Logger, EventListener):
             fee_range_sent = our_fee_range and (is_initiator or (their_previous_fee is not None))
 
             # The sending node, if it is not the funder:
-            if our_fee_range and their_fee_range and not is_initiator and not self.network.config.TEST_SHUTDOWN_FEE_RANGE:
+            if our_fee_range and their_fee_range and not is_initiator and not self.config.TEST_SHUTDOWN_FEE_RANGE:
                 # SHOULD set max_fee_satoshis to at least the max_fee_satoshis received
                 our_fee_range['max_fee_satoshis'] = max(their_fee_range['max_fee_satoshis'], our_fee_range['max_fee_satoshis'])
                 # SHOULD set min_fee_satoshis to a fairly low value
@@ -3242,9 +3255,9 @@ class Peer(Logger, EventListener):
         except Exception as e:
             self.logger.warning(f"error processing onion packet: {e!r}")
             raise OnionParsingError(data=onion_hash)
-        if self.network.config.TEST_FAIL_HTLCS_AS_MALFORMED:
+        if self.config.TEST_FAIL_HTLCS_AS_MALFORMED:
             raise OnionParsingError(data=onion_hash)
-        if self.network.config.TEST_FAIL_HTLCS_WITH_TEMP_NODE_FAILURE:
+        if self.config.TEST_FAIL_HTLCS_WITH_TEMP_NODE_FAILURE:
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
         return processed_onion
 

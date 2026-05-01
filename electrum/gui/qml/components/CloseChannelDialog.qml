@@ -70,7 +70,7 @@ ElDialog {
                     color: Material.accentColor
                 }
 
-                TextHighlightPane {
+                DialogHighlightPane {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
 
@@ -91,6 +91,7 @@ ElDialog {
                     Layout.fillWidth: true
                     Layout.bottomMargin: constants.paddingLarge
                     text: channeldetails.messageForceClose
+                    backgroundColor: constants.darkerDialogBackground
                 }
 
                 Label {
@@ -140,6 +141,7 @@ ElDialog {
                         Layout.maximumWidth: parent.width
                         visible: !channeldetails.isClosing && errorText.text
                         iconStyle: InfoTextArea.IconStyle.Error
+                        backgroundColor: constants.darkerDialogBackground
                     }
                     Label {
                         Layout.alignment: Qt.AlignHCenter
@@ -154,17 +156,21 @@ ElDialog {
             }
         }
 
-        FlatButton {
+        DialogButtonContainer {
             Layout.columnSpan: 2
             Layout.fillWidth: true
-            text: qsTr('Close channel')
-            icon.source: '../../icons/closebutton.png'
-            enabled: !channeldetails.isClosing
-            onClicked: {
-                if (closetypegroup.checkedButton.closetype == 'local_force') {
-                    showBackupThenClose()
-                } else {
-                    doCloseChannel()
+
+            FlatButton {
+                Layout.fillWidth: true
+                text: qsTr('Close channel')
+                icon.source: '../../icons/closebutton.png'
+                enabled: !channeldetails.isClosing
+                onClicked: {
+                    if (closetypegroup.checkedButton.closetype == 'local_force') {
+                        showBackupThenClose()
+                    } else {
+                        doCloseChannel()
+                    }
                 }
             }
         }

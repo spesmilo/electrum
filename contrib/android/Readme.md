@@ -108,8 +108,6 @@ Run electrum with the `-g` switch: `electrum -g qml`
 
 Notes:
 
-- pyqt ~6.4 would work best, as the gui has not yet been adapted to styling changes in 6.5
-- However, pyqt6 as distributed on PyPI does not include a required module (PyQt6.QtQml) until 6.5
 - Installing these deps from your OS package manager should also work,
   except many don't distribute pyqt6 yet.
   For pyqt5 on debian-based distros, this used to look like this:

@@ -46,6 +46,7 @@ import electrum_ecc as ecc
 from aiorpcx import ignore_after, run_in_thread
 
 from . import util, keystore, transaction, bitcoin, coinchooser, bip32, descriptor
+from . import constants
 from .i18n import _
 from .bip32 import BIP32Node, convert_bip32_intpath_to_strpath, convert_bip32_strpath_to_intpath
 from .logging import get_logger, Logger
@@ -456,7 +457,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self._up_to_date = False
         self.up_to_date_changed_event = asyncio.Event()
 
-        self.test_addresses_sanity()
+        assert self.db.get('genesis_blockhash') == constants.net.GENESIS, self.db.get('genesis_blockhash')
         if self.storage and self.has_storage_encryption():
             if (se := self.storage.get_encryption_version()) not in (ae := self.get_available_storage_encryption_versions()):
                 raise WalletFileException(f"unexpected storage encryption type. found: {se!r}. allowed: {ae!r}")
@@ -694,15 +695,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def basename(self) -> str:
         return self.storage.basename() if self.storage else 'no_name'
-
-    def test_addresses_sanity(self) -> None:
-        addrs = self.get_receiving_addresses()
-        if len(addrs) > 0:
-            addr = str(addrs[0])
-            if not bitcoin.is_address(addr):
-                neutered_addr = addr[:5] + '..' + addr[-2:]
-                raise WalletFileException(f'The addresses in this wallet are not bitcoin addresses.\n'
-                                          f'e.g. {neutered_addr} (length: {len(addr)})')
 
     def check_returned_address_for_corruption(func):
         def wrapper(self, *args, **kwargs):
@@ -1811,6 +1803,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         domain = self.get_addresses()
         for hist_item in self.adb.get_history(domain):
             # tx should not be mined yet
+            if hist_item.tx_mined_status.conf is None: continue
             if hist_item.tx_mined_status.conf > 0: continue
             # conservative future proofing of code: only allow known unconfirmed types
             if hist_item.tx_mined_status.height() not in (
@@ -2016,20 +2009,21 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             coin_chooser = coinchooser.get_coin_chooser(self.config)
             # If there is an unconfirmed RBF tx, merge with it
             if base_tx:
+                assert base_tx.txid() is not None  # pre-segwit and incomplete?
                 # make sure we don't try to spend change from the tx-to-be-replaced:
                 coins = [c for c in coins if c.prevout.txid.hex() != base_tx.txid()]
                 is_local = self.adb.get_tx_height(base_tx.txid()).height() == TX_HEIGHT_LOCAL
-                # estimate base tx fee before stripping tx for more accurate estimate
-                base_tx_fee = base_tx.get_fee()
-                base_feerate = Decimal(base_tx_fee)/base_tx.estimated_size()
-                relayfeerate = Decimal(self.relayfee()) / 1000
-                original_fee_estimator = fee_estimator
+                base_tx_size = base_tx.estimated_size()  # estimate before stripping tx for more accurate estimate
                 if not isinstance(base_tx, PartialTransaction):
                     base_tx = PartialTransaction.from_tx(base_tx)
                     base_tx.add_info_from_wallet(self)
                 else:
                     # don't cast PartialTransaction, because it removes make_witness
                     base_tx.remove_signatures()
+                base_tx_fee = base_tx.get_fee()  # FIXME could be None if some inputs are non-ismine
+                base_feerate = Decimal(base_tx_fee) / base_tx_size
+                relayfeerate = Decimal(self.relayfee()) / 1000
+                original_fee_estimator = fee_estimator
                 def fee_estimator(size: Union[int, float, Decimal]) -> int:
                     size = Decimal(size)
                     lower_bound_relayfee = int(base_tx_fee + round(size * relayfeerate)) if not is_local else 0
@@ -3461,7 +3455,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             zeroconf_nodeid = extract_nodeid(self.config.ZEROCONF_TRUSTED_NODE)[0]
         except Exception:
             zeroconf_nodeid = None
-        can_get_zeroconf_channel = (self.lnworker and self.config.ACCEPT_ZEROCONF_CHANNELS
+        can_get_zeroconf_channel = (self.lnworker and self.config.OPEN_ZEROCONF_CHANNELS
                                     and self.lnworker.lnpeermgr.get_peer_by_pubkey(zeroconf_nodeid) is not None)
         status = self.get_invoice_status(req)
 

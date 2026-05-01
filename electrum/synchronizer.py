@@ -33,7 +33,7 @@ from aiorpcx import run_in_thread, RPCError
 from . import util
 from .transaction import Transaction, PartialTransaction
 from .util import make_aiohttp_session, NetworkJobOnDefaultServer, random_shuffled_copy, OldTaskGroup
-from .bitcoin import address_to_scripthash, is_address
+from .bitcoin import address_to_scripthash, is_address, neuter_bitcoin_address
 from .logging import Logger
 from .interface import GracefulDisconnect, NetworkTimeout
 
@@ -84,12 +84,12 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
             self.session.unsubscribe(self.status_queue)
 
     def add(self, addr: str) -> None:
-        if not is_address(addr): raise ValueError(f"invalid bitcoin address {addr}")
+        if not is_address(addr): raise ValueError(f"invalid bitcoin address {neuter_bitcoin_address(addr)}")
         self._adding_addrs.add(addr)  # this lets is_up_to_date already know about addr
 
     async def _add_address(self, addr: str):
         try:
-            if not is_address(addr): raise ValueError(f"invalid bitcoin address {addr}")
+            if not is_address(addr): raise ValueError(f"invalid bitcoin address {neuter_bitcoin_address(addr)}")
             if addr in self.requested_addrs: return
             self.requested_addrs.add(addr)
             await self.taskgroup.spawn(self._subscribe_to_address, addr)

@@ -29,7 +29,7 @@ from electrum import constants
 from electrum import bip32
 from electrum.network import Network, ProxySettings
 from electrum import simple_config, lnutil
-from electrum.lnaddr import lnencode, LnAddr, lndecode
+from electrum.bolt11 import encode_bolt11_invoice, BOLT11Addr, decode_bolt11_invoice
 from electrum.bitcoin import COIN, sha256
 from electrum.transaction import Transaction
 from electrum.util import NetworkRetryManager, bfh, OldTaskGroup, EventListener, InvoiceError
@@ -179,7 +179,7 @@ class MockLNWallet(LNWallet):
             self.channel_db.stop()
             await self.channel_db.stopped_event.wait()
 
-    async def create_routes_from_invoice(self, amount_msat: int, decoded_invoice: LnAddr, *, full_path=None):
+    async def create_routes_from_invoice(self, amount_msat: int, decoded_invoice: BOLT11Addr, *, full_path=None):
         paysession = PaySession(
             payment_hash=decoded_invoice.paymenthash,
             payment_secret=decoded_invoice.payment_secret,
@@ -190,7 +190,6 @@ class MockLNWallet(LNWallet):
             amount_to_pay=amount_msat,
             invoice_pubkey=decoded_invoice.pubkey.serialize(),
             uses_trampoline=False,
-            use_two_trampolines=False,
         )
         payment_key = decoded_invoice.paymenthash + decoded_invoice.payment_secret
         self._paysessions[payment_key] = paysession
@@ -340,7 +339,6 @@ _GRAPH_DEFINITIONS = {
             },
             'config': {
                 SimpleConfig.EXPERIMENTAL_LN_FORWARD_PAYMENTS: True,
-                SimpleConfig.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS: True,
             },
         },
         'carol': {
@@ -357,7 +355,6 @@ _GRAPH_DEFINITIONS = {
             },
             'config': {
                 SimpleConfig.EXPERIMENTAL_LN_FORWARD_PAYMENTS: True,
-                SimpleConfig.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS: True,
             },
         },
         'edward': {
@@ -419,7 +416,7 @@ class TestPeer(ElectrumTestCase):
             invoice_features: LnFeatures = None,
             min_final_cltv_delta: int = None,
             expiry: int = None,
-    ) -> Tuple[LnAddr, Invoice]:
+    ) -> Tuple[BOLT11Addr, Invoice]:
         amount_btc = amount_msat/Decimal(COIN*1000)
         if payment_preimage is None and not payment_hash:
             payment_preimage = os.urandom(32)
@@ -450,7 +447,7 @@ class TestPeer(ElectrumTestCase):
             invoice_features=invoice_features,
         )
         w2.save_payment_info(info)
-        lnaddr1 = LnAddr(
+        lnaddr1 = BOLT11Addr(
             paymenthash=payment_hash,
             amount=amount_btc,
             tags=[
@@ -461,8 +458,8 @@ class TestPeer(ElectrumTestCase):
             ] + routing_hints,
             payment_secret=payment_secret,
         )
-        invoice = lnencode(lnaddr1, w2.node_keypair.privkey)
-        lnaddr2 = lndecode(invoice)  # unlike lnaddr1, this now has a pubkey set
+        invoice = encode_bolt11_invoice(lnaddr1, w2.node_keypair.privkey)
+        lnaddr2 = decode_bolt11_invoice(invoice)  # unlike lnaddr1, this now has a pubkey set
         return lnaddr2, Invoice.from_bech32(invoice)
 
     async def _activate_trampoline(self, w: MockLNWallet):
@@ -635,6 +632,55 @@ class TestPeerUtils(TestPeer):
         # trying to verify the sig against the wrong pubkey should fail obviously
         with self.assertRaises(InvalidGossipMsg):
             ChannelDB.verify_channel_update(payload, start_node=alice_bob_peer.pubkey)
+
+    async def test_zeroconf_feature_bit(self):
+        workers = self.prepare_lnwallets(self.GRAPH_DEFINITIONS['single_chan'])
+
+        with self.subTest(msg="zeroconf is disabled in Alice LNWallet, so peers shouldn't signal it either"):
+            graph = self.prepare_chans_and_peers_in_graph(
+                self.GRAPH_DEFINITIONS['single_chan'],
+                workers=workers,
+            )
+            alice, _ = graph.peers.values()
+            self.assertFalse(alice.features.supports(LnFeatures.OPTION_ZEROCONF_OPT))
+
+        # enable zeroconf in alice LNWallet
+        workers['alice'].features |= LnFeatures.OPTION_ZEROCONF_OPT
+
+        with self.subTest(msg="no trusted zeroconf node, zeroconf should be signaled in new peers"):
+            graph = self.prepare_chans_and_peers_in_graph(
+                self.GRAPH_DEFINITIONS['single_chan'],
+                workers=workers,
+            )
+            alice, _ = graph.peers.values()   # alice is LSP
+            self.assertTrue(alice.features.supports(LnFeatures.OPTION_ZEROCONF_OPT))
+
+        with self.subTest(msg="trusted node is configured, but it is not bob"):
+            workers['alice'].config.ZEROCONF_TRUSTED_NODE = f"{os.urandom(33).hex()}@1.1.1.1:9735"
+            graph = self.prepare_chans_and_peers_in_graph(
+                self.GRAPH_DEFINITIONS['single_chan'],
+                workers=workers,
+            )
+            alice, _ = graph.peers.values()  # alice is client
+            self.assertFalse(alice.features.supports(LnFeatures.OPTION_ZEROCONF_OPT))
+
+        with self.subTest(msg="trusted node is configured, but it is invalid"):
+            workers['alice'].config.ZEROCONF_TRUSTED_NODE = f"{os.urandom(8).hex()}@1.1.1.1:9735"
+            graph = self.prepare_chans_and_peers_in_graph(
+                self.GRAPH_DEFINITIONS['single_chan'],
+                workers=workers,
+            )
+            alice, _ = graph.peers.values()  # alice is client
+            self.assertFalse(alice.features.supports(LnFeatures.OPTION_ZEROCONF_OPT))
+
+        with self.subTest(msg="Alice uses Bob as her trusted LSP"):
+            workers['alice'].config.ZEROCONF_TRUSTED_NODE = workers['bob'].node_keypair.pubkey.hex()
+            graph = self.prepare_chans_and_peers_in_graph(
+                self.GRAPH_DEFINITIONS['single_chan'],
+                workers=workers,
+            )
+            alice, _ = graph.peers.values()
+            self.assertTrue(alice.features.supports(LnFeatures.OPTION_ZEROCONF_OPT))
 
 
 class TestPeerDirect(TestPeer):
@@ -1052,7 +1098,7 @@ class TestPeerDirect(TestPeer):
                 self.assertEqual(PR_UNPAID, w2.get_payment_status(lnaddr.paymenthash, direction=RECEIVED))
                 assert lnaddr.get_min_final_cltv_delta() == 400  # what the receiver expects
                 lnaddr.tags = [tag for tag in lnaddr.tags if tag[0] != 'c'] + [['c', 144]]
-                b11 = lnencode(lnaddr, w2.node_keypair.privkey)
+                b11 = encode_bolt11_invoice(lnaddr, w2.node_keypair.privkey)
                 pay_req = Invoice.from_bech32(b11)
                 assert pay_req._lnaddr.get_min_final_cltv_delta() == 144  # what w1 will use to pay
                 result, log = await w1.pay_invoice(pay_req)
@@ -1095,7 +1141,7 @@ class TestPeerDirect(TestPeer):
             # create lightning invoice in the past, so it is expired
             with mock.patch('time.time', return_value=int(time.time()) - 10000):
                 lnaddr, _pay_req = self.prepare_invoice(w2, expiry=3600)
-                b11 = lnencode(lnaddr, w2.node_keypair.privkey)
+                b11 = encode_bolt11_invoice(lnaddr, w2.node_keypair.privkey)
                 pay_req = Invoice.from_bech32(b11)
 
             async def try_pay_expired_invoice(pay_req: Invoice, w1=w1):
@@ -2044,7 +2090,7 @@ class TestPeerDirect(TestPeer):
         }
 
         # create 10 invoices (10 pending htlc sets with 1 htlc each)
-        invoices = []  # type: list[tuple[LnAddr, Invoice]]
+        invoices = []  # type: list[tuple[BOLT11Addr, Invoice]]
         for i in range(10):
             lnaddr, pay_req = self.prepare_invoice(bob_w)
             # prevent bob from settling so that htlc switch will have to iterate through all pending htlcs
@@ -2552,14 +2598,8 @@ class TestPeerForwarding(TestPeer):
             graph.workers['bob'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['bob'].node_keypair.pubkey),
             graph.workers['carol'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['carol'].node_keypair.pubkey),
         }
-        # end-to-end trampoline: we attempt
-        # * a payment with one trial: fails, because
-        #   we need at least one trial because the initial fees are too low
-        # * a payment with several trials: should succeed
-        with self.assertRaises(NoPathFound):
-            await self._run_mpp(graph, {'alice_uses_trampoline': True, 'attempts': 1})
         with self.assertRaises(PaymentDone):
-            await self._run_mpp(graph,{'alice_uses_trampoline': True, 'attempts': 30})
+            await self._run_mpp(graph,{'alice_uses_trampoline': True, 'attempts': 1})
 
     async def test_payment_multipart_trampoline_legacy(self):
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['square_graph'])
@@ -2622,7 +2662,8 @@ class TestPeerForwarding(TestPeer):
             attempts=2,
             sender_name="alice",
             destination_name="dave",
-            tf_names=("bob", "carol"),
+            trampoline_forwarders=("bob", "carol"),
+            trampoline_users=(), # sender is also a trampoline user
     ):
 
         sender_w = graph.workers[sender_name]
@@ -2661,9 +2702,16 @@ class TestPeerForwarding(TestPeer):
 
         # declare routing nodes as trampoline nodes
         electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {}
-        for tf_name in tf_names:
-            peer_addr = LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers[tf_name].node_keypair.pubkey)
-            electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS[graph.workers[tf_name].name] = peer_addr
+        for name in trampoline_forwarders:
+            user_w = graph.workers[name]
+            user_w.config.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS = True
+            peer_addr = LNPeerAddr(host="127.0.0.1", port=9735, pubkey=user_w.node_keypair.pubkey)
+            electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS[user_w.name] = peer_addr
+
+        for user in trampoline_users:
+            user_w = graph.workers[user]
+            await self._activate_trampoline(user_w)
+            assert user_w.uses_trampoline()
 
         await f()
 
@@ -2749,9 +2797,44 @@ class TestPeerForwarding(TestPeer):
         inject_chan_into_gossipdb(
             channel_db=graph.workers['bob'].channel_db, graph=graph,
             node1name='carol', node2name='dave')
+        # end-to-end trampoline: we attempt
+        # * a payment with one trial: fails, because initial fees are too low
+        # * a payment with several trials: should succeed
+        with self.assertRaises(NoPathFound):
+            await self._run_trampoline_payment(
+                graph, sender_name='alice',
+                destination_name='edward',
+                trampoline_forwarders=('bob', 'dave'),
+                attempts=1,
+            )
         with self.assertRaises(PaymentDone):
             await self._run_trampoline_payment(
-                graph, sender_name='alice', destination_name='edward',tf_names=('bob', 'dave'))
+                graph, sender_name='alice',
+                destination_name='edward',
+                trampoline_forwarders=('bob', 'dave'),
+                attempts=2,
+            )
+
+    async def test_payment_trampoline_e2e_lazy(self):
+        # alice -> T1_bob -> T2_carol -> T3_dave -> edward
+        graph_definition = self.GRAPH_DEFINITIONS['line_graph']
+        graph = self.prepare_chans_and_peers_in_graph(graph_definition)
+        with self.assertRaises(NoPathFound):
+            await self._run_trampoline_payment(
+                graph, sender_name='alice',
+                destination_name='edward',
+                trampoline_forwarders=('bob', 'dave'),
+                trampoline_users=('alice', 'bob'),
+                attempts=3, # fails with only 2
+            )
+        with self.assertRaises(PaymentDone):
+            await self._run_trampoline_payment(
+                graph, sender_name='alice',
+                destination_name='edward',
+                trampoline_forwarders=('bob', 'carol', 'dave'),
+                trampoline_users=('alice', 'bob'),
+                attempts=3, # fails with only 2
+            )
 
     async def test_multi_trampoline_payment(self):
         """
@@ -2777,7 +2860,7 @@ class TestPeerForwarding(TestPeer):
                 g,
                 sender_name='alice',
                 destination_name='dave',
-                tf_names=('bob', 'carol'),
+                trampoline_forwarders=('bob', 'carol'),
                 attempts=30,  # the default used in LNWallet.pay_invoice()
             )
 
@@ -2899,9 +2982,12 @@ class TestPeerForwarding(TestPeer):
             peers = graph.peers.values()
 
             if test_trampoline:
+                # trampoline forwarder
+                graph.workers['bob'].config.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS = True
                 electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
                     graph.workers['bob'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['bob'].node_keypair.pubkey),
                 }
+                # trampoline users
                 await self._activate_trampoline(graph.workers['carol'])
                 await self._activate_trampoline(graph.workers['alice'])
 

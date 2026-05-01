@@ -2159,7 +2159,7 @@ class TestWalletSending(ElectrumTestCase):
         tx2_feerate_sat_vb = tx2.get_fee() / tx2.estimated_size()
         self.assertGreater(tx2_feerate_sat_vb, tx1_feerate_sat_vb, msg="tx2 feerate lower than tx1")
 
-    def _create_cause_carbon_wallet(self):
+    def _create_cause_carbon_wallet(self) -> tuple[Standard_Wallet, str, str]:
         data = read_test_vector('cause_carbon_wallet.json')
         ks = keystore.from_seed(data['seed'], passphrase='', for_multisig=False)
         wallet = WalletIntegrityHelper.create_standard_wallet(ks, gap_limit=2, gap_limit_for_change=2, config=self.config)
@@ -2355,6 +2355,66 @@ class TestWalletSending(ElectrumTestCase):
                          str(tx3))
         wallet.adb.receive_tx_callback(tx3, tx_height=TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 197_000, 0), wallet.get_balance())
+
+    async def test_rbf_batching__happypath_using_get_candidates_for_batching(self):
+        """Test GUI simple-send RBF 'batch with' functionality:
+        - while there is already an unconfirmed outgoing tx1 in the wallet history,
+        - try making another payment, and batch it with tx1.
+        """
+        wallet_faucet = self._create_cause_carbon_wallet()[0]
+        mywallet = self.create_standard_wallet_from_seed(
+            'response era cable net spike again observe dumb wage wonder sail tortoise',
+            config=self.config)
+
+        # fund mywallet with 2 UTXOs
+        def fund_mywallet_from_faucet():
+            addr = mywallet.get_receiving_address()
+            assert not mywallet.adb.is_used(addr)
+            funding_tx1 = wallet_faucet.make_unsigned_transaction(
+                outputs=[PartialTxOutput.from_address_and_value(addr, 40_000)],
+                fee_policy=FixedFeePolicy(200), locktime=4_000_000, rbf=True,
+            )
+            wallet_faucet.sign_transaction(funding_tx1, password=None)
+            wallet_faucet.adb.receive_tx_callback(funding_tx1, tx_height=TX_HEIGHT_UNCONFIRMED)
+            mywallet.adb.receive_tx_callback(funding_tx1, tx_height=TX_HEIGHT_UNCONFIRMED)
+            assert mywallet.adb.is_used(addr)
+        fund_mywallet_from_faucet()
+        fund_mywallet_from_faucet()
+
+        external_addr1 = wallet_faucet.get_receiving_addresses()[0]
+        external_addr2 = wallet_faucet.get_receiving_addresses()[1]
+        assert external_addr1 and external_addr2 and (external_addr1 != external_addr2)
+
+        # create outgoing tx1
+        output1 = PartialTxOutput.from_address_and_value(external_addr1, 30_000)
+        candidates1 = mywallet.get_candidates_for_batching([output1], coins=mywallet.get_spendable_coins(domain=None))
+        self.assertEqual(candidates1, [])
+        outgoing_tx1 = mywallet.make_unsigned_transaction(
+            outputs=[output1],
+            fee_policy=FixedFeePolicy(200), locktime=4_000_001, rbf=True,
+        )
+        mywallet.sign_transaction(outgoing_tx1, password=None)
+        mywallet.adb.receive_tx_callback(outgoing_tx1, tx_height=TX_HEIGHT_UNCONFIRMED)
+
+        # create outgoing tx2, and try to batch it with tx1
+        output2 = PartialTxOutput.from_address_and_value(external_addr2, 30_000)
+        candidates2 = mywallet.get_candidates_for_batching([output2], coins=mywallet.get_spendable_coins(domain=None))
+        self.assertEqual(1, len(candidates2))
+        base_tx = candidates2[0]
+        self.assertEqual(outgoing_tx1.txid(), base_tx.txid())
+        outgoing_tx2 = mywallet.make_unsigned_transaction(
+            outputs=[output2],
+            fee_policy=FixedFeePolicy(200), locktime=4_000_001, rbf=True,
+            base_tx=base_tx,
+        )
+        mywallet.sign_transaction(outgoing_tx2, password=None)
+        mywallet.adb.receive_tx_callback(outgoing_tx2, tx_height=TX_HEIGHT_UNCONFIRMED)
+
+        self.assertEqual(3, len(outgoing_tx2.outputs()))
+        self.assertIn(output1, outgoing_tx2.outputs())
+        self.assertIn(output2, outgoing_tx2.outputs())
+        self.assertEqual('02000000000102ab99cf51f3e219735c49491a9ecf354517a215a2b462227df7e7624188a7ff830000000000fdffffff417bbd802768510a0c641fc79af6e691a01fd10f37b84162f253b594e5cb87c50100000000fdffffff032c4c0000000000001600144e1b662f616fe134430054e29295ea6e5c18f17330750000000000001600142266c890fad71396f106319368107d5b2a1146fe307500000000000016001476efaaa243327bf3a2c0f5380cb3914099448cec02473044022033f8ddcb07ad7e06cef417208a5244507157cccdd6817029e968ec60a2395add02200720eb6a7c8cea86b470398ce75d69abcc66624a2253b18ea81cd1566eb5132c0121029b1a61d66896486ab893741b38dbafb9673b91a82237d6e4ca0da3cda7cbeb7c0247304402205e00156d74bcd85ed26ee9d0bdbd72890656881e25c04b2ac94f1c6b91f1176f02205f94d055e6385b48fbd3ac1a2dc2f57a640f4b33740cd9fb9e0fc20eb0cf5dcb012102c1ed648e71f15643950b444b864ab784b9d0e31e6ca6ec7d849d3dda4d98da0501093d00',
+                         str(outgoing_tx2))
 
     async def test_join_psbts__merge_duplicate_outputs(self):
         """txos paying to the same address might be merged into a single output with a larger value"""

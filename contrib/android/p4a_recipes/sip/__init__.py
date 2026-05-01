@@ -1,13 +1,18 @@
 from pythonforandroid.recipes.sip import SipRecipe
+from pythonforandroid.util import HashPinnedDependency
 
-
-assert SipRecipe._version == "6.7.9"
-assert SipRecipe.depends == ["setuptools", "packaging", "tomli", "ply", "python3"], SipRecipe.depends
+assert SipRecipe._version == "6.15.1"
+assert SipRecipe.depends == ["python3"], SipRecipe.depends
 assert SipRecipe.python_depends == []
 
 
 class SipRecipePinned(SipRecipe):
-    sha512sum = "bb9d0d0d92002b6fd33f7e8ebe8cd62456dacc16b5734b73760b1ba14fb9b1f2b9b6640b40196c6cf5f345e1afde48bdef39675c4d3480041771325d4cf3c233"
+    sha512sum = "30a312419ba82c0221c0cf03c3fb3ad7d45bb8fe633d1d7477025a7986b0a7f7b7b781a8d9cd6bcdb78f3b872231fd1eed123a761b497861822f2e35093f574d"
+
+    hostpython_prerequisites = [
+        HashPinnedDependency(package="setuptools==80.9.0",
+                             hashes=['sha256:062d34222ad13e0cc312a4c02d73f059e86a4acbfbdea8f8f76b28c99f306922']),
+    ]
 
 
 recipe = SipRecipePinned()

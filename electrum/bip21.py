@@ -7,7 +7,7 @@ from typing import Optional
 from . import bitcoin
 from .util import format_satoshis_plain
 from .bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
-from .lnaddr import lndecode, LnDecodeException
+from .bolt11 import decode_bolt11_invoice, BOLT11DecodeException
 
 # note: when checking against these, use .lower() to support case-insensitivity
 BITCOIN_BIP21_URI_SCHEME = 'bitcoin'
@@ -93,8 +93,8 @@ def parse_bip21_URI(uri: str) -> dict:
             raise InvalidBitcoinURI(f"failed to parse 'sig' field: {repr(e)}") from e
     if 'lightning' in out:
         try:
-            lnaddr = lndecode(out['lightning'])
-        except LnDecodeException as e:
+            lnaddr = decode_bolt11_invoice(out['lightning'])
+        except BOLT11DecodeException as e:
             raise InvalidBitcoinURI(f"Failed to decode 'lightning' field: {e!r}") from e
         amount_sat = out.get('amount')
         if amount_sat:
