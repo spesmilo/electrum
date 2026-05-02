@@ -33,7 +33,7 @@ from aiorpcx import run_in_thread, RPCError
 from . import util
 from .transaction import Transaction, PartialTransaction
 from .util import make_aiohttp_session, NetworkJobOnDefaultServer, random_shuffled_copy, OldTaskGroup
-from .bitcoin import address_to_scripthash, is_address, neuter_bitcoin_address
+from .bitcoin import address_to_script, script_to_scripthash, is_address, neuter_bitcoin_address
 from .logging import Logger
 from .interface import GracefulDisconnect, NetworkTimeout
 
@@ -103,12 +103,13 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
         raise NotImplementedError()  # implemented by subclasses
 
     async def _subscribe_to_address(self, addr):
-        h = address_to_scripthash(addr)
+        spk = address_to_script(addr)
+        h = script_to_scripthash(spk)
         self.scripthash_to_address[h] = addr
         self._requests_sent += 1
         try:
             async with self._network_request_semaphore:
-                await self.session.subscribe('blockchain.scripthash.subscribe', [h], self.status_queue)
+                await self.session.subscribe('blockchain.scriptpubkey.subscribe', [spk.hex()], self.status_queue)
         except RPCError as e:
             if e.message == 'history too large':  # no unique error code
                 raise GracefulDisconnect(e, log_level=logging.ERROR) from e
@@ -169,13 +170,14 @@ class Synchronizer(SynchronizerBase):
             return old_height
         guessed_history = [(txid, guess_height(old_height)) for (txid, old_height) in old_history]
         if history_status(guessed_history) == ann_status:
-            self.logger.debug(f"managed to guess new history for {addr}. won't call 'blockchain.scripthash.get_history'.")
+            self.logger.debug(f"managed to guess new history for {addr}. won't call 'blockchain.scriptpubkey.get_history'.")
             return [{"height": height, "tx_hash": txid} for (txid, height) in guessed_history]
         # request addr history from server
-        sh = address_to_scripthash(addr)
+        spk = address_to_script(addr)
+        sh = script_to_scripthash(spk)
         self._requests_sent += 1
         async with self._network_request_semaphore:
-            result = await self.interface.get_history_for_scripthash(sh)
+            result = await self.interface.get_history_for_spk(spk.hex())
         self._requests_answered += 1
         self.logger.info(f"receiving history {addr} {len(result)}")
         return result
@@ -311,7 +313,7 @@ class Notifier(SynchronizerBase):
 
     async def stop_watching_addr(self, addr: str):
         self.watched_addresses.pop(addr, None)
-        # TODO blockchain.scripthash.unsubscribe
+        # TODO blockchain.scriptpubkey.unsubscribe
 
     async def _on_address_status(self, addr, status):
         if addr not in self.watched_addresses:
