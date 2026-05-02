@@ -109,14 +109,13 @@ async def _append_utxos_to_inputs(
     imax: int,
 ) -> None:
     script = script_descriptor.expand().output_script
-    scripthash = bitcoin.script_to_scripthash(script)
 
     async def append_single_utxo(item):
         prev_tx_raw = await network.get_transaction(item['tx_hash'])
         prev_tx = Transaction(prev_tx_raw)
         prev_txout = prev_tx.outputs()[item['tx_pos']]
-        if scripthash != bitcoin.script_to_scripthash(prev_txout.scriptpubkey):
-            raise Exception('scripthash mismatch when sweeping')
+        if script != prev_txout.scriptpubkey:
+            raise Exception('script mismatch when sweeping')
         prevout_str = item['tx_hash'] + ':%d' % item['tx_pos']
         prevout = TxOutpoint.from_str(prevout_str)
         txin = PartialTxInput(prevout=prevout)
@@ -125,7 +124,7 @@ async def _append_utxos_to_inputs(
         txin.script_descriptor = script_descriptor
         inputs.append(txin)
 
-    u = await network.listunspent_for_scripthash(scripthash)
+    u = await network.listunspent_for_spk(script.hex())
     async with OldTaskGroup() as group:
         for item in u:
             if len(inputs) >= imax:

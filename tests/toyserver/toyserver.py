@@ -87,8 +87,8 @@ class ToyServer(Logger):
         self._blocks = [FakeBlock(header=REGTEST_GENESIS_HEADER)]  # type: list[FakeBlock]
 
         # indexes:
-        self.sh_to_funding_txids = collections.defaultdict(set)  # type: dict[str, set[str]]
-        self.sh_to_spending_txids = collections.defaultdict(set)  # type: dict[str, set[str]]
+        self.spk_to_funding_txids = collections.defaultdict(set)  # type: dict[str, set[str]]
+        self.spk_to_spending_txids = collections.defaultdict(set)  # type: dict[str, set[str]]
         self.txs = {}  # type: dict[str, bytes]  # txid->raw_tx
         self._cache_blockheight_and_pos_from_txid = {}  # type: dict[str, tuple[int, int]]
         self.txo_to_spender_txid = {}  # type: dict[TxOutpoint, str | None]  # also contains UTXOs
@@ -163,8 +163,8 @@ class ToyServer(Logger):
         tx = Transaction(self.txs[txid])
         return any(self.block_height_from_txid(txin.prevout.txid.hex()) is None for txin in tx.inputs())
 
-    def calc_sh_history(self, sh: str) -> Sequence[tuple[str, int]]:
-        txids = self.sh_to_funding_txids[sh] | self.sh_to_spending_txids[sh]
+    def calc_spk_history(self, spk: str) -> Sequence[tuple[str, int]]:
+        txids = self.spk_to_funding_txids[spk] | self.spk_to_spending_txids[spk]
         hist1 = []
         for txid in txids:
             bh_and_pos = self.block_height_and_pos_from_txid(txid)
@@ -182,31 +182,29 @@ class ToyServer(Logger):
         hist2 = [(txid, bh) for (txid, (bh, pos)) in hist1]
         return hist2
 
-    def _get_funded_and_spent_scripthashes(self, tx: Transaction) -> tuple[set[str], set[str]]:
-        """Returns scripthashes touched by tx."""
+    def _get_funded_and_spent_spks(self, tx: Transaction) -> tuple[set[str], set[str]]:
+        """Returns scriptpubkeys touched by tx."""
         txid = tx.txid()
         assert txid
-        funded_sh = set()
+        funded_spks = set()
         for txout in tx.outputs():
-            sh = script_to_scripthash(txout.scriptpubkey)
-            funded_sh.add(sh)
-        spent_sh = set()
+            funded_spks.add(txout.scriptpubkey.hex())
+        spent_spks = set()
         for txin in tx.inputs():
             if txin.is_coinbase_input():
                 continue
             parent_tx_raw = self.txs[txin.prevout.txid.hex()]  # parent must not be missing!
             parent_tx = Transaction(parent_tx_raw)
             ptxout = parent_tx.outputs()[txin.prevout.out_idx]
-            sh = script_to_scripthash(ptxout.scriptpubkey)
-            spent_sh.add(sh)
-        return funded_sh, spent_sh
+            spent_spks.add(ptxout.scriptpubkey.hex())
+        return funded_spks, spent_spks
 
     def _add_tx(self, tx: Transaction) -> set[str]:
         txid = tx.txid()
         assert txid
         if txid in self.txs:  # already added
-            funded_sh, spent_sh = self._get_funded_and_spent_scripthashes(tx)
-            return funded_sh | spent_sh
+            funded_spks, spent_spks = self._get_funded_and_spent_spks(tx)
+            return funded_spks | spent_spks
         # we forbid conflicting txs. for mempool replacement, the caller must already have rm-ed the conflicts.
         conflict_txids = self._get_transitive_conflict_txids(tx)
         assert not conflict_txids, "tx conflict"
@@ -230,13 +228,13 @@ class ToyServer(Logger):
                 raise Exception("TXO already marked as spent by same txid?")
             else:
                 raise Exception(f"cannot double-spend UTXO: {txin.prevout}. conflict: {txid} vs {double_spender_txid}")
-        # update touched scripthashes
-        funded_sh, spent_sh = self._get_funded_and_spent_scripthashes(tx)
-        for sh in funded_sh:
-            self.sh_to_funding_txids[sh].add(txid)
-        for sh in spent_sh:
-            self.sh_to_spending_txids[sh].add(txid)
-        return funded_sh | spent_sh
+        # update touched scriptpubkeys
+        funded_spks, spent_spks = self._get_funded_and_spent_spks(tx)
+        for spk in funded_spks:
+            self.spk_to_funding_txids[spk].add(txid)
+        for spk in spent_spks:
+            self.spk_to_spending_txids[spk].add(txid)
+        return funded_spks | spent_spks
 
     def _remove_tx_that_has_no_children(self, tx: Transaction) -> set[str]:
         txid = tx.txid()
@@ -255,24 +253,24 @@ class ToyServer(Logger):
                 continue
             assert self.txo_to_spender_txid[txin.prevout] == txid
             self.txo_to_spender_txid[txin.prevout] = None
-        # update touched scripthashes
-        funded_sh, spent_sh = self._get_funded_and_spent_scripthashes(tx)
-        for sh in funded_sh:
-            self.sh_to_funding_txids[sh].discard(txid)
-        for sh in spent_sh:
-            self.sh_to_spending_txids[sh].discard(txid)
-        return funded_sh | spent_sh
+        # update touched spks
+        funded_spks, spent_spks = self._get_funded_and_spent_spks(tx)
+        for spk in funded_spks:
+            self.spk_to_funding_txids[spk].discard(txid)
+        for spk in spent_spks:
+            self.spk_to_spending_txids[spk].discard(txid)
+        return funded_spks | spent_spks
 
     def _remove_tx_and_all_children(self, tx: Transaction) -> set[str]:
         txid = tx.txid()
         assert txid
         assert txid in self.txs, "unknown tx"
         children = self._get_transitive_children_txids(txid)
-        touched_sh = set()
+        touched_spks = set()
         for txid in children:
             tx = Transaction(self.txs[txid])
-            touched_sh |= self._remove_tx_that_has_no_children(tx)
-        return touched_sh
+            touched_spks |= self._remove_tx_that_has_no_children(tx)
+        return touched_spks
 
     def _get_direct_children_txids(self, txid: str) -> Sequence[str]:
         res = []
@@ -320,7 +318,7 @@ class ToyServer(Logger):
         return input_sum - tx.output_value()
 
     async def mempool_add_tx(self, newtx: Transaction) -> None:
-        touched_sh = set()
+        touched_spks = set()
         conflict_txids = self._get_transitive_conflict_txids(newtx, include_self=False)
         conflict_txs = self._txs_from_txids(conflict_txids)
         if conflict_txids:
@@ -340,22 +338,22 @@ class ToyServer(Logger):
             # rm conflicts
             for tx in conflict_txs:
                 if tx.txid() in self.txs:  # might already be removed in an earlier loop iter
-                    touched_sh = self._remove_tx_and_all_children(tx)
+                    touched_spks = self._remove_tx_and_all_children(tx)
         # no more conflicts. add new tx.
-        touched_sh |= self._add_tx(newtx)
+        touched_spks |= self._add_tx(newtx)
         # notify clients
         for session in self.sessions:
-            await session.server_send_notifications(touched_sh=touched_sh)
+            await session.server_send_notifications(touched_spks=touched_spks)
 
     async def mempool_rm_tx(self, tx: Transaction) -> None:
         txid = tx.txid()
         assert txid
         assert txid in self.txs, "unknown tx"
         assert self.block_height_from_txid(txid) is None, "tx already mined"
-        touched_sh = self._remove_tx_and_all_children(tx)
+        touched_spks = self._remove_tx_and_all_children(tx)
         # notify clients
         for session in self.sessions:
-            await session.server_send_notifications(touched_sh=touched_sh)
+            await session.server_send_notifications(touched_spks=touched_spks)
 
     async def mine_block(
         self,
@@ -392,12 +390,12 @@ class ToyServer(Logger):
         new_block = FakeBlock(header=new_header, txids=tuple(tx.txid() for tx in txs))
         self._blocks.append(new_block)
         # process txs
-        touched_sh = set()
+        touched_spks = set()
         for tx in txs:
-            touched_sh |= self._add_tx(tx)
+            touched_spks |= self._add_tx(tx)
         # notify clients
         for session in self.sessions:
-            await session.server_send_notifications(touched_sh=touched_sh, height_changed=True)
+            await session.server_send_notifications(touched_spks=touched_spks, height_changed=True)
         return new_block, coinbase_tx
 
     async def unmine_block(self) -> None:
@@ -408,14 +406,14 @@ class ToyServer(Logger):
         # process txs
         # note: all txs in that block are now automatically considered to be in-mempool.
         #       no need to call _remove_tx -- that would also rm them from the mempool.
-        touched_sh = set()
+        touched_spks = set()
         for txid in block.txids:
             tx = Transaction(self.txs[txid])
-            funded_sh, spent_sh = self._get_funded_and_spent_scripthashes(tx)
-            touched_sh |= funded_sh | spent_sh
+            funded_spks, spent_spks = self._get_funded_and_spent_spks(tx)
+            touched_spks |= funded_spks | spent_spks
         # notify clients
         for session in self.sessions:
-            await session.server_send_notifications(touched_sh=touched_sh, height_changed=True)
+            await session.server_send_notifications(touched_spks=touched_spks, height_changed=True)
 
     async def set_up_faucet(self, *, config: SimpleConfig):
         assert self._faucet_w is None
@@ -454,7 +452,7 @@ class ToyServerSession(aiorpcx.RPCSession, Logger):
         self.logger.debug(f'connection from {self.remote_address()}')
         self.subbed_headers = False
         self.notified_height = None  # type: Optional[int]
-        self.subbed_scripthashes = set()  # type: set[str]
+        self.subbed_spks = set()  # type: set[str]
         self._method_counts = collections.defaultdict(int)  # type: dict[str, int]
         self.client_name = None
         self.svr.sessions.add(self)
@@ -472,8 +470,8 @@ class ToyServerSession(aiorpcx.RPCSession, Logger):
             'blockchain.headers.subscribe': self._handle_headers_subscribe,
             'blockchain.block.header': self._handle_block_header,
             'blockchain.block.headers': self._handle_block_headers,
-            'blockchain.scripthash.subscribe': self._handle_scripthash_subscribe,
-            'blockchain.scripthash.get_history': self._handle_scripthash_get_history,
+            'blockchain.scriptpubkey.subscribe': self._handle_spk_subscribe,
+            'blockchain.scriptpubkey.get_history': self._handle_spk_get_history,
             'blockchain.transaction.get': self._handle_transaction_get,
             'blockchain.transaction.broadcast': self._handle_transaction_broadcast,
             'blockchain.transaction.get_merkle': self._handle_transaction_get_merkle,
@@ -487,14 +485,14 @@ class ToyServerSession(aiorpcx.RPCSession, Logger):
 
     async def _handle_server_version(self, client_name='', protocol_version=None, *args, **kwargs):
         self.client_name = client_name
-        return ['toyserver/0.1', '1.6']
+        return ['toyserver/0.1', '1.7']
 
     async def _handle_server_features(self) -> dict:
         return {
             'genesis_hash': constants.net.GENESIS,
             'hosts': {"14.3.140.101": {"tcp_port": 51001, "ssl_port": 51002}},
-            'protocol_max': '1.6',
-            'protocol_min': '1.6',
+            'protocol_max': '1.7',
+            'protocol_min': '1.7',
             'pruning': None,
             'server_version': 'ElectrumX 1.19.0',
             'hash_function': 'sha256',
@@ -569,27 +567,27 @@ class ToyServerSession(aiorpcx.RPCSession, Logger):
             raise RPCError(DAEMON_ERROR, str(e)) from e
         return txid
 
-    async def _handle_scripthash_subscribe(self, sh: str) -> Optional[str]:
-        self.subbed_scripthashes.add(sh)
-        hist = self.svr.calc_sh_history(sh)
+    async def _handle_spk_subscribe(self, spk: str) -> Optional[str]:
+        self.subbed_spks.add(spk)
+        hist = self.svr.calc_spk_history(spk)
         return history_status(hist)
 
-    async def _handle_scripthash_get_history(self, sh: str) -> Sequence[dict]:
-        hist_tuples = self.svr.calc_sh_history(sh)
+    async def _handle_spk_get_history(self, spk: str) -> Sequence[dict]:
+        hist_tuples = self.svr.calc_spk_history(spk)
         hist_dicts = [{"height": height, "tx_hash": txid} for (txid, height) in hist_tuples]
         for hist_dict in hist_dicts:  # add "fee" key for mempool txs
             if hist_dict["height"] in (0, -1,):
                 hist_dict["fee"] = 0
         return hist_dicts
 
-    async def server_send_notifications(self, *, touched_sh: Iterable[str], height_changed: bool = False) -> None:
+    async def server_send_notifications(self, *, touched_spks: Iterable[str], height_changed: bool = False) -> None:
         if height_changed and self.subbed_headers and self.notified_height != self.svr.cur_height:
             self.notified_height = self.svr.cur_height
             args = (self._get_headersub_result(),)
             await self.send_notification('blockchain.headers.subscribe', args)
-        touched_sh = set(sh for sh in touched_sh if sh in self.subbed_scripthashes)
-        for sh in touched_sh:
-            hist = self.svr.calc_sh_history(sh)
-            args = (sh, history_status(hist))
-            await self.send_notification("blockchain.scripthash.subscribe", args)
+        touched_spks = set(spk for spk in touched_spks if spk in self.subbed_spks)
+        for spk in touched_spks:
+            hist = self.svr.calc_spk_history(spk)
+            args = (script_to_scripthash(bytes.fromhex(spk)), history_status(hist))
+            await self.send_notification("blockchain.scriptpubkey.subscribe", args)
 
