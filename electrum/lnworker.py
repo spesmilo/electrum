@@ -1861,12 +1861,19 @@ class LNWallet(Logger):
     @log_exceptions
     async def pay_invoice(
             self, invoice: Invoice, *,
-            amount_msat: int = None,
+            amount_msat: int = None,  # to overwrite amt in invoice
             attempts: int = None,  # used only in unit tests
             full_path: LNPaymentPath = None,
-            channels: Optional[Sequence[Channel]] = None,
-            budget: Optional[PaymentFeeBudget] = None,
+            channels: Optional[Sequence[Channel]] = None,  # my own direct channels
+            budget: Optional[PaymentFeeBudget] = None,  # to limit max fee
     ) -> Tuple[bool, List[HtlcLog]]:
+        """Attempt to pay a Lightning invoice (find routes, do MPP, send HTLCs).
+
+        Note: this does NOT directly send money, it sends HTLC(s), which is a conditional contract.
+              The intended recipient (or any node) can only claim the HTLCs by revealing the correct preimage.
+              When paying a hold-invoice, or during a submarine swap, it is often the case that the recipient
+              does not YET know the preimage, and hence they cannot take the money until later.
+        """
         bolt11 = invoice.lightning_invoice
         lnaddr = self._check_bolt11_invoice(bolt11, amount_msat=amount_msat)
         min_final_cltv_delta = lnaddr.get_min_final_cltv_delta()
