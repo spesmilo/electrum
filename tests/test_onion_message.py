@@ -106,7 +106,7 @@ class TestOnionMessage(ElectrumTestCase):
             )
         ]
 
-        encrypt_hops_recipient_data('onionmsg_tlv', hops_data, hop_shared_secrets)
+        encrypt_hops_recipient_data(hops_data, hop_shared_secrets)
         packet = new_onion_packet(blinded_node_ids, SESSION_KEY, hops_data, onion_message=True)
         self.assertEqual(packet.to_bytes(), ONION_MESSAGE_PACKET)
 
@@ -128,18 +128,18 @@ class TestOnionMessage(ElectrumTestCase):
                 ),
             ]
         hops_data = hops_data_for_message('short_message')  # fit in HOPS_DATA_SIZE
-        encrypt_hops_recipient_data('onionmsg_tlv', hops_data, hop_shared_secrets)
+        encrypt_hops_recipient_data(hops_data, hop_shared_secrets)
         packet = new_onion_packet(blinded_node_ids, SESSION_KEY, hops_data, onion_message=True)
         self.assertEqual(len(packet.to_bytes()), HOPS_DATA_SIZE + 66)
 
         hops_data = hops_data_for_message('A' * HOPS_DATA_SIZE)  # fit in ONION_MESSAGE_LARGE_SIZE
-        encrypt_hops_recipient_data('onionmsg_tlv', hops_data, hop_shared_secrets)
+        encrypt_hops_recipient_data(hops_data, hop_shared_secrets)
         packet = new_onion_packet(blinded_node_ids, SESSION_KEY, hops_data, onion_message=True)
 
         self.assertEqual(len(packet.to_bytes()), ONION_MESSAGE_LARGE_SIZE + 66)
 
         hops_data = hops_data_for_message('A' * ONION_MESSAGE_LARGE_SIZE)  # does not fit in ONION_MESSAGE_LARGE_SIZE
-        encrypt_hops_recipient_data('onionmsg_tlv', hops_data, hop_shared_secrets)
+        encrypt_hops_recipient_data(hops_data, hop_shared_secrets)
 
         with self.assertRaises(InvalidPayloadSize):
             new_onion_packet(blinded_node_ids, SESSION_KEY, hops_data, onion_message=True)
@@ -244,11 +244,7 @@ class TestOnionMessage(ElectrumTestCase):
             ),
         ]
         # encrypt encrypted_data_tlv here
-        for i in range(len(hops_data)):
-            encrypted_recipient_data = encrypt_onionmsg_data_tlv(shared_secret=hop_shared_secrets[i], **hops_data[i].blind_fields)
-            new_payload = dict(hops_data[i].payload)
-            new_payload['encrypted_recipient_data'] = {'encrypted_recipient_data': encrypted_recipient_data}
-            hops_data[i] = dataclasses.replace(hops_data[i], payload=new_payload)
+        encrypt_hops_recipient_data(hops_data, hop_shared_secrets)
 
         blinded_path_blinded_ids = []
         for i, x in enumerate(blinded_path_to_dave.get('path')):
@@ -263,8 +259,6 @@ class TestOnionMessage(ElectrumTestCase):
                     payload=payload),
             )
         payment_path_pubkeys = blinded_node_ids + blinded_path_blinded_ids
-        hop_shared_secrets, _ = get_shared_secrets_along_route(payment_path_pubkeys, SESSION_KEY)
-        encrypt_hops_recipient_data('onionmsg_tlv', hops_data, hop_shared_secrets)
         packet = new_onion_packet(payment_path_pubkeys, SESSION_KEY, hops_data, onion_message=True)
         self.assertEqual(packet.to_bytes(), ONION_MESSAGE_PACKET)
 
