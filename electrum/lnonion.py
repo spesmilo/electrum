@@ -434,13 +434,13 @@ def process_onion_packet(
         *,
         associated_data: bytes = b'',
         is_trampoline=False,
-        is_onion_message=False,
         tlv_stream_name='payload') -> ProcessedOnionPacket:
     # TODO: check Onion features ( PERM|NODE|3 (required_node_feature_missing )
     if onion_packet.version != 0:
         raise UnsupportedOnionPacketVersion()
     if not ecc.ECPubkey.is_pubkey_bytes(onion_packet.public_key):
         raise InvalidOnionPubkey()
+    is_onion_message = tlv_stream_name == 'onionmsg_tlv'
     shared_secret = get_ecdh(our_onion_private_key, onion_packet.public_key)
     # check message integrity
     mu_key = get_bolt04_onion_key(b'mu', shared_secret)
