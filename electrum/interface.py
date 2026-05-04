@@ -82,6 +82,11 @@ assert PREFERRED_NETWORK_PROTOCOL in KNOWN_ELEC_PROTOCOL_TRANSPORTS
 MAX_NUM_HEADERS_PER_REQUEST = 2016
 assert MAX_NUM_HEADERS_PER_REQUEST >= CHUNK_SIZE
 
+RPC_ERROR_HISTORY_TOO_LONG = 10001
+
+class HistoryTooLong(Exception):
+    # we should not close the connection in that case
+    pass
 
 class NetworkTimeout:
     # seconds
@@ -208,7 +213,10 @@ class NotificationSession(RPCSession):
             raise RequestTimedOut(f'request timed out: {args} (id: {msg_id})') from e
         except CodeMessageError as e:
             self.maybe_log(f"--> {repr(e)} (id: {msg_id})")
-            raise
+            if e.code == RPC_ERROR_HISTORY_TOO_LONG:
+                raise HistoryTooLong()
+            else:
+                raise
         except BaseException as e:  # cancellations, etc. are useful for debugging
             self.maybe_log(f"--> {repr(e)} (id: {msg_id})")
             raise
