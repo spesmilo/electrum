@@ -168,7 +168,8 @@ class AbstractWizard:
         logstr += f'\nc: {hex(id(self._current.wizard_data))} - {repr(sci)}'
         self._logger.debug(logstr)
 
-    def sanitize_stack_item(self, _stack_item) -> dict:
+    @staticmethod
+    def sanitize_stack_item(_stack_item) -> dict:
         whitelist = [
             "wallet_name", "wallet_exists", "wallet_is_open", "wallet_needs_hw_unlock",
             "wallet_type", "keystore_type", "seed_variant", "seed_type", "seed_extend",

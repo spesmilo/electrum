@@ -508,6 +508,8 @@ class ElectrumGui(BaseElectrumGui, Logger):
                 return
             db.put('x3', wizard.get_wizard_data()['x3'])
             db.write_and_force_consolidation()  # TODO API for db is a bit weird: there should be a close method
+        except InvalidPassword as e:  # the GUI should have already validated the password
+            raise Exception(f"wizard_data: {wizard.sanitize_stack_item(d)}") from e
 
         wallet = self.daemon.load_wallet(wallet_file, password, upgrade=True)
         return wallet
