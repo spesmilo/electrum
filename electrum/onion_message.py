@@ -386,11 +386,9 @@ def send_onion_message_to(
 
         path_key = ecc.ECPrivkey(session_key).get_public_key_bytes()
 
-    peer.send_message(
-        "onion_message",
+    peer.send_onion_message(
         path_key=path_key,
-        len=len(packet_b),
-        onion_message_packet=packet_b
+        onion_message_packet=packet_b,
     )
 
 
@@ -613,11 +611,9 @@ class OnionMessageManager(Logger):
                     self.logger.debug('forward dropped, next peer is not ONION_MESSAGE capable')
                     continue
 
-                next_peer.send_message(
-                    "onion_message",
+                next_peer.send_onion_message(
                     path_key=blinding,
-                    len=len(onion_packet_b),
-                    onion_message_packet=onion_packet_b
+                    onion_message_packet=onion_packet_b,
                 )
             except BaseException as e:
                 self.logger.debug(f'error while sending {node_id=} e={e!r}')

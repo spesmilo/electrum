@@ -64,6 +64,7 @@ if TYPE_CHECKING:
 
 
 LN_P2P_NETWORK_TIMEOUT = 20
+ONION_MESSAGE_SEND_DELAY = 0.25
 
 
 class Peer(Logger, EventListener):
@@ -141,6 +142,9 @@ class Peer(Logger, EventListener):
         self._last_commitsig_sent_time = time.monotonic()
         self._last_ping_recv_time = min(0, time.monotonic())
 
+        self._onion_message_send_queue = asyncio.Queue(maxsize=1000)  # type: asyncio.Queue[tuple[bytes, bytes, bytes]]
+        self._pending_onion_messages = set()  # type: set[bytes]
+
     def send_message(self, message_name: str, **kwargs):
         assert util.get_running_loop() == util.get_asyncio_loop(), f"this must be run on the asyncio thread!"
         assert type(message_name) is str
@@ -152,6 +156,42 @@ class Peer(Logger, EventListener):
         self._store_raw_msg_if_local_update(raw_msg, message_name=message_name, channel_id=kwargs.get("channel_id"))
         self.transport.send_bytes(raw_msg)
         # could `await self.transport.writer.drain()`, but not async
+
+    def send_onion_message(self, *, path_key: bytes, onion_message_packet: bytes):
+        """
+        Can be called from any thread and before peer is initialized.
+        If called with the same message again, while its predecesssor wasn't sent yet, the duplicate attempt gets dropped.
+        """
+        def add():
+            msg_id = sha256(path_key + onion_message_packet)
+            if msg_id in self._pending_onion_messages:
+                return
+            try:
+                self._onion_message_send_queue.put_nowait((path_key, onion_message_packet, msg_id))
+            except asyncio.QueueFull:
+                return  # onion messages are unreliable, it's fine to drop it, OnionMessageManager will retry
+            self._pending_onion_messages.add(msg_id)
+
+        util.run_sync_function_on_asyncio_thread(add, block=False)
+
+    async def _send_onion_messages(self):
+        await self.initialized
+        while True:
+            path_key, onion_message_packet, msg_id = await self._onion_message_send_queue.get()
+            try:
+                raw_msg = encode_msg(
+                    'onion_message',
+                    path_key=path_key,
+                    len=len(onion_message_packet),
+                    onion_message_packet=onion_message_packet,
+                )
+                await self.transport.send_bytes_and_drain(raw_msg)
+            except Exception:
+                self.logger.warning(f"failed to send onion message: {onion_message_packet.hex()}, {path_key.hex()}", exc_info=True)
+            finally:
+                self._pending_onion_messages.remove(msg_id)
+            # prevent getting rate limited by blasting the peer after init
+            await asyncio.sleep(ONION_MESSAGE_SEND_DELAY)
 
     def _store_raw_msg_if_local_update(self, raw_msg: bytes, *, message_name: str, channel_id: Optional[bytes]):
         is_commitment_signed = message_name == "commitment_signed"
@@ -565,6 +605,7 @@ class Peer(Logger, EventListener):
             await group.spawn(self._process_gossip())
             await group.spawn(self._send_own_gossip())
             await group.spawn(self._forward_gossip())
+            await group.spawn(self._send_onion_messages())
             if self.network.lngossip != self.lnworker:
                 await group.spawn(self.htlc_switch())
 
