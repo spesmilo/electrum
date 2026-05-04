@@ -779,6 +779,7 @@ Warning: setting this to too low will result in lots of payment failures."""),
     TEST_SHUTDOWN_FEE = ConfigVar('test_shutdown_fee', default=None, type_=int)
     TEST_SHUTDOWN_FEE_RANGE = ConfigVar('test_shutdown_fee_range', default=None)
     TEST_SHUTDOWN_LEGACY = ConfigVar('test_shutdown_legacy', default=False, type_=bool)
+    TEST_LN_OPEN_SRK_CHANNELS = ConfigVar('test_ln_open_srk_channels', default=False, type_=bool)
 
     # fee_policy is a dict: fee_policy_name -> fee_policy_descriptor
     FEE_POLICY = ConfigVar('fee_policy.default', default='eta:2', type_=str)  # exposed to GUI
@@ -951,8 +952,6 @@ Warning: setting this to too low will result in lots of payment failures."""),
         ]),
     )
 
-    # anchor outputs channels
-    ENABLE_ANCHOR_CHANNELS = ConfigVar('enable_anchor_channels', default=True, type_=bool)
     # zeroconf channels
     OPEN_ZEROCONF_CHANNELS = ConfigVar('open_zeroconf_channels', default=False, type_=bool)
     ZEROCONF_TRUSTED_NODE = ConfigVar('zeroconf_trusted_node', default='', type_=str)

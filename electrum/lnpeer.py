@@ -922,9 +922,6 @@ class Peer(Logger, EventListener):
     def is_upfront_shutdown_script(self):
         return self.features.supports(LnFeatures.OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT)
 
-    def use_anchors(self) -> bool:
-        return self.features.supports(LnFeatures.OPTION_ANCHORS_OPT)
-
     def upfront_shutdown_script_from_payload(self, payload, msg_identifier: str) -> Optional[bytes]:
         if msg_identifier not in ['accept', 'open']:
             raise ValueError("msg_identifier must be either 'accept' or 'open'")
@@ -994,20 +991,23 @@ class Peer(Logger, EventListener):
 
         channel_flags = CF_ANNOUNCE_CHANNEL if public else 0
         feerate: Optional[int] = self.lnworker.current_target_feerate_per_kw(
-            has_anchors=self.use_anchors()
+            has_anchors=not self.config.TEST_LN_OPEN_SRK_CHANNELS,
         )
         if feerate is None:
             raise NoDynamicFeeEstimates()
         # we set a channel type for internal bookkeeping
         open_channel_tlvs = {}
-        assert self.their_features.supports(LnFeatures.OPTION_STATIC_REMOTEKEY_OPT)
-        our_channel_type = ChannelType(ChannelType.OPTION_STATIC_REMOTEKEY)
-        if self.use_anchors():
-            our_channel_type |= ChannelType(ChannelType.OPTION_ANCHORS)
+        assert self.features.supports(LnFeatures.OPTION_STATIC_REMOTEKEY_OPT)
+        assert self.features.supports(LnFeatures.OPTION_ANCHORS_OPT)
+        if self.config.TEST_LN_OPEN_SRK_CHANNELS:
+            our_channel_type = ChannelType(ChannelType.OPTION_STATIC_REMOTEKEY)
+        else:  # anchors
+            our_channel_type = ChannelType(ChannelType.OPTION_STATIC_REMOTEKEY | ChannelType.OPTION_ANCHORS)
         if zeroconf:
             our_channel_type |= ChannelType(ChannelType.OPTION_ZEROCONF)
         # We do not set the option_scid_alias bit in channel_type because LND rejects it.
         # Eclair accepts channel_type with that bit, but does not require it.
+        assert our_channel_type.complies_with_features(self.features), f"{our_channel_type=!r}, {self.features=!r}"
 
         # if option_channel_type is negotiated: MUST set channel_type
         # if it includes channel_type: MUST set it to a defined type representing the type it wants.
@@ -1088,13 +1088,16 @@ class Peer(Logger, EventListener):
             payload, 'accept')
 
         accept_channel_tlvs = payload.get('accept_channel_tlvs')
-        their_channel_type = accept_channel_tlvs.get('channel_type') if accept_channel_tlvs else None
-        if their_channel_type:
-            their_channel_type = ChannelType.from_bytes(their_channel_type['type'], byteorder='big').discard_unknown_and_check()
-            # if channel_type is set, and channel_type was set in open_channel,
-            # and they are not equal types: MUST reject the channel.
-            if open_channel_tlvs.get('channel_type') is not None and their_channel_type != our_channel_type:
-                raise Exception("Channel type is not the one that we sent.")
+        if accept_channel_tlvs is None:
+            raise Exception("accept_channel_tlvs MUST be present in accept_channel, but missing")
+        their_channel_type = accept_channel_tlvs.get('channel_type')
+        if their_channel_type is None:
+            raise Exception("channel_type MUST be present in accept_channel, but missing")
+        their_channel_type = ChannelType.from_bytes(their_channel_type['type'], byteorder='big')
+        # if channel_type does not match the channel_type from open_channel:
+        #     MUST fail the channel.
+        if their_channel_type != our_channel_type:
+            raise Exception(f"channel_type is not the one that we sent. {our_channel_type=}. {their_channel_type=}.")
 
         remote_config = RemoteConfig(
             payment_basepoint=OnlyPubkeyKeypair(payload['payment_basepoint']),
@@ -1237,18 +1240,21 @@ class Peer(Logger, EventListener):
             raise Exception('wrong chain_hash')
 
         open_channel_tlvs = payload.get('open_channel_tlvs')
-        channel_type = open_channel_tlvs.get('channel_type') if open_channel_tlvs else None
-        # The receiving node MAY fail the channel if:
-        # option_channel_type was negotiated but the message doesn't include a channel_type
+        if open_channel_tlvs is None:
+            raise Exception("open_channel_tlvs MUST be present in open_channel, but missing")
+        channel_type = open_channel_tlvs.get('channel_type')
         if channel_type is None:
-            raise Exception("sender has advertised option_channel_type, but hasn't sent the channel type")
-        # MUST fail the channel if it supports channel_type,
-        # channel_type was set, and the type is not suitable.
-        else:
-            channel_type = ChannelType.from_bytes(channel_type['type'], byteorder='big').discard_unknown_and_check()
-            if not channel_type.complies_with_features(self.features):
-                raise Exception("sender has sent a channel type we don't support")
-        assert isinstance(channel_type, ChannelType)
+            raise Exception("channel_type MUST be present in open_channel, but missing")
+        # MUST fail the channel if channel_type is not suitable.
+        channel_type = ChannelType.from_bytes(channel_type['type'], byteorder='big')
+        if not channel_type.complies_with_features(self.features):
+            raise Exception("sender has sent a channel type we don't support")
+        assert channel_type & ChannelType.OPTION_STATIC_REMOTEKEY, "new legacy channel?!"
+        if not self.config.TEST_LN_OPEN_SRK_CHANNELS:
+            if not channel_type & ChannelType.OPTION_ANCHORS:
+                # note: BOLT-02 does NOT forbid opening new SRK chan
+                #       just because ANCHORS has been negotiated as peer feature
+                raise Exception("refusing to open new static_remotekey channel")
 
         is_zeroconf = bool(channel_type & ChannelType.OPTION_ZEROCONF)
         if is_zeroconf and not self.config.ZEROCONF_TRUSTED_NODE.startswith(self.pubkey.hex()):

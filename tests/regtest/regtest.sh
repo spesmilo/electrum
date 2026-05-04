@@ -2,7 +2,7 @@
 export HOME=~
 set -eu
 
-TEST_ANCHOR_CHANNELS=True
+TEST_SRK_CHANNELS=False
 
 # alice -> bob -> carol
 
@@ -167,7 +167,7 @@ if [[ $1 == "init" ]]; then
     rm -rf /tmp/$2/
     agent="./run_electrum --regtest -D /tmp/$2"
     $agent create --offline > /dev/null
-    $agent setconfig --offline enable_anchor_channels $TEST_ANCHOR_CHANNELS
+    $agent setconfig --offline test_ln_open_srk_channels $TEST_SRK_CHANNELS
     $agent setconfig --offline log_to_file True
     $agent setconfig --offline use_gossip True
     $agent setconfig --offline server 127.0.0.1:51001:t
@@ -335,9 +335,9 @@ if [[ $1 == "swapserver_forceclose" ]]; then
     new_blocks 1
     wait_until_spent $funding_txid 0 # alice reveals preimage
     new_blocks 1
-    if [ $TEST_ANCHOR_CHANNELS = True ] ; then
+    if [ $TEST_SRK_CHANNELS != True ] ; then  # anchors
         output_index=3  # received_htlc_output in bob's ctx. FIXME index depends on Alice not using MPP
-    else
+    else  # srk
         output_index=1
     fi
     # wait until Bob finds preimage onchain and uses it to create an htlc_success tx
@@ -419,12 +419,12 @@ if [[ $1 == "lnwatcher_waits_until_fees_go_down" ]]; then
     new_blocks 1
     wait_until_channel_closed alice
     ctx_id=$($alice list_channels | jq -r ".[0].closing_txid")
-    if [ $TEST_ANCHOR_CHANNELS = True ] ; then
+    if [ $TEST_SRK_CHANNELS != True ] ; then  # anchors
         htlc_output_index1=2
         htlc_output_index2=3
         to_alice_index=4  # Bob's to_remote
         wait_until_spent $ctx_id $to_alice_index
-    else
+    else  # srk
         htlc_output_index1=0
         htlc_output_index2=1
         to_alice_index=2
@@ -669,12 +669,12 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     $alice load_wallet -w /tmp/alice/regtest/wallets/toxic_wallet
     # wait until alice has spent both ctx outputs
     echo "alice spends to_local and htlc outputs"
-    if [ $TEST_ANCHOR_CHANNELS = True ] ; then
+    if [ $TEST_SRK_CHANNELS != True ] ; then  # anchors
         # to_local_anchor/to_remote_anchor: 0 and 1 (both are present due to untrimmed htlcs)
         # htlc: 2, to_local: 3
         wait_until_spent $ctx_id 2
         wait_until_spent $ctx_id 3
-    else
+    else  # srk
         # htlc: 0, to_local: 1
         wait_until_spent $ctx_id 0
         wait_until_spent $ctx_id 1
@@ -717,9 +717,9 @@ if [[ $1 == "watchtower" ]]; then
     ctx_id=$($bitcoin_cli sendrawtransaction $ctx)
     echo "alice breaches with old ctx:" $ctx_id
     echo "watchtower publishes justice transaction"
-    if [ $TEST_ANCHOR_CHANNELS = True ] ; then
+    if [ $TEST_SRK_CHANNELS != True ] ; then  # anchors
         output_index=3
-    else
+    else  # srk
         output_index=1
     fi
     wait_until_spent $ctx_id $output_index  # alice's to_local gets punished
@@ -750,9 +750,9 @@ if [[ $1 == "fw_fail_htlc" ]]; then
     sleep 1
     new_blocks 150 # cltv before bob can broadcast
     # index of htlc
-    if [ $TEST_ANCHOR_CHANNELS = True ] ; then
+    if [ $TEST_SRK_CHANNELS != True ] ; then  # anchors
         output_index=2
-    else
+    else  # srk
         output_index=0
     fi
     wait_until_spent $ctx_id $output_index

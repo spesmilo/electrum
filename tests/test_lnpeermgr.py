@@ -19,7 +19,7 @@ class TestLNPeerManager(ElectrumTestCase):
         console_stderr_handler.setLevel(logging.DEBUG)
 
     async def asyncSetUp(self):
-        lnwallet = self.create_mock_lnwallet(name='mock_lnwallet_anchors', has_anchors=True)
+        lnwallet = self.create_mock_lnwallet(name='mock_lnwallet_anchors')
         self.lnpeermgr = lnwallet.lnpeermgr
         await super().asyncSetUp()
 

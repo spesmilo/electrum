@@ -1619,39 +1619,35 @@ class ChannelType(IntFlag):
     OPTION_LEGACY_CHANNEL = 0
     OPTION_STATIC_REMOTEKEY = 1 << 12
     OPTION_ANCHORS = 1 << 22
-    OPTION_SCID_ALIAS = 1 << 46
-    OPTION_ZEROCONF = 1 << 50
-
-    def discard_unknown_and_check(self) -> 'ChannelType':
-        """Discards unknown flags and checks flag combination."""
-        flags = list_enabled_bits(self)
-        known_channel_types = []
-        for flag in flags:
-            channel_type = ChannelType(1 << flag)
-            if channel_type.name:
-                known_channel_types.append(channel_type)
-        final_channel_type = known_channel_types[0]
-        for channel_type in known_channel_types[1:]:
-            final_channel_type |= channel_type
-
-        final_channel_type.check_combinations()
-        return final_channel_type
+    OPTION_SCID_ALIAS = 1 << 46  # variation flag
+    OPTION_ZEROCONF = 1 << 50    # variation flag
 
     def check_combinations(self):
+        """Raises if invalid flag combination."""
         basic_type = self & ~(ChannelType.OPTION_SCID_ALIAS | ChannelType.OPTION_ZEROCONF)
         if basic_type not in [
                 ChannelType.OPTION_STATIC_REMOTEKEY,
                 ChannelType.OPTION_ANCHORS | ChannelType.OPTION_STATIC_REMOTEKEY
         ]:
-            raise ValueError("Channel type is not a valid flag combination.")
+            raise ValueError(f"Channel type is not a valid flag combination: {self}")
 
-    def complies_with_features(self, features: LnFeatures) -> bool:
-        flags = list_enabled_bits(self)
-        complies = True
-        for flag in flags:
-            feature = LnFeatures(1 << flag)
-            complies &= features.supports(feature)
-        return complies
+    def complies_with_features(self, peer_features: LnFeatures) -> bool:
+        """Returns whether channel_type complies with peer_features.
+        peer_features is negotiated features for the peer session.
+
+        note: enforces channel_type is-SUBSET-of peer_features
+              but does NOT enforce cflag-related-peer_features is-SUBSET-of channel_type.
+              For example, even if opt_anchors is a negotiated peer_feature, (as per my reading of BOLT-02),
+              it is still allowed to open an SRK channel (by setting channel_type accordingly).
+        """
+        self.check_combinations()  # test if raises
+        cflags = list_enabled_bits(self)
+        # channel flags must be a SUBSET of peer_features
+        for cflag in cflags:
+            feature = LnFeatures(1 << cflag)
+            if not peer_features.supports(feature):
+                return False
+        return True
 
     def to_bytes_minimal(self):
         # MUST use the smallest bitmap possible to represent the channel type.

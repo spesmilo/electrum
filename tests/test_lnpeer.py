@@ -133,7 +133,7 @@ class MockStandardWallet(Standard_Wallet):
 
 def _create_mock_lnwallet(*, name, has_anchors, data_dir: str) -> 'MockLNWallet':
     config = SimpleConfig({}, read_user_dir_function=lambda: data_dir)
-    config.ENABLE_ANCHOR_CHANNELS = has_anchors
+    config.TEST_LN_OPEN_SRK_CHANNELS = not has_anchors
     config.INITIAL_TRAMPOLINE_FEE_LEVEL = 0
 
     network = MockNetwork(config=config)
@@ -484,7 +484,7 @@ class TestPeer(ElectrumTestCase):
     def prepare_lnwallets(self, graph_definition) -> Mapping[str, MockLNWallet]:
         workers = {}  # type: Dict[str, MockLNWallet]
         for a, definition in graph_definition.items():
-            workers[a] = self.create_mock_lnwallet(name=a, has_anchors=self.TEST_ANCHOR_CHANNELS)
+            workers[a] = self.create_mock_lnwallet(name=a)
         return workers
 
     def prepare_chans_and_peers_in_graph(
@@ -517,7 +517,6 @@ class TestPeer(ElectrumTestCase):
                         bob_lnwallet=workers[b],
                         local_msat=channel_def['local_balance_msat'],
                         remote_msat=channel_def['remote_balance_msat'],
-                        anchor_outputs=self.TEST_ANCHOR_CHANNELS
                     )
                     channels[(a, b)], channels[(b, a)] = channel_ab, channel_ba
                 workers[a]._add_channel(channel_ab)
@@ -3048,11 +3047,13 @@ class TestPeerForwarding(TestPeer):
                 await run_test(trampoline)
 
 
-class TestPeerDirectAnchors(TestPeerDirect):
-    TEST_ANCHOR_CHANNELS = True
+class TestPeerDirectNoAnchors(TestPeerDirect):
+    assert TestPeerDirect.TEST_ANCHOR_CHANNELS is True
+    TEST_ANCHOR_CHANNELS = False
 
-class TestPeerForwardingAnchors(TestPeerForwarding):
-    TEST_ANCHOR_CHANNELS = True
+class TestPeerForwardinNoAnchors(TestPeerForwarding):
+    assert TestPeerForwarding.TEST_ANCHOR_CHANNELS is True
+    TEST_ANCHOR_CHANNELS = False
 
 
 def run(coro):
