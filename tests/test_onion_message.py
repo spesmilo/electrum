@@ -278,7 +278,7 @@ class MockPeer:
     def is_initialized(self):
         return True
 
-    def send_message(self, *args, **kwargs):
+    def send_onion_message(self, *args, **kwargs):
         if self.on_send_message:
             self.on_send_message(*args, **kwargs)
 
