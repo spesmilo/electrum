@@ -35,7 +35,7 @@ from .transaction import Transaction, PartialTransaction
 from .util import make_aiohttp_session, NetworkJobOnDefaultServer, random_shuffled_copy, OldTaskGroup, log_exceptions
 from .bitcoin import address_to_script, script_to_scripthash, is_address, neuter_bitcoin_address
 from .logging import Logger
-from .interface import GracefulDisconnect, NetworkTimeout
+from .interface import GracefulDisconnect, NetworkTimeout, HistoryTooLong, assert_hash256_str
 
 if TYPE_CHECKING:
     from .network import Network
@@ -119,7 +119,7 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
         """
         raise NotImplementedError()  # implemented by subclasses
 
-    async def _on_outpoint_status(self, outpoint: str, status: Optional[str]):
+    async def _on_outpoint_status(self, txid: str, index:int, status: dict):
         raise NotImplementedError()  # implemented by subclasses
 
     async def _subscribe_to_address(self, addr):
@@ -130,9 +130,10 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
         try:
             async with self._network_request_semaphore:
                 await self.session.subscribe('blockchain.scriptpubkey.subscribe', [spk.hex()], self.address_status_queue)
+        except HistoryTooLong:
+            self.logger.info(f'history too long')
+            return
         except RPCError as e:
-            if e.message == 'history too large':  # no unique error code
-                raise GracefulDisconnect(e, log_level=logging.ERROR) from e
             raise
         self._requests_answered += 1
 
@@ -161,11 +162,11 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
     @log_exceptions
     async def handle_outpoint_status(self):
         while True:
-            txhash, idx, status = await self.outpoint_status_queue.get()
-            outpoint = txhash + ':%d'%idx
+            txid, index, status = await self.outpoint_status_queue.get()
+            outpoint = txid + ':%d'%index
             self._handling_outpoint_statuses.add(outpoint)
             self.requested_outpoints.discard(outpoint)  # ok for addr not to be present
-            await self.taskgroup.spawn(self._on_outpoint_status, outpoint, status)
+            await self.taskgroup.spawn(self._on_outpoint_status, txid, index, status)
             self._processed_some_notifications = True
 
     async def main(self):
@@ -195,15 +196,24 @@ class Synchronizer(SynchronizerBase):
         return self.adb.diagnostic_name()
 
     def is_up_to_date(self):
+        return self.addresses_up_to_date() and self.outpoints_up_to_date()
+
+    def addresses_up_to_date(self):
         return (self._init_done
                 and not self._adding_addrs
-                and not self._adding_outpoints
                 and not self.requested_addrs
                 and not self._handling_addr_statuses
                 and not self.requested_histories
                 and not self.requested_tx
                 and not self._stale_histories
-                and self.address_status_queue.empty()
+                and self.address_status_queue.empty())
+
+    def outpoints_up_to_date(self):
+        return (self._init_done
+                and not self._adding_outpoints
+                and not self.requested_outpoints
+                and not self._handling_outpoint_statuses
+                and not self.requested_tx
                 and self.outpoint_status_queue.empty())
 
     async def _maybe_request_history_for_addr(self, addr: str, *, ann_status: Optional[str]) -> List[dict]:
@@ -222,7 +232,11 @@ class Synchronizer(SynchronizerBase):
         sh = script_to_scripthash(spk)
         self._requests_sent += 1
         async with self._network_request_semaphore:
-            result = await self.interface.get_history_for_spk(spk.hex())
+            try:
+                result = await self.interface.get_history_for_spk(spk.hex())
+            except HistoryTooLong:
+                self.logger.info(f"history too long")
+                return []
         self._requests_answered += 1
         self.logger.info(f"receiving history {addr} {len(result)}")
         return result
@@ -267,22 +281,30 @@ class Synchronizer(SynchronizerBase):
         # Remove request; this allows up_to_date to be True
         self.requested_histories.discard((addr, status))
 
-    async def _on_outpoint_status(self, outpoint, status):
-        txs = set()
-        txid, index = outpoint.split(':')
-        txs.add(txid)
-        height = status.get('height')
-        if height is not None:
-            # spv the input
-            self.adb.add_unverified_or_unconfirmed_tx(txid, height)
-        # fetch the output
-        spender_txid = status.get('spender_txhash')
-        if spender_txid is not None:
-            spender_height = status['spender_height']
-            self.adb.add_unverified_or_unconfirmed_tx(spender_txid, spender_height)
-            txs.add(spender_txid)
+    async def _on_outpoint_status(self, txid: str, index: int, status: dict):
+        try:
+            assert isinstance(status, dict)
+            assert_hash256_str(txid)
+            txs = set()
+            txs.add(txid)
+            height = status.get('height')
+            if height is not None:
+                assert isinstance(height, int)
+                # spv the input
+                self.adb.add_unverified_or_unconfirmed_tx(txid, height)
+            # fetch the output
+            spender_txid = status.get('spender_txhash')
+            if spender_txid is not None:
+                assert_hash256_str(spender_txid)
+                spender_height = status.get('spender_height')
+                assert isinstance(spender_height, int)
+                self.adb.add_unverified_or_unconfirmed_tx(spender_txid, spender_height)
+                txs.add(spender_txid)
+            await self._request_missing_txs(txs, allow_server_not_finding_tx=False)
+        finally:
+            outpoint = txid + ':%d'%index
+            self._handling_outpoint_statuses.discard(outpoint)
 
-        await self._request_missing_txs(txs, allow_server_not_finding_tx=False)
 
     async def _request_txs_from_history(self, hist, *, allow_server_not_finding_tx=False):
         # "hist" is a list of [tx_hash, tx_height] lists

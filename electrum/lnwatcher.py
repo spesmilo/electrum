@@ -101,6 +101,7 @@ class LNWatcher(Logger, EventListener):
     async def on_event_adb_set_up_to_date(self, adb):
         if adb != self.adb:
             return
+        # fixme: use separate events for addresses and outpoints
         await self.trigger_callbacks()
 
     def add_channel(self, chan: 'AbstractChannel') -> None:
