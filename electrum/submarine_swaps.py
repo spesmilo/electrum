@@ -1196,8 +1196,9 @@ class SwapManager(Logger):
         self.percentage = Decimal(self.config.SWAPSERVER_FEE_MILLIONTHS) / 10000  # type: ignore
         self._min_amount = MIN_SWAP_AMOUNT_SAT
         oc_balance_sat: int = self.wallet.get_spendable_balance_sat()
-        max_forward: int = min(int(self.lnworker.num_sats_can_receive()), oc_balance_sat, 10000000)
-        max_reverse: int = min(int(self.lnworker.num_sats_can_send()), 10000000)
+        MAX_SWAP_AMT = bitcoin.COIN // 10  # just to minimise accidental damage. not enforced client-side
+        max_forward: int = min(int(self.lnworker.num_sats_can_receive()), oc_balance_sat, MAX_SWAP_AMT)
+        max_reverse: int = min(int(self.lnworker.num_sats_can_send()), MAX_SWAP_AMT)
         self._max_forward: int = self._keep_leading_digits(max_forward, 2)
         self._max_reverse: int = self._keep_leading_digits(max_reverse, 2)
         new_mining_fee = self.get_fee_for_txbatcher()
