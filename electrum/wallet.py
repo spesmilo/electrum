@@ -1977,6 +1977,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             raise Exception("Some inputs already contain signatures!")
         if inputs is None:
             inputs = []
+        assert all(isinstance(o, PartialTxOutput) for o in outputs), [type(o) for o in outputs]
         # make sure inputs and coins do not overlap
         if inputs:
             input_set = set(txin.prevout for txin in inputs)
