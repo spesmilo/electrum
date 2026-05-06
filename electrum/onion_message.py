@@ -414,61 +414,22 @@ def get_blinded_paths_to_me(
                        lnwallet.lnpeermgr.get_peer_by_pubkey(chan.node_id).their_features.supports(LnFeatures.OPTION_ONION_MESSAGE_OPT)]
 
     result = []
-    payinfo = []
+    payinfos = []
     mynodeid = lnwallet.node_keypair.pubkey
-    local_height = lnwallet.network.get_local_height()
-
     if len(my_channels):
         rchans = random_shuffled_copy(my_channels)
         for chan in rchans[:max_paths]:
             hop_extras = None
             if not onion_message:  # add hop_extras and payinfo, assumption: len(blinded_path) == 2 (us and peer)
-                # get policy
-                cp = get_mychannel_policy(chan.short_channel_id, chan.node_id, {chan.short_channel_id: chan})
-
-                dest_max_cltv_expiry = local_height + MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED
-
-                # TODO: for longer paths (>2), reverse traverse and calculate max_cltv_expiry at each intermediate hop
-                # and determine the cltv delta sums and fee sums of the hops for the payinfo struct.
-                # current assumption is len(blinded_path) == 2 (us and peer)
-                sum_cltv_expiry_delta = cp.cltv_delta
-                sum_fee_base_msat = cp.fee_base_msat
-                sum_fee_proportional_millionths = cp.fee_proportional_millionths
-                # path htlc limits
-                blinded_path_min_htlc_msat = cp.htlc_minimum_msat
-                blinded_path_max_htlc_msat = cp.htlc_maximum_msat
-
-                hop_extras = [{
-                    # spec: MUST include encrypted_data_tlv.payment_relay for each non-final node.
-                    'payment_relay': {
-                        'cltv_expiry_delta': cp.cltv_delta,
-                        'fee_base_msat': cp.fee_base_msat,
-                        'fee_proportional_millionths': cp.fee_proportional_millionths,
-                    },
-                    # spec: MUST set encrypted_data_tlv.payment_constraints for each non-final node and MAY set it for the final node:
-                    #
-                    #     max_cltv_expiry to the largest block height at which the route is allowed to be used, starting
-                    #     from the final node's chosen max_cltv_expiry height at which the route should expire, adding
-                    #     the final node's min_final_cltv_expiry_delta and then adding
-                    #     encrypted_data_tlv.payment_relay.cltv_expiry_delta at each hop.
-                    #
-                    #     htlc_minimum_msat to the largest minimum HTLC value the nodes will allow.
-                    'payment_constraints': {
-                        'max_cltv_expiry': dest_max_cltv_expiry + cp.cltv_delta,
-                        'htlc_minimum_msat': blinded_path_min_htlc_msat
-                    }
-                }]
-                payinfo.append({
-                    'fee_base_msat': sum_fee_base_msat,
-                    'fee_proportional_millionths': sum_fee_proportional_millionths,
-                    'cltv_expiry_delta': sum_cltv_expiry_delta + MIN_FINAL_CLTV_DELTA_ACCEPTED,
-                    'htlc_minimum_msat': blinded_path_min_htlc_msat,
-                    'htlc_maximum_msat': blinded_path_max_htlc_msat,
-                    'flen': 0,
-                    'features': bytes(0)
-                })
-            blinded_path = create_blinded_path(os.urandom(32), [chan.node_id, mynodeid], final_recipient_data,
-                                               hop_extras=hop_extras, channels=[chan] if not onion_message else None)
+                payinfo, hop_extras = _get_payinfo_for_blinded_path(chan, lnwallet)
+                payinfos.append(payinfo)
+            blinded_path = create_blinded_path(
+                session_key=os.urandom(32),
+                path=[chan.node_id, mynodeid],
+                final_recipient_data=final_recipient_data,
+                hop_extras=hop_extras,
+                channels=[chan] if not onion_message else None,
+            )
             result.append(blinded_path)
     elif onion_message:
         # we can use peers even without channels for onion messages
@@ -480,7 +441,53 @@ def get_blinded_paths_to_me(
                 blinded_path = create_blinded_path(os.urandom(32), [peer.pubkey, mynodeid], final_recipient_data)
                 result.append(blinded_path)
 
-    return result, payinfo
+    return result, payinfos
+
+
+def _get_payinfo_for_blinded_path(chan: 'Channel', lnwallet: 'LNWallet'):
+    cp = get_mychannel_policy(chan.short_channel_id, chan.node_id, {chan.short_channel_id: chan})
+    sum_cltv_expiry_delta = cp.cltv_delta
+    sum_fee_base_msat = cp.fee_base_msat
+    sum_fee_proportional_millionths = cp.fee_proportional_millionths
+    # path htlc limits
+    blinded_path_min_htlc_msat = cp.htlc_minimum_msat
+    blinded_path_max_htlc_msat = cp.htlc_maximum_msat
+
+    # TODO: for longer paths (>2), reverse traverse and calculate max_cltv_expiry at each intermediate hop
+    # and determine the cltv delta sums and fee sums of the hops for the payinfo struct.
+    # current assumption is len(blinded_path) == 2 (us and peer)
+    local_height = lnwallet.network.get_local_height()
+    dest_max_cltv_expiry = local_height + MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED
+    hop_extras = [{
+        # spec: MUST include encrypted_data_tlv.payment_relay for each non-final node.
+        'payment_relay': {
+            'cltv_expiry_delta': cp.cltv_delta,
+            'fee_base_msat': cp.fee_base_msat,
+            'fee_proportional_millionths': cp.fee_proportional_millionths,
+        },
+        # spec: MUST set encrypted_data_tlv.payment_constraints for each non-final node and MAY set it for the final node:
+        #
+        #     max_cltv_expiry to the largest block height at which the route is allowed to be used, starting
+        #     from the final node's chosen max_cltv_expiry height at which the route should expire, adding
+        #     the final node's min_final_cltv_expiry_delta and then adding
+        #     encrypted_data_tlv.payment_relay.cltv_expiry_delta at each hop.
+        #
+        #     htlc_minimum_msat to the largest minimum HTLC value the nodes will allow.
+        'payment_constraints': {
+            'max_cltv_expiry': dest_max_cltv_expiry + cp.cltv_delta,
+            'htlc_minimum_msat': blinded_path_min_htlc_msat
+        }
+    }]
+    payinfo = {
+        'fee_base_msat': sum_fee_base_msat,
+        'fee_proportional_millionths': sum_fee_proportional_millionths,
+        'cltv_expiry_delta': sum_cltv_expiry_delta + MIN_FINAL_CLTV_DELTA_ACCEPTED,
+        'htlc_minimum_msat': blinded_path_min_htlc_msat,
+        'htlc_maximum_msat': blinded_path_max_htlc_msat,
+        'flen': 0,
+        'features': b'',
+    }
+    return payinfo, hop_extras
 
 
 class Timeout(Exception): pass
