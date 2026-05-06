@@ -3684,15 +3684,15 @@ class LNWallet(Logger):
         # do not backup old-style channels
         assert chan.is_static_remotekey_enabled()
         peer_addresses = list(chan.get_peer_addresses())
-        peer_addr = peer_addresses[0]
+        peer_addr = peer_addresses[0] if peer_addresses else None
         return ImportedChannelBackupStorage(
             node_id=chan.node_id,
             privkey=self.node_keypair.privkey,
             funding_txid=chan.funding_outpoint.txid,
             funding_index=chan.funding_outpoint.output_index,
             funding_address=chan.get_funding_address(),
-            host=peer_addr.host,
-            port=peer_addr.port,
+            host=peer_addr.host if peer_addr else '',
+            port=peer_addr.port if peer_addr else 0,
             is_initiator=chan.constraints.is_initiator,
             channel_seed=chan.config[LOCAL].channel_seed,
             local_delay=chan.config[LOCAL].to_self_delay,
