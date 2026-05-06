@@ -196,8 +196,8 @@ RUN apt -y update -qq \
 
 
 # create new user to avoid using root; but with sudo access and no password for convenience.
-# NOTE: UID *MUST* align with buildozer's Dockerfile "user"
-RUN useradd -u 1000 -m -s /usr/bin/bash -d /home/user user
+ARG UID=1000
+RUN useradd -u "$UID" -m -s /usr/bin/bash -d /home/user user
 RUN usermod -aG sudo user
 RUN echo "%sudo ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 ENV HOME_DIR=/home/user
