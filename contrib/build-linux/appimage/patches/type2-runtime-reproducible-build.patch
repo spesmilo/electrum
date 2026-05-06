@@ -108,7 +108,7 @@ index 07b6533..fba9c6e 100644
 +    autoconf=2.72-r0 \
 +    automake=1.17-r0 \
 +    libtool=2.4.7-r3 \
-+    xz=5.6.3-r1 \
++    xz=5.8.3-r0 \
 +    eudev-dev=3.2.14-r5 \
 +    gettext-dev=0.22.5-r0 \
 +    linux-headers=6.6-r1 \
