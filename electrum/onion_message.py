@@ -27,6 +27,7 @@ import io
 import os
 import threading
 import time
+import random
 
 from typing import TYPE_CHECKING, Optional, Sequence, NamedTuple, Tuple, Union
 
@@ -150,18 +151,27 @@ def is_onion_message_node(node_id: bytes, node_info: Optional['NodeInfo']) -> bo
 
 
 def create_onion_message_route_to(lnwallet: 'LNWallet', node_id: bytes) -> Sequence[PathEdge]:
-    """Constructs a route to the destination node_id, first by starting with peers with existing channels,
-       and if no route found, opening a direct peer connection if node_id is found with an address in
-       channel_db."""
-    # TODO: is this the proper way to set up my_sending_channels?
-    my_active_channels = [
-        chan for chan in lnwallet.channels.values() if
-        chan.is_active() and not chan.is_frozen_for_sending()]
-    my_sending_channels = {chan.short_channel_id: chan for chan in my_active_channels
-                           if chan.short_channel_id is not None}
-    # find route to introduction point over existing channel mesh
-    # NOTE: nodes that are in channel_db but are offline are not removed from the set
-    if lnwallet.network.path_finder:
+    """
+    Constructs a route for sending an onion message to node_id.
+    With Gossip: Tries to find a route through the graph. If no route can be found, raise NoRouteFound.
+                 If a connection address is known for node_id it is added to NoRouteFound for potential direct connection.
+    With Trampoline: Construct a route: us -> random trampoline peer -> node_id.
+                     We hope the trampoline peer will open a direct connection to node_id and forward the message.
+                     NOTE: Eclair only does this with the relay-policy config set to relay-all!
+    """
+    # destination is existing peer, use direct route
+    if lnwallet.lnpeermgr.get_peer_by_pubkey(node_id):
+        return [PathEdge(short_channel_id=None, start_node=None, end_node=node_id)]
+
+    if not lnwallet.uses_trampoline():
+        # find route to introduction point over existing channel mesh
+        # NOTE: nodes that are in channel_db but are offline are not removed from the set
+        my_active_channels = [chan for chan in lnwallet.channels.values() if chan.is_active()]
+        my_sending_channels = {
+            chan.short_channel_id: chan for chan in my_active_channels
+            if chan.short_channel_id is not None
+        }
+
         if path := lnwallet.network.path_finder.find_path_for_payment(
             nodeA=lnwallet.node_keypair.pubkey,
             nodeB=node_id,
@@ -173,15 +183,18 @@ def create_onion_message_route_to(lnwallet: 'LNWallet', node_id: bytes) -> Seque
             peer = lnwallet.lnpeermgr.get_peer_by_pubkey(path[0].end_node)
             assert peer, 'first hop not a peer'
             return path
-
-    # alt: dest is existing peer?
-    if lnwallet.lnpeermgr.get_peer_by_pubkey(node_id):
-        return [PathEdge(short_channel_id=None, start_node=None, end_node=node_id)]
-
-    # if we have an address, pass it.
-    if lnwallet.channel_db:
-        if peer_addr := lnwallet.channel_db.get_last_good_address(node_id):
+        elif peer_addr := lnwallet.channel_db.get_last_good_address(node_id):
+            # if we have an address, pass it.
             raise NoRouteFound('no path found, peer_addr available', peer_address=peer_addr)
+    else:
+        # if we use trampoline just assume the trampoline will open a direct connection to the next_node_id
+        trampoline_peers = [p for p in lnwallet.lnpeermgr.peers.values() if lnwallet.is_trampoline_peer(p.pubkey)]
+        if trampoline_peers:
+            random_trampoline_peer = random.choice(trampoline_peers)
+            return [
+                PathEdge(short_channel_id=None, start_node=None, end_node=random_trampoline_peer.pubkey),
+                PathEdge(short_channel_id=None, start_node=random_trampoline_peer.pubkey, end_node=node_id),
+            ]
 
     raise NoRouteFound('no path found')
 
@@ -538,7 +551,7 @@ class OnionMessageManager(Logger):
 
     def __init__(self, lnwallet: 'LNWallet'):
         Logger.__init__(self)
-        self.network = None  # type: Optional['Network']
+        self.network = None  # type: Optional[Network]
         self.taskgroup = None  # type: OldTaskGroup
         self.lnwallet = lnwallet
         self.pending = {}  # type: dict[bytes, OnionMessageManager.Request]
