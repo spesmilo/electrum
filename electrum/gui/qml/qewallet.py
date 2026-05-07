@@ -602,26 +602,27 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def broadcast(self, tx):
         assert tx.is_complete()
 
-        def broadcast_thread():
+        async def broadcast_coro():
             self.wallet.set_broadcasting(tx, broadcasting_status=PR_BROADCASTING)
             try:
-                self._logger.info('running broadcast in thread')
-                self.wallet.network.run_from_another_thread(self.wallet.network.broadcast_transaction(tx))
+                self._logger.info('broadcasting tx in coroutine')
+                await self.wallet.network.broadcast_transaction(tx)
             except TxBroadcastError as e:
                 self._logger.error(repr(e))
                 self.broadcastFailed.emit(tx.txid(), '', e.get_message_for_gui())
-                self.wallet.set_broadcasting(tx, broadcasting_status=None)
             except BestEffortRequestFailed as e:
                 self._logger.error(repr(e))
                 self.broadcastFailed.emit(tx.txid(), '', repr(e))
-                self.wallet.set_broadcasting(tx, broadcasting_status=None)
+            except Exception:
+                self._logger.exception("failed to broadcast tx")
             else:
                 self._logger.info('broadcast success')
                 self.broadcastSucceeded.emit(tx.txid())
                 self.historyModel.requestRefresh.emit()  # via qt thread
-                self.wallet.set_broadcasting(tx, broadcasting_status=PR_BROADCAST)
+            finally:
+                self.wallet.set_broadcasting(tx, broadcasting_status=None)
 
-        threading.Thread(target=broadcast_thread, daemon=True).start()
+        asyncio.run_coroutine_threadsafe(broadcast_coro(), get_asyncio_loop())
 
         # TODO: properly catch server side errors, e.g. bad-txns-inputs-missingorspent
 
@@ -663,16 +664,14 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         if self._invoiceModel:
             self._invoiceModel.initModel()
 
-        def pay_thread():
+        async def pay_coro():
             try:
-                coro = self.wallet.lnworker.pay_invoice(invoice, amount_msat=amount_msat)
-                fut = asyncio.run_coroutine_threadsafe(coro, get_asyncio_loop())
-                fut.result()
+                await self.wallet.lnworker.pay_invoice(invoice, amount_msat=amount_msat)
             except Exception as e:
                 self._logger.error(f'pay_invoice failed! {e!r}')
                 self.paymentFailed.emit(invoice.get_id(), str(e))
 
-        threading.Thread(target=pay_thread, daemon=True).start()
+        asyncio.run_coroutine_threadsafe(pay_coro(), get_asyncio_loop())
 
     @pyqtSlot()
     def deleteExpiredRequests(self):
