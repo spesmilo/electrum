@@ -304,6 +304,21 @@ class Imported_KeyStore(Software_KeyStore):
         self.keypairs[pubkey] = pw_encode(serialized_privkey, password, version=self.pw_hash_version)
         return txin_type, pubkey
 
+    def import_private_keys(self, keys: Sequence[str], password: Optional[str]):
+        good_inputs = []  # type: List[Tuple[str, bytes]]
+        bad_keys = []  # type: List[Tuple[str, str]]
+        for key in keys:
+            try:
+                txin_type, pubkey = self.import_privkey(key, password)
+            except Exception as e:
+                bad_keys.append((key, 'invalid private key' + f': {e}'))
+                continue
+            if txin_type not in ('p2pkh', 'p2wpkh', 'p2wpkh-p2sh'):
+                bad_keys.append((key, 'not implemented type' + f': {txin_type}'))
+                continue
+            good_inputs.append((txin_type, pubkey))
+        return good_inputs, bad_keys
+
     def delete_imported_key(self, key: str) -> None:
         self.keypairs.pop(key)
 
