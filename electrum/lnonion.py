@@ -40,12 +40,14 @@ from .lnutil import (PaymentFailure, NUM_MAX_HOPS_IN_PAYMENT_PATH, LnFeatureCont
                      NUM_MAX_EDGES_IN_PAYMENT_PATH, ShortChannelID, OnionFailureCodeMetaFlag, LnFeatures,
                      NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, validate_features, IncompatibleOrInsaneFeatures)
 from .lnmsg import OnionWireSerializer, read_bigsize_int, write_bigsize_int
+from .logging import get_logger
 from . import lnmsg
 from . import util
 
 if TYPE_CHECKING:
     from .lnrouter import LNPaymentRoute
 
+_logger = get_logger(__name__)
 
 HOPS_DATA_SIZE = 1300      # also sometimes called routingInfoSize in bolt-04
 PER_HOP_HMAC_SIZE = 32
@@ -333,7 +335,7 @@ def new_onion_packet(
     onion_message: bool = False
 ) -> OnionPacket:
     num_hops = len(payment_path_pubkeys)
-    assert num_hops == len(hops_data)
+    assert num_hops == len(hops_data), f"{num_hops=}, {hops_data=}"
     hop_shared_secrets, _ = get_shared_secrets_along_route(payment_path_pubkeys, session_key)
 
     payload_size = 0
@@ -447,8 +449,7 @@ def calc_hops_data_for_payment(
         }}
     hops_data = [OnionHopsDataSingle(payload=hop_payload)]
     # payloads, backwards from last hop (but excluding the first edge):
-    for edge_index in range(len(route) - 1, 0, -1):
-        route_edge = route[edge_index]
+    for route_edge in reversed(route[1:]):
         hop_payload = {
             "amt_to_forward": {"amt_to_forward": amt},
             "outgoing_cltv_value": {"outgoing_cltv_value": cltv_abs},
@@ -460,6 +461,80 @@ def calc_hops_data_for_payment(
         cltv_abs += route_edge.cltv_delta
     hops_data.reverse()
     return hops_data, amt, cltv_abs
+
+
+def calc_hops_data_for_blinded_payment(
+        route_to_introduction_point: 'LNPaymentRoute',
+        recipient_amount_msat: int,
+        *,
+        final_cltv_abs: int,
+        total_msat: int,
+        invoice_blinded_path_info: 'BlindedPathInfo',
+) -> Tuple[List[OnionHopsDataSingle], List[bytes], int, int]:
+    """
+    Returns the hops_data to be used for constructing an onion packet,
+    and the amount_msat and cltv_abs to be used on our immediate channel.
+    https://github.com/lightning/bolts/blob/444805d12ab98c30006173bb190cd9d6fce9e405/04-onion-routing.md?plain=1#L264
+    """
+    from .lnrouter import fee_for_edge_msat
+    invoice_blinded_path, invoice_payinfo = invoice_blinded_path_info.path, invoice_blinded_path_info.payinfo
+    assert invoice_blinded_path and invoice_payinfo
+    if len(route_to_introduction_point) > NUM_MAX_EDGES_IN_PAYMENT_PATH:
+        raise PaymentFailure(f"too long route ({len(route_to_introduction_point)} edges)")
+
+    hops_data = []
+    amt = recipient_amount_msat
+    inv_hops = invoice_blinded_path.path
+    num_hops = len(inv_hops)
+    if not invoice_payinfo.htlc_minimum_msat <= recipient_amount_msat <= invoice_payinfo.htlc_maximum_msat:
+        raise Exception(f'{invoice_payinfo=} htlc limits cannot fit {recipient_amount_msat=}')
+
+    _logger.debug('inv_hops: ' + repr(inv_hops))
+    # assemble data for the hops on the given blinded path
+    for i, inv_hop in enumerate(reversed(inv_hops)):
+        # each hop gets their encrypted recipient data
+        payload: dict = {
+            'encrypted_recipient_data': {'encrypted_recipient_data': inv_hop.encrypted_recipient_data}
+        }
+        if i == 0:  # recipient
+            payload.update({
+                'amt_to_forward': {'amt_to_forward': recipient_amount_msat},
+                'outgoing_cltv_value': {'outgoing_cltv_value': final_cltv_abs},
+                'total_amount_msat': {'total_msat': total_msat},
+            })
+        if i == num_hops - 1:  # introduction point
+            payload['current_path_key'] = {'path_key': invoice_blinded_path.first_path_key}
+        _logger.debug(f'inv_hop[{num_hops - 1 - i}].payload: ' + repr(payload))
+        hops_data.append(OnionHopsDataSingle(payload=payload))
+
+    # add the fees + cltv for the (whole) blinded path, amt is then what the introduction point gets
+    amt += fee_for_edge_msat(
+        forwarded_amount_msat=recipient_amount_msat,
+        fee_base_msat=invoice_payinfo.fee_base_msat,
+        fee_proportional_millionths=invoice_payinfo.fee_proportional_millionths,
+    )
+    cltv_abs = final_cltv_abs + invoice_payinfo.cltv_expiry_delta
+    _logger.debug(f'blinded payment introduction point {amt=} for {recipient_amount_msat=}, {cltv_abs=}')
+
+    # payloads for the unblinded part of the path, backwards from pre-IP node (excluding the first edge)
+    for i, route_edge in enumerate(reversed(route_to_introduction_point[1:])):
+        hop_payload = {
+            "amt_to_forward": {"amt_to_forward": amt},
+            "outgoing_cltv_value": {"outgoing_cltv_value": cltv_abs},
+            "short_channel_id": {"short_channel_id": route_edge.short_channel_id},
+        }
+
+        hops_data.append(OnionHopsDataSingle(payload=hop_payload))
+        amt += route_edge.fee_for_edge(amt)
+        cltv_abs += route_edge.cltv_delta
+
+        _logger.debug(f'route_edge[{len(route_to_introduction_point) - 1 - i}].payload: ' + repr(hop_payload) + \
+                     f'\nedge_in_amt: {amt}, edge_in_cltv: {cltv_abs}' + \
+                     f'\n--> {route_edge.end_node.hex()}')
+
+    hops_data.reverse()
+    blinded_path_blinded_node_pubkeys = [x.blinded_node_id for x in inv_hops][1:]
+    return hops_data, blinded_path_blinded_node_pubkeys, amt, cltv_abs
 
 
 def _generate_filler(key_type: bytes, hops_data: Sequence[OnionHopsDataSingle],
