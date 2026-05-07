@@ -33,7 +33,7 @@ from typing import TYPE_CHECKING, Optional, Sequence, NamedTuple, Tuple, Union
 import electrum_ecc as ecc
 
 from electrum.channel_db import get_mychannel_policy
-from electrum.lnrouter import PathEdge
+from electrum.lnrouter import PathEdge, NoChannelPolicy
 from electrum.logging import get_logger, Logger
 from electrum.crypto import sha256, get_ecdh
 from electrum.lnmsg import OnionWireSerializer
@@ -421,7 +421,11 @@ def get_blinded_paths_to_me(
         for chan in rchans[:max_paths]:
             hop_extras = None
             if not onion_message:  # add hop_extras and payinfo, assumption: len(blinded_path) == 2 (us and peer)
-                payinfo, hop_extras = _get_payinfo_for_blinded_path(chan, lnwallet)
+                try:
+                    payinfo, hop_extras = _get_payinfo_for_blinded_path(chan, lnwallet)
+                except NoChannelPolicy:
+                    logger.warning(f"missing remote channel_update for {chan.short_channel_id}")
+                    continue
                 payinfos.append(payinfo)
             blinded_path = create_blinded_path(
                 session_key=os.urandom(32),
@@ -446,6 +450,8 @@ def get_blinded_paths_to_me(
 
 def _get_payinfo_for_blinded_path(chan: 'Channel', lnwallet: 'LNWallet'):
     cp = get_mychannel_policy(chan.short_channel_id, chan.node_id, {chan.short_channel_id: chan})
+    if not cp:
+        raise NoChannelPolicy(chan.short_channel_id)
     sum_cltv_expiry_delta = cp.cltv_delta
     sum_fee_base_msat = cp.fee_base_msat
     sum_fee_proportional_millionths = cp.fee_proportional_millionths
