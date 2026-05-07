@@ -73,6 +73,7 @@ class MockNetwork:
         self.lngossip = MockLNGossip()
         self.tx_queue = asyncio.Queue()
         self.proxy = ProxySettings()
+        self.is_proxy_tor = None
         self._blockchain = MockBlockchain()
 
     def get_local_height(self):
