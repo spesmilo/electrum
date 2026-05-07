@@ -62,6 +62,11 @@ repository.
 ### I changed something but I don't see any differences on the phone. What did I do wrong?
 You probably need to clear the cache: `rm -rf .buildozer/android/platform/build-*/{build,dists}`
 
+Or more extreme, to nuke all build-related dirs: `rm -rf .buildozer_qml/ packages/ contrib/android/.cache/`
+
+Having a several months old build cache might also cause confusing build failures,
+in such a case, worth a try clearing it.
+
 
 ### How do I deploy on connected phone for quick testing?
 Assuming `adb` is installed:
