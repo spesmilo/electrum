@@ -452,6 +452,7 @@ class LNPathFinder(Logger):
             end_node: bytes,
             payment_amt_msat: int,
             ignore_costs=False,
+            ignore_amount_constraints: bool = False,
             is_mine=False,
             my_channels: Dict[ShortChannelID, 'Channel'] = None,
             private_route_edges: Dict[ShortChannelID, RouteEdge] = None,
@@ -481,14 +482,15 @@ class LNPathFinder(Logger):
             return float('inf'), 0
         if channel_policy.is_disabled():
             return float('inf'), 0
-        if payment_amt_msat < channel_policy.htlc_minimum_msat:
-            return float('inf'), 0  # payment amount too little
-        if channel_info.capacity_sat is not None and \
-                payment_amt_msat // 1000 > channel_info.capacity_sat:
-            return float('inf'), 0  # payment amount too large
-        if channel_policy.htlc_maximum_msat is not None and \
-                payment_amt_msat > channel_policy.htlc_maximum_msat:
-            return float('inf'), 0  # payment amount too large
+        if not ignore_amount_constraints:
+            if payment_amt_msat < channel_policy.htlc_minimum_msat:
+                return float('inf'), 0  # payment amount too little
+            if channel_info.capacity_sat is not None and \
+                    payment_amt_msat // 1000 > channel_info.capacity_sat:
+                return float('inf'), 0  # payment amount too large
+            if channel_policy.htlc_maximum_msat is not None and \
+                    payment_amt_msat > channel_policy.htlc_maximum_msat:
+                return float('inf'), 0  # payment amount too large
         route_edge = private_route_edges.get(short_channel_id, None)
         if route_edge is None:
             node_info = self.channel_db.get_node_info_for_node_id(node_id=end_node)
@@ -513,7 +515,7 @@ class LNPathFinder(Logger):
         # - The larger the payment amount, and the longer the CLTV,
         #   the more irritating it is if the HTLC gets stuck.
         # - Paying lower fees is better. :)
-        if ignore_costs:
+        if ignore_costs or ignore_amount_constraints:
             return DEFAULT_PENALTY_BASE_MSAT, 0
         fee_msat = route_edge.fee_for_edge(payment_amt_msat)
         cltv_cost = route_edge.cltv_delta * payment_amt_msat * 15 / 1_000_000_000
@@ -528,10 +530,10 @@ class LNPathFinder(Logger):
             *,
             nodeA: bytes, # nodeA is expected to be our node id if channels are passed in my_sending_channels
             nodeB: bytes,
-            invoice_amount_msat: int,
+            invoice_amount_msat: Optional[int],
             my_sending_channels: Dict[ShortChannelID, 'Channel'] = None,
             private_route_edges: Dict[ShortChannelID, RouteEdge] = None,
-            node_filter: Optional[Callable[[bytes, NodeInfo], bool]] = None
+            node_filter: Optional[Callable[[bytes, Optional[NodeInfo]], bool]] = None,
     ) -> Dict[bytes, PathEdge]:
         # note: we don't lock self.channel_db, so while the path finding runs,
         #       the underlying graph could potentially change... (not good but maybe ~OK?)
@@ -545,11 +547,12 @@ class LNPathFinder(Logger):
         # run Dijkstra
         # The search is run in the REVERSE direction, from nodeB to nodeA,
         # to properly calculate compound routing fees.
+        ignore_amount_constraints = invoice_amount_msat is None  # e.g. onion messages
         distance_from_start = defaultdict(lambda: float('inf'))
         distance_from_start[nodeB] = 0
         previous_hops = {}  # type: Dict[bytes, PathEdge]
         nodes_to_explore = queue.PriorityQueue()
-        nodes_to_explore.put((0, invoice_amount_msat, nodeB))  # order of fields (in tuple) matters!
+        nodes_to_explore.put((0, invoice_amount_msat or 0, nodeB))  # order of fields (in tuple) matters!
         now = int(time.time())
 
         # main loop of search
@@ -592,7 +595,8 @@ class LNPathFinder(Logger):
                 if edge_startnode == nodeA and my_sending_channels:  # payment outgoing, on our channel
                     if edge_channel_id not in my_sending_channels:
                         continue
-                    if not my_sending_channels[edge_channel_id].can_pay(amount_msat, check_frozen=True):
+                    if not ignore_amount_constraints \
+                            and not my_sending_channels[edge_channel_id].can_pay(amount_msat, check_frozen=True):
                         continue
                 edge_cost, fee_for_edge_msat = self._edge_cost(
                     short_channel_id=edge_channel_id,
@@ -600,6 +604,7 @@ class LNPathFinder(Logger):
                     end_node=edge_endnode,
                     payment_amt_msat=amount_msat,
                     ignore_costs=(edge_startnode == nodeA),
+                    ignore_amount_constraints=ignore_amount_constraints,
                     is_mine=is_mine,
                     my_channels=my_sending_channels,
                     private_route_edges=private_route_edges,
@@ -626,15 +631,15 @@ class LNPathFinder(Logger):
             *,
             nodeA: bytes,
             nodeB: bytes,
-            invoice_amount_msat: int,
+            invoice_amount_msat: Optional[int],
             my_sending_channels: Dict[ShortChannelID, 'Channel'] = None,
             private_route_edges: Dict[ShortChannelID, RouteEdge] = None,
-            node_filter: Optional[Callable[[bytes, NodeInfo], bool]] = None
+            node_filter: Optional[Callable[[bytes, Optional[NodeInfo]], bool]] = None
     ) -> Optional[LNPaymentPath]:
         """Return a path from nodeA to nodeB."""
         assert type(nodeA) is bytes
         assert type(nodeB) is bytes
-        assert type(invoice_amount_msat) is int
+        assert type(invoice_amount_msat) is int or invoice_amount_msat is None
         if my_sending_channels is None:
             my_sending_channels = {}
 
@@ -658,6 +663,28 @@ class LNPathFinder(Logger):
             path += [edge]
             edge_startnode = edge.node_id
         return path
+
+    def find_path_for_onion_message(
+            self,
+            *,
+            nodeA: bytes,
+            nodeB: bytes,
+            my_sending_channels: Dict[ShortChannelID, 'Channel'] = None,
+            private_route_edges: Dict[ShortChannelID, RouteEdge] = None,
+    ) -> Optional[LNPaymentPath]:
+        from .onion_message import is_onion_message_node
+        def _node_filter(edge_startnode, node_info):
+            if edge_startnode == nodeA:
+                return True  # assume the sending node does support onion messages
+            return is_onion_message_node(edge_startnode, node_info)
+        return self.find_path_for_payment(
+            nodeA=nodeA,
+            nodeB=nodeB,
+            my_sending_channels=my_sending_channels,
+            private_route_edges=private_route_edges,
+            node_filter=_node_filter,
+            invoice_amount_msat=None,
+        )
 
     def create_route_from_path(
             self,
