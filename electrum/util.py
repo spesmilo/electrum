@@ -2201,6 +2201,7 @@ class ESocksProxy(aiorpcx.SOCKSProxy):
         username, pw = proxy.user, proxy.password
         if not username or not pw:
             # is_proxy_tor is tri-state; None indicates it is still probing the proxy to test for TOR
+            # FIXME race: if is_proxy_tor is None, we should wait until it gets set. Instead now we reuse Tor circuits.
             if network.is_proxy_tor:
                 auth = aiorpcx.socks.SOCKSRandomAuth()
             else:
