@@ -1705,8 +1705,8 @@ class Peer(Logger, EventListener):
 
         chan.peer_state = PeerState.GOOD
         self._chan_reest_finished[chan.channel_id].set()
+        chan_just_became_ready = (their_next_local_ctn == next_local_ctn == 1)
         if chan.is_funded():
-            chan_just_became_ready = (their_next_local_ctn == next_local_ctn == 1)
             if chan_just_became_ready or self.features.supports(LnFeatures.OPTION_SCID_ALIAS_OPT):
                 self.send_channel_ready(chan)
 
@@ -1714,9 +1714,14 @@ class Peer(Logger, EventListener):
         self.maybe_update_fee(chan)  # if needed, update fee ASAP, to avoid force-closures from this
         # checks done
         util.trigger_callback('channel', self.lnworker.wallet, chan)
-        # if we have sent a previous shutdown, it must be retransmitted (Bolt2)
         if chan.get_state() == ChannelState.SHUTDOWN:
+            # if we have sent a previous shutdown, it must be retransmitted (Bolt2)
             await self.taskgroup.spawn(self.send_shutdown(chan))
+        elif chan.get_state() == ChannelState.OPEN:
+            forwarding_enabled = self.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS
+            if forwarding_enabled and chan.short_channel_id and not chan_just_became_ready:
+                # send channel update so peer knows our constraints for forwarding to them
+                self.send_channel_update(chan)
 
     def send_channel_ready(self, chan: Channel):
         assert chan.is_funded()
