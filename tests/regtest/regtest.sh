@@ -130,7 +130,9 @@ function wait_until_spent()
     declare -i timeout_sec=120
     declare -i elapsed_sec=0
 
-    while [[ $($bitcoin_cli gettxout $1 $2) ]]; do
+    while true; do
+        utxo=$($bitcoin_cli gettxout $1 $2)
+        if [[ -z "$utxo" ]]; then break; fi  # utxo is spent (or never existed!)
         if ((elapsed_sec > timeout_sec)); then
             printf "Timeout of %i s exceeded\n" "$elapsed_sec"
             exit 1
