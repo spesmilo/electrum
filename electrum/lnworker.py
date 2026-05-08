@@ -486,7 +486,7 @@ class LNPeerManager(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
                 continue
             if not self.is_good_peer(peer):
                 continue
-            if peer.is_onion() and not self.network.proxy or not self.network.proxy.enabled:
+            if peer.is_onion() and not self.network.is_proxy_tor:
                 continue
             return [peer]
         # try random peer from graph
@@ -564,7 +564,7 @@ class LNPeerManager(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         for host, port, timestamp in sorted(addr_list, key=lambda a: -a[2]):
             if is_ip_address(host):
                 return host, port, timestamp
-        if not self.network.proxy or not self.network.proxy.enabled:
+        if not self.network.is_proxy_tor:
             addr_list = [(h, p, ts) for h, p, ts in addr_list if not h.endswith('.onion')]
         if not addr_list:
             return None
