@@ -2117,7 +2117,7 @@ class Commands(Logger):
                 )
 
         return {
-            'txid': txid,
+            'txid': txid,  # FIXME sync name with reverse_swap cmd that uses "funding_txid"
             'lightning_amount': format_satoshis(lightning_amount_sat),
             'onchain_amount': format_satoshis(onchain_amount_sat),
         }

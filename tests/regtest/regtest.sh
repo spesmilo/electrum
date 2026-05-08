@@ -292,23 +292,44 @@ if [[ $1 == "collaborative_close" ]]; then
 fi
 
 
-if [[ $1 == "swapserver_success" ]]; then
+if [[ $1 == "swapserver_success_reverse" ]]; then
     wait_for_balance alice 1
     echo "alice opens channel"
     bob_node=$($bob nodeid)
     channel=$($alice open_channel $bob_node 0.15 --password='')
     new_blocks 3
     wait_until_channel_open alice
-    echo "alice initiates swap"
+    echo "alice initiates reverse-swap"
     dryrun=$($alice reverse_swap 0.02 dryrun)
     onchain_amount=$(echo $dryrun| jq -r ".onchain_amount")
     prepayment=$(echo $dryrun| jq -r ".prepayment")
     swap=$($alice reverse_swap 0.02 $onchain_amount --prepayment $prepayment)
     echo $swap | jq
     funding_txid=$(echo $swap| jq -r ".funding_txid")
+    assert_utxo_exists $funding_txid 0
     new_blocks 1
     wait_until_spent $funding_txid 0
     wait_until_htlcs_settled alice
+fi
+
+
+if [[ $1 == "swapserver_success_forward" ]]; then
+    wait_for_balance alice 1
+    echo "alice opens channel"
+    bob_node=$($bob nodeid)
+    channel=$($alice open_channel $bob_node 0.15 --password='' --push_amount=0.075)
+    new_blocks 3
+    wait_until_channel_open alice
+    echo "alice initiates forward-swap"
+    dryrun=$($alice normal_swap 0.02 dryrun)
+    lightning_amount=$(echo $dryrun| jq -r ".lightning_amount")
+    swap=$($alice normal_swap 0.02 $lightning_amount)
+    echo $swap | jq
+    funding_txid=$(echo $swap| jq -r ".txid")
+    assert_utxo_exists $funding_txid 0
+    new_blocks 1
+    wait_until_spent $funding_txid 0
+    wait_until_htlcs_settled bob
 fi
 
 
