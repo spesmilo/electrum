@@ -46,6 +46,7 @@ Pane {
 
             FormattedAmount {
                 amount: Daemon.currentWallet.lightningCanSend
+                redacted: Config.hideAmounts
             }
 
             Label {
@@ -55,6 +56,7 @@ Pane {
 
             FormattedAmount {
                 amount: Daemon.currentWallet.lightningCanReceive
+                redacted: Config.hideAmounts
             }
         }
 
