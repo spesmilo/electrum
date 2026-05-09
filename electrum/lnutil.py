@@ -30,7 +30,7 @@ from .bip32 import BIP32Node, BIP32_PRIME
 from .transaction import BCDataStream, OPPushDataGeneric
 from .logging import get_logger
 from .fee_policy import FEERATE_PER_KW_MIN_RELAY_LIGHTNING
-from .json_db import StoredObject, stored_in, stored_as
+from .stored_dict import StoredObject, stored_in, stored_as
 
 
 if TYPE_CHECKING:

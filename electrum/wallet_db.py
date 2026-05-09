@@ -41,8 +41,9 @@ from .transaction import Transaction, TxOutpoint, tx_from_any, PartialTransactio
 from .logging import Logger
 
 from .lnutil import HTLCOwner, ChannelType, RecvMPPResolution
-from . import json_db
-from .json_db import JsonDB, locked, modifier, StoredObject, stored_in, stored_as
+from .json_db import JsonDB, locked, modifier
+from . import stored_dict
+from .stored_dict import StoredObject, stored_in, stored_as
 from .plugin import run_hook, plugin_loaders
 from .version import ELECTRUM_VERSION
 from .i18n import _
@@ -103,18 +104,18 @@ class WalletFileExceptionVersion51(WalletFileException): pass
 
 
 # register dicts that require value conversions not handled by constructor
-json_db.register_dict('transactions', lambda x: tx_from_any(x, deserialize=False), None)
-json_db.register_dict('data_loss_protect_remote_pcp', lambda x: bytes.fromhex(x), None)
-json_db.register_dict('contacts', tuple, None)
+stored_dict.register_dict('transactions', lambda x: tx_from_any(x, deserialize=False), None)
+stored_dict.register_dict('data_loss_protect_remote_pcp', lambda x: bytes.fromhex(x), None)
+stored_dict.register_dict('contacts', tuple, None)
 # register dicts that require key conversion
 for key in [
         'adds', 'locked_in', 'settles', 'fails', 'fee_updates', 'buckets',
         'unacked_updates', 'unfulfilled_htlcs', 'onion_keys']:
-    json_db.register_dict_key(key, int)
+    stored_dict.register_dict_key(key, int)
 for key in ['log']:
-    json_db.register_dict_key(key, lambda x: HTLCOwner(int(x)))
+    stored_dict.register_dict_key(key, lambda x: HTLCOwner(int(x)))
 for key in ['locked_in', 'fails', 'settles']:
-    json_db.register_parent_key(key, lambda x: HTLCOwner(int(x)))
+    stored_dict.register_parent_key(key, lambda x: HTLCOwner(int(x)))
 
 
 class WalletDBUpgrader(Logger):
