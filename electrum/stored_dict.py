@@ -24,24 +24,24 @@
 # SOFTWARE.
 
 import threading
-import json
+import os
+from enum import IntEnum
 from collections import defaultdict
-from typing import TYPE_CHECKING, Optional, Sequence, List, Union, Any
+from typing import Any, Optional, Tuple, Union, Iterator, Iterable, List, Sequence
+from .logging import Logger
 
 
-if TYPE_CHECKING:
-    from .json_db import JsonDB
-    from .storage import WalletStorage
+FLEX_KEY = str | int | None
+_RaiseKeyError = object() # singleton for no-default behavior
 
 
-
-
-def locked(func):
-    def wrapper(self, *args, **kwargs):
-        with self.lock:
-            return func(self, *args, **kwargs)
-    return wrapper
-
+def key_to_str(x: FLEX_KEY) -> str:
+    if isinstance(x, int):
+        return str(int(x))
+    elif isinstance(x, str):
+        return x
+    else:
+        raise Exception(f"key {x=}")
 
 registered_names = defaultdict(dict)
 registered_keys = defaultdict(dict)
@@ -69,10 +69,67 @@ def stored_at(path, _type=dict):
         return func
     return decorator
 
-_FLEX_KEY = str | int | None
+
+class StorageEncryptionVersion(IntEnum):
+    PLAINTEXT = 0
+    USER_PASSWORD = 1
+    XPUB_PASSWORD = 2
 
 
-def _convert_dict_key(path: List[str], key: str) -> _FLEX_KEY:
+def json_default(obj):
+    if isinstance(obj, (set, frozenset)):
+        return list(obj)
+    if isinstance(obj, bytes):
+        return obj.hex()
+    if hasattr(obj, 'as_str') and callable(obj.as_str):
+        return obj.as_str()
+    if hasattr(obj, 'as_dict') and callable(obj.as_dict):
+        return obj.as_dict()
+    if hasattr(obj, 'as_tuple') and callable(obj.as_tuple):
+        return obj.as_tuple()
+    return obj
+
+
+class BaseDB(Logger):
+
+    def __init__(self, path):
+        Logger.__init__(self)
+        self._write_batch = None
+        self.path = path
+
+    def get_stored_dict(self):
+        return StoredDict(self, key='', parent=None)
+
+    def file_exists(self):
+        raise NotImplementedError()
+
+    def get_path(self):
+        return self.path
+
+    def set_password(self, password:str):
+        raise NotImplementedError()
+
+
+def WalletStorage(path: str, init_db: bool = True, use_levelDB: bool = False, allow_partial_writes: bool = True) -> BaseDB:
+    file_exists = bool(path) and os.path.exists(path)
+    if not file_exists:
+        use_levelDB = use_levelDB
+    elif os.path.isdir(path):
+        from .level_db import VERSION_FILENAME
+        assert os.path.exists(os.path.join(path, VERSION_FILENAME))
+        use_levelDB = True
+    else:
+        use_levelDB = False
+    if use_levelDB:
+        from .level_db import LevelDB
+        db = LevelDB(path, init_db=init_db)
+    else:
+        from .json_db import JsonDB
+        db = JsonDB(path=path, init_db=init_db, allow_partial_writes=allow_partial_writes)
+    return db
+
+
+def _convert_dict_key(path: List[str], key: str) -> FLEX_KEY:
     """Maybe convert key from str to python type (typically int or IntEnum)"""
     assert all(isinstance(x, str) for x in path), repr(path)
     n = len(path)
@@ -82,7 +139,7 @@ def _convert_dict_key(path: List[str], key: str) -> _FLEX_KEY:
             if func:
                 key = func(key)
                 break
-    assert isinstance(key, _FLEX_KEY), f"unexpected type for {key=!r} at {path=}"
+    assert isinstance(key, FLEX_KEY), f"unexpected type for {key=!r} at {path=}"
     return key
 
 def _convert_dict_value(path: List[str], v) -> Any:
@@ -106,8 +163,8 @@ def _convert_dict_value(path: List[str], v) -> Any:
 
 class BaseStoredObject:
 
-    _db: 'JsonDB' = None
-    _key: _FLEX_KEY = None
+    _db: BaseDB = None
+    _key: FLEX_KEY = None
     _parent: Optional['BaseStoredObject'] = None
     _lock: threading.RLock = None
 
@@ -115,9 +172,9 @@ class BaseStoredObject:
         self._db = db
         self._lock = self._db.lock if self._db else threading.RLock()
 
-    def set_parent(self, *, key: _FLEX_KEY, parent: Optional['BaseStoredObject']) -> None:
+    def set_parent(self, *, key: FLEX_KEY, parent: Optional['BaseStoredObject']) -> None:
         assert (key == "") == (parent is None), f"{key=!r}, {parent=!r}"
-        assert isinstance(key, _FLEX_KEY), repr(key)
+        assert isinstance(key, FLEX_KEY), repr(key)
         self._key = key
         self._parent = parent
 
@@ -126,7 +183,7 @@ class BaseStoredObject:
         return self._lock
 
     @property
-    def path(self) -> Sequence[_FLEX_KEY] | None:
+    def path(self) -> Sequence[FLEX_KEY] | None:
         # return None iff we are pruned from root
         x = self
         s = [x._key]
@@ -135,23 +192,9 @@ class BaseStoredObject:
             s = [x._key] + s
         if x._key != '':
             return None
-        assert self._db is not None
+        else:
+            assert self._db is not None
         return s
-
-    def db_add(self, key: _FLEX_KEY, value) -> None:
-        assert isinstance(key, _FLEX_KEY), repr(key)
-        if self.path:
-            self._db.add(self.path, key, value)
-
-    def db_replace(self, key: _FLEX_KEY, value) -> None:
-        assert isinstance(key, _FLEX_KEY), repr(key)
-        if self.path:
-            self._db.replace(self.path, key, value)
-
-    def db_remove(self, key: _FLEX_KEY) -> None:
-        assert isinstance(key, _FLEX_KEY), repr(key)
-        if self.path:
-            self._db.remove(self.path, key)
 
 
 class StoredObject(BaseStoredObject):
@@ -159,12 +202,12 @@ class StoredObject(BaseStoredObject):
 
     def __setattr__(self, key: str, value):
         assert isinstance(key, str), repr(key)
-        if self.path and not key.startswith('_'):
+        if not key.startswith('_') and self.path:
             if value != getattr(self, key):
-                self.db_replace(key, value)
+                self._db.replace(self.path, key, value)
         object.__setattr__(self, key, value)
 
-    def to_json(self):
+    def as_dict(self):
         d = dict(vars(self))
         # don't expose/store private stuff
         d = {k: v for k, v in d.items()
@@ -173,95 +216,203 @@ class StoredObject(BaseStoredObject):
 
 
 
-_RaiseKeyError = object() # singleton for no-default behavior
+class StoredDict(BaseStoredObject):
+    """
+    dict-like object that queries the DB
+    type conversions are performed here
 
+    the DB object returns simple python objects: list or dict
+    this class converts them
+    """
 
-class StoredDict(dict, BaseStoredObject):
+    def __init__(self, db: BaseDB, key: FLEX_KEY, parent):
+        BaseStoredObject.__init__(self)
+        self._db = db
+        self._lock = db.lock
+        self._parent = parent
+        self._key = key_to_str(key)
+        self._should_convert = True
 
-    def __init__(self, data: dict, db: 'JsonDB'):
-        self.set_db(db)
-        # recursively convert dicts to StoredDict
-        for k, v in list(data.items()):
-            self.__setitem__(k, v)
+    def should_convert(self):
+        return self._parent.should_convert() if self._parent is not None else self._should_convert
 
-    @locked
-    def __setitem__(self, key: _FLEX_KEY, v) -> None:
-        assert isinstance(key, _FLEX_KEY), repr(key)
-        is_new = key not in self
-        # early return to prevent unnecessary disk writes
-        if not is_new and self._db and json.dumps(v, cls=self._db.encoder) == json.dumps(self[key], cls=self._db.encoder):
-            return
-        # convert dict to StoredDict.
-        if type(v) == dict and (self._db is None or self._db._should_convert_to_stored_dict(key)):
-            v = StoredDict(v, self._db)
-        # convert list to StoredList
-        elif type(v) == list:
-            v = StoredList(v, self._db)
-        # reject sets. they do not work well with jsonpatch
-        elif isinstance(v, set):
-            raise Exception(f"Do not store sets inside jsondb. path={self.path!r}")
+    def start_upgrade(self):
+        self._should_convert = False
+        self._db.set_write_batch()
+
+    def end_upgrade(self):
+        self._should_convert = True
+        self._db.clear_write_batch()
+
+    def get_dict(self, key) -> 'StoredDict':
+        # side effect: creates db entry if it does not exist
+        key = key_to_str(key)
+        if not self._db.contains(self.path, key):
+            self._db.put(self.path, key, {})
+        return StoredDict(self._db, key=key, parent=self)
+
+    def dump(self):
+        self._should_convert = False
+        data = self._dump()
+        self._should_convert = True
+        return data
+
+    def _dump(self):
+        data = {}
+        for k, v in self.items():
+            if isinstance(v, StoredDict):
+                v = v._dump()
+            if isinstance(v, StoredList):
+                v = v._dump()
+            data[k] = v
+        return data
+
+    def __getitem__(self, key: FLEX_KEY) -> Any:
+        key = key_to_str(key)
+        value = self._db.get(self.path, key)
+        if not self.should_convert():
+            if isinstance(value, dict):
+                return StoredDict(self._db, key=key, parent=self)
+            if isinstance(value, list):
+                return StoredList(self._db, key=key, parent=self)
+            return value
+        value = _convert_dict_value(self.path + [key], value)
         # set db for StoredObject, because it is not set in the constructor
-        if isinstance(v, StoredObject):
-            v.set_db(self._db)
-        # set parent
-        if isinstance(v, BaseStoredObject):
-            v.set_parent(key=key, parent=self)
-        # set item
-        dict.__setitem__(self, key, v)
-        self.db_add(key, v) if is_new else self.db_replace(key, v)
+        if isinstance(value, StoredObject):
+            value.set_db(self._db)
+            value.set_parent(key=key, parent=self)
+        elif isinstance(value, list):
+            value = StoredList(self._db, key=key, parent=self)
+        elif isinstance(value, dict):
+            value = StoredDict(self._db, key=key, parent=self)
+        return value
 
-    @locked
-    def __delitem__(self, key: _FLEX_KEY) -> None:
-        assert isinstance(key, _FLEX_KEY), repr(key)
-        r  = self.get(key, None)
-        dict.__delitem__(self, key)
-        self.db_remove(key)
-        if isinstance(r, BaseStoredObject):
-            r._parent = None
+    def __setitem__(self, key: FLEX_KEY, value: Any) -> None:
+        key = key_to_str(key)
+        if isinstance(value, StoredList):
+            # fixme: this only happens during db upgrade?
+            value = value[:]
+            assert isinstance(value, list)
+        if isinstance(value, StoredDict):
+            value = value._dump()
+            assert isinstance(value, dict)
+        self._db.put(self.path, key, value)
 
-    @locked
-    def pop(self, key: _FLEX_KEY, v=_RaiseKeyError) -> Any:
-        assert isinstance(key, _FLEX_KEY), repr(key)
-        if key not in self:
-            if v is _RaiseKeyError:
-                raise KeyError(key)
+    def __delitem__(self, key: FLEX_KEY) -> None:
+        key = key_to_str(key)
+        self._db.remove(self.path, key)
+
+    def __iter__(self) -> Iterator[str]:
+        return self._db.iter_keys(self.path)
+
+    def __len__(self) -> int:
+        return self._db.dict_len(self.path)
+
+    # ---- Dict-like extras ----
+
+    def __contains__(self, key: object) -> bool:
+        key = key_to_str(key)
+        assert isinstance(key, str)
+        return self._db.contains(self.path, key)
+
+    def keys(self) -> Iterable[str]:
+        for k in self._db.iter_keys(self.path):
+            yield _convert_dict_key(self.path, k)
+
+    def values(self) -> Iterator[Any]:
+        for k in self.keys():
+            yield self[k]
+
+    def items(self) -> Iterator[Tuple[str, Any]]:
+        for k in self.keys():
+            yield (k, self[k])
+
+    def get(self, key: FLEX_KEY, default: Any = None) -> Any:
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+    def clear(self) -> None:
+        self._db.clear(self.path)
+
+    def pop(self, key: FLEX_KEY, default: Any = _RaiseKeyError) -> Any:
+        try:
+            v = self[key]
+        except KeyError:
+            if default is _RaiseKeyError:
+                raise
+            return default
+        del self[key]
+        #if isinstance(v, StoredDict):
+        #    v._parent = None
+        #    v = v._dump()
+        #assert(not isinstance(v, BaseStoredObject))
+        return v
+
+    def update(self, other=(), /, **kwargs) -> None:
+        if isinstance(other, dict):
+            pairs = list(other.items())
+        else:
+            pairs = list(other)
+        pairs.extend(kwargs.items())
+        for k, v in pairs:
+            self[k] = v
+
+    def as_dict(self) -> dict:
+        """used by keystore"""
+        def f(v):
+            if isinstance(v, StoredDict):
+                return v.as_dict()
+            elif isinstance(v, StoredList):
+                return v[::]
             else:
                 return v
-        r = dict.pop(self, key)
-        self.db_remove(key)
-        if isinstance(r, BaseStoredObject):
-            r._parent = None
-        return r
+        return dict([(k, f(v)) for k, v in self.items()])
 
-    def setdefault(self, key: _FLEX_KEY, default = None, /):
-        assert isinstance(key, _FLEX_KEY), repr(key)
+    def setdefault(self, key: FLEX_KEY, default = None, /):
+        assert isinstance(key, FLEX_KEY), repr(key)
         if key not in self:
             self.__setitem__(key, default)
         return self[key]
 
 
-class StoredList(list, BaseStoredObject):
+class StoredList(BaseStoredObject):
 
-    def __init__(self, data, db: 'JsonDB'):
-        list.__init__(self, data)
-        self.set_db(db)
+    def __init__(self, db: BaseDB, key: FLEX_KEY, parent):
+        self._db = db
+        self._lock = db.lock
+        self._parent = parent
+        self._key = key_to_str(key)
 
-    @locked
+    def __getitem__(self, s: slice) -> Any:
+        return self._db.get_list_item(self.path, s)
+
+    def __len__(self):
+        return self._db.list_len(self.path)
+
+    def __iter__(self) -> Iterator[str]:
+        return self._db.list_iter(self.path)
+
     def append(self, item):
-        n = len(self)
-        list.append(self, item)
-        self.db_add('%d'%n, item)
+        self._db.list_append(self.path, item)
 
-    @locked
-    def remove(self, item):
-        n = self.index(item)
-        list.remove(self, item)
-        self.db_remove('%d'%n)
-
-    @locked
     def clear(self):
-        list.clear(self)
-        self.db_replace(None, [])
+        self._db.list_clear(self.path)
+        assert len(self) == 0
 
+    def index(self, item) -> int:
+        return self._db.list_index(self.path, item)
 
+    def remove(self, item):
+        self._db.list_remove(self.path, item)
 
+    def _dump(self):
+        data = []
+        for v in self:
+            if isinstance(v, StoredDict):
+                v = v._dump()
+            if isinstance(v, StoredList):
+                v = v._dump()
+            data.append(v)
+        return data

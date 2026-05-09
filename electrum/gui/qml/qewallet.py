@@ -751,7 +751,8 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
         try:
             self._logger.info('setting new password')
-            self.wallet.update_password(current_password, password, encrypt_storage=True)
+            encrypt_storage = self.wallet.storage.supports_file_encryption()
+            self.wallet.update_password(current_password, password, encrypt_storage=encrypt_storage)
             # restore the invariant that all loaded wallets in qml must be unlocked:
             self.wallet.unlock(password)
             return True

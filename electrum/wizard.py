@@ -12,7 +12,8 @@ from electrum.logging import get_logger
 from electrum.network import ProxySettings
 from electrum.plugin import run_hook
 from electrum.slip39 import EncryptedSeed
-from electrum.storage import WalletStorage, StorageEncryptionVersion, StorageReadWriteError
+from electrum.storage import StorageEncryptionVersion, StorageReadWriteError
+from electrum.stored_dict import WalletStorage
 from electrum.util import UserFacingException
 from electrum.wallet_db import WalletDB
 from electrum.bip32 import normalize_bip32_derivation, xpub_type
@@ -780,7 +781,7 @@ class NewWalletWizard(KeystoreWizard):
                 enc_version = StorageEncryptionVersion.USER_PASSWORD
             storage.set_password(data['password'], enc_version=enc_version)
 
-        db = WalletDB('', storage=storage, upgrade=True)
+        db = WalletDB(storage.get_stored_dict())
         db.set_keystore_encryption(bool(data['password']))
 
         db.put('wallet_type', data['wallet_type'])
@@ -823,7 +824,8 @@ class NewWalletWizard(KeystoreWizard):
             db.put('lightning_xprv', k.get_lightning_xprv(data['password']))
 
         db.load_plugins()
-        db.write()
+        storage.write()
+        storage.close()
 
 
 class ServerConnectWizard(AbstractWizard):

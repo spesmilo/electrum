@@ -274,7 +274,7 @@ class Commands(Logger):
         """List wallets open in daemon"""
         return [
             {
-                'path': w.db.storage.path,
+                'path': w.storage.get_path() if w.storage else None,
                 'synchronized': w.is_up_to_date(),
                 'unlocked': not w.has_password() or (w.get_unlocked_password() is not None),
             }
@@ -313,9 +313,10 @@ class Commands(Logger):
             encrypt_file=encrypt_file,
             seed_type=seed_type,
             config=self.config)
+        wallet = d['wallet']
         return {
             'seed': d['seed'],
-            'path': d['wallet'].storage.path,
+            'path': wallet.storage.get_path(),
             'msg': d['msg'],
         }
 
@@ -338,8 +339,9 @@ class Commands(Logger):
             password=password,
             encrypt_file=encrypt_file,
             config=self.config)
+        wallet = d['wallet']
         return {
-            'path': d['wallet'].storage.path,
+            'path': wallet.storage.get_path(),
             'msg': d['msg'],
         }
 

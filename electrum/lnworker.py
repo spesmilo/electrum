@@ -1660,8 +1660,8 @@ class LNWallet(Logger):
 
     def add_new_channel(self, chan: Channel):
         self.add_channel(chan)
-        channels_db = self.db.get_dict('channels')
-        channels_db[chan.channel_id.hex()] = chan.storage
+        #channels_db = self.db.get_dict('channels')
+        #channels_db[chan.channel_id.hex()] = chan.storage
         self.wallet.set_reserved_addresses_for_chan(chan, reserved=True)
         try:
             self.save_channel(chan)

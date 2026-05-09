@@ -12,7 +12,7 @@ from electrum import util
 from electrum import slip39
 from electrum.bip32 import KeyOriginInfo
 from electrum import keystore
-from electrum.storage import WalletStorage
+from electrum.stored_dict import WalletStorage
 
 from . import ElectrumTestCase
 from .test_wallet_vertical import UNICODE_HORROR, WalletIntegrityHelper

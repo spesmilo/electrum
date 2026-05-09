@@ -236,7 +236,7 @@ class BaseInvoice(StoredObject):
         else:  # on-chain
             return get_id_from_onchain_outputs(outputs=self.get_outputs(), timestamp=self.time)
 
-    def as_dict(self, status):
+    def export(self, status):
         d = {
             'is_lightning': self.is_lightning(),
             'amount_BTC': format_satoshis(self.get_amount_sat()),

@@ -142,6 +142,8 @@ class HistoryNode(CustomNode):
         assert index.isValid()
         col = index.column()
         window = self.model.window
+        if not window.isVisible():
+            return
         tx_item = self.get_data()
         is_lightning = tx_item.get('lightning', False)
         if not is_lightning and 'txid' not in tx_item:

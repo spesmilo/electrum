@@ -13,7 +13,8 @@ from electrum.plugin import run_hook
 from electrum.lnchannel import ChannelState
 from electrum.bitcoin import is_address
 from electrum.bitcoin import verify_usermessage_with_address
-from electrum.storage import StorageReadWriteError, WalletStorage
+from electrum.storage import StorageReadWriteError
+from electrum.stored_dict import WalletStorage
 
 from .auth import AuthMixin, auth_protect
 from .qefx import QEFX
