@@ -4420,10 +4420,13 @@ def create_new_wallet(
         seed_type: Optional[str] = None,
         gap_limit: Optional[int] = None,
         gap_limit_for_change: Optional[int] = None,
+        use_levelDB: bool = False,
 ) -> dict:
     """Create a new wallet"""
     if os.path.exists(path):
         raise UserFacingException("Remove the existing wallet first!")
+    if encrypt_file and use_levelDB:
+        raise UserFacingException("LevelDB wallets cannot be encrypted")
     storage = WalletStorage(path, use_levelDB=use_levelDB, allow_partial_writes=config.WALLET_PARTIAL_WRITES)
     if encrypt_file:
         storage.set_password(password, StorageEncryptionVersion.USER_PASSWORD)
@@ -4443,7 +4446,10 @@ def create_new_wallet(
     wallet = Wallet(db, config=config)
     wallet.synchronize()
     msg = "Please keep your seed in a safe place; if you lose it, you will not be able to restore your wallet."
+    if not encrypt_file:
+        msg += "\nWarning: wallet file not encrypted. Lightning keys will not be encrypted on disk"
     wallet.save_db()
+    storage.close()
     return {'seed': seed, 'wallet': wallet, 'msg': msg}
 
 
@@ -4457,11 +4463,14 @@ def restore_wallet_from_text(
         encrypt_file: bool = True,
         gap_limit: Optional[int] = None,
         gap_limit_for_change: Optional[int] = None,
+        use_levelDB: bool = False,
         wallet_factory = Wallet,  # used in tests
 ) -> dict:
     """Restore a wallet from text. Text can be a seed phrase, a master
     public key, a master private key, a list of bitcoin addresses
     or bitcoin private keys."""
+    if encrypt_file and use_levelDB:
+        raise UserFacingException("LevelDB wallets cannot be encrypted")
     if path is None:
         # tests: create wallet in-memory
         storage = WalletStorage(None)
@@ -4512,10 +4521,11 @@ def restore_wallet_from_text(
         if gap_limit_for_change is not None:
             db.put('gap_limit_for_change', gap_limit_for_change)
         wallet = wallet_factory(db, config=config)
-    if storage:
-        assert not storage.file_exists(), "file was created too soon! plaintext keys might have been written to disk"
     wallet.synchronize()
     msg = ("This wallet was restored offline. It may contain more addresses than displayed. "
            "Start a daemon and use load_wallet to sync its history.")
+    if not encrypt_file:
+        msg += "\nWarning: wallet file not encrypted. Lightning keys will not be encrypted on disk."
     wallet.save_db()
+    storage.close()
     return {'wallet': wallet, 'msg': msg}

@@ -298,13 +298,14 @@ class Commands(Logger):
         return await self.daemon._stop_wallet(wallet_path)
 
     @command('')
-    async def create(self, passphrase=None, password=None, encrypt_file=True, seed_type=None, wallet_path=None):
+    async def create(self, passphrase=None, password=None, encrypt_file=True, seed_type=None, wallet_path=None, use_levelDB=False):
         """Create a new wallet.
         If you want to be prompted for an argument, type '?' or ':' (concealed)
 
         arg:str:passphrase:Seed extension
         arg:str:seed_type:The type of wallet to create, e.g. 'standard' or 'segwit'
         arg:bool:encrypt_file:Whether the file on disk should be encrypted with the provided password
+        arg:bool:use_levelDB:Create levelDB storage. Note that LevelDB storage does not support file encryption. The password will only encrypt the keystore.
         """
         d = create_new_wallet(
             path=wallet_path,
@@ -312,6 +313,7 @@ class Commands(Logger):
             password=password,
             encrypt_file=encrypt_file,
             seed_type=seed_type,
+            use_levelDB=use_levelDB,
             config=self.config)
         wallet = d['wallet']
         return {
@@ -321,7 +323,7 @@ class Commands(Logger):
         }
 
     @command('')
-    async def restore(self, text, passphrase=None, password=None, encrypt_file=True, wallet_path=None):
+    async def restore(self, text, passphrase=None, password=None, encrypt_file=True, wallet_path=None, use_levelDB=False):
         """Restore a wallet from text. Text can be a seed phrase, a master
         public key, a master private key, a list of bitcoin addresses
         or bitcoin private keys.
@@ -330,6 +332,7 @@ class Commands(Logger):
         arg:str:text:seed phrase
         arg:str:passphrase:Seed extension
         arg:bool:encrypt_file:Whether the file on disk should be encrypted with the provided password
+        arg:bool:use_levelDB:Create levelDB storage. Note that LevelDB storage does not support file encryption. The password will only encrypt the keystore.
         """
         # TODO create a separate command that blocks until wallet is synced
         d = restore_wallet_from_text(
@@ -338,6 +341,7 @@ class Commands(Logger):
             passphrase=passphrase,
             password=password,
             encrypt_file=encrypt_file,
+            use_levelDB=use_levelDB,
             config=self.config)
         wallet = d['wallet']
         return {
@@ -358,7 +362,7 @@ class Commands(Logger):
         if encrypt_file is None:
             if not password and new_password:
                 # currently no password, setting one now: we encrypt by default
-                encrypt_file = True
+                encrypt_file = wallet.storage.supports_file_encryption()
             else:
                 encrypt_file = wallet.storage.is_encrypted()
         wallet.update_password(password, new_password, encrypt_storage=encrypt_file)

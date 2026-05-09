@@ -116,7 +116,8 @@ def WalletStorage(path: str, init_db: bool = True, use_levelDB: bool = False, al
         use_levelDB = use_levelDB
     elif os.path.isdir(path):
         from .level_db import VERSION_FILENAME
-        assert os.path.exists(os.path.join(path, VERSION_FILENAME))
+        if not os.path.exists(os.path.join(path, VERSION_FILENAME)):
+            raise Exception("Not an Electrum LevelDB wallet")
         use_levelDB = True
     else:
         use_levelDB = False
