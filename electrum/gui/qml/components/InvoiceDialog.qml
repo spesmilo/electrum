@@ -319,7 +319,7 @@ ElDialog {
                     Layout.columnSpan: 2
                     Layout.topMargin: constants.paddingSmall
                     visible: invoice.invoiceType == Invoice.LightningInvoice
-                    text: qsTr('Remote Pubkey')
+                    text: qsTr('Recipient Pubkey')
                     color: Material.accentColor
                 }
 
