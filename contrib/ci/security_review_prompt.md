@@ -24,6 +24,20 @@ sophisticated real-world attackers -- Electrum is a high-value target where supp
 compromise, malicious Electrum servers, and rogue Lightning peers are realistic threat
 vectors.
 
+## Verifying commit message claims
+
+Use commit messages to understand intent -- but verify, do not trust them. If a
+commit message claims, in any phrasing, that it only **moves**, **relocates**,
+**renames**, **extracts**, **splits**, or otherwise rearranges code without
+behavioral change, strictly verify the claim against the diff: removed and added
+lines must match aside from cosmetic adjustments inherent to the move
+(indentation, import paths, file/module names). Any logic change, condition
+change, branch reordering, altered error handling, modified call signature, new
+side effect, or removed validation hiding inside such a commit must be flagged
+at the severity of the hidden change itself -- these are easy for human
+reviewers to miss. Explicitly note in the finding that the change was concealed
+inside a commit claiming to be a pure code move.
+
 ## Severity Definitions
 
 ### CRITICAL
