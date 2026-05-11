@@ -101,6 +101,7 @@ class AddressList(MyTreeView):
         )
         self.wallet = self.main_window.wallet
         self._address_list_status = 0  # type: int
+        self._last_address_rows = None
         self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.setSortingEnabled(True)
         self.show_change = AddressTypeFilter.ALL  # type: AddressTypeFilter
@@ -184,13 +185,11 @@ class AddressList(MyTreeView):
             addr_list = self.wallet.get_change_addresses()
         else:
             addr_list = self.wallet.get_addresses()
-        self.proxy.setDynamicSortFilter(False)  # temp. disable re-sorting after every change
-        self.std_model.clear()
-        self.refresh_headers()
-        set_address = None
+        should_show_fiat = self.should_show_fiat()
+        self.addresses_beyond_gap_limit = self.wallet.get_all_known_addresses_beyond_gap_limit()
+        address_rows = []
         num_shown = 0
         new_address_list_status = 0
-        self.addresses_beyond_gap_limit = self.wallet.get_all_known_addresses_beyond_gap_limit()
         for address in addr_list:
             c, u, x = self.wallet.get_addr_balance(address)
             balance = c + u + x
@@ -204,7 +203,39 @@ class AddressList(MyTreeView):
             if self.show_used == AddressUsageStateFilter.FUNDED_OR_UNUSED and is_used_and_empty:
                 continue
             num_shown += 1
-            new_address_list_status = hash((new_address_list_status, address, c, u, x, is_used_and_empty))
+            address_path = self.wallet.get_address_index(address)
+            row = (
+                address,
+                c,
+                u,
+                x,
+                is_used_and_empty,
+                self.wallet.is_change(address),
+                self.wallet.get_label_for_address(address),
+                self.wallet.adb.get_address_history_len(address),
+                self.wallet.is_frozen_address(address),
+                address in self.addresses_beyond_gap_limit,
+                self.address_index_as_sortable_key(address_path),
+                self.wallet.get_address_path_str(address),
+                should_show_fiat,
+            )
+            address_rows.append(row)
+            new_address_list_status = hash((new_address_list_status, row))
+
+        self.refresh_headers()
+        if self._last_address_rows == address_rows:
+            if should_show_fiat:
+                self.showColumn(self.Columns.FIAT_BALANCE)
+            else:
+                self.hideColumn(self.Columns.FIAT_BALANCE)
+            self.num_addr_label.setText(_("{} addresses").format(num_shown))
+            return
+
+        self.proxy.setDynamicSortFilter(False)  # temp. disable re-sorting after every change
+        self.std_model.clear()
+        set_address = None
+        for row in address_rows:
+            address = row[0]
             labels = [""] * len(self.Columns)
             labels[self.Columns.ADDRESS] = address
             address_item = [QStandardItem(e) for e in labels]
@@ -223,9 +254,8 @@ class AddressList(MyTreeView):
                 address_item[self.Columns.TYPE].setText(_('receiving'))
                 address_item[self.Columns.TYPE].setBackground(ColorScheme.GREEN.as_color(True))
             address_item[self.Columns.TYPE].setData(address, self.ROLE_ADDRESS_STR)
-            address_path = self.wallet.get_address_index(address)
-            address_item[self.Columns.TYPE].setData(self.address_index_as_sortable_key(address_path), self.ROLE_SORT_ORDER)
-            address_path_str = self.wallet.get_address_path_str(address)
+            address_item[self.Columns.TYPE].setData(row[10], self.ROLE_SORT_ORDER)
+            address_path_str = row[11]
             if address_path_str is not None:
                 address_item[self.Columns.TYPE].setToolTip(address_path_str)
             # add item
@@ -237,7 +267,7 @@ class AddressList(MyTreeView):
                 set_address = QPersistentModelIndex(address_idx)
         self.set_current_idx(set_address)
         # show/hide columns
-        if self.should_show_fiat():
+        if should_show_fiat:
             self.showColumn(self.Columns.FIAT_BALANCE)
         else:
             self.hideColumn(self.Columns.FIAT_BALANCE)
@@ -248,6 +278,7 @@ class AddressList(MyTreeView):
         self.proxy.setDynamicSortFilter(True)
         # update counter
         self.num_addr_label.setText(_("{} addresses").format(num_shown))
+        self._last_address_rows = address_rows
 
     @staticmethod
     def address_index_as_sortable_key(address_index: Optional['AddressIndexGeneric']) -> str:

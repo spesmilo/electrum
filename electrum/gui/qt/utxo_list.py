@@ -79,6 +79,7 @@ class UTXOList(MyTreeView):
         )
         self._spend_set = set()
         self._utxo_dict = {}
+        self._last_utxo_rows = None
         self.wallet = self.main_window.wallet
         self.std_model = QStandardItemModel(self)
         self.proxy = MySortModel(self, sort_role=self.ROLE_SORT_ORDER)
@@ -104,9 +105,36 @@ class UTXOList(MyTreeView):
         self.proxy.setDynamicSortFilter(False)  # temp. disable re-sorting after every change
         utxos = self.wallet.get_utxos()
         self._maybe_reset_coincontrol(utxos)
-        self._utxo_dict = dict([(utxo.prevout.to_str(), utxo) for utxo in utxos])
-        self.std_model.clear()
+        utxo_dict = dict([(utxo.prevout.to_str(), utxo) for utxo in utxos])
+        utxo_rows = []
+        for utxo in utxos:
+            name = utxo.prevout.to_str()
+            txid = utxo.prevout.txid.hex()
+            sort_key = (
+                self.wallet.adb.tx_height_to_sort_height(utxo.block_height),
+                str(utxo.short_id),
+            )
+            utxo_rows.append((
+                name,
+                str(utxo.short_id),
+                utxo.address,
+                utxo.value_sats(),
+                self.wallet.get_num_parents(txid),
+                self.wallet.get_label_for_txid(txid) or '',
+                sort_key,
+                name in self._spend_set,
+                self.wallet.is_frozen_address(utxo.address),
+                self.wallet.is_frozen_coin(utxo),
+            ))
+        self._utxo_dict = utxo_dict
         self.update_headers(self.__class__.headers)
+        if self._last_utxo_rows == utxo_rows:
+            self.filter()
+            self.proxy.setDynamicSortFilter(True)
+            self.update_coincontrol_bar()
+            self.num_coins_label.setText(_('{} unspent transaction outputs').format(len(utxos)))
+            return
+        self.std_model.clear()
         for idx, utxo in enumerate(utxos):
             name = utxo.prevout.to_str()
             labels = [""] * len(self.Columns)
@@ -132,6 +160,7 @@ class UTXOList(MyTreeView):
         self.sortByColumn(self.Columns.OUTPOINT, Qt.SortOrder.DescendingOrder)
         self.update_coincontrol_bar()
         self.num_coins_label.setText(_('{} unspent transaction outputs').format(len(utxos)))
+        self._last_utxo_rows = utxo_rows
 
     def update_coincontrol_bar(self):
         # update coincontrol status bar
