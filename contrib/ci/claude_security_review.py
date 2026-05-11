@@ -70,13 +70,17 @@ def get_pr_diff(base: str) -> str:
     return git("diff", f"origin/{base}...HEAD")
 
 
+def get_commit_messages(base: str) -> str:
+    return git("log", f"origin/{base}..HEAD")
+
+
 def changed_files_from_diff(diff: str) -> str:
     return "\n".join(
         m.group(1) for m in re.finditer(r"^diff --git a/.+ b/(.+)$", diff, re.MULTILINE)
     )
 
 
-def build_prompt(diff: str, changed_files: str) -> str:
+def build_prompt(diff: str, changed_files: str, commit_messages: str) -> str:
     with open(PROMPT_FILE) as f:
         instructions = f.read()
 
@@ -84,6 +88,7 @@ def build_prompt(diff: str, changed_files: str) -> str:
         f"{instructions}\n\n"
         f"---\n\n"
         f"## Changed files\n\n```\n{changed_files}\n```\n\n"
+        f"## Commit messages\n\n```\n{commit_messages}\n```\n\n"
         f"## Diff\n\n```diff\n{diff}\n```"
     )
 
@@ -217,6 +222,12 @@ def main() -> int:
         print("Empty diff -- nothing to review.")
         return 0
 
+    try:
+        commit_messages = get_commit_messages(base_branch)
+    except subprocess.CalledProcessError as exc:
+        print(f"ERROR: git log failed: {exc}")
+        return 2
+
     changed_files = changed_files_from_diff(diff)
     file_count = len(changed_files.splitlines())
     print(f"Reviewing changes across {file_count} file(s)...")
@@ -225,7 +236,7 @@ def main() -> int:
         print(f"ERROR: diff is {len(diff)} chars, exceeds maximum of {MAX_DIFF_CHARS}. Skipping review.")
         return 2
 
-    prompt = build_prompt(diff, changed_files)
+    prompt = build_prompt(diff, changed_files, commit_messages)
 
     print(f"\nRunning Claude Code review (model: {CLAUDE_MODEL})...\n")
     review = run_claude(prompt)
