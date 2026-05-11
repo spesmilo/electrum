@@ -100,11 +100,17 @@ class UTXOList(MyTreeView):
 
     @profiler(min_threshold=0.05)
     def update(self):
-        # not calling maybe_defer_update() as it interferes with coincontrol status bar
-        self.proxy.setDynamicSortFilter(False)  # temp. disable re-sorting after every change
+        # We need to keep coincontrol state/bar fresh even while the tab is hidden,
+        # but the expensive model rebuild can still be deferred like other tabs.
         utxos = self.wallet.get_utxos()
         self._maybe_reset_coincontrol(utxos)
         self._utxo_dict = dict([(utxo.prevout.to_str(), utxo) for utxo in utxos])
+        self.update_coincontrol_bar()
+        self.num_coins_label.setText(_('{} unspent transaction outputs').format(len(utxos)))
+        if self.maybe_defer_update():
+            return
+
+        self.proxy.setDynamicSortFilter(False)  # temp. disable re-sorting after every change
         self.std_model.clear()
         self.update_headers(self.__class__.headers)
         for idx, utxo in enumerate(utxos):
