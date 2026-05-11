@@ -31,7 +31,7 @@ from aiorpcx import run_in_thread, NetAddress, ignore_after
 
 from .logging import Logger
 from .i18n import _
-from .json_db import stored_in
+from .stored_dict import stored_in
 from .channel_db import UpdateStatus, ChannelDBNotLoaded, get_mychannel_info, get_mychannel_policy
 
 from . import constants, util, lnutil
