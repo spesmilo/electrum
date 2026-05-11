@@ -302,9 +302,14 @@ class HistoryModel(CustomModel, Logger):
             onchain_domain=self.get_domain(),
             include_lightning=self.should_include_lightning_payments(),
         )
+        if transactions == self.transactions:
+            self.view.filter()
+            if self.view:
+                self.view.num_tx_label.setText(_("{} transactions").format(len(self.transactions)))
+            return
         old_length = self._root.childCount()
         if old_length != 0:
-            self.beginRemoveRows(QModelIndex(), 0, old_length)
+            self.beginRemoveRows(QModelIndex(), 0, old_length - 1)
             self.transactions.clear()
             self._root = HistoryNode(self, None)
             self.endRemoveRows()
@@ -331,9 +336,12 @@ class HistoryModel(CustomModel, Logger):
                 self.tx_status_cache[txid] = self.window.wallet.get_tx_status(txid, tx_mined_info)
 
         new_length = self._root.childCount()
-        self.beginInsertRows(QModelIndex(), 0, new_length-1)
-        self.transactions = transactions
-        self.endInsertRows()
+        if new_length:
+            self.beginInsertRows(QModelIndex(), 0, new_length - 1)
+            self.transactions = transactions
+            self.endInsertRows()
+        else:
+            self.transactions = transactions
 
         if selected_row:
             self.view.selectionModel().select(
