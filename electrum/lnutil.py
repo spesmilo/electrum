@@ -3,8 +3,7 @@
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
 from enum import IntFlag, IntEnum
 import enum
-from collections import defaultdict
-from typing import NamedTuple, List, Tuple, Mapping, Optional, TYPE_CHECKING, Union, Dict, Set, Sequence
+from typing import NamedTuple, List, Tuple, Mapping, Optional, TYPE_CHECKING, Union, Dict, Set, Sequence, FrozenSet
 import sys
 import time
 from functools import lru_cache
@@ -1409,13 +1408,24 @@ class LnFeatureContexts(enum.Flag):
     CHAN_ANN_AS_IS = enum.auto()
     CHAN_ANN_ALWAYS_ODD = enum.auto()
     CHAN_ANN_ALWAYS_EVEN = enum.auto()
-    INVOICE = enum.auto()
+    BOLT11_INVOICE = enum.auto()
+    BOLT12_OFFER = enum.auto()
+    BOLT12_INVREQ = enum.auto()
+    BOLT12_INVOICE = enum.auto()
+    BLINDED_PATH = enum.auto()
 
 
 LNFC = LnFeatureContexts
+LNFC_ALL = ~LnFeatureContexts(0)
+LNFC_BOLT12 = LNFC.BOLT12_OFFER | LNFC.BOLT12_INVREQ | LNFC.BOLT12_INVOICE
 
-_ln_feature_direct_dependencies = defaultdict(set)  # type: Dict[LnFeatures, Set[LnFeatures]]
+_ln_feature_direct_dependencies = {}  # type: Dict[LnFeatureContexts, Dict[LnFeatures, FrozenSet[LnFeatures]]]
 _ln_feature_contexts = {}  # type: Dict[LnFeatures, LnFeatureContexts]
+
+def _register_transitive_deps(dependant: 'LnFeatures', direct_deps: Set['LnFeatures'], *, contexts: LnFeatureContexts):
+    for context in LnFeatureContexts:
+        if context & contexts:
+            _ln_feature_direct_dependencies.setdefault(context, {})[dependant] = frozenset(direct_deps)
 
 
 class LnFeatures(IntFlag):
@@ -1439,12 +1449,12 @@ class LnFeatures(IntFlag):
 
     VAR_ONION_REQ = 1 << 8
     VAR_ONION_OPT = 1 << 9
-    _ln_feature_contexts[VAR_ONION_OPT] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.INVOICE)
-    _ln_feature_contexts[VAR_ONION_REQ] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.INVOICE)
+    _ln_feature_contexts[VAR_ONION_OPT] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.BOLT11_INVOICE)
+    _ln_feature_contexts[VAR_ONION_REQ] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.BOLT11_INVOICE)
 
     GOSSIP_QUERIES_EX_REQ = 1 << 10
     GOSSIP_QUERIES_EX_OPT = 1 << 11
-    _ln_feature_direct_dependencies[GOSSIP_QUERIES_EX_OPT] = {GOSSIP_QUERIES_OPT}
+    _register_transitive_deps(GOSSIP_QUERIES_EX_OPT, {GOSSIP_QUERIES_OPT}, contexts=LNFC_ALL)
     _ln_feature_contexts[GOSSIP_QUERIES_EX_OPT] = (LNFC.INIT | LNFC.NODE_ANN)
     _ln_feature_contexts[GOSSIP_QUERIES_EX_REQ] = (LNFC.INIT | LNFC.NODE_ANN)
 
@@ -1455,15 +1465,15 @@ class LnFeatures(IntFlag):
 
     PAYMENT_SECRET_REQ = 1 << 14
     PAYMENT_SECRET_OPT = 1 << 15
-    _ln_feature_direct_dependencies[PAYMENT_SECRET_OPT] = {VAR_ONION_OPT}
-    _ln_feature_contexts[PAYMENT_SECRET_OPT] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.INVOICE)
-    _ln_feature_contexts[PAYMENT_SECRET_REQ] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.INVOICE)
+    _register_transitive_deps(PAYMENT_SECRET_OPT, {VAR_ONION_OPT}, contexts=LNFC_ALL)
+    _ln_feature_contexts[PAYMENT_SECRET_OPT] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.BOLT11_INVOICE)
+    _ln_feature_contexts[PAYMENT_SECRET_REQ] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.BOLT11_INVOICE)
 
     BASIC_MPP_REQ = 1 << 16
     BASIC_MPP_OPT = 1 << 17
-    _ln_feature_direct_dependencies[BASIC_MPP_OPT] = {PAYMENT_SECRET_OPT}
-    _ln_feature_contexts[BASIC_MPP_OPT] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.INVOICE)
-    _ln_feature_contexts[BASIC_MPP_REQ] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.INVOICE)
+    _register_transitive_deps(BASIC_MPP_OPT, {PAYMENT_SECRET_OPT}, contexts=~LNFC_BOLT12)
+    _ln_feature_contexts[BASIC_MPP_OPT] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.BOLT11_INVOICE | LNFC.BOLT12_INVOICE)
+    _ln_feature_contexts[BASIC_MPP_REQ] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.BOLT11_INVOICE | LNFC.BOLT12_INVOICE)
 
     OPTION_SUPPORT_LARGE_CHANNEL_REQ = 1 << 18
     OPTION_SUPPORT_LARGE_CHANNEL_OPT = 1 << 19
@@ -1472,91 +1482,94 @@ class LnFeatures(IntFlag):
 
     OPTION_ANCHORS_REQ = 1 << 22
     OPTION_ANCHORS_OPT = 1 << 23
-    _ln_feature_direct_dependencies[OPTION_ANCHORS_OPT] = {OPTION_STATIC_REMOTEKEY_OPT}
+    _register_transitive_deps(OPTION_ANCHORS_OPT, {OPTION_STATIC_REMOTEKEY_OPT}, contexts=LNFC_ALL)
     _ln_feature_contexts[OPTION_ANCHORS_REQ] = (LNFC.INIT | LNFC.NODE_ANN)
     _ln_feature_contexts[OPTION_ANCHORS_OPT] = (LNFC.INIT | LNFC.NODE_ANN)
 
     # Temporary number.
     OPTION_TRAMPOLINE_ROUTING_REQ_ECLAIR = 1 << 148
     OPTION_TRAMPOLINE_ROUTING_OPT_ECLAIR = 1 << 149
-
-    _ln_feature_contexts[OPTION_TRAMPOLINE_ROUTING_REQ_ECLAIR] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.INVOICE)
-    _ln_feature_contexts[OPTION_TRAMPOLINE_ROUTING_OPT_ECLAIR] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.INVOICE)
+    _ln_feature_contexts[OPTION_TRAMPOLINE_ROUTING_REQ_ECLAIR] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.BOLT11_INVOICE | LNFC.BOLT12_INVOICE)
+    _ln_feature_contexts[OPTION_TRAMPOLINE_ROUTING_OPT_ECLAIR] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.BOLT11_INVOICE | LNFC.BOLT12_INVOICE)
 
     # We use a different bit because Phoenix cannot do end-to-end multi-trampoline routes
     OPTION_TRAMPOLINE_ROUTING_REQ_ELECTRUM = 1 << 150
     OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM = 1 << 151
+    _ln_feature_contexts[OPTION_TRAMPOLINE_ROUTING_REQ_ELECTRUM] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.BOLT11_INVOICE | LNFC.BOLT12_INVOICE)
+    _ln_feature_contexts[OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.BOLT11_INVOICE | LNFC.BOLT12_INVOICE)
 
-    _ln_feature_contexts[OPTION_TRAMPOLINE_ROUTING_REQ_ELECTRUM] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.INVOICE)
-    _ln_feature_contexts[OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.INVOICE)
+    OPTION_ROUTE_BLINDING_REQ = 1 << 24
+    OPTION_ROUTE_BLINDING_OPT = 1 << 25
+    _register_transitive_deps(OPTION_ROUTE_BLINDING_OPT, {VAR_ONION_OPT}, contexts=LNFC_ALL)
+    _ln_feature_contexts[OPTION_ROUTE_BLINDING_REQ] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.BOLT11_INVOICE)
+    _ln_feature_contexts[OPTION_ROUTE_BLINDING_OPT] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.BOLT11_INVOICE)
 
     OPTION_SHUTDOWN_ANYSEGWIT_REQ = 1 << 26
     OPTION_SHUTDOWN_ANYSEGWIT_OPT = 1 << 27
-
     _ln_feature_contexts[OPTION_SHUTDOWN_ANYSEGWIT_REQ] = (LNFC.INIT | LNFC.NODE_ANN)
     _ln_feature_contexts[OPTION_SHUTDOWN_ANYSEGWIT_OPT] = (LNFC.INIT | LNFC.NODE_ANN)
 
     OPTION_ONION_MESSAGE_REQ = 1 << 38
     OPTION_ONION_MESSAGE_OPT = 1 << 39
-
     _ln_feature_contexts[OPTION_ONION_MESSAGE_REQ] = (LNFC.INIT | LNFC.NODE_ANN)
     _ln_feature_contexts[OPTION_ONION_MESSAGE_OPT] = (LNFC.INIT | LNFC.NODE_ANN)
 
     OPTION_CHANNEL_TYPE_REQ = 1 << 44
     OPTION_CHANNEL_TYPE_OPT = 1 << 45
-
     _ln_feature_contexts[OPTION_CHANNEL_TYPE_REQ] = (LNFC.INIT | LNFC.NODE_ANN)
     _ln_feature_contexts[OPTION_CHANNEL_TYPE_OPT] = (LNFC.INIT | LNFC.NODE_ANN)
 
     OPTION_SCID_ALIAS_REQ = 1 << 46
     OPTION_SCID_ALIAS_OPT = 1 << 47
-
     _ln_feature_contexts[OPTION_SCID_ALIAS_REQ] = (LNFC.INIT | LNFC.NODE_ANN)
     _ln_feature_contexts[OPTION_SCID_ALIAS_OPT] = (LNFC.INIT | LNFC.NODE_ANN)
 
     OPTION_ZEROCONF_REQ = 1 << 50
     OPTION_ZEROCONF_OPT = 1 << 51
-
-    _ln_feature_direct_dependencies[OPTION_ZEROCONF_OPT] = {OPTION_SCID_ALIAS_OPT}
+    _register_transitive_deps(OPTION_ZEROCONF_OPT, {OPTION_SCID_ALIAS_OPT}, contexts=LNFC_ALL)
     _ln_feature_contexts[OPTION_ZEROCONF_REQ] = (LNFC.INIT | LNFC.NODE_ANN)
     _ln_feature_contexts[OPTION_ZEROCONF_OPT] = (LNFC.INIT | LNFC.NODE_ANN)
 
-    def validate_transitive_dependencies(self) -> bool:
+    def validate_transitive_dependencies(self, *, context: LnFeatureContexts) -> bool:
         # for all even bit set, set corresponding odd bit:
         features = self  # copy
         flags = list_enabled_bits(features)
         for flag in flags:
             if flag % 2 == 0:
                 features |= 1 << get_ln_flag_pair_of_bit(flag)
+        # use a single context for CHAN_ANN_*
+        if context in (LnFeatureContexts.CHAN_ANN_ALWAYS_EVEN, LnFeatureContexts.CHAN_ANN_ALWAYS_ODD):
+            context = LnFeatureContexts.CHAN_ANN_AS_IS
         # Check dependencies. We only check that the direct dependencies of each flag set
         # are satisfied: this implies that transitive dependencies are also satisfied.
+        direct_deps = _ln_feature_direct_dependencies.get(context, {})  # type: dict[LnFeatures, FrozenSet[LnFeatures]]
         flags = list_enabled_bits(features)
         for flag in flags:
-            for dependency in _ln_feature_direct_dependencies[1 << flag]:
+            for dependency in direct_deps.get(LnFeatures(1 << flag), frozenset()):
                 if not (dependency & features):
                     return False
         return True
 
     def for_init_message(self) -> 'LnFeatures':
-        features = LnFeatures(0)
-        for flag in list_enabled_ln_feature_bits(self):
-            if LnFeatureContexts.INIT & _ln_feature_contexts[1 << flag]:
-                features |= (1 << flag)
-        return features
+        return self._for_context(LnFeatureContexts.INIT)
 
     def for_node_announcement(self) -> 'LnFeatures':
-        features = LnFeatures(0)
-        for flag in list_enabled_ln_feature_bits(self):
-            if LnFeatureContexts.NODE_ANN & _ln_feature_contexts[1 << flag]:
-                features |= (1 << flag)
-        return features
+        return self._for_context(LnFeatureContexts.NODE_ANN)
 
-    def for_invoice(self) -> 'LnFeatures':
-        features = LnFeatures(0)
-        for flag in list_enabled_ln_feature_bits(self):
-            if LnFeatureContexts.INVOICE & _ln_feature_contexts[1 << flag]:
-                features |= (1 << flag)
-        return features
+    def for_bolt11_invoice(self) -> 'LnFeatures':
+        return self._for_context(LnFeatureContexts.BOLT11_INVOICE)
+
+    def for_bolt12_offer(self) -> 'LnFeatures':
+        return self._for_context(LnFeatureContexts.BOLT12_OFFER)
+
+    def for_bolt12_invoice_request(self) -> 'LnFeatures':
+        return self._for_context(LnFeatureContexts.BOLT12_INVREQ)
+
+    def for_bolt12_invoice(self) -> 'LnFeatures':
+        return self._for_context(LnFeatureContexts.BOLT12_INVOICE)
+
+    def for_blinded_path(self) -> 'LnFeatures':
+        return self._for_context(LnFeatureContexts.BLINDED_PATH)
 
     def for_channel_announcement(self) -> 'LnFeatures':
         features = LnFeatures(0)
@@ -1600,6 +1613,21 @@ class LnFeatures(IntFlag):
             feature_name = LnFeatures(1 << flag).name
             r.append(feature_name or f"bit_{flag}")
         return r
+
+    def to_tlv_bytes(self) -> bytes:
+        if int(self) == 0:
+            return b''
+        a = hex(int(self))[2:]
+        b = (len(a) % 2) * '0' + a
+        d = bytes.fromhex(b)
+        return d
+
+    def _for_context(self, context: 'LnFeatureContexts') -> 'LnFeatures':
+        features = LnFeatures(0)
+        for flag in list_enabled_ln_feature_bits(self):
+            if context & _ln_feature_contexts[1 << flag]:
+                features |= (1 << flag)
+        return features
 
     if hasattr(IntFlag, "_numeric_repr_"):  # python 3.11+
         # performance improvement (avoid base2<->base10), see #8403
@@ -1663,7 +1691,7 @@ class ChannelType(IntFlag):
             return str(self)
 
 
-del LNFC  # name is ambiguous without context
+del LNFC, LNFC_ALL, LNFC_BOLT12  # name is ambiguous without context
 
 # features that are actually implemented and understood in our codebase:
 # (note: this is not what we send in e.g. init!)
@@ -1681,6 +1709,8 @@ LN_FEATURES_IMPLEMENTED = (
         | LnFeatures.OPTION_CHANNEL_TYPE_OPT | LnFeatures.OPTION_CHANNEL_TYPE_REQ
         | LnFeatures.OPTION_SCID_ALIAS_OPT | LnFeatures.OPTION_SCID_ALIAS_REQ
         | LnFeatures.OPTION_ANCHORS_OPT | LnFeatures.OPTION_ANCHORS_REQ
+        | LnFeatures.OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT | LnFeatures.OPTION_UPFRONT_SHUTDOWN_SCRIPT_REQ
+        | LnFeatures.OPTION_SUPPORT_LARGE_CHANNEL_OPT | LnFeatures.OPTION_SUPPORT_LARGE_CHANNEL_REQ
 )
 
 
@@ -1800,7 +1830,7 @@ if hasattr(sys, "get_int_max_str_digits"):
 
 
 @lru_cache(maxsize=1000)  # massive speedup for the hot path of channel_db.load_data()
-def validate_features(features: int) -> LnFeatures:
+def validate_features(features: int, *, context: LnFeatureContexts) -> LnFeatures:
     """Raises IncompatibleOrInsaneFeatures if
     - a mandatory feature is listed that we don't recognize, or
     - the features are inconsistent
@@ -1816,7 +1846,7 @@ def validate_features(features: int) -> LnFeatures:
     for fbit in enabled_features:
         if (1 << fbit) & LN_FEATURES_IMPLEMENTED == 0 and fbit % 2 == 0:
             raise UnknownEvenFeatureBits(fbit)
-    if not features.validate_transitive_dependencies():
+    if not features.validate_transitive_dependencies(context=context):
         raise IncompatibleOrInsaneFeatures(f"not all transitive dependencies are set. "
                                            f"features={features}")
     return features

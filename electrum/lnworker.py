@@ -195,6 +195,7 @@ BASE_FEATURES = (
 )
 
 # we do not want to receive unrequested gossip (see lnpeer.maybe_save_remote_update)
+# NOTE: Also update lnutil.LN_FEATURES_IMPLEMENTED when adding a new feature
 LNWALLET_FEATURES = (
     BASE_FEATURES
     | LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
@@ -2630,16 +2631,15 @@ class LNWallet(Logger):
         route[-1].node_features |= invoice_features
         return route
 
-    def _get_invoice_features(self, amount_msat: Optional[int]) -> LnFeatures:
-        invoice_features = self.features.for_invoice()
+    def _prepare_invoice_features(self, base_features: LnFeatures, *, amount_msat: Optional[int]) -> LnFeatures:
         if not all((not c.is_open() or c.is_frozen_for_receiving()) or self.is_trampoline_peer(c.node_id) \
                         for c in self.channels.values()):
-            invoice_features &= ~ LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM
+            base_features &= ~ LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM
         needs_jit: bool = self.receive_requires_jit_channel(amount_msat)
         if needs_jit:
             # jit only works with single htlcs, mpp will cause LSP to open channels for each htlc
-            invoice_features &= ~ LnFeatures.BASIC_MPP_OPT & ~ LnFeatures.BASIC_MPP_REQ
-        return invoice_features
+            base_features &= ~ LnFeatures.BASIC_MPP_OPT & ~ LnFeatures.BASIC_MPP_REQ
+        return base_features
 
     def clear_invoices_cache(self):
         self._bolt11_cache.clear()
@@ -2712,7 +2712,7 @@ class LNWallet(Logger):
         payment_preimage = os.urandom(32)
         payment_hash = sha256(payment_preimage)
         min_final_cltv_delta = min_final_cltv_delta or MIN_FINAL_CLTV_DELTA_ACCEPTED
-        invoice_features = self._get_invoice_features(amount_msat)
+        invoice_features = self._prepare_invoice_features(self.features.for_bolt11_invoice(), amount_msat=amount_msat)
         info = PaymentInfo(
             payment_hash=payment_hash,
             amount_msat=amount_msat,
@@ -2881,7 +2881,7 @@ class LNWallet(Logger):
             status=PR_UNPAID,
             min_final_cltv_delta=min_final_cltv_delta,
             expiry_delay=exp_delay,
-            invoice_features=self._get_invoice_features(amount_msat),
+            invoice_features=self._prepare_invoice_features(self.features.for_bolt11_invoice(), amount_msat=amount_msat),
         )
         self.save_payment_info(info, write_to_disk=False)
 

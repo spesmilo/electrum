@@ -431,7 +431,7 @@ class TestPeer(ElectrumTestCase):
             routing_hints = []
             trampoline_hints = []
         if invoice_features is None:
-            invoice_features = w2.features.for_invoice()
+            invoice_features = w2.features.for_bolt11_invoice()
         if invoice_features.supports(LnFeatures.PAYMENT_SECRET_OPT):
             payment_secret = w2.get_payment_secret(payment_hash)
         else:
@@ -1057,7 +1057,7 @@ class TestPeerDirect(TestPeer):
         w1, w2 = graph.workers.values()
         async def try_paying_some_invoices():
             # feature bits: unknown even fbit
-            invoice_features = w2.features.for_invoice() | (1 << 990)  # add undefined even fbit
+            invoice_features = w2.features.for_bolt11_invoice() | (1 << 990)  # add undefined even fbit
             lnaddr, pay_req = self.prepare_invoice(w2, invoice_features=invoice_features)
             with self.assertRaises(lnutil.UnknownEvenFeatureBits):
                 result, log = await w1.pay_invoice(pay_req)

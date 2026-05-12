@@ -38,7 +38,7 @@ from .lnonion import (OnionFailureCode, OnionPacket, obfuscate_onion_error,
                       OnionParsingError)
 from .lnchannel import Channel, RevokeAndAck, ChannelState, PeerState, ChanCloseOption, CF_ANNOUNCE_CHANNEL
 from . import lnutil
-from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc, ChannelConfig,
+from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc, ChannelConfig, LnFeatureContexts,
                      RemoteConfig, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore,
                      funding_output_script, get_per_commitment_secret_from_seed,
                      secret_to_pubkey, PaymentFailure, LnFeatures,
@@ -397,7 +397,7 @@ class Peer(Logger, EventListener):
         _their_features = int.from_bytes(payload['features'], byteorder="big")
         _their_features |= int.from_bytes(payload['globalfeatures'], byteorder="big")
         try:
-            self.their_features = validate_features(_their_features)
+            self.their_features = validate_features(_their_features, context=LnFeatureContexts.INIT)
         except IncompatibleOrInsaneFeatures as e:
             raise GracefulDisconnect(f"remote sent insane features: {repr(e)}")
         # check if features are compatible, and set self.features to what we negotiated

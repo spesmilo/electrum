@@ -10,7 +10,7 @@ from electrum.lnutil import (
     derive_privkey, derive_pubkey, make_htlc_tx, extract_ctn_from_tx, get_compressed_pubkey_from_bech32,
     ScriptHtlc, calc_fees_for_commitment_tx, UpdateAddHtlc, LnFeatures, ln_compare_features,
     IncompatibleLightningFeatures, ChannelType, offered_htlc_trim_threshold_sat, received_htlc_trim_threshold_sat,
-    ImportedChannelBackupStorage, list_enabled_ln_feature_bits, PaymentFeeBudget,
+    ImportedChannelBackupStorage, list_enabled_ln_feature_bits, PaymentFeeBudget, LnFeatureContexts
 )
 from electrum.util import bfh, MyEncoder
 from electrum.transaction import Transaction, PartialTransaction, Sighash
@@ -919,19 +919,21 @@ class TestLNUtil(ElectrumTestCase):
 
     def test_ln_features_validate_transitive_dependencies(self):
         features = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
-        self.assertTrue(features.validate_transitive_dependencies())
+        self.assertTrue(features.validate_transitive_dependencies(context=LnFeatureContexts.INIT))
         features = LnFeatures.PAYMENT_SECRET_OPT
-        self.assertFalse(features.validate_transitive_dependencies())
+        self.assertFalse(features.validate_transitive_dependencies(context=LnFeatureContexts.BOLT11_INVOICE))
         features = LnFeatures.PAYMENT_SECRET_REQ
-        self.assertFalse(features.validate_transitive_dependencies())
+        self.assertFalse(features.validate_transitive_dependencies(context=LnFeatureContexts.BOLT11_INVOICE))
         features = LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_REQ
-        self.assertTrue(features.validate_transitive_dependencies())
+        self.assertTrue(features.validate_transitive_dependencies(context=LnFeatureContexts.BOLT11_INVOICE))
         features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ
-        self.assertFalse(features.validate_transitive_dependencies())
+        self.assertFalse(features.validate_transitive_dependencies(context=LnFeatureContexts.BOLT11_INVOICE))
         features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_OPT
-        self.assertTrue(features.validate_transitive_dependencies())
+        self.assertTrue(features.validate_transitive_dependencies(context=LnFeatureContexts.BOLT11_INVOICE))
         features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_REQ
-        self.assertTrue(features.validate_transitive_dependencies())
+        self.assertTrue(features.validate_transitive_dependencies(context=LnFeatureContexts.BOLT11_INVOICE))
+        features = LnFeatures.BASIC_MPP_OPT
+        self.assertTrue(features.validate_transitive_dependencies(context=LnFeatureContexts.BOLT12_INVOICE))
 
     def test_ln_features_for_init_message(self):
         features = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
@@ -949,23 +951,27 @@ class TestLNUtil(ElectrumTestCase):
         features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_REQ
         self.assertEqual(features, features.for_init_message())
 
-    def test_ln_features_for_invoice(self):
+    def test_ln_features_for_bolt11_invoice(self):
         features = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
-        self.assertEqual(LnFeatures(0), features.for_invoice())
+        self.assertEqual(LnFeatures(0), features.for_bolt11_invoice())
         features = LnFeatures.PAYMENT_SECRET_OPT
-        self.assertEqual(features, features.for_invoice())
+        self.assertEqual(features, features.for_bolt11_invoice())
         features = LnFeatures.PAYMENT_SECRET_REQ
-        self.assertEqual(features, features.for_invoice())
+        self.assertEqual(features, features.for_bolt11_invoice())
         features = LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_REQ
-        self.assertEqual(features, features.for_invoice())
+        self.assertEqual(features, features.for_bolt11_invoice())
         features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
         self.assertEqual(LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ,
-                         features.for_invoice())
+                         features.for_bolt11_invoice())
         features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_OPT | LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
         self.assertEqual(LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_OPT,
-                         features.for_invoice())
+                         features.for_bolt11_invoice())
         features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_REQ
-        self.assertEqual(features, features.for_invoice())
+        self.assertEqual(features, features.for_bolt11_invoice())
+
+    def test_ln_features_for_bolt12_invoice(self):
+        features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_OPT | LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
+        self.assertEqual(LnFeatures.BASIC_MPP_OPT, features.for_bolt12_invoice())
 
     def test_ln_compare_features(self):
         f1 = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ | LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT
@@ -1088,6 +1094,17 @@ class TestLNUtil(ElectrumTestCase):
         pfeatures = LnFeatures(LnFeatures.BASIC_MPP_REQ | LnFeatures.OPTION_STATIC_REMOTEKEY_OPT | LnFeatures.OPTION_ANCHORS_REQ)
         ctype = ChannelType.OPTION_STATIC_REMOTEKEY | ChannelType.OPTION_ANCHORS
         self.assertTrue(ctype.complies_with_features(pfeatures))
+
+    def test_to_tlv_bytes(self):
+        features = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
+        self.assertEqual(features.to_tlv_bytes(), bfh('01'))
+        features = LnFeatures.OPTION_ROUTE_BLINDING_OPT
+        self.assertEqual(features.to_tlv_bytes(), bfh('02000000'))
+        features = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ |\
+            LnFeatures.OPTION_ROUTE_BLINDING_OPT |\
+            LnFeatures.BASIC_MPP_OPT
+        self.assertEqual(features.to_tlv_bytes(), bfh('02020001'))
+        self.assertEqual(LnFeatures(0).to_tlv_bytes(), b'')
 
     @as_testnet
     async def test_decode_imported_channel_backup_v0(self):
