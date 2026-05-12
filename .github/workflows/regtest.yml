@@ -1,0 +1,113 @@
+name: regtest
+
+on:
+  push:
+    branches: [master]
+    tags: ['*']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+
+permissions:
+  contents: read
+
+jobs:
+  regtest:
+    name: "Regtest functional tests"
+    runs-on: ubuntu-24.04
+    env:
+      LD_LIBRARY_PATH: contrib/_saved_secp256k1_build/
+      ELECTRUM_ECC_DONT_COMPILE: "1"  # we build manually to make caching it easier
+      PIP_BREAK_SYSTEM_PACKAGES: "1"
+      # ElectrumX exits with an error without this:
+      ALLOW_ROOT: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: "3.10"
+          cache: 'pip'
+          cache-dependency-path: contrib/requirements/requirements.txt
+      - name: Determine latest bitcoind version
+        id: bitcoind-version
+        run: |
+          BITCOIND_VERSION=$(curl https://bitcoincore.org/en/download/ | grep -E -i --only-matching 'Latest version: [0-9\.]+' | grep -E --only-matching '[0-9\.]+')
+          if [ -z "$BITCOIND_VERSION" ]; then
+            echo "Failed to detect bitcoind version from bitcoincore.org" >&2
+            exit 1
+          fi
+          echo "Detected bitcoind version: $BITCOIND_VERSION"
+          echo "version=$BITCOIND_VERSION" >> "$GITHUB_OUTPUT"
+      - name: Cache bitcoind binary
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
+        with:
+          path: /tmp/bitcoind
+          key: bitcoind-ubuntu-24.04-${{ steps.bitcoind-version.outputs.version }}
+      - name: Install OS deps
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install curl jq bc automake libtool
+      - name: Install Electrum and ElectrumX
+        # installs e-x some commits after 1.18.0 tag
+        # uses --ignore-installed to ignore installed system installed attrs
+        run: |
+          python3 -m pip install --user --upgrade pip
+          python3 -m pip install --user .[tests] --ignore-installed
+          python3 -m pip install --user git+https://github.com/spesmilo/electrumx.git@0b260d4345242cc41e316e97d7de10ae472fd172
+      - name: Fetch bitcoind binary
+        env:
+          BITCOIND_VERSION: ${{ steps.bitcoind-version.outputs.version }}
+        run: |
+          mkdir -p /tmp/bitcoind
+          BITCOIND_FILENAME=bitcoin-$BITCOIND_VERSION-x86_64-linux-gnu.tar.gz
+          BITCOIND_PATH=/tmp/bitcoind/$BITCOIND_FILENAME
+          BITCOIND_URL=https://bitcoincore.org/bin/bitcoin-core-$BITCOIND_VERSION/$BITCOIND_FILENAME
+          cd /tmp/bitcoind
+          tar -xaf $BITCOIND_PATH || (rm -f /tmp/bitcoind/* && curl --output $BITCOIND_PATH $BITCOIND_URL && tar -xaf $BITCOIND_PATH)
+          sudo cp -a bitcoin-$BITCOIND_VERSION/* /usr/
+      - name: Cache libsecp256k1 build
+        id: cache-libsecp
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
+        with:
+          path: contrib/_saved_secp256k1_build
+          key: libsecp-${{ runner.os }}-${{ hashFiles('contrib/make_libsecp256k1.sh') }}
+      - name: Build libsecp256k1
+        if: steps.cache-libsecp.outputs.cache-hit != 'true'
+        run: |
+          ./contrib/make_libsecp256k1.sh
+          mkdir -p contrib/_saved_secp256k1_build
+          cp electrum/libsecp256k1.so.* contrib/_saved_secp256k1_build/
+      - name: Start bitcoind (regtest)
+        run: nohup tests/regtest/run_bitcoind.sh > /tmp/bitcoind.log 2>&1 &
+      - name: Start electrumx
+        run: nohup tests/regtest/run_electrumx.sh > /tmp/electrumx.log 2>&1 &
+      - name: Run regtest tests
+        run: |
+          sleep 10
+          python3 -m unittest tests/regtest.py --failfast || TEST_EXIT_CODE=$?
+          tar -czf test_wallets.tar.gz /tmp/alice /tmp/bob /tmp/carol || true
+          exit ${TEST_EXIT_CODE:-0}
+      # if any test fails, the test will get aborted (--failfast) and the wallet directories will be
+      # available for download in the Cirrus UI
+      - name: Upload test wallets (on failure)
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: test-wallets
+          path: test_wallets.tar.gz
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Dump service logs (on failure)
+        if: failure()
+        run: |
+          echo "--- bitcoind log ---"
+          tail -200 /tmp/bitcoind.log || true
+          echo "--- electrumx log ---"
+          tail -200 /tmp/electrumx.log || true
