@@ -990,7 +990,7 @@ class SwapManager(Logger):
             self.logger.info(f'server_add_swap_invoice: - {swap.redeem_script}')
             assert swap.redeem_script == redeem_script
             assert key not in self.invoices_to_pay
-            self.invoices_to_pay[key] = 0
+
             assert self.wallet.get_invoice(invoice.get_id()) is None
             self.wallet.save_invoice(invoice)
         return {}
