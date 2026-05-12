@@ -11,8 +11,8 @@ import "controls"
 ElDialog {
     id: dialog
 
-    property InvoiceParser invoiceParser
-    property PIResolver piResolver
+    property var invoiceParser  // type: InvoiceParser
+    property var piResolver  // type: PIResolver
 
     signal txFound(data: string)
     signal channelBackupFound(data: string)
@@ -66,7 +66,7 @@ ElDialog {
             }
         }
 
-        ButtonContainer {
+        DialogButtonContainer {
             Layout.fillWidth: true
 
             FlatButton {

@@ -18,12 +18,12 @@ RUN apt-get update -q && \
 
 # create new user to avoid using root; but with sudo access and no password for convenience.
 ARG UID=1000
-RUN if [ "$UID" != "0" ] ; then useradd --uid $UID --create-home --shell /bin/bash "user" ; fi
-RUN usermod -append --groups sudo $(id -nu $UID || echo "user")
+RUN useradd -u "$UID" -m -s /usr/bin/bash -d /home/user user
+RUN usermod -aG sudo user
 RUN echo "%sudo ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
-RUN HOME_DIR=$(getent passwd $UID | cut -d: -f6)
-ENV WORK_DIR="${HOME_DIR}/wspace" \
-    PATH="${HOME_DIR}/.local/bin:${PATH}"
+ENV HOME_DIR=/home/user
+ENV WORK_DIR="${HOME_DIR}/wspace"
+ENV PATH="${HOME_DIR}/.local/bin:${PATH}"
 WORKDIR ${WORK_DIR}
-RUN chown --recursive ${UID} ${WORK_DIR}
-USER ${UID}
+RUN chown -R user ${WORK_DIR}
+USER user

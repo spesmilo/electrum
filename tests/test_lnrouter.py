@@ -1,18 +1,16 @@
-from math import inf
+import random
 import unittest
-import tempfile
-import shutil
-import asyncio
+from math import inf
 from typing import Optional
 from os import urandom
-from types import MappingProxyType
 
 from electrum import util
 from electrum.channel_db import NodeInfo
 from electrum.onion_message import is_onion_message_node
-from electrum.trampoline import create_trampoline_onion
+from electrum.trampoline import (create_trampoline_onion, _allocate_fee_budget_among_route, PLACEHOLDER_FEE,
+                                 get_trampoline_budget)
 from electrum.util import bfh
-from electrum.lnutil import ShortChannelID, LnFeatures
+from electrum.lnutil import ShortChannelID, LnFeatures, PaymentFeeBudget
 from electrum.lnonion import (OnionHopsDataSingle, new_onion_packet,
                               process_onion_packet, _decode_onion_error, decode_onion_error,
                               OnionFailureCode)
@@ -551,3 +549,215 @@ class Test_LNRouter(ElectrumTestCase):
             invoice_amount_msat=amount_to_send,
             node_filter=is_onion_message_node)
         self.assertIsNone(path)
+
+
+def _tramp_edge(start: str, end: str, *, fee_base=PLACEHOLDER_FEE, fee_prop=PLACEHOLDER_FEE, cltv=576) -> TrampolineEdge:
+    return TrampolineEdge(
+        start_node=node(start),
+        end_node=node(end),
+        short_channel_id=ShortChannelID.from_str("0x0x0"),
+        fee_base_msat=fee_base,
+        fee_proportional_millionths=fee_prop,
+        cltv_delta=cltv,
+        node_features=LnFeatures.VAR_ONION_OPT,
+    )
+
+
+class TestAllocateFeeBudget(ElectrumTestCase):
+    """Tests for _allocate_fee_budget_among_route (backward-walk allocator)."""
+
+    AMOUNT = 1_000_000  # 1000 sat
+    BUDGET = PaymentFeeBudget(fee_msat=10_000, cltv=144)  # 10 sat
+
+    def _allocate(self, route, *, amount=None, budget=None, level=6):
+        budget = budget.fee_msat if budget else self.BUDGET.fee_msat
+        budget_to_use = get_trampoline_budget(level, budget)
+        return _allocate_fee_budget_among_route(
+            route,
+            usable_budget_msat=budget_to_use,
+            amount_msat_for_dest=amount if amount is not None else self.AMOUNT,
+        )
+
+    def _realized_fee(self, route, amount=None) -> int:
+        amt = amount if amount is not None else self.AMOUNT
+        for edge in reversed(route[1:]):
+            amt += edge.fee_for_edge(amt)
+        return amt - (amount if amount is not None else self.AMOUNT)
+
+    def test_all_placeholders_matches_even_split(self):
+        # Route: me -> a -> b -> c (c is receiver). route[1:] has 2 placeholders.
+        route = [
+            _tramp_edge('m', 'a', fee_base=0, fee_prop=0, cltv=0),
+            _tramp_edge('a', 'b'),
+            _tramp_edge('b', 'c'),
+        ]
+        self._allocate(route)
+        # At level 6, usable_budget = BUDGET.fee_msat = 10_000; split across 2.
+        self.assertEqual(5_000, route[1].fee_base_msat)
+        self.assertEqual(5_000, route[2].fee_base_msat)
+        self.assertEqual(0, route[1].fee_proportional_millionths)
+        self.assertEqual(0, route[2].fee_proportional_millionths)
+        self.assertLessEqual(self._realized_fee(route), self.BUDGET.fee_msat)
+
+    def test_known_fee_base_only_deducted_from_budget(self):
+        # a->b is KNOWN with fee_base=2000, fee_prop=0; b->c is PLACEHOLDER.
+        route = [
+            _tramp_edge('m', 'a', fee_base=0, fee_prop=0, cltv=0),
+            _tramp_edge('a', 'b', fee_base=2_000, fee_prop=0),
+            _tramp_edge('b', 'c'),
+        ]
+        self._allocate(route)
+        # Placeholder gets the full remaining budget (one placeholder, no proportional amplification).
+        self.assertEqual(8_000, route[2].fee_base_msat)
+        self.assertLessEqual(self._realized_fee(route), self.BUDGET.fee_msat)
+
+    def test_known_proportional_amplifies_placeholder_cost(self):
+        # a->b is KNOWN with fee_prop=10% (100_000); b->c is PLACEHOLDER.
+        # Any fee f placed at b->c flows through a->b, which charges 10% on top.
+        # Budget check:  total_fee_const + (1 + 0.1) * placeholder_fee  <=  10_000
+        #   total_fee_const = 0 + amount * 0.1 = 100_000 msat.  That already exceeds budget,
+        # so placeholder_fee must be 0 and realized fee > budget (caller's
+        # is_route_within_budget will catch it).
+        route = [
+            _tramp_edge('m', 'a', fee_base=0, fee_prop=0, cltv=0),
+            _tramp_edge('a', 'b', fee_base=0, fee_prop=100_000),
+            _tramp_edge('b', 'c'),
+        ]
+        self._allocate(route)
+        self.assertEqual(0, route[2].fee_base_msat)
+
+    def test_known_proportional_small_fits_budget(self):
+        # Smaller proportional fee that leaves room. a->b: fee_prop = 1%.
+        # total_fee_const(amount=1_000_000) = 10_000 (== budget) without placeholders.
+        # With smaller proportional (0.5%), total_fee_const = 5_000,
+        # leaving budget_residual = 5_000.
+        # total_fee_coeff = 1.005, so placeholder_fee = 5_000 / 1.005 ≈ 4975.
+        route = [
+            _tramp_edge('m', 'a', fee_base=0, fee_prop=0, cltv=0),
+            _tramp_edge('a', 'b', fee_base=0, fee_prop=5_000),  # 0.5%
+            _tramp_edge('b', 'c'),
+        ]
+        self._allocate(route)
+        f = route[2].fee_base_msat
+        self.assertGreater(f, 0)
+        self.assertLessEqual(self._realized_fee(route), self.BUDGET.fee_msat)
+
+    def test_known_fee_exceeds_budget_yields_zero_placeholder(self):
+        # Known edge with fee_base > entire budget. Placeholder gets 0 instead
+        # of going negative.
+        route = [
+            _tramp_edge('m', 'a', fee_base=0, fee_prop=0, cltv=0),
+            _tramp_edge('a', 'b', fee_base=50_000, fee_prop=0),  # way over budget
+            _tramp_edge('b', 'c'),
+        ]
+        self._allocate(route)
+        self.assertEqual(0, route[2].fee_base_msat)
+        self.assertEqual(0, route[2].fee_proportional_millionths)
+
+    def test_no_placeholders_noop(self):
+        # All edges KNOWN: allocator does nothing.
+        route = [
+            _tramp_edge('m', 'a', fee_base=0, fee_prop=0, cltv=0),
+            _tramp_edge('a', 'b', fee_base=1_000, fee_prop=0),
+            _tramp_edge('b', 'c', fee_base=2_000, fee_prop=0),
+        ]
+        self._allocate(route)
+        self.assertEqual(1_000, route[1].fee_base_msat)
+        self.assertEqual(2_000, route[2].fee_base_msat)
+
+    def test_amount_at_each_hop(self):
+        # invoice amt: 1000k msat
+        # budget: 10k msat
+        #
+        route = [
+            _tramp_edge('m', 'a', fee_base=0, fee_prop=0, cltv=0),
+            _tramp_edge('a', 'b'),
+            _tramp_edge('b', 'c', fee_base=1_000, fee_prop=1500),
+            _tramp_edge('c', 'd'),
+            _tramp_edge('d', 'e', fee_base=1_000, fee_prop=1500),
+        ]
+        self._allocate(route)
+        amount = self.AMOUNT
+        amounts_from_destination = iter((
+            1000000, # amount for recipient (d -> e)
+            1002500, # c -> d
+            1004996, # b -> c
+            1007503, # a -> b
+            1009999 # us -> a
+        ))
+        for edge in reversed(route[1:]):
+            self.assertEqual(amount, next(amounts_from_destination))
+            amount += edge.fee_for_edge(amount)
+        self.assertEqual([0, 2496, 1000, 2496, 1000], [e.fee_base_msat for e in route])
+
+    @unittest.skip(reason="is a bit slow")
+    def test_fuzz(self):
+        invoice_amount = 1_000_000
+
+        for round_ in range(10**5):
+            budget = PaymentFeeBudget(fee_msat=random.randint(1000, 10*invoice_amount), cltv=144)
+            route = [
+                _tramp_edge('x', 'x', fee_base=0, fee_prop=0),
+            ]
+            num_edges = random.randint(1, 10)
+            fee_base_min = random.randint(1000, 50000)
+            fee_base_max = random.randint(fee_base_min, 50000)
+            fee_prop_min = random.randint(1000, 50000)
+            fee_prop_max = random.randint(fee_prop_min, 50000)
+            for e in range(num_edges):
+                if random.random() < 0.5:
+                    route.append(_tramp_edge('x', 'x'))
+                else:
+                    fee_base = random.randint(fee_base_min, fee_base_max)
+                    fee_prop = random.randint(fee_prop_min, fee_prop_max)
+                    route.append(_tramp_edge('x', 'x', fee_base=fee_base, fee_prop=fee_prop))
+            placeholder_fee = self._allocate(route, amount=invoice_amount, budget=budget)
+
+            actual_fees = []
+            fwd_amt = invoice_amount
+            for e in route[::-1]:
+                actual_fee = e.fee_for_edge(fwd_amt)
+                fwd_amt += actual_fee
+                actual_fees.append(actual_fee)
+            actual_fees = actual_fees[::-1]
+            # checks
+            no_solution = placeholder_fee == 0
+            solution_is_exact = (budget.fee_msat - num_edges <= sum(actual_fees) <= budget.fee_msat)
+            assert no_solution or solution_is_exact
+
+    def test_level_zero_gives_zero_placeholders(self):
+        route = [
+            _tramp_edge('m', 'a', fee_base=0, fee_prop=0, cltv=0),
+            _tramp_edge('a', 'b'),
+            _tramp_edge('b', 'c'),
+        ]
+        self._allocate(route, level=0)
+        self.assertEqual(0, route[1].fee_base_msat)
+        self.assertEqual(0, route[2].fee_base_msat)
+
+    def test_placeholder_upstream_of_known(self):
+        # Placeholder is UPSTREAM of known edge -> known edge's amount depends on placeholder fee.
+        # Route: me -> a -> b -> c. a->b PLACEHOLDER, b->c KNOWN (fee_base=1000, fee_prop=10_000 = 1%).
+        # Going backwards: first process b->c (known): total_fee_const = 1000 + 1_000_000 * 0.01 = 11_000.
+        # That alone exceeds budget 10_000; placeholder gets 0.
+        route = [
+            _tramp_edge('m', 'a', fee_base=0, fee_prop=0, cltv=0),
+            _tramp_edge('a', 'b'),
+            _tramp_edge('b', 'c', fee_base=1_000, fee_prop=10_000),
+        ]
+        self._allocate(route)
+        self.assertEqual(0, route[1].fee_base_msat)
+
+    def test_placeholder_upstream_of_small_known_fits(self):
+        # Same shape but small known fee so placeholder gets a positive fee.
+        # b->c known: fee_base=500, fee_prop=0. total_fee_const = 500.
+        # budget_residual = 9500. a->b placeholder sees
+        # total_fee_coeff=1 (no upstream known), so placeholder_fee = 9500.
+        route = [
+            _tramp_edge('m', 'a', fee_base=0, fee_prop=0, cltv=0),
+            _tramp_edge('a', 'b'),
+            _tramp_edge('b', 'c', fee_base=500, fee_prop=0),
+        ]
+        self._allocate(route)
+        self.assertEqual(9_500, route[1].fee_base_msat)
+        self.assertLessEqual(self._realized_fee(route), self.BUDGET.fee_msat)

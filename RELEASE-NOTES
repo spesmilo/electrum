@@ -1,4 +1,9 @@
 # Release 4.7.2 (April 1, 2026)
+ * security fixes and disclosures:
+   - (sev-medium) External Plugin authorization bypass: local code execution
+     - see https://github.com/spesmilo/electrum/security/advisories/GHSA-vw94-r84p-66qf
+   - (sev-low) Nostr Wallet Connect plugin: daily spending limit bypass
+     - see https://github.com/spesmilo/electrum/security/advisories/GHSA-q7m2-785w-r585
  * General:
    - changed: set restrictive unix umask (0077) application-wide by default (#10547)
    - fix: failing assert for wallets with old (2023) still unpaid LN payment requests (#10502)

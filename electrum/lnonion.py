@@ -193,6 +193,25 @@ def get_blinded_node_id(node_id: bytes, shared_secret: bytes):
     return blinded_node_id.get_public_key_bytes()
 
 
+def blinding_privkey(privkey: bytes, blinding: bytes) -> bytes:
+    shared_secret = get_ecdh(privkey, blinding)
+    b_hmac = get_bolt04_onion_key(b'blinded_node_id', shared_secret)
+    b_hmac_int = int.from_bytes(b_hmac, byteorder="big")
+
+    our_privkey_int = int.from_bytes(privkey, byteorder="big")
+    our_privkey_int = our_privkey_int * b_hmac_int % ecc.CURVE_ORDER
+    our_privkey = our_privkey_int.to_bytes(32, byteorder="big")
+    return our_privkey
+
+
+def next_blinding_from_shared_secret(pubkey: bytes, shared_secret: bytes) -> bytes:
+    # E_i+1=SHA256(E_i||ss_i) * E_i
+    blinding_factor = sha256(pubkey + shared_secret)
+    blinding_factor_int = int.from_bytes(blinding_factor, byteorder="big")
+    next_public_key_int = ecc.ECPubkey(pubkey) * blinding_factor_int
+    return next_public_key_int.get_public_key_bytes()
+
+
 def new_onion_packet(
     payment_path_pubkeys: Sequence[bytes],
     session_key: bytes,
@@ -277,29 +296,16 @@ def decrypt_onionmsg_data_tlv(*, shared_secret: bytes, encrypted_recipient_data:
 
 
 def encrypt_hops_recipient_data(
-        tlv_stream_name: str,
         hops_data: List[OnionHopsDataSingle],
         hop_shared_secrets: Sequence[bytes]
 ) -> None:
-    """encrypt unencrypted encrypted_recipient_data for hops with blind_fields.
-
-       NOTE: contents of payload.encrypted_recipient_data is slightly different for 'payload'
-       vs 'oniomsg_tlv' tlv_stream_names, so we map to the correct key here based on tlv_stream_name.
-       We can also change onion_wire.csv to use the same key, but as we import that from specs it might
-       regress in the future, so I rather make it explicit in code here.
-    """
-    # key naming payload TLV vs onionmsg_tlv TLV
-    erd_key = 'encrypted_recipient_data' if tlv_stream_name == 'onionmsg_tlv' else 'encrypted_data'
-
-    num_hops = len(hops_data)
-    for i in range(num_hops):
-        if hops_data[i].tlv_stream_name == tlv_stream_name and 'encrypted_recipient_data' not in hops_data[i].payload:
-            # construct encrypted_recipient_data from blind_fields
-            encrypted_recipient_data = encrypt_onionmsg_data_tlv(shared_secret=hop_shared_secrets[i], **hops_data[i].blind_fields)
-            # work around immutablility of OnionHopsDataSingle
-            hop_payload = {'encrypted_recipient_data': {erd_key: encrypted_recipient_data}}
-            hop_payload.update(hops_data[i].payload)
-            hops_data[i] = OnionHopsDataSingle(tlv_stream_name=hops_data[i].tlv_stream_name, payload=hop_payload, blind_fields=hops_data[i].blind_fields)
+    """Encrypt plaintext OnionHopsDataSingle.blind_fields into encrypted_recipient_data"""
+    for i, (hop_data, hop_shared_secret) in enumerate(zip(hops_data, hop_shared_secrets)):
+        assert 'encrypted_recipient_data' not in hop_data.payload, hop_data
+        encrypted_recipient_data = encrypt_onionmsg_data_tlv(shared_secret=hop_shared_secret, **hop_data.blind_fields)
+        new_hop_payload = {'encrypted_recipient_data': {'encrypted_recipient_data': encrypted_recipient_data}}
+        new_hop_payload.update(hop_data.payload)  # keep other fields
+        hops_data[i] = replace(hop_data, payload=new_hop_payload)
 
 
 def calc_hops_data_for_payment(
@@ -423,13 +429,13 @@ def process_onion_packet(
         *,
         associated_data: bytes = b'',
         is_trampoline=False,
-        is_onion_message=False,
         tlv_stream_name='payload') -> ProcessedOnionPacket:
     # TODO: check Onion features ( PERM|NODE|3 (required_node_feature_missing )
     if onion_packet.version != 0:
         raise UnsupportedOnionPacketVersion()
     if not ecc.ECPubkey.is_pubkey_bytes(onion_packet.public_key):
         raise InvalidOnionPubkey()
+    is_onion_message = tlv_stream_name == 'onionmsg_tlv'
     shared_secret = get_ecdh(our_onion_private_key, onion_packet.public_key)
     # check message integrity
     mu_key = get_bolt04_onion_key(b'mu', shared_secret)
@@ -456,10 +462,7 @@ def process_onion_packet(
         trampoline_onion_packet = trampoline_onion_packet['trampoline_onion_packet']
         trampoline_onion_packet = OnionPacket.from_bytes(trampoline_onion_packet)
     # calc next ephemeral key
-    blinding_factor = sha256(onion_packet.public_key + shared_secret)
-    blinding_factor_int = int.from_bytes(blinding_factor, byteorder="big")
-    next_public_key_int = ecc.ECPubkey(onion_packet.public_key) * blinding_factor_int
-    next_public_key = next_public_key_int.get_public_key_bytes()
+    next_public_key = next_blinding_from_shared_secret(onion_packet.public_key, shared_secret)
     next_onion_packet = OnionPacket(
         public_key=next_public_key,
         hops_data=next_hops_data_fd.read(data_size),

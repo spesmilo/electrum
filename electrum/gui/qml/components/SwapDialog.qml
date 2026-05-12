@@ -42,6 +42,7 @@ ElDialog {
                         : swaphelper.state == SwapHelper.NoService
                             ? InfoTextArea.IconStyle.Warn
                             : InfoTextArea.IconStyle.Info
+            backgroundColor: constants.darkerDialogBackground
         }
 
         GridLayout {
@@ -252,37 +253,32 @@ ElDialog {
         }
 
 
-        Pane {
+        Button {
             Layout.alignment: Qt.AlignHCenter
             visible: _swaphelper.isNostr()
-            background: Rectangle { color: constants.darkerDialogBackground }
-            padding: 0
-
-            FlatButton {
-                text: qsTr('Choose swap provider')
-                enabled: _swaphelper.state != SwapHelper.Initializing
-                    && _swaphelper.state != SwapHelper.Started
-                    && _swaphelper.state != SwapHelper.Success
-                    && _swaphelper.availableSwapServers.count
-                onClicked: {
-                    var dialog = app.nostrSwapServersDialog.createObject(app, {
-                        swaphelper: _swaphelper,
-                        selectedPubkey: Config.swapServerNPub
-                    })
-                    dialog.accepted.connect(function() {
-                        if (Config.swapServerNPub != dialog.selectedPubkey) {
-                            Config.swapServerNPub = dialog.selectedPubkey
-                            _swaphelper.setReadyState()
-                        }
-                    })
-                    dialog.open()
-                }
+            text: qsTr('Choose swap provider')
+            enabled: _swaphelper.state != SwapHelper.Initializing
+                && _swaphelper.state != SwapHelper.Started
+                && _swaphelper.state != SwapHelper.Success
+                && _swaphelper.availableSwapServers.count
+            onClicked: {
+                var dialog = app.nostrSwapServersDialog.createObject(app, {
+                    swaphelper: _swaphelper,
+                    selectedPubkey: Config.swapServerNPub
+                })
+                dialog.accepted.connect(function() {
+                    if (Config.swapServerNPub != dialog.selectedPubkey) {
+                        Config.swapServerNPub = dialog.selectedPubkey
+                        _swaphelper.setReadyState()
+                    }
+                })
+                dialog.open()
             }
         }
 
         Item { Layout.fillHeight: true; Layout.preferredWidth: 1 }
 
-        ButtonContainer {
+        DialogButtonContainer {
             Layout.columnSpan: 2
             Layout.fillWidth: true
             FlatButton {

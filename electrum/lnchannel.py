@@ -41,7 +41,7 @@ from .bitcoin import redeem_script_to_address
 from .crypto import sha256, sha256d
 from .transaction import Transaction, PartialTransaction, TxInput, Sighash
 from .logging import Logger
-from .lntransport import LNPeerAddr
+from .lntransport import LNPeerAddr, extract_nodeid, ConnStringFormatError
 from .lnonion import OnionRoutingFailure
 from . import lnutil
 from .lnutil import (Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKeypair, ChannelConstraints,
@@ -59,7 +59,7 @@ from .lnsweep import sweep_their_htlctx_justice, sweep_our_htlctx, SweepInfo, Ma
 from .lnsweep import sweep_their_ctx_to_remote_backup
 from .lnhtlc import HTLCManager
 from .lnmsg import encode_msg, decode_msg
-from .address_synchronizer import TX_HEIGHT_LOCAL
+from .address_synchronizer import TX_HEIGHT_LOCAL, TX_HEIGHT_UNCONFIRMED
 from .lnutil import CHANNEL_OPENING_TIMEOUT_BLOCKS, CHANNEL_OPENING_TIMEOUT_SEC
 from .lnutil import ChannelBackupStorage, ImportedChannelBackupStorage, OnchainChannelBackupStorage
 from .lnutil import format_short_channel_id
@@ -248,6 +248,7 @@ class AbstractChannel(Logger, ABC):
         return self._state
 
     def is_funded(self) -> bool:
+        # NOTE: also true for unfunded zeroconf channels (OPEN > FUNDED)
         return self.get_state() >= ChannelState.FUNDED
 
     def is_open(self) -> bool:
@@ -401,26 +402,33 @@ class AbstractChannel(Logger, ABC):
                 self.logger.warning(f"dropping incoming channel, funding tx not found in mempool")
                 self.lnworker.remove_channel(self.channel_id)
         elif self.is_zeroconf() and state in [ChannelState.OPEN, ChannelState.CLOSING, ChannelState.FORCE_CLOSING]:
-            chan_age = now() - self.storage['init_timestamp']
             # handling zeroconf channels with no funding tx, can happen if broadcasting fails on LSP side
-            # or if the LSP did double spent the funding tx/never published it intentionally
-            # only remove a timed out OPEN channel if we are connected to the network to prevent removing it if we went
-            # offline before seeing the funding tx
-            if state != ChannelState.OPEN or chan_age > ZEROCONF_TIMEOUT and self.lnworker.network.is_connected():
-                # we delete the channel if its in closing state (either initiated manually by client or by LSP on failure)
-                # or if the channel is not seeing any funding tx after 10 minutes to prevent further usage (limit damage)
-                self.set_state(ChannelState.REDEEMED, force=True)
-                local_balance_sat = int(self.balance(LOCAL) // 1000)
-                if local_balance_sat > 0:
+            # or if the LSP did double spent the funding tx/never published it intentionally.
+            if not self.lnworker.wallet.is_up_to_date() or not self.lnworker.network \
+                    or self.lnworker.network.blockchain().is_tip_stale():
+                # ensure we are up to date to prevent accidentally dropping a channel that is funded
+                return
+            chan_age = now() - self.storage['init_timestamp']
+            if chan_age > ZEROCONF_TIMEOUT:
+                # freeze the channel to avoid receiving even more into this unfunded channel.
+                # NOTE: we don't reject htlcs arriving on frozen channels, this only really
+                # stops us from including the channel in invoice routing hints.
+                if isinstance(self, Channel):
+                    self.set_frozen_for_receiving(True)
+
+                # un-trust the LSP so the user doesn't accept another channel from the same provider
+                # compare the node id's as the user might already have changed to another one
+                if self.node_id == self.lnworker.trusted_zeroconf_node_id:
+                    self.lnworker.config.ZEROCONF_TRUSTED_NODE = ''
+
+            if self.has_funding_timed_out():
+                self.lnworker.remove_channel(self.channel_id)
+                # remove remaining local transactions from the wallet, this will also remove child transactions (closing tx)
+                # self.lnworker.lnwatcher.adb.remove_transaction(self.funding_outpoint.txid)
+                if (local_balance_sat := int(self.balance(LOCAL) // 1000)) > 0:
                     self.logger.warning(
                         f"we may have been scammed out of {local_balance_sat} sat by our "
                         f"JIT provider: {self.lnworker.config.ZEROCONF_TRUSTED_NODE} or he didn't use our preimage")
-                    self.lnworker.config.ZEROCONF_TRUSTED_NODE = ''
-                # FIXME this is broken: lnwatcher.unwatch_channel does not exist
-                self.lnworker.lnwatcher.unwatch_channel(self.get_funding_address(), self.funding_outpoint.to_str())
-                # remove remaining local transactions from the wallet, this will also remove child transactions (closing tx)
-                self.lnworker.lnwatcher.adb.remove_transaction(self.funding_outpoint.txid)
-                self.lnworker.remove_channel(self.channel_id)
 
     def update_funded_state(self, *, funding_txid: str, funding_height: TxMinedInfo) -> None:
         self.save_funding_height(txid=funding_txid, height=funding_height.height(), timestamp=funding_height.timestamp)
@@ -446,6 +454,9 @@ class AbstractChannel(Logger, ABC):
                 # remove zeroconf flag as we are now confirmed, this is to prevent an electrum server causing
                 # us to remove a channel later in update_unfunded_state by omitting its funding tx
                 self.remove_zeroconf_flag()
+                # unfreeze in case it was frozen in update_unfunded_state
+                if isinstance(self, Channel):
+                    self.set_frozen_for_receiving(False)
 
     def update_closed_state(self, *, funding_txid: str, funding_height: TxMinedInfo,
                             closing_txid: str, closing_height: TxMinedInfo, keep_watching: bool) -> None:
@@ -827,7 +838,7 @@ class Channel(AbstractChannel):
         self._outgoing_channel_update = None  # type: Optional[bytes]
         self.revocation_store = RevocationStore(state["revocation_store"])
         self._can_send_ctx_updates = True  # type: bool
-        self._receive_fail_reasons = {}  # type: Dict[int, (bytes, OnionRoutingFailure)]
+        self._receive_fail_reasons = {}  # type: Dict[int, tuple[bytes | None, OnionRoutingFailure | None]]
         self.unconfirmed_closing_txid = None # not a state, only for GUI
         self.sent_channel_ready = False # no need to persist this, because channel_ready is re-sent in channel_reestablish
         self.sent_announcement_signatures = False
@@ -869,7 +880,8 @@ class Channel(AbstractChannel):
         return self.is_redeemed()
 
     def has_funding_timed_out(self):
-        if self.is_initiator() or self.is_funded():
+        funding_height = self.get_funding_height()
+        if self.is_initiator() or funding_height and funding_height[1] > TX_HEIGHT_UNCONFIRMED:
             return False
         if self.lnworker.network.blockchain().is_tip_stale() or not self.lnworker.wallet.is_up_to_date():
             return False
@@ -1043,7 +1055,7 @@ class Channel(AbstractChannel):
 
     def has_anchors(self) -> bool:
         channel_type = ChannelType(self.storage.get('channel_type'))
-        return bool(channel_type & ChannelType.OPTION_ANCHORS_ZERO_FEE_HTLC_TX)
+        return bool(channel_type & ChannelType.OPTION_ANCHORS)
 
     def get_wallet_addresses_channel_might_want_reserved(self) -> Sequence[str]:
         assert self.is_static_remotekey_enabled()

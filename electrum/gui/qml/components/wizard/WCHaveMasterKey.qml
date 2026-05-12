@@ -71,7 +71,7 @@ WizardComponent {
             wrapMode: Text.Wrap
         }
 
-        TextHighlightPane {
+        DialogHighlightPane {
             Layout.fillWidth: true
 
             visible: cosigner
@@ -159,7 +159,6 @@ WizardComponent {
                     icon.source: '../../../icons/qrcode.png'
                     icon.height: constants.iconSizeMedium
                     icon.width: constants.iconSizeMedium
-                    scale: 1.2
                     onClicked: {
                         var dialog = app.scanDialog.createObject(app, {
                             hint: cosigner

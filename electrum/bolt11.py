@@ -23,9 +23,9 @@ if TYPE_CHECKING:
     from .lnutil import LnFeatures
 
 
-class LnInvoiceException(Exception): pass
-class LnDecodeException(LnInvoiceException): pass
-class LnEncodeException(LnInvoiceException): pass
+class BOLT11InvoiceException(Exception): pass
+class BOLT11DecodeException(BOLT11InvoiceException): pass
+class BOLT11EncodeException(BOLT11InvoiceException): pass
 
 
 # BOLT #11:
@@ -68,7 +68,7 @@ def unshorten_amount(amount) -> Decimal:
     # A reader SHOULD fail if `amount` contains a non-digit, or is followed by
     # anything except a `multiplier` in the table above.
     if not re.fullmatch("\\d+[pnum]?", str(amount)):
-        raise LnDecodeException("Invalid amount '{}'".format(amount))
+        raise BOLT11DecodeException("Invalid amount '{}'".format(amount))
 
     if unit in units.keys():
         return Decimal(amount[:-1]) / units[unit]
@@ -88,7 +88,7 @@ def encode_fallback_addr(fallback: str, net: Type[AbstractNet]) -> Sequence[int]
         elif addrtype == net.ADDRTYPE_P2SH:
             wver = 18
         else:
-            raise LnEncodeException(f"Unknown address type {addrtype} for {net}")
+            raise BOLT11EncodeException(f"Unknown address type {addrtype} for {net}")
         wprog = addr
     data5 = convertbits(wprog, 8, 5)
     assert data5 is not None
@@ -156,7 +156,7 @@ def pull_tagged(data5: bytearray) -> Tuple[str, Sequence[int]]:
     return ret
 
 
-def lnencode(addr: 'LnAddr', privkey) -> str:
+def encode_bolt11_invoice(addr: 'BOLT11Addr', privkey) -> str:
     if addr.amount:
         amount = addr.net.BOLT11_HRP + shorten_amount(addr.amount)
     else:
@@ -185,7 +185,7 @@ def lnencode(addr: 'LnAddr', privkey) -> str:
         # A writer MUST NOT include more than one `d`, `h`, `n` or `x` fields,
         if k in ('d', 'h', 'n', 'x', 'p', 's', '9'):
             if k in tags_set:
-                raise LnEncodeException("Duplicate '{}' tag".format(k))
+                raise BOLT11EncodeException("Duplicate '{}' tag".format(k))
 
         if k == 'r':
             route = bytearray()
@@ -228,7 +228,7 @@ def lnencode(addr: 'LnAddr', privkey) -> str:
             data5 += tagged5('9', feature_bits)
         else:
             # FIXME: Support unknown tags?
-            raise LnEncodeException("Unknown tag {}".format(k))
+            raise BOLT11EncodeException("Unknown tag {}".format(k))
 
         tags_set.add(k)
 
@@ -254,7 +254,7 @@ def lnencode(addr: 'LnAddr', privkey) -> str:
     return bech32_encode(segwit_addr.Encoding.BECH32, hrp, data5)
 
 
-class LnAddr(object):
+class BOLT11Addr:
     def __init__(self, *, paymenthash: bytes = None, amount=None, net: Type[AbstractNet] = None, tags=None, date=None,
                  payment_secret: bytes = None):
         self.date = int(time.time()) if not date else int(date)
@@ -274,16 +274,16 @@ class LnAddr(object):
     @amount.setter
     def amount(self, value):
         if not (isinstance(value, Decimal) or value is None):
-            raise LnInvoiceException(f"amount must be Decimal or None, not {value!r}")
+            raise BOLT11InvoiceException(f"amount must be Decimal or None, not {value!r}")
         if value is None:
             self._amount = None
             return
         assert isinstance(value, Decimal)
         if value.is_nan() or not (0 <= value <= TOTAL_COIN_SUPPLY_LIMIT_IN_BTC):
-            raise LnInvoiceException(f"amount is out-of-bounds: {value!r} BTC")
+            raise BOLT11InvoiceException(f"amount is out-of-bounds: {value!r} BTC")
         if value * 10**12 % 10:
             # max resolution is millisatoshi
-            raise LnInvoiceException(f"Cannot encode {value!r}: too many decimal places")
+            raise BOLT11InvoiceException(f"Cannot encode {value!r}: too many decimal places")
         self._amount = value
 
     def get_amount_sat(self) -> Optional[Decimal]:
@@ -332,16 +332,17 @@ class LnAddr(object):
     def validate_and_compare_features(self, myfeatures: 'LnFeatures') -> None:
         """Raises IncompatibleOrInsaneFeatures.
 
-        note: these checks are not done by the parser (in lndecode), as then when we started requiring a new feature,
+        note: these checks are not done by the parser (in decode_bolt11_invoice),
+              as then when we started requiring a new feature,
               old saved already paid invoices could no longer be parsed.
         """
-        from .lnutil import validate_features, ln_compare_features
+        from .lnutil import validate_features, ln_compare_features, LnFeatureContexts
         invoice_features = self.get_features()
-        validate_features(invoice_features)
-        ln_compare_features(myfeatures.for_invoice(), invoice_features)
+        validate_features(invoice_features, context=LnFeatureContexts.BOLT11_INVOICE)
+        ln_compare_features(myfeatures.for_bolt11_invoice(), invoice_features)
 
     def __str__(self):
-        return "LnAddr[{}, amount={}{} tags=[{}]]".format(
+        return "BOLT11Addr[{}, amount={}{} tags=[{}]]".format(
             hexlify(self.pubkey.serialize()).decode('utf-8') if self.pubkey else None,
             self.amount, self.net.BOLT11_HRP,
             ", ".join([k + '=' + str(v) for k, v in self.tags])
@@ -403,9 +404,9 @@ class SerializableKey:
         return self.pubkey.get_public_key_bytes(True)
 
 
-def lndecode(invoice: str, *, verbose=False, net=None) -> LnAddr:
-    """Parses a string into an LnAddr object.
-    Can raise LnDecodeException or IncompatibleOrInsaneFeatures.
+def decode_bolt11_invoice(invoice: str, *, verbose=False, net=None) -> BOLT11Addr:
+    """Parses a string into a BOLT11Addr object.
+    Can raise BOLT11DecodeException or IncompatibleOrInsaneFeatures.
     """
     if net is None:
         net = constants.net
@@ -413,27 +414,27 @@ def lndecode(invoice: str, *, verbose=False, net=None) -> LnAddr:
     hrp = decoded_bech32.hrp
     data5 = decoded_bech32.data  # "5" as in list of 5-bit integers
     if decoded_bech32.encoding is None:
-        raise LnDecodeException("Bad bech32 checksum")
+        raise BOLT11DecodeException("Bad bech32 checksum")
     if decoded_bech32.encoding != segwit_addr.Encoding.BECH32:
-        raise LnDecodeException("Bad bech32 encoding: must be using vanilla BECH32")
+        raise BOLT11DecodeException("Bad bech32 encoding: must be using vanilla BECH32")
 
     # BOLT #11:
     #
     # A reader MUST fail if it does not understand the `prefix`.
     if not hrp.startswith('ln'):
-        raise LnDecodeException("Does not start with ln")
+        raise BOLT11DecodeException("Does not start with ln")
 
     if not hrp[2:].startswith(net.BOLT11_HRP):
-        raise LnDecodeException(f"Wrong Lightning invoice HRP {hrp[2:]}, should be {net.BOLT11_HRP}")
+        raise BOLT11DecodeException(f"Wrong Lightning invoice HRP {hrp[2:]}, should be {net.BOLT11_HRP}")
 
     # Final signature 65 bytes, split it off.
     if len(data5) < 65*8//5:
-        raise LnDecodeException("Too short to contain signature")
+        raise BOLT11DecodeException("Too short to contain signature")
     sigdecoded = bytes(convertbits(data5[-65*8//5:], 5, 8, False))
     data5 = data5[:-65*8//5]
     data5_remaining = bytearray(data5)  # note: bytearray is faster than list of ints
 
-    addr = LnAddr()
+    addr = BOLT11Addr()
     addr.pubkey = None
     addr.net = net
 
@@ -580,7 +581,7 @@ def lndecode(invoice: str, *, verbose=False, net=None) -> LnAddr:
         # A reader MUST use the `n` field to validate the signature instead of
         # performing signature recovery if a valid `n` field is provided.
         if not ecc.ECPubkey(addr.pubkey).ecdsa_verify(sigdecoded[:64], hrp_hash):
-            raise LnDecodeException("bad signature")
+            raise BOLT11DecodeException("bad signature")
         pubkey_copy = addr.pubkey
 
         class WrappedBytesKey:

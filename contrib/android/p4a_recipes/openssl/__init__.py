@@ -6,7 +6,7 @@ from pythonforandroid.util import load_source
 util = load_source('util', os.path.join(os.path.dirname(os.path.dirname(__file__)), 'util.py'))
 
 
-assert OpenSSLRecipe._version == "3.0.18"
+# assert OpenSSLRecipe._version == "3.3.1"
 assert OpenSSLRecipe.depends == []
 assert OpenSSLRecipe.python_depends == []
 

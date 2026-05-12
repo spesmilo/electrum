@@ -40,7 +40,8 @@ from electrum import lnutil
 from electrum.crypto import privkey_to_pubkey
 from electrum.lnutil import (
     SENT, LOCAL, REMOTE, RECEIVED, UpdateAddHtlc, LnFeatures, secret_to_pubkey, ChannelType,
-    effective_htlc_tx_weight, LocalConfig, RemoteConfig, OnlyPubkeyKeypair,
+    effective_htlc_tx_weight, LocalConfig, RemoteConfig, OnlyPubkeyKeypair, ZEROCONF_TIMEOUT,
+    CHANNEL_OPENING_TIMEOUT_SEC,
 )
 from electrum.logging import console_stderr_handler
 from electrum.lnchannel import ChannelState, Channel
@@ -129,7 +130,6 @@ def create_test_channels(
     local_msat=None,
     remote_msat=None,
     random_seed=None,
-    anchor_outputs: bool = False,
     local_max_inflight=None,
     remote_max_inflight=None,
     max_accepted_htlcs=5,
@@ -153,9 +153,11 @@ def create_test_channels(
         config.LIGHTNING_MAX_FUNDING_SAT = max(config.LIGHTNING_MAX_FUNDING_SAT, funding_sat)
 
     peer_features = alice_lnwallet.features | LnFeatures.OPTION_SUPPORT_LARGE_CHANNEL_OPT
-    channel_type = ChannelType.OPTION_STATIC_REMOTEKEY
-    if anchor_outputs:
-        channel_type |= ChannelType.OPTION_ANCHORS_ZERO_FEE_HTLC_TX
+    assert alice_lnwallet.config.TEST_LN_OPEN_SRK_CHANNELS == bob_lnwallet.config.TEST_LN_OPEN_SRK_CHANNELS
+    if alice_lnwallet.config.TEST_LN_OPEN_SRK_CHANNELS:
+        channel_type = ChannelType.OPTION_STATIC_REMOTEKEY
+    else:
+        channel_type = ChannelType.OPTION_STATIC_REMOTEKEY | ChannelType.OPTION_ANCHORS
     # create alice's local config
     alice_lconfig = alice_lnwallet.make_local_config_for_new_channel(
         funding_sat=funding_sat,
@@ -264,15 +266,14 @@ class TestFee(ElectrumTestCase):
 
     async def asyncSetUp(self):
         await super().asyncSetUp()
-        self.alice_lnwallet = self.create_mock_lnwallet(name="alice", has_anchors=self.TEST_ANCHOR_CHANNELS)
-        self.bob_lnwallet = self.create_mock_lnwallet(name="bob", has_anchors=self.TEST_ANCHOR_CHANNELS)
+        self.alice_lnwallet = self.create_mock_lnwallet(name="alice")
+        self.bob_lnwallet = self.create_mock_lnwallet(name="bob")
 
     async def test_fee(self):
         alice_channel, bob_channel = create_test_channels(
             feerate=253,
             local_msat=10_000_000_000,
             remote_msat=5_000_000_000,
-            anchor_outputs=self.TEST_ANCHOR_CHANNELS,
             alice_lnwallet=self.alice_lnwallet,
             bob_lnwallet=self.bob_lnwallet,
         )
@@ -300,14 +301,14 @@ class TestChannel(ElectrumTestCase):
 
     async def asyncSetUp(self):
         await super().asyncSetUp()
-        self.alice_lnwallet = self.create_mock_lnwallet(name="alice", has_anchors=self.TEST_ANCHOR_CHANNELS)
-        self.bob_lnwallet = self.create_mock_lnwallet(name="bob", has_anchors=self.TEST_ANCHOR_CHANNELS)
+        self.alice_lnwallet = self.create_mock_lnwallet(name="alice")
+        self.bob_lnwallet = self.create_mock_lnwallet(name="bob")
 
         # Create a test channel which will be used for the duration of this
         # unittest. The channel will be funded evenly with Alice having 5 BTC,
         # and Bob having 5 BTC.
         self.alice_channel, self.bob_channel = create_test_channels(
-            anchor_outputs=self.TEST_ANCHOR_CHANNELS, alice_lnwallet=self.alice_lnwallet, bob_lnwallet=self.bob_lnwallet)
+            alice_lnwallet=self.alice_lnwallet, bob_lnwallet=self.bob_lnwallet)
 
         self.paymentPreimage = b"\x01" * 32
         paymentHash = bitcoin.sha256(self.paymentPreimage)
@@ -787,6 +788,67 @@ class TestChannel(ElectrumTestCase):
         self.alice_channel._state = ChannelState.OPENING
         self.assertFalse(self.alice_channel.can_be_deleted())
 
+    async def test_update_unfunded_zeroconf_channel(self):
+        """Cover the zeroconf branch of update_unfunded_state"""
+        chan = self.bob_channel
+        chan.set_state(ChannelState.OPEN, force=True)
+        bob = self.bob_lnwallet
+        self.assertFalse(chan.is_initiator())
+        trusted_node = f"{chan.node_id.hex()}@127.0.0.1:9735"
+        chan.storage['channel_type'] |= ChannelType.OPTION_ZEROCONF
+        self.assertTrue(chan.is_zeroconf())
+        # add channel to lnwallet/db
+        bob._channels[chan.channel_id] = chan
+        bob.db.get('channels')[chan.channel_id.hex()] = "something"
+        self.assertIsNotNone(bob.get_channel_by_id(chan.channel_id))
+        chan.storage['init_height'] = 0  # checked by has_funding_timed_out
+        chan.storage['init_timestamp'] = int(time.time())
+        self.assertEqual(chan.get_state(), ChannelState.OPEN)
+        self.assertEqual(chan.balance(LOCAL), 500000000000)
+        bob.config.ZEROCONF_TRUSTED_NODE = trusted_node
+
+        chan.update_unfunded_state()
+
+        # assert nothing happened
+        self.assertIsNotNone(bob.get_channel_by_id(chan.channel_id))
+        self.assertIsNotNone(bob.db.get('channels').get(chan.channel_id.hex()))
+        self.assertEqual(chan.get_state(), ChannelState.OPEN)
+        self.assertEqual(bob.config.ZEROCONF_TRUSTED_NODE, trusted_node)
+
+        # now time out zeroconf funding and try again, however her wallet is not up to date
+        chan.storage['init_timestamp'] -= ZEROCONF_TIMEOUT + 1
+        bob.wallet.is_up_to_date = lambda: False
+
+        chan.update_unfunded_state()
+
+        # assert nothing happened again
+        self.assertIsNotNone(bob.get_channel_by_id(chan.channel_id))
+        self.assertIsNotNone(bob.db.get('channels').get(chan.channel_id.hex()))
+        self.assertEqual(chan.get_state(), ChannelState.OPEN)
+        self.assertEqual(bob.config.ZEROCONF_TRUSTED_NODE, trusted_node)
+        self.assertFalse(chan.is_frozen_for_receiving())
+
+        # now her wallet is synced, and the channel is still unfunded
+        bob.wallet.is_up_to_date = lambda: True
+
+        chan.update_unfunded_state()
+
+        # check zeroconf provider gets unset
+        self.assertEqual(bob.config.ZEROCONF_TRUSTED_NODE, "")
+        self.assertFalse(chan.has_funding_timed_out())
+        self.assertTrue(chan.is_frozen_for_receiving())
+
+        # time out funding (~2 weeks)
+        chan.storage['init_timestamp'] -= CHANNEL_OPENING_TIMEOUT_SEC + 1
+        self.assertTrue(chan.has_funding_timed_out())
+
+        chan.update_unfunded_state()
+
+        # check that channel got removed, now that funding has timed out
+        self.assertIsNone(self.alice_lnwallet.get_channel_by_id(chan.channel_id))
+        self.assertIsNone(self.alice_lnwallet.db.get('channels').get(chan.channel_id.hex()))
+
+
 class TestChannelAnchors(TestChannel):
     TEST_ANCHOR_CHANNELS = True
 
@@ -794,12 +856,12 @@ class TestChannelAnchors(TestChannel):
 class TestAvailableToSpend(ElectrumTestCase):
     async def asyncSetUp(self):
         await super().asyncSetUp()
-        self.alice_lnwallet = self.create_mock_lnwallet(name="alice", has_anchors=self.TEST_ANCHOR_CHANNELS)
-        self.bob_lnwallet = self.create_mock_lnwallet(name="bob", has_anchors=self.TEST_ANCHOR_CHANNELS)
+        self.alice_lnwallet = self.create_mock_lnwallet(name="alice")
+        self.bob_lnwallet = self.create_mock_lnwallet(name="bob")
 
     async def test_DesyncHTLCs(self):
         alice_channel, bob_channel = create_test_channels(
-            anchor_outputs=self.TEST_ANCHOR_CHANNELS, alice_lnwallet=self.alice_lnwallet, bob_lnwallet=self.bob_lnwallet)
+            alice_lnwallet=self.alice_lnwallet, bob_lnwallet=self.bob_lnwallet)
         self.assertEqual(499986152000 if not alice_channel.has_anchors() else 499980692000, alice_channel.available_to_spend(LOCAL))
         self.assertEqual(500000000000, bob_channel.available_to_spend(LOCAL))
 
@@ -846,7 +908,6 @@ class TestAvailableToSpend(ElectrumTestCase):
 
     async def test_single_payment(self):
         alice_channel, bob_channel = create_test_channels(
-            anchor_outputs=self.TEST_ANCHOR_CHANNELS,
             local_msat=4000000000,
             remote_msat=4000000000,
             local_max_inflight=1000000000,
@@ -911,9 +972,9 @@ class TestAvailableToSpendAnchors(TestAvailableToSpend):
 class TestChanReserve(ElectrumTestCase):
     async def asyncSetUp(self):
         await super().asyncSetUp()
-        alice_lnwallet = self.create_mock_lnwallet(name="alice", has_anchors=self.TEST_ANCHOR_CHANNELS)
-        bob_lnwallet = self.create_mock_lnwallet(name="bob", has_anchors=self.TEST_ANCHOR_CHANNELS)
-        alice_channel, bob_channel = create_test_channels(anchor_outputs=False, alice_lnwallet=alice_lnwallet, bob_lnwallet=bob_lnwallet)
+        alice_lnwallet = self.create_mock_lnwallet(name="alice")
+        bob_lnwallet = self.create_mock_lnwallet(name="bob")
+        alice_channel, bob_channel = create_test_channels(alice_lnwallet=alice_lnwallet, bob_lnwallet=bob_lnwallet)
         alice_min_reserve = int(.5 * one_bitcoin_in_msat // 1000)
         # We set Bob's channel reserve to a value that is larger than
         # his current balance in the channel. This will ensure that
@@ -1048,12 +1109,12 @@ class TestChanReserveAnchors(TestChanReserve):
 class TestDust(ElectrumTestCase):
     async def asyncSetUp(self):
         await super().asyncSetUp()
-        self.alice_lnwallet = self.create_mock_lnwallet(name="alice", has_anchors=self.TEST_ANCHOR_CHANNELS)
-        self.bob_lnwallet = self.create_mock_lnwallet(name="bob", has_anchors=self.TEST_ANCHOR_CHANNELS)
+        self.alice_lnwallet = self.create_mock_lnwallet(name="alice")
+        self.bob_lnwallet = self.create_mock_lnwallet(name="bob")
 
     async def test_DustLimit(self):
         """Test that addition of an HTLC below the dust limit changes the balances."""
-        alice_channel, bob_channel = create_test_channels(anchor_outputs=self.TEST_ANCHOR_CHANNELS, alice_lnwallet=self.alice_lnwallet, bob_lnwallet=self.bob_lnwallet)
+        alice_channel, bob_channel = create_test_channels(alice_lnwallet=self.alice_lnwallet, bob_lnwallet=self.bob_lnwallet)
         dust_limit_alice = alice_channel.config[LOCAL].dust_limit_sat
         dust_limit_bob = bob_channel.config[LOCAL].dust_limit_sat
         self.assertLess(dust_limit_alice, dust_limit_bob)

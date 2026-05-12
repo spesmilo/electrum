@@ -19,7 +19,7 @@ class TestLNPeerManager(ElectrumTestCase):
         console_stderr_handler.setLevel(logging.DEBUG)
 
     async def asyncSetUp(self):
-        lnwallet = self.create_mock_lnwallet(name='mock_lnwallet_anchors', has_anchors=True)
+        lnwallet = self.create_mock_lnwallet(name='mock_lnwallet_anchors')
         self.lnpeermgr = lnwallet.lnpeermgr
         await super().asyncSetUp()
 
@@ -73,7 +73,7 @@ class TestLNPeerManager(ElectrumTestCase):
         self.assertEqual(result, ("10.0.0.1", 9735, 150))  # Most recent IP
 
         # no IP, proxy disabled, filter .onion and choose random
-        self.assertFalse(peermgr.network.proxy.enabled)
+        self.assertFalse(peermgr.network.is_proxy_tor)
         addr_list = [("host.com", 9735, 100), ("host.onion", 9735, 200)]
         result = peermgr.choose_preferred_address(addr_list)
         self.assertEqual(result, ("host.com", 9735, 100))
@@ -84,7 +84,7 @@ class TestLNPeerManager(ElectrumTestCase):
         self.assertIsNone(result)
 
         # return onion if proxy enabled
-        peermgr.network.proxy.enabled = True
+        peermgr.network.is_proxy_tor = True
         addr_list = [("host.onion", 9735, 100)]
         result = peermgr.choose_preferred_address(addr_list)
         self.assertEqual(result, ("host.onion", 9735, 100))

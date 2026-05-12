@@ -4,7 +4,7 @@ from enum import IntEnum
 from typing import Optional, Dict, Any, Tuple
 from urllib.parse import urlparse
 
-from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, pyqtEnum, QTimer
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, pyqtEnum, QTimer, QVariant
 
 from electrum.i18n import _
 from electrum.logging import get_logger
@@ -65,6 +65,7 @@ class QEInvoice(QObject, QtEventListener):
         self._invoiceType = QEInvoice.Type.Invalid
         self._effectiveInvoice = None  # type: Optional[Invoice]
         self._userinfo = ''
+        self._paid_in_this_session = False
         self._lnprops = {}
         self._amount = QEAmount()
         self._amountOverride = QEAmount()
@@ -88,7 +89,7 @@ class QEInvoice(QObject, QtEventListener):
         if wallet == self._wallet.wallet and key == self.key:
             self.statusChanged.emit()
             self.determine_can_pay()
-            self.userinfo = _('Paid!')
+            self.update_userinfo()
 
     @event_listener
     def on_event_payment_failed(self, wallet, key, reason):
@@ -111,12 +112,13 @@ class QEInvoice(QObject, QtEventListener):
             self.determine_can_pay()
 
     walletChanged = pyqtSignal()
-    @pyqtProperty(QEWallet, notify=walletChanged)
-    def wallet(self):
+    @pyqtProperty(QVariant, notify=walletChanged)
+    def wallet(self) -> QEWallet:
         return self._wallet
 
     @wallet.setter
     def wallet(self, wallet: QEWallet):
+        assert wallet is None or isinstance(wallet, QEWallet)
         if self._wallet != wallet:
             self._wallet = wallet
             self.walletChanged.emit()
@@ -153,12 +155,13 @@ class QEInvoice(QObject, QtEventListener):
         self._amount.copyFrom(QEAmount(from_invoice=self._effectiveInvoice))
         return self._amount
 
-    @pyqtProperty(QEAmount, notify=amountOverrideChanged)
-    def amountOverride(self):
+    @pyqtProperty(QVariant, notify=amountOverrideChanged)
+    def amountOverride(self) -> QEAmount:
         return self._amountOverride
 
     @amountOverride.setter
     def amountOverride(self, new_amount: QEAmount):
+        assert new_amount is None or isinstance(new_amount, QEAmount)
         self._logger.debug(f'set new override amount {repr(new_amount)}')
         self._amountOverride.copyFrom(new_amount)
         self.amountOverrideChanged.emit()
@@ -263,6 +266,7 @@ class QEInvoice(QObject, QtEventListener):
         return (lnworker.lnpeermgr.get_node_alias(node_id) if lnworker else None) or node_id.hex()
 
     def set_effective_invoice(self, invoice: Invoice):
+        self._paid_in_this_session = False
         self._effectiveInvoice = invoice
 
         if invoice is None:
@@ -331,6 +335,8 @@ class QEInvoice(QObject, QtEventListener):
 
         if status in [PR_UNPAID, PR_FAILED]:
             x, self.userinfo = self.check_can_pay_amount(amount)
+        elif status == PR_PAID and self._paid_in_this_session:
+            self.userinfo = _('Paid!')
         else:
             self.userinfo = userinfo_for_invoice_status(status)
 
@@ -387,6 +393,7 @@ class QEInvoice(QObject, QtEventListener):
                 raise Exception('can not pay 0 amount')
             amount_msat = self.amountOverride.msatsInt
 
+        self._paid_in_this_session = True
         self._wallet.pay_lightning_invoice(self._effectiveInvoice, amount_msat)
 
     def get_max_spendable_onchain(self):

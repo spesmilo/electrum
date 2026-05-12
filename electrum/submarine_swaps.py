@@ -38,8 +38,8 @@ from .util import (
 )
 from . import lnutil
 from .lnutil import hex_to_bytes, REDEEM_AFTER_DOUBLE_SPENT_DELAY, Keypair
-from .lnaddr import lndecode
-from .json_db import StoredObject, stored_in
+from .bolt11 import decode_bolt11_invoice
+from .stored_dict import StoredObject, stored_in
 from . import constants
 from .address_synchronizer import (TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE, TX_HEIGHT_UNCONFIRMED,
                                    TX_HEIGHT_UNCONF_PARENT)
@@ -997,7 +997,7 @@ class SwapManager(Logger):
         }
         await transport.send_request_to_server('addswapinvoice', request_data)
         # wait for funding tx
-        lnaddr = lndecode(invoice)
+        lnaddr = decode_bolt11_invoice(invoice)
         while swap.funding_txid is None and not lnaddr.is_expired():
             await asyncio.sleep(0.1)
         return swap.funding_txid
@@ -1196,8 +1196,9 @@ class SwapManager(Logger):
         self.percentage = Decimal(self.config.SWAPSERVER_FEE_MILLIONTHS) / 10000  # type: ignore
         self._min_amount = MIN_SWAP_AMOUNT_SAT
         oc_balance_sat: int = self.wallet.get_spendable_balance_sat()
-        max_forward: int = min(int(self.lnworker.num_sats_can_receive()), oc_balance_sat, 10000000)
-        max_reverse: int = min(int(self.lnworker.num_sats_can_send()), 10000000)
+        MAX_SWAP_AMT = bitcoin.COIN // 10  # just to minimise accidental damage. not enforced client-side
+        max_forward: int = min(int(self.lnworker.num_sats_can_receive()), oc_balance_sat, MAX_SWAP_AMT)
+        max_reverse: int = min(int(self.lnworker.num_sats_can_send()), MAX_SWAP_AMT)
         self._max_forward: int = self._keep_leading_digits(max_forward, 2)
         self._max_reverse: int = self._keep_leading_digits(max_reverse, 2)
         new_mining_fee = self.get_fee_for_txbatcher()

@@ -170,6 +170,10 @@ class NotificationSession(RPCSession):
         self.taskgroup = interface.taskgroup
         self.cost_hard_limit = 0  # disable aiorpcx resource limits
 
+        # To log pre-processed json traffic, uncomment:
+        #self.logger.setLevel(logging.DEBUG)  # from aiorpcx
+        #self.verbosity = 4
+
     async def handle_request(self, request):
         self.maybe_log(f"--> {request}")
         try:

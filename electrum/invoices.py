@@ -4,12 +4,12 @@ from decimal import Decimal
 
 import attr
 
-from .json_db import StoredObject, stored_in
+from .stored_dict import StoredObject, stored_in
 from .i18n import _
 from .util import age, InvoiceError, format_satoshis
 from .bip21 import create_bip21_uri
 from .lnutil import hex_to_bytes
-from .lnaddr import lndecode, LnAddr
+from .bolt11 import decode_bolt11_invoice, BOLT11Addr
 from . import constants
 from .bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
 from .bitcoin import address_to_script
@@ -213,7 +213,7 @@ class BaseInvoice(StoredObject):
         Might raise InvoiceError.
         """
         try:
-            lnaddr = lndecode(invoice)
+            lnaddr = decode_bolt11_invoice(invoice)
         except Exception as e:
             raise InvoiceError(e) from e
         amount_msat = lnaddr.get_amount_msat()
@@ -275,9 +275,9 @@ class Invoice(BaseInvoice):
         return address
 
     @property
-    def _lnaddr(self) -> LnAddr:
+    def _lnaddr(self) -> BOLT11Addr:
         if self.__lnaddr is None:
-            self.__lnaddr = lndecode(self.lightning_invoice)
+            self.__lnaddr = decode_bolt11_invoice(self.lightning_invoice)
         return self.__lnaddr
 
     @property
@@ -288,7 +288,7 @@ class Invoice(BaseInvoice):
     @lightning_invoice.validator
     def _validate_invoice_str(self, attribute, value):
         if value is not None:
-            lnaddr = lndecode(value)  # this checks the str can be decoded
+            lnaddr = decode_bolt11_invoice(value)  # this checks the str can be decoded
             self.__lnaddr = lnaddr    # save it, just to avoid having to recompute later
 
     def can_be_paid_onchain(self) -> bool:

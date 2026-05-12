@@ -89,13 +89,19 @@ class BaseCrashReporter(Logger):
 
     def send_report(self, asyncio_loop, proxy: 'ProxySettings', *, timeout=None) -> CrashReportResponse:
         # FIXME the caller needs to catch generic "Exception", as this method does not have a well-defined API...
-        if (constants.net.GENESIS[-4:] not in [
+        bitcoinlike_genesis = constants.net.GENESIS[-4:] in [
             "e26f",  # mainnet
             "4943",  # testnet 3
             "f043",  # testnet 4
             "1ef6",  # signet
-        ] and ".electrum.org" in BaseCrashReporter.report_server):
-            # Gah! Some kind of altcoin wants to send us crash reports.
+        ]
+        is_forked_codebase = not bitcoinlike_genesis or "/spesmilo/" not in constants.GIT_REPO_URL
+        if is_forked_codebase and ".electrum.org" in BaseCrashReporter.report_server:
+            # Some kind of altcoin wants to send us crash reports... ?
+            # - You, the reader, yes *you*: if you forked the codebase e.g. to support an altcoin,
+            #   please consider that upstream Electrum does NOT want to receive automated crash reports
+            #   from your users.  You should set up your own crash report server,
+            #   and change `BaseCrashReporter.report_server` accordingly, or just disable reporting.
             raise Exception(_("Missing report URL."))
         report = self.get_traceback_info(*self.exc_args)
         report.update(self.get_additional_info())

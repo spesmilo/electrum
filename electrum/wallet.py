@@ -46,6 +46,7 @@ import electrum_ecc as ecc
 from aiorpcx import ignore_after, run_in_thread
 
 from . import util, keystore, transaction, bitcoin, coinchooser, bip32, descriptor
+from . import constants
 from .i18n import _
 from .bip32 import BIP32Node, convert_bip32_intpath_to_strpath, convert_bip32_strpath_to_intpath
 from .logging import get_logger, Logger
@@ -456,7 +457,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self._up_to_date = False
         self.up_to_date_changed_event = asyncio.Event()
 
-        self.test_addresses_sanity()
+        assert self.db.get('genesis_blockhash') == constants.net.GENESIS, self.db.get('genesis_blockhash')
         if self.storage and self.has_storage_encryption():
             if (se := self.storage.get_encryption_version()) not in (ae := self.get_available_storage_encryption_versions()):
                 raise WalletFileException(f"unexpected storage encryption type. found: {se!r}. allowed: {ae!r}")
@@ -524,7 +525,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         # we want static_remotekey to be a wallet address
         if not self.txin_type == 'p2wpkh':
             return False
-        if self.config.ENABLE_ANCHOR_CHANNELS:
+        if not self.config.TEST_LN_OPEN_SRK_CHANNELS:  # anchors
             if not self.keystore:
                 return False
             if self.keystore.is_watching_only():
@@ -694,15 +695,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def basename(self) -> str:
         return self.storage.basename() if self.storage else 'no_name'
-
-    def test_addresses_sanity(self) -> None:
-        addrs = self.get_receiving_addresses()
-        if len(addrs) > 0:
-            addr = str(addrs[0])
-            if not bitcoin.is_address(addr):
-                neutered_addr = addr[:5] + '..' + addr[-2:]
-                raise WalletFileException(f'The addresses in this wallet are not bitcoin addresses.\n'
-                                          f'e.g. {neutered_addr} (length: {len(addr)})')
 
     def check_returned_address_for_corruption(func):
         def wrapper(self, *args, **kwargs):
@@ -1811,6 +1803,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         domain = self.get_addresses()
         for hist_item in self.adb.get_history(domain):
             # tx should not be mined yet
+            if hist_item.tx_mined_status.conf is None: continue
             if hist_item.tx_mined_status.conf > 0: continue
             # conservative future proofing of code: only allow known unconfirmed types
             if hist_item.tx_mined_status.height() not in (
@@ -1984,6 +1977,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             raise Exception("Some inputs already contain signatures!")
         if inputs is None:
             inputs = []
+        assert all(isinstance(o, PartialTxOutput) for o in outputs), [type(o) for o in outputs]
         # make sure inputs and coins do not overlap
         if inputs:
             input_set = set(txin.prevout for txin in inputs)
@@ -2016,20 +2010,21 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             coin_chooser = coinchooser.get_coin_chooser(self.config)
             # If there is an unconfirmed RBF tx, merge with it
             if base_tx:
+                assert base_tx.txid() is not None  # pre-segwit and incomplete?
                 # make sure we don't try to spend change from the tx-to-be-replaced:
                 coins = [c for c in coins if c.prevout.txid.hex() != base_tx.txid()]
                 is_local = self.adb.get_tx_height(base_tx.txid()).height() == TX_HEIGHT_LOCAL
-                # estimate base tx fee before stripping tx for more accurate estimate
-                base_tx_fee = base_tx.get_fee()
-                base_feerate = Decimal(base_tx_fee)/base_tx.estimated_size()
-                relayfeerate = Decimal(self.relayfee()) / 1000
-                original_fee_estimator = fee_estimator
+                base_tx_size = base_tx.estimated_size()  # estimate before stripping tx for more accurate estimate
                 if not isinstance(base_tx, PartialTransaction):
                     base_tx = PartialTransaction.from_tx(base_tx)
                     base_tx.add_info_from_wallet(self)
                 else:
                     # don't cast PartialTransaction, because it removes make_witness
                     base_tx.remove_signatures()
+                base_tx_fee = base_tx.get_fee()  # FIXME could be None if some inputs are non-ismine
+                base_feerate = Decimal(base_tx_fee) / base_tx_size
+                relayfeerate = Decimal(self.relayfee()) / 1000
+                original_fee_estimator = fee_estimator
                 def fee_estimator(size: Union[int, float, Decimal]) -> int:
                     size = Decimal(size)
                     lower_bound_relayfee = int(base_tx_fee + round(size * relayfeerate)) if not is_local else 0
@@ -3461,7 +3456,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             zeroconf_nodeid = extract_nodeid(self.config.ZEROCONF_TRUSTED_NODE)[0]
         except Exception:
             zeroconf_nodeid = None
-        can_get_zeroconf_channel = (self.lnworker and self.config.ACCEPT_ZEROCONF_CHANNELS
+        can_get_zeroconf_channel = (self.lnworker and self.config.OPEN_ZEROCONF_CHANNELS
                                     and self.lnworker.lnpeermgr.get_peer_by_pubkey(zeroconf_nodeid) is not None)
         status = self.get_invoice_status(req)
 
@@ -3909,26 +3904,20 @@ class Imported_Wallet(Simple_Wallet):
         x = self.db.get_imported_address(address)
         return x.get('pubkey') if x else None
 
-    def import_private_keys(self, keys: Sequence[str], password: Optional[str], *,
-                            write_to_disk=True) -> Tuple[List[str], List[Tuple[str, str]]]:
-        good_addr = []  # type: List[str]
-        bad_keys = []  # type: List[Tuple[str, str]]
-        for key in keys:
-            try:
-                txin_type, pubkey = self.keystore.import_privkey(key, password)
-            except Exception as e:
-                bad_keys.append((key, _('invalid private key') + f': {e}'))
-                continue
-            if txin_type not in ('p2pkh', 'p2wpkh', 'p2wpkh-p2sh'):
-                bad_keys.append((key, _('not implemented type') + f': {txin_type}'))
-                continue
+    def _add_imported_addresses(self, good_inputs):
+        for txin_type, pubkey in good_inputs:
             addr = bitcoin.pubkey_to_address(txin_type, pubkey)
-            good_addr.append(addr)
             self.db.add_imported_address(addr, {'type': txin_type, 'pubkey': pubkey})
             self.adb.add_address(addr)
+
+    def import_private_keys(self, keys: Sequence[str], password: Optional[str], *,
+                            write_to_disk=True) -> Tuple[List[str], List[Tuple[str, str]]]:
+        good_inputs, bad_keys = self.keystore.import_private_keys(keys, password)
         self.save_keystore()
+        self._add_imported_addresses(good_inputs)
         if write_to_disk:
             self.save_db()
+        good_addr = [bitcoin.pubkey_to_address(txin_type, pubkey) for txin_type, pubkey in good_inputs]
         return good_addr, bad_keys
 
     def import_private_key(self, key: str, password: Optional[str]) -> str:
@@ -4420,20 +4409,22 @@ def create_new_wallet(
     storage = WalletStorage(path, allow_partial_writes=config.WALLET_PARTIAL_WRITES)
     if storage.file_exists():
         raise UserFacingException("Remove the existing wallet first!")
+    if encrypt_file:
+        storage.set_password(password, StorageEncryptionVersion.USER_PASSWORD)
     db = WalletDB('', storage=storage, upgrade=True)
-
     seed = Mnemonic('en').make_seed(seed_type=seed_type)
     k = keystore.from_seed(seed, passphrase=passphrase)
+    k.update_password(None, password)
     db.put('keystore', k.dump())
     db.put('wallet_type', 'standard')
     if k.can_have_deterministic_lightning_xprv():
-        db.put('lightning_xprv', k.get_lightning_xprv(None))
+        db.put('lightning_xprv', k.get_lightning_xprv(password))
     if gap_limit is not None:
         db.put('gap_limit', gap_limit)
     if gap_limit_for_change is not None:
         db.put('gap_limit_for_change', gap_limit_for_change)
+    db.set_keystore_encryption(bool(password))
     wallet = Wallet(db, config=config)
-    wallet.update_password(old_pw=None, new_pw=password, encrypt_storage=encrypt_file)
     wallet.synchronize()
     msg = "Please keep your seed in a safe place; if you lose it, you will not be able to restore your wallet."
     wallet.save_db()
@@ -4455,15 +4446,18 @@ def restore_wallet_from_text(
     """Restore a wallet from text. Text can be a seed phrase, a master
     public key, a master private key, a list of bitcoin addresses
     or bitcoin private keys."""
+    if encrypt_file is None:
+        encrypt_file = True
     if path is None:  # create wallet in-memory
         storage = None
     else:
         storage = WalletStorage(path, allow_partial_writes=config.WALLET_PARTIAL_WRITES)
         if storage.file_exists():
             raise UserFacingException("Remove the existing wallet first!")
-    if encrypt_file is None:
-        encrypt_file = True
+        if encrypt_file:
+            storage.set_password(password, StorageEncryptionVersion.USER_PASSWORD)
     db = WalletDB('', storage=storage, upgrade=True)
+    db.set_keystore_encryption(bool(password))
     text = text.strip()
     if keystore.is_address_list(text):
         wallet = Imported_Wallet(db, config=config)
@@ -4473,14 +4467,16 @@ def restore_wallet_from_text(
         if not good_inputs:
             raise UserFacingException("None of the given addresses can be imported")
     elif keystore.is_private_key_list(text, allow_spaces_inside_key=False):
-        k = keystore.Imported_KeyStore({})
-        db.put('keystore', k.dump())
-        wallet = Imported_Wallet(db, config=config)
         keys = keystore.get_private_keys(text, allow_spaces_inside_key=False)
-        good_inputs, bad_inputs = wallet.import_private_keys(keys, None, write_to_disk=False)
+        k = keystore.Imported_KeyStore({})
+        good_inputs, bad_inputs = k.import_private_keys(keys, None)
         # FIXME tell user about bad_inputs
         if not good_inputs:
             raise UserFacingException("None of the given privkeys can be imported")
+        k.update_password(None, password)
+        db.put('keystore', k.dump())
+        wallet = Imported_Wallet(db, config=config)
+        wallet._add_imported_addresses(good_inputs)
     else:
         if keystore.is_master_key(text):
             k = keystore.from_master_key(text)
@@ -4490,6 +4486,8 @@ def restore_wallet_from_text(
                 db.put('lightning_xprv', k.get_lightning_xprv(None))
         else:
             raise UserFacingException("Seed or key not recognized")
+        if not k.is_watching_only():
+            k.update_password(None, password)
         db.put('keystore', k.dump())
         db.put('wallet_type', 'standard')
         if gap_limit is not None:
@@ -4499,7 +4497,6 @@ def restore_wallet_from_text(
         wallet = wallet_factory(db, config=config)
     if db.storage:
         assert not db.storage.file_exists(), "file was created too soon! plaintext keys might have been written to disk"
-    wallet.update_password(old_pw=None, new_pw=password, encrypt_storage=encrypt_file)
     wallet.synchronize()
     msg = ("This wallet was restored offline. It may contain more addresses than displayed. "
            "Start a daemon and use load_wallet to sync its history.")
