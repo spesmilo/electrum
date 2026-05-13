@@ -65,6 +65,10 @@ REQUEST_REPLY_PATHS_MAX = 3
 PAYMENT_PATHS_MAX = 3
 
 
+class NoOnionMessagePeers(Exception): pass
+class NoRouteBlindingChannelPeers(Exception): pass
+
+
 class NoRouteFound(Exception):
     def __init__(self, *args, peer_address: 'LNPeerAddr' = None):
         Exception.__init__(self, *args)
@@ -412,23 +416,25 @@ def get_blinded_paths_to_me(
 ) -> Tuple[Sequence[dict], Sequence[dict]]:
     """construct a list of blinded paths.
        current logic:
-       - uses channels peers if not onion_message
-       - uses current onion_message capable channel peers if exist and if onion_message
-       - otherwise, uses current onion_message capable peers if onion_message
-       - reply_path introduction points are direct peers only (TODO: longer paths)"""
+       - uses active channel peers if my_channels not provided
+       - if onion_message, filters channels for onion_message feature
+       - if not onion_message, filters channels for route_blinding feature
+       - if onion_message and no suitable channel peers, tries onion_message capable peers
+       - raises if no blinded path could be generated
+       - reply_path introduction points are direct peers only (TODO: longer paths)
+    """
     # TODO: build longer paths and/or add dummy hops to increase privacy
     if not my_channels:
-        my_active_channels = [chan for chan in lnwallet.channels.values() if chan.is_active()]
-        my_channels = my_active_channels
+        my_channels = [chan for chan in lnwallet.channels.values() if chan.is_active()]
 
-    if onion_message:
-        my_channels = [chan for chan in my_channels if lnwallet.lnpeermgr.get_peer_by_pubkey(chan.node_id) and
-                       lnwallet.lnpeermgr.get_peer_by_pubkey(chan.node_id).their_features.supports(LnFeatures.OPTION_ONION_MESSAGE_OPT)]
+    required_features = LnFeatures.OPTION_ONION_MESSAGE_OPT if onion_message else LnFeatures.OPTION_ROUTE_BLINDING_OPT
+    my_channels = [chan for chan in my_channels if lnwallet.lnpeermgr.get_peer_by_pubkey(chan.node_id) and
+                   lnwallet.lnpeermgr.get_peer_by_pubkey(chan.node_id).their_features.supports(required_features)]
 
     result = []
     payinfos = []
     mynodeid = lnwallet.node_keypair.pubkey
-    if len(my_channels):
+    if my_channels:
         rchans = random_shuffled_copy(my_channels)
         for chan in rchans[:max_paths]:
             hop_extras = None
@@ -447,16 +453,22 @@ def get_blinded_paths_to_me(
                 channels=[chan] if not onion_message else None,
             )
             result.append(blinded_path)
-    elif onion_message:
-        # we can use peers even without channels for onion messages
-        my_onionmsg_peers = [peer for peer in lnwallet.lnpeermgr.peers.values() if
-                             peer.their_features.supports(LnFeatures.OPTION_ONION_MESSAGE_OPT)]
-        if len(my_onionmsg_peers):
+
+    if not result:
+        if not onion_message:
+            raise NoRouteBlindingChannelPeers('no OPTION_ROUTE_BLINDING capable channel peers')
+        else:
+            # fall back to peers without channels for onion messages
+            my_onionmsg_peers = [peer for peer in lnwallet.lnpeermgr.peers.values() if
+                                 peer.their_features.supports(LnFeatures.OPTION_ONION_MESSAGE_OPT)]
+            if not my_onionmsg_peers:
+                raise NoOnionMessagePeers('no ONION_MESSAGE capable peers')
             rpeers = random_shuffled_copy(my_onionmsg_peers)
             for peer in rpeers[:max_paths]:
                 blinded_path = create_blinded_path(os.urandom(32), [peer.pubkey, mynodeid], final_recipient_data)
                 result.append(blinded_path)
 
+    assert result
     return result, payinfos
 
 
@@ -708,9 +720,6 @@ class OnionMessageManager(Logger):
             # unless explicitly set in payload, generate reply_path here
             path_id = self._path_id_from_payload_and_key(payload, key)
             reply_paths = get_blinded_reply_paths(self.lnwallet, path_id, max_paths=1)
-            if not reply_paths:
-                raise Exception(f'Could not create a reply_path for {key=}. No active peers?')
-
             final_payload['reply_path'] = {'path': reply_paths}
 
         # NOTE: we could also try alternate paths to introduction point (the non-blinded part of the route)
