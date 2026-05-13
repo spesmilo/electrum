@@ -33,7 +33,7 @@ import jsonpointer
 from . import util
 from .util import WalletFileException, profiler, sticky_property
 from .logging import Logger
-from .stored_dict import StoredDict, _FLEX_KEY, registered_names, registered_dicts, registered_dict_keys, registered_parent_keys
+from .stored_dict import StoredDict, _FLEX_KEY, registered_names, registered_keys, _convert_dict_key, _convert_dict_value
 
 
 if TYPE_CHECKING:
@@ -249,40 +249,11 @@ class JsonDB(Logger):
     def _should_convert_to_stored_dict(self, key) -> bool:
         return True
 
-    def _convert_dict_key(self, path: List[str]) -> _FLEX_KEY:
-        """Maybe convert key from str to python type (typically int or IntEnum)"""
-        assert all(isinstance(x, str) for x in path), repr(path)
-        key = path[-1]
-        parent_key = path[-2] if len(path) > 1 else None
-        gp_key = path[-3] if len(path) > 2 else None
-        if parent_key and parent_key in registered_dict_keys:
-            convert_key = registered_dict_keys[parent_key]
-        elif gp_key and gp_key in registered_parent_keys:
-            convert_key = registered_parent_keys.get(gp_key)
-        else:
-            convert_key = None
-        if convert_key:
-            key = convert_key(key)
-        assert isinstance(key, _FLEX_KEY), f"unexpected type for {key=!r} at {path=}"
-        return key
+    def _convert_dict_key(self, path: List[str], key: str) -> _FLEX_KEY:
+        return _convert_dict_key(path, key)
 
     def _convert_dict_value(self, path: List[str], v) -> Any:
-        assert all(isinstance(x, str) for x in path), repr(path)
-        key = path[-1]
-        if key in registered_dicts:
-            constructor, _type = registered_dicts[key]
-            if _type == dict:
-                v = dict((k, constructor(**x)) for k, x in v.items())
-            elif _type == tuple:
-                v = dict((k, constructor(*x)) for k, x in v.items())
-            else:
-                v = dict((k, constructor(x)) for k, x in v.items())
-        elif key in registered_names:
-            constructor, _type = registered_names[key]
-            if _type == dict:
-                v = constructor(**v)
-            else:
-                v = constructor(v)
+        v = _convert_dict_value(path, v)
         if isinstance(v, dict):
             v = self._convert_dict(path, v)
         return v
@@ -293,7 +264,7 @@ class JsonDB(Logger):
         d = {}
         for k, v in list(data.items()):
             child_path = path + [k]
-            k = self._convert_dict_key(child_path)
+            k = self._convert_dict_key(path, k)
             v = self._convert_dict_value(child_path, v)
             d[k] = v
         return d
