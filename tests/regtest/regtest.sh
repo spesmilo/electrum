@@ -144,6 +144,28 @@ function wait_until_spent()
     printf "\n"
 }
 
+function wait_for_chain_tip()
+{
+    msg="waiting until $1 catches up to chain tip"
+    cmd="./run_electrum --regtest -D /tmp/$1"
+    declare -i timeout_sec=120
+    declare -i elapsed_sec=0
+
+    printf "$msg"
+    while (( $($cmd getinfo | jq '.blockchain_height') < $($bitcoin_cli getblockcount) )); do
+        if ((elapsed_sec > timeout_sec)); then
+            printf "Timeout of %i s exceeded\n" "$elapsed_sec"
+            exit 1
+        fi
+        sleep 1
+        elapsed_sec=$((elapsed_sec + 1))
+        printf '.'
+    done
+
+    $cmd wait_for_sync > /dev/null
+    printf "\n"
+}
+
 function assert_utxo_exists()
 {
     utxo=$($bitcoin_cli gettxout $1 $2)
@@ -781,6 +803,7 @@ if [[ $1 == "just_in_time" ]]; then
     fi
     # try again, multiple jit openings should work without issues
     new_blocks 3
+    wait_for_chain_tip bob
     echo "carol pays alice again"
     invoice=$($alice add_request 0.04 --lightning --memo "invoice2" | jq -r ".lightning_invoice")
     success=$($carol lnpay $invoice | jq -r ".success")
