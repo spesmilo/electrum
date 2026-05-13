@@ -65,7 +65,6 @@ from .lntransport import (
 )
 from .bolt11 import encode_bolt11_invoice, BOLT11Addr, decode_bolt11_invoice
 from .lnpeer import Peer, LN_P2P_NETWORK_TIMEOUT
-from .lnaddr import lnencode, LnAddr, lndecode
 from .lnchannel import Channel, AbstractChannel, ChannelState, ChanCloseReason, PeerState, HTLCWithStatus, ChannelBackup
 from .lnrater import LNRater
 from .lnutil import (
