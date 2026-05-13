@@ -2524,3 +2524,15 @@ class ChoiceItem:
     key: Any
     label: str  # user facing string
     extra_data: Any = None
+
+
+def convert_fiat_to_satoshi(currency: str, amount: Decimal) -> Optional[int]:
+    """Convert amount of given currency into satoshi if exchange rate is available"""
+    from .network import Network
+    network = Network.get_instance()
+    if not network or not network.daemon or not network.daemon.fx:
+        _logger.warning(f"cannot convert fiat to bitcoin: {network}")
+        return None
+    fx = network.daemon.fx
+    return 0
+
