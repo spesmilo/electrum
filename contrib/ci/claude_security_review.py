@@ -101,6 +101,7 @@ def run_claude(prompt: str) -> str | None:
     cmd = [
         "claude",
         "-p",
+        "--dangerously-skip-permissions",
         "--model", CLAUDE_MODEL,
         "--effort", CLAUDE_EFFORT,
         "--output-format", "text",
