@@ -43,7 +43,7 @@ from .logging import Logger
 from .lnutil import HTLCOwner, ChannelType, RecvMPPResolution
 from .json_db import JsonDB, locked, modifier
 from . import stored_dict
-from .stored_dict import StoredObject, stored_in, stored_as
+from .stored_dict import StoredObject, stored_at, register_key, register_name
 from .plugin import run_hook, plugin_loaders
 from .version import ELECTRUM_VERSION
 from .i18n import _
@@ -75,14 +75,14 @@ FINAL_SEED_VERSION = 71     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
-@stored_in('tx_fees', tuple)
+@stored_at('tx_fees/*', tuple)
 class TxFeesValue(NamedTuple):
     fee: Optional[int] = None
     is_calculated_by_us: bool = False
     num_inputs: Optional[int] = None
 
 
-@stored_as('db_metadata')
+@stored_at('db_metadata')
 @attr.s
 class DBMetadata(StoredObject):
     creation_timestamp = attr.ib(default=None, type=int)
@@ -104,18 +104,20 @@ class WalletFileExceptionVersion51(WalletFileException): pass
 
 
 # register dicts that require value conversions not handled by constructor
-stored_dict.register_dict('transactions', lambda x: tx_from_any(x, deserialize=False), None)
-stored_dict.register_dict('data_loss_protect_remote_pcp', lambda x: bytes.fromhex(x), None)
-stored_dict.register_dict('contacts', tuple, None)
+register_name('transactions/*', None, lambda x: tx_from_any(x, deserialize=False))
+register_name('data_loss_protect_remote_pcp/*', None, lambda x: bytes.fromhex(x))
+# register tuples, otherwise they will default to StoredList
+register_name('contacts/*', None, tuple)
+register_name('lightning_preimages/*', None, tuple)
 # register dicts that require key conversion
 for key in [
         'adds', 'locked_in', 'settles', 'fails', 'fee_updates', 'buckets',
         'unacked_updates', 'unfulfilled_htlcs', 'onion_keys']:
-    stored_dict.register_dict_key(key, int)
+    register_key(key, int)
 for key in ['log']:
-    stored_dict.register_dict_key(key, lambda x: HTLCOwner(int(x)))
+    register_key(key, lambda x: HTLCOwner(int(x)))
 for key in ['locked_in', 'fails', 'settles']:
-    stored_dict.register_parent_key(key, lambda x: HTLCOwner(int(x)))
+    register_key(key+'/*', lambda x: HTLCOwner(int(x)))
 
 
 class WalletDBUpgrader(Logger):

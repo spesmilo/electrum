@@ -39,7 +39,7 @@ from .util import (
 from . import lnutil
 from .lnutil import hex_to_bytes, REDEEM_AFTER_DOUBLE_SPENT_DELAY, Keypair
 from .bolt11 import decode_bolt11_invoice
-from .stored_dict import StoredObject, stored_in
+from .stored_dict import StoredObject, stored_at
 from . import constants
 from .address_synchronizer import (TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE, TX_HEIGHT_UNCONFIRMED,
                                    TX_HEIGHT_UNCONF_PARENT)
@@ -188,7 +188,7 @@ class SwapOffer:
         return to_nip19('npub', self.server_pubkey)
 
 
-@stored_in('submarine_swaps')
+@stored_at('submarine_swaps/*')
 @attr.s
 class SwapData(StoredObject):
     is_reverse = attr.ib(type=bool)  # for whoever is running code (PoV of client or server)

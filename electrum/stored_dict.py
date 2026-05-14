@@ -25,6 +25,7 @@
 
 import threading
 import json
+from collections import defaultdict
 from typing import TYPE_CHECKING, Optional, Sequence, List, Union, Any
 
 
@@ -42,38 +43,65 @@ def locked(func):
     return wrapper
 
 
-registered_names = {}
-registered_dicts = {}
-registered_dict_keys = {}
-registered_parent_keys = {}
+registered_names = defaultdict(dict)
+registered_keys = defaultdict(dict)
 
-def register_dict(name, method, _type):
-    registered_dicts[name] = method, _type
+def _parse_path(path):
+    path2 = path.split('/')
+    name, suffix = path2[0], path2[1:]
+    n = len(suffix)
+    assert suffix == n * ['*']
+    return name, n
 
-def register_name(name, method, _type):
-    registered_names[name] = method, _type
+def register_name(path, _type, func):
+    name, n = _parse_path(path)
+    registered_names[name][n] = _type, func
 
-def register_dict_key(name, method):
-    registered_dict_keys[name] = method
+def register_key(path, func):
+    name, n = _parse_path(path)
+    registered_keys[name][n + 1] = func
 
-def register_parent_key(name, method):
-    registered_parent_keys[name] = method
 
-def stored_as(name, _type=dict):
+def stored_at(path, _type=dict):
     """ decorator that indicates the storage key of a stored object"""
     def decorator(func):
-        registered_names[name] = func, _type
-        return func
-    return decorator
-
-def stored_in(name, _type=dict):
-    """ decorator that indicates the storage key of an element in a StoredDict"""
-    def decorator(func):
-        registered_dicts[name] = func, _type
+        register_name(path, _type, func)
         return func
     return decorator
 
 _FLEX_KEY = str | int | None
+
+
+def _convert_dict_key(path: List[str], key: str) -> _FLEX_KEY:
+    """Maybe convert key from str to python type (typically int or IntEnum)"""
+    assert all(isinstance(x, str) for x in path), repr(path)
+    n = len(path)
+    for i, name in enumerate(path):
+        if name in registered_keys:
+            func = registered_keys[name].get(n - i)
+            if func:
+                key = func(key)
+                break
+    assert isinstance(key, _FLEX_KEY), f"unexpected type for {key=!r} at {path=}"
+    return key
+
+def _convert_dict_value(path: List[str], v) -> Any:
+    assert all(isinstance(x, str) for x in path), repr(path)
+    n = len(path)
+    for i, key in enumerate(path):
+        if key in registered_names:
+            reg = registered_names[key].get(n - i - 1)
+            if reg:
+                _type, constructor = reg
+                if _type == dict:
+                    v = constructor(**v)
+                elif _type == tuple:
+                    v = constructor(*v)
+                else:
+                    v = constructor(v)
+                break
+    return v
+
 
 
 class BaseStoredObject:

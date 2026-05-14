@@ -29,7 +29,7 @@ from .bip32 import BIP32Node, BIP32_PRIME
 from .transaction import BCDataStream, OPPushDataGeneric
 from .logging import get_logger
 from .fee_policy import FEERATE_PER_KW_MIN_RELAY_LIGHTNING
-from .stored_dict import StoredObject, stored_in, stored_as
+from .stored_dict import StoredObject, stored_at
 
 
 if TYPE_CHECKING:
@@ -214,7 +214,7 @@ class ChannelConfig(StoredObject):
             raise Exception(f"feerate lower than min relay fee. {initial_feerate_per_kw} sat/kw.")
 
 
-@stored_as('local_config')
+@stored_at('local_config')
 @attr.s
 class LocalConfig(ChannelConfig):
     channel_seed = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)  # type: Optional[bytes]
@@ -267,14 +267,14 @@ class LocalConfig(ChannelConfig):
             raise Exception(f"{conf_name}. htlc_minimum_msat too low: {self.htlc_minimum_msat} msat < {HTLC_MINIMUM_MSAT_MIN}")
 
 
-@stored_as('remote_config')
+@stored_at('remote_config')
 @attr.s
 class RemoteConfig(ChannelConfig):
     next_per_commitment_point = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
     current_per_commitment_point = attr.ib(default=None, type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
 
 
-@stored_in('fee_updates')
+@stored_at('fee_updates/*')
 @attr.s
 class FeeUpdate(StoredObject):
     rate = attr.ib(type=int)  # in sat/kw
@@ -282,7 +282,7 @@ class FeeUpdate(StoredObject):
     ctn_remote = attr.ib(default=None, type=int)
 
 
-@stored_as('constraints')
+@stored_at('constraints')
 @attr.s
 class ChannelConstraints(StoredObject):
     flags = attr.ib(type=int, converter=int)
@@ -311,13 +311,13 @@ class ChannelBackupStorage(StoredObject):
         return chan_id
 
 
-@stored_in('onchain_channel_backups')
+@stored_at('onchain_channel_backups/*')
 @attr.s
 class OnchainChannelBackupStorage(ChannelBackupStorage):
     node_id_prefix = attr.ib(type=bytes, converter=hex_to_bytes)  # remote node pubkey
 
 
-@stored_in('imported_channel_backups')
+@stored_at('imported_channel_backups/*')
 @attr.s
 class ImportedChannelBackupStorage(ChannelBackupStorage):
     node_id = attr.ib(type=bytes, converter=hex_to_bytes)  # remote node pubkey
@@ -413,7 +413,7 @@ class ScriptHtlc(NamedTuple):
 
 
 # FIXME duplicate of TxOutpoint in transaction.py??
-@stored_as('funding_outpoint')
+@stored_at('funding_outpoint')
 @attr.s
 class Outpoint(StoredObject):
     txid = attr.ib(type=str)
@@ -596,7 +596,7 @@ class ShachainElement(NamedTuple):
     def __str__(self):
         return "ShachainElement(" + self.secret.hex() + "," + str(self.index) + ")"
 
-    @stored_in('buckets', tuple)
+    @stored_at('buckets/*', tuple)
     def read(*x):
         return ShachainElement(bfh(x[0]), int(x[1]))
 
@@ -1642,7 +1642,7 @@ class LnFeatures(IntFlag):
         return hex(self._value_)
 
 
-@stored_as('channel_type', _type=None)
+@stored_at('channel_type', _type=None)
 class ChannelType(IntFlag):
     OPTION_LEGACY_CHANNEL = 0
     OPTION_STATIC_REMOTEKEY = 1 << 12
@@ -1931,7 +1931,7 @@ class UpdateAddHtlc:
     timestamp: int = dataclasses.field(default_factory=lambda: int(time.time()))
 
     @staticmethod
-    @stored_in('adds', tuple)
+    @stored_at('adds/*', tuple)
     def from_tuple(amount_msat, rhash, cltv_abs, htlc_id, timestamp) -> 'UpdateAddHtlc':
         return UpdateAddHtlc(
             amount_msat=amount_msat,
@@ -2028,7 +2028,7 @@ class ReceivedMPPStatus(NamedTuple):
         return payment_hash
 
     @staticmethod
-    @stored_in('received_mpp_htlcs', tuple)
+    @stored_at('received_mpp_htlcs/*', tuple)
     def from_tuple(resolution, htlc_list, parent_set_key=None) -> 'ReceivedMPPStatus':
         assert isinstance(resolution, int)
         htlc_set = frozenset(ReceivedMPPHtlc.from_tuple(*htlc_data) for htlc_data in htlc_list)
