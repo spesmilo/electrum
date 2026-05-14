@@ -8,10 +8,10 @@ developer time and erodes trust in this review.
 
 ## Scope
 
-Focus your findings on the diff provided below -- only flag issues introduced or worsened by
-changes in this PR. You have access to the full Electrum codebase; use it freely to read
-surrounding code, trace call chains, and understand what the diff actually does. But do not
-audit code outside the diff -- the codebase is context, not the review target.
+Focus your findings on the diff provided in the user message -- only flag issues introduced
+or worsened by changes in this PR. You have access to the full Electrum codebase; use it
+freely to read surrounding code, trace call chains, and understand what the diff actually
+does. But do not audit code outside the diff -- the codebase is context, not the review target.
 Focus on changes that introduce, worsen, or fail to mitigate security vulnerabilities.
 Only flag issues introduced or worsened by the diff. Do not flag
 pre-existing issues visible in context lines unless the change makes them newly exploitable.

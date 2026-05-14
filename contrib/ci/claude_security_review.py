@@ -80,20 +80,22 @@ def changed_files_from_diff(diff: str) -> str:
     )
 
 
-def build_prompt(diff: str, changed_files: str, commit_messages: str) -> str:
+def read_system_prompt() -> str:
     with open(PROMPT_FILE) as f:
-        instructions = f.read()
+        return f.read()
 
+
+def build_user_prompt(diff: str, changed_files: str, commit_messages: str) -> str:
     return (
-        f"{instructions}\n\n"
-        f"---\n\n"
+        "Review the following PR diff according to the review "
+        "guidelines in your system prompt.\n\n"
         f"## Changed files\n\n```\n{changed_files}\n```\n\n"
         f"## Commit messages\n\n```\n{commit_messages}\n```\n\n"
         f"## Diff\n\n```diff\n{diff}\n```"
     )
 
 
-def run_claude(prompt: str) -> str | None:
+def run_claude(user_prompt: str, system_prompt: str) -> str | None:
     """Invoke Claude Code CLI in print mode. Returns review text or None on failure.
 
     Passes the prompt via stdin to avoid OS argument length limits (MAX_ARG_STRLEN).
@@ -105,12 +107,13 @@ def run_claude(prompt: str) -> str | None:
         "--model", CLAUDE_MODEL,
         "--effort", CLAUDE_EFFORT,
         "--output-format", "text",
+        "--append-system-prompt", system_prompt,
     ]
 
     try:
         result = subprocess.run(
             cmd,
-            input=prompt,
+            input=user_prompt,
             capture_output=True,
             text=True,
             timeout=CLAUDE_TIMEOUT_SECONDS,
@@ -237,10 +240,11 @@ def main() -> int:
         print(f"ERROR: diff is {len(diff)} chars, exceeds maximum of {MAX_DIFF_CHARS}. Skipping review.")
         return 2
 
-    prompt = build_prompt(diff, changed_files, commit_messages)
+    user_prompt = build_user_prompt(diff, changed_files, commit_messages)
+    system_prompt = read_system_prompt()
 
     print(f"\nRunning Claude Code review (model: {CLAUDE_MODEL})...\n")
-    review = run_claude(prompt)
+    review = run_claude(user_prompt, system_prompt)
 
     if review is None:
         print("Review failed to produce output.")
