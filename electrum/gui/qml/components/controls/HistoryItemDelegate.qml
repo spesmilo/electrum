@@ -13,6 +13,24 @@ Item {
     // expose delegate model for scroll indicator
     property var delegateModel: model
 
+    readonly property bool listDragActive: ListView.view.dragScrolling
+    onListDragActiveChanged:
+        // refresh the fiat label once drags-scroll gets released
+        if (!listDragActive) {
+            fiatLabel.updateText()
+    }
+
+    // reuseItems is enabled on the parent ListView. If a delegate item goes out of view it is not destroyed but
+    // stored in a pool and re-used when a new delegate is required.
+    property bool pooled: false
+    ListView.onPooled: pooled = true
+    ListView.onReused: {
+        // Variables that are not bound directly to the model have to be updated when the delegate instance is reused.
+        pooled = false
+        valueLabel.updateText()
+        fiatLabel.updateText()
+    }
+
     ColumnLayout {
         id: delegateLayout
         width: parent.width
@@ -21,6 +39,8 @@ Item {
         ItemDelegate {
             Layout.fillWidth: true
             Layout.preferredHeight: txinfo.height
+            // suppress Material press overlay, it flickers on rows during touch scroll
+            background: null
 
             onClicked: {
                 if (model.lightning) {
@@ -62,6 +82,8 @@ Item {
                     Layout.preferredHeight: constants.iconSizeLarge
                     Layout.alignment: Qt.AlignVCenter
                     Layout.rowSpan: 2
+                    sourceSize.width: constants.iconSizeLarge
+                    sourceSize.height: constants.iconSizeLarge
                     source: model.lightning
                         ? '../../../icons/lightning.png'
                         : model.complete && model.section != 'local'
@@ -103,7 +125,7 @@ Item {
                     color: constants.mutedForeground
 
                     function updateText() {
-                        if (!Daemon.fx.enabled) {
+                        if (delegate.pooled || delegate.listDragActive || !Daemon.fx.enabled) {
                             text = ''
                         } else if (Daemon.fx.historicRates && model.timestamp) {
                             text = Daemon.fx.fiatValueHistoric(model.value, model.timestamp) + ' ' + Daemon.fx.fiatCurrency
