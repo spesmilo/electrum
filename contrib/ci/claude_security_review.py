@@ -158,7 +158,7 @@ def post_github_comment(body: str, *, repo: str, pr: str) -> None:
         f"## Security Review -- Issues Found\n\n"
         f"{body}\n\n"
         f"---\n"
-        f"*Reviewed by Claude Code ({CLAUDE_MODEL})*"
+        f"*Reviewed by Claude Code ({CLAUDE_MODEL}) at {CLAUDE_EFFORT} effort*"
     )
     if log_url:
         comment += f" | [Full CI log]({log_url})"
@@ -243,7 +243,7 @@ def main() -> int:
     user_prompt = build_user_prompt(diff, changed_files, commit_messages)
     system_prompt = read_system_prompt()
 
-    print(f"\nRunning Claude Code review (model: {CLAUDE_MODEL})...\n")
+    print(f"\nRunning Claude Code review (model: {CLAUDE_MODEL}) at {CLAUDE_EFFORT} effort...\n")
     review = run_claude(user_prompt, system_prompt)
 
     if review is None:
