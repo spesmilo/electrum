@@ -102,6 +102,15 @@ class PeerState(IntEnum):
     BAD            = 3
 
 
+# Note: these states are persisted by name (for a given channel) in the wallet file,
+#       so consider doing a wallet db upgrade when changing them.
+class ChanCloseReason(IntEnum):
+    LOCAL_FORCE  = 0  # we broadcast our own commitment tx
+    REMOTE_FORCE = 1  # remote broadcast their commitment tx
+    LOCAL_COOP   = 2  # we initiated the mutual close
+    REMOTE_COOP  = 3  # remote initiated the mutual close
+
+
 cs = ChannelState
 state_transitions = [
     (cs.PREOPENING, cs.OPENING),
@@ -191,6 +200,21 @@ class AbstractChannel(Logger, ABC):
     should_request_force_close: bool = False
     _state: ChannelState
     _who_closed: Optional[int] = None  # HTLCOwner (1 or -1).  0 means "unknown"
+
+    def save_close_reason(self, reason: ChanCloseReason) -> None:
+        self.storage['close_reason'] = reason.name
+
+    def get_close_reason(self) -> Optional[ChanCloseReason]:
+        value = self.storage.get('close_reason')
+        if value is None:
+            return None
+        return ChanCloseReason[value]
+
+    def get_close_reason_for_GUI(self) -> str:
+        reason = self.get_close_reason()
+        if reason is None:
+            return ''
+        return reason.name
 
     def set_short_channel_id(self, short_id: ShortChannelID) -> None:
         self.short_channel_id = short_id
@@ -318,8 +342,10 @@ class AbstractChannel(Logger, ABC):
             self._who_closed = who_closed
             if who_closed == LOCAL:
                 self.logger.info(f'we (local) force closed')
+                self.save_close_reason(ChanCloseReason.LOCAL_FORCE)
             elif who_closed == REMOTE:
                 self.logger.info(f'they (remote) force closed.')
+                self.save_close_reason(ChanCloseReason.REMOTE_FORCE)
             else:
                 self.logger.info(f'not sure who closed. maybe co-op close?')
         is_local_ctx = who_closed == LOCAL

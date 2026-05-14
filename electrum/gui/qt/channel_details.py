@@ -187,6 +187,8 @@ class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin, QtEventListener):
         if remote_scid_alias := chan.get_remote_scid_alias():
             form.addRow(QLabel('Remote SCID Alias:'), SelectableLabel(str(ShortID(remote_scid_alias))))
         form.addRow(QLabel(_('State') + ':'), SelectableLabel(chan.get_state_for_GUI()))
+        if close_reason := chan.get_close_reason_for_GUI():
+            form.addRow(QLabel(_('Close reason') + ':'), SelectableLabel(close_reason))
         if remote_peer_sent_error := chan.get_remote_peer_sent_error():
             err_label = WWLabel(remote_peer_sent_error)  # note: text is already truncated to reasonable len
             err_label.setTextFormat(QtCore.Qt.TextFormat.PlainText)
