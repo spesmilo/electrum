@@ -27,6 +27,8 @@ WizardComponent {
             wizard_data['multisig_cosigner_data'][cosigner.toString()]['master_key'] = key
         } else {
             wizard_data['master_key'] = key
+            wizard_data['key_origin_derivation'] = derivation_tf.text.trim()
+            wizard_data['key_origin_fingerprint'] = fingerprint_tf.text.trim().toLowerCase()
         }
     }
 
@@ -41,7 +43,7 @@ WizardComponent {
         }
 
         if (!bitcoin.verifyMasterKey(key, wizard_data['wallet_type'])) {
-            validationtext.text = qsTr('Error: invalid master key')
+            validationtext.text = bitcoin.validationMessage
             return false
         }
 
@@ -58,6 +60,28 @@ WizardComponent {
         }
 
         return valid = true
+    }
+
+    function validateKeyOrigin() {
+        if (cosigner || wizard_data['wallet_type'] === 'multisig')
+            return true
+        if (bitcoin.masterKeyDepth(masterkey_ta.text.trim()) <= 1)
+            return true
+        var msg = bitcoin.verifyKeyOriginInfo(
+            masterkey_ta.text.trim(),
+            derivation_tf.text.trim(),
+            fingerprint_tf.text.trim()
+        )
+        keyOriginError.text = msg
+        return msg === ''
+    }
+
+    function revalidate() {
+        var keyOk = verifyMasterKey(masterkey_ta.text)
+        var originOk = validateKeyOrigin()
+        valid = keyOk && originOk
+        if (keyOk)
+            apply()
     }
 
     ColumnLayout {
@@ -120,7 +144,7 @@ WizardComponent {
                        qsTr('Enter their master private key (xprv) if you want to be able to sign for them.')
                        ].join('\n')
                     : [qsTr('Please enter your master private key (xprv).'),
-                       qsTr('You can also enter a public key (xpub) here, but be aware you will then create a watch-only wallet if all cosigners are added using public keys')
+                       qsTr('You can also enter a public key (xpub) here, but be aware you will then create a watch-only wallet if all cosigners are added using public keys.')
                        ].join('\n')
             wrapMode: Text.Wrap
         }
@@ -134,7 +158,7 @@ WizardComponent {
                 wrapMode: TextEdit.WrapAnywhere
                 onTextChanged: {
                     if (anyActiveFocus) {
-                        verifyMasterKey(text)
+                        revalidate()
                     }
                 }
                 inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
@@ -186,6 +210,63 @@ WizardComponent {
             wrapMode: TextInput.WordWrap
             background: Rectangle {
                 color: 'transparent'
+            }
+        }
+
+        ColumnLayout {
+            id: keyOriginSection
+            visible: !cosigner
+                     && wizard_data['wallet_type'] !== 'multisig'
+                     && bitcoin.masterKeyDepth(masterkey_ta.text.trim()) > 1
+            Layout.fillWidth: true
+            Layout.topMargin: constants.paddingMedium
+            spacing: constants.paddingSmall
+
+            Heading {
+                    text: qsTr('Key Origin Info')
+            }
+
+            InfoTextArea {
+                Layout.fillWidth: true
+                text: qsTr('These fields may be required for a hardware wallet to sign the generated PSBTs.')
+                font.pixelSize: constants.fontSizeSmall
+            }
+
+            Label {
+                text: qsTr('Derivation path (optional)')
+                font.pixelSize: constants.fontSizeSmall
+            }
+            TextField {
+                id: derivation_tf
+                Layout.fillWidth: true
+                placeholderText: "m/84'/0'/0'"
+                inputMethodHints: Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
+                onTextChanged: {
+                    if (anyActiveFocus) revalidate()
+                }
+            }
+
+            Label {
+                text: qsTr('BIP32 master fingerprint (optional)')
+                font.pixelSize: constants.fontSizeSmall
+            }
+            TextField {
+                id: fingerprint_tf
+                Layout.fillWidth: true
+                placeholderText: qsTr('8 hex chars, e.g. deadbeef')
+                maximumLength: 8
+                inputMethodHints: Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
+                onTextChanged: {
+                    if (anyActiveFocus) revalidate()
+                }
+            }
+
+            InfoTextArea {
+                id: keyOriginError
+                Layout.fillWidth: true
+                visible: text !== ''
+                iconStyle: InfoTextArea.IconStyle.Error
+                font.pixelSize: constants.fontSizeSmall
             }
         }
     }
