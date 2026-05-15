@@ -827,7 +827,7 @@ class SwapManager(Logger):
         locktime = height + LOCKTIME_DELTA_REFUND
         if self.network.blockchain().is_tip_stale():
             raise Exception("our blockchain tip is stale")
-        lnaddr = lndecode(invoice)
+        lnaddr = decode_bolt11_invoice(invoice)
         payment_hash = lnaddr.paymenthash
         lightning_amount_sat = int(lnaddr.get_amount_sat()) # should return int
 
