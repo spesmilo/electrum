@@ -27,13 +27,14 @@ import io
 import os
 import threading
 import time
+import random
 
 from typing import TYPE_CHECKING, Optional, Sequence, NamedTuple, Tuple, Union
 
 import electrum_ecc as ecc
 
 from electrum.channel_db import get_mychannel_policy
-from electrum.lnrouter import PathEdge
+from electrum.lnrouter import PathEdge, NoChannelPolicy
 from electrum.logging import get_logger, Logger
 from electrum.crypto import sha256, get_ecdh
 from electrum.lnmsg import OnionWireSerializer
@@ -62,6 +63,10 @@ logger = get_logger(__name__)
 
 REQUEST_REPLY_PATHS_MAX = 3
 PAYMENT_PATHS_MAX = 3
+
+
+class NoOnionMessagePeers(Exception): pass
+class NoRouteBlindingChannelPeers(Exception): pass
 
 
 class NoRouteFound(Exception):
@@ -150,38 +155,49 @@ def is_onion_message_node(node_id: bytes, node_info: Optional['NodeInfo']) -> bo
 
 
 def create_onion_message_route_to(lnwallet: 'LNWallet', node_id: bytes) -> Sequence[PathEdge]:
-    """Constructs a route to the destination node_id, first by starting with peers with existing channels,
-       and if no route found, opening a direct peer connection if node_id is found with an address in
-       channel_db."""
-    # TODO: is this the proper way to set up my_sending_channels?
-    my_active_channels = [
-        chan for chan in lnwallet.channels.values() if
-        chan.is_active() and not chan.is_frozen_for_sending()]
-    my_sending_channels = {chan.short_channel_id: chan for chan in my_active_channels
-                           if chan.short_channel_id is not None}
-    # find route to introduction point over existing channel mesh
-    # NOTE: nodes that are in channel_db but are offline are not removed from the set
-    if lnwallet.network.path_finder:
-        if path := lnwallet.network.path_finder.find_path_for_payment(
+    """
+    Constructs a route for sending an onion message to node_id.
+    With Gossip: Tries to find a route through the graph. If no route can be found, raise NoRouteFound.
+                 If a connection address is known for node_id it is added to NoRouteFound for potential direct connection.
+    With Trampoline: Construct a route: us -> random trampoline peer -> node_id.
+                     We hope the trampoline peer will open a direct connection to node_id and forward the message.
+                     NOTE: Eclair only does this with the relay-policy config set to relay-all!
+    """
+    # destination is existing peer, use direct route
+    if lnwallet.lnpeermgr.get_peer_by_pubkey(node_id):
+        return [PathEdge(short_channel_id=None, start_node=None, end_node=node_id)]
+
+    if not lnwallet.uses_trampoline():
+        # find route to introduction point over existing channel mesh
+        # NOTE: nodes that are in channel_db but are offline are not removed from the set
+        my_active_channels = [chan for chan in lnwallet.channels.values() if chan.is_active()]
+        my_sending_channels = {
+            chan.short_channel_id: chan for chan in my_active_channels
+            if chan.short_channel_id is not None
+        }
+
+        # TODO: if this blocks the event loop too long it might needs to go on a thread
+        if path := lnwallet.network.path_finder.find_path_for_onion_message(
             nodeA=lnwallet.node_keypair.pubkey,
             nodeB=node_id,
-            invoice_amount_msat=10000,  # TODO: do this without amount constraints
-            node_filter=lambda x, y: True if x == lnwallet.node_keypair.pubkey else is_onion_message_node(x, y),
             my_sending_channels=my_sending_channels
         ):
             # first edge must be to our peer
             peer = lnwallet.lnpeermgr.get_peer_by_pubkey(path[0].end_node)
             assert peer, 'first hop not a peer'
             return path
-
-    # alt: dest is existing peer?
-    if lnwallet.lnpeermgr.get_peer_by_pubkey(node_id):
-        return [PathEdge(short_channel_id=None, start_node=None, end_node=node_id)]
-
-    # if we have an address, pass it.
-    if lnwallet.channel_db:
-        if peer_addr := lnwallet.channel_db.get_last_good_address(node_id):
+        elif peer_addr := lnwallet.channel_db.get_last_good_address(node_id):
+            # if we have an address, pass it.
             raise NoRouteFound('no path found, peer_addr available', peer_address=peer_addr)
+    else:
+        # if we use trampoline just assume the trampoline will open a direct connection to the next_node_id
+        trampoline_peers = [p for p in lnwallet.lnpeermgr.peers.values() if lnwallet.is_trampoline_peer(p.pubkey)]
+        if trampoline_peers:
+            random_trampoline_peer = random.choice(trampoline_peers)
+            return [
+                PathEdge(short_channel_id=None, start_node=None, end_node=random_trampoline_peer.pubkey),
+                PathEdge(short_channel_id=None, start_node=random_trampoline_peer.pubkey, end_node=node_id),
+            ]
 
     raise NoRouteFound('no path found')
 
@@ -400,87 +416,108 @@ def get_blinded_paths_to_me(
 ) -> Tuple[Sequence[dict], Sequence[dict]]:
     """construct a list of blinded paths.
        current logic:
-       - uses channels peers if not onion_message
-       - uses current onion_message capable channel peers if exist and if onion_message
-       - otherwise, uses current onion_message capable peers if onion_message
-       - reply_path introduction points are direct peers only (TODO: longer paths)"""
+       - uses active channel peers if my_channels not provided
+       - if onion_message, filters channels for onion_message feature
+       - if not onion_message, filters channels for route_blinding feature
+       - if onion_message and no suitable channel peers, tries onion_message capable peers
+       - raises if no blinded path could be generated
+       - reply_path introduction points are direct peers only (TODO: longer paths)
+    """
     # TODO: build longer paths and/or add dummy hops to increase privacy
     if not my_channels:
-        my_active_channels = [chan for chan in lnwallet.channels.values() if chan.is_active()]
-        my_channels = my_active_channels
+        my_channels = [chan for chan in lnwallet.channels.values() if chan.is_active()]
 
-    if onion_message:
-        my_channels = [chan for chan in my_channels if lnwallet.lnpeermgr.get_peer_by_pubkey(chan.node_id) and
-                       lnwallet.lnpeermgr.get_peer_by_pubkey(chan.node_id).their_features.supports(LnFeatures.OPTION_ONION_MESSAGE_OPT)]
+    required_features = LnFeatures.OPTION_ONION_MESSAGE_OPT if onion_message else LnFeatures.OPTION_ROUTE_BLINDING_OPT
+    my_channels = [chan for chan in my_channels if lnwallet.lnpeermgr.get_peer_by_pubkey(chan.node_id) and
+                   lnwallet.lnpeermgr.get_peer_by_pubkey(chan.node_id).their_features.supports(required_features)]
 
     result = []
-    payinfo = []
+    payinfos = []
     mynodeid = lnwallet.node_keypair.pubkey
-    local_height = lnwallet.network.get_local_height()
-
-    if len(my_channels):
+    if my_channels:
         rchans = random_shuffled_copy(my_channels)
         for chan in rchans[:max_paths]:
             hop_extras = None
             if not onion_message:  # add hop_extras and payinfo, assumption: len(blinded_path) == 2 (us and peer)
-                # get policy
-                cp = get_mychannel_policy(chan.short_channel_id, chan.node_id, {chan.short_channel_id: chan})
-
-                dest_max_cltv_expiry = local_height + MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED
-
-                # TODO: for longer paths (>2), reverse traverse and calculate max_cltv_expiry at each intermediate hop
-                # and determine the cltv delta sums and fee sums of the hops for the payinfo struct.
-                # current assumption is len(blinded_path) == 2 (us and peer)
-                sum_cltv_expiry_delta = cp.cltv_delta
-                sum_fee_base_msat = cp.fee_base_msat
-                sum_fee_proportional_millionths = cp.fee_proportional_millionths
-                # path htlc limits
-                blinded_path_min_htlc_msat = cp.htlc_minimum_msat
-                blinded_path_max_htlc_msat = cp.htlc_maximum_msat
-
-                hop_extras = [{
-                    # spec: MUST include encrypted_data_tlv.payment_relay for each non-final node.
-                    'payment_relay': {
-                        'cltv_expiry_delta': cp.cltv_delta,
-                        'fee_base_msat': cp.fee_base_msat,
-                        'fee_proportional_millionths': cp.fee_proportional_millionths,
-                    },
-                    # spec: MUST set encrypted_data_tlv.payment_constraints for each non-final node and MAY set it for the final node:
-                    #
-                    #     max_cltv_expiry to the largest block height at which the route is allowed to be used, starting
-                    #     from the final node's chosen max_cltv_expiry height at which the route should expire, adding
-                    #     the final node's min_final_cltv_expiry_delta and then adding
-                    #     encrypted_data_tlv.payment_relay.cltv_expiry_delta at each hop.
-                    #
-                    #     htlc_minimum_msat to the largest minimum HTLC value the nodes will allow.
-                    'payment_constraints': {
-                        'max_cltv_expiry': dest_max_cltv_expiry + cp.cltv_delta,
-                        'htlc_minimum_msat': blinded_path_min_htlc_msat
-                    }
-                }]
-                payinfo.append({
-                    'fee_base_msat': sum_fee_base_msat,
-                    'fee_proportional_millionths': sum_fee_proportional_millionths,
-                    'cltv_expiry_delta': sum_cltv_expiry_delta + MIN_FINAL_CLTV_DELTA_ACCEPTED,
-                    'htlc_minimum_msat': blinded_path_min_htlc_msat,
-                    'htlc_maximum_msat': blinded_path_max_htlc_msat,
-                    'flen': 0,
-                    'features': bytes(0)
-                })
-            blinded_path = create_blinded_path(os.urandom(32), [chan.node_id, mynodeid], final_recipient_data,
-                                               hop_extras=hop_extras, channels=[chan] if not onion_message else None)
+                try:
+                    payinfo, hop_extras = _get_payinfo_for_blinded_path(chan, lnwallet)
+                except NoChannelPolicy:
+                    logger.warning(f"missing remote channel_update for {chan.short_channel_id}")
+                    continue
+                payinfos.append(payinfo)
+            blinded_path = create_blinded_path(
+                session_key=os.urandom(32),
+                path=[chan.node_id, mynodeid],
+                final_recipient_data=final_recipient_data,
+                hop_extras=hop_extras,
+                channels=[chan] if not onion_message else None,
+            )
             result.append(blinded_path)
-    elif onion_message:
-        # we can use peers even without channels for onion messages
-        my_onionmsg_peers = [peer for peer in lnwallet.lnpeermgr.peers.values() if
-                             peer.their_features.supports(LnFeatures.OPTION_ONION_MESSAGE_OPT)]
-        if len(my_onionmsg_peers):
+
+    if not result:
+        if not onion_message:
+            raise NoRouteBlindingChannelPeers('no OPTION_ROUTE_BLINDING capable channel peers')
+        else:
+            # fall back to peers without channels for onion messages
+            my_onionmsg_peers = [peer for peer in lnwallet.lnpeermgr.peers.values() if
+                                 peer.their_features.supports(LnFeatures.OPTION_ONION_MESSAGE_OPT)]
+            if not my_onionmsg_peers:
+                raise NoOnionMessagePeers('no ONION_MESSAGE capable peers')
             rpeers = random_shuffled_copy(my_onionmsg_peers)
             for peer in rpeers[:max_paths]:
                 blinded_path = create_blinded_path(os.urandom(32), [peer.pubkey, mynodeid], final_recipient_data)
                 result.append(blinded_path)
 
-    return result, payinfo
+    assert result
+    return result, payinfos
+
+
+def _get_payinfo_for_blinded_path(chan: 'Channel', lnwallet: 'LNWallet'):
+    cp = get_mychannel_policy(chan.short_channel_id, chan.node_id, {chan.short_channel_id: chan})
+    if not cp:
+        raise NoChannelPolicy(chan.short_channel_id)
+    sum_cltv_expiry_delta = cp.cltv_delta
+    sum_fee_base_msat = cp.fee_base_msat
+    sum_fee_proportional_millionths = cp.fee_proportional_millionths
+    # path htlc limits
+    blinded_path_min_htlc_msat = cp.htlc_minimum_msat
+    blinded_path_max_htlc_msat = cp.htlc_maximum_msat
+
+    # TODO: for longer paths (>2), reverse traverse and calculate max_cltv_expiry at each intermediate hop
+    # and determine the cltv delta sums and fee sums of the hops for the payinfo struct.
+    # current assumption is len(blinded_path) == 2 (us and peer)
+    local_height = lnwallet.network.get_local_height()
+    dest_max_cltv_expiry = local_height + MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED
+    hop_extras = [{
+        # spec: MUST include encrypted_data_tlv.payment_relay for each non-final node.
+        'payment_relay': {
+            'cltv_expiry_delta': cp.cltv_delta,
+            'fee_base_msat': cp.fee_base_msat,
+            'fee_proportional_millionths': cp.fee_proportional_millionths,
+        },
+        # spec: MUST set encrypted_data_tlv.payment_constraints for each non-final node and MAY set it for the final node:
+        #
+        #     max_cltv_expiry to the largest block height at which the route is allowed to be used, starting
+        #     from the final node's chosen max_cltv_expiry height at which the route should expire, adding
+        #     the final node's min_final_cltv_expiry_delta and then adding
+        #     encrypted_data_tlv.payment_relay.cltv_expiry_delta at each hop.
+        #
+        #     htlc_minimum_msat to the largest minimum HTLC value the nodes will allow.
+        'payment_constraints': {
+            'max_cltv_expiry': dest_max_cltv_expiry + cp.cltv_delta,
+            'htlc_minimum_msat': blinded_path_min_htlc_msat
+        }
+    }]
+    payinfo = {
+        'fee_base_msat': sum_fee_base_msat,
+        'fee_proportional_millionths': sum_fee_proportional_millionths,
+        'cltv_expiry_delta': sum_cltv_expiry_delta + MIN_FINAL_CLTV_DELTA_ACCEPTED,
+        'htlc_minimum_msat': blinded_path_min_htlc_msat,
+        'htlc_maximum_msat': blinded_path_max_htlc_msat,
+        'flen': 0,
+        'features': b'',
+    }
+    return payinfo, hop_extras
 
 
 class Timeout(Exception): pass
@@ -525,7 +562,7 @@ class OnionMessageManager(Logger):
 
     def __init__(self, lnwallet: 'LNWallet'):
         Logger.__init__(self)
-        self.network = None  # type: Optional['Network']
+        self.network = None  # type: Optional[Network]
         self.taskgroup = None  # type: OldTaskGroup
         self.lnwallet = lnwallet
         self.pending = {}  # type: dict[bytes, OnionMessageManager.Request]
@@ -683,9 +720,6 @@ class OnionMessageManager(Logger):
             # unless explicitly set in payload, generate reply_path here
             path_id = self._path_id_from_payload_and_key(payload, key)
             reply_paths = get_blinded_reply_paths(self.lnwallet, path_id, max_paths=1)
-            if not reply_paths:
-                raise Exception(f'Could not create a reply_path for {key=}. No active peers?')
-
             final_payload['reply_path'] = {'path': reply_paths}
 
         # NOTE: we could also try alternate paths to introduction point (the non-blinded part of the route)
