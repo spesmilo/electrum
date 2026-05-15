@@ -2079,7 +2079,7 @@ class LNWallet(Logger):
         except Exception:
             if probe_only:
                 return False
-    
+
             raise
         finally:
             paysession.is_active = False
