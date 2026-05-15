@@ -1115,24 +1115,24 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
     @best_effort_reliable
     @catch_server_exceptions
-    async def get_history_for_scripthash(self, sh: str) -> List[dict]:
+    async def get_history_for_spk(self, spk: str) -> List[dict]:
         if self.interface is None:  # handled by best_effort_reliable
             raise RequestTimedOut()
-        return await self.interface.get_history_for_scripthash(sh)
+        return await self.interface.get_history_for_spk(spk)
 
     @best_effort_reliable
     @catch_server_exceptions
-    async def listunspent_for_scripthash(self, sh: str) -> List[dict]:
+    async def listunspent_for_spk(self, spk: str) -> List[dict]:
         if self.interface is None:  # handled by best_effort_reliable
             raise RequestTimedOut()
-        return await self.interface.listunspent_for_scripthash(sh)
+        return await self.interface.listunspent_for_spk(spk)
 
     @best_effort_reliable
     @catch_server_exceptions
-    async def get_balance_for_scripthash(self, sh: str) -> dict:
+    async def get_balance_for_spk(self, spk: str) -> dict:
         if self.interface is None:  # handled by best_effort_reliable
             raise RequestTimedOut()
-        return await self.interface.get_balance_for_scripthash(sh)
+        return await self.interface.get_balance_for_spk(spk)
 
     @best_effort_reliable
     @catch_server_exceptions

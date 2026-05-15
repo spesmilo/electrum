@@ -58,7 +58,7 @@ from . import version
 from . import blockchain
 from .blockchain import Blockchain, HEADER_SIZE, CHUNK_SIZE
 from . import bitcoin
-from .bitcoin import DummyAddress, DummyAddressUsedInTxException
+from .bitcoin import DummyAddress, DummyAddressUsedInTxException, script_to_scripthash
 from . import constants
 from .i18n import _
 from .logging import Logger
@@ -82,6 +82,11 @@ assert PREFERRED_NETWORK_PROTOCOL in KNOWN_ELEC_PROTOCOL_TRANSPORTS
 MAX_NUM_HEADERS_PER_REQUEST = 2016
 assert MAX_NUM_HEADERS_PER_REQUEST >= CHUNK_SIZE
 
+RPC_ERROR_HISTORY_TOO_LONG = 10001
+
+class HistoryTooLong(Exception):
+    # we should not close the connection in that case
+    pass
 
 class NetworkTimeout:
     # seconds
@@ -208,7 +213,10 @@ class NotificationSession(RPCSession):
             raise RequestTimedOut(f'request timed out: {args} (id: {msg_id})') from e
         except CodeMessageError as e:
             self.maybe_log(f"--> {repr(e)} (id: {msg_id})")
-            raise
+            if e.code == RPC_ERROR_HISTORY_TOO_LONG:
+                raise HistoryTooLong()
+            else:
+                raise
         except BaseException as e:  # cancellations, etc. are useful for debugging
             self.maybe_log(f"--> {repr(e)} (id: {msg_id})")
             raise
@@ -225,14 +233,17 @@ class NotificationSession(RPCSession):
     async def subscribe(self, method: str, params: List, queue: asyncio.Queue):
         # note: until the cache is written for the first time,
         # each 'subscribe' call might make a request on the network.
-        key = self.get_hashable_key_for_rpc_call(method, params)
+        params2 = params[:]
+        if method == 'blockchain.scriptpubkey.subscribe':
+            params2[0] = script_to_scripthash(bytes.fromhex(params2[0]))
+        key = self.get_hashable_key_for_rpc_call(method, params2)
         self.subscriptions[key].append(queue)
         if key in self.cache:
             result = self.cache[key]
         else:
             result = await self.send_request(method, params)
             self.cache[key] = result
-        await queue.put(params + [result])
+        await queue.put(params2 + [result])
 
     def unsubscribe(self, queue):
         """Unsubscribe a callback to free object references to enable GC."""
@@ -1417,7 +1428,7 @@ class Interface(Logger):
             raise TxBroadcastHashMismatch(_("Server returned unexpected transaction ID."))
         # broadcast succeeded.
         # We now cache the rawtx, for *this interface only*. The tx likely touches some ismine addresses, affecting
-        # the status of a scripthash we are subscribed to. Caching here will save a future get_transaction RPC.
+        # the status of a scriptpubkey we are subscribed to. Caching here will save a future get_transaction RPC.
         self._rawtx_cache[txid_calc] = bytes.fromhex(rawtx)
 
     async def broadcast_txpackage(self, txs: Sequence['Transaction']) -> bool:
@@ -1442,16 +1453,14 @@ class Interface(Logger):
         assert success
         # broadcast succeeded.
         # We now cache the rawtx, for *this interface only*. The tx likely touches some ismine addresses, affecting
-        # the status of a scripthash we are subscribed to. Caching here will save a future get_transaction RPC.
+        # the status of a scriptpubkey we are subscribed to. Caching here will save a future get_transaction RPC.
         for tx, rawtx in zip(txs, rawtxs):
             self._rawtx_cache[tx.txid()] = bytes.fromhex(rawtx)
         return True
 
-    async def get_history_for_scripthash(self, sh: str) -> List[dict]:
-        if not is_hash256_str(sh):
-            raise Exception(f"{repr(sh)} is not a scripthash")
+    async def get_history_for_spk(self, spk: str) -> List[dict]:
         # do request
-        res = await self.session.send_request('blockchain.scripthash.get_history', [sh])
+        res = await self.session.send_request('blockchain.scriptpubkey.get_history', [spk])
         # check response
         assert_list_or_tuple(res)
         prev_height = 1
@@ -1481,14 +1490,12 @@ class Interface(Logger):
             # Either server is sending garbage... or maybe if server is race-prone
             # a recently mined tx could be included in both last block and mempool?
             # Still, it's simplest to just disregard the response.
-            raise RequestCorrupted(f"server history has non-unique txids for sh={sh}")
+            raise RequestCorrupted(f"server history has non-unique txids for spk={spk}")
         return res
 
-    async def listunspent_for_scripthash(self, sh: str) -> List[dict]:
-        if not is_hash256_str(sh):
-            raise Exception(f"{repr(sh)} is not a scripthash")
+    async def listunspent_for_spk(self, spk: str) -> List[dict]:
         # do request
-        res = await self.session.send_request('blockchain.scripthash.listunspent', [sh])
+        res = await self.session.send_request('blockchain.scriptpubkey.listunspent', [spk])
         # check response
         assert_list_or_tuple(res)
         for utxo_item in res:
@@ -1502,11 +1509,9 @@ class Interface(Logger):
             assert_hash256_str(utxo_item['tx_hash'])
         return res
 
-    async def get_balance_for_scripthash(self, sh: str) -> dict:
-        if not is_hash256_str(sh):
-            raise Exception(f"{repr(sh)} is not a scripthash")
+    async def get_balance_for_spk(self, spk: str) -> dict:
         # do request
-        res = await self.session.send_request('blockchain.scripthash.get_balance', [sh])
+        res = await self.session.send_request('blockchain.scriptpubkey.get_balance', [spk])
         # check response
         assert_dict_contains_field(res, field_name='confirmed')
         assert_dict_contains_field(res, field_name='unconfirmed')

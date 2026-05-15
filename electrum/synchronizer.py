@@ -32,10 +32,10 @@ from aiorpcx import run_in_thread, RPCError
 
 from . import util
 from .transaction import Transaction, PartialTransaction
-from .util import make_aiohttp_session, NetworkJobOnDefaultServer, random_shuffled_copy, OldTaskGroup
-from .bitcoin import address_to_scripthash, is_address, neuter_bitcoin_address
+from .util import make_aiohttp_session, NetworkJobOnDefaultServer, random_shuffled_copy, OldTaskGroup, log_exceptions
+from .bitcoin import address_to_script, script_to_scripthash, is_address, neuter_bitcoin_address
 from .logging import Logger
-from .interface import GracefulDisconnect, NetworkTimeout
+from .interface import GracefulDisconnect, NetworkTimeout, HistoryTooLong, assert_hash256_str
 
 if TYPE_CHECKING:
     from .network import Network
@@ -66,26 +66,35 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
     def _reset(self):
         super()._reset()
         self._adding_addrs = set()
+        self._adding_outpoints = set()
         self.requested_addrs = set()
+        self.requested_outpoints = set()
         self._handling_addr_statuses = set()
+        self._handling_outpoint_statuses = set()
         self.scripthash_to_address = {}
         self._processed_some_notifications = False  # so that we don't miss them
         # Queues
-        self.status_queue = asyncio.Queue()
+        self.address_status_queue = asyncio.Queue()
+        self.outpoint_status_queue = asyncio.Queue()
 
     async def _run_tasks(self, *, taskgroup):
         await super()._run_tasks(taskgroup=taskgroup)
         try:
             async with taskgroup as group:
-                await group.spawn(self.handle_status())
+                await group.spawn(self.handle_address_status())
+                await group.spawn(self.handle_outpoint_status())
                 await group.spawn(self.main())
         finally:
             # we are being cancelled now
-            self.session.unsubscribe(self.status_queue)
+            self.session.unsubscribe(self.address_status_queue)
+            self.session.unsubscribe(self.outpoint_status_queue)
 
-    def add(self, addr: str) -> None:
+    def add_address(self, addr: str) -> None:
         if not is_address(addr): raise ValueError(f"invalid bitcoin address {neuter_bitcoin_address(addr)}")
         self._adding_addrs.add(addr)  # this lets is_up_to_date already know about addr
+
+    def add_outpoint(self, outpoint: str) -> None:
+        self._adding_outpoints.add(outpoint)  # this lets is_up_to_date already know about outpoint
 
     async def _add_address(self, addr: str):
         try:
@@ -96,32 +105,68 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
         finally:
             self._adding_addrs.discard(addr)  # ok for addr not to be present
 
+    async def _add_outpoint(self, outpoint: str):
+        try:
+            if outpoint in self.requested_outpoints: return
+            self.requested_outpoints.add(outpoint)
+            await self.taskgroup.spawn(self._subscribe_to_outpoint, outpoint)
+        finally:
+            self._adding_outpoints.discard(outpoint)  # ok for addr not to be present
+
     async def _on_address_status(self, addr: str, status: Optional[str]):
         """Handle the change of the status of an address.
         Should remove addr from self._handling_addr_statuses when done.
         """
         raise NotImplementedError()  # implemented by subclasses
 
+    async def _on_outpoint_status(self, txid: str, index:int, status: dict):
+        raise NotImplementedError()  # implemented by subclasses
+
     async def _subscribe_to_address(self, addr):
-        h = address_to_scripthash(addr)
+        spk = address_to_script(addr)
+        h = script_to_scripthash(spk)
         self.scripthash_to_address[h] = addr
         self._requests_sent += 1
         try:
             async with self._network_request_semaphore:
-                await self.session.subscribe('blockchain.scripthash.subscribe', [h], self.status_queue)
+                await self.session.subscribe('blockchain.scriptpubkey.subscribe', [spk.hex()], self.address_status_queue)
+        except HistoryTooLong:
+            self.logger.info(f'history too long')
+            return
         except RPCError as e:
-            if e.message == 'history too large':  # no unique error code
-                raise GracefulDisconnect(e, log_level=logging.ERROR) from e
             raise
         self._requests_answered += 1
 
-    async def handle_status(self):
+    async def _subscribe_to_outpoint(self, outpoint):
+        self._requests_sent += 1
+        txhash, idx = outpoint.split(':')
+        idx = int(idx)
+        self.logger.info(f'subscribe to outpoint: {txhash}:{idx}')
+        try:
+            async with self._network_request_semaphore:
+                await self.session.subscribe('blockchain.outpoint.subscribe', [txhash, idx], self.outpoint_status_queue)
+        except RPCError as e:
+            raise
+        self._requests_answered += 1
+
+    @log_exceptions
+    async def handle_address_status(self):
         while True:
-            h, status = await self.status_queue.get()
+            h, status = await self.address_status_queue.get()
             addr = self.scripthash_to_address[h]
             self._handling_addr_statuses.add(addr)
             self.requested_addrs.discard(addr)  # ok for addr not to be present
             await self.taskgroup.spawn(self._on_address_status, addr, status)
+            self._processed_some_notifications = True
+
+    @log_exceptions
+    async def handle_outpoint_status(self):
+        while True:
+            txid, index, status = await self.outpoint_status_queue.get()
+            outpoint = txid + ':%d'%index
+            self._handling_outpoint_statuses.add(outpoint)
+            self.requested_outpoints.discard(outpoint)  # ok for addr not to be present
+            await self.taskgroup.spawn(self._on_outpoint_status, txid, index, status)
             self._processed_some_notifications = True
 
     async def main(self):
@@ -151,6 +196,9 @@ class Synchronizer(SynchronizerBase):
         return self.adb.diagnostic_name()
 
     def is_up_to_date(self):
+        return self.addresses_up_to_date() and self.outpoints_up_to_date()
+
+    def addresses_up_to_date(self):
         return (self._init_done
                 and not self._adding_addrs
                 and not self.requested_addrs
@@ -158,7 +206,15 @@ class Synchronizer(SynchronizerBase):
                 and not self.requested_histories
                 and not self.requested_tx
                 and not self._stale_histories
-                and self.status_queue.empty())
+                and self.address_status_queue.empty())
+
+    def outpoints_up_to_date(self):
+        return (self._init_done
+                and not self._adding_outpoints
+                and not self.requested_outpoints
+                and not self._handling_outpoint_statuses
+                and not self.requested_tx
+                and self.outpoint_status_queue.empty())
 
     async def _maybe_request_history_for_addr(self, addr: str, *, ann_status: Optional[str]) -> List[dict]:
         # First opportunistically try to guess the addr history. Might save us network requests.
@@ -169,13 +225,18 @@ class Synchronizer(SynchronizerBase):
             return old_height
         guessed_history = [(txid, guess_height(old_height)) for (txid, old_height) in old_history]
         if history_status(guessed_history) == ann_status:
-            self.logger.debug(f"managed to guess new history for {addr}. won't call 'blockchain.scripthash.get_history'.")
+            self.logger.debug(f"managed to guess new history for {addr}. won't call 'blockchain.scriptpubkey.get_history'.")
             return [{"height": height, "tx_hash": txid} for (txid, height) in guessed_history]
         # request addr history from server
-        sh = address_to_scripthash(addr)
+        spk = address_to_script(addr)
+        sh = script_to_scripthash(spk)
         self._requests_sent += 1
         async with self._network_request_semaphore:
-            result = await self.interface.get_history_for_scripthash(sh)
+            try:
+                result = await self.interface.get_history_for_spk(spk.hex())
+            except HistoryTooLong:
+                self.logger.info(f"history too long")
+                return []
         self._requests_answered += 1
         self.logger.info(f"receiving history {addr} {len(result)}")
         return result
@@ -215,15 +276,47 @@ class Synchronizer(SynchronizerBase):
             # Store received history
             self.adb.receive_history_callback(addr, hist, tx_fees)
             # Request transactions we don't have
-            await self._request_missing_txs(hist)
+            await self._request_txs_from_history(hist)
 
         # Remove request; this allows up_to_date to be True
         self.requested_histories.discard((addr, status))
 
-    async def _request_missing_txs(self, hist, *, allow_server_not_finding_tx=False):
+    async def _on_outpoint_status(self, txid: str, index: int, status: dict):
+        try:
+            assert isinstance(status, dict)
+            assert_hash256_str(txid)
+            txs = set()
+            txs.add(txid)
+            height = status.get('height')
+            if height is not None:
+                assert isinstance(height, int)
+                # spv the input
+                self.adb.add_unverified_or_unconfirmed_tx(txid, height)
+            # fetch the output
+            spender_txid = status.get('spender_txhash')
+            if spender_txid is not None:
+                assert_hash256_str(spender_txid)
+                spender_height = status.get('spender_height')
+                assert isinstance(spender_height, int)
+                self.adb.add_unverified_or_unconfirmed_tx(spender_txid, spender_height)
+                txs.add(spender_txid)
+            await self._request_missing_txs(txs, allow_server_not_finding_tx=False)
+        finally:
+            outpoint = txid + ':%d'%index
+            self._handling_outpoint_statuses.discard(outpoint)
+
+
+    async def _request_txs_from_history(self, hist, *, allow_server_not_finding_tx=False):
         # "hist" is a list of [tx_hash, tx_height] lists
-        transaction_hashes = []
+        txs = set()
         for tx_hash, _tx_height in hist:
+            txs.add(tx_hash)
+        await self._request_missing_txs(txs, allow_server_not_finding_tx=allow_server_not_finding_tx)
+
+    @log_exceptions
+    async def _request_missing_txs(self, txs, *, allow_server_not_finding_tx=False):
+        transaction_hashes = []
+        for tx_hash in txs:
             if tx_hash in self.requested_tx:
                 continue
             tx = self.adb.db.get_transaction(tx_hash)
@@ -267,10 +360,13 @@ class Synchronizer(SynchronizerBase):
             # Old electrum servers returned ['*'] when all history for the address
             # was pruned. This no longer happens but may remain in old wallets.
             if history == ['*']: continue
-            await self._request_missing_txs(history, allow_server_not_finding_tx=True)
+            await self._request_txs_from_history(history, allow_server_not_finding_tx=True)
         # add addresses to bootstrap
         for addr in random_shuffled_copy(self.adb.get_addresses()):
             await self._add_address(addr)
+        # add outpoints to bootstrap (race)
+        for outpoint in self.adb._subscribed_outpoints:
+            await self._add_outpoint(outpoint)
         # main loop
         self._init_done = True
         prev_uptodate = False
@@ -278,6 +374,8 @@ class Synchronizer(SynchronizerBase):
             await asyncio.sleep(0.1)
             for addr in self._adding_addrs.copy(): # copy set to ensure iterator stability
                 await self._add_address(addr)
+            for outpoint in list(self._adding_outpoints):
+                await self._add_outpoint(outpoint)
             up_to_date = self.adb.is_up_to_date()
             # see if status changed
             if (up_to_date != prev_uptodate
@@ -311,7 +409,7 @@ class Notifier(SynchronizerBase):
 
     async def stop_watching_addr(self, addr: str):
         self.watched_addresses.pop(addr, None)
-        # TODO blockchain.scripthash.unsubscribe
+        # TODO blockchain.scriptpubkey.unsubscribe
 
     async def _on_address_status(self, addr, status):
         if addr not in self.watched_addresses:

@@ -37,10 +37,10 @@ class LNWatcher(Logger, EventListener):
     def stop(self):
         self.unregister_callbacks()
 
-    def remove_callback(self, address: str) -> None:
-        self.callbacks.pop(address, None)
+    def remove_callback(self, outpoint: str) -> None:
+        self.callbacks.pop(outpoint, None)
 
-    def add_callback(
+    def add_address_callback(
         self,
         address: str,
         callback: Callable[[], Awaitable[None]],
@@ -56,6 +56,17 @@ class LNWatcher(Logger, EventListener):
             #   (even for old redeemed channels and old swaps)
             self.adb.add_address(address)
         self.callbacks[address] = callback
+
+    def add_outpoint_callback(
+        self,
+        outpoint: str,
+        callback: Callable[[], Awaitable[None]],
+        *,
+        subscribe: bool = True,
+    ) -> None:
+        if subscribe:
+            self.adb.subscribe_to_outpoint(outpoint)
+        self.callbacks[outpoint] = callback
 
     async def trigger_callbacks(self, *, requires_synchronizer: bool = True):
         if requires_synchronizer and not self.adb.synchronizer:
@@ -90,33 +101,32 @@ class LNWatcher(Logger, EventListener):
     async def on_event_adb_set_up_to_date(self, adb):
         if adb != self.adb:
             return
+        # fixme: use separate events for addresses and outpoints
         await self.trigger_callbacks()
 
     def add_channel(self, chan: 'AbstractChannel') -> None:
         outpoint = chan.funding_outpoint.to_str()
-        address = chan.get_funding_address()
-        callback = lambda: self.check_onchain_situation(address, outpoint)
-        self.add_callback(address, callback, subscribe=chan.need_to_subscribe())
+        callback = lambda: self.check_onchain_situation(outpoint)
+        self.add_outpoint_callback(outpoint, callback, subscribe=chan.need_to_subscribe())
 
     @ignore_exceptions
     @log_exceptions
-    async def check_onchain_situation(self, address: str, funding_outpoint: str) -> None:
-        # early return if address has not been added yet
-        if not self.adb.is_mine(address):
+    async def check_onchain_situation(self, funding_outpoint: str) -> None:
+        # early return if funding_outpoint has not been added yet
+        if funding_outpoint not in self.adb._subscribed_outpoints:
+            self.logger.info(f"funding outpoint not subscribed yet")
             return
-        # inspect_tx_candidate might have added new addresses, in which case we return early
-        # note: maybe we should wait until adb.is_up_to_date... (?)
         funding_txid = funding_outpoint.split(':')[0]
         funding_height = self.adb.get_tx_height(funding_txid)
         closing_txid = self.adb.get_spender(funding_outpoint)
         closing_height = self.adb.get_tx_height(closing_txid)
         if closing_txid:
-            self.adb.subscribe_to_outputs(closing_txid)
+            self.adb.subscribe_to_tx_outpoints(closing_txid)
             closing_tx = self.adb.get_transaction(closing_txid)
             if closing_tx:
                 keep_watching = await self.sweep_commitment_transaction(funding_outpoint, closing_tx)
                 if not keep_watching:
-                    self.remove_callback(address)
+                    self.remove_callback(funding_outpoint)
             else:
                 self.logger.info(f"channel {funding_outpoint} closed by {closing_txid}. still waiting for tx itself...")
                 keep_watching = True
@@ -191,7 +201,7 @@ class LNWatcher(Logger, EventListener):
                 # the spender might be the remote, revoked or not
                 htlc_sweepinfo = chan.maybe_sweep_htlcs(closing_tx, spender_tx)
                 if htlc_sweepinfo:
-                    self.adb.subscribe_to_outputs(spender_txid)
+                    self.adb.subscribe_to_tx_outpoints(spender_txid)
                 for prevout2, htlc_sweep_info in htlc_sweepinfo.items():
                     self.lnworker.wallet.set_default_label(prevout2, htlc_sweep_info.name)
                     if isinstance(htlc_sweep_info, KeepWatchingTXO):  # haven't yet decided if we want to sweep
@@ -276,6 +286,8 @@ class LNWatcher(Logger, EventListener):
         prev_tx = self.adb.get_transaction(prev_txid)
         txout = prev_tx.outputs()[int(prev_index)]
         self.lnworker.wallet._accounting_addresses.add(txout.address)
+        # fixme: replace accounting_addresses with accounting_outpoints
+        self.adb.add_address(txout.address)
 
     def maybe_add_pending_forceclose(
         self,

@@ -2471,7 +2471,8 @@ class TestWalletSending(ElectrumTestCase):
     async def test_sweep_uncompressed_p2pk(self):
         class NetworkMock:
             relay_fee = 1000
-            async def listunspent_for_scripthash(self, scripthash):
+            async def listunspent_for_spk(self, spk):
+                scripthash = bitcoin.script_to_scripthash(bytes.fromhex(spk))
                 if scripthash == '460e4fb540b657d775d84ff4955c9b13bd954c2adc26a6b998331343f85b6a45':
                     return [{'tx_hash': 'ac24de8b58e826f60bd7b9ba31670bdfc3e8aedb2f28d0e91599d741569e3429', 'tx_pos': 1, 'height': 1325785, 'value': 1000000}]
                 else:
@@ -2496,7 +2497,8 @@ class TestWalletSending(ElectrumTestCase):
     async def test_sweep_compressed_p2pk(self):
         class NetworkMock:
             relay_fee = 1000
-            async def listunspent_for_scripthash(self, scripthash):
+            async def listunspent_for_spk(self, spk):
+                scripthash = bitcoin.script_to_scripthash(bytes.fromhex(spk))
                 if scripthash == 'cc911adb9fb939d0003a138ebdaa5195bf1d6f9172e438309ab4c00a5ebc255b':
                     return [{'tx_hash': '84a4a1943f7a620e0d8413f4c10877000768797a93bb106b3e7cd6fccc59b35e', 'tx_pos': 1, 'height': 2420005, 'value': 111111}]
                 else:
@@ -2521,7 +2523,8 @@ class TestWalletSending(ElectrumTestCase):
     async def test_sweep_uncompressed_p2pkh(self):
         class NetworkMock:
             relay_fee = 1000
-            async def listunspent_for_scripthash(self, scripthash):
+            async def listunspent_for_spk(self, spk):
+                scripthash = bitcoin.script_to_scripthash(bytes.fromhex(spk))
                 if scripthash == '71e8c6a9fd8ab498290d5ccbfe1cfe2c5dc2a389b4c036dd84e305a59c4a4d53':
                     return [{'tx_hash': '15a78cc7664c42f1040474763bf794d555f6092bfba97d6c276f296c2d141506', 'tx_pos': 0, 'height': -1, 'value': 222222}]
                 else:
@@ -2546,7 +2549,8 @@ class TestWalletSending(ElectrumTestCase):
     async def test_sweep_compressed_p2pkh(self):
         class NetworkMock:
             relay_fee = 1000
-            async def listunspent_for_scripthash(self, scripthash):
+            async def listunspent_for_spk(self, spk):
+                scripthash = bitcoin.script_to_scripthash(bytes.fromhex(spk))
                 if scripthash == '941b2ca8bd850e391abc5e024c83b773842c40268a8fa8a5ef7aeca19fb395c5':
                     return [{'tx_hash': '8a764102b4a5c5d1b5235e6ce7e67ed3c146130f8a52e7692a151e2e5a831767', 'tx_pos': 0, 'height': -1, 'value': 123456}]
                 else:
@@ -2571,7 +2575,8 @@ class TestWalletSending(ElectrumTestCase):
     async def test_sweep_p2wpkh_p2sh(self):
         class NetworkMock:
             relay_fee = 1000
-            async def listunspent_for_scripthash(self, scripthash):
+            async def listunspent_for_spk(self, spk):
+                scripthash = bitcoin.script_to_scripthash(bytes.fromhex(spk))
                 if scripthash == '9ee9bddbe9dc47f7f6c5a652a09012f49dfc54d5b997f58d7ccc49040871e61b':
                     return [{'tx_hash': '9a7bf98ed72b1002559d3d61805838a00e94afec78b8597a68606e2a0725171d', 'tx_pos': 0, 'height': -1, 'value': 150000}]
                 else:
@@ -2596,7 +2601,8 @@ class TestWalletSending(ElectrumTestCase):
     async def test_sweep_p2wpkh(self):
         class NetworkMock:
             relay_fee = 1000
-            async def listunspent_for_scripthash(self, scripthash):
+            async def listunspent_for_spk(self, spk):
+                scripthash = bitcoin.script_to_scripthash(bytes.fromhex(spk))
                 if scripthash == '7630f6b2121336279b55e5b71d4a59be5ffa782e86bae249ba0b5ad6a791933f':
                     return [{'tx_hash': '01d76acdb8992f4262fb847f5efbd95ea178049be59c70a2851bdcf9b4ae28e3', 'tx_pos': 0, 'height': 2420006, 'value': 98300}]
                 else:
