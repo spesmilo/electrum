@@ -84,10 +84,10 @@ Item {
                     font.pixelSize: constants.fontSizeMedium
                     Layout.alignment: Qt.AlignRight
                     font.bold: true
-                    color: model.value.satsInt >= 0 ? constants.colorCredit : constants.colorDebit
+                    color: model.value.positive ? constants.colorCredit : constants.colorDebit
 
                     function updateText() {
-                        text = Config.formatSats(model.value)
+                        text = Config.formatMilliSats(model.value)
                     }
                     Component.onCompleted: updateText()
                 }

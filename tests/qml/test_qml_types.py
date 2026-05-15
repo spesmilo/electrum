@@ -37,6 +37,7 @@ class TestTypes(QETestCase):
         a.satsInt = 1
         self.assertTrue(bool(a_er.received))
         self.assertFalse(a.isEmpty)
+        self.assertEqual(1000, a.msatsInt)
         self.assertEqual('1', a.satsStr)
 
         a_er.clear()
@@ -55,10 +56,30 @@ class TestTypes(QETestCase):
 
         a.clear()
         a_er.clear()
-        a.msatsInt = 1
+        a.msatsInt = 1500
         self.assertTrue(bool(a_er.received))
         self.assertFalse(a.isEmpty)
-        self.assertEqual('1', a.msatsStr)
+        self.assertEqual(1, a.satsInt)
+        self.assertEqual('1500', a.msatsStr)
+        self.assertTrue(a.hasMsatPrecision)
+
+        b = QEAmount(amount_sat=100)
+        self.assertFalse(b.isEmpty)
+        self.assertEqual(100, b.satsInt)
+        self.assertEqual(100_000, b.msatsInt)
+        self.assertFalse(b.hasMsatPrecision)
+
+        c = QEAmount(amount_msat=1500)
+        self.assertFalse(c.isEmpty)
+        self.assertEqual(1, c.satsInt)
+        self.assertEqual(1500, c.msatsInt)
+        self.assertTrue(c.hasMsatPrecision)
+
+        with self.assertRaises(AssertionError):
+            QEAmount(amount_sat=2, amount_msat=1500)
+
+        with self.assertRaises(AssertionError):
+            QEAmount(amount_msat=1500, is_max=True)
 
     @qt_test
     def test_qeamount_copy(self):
@@ -82,12 +103,14 @@ class TestTypes(QETestCase):
         t.copyFrom(b)
         self.assertFalse(t.isEmpty)
         self.assertEqual(t.satsInt, 1)
+        self.assertEqual(t.msatsInt, 1000)
         self.assertEqual(1, len(t_er.received))
 
         t.clear()
         t_er.clear()
         t.copyFrom(c)
         self.assertFalse(t.isEmpty)
+        self.assertEqual(t.satsInt, 0)
         self.assertEqual(t.msatsInt, 1)
         self.assertEqual(1, len(t_er.received))
 
@@ -116,6 +139,12 @@ class TestTypes(QETestCase):
         self.assertEqual(10_000_000, a.msatsInt)
         self.assertFalse(a.isMax)
 
+        with self.assertRaises(AssertionError):
+            QEAmount(amount_msat=amount_sat * 1000, from_invoice=invoice)
+
+        with self.assertRaises(AssertionError):
+            QEAmount(amount_sat=amount_sat, from_invoice=invoice)
+
         outputs = [PartialTxOutput.from_address_and_value('bc1qj3zx2zc4rpv3npzmznxhdxzn0wm7pzqp8p2293', '!')]
         invoice = Invoice(
             amount_msat='!',
@@ -137,3 +166,62 @@ class TestTypes(QETestCase):
         self.assertEqual(2_000_000, a.satsInt)
         self.assertEqual(2_000_000_000, a.msatsInt)
         self.assertFalse(a.isMax)
+
+    @qt_test
+    def test_lt_gt_eq(self):
+        a = QEAmount(amount_msat=100)
+        b = QEAmount(amount_msat=200)
+
+        self.assertTrue(a.lt(b))
+        self.assertTrue(b.gt(a))
+        self.assertFalse(a.lt(a))
+        self.assertTrue(a.lte(b))
+        self.assertTrue(b.gte(a))
+        self.assertTrue(a.lte(a))
+
+        c = QEAmount()
+
+        self.assertTrue(a.gt(c))
+        self.assertTrue(c.lt(a))
+
+        d = QEAmount(is_max=True)
+
+        self.assertFalse(d.lt(a))
+        self.assertFalse(d.gt(a))
+        self.assertFalse(a.lt(d))
+        self.assertFalse(a.gt(d))
+
+        e = QEAmount(amount_msat=200)
+        self.assertTrue(e.lte(b))
+        self.assertTrue(b.lte(e))
+        self.assertTrue(e.eq(b))
+
+        f = QEAmount()
+        self.assertFalse(f.eq(a))
+        self.assertFalse(f.eq(b))
+        self.assertTrue(f.eq(c))
+        self.assertFalse(f.eq(d))
+
+        g = QEAmount(is_max=True)
+        self.assertFalse(g.eq(a))
+        self.assertFalse(g.eq(b))
+        self.assertFalse(g.eq(c))
+        self.assertTrue(g.eq(d))
+
+    @qt_test
+    def test_min_max(self):
+        o = QEAmount()
+        a = QEAmount(amount_msat=100)
+        b = QEAmount(amount_msat=200)
+        c = QEAmount(amount_msat=200)
+        d = QEAmount()
+
+        self.assertTrue(a.eq(o.min(a, b)))
+        self.assertTrue(b.eq(o.max(a, b)))
+        self.assertTrue(b.eq(o.max(b, c)))
+        self.assertTrue(c.eq(o.max(b, c)))
+
+        self.assertTrue(a.eq(o.max(a, None)))
+        self.assertTrue(a.eq(o.max(None, a)))
+        self.assertTrue(d.eq(o.min(a, None)))
+        self.assertTrue(d.eq(o.min(None, a)))

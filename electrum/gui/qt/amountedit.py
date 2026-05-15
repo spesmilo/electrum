@@ -10,7 +10,8 @@ from PyQt6.QtWidgets import (QLineEdit, QStyle, QStyleOptionFrame, QSizePolicy)
 from .util import char_width_in_lineedit, ColorScheme
 
 from electrum.util import (format_satoshis_plain, decimal_point_to_base_unit_name,
-                           FEERATE_PRECISION, quantize_feerate, DECIMAL_POINT, UI_UNIT_NAME_FEERATE_SAT_PER_VBYTE)
+                           FEERATE_PRECISION, quantize_feerate, DECIMAL_POINT, UI_UNIT_NAME_FEERATE_SAT_PER_VBYTE,
+                           to_decimal)
 from electrum.bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
 
 _NOT_GIVEN = object()  # sentinel value
@@ -44,7 +45,7 @@ class SizedFreezableLineEdit(FreezableLineEdit):
 class AmountEdit(SizedFreezableLineEdit):
     shortcut = pyqtSignal()
 
-    def __init__(self, base_unit, is_int=False, parent=None, *, max_amount=None):
+    def __init__(self, parent=None, *, base_unit=None, is_int=False, max_amount=None, extra_precision=None):
         # This seems sufficient for hundred-BTC amounts with 8 decimals
         width = 16 * char_width_in_lineedit()
         super().__init__(width=width, parent=parent)
@@ -52,14 +53,14 @@ class AmountEdit(SizedFreezableLineEdit):
         self.textChanged.connect(self.numbify)
         self.is_int = is_int
         self.is_shortcut = False
-        self.extra_precision = 0
+        self.extra_precision = extra_precision if extra_precision else lambda: 0
         self.max_amount = max_amount
 
     def decimal_point(self):
-        return 8
+        return 0
 
     def max_precision(self):
-        return self.decimal_point() + self.extra_precision
+        return self.decimal_point() + self.extra_precision()
 
     def numbify(self):
         text = self.text().strip()
@@ -106,10 +107,18 @@ class AmountEdit(SizedFreezableLineEdit):
         amt = self._get_amount_from_text(str(self.text()))
         if self.max_amount and amt and amt >= self.max_amount:
             return self.max_amount
-        return amt
+        if amt is None:
+            return amt
+        # return as int if no millisats (Decimal otherwise)
+        return int(amt) if (int(amt) * 1000 == int(amt * 1000)) else amt
 
     def _get_text_from_amount(self, amount) -> str:
-        return "%d" % amount
+        x = to_decimal(amount)
+        scale_factor = pow(10, self.decimal_point())
+        nfmt = "{:." + str(self.decimal_point() + self.extra_precision()) + "f}"
+        text = nfmt.format(x / scale_factor).rstrip('0').rstrip('.')
+        text = text.replace('.', DECIMAL_POINT)
+        return text
 
     def setAmount(self, amount):
         text = self._get_text_from_amount(amount)
@@ -118,11 +127,15 @@ class AmountEdit(SizedFreezableLineEdit):
 
 class BTCAmountEdit(AmountEdit):
 
-    def __init__(self, decimal_point, is_int=False, parent=None, *, max_amount=_NOT_GIVEN):
+    def __init__(self, decimal_point, parent=None, *, is_int=False, max_amount=_NOT_GIVEN, millisat_precision=False):
         if max_amount is _NOT_GIVEN:
             max_amount = TOTAL_COIN_SUPPLY_LIMIT_IN_BTC * COIN
-        AmountEdit.__init__(self, self._base_unit, is_int, parent, max_amount=max_amount)
+        self.millisat_precision = millisat_precision
+        AmountEdit.__init__(self, parent, base_unit=self._base_unit, is_int=is_int, max_amount=max_amount, extra_precision=self.extra_precision)
         self.decimal_point = decimal_point
+
+    def extra_precision(self):
+        return 3 if self.millisat_precision else 0
 
     def _base_unit(self):
         return decimal_point_to_base_unit_name(self.decimal_point())
@@ -158,20 +171,35 @@ class BTCAmountEdit(AmountEdit):
         self.setFrozen(self.isFrozen()) # re-apply styling, as it is nuked by setText (?)
         self.repaint()  # macOS hack for #6269
 
+    def setMillisatPrecision(self, millisat_precision: bool):
+        if self.millisat_precision != millisat_precision:
+            self.millisat_precision = millisat_precision
+            self.setAmount(self._get_amount_from_text(self.text()))
 
-class FeerateEdit(BTCAmountEdit):
 
-    def __init__(self, decimal_point, is_int=False, parent=None, *, max_amount=_NOT_GIVEN):
-        super().__init__(decimal_point, is_int, parent, max_amount=max_amount)
-        self.extra_precision = FEERATE_PRECISION
+class FeerateEdit(AmountEdit):
+    def __init__(self, parent=None, *, max_amount=None):
+        super().__init__(parent, base_unit=lambda: self._base_unit(), max_amount=max_amount)
+        self.extra_precision = lambda: FEERATE_PRECISION
+        self.decimal_point = lambda: 0
 
     def _base_unit(self):
         return UI_UNIT_NAME_FEERATE_SAT_PER_VBYTE
 
     def _get_amount_from_text(self, text):
-        sat_per_byte_amount = super()._get_amount_from_text(text)
-        return quantize_feerate(sat_per_byte_amount)
+        return quantize_feerate(super()._get_amount_from_text(text))
 
     def _get_text_from_amount(self, amount):
-        amount = quantize_feerate(amount)
-        return super()._get_text_from_amount(amount)
+        return super()._get_text_from_amount(quantize_feerate(amount))
+
+
+class FiatAmountEdit(AmountEdit):
+    def __init__(self, fx=None, parent=None, *, max_amount=None):
+        super().__init__(parent, base_unit=self._baseunit, max_amount=max_amount, extra_precision=self._extraprecision)
+        self.fx = fx
+
+    def _baseunit(self):
+        return self.fx.get_currency() if self.fx else ''
+
+    def _extraprecision(self):
+        return self.fx.ccy_precision() if self.fx else 0

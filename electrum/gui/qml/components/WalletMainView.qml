@@ -132,7 +132,7 @@ Item {
     }
 
     function createRequest(lightning, reuse_address) {
-        var qamt = Config.unitsToSats(_request_amount)
+        var qamt = Config.baseunitStrToAmount(_request_amount)
         Daemon.currentWallet.createRequest(qamt, _request_description, _request_expiry, lightning, reuse_address)
     }
 
@@ -544,9 +544,9 @@ Item {
                 if (invoice.invoiceType == Invoice.LightningInvoice && invoice.address) {
                     // ln invoice with fallback
                     var amountToSend = invoice.amountOverride.isEmpty
-                        ? invoice.amount.satsInt
-                        : invoice.amountOverride.satsInt
-                    if (amountToSend > Daemon.currentWallet.lightningCanSend.satsInt) {
+                        ? invoice.amount
+                        : invoice.amountOverride
+                    if (amountToSend.gt(Daemon.currentWallet.lightningCanSend)) {
                         lninvoiceButPayOnchain = true
                     }
                 }

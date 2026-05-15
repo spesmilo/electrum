@@ -250,7 +250,7 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         self.fiat_fee_label.setAmount(0)
         self.fiat_fee_label.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
 
-        self.feerate_e = FeerateEdit(lambda: 0)
+        self.feerate_e = FeerateEdit()
         self.feerate_e.textEdited.connect(partial(self.on_fee_or_feerate, self.feerate_e, False))
         self.feerate_e.editingFinished.connect(partial(self.on_fee_or_feerate, self.feerate_e, True))
         self.update_feerate_label()

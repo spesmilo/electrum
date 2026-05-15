@@ -36,8 +36,8 @@ class TestLnurl(TestCase):
         self.assertEqual('https://service.io/withdraw?sessionid=123', result.callback_url)
         self.assertEqual('abcdef1234567890', result.k1)
         self.assertEqual('Withdraw from service', result.default_description)
-        self.assertEqual(10_000, result.min_withdrawable_sat)
-        self.assertEqual(100_000, result.max_withdrawable_sat)
+        self.assertEqual(10_000_000, result.min_withdrawable_msat)
+        self.assertEqual(100_000_000, result.max_withdrawable_msat)
 
         # Test with .onion URL
         onion_response = {

@@ -19,9 +19,14 @@ ElDialog {
     needsSystemBarPadding: false
 
     property bool commentValid: comment.text.length <= invoiceParser.lnurlData['comment_allowed']
-    property bool amountValid: amountBtc.textAsSats.satsInt >= parseInt(invoiceParser.lnurlData['min_sendable_sat'])
-        && amountBtc.textAsSats.satsInt <= parseInt(invoiceParser.lnurlData['max_sendable_sat'])
+    property bool amountValid: false
     property bool valid: commentValid && amountValid
+
+    function isValidAmount() {
+        return amountBtc.textAsSats.gte(invoiceParser.lnurlData['min_sendable_msat'])
+            && amountBtc.textAsSats.lte(invoiceParser.lnurlData['max_sendable_msat'])
+            && amountBtc.textAsSats.lte(invoiceParser.wallet.lightningCanSend)
+    }
 
     ColumnLayout {
         width: parent.width
@@ -41,9 +46,11 @@ ElDialog {
                 Layout.columnSpan: 2
                 Layout.fillWidth: true
                 compact: true
-                visible: invoiceParser.lnurlData['min_sendable_sat'] != invoiceParser.lnurlData['max_sendable_sat']
-                text: qsTr('Amount must be between %1 and %2 %3').arg(Config.formatSats(invoiceParser.lnurlData['min_sendable_sat'])).arg(Config.formatSats(invoiceParser.lnurlData['max_sendable_sat'])).arg(Config.baseUnit)
-                backgroundColor: constants.darkerDialogBackground
+                visible: !invoiceParser.lnurlData['min_sendable_msat'].eq(invoiceParser.lnurlData['max_sendable_msat'])
+                text: qsTr('Amount must be between %1 and %2 %3')
+                    .arg(Config.formatMilliSats(invoiceParser.lnurlData['min_sendable_msat']))
+                    .arg(Config.formatMilliSats(invoiceParser.lnurlData['max_sendable_msat']))
+                    .arg(Config.baseUnit)
             }
 
             Label {
@@ -74,12 +81,14 @@ ElDialog {
                 BtcField {
                     id: amountBtc
                     Layout.preferredWidth: rootLayout.width /3
-                    text: Config.formatSatsForEditing(invoiceParser.lnurlData['min_sendable_sat'])
-                    enabled: invoiceParser.lnurlData['min_sendable_sat'] != invoiceParser.lnurlData['max_sendable_sat']
+                    text: Config.formatMilliSatsForEditing(invoiceParser.lnurlData['min_sendable_msat'])
+                    enabled: !invoiceParser.lnurlData['min_sendable_msat'].eq(invoiceParser.lnurlData['max_sendable_msat'])
                     color: Material.foreground // override gray-out on disabled
                     fiatfield: amountFiat
-                    onTextAsSatsChanged: {
+                    msatPrecision: true
+                    onValueChanged: {
                         invoiceParser.amountOverride = textAsSats
+                        dialog.amountValid = isValidAmount()
                     }
                 }
                 Label {

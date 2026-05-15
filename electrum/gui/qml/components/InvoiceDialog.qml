@@ -230,16 +230,16 @@ ElDialog {
                                 color: readOnly
                                     ? Material.accentColor
                                     : Material.foreground
-                                onTextAsSatsChanged: {
+                                onValueChanged: {
                                     if (!amountMax.checked)
                                         invoice.amountOverride.copyFrom(textAsSats)
                                 }
                                 Connections {
                                     target: invoice.amountOverride
-                                    function onSatsIntChanged() {
-                                        console.log('amountOverride satsIntChanged, sats=' + invoice.amountOverride.satsInt)
+                                    function onValueChanged() {
+                                        console.log('amountOverride valueChanged, sats=' + invoice.amountOverride.satsStr)
                                         if (amountMax.checked)  // amountOverride updated by max amount estimate
-                                            amountBtc.text = Config.formatSatsForEditing(invoice.amountOverride.satsInt)
+                                            amountBtc.text = Config.formatSatsForEditing(invoice.amountOverride)
                                     }
                                 }
                             }
@@ -472,7 +472,7 @@ ElDialog {
                 enabled: !invoice.isSaved && invoice.canSave
                 onClicked: {
                     if (invoice.amount.isEmpty) {
-                        invoice.amountOverride = Config.unitsToSats(amountBtc.text)
+                        invoice.amountOverride = Config.baseunitStrToAmount(amountBtc.text)
                         if (amountMax.checked)
                             invoice.amountOverride.isMax = true
                     }
@@ -490,7 +490,7 @@ ElDialog {
                 enabled: invoice.invoiceType != Invoice.Invalid && invoice.canPay
                 onClicked: {
                     if (invoice.amount.isEmpty) {
-                        invoice.amountOverride = Config.unitsToSats(amountBtc.text)
+                        invoice.amountOverride = Config.baseunitStrToAmount(amountBtc.text)
                         if (amountMax.checked)
                             invoice.amountOverride.isMax = true
                     }

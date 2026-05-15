@@ -29,7 +29,7 @@ from electrum.submarine_swaps import SwapServerError
 from electrum.fee_policy import FeePolicy, FixedFeePolicy
 from electrum.lnurl import LNURL3Data, request_lnurl_withdraw_callback, LNURLError
 
-from .amountedit import AmountEdit, BTCAmountEdit, SizedFreezableLineEdit
+from .amountedit import BTCAmountEdit, SizedFreezableLineEdit, FiatAmountEdit
 from .paytoedit import InvalidPaymentIdentifier
 from .util import (WaitingDialog, HelpLabel, MessageBoxMixin, EnterButton, char_width_in_lineedit,
                    get_icon_camera, read_QIcon, ColorScheme, IconLabel, Spinner, Buttons, WWLabel,
@@ -68,7 +68,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         grid.setColumnStretch(3, 1)
 
         from .paytoedit import PayToEdit
-        self.amount_e = BTCAmountEdit(self.window.get_decimal_point)
+        self.amount_e = BTCAmountEdit(self.window.get_decimal_point, millisat_precision=True)
         self.payto_e = PayToEdit(self)
         msg = (_("Recipient of the funds.")
                + "\n\n"
@@ -119,7 +119,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         amount_widgets = QHBoxLayout()
         amount_widgets.addWidget(self.amount_e)
 
-        self.fiat_send_e = AmountEdit(self.fx.get_currency if self.fx else '')
+        self.fiat_send_e = FiatAmountEdit(self.fx)
         if not self.fx or not self.fx.is_enabled():
             self.fiat_send_e.setVisible(False)
         amount_widgets.addWidget(self.fiat_send_e)
@@ -373,6 +373,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             w.setToolTip('')
         for w in [self.save_button, self.send_button]:
             w.setEnabled(False)
+        self.amount_e.setMillisatPrecision(True)
         self.window.update_status()
         self.paytomany_menu.setChecked(self.payto_e.multiline)
         self.invoice_error.setText('')
@@ -412,6 +413,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         pi = self.payto_e.payment_identifier
 
         self.clear_button.setEnabled(True)
+        self.amount_e.setMillisatPrecision(not pi.is_valid() or pi.is_lightning())
 
         if pi.is_multiline():
             self.lock_fields(lock_recipient=False, lock_amount=True, lock_max=True, lock_description=False)
@@ -552,7 +554,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.invoice_list.update()
         self.pending_invoice = None
 
-    def get_amount(self) -> int:
+    def get_amount(self) -> int | Decimal:
         # must not be None
         return self.amount_e.get_amount() or 0
 
@@ -586,7 +588,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.pay_onchain_dialog(outputs)
 
     def do_edit_invoice(self, invoice: 'Invoice'):  # FIXME broken
-        assert not bool(invoice.get_amount_sat())
+        assert not bool(invoice.get_amount_msat())
         text = invoice.lightning_invoice if invoice.is_lightning() else invoice.get_address()
         self.set_payment_identifier(text)
         self.amount_e.setFocus()
@@ -594,7 +596,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.save_button.setEnabled(False)
 
     def do_pay_invoice(self, invoice: 'Invoice'):
-        if not bool(invoice.get_amount_sat()):
+        if not bool(invoice.get_amount_msat()):
             pi = self.payto_e.payment_identifier
             if pi.type == PaymentIdentifierType.SPK and not pi.spk_is_address:
                 pass
@@ -606,7 +608,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         else:
             self.pay_onchain_dialog(invoice.outputs, invoice=invoice)
 
-    def read_amount(self) -> Union[int, str]:
+    def read_amount(self) -> Union[int, str, Decimal]:
         amount = '!' if self.max_button.isChecked() else self.get_amount()
         return amount
 
@@ -661,8 +663,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         return False  # no errors
 
     def pay_lightning_invoice(self, invoice: Invoice):
-        amount_sat = invoice.get_amount_sat()
-        if amount_sat is None:
+        amount_msat = invoice.get_amount_msat()
+        if amount_msat is None:
             raise Exception("missing amount for LN invoice")
         # note: lnworker might be None if LN is disabled,
         #       in which case we should still offer the user to pay onchain.
@@ -673,6 +675,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             can_pay_with_swap = False
             can_rebalance = False
             if lnworker:
+                amount_sat = invoice.get_amount_sat()  # lose precision for suggestions, they are not msat based
                 can_pay_with_new_channel = lnworker.suggest_funding_amount(amount_sat, coins=coins)
                 can_pay_with_swap = lnworker.suggest_swap_to_send(amount_sat, coins=coins)
                 rebalance_suggestion = lnworker.suggest_rebalance_to_send(amount_sat)
@@ -720,10 +723,9 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             return
 
         assert lnworker is not None
-        # FIXME this is currently lying to user as we truncate to satoshis
-        amount_msat = invoice.get_amount_msat()
+
         label = QLabel(
-            _("This will send {} to the recipient").format(self.format_amount_and_units(Decimal(amount_msat)/1000)))
+            _("This will send {} to the recipient").format(self.format_amount_and_units(invoice.get_amount_sat_msat_precision())))
 
         dialog = WindowModalDialog(self, _("Pay lightning invoice?"))
         dialog.setMinimumWidth(400)
@@ -735,13 +737,16 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         lnfee_hlabel = HelpLabel.from_configvar(self.config.cv.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS)
         lnfee_hlabel.setText(_('Max routing fee') + ' :')
         lnfee_map = [500, 1_000, 3_000, 5_000, 10_000, 20_000, 30_000, 50_000]
+
         def lnfee_update_vlabel(fee_val: int):
             lnfee_vlabel.setText(_("{}% of payment").format(f"{fee_val / 10 ** 4:.2f}"))
+
         def lnfee_slider_moved():
             pos = lnfee_slider.sliderPosition()
             fee_val = lnfee_map[pos]
             lnfee_update_vlabel(fee_val)
             self.config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS = fee_val
+
         lnfee_slider = QSlider(Qt.Orientation.Horizontal)
         lnfee_slider.setRange(0, len(lnfee_map)-1)
         lnfee_slider.setTracking(True)
@@ -767,7 +772,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         if not dialog.exec():
             return
         self.save_pending_invoice()
-        coro = lnworker.pay_invoice(invoice, amount_msat=amount_msat)
+        coro = lnworker.pay_invoice(invoice, amount_msat=invoice.get_amount_msat())
         self.window.run_coroutine_from_thread(coro, _('Sending payment'))
 
     def broadcast_transaction(self, tx: Transaction, *, invoice: Invoice = None):
@@ -893,12 +898,12 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             grid.addWidget(desc_text, row, 1, 1, 3)
             row += 1
 
-        min_amount = max(lnurl_data.min_withdrawable_sat, 1)
+        min_amount = max(Decimal(lnurl_data.min_withdrawable_msat) / 1000, 1)
         max_amount = min(
-            lnurl_data.max_withdrawable_sat,
-            int(self.wallet.lnworker.num_sats_can_receive())
+            Decimal(lnurl_data.max_withdrawable_msat) / 1000,
+            self.wallet.lnworker.num_sats_can_receive()
         )
-        min_text = self.format_amount_and_units(lnurl_data.min_withdrawable_sat)
+        min_text = self.format_amount_and_units(Decimal(lnurl_data.min_withdrawable_msat) / 1000)
         if min_amount > int(self.wallet.lnworker.num_sats_can_receive()):
             self.show_error("".join([
                 _("Too little incoming liquidity to satisfy this withdrawal request."), "\n\n",
@@ -910,14 +915,14 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             ]))
             return
 
-        is_fixed_amount = lnurl_data.min_withdrawable_sat == lnurl_data.max_withdrawable_sat
+        is_fixed_amount = lnurl_data.min_withdrawable_msat == lnurl_data.max_withdrawable_msat
 
         # Range information (only for non-fixed amounts)
         if not is_fixed_amount:
             range_label_text = QLabel(_("Range") + ":")
             range_value = QLabel("{} - {}".format(
                 min_text,
-                self.format_amount_and_units(lnurl_data.max_withdrawable_sat)
+                self.format_amount_and_units(Decimal(lnurl_data.max_withdrawable_msat) / 1000)
             ))
             grid.addWidget(range_label_text, row, 0)
             grid.addWidget(range_value, row, 1, 1, 2)
@@ -925,7 +930,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
 
         # Amount section
         amount_label = QLabel(_("Amount") + ":")
-        amount_edit = BTCAmountEdit(self.window.get_decimal_point, max_amount=max_amount)
+        amount_edit = BTCAmountEdit(self.window.get_decimal_point, max_amount=max_amount, millisat_precision=True)
         amount_edit.setAmount(max_amount)
         grid.addWidget(amount_label, row, 0)
         grid.addWidget(amount_edit, row, 1)
@@ -943,7 +948,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         row += 1
 
         # Warning for insufficient liquidity
-        if lnurl_data.max_withdrawable_sat > int(self.wallet.lnworker.num_sats_can_receive()):
+        if Decimal(lnurl_data.max_withdrawable_msat) / 1000 > self.wallet.lnworker.num_sats_can_receive():
             warning_text = WWLabel(
                 _("The maximum withdrawable amount is larger than what your channels can receive. "
                   "You may need to do a submarine swap to increase your incoming liquidity.")
@@ -962,18 +967,19 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         # Show dialog and handle result
         if dialog.exec():
             if is_fixed_amount:
-                amount_sat = lnurl_data.max_withdrawable_sat
+                amount_msat = lnurl_data.max_withdrawable_msat
             else:
-                amount_sat = amount_edit.get_amount()
-                if not amount_sat or not (min_amount <= int(amount_sat) <= max_amount):
-                    self.show_error(_("Enter a valid amount. You entered: {}").format(amount_sat))
+                amount = amount_edit.get_amount()
+                if not amount or not (min_amount <= amount <= max_amount):
+                    self.show_error(_("Enter a valid amount. You entered: {}").format(amount))
                     return
+                amount_msat = int(amount_edit.get_amount() * 1000)
         else:
             return
 
         try:
             key = self.wallet.create_request(
-                amount_sat=amount_sat,
+                amount_msat=amount_msat,
                 message=lnurl_data.default_description,
                 exp_delay=120,
                 address=None,
