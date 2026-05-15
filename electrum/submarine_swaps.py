@@ -37,7 +37,7 @@ from .util import (
     run_sync_function_on_asyncio_thread, trigger_callback, NoDynamicFeeEstimates, UserFacingException,
 )
 from . import lnutil
-from .lnutil import hex_to_bytes, REDEEM_AFTER_DOUBLE_SPENT_DELAY, Keypair
+from .lnutil import hex_to_bytes, REDEEM_AFTER_DOUBLE_SPENT_DELAY, Keypair, NoPathFound
 from .bolt11 import decode_bolt11_invoice
 from .stored_dict import StoredObject, stored_at
 from . import constants
@@ -814,7 +814,7 @@ class SwapManager(Logger):
             lightning_amount_sat=lightning_amount_sat)
         return swap
 
-    def create_reverse_swap_v1(self, *, invoice: Invoice, refund_pubkey: bytes) -> SwapData:
+    async def create_reverse_swap_v1(self, *, invoice: str, refund_pubkey: bytes) -> SwapData:
         """ server method for v1 workflow:
 
         - User generates an LN invoice with RHASH, and knows preimage.
@@ -837,6 +837,14 @@ class SwapManager(Logger):
 
         if not onchain_amount_sat:
             raise Exception("no onchain amount")
+
+        success, log = await self.lnworker.pay_invoice(
+            Invoice.from_bech32(invoice),
+            probe_only=True
+        )
+
+        if not success:
+            raise NoPathFound("no LN route to pay the invoice found")
 
         self.logger.info(f'client requested forward swap; lightning_amount_sat={lightning_amount_sat}, '
                          f'onchain_amount_sat={onchain_amount_sat}, height={height}, locktime={locktime}')
@@ -1577,7 +1585,7 @@ class SwapManager(Logger):
         }
         return response
 
-    def server_create_swap(self, request):
+    async def server_create_swap(self, request):
         #request = await r.json()
         req_type = request['type']
         assert request['pairId'] == 'BTC/BTC'
@@ -1607,7 +1615,8 @@ class SwapManager(Logger):
             their_invoice = request['invoice']
             refund_pubkey = bytes.fromhex(request['refundPublicKey'])
             assert len(refund_pubkey) == 33
-            swap = self.create_reverse_swap_v1(
+
+            swap = await self.create_reverse_swap_v1(
                 invoice=their_invoice,
                 refund_pubkey=refund_pubkey
             )
@@ -2143,7 +2152,7 @@ class NostrTransport(SwapServerTransport):
                 if method == 'addswapinvoice':  # client-forward-swap phase2
                     r = self.sm.server_add_swap_invoice(request)
                 elif method == 'createswap':  # v1: client-forward-swap & client-reverse-swap
-                    r = self.sm.server_create_swap(request)
+                    r = await self.sm.server_create_swap(request)
                 elif method == 'createnormalswap':  # client-forward-swap phase1
                     r = self.sm.server_create_normal_swap(request)
                 else:
