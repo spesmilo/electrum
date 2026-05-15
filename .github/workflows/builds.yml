@@ -1,0 +1,204 @@
+name: builds
+
+on:
+  schedule:
+    - cron: '30 2 * * *'   # 02:30 UTC daily
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Which build(s) to run'
+        required: true
+        default: 'all'
+        type: choice
+        options: [all, windows, android, appimage, tarball]
+      android_arch:
+        description: 'Android architecture (when running android)'
+        required: false
+        default: 'arm64-v8a'
+        type: choice
+        options: [arm64-v8a, armeabi-v7a, x86_64]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: builds-${{ github.ref }}
+  cancel-in-progress: false   # never kill a nightly or in-progress build
+
+env:
+  ARTIFACT_RETENTION: '14'
+
+jobs:
+  windows:
+    name: "build: Windows"
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'all' || inputs.target == 'windows' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          fetch-depth: 0    # for git describe / version detection
+
+      - name: Cache Wine pip
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
+        with:
+          path: contrib/build-wine/.cache/win*/wine_pip_cache
+          key: wine-pip-${{ hashFiles('contrib/deterministic-build/*.txt', 'contrib/build-wine/**') }}
+
+      - name: Cache Wine native lib builds (libsecp256k1, libusb, libzbar)
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
+        with:
+          path: contrib/build-wine/.cache/win*/build
+          key: wine-build-${{ hashFiles('contrib/make_libsecp256k1.sh', 'contrib/make_libusb.sh', 'contrib/make_zbar.sh', 'contrib/build-wine/**') }}
+
+      - name: Build Windows binaries
+        run: ./contrib/build-wine/build.sh
+
+      - name: List output
+        run: ls -lah contrib/build-wine/dist/
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: electrum-windows-${{ github.sha }}
+          path: contrib/build-wine/dist/*
+          retention-days: ${{ env.ARTIFACT_RETENTION }}
+          if-no-files-found: error
+          compression-level: 0
+
+  android:
+    name: "build: Android (${{ inputs.android_arch || 'arm64-v8a' }})"
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'all' || inputs.target == 'android' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      APK_ARCH: ${{ inputs.android_arch || 'arm64-v8a' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          fetch-depth: 0
+
+      # GitHub guarantees 14 GB of free space, but we can delete some things for more space.
+      - name: Free disk space
+        run: |
+          df -h
+          sudo rm -rf \
+            /usr/share/dotnet \
+            /usr/share/swift \
+            /usr/local/lib/android \
+            /usr/local/.ghcup \
+            /usr/local/share/powershell \
+            /opt/ghc \
+            /opt/hostedtoolcache/CodeQL \
+            /opt/microsoft \
+            /opt/pipx
+          sudo docker image prune --all --force || true
+          df -h
+
+      - name: Cache python packages
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
+        with:
+          path: packages
+          key: android-packages-${{ env.APK_ARCH }}-${{ hashFiles('contrib/deterministic-build/requirements.txt', 'contrib/make_packages.sh', 'contrib/android/**') }}
+
+      - name: Cache buildozer (p4a)
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
+        with:
+          path: |
+            .buildozer_qml/android/platform/build-${{ env.APK_ARCH }}/packages
+            .buildozer_qml/android/platform/build-${{ env.APK_ARCH }}/build
+          # note: should *at least* depend on Dockerfile and p4a_recipes/, but contrib/android/ is simplest
+          key: android-buildozer-${{ env.APK_ARCH }}-${{ hashFiles('contrib/android/**') }}
+
+      - name: Build APK (debug)
+        run: ./contrib/android/build.sh qml "$APK_ARCH" debug
+
+      - name: List output
+        run: ls -lah dist/
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: electrum-android-${{ env.APK_ARCH }}-${{ github.sha }}
+          path: dist/*
+          retention-days: ${{ env.ARTIFACT_RETENTION }}
+          if-no-files-found: error
+          compression-level: 0
+
+  appimage:
+    name: "build: AppImage"
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'all' || inputs.target == 'appimage' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Cache AppImage pip
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
+        with:
+          path: contrib/build-linux/appimage/.cache/pip_cache
+          key: appimage-pip-${{ hashFiles('contrib/deterministic-build/*.txt', 'contrib/build-linux/appimage/**') }}
+
+      - name: Cache AppImage build
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
+        with:
+          path: contrib/build-linux/appimage/.cache/appimage
+          key: appimage-build-${{ hashFiles('contrib/make_libsecp256k1.sh', 'contrib/make_zbar.sh', 'contrib/build-linux/appimage/**') }}
+
+      - name: Build AppImage
+        run: ./contrib/build-linux/appimage/build.sh
+
+      - name: List output
+        run: ls -lah dist/
+
+      - name: Upload AppImage
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: electrum-appimage-${{ github.sha }}
+          path: dist/*.AppImage
+          retention-days: ${{ env.ARTIFACT_RETENTION }}
+          if-no-files-found: error
+          compression-level: 0
+
+  tarball:
+    name: "build: tarball (${{ matrix.variant }})"
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'all' || inputs.target == 'tarball' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: full
+            omit_unclean: '0'
+            artifact_name: electrum-tarball
+          - variant: source-only
+            omit_unclean: '1'
+            artifact_name: electrum-sourceonly-tarball
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Build source tarball (${{ matrix.variant }})
+        env:
+          OMIT_UNCLEAN_FILES: ${{ matrix.omit_unclean }}
+        run: ./contrib/build-linux/sdist/build.sh
+
+      - name: List output
+        run: ls -lah dist/
+
+      - name: Upload tarball
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: ${{ matrix.artifact_name }}-${{ github.sha }}
+          path: dist/*.tar.gz
+          retention-days: ${{ env.ARTIFACT_RETENTION }}
+          if-no-files-found: error
+          compression-level: 0

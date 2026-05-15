@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Cirrus CI task: Claude Code security review for Electrum pull requests.
+GitHub Actions job: Claude Code security review for Electrum pull requests.
 
 Runs Claude Code against the PR diff to detect critical security
 vulnerabilities. Optionally posts findings as a GitHub PR comment.
@@ -15,11 +15,13 @@ Environment variables:
         CLAUDE_CODE_OAUTH_TOKEN  -- OAuth token from `claude setup-token` (MAX subscription)
     Optional:
         GITHUB_TOKEN             -- GitHub token for posting PR comments
-    Set by Cirrus CI:
-        CIRRUS_PR                -- PR number (empty if not a PR build)
-        CIRRUS_BASE_BRANCH       -- target branch of the PR
-        CIRRUS_REPO_FULL_NAME    -- e.g. "spesmilo/electrum"
-        CIRRUS_TASK_ID           -- current Cirrus task ID
+    Set by the workflow:
+        PR_NUMBER                -- PR number (empty if not a PR build)
+        BASE_BRANCH              -- target branch of the PR
+    Set by GitHub Actions runtime:
+        GITHUB_REPOSITORY        -- e.g. "spesmilo/electrum"
+        GITHUB_RUN_ID            -- current workflow run ID
+        GITHUB_SERVER_URL        -- e.g. "https://github.com"
 """
 
 import json
@@ -147,8 +149,9 @@ def post_github_comment(body: str, *, repo: str, pr: str) -> None:
         print("GITHUB_TOKEN not set -- skipping PR comment.")
         return
 
-    task_id = os.environ.get("CIRRUS_TASK_ID", "")
-    log_url = f"https://cirrus-ci.com/task/{task_id}" if task_id else ""
+    run_id = os.environ.get("GITHUB_RUN_ID", "")
+    server_url = os.environ.get("GITHUB_SERVER_URL", "https://github.com")
+    log_url = f"{server_url}/{repo}/actions/runs/{run_id}" if run_id else ""
 
     comment = (
         f"## Security Review -- Issues Found\n\n"
@@ -191,17 +194,16 @@ def main() -> int:
     print("Claude Code Security Review")
     print(separator)
 
-    pr = os.environ.get("CIRRUS_PR", "").strip()
+    pr = os.environ.get("PR_NUMBER", "").strip()
     if not pr:
-        print("Not a PR build (CIRRUS_PR is empty). Skipping.")
+        print("Not a PR build (PR_NUMBER is empty). Skipping.")
         return 0
 
     if not os.environ.get("CLAUDE_CODE_OAUTH_TOKEN", "").strip():
         print("ERROR: CLAUDE_CODE_OAUTH_TOKEN is not set.")
         return 2
 
-    repo = os.environ.get("CIRRUS_REPO_FULL_NAME", "").strip()
-    base_branch = os.environ.get("CIRRUS_BASE_BRANCH", "master").strip()
+    base_branch = os.environ.get("BASE_BRANCH", "master").strip()
     print(f"PR #{pr} -> base branch: {base_branch}")
 
     print("\nFetching base branch...")
@@ -254,6 +256,7 @@ def main() -> int:
     verdict = parse_verdict(review)
 
     if verdict == VERDICT_FAIL:
+        repo = os.environ.get("GITHUB_REPOSITORY", "").strip()
         print("\nVERDICT: FAIL -- Critical or high severity issues found.")
         post_github_comment(review, repo=repo, pr=pr)
         return 1

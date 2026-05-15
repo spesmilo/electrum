@@ -1,0 +1,22 @@
+name: check-submodules
+
+on:
+  push:
+    tags: ['*']
+
+permissions:
+  contents: read
+
+jobs:
+  check-submodules:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout (with submodules and tags)
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          fetch-depth: 0
+          submodules: true
+      - name: Fetch all tags
+        run: git fetch --all --tags
+      - name: Run check_submodules.sh
+        run: ./contrib/deterministic-build/check_submodules.sh
