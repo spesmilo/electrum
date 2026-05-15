@@ -87,7 +87,7 @@ Item {
                     color: model.value.satsInt >= 0 ? constants.colorCredit : constants.colorDebit
 
                     function updateText() {
-                        text = Config.formatSats(model.value)
+                        text = Config.formatSats(model.value, false, Config.hideAmounts)
                     }
                     Component.onCompleted: updateText()
                 }
@@ -103,7 +103,7 @@ Item {
                     color: constants.mutedForeground
 
                     function updateText() {
-                        if (!Daemon.fx.enabled) {
+                        if (!Daemon.fx.enabled || Config.hideAmounts) {
                             text = ''
                         } else if (Daemon.fx.historicRates && model.timestamp) {
                             text = Daemon.fx.fiatValueHistoric(model.value, model.timestamp) + ' ' + Daemon.fx.fiatCurrency
@@ -136,6 +136,10 @@ Item {
         target: Config
         function onBaseUnitChanged() { valueLabel.updateText() }
         function onThousandsSeparatorChanged() { valueLabel.updateText() }
+        function onHideAmountsChanged() {
+            valueLabel.updateText()
+            fiatLabel.updateText()
+        }
     }
 
     Connections {
