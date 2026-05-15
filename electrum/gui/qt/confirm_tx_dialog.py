@@ -23,31 +23,30 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import asyncio
 from decimal import Decimal
 from functools import partial
 from typing import TYPE_CHECKING, Optional, Union, Sequence
-from concurrent.futures import Future
 from enum import Enum, auto
 
-from PyQt6.QtCore import Qt, QTimer, pyqtSlot, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer, pyqtSlot
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (QHBoxLayout, QVBoxLayout, QLabel, QGridLayout, QPushButton, QToolButton,
                              QComboBox, QTabWidget, QWidget, QStackedWidget)
 
 from electrum.i18n import _
 from electrum.util import (UserCancelled, quantize_feerate, profiler, NotEnoughFunds, NoDynamicFeeEstimates,
-                           get_asyncio_loop, wait_for2, UserFacingException)
+                           UserFacingException)
 from electrum.plugin import run_hook
 from electrum.transaction import PartialTransaction, PartialTxOutput, Transaction
 from electrum.wallet import InternalAddressCorruption
 from electrum.bitcoin import DummyAddress
 from electrum.fee_policy import FeePolicy, FixedFeePolicy, FeeMethod
 from electrum.logging import Logger
-from electrum.submarine_swaps import NostrTransport, HttpTransport, SwapServerTransport, SwapServerError
+from electrum.submarine_swaps import NostrTransport, SwapServerError
 from electrum.gui.messages import MSG_SUBMARINE_PAYMENT_HELP_TEXT
 
-from electrum.gui.common_qt.util import QtEventListener, qt_event_listener
+from electrum.gui.common_qt.util import qt_event_listener
+from electrum.gui.common_qt.swaps import SubmarineSwapMixin
 
 from .util import (WindowModalDialog, ColorScheme, HelpLabel, Buttons, CancelButton, WWLabel,
                    read_QIcon, IconLabel, HelpButton, RunCoroutineDialog)
@@ -71,9 +70,7 @@ class TxEditorContext(Enum):
     CHANNEL_FUNDING = auto()
 
 
-class TxEditor(WindowModalDialog, QtEventListener, Logger):
-
-    swap_availability_changed = pyqtSignal()
+class TxEditor(WindowModalDialog, SubmarineSwapMixin, Logger):
 
     def __init__(
             self, *, title='',
@@ -87,6 +84,7 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
 
         WindowModalDialog.__init__(self, window, title=title)
         Logger.__init__(self)
+        SubmarineSwapMixin.__init__(self, window.create_sm_transport)
         self.main_window = window
         self.make_tx = make_tx
         self.output_value = output_value
@@ -109,10 +107,8 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         self._base_tx = None  # type: Optional[Transaction]  # for batching
         self.batching_candidates = batching_candidates
 
-        self.swap_manager = self.wallet.lnworker.swap_manager if self.wallet.has_lightning() else None
-        self.swap_transport = None  # type: Optional[SwapServerTransport]
-        self.swap_availability_changed.connect(self.on_swap_availability_changed, Qt.ConnectionType.QueuedConnection)
-        self.ongoing_swap_transport_connection_attempt = None  # type: Optional[Future]
+        self.swapAvailabilityChanged.connect(self.on_swap_availability_changed, Qt.ConnectionType.QueuedConnection)
+        self.set_wallet_for_swap(window.wallet)
         self.did_swap = False  # used to clear the PI on send tab
 
         self.locktime_e = LockTimeEdit(self)
@@ -169,24 +165,16 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         # debug_widget_layouts(self)  # enable to show red lines around all elements
 
     def accept(self):
-        self._cleanup()
+        self.swap_transport_cleanup()
         super().accept()
 
     def reject(self):
-        self._cleanup()
+        self.swap_transport_cleanup()
         super().reject()
 
     def closeEvent(self, event):
-        self._cleanup()
+        self.swap_transport_cleanup()
         super().closeEvent(event)
-
-    def _cleanup(self):
-        self.unregister_callbacks()
-        if self.ongoing_swap_transport_connection_attempt:
-            self.ongoing_swap_transport_connection_attempt.cancel()
-        if isinstance(self.swap_transport, NostrTransport):
-            asyncio.run_coroutine_threadsafe(self.swap_transport.stop(), get_asyncio_loop())
-        self.swap_transport = None  # HTTPTransport doesn't need to be closed
 
     def on_tab_changed(self, index):
         if self.tab_widget.widget(index) == self.submarine_payment_tab:
@@ -683,39 +671,9 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
                 messages.append(long_warning)
         if self.no_dynfee_estimates:
             self.error = _('Fee estimates not available. Please set a fixed fee or feerate.')
-        if dummy_output := self.tx.get_dummy_output(DummyAddress.SWAP):
-            swap_msg = _('Will send change to lightning')
-            swap_fee_msg = "."
-            if self.swap_manager and self.swap_manager.is_initialized.is_set() and isinstance(dummy_output.value, int):
-                ln_amount_we_recv = self.swap_manager.get_recv_amount(send_amount=dummy_output.value, is_reverse=False)
-                if ln_amount_we_recv:
-                    swap_fees = dummy_output.value - ln_amount_we_recv
-                    swap_fee_msg = " [" + _("Swap fees:") + " " + self.main_window.format_amount_and_units(swap_fees) + "]."
-            messages.append(swap_msg + swap_fee_msg)
-        elif self.config.WALLET_SEND_CHANGE_TO_LIGHTNING \
-                and not self.ongoing_swap_transport_connection_attempt \
-                and self.tx.has_change():
-            swap_msg = _('Will not send change to Lightning')
-            swap_msg_reason = None
-            change_amount = sum(c.value for c in self.tx.get_change_outputs() if isinstance(c.value, int))
-            if not self.wallet.has_lightning():
-                swap_msg_reason = _('Lightning is not enabled.')
-            elif change_amount > int(self.wallet.lnworker.num_sats_can_receive()):
-                swap_msg_reason = _("Your channels cannot receive this amount.")
-            elif self.wallet.lnworker.swap_manager.is_initialized.is_set():
-                min_amount = self.wallet.lnworker.swap_manager.get_min_amount()
-                max_amount = self.wallet.lnworker.swap_manager.get_provider_max_reverse_amount()
-                if change_amount < min_amount:
-                    swap_msg_reason = _("Below the swap providers minimum value of {}.").format(
-                        self.main_window.format_amount_and_units(min_amount)
-                    )
-                else:
-                    swap_msg_reason = _('Change amount exceeds the swap providers maximum value of {}.').format(
-                        self.main_window.format_amount_and_units(max_amount)
-                    )
-            messages.append(swap_msg + (f": {swap_msg_reason}" if swap_msg_reason else '.'))
-        elif self.ongoing_swap_transport_connection_attempt:
-            messages.append(_("Fetching submarine swap providers..."))
+        if self.config.WALLET_SEND_CHANGE_TO_LIGHTNING:
+            if swap_msg := self.get_message_for_swap_change(self.tx):
+                messages.append(swap_msg)
         # warn if spending unconf
         if any((txin.block_height is not None and txin.block_height<=0) for txin in self.tx.inputs()):
             messages.append(_('This transaction will spend unconfirmed coins.'))
@@ -770,96 +728,10 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
     def can_pay_assuming_zero_fees(self, confirmed_only: bool) -> bool:
         raise NotImplementedError
 
-    ### --- Shared functionality for submarine swaps (change to ln and submarine payments) ---
-    def prepare_swap_transport(self):
-        if not self.swap_manager:
-            return  # no swaps possible, lightning disabled
-        if self.swap_transport is not None and self.swap_transport.is_connected.is_set():
-            # we already have a connected transport, no need to create a new one
-            return
-        if self.ongoing_swap_transport_connection_attempt:
-            # another task is currently trying to connect
-            return
-
-        # there should only be a connected transport.
-        # a useless transport should get cleaned up and not stored.
-        assert self.swap_transport is None, "swap transport wasn't cleaned up properly"
-
-        new_swap_transport = self.main_window.create_sm_transport()
-        if not new_swap_transport:
-            # user declined to enable Nostr and has no http server configured
-            self.swap_availability_changed.emit()
-            return
-
-        async def _initialize_transport(transport):
-            try:
-                if isinstance(transport, NostrTransport):
-                    asyncio.create_task(transport.main_loop())
-                else:
-                    assert isinstance(transport, HttpTransport)
-                    asyncio.create_task(transport.get_pairs_just_once())
-                if not await self.wait_for_swap_transport(transport):
-                    return
-                self.swap_transport = transport
-            except Exception:
-                self.logger.exception("failed to create swap transport")
-            finally:
-                self.ongoing_swap_transport_connection_attempt = None
-                self.swap_availability_changed.emit()
-
-        # this task will get cancelled if the TxEditor gets closed
-        self.ongoing_swap_transport_connection_attempt = asyncio.run_coroutine_threadsafe(
-            _initialize_transport(new_swap_transport),
-            get_asyncio_loop(),
-        )
-
-    async def wait_for_swap_transport(self, new_swap_transport: Union[HttpTransport, NostrTransport]) -> bool:
-        """
-        Wait until we found the announcement event of the configured swap server.
-        If it is not found but the relay connection is established return True anyway,
-        the user will then need to select a different swap server.
-        """
-        timeout = new_swap_transport.connect_timeout + 1
-        try:
-            # swap_manager.is_initialized gets set once we got pairs of the configured swap server
-            await wait_for2(self.swap_manager.is_initialized.wait(), timeout)
-        except asyncio.TimeoutError:
-            self.logger.debug(f"swap transport initialization timed out after {timeout} sec")
-
-        if self.swap_manager.is_initialized.is_set():
-            return True
-
-        # timed out above
-        if self.config.SWAPSERVER_URL:
-            # http swapserver didn't return pairs
-            self.logger.error(f"couldn't request pairs from {self.config.SWAPSERVER_URL=}")
-            return False
-        elif new_swap_transport.is_connected.is_set():
-            assert isinstance(new_swap_transport, NostrTransport)
-            # couldn't find announcement of configured swapserver, maybe it is gone.
-            # update_submarine_payment_tab will tell the user to select a different swap server.
-            return True
-
-        # we couldn't even connect to the relays, this transport is useless. maybe network issues.
-        return False
-
-    @qt_event_listener
-    def on_event_swap_provider_changed(self):
-        self.swap_availability_changed.emit()
-
-    @qt_event_listener
-    def on_event_channel(self, wallet, _channel):
-        # useful e.g. if the user quickly opens the tab after startup before the channels are initialized
-        if wallet == self.wallet and self.swap_manager and self.swap_manager.is_initialized.is_set():
-            self.swap_availability_changed.emit()
-
     @qt_event_listener
     def on_event_swap_offers_changed(self, _):
         self.change_to_ln_swap_providers_button.update()
         self.submarine_payment_provider_button.update()
-        if self.ongoing_swap_transport_connection_attempt:
-            return
-        self.swap_availability_changed.emit()
 
     @pyqtSlot()
     def on_swap_availability_changed(self):
