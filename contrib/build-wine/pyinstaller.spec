@@ -51,6 +51,7 @@ datas += collect_data_files('bitbox02')
 
 # some deps rely on importlib metadata
 datas += copy_metadata('slip10')  # from trezor->slip10
+datas += copy_metadata('trezor')
 
 # Exclude parts of Qt that we never use. Reduces binary size by tens of MBs. see #4815
 excludes = [
