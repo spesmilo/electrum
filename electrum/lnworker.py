@@ -1865,6 +1865,7 @@ class LNWallet(Logger):
             full_path: LNPaymentPath = None,
             channels: Optional[Sequence[Channel]] = None,  # my own direct channels
             budget: Optional[PaymentFeeBudget] = None,  # to limit max fee
+            probe_only: bool = False,  # checks if a route for the payment exists, without actually sending the payment
     ) -> Tuple[bool, List[HtlcLog]]:
         """Attempt to pay a Lightning invoice (find routes, do MPP, send HTLCs).
 
@@ -1909,7 +1910,7 @@ class LNWallet(Logger):
             attempts = 30
         success = False
         try:
-            await self.pay_to_node(
+            probe_only_result = await self.pay_to_node(
                 node_pubkey=invoice_pubkey,
                 payment_hash=payment_hash,
                 payment_secret=payment_secret,
@@ -1921,7 +1922,12 @@ class LNWallet(Logger):
                 full_path=full_path,
                 channels=channels,
                 budget=budget,
+                probe_only=probe_only,
             )
+
+            if probe_only:
+                return probe_only_result, []
+
             success = True
         except PaymentFailure as e:
             self.logger.info(f'payment failure: {e!r}')
@@ -1956,10 +1962,13 @@ class LNWallet(Logger):
             budget: PaymentFeeBudget,
             channels: Optional[Sequence[Channel]] = None,
             fw_payment_key: str = None,  # for forwarding
-    ) -> None:
+            probe_only: bool = False,  # checks if a route for the payment exists, without actually sending the payment
+    ) -> bool:
         """
         Can raise PaymentFailure, ChannelDBNotLoaded,
         or OnionRoutingFailure (if forwarding trampoline).
+
+        returns bool: In case of probe_only, true/false denoting if a route to the destination exists.
         """
 
         assert budget
@@ -2018,8 +2027,15 @@ class LNWallet(Logger):
                             channels=channels,
                             budget=budget._replace(fee_msat=remaining_fee_budget_msat),
                         )
+
+                        can_route = False
+
                         # 2. send htlcs
                         async for sent_htlc_info, cltv_delta, trampoline_onion in routes:
+                            if probe_only:
+                                can_route = True
+                                continue
+
                             await self.pay_to_route(
                                 paysession=paysession,
                                 sent_htlc_info=sent_htlc_info,
@@ -2027,6 +2043,9 @@ class LNWallet(Logger):
                                 trampoline_onion=trampoline_onion,
                                 fw_payment_key=fw_payment_key,
                             )
+
+                        if probe_only:
+                            return can_route
                     # invoice_status is triggered in self.set_invoice_status when it actually changes.
                     # It is also triggered here to update progress for a lightning payment in the GUI
                     # (e.g. attempt counter)
@@ -2050,11 +2069,18 @@ class LNWallet(Logger):
                 # max attempts or timeout
                 if (attempts is not None and len(log) >= attempts) or (attempts is None and time.time() - paysession.start_time > self.PAYMENT_TIMEOUT):
                     raise PaymentFailure('Giving up after %d attempts'%len(log))
+
+            return False
         except PaymentSuccess:
             pass
+        except Exception:
+            if probe_only:
+                return False
+
+            raise
         finally:
             paysession.is_active = False
-            if paysession.can_be_deleted():
+            if probe_only or paysession.can_be_deleted():
                 self._paysessions.pop(payment_key)
             paysession.logger.info(f"pay_to_node ending session for RHASH={payment_hash.hex()}")
 
