@@ -124,7 +124,7 @@ from electrum.payment_identifier import PaymentIdentifier
 from electrum import SimpleConfig
 from electrum.wallet_db import WalletDB
 from electrum.wallet import Wallet
-from electrum.storage import WalletStorage
+from electrum.stored_dict import WalletStorage
 from electrum.util import print_msg, print_stderr, json_encode, json_decode, UserCancelled
 from electrum.util import InvalidPassword
 from electrum.plugin import Plugins
@@ -167,8 +167,8 @@ def init_cmdline(config_options, wallet_path, *, rpcserver: bool, config: 'Simpl
         print_msg("wallet path not provided.")
         sys_exit(1)
 
-    # instantiate wallet for command-line
-    storage = WalletStorage(wallet_path, allow_partial_writes=config.WALLET_PARTIAL_WRITES) if wallet_path else None
+    # instantiate storage without opening the DB, so that we can check if it is encrypted
+    storage = WalletStorage(wallet_path, init_db=False) if wallet_path else None
 
     if cmd.requires_wallet and not storage.file_exists():
         print_msg("Error: Wallet file not found.")
@@ -256,7 +256,7 @@ async def run_offline_command(config: 'SimpleConfig', config_options: dict, wall
                 password = get_password_for_hw_device_encrypted_storage(plugins)
                 config_options['password'] = password
             storage.decrypt(password)
-        db = WalletDB(storage.read(), storage=storage, upgrade=True)
+        db = WalletDB(storage.get_stored_dict())
         wallet = Wallet(db, config=config)
         config_options['wallet'] = wallet
     else:

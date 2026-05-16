@@ -63,7 +63,6 @@ from .keystore import (
 )
 from .simple_config import SimpleConfig
 from .fee_policy import FeePolicy, FixedFeePolicy, FEE_RATIO_HIGH_WARNING, FEERATE_WARNING_HIGH_FEE
-from .storage import StorageEncryptionVersion, WalletStorage
 from .wallet_db import WalletDB
 from .transaction import (
     Transaction, TxInput, TxOutput, PartialTransaction, PartialTxInput, PartialTxOutput, TxOutpoint, Sighash
@@ -82,6 +81,7 @@ from .lntransport import extract_nodeid
 from .descriptor import Descriptor
 from .txbatcher import TxBatcher
 from .submarine_swaps import MIN_SWAP_AMOUNT_SAT
+from .stored_dict import WalletStorage, StorageEncryptionVersion
 
 if TYPE_CHECKING:
     from .network import Network
@@ -407,7 +407,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self.config = config
         assert self.config is not None, "config must not be None"
         self.db = db
-        self.storage = db.storage  # type: Optional[WalletStorage]
+        self.storage = db.data._db  # type: BaseDB
         # load addresses needs to be called before constructor for sanity checks
         db.load_addresses(self.wallet_type)
         self.keystore = None  # type: Optional[KeyStore]  # will be set by load_keystore
@@ -458,7 +458,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self.up_to_date_changed_event = asyncio.Event()
 
         assert self.db.get('genesis_blockhash') == constants.net.GENESIS, self.db.get('genesis_blockhash')
-        if self.storage and self.has_storage_encryption():
+        if self.has_storage_encryption():
             if (se := self.storage.get_encryption_version()) not in (ae := self.get_available_storage_encryption_versions()):
                 raise WalletFileException(f"unexpected storage encryption type. found: {se!r}. allowed: {ae!r}")
 
@@ -494,24 +494,36 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             await run_in_thread(self.synchronize)
 
     def save_db(self):
-        if self.db.storage:
-            self.db.write()
+        if self.storage:
+            self.storage.write()
 
     def save_backup(self, backup_dir):
-        new_path = os.path.join(backup_dir, self.basename() + '.backup')
-        new_storage = WalletStorage(new_path)
-        new_storage._encryption_version = self.storage._encryption_version
-        new_storage.pubkey = self.storage.pubkey
-
-        new_db = WalletDB(self.db.dump(), storage=new_storage, upgrade=True)
+        import json
+        from .json_db import JsonDB
+        from .stored_dict import json_default
+        # create data
+        data = self.db.data.dump()
         if self.lnworker:
-            channel_backups = new_db.get_dict('imported_channel_backups')
+            channel_backups = {}
             for chan_id, chan in self.lnworker.channels.items():
                 channel_backups[chan_id.hex()] = self.lnworker.create_channel_backup(chan_id)
-            new_db.put('channels', None)
-            new_db.put('lightning_privkey2', None)
-        new_db.set_modified(True)
-        new_db.write()
+            data['imported_channel_backups'] = channel_backups
+            data.pop('channels', None)
+            data.pop('lightning_privkey2', None)
+        json_str = json.dumps(
+            data,
+            indent=4,
+            sort_keys=True,
+            default=json_default,
+        )
+        new_path = os.path.join(backup_dir, self.basename() + '.backup')
+        new_storage = JsonDB(path=new_path)
+        if self.storage.is_encrypted():
+            new_storage.storage._encryption_version = self.storage.storage._encryption_version
+            new_storage.storage.pubkey = self.storage.storage.pubkey
+        new_storage.set_data(json_str)
+        new_storage.set_modified(True)
+        new_storage.write_and_force_consolidation()
         return new_path
 
     def has_lightning(self) -> bool:
@@ -580,6 +592,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 self.save_keystore()
             self.db.prune_uninstalled_plugin_data(self.config.get_installed_plugins())
             self.save_db()
+            if self.storage:
+                self.storage.close()
 
     def is_up_to_date(self) -> bool:
         if self.taskgroup and self.taskgroup.joined:  # either stop() was called, or the taskgroup died
@@ -2925,7 +2939,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def export_request(self, x: Request) -> Dict[str, Any]:
         key = x.get_id()
         status = self.get_invoice_status(x)
-        d = x.as_dict(status)
+        d = x.export(status)
         d['request_id'] = d.pop('id')
         if x.is_lightning():
             d['rhash'] = x.rhash
@@ -2951,7 +2965,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def export_invoice(self, x: Invoice) -> Dict[str, Any]:
         key = x.get_id()
         status = self.get_invoice_status(x)
-        d = x.as_dict(status)
+        d = x.export(status)
         d['invoice_id'] = d.pop('id')
         if x.is_lightning():
             d['lightning_invoice'] = x.lightning_invoice
@@ -3178,7 +3192,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if old_pw is None and self.has_password():
             raise InvalidPassword()
         self.check_password(old_pw)
-        if self.storage:
+        if self.storage and encrypt_storage:
+            assert self.storage.supports_file_encryption()
+        if self.storage and self.storage.supports_file_encryption():
             if encrypt_storage:
                 enc_version = StorageEncryptionVersion.XPUB_PASSWORD if xpub_encrypt else StorageEncryptionVersion.USER_PASSWORD
                 assert enc_version in self.get_available_storage_encryption_versions()
@@ -3186,7 +3202,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 enc_version = StorageEncryptionVersion.PLAINTEXT
             self.storage.set_password(new_pw, enc_version)
         # make sure next storage.write() saves changes
-        self.db.set_modified(True)
+        self.storage.set_modified(True)
 
         # note: Encrypting storage with a hw device is currently only
         #       allowed for non-multisig wallets. Further,
@@ -3198,7 +3214,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self.db.set_keystore_encryption(bool(new_pw) and encrypt_keystore)
         # save changes. force full rewrite to rm remnants of old password
         if self.storage and self.storage.file_exists():
-            self.db.write_and_force_consolidation()
+            self.storage.write_and_force_consolidation()
         # if wallet was previously unlocked, reset password_in_memory
         self.lock_wallet()
 
@@ -4196,7 +4212,7 @@ class Deterministic_Wallet(Abstract_Wallet):
 
     def enable_keystore(self, keystore: KeyStore, is_hardware_keystore: bool, password) -> None:
         assert self.can_enable_disable_keystore(keystore)
-        if not is_hardware_keystore and self.storage.is_encrypted_with_user_pw():
+        if not is_hardware_keystore and self.storage and self.storage.is_encrypted_with_user_pw():
             keystore.update_password(None, password)
             self.db.put('use_encryption', True)
         self._update_keystore(keystore)
@@ -4207,7 +4223,7 @@ class Deterministic_Wallet(Abstract_Wallet):
         assert keystore in self.get_keystores()
         if hasattr(keystore, 'thread') and keystore.thread:
             keystore.thread.stop()
-        if self.storage.is_encrypted_with_hw_device():
+        if self.storage and self.storage.is_encrypted_with_hw_device():
             password = keystore.get_password_for_storage_encryption()
             self.update_password(password, None, encrypt_storage=False)
         new = keystore.watching_only_keystore()
@@ -4395,23 +4411,26 @@ class Wallet(object):
 
 
 def create_new_wallet(
-    *,
-    path,
-    config: SimpleConfig,
-    passphrase: Optional[str] = None,
-    password: Optional[str] = None,
-    encrypt_file: bool = True,
-    seed_type: Optional[str] = None,
-    gap_limit: Optional[int] = None,
-    gap_limit_for_change: Optional[int] = None,
+        *,
+        path,
+        config: SimpleConfig,
+        passphrase: Optional[str] = None,
+        password: Optional[str] = None,
+        encrypt_file: bool = True,
+        seed_type: Optional[str] = None,
+        gap_limit: Optional[int] = None,
+        gap_limit_for_change: Optional[int] = None,
+        use_levelDB: bool = False,
 ) -> dict:
     """Create a new wallet"""
-    storage = WalletStorage(path, allow_partial_writes=config.WALLET_PARTIAL_WRITES)
-    if storage.file_exists():
+    if os.path.exists(path):
         raise UserFacingException("Remove the existing wallet first!")
+    if encrypt_file and use_levelDB:
+        raise UserFacingException("LevelDB wallets cannot be encrypted")
+    storage = WalletStorage(path, use_levelDB=use_levelDB, allow_partial_writes=config.WALLET_PARTIAL_WRITES)
     if encrypt_file:
         storage.set_password(password, StorageEncryptionVersion.USER_PASSWORD)
-    db = WalletDB('', storage=storage, upgrade=True)
+    db = WalletDB(storage.get_stored_dict())
     seed = Mnemonic('en').make_seed(seed_type=seed_type)
     k = keystore.from_seed(seed, passphrase=passphrase)
     k.update_password(None, password)
@@ -4427,36 +4446,43 @@ def create_new_wallet(
     wallet = Wallet(db, config=config)
     wallet.synchronize()
     msg = "Please keep your seed in a safe place; if you lose it, you will not be able to restore your wallet."
+    if not encrypt_file:
+        msg += "\nWarning: wallet file not encrypted. Lightning keys will not be encrypted on disk"
     wallet.save_db()
+    storage.close()
     return {'seed': seed, 'wallet': wallet, 'msg': msg}
 
 
 def restore_wallet_from_text(
-    text: str,
-    *,
-    path: Optional[str],
-    config: SimpleConfig,
-    passphrase: Optional[str] = None,
-    password: Optional[str] = None,
-    encrypt_file: Optional[bool] = None,
-    gap_limit: Optional[int] = None,
-    gap_limit_for_change: Optional[int] = None,
-    wallet_factory = Wallet,  # used in tests
+        text: str,
+        *,
+        path: Optional[str],
+        config: SimpleConfig,
+        passphrase: Optional[str] = None,
+        password: Optional[str] = None,
+        encrypt_file: bool = True,
+        gap_limit: Optional[int] = None,
+        gap_limit_for_change: Optional[int] = None,
+        use_levelDB: bool = False,
+        wallet_factory = Wallet,  # used in tests
 ) -> dict:
     """Restore a wallet from text. Text can be a seed phrase, a master
     public key, a master private key, a list of bitcoin addresses
     or bitcoin private keys."""
-    if encrypt_file is None:
-        encrypt_file = True
-    if path is None:  # create wallet in-memory
-        storage = None
+    if encrypt_file and use_levelDB:
+        raise UserFacingException("LevelDB wallets cannot be encrypted")
+    if path is None:
+        # tests: create wallet in-memory
+        storage = WalletStorage(None)
+        storage.set_data('')
     else:
-        storage = WalletStorage(path, allow_partial_writes=config.WALLET_PARTIAL_WRITES)
-        if storage.file_exists():
+        if os.path.exists(path):
             raise UserFacingException("Remove the existing wallet first!")
+        storage = WalletStorage(path, use_levelDB=use_levelDB, allow_partial_writes=config.WALLET_PARTIAL_WRITES)
         if encrypt_file:
             storage.set_password(password, StorageEncryptionVersion.USER_PASSWORD)
-    db = WalletDB('', storage=storage, upgrade=True)
+
+    db = WalletDB(storage.get_stored_dict())
     db.set_keystore_encryption(bool(password))
     text = text.strip()
     if keystore.is_address_list(text):
@@ -4495,10 +4521,11 @@ def restore_wallet_from_text(
         if gap_limit_for_change is not None:
             db.put('gap_limit_for_change', gap_limit_for_change)
         wallet = wallet_factory(db, config=config)
-    if db.storage:
-        assert not db.storage.file_exists(), "file was created too soon! plaintext keys might have been written to disk"
     wallet.synchronize()
     msg = ("This wallet was restored offline. It may contain more addresses than displayed. "
            "Start a daemon and use load_wallet to sync its history.")
+    if not encrypt_file:
+        msg += "\nWarning: wallet file not encrypted. Lightning keys will not be encrypted on disk."
     wallet.save_db()
+    storage.close()
     return {'wallet': wallet, 'msg': msg}

@@ -38,6 +38,7 @@ from .util import (
 )
 from . import lnutil
 from .lnutil import hex_to_bytes, REDEEM_AFTER_DOUBLE_SPENT_DELAY, Keypair
+
 from .bolt11 import decode_bolt11_invoice
 from .stored_dict import StoredObject, stored_at
 from . import constants
@@ -280,6 +281,7 @@ class SwapManager(Logger):
         for k, swap in swaps_items:
             if swap.is_redeemed:
                 continue
+            swap._payment_hash = bytes.fromhex(k)
             self.add_lnwatcher_callback(swap)
         asyncio.run_coroutine_threadsafe(self.main_loop(), self.network.asyncio_loop)
 

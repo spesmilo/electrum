@@ -45,7 +45,6 @@ from electrum.lnutil import (
 )
 from electrum.logging import console_stderr_handler
 from electrum.lnchannel import ChannelState, Channel
-from electrum.json_db import StoredDict
 from electrum.coinchooser import PRNG
 
 from . import ElectrumTestCase
@@ -119,7 +118,7 @@ def create_channel_state(
             'revocation_store': {},
             'channel_type': channel_type,
     }
-    return StoredDict(state, None)
+    return state
 
 
 def create_test_channels(

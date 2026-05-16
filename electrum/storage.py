@@ -28,7 +28,6 @@ import stat
 import hashlib
 import base64
 import zlib
-from enum import IntEnum
 from typing import Optional
 
 import electrum_ecc as ecc
@@ -37,7 +36,6 @@ from . import crypto
 from .util import (profiler, InvalidPassword, WalletFileException, bfh, standardize_path,
                    test_read_write_permissions, os_chmod)
 
-from .wallet_db import WalletDB
 from .logging import Logger
 
 
@@ -47,10 +45,7 @@ def get_derivation_used_for_hw_device_encryption():
             "/1112098098'")  # ascii 'BIE2' as decimal
 
 
-class StorageEncryptionVersion(IntEnum):
-    PLAINTEXT = 0
-    USER_PASSWORD = 1
-    XPUB_PASSWORD = 2
+from .stored_dict import StorageEncryptionVersion
 
 
 class StorageReadWriteError(Exception): pass
@@ -59,8 +54,7 @@ class StorageReadWriteError(Exception): pass
 class StorageOnDiskUnexpectedlyChanged(Exception): pass
 
 
-# TODO: Rename to Storage
-class WalletStorage(Logger):
+class FileStorage(Logger):
 
     # TODO maybe split this into separate create() and open() classmethods, to prevent some bugs.
     #      Until then, the onus is on the caller to check file_exists().
@@ -74,6 +68,7 @@ class WalletStorage(Logger):
         self.path = standardize_path(path)
         self._file_exists = bool(self.path and os.path.exists(self.path))
         self.logger.info(f"wallet path {self.path}")
+
         self._allow_partial_writes = allow_partial_writes
         self.pubkey = None
         self.decrypted = ''

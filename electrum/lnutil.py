@@ -1940,7 +1940,7 @@ class UpdateAddHtlc:
             htlc_id=htlc_id,
             timestamp=timestamp)
 
-    def to_json(self):
+    def as_tuple(self):
         self._validate()
         return dataclasses.astuple(self)
 

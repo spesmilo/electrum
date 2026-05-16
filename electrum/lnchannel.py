@@ -64,10 +64,11 @@ from .lnutil import CHANNEL_OPENING_TIMEOUT_BLOCKS, CHANNEL_OPENING_TIMEOUT_SEC
 from .lnutil import ChannelBackupStorage, ImportedChannelBackupStorage, OnchainChannelBackupStorage
 from .lnutil import format_short_channel_id
 from .fee_policy import FEERATE_PER_KW_MIN_RELAY_LIGHTNING
+from .stored_dict import stored_at
 
 if TYPE_CHECKING:
     from .lnworker import LNWallet
-    from .json_db import StoredDict
+    from .stored_dict import StoredDict
 
 
 # channel flags
@@ -795,7 +796,7 @@ class Channel(AbstractChannel):
         Logger.__init__(self)  # should be after short_channel_id is set
         self.lnworker = lnworker
         self.storage = state
-        self.db_lock = self.storage.lock
+        self.db_lock = threading.RLock() if isinstance(self.storage, dict) else self.storage.lock
         self.config = {}
         self.config[LOCAL] = state["local_config"]
         self.config[REMOTE] = state["remote_config"]
@@ -804,7 +805,7 @@ class Channel(AbstractChannel):
         self.node_id = bfh(state["node_id"])
         self.onion_keys = state['onion_keys']  # type: Dict[int, bytes]
         self.data_loss_protect_remote_pcp = state['data_loss_protect_remote_pcp']
-        self.hm = HTLCManager(log=state['log'], initiator = LOCAL if self.constraints.is_initiator else REMOTE, initial_feerate=initial_feerate)
+        self.hm = HTLCManager(log=state['log'], initiator = LOCAL if self.constraints.is_initiator else REMOTE, initial_feerate=initial_feerate, lock=self.db_lock)
         self.unfulfilled_htlcs = state["unfulfilled_htlcs"]  # type: Dict[int, Optional[str]]
         # ^ htlc_id -> onion_packet_hex
         self._state = ChannelState[state['state']]

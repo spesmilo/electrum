@@ -28,7 +28,7 @@ from electrum.bip32 import (BIP32Node, convert_bip32_intpath_to_strpath,
 from electrum.crypto import sha256d, SUPPORTED_PW_HASH_VERSIONS
 from electrum import crypto, constants
 from electrum.util import bfh, InvalidPassword, randrange
-from electrum.storage import WalletStorage
+from electrum.storage import FileStorage
 from electrum.keystore import xtype_from_derivation
 
 from . import ElectrumTestCase
@@ -270,7 +270,7 @@ class Test_bitcoin(ElectrumTestCase):
 
     @needs_test_with_all_aes_implementations
     def test_decrypt_message(self):
-        key = WalletStorage.get_eckey_from_password('pw123')
+        key = FileStorage.get_eckey_from_password('pw123')
         self.assertEqual(b'me<(s_s)>age', crypto.ecies_decrypt_message(
             key, b'QklFMQMDFtgT3zWSQsa+Uie8H/WvfUjlu9UN9OJtTt3KlgKeSTi6SQfuhcg1uIz9hp3WIUOFGTLr4RNQBdjPNqzXwhkcPi2Xsbiw6UCNJncVPJ6QBg=='))
         self.assertEqual(b'me<(s_s)>age', crypto.ecies_decrypt_message(
@@ -280,7 +280,7 @@ class Test_bitcoin(ElectrumTestCase):
 
     @needs_test_with_all_aes_implementations
     def test_encrypt_message(self):
-        key = WalletStorage.get_eckey_from_password('secret_password77')
+        key = FileStorage.get_eckey_from_password('secret_password77')
         msgs = [
             bytes([0] * 555),
             b'cannot think of anything funny'

@@ -10,7 +10,7 @@ from jsonpointer import JsonPointerException
 
 from . import ElectrumTestCase
 
-from electrum.json_db import JsonDB
+from electrum.stored_dict import WalletStorage
 
 class TestJsonpatch(ElectrumTestCase):
 
@@ -123,13 +123,16 @@ class TestJsonDB(ElectrumTestCase):
         for pop_from_dict in [pop1_from_dict, pop2_from_dict]:
             with self.subTest(pop_from_dict):
                 data = { 'a': {'b': {'c': 0}}, 'd': 3}
-                db = JsonDB(repr(data))
-                a = db.get_dict('a')
+                db = WalletStorage(None)
+                db.set_data(repr(data))
+                sd = db.get_stored_dict()
+                a = sd.get_dict('a')
                 # remove
                 b = pop_from_dict(a, 'b')
                 self.assertEqual(len(db.pending_changes), 1)
                 # replace item. this must not been written to db
-                b['c'] = 42
+                with self.assertRaises(KeyError):
+                    b['c'] = 42
                 self.assertEqual(len(db.pending_changes), 1)
                 patches = json.loads('[' + ','.join(db.pending_changes) + ']')
                 jpatch = jsonpatch.JsonPatch(patches)
@@ -140,13 +143,16 @@ class TestJsonDB(ElectrumTestCase):
         for pop_from_dict in [pop1_from_dict, pop2_from_dict]:
             with self.subTest(pop_from_dict):
                 data = { 'a': {'b': {'c': 0}}, 'd': 3}
-                db = JsonDB(repr(data))
+                db = WalletStorage(None)
+                db.set_data(repr(data))
+                sd = db.get_stored_dict()
                 # remove
-                a = pop_from_dict(db.data, "a")
+                a = pop_from_dict(sd, "a")
                 self.assertEqual(len(db.pending_changes), 1)
-                b = a['b']
-                # replace item. this must not be written to db
-                b['c'] = 42
+                with self.assertRaises(KeyError):
+                    b = a['b']
+                    # replace item. this must not be written to db
+                    b['c'] = 42
                 self.assertEqual(len(db.pending_changes), 1)
                 patches = json.loads('[' + ','.join(db.pending_changes) + ']')
                 jpatch = jsonpatch.JsonPatch(patches)

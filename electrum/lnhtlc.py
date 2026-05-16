@@ -1,11 +1,12 @@
 from copy import deepcopy
 from typing import Sequence, Tuple, Dict, TYPE_CHECKING, Set
+import threading
 
 from .lnutil import SENT, RECEIVED, LOCAL, REMOTE, HTLCOwner, UpdateAddHtlc, Direction, FeeUpdate
 from .util import bfh, with_lock
 
 if TYPE_CHECKING:
-    from .json_db import StoredDict
+    from .stored_dict import StoredDict
 
 LOG_TEMPLATE = {
     'adds': {},              # "side who offered htlc" -> htlc_id -> htlc
@@ -21,7 +22,7 @@ LOG_TEMPLATE = {
 
 class HTLCManager:
 
-    def __init__(self, log: 'StoredDict', *, initiator=None, initial_feerate=None):
+    def __init__(self, log: 'StoredDict', *, initiator=None, initial_feerate=None, lock=None):
 
         if len(log) == 0:
             # note: "htlc_id" keys in dict are str! but due to json_db magic they can *almost* be treated as int...
@@ -41,7 +42,7 @@ class HTLCManager:
         # lnchannel sometimes calls us with Channel.db_lock (== log.lock) already taken,
         # and we ourselves often take log.lock (via StoredDict.__getitem__).
         # Hence, to avoid deadlocks, we reuse this same lock.
-        self.lock = log.lock
+        self.lock = lock if lock else threading.RLock()
 
         self._init_maybe_active_htlc_ids()
 
