@@ -37,7 +37,7 @@ from electrum import bitcoin
 from electrum import lnpeer
 from electrum import lnchannel
 from electrum import lnutil
-from electrum.crypto import privkey_to_pubkey
+from electrum.crypto import sha256
 from electrum.lnutil import (
     SENT, LOCAL, REMOTE, RECEIVED, UpdateAddHtlc, LnFeatures, secret_to_pubkey, ChannelType,
     effective_htlc_tx_weight, LocalConfig, RemoteConfig, OnlyPubkeyKeypair, ZEROCONF_TIMEOUT,
@@ -847,6 +847,53 @@ class TestChannel(ElectrumTestCase):
         # check that channel got removed, now that funding has timed out
         self.assertIsNone(self.alice_lnwallet.get_channel_by_id(chan.channel_id))
         self.assertIsNone(self.alice_lnwallet.db.get('channels').get(chan.channel_id.hex()))
+
+    async def test_should_be_closed_due_to_expiring_htlcs_offered_htlcs(self):
+        alice_lnwallet = self.create_mock_lnwallet(name="alice")
+        bob_lnwallet = self.create_mock_lnwallet(name="bob")
+        alice_channel, bob_channel = create_test_channels(alice_lnwallet=alice_lnwallet, bob_lnwallet=bob_lnwallet)
+
+        # no htlcs
+        self.assertFalse(alice_channel.should_be_closed_due_to_expiring_htlcs(local_height=100))
+
+        # one offered htlc, not expired
+        htlc = UpdateAddHtlc(payment_hash=sha256(os.urandom(32)), amount_msat=one_bitcoin_in_msat, cltv_abs=1000)
+        alice_channel.add_htlc(htlc)
+        alice_channel.sign_next_commitment()
+        self.assertFalse(alice_channel.should_be_closed_due_to_expiring_htlcs(local_height=100))
+
+        # expired offered htlc, within startup grace period
+        expired_local_height = 1000 + lnutil.NBLOCK_DEADLINE_DELTA_AFTER_EXPIRY_FOR_OFFERED_HTLCS + 5
+        self.assertFalse(alice_channel.should_be_closed_due_to_expiring_htlcs(expired_local_height))
+
+        # expired offered htlc, past startup grace period
+        alice_lnwallet.instantiation_timestamp -= (lnutil.TIME_FOR_OFFERED_HTLCS_TO_GET_FAILED_OFFCHAIN_ON_RESTART + 10)
+        self.assertTrue(alice_channel.should_be_closed_due_to_expiring_htlcs(expired_local_height))
+
+    async def test_should_be_closed_due_to_expiring_htlcs_received_htlcs(self):
+        alice_lnwallet = self.create_mock_lnwallet(name="alice")
+        bob_lnwallet = self.create_mock_lnwallet(name="bob")
+        alice_channel, bob_channel = create_test_channels(alice_lnwallet=alice_lnwallet, bob_lnwallet=bob_lnwallet)
+
+        preimage = os.urandom(32)
+        htlc = UpdateAddHtlc(payment_hash=sha256(preimage), amount_msat=one_bitcoin_in_msat, cltv_abs=100)
+        expired_height = 100 + lnutil.NBLOCK_DEADLINE_DELTA_BEFORE_EXPIRY_FOR_RECEIVED_HTLCS + 5
+        alice_channel.add_htlc(htlc)
+        bob_htlc_id =  bob_channel.receive_htlc(htlc).htlc_id
+        force_state_transition(alice_channel, bob_channel)
+
+        # preimage wasn't released
+        self.assertFalse(bob_channel.should_be_closed_due_to_expiring_htlcs(local_height=expired_height))
+
+        # now the preimage is released
+        bob_channel.settle_htlc(preimage, bob_htlc_id)
+
+        # still in 30s grace period waiting for peers revack
+        self.assertFalse(bob_channel.should_be_closed_due_to_expiring_htlcs(local_height=expired_height))
+
+        # now the settled htlc is past the grace period
+        bob_channel.htlc_settle_time[bob_htlc_id] = int(time.time()) - 60
+        self.assertTrue(bob_channel.should_be_closed_due_to_expiring_htlcs(local_height=expired_height))
 
 
 class TestChannelAnchors(TestChannel):
