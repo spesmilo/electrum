@@ -1007,6 +1007,7 @@ class LNWallet(Logger):
         self.wallet = wallet
         self.config = wallet.config
         self.db = wallet.db
+        self.instantiation_timestamp = int(time.time())
         self.node_keypair = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.NODE_KEY)
         self.backup_key = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.BACKUP_CIPHER).privkey
         self.static_payment_key = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.PAYMENT_BASE)

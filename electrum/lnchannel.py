@@ -1972,12 +1972,15 @@ class Channel(AbstractChannel):
         # If there is an offered HTLC which has already expired (+ some grace period after), we
         # will unilaterally close the channel and time out the HTLC
         offered_htlc_deadline_delta = lnutil.NBLOCK_DEADLINE_DELTA_AFTER_EXPIRY_FOR_OFFERED_HTLCS
+        time_since_startup = now() - self.lnworker.instantiation_timestamp
         for sub, dir, ctn in ((LOCAL, SENT, self.get_latest_ctn(LOCAL)),
                               (REMOTE, RECEIVED, self.get_oldest_unrevoked_ctn(REMOTE)),
                               (REMOTE, RECEIVED, self.get_latest_ctn(REMOTE)),):
             for htlc_id, htlc in self.hm.htlcs_by_direction(subject=sub, direction=dir, ctn=ctn).items():
                 if htlc.cltv_abs + offered_htlc_deadline_delta > local_height:
                     continue
+                if time_since_startup < lnutil.TIME_FOR_OFFERED_HTLCS_TO_GET_FAILED_OFFCHAIN_ON_RESTART:
+                    continue  # give the peer some time to fail the htlc offchain
                 htlcs_we_could_reclaim[(SENT, htlc_id)] = htlc
         # Note: previously we used a threshold concept, "min_value_worth_closing_channel_over_sat", and
         #       only force-closed the channel if the total value of these expiring htlcs was large enough.
