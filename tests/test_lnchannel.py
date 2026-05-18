@@ -896,8 +896,9 @@ class TestChannel(ElectrumTestCase):
         self.assertTrue(bob_channel.should_be_closed_due_to_expiring_htlcs(local_height=expired_height))
 
 
-class TestChannelAnchors(TestChannel):
-    TEST_ANCHOR_CHANNELS = True
+class TestChannelNoAnchors(TestChannel):
+    assert TestChannel.TEST_ANCHOR_CHANNELS is True
+    TEST_ANCHOR_CHANNELS = False
 
 
 class TestAvailableToSpend(ElectrumTestCase):
@@ -1012,8 +1013,9 @@ class TestAvailableToSpend(ElectrumTestCase):
         self.assertEqual(1000000000, alice_channel.available_to_spend(REMOTE))
 
 
-class TestAvailableToSpendAnchors(TestAvailableToSpend):
-    TEST_ANCHOR_CHANNELS = True
+class TestAvailableToSpendNoAnchors(TestAvailableToSpend):
+    assert TestAvailableToSpend.TEST_ANCHOR_CHANNELS is True
+    TEST_ANCHOR_CHANNELS = False
 
 
 class TestChanReserve(ElectrumTestCase):
@@ -1149,8 +1151,9 @@ class TestChanReserve(ElectrumTestCase):
         self.assertEqual(self.bob_channel.available_to_spend(LOCAL), amt2)
 
 
-class TestChanReserveAnchors(TestChanReserve):
-    TEST_ANCHOR_CHANNELS = True
+class TestChanReserveNoAnchors(TestChanReserve):
+    assert TestChanReserve.TEST_ANCHOR_CHANNELS is True
+    TEST_ANCHOR_CHANNELS = False
 
 
 class TestDust(ElectrumTestCase):
@@ -1216,8 +1219,9 @@ class TestDust(ElectrumTestCase):
         self.assertEqual(htlc_amt, alice_channel.total_msat(SENT) // 1000)
 
 
-class TestDustAnchors(TestDust):
-    TEST_ANCHOR_CHANNELS = True
+class TestDustNoAnchors(TestDust):
+    assert TestDust.TEST_ANCHOR_CHANNELS is True
+    TEST_ANCHOR_CHANNELS = False
 
 
 def force_state_transition(chanA, chanB):
