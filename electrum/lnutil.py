@@ -529,6 +529,8 @@ MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED = 2016
 # timeout after which we consider a zeroconf channel without funding tx to be failed
 ZEROCONF_TIMEOUT = 60 * 10
 
+TIME_FOR_OFFERED_HTLCS_TO_GET_FAILED_OFFCHAIN_ON_RESTART = 30
+
 
 class RevocationStore:
     # closely based on code in lightningnetwork/lnd
