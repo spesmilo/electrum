@@ -339,6 +339,7 @@ class TestLNWallet(ElectrumTestCase):
         wallet.close_channel = mock.AsyncMock(side_effect=Exception("peer disconnected"))
         wallet.remove_channel = mock.Mock()
         wallet.lnwatcher = mock.Mock()
+        wallet.lnwatcher.stop = mock.AsyncMock()
         wallet.lnwatcher.adb = mock.Mock()
         wallet.lnwatcher.adb.remove_transaction = mock.Mock()
 
