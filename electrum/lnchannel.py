@@ -24,24 +24,21 @@ from enum import IntEnum, Enum
 from typing import (
     Optional, Dict, List, Tuple, NamedTuple,
     Iterable, Sequence, TYPE_CHECKING, Iterator, Union, Mapping)
-import time
-import threading
 from abc import ABC, abstractmethod
 import itertools
 
 from aiorpcx import NetAddress
-import attr
 
 import electrum_ecc as ecc
 from electrum_ecc import ECPubkey
 
 from . import constants, util
-from .util import bfh, chunks, TxMinedInfo, error_text_bytes_to_safe_str
+from .util import bfh, chunks, TxMinedInfo, error_text_bytes_to_safe_str, now
 from .bitcoin import redeem_script_to_address
 from .crypto import sha256, sha256d
 from .transaction import Transaction, PartialTransaction, TxInput, Sighash
 from .logging import Logger
-from .lntransport import LNPeerAddr, extract_nodeid, ConnStringFormatError
+from .lntransport import LNPeerAddr
 from .lnonion import OnionRoutingFailure
 from . import lnutil
 from .lnutil import (Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKeypair, ChannelConstraints,
@@ -170,8 +167,6 @@ class RemoteCtnTooFarInFuture(Exception): pass
 def htlcsum(htlcs: Iterable[UpdateAddHtlc]):
     return sum([x.amount_msat for x in htlcs])
 
-def now():
-    return int(time.time())
 
 class HTLCWithStatus(NamedTuple):
     channel_id: bytes
