@@ -1,9 +1,10 @@
 import os
 import time
 
+from electrum import util
 from electrum.simple_config import SimpleConfig
 from electrum.wallet import Standard_Wallet, Abstract_Wallet
-from electrum.invoices import PR_UNPAID, PR_PAID, PR_UNCONFIRMED, BaseInvoice, Invoice, LN_EXPIRY_NEVER
+from electrum.invoices import PR_UNPAID, PR_PAID, PR_UNCONFIRMED, PR_BROADCASTING, BaseInvoice, Invoice, LN_EXPIRY_NEVER
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
 from electrum.transaction import Transaction, PartialTxOutput
 from electrum.util import TxMinedInfo, InvoiceError
@@ -255,3 +256,218 @@ class TestBaseInvoice(ElectrumTestCase):
         with self.assertRaises(TypeError):
             invoice.exp = "asd"
 
+
+class TestOutgoingInvoicesPaidCache(ElectrumTestCase):
+    """test caching of paid-status for outgoing invoices"""
+    TESTNET = True
+
+    def setUp(self):
+        super().setUp()
+        self.config = SimpleConfig({'electrum_path': self.electrum_path})
+        self.wallet_path = os.path.join(self.electrum_path, "outgoing_inv_wallet")
+
+    def _make_wallet(self):
+        # Seed matches the funding tx output below (see TestWalletPaymentRequests.create_wallet2).
+        text = 'cross end slow expose giraffe fuel track awake turtle capital ranch pulp'
+        d = restore_wallet_from_text__for_unittest(text, path=self.wallet_path, config=self.config)
+        wallet = d['wallet']  # type: Standard_Wallet
+        funding_tx = Transaction('0200000000010132515e6aade1b79ec7dd3bac0896d8b32c56195d23d07d48e21659cef24301560100000000fdffffff0112841e000000000016001477fe6d2a27e8860c278d4d2cd90bad716bb9521a02473044022041ed68ef7ef122813ac6a5e996b8284f645c53fbe6823b8e430604a8915a867802203233f5f4d347a687eb19b2aa570829ab12aeeb29a24cc6d6d20b8b3d79e971ae012102bee0ee043817e50ac1bb31132770f7c41e35946ccdcb771750fb9696bdd1b307ad951d00')
+        wallet.adb.receive_tx_callback(funding_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+        return wallet
+
+    def _make_outgoing_invoice(self, dest_addr: str, amount_sat: int, *, t: int = 1700000000):
+        outputs = [PartialTxOutput.from_address_and_value(dest_addr, amount_sat)]
+        return Invoice(
+            amount_msat=amount_sat * 1000,
+            message="",
+            time=t,
+            exp=LN_EXPIRY_NEVER,
+            outputs=outputs,
+            height=0,
+            lightning_invoice=None,
+        )
+
+    async def test_paid_keys_empty_for_fresh_unpaid_invoice(self):
+        wallet = self._make_wallet()
+        inv = self._make_outgoing_invoice("tb1qmjzmg8nd4z56ar4fpngzsr6euktrhnjg9td385", 5_000)
+        wallet.save_invoice(inv, write_to_disk=False)
+        self.assertNotIn(inv.get_id(), wallet._paid_invoice_keys)
+        self.assertEqual(PR_UNPAID, wallet.get_invoice_status(inv))
+        self.assertEqual([inv], wallet.get_unpaid_invoices())
+
+    async def test_paid_keys_populated_when_invoice_gets_paid(self):
+        wallet = self._make_wallet()
+        dest = "tb1qmjzmg8nd4z56ar4fpngzsr6euktrhnjg9td385"
+        amount_sat = 5_000
+        inv = self._make_outgoing_invoice(dest, amount_sat)
+        wallet.save_invoice(inv, write_to_disk=False)
+        # Pay the invoice with a confirmed outgoing tx so it becomes PR_PAID.
+        outputs = [PartialTxOutput.from_address_and_value(dest, amount_sat)]
+        tx = wallet.make_unsigned_transaction(outputs=outputs, fee_policy=FixedFeePolicy(1000))
+        wallet.sign_transaction(tx, password=None)
+        wallet.adb.receive_tx_callback(tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+        wallet.db.put('stored_height', 1010)
+        wallet.adb.add_verified_tx(tx.txid(), TxMinedInfo(_height=1001, timestamp=1700000001, txpos=1, header_hash="01"*32))
+        self.assertEqual(PR_PAID, wallet.get_invoice_status(inv))
+        self.assertIn(inv.get_id(), wallet._paid_invoice_keys)
+        self.assertEqual([], wallet.get_unpaid_invoices())
+
+    async def test_paid_keys_removed_on_delete_and_clear(self):
+        wallet = self._make_wallet()
+        inv = self._make_outgoing_invoice("tb1qmjzmg8nd4z56ar4fpngzsr6euktrhnjg9td385", 5_000)
+        wallet.save_invoice(inv, write_to_disk=False)
+        # Force into the cache via the internal hook so we don't depend on the slow path here.
+        wallet._paid_invoice_keys.add(inv.get_id())
+        wallet.delete_invoice(inv.get_id(), write_to_disk=False)
+        self.assertNotIn(inv.get_id(), wallet._paid_invoice_keys)
+        # Re-add and clear all
+        wallet.save_invoice(inv, write_to_disk=False)
+        wallet._paid_invoice_keys.add(inv.get_id())
+        wallet.clear_invoices()
+        self.assertEqual(set(), wallet._paid_invoice_keys)
+
+    async def test_get_invoice_status_short_circuits_on_cache_hit(self):
+        wallet = self._make_wallet()
+        inv = self._make_outgoing_invoice("tb1qmjzmg8nd4z56ar4fpngzsr6euktrhnjg9td385", 5_000)
+        wallet.save_invoice(inv, write_to_disk=False)
+        # Seed the cache and assert the slow path is not taken.
+        wallet._paid_invoice_keys.add(inv.get_id())
+        called = []
+        orig = wallet._is_onchain_invoice_paid
+        def spy(invoice):
+            called.append(invoice.get_id())
+            return orig(invoice)
+        wallet._is_onchain_invoice_paid = spy
+        self.assertEqual(PR_PAID, wallet.get_invoice_status(inv))
+        self.assertEqual([], called, "cache hit must avoid _is_onchain_invoice_paid")
+
+    async def test_set_broadcasting_skips_already_paid_invoices(self):
+        wallet = self._make_wallet()
+        dest = "tb1qmjzmg8nd4z56ar4fpngzsr6euktrhnjg9td385"
+        # Two invoices share the same output scriptpubkey but only one is unpaid.
+        inv_paid = self._make_outgoing_invoice(dest, 5_000, t=1700000000)
+        inv_unpaid = self._make_outgoing_invoice(dest, 5_000, t=1700000005)
+        wallet.save_invoice(inv_paid, write_to_disk=False)
+        wallet.save_invoice(inv_unpaid, write_to_disk=False)
+        wallet._paid_invoice_keys.add(inv_paid.get_id())
+
+        events = []
+        def on_status(w, key, status):
+            events.append((key, status))
+        util.register_callback(on_status, ['invoice_status'])
+        try:
+            # Build a tx whose output matches the shared scriptpubkey.
+            tx = wallet.make_unsigned_transaction(
+                outputs=[PartialTxOutput.from_address_and_value(dest, 5_000)],
+                fee_policy=FixedFeePolicy(1000),
+            )
+            wallet.set_broadcasting(tx, broadcasting_status=PR_BROADCASTING)
+        finally:
+            util.unregister_callback(on_status)
+
+        notified_keys = {key for key, _ in events}
+        self.assertIn(inv_unpaid.get_id(), notified_keys)
+        self.assertNotIn(inv_paid.get_id(), notified_keys,
+                         "invoice_status callback should not fire for already-paid invoices")
+
+    async def test_set_broadcasting_does_not_rescan_paid_invoices_with_shared_outputs(self):
+        """Regression for the freeze scenario: many already-paid invoices share an
+        output scriptpubkey, so a new tx paying that scriptpubkey touches all of them.
+        set_broadcasting must not call _is_onchain_invoice_paid for the paid ones."""
+        wallet = self._make_wallet()
+        dest = "tb1qmjzmg8nd4z56ar4fpngzsr6euktrhnjg9td385"
+        # Many paid invoices, all sharing the same destination scriptpubkey.
+        paid_ids = set()
+        for i in range(50):
+            inv = self._make_outgoing_invoice(dest, 1_000 + i, t=1700000000 + i)
+            wallet.save_invoice(inv, write_to_disk=False)
+            paid_ids.add(inv.get_id())
+            wallet._paid_invoice_keys.add(inv.get_id())
+        # One fresh unpaid invoice with the same destination.
+        unpaid = self._make_outgoing_invoice(dest, 9_999, t=1700001000)
+        wallet.save_invoice(unpaid, write_to_disk=False)
+
+        # Spy on the slow path.
+        called = []
+        orig = wallet._is_onchain_invoice_paid
+        def spy(invoice):
+            called.append(invoice.get_id())
+            return orig(invoice)
+        wallet._is_onchain_invoice_paid = spy
+
+        tx = wallet.make_unsigned_transaction(
+            outputs=[PartialTxOutput.from_address_and_value(dest, 1_000)],
+            fee_policy=FixedFeePolicy(1000),
+        )
+        wallet.set_broadcasting(tx, broadcasting_status=PR_BROADCASTING)
+
+        # The slow path may run for the unpaid invoice (via get_invoice_status),
+        # but must NOT run for any of the cached-paid ones.
+        called_set = set(called)
+        self.assertFalse(called_set & paid_ids,
+                         f"slow path ran for paid invoices: {called_set & paid_ids}")
+
+    async def test_paid_keys_populated_on_wallet_load(self):
+        """After the initial _prepare_onchain_invoice_paid_detection pass, the cache
+        should reflect what _is_onchain_invoice_paid found, so that subsequent
+        get_invoice_status calls take the fast path."""
+        wallet = self._make_wallet()
+        dest = "tb1qmjzmg8nd4z56ar4fpngzsr6euktrhnjg9td385"
+        amount_sat = 5_000
+        inv = self._make_outgoing_invoice(dest, amount_sat)
+        wallet.save_invoice(inv, write_to_disk=False)
+        # Pay it (confirmed)
+        outputs = [PartialTxOutput.from_address_and_value(dest, amount_sat)]
+        tx = wallet.make_unsigned_transaction(outputs=outputs, fee_policy=FixedFeePolicy(1000))
+        wallet.sign_transaction(tx, password=None)
+        wallet.adb.receive_tx_callback(tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+        wallet.db.put('stored_height', 1010)
+        wallet.adb.add_verified_tx(tx.txid(), TxMinedInfo(_height=1001, timestamp=1700000001, txpos=1, header_hash="01"*32))
+        # Force a rebuild of the cache as would happen at wallet load.
+        wallet._paid_invoice_keys.clear()
+        wallet._prepare_onchain_invoice_paid_detection()
+        self.assertIn(inv.get_id(), wallet._paid_invoice_keys)
+
+    async def test_paid_keys_demoted_on_reorg(self):
+        """A reorg unverifying the paying tx must remove the invoice from the cache,
+        otherwise get_invoice_status would keep returning a stale PR_PAID."""
+        wallet = self._make_wallet()
+        dest = "tb1qmjzmg8nd4z56ar4fpngzsr6euktrhnjg9td385"
+        amount_sat = 5_000
+        inv = self._make_outgoing_invoice(dest, amount_sat)
+        wallet.save_invoice(inv, write_to_disk=False)
+        # Pay and confirm.
+        outputs = [PartialTxOutput.from_address_and_value(dest, amount_sat)]
+        tx = wallet.make_unsigned_transaction(outputs=outputs, fee_policy=FixedFeePolicy(1000))
+        wallet.sign_transaction(tx, password=None)
+        wallet.adb.receive_tx_callback(tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+        wallet.db.put('stored_height', 1010)
+        wallet.adb.add_verified_tx(tx.txid(), TxMinedInfo(_height=1001, timestamp=1700000001, txpos=1, header_hash="01"*32))
+        self.assertEqual(PR_PAID, wallet.get_invoice_status(inv))
+        self.assertIn(inv.get_id(), wallet._paid_invoice_keys)
+        # Simulate reorg: unverify the tx and fire the same event the verifier would.
+        wallet.adb.db.remove_verified_tx(tx.txid())
+        wallet.on_event_adb_removed_verified_tx(wallet.adb, tx.txid())
+        self.assertNotIn(inv.get_id(), wallet._paid_invoice_keys)
+        self.assertNotEqual(PR_PAID, wallet.get_invoice_status(inv))
+
+    async def test_clear_history_resets_paid_keys(self):
+        """clear_history() wipes _prevouts_by_scripthash; the cache must follow,
+        otherwise get_invoice_status would keep returning a stale PR_PAID."""
+        wallet = self._make_wallet()
+        dest = "tb1qmjzmg8nd4z56ar4fpngzsr6euktrhnjg9td385"
+        amount_sat = 5_000
+        inv = self._make_outgoing_invoice(dest, amount_sat)
+        wallet.save_invoice(inv, write_to_disk=False)
+        # Pay and confirm.
+        outputs = [PartialTxOutput.from_address_and_value(dest, amount_sat)]
+        tx = wallet.make_unsigned_transaction(outputs=outputs, fee_policy=FixedFeePolicy(1000))
+        wallet.sign_transaction(tx, password=None)
+        wallet.adb.receive_tx_callback(tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+        wallet.db.put('stored_height', 1010)
+        wallet.adb.add_verified_tx(tx.txid(), TxMinedInfo(_height=1001, timestamp=1700000001, txpos=1, header_hash="01"*32))
+        self.assertIn(inv.get_id(), wallet._paid_invoice_keys)
+        # Wipe history.
+        wallet.clear_history()
+        self.assertNotIn(inv.get_id(), wallet._paid_invoice_keys)
+        self.assertNotEqual(PR_PAID, wallet.get_invoice_status(inv))
