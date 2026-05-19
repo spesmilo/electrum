@@ -732,6 +732,7 @@ class ChannelDB(SqlDB):
         now = int(time.time())
         return list(k for k, v in _policies.items() if v.timestamp <= now - delta)
 
+    @profiler(min_threshold=0.2)
     def prune_old_policies(self, delta):
         old_policies = self.get_old_policies(delta)
         if old_policies:
@@ -744,6 +745,7 @@ class ChannelDB(SqlDB):
             self.update_counts()
             self.logger.info(f'Deleting {len(old_policies)} old policies')
 
+    @profiler(min_threshold=0.2)
     def prune_orphaned_channels(self):
         with self.lock:
             orphaned_chans = self._chans_with_0_policies.copy()

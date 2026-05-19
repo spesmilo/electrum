@@ -722,8 +722,10 @@ class LNGossip(Logger):
         await self.channel_db.data_loaded.wait()
         while True:
             if len(self.unknown_ids) == 0:
-                self.channel_db.prune_old_policies(self.max_age)
-                self.channel_db.prune_orphaned_channels()
+                def _maintain():
+                    self.channel_db.prune_old_policies(self.max_age)
+                    self.channel_db.prune_orphaned_channels()
+                await asyncio.to_thread(_maintain)
             await asyncio.sleep(120)
 
     async def _maintain_forwarding_gossip(self):
