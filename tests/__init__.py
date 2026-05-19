@@ -104,7 +104,7 @@ class ElectrumTestCase(unittest.IsolatedAsyncioTestCase, Logger):
         *,
         name: str,
     ) -> 'MockLNWallet':
-        from .test_lnpeer import _create_mock_lnwallet
+        from .lnhelpers import _create_mock_lnwallet
         data_dir = tempfile.mkdtemp(prefix="lnwallet-", dir=self.unittest_base_path)
         lnwallet = _create_mock_lnwallet(name=name, has_anchors=self.TEST_ANCHOR_CHANNELS, data_dir=data_dir)
         self._lnworkers_created.append(lnwallet)
