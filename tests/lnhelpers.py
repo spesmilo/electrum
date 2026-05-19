@@ -1,6 +1,6 @@
 import asyncio
 import copy
-from typing import NamedTuple, Tuple, Dict, Mapping, TYPE_CHECKING
+from typing import NamedTuple, Tuple, Dict, Mapping, TYPE_CHECKING, Sequence
 
 import electrum
 import electrum.trampoline
@@ -173,7 +173,7 @@ class PeerInTests(Peer):
 class Graph(NamedTuple):
     workers: Dict[str, 'MockLNWallet']
     peers: Dict[Tuple[str, str], Peer]
-    channels: Dict[Tuple[str, str], Channel]
+    channels: Dict[Tuple[str, str], list[Channel]]
 
 
 class MockTransport:
@@ -223,7 +223,7 @@ def prepare_chans_and_peers_in_graph(
     graph_definition=None,
     *,
     workers: Dict[str, MockLNWallet] = None,
-    channels: Mapping[Tuple[str, str], Channel] = None,
+    channels: dict[Tuple[str, str], list[Channel]] = None,
 ) -> Graph:
     from .test_lnchannel import create_test_channels
     from . import test_lnpeer
@@ -238,38 +238,46 @@ def prepare_chans_and_peers_in_graph(
     keys = {name: w.node_keypair for name, w in workers.items()}
 
     if channels is None:
-        channels = {}  # type: Dict[Tuple[str, str], Channel]
+        channels = {}  # type: Dict[Tuple[str, str], list[Channel]]
     transports = {}
-    peers = {}
+    peers = {}  # type: Dict[Tuple[str, str], Peer]
 
     # create channels
     for a, definition in graph_definition.items():
-        for b, channel_def in definition.get('channels', {}).items():
-            if ((a, b) in channels) or ((b, a) in channels):
-                # if either chan direction is present, both must be present
-                channel_ab = channels[(a, b)]
-                channel_ba = channels[(b, a)]
-            else:  # create new chans now
-                channel_ab, channel_ba = create_test_channels(
-                    alice_lnwallet=workers[a],
-                    bob_lnwallet=workers[b],
-                    local_msat=channel_def['local_balance_msat'],
-                    remote_msat=channel_def['remote_balance_msat'],
-                )
-                channels[(a, b)], channels[(b, a)] = channel_ab, channel_ba
-            workers[a]._add_channel(channel_ab)
-            workers[b]._add_channel(channel_ba)
-            transport_ab, transport_ba = transport_pair(keys[a], keys[b], channel_ab.name, channel_ba.name)
-            transports[(a, b)], transports[(b, a)] = transport_ab, transport_ba
-            # set fees
-            if 'local_fee_rate_millionths' in channel_def:
-                channel_ab.forwarding_fee_proportional_millionths = channel_def['local_fee_rate_millionths']
-            if 'local_base_fee_msat' in channel_def:
-                channel_ab.forwarding_fee_base_msat = channel_def['local_base_fee_msat']
-            if 'remote_fee_rate_millionths' in channel_def:
-                channel_ba.forwarding_fee_proportional_millionths = channel_def['remote_fee_rate_millionths']
-            if 'remote_base_fee_msat' in channel_def:
-                channel_ba.forwarding_fee_base_msat = channel_def['remote_base_fee_msat']
+        for b, channel_def_list in definition.get('channels', {}).items():
+            if (a, b) not in channels:
+                channels[(a, b)] = []
+            if (b, a) not in channels:
+                channels[(b, a)] = []
+            assert len(channels[(a, b)]) == len(channels[(b, a)])
+            for chan_idx, channel_def in enumerate(channel_def_list):
+                if chan_idx < len(channels[(a, b)]):  # chan already exists
+                    # if either chan direction is present, both must be present
+                    channel_ab = channels[(a, b)][chan_idx]
+                    channel_ba = channels[(b, a)][chan_idx]
+                else:  # create new chans now
+                    channel_ab, channel_ba = create_test_channels(
+                        alice_lnwallet=workers[a],
+                        bob_lnwallet=workers[b],
+                        local_msat=channel_def['local_balance_msat'],
+                        remote_msat=channel_def['remote_balance_msat'],
+                    )
+                    assert chan_idx == len(channels[(a, b)]) == len(channels[(b, a)])
+                    channels[(a, b)].append(channel_ab)
+                    channels[(b, a)].append(channel_ba)
+                workers[a]._add_channel(channel_ab)
+                workers[b]._add_channel(channel_ba)
+                transport_ab, transport_ba = transport_pair(keys[a], keys[b], channel_ab.name, channel_ba.name)
+                transports[(a, b)], transports[(b, a)] = transport_ab, transport_ba
+                # set fees
+                if 'local_fee_rate_millionths' in channel_def:
+                    channel_ab.forwarding_fee_proportional_millionths = channel_def['local_fee_rate_millionths']
+                if 'local_base_fee_msat' in channel_def:
+                    channel_ab.forwarding_fee_base_msat = channel_def['local_base_fee_msat']
+                if 'remote_fee_rate_millionths' in channel_def:
+                    channel_ba.forwarding_fee_proportional_millionths = channel_def['remote_fee_rate_millionths']
+                if 'remote_base_fee_msat' in channel_def:
+                    channel_ba.forwarding_fee_base_msat = channel_def['remote_base_fee_msat']
 
     # create peers
     for ab in channels.keys():
@@ -288,12 +296,14 @@ def prepare_chans_and_peers_in_graph(
 
     # mark_open won't work if state is already OPEN.
     # so set it to FUNDED
-    for channel_ab in channels.values():
-        channel_ab._state = ChannelState.FUNDED
+    for chan_list in channels.values():
+        for chan in chan_list:
+            chan._state = ChannelState.FUNDED
 
     # this populates the channel graph:
     for ab, peer_ab in peers.items():
-        peer_ab.mark_open(channels[ab])
+        for chan in channels[ab]:
+            peer_ab.mark_open(chan)
 
     graph = Graph(
         workers=workers,

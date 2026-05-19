@@ -92,10 +92,12 @@ _GRAPH_DEFINITIONS = {
     'single_chan' : {
         'alice': {
             'channels': {
-                'bob': {
-                   'local_balance_msat': 10 * bitcoin.COIN * 1000 // 2,
-                   'remote_balance_msat': 10 * bitcoin.COIN * 1000 // 2,
-                },
+                'bob': [
+                    {
+                       'local_balance_msat': 10 * bitcoin.COIN * 1000 // 2,
+                       'remote_balance_msat': 10 * bitcoin.COIN * 1000 // 2,
+                    },
+                ],
             },
         },
         'bob': {
@@ -111,13 +113,13 @@ _GRAPH_DEFINITIONS = {
             'channels': {
                 # we should use copies of channel definitions if
                 # we want to independently alter them in a test
-                'bob': high_fee_channel.copy(),
-                'carol': low_fee_channel.copy(),
+                'bob': [high_fee_channel.copy()],
+                'carol': [low_fee_channel.copy()],
             },
         },
         'bob': {
             'channels': {
-                'dave': high_fee_channel.copy(),
+                'dave': [high_fee_channel.copy()],
             },
             'config': {
                 SimpleConfig.EXPERIMENTAL_LN_FORWARD_PAYMENTS: True,
@@ -126,7 +128,7 @@ _GRAPH_DEFINITIONS = {
         },
         'carol': {
             'channels': {
-                'dave': low_fee_channel.copy(),
+                'dave': [low_fee_channel.copy()],
             },
             'config': {
                 SimpleConfig.EXPERIMENTAL_LN_FORWARD_PAYMENTS: True,
@@ -140,12 +142,12 @@ _GRAPH_DEFINITIONS = {
     'line_graph': {
         'alice': {
             'channels': {
-                'bob': low_fee_channel.copy(),
+                'bob': [low_fee_channel.copy()],
             },
         },
         'bob': {  # Trampoline Forwarder
             'channels': {
-                'carol': low_fee_channel.copy(),
+                'carol': [low_fee_channel.copy()],
             },
             'config': {
                 SimpleConfig.EXPERIMENTAL_LN_FORWARD_PAYMENTS: True,
@@ -153,7 +155,7 @@ _GRAPH_DEFINITIONS = {
         },
         'carol': {
             'channels': {
-                'dave': low_fee_channel.copy(),
+                'dave': [low_fee_channel.copy()],
             },
             'config': {
                 SimpleConfig.EXPERIMENTAL_LN_FORWARD_PAYMENTS: True,
@@ -161,7 +163,7 @@ _GRAPH_DEFINITIONS = {
         },
         'dave': {  # Trampoline Forwarder
             'channels': {
-                'edward': low_fee_channel.copy(),
+                'edward': [low_fee_channel.copy()],
             },
             'config': {
                 SimpleConfig.EXPERIMENTAL_LN_FORWARD_PAYMENTS: True,
@@ -178,17 +180,23 @@ class PaymentTimeout(Exception): pass
 class SuccessfulTest(Exception): pass
 
 
-def inject_chan_into_gossipdb(*, channel_db: ChannelDB, graph: 'Graph', node1name: str, node2name: str) -> None:
-    print(f"injecting channel {node1name} -> {node2name} into channel_db")
-    chan_ann_raw = graph.channels[(node1name, node2name)].construct_channel_announcement_without_sigs()[0]
+def inject_chan_into_gossipdb(
+    *,
+    channel_db: ChannelDB,
+    chanAB: Channel,
+    chanBA: Channel,
+) -> None:
+    assert chanAB.channel_id == chanBA.channel_id
+    print(f"injecting channel {chanAB.name} into channel_db")
+    chan_ann_raw = chanAB.construct_channel_announcement_without_sigs()[0]
     chan_ann_dict = decode_msg(chan_ann_raw)[1]
     channel_db.add_channel_announcements(chan_ann_dict, trusted=True)
 
-    chan_upd1_raw = graph.channels[(node1name, node2name)].get_outgoing_gossip_channel_update()
+    chan_upd1_raw = chanAB.get_outgoing_gossip_channel_update()
     chan_upd1_dict = decode_msg(chan_upd1_raw)[1]
     channel_db.add_channel_update(chan_upd1_dict, verify=False)
 
-    chan_upd2_raw = graph.channels[(node2name, node1name)].get_outgoing_gossip_channel_update()
+    chan_upd2_raw = chanBA.get_outgoing_gossip_channel_update()
     chan_upd2_dict = decode_msg(chan_upd2_raw)[1]
     channel_db.add_channel_update(chan_upd2_dict, verify=False)
 
@@ -333,7 +341,7 @@ class TestPeerUtils(TestPeer):
     async def test_maybe_save_remote_update(self):
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
         alice_bob_peer, bob_alice_peer = graph.peers[('alice', 'bob')], graph.peers[('bob', 'alice')]
-        alice_bob_chan, bob_alice_chan = graph.channels[('alice', 'bob')], graph.channels[('bob', 'alice')]
+        alice_bob_chan, bob_alice_chan = graph.channels[('alice', 'bob')][0], graph.channels[('bob', 'alice')][0]
 
         # prepare channel update from alice
         alice_to_bob_chan_update = alice_bob_chan.get_outgoing_gossip_channel_update()
@@ -413,7 +421,7 @@ class TestPeerDirect(TestPeer):
     ):
         graph = self.prepare_chans_and_peers_in_graph(
             self.GRAPH_DEFINITIONS['single_chan'],
-            channels={('alice', 'bob'): alice_channel, ('bob', 'alice'): bob_channel},
+            channels={('alice', 'bob'): [alice_channel], ('bob', 'alice'): [bob_channel]},
         )
         p1, p2 = graph.peers.values()
         w1, w2 = graph.workers.values()
@@ -422,7 +430,8 @@ class TestPeerDirect(TestPeer):
     async def test_reestablish(self):
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
         p1, p2 = graph.peers.values()
-        alice_channel, bob_channel = graph.channels.values()
+        alice_channel = graph.channels[('alice', 'bob')][0]
+        bob_channel = graph.channels[('bob', 'alice')][0]
 
         for chan in (alice_channel, bob_channel):
             chan.peer_state = PeerState.DISCONNECTED
@@ -990,7 +999,8 @@ class TestPeerDirect(TestPeer):
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
         p1, p2 = graph.peers.values()
         w1, w2 = graph.workers.values()
-        alice_channel, bob_channel = graph.channels.values()
+        alice_channel = graph.channels[('alice', 'bob')][0]
+        bob_channel = graph.channels[('bob', 'alice')][0]
         async def pay():
             await util.wait_for2(p1.initialized, 1)
             await util.wait_for2(p2.initialized, 1)
@@ -1067,7 +1077,8 @@ class TestPeerDirect(TestPeer):
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
         p1, p2 = graph.peers.values()
         w1, w2 = graph.workers.values()
-        alice_channel, bob_channel = graph.channels.values()
+        alice_channel = graph.channels[('alice', 'bob')][0]
+        bob_channel = graph.channels[('bob', 'alice')][0]
         alice_init_balance_msat = alice_channel.balance(HTLCOwner.LOCAL)
         bob_init_balance_msat = bob_channel.balance(HTLCOwner.LOCAL)
         num_payments = 50
@@ -1101,7 +1112,8 @@ class TestPeerDirect(TestPeer):
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
         p1, p2 = graph.peers.values()
         w1, w2 = graph.workers.values()
-        alice_channel, bob_channel = graph.channels.values()
+        alice_channel = graph.channels[('alice', 'bob')][0]
+        bob_channel = graph.channels[('bob', 'alice')][0]
         async def pay():
             self.assertEqual(PR_UNPAID, w2.get_payment_status(lnaddr1.paymenthash, direction=RECEIVED))
             self.assertEqual(PR_UNPAID, w2.get_payment_status(lnaddr2.paymenthash, direction=RECEIVED))
@@ -1176,7 +1188,8 @@ class TestPeerDirect(TestPeer):
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
         p1, p2 = graph.peers.values()
         w1, w2 = graph.workers.values()
-        alice_channel, bob_channel = graph.channels.values()
+        alice_channel = graph.channels[('alice', 'bob')][0]
+        bob_channel = graph.channels[('bob', 'alice')][0]
         async def pay():
             self.assertEqual(PR_UNPAID, w2.get_payment_status(lnaddr1.paymenthash, direction=RECEIVED))
 
@@ -1245,7 +1258,8 @@ class TestPeerDirect(TestPeer):
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
         p1, p2 = graph.peers.values()
         w1, w2 = graph.workers.values()
-        alice_channel, bob_channel = graph.channels.values()
+        alice_channel = graph.channels[('alice', 'bob')][0]
+        bob_channel = graph.channels[('bob', 'alice')][0]
         async def pay():
             await util.wait_for2(p1.initialized, 1)
             await util.wait_for2(p2.initialized, 1)
@@ -1332,7 +1346,8 @@ class TestPeerDirect(TestPeer):
             graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
             alice_peer, bob_peer = graph.peers.values()
             alice_wallet, bob_wallet = graph.workers.values()
-            alice_channel, bob_channel = graph.channels.values()
+            alice_channel = graph.channels[('alice', 'bob')][0]
+            bob_channel = graph.channels[('bob', 'alice')][0]
             bob_wallet.features |= LnFeatures.BASIC_MPP_OPT
             lnaddr1, pay_req1 = self.prepare_invoice(bob_wallet, amount_msat=10_000)
 
@@ -1453,7 +1468,8 @@ class TestPeerDirect(TestPeer):
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
         p1, p2 = graph.peers.values()
         w1, w2 = graph.workers.values()
-        alice_channel, bob_channel = graph.channels.values()
+        alice_channel = graph.channels[('alice', 'bob')][0]
+        bob_channel = graph.channels[('bob', 'alice')][0]
         w1.network.config.TEST_SHUTDOWN_FEE = alice_fee
         w2.network.config.TEST_SHUTDOWN_FEE = bob_fee
         if alice_fee_range is not None:
@@ -1492,7 +1508,8 @@ class TestPeerDirect(TestPeer):
     async def test_warning(self):
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
         p1, p2 = graph.peers.values()
-        alice_channel, bob_channel = graph.channels.values()
+        alice_channel = graph.channels[('alice', 'bob')][0]
+        bob_channel = graph.channels[('bob', 'alice')][0]
 
         async def action():
             await util.wait_for2(p1.initialized, 1)
@@ -1505,7 +1522,8 @@ class TestPeerDirect(TestPeer):
     async def test_error(self):
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
         p1, p2 = graph.peers.values()
-        alice_channel, bob_channel = graph.channels.values()
+        alice_channel = graph.channels[('alice', 'bob')][0]
+        bob_channel = graph.channels[('bob', 'alice')][0]
 
         async def action():
             await util.wait_for2(p1.initialized, 1)
@@ -1598,7 +1616,8 @@ class TestPeerDirect(TestPeer):
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
         p1, p2 = graph.peers.values()
         w1, w2 = graph.workers.values()
-        alice_channel, bob_channel = graph.channels.values()
+        alice_channel = graph.channels[('alice', 'bob')][0]
+        bob_channel = graph.channels[('bob', 'alice')][0]
         lnaddr, pay_req = self.prepare_invoice(w2)
 
         lnaddr = w1._check_bolt11_invoice(pay_req.lightning_invoice)
@@ -2022,25 +2041,25 @@ class TestPeerForwarding(TestPeer):
             with self.subTest(msg="bad path: edges do not chain together"):
                 path = [PathEdge(start_node=graph.workers['alice'].node_keypair.pubkey,
                                  end_node=graph.workers['carol'].node_keypair.pubkey,
-                                 short_channel_id=graph.channels[('alice', 'bob')].short_channel_id),
+                                 short_channel_id=graph.channels[('alice', 'bob')][0].short_channel_id),
                         PathEdge(start_node=graph.workers['bob'].node_keypair.pubkey,
                                  end_node=graph.workers['dave'].node_keypair.pubkey,
-                                 short_channel_id=graph.channels['bob', 'dave'].short_channel_id)]
+                                 short_channel_id=graph.channels['bob', 'dave'][0].short_channel_id)]
                 with self.assertRaises(LNPathInconsistent):
                     await graph.workers['alice'].pay_invoice(pay_req, full_path=path)
             with self.subTest(msg="bad path: last node id differs from invoice pubkey"):
                 path = [PathEdge(start_node=graph.workers['alice'].node_keypair.pubkey,
                                  end_node=graph.workers['bob'].node_keypair.pubkey,
-                                 short_channel_id=graph.channels[('alice', 'bob')].short_channel_id)]
+                                 short_channel_id=graph.channels[('alice', 'bob')][0].short_channel_id)]
                 with self.assertRaises(LNPathInconsistent):
                     await graph.workers['alice'].pay_invoice(pay_req, full_path=path)
             with self.subTest(msg="good path"):
                 path = [PathEdge(start_node=graph.workers['alice'].node_keypair.pubkey,
                                  end_node=graph.workers['bob'].node_keypair.pubkey,
-                                 short_channel_id=graph.channels[('alice', 'bob')].short_channel_id),
+                                 short_channel_id=graph.channels[('alice', 'bob')][0].short_channel_id),
                         PathEdge(start_node=graph.workers['bob'].node_keypair.pubkey,
                                  end_node=graph.workers['dave'].node_keypair.pubkey,
-                                 short_channel_id=graph.channels['bob', 'dave'].short_channel_id)]
+                                 short_channel_id=graph.channels['bob', 'dave'][0].short_channel_id)]
                 result, log = await graph.workers['alice'].pay_invoice(pay_req, full_path=path)
                 self.assertTrue(result)
                 self.assertEqual(
@@ -2090,21 +2109,21 @@ class TestPeerForwarding(TestPeer):
         graph.workers['carol'].network.config.TEST_FAIL_HTLCS_WITH_TEMP_NODE_FAILURE = True
         peers = graph.peers.values()
         async def pay(lnaddr, pay_req):
-            self.assertEqual(500000000000, graph.channels[('alice', 'bob')].balance(LOCAL))
-            self.assertEqual(500000000000, graph.channels[('dave', 'bob')].balance(LOCAL))
+            self.assertEqual(500000000000, graph.channels[('alice', 'bob')][0].balance(LOCAL))
+            self.assertEqual(500000000000, graph.channels[('dave', 'bob')][0].balance(LOCAL))
             self.assertEqual(PR_UNPAID, graph.workers['dave'].get_payment_status(lnaddr.paymenthash, direction=RECEIVED))
             result, log = await graph.workers['alice'].pay_invoice(pay_req, attempts=2)
             self.assertEqual(2, len(log))
             self.assertTrue(result)
             self.assertEqual(PR_PAID, graph.workers['dave'].get_payment_status(lnaddr.paymenthash, direction=RECEIVED))
-            self.assertEqual([graph.channels[('alice', 'carol')].short_channel_id, graph.channels[('carol', 'dave')].short_channel_id],
+            self.assertEqual([graph.channels[('alice', 'carol')][0].short_channel_id, graph.channels[('carol', 'dave')][0].short_channel_id],
                              [edge.short_channel_id for edge in log[0].route])
-            self.assertEqual([graph.channels[('alice', 'bob')].short_channel_id, graph.channels[('bob', 'dave')].short_channel_id],
+            self.assertEqual([graph.channels[('alice', 'bob')][0].short_channel_id, graph.channels[('bob', 'dave')][0].short_channel_id],
                              [edge.short_channel_id for edge in log[1].route])
             self.assertEqual(OnionFailureCode.TEMPORARY_NODE_FAILURE, log[0].failure_msg.code)
-            self.assertEqual(499899450000, graph.channels[('alice', 'bob')].balance(LOCAL))
+            self.assertEqual(499899450000, graph.channels[('alice', 'bob')][0].balance(LOCAL))
             await asyncio.sleep(0.2)  # wait for COMMITMENT_SIGNED / REVACK msgs to update balance
-            self.assertEqual(500100000000, graph.channels[('dave', 'bob')].balance(LOCAL))
+            self.assertEqual(500100000000, graph.channels[('dave', 'bob')][0].balance(LOCAL))
             raise PaymentDone()
         async def f():
             async with OldTaskGroup() as group:
@@ -2174,14 +2193,14 @@ class TestPeerForwarding(TestPeer):
     async def test_payment_with_temp_channel_failure_and_liquidity_hints(self):
         # prepare channels such that a temporary channel failure happens at c->d
         graph_definition = self.GRAPH_DEFINITIONS['square_graph']
-        graph_definition['alice']['channels']['carol']['local_balance_msat'] = 200_000_000
-        graph_definition['alice']['channels']['carol']['remote_balance_msat'] = 200_000_000
-        graph_definition['carol']['channels']['dave']['local_balance_msat'] = 50_000_000
-        graph_definition['carol']['channels']['dave']['remote_balance_msat'] = 200_000_000
-        graph_definition['alice']['channels']['bob']['local_balance_msat'] = 200_000_000
-        graph_definition['alice']['channels']['bob']['remote_balance_msat'] = 200_000_000
-        graph_definition['bob']['channels']['dave']['local_balance_msat'] = 200_000_000
-        graph_definition['bob']['channels']['dave']['remote_balance_msat'] = 200_000_000
+        graph_definition['alice']['channels']['carol'][0]['local_balance_msat'] = 200_000_000
+        graph_definition['alice']['channels']['carol'][0]['remote_balance_msat'] = 200_000_000
+        graph_definition['carol']['channels']['dave'][0]['local_balance_msat'] = 50_000_000
+        graph_definition['carol']['channels']['dave'][0]['remote_balance_msat'] = 200_000_000
+        graph_definition['alice']['channels']['bob'][0]['local_balance_msat'] = 200_000_000
+        graph_definition['alice']['channels']['bob'][0]['remote_balance_msat'] = 200_000_000
+        graph_definition['bob']['channels']['dave'][0]['local_balance_msat'] = 200_000_000
+        graph_definition['bob']['channels']['dave'][0]['remote_balance_msat'] = 200_000_000
         graph = self.prepare_chans_and_peers_in_graph(graph_definition)
 
         # the payment happens in two attempts:
@@ -2205,15 +2224,15 @@ class TestPeerForwarding(TestPeer):
             pubkey_c = graph.workers['carol'].node_keypair.pubkey
             pubkey_d = graph.workers['dave'].node_keypair.pubkey
             # check liquidity hints for failing route:
-            hint_ac = liquidity_hints.get_hint(graph.channels[('alice', 'carol')].short_channel_id)
-            hint_cd = liquidity_hints.get_hint(graph.channels[('carol', 'dave')].short_channel_id)
+            hint_ac = liquidity_hints.get_hint(graph.channels[('alice', 'carol')][0].short_channel_id)
+            hint_cd = liquidity_hints.get_hint(graph.channels[('carol', 'dave')][0].short_channel_id)
             self.assertEqual(amount_to_pay, hint_ac.can_send(pubkey_a < pubkey_c))
             self.assertEqual(None, hint_ac.cannot_send(pubkey_a < pubkey_c))
             self.assertEqual(None, hint_cd.can_send(pubkey_c < pubkey_d))
             self.assertEqual(amount_to_pay, hint_cd.cannot_send(pubkey_c < pubkey_d))
             # check liquidity hints for successful route:
-            hint_ab = liquidity_hints.get_hint(graph.channels[('alice', 'bob')].short_channel_id)
-            hint_bd = liquidity_hints.get_hint(graph.channels[('bob', 'dave')].short_channel_id)
+            hint_ab = liquidity_hints.get_hint(graph.channels[('alice', 'bob')][0].short_channel_id)
+            hint_bd = liquidity_hints.get_hint(graph.channels[('bob', 'dave')][0].short_channel_id)
             self.assertEqual(amount_to_pay, hint_ab.can_send(pubkey_a < pubkey_b))
             self.assertEqual(None, hint_ab.cannot_send(pubkey_a < pubkey_b))
             self.assertEqual(amount_to_pay, hint_bd.can_send(pubkey_b < pubkey_d))
@@ -2234,8 +2253,8 @@ class TestPeerForwarding(TestPeer):
 
     async def _run_mpp(self, graph, kwargs):
         """Tests a multipart payment scenario for failing and successful cases."""
-        self.assertEqual(500_000_000_000, graph.channels[('alice', 'bob')].balance(LOCAL))
-        self.assertEqual(500_000_000_000, graph.channels[('alice', 'carol')].balance(LOCAL))
+        self.assertEqual(500_000_000_000, graph.channels[('alice', 'bob')][0].balance(LOCAL))
+        self.assertEqual(500_000_000_000, graph.channels[('alice', 'carol')][0].balance(LOCAL))
         amount_to_pay = 600_000_000_000
         peers = graph.peers.values()
         async def pay(
@@ -2340,8 +2359,8 @@ class TestPeerForwarding(TestPeer):
         We test if Dave fails the pending HTLCs during shutdown.
         """
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['square_graph'])
-        self.assertEqual(500_000_000_000, graph.channels[('alice', 'bob')].balance(LOCAL))
-        self.assertEqual(500_000_000_000, graph.channels[('alice', 'carol')].balance(LOCAL))
+        self.assertEqual(500_000_000_000, graph.channels[('alice', 'bob')][0].balance(LOCAL))
+        self.assertEqual(500_000_000_000, graph.channels[('alice', 'carol')][0].balance(LOCAL))
         amount_to_pay = 600_000_000_000
         peers = graph.peers.values()
         graph.workers['dave'].MPP_EXPIRY = 120
@@ -2353,7 +2372,7 @@ class TestPeerForwarding(TestPeer):
             lnaddr, pay_req = self.prepare_invoice(graph.workers['dave'], include_routing_hints=True, amount_msat=amount_to_pay)
             result, log = await graph.workers['alice'].pay_invoice(pay_req, attempts=1)
         async def stop():
-            hm = graph.channels[('dave', 'carol')].hm
+            hm = graph.channels[('dave', 'carol')][0].hm
             while len(hm.htlcs(LOCAL)) == 0 or len(hm.htlcs(REMOTE)) == 0:
                 await asyncio.sleep(0.1)
             self.assertTrue(len(hm.htlcs(LOCAL)) > 0)
@@ -2442,14 +2461,14 @@ class TestPeerForwarding(TestPeer):
         graph_definition = self.GRAPH_DEFINITIONS['square_graph']
         if not direct:
             # deplete channel from alice to carol and from bob to dave
-            graph_definition['alice']['channels']['carol'] = depleted_channel
-            graph_definition['bob']['channels']['dave'] = depleted_channel
+            graph_definition['alice']['channels']['carol'] = [depleted_channel]
+            graph_definition['bob']['channels']['dave'] = [depleted_channel]
             # insert a channel from bob to carol
-            graph_definition['bob']['channels']['carol'] = low_fee_channel
+            graph_definition['bob']['channels']['carol'] = [low_fee_channel]
             # now the only route possible is alice -> bob -> carol -> dave
         if test_mpp_consolidation:
             # deplete alice to carol so that all htlcs go through bob
-            graph_definition['alice']['channels']['carol'] = depleted_channel
+            graph_definition['alice']['channels']['carol'] = [depleted_channel]
         graph = self.prepare_chans_and_peers_in_graph(graph_definition)
         if test_mpp_consolidation:
             graph.workers['dave'].features |= LnFeatures.BASIC_MPP_OPT
@@ -2476,9 +2495,9 @@ class TestPeerForwarding(TestPeer):
             await self._run_trampoline_payment(graph, attempts=1)
 
         # assert bob hasn't forwarded more than he received
-        bob_alice_channel = graph.channels[('bob', 'alice')]
+        bob_alice_channel = graph.channels[('bob', 'alice')][0]
         htlcs_bob_received_from_alice = bob_alice_channel.hm.all_htlcs_ever()
-        bob_carol_channel = graph.channels[('bob', 'carol')]
+        bob_carol_channel = graph.channels[('bob', 'carol')][0]
         htlcs_bob_sent_to_carol = bob_carol_channel.hm.all_htlcs_ever()
         sum_bob_received = sum(htlc.amount_msat for (direction, htlc) in htlcs_bob_received_from_alice)
         sum_bob_sent = sum(htlc.amount_msat for (direction, htlc) in htlcs_bob_sent_to_carol)
@@ -2518,8 +2537,10 @@ class TestPeerForwarding(TestPeer):
         graph_definition = self.GRAPH_DEFINITIONS['line_graph']
         graph = self.prepare_chans_and_peers_in_graph(graph_definition)
         inject_chan_into_gossipdb(
-            channel_db=graph.workers['bob'].channel_db, graph=graph,
-            node1name='carol', node2name='dave')
+            channel_db=graph.workers['bob'].channel_db,
+            chanAB=graph.channels[('carol', 'dave')][0],
+            chanBA=graph.channels[('dave', 'carol')][0],
+        )
         # end-to-end trampoline: we attempt
         # * a payment with one trial: fails, because initial fees are too low
         # * a payment with several trials: should succeed
@@ -2567,8 +2588,8 @@ class TestPeerForwarding(TestPeer):
         """
         graph_definition = self.GRAPH_DEFINITIONS['square_graph']
         # payment amount is 100_000_000 msat, size the channels so that alice must use both to succeed
-        graph_definition['alice']['channels']['bob']['local_balance_msat'] = int(100_000_000 * 0.75)
-        graph_definition['alice']['channels']['carol']['local_balance_msat'] = int(100_000_000 * 0.75)
+        graph_definition['alice']['channels']['bob'][0]['local_balance_msat'] = int(100_000_000 * 0.75)
+        graph_definition['alice']['channels']['carol'][0]['local_balance_msat'] = int(100_000_000 * 0.75)
         g = self.prepare_chans_and_peers_in_graph(graph_definition)
         w = g.workers['alice'], g.workers['carol'], g.workers['bob'], g.workers['dave']
         alice_w, carol_w, bob_w, dave_w = w
@@ -2651,7 +2672,7 @@ class TestPeerForwarding(TestPeer):
             with mock.patch('electrum.trampoline.new_onion_packet', side_effect=modified_new_onion_packet_trampoline), \
                     mock.patch('electrum.lnworker.new_onion_packet', side_effect=modified_new_onion_packet_lnworker):
                         await self._run_trampoline_payment(graph, attempts=1)
-        bob_alice_channel = graph.channels[('bob', 'alice')]
+        bob_alice_channel = graph.channels[('bob', 'alice')][0]
         bob_hm = bob_alice_channel.hm
         assert len(bob_hm.all_htlcs_ever()) == 2
         assert all(bob_hm.was_htlc_failed(htlc_id=htlc.htlc_id, htlc_proposer=HTLCOwner.REMOTE) for (_, htlc) in bob_hm.all_htlcs_ever())
