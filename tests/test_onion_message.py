@@ -495,8 +495,8 @@ class TestOnionMessageUtils(TestPeer):
         alice, bob = graph.workers.values()
 
         # store bobs channel_update in alice
-        alice_chan = graph.channels[('alice', 'bob')]
-        bob_chan = graph.channels[('bob', 'alice')]
+        alice_chan = graph.channels[('alice', 'bob')][0]
+        bob_chan = graph.channels[('bob', 'alice')][0]
         bob_update_raw = bob_chan.get_outgoing_gossip_channel_update()
         bob_update = decode_msg(bob_update_raw)[1]
         bob_update['raw'] = bob_update_raw
@@ -546,9 +546,8 @@ class TestOnionMessageUtils(TestPeer):
             for channel_partner in definition.get('channels', {}):
                 inject_chan_into_gossipdb(
                     channel_db=alice.channel_db,
-                    graph=graph,
-                    node1name=name,
-                    node2name=channel_partner,
+                    chanAB=graph.channels[(name, channel_partner)][0],
+                    chanBA=graph.channels[(channel_partner, name)][0],
                 )
 
         # patch is_onion_message_node so we don't have to inject node announcements

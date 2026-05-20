@@ -255,6 +255,8 @@ def create_test_channels(
     alice._fallback_sweep_address = bitcoin.pubkey_to_address('p2wpkh', alice.config[LOCAL].payment_basepoint.pubkey.hex())
     bob._fallback_sweep_address = bitcoin.pubkey_to_address('p2wpkh', bob.config[LOCAL].payment_basepoint.pubkey.hex())
 
+    assert alice.channel_id == bob.channel_id
+
     return alice, bob
 
 

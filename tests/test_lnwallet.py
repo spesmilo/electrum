@@ -3,13 +3,12 @@ import os
 import asyncio
 from unittest import mock
 from decimal import Decimal
+from typing import Optional
 
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
+from electrum import bitcoin
 import electrum.trampoline
-from . import ElectrumTestCase
-from .test_lnchannel import create_test_channels
-
-from electrum.lnutil import RECEIVED, MIN_FINAL_CLTV_DELTA_ACCEPTED, serialize_htlc_key, LnFeatures
+from electrum.lnutil import RECEIVED, MIN_FINAL_CLTV_DELTA_ACCEPTED, serialize_htlc_key, LnFeatures, HTLCOwner
 from electrum.logging import console_stderr_handler
 from electrum.lntransport import LNPeerAddr
 from electrum.invoices import LN_EXPIRY_NEVER, PR_UNPAID
@@ -17,6 +16,10 @@ from electrum.lnpeer import Peer
 from electrum.lnchannel import Channel, ChannelState
 from electrum.lnonion import OnionPacket, OnionRoutingFailure
 from electrum.crypto import sha256
+from electrum.simple_config import SimpleConfig
+
+from . import ElectrumTestCase, lnhelpers
+from .test_lnchannel import create_test_channels
 
 
 class TestLNWallet(ElectrumTestCase):
@@ -417,3 +420,57 @@ class TestLNWallet(ElectrumTestCase):
             wallet.config.OPEN_ZEROCONF_CHANNELS = True
             wallet.config.ZEROCONF_TRUSTED_NODE = valid_peer
             self.assertTrue(wallet.can_get_zeroconf_channel())
+
+    async def test_rebalance_channels(self):
+        graph_def = {
+            'alice': {
+                'channels': {
+                    'bob': [
+                        {
+                            'local_balance_msat': 10_000_000_000,
+                            'remote_balance_msat': 50_000_000,
+                        },
+                        {
+                            'local_balance_msat': 50_000_000,
+                            'remote_balance_msat': 10_000_000_000,
+                        },
+                    ],
+                },
+            },
+            'bob': {
+                'config': {
+                    SimpleConfig.EXPERIMENTAL_LN_FORWARD_PAYMENTS: True,
+                },
+            },
+        }
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, graph_def)
+        alice, bob = graph.workers.values()
+        peer_ab, peer_ba = graph.peers.values()
+        await alice.lnpeermgr.taskgroup.spawn(peer_ab.main_loop())
+        await bob.lnpeermgr.taskgroup.spawn(peer_ba.main_loop())
+        self.assertFalse(alice.uses_trampoline())
+        chan0 = graph.channels[('alice', 'bob')][0]
+        chan1 = graph.channels[('alice', 'bob')][1]
+
+        # test num_sats_can_rebalance
+        self.assertGreater(alice.num_sats_can_rebalance(chan0, chan1), 9_000_000)
+        chan0.set_frozen_for_sending(True)
+        self.assertEqual(alice.num_sats_can_rebalance(chan0, chan1), 0)
+        chan0.set_frozen_for_sending(False)
+        chan1.set_frozen_for_receiving(True)
+        self.assertEqual(alice.num_sats_can_rebalance(chan0, chan1), 0)
+        chan1.set_frozen_for_receiving(False)
+
+        # simple rebalance: alice chan1 -> bob -> alice chan2
+        rebalance_amount = 60_000_000
+        self.assertEqual(chan0.balance(HTLCOwner.LOCAL), 10_000_000_000)
+        success, log = await alice.rebalance_channels(chan0, chan1, amount_msat=rebalance_amount)
+        self.assertTrue(success, msg=log)
+        self.assertLessEqual(chan0.balance(HTLCOwner.LOCAL), 10_000_000_000 - rebalance_amount)
+        self.assertEqual(chan1.balance(HTLCOwner.LOCAL), 50_000_000 + rebalance_amount)
+
+        # test another rebalance, with partially frozen channels
+        chan0.set_frozen_for_receiving(True)  # shouldn't matter, this channel will send
+        chan1.set_frozen_for_sending(True)  # shouldn't matter, this channel will receive
+        success, log = await alice.rebalance_channels(chan0, chan1, amount_msat=150_000_000)
+        self.assertTrue(success, msg=log)
