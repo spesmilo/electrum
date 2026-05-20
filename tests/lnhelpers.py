@@ -105,7 +105,8 @@ class MockStandardWallet(Standard_Wallet):
         assert passphrase
         return passphrase  # lol, super secure name
 
-def _create_mock_lnwallet(*, name, has_anchors, data_dir: str) -> 'MockLNWallet':
+
+def _create_mock_lnwallet(*, name: str, has_anchors: bool, data_dir: str) -> 'MockLNWallet':
     config = SimpleConfig({}, read_user_dir_function=lambda: data_dir)
     config.TEST_LN_OPEN_SRK_CHANNELS = not has_anchors
     config.INITIAL_TRAMPOLINE_FEE_LEVEL = 0
@@ -124,6 +125,7 @@ def _create_mock_lnwallet(*, name, has_anchors, data_dir: str) -> 'MockLNWallet'
     lnworker.lnpeermgr.network = network
     lnworker.logger.info(f"created LNWallet[{name}] with nodeID={lnworker.node_keypair.pubkey.hex()}")
     return lnworker
+
 
 class MockLNWallet(LNWallet):
     MPP_EXPIRY = 2  # HTLC timestamps are cast to int, so this cannot be 1
@@ -353,7 +355,7 @@ def _convert_to_rconfig_from_lconfig(lconfig: LocalConfig) -> RemoteConfig:
     return rconfig
 
 
-def create_channel_state(
+def _create_channel_state(
     *,
     funding_txid: str,
     funding_index: int,
@@ -460,7 +462,7 @@ def create_test_channels(
 
     alice, bob = (
         lnchannel.Channel(
-            create_channel_state(
+            _create_channel_state(
                 funding_txid=funding_txid,
                 funding_index=funding_index,
                 funding_sat=funding_sat,
@@ -475,7 +477,7 @@ def create_test_channels(
             lnworker=alice_lnwallet,
         ),
         lnchannel.Channel(
-            create_channel_state(
+            _create_channel_state(
                 funding_txid=funding_txid,
                 funding_index=funding_index,
                 funding_sat=funding_sat,

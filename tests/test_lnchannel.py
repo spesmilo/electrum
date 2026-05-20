@@ -1014,7 +1014,7 @@ class TestDustNoAnchors(TestDust):
     TEST_ANCHOR_CHANNELS = False
 
 
-def force_state_transition(chanA, chanB):
+def force_state_transition(chanA: Channel, chanB: Channel) -> None:
     chanB.receive_new_commitment(*chanA.sign_next_commitment())
     rev = chanB.revoke_current_commitment()
     bob_sig, bob_htlc_sigs = chanB.sign_next_commitment()
