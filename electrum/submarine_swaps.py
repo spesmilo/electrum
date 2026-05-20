@@ -22,6 +22,7 @@ from collections import defaultdict
 
 
 from .i18n import _
+from .interface import TxBroadcastError
 from .logging import Logger
 from .crypto import sha256, ripemd
 from .bitcoin import (script_to_p2wsh, opcodes, dust_threshold, DummyAddress, construct_witness,
@@ -976,12 +977,18 @@ class SwapManager(Logger):
         await transport.is_connected.wait()
         payment_hash = swap.payment_hash
         refund_pubkey = ECPrivkey(swap.privkey).get_public_key_bytes(compressed=True)
-        async def callback(payment_hash):
-            # FIXME what if this raises, e.g. TxBroadcastError?
-            #       We will never retry the hold-invoice-callback.
-            await self.broadcast_funding_tx(swap, tx)
+        funding_broadcast = asyncio.Event()
+        async def lightning_payment_callback(_payment_hash):
+            try:
+                await self.network.broadcast_transaction(tx)
+            except TxBroadcastError as e:
+                # FIXME: We will never retry the hold-invoice-callback.
+                self.logger.error(f"failed to broadcast swap funding transaction: {e}")
+            finally:
+                swap.funding_txid = tx.txid()
+                funding_broadcast.set()
 
-        self.lnworker.register_hold_invoice(payment_hash, callback)
+        self.lnworker.register_hold_invoice(payment_hash, lightning_payment_callback)
 
         # send invoice to server and wait for htlcs
         # note: server will link this RPC to our previous 'createnormalswap' RPC
@@ -994,8 +1001,11 @@ class SwapManager(Logger):
         await transport.send_request_to_server('addswapinvoice', request_data)
         # wait for funding tx
         lnaddr = decode_bolt11_invoice(invoice)
-        while swap.funding_txid is None and not lnaddr.is_expired():
-            await asyncio.sleep(0.1)
+        seconds_to_expiry = (lnaddr.date + lnaddr.get_expiry()) - now()
+        try:
+            await wait_for2(funding_broadcast.wait(), timeout=seconds_to_expiry)
+        except asyncio.TimeoutError:
+            self.logger.warning("timeout waiting for funding tx broadcast, invoice expired")
         return swap.funding_txid
 
     def create_funding_output(self, swap: SwapData) -> PartialTxOutput:
@@ -1044,11 +1054,6 @@ class SwapManager(Logger):
             lightning_amount_sat=lightning_amount_sat,
             expected_onchain_amount_sat=onchain_amount)
         return swap, invoice
-
-    @log_exceptions
-    async def broadcast_funding_tx(self, swap: SwapData, tx: Transaction) -> None:
-        swap.funding_txid = tx.txid()
-        await self.network.broadcast_transaction(tx)
 
     async def reverse_swap(
             self,
