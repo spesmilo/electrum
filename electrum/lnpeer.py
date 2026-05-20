@@ -151,6 +151,7 @@ class Peer(Logger, EventListener):
         raw_msg = encode_msg(message_name, **kwargs)
         self._store_raw_msg_if_local_update(raw_msg, message_name=message_name, channel_id=kwargs.get("channel_id"))
         self.transport.send_bytes(raw_msg)
+        # could `await self.transport.writer.drain()`, but not async
 
     def _store_raw_msg_if_local_update(self, raw_msg: bytes, *, message_name: str, channel_id: Optional[bytes]):
         is_commitment_signed = message_name == "commitment_signed"
@@ -907,6 +908,7 @@ class Peer(Logger, EventListener):
         try:
             if self.transport:
                 self.transport.close()
+                # could `await self.transport.writer.wait_closed()` with a timeout?  but not async
         except Exception:
             pass
         self.lnworker.lnpeermgr.peer_closed(self)

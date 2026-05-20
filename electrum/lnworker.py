@@ -3818,6 +3818,9 @@ class LNWallet(Logger):
                     async with OldTaskGroup(wait=any) as group:
                         await group.spawn(peer._message_loop())
                         await group.spawn(peer.request_force_close(channel_id))
+                    async with util.async_timeout(1):
+                        peer.transport.close()
+                        await peer.transport.writer.wait_closed()  # flush write-buffer
                     return True
                 except Exception as e:
                     self.logger.info(f'failed to connect {host} {e}')

@@ -252,6 +252,11 @@ fi
 
 
 if [[ $1 == "backup" ]]; then
+    # Alice has two channels with Bob.
+    # - chan1 has on-chain op_return backups,
+    # - chan2 has an imported backup.
+    # Alice restores from seed, and also imports backup for chan2.
+    # Test "request_force_close" works for both channels.
     wait_for_balance alice 1
     echo "alice opens channel"
     bob_node=$($bob nodeid)
@@ -260,7 +265,7 @@ if [[ $1 == "backup" ]]; then
     $alice setconfig use_recoverable_channels False
     channel2=$($alice open_channel $bob_node 0.15 --password='')
     new_blocks 3
-    wait_until_channel_open alice
+    wait_until_channel_open alice  # FIXME wait for *both* channels?
     backup=$($alice export_channel_backup $channel2)
     seed=$($alice getseed --password='')
     $alice stop
