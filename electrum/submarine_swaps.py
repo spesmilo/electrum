@@ -34,7 +34,7 @@ from .transaction import (
 from .util import (
     log_exceptions, ignore_exceptions, BelowDustLimit, OldTaskGroup, ca_path, gen_nostr_ann_pow,
     get_nostr_ann_pow_amount, make_aiohttp_proxy_connector, get_running_loop, get_asyncio_loop, wait_for2,
-    run_sync_function_on_asyncio_thread, trigger_callback, NoDynamicFeeEstimates, UserFacingException,
+    run_sync_function_on_asyncio_thread, trigger_callback, NoDynamicFeeEstimates, UserFacingException, now
 )
 from . import lnutil
 from .lnutil import hex_to_bytes, REDEEM_AFTER_DOUBLE_SPENT_DELAY, Keypair
@@ -160,10 +160,6 @@ class SwapServerError(Exception):
         if self.message:
             return self.message
         return _("The swap server errored or is unreachable.")
-
-
-def now():
-    return int(time.time())
 
 
 @attr.s(frozen=True)
@@ -295,7 +291,7 @@ class SwapManager(Logger):
             await transport.is_connected.wait()
             self.logger.info(f'nostr is connected')
             # will publish a new announcement if liquidity changed or every OFFER_UPDATE_INTERVAL_SEC
-            last_update = time.time()
+            last_update = now()
             while True:
                 await asyncio.sleep(transport.LIQUIDITY_UPDATE_INTERVAL_SEC)
 
@@ -313,11 +309,11 @@ class SwapManager(Logger):
                 mining_fees_changed = self.mining_fee != previous_mining_fee
                 if liquidity_changed or mining_fees_changed:
                     self.logger.debug(f"updating announcement: {liquidity_changed=}, {mining_fees_changed=}")
-                elif time.time() - last_update < transport.OFFER_UPDATE_INTERVAL_SEC:
+                elif now() - last_update < transport.OFFER_UPDATE_INTERVAL_SEC:
                     continue
 
                 await transport.publish_offer(self)
-                last_update = time.time()
+                last_update = now()
 
     @log_exceptions
     async def main_loop(self):
@@ -1762,8 +1758,7 @@ class NostrTransport(SwapServerTransport):
 
     def get_recent_offers(self) -> Sequence[SwapOffer]:
         # filter to fresh timestamps
-        now = int(time.time())
-        recent_offers = [x for x in self._offers.values() if now - x.timestamp < 3600]
+        recent_offers = [x for x in self._offers.values() if now() - x.timestamp < 3600]
         # sort by proof-of-work
         recent_offers = sorted(recent_offers, key=lambda x: x.pow_bits, reverse=True)
         # cap list size
@@ -1789,7 +1784,7 @@ class NostrTransport(SwapServerTransport):
         # the first value of a single letter tag is indexed and can be filtered for
         tags = [['d', f'electrum-swapserver-{self.NOSTR_EVENT_VERSION}'],
                 ['r', 'net:' + constants.net.NET_NAME],
-                ['expiration', str(int(time.time() + self.OFFER_UPDATE_INTERVAL_SEC + 10))]]
+                ['expiration', str(now() + self.OFFER_UPDATE_INTERVAL_SEC + 10)]]
         try:
             event_id = await aionostr._add_event(
                 self.relay_manager,
@@ -1847,7 +1842,7 @@ class NostrTransport(SwapServerTransport):
             "limit": 10,
             "#d": [f"electrum-swapserver-{self.NOSTR_EVENT_VERSION}"],
             "#r": [f"net:{constants.net.NET_NAME}"],
-            "since": int(time.time()) - 60 * 60,
+            "since": now() - 60 * 60,
         }
         async for event in self.relay_manager.get_events(query, single_event=False, only_stored=False):
             try:
@@ -1862,8 +1857,8 @@ class NostrTransport(SwapServerTransport):
                 continue
             if tags.get('r') != f"net:{constants.net.NET_NAME}":
                 continue
-            if (event.created_at > int(time.time()) + 60 * 60
-                    or event.created_at < int(time.time()) - 60 * 60):
+            if (event.created_at > now() + 60 * 60
+                    or event.created_at < now() - 60 * 60):
                 continue
             # check if this is the most recent event for this pubkey
             pubkey = event.pubkey

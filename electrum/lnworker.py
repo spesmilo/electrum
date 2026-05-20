@@ -1218,7 +1218,6 @@ class LNWallet(Logger):
         self.onion_message_manager.start_network(network=network)
 
         for coro in [
-                self.lnwatcher.trigger_callbacks(),  # shortcut (don't block) if funding tx locked and verified
                 self.reestablish_peers_and_channels(),
                 self.sync_with_remote_watchtower(),
         ]:
@@ -1233,7 +1232,7 @@ class LNWallet(Logger):
             await self.wait_for_received_pending_htlcs_to_get_removed()
         await self.lnpeermgr.stop()
         if self.lnwatcher:
-            self.lnwatcher.stop()
+            await self.lnwatcher.stop()
             self.lnwatcher = None
         if self.swap_manager and self.swap_manager.network:  # may not be present in tests
             await self.swap_manager.stop()

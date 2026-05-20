@@ -2,11 +2,14 @@
 # Distributed under the MIT software license, see the accompanying
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
 
+import asyncio
 from typing import TYPE_CHECKING, Optional, Dict, Callable, Awaitable
 
 from . import util
-from .util import TxMinedInfo, BelowDustLimit, NoDynamicFeeEstimates
-from .util import EventListener, event_listener, log_exceptions, ignore_exceptions
+from .util import (
+    TxMinedInfo, BelowDustLimit, NoDynamicFeeEstimates, OldTaskGroup, EventListener, event_listener, log_exceptions,
+    ignore_exceptions, now
+)
 from .transaction import Transaction, TxOutpoint
 from .logging import Logger
 from .address_synchronizer import TX_HEIGHT_LOCAL
@@ -20,6 +23,8 @@ if TYPE_CHECKING:
 
 
 class LNWatcher(Logger, EventListener):
+    MAX_CALLBACK_TRIGGER_DELAY_SEC = 600
+    CALLBACK_LOOP_POLL_INTERVAL_SEC = 5
 
     def __init__(self, lnworker: 'LNWallet'):
         self.lnworker = lnworker
@@ -30,12 +35,42 @@ class LNWatcher(Logger, EventListener):
         self.network = None
         self.register_callbacks()
         self._pending_force_closes = set()
+        self.taskgroup = OldTaskGroup()
+        self._last_callback_trigger_ts = 0
 
     def start_network(self, network: 'Network'):
+        assert not self.network, "already started?"
         self.network = network
+        asyncio.run_coroutine_threadsafe(self._main_loop(), util.get_asyncio_loop())
 
-    def stop(self):
+    async def stop(self):
+        await self.taskgroup.cancel_remaining()
         self.unregister_callbacks()
+
+    async def _main_loop(self):
+        self.logger.debug("starting taskgroup")
+        try:
+            async with self.taskgroup as group:
+                await group.spawn(self._callback_loop())  # keeps group alive
+        except Exception:
+            self.logger.exception("taskgroup crashed")
+        finally:
+            self.logger.debug("taskgroup stopped")
+
+    async def _callback_loop(self):
+        """
+        Triggers the callbacks if no event has triggered them within the
+        last MAX_CALLBACK_TRIGGER_DELAY_SEC (e.g. during a prolonged time without new blocks)
+        """
+        ts_start = now()
+        while True:
+            max_delay = self.MAX_CALLBACK_TRIGGER_DELAY_SEC
+            if now() - ts_start < max_delay:
+                max_delay /= 10  # if wallet just recently opened, be much more eager
+            time_since_last_cb_trigger = now() - self._last_callback_trigger_ts
+            if time_since_last_cb_trigger > max_delay:
+                await self.trigger_callbacks()
+            await asyncio.sleep(self.CALLBACK_LOOP_POLL_INTERVAL_SEC)
 
     def remove_callback(self, address: str) -> None:
         self.callbacks.pop(address, None)
@@ -59,7 +94,7 @@ class LNWatcher(Logger, EventListener):
 
     async def trigger_callbacks(self, *, requires_synchronizer: bool = True):
         if requires_synchronizer and not self.adb.synchronizer:
-            self.logger.info("synchronizer not set yet")
+            self.logger.debug("synchronizer not set yet")
             return
         for address, callback in list(self.callbacks.items()):
             try:
@@ -68,6 +103,7 @@ class LNWatcher(Logger, EventListener):
                 self.logger.exception(f"LNWatcher callback failed {address=}")
         # send callback to GUI
         util.trigger_callback('wallet_updated', self.lnworker.wallet)
+        self._last_callback_trigger_ts = now()
 
     @event_listener
     async def on_event_blockchain_updated(self, *args):
