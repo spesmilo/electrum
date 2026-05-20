@@ -19,7 +19,7 @@ from electrum.crypto import sha256
 from electrum.simple_config import SimpleConfig
 
 from . import ElectrumTestCase, lnhelpers
-from .test_lnchannel import create_test_channels
+from .lnhelpers import create_test_channels
 
 
 class TestLNWallet(ElectrumTestCase):

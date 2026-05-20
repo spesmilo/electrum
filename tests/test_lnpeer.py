@@ -54,10 +54,9 @@ from electrum.fee_policy import FeeTimeEstimates, FEE_ETA_TARGETS
 from electrum.mpp_split import split_amount_normal
 from electrum.wallet import Abstract_Wallet, Standard_Wallet
 
-from .test_lnchannel import create_test_channels
 from .test_bitcoin import needs_test_with_all_chacha20_implementations
 from . import ElectrumTestCase, restore_wallet_from_text__for_unittest, lnhelpers
-from .lnhelpers import Graph, MockLNWallet
+from .lnhelpers import Graph, MockLNWallet, create_test_channels
 
 
 high_fee_channel = {

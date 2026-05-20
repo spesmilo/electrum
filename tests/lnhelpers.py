@@ -1,19 +1,28 @@
 import asyncio
 import copy
+import os
+from pprint import pformat
 from typing import NamedTuple, Tuple, Dict, Mapping, TYPE_CHECKING, Sequence
 
 import electrum
 import electrum.trampoline
-from electrum import util
+from electrum import (
+    bitcoin, lnpeer, lnchannel, lnutil, util,
+)
+from electrum.coinchooser import PRNG
 from electrum.network import ProxySettings
 from electrum.bolt11 import BOLT11Addr
 from electrum.lnpeer import Peer
-from electrum.lnutil import LnFeatures, PaymentFeeBudget
+from electrum.lnutil import (
+    LnFeatures, PaymentFeeBudget, LOCAL, REMOTE, ChannelType, LocalConfig, RemoteConfig,
+    OnlyPubkeyKeypair, secret_to_pubkey,
+)
 from electrum.lnchannel import ChannelState, Channel
 from electrum.lnrouter import LNPathFinder
 from electrum.channel_db import ChannelDB
 from electrum.lnworker import LNWallet, PaySession
 from electrum.simple_config import SimpleConfig
+from electrum.stored_dict import StoredDict
 from electrum.fee_policy import FeeTimeEstimates, FEE_ETA_TARGETS
 from electrum.wallet import  Standard_Wallet
 
@@ -225,7 +234,6 @@ def prepare_chans_and_peers_in_graph(
     workers: Dict[str, MockLNWallet] = None,
     channels: dict[Tuple[str, str], list[Channel]] = None,
 ) -> Graph:
-    from .test_lnchannel import create_test_channels
     from . import test_lnpeer
 
     if graph_definition is None:
@@ -314,3 +322,206 @@ def prepare_chans_and_peers_in_graph(
         print(f"{a:5s}: {keys[a].pubkey}")
         print(f"       {keys[a].pubkey.hex()}")
     return graph
+
+
+def _convert_to_rconfig_from_lconfig(lconfig: LocalConfig) -> RemoteConfig:
+    """converts Alice's local config to Bob's remote config (neutering private keys, etc)"""
+    ctn = 0
+    pcp_secret = lnutil.get_per_commitment_secret_from_seed(
+        lconfig.per_commitment_secret_seed,
+        lnutil.RevocationStore.START_INDEX - ctn)
+    pcp_point = secret_to_pubkey(int.from_bytes(pcp_secret, 'big'))
+    rconfig = RemoteConfig(
+        payment_basepoint=OnlyPubkeyKeypair(pubkey=lconfig.payment_basepoint.pubkey),
+        multisig_key=OnlyPubkeyKeypair(pubkey=lconfig.multisig_key.pubkey),
+        htlc_basepoint=OnlyPubkeyKeypair(pubkey=lconfig.htlc_basepoint.pubkey),
+        delayed_basepoint=OnlyPubkeyKeypair(pubkey=lconfig.delayed_basepoint.pubkey),
+        revocation_basepoint=OnlyPubkeyKeypair(pubkey=lconfig.revocation_basepoint.pubkey),
+        to_self_delay=lconfig.to_self_delay,
+        dust_limit_sat=lconfig.dust_limit_sat,
+        max_htlc_value_in_flight_msat=lconfig.max_htlc_value_in_flight_msat,
+        max_accepted_htlcs=lconfig.max_accepted_htlcs,
+        initial_msat=lconfig.initial_msat,
+        reserve_sat=lconfig.reserve_sat,
+        htlc_minimum_msat=lconfig.htlc_minimum_msat,
+        upfront_shutdown_script=lconfig.upfront_shutdown_script,
+        announcement_node_sig=lconfig.announcement_node_sig,
+        announcement_bitcoin_sig=lconfig.announcement_bitcoin_sig,
+        next_per_commitment_point=pcp_point,
+        current_per_commitment_point=None,
+    )
+    return rconfig
+
+
+def create_channel_state(
+    *,
+    funding_txid: str,
+    funding_index: int,
+    funding_sat: int,
+    is_initiator: bool,
+    other_node_id: bytes,
+    channel_type: ChannelType,
+    local_config: LocalConfig,
+    remote_config: RemoteConfig,
+):
+    channel_id, _ = lnpeer.channel_id_from_funding_tx(funding_txid, funding_index)
+    state = {
+            "channel_id":channel_id.hex(),
+            "short_channel_id":channel_id[:8],
+            "funding_outpoint":lnpeer.Outpoint(funding_txid, funding_index),
+            "remote_config": remote_config,
+            "local_config": local_config,
+            "constraints":lnpeer.ChannelConstraints(
+                flags=lnchannel.CF_ANNOUNCE_CHANNEL,
+                capacity=funding_sat,
+                is_initiator=is_initiator,
+                funding_txn_minimum_depth=3,
+            ),
+            "node_id":other_node_id.hex(),
+            'onion_keys': {},
+            'data_loss_protect_remote_pcp': {},
+            'state': 'PREOPENING',
+            'log': {},
+            'unfulfilled_htlcs': {},
+            'revocation_store': {},
+            'channel_type': channel_type,
+    }
+    return StoredDict(state, None)
+
+
+def create_test_channels(
+    *,
+    alice_lnwallet: 'MockLNWallet',
+    bob_lnwallet: 'MockLNWallet',
+    feerate=6000,
+    local_msat=None,
+    remote_msat=None,
+    random_seed=None,
+    local_max_inflight=None,
+    remote_max_inflight=None,
+    max_accepted_htlcs=5,
+) -> tuple[Channel, Channel]:
+    if random_seed is None:  # needed for deterministic randomness
+        random_seed = os.urandom(32)
+    random_gen = PRNG(random_seed)
+    alice_name = alice_lnwallet.name
+    bob_name = bob_lnwallet.name
+    alice_pubkey = alice_lnwallet.node_keypair.pubkey
+    bob_pubkey = bob_lnwallet.node_keypair.pubkey
+    funding_txid = random_gen.get_bytes(32).hex()
+    funding_index = 0
+    funding_sat = ((local_msat + remote_msat) // 1000) if local_msat is not None and remote_msat is not None else (bitcoin.COIN * 10)
+    local_msat = local_msat if local_msat is not None else (funding_sat * 1000 // 2)
+    remote_msat = remote_msat if remote_msat is not None else (funding_sat * 1000 // 2)
+    local_max_inflight = funding_sat * 1000 if local_max_inflight is None else local_max_inflight
+    remote_max_inflight = funding_sat * 1000 if remote_max_inflight is None else remote_max_inflight
+
+    for config in [alice_lnwallet.config, bob_lnwallet.config]:
+        config.LIGHTNING_MAX_FUNDING_SAT = max(config.LIGHTNING_MAX_FUNDING_SAT, funding_sat)
+
+    peer_features = alice_lnwallet.features | LnFeatures.OPTION_SUPPORT_LARGE_CHANNEL_OPT
+    assert alice_lnwallet.config.TEST_LN_OPEN_SRK_CHANNELS == bob_lnwallet.config.TEST_LN_OPEN_SRK_CHANNELS
+    if alice_lnwallet.config.TEST_LN_OPEN_SRK_CHANNELS:
+        channel_type = ChannelType.OPTION_STATIC_REMOTEKEY
+    else:
+        channel_type = ChannelType.OPTION_STATIC_REMOTEKEY | ChannelType.OPTION_ANCHORS
+    # create alice's local config
+    alice_lconfig = alice_lnwallet.make_local_config_for_new_channel(
+        funding_sat=funding_sat,
+        push_msat=remote_msat,
+        initiator=LOCAL,
+        channel_type=channel_type,
+        multisig_funding_keypair=None,
+        peer_features=peer_features,
+        channel_seed=random_gen.get_bytes(32),
+    )
+    alice_lconfig.funding_locked_received = True
+    alice_lconfig.dust_limit_sat = 200
+    alice_lconfig.to_self_delay = 5
+    alice_lconfig.reserve_sat = 0
+    alice_lconfig.max_accepted_htlcs = max_accepted_htlcs
+    alice_lconfig.max_htlc_value_in_flight_msat = local_max_inflight
+    # create bob's local config
+    bob_lconfig = bob_lnwallet.make_local_config_for_new_channel(
+        funding_sat=funding_sat,
+        push_msat=remote_msat,
+        initiator=REMOTE,
+        channel_type=channel_type,
+        multisig_funding_keypair=None,
+        peer_features=peer_features,
+        channel_seed=random_gen.get_bytes(32),
+    )
+    bob_lconfig.funding_locked_received = True
+    bob_lconfig.dust_limit_sat = 1300
+    bob_lconfig.to_self_delay = 4
+    bob_lconfig.reserve_sat = 0
+    bob_lconfig.max_accepted_htlcs = max_accepted_htlcs
+    bob_lconfig.max_htlc_value_in_flight_msat = remote_max_inflight
+
+    alice, bob = (
+        lnchannel.Channel(
+            create_channel_state(
+                funding_txid=funding_txid,
+                funding_index=funding_index,
+                funding_sat=funding_sat,
+                is_initiator=True,
+                other_node_id=bob_pubkey,
+                channel_type=channel_type,
+                local_config=alice_lconfig,
+                remote_config=_convert_to_rconfig_from_lconfig(bob_lconfig),
+            ),
+            name=f"{alice_name}->{bob_name}",
+            initial_feerate=feerate,
+            lnworker=alice_lnwallet,
+        ),
+        lnchannel.Channel(
+            create_channel_state(
+                funding_txid=funding_txid,
+                funding_index=funding_index,
+                funding_sat=funding_sat,
+                is_initiator=False,
+                other_node_id=alice_pubkey,
+                channel_type=channel_type,
+                local_config=bob_lconfig,
+                remote_config=_convert_to_rconfig_from_lconfig(alice_lconfig),
+            ),
+            name=f"{bob_name}->{alice_name}",
+            initial_feerate=feerate,
+            lnworker=bob_lnwallet,
+        )
+    )
+
+    alice.hm.log[LOCAL]['ctn'] = 0
+    bob.hm.log[LOCAL]['ctn'] = 0
+
+    alice._state = ChannelState.OPEN
+    bob._state = ChannelState.OPEN
+
+    a_out = alice.get_latest_commitment(LOCAL).outputs()
+    b_out = bob.get_next_commitment(REMOTE).outputs()
+    assert a_out == b_out, "\n" + pformat((a_out, b_out))
+
+    sig_from_bob, a_htlc_sigs = bob.sign_next_commitment()
+    sig_from_alice, b_htlc_sigs = alice.sign_next_commitment()
+
+    assert len(a_htlc_sigs) == 0
+    assert len(b_htlc_sigs) == 0
+
+    alice.open_with_first_pcp(alice.config[REMOTE].next_per_commitment_point, sig_from_bob)
+    bob.open_with_first_pcp(bob.config[REMOTE].next_per_commitment_point, sig_from_alice)
+
+    alice_second = lnutil.secret_to_pubkey(int.from_bytes(
+        lnutil.get_per_commitment_secret_from_seed(alice.config[LOCAL].per_commitment_secret_seed, lnutil.RevocationStore.START_INDEX - 1), "big"))
+    bob_second = lnutil.secret_to_pubkey(int.from_bytes(
+        lnutil.get_per_commitment_secret_from_seed(bob.config[LOCAL].per_commitment_secret_seed, lnutil.RevocationStore.START_INDEX - 1), "big"))
+
+    # from funding_locked:
+    alice.config[REMOTE].next_per_commitment_point = bob_second
+    bob.config[REMOTE].next_per_commitment_point = alice_second
+
+    alice._fallback_sweep_address = bitcoin.pubkey_to_address('p2wpkh', alice.config[LOCAL].payment_basepoint.pubkey.hex())
+    bob._fallback_sweep_address = bitcoin.pubkey_to_address('p2wpkh', bob.config[LOCAL].payment_basepoint.pubkey.hex())
+
+    assert alice.channel_id == bob.channel_id
+
+    return alice, bob
