@@ -527,8 +527,10 @@ class ToyServerSession(aiorpcx.RPCSession, Logger):
         headers = list(self.svr.get_block_header(idx).hex() for idx in range(start_height, last_height + 1))
         return {'headers': headers, 'count': count, 'max': 2016}
 
-    async def _handle_ping(self):
-        return None
+    async def _handle_ping(self, pong_len=0, data=""):
+        pong_data = pong_len * "0"
+        ret = {"data": pong_data}
+        return ret
 
     async def _handle_transaction_get(self, tx_hash: str, verbose=False):
         assert not verbose

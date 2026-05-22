@@ -126,8 +126,8 @@ def assert_hash256_str(val: Any) -> None:
         raise RequestCorrupted(f'{val!r} should be a hash256 str')
 
 
-def assert_hex_str(val: Any) -> None:
-    if not is_hex_str(val):
+def assert_hex_str(val: Any, *, allow_odd_len: bool = False) -> None:
+    if not is_hex_str(val, allow_odd_len=allow_odd_len):
         raise RequestCorrupted(f'{val!r} should be a hex str')
 
 
@@ -179,10 +179,15 @@ class NotificationSession(RPCSession):
         #self.logger.setLevel(logging.DEBUG)  # from aiorpcx
         #self.verbosity = 4
 
-    async def handle_request(self, request):
+    async def handle_request(self, request: aiorpcx.Request | aiorpcx.Notification) -> None:
         self.maybe_log(f"--> {request}")
+        # TODO handle request.args being a dict
         try:
             if isinstance(request, Notification):
+                if request.method == "server.ping":
+                    data = request.args[0]
+                    await self.interface.phandle_on_ping_notification(data=data)
+                    return
                 params, result = request.args[:-1], request.args[-1]
                 key = self.get_hashable_key_for_rpc_call(request.method, params)
                 if key in self.subscriptions:
@@ -1069,13 +1074,13 @@ class Interface(Logger):
         # Adding a bit of randomness generates some noise against traffic analysis.
         while True:
             await asyncio.sleep(random.random() * 300)
-            await self.session.send_request('server.ping')
+            await self.send_ping()
             await self._maybe_send_noise()
 
     async def _maybe_send_noise(self):
         while random.random() < 0.2:
             await asyncio.sleep(random.random())
-            await self.session.send_request('server.ping')
+            await self.send_ping()
 
     async def request_fee_estimates(self):
         while True:
@@ -1623,6 +1628,25 @@ class Interface(Logger):
         if res != -1:
             assert_non_negative_int_or_float(res)
             res = int(res * bitcoin.COIN)
+        return res
+
+    async def phandle_on_ping_notification(self, data=""):
+        assert self.active_protocol_tuple >= (1, 7)
+        assert_hex_str(data, allow_odd_len=True)
+        # nothing to do.
+
+    async def send_ping(self, pong_len: int = None, data: str = None) -> dict[str, Any]:
+        if pong_len is None:
+            pong_len = random.randint(0, 128)  # simply to exercise server logic
+        if data is None:
+            data = "0" * random.randint(0, 128)  # simply to exercise server logic
+        assert isinstance(pong_len, int), repr(pong_len)
+        assert is_hex_str(data, allow_odd_len=True), repr(data)
+        res = await self.session.send_request("server.ping", (pong_len, data))
+        data2 = assert_dict_contains_field(res, field_name='data')
+        assert_hex_str(data2, allow_odd_len=True)
+        if len(data2) != pong_len:
+            raise RequestCorrupted(f'length of data ({len(data2)}) does not match requested {pong_len=}')
         return res
 
 

@@ -735,8 +735,10 @@ def is_hash256_str(text: Any) -> bool:
     return is_hex_str(text)
 
 
-def is_hex_str(text: Any) -> bool:
+def is_hex_str(text: Any, *, allow_odd_len: bool = False) -> bool:
     if not isinstance(text, str): return False
+    if allow_odd_len and len(text) % 2 == 1:
+        return is_hex_str("0" + text, allow_odd_len=False)
     try:
         b = bytes.fromhex(text)
     except Exception:
