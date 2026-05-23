@@ -287,7 +287,7 @@ class Synchronizer(SynchronizerBase):
             assert_hash256_str(txid)
             txs = set()
             txs.add(txid)
-            height = status.get('height')
+            height = status.get('funder_height')
             if height is not None:
                 assert isinstance(height, int)
                 # spv the input
