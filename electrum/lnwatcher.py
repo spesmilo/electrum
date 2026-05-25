@@ -31,7 +31,7 @@ class LNWatcher(Logger, EventListener):
         Logger.__init__(self)
         self.adb = lnworker.wallet.adb
         self.config = lnworker.config
-        self.callbacks = {}  # type: Dict[str, Callable[[], Awaitable[None]]]  # address -> lambda function
+        self.callbacks = {}  # type: Dict[str, Callable[[], Awaitable[None]]]  # address/txo -> lambda function
         self.network = None
         self.register_callbacks()
         self._pending_force_closes = set()
@@ -97,10 +97,11 @@ class LNWatcher(Logger, EventListener):
         outpoint: str,
         callback: Callable[[], Awaitable[None]],
         *,
+        spk_hint: str,
         subscribe: bool = True,
     ) -> None:
         if subscribe:
-            self.adb.subscribe_to_outpoint(outpoint)
+            self.adb.subscribe_to_outpoint(outpoint, spk_hint=spk_hint)
         self.callbacks[outpoint] = callback
 
     async def trigger_callbacks(self, *, requires_synchronizer: bool = True):
@@ -143,7 +144,11 @@ class LNWatcher(Logger, EventListener):
     def add_channel(self, chan: 'AbstractChannel') -> None:
         outpoint = chan.funding_outpoint.to_str()
         callback = lambda: self.check_onchain_situation(outpoint)
-        self.add_outpoint_callback(outpoint, callback, subscribe=chan.need_to_subscribe())
+        self.add_outpoint_callback(
+            outpoint, callback,
+            spk_hint=chan.get_funding_scriptpubkey().hex(),
+            subscribe=chan.need_to_subscribe(),
+        )
 
     @ignore_exceptions
     @log_exceptions
@@ -157,7 +162,7 @@ class LNWatcher(Logger, EventListener):
         closing_txid = self.adb.get_spender(funding_outpoint)
         closing_height = self.adb.get_tx_height(closing_txid)
         if closing_txid:
-            self.adb.subscribe_to_tx_outpoints(closing_txid)
+            self.adb.subscribe_to_tx_outpoints(closing_txid)  # FIXME this assumes we alrdy have closing_tx
             closing_tx = self.adb.get_transaction(closing_txid)
             if closing_tx:
                 keep_watching = await self.sweep_commitment_transaction(funding_outpoint, closing_tx)

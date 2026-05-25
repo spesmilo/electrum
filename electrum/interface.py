@@ -238,17 +238,21 @@ class NotificationSession(RPCSession):
     async def subscribe(self, method: str, params: List, queue: asyncio.Queue):
         # note: until the cache is written for the first time,
         # each 'subscribe' call might make a request on the network.
-        params2 = params[:]
+        notif_params = params[:]
         if method == 'blockchain.scriptpubkey.subscribe':
-            params2[0] = script_to_scripthash(bytes.fromhex(params2[0]))
-        key = self.get_hashable_key_for_rpc_call(method, params2)
+            # params: spk
+            notif_params[0] = script_to_scripthash(bytes.fromhex(params[0]))  # convert spk->sh
+        elif method == 'blockchain.outpoint.subscribe':
+            # params: tx_hash, txout_idx, spk_hint
+            notif_params = notif_params[0:2]  # drop spk_hint
+        key = self.get_hashable_key_for_rpc_call(method, notif_params)
         self.subscriptions[key].append(queue)
         if key in self.cache:
             result = self.cache[key]
         else:
             result = await self.send_request(method, params)
             self.cache[key] = result
-        await queue.put(params2 + [result])
+        await queue.put(notif_params + [result])
 
     def unsubscribe(self, queue):
         """Unsubscribe a callback to free object references to enable GC."""

@@ -66,7 +66,7 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
     def _reset(self):
         super()._reset()
         self._adding_addrs = set()
-        self._adding_outpoints = set()
+        self._adding_outpoints = {}  # type: dict[str, str]  # outpoint->spk_hint
         self.requested_addrs = set()
         self.requested_outpoints = set()
         self._handling_addr_statuses = set()
@@ -93,8 +93,9 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
         if not is_address(addr): raise ValueError(f"invalid bitcoin address {neuter_bitcoin_address(addr)}")
         self._adding_addrs.add(addr)  # this lets is_up_to_date already know about addr
 
-    def add_outpoint(self, outpoint: str) -> None:
-        self._adding_outpoints.add(outpoint)  # this lets is_up_to_date already know about outpoint
+    def add_outpoint(self, outpoint: str, *, spk_hint: str) -> None:
+        # this lets is_up_to_date already know about outpoint
+        self._adding_outpoints[outpoint] = spk_hint
 
     async def _add_address(self, addr: str):
         try:
@@ -105,13 +106,13 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
         finally:
             self._adding_addrs.discard(addr)  # ok for addr not to be present
 
-    async def _add_outpoint(self, outpoint: str):
+    async def _add_outpoint(self, outpoint: str, *, spk_hint: str):
         try:
             if outpoint in self.requested_outpoints: return
             self.requested_outpoints.add(outpoint)
-            await self.taskgroup.spawn(self._subscribe_to_outpoint, outpoint)
+            await self.taskgroup.spawn(self._subscribe_to_outpoint(outpoint, spk_hint=spk_hint))
         finally:
-            self._adding_outpoints.discard(outpoint)  # ok for addr not to be present
+            self._adding_outpoints.pop(outpoint, None)  # ok for outpoint not to be present
 
     async def _on_address_status(self, addr: str, status: Optional[str]):
         """Handle the change of the status of an address.
@@ -137,14 +138,14 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
             raise
         self._requests_answered += 1
 
-    async def _subscribe_to_outpoint(self, outpoint):
+    async def _subscribe_to_outpoint(self, outpoint: str, *, spk_hint: str) -> None:
         self._requests_sent += 1
         txhash, idx = outpoint.split(':')
         idx = int(idx)
         self.logger.info(f'subscribe to outpoint: {txhash}:{idx}')
         try:
             async with self._network_request_semaphore:
-                await self.session.subscribe('blockchain.outpoint.subscribe', [txhash, idx], self.outpoint_status_queue)
+                await self.session.subscribe('blockchain.outpoint.subscribe', [txhash, idx, spk_hint], self.outpoint_status_queue)
         except RPCError as e:
             raise
         self._requests_answered += 1
@@ -365,8 +366,8 @@ class Synchronizer(SynchronizerBase):
         for addr in random_shuffled_copy(self.adb.get_addresses()):
             await self._add_address(addr)
         # add outpoints to bootstrap (race)
-        for outpoint in self.adb._subscribed_outpoints:
-            await self._add_outpoint(outpoint)
+        for outpoint, spk_hint in self.adb._subscribed_outpoints.items():
+            await self._add_outpoint(outpoint, spk_hint=spk_hint)
         # main loop
         self._init_done = True
         prev_uptodate = False
@@ -374,8 +375,8 @@ class Synchronizer(SynchronizerBase):
             await asyncio.sleep(0.1)
             for addr in self._adding_addrs.copy(): # copy set to ensure iterator stability
                 await self._add_address(addr)
-            for outpoint in list(self._adding_outpoints):
-                await self._add_outpoint(outpoint)
+            for outpoint, spk_hint in self._adding_outpoints.copy().items():
+                await self._add_outpoint(outpoint, spk_hint=spk_hint)
             up_to_date = self.adb.is_up_to_date()
             # see if status changed
             if (up_to_date != prev_uptodate
