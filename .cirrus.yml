@@ -264,7 +264,9 @@ task:
   install_script:
     - npm install -g @anthropic-ai/claude-code
   review_script:
-    - python3 contrib/ci/claude_security_review.py
+    # the script is executed as 'node' user as claude refuses to run with root permissions
+    - chown -R node:node .
+    - su node -c "python3 contrib/ci/claude_security_review.py"
 
 # Cron jobs configured in https://cirrus-ci.com/settings/...
 # - job "nightly" on branch "master" at "0 30 2 * * ?"  (every day at 02:30Z)
