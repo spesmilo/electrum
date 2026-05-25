@@ -34,7 +34,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROMPT_FILE = os.path.join(SCRIPT_DIR, "security_review_prompt.md")
 
 MAX_DIFF_CHARS = 800_000
-CLAUDE_TIMEOUT_SECONDS = 20 * 60
+CLAUDE_TIMEOUT_SECONDS = 60 * 60
 CLAUDE_MODEL = "claude-opus-4-7"
 CLAUDE_EFFORT = "max"
 
