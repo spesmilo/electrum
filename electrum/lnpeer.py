@@ -386,7 +386,8 @@ class Peer(Logger, EventListener):
             await asyncio.sleep(min_delay - elapsed_since_last)
         self._last_ping_recv_time = time.monotonic()
         l = payload['num_pong_bytes']
-        self.send_message('pong', byteslen=l)
+        raw_msg = encode_msg('pong', byteslen=l)
+        await self.transport.send_bytes_and_drain(raw_msg)
 
     def on_pong(self, payload):
         self.pong_event.set()
