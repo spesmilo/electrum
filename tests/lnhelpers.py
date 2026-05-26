@@ -214,6 +214,10 @@ class PutIntoOthersQueueTransport(MockTransport):
     def send_bytes(self, data):
         self.other_mock_transport.queue.put_nowait(data)
 
+    async def send_bytes_and_drain(self, data):
+        self.send_bytes(data)
+
+
 def transport_pair(k1, k2, name1, name2):
     t1 = PutIntoOthersQueueTransport(k1, name1)
     t2 = PutIntoOthersQueueTransport(k2, name2)
