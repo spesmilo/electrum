@@ -1,0 +1,44 @@
+name: locale
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  push-locale:
+    name: "locale: upload to crowdin"
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: "3.10"
+          cache: 'pip'
+          cache-dependency-path: contrib/requirements/requirements-ci.txt
+
+      - name: Install OS deps
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install gettext qt6-l10n-tools
+
+      - name: Install Python deps
+        run: |
+          pip install -r contrib/requirements/requirements-ci.txt
+          pip install requests
+
+      - name: Push locale to Crowdin
+        # CROWDIN_API_KEY needs to be set in GitHub repository settings
+        #   - api key is for crowdin account: "SomberNight_CI_BOT"
+        env:
+          crowdin_api_key: ${{ secrets.CROWDIN_API_KEY }}
+        run: ./contrib/locale/push_locale.py

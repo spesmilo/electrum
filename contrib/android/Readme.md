@@ -203,10 +203,9 @@ cat d
 
 ### How to install apks built by the CI on my phone?
 
-The CI (Cirrus) builds apks on most git commits.
-See e.g. [here](https://github.com/spesmilo/electrum/runs/9272252577).
-The task name should start with "Android build".
-Click "View more details on Cirrus CI" to get to cirrus' website, and search for "Artifacts".
+The CI (GitHub Actions) builds apks on a nightly schedule.
+See the [`builds` workflow](https://github.com/spesmilo/electrum/actions/workflows/builds.yml).
+Open the run of interest and download the `electrum-android-*` artifact.
 The apk is built in `debug` mode, and is signed using an ephemeral RSA key.
 
 For tech demo purposes, you can directly install this apk on your phone.
