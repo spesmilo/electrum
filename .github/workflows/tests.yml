@@ -118,6 +118,8 @@ jobs:
         if: matrix.python == '3.10' && !matrix.debug
         env:
           # 'COVERALLS_REPO_TOKEN' needs to be set in the GitHub repository settings
+          #  This is a "repo token", NOT a "Personal API Token"!
+          #  ref https://coveralls.io/github/spesmilo/electrum/settings
           COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
           CI_NAME: github-actions
           CI_BUILD_NUMBER: ${{ github.run_id }}
@@ -128,7 +130,7 @@ jobs:
         # the repo token will be empty when pull requests from forks get opened
         # so we won't upload on every pull request, but it will run again
         # with the token once the PR gets merged.
-        run: if [ -n "$COVERALLS_REPO_TOKEN" ]; then coveralls; fi
+        run: if [ -n "$COVERALLS_REPO_TOKEN" ]; then coveralls; else echo "missing COVERALLS_REPO_TOKEN"; fi
 
   # unittests using the ~same frozen dependencies that are used in the released binaries
   # note: not using pinned pyqt here, due to "qml_gui" extra
