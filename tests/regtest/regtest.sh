@@ -694,11 +694,7 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     fi
     cp /tmp/alice/regtest/wallets/default_wallet /tmp/alice/regtest/wallets/toxic_wallet
     $bob enable_htlc_settle true
-    unsettled=$($alice list_channels | jq '.[] | .local_unsettled_sent')
-    if [[ "$unsettled" != "0" ]]; then
-        echo "enable_htlc_settle did not work, $unsettled"
-        exit 1
-    fi
+    wait_until_htlcs_settled alice
     echo $($bob getbalance)
     echo "bob goes offline"
     $bob stop
@@ -715,7 +711,6 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     new_blocks 150
     $alice stop
     $alice daemon -d
-    sleep 1
     $alice load_wallet -w /tmp/alice/regtest/wallets/toxic_wallet
     # wait until alice has spent both ctx outputs
     echo "alice spends to_local and htlc outputs"
