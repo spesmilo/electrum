@@ -39,6 +39,10 @@ jobs:
       - name: Push locale to Crowdin
         # CROWDIN_API_KEY needs to be set in GitHub repository settings
         #   - api key is for crowdin account: "SomberNight_CI_BOT"
+        #     ref https://crowdin.com/settings#api-key
+        #     scope:
+        #       - Projects/"Source files & strings" - read and write
+        #       - Projects/"Translations" - read and write
         env:
           crowdin_api_key: ${{ secrets.CROWDIN_API_KEY }}
         run: ./contrib/locale/push_locale.py
