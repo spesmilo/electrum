@@ -10,7 +10,7 @@ import electrum_ecc as ecc
 
 from .lnutil import LnFeatures, PaymentFeeBudget, FeeBudgetExceeded
 from .lnonion import (
-    calc_hops_data_for_payment, new_onion_packet, OnionPacket, PER_HOP_HMAC_SIZE
+    calc_hops_data_for_payment, new_onion_packet, OnionPacket
 )
 from .lnrouter import TrampolineEdge, is_route_within_budget, LNPaymentTRoute
 from .lnutil import NoPathFound
@@ -418,8 +418,7 @@ def create_trampoline_onion(
         payload = dict(hops_data[index].payload)
         # try different r_tag order on each attempt
         invoice_routing_info = random_shuffled_copy(route[index].invoice_routing_info)
-        remaining_payload_space = TRAMPOLINE_HOPS_MAX_DATA_SIZE \
-                                  - sum(len(hop.to_bytes()) + PER_HOP_HMAC_SIZE for hop in hops_data)
+        remaining_payload_space = TRAMPOLINE_HOPS_MAX_DATA_SIZE - sum(len(hop.to_bytes()) for hop in hops_data)
         routing_info_to_use = []
         for encoded_r_tag in invoice_routing_info:
             if remaining_payload_space < 50:

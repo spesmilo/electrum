@@ -228,7 +228,7 @@ def new_onion_packet(
     payload_size = 0
     for i in range(num_hops):
         # FIXME: serializing here and again below. cache bytes in OnionHopsDataSingle? _raw_bytes_payload?
-        payload_size += PER_HOP_HMAC_SIZE + len(hops_data[i].to_bytes())
+        payload_size += len(hops_data[i].to_bytes())
     if trampoline:
         data_size = payload_size
     elif onion_message:
