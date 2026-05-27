@@ -33,9 +33,11 @@ try:
         InputScriptType, OutputScriptType, MultisigRedeemScriptType,
         TxInputType, TxOutputType, TxOutputBinType, TransactionType, AmountUnit)
 
-    from trezorlib.client import PASSPHRASE_ON_DEVICE
+    from trezorlib.client import PassphraseSetting
     import trezorlib.log
     #trezorlib.log.enable_debug_output()
+
+    PASSPHRASE_ON_DEVICE = PassphraseSetting.ON_DEVICE
 
     TREZORLIB = True
 except Exception as e:
@@ -153,8 +155,8 @@ class TrezorPlugin(HW_PluginBase):
     libraries_URL = 'https://pypi.org/project/trezor/'
     minimum_firmware = (1, 5, 2)
     keystore_class = TrezorKeyStore
-    minimum_library = (0, 13, 0)
-    maximum_library = (0, 14)
+    minimum_library = (0, 20, 0)
+    maximum_library = (0, 21)
     SUPPORTED_XTYPES = ('standard', 'p2wpkh-p2sh', 'p2wpkh', 'p2wsh-p2sh', 'p2wsh')
     DEVICE_IDS = (TREZOR_PRODUCT_KEY,)
 
