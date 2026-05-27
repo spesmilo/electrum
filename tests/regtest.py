@@ -2,14 +2,14 @@ import os
 import sys
 import unittest
 import subprocess
-from typing import Mapping, Any
+from typing import Mapping, Any, List
 
 
 class TestLightning(unittest.TestCase):
     agents: Mapping[str, Mapping[str, Any]]
 
     @staticmethod
-    def run_shell(args, timeout=30):
+    def run_shell(args: List[str], timeout: int = 30) -> None:
         process = subprocess.Popen(['tests/regtest/regtest.sh'] + args, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, universal_newlines=True)
         for line in iter(process.stdout.readline, ''):
             sys.stdout.write(line)

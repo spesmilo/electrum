@@ -74,7 +74,7 @@ class ElectrumTestCase(unittest.IsolatedAsyncioTestCase, Logger):
         self.electrum_path = os.path.join(self.unittest_base_path, "electrum")
         util.make_dir(self.electrum_path)
         assert util._asyncio_event_loop is None, "global event loop already set?!"
-        self._lnworkers_created = []  # type: List[MockLNWallet]
+        self._lnworkers_created: List[MockLNWallet] = []
 
     async def asyncSetUp(self):
         await super().asyncSetUp()
