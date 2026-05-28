@@ -31,9 +31,7 @@ class TestMppSplit(ElectrumTestCase):
             splits = mpp_split.suggest_splits(1_000_000_000, self.channels_with_funds, exclude_single_part_payments=True)
             self.assertEqual({
                 (b"0", b"0"): [671_020_676],
-                (b"1", b"1"): [328_979_324],
-                (b"2", b"0"): [],
-                (b"3", b"2"): []},
+                (b"1", b"1"): [328_979_324]},
                 splits[0].config
             )
 

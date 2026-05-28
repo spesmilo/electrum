@@ -143,11 +143,10 @@ def suggest_splits(
                 random.shuffle(channel_keys)
                 # we check each channel and try to put the funds inside, break if we succeed
                 for c in channel_keys:
-                    if c not in config:
-                        config[c] = []
+                    amounts = config.get(c, [])
                     channel_funds, channel_slots = channels_with_funds[c]
-                    if sum(config[c]) + amount <= channel_funds and len(config[c]) < channel_slots:
-                        config[c].append(amount)
+                    if sum(amounts) + amount <= channel_funds and len(amounts) < channel_slots:
+                        config.setdefault(c, []).append(amount)
                         break
                 # if we don't succeed to put the amount anywhere,
                 # we try to fill up channels and put the rest somewhere else
@@ -155,15 +154,17 @@ def suggest_splits(
                     distribute_amount = amount
                     for c in channel_keys:
                         channel_funds, channel_slots = channels_with_funds[c]
-                        slots_left = channel_slots - len(config[c])
+                        amounts = config.get(c, [])
+                        slots_left = channel_slots - len(amounts)
                         if slots_left == 0:
                             # no slot left in that channel
                             continue
-                        funds_left = channel_funds - sum(config[c])
+                        funds_left = channel_funds - sum(amounts)
                         # it would be good to not fill the full channel if possible
                         add_amount = min(funds_left, distribute_amount)
-                        config[c].append(add_amount)
-                        distribute_amount -= add_amount
+                        if add_amount:
+                            config.setdefault(c, []).append(add_amount)
+                            distribute_amount -= add_amount
                         if distribute_amount == 0:
                             break
             if config.total_config_amount() != amount_msat:
