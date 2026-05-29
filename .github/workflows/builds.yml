@@ -101,7 +101,7 @@ jobs:
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
         with:
           path: packages
-          key: android-packages-${{ env.APK_ARCH }}-${{ hashFiles('contrib/deterministic-build/requirements.txt', 'contrib/make_packages.sh', 'contrib/android/**') }}
+          key: android-packages-${{ env.APK_ARCH }}-${{ hashFiles('contrib/deterministic-build/**', 'contrib/make_packages.sh', 'contrib/android/**', '!contrib/android/.cache') }}
 
       - name: Cache buildozer (p4a)
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
@@ -109,8 +109,7 @@ jobs:
           path: |
             .buildozer_qml/android/platform/build-${{ env.APK_ARCH }}/packages
             .buildozer_qml/android/platform/build-${{ env.APK_ARCH }}/build
-          # note: should *at least* depend on Dockerfile and p4a_recipes/, but contrib/android/ is simplest
-          key: android-buildozer-${{ env.APK_ARCH }}-${{ hashFiles('contrib/android/**') }}
+          key: android-buildozer-${{ env.APK_ARCH }}-${{ hashFiles('contrib/android/**', '!contrib/android/.cache') }}
 
       - name: Build APK (debug)
         run: ./contrib/android/build.sh qml "$APK_ARCH" debug
