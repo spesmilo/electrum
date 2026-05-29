@@ -37,7 +37,7 @@ plugin_name = "nwc"
 # This relay will be used as the first relay in the connection string.
 SimpleConfig.NWC_RELAY = ConfigVar(
     key='plugins.nwc.relay',
-    default='wss://relay.getalby.com/v1',
+    default='wss://relay.primal.net',
     type_=str,
     plugin=plugin_name
 )
