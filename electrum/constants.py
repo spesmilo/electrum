@@ -23,6 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import copy
 import os
 import json
 from typing import Sequence, Tuple, Mapping, Type, List, Optional
@@ -100,7 +101,8 @@ class AbstractNet:
         if cls._cached_default_servers is None:
             default_file = {} if cls.TESTNET else None  # for mainnet we hard-fail if the file is missing.
             cls._cached_default_servers = read_json(os.path.join('chains', cls.NET_NAME, 'servers.json'), default_file)
-        return cls._cached_default_servers
+        d = cls._cached_default_servers
+        return copy.deepcopy(d)
 
     _cached_fallback_lnnodes = None
     @classproperty

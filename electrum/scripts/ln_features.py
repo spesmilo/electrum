@@ -34,6 +34,7 @@ PRESYNC = False  # should we sync the graph or take it from an already synced da
 
 
 config = SimpleConfig({"testnet": IS_TESTNET, "verbosity": VERBOSITY})
+config.get_selected_chain().set_as_network()
 configure_logging(config)
 
 loop, stopping_fut, loop_thread = create_and_start_event_loop()
@@ -41,8 +42,6 @@ loop, stopping_fut, loop_thread = create_and_start_event_loop()
 # takes some time
 time.sleep(2)
 
-if IS_TESTNET:
-    constants.BitcoinTestnet.set_as_network()
 daemon = Daemon(config, listen_jsonrpc=False)
 network = daemon.network
 assert network.asyncio_loop.is_running()
