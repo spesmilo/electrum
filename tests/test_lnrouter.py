@@ -1,3 +1,5 @@
+import dataclasses
+import os
 import random
 import unittest
 from math import inf
@@ -7,12 +9,14 @@ from os import urandom
 from electrum import util
 from electrum.channel_db import NodeInfo
 from electrum.onion_message import is_onion_message_node
-from electrum.trampoline import (create_trampoline_onion, _allocate_fee_budget_among_route, PLACEHOLDER_FEE, get_trampoline_budget, TrampolineRoute)
+from electrum.trampoline import (create_trampoline_onion, _allocate_fee_budget_among_route, PLACEHOLDER_FEE, get_trampoline_budget,
+                                 TrampolineRoute, create_trampoline_route_and_onion, DEFAULT_TRAMPOLINE_CLTV_DELTA)
 from electrum.util import bfh
-from electrum.lnutil import ShortChannelID, LnFeatures, PaymentFeeBudget, UnblindedRoutingInfo
+from electrum.lnutil import (ShortChannelID, LnFeatures, UnblindedRoutingInfo, PaymentFeeBudget, BlindedRoutingInfo,
+                             FeeBudgetExceeded, MIN_FINAL_CLTV_DELTA_ACCEPTED, NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE)
 from electrum.lnonion import (OnionHopsDataSingle, new_onion_packet,
                               process_onion_packet, _decode_onion_error, decode_onion_error,
-                              OnionFailureCode)
+                              OnionFailureCode, BlindedPathInfo)
 from electrum import bitcoin, lnrouter
 from electrum.constants import BitcoinTestnet
 from electrum.simple_config import SimpleConfig
@@ -20,7 +24,7 @@ from electrum.lnrouter import (PathEdge, LiquidityHintMgr, DEFAULT_PENALTY_PROPO
                                DEFAULT_PENALTY_BASE_MSAT, fee_for_edge_msat, LNPaymentTRoute, TrampolineEdge,
                                FinalForwardFees)
 
-from . import ElectrumTestCase
+from . import ElectrumTestCase, lnhelpers
 from .test_bitcoin import needs_test_with_all_chacha20_implementations
 
 
@@ -506,6 +510,164 @@ class Test_LNRouter(ElectrumTestCase):
             total_msat=0,
             payment_hash=urandom(32),
         )
+
+    def test_create_trampoline_route_and_onion_unblinded_legacy(self):
+        routing_info = UnblindedRoutingInfo(
+            node_pubkey=node('c'),
+            payment_secret=urandom(32),
+            final_cltv_delta=144,
+            r_tags=[],
+            invoice_features=LnFeatures(0),  # no trampoline support
+        )
+        r = create_trampoline_route_and_onion(
+            amount_msat=10_000_000,
+            total_msat=10_000_000,
+            routing_info=routing_info,
+            my_pubkey=node('a'),
+            my_trampoline=node('b'),
+            payment_hash=os.urandom(32),
+            local_height=100_000,
+            trampoline_fee_level=1,
+            next_trampolines={},
+            failed_routes=[],
+            budget=PaymentFeeBudget(fee_msat=210_000, cltv=2100),
+            blinded_path=None,
+        )
+        route, onion, amount_with_fees, bucket_cltv_delta = r
+        self.assertEqual(route.edges[0].start_node, node('a'))
+        self.assertEqual(route.edges[0].end_node, node('b'))
+        self.assertEqual(len(route.edges), 1)
+
+        # recipient is in next_trampolines
+        r = create_trampoline_route_and_onion(
+            amount_msat=10_000_000,
+            total_msat=10_000_000,
+            routing_info=routing_info,
+            my_pubkey=node('a'),
+            my_trampoline=node('b'),
+            payment_hash=os.urandom(32),
+            local_height=100_000,
+            trampoline_fee_level=1,
+            next_trampolines={
+                node('c'): None,  # recipient shouldn't be used
+                node('d'): None,
+            },
+            failed_routes=[],
+            budget=PaymentFeeBudget(fee_msat=210_000, cltv=2100),
+            blinded_path=None,
+        )
+        route, onion, amount_with_fees, bucket_cltv_delta = r
+        self.assertEqual(route.edges[0].start_node, node('a'))
+        self.assertEqual(route.edges[0].end_node, node('b'))
+        self.assertEqual(route.edges[1].start_node, node('b'))
+        self.assertEqual(route.edges[1].end_node, node('d'))
+        self.assertEqual(len(route.edges), 2)
+
+    def test_create_trampoline_route_and_onion_blinded_legacy(self):
+        # random IP
+        paths = lnhelpers.get_dummy_paths()
+        routing_info = BlindedRoutingInfo(
+            paths=paths,
+            invoice_features=LnFeatures(0),
+            final_cltv_delta=50,
+        )
+        r = create_trampoline_route_and_onion(
+            amount_msat=10_000_000,
+            total_msat=10_000_000,
+            routing_info=routing_info,
+            my_pubkey=node('a'),
+            my_trampoline=node('b'),
+            payment_hash=os.urandom(32),
+            local_height=100_000,
+            trampoline_fee_level=1,
+            next_trampolines={},
+            failed_routes=[],
+            budget=PaymentFeeBudget(fee_msat=210_000, cltv=2100),
+            blinded_path=paths[0],
+        )
+        route, onion, amount_with_fees, bucket_cltv_delta = r
+        self.assertEqual(route.edges[0].start_node, node('a'))
+        self.assertEqual(route.edges[0].end_node, node('b'))
+        self.assertEqual(len(route.edges), 1)
+
+        paths = lnhelpers.get_dummy_paths(first_node_id=node('c'))
+        routing_info = BlindedRoutingInfo(
+            paths=paths,
+            invoice_features=LnFeatures(0),
+            final_cltv_delta=50,
+        )
+        r = create_trampoline_route_and_onion(
+            amount_msat=10_000_000,
+            total_msat=10_000_000,
+            routing_info=routing_info,
+            my_pubkey=node('a'),
+            my_trampoline=node('b'),
+            payment_hash=os.urandom(32),
+            local_height=100_000,
+            trampoline_fee_level=1,
+            next_trampolines={
+                node('c'): None,  # IP is in next_trampolines
+                node('d'): None,
+            },
+            failed_routes=[],
+            budget=PaymentFeeBudget(fee_msat=210_000, cltv=2100),
+            blinded_path=paths[0],
+        )
+        route, onion, amount_with_fees, bucket_cltv_delta = r
+        self.assertEqual(route.edges[0].start_node, node('a'))
+        self.assertEqual(route.edges[0].end_node, node('b'))
+        self.assertEqual(route.edges[1].start_node, node('b'))
+        self.assertEqual(route.edges[1].end_node, node('d'))
+        self.assertEqual(len(route.edges), 2)
+
+    def test_create_trampoline_route_and_onion_blinded_budget(self):
+        """The destinations final CLTV delta is not deducted from the budget, see PaymentFeeBudget comment"""
+        paths = lnhelpers.get_dummy_paths()
+        blinded_cltv = paths[0].payinfo.cltv_expiry_delta
+        routing_info = BlindedRoutingInfo(paths=paths, invoice_features=LnFeatures(0), final_cltv_delta=50)
+
+        def build(budget_cltv: int, routing_info, blinded_path = None):
+            return create_trampoline_route_and_onion(
+                amount_msat=10_000_000,
+                total_msat=10_000_000,
+                routing_info=routing_info,
+                my_pubkey=node('a'),
+                my_trampoline=node('b'),
+                payment_hash=os.urandom(32),
+                local_height=100_000,
+                trampoline_fee_level=1,
+                next_trampolines={},
+                failed_routes=[],
+                budget=PaymentFeeBudget(fee_msat=210_000, cltv=budget_cltv),
+                blinded_path=blinded_path,
+            )
+
+        # check the blinded paths cltv cost is not accounted into the budget, similar to unblinded min_final_cltv_delta
+        route, onion, amount_with_fees, bucket_cltv_delta = build(DEFAULT_TRAMPOLINE_CLTV_DELTA, routing_info, paths[0])
+        self.assertEqual(bucket_cltv_delta, DEFAULT_TRAMPOLINE_CLTV_DELTA + blinded_cltv + 50)
+
+        # the check raises if there is not enough cltv budget for the hops excluding the IP (node b)
+        with self.assertRaises(FeeBudgetExceeded):
+            build(DEFAULT_TRAMPOLINE_CLTV_DELTA - 1, routing_info, paths[0])
+
+        # check unblinded behavior
+        routing_info = UnblindedRoutingInfo(
+            node_pubkey=node('c'),
+            payment_secret=urandom(32),
+            final_cltv_delta=NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE - DEFAULT_TRAMPOLINE_CLTV_DELTA,
+            r_tags=[],
+            invoice_features=LnFeatures(0),
+        )
+        route, onion, amount_with_fees, bucket_cltv_delta = build(DEFAULT_TRAMPOLINE_CLTV_DELTA, routing_info)
+        self.assertEqual(bucket_cltv_delta, NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE)
+
+        with self.assertRaises(FeeBudgetExceeded):
+            build(DEFAULT_TRAMPOLINE_CLTV_DELTA - 1, routing_info)
+
+        # check the sanity check (cltv <= NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE)
+        with self.assertRaises(FeeBudgetExceeded):
+            routing_info = dataclasses.replace(routing_info, final_cltv_delta=routing_info.final_cltv_delta + 1)
+            build(DEFAULT_TRAMPOLINE_CLTV_DELTA, routing_info)
 
     @needs_test_with_all_chacha20_implementations
     def test_decode_onion_error(self):
