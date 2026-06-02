@@ -408,6 +408,7 @@ def main():
             'cmd': 'gui',
             SimpleConfig.GUI_NAME.key(): 'qml',
             SimpleConfig.WALLET_SHOULD_USE_SINGLE_PASSWORD.key(): True,
+            SimpleConfig.DISABLE_MEMORY_HARDENING_LINUX.key(): True,
         }
         SimpleConfig.set_chain_config_opt_based_on_android_packagename(config_options)
     else:
@@ -458,7 +459,7 @@ def main():
         print_stderr('unknown command:', uri)
         sys.exit(1)
 
-    if sys.platform == "linux" and not is_android:
+    if sys.platform == "linux" and not config.DISABLE_MEMORY_HARDENING_LINUX:
         import electrum.harden_memory_linux
         electrum.harden_memory_linux.set_dumpable_safe(False)
 
