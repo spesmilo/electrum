@@ -2462,6 +2462,10 @@ def add_global_options(parser, suppress=False):
     group.add_argument(
         "--forgetconfig", action="store_true", dest=SimpleConfig.CONFIG_FORGET_CHANGES.key(), default=None,
         help=argparse.SUPPRESS if suppress else "Forget config on exit")
+    group.add_argument(
+        # Note: default value is False and not None, so that behaviour cannot be modified by editing the config file
+        "--nohardening", action="store_true", dest=SimpleConfig.DISABLE_MEMORY_HARDENING_LINUX.key(), default=False,
+        help=argparse.SUPPRESS if suppress else "Disable memory hardening (linux)")
 
 
 def get_simple_parser():

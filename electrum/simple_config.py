@@ -794,6 +794,8 @@ Warning: setting this to too low will result in lots of payment failures."""),
     RPC_SOCKET_TYPE = ConfigVar('rpcsock', default='auto', type_=str)
     RPC_SOCKET_FILEPATH = ConfigVar('rpcsockpath', default=None, type_=str)
 
+    DISABLE_MEMORY_HARDENING_LINUX = ConfigVar('nohardening', default=None, type_=bool) # default is False in add_global_options
+
     GUI_NAME = ConfigVar('gui', default='qt', type_=str)
     CURRENT_WALLET = ConfigVar('current_wallet', default=None, type_=str)
 
