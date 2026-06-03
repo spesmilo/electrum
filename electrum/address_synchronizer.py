@@ -293,7 +293,7 @@ class AddressSynchronizer(Logger, EventListener):
         if tx_hash is None:
             raise Exception("cannot add tx without txid to wallet history")
         # For sanity, try to serialize and deserialize tx early:
-        tx_from_any(str(tx))  # see if raises (no-side-effects)
+        tx_from_any(str(tx), sanitize=False)  # see if raises (no-side-effects)
         with self.lock:
             # NOTE: returning if tx in self.transactions might seem like a good idea
             # BUT we track is_mine inputs in a txn, and during subsequent calls

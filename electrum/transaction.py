@@ -380,7 +380,7 @@ class TxInput:
             return
         # note that tx might be a PartialTransaction
         # serialize and de-serialize tx now. this might e.g. convert a complete PartialTx to a Tx
-        tx = tx_from_any(str(tx))
+        tx = tx_from_any(str(tx), sanitize=False)
         # 'utxo' field should not be a PSBT:
         if not tx.is_complete():
             return
@@ -1491,17 +1491,6 @@ def convert_raw_tx_to_hex(raw: Union[str, bytes]) -> str:
     raw tx hex string."""
     if not raw:
         raise ValueError("empty string")
-    raw_unstripped = raw
-    if isinstance(raw, str):
-        # remove all whitespace characters, anywhere, for convenience
-        # - leading/trailing whitespaces are quite common for user-input
-        # - newlines in the middle can also happen, e.g. when copying a raw tx from a pdf
-        # note: we don't do this for bytes-like inputs, as whitespace-looking bytes can appear
-        #       anywhere in a raw tx. Even leading/trailing pseudo-whitespace: consider that
-        #       the nVersion or the nLocktime might contain e.g. "0a" bytes
-        #       consider:  "\n".encode().hex() == "0a"
-        #       For str, this is a non-issue and safe to do.
-        raw = re.sub(r'\s', '', raw)
     # try hex
     try:
         return binascii.unhexlify(raw).hex()
@@ -1518,16 +1507,28 @@ def convert_raw_tx_to_hex(raw: Union[str, bytes]) -> str:
             return base64.b64decode(raw, validate=True).hex()
         except Exception:
             pass
-    # raw bytes (do not strip whitespaces in this case)
-    if isinstance(raw_unstripped, bytes):
-        return raw_unstripped.hex()
+    # raw bytes
+    if isinstance(raw, (bytes, bytearray)):
+        return raw.hex()
     raise ValueError(f"failed to recognize transaction encoding for txt: {raw[:30]}...")
 
 
-def tx_from_any(raw: Union[str, bytes], *,
-                deserialize: bool = True) -> Union['PartialTransaction', 'Transaction']:
-    if isinstance(raw, bytearray):
-        raw = bytes(raw)
+def tx_from_any(
+        raw: Union[str, bytes], *,
+        deserialize: bool = True,
+        sanitize: bool = True,
+) -> Union['PartialTransaction', 'Transaction']:
+    # re.sub is expensive, set sanitize to False if raw data is not from user input
+    if isinstance(raw, str) and sanitize:
+        # remove all whitespace characters, anywhere, for convenience
+        # - leading/trailing whitespaces are quite common for user-input
+        # - newlines in the middle can also happen, e.g. when copying a raw tx from a pdf
+        # note: we don't do this for bytes-like inputs, as whitespace-looking bytes can appear
+        #       anywhere in a raw tx. Even leading/trailing pseudo-whitespace: consider that
+        #       the nVersion or the nLocktime might contain e.g. "0a" bytes
+        #       consider:  "\n".encode().hex() == "0a"
+        #       For str, this is a non-issue and safe to do.
+        raw = re.sub(r'\s', '', raw)
     raw = convert_raw_tx_to_hex(raw)
     try:
         return PartialTransaction.from_raw_psbt(raw)

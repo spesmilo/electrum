@@ -104,7 +104,7 @@ class WalletFileExceptionVersion51(WalletFileException): pass
 
 
 # register dicts that require value conversions not handled by constructor
-register_name('transactions/*', None, lambda x: tx_from_any(x, deserialize=False))
+register_name('transactions/*', None, lambda x: tx_from_any(x, deserialize=False, sanitize=False))
 register_name('data_loss_protect_remote_pcp/*', None, lambda x: bytes.fromhex(x))
 # register tuples, otherwise they will default to StoredList
 register_name('contacts/*', None, tuple)
@@ -1725,7 +1725,7 @@ class WalletDB(JsonDB):
         assert isinstance(tx, Transaction), tx
         # note that tx might be a PartialTransaction
         # serialize and de-serialize tx now. this might e.g. convert a complete PartialTx to a Tx
-        tx = tx_from_any(str(tx))
+        tx = tx_from_any(str(tx), sanitize=False)
         if not tx_hash:
             raise Exception("trying to add tx to db without txid")
         if tx_hash != tx.txid():
