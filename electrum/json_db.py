@@ -25,7 +25,7 @@
 import threading
 import copy
 import json
-from typing import TYPE_CHECKING, Optional, Sequence, List, Union, Any
+from typing import TYPE_CHECKING, Optional, Sequence, List, Union, Dict, Any
 
 import jsonpatch
 import jsonpointer
@@ -115,7 +115,7 @@ class JsonDB(Logger):
         if self.storage and self.storage.file_exists():
             self.write_and_force_consolidation()
 
-    def load_data(self, s: str) -> dict:
+    def load_data(self, s: str) -> Dict[str, Any]:
         if s == '':
             return {}
         try:
@@ -138,7 +138,7 @@ class JsonDB(Logger):
             self.set_modified(True)
         return data
 
-    def maybe_load_ast_data(self, s):
+    def maybe_load_ast_data(self, s) ->Dict[str, Any]:
         """ for old wallets """
         try:
             import ast
@@ -155,7 +155,8 @@ class JsonDB(Logger):
                 self.logger.info(f'Failed to convert label to json format: {key}')
                 continue
             data[key] = value
-        return data
+        # json roundtrip: recursively converts int keys to str
+        return json.loads(json.dumps(data))
 
     def maybe_load_incomplete_data(self, s):
         n = s.count('{') - s.count('}')
