@@ -1439,7 +1439,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             from_timestamp=None,
             to_timestamp=None,
             fx=None,
-            show_addresses=False,
+            show_addresses=True,
             from_height=None,
             to_height=None):
         # History with capital gains, using utxo pricing
