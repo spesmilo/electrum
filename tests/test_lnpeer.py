@@ -1928,13 +1928,14 @@ class TestPeerDirect(TestPeer):
                 await asyncio.sleep(0.25)  # give w2 some time to do mistakes
                 self.assertEqual(w2.received_mpp_htlcs[payment_key.hex()].resolution, RecvMPPResolution.COMPLETE)
                 if test_expiry:
-                    # we set an expiry delta of 20 blocks before expiry, htlc expiry should be +144 current height
+                    # we set an expiry delta of 20 blocks before expiry, htlc expiry should be current height + 144 + random delay [72;143]
                     # so adding some blocks should get the htlcs failed
-                    w2.network.blockchain()._height += 50
+                    blocks_remaining = next(iter(w2.received_mpp_htlcs[payment_key.hex()].htlcs)).htlc.cltv_abs - w2.network.blockchain()._height
+                    w2.network.blockchain()._height += (blocks_remaining - 20)
                     await asyncio.sleep(0.1)
-                    # the htlcs should not get failed yet as 144-50 > 20
+                    # the htlcs should not get failed yet as they still have 1 block left
                     self.assertEqual(w2.received_mpp_htlcs[payment_key.hex()].resolution, RecvMPPResolution.COMPLETE)
-                    w2.network.blockchain()._height += 75
+                    w2.network.blockchain()._height += 1
                     return  # the htlcs should get failed and pay should return PaymentFailure
 
                 # saving the preimage should let the htlcs get fulfilled
