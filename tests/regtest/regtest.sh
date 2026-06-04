@@ -484,7 +484,7 @@ if [[ $1 == "lnwatcher_waits_until_fees_go_down" ]]; then
     assert_utxo_exists $ctx_id $htlc_output_index2
     # fee levels rise. now small htlc is ~dust
     $alice test_inject_fee_etas "{2:300000}"
-    new_blocks 300  # this goes past the CLTV of the HTLC-output in ctx
+    new_blocks 450  # this goes past the CLTV of the HTLC-output in ctx
     wait_until_spent $ctx_id $htlc_output_index2
     assert_utxo_exists $ctx_id $htlc_output_index1
     new_blocks 24  # note: >20 blocks depth is considered "DEEP" by lnwatcher
@@ -604,7 +604,7 @@ if [[ $1 == "redeem_offered_htlcs" ]]; then
     new_blocks 1
     sleep 3
     echo "alice balance after closing channel:" $($alice getbalance)
-    new_blocks 150
+    new_blocks 300  # cltv delta + random offset [72;143]
     sleep 10
     new_blocks 1
     sleep 3
@@ -708,8 +708,8 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     fi
     echo "wait for cltv_expiry blocks"
     # note: this will let alice redeem both to_local and the htlc.
-    # (to_local needs to_self_delay blocks; htlc needs whatever we put in invoice)
-    new_blocks 150
+    # (to_local needs to_self_delay blocks; htlc needs whatever we put in invoice and the offset add on top when sending)
+    new_blocks 300
     $alice stop
     $alice daemon -d
     $alice load_wallet -w /tmp/alice/regtest/wallets/toxic_wallet
@@ -794,7 +794,7 @@ if [[ $1 == "fw_fail_htlc" ]]; then
     ctx_id=$($bob close_channel $chan_id2 --force)
     new_blocks 1
     sleep 1
-    new_blocks 150 # cltv before bob can broadcast
+    new_blocks 300 # cltv before bob can broadcast
     # index of htlc
     if [ $TEST_SRK_CHANNELS != True ] ; then  # anchors
         output_index=2
@@ -804,7 +804,7 @@ if [[ $1 == "fw_fail_htlc" ]]; then
     wait_until_spent $ctx_id $output_index
     new_blocks 1   # confirm 2nd stage.
     sleep 1
-    new_blocks 100 # deep enough for is_deeply_mined (>20 confs)
+    new_blocks 30 # deep enough for is_deeply_mined (>20 confs)
     wait_until_htlcs_settled alice  # bob propagates the failure back once the HTLC-timeout tx is deeply mined
 fi
 

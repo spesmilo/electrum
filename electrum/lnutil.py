@@ -17,7 +17,7 @@ from electrum_ecc.util import bip340_tagged_hash
 import dataclasses
 import attr
 
-from .util import bfh, UserFacingException, list_enabled_bits, is_hex_str
+from .util import bfh, UserFacingException, list_enabled_bits, is_hex_str, randrange
 from .util import ShortID as ShortChannelID, format_short_id as format_short_channel_id
 
 from .crypto import sha256, pw_decode_with_version_and_mac
@@ -533,6 +533,18 @@ MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED = 2016
 ZEROCONF_TIMEOUT = 60 * 10
 
 TIME_FOR_OFFERED_HTLCS_TO_GET_FAILED_OFFCHAIN_ON_RESTART = 30
+
+
+def get_final_cltv_offset() -> int:
+    """
+    Return offset to be added to the expiry height of the recipient.
+    The offset makes it harder for intermediate nodes to guess their position in the route.
+    The offset is taken from lightning-kmp (Phoenix).
+    """
+    # https://github.com/lightning/bolts/blob/94eb038c42e664dd7862faeec6508ccd25f63ff8/04-onion-routing.md?plain=1#L274-L277
+    # https://github.com/ACINQ/lightning-kmp/blob/0a857347dc5a6363693ba7ac05cddc247a018f72/modules/core/src/commonMain/kotlin/fr/acinq/lightning/NodeParams.kt#L111-L127
+    random_offset = 71 + randrange(144 - 71)  # [72; 143]
+    return random_offset
 
 
 class RevocationStore:
@@ -2156,13 +2168,14 @@ class PaymentFeeBudget(NamedTuple):
 class UnblindedRoutingInfo:
     node_pubkey: bytes
     payment_secret: bytes
-    final_cltv_delta: int
+    final_cltv_delta: int  # invoice + random offset
     r_tags: Sequence[Sequence[Sequence[bytes | int]]]
     invoice_features: LnFeatures
 
 @dataclasses.dataclass(kw_only=True, frozen=True)
 class BlindedRoutingInfo:
     paths: tuple['BlindedPathInfo', ...]
+    final_cltv_delta: int  # random offset
     invoice_features: LnFeatures
 
 RoutingInfo = Union[UnblindedRoutingInfo, BlindedRoutingInfo]
