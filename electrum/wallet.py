@@ -597,12 +597,16 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             self._num_parents.clear()
             self._last_full_history = None
 
+    def is_sequence_complete(self, for_change: bool) -> bool:
+        # overloaded in Deterministic_Wallet
+        return True
+
     @event_listener
     async def on_event_adb_set_up_to_date(self, adb):
         if self.adb != adb:
             return
-        num_new_addrs = await run_in_thread(self.synchronize)
-        up_to_date = self.adb.is_up_to_date() and num_new_addrs == 0
+        is_complete = self.is_sequence_complete(False) and self.is_sequence_complete(True)
+        up_to_date = self.adb.is_up_to_date() and is_complete
         with self.lock:
             status_changed = self._up_to_date != up_to_date
             self._up_to_date = up_to_date
@@ -4111,24 +4115,24 @@ class Deterministic_Wallet(Abstract_Wallet):
                 self._not_old_change_addresses.append(address)
             return address
 
+    def is_sequence_complete(self, for_change: bool) -> bool:
+        limit = self.gap_limit_for_change if for_change else self.gap_limit
+        num_addr = self.db.num_change_addresses() if for_change else self.db.num_receiving_addresses()
+        if num_addr < limit:
+            return False
+        if for_change:
+            last_few_addresses = self.get_change_addresses(slice_start=-limit)
+        else:
+            last_few_addresses = self.get_receiving_addresses(slice_start=-limit)
+        if any(map(self.adb.address_is_old, last_few_addresses)):
+            return False
+        return True
+
     def synchronize_sequence(self, for_change: bool) -> int:
         count = 0  # num new addresses we generated
-        limit = self.gap_limit_for_change if for_change else self.gap_limit
-        while True:
-            num_addr = self.db.num_change_addresses() if for_change else self.db.num_receiving_addresses()
-            if num_addr < limit:
-                count += 1
-                self.create_new_address(for_change)
-                continue
-            if for_change:
-                last_few_addresses = self.get_change_addresses(slice_start=-limit)
-            else:
-                last_few_addresses = self.get_receiving_addresses(slice_start=-limit)
-            if any(map(self.adb.address_is_old, last_few_addresses)):
-                count += 1
-                self.create_new_address(for_change)
-            else:
-                break
+        while not self.is_sequence_complete(for_change):
+            count += 1
+            self.create_new_address(for_change)
         return count
 
     def synchronize(self):
