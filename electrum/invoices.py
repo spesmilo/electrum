@@ -8,7 +8,7 @@ from .stored_dict import StoredObject, stored_at
 from .i18n import _
 from .util import age, InvoiceError, format_satoshis
 from .bip21 import create_bip21_uri
-from .lnutil import hex_to_bytes, RoutingInfo, BlindedRoutingInfo, UnblindedRoutingInfo, LnFeatures
+from .lnutil import hex_to_bytes, RoutingInfo, BlindedRoutingInfo, UnblindedRoutingInfo, LnFeatures, get_final_cltv_offset
 from .lnonion import BlindedPathInfo
 from .bolt11 import decode_bolt11_invoice, BOLT11Addr
 from .bolt12 import BOLT12Invoice
@@ -343,14 +343,16 @@ class Invoice(BaseInvoice):
                         for path, payinfo in zip(b12.invoice_paths, b12.invoice_blindedpay)
                 ),
                 invoice_features=b12.invoice_features or LnFeatures(0),
+                final_cltv_delta=get_final_cltv_offset(),
             )
         else:
             b11 = self.bolt11_invoice
+            final_cltv_delta = b11.get_min_final_cltv_delta() + get_final_cltv_offset()
             return UnblindedRoutingInfo(
                 node_pubkey=b11.pubkey.serialize(),
                 r_tags=b11.get_routing_info('r'),
                 payment_secret=b11.payment_secret,
-                final_cltv_delta=b11.get_min_final_cltv_delta(),
+                final_cltv_delta=final_cltv_delta,
                 invoice_features=b11.get_features(),
             )
 
