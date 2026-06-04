@@ -253,7 +253,7 @@ class BaseInvoice(StoredObject):
         return d
 
 
-@stored_at('invoices/*')
+@stored_at('/invoices/*')
 @attr.s
 class Invoice(BaseInvoice):
     lightning_invoice = attr.ib(type=str, kw_only=True)  # type: Optional[str]
@@ -303,7 +303,7 @@ class Invoice(BaseInvoice):
         return d
 
 
-@stored_at('payment_requests/*')
+@stored_at('/payment_requests/*')
 @attr.s
 class Request(BaseInvoice):
     payment_hash = attr.ib(type=bytes, kw_only=True, converter=hex_to_bytes)  # type: Optional[bytes]

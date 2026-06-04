@@ -75,14 +75,14 @@ FINAL_SEED_VERSION = 71     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
-@stored_at('tx_fees/*', tuple)
+@stored_at('/tx_fees/*', tuple)
 class TxFeesValue(NamedTuple):
     fee: Optional[int] = None
     is_calculated_by_us: bool = False
     num_inputs: Optional[int] = None
 
 
-@stored_at('db_metadata')
+@stored_at('/db_metadata')
 @attr.s
 class DBMetadata(StoredObject):
     creation_timestamp = attr.ib(default=None, type=int)
@@ -104,20 +104,29 @@ class WalletFileExceptionVersion51(WalletFileException): pass
 
 
 # register dicts that require value conversions not handled by constructor
-register_name('transactions/*', None, lambda x: tx_from_any(x, deserialize=False, sanitize=False))
-register_name('data_loss_protect_remote_pcp/*', None, lambda x: bytes.fromhex(x))
+register_name('/transactions/*', None, lambda x: tx_from_any(x, deserialize=False, sanitize=False))
+register_name('/channels/*/data_loss_protect_remote_pcp/*', None, lambda x: bytes.fromhex(x))
 # register tuples, otherwise they will default to StoredList
-register_name('contacts/*', None, tuple)
-register_name('lightning_preimages/*', None, tuple)
+register_name('/contacts/*', None, tuple)
+register_name('/lightning_preimages/*', None, tuple)
 # register dicts that require key conversion
 for key in [
-        'adds', 'locked_in', 'settles', 'fails', 'fee_updates', 'buckets',
-        'unacked_updates', 'unfulfilled_htlcs', 'onion_keys']:
+        '/channels/*/log/*/adds',
+        '/channels/*/log/*/locked_in',
+        '/channels/*/log/*/settles',
+        '/channels/*/log/*/fails',
+        '/channels/*/log/*/fee_updates',
+        '/channels/*/revocation_store/buckets',
+        '/channels/*/log/*/unacked_updates',
+        '/channels/*/unfulfilled_htlcs',
+        '/channels/*/onion_keys']:
     register_key(key, int)
-for key in ['log']:
+for key in [
+        '/channels/*/log',
+        '/channels/*/log/*/locked_in/*',
+        '/channels/*/log/*/fails/*',
+        '/channels/*/log/*/settles/*']:
     register_key(key, lambda x: HTLCOwner(int(x)))
-for key in ['locked_in', 'fails', 'settles']:
-    register_key(key+'/*', lambda x: HTLCOwner(int(x)))
 
 
 class WalletDBUpgrader(Logger):
