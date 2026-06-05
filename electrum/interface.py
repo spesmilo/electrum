@@ -66,6 +66,13 @@ from .transaction import Transaction
 from .fee_policy import FEE_ETA_TARGETS
 from .lrucache import LRUCache
 
+# Iroh P2P transport (optional, requires: pip install iroh)
+try:
+    from .iroh_transport import open_iroh_connection as _open_iroh_connection
+    _IROH_AVAILABLE = True
+except ImportError:
+    _IROH_AVAILABLE = False
+
 if TYPE_CHECKING:
     from .network import Network
     from .simple_config import SimpleConfig
@@ -75,7 +82,7 @@ ca_path = certifi.where()
 
 BUCKET_NAME_OF_ONION_SERVERS = 'onion'
 
-KNOWN_ELEC_PROTOCOL_TRANSPORTS = {'t', 's'}
+KNOWN_ELEC_PROTOCOL_TRANSPORTS = {'t', 's', 'i'}
 PREFERRED_NETWORK_PROTOCOL = 's'
 assert PREFERRED_NETWORK_PROTOCOL in KNOWN_ELEC_PROTOCOL_TRANSPORTS
 
@@ -983,6 +990,16 @@ class Interface(Logger):
         exit_early: bool = False,
     ):
         session_factory = lambda *args, iface=self, **kwargs: NotificationSession(*args, **kwargs, interface=iface)
+        if self.server.protocol == 'i':
+            if not _IROH_AVAILABLE:
+                raise ConnectError("iroh package not installed. Run: pip install iroh")
+            iroh_transport = await _open_iroh_connection(self.host)
+            session = session_factory(framer=NewlineFramer())
+            iroh_transport.set_protocol(session)
+            session.connection_made(iroh_transport)
+            iroh_transport.start_reader()
+            await self._run_electrum_session(session, exit_early=exit_early)
+            return
         async with _RSClient(
             session_factory=session_factory,
             host=self.host, port=self.port,
@@ -990,53 +1007,55 @@ class Interface(Logger):
             proxy=self.proxy,
             transport=PaddedRSTransport,
         ) as session:
-            start = time.perf_counter()
-            self.session = session  # type: NotificationSession
-            self.session.set_default_timeout(self.network.get_network_timeout_seconds(NetworkTimeout.Generic))
-            client_prange = [version.PROTOCOL_VERSION_MIN, version.PROTOCOL_VERSION_MAX]
-            try:
-                ver = await session.send_request('server.version', [self.client_name(), client_prange])
-            except aiorpcx.jsonrpc.RPCError as e:
-                raise GracefulDisconnect(e)  # probably 'unsupported protocol version'
-            if exit_early:
-                return
-            self.active_protocol_tuple = protocol_tuple(ver[1])
-            client_pmin = protocol_tuple(client_prange[0])
-            client_pmax = protocol_tuple(client_prange[1])
-            if not (client_pmin <= self.active_protocol_tuple <= client_pmax):
-                raise GracefulDisconnect(f'server violated protocol-version-negotiation. '
-                                         f'we asked for {client_prange!r}, they sent {ver[1]!r}')
-            if not self.network.check_interface_against_healthy_spread_of_connected_servers(self):
-                raise GracefulDisconnect(f'too many connected servers already '
-                                         f'in bucket {self.bucket_based_on_ipaddress()}')
+            await self._run_electrum_session(session, exit_early=exit_early)
 
-            try:
-                features = await session.send_request('server.features')
-                server_genesis_hash = assert_dict_contains_field(features, field_name='genesis_hash')
-            except (aiorpcx.jsonrpc.RPCError, RequestCorrupted) as e:
-                raise GracefulDisconnect(e)
-            if server_genesis_hash != constants.net.GENESIS:
-                raise GracefulDisconnect(f'server on different chain: {server_genesis_hash=}. ours: {constants.net.GENESIS}')
-            self.logger.info(f"connection established. version: {ver}, handshake duration: {(time.perf_counter() - start) * 1000:.2f} ms")
-
-            try:
-                async with self.taskgroup as group:
-                    await group.spawn(self.ping)
-                    await group.spawn(self.request_fee_estimates)
-                    await group.spawn(self.run_fetch_blocks)
-                    await group.spawn(self.monitor_connection)
-            except aiorpcx.jsonrpc.RPCError as e:
-                if e.code in (
-                    JSONRPC.EXCESSIVE_RESOURCE_USAGE,
-                    JSONRPC.SERVER_BUSY,
-                    JSONRPC.METHOD_NOT_FOUND,
-                    JSONRPC.INTERNAL_ERROR,
-                ):
-                    log_level = logging.WARNING if self.is_main_server() else logging.INFO
-                    raise GracefulDisconnect(e, log_level=log_level) from e
-                raise
-            finally:
-                self.got_disconnected.set()  # set this ASAP, ideally before any awaits
+    async def _run_electrum_session(self, session, *, exit_early: bool) -> None:
+        """Shared session logic for both TCP and Iroh connections."""
+        start = time.perf_counter()
+        self.session = session
+        self.session.set_default_timeout(self.network.get_network_timeout_seconds(NetworkTimeout.Generic))
+        client_prange = [version.PROTOCOL_VERSION_MIN, version.PROTOCOL_VERSION_MAX]
+        try:
+            ver = await session.send_request('server.version', [self.client_name(), client_prange])
+        except aiorpcx.jsonrpc.RPCError as e:
+            raise GracefulDisconnect(e)
+        if exit_early:
+            return
+        self.active_protocol_tuple = protocol_tuple(ver[1])
+        client_pmin = protocol_tuple(client_prange[0])
+        client_pmax = protocol_tuple(client_prange[1])
+        if not (client_pmin <= self.active_protocol_tuple <= client_pmax):
+            raise GracefulDisconnect(f'server violated protocol-version-negotiation. '
+                                     f'we asked for {client_prange!r}, they sent {ver[1]!r}')
+        if not self.network.check_interface_against_healthy_spread_of_connected_servers(self):
+            raise GracefulDisconnect(f'too many connected servers already '
+                                     f'in bucket {self.bucket_based_on_ipaddress()}')
+        try:
+            features = await session.send_request('server.features')
+            server_genesis_hash = assert_dict_contains_field(features, field_name='genesis_hash')
+        except (aiorpcx.jsonrpc.RPCError, RequestCorrupted) as e:
+            raise GracefulDisconnect(e)
+        if server_genesis_hash != constants.net.GENESIS:
+            raise GracefulDisconnect(f'server on different chain: {server_genesis_hash=}. ours: {constants.net.GENESIS}')
+        self.logger.info(f"connection established. version: {ver}, handshake duration: {(time.perf_counter() - start) * 1000:.2f} ms")
+        try:
+            async with self.taskgroup as group:
+                await group.spawn(self.ping)
+                await group.spawn(self.request_fee_estimates)
+                await group.spawn(self.run_fetch_blocks)
+                await group.spawn(self.monitor_connection)
+        except aiorpcx.jsonrpc.RPCError as e:
+            if e.code in (
+                JSONRPC.EXCESSIVE_RESOURCE_USAGE,
+                JSONRPC.SERVER_BUSY,
+                JSONRPC.METHOD_NOT_FOUND,
+                JSONRPC.INTERNAL_ERROR,
+            ):
+                log_level = logging.WARNING if self.is_main_server() else logging.INFO
+                raise GracefulDisconnect(e, log_level=log_level) from e
+            raise
+        finally:
+            self.got_disconnected.set()
 
     async def monitor_connection(self):
         while True:
