@@ -41,7 +41,8 @@ from electrum.lnonion import (get_bolt04_onion_key, OnionPacket, process_onion_p
                               OnionHopsDataSingle, decrypt_onionmsg_data_tlv, encrypt_onionmsg_data_tlv,
                               get_shared_secrets_along_route, new_onion_packet, encrypt_hops_recipient_data,
                               next_blinding_from_shared_secret)
-from electrum.lnutil import LnFeatures, MIN_FINAL_CLTV_DELTA_ACCEPTED, MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED
+from electrum.lnutil import (LnFeatures, MIN_FINAL_CLTV_DELTA_ACCEPTED, MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED,
+                             MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE)
 from electrum.util import OldTaskGroup, log_exceptions, random_shuffled_copy
 
 
@@ -481,7 +482,7 @@ def _get_payinfo_for_blinded_path(chan: 'Channel', lnwallet: 'LNWallet'):
     payinfo = {
         'fee_base_msat': sum_fee_base_msat,
         'fee_proportional_millionths': sum_fee_proportional_millionths,
-        'cltv_expiry_delta': sum_cltv_expiry_delta + MIN_FINAL_CLTV_DELTA_ACCEPTED,
+        'cltv_expiry_delta': sum_cltv_expiry_delta + MIN_FINAL_CLTV_DELTA_ACCEPTED + MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE,
         'htlc_minimum_msat': blinded_path_min_htlc_msat,
         'htlc_maximum_msat': blinded_path_max_htlc_msat,
         'flen': 0,

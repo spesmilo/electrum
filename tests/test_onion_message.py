@@ -19,7 +19,8 @@ from electrum.lnonion import (
     encrypt_hops_recipient_data, blinding_privkey, decrypt_onionmsg_data_tlv)
 from electrum.crypto import get_ecdh, privkey_to_pubkey
 from electrum.lntransport import LNPeerAddr
-from electrum.lnutil import LnFeatures, Keypair, MIN_FINAL_CLTV_DELTA_ACCEPTED, REMOTE
+from electrum.lnutil import (LnFeatures, Keypair, MIN_FINAL_CLTV_DELTA_ACCEPTED, REMOTE,
+                             MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE)
 from electrum.onion_message import (
     create_blinded_path, OnionMessageManager, NoRouteFound, Timeout,
     create_route_to_introduction_point, get_blinded_paths_to_me
@@ -511,7 +512,7 @@ class TestOnionMessageUtils(TestPeer):
         self.assertEqual(payinfos[0], {
             'fee_base_msat': bob_chan.forwarding_fee_base_msat,
             'fee_proportional_millionths': bob_chan.forwarding_fee_proportional_millionths,
-            'cltv_expiry_delta': bob_chan.forwarding_cltv_delta + MIN_FINAL_CLTV_DELTA_ACCEPTED,
+            'cltv_expiry_delta': bob_chan.forwarding_cltv_delta + MIN_FINAL_CLTV_DELTA_ACCEPTED + MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE,
             'htlc_minimum_msat': bob_chan.config[REMOTE].htlc_minimum_msat,
             'htlc_maximum_msat': min(bob_chan.config[REMOTE].max_htlc_value_in_flight_msat, 1000 * bob_chan.constraints.capacity),
             'flen': 0,
