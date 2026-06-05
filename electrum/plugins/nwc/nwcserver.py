@@ -184,6 +184,7 @@ class NWCServer(Logger, EventListener):
                                    'list_transactions', 'notifications'}.union(SUPPORTED_SPENDING_METHODS)
     SUPPORTED_NOTIFICATIONS: list[str] = ["payment_sent", "payment_received"]
     SUPPORTED_ENCRYPTION_SCHEMES: set[str] = {'nip04'}
+    INFO_EVENT_REBROADCAST_INTERVAL_SEC = 60 * 60 * 24
 
     def __init__(
         self,
@@ -238,7 +239,7 @@ class NWCServer(Logger, EventListener):
             try:
                 async with OldTaskGroup() as tg:
                     self.taskgroup = tg
-                    await tg.spawn(self.publish_info_event())
+                    await tg.spawn(self.publish_info_event_loop())
                     await tg.spawn(self.handle_requests())
             except asyncio.CancelledError:
                 if self.do_stop:
@@ -927,10 +928,11 @@ class NWCServer(Logger, EventListener):
         new_budget_item = [new_msat, int(time.time())]
         budget_spends.append(new_budget_item)
 
-    async def publish_info_event(self):
+    async def publish_info_event_loop(self):
         """
         Publishes the info event according to spec, announcing the supported methods.
         We publish one info event for each client connection.
+        We re-publish info events regularly as some relays drop them after a couple days.
         https://github.com/nostr-protocol/nips/blob/75f246ed987c23c99d77bfa6aeeb1afb669e23f7/47.md#example-nip-47-info-event
         """
         tags = []
@@ -938,19 +940,24 @@ class NWCServer(Logger, EventListener):
             tags.append(['notifications', ' '.join(self.SUPPORTED_NOTIFICATIONS)])
         if self.SUPPORTED_ENCRYPTION_SCHEMES:
             tags.append(['encryption', ' '.join(self.SUPPORTED_ENCRYPTION_SCHEMES)])
-        for client_pubkey, connection in list(self.connections.items()):
-            supported_methods = self.SUPPORTED_METHODS.copy()
-            if self.is_receive_only(client_pubkey):
-                supported_methods -= self.SUPPORTED_SPENDING_METHODS
-            content = ' '.join(supported_methods)
-            event_id = await aionostr._add_event(
-                self.manager,
-                kind=self.INFO_EVENT_KIND,
-                tags=tags or None,
-                content=content,
-                private_key=connection['our_secret']
-            )
-            self.logger.debug(f"Published info event {event_id} to {client_pubkey}")
+        while True:
+            for client_pubkey, connection in list(self.connections.items()):
+                if client_pubkey not in self.connections:
+                    continue  # might was removed during sleep
+                supported_methods = self.SUPPORTED_METHODS.copy()
+                if self.is_receive_only(client_pubkey):
+                    supported_methods -= self.SUPPORTED_SPENDING_METHODS
+                content = ' '.join(supported_methods)
+                event_id = await aionostr._add_event(
+                    self.manager,
+                    kind=self.INFO_EVENT_KIND,
+                    tags=tags or None,
+                    content=content,
+                    private_key=connection['our_secret']
+                )
+                self.logger.debug(f"Published info event {event_id} to {client_pubkey}")
+                await asyncio.sleep(3)  # try not to blast every event at once so they don't get rate limited
+            await asyncio.sleep(self.INFO_EVENT_REBROADCAST_INTERVAL_SEC)
 
     def publish_notification_event(self, content: dict):
         """
