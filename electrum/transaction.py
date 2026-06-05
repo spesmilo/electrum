@@ -1347,6 +1347,9 @@ class Transaction:
         """Whether the tx explicitly signals BIP-0125 replace-by-fee."""
         return any([txin.nsequence < 0xffffffff - 1 for txin in self.inputs()])
 
+    def is_coinbase_tx(self) -> bool:
+        return self.inputs()[0].is_coinbase_input()
+
     def estimated_size(self) -> int:
         """Return an estimated virtual tx size in vbytes.
         BIP-0141 defines 'Virtual transaction size' to be weight/4 rounded up.

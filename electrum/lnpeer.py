@@ -1432,6 +1432,9 @@ class Peer(Logger, EventListener):
         chan.open_with_first_pcp(payload['first_per_commitment_point'], remote_sig)
         chan.set_state(ChannelState.OPENING)
         if is_zeroconf:
+            # FIXME shouldn't we wait until funding_tx is at least in the mempool?!
+            #   We haven't even validated funding_tx really contains the multisig funding output!
+            #   This is unsafe. MUST be reworked before mainnet usage.
             chan.set_state(ChannelState.FUNDED)
             self.send_channel_ready(chan)
         self.lnworker.add_new_channel(chan)

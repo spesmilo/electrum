@@ -34,7 +34,7 @@ from electrum_ecc import ECPubkey
 
 from . import constants, util
 from .util import bfh, chunks, TxMinedInfo, error_text_bytes_to_safe_str, now
-from .bitcoin import redeem_script_to_address
+from .bitcoin import redeem_script_to_address, COINBASE_MATURITY
 from .crypto import sha256, sha256d
 from .transaction import Transaction, PartialTransaction, TxInput, Sighash
 from .logging import Logger
@@ -1997,6 +1997,15 @@ class Channel(AbstractChannel):
         if not funding_tx:
             self.logger.info(f"no funding_tx {funding_txid}")
             return False
+        if funding_tx.is_coinbase_tx():
+            if conf < COINBASE_MATURITY:
+                # FIXME what about zeroconf? In the zeroconf case, is_funding_tx_mined is used as a late-check
+                #  after the funding tx is already mined, to validate the funding output addr and value.
+                #  If we return False here, we will force-close the channel.
+                #  (though it's unlikely an LSP would open a zero-conf channel in a coinbase tx!)
+                #  The proper way to fix this would be to have already validated the funding tx in the zeroconf case
+                #  *before* we progress it to the OPEN chan state (just like we do it for non-zeroconf chans).
+                return False
         outp = funding_tx.outputs()[funding_idx]
         redeem_script = funding_output_script(self.config[REMOTE], self.config[LOCAL])
         funding_address = redeem_script_to_address('p2wsh', redeem_script)
