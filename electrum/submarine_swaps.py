@@ -372,6 +372,41 @@ class SwapManager(Logger):
         # we couldn't even connect to the relays, this transport is useless. maybe network issues.
         return False
 
+    def get_message_for_swap_change(self, swap_transport, tx):
+        """ UI support for send-change-to-lightning.
+        """
+        msg = ''
+        if swap_transport is not None and swap_transport.ongoing_connection_attempt:
+            msg = _("Fetching submarine swap providers...")
+        elif dummy_output := tx.get_dummy_output(DummyAddress.SWAP):
+            msg = _('Will send change to lightning')
+            if self.is_initialized.is_set() and isinstance(dummy_output.value, int):
+                ln_amount_we_recv = self.get_recv_amount(send_amount=dummy_output.value,
+                                                         is_reverse=False)
+                if ln_amount_we_recv:
+                    swap_fees = dummy_output.value - ln_amount_we_recv
+                    msg += " [" + _("Swap fees:") + " " + self.config.format_amount_and_units(swap_fees) + "]."
+        elif not tx.has_change():
+            msg = _('No change output, so no need for swap')
+        else:
+            change_amount = sum(c.value for c in tx.get_change_outputs() if isinstance(c.value, int))
+            if change_amount > int(self.wallet.lnworker.num_sats_can_receive()):
+                msg = _("Your channels cannot receive this amount.")
+            elif self.is_initialized.is_set():
+                min_amount = self.get_min_amount()
+                max_amount = self.get_provider_max_reverse_amount()
+                if change_amount < min_amount:
+                    msg = _("Below the swap providers minimum value of {}.").format(
+                        self.config.format_amount_and_units(min_amount)
+                    )
+                elif change_amount > max_amount:
+                    msg = _('Change amount exceeds the swap providers maximum value of {}.').format(
+                        self.config.format_amount_and_units(max_amount)
+                    )
+            else:
+                msg = _('Will not send change to Lightning')
+        return msg
+
     async def set_nostr_proof_of_work(self) -> None:
         current_pow = get_nostr_ann_pow_amount(
             self.lnworker.nostr_keypair.pubkey[1:],
