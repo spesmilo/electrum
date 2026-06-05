@@ -39,7 +39,7 @@ from electrum.plugin import BasePlugin, hook
 from electrum.logging import Logger
 from electrum.util import log_exceptions, ca_path, OldTaskGroup, get_asyncio_loop, InvoiceError, \
     LightningHistoryItem, event_listener, EventListener, make_aiohttp_proxy_connector, \
-    get_running_loop, run_sync_function_on_asyncio_thread
+    get_running_loop
 from electrum.invoices import Invoice, Request, PR_UNKNOWN, PR_PAID, BaseInvoice, PR_INFLIGHT, PR_FAILED, PR_EXPIRED, PR_UNPAID
 from electrum import constants
 from electrum.lnutil import RECEIVED, PaymentFeeBudget
@@ -74,7 +74,7 @@ class NWCServerPlugin(BasePlugin):
         storage = self.get_storage(wallet)
         self.connections = storage.setdefault('connections', {})
         self.delete_expired_connections()
-        self.nwc_server = NWCServer(self.config, wallet, self.taskgroup, self.connections)
+        self.nwc_server = NWCServer(self.config, wallet, self.connections)
         asyncio.run_coroutine_threadsafe(self.taskgroup.spawn(self.nwc_server.run()), get_asyncio_loop())
         self.initialized = True
 
@@ -184,12 +184,12 @@ class NWCServer(Logger, EventListener):
                                    'list_transactions', 'notifications'}.union(SUPPORTED_SPENDING_METHODS)
     SUPPORTED_NOTIFICATIONS: list[str] = ["payment_sent", "payment_received"]
     SUPPORTED_ENCRYPTION_SCHEMES: set[str] = {'nip04'}
+    INFO_EVENT_REBROADCAST_INTERVAL_SEC = 60 * 60 * 24
 
     def __init__(
         self,
         config: 'SimpleConfig',
         wallet: 'Abstract_Wallet',
-        taskgroup: 'OldTaskGroup',
         connection_storage: dict,
     ):
         Logger.__init__(self)
@@ -198,11 +198,9 @@ class NWCServer(Logger, EventListener):
         self.connections = connection_storage  # type: dict[str, dict]  # client hex pubkey -> connection data
         self.relays = config.NOSTR_RELAYS.split(",") or []  # type: List[str]
         self.do_stop = False
-        self.taskgroup = taskgroup  # type: 'OldTaskGroup'
+        self.taskgroup = None  # type: Optional[OldTaskGroup]
         self.ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_path)
         self.manager = None  # type: Optional[aionostr.Manager]
-        # the task is stored so it can be cancelled when the connections change
-        self.event_handler_task = None  # type: Optional[asyncio.Task]
         self.register_callbacks()
 
     def get_relay_manager(self) -> aionostr.Manager:
@@ -239,9 +237,10 @@ class NWCServer(Logger, EventListener):
                 continue
 
             try:
-                await self.publish_info_event()
-                self.event_handler_task = await self.taskgroup.spawn(self.handle_requests())
-                await self.event_handler_task
+                async with OldTaskGroup() as tg:
+                    self.taskgroup = tg
+                    await tg.spawn(self.publish_info_event_loop())
+                    await tg.spawn(self.handle_requests())
             except asyncio.CancelledError:
                 if self.do_stop:
                     return
@@ -252,6 +251,8 @@ class NWCServer(Logger, EventListener):
                     await self.manager.close()
                     self.manager = None
                 await asyncio.sleep(60)
+            finally:
+                self.taskgroup = None
 
     async def refresh_manager(self) -> bool:
         """Checks if manager is still connected to relays, if not recreates it and reconnects"""
@@ -278,8 +279,8 @@ class NWCServer(Logger, EventListener):
 
     def restart_event_handler(self) -> None:
         """To be called when the connections change so we restart with a new filter"""
-        if self.event_handler_task:
-            run_sync_function_on_asyncio_thread(self.event_handler_task.cancel, block=True)
+        if tg := self.taskgroup:
+            asyncio.run_coroutine_threadsafe(tg.cancel_remaining(), get_asyncio_loop())
 
     @event_listener
     def on_event_proxy_set(self, *args):
@@ -444,7 +445,9 @@ class NWCServer(Logger, EventListener):
         """
         invoice: str = params.get('invoice', "")
         amount_msat: Optional[int] = params.get('amount')
-        response = await self.pay_invoice(invoice, amount_msat, request_event.pubkey)
+        pay_task = asyncio.create_task(self.pay_invoice(invoice, amount_msat, request_event.pubkey))
+        # prevent the payment attempt from getting canceled during taskgroup restart
+        response = await asyncio.shield(pay_task)
         response['result_type'] = 'pay_invoice'
         await self.send_encrypted_response(request_event.pubkey, json.dumps(response), request_event.id)
 
@@ -925,10 +928,11 @@ class NWCServer(Logger, EventListener):
         new_budget_item = [new_msat, int(time.time())]
         budget_spends.append(new_budget_item)
 
-    async def publish_info_event(self):
+    async def publish_info_event_loop(self):
         """
         Publishes the info event according to spec, announcing the supported methods.
         We publish one info event for each client connection.
+        We re-publish info events regularly as some relays drop them after a couple days.
         https://github.com/nostr-protocol/nips/blob/75f246ed987c23c99d77bfa6aeeb1afb669e23f7/47.md#example-nip-47-info-event
         """
         tags = []
@@ -936,24 +940,31 @@ class NWCServer(Logger, EventListener):
             tags.append(['notifications', ' '.join(self.SUPPORTED_NOTIFICATIONS)])
         if self.SUPPORTED_ENCRYPTION_SCHEMES:
             tags.append(['encryption', ' '.join(self.SUPPORTED_ENCRYPTION_SCHEMES)])
-        for client_pubkey, connection in list(self.connections.items()):
-            supported_methods = self.SUPPORTED_METHODS.copy()
-            if self.is_receive_only(client_pubkey):
-                supported_methods -= self.SUPPORTED_SPENDING_METHODS
-            content = ' '.join(supported_methods)
-            event_id = await aionostr._add_event(
-                self.manager,
-                kind=self.INFO_EVENT_KIND,
-                tags=tags or None,
-                content=content,
-                private_key=connection['our_secret']
-            )
-            self.logger.debug(f"Published info event {event_id} to {client_pubkey}")
+        while True:
+            for client_pubkey, connection in list(self.connections.items()):
+                if client_pubkey not in self.connections:
+                    continue  # might was removed during sleep
+                supported_methods = self.SUPPORTED_METHODS.copy()
+                if self.is_receive_only(client_pubkey):
+                    supported_methods -= self.SUPPORTED_SPENDING_METHODS
+                content = ' '.join(supported_methods)
+                event_id = await aionostr._add_event(
+                    self.manager,
+                    kind=self.INFO_EVENT_KIND,
+                    tags=tags or None,
+                    content=content,
+                    private_key=connection['our_secret']
+                )
+                self.logger.debug(f"Published info event {event_id} to {client_pubkey}")
+                await asyncio.sleep(3)  # try not to blast every event at once so they don't get rate limited
+            await asyncio.sleep(self.INFO_EVENT_REBROADCAST_INTERVAL_SEC)
 
     def publish_notification_event(self, content: dict):
         """
         https://github.com/nostr-protocol/nips/blob/75f246ed987c23c99d77bfa6aeeb1afb669e23f7/47.md#notification-events
         """
+        if not self.taskgroup or not self.manager:
+            return
         self.logger.debug(f"Publishing notification event: {content}")
         for client_pubkey, connection in list(self.connections.items()):
             coro = self.taskgroup.spawn(aionostr._add_event(
