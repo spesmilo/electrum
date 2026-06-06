@@ -299,7 +299,7 @@ class QEDaemon(AuthMixin, QObject):
 
     @auth_protect(message=_('Really delete this wallet?'))
     def delete_wallet(self, wallet):
-        path = standardize_path(wallet.wallet.storage.path)
+        path = standardize_path(wallet.wallet.storage.get_path())
         self._logger.debug('deleting wallet with path %s' % path)
         self._current_wallet = None
         # TODO walletLoaded signal is confusing
@@ -344,7 +344,7 @@ class QEDaemon(AuthMixin, QObject):
     def renameWallet(self, new_name: str):
         wallet = self._current_wallet
         assert wallet, "name change without wallet?"
-        old_path = standardize_path(wallet.wallet.storage.path)
+        old_path = standardize_path(wallet.wallet.storage.get_path())
         wallet_dir = os.path.dirname(old_path)
         new_path = standardize_path(os.path.join(wallet_dir, new_name))
         if old_path == new_path:

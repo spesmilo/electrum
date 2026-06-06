@@ -347,7 +347,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
 
     def get_window_for_wallet(self, wallet):
         for window in self.windows:
-            if window.wallet.storage.path == wallet.storage.path:
+            if window.wallet.storage.get_path() == wallet.storage.get_path():
                 return window
 
     @count_wizards_in_progress
@@ -460,7 +460,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         if d['wallet_is_open']:
             wallet_path = standardize_path(d['wallet_name'])
             for window in self.windows:
-                if window.wallet.storage.path == wallet_path:
+                if window.wallet.storage.get_path() == wallet_path:
                     return window.wallet
             raise Exception('found by wizard but not here?!')
 
@@ -518,7 +518,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.build_tray_menu()
         run_hook('on_close_window', window)
         if window.should_stop_wallet_on_close:
-            self.daemon.stop_wallet(window.wallet.storage.path)
+            self.daemon.stop_wallet(window.wallet.storage.get_path())
 
     def reload_window(self, window):
         # bump counter so that we do not close the app

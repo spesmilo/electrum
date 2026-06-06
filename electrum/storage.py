@@ -93,6 +93,9 @@ class WalletStorage(Logger):
             self.pos = 0
             self.init_pos = 0
 
+    def get_path(self):
+        return self.path
+
     def read(self):
         return self.decrypted if self.is_encrypted() else self.raw
 

@@ -580,7 +580,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
     def close_wallet(self):
         if self.wallet:
-            self.logger.info(f'close_wallet {self.wallet.storage.path}')
+            self.logger.info(f'close_wallet {self.wallet.storage.get_path()}')
         run_hook('close_wallet', self.wallet)
 
     @profiler
@@ -2046,13 +2046,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def remove_wallet(self):
         if self.question('\n'.join([
                 _('Delete wallet file?'),
-                "%s"%self.wallet.storage.path,
+                "%s"%self.wallet.storage.get_path(),
                 _('If your wallet contains funds, make sure you have saved its seed.')])):
             self._delete_wallet()
 
     @protected
     def _delete_wallet(self, password):
-        wallet_path = self.wallet.storage.path
+        wallet_path = self.wallet.storage.get_path()
         basename = os.path.basename(wallet_path)
         r = self.gui_object.daemon.delete_wallet(wallet_path)
         self.close()
