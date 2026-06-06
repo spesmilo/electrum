@@ -185,7 +185,7 @@ class SwapOffer:
         return to_nip19('npub', self.server_pubkey)
 
 
-@stored_at('submarine_swaps/*')
+@stored_at('/submarine_swaps/*')
 @attr.s
 class SwapData(StoredObject):
     is_reverse = attr.ib(type=bool)  # for whoever is running code (PoV of client or server)

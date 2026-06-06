@@ -43,23 +43,25 @@ def locked(func):
     return wrapper
 
 
-registered_names = defaultdict(dict)
-registered_keys = defaultdict(dict)
+registered_names = {}
+registered_keys = {}
 
-def _parse_path(path):
-    path2 = path.split('/')
-    name, suffix = path2[0], path2[1:]
-    n = len(suffix)
-    assert suffix == n * ['*']
-    return name, n
+def _register_key_or_name(d: dict, path_str: str, value):
+    assert path_str.startswith('/')
+    path = path_str[1:].split('/')
+    path, key = path[0:-1], path[-1]
+    for k in path:
+        if k not in d:
+            d[k] = {}
+        d = d[k]
+    d[key] = value
 
 def register_name(path, _type, func):
-    name, n = _parse_path(path)
-    registered_names[name][n] = _type, func
+    _register_key_or_name(registered_names, path, (_type, func))
 
 def register_key(path, func):
-    name, n = _parse_path(path)
-    registered_keys[name][n + 1] = func
+    _register_key_or_name(registered_keys, path + '/' + 'self', func)
+
 
 
 def stored_at(path, _type=dict):
@@ -71,35 +73,37 @@ def stored_at(path, _type=dict):
 
 _FLEX_KEY = str | int | None
 
+def _walk_path(d, path):
+    for k in path:
+        if k in d:
+            d = d[k]
+        elif '*' in d:
+            d = d['*']
+        else:
+            return None
+    return d
 
 def _convert_dict_key(path: List[str], key: str) -> _FLEX_KEY:
     """Maybe convert key from str to python type (typically int or IntEnum)"""
     assert all(isinstance(x, str) for x in path), repr(path)
-    n = len(path)
-    for i, name in enumerate(path):
-        if name in registered_keys:
-            func = registered_keys[name].get(n - i)
-            if func:
-                key = func(key)
-                break
+    r = _walk_path(registered_keys, path)
+    if r:
+        if func := r.get('self'):
+            key = func(key)
     assert isinstance(key, _FLEX_KEY), f"unexpected type for {key=!r} at {path=}"
     return key
 
 def _convert_dict_value(path: List[str], v) -> Any:
     assert all(isinstance(x, str) for x in path), repr(path)
-    n = len(path)
-    for i, key in enumerate(path):
-        if key in registered_names:
-            reg = registered_names[key].get(n - i - 1)
-            if reg:
-                _type, constructor = reg
-                if _type == dict:
-                    v = constructor(**v)
-                elif _type == tuple:
-                    v = constructor(*v)
-                else:
-                    v = constructor(v)
-                break
+    r = _walk_path(registered_names, path)
+    if r and type(r) is tuple:
+        _type, constructor = r
+        if _type == dict:
+            v = constructor(**v)
+        elif _type == tuple:
+            v = constructor(*v)
+        else:
+            v = constructor(v)
     return v
 
 
