@@ -1662,9 +1662,22 @@ class LNWallet(Logger):
         self.lnwatcher.add_channel(chan)
 
     def add_new_channel(self, chan: Channel):
-        self.add_channel(chan)
+        # delete the old channel object, becauses it uses a dict
+        assert type(chan.storage) is dict
+        channel_id = chan.channel_id.hex()
         channels_db = self.db.get_dict('channels')
-        channels_db[chan.channel_id.hex()] = chan.storage
+        channels_db[channel_id] = chan.storage
+        jit_opening_fee = chan.jit_opening_fee
+        peer_state = chan.peer_state
+        del chan
+        storage = channels_db[channel_id] # StoredDict
+        chan = Channel(
+            storage,
+            lnworker=self,
+            jit_opening_fee=jit_opening_fee,
+        )
+        chan.peer_state = peer_state
+        self.add_channel(chan)
         self.wallet.set_reserved_addresses_for_chan(chan, reserved=True)
         try:
             self.save_channel(chan)
@@ -1672,6 +1685,8 @@ class LNWallet(Logger):
             chan.set_state(ChannelState.REDEEMED)
             self.remove_channel(chan.channel_id)
             raise
+        # return new channel object
+        return chan
 
     def make_local_config_for_new_channel(
         self,

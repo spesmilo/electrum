@@ -52,7 +52,6 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc, ChannelConf
 from .lntransport import LNTransport, LNTransportBase, LightningPeerConnectionClosed, HandshakeFailed
 from .lnmsg import encode_msg, decode_msg, UnknownOptionalMsgType, FailedToParseMsg
 from .interface import GracefulDisconnect
-from .json_db import StoredDict
 from .invoices import PR_PAID
 from .fee_policy import FEE_LN_ETA_TARGET, FEERATE_PER_KW_MIN_RELAY_LIGHTNING
 from .channel_db import FLAG_DIRECTION
@@ -1180,18 +1179,19 @@ class Peer(Logger, EventListener):
         )
         storage = self.create_channel_storage(
             channel_id, outpoint, local_config, remote_config, constraints, our_channel_type)
-        chan = Channel(
+        # temporary channel object, not stored (storage is a dict)
+        temp_chan = Channel(
             storage,
             lnworker=self.lnworker,
             initial_feerate=feerate
         )
-        chan.storage['funding_inputs'] = [txin.prevout.to_json() for txin in funding_tx.inputs()]
-        chan.storage['has_onchain_backup'] = has_onchain_backup
-        chan.storage['init_height'] = self.lnworker.network.get_local_height()
-        chan.storage['init_timestamp'] = int(time.time())
+        temp_chan.storage['funding_inputs'] = [txin.prevout.to_json() for txin in funding_tx.inputs()]
+        temp_chan.storage['has_onchain_backup'] = has_onchain_backup
+        temp_chan.storage['init_height'] = self.lnworker.network.get_local_height()
+        temp_chan.storage['init_timestamp'] = int(time.time())
         if isinstance(self.transport, LNTransport):
-            chan.add_or_update_peer_addr(self.transport.peer_addr)
-        sig_64, _ = chan.sign_next_commitment()
+            temp_chan.add_or_update_peer_addr(self.transport.peer_addr)
+        sig_64, _ = temp_chan.sign_next_commitment()
         self.temp_id_to_id[temp_channel_id] = channel_id
 
         self.send_message("funding_created",
@@ -1206,15 +1206,15 @@ class Peer(Logger, EventListener):
         self.logger.info('received funding_signed')
         remote_sig = payload['signature']
         try:
-            chan.receive_new_commitment(remote_sig, [])
+            temp_chan.receive_new_commitment(remote_sig, [])
         except LNProtocolWarning as e:
             self.send_warning(channel_id, message=str(e), close_connection=True)
-        chan.open_with_first_pcp(remote_per_commitment_point, remote_sig)
-        chan.set_state(ChannelState.OPENING)
+        temp_chan.open_with_first_pcp(remote_per_commitment_point, remote_sig)
+        temp_chan.set_state(ChannelState.OPENING)
+        chan = self.lnworker.add_new_channel(temp_chan)
         if zeroconf:
             chan.set_state(ChannelState.FUNDED)
             self.send_channel_ready(chan)
-        self.lnworker.add_new_channel(chan)
         return chan, funding_tx
 
     def create_channel_storage(self, channel_id, outpoint, local_config, remote_config, constraints, channel_type):
@@ -1235,7 +1235,7 @@ class Peer(Logger, EventListener):
             "revocation_store": {},
             "channel_type": channel_type,
         }
-        return StoredDict(chan_dict, self.lnworker.db)
+        return chan_dict
 
     @non_blocking_msg_handler
     async def on_open_channel(self, payload):
@@ -1407,37 +1407,38 @@ class Peer(Logger, EventListener):
         outpoint = Outpoint(funding_txid, funding_idx)
         chan_dict = self.create_channel_storage(
             channel_id, outpoint, local_config, remote_config, constraints, channel_type)
-        chan = Channel(
+        # temporary channel object, not stored (storage is a dict)
+        temp_chan = Channel(
             chan_dict,
             lnworker=self.lnworker,
             initial_feerate=feerate,
-            jit_opening_fee = channel_opening_fee,
+            jit_opening_fee=channel_opening_fee,
         )
-        chan.storage['init_height'] = self.lnworker.network.get_local_height()
-        chan.storage['init_timestamp'] = int(time.time())
+        temp_chan.storage['init_height'] = self.lnworker.network.get_local_height()
+        temp_chan.storage['init_timestamp'] = int(time.time())
         if isinstance(self.transport, LNTransport):
-            chan.add_or_update_peer_addr(self.transport.peer_addr)
+            temp_chan.add_or_update_peer_addr(self.transport.peer_addr)
         remote_sig = funding_created['signature']
         try:
-            chan.receive_new_commitment(remote_sig, [])
+            temp_chan.receive_new_commitment(remote_sig, [])
         except LNProtocolWarning as e:
             self.send_warning(channel_id, message=str(e), close_connection=True)
-        sig_64, _ = chan.sign_next_commitment()
+        sig_64, _ = temp_chan.sign_next_commitment()
         self.send_message('funding_signed',
             channel_id=channel_id,
             signature=sig_64,
         )
         self.temp_id_to_id[temp_chan_id] = channel_id
-        self.funding_signed_sent.add(chan.channel_id)
-        chan.open_with_first_pcp(payload['first_per_commitment_point'], remote_sig)
-        chan.set_state(ChannelState.OPENING)
+        self.funding_signed_sent.add(temp_chan.channel_id)
+        temp_chan.open_with_first_pcp(payload['first_per_commitment_point'], remote_sig)
+        temp_chan.set_state(ChannelState.OPENING)
+        chan = self.lnworker.add_new_channel(temp_chan)
         if is_zeroconf:
             # FIXME shouldn't we wait until funding_tx is at least in the mempool?!
             #   We haven't even validated funding_tx really contains the multisig funding output!
             #   This is unsafe. MUST be reworked before mainnet usage.
             chan.set_state(ChannelState.FUNDED)
             self.send_channel_ready(chan)
-        self.lnworker.add_new_channel(chan)
 
     def _cleanup_temp_channelids(self) -> None:
         self.temp_id_to_id = {
