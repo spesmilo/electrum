@@ -48,7 +48,7 @@ class WalletInfoDialog(WindowModalDialog):
             seed_available += f" ({wallet.get_seed_type()})"
         keystore_types = [k.get_type_text() for k in wallet.get_keystores()]
         grid = QGridLayout()
-        basename = os.path.basename(wallet.storage.path)
+        basename = os.path.basename(wallet.storage.get_path())
         cur_row = 0
         grid.addWidget(WWLabel(_("Wallet name")+ ':'), cur_row, 0)
         grid.addWidget(WWLabel(basename), cur_row, 1)

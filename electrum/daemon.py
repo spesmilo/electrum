@@ -562,7 +562,7 @@ class Daemon(Logger):
 
     @with_wallet_lock
     def add_wallet(self, wallet: Abstract_Wallet) -> None:
-        path = wallet.storage.path
+        path = wallet.storage.get_path()
         wallet_key = self._wallet_key_from_path(path)
         self._wallets[wallet_key] = wallet
         run_hook('daemon_wallet_loaded', self, wallet)
@@ -612,8 +612,8 @@ class Daemon(Logger):
             return False
         await wallet.stop()
         if self.config.get('wallet_path') is None:
-            wallet_paths = [w.db.storage.path for w in self._wallets.values()
-                            if w.db.storage and w.db.storage.path]
+            wallet_paths = [w.storage.get_path() for w in self._wallets.values()
+                            if w.storage and w.storage.get_path()]
             if self.config.CURRENT_WALLET == path and wallet_paths:
                 self.config.CURRENT_WALLET = wallet_paths[0]
         return True
