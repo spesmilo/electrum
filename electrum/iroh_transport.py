@@ -23,7 +23,7 @@ def _load_or_create_secret_key():
             return key_bytes
     key_bytes = os.urandom(32)
     key_path.write_bytes(key_bytes)
-    _logger.info(f"New Iroh secret key saved to {key_path}")
+    _logger.info(f"Iroh: new secret key saved to {key_path}")
     return key_bytes
 
 async def get_shared_endpoint():
@@ -65,29 +65,22 @@ class IrohTransport(asyncio.Transport):
         return self._protocol
 
     def start_reader(self):
-        _logger.info('start_reader called')
         self._reader_task = self._loop.create_task(
             self._reader_loop(), name=f"iroh-reader-{self._node_id[:12]}"
         )
 
     async def _reader_loop(self):
-        _logger.info('_reader_loop started')
         try:
             while not self._closing:
-                _logger.info('waiting for data...')
                 data = await self._recv.read(65536)
-                _logger.info(f'got {len(data)}b')
                 if not data:
                     break
                 if self._framer is not None:
-                    _logger.info(f'feeding {len(data)}b to framer')
                     self._framer.received_bytes(data)
         except asyncio.CancelledError:
             pass
         except Exception as e:
-            import traceback
             _logger.warning(f"Iroh reader error ({self._node_id[:12]}): {e}")
-            _logger.warning(traceback.format_exc())
         finally:
             if not self._closing:
                 self._closing = True
@@ -98,27 +91,20 @@ class IrohTransport(asyncio.Transport):
         # Ensure newline termination for Electrum JSON-RPC protocol
         if data and not data.endswith(b'\n'):
             data = data + b'\n'
-        _logger.info(f'write {len(data)}b: {data[:60]}')
         if self._closing:
-            _logger.warning('write called but closing!')
             return
         await self._write_async(data)
 
     async def _write_async(self, data):
         async with self._write_lock:
             try:
-                _logger.info(f'_write_async sending {len(data)}b')
                 await self._send.write_all(data)
-                _logger.info(f'_write_async sent OK')
             except Exception as e:
                 if not self._closing:
                     _logger.warning(f"Iroh write error: {e}")
                     self.close()
 
     async def close(self, *args):
-        import traceback
-        _logger.warning(f'close() called, args={args}')
-        _logger.warning(''.join(traceback.format_stack()[-5:]))
         if self._closing:
             return
         self._closing = True
