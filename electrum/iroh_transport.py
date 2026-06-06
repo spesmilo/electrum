@@ -50,52 +50,75 @@ class IrohTransport(asyncio.Transport):
         self._protocol = None
         self._reader_task = None
         self._write_lock = asyncio.Lock()
+        self._framer = None
 
     def set_protocol(self, protocol):
         self._protocol = protocol
+
+    def connection_made_with_framer(self, session, framer):
+        """Set up framer and start aiorpcx message processing loop."""
+        self._protocol = session
+        self._framer = framer
+        self._loop.create_task(session.process_messages(framer.receive_message))
 
     def get_protocol(self):
         return self._protocol
 
     def start_reader(self):
+        _logger.info('start_reader called')
         self._reader_task = self._loop.create_task(
             self._reader_loop(), name=f"iroh-reader-{self._node_id[:12]}"
         )
 
     async def _reader_loop(self):
+        _logger.info('_reader_loop started')
         try:
             while not self._closing:
+                _logger.info('waiting for data...')
                 data = await self._recv.read(65536)
+                _logger.info(f'got {len(data)}b')
                 if not data:
                     break
-                if self._protocol is not None:
-                    self._protocol.data_received(data)
+                if self._framer is not None:
+                    _logger.info(f'feeding {len(data)}b to framer')
+                    self._framer.received_bytes(data)
         except asyncio.CancelledError:
             pass
         except Exception as e:
-            if not self._closing:
-                _logger.warning(f"Iroh reader error ({self._node_id[:12]}): {e}")
+            import traceback
+            _logger.warning(f"Iroh reader error ({self._node_id[:12]}): {e}")
+            _logger.warning(traceback.format_exc())
         finally:
             if not self._closing:
                 self._closing = True
                 if self._protocol is not None:
                     self._protocol.connection_lost(None)
 
-    def write(self, data):
+    async def write(self, data):
+        # Ensure newline termination for Electrum JSON-RPC protocol
+        if data and not data.endswith(b'\n'):
+            data = data + b'\n'
+        _logger.info(f'write {len(data)}b: {data[:60]}')
         if self._closing:
+            _logger.warning('write called but closing!')
             return
-        self._loop.create_task(self._write_async(data))
+        await self._write_async(data)
 
     async def _write_async(self, data):
         async with self._write_lock:
             try:
+                _logger.info(f'_write_async sending {len(data)}b')
                 await self._send.write_all(data)
+                _logger.info(f'_write_async sent OK')
             except Exception as e:
                 if not self._closing:
                     _logger.warning(f"Iroh write error: {e}")
                     self.close()
 
-    def close(self):
+    async def close(self, *args):
+        import traceback
+        _logger.warning(f'close() called, args={args}')
+        _logger.warning(''.join(traceback.format_stack()[-5:]))
         if self._closing:
             return
         self._closing = True
@@ -112,11 +135,16 @@ class IrohTransport(asyncio.Transport):
     def is_closing(self):
         return self._closing
 
+    # aiorpcx expects these attributes on the transport
+    kind = 'SSL'  # pretend to be SSL so aiorpcx does not try to use TLS
+    
     def get_extra_info(self, name, default=None):
         if name == 'peername':
             return (self._node_id, 0)
         if name == 'sockname':
             return ('iroh-local', 0)
+        if name == 'ssl_object':
+            return None
         return default
 
 async def open_iroh_connection(node_id_str):
@@ -129,12 +157,16 @@ async def open_iroh_connection(node_id_str):
     node_addr = iroh.NodeAddr(node_id=public_key, derp_url="https://use1-1.relay.iroh.network./", addresses=[])
     conn = await endpoint.connect(node_addr, alpn=ALPN)
     bistream = await conn.open_bi()
+    send_stream = bistream.send()
+    recv_stream = bistream.recv()
     loop = asyncio.get_event_loop()
     transport = IrohTransport(
-        send_stream=bistream.send(),
-        recv_stream=bistream.recv(),
+        send_stream=send_stream,
+        recv_stream=recv_stream,
         node_id=node_id_str,
         loop=loop,
     )
+    transport._conn = conn
+    transport._bistream = bistream
     _logger.info(f"Iroh: connected to {node_id_str[:12]}")
     return transport

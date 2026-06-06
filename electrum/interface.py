@@ -467,14 +467,21 @@ class ServerAddr:
             protocol = 's'
         if not host:
             raise ValueError('host must not be empty')
+        if protocol not in KNOWN_ELEC_PROTOCOL_TRANSPORTS:
+            raise ValueError(f"invalid network protocol: {protocol}")
+        if protocol == 'i':
+            # Iroh: host is a Node ID (hex string), not a network address
+            self.host = host
+            self.port = int(port)
+            self.protocol = protocol
+            self._net_addr_str = f"{host}:{port}"
+            return
         if host[0] == '[' and host[-1] == ']':  # IPv6
             host = host[1:-1]
         try:
             net_addr = NetAddress(host, port)  # this validates host and port
         except Exception as e:
             raise ValueError(f"cannot construct ServerAddr: invalid host or port (host={host}, port={port})") from e
-        if protocol not in KNOWN_ELEC_PROTOCOL_TRANSPORTS:
-            raise ValueError(f"invalid network protocol: {protocol}")
         self.host = str(net_addr.host)  # canonical form (if e.g. IPv6 address)
         self.port = int(net_addr.port)
         self.protocol = protocol
@@ -994,9 +1001,9 @@ class Interface(Logger):
             if not _IROH_AVAILABLE:
                 raise ConnectError("iroh package not installed. Run: pip install iroh")
             iroh_transport = await _open_iroh_connection(self.host)
-            session = session_factory(framer=NewlineFramer())
-            iroh_transport.set_protocol(session)
-            session.connection_made(iroh_transport)
+            session = NotificationSession(iroh_transport, interface=self)
+            framer = NewlineFramer()
+            iroh_transport.connection_made_with_framer(session, framer)
             iroh_transport.start_reader()
             await self._run_electrum_session(session, exit_early=exit_early)
             return
