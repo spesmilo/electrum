@@ -63,7 +63,8 @@ from .keystore import (
 )
 from .simple_config import SimpleConfig
 from .fee_policy import FeePolicy, FixedFeePolicy, FEE_RATIO_HIGH_WARNING, FEERATE_WARNING_HIGH_FEE
-from .storage import StorageEncryptionVersion, WalletStorage
+from .stored_dict import StorageEncryptionVersion
+from .storage import  WalletStorage
 from .wallet_db import WalletDB
 from .transaction import (
     Transaction, TxInput, TxOutput, PartialTransaction, PartialTxInput, PartialTxOutput, TxOutpoint, Sighash

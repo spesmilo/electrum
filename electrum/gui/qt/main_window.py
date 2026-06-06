@@ -1922,7 +1922,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.password_button.setVisible(self.wallet.may_have_password())
 
     def change_password_dialog(self):
-        from electrum.storage import StorageEncryptionVersion
+        from electrum.stored_dict import StorageEncryptionVersion
         if StorageEncryptionVersion.XPUB_PASSWORD in self.wallet.get_available_storage_encryption_versions():
             from .password_dialog import ChangePasswordDialogForHW
             d = ChangePasswordDialogForHW(self, self.wallet)

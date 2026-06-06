@@ -25,6 +25,7 @@
 
 import threading
 import json
+from enum import IntEnum
 from collections import defaultdict
 from typing import TYPE_CHECKING, Optional, Sequence, List, Union, Any
 
@@ -34,6 +35,12 @@ if TYPE_CHECKING:
     from .storage import WalletStorage
 
 
+class StorageReadWriteError(Exception): pass
+
+class StorageEncryptionVersion(IntEnum):
+    PLAINTEXT = 0
+    USER_PASSWORD = 1
+    XPUB_PASSWORD = 2
 
 
 def locked(func):
