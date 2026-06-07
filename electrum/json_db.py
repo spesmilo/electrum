@@ -26,6 +26,7 @@ import threading
 import copy
 import json
 from typing import TYPE_CHECKING, Optional, Sequence, List, Union, Dict, Any
+from contextlib import contextmanager
 
 import jsonpatch
 import jsonpointer
@@ -94,6 +95,7 @@ class JsonDB(BaseDB):
         self._is_closed = True
         self.lock = threading.RLock()
         self.pending_changes = []  # type: List[str]
+        self._write_batch = False
         self._modified = False
         if self.path:
             self.storage = FileStorage(path, allow_partial_writes=allow_partial_writes)
@@ -309,8 +311,22 @@ class JsonDB(BaseDB):
             sort_keys=bool(human_readable),
         )
 
+    @contextmanager
+    def write_batch(self):
+        assert self._write_batch is False
+        self._write_batch = True
+        try:
+            yield
+        finally:
+            # FIXME: if an exception is raised here, changes will not be
+            # written to disk, but they will be added to the in-memory dict.
+            self._write_batch = False
+        if self.storage:
+            self.write()
+
     @locked
     def write(self):
+        assert self._write_batch is False
         if not self.storage:
             return
         if self.storage.should_do_full_write_next():
@@ -319,7 +335,7 @@ class JsonDB(BaseDB):
             self._append_pending_changes()
 
     def close(self):
-        # do not call write
+        # do not call write, because we may need to close the DB after an exception was raised during a batch write
         self._is_closed = True
 
     def is_closed(self):
