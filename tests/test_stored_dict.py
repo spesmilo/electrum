@@ -58,6 +58,29 @@ class TestStorage(ElectrumTestCase):
         for i, v in enumerate(sl):
             self.assertEqual(i, v)
 
+    def test_write_batch(self):
+        # test that batches are written atomically
+        sd = DictStorage(self.path)
+        with sd.write_batch():
+            sd['a'] = 0
+        self.assertEqual(len(sd), 1)
+        with sd.write_batch():
+            sd['a'] = 1
+        self.assertEqual(len(sd), 1)
+        try:
+            with sd.write_batch():
+                sd['b'] = 1
+                raise Exception('blah')
+        except Exception as e:
+            pass
+        self.assertEqual(sd._db._write_batch, False)
+        # at this point, the StoredDict length is 2
+        self.assertEqual(len(sd), 2)
+        sd.close()
+        # check that changes have not been written to disk
+        sd = DictStorage(self.path)
+        self.assertEqual(len(sd), 1)
+
     async def test_dangling_dict(self):
         storage = DictStorage(self.path)
         storage['a'] = {'b': {'c': 0}}
