@@ -12,7 +12,7 @@ import dataclasses
 
 import jsonpatch
 
-from electrum.stored_dict import DictStorage, StoredDict, StoredObject, register_key, stored_at, to_default
+from electrum.stored_dict import DictStorage, StoredDict, StoredObject, StorageReadWriteError, register_key, stored_at, to_default
 from electrum.json_db import to_json_data
 from electrum.wallet_db import WalletDB
 
@@ -159,6 +159,38 @@ class TestStorage(ElectrumTestCase):
         sd['test_cache'] = {'k': {'x': 5}}  # replacing the whole dict drops the cache of its wrapper
         self.assertEqual(5, d['k'].x)
         self.assertEqual(5, sd['test_cache']['k'].x)
+
+    def test_write_batch(self):
+        # test that batches are written atomically
+        sd = DictStorage(self.path)
+        with sd.write_batch():
+            sd['a'] = 0
+        self.assertEqual(len(sd), 1)
+        with sd.write_batch():
+            sd['a'] = 1
+        self.assertEqual(len(sd), 1)
+        try:
+            with sd.write_batch():
+                sd['b'] = 1
+                raise Exception('blah')
+        except Exception as e:
+            pass
+        self.assertEqual(sd._db._write_batch, False)
+        # at this point, the StoredDict length is 2
+        self.assertEqual(len(sd), 2)
+        # the changes of the failed batch are in memory but not written: the db refuses to write
+        with self.assertRaises(StorageReadWriteError):
+            sd.write()
+        sd.close()
+        # check that changes have not been written to disk
+        sd = DictStorage(self.path)
+        self.assertEqual(len(sd), 1)
+        # a write requested during a batch is deferred to the end of the batch
+        with sd.write_batch():
+            sd['c'] = 1
+            sd.write()
+            self.assertEqual(1, len(DictStorage(self.path)))
+        self.assertEqual(2, len(DictStorage(self.path)))
 
     def test_tuples_and_sets(self):
         # to_default keeps built-in containers: it is up to the storage to serialize them

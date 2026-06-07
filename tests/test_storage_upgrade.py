@@ -8,7 +8,7 @@ import inspect
 from unittest import mock
 
 import electrum
-from electrum.stored_dict import DictStorage
+from electrum.stored_dict import DictStorage, StorageReadWriteError
 from electrum.stored_dict import StoredDict
 from electrum.wallet_db import WalletDBUpgrader, WalletDB, WalletRequiresUpgrade, WalletRequiresSplit, FINAL_SEED_VERSION
 from electrum.bolt11 import BOLT11DecodeException
@@ -375,6 +375,9 @@ class TestStorageUpgrade(WalletTestCase):
         with open(path, 'rb') as f:
             self.assertEqual(file_before, f.read())
         self.assertTrue(storage._db._should_convert)
+        self.assertEqual([], storage._db.pending_changes)
+        with self.assertRaises(StorageReadWriteError):
+            storage.write()
         # without the failure, the same file upgrades and is written
         db = WalletDB(DictStorage(path), upgrade=True)
         self.assertEqual(FINAL_SEED_VERSION, db.get('seed_version'))

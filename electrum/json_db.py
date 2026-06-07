@@ -26,13 +26,14 @@ import threading
 import copy
 import json
 from typing import TYPE_CHECKING, Optional, Sequence, List, Union, Dict, Any
+from contextlib import contextmanager
 
 import jsonpatch
 import jsonpointer
 
 from .util import WalletFileException, profiler, sticky_property
 from .logging import Logger
-from .stored_dict import _FLEX_KEY, BaseDB
+from .stored_dict import _FLEX_KEY, BaseDB, StorageReadWriteError
 from .storage import FileStorage
 
 
@@ -107,6 +108,8 @@ class JsonDB(BaseDB):
         BaseDB.__init__(self, path)
         self._is_closed = True
         self.pending_changes = []  # type: List[str]
+        self._write_batch = False
+        self._batch_failed = False
         self._modified = False
         self._force_full_write = False  # set when file cannot be appended to safely
         if self.path:
@@ -340,17 +343,49 @@ class JsonDB(BaseDB):
             sort_keys=bool(human_readable),
         )
 
+    @contextmanager
+    def write_batch(self):
+        """The changes made inside the batch are written together, at its end.
+        If the batch raises, none of them is written: they are dropped from the queue,
+        but they remain in memory, so the db refuses to be written afterwards.
+        """
+        # note: the 'locked' decorator cannot be used here: on a generator, it would
+        # only hold the lock while the generator is created, not while the block runs
+        with self.lock:
+            assert self._write_batch is False
+            n_pending = len(self.pending_changes)
+            was_modified = self._modified
+            self._write_batch = True
+            try:
+                yield
+            except BaseException:
+                del self.pending_changes[n_pending:]
+                self._modified = was_modified
+                self._batch_failed = True
+                raise
+            finally:
+                self._write_batch = False
+        if self.storage:
+            self.write()
+
+    def _check_writable(self):
+        if self._batch_failed:
+            raise StorageReadWriteError('the db has unwritten changes from a failed write batch')
+
     @locked
     def write(self):
         if not self.storage:
             return
+        if self._write_batch:
+            return  # deferred: the batch writes at its end
+        self._check_writable()
         if self._force_full_write or self.storage.should_do_full_write_next():
             self.write_and_force_consolidation()
         else:
             self._append_pending_changes()
 
     def close(self):
-        # do not call write
+        # do not call write, because we may need to close the DB after an exception was raised during a batch write
         self._is_closed = True
 
     def is_closed(self):
@@ -373,6 +408,7 @@ class JsonDB(BaseDB):
     def write_and_force_consolidation(self):
         if not self.storage:
             return
+        self._check_writable()
         if threading.current_thread().daemon:
             raise Exception('daemon thread cannot write db')
         if not self.modified():

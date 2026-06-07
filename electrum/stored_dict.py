@@ -240,7 +240,13 @@ class BaseDB(Logger, ABC):
 
     @abstractmethod
     def write(self) -> None:
-        """Persist the changes made so far."""
+        """Persist the changes made so far. Inside a write batch, this is deferred to its end."""
+        pass
+
+    @abstractmethod
+    def write_batch(self):
+        """Context manager: the changes made in its block are written together at its end,
+        and not at all if the block raises."""
         pass
 
     @abstractmethod
@@ -490,6 +496,9 @@ class StoredDict(BaseStoredObject, MutableMapping):
 
     def should_convert(self):
         return self._db._should_convert
+
+    def write_batch(self):
+        return self._db.write_batch()
 
     @locked
     def dump(self) -> dict:

@@ -1651,7 +1651,9 @@ def upgrade_wallet_db(data: 'StoredDict', do_upgrade: bool) -> Tuple[dict, bool]
         if dbu.requires_upgrade():
             if not do_upgrade:
                 raise WalletRequiresUpgrade()
-            dbu.upgrade()
+            # if a conversion fails, the batch makes sure that nothing is written
+            with data.write_batch():
+                dbu.upgrade()
             was_upgraded = True
     finally:
         data._db._should_convert = True
