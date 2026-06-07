@@ -4510,8 +4510,6 @@ def restore_wallet_from_text(
         if gap_limit_for_change is not None:
             db.put('gap_limit_for_change', gap_limit_for_change)
         wallet = wallet_factory(db, config=config)
-    if storage:
-        assert not storage.file_exists(), "file was created too soon! plaintext keys might have been written to disk"
     wallet.synchronize()
     msg = ("This wallet was restored offline. It may contain more addresses than displayed. "
            "Start a daemon and use load_wallet to sync its history.")

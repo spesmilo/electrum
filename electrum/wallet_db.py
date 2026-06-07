@@ -1570,14 +1570,15 @@ def upgrade_wallet_db(data: 'StoredDict', do_upgrade: bool) -> Tuple[dict, bool]
         )
 
     data._db._should_convert = False
-    dbu = WalletDBUpgrader(data)
-    if dbu.requires_split():
-        raise WalletRequiresSplit(dbu.get_split_accounts())
-    if dbu.requires_upgrade() and do_upgrade:
-        dbu.upgrade()
-        was_upgraded = True
-    if dbu.requires_upgrade():
-        raise WalletRequiresUpgrade()
+    with data.write_batch():
+        dbu = WalletDBUpgrader(data)
+        if dbu.requires_split():
+            raise WalletRequiresSplit(dbu.get_split_accounts())
+        if dbu.requires_upgrade() and do_upgrade:
+            dbu.upgrade()
+            was_upgraded = True
+        if dbu.requires_upgrade():
+            raise WalletRequiresUpgrade()
     data._db._should_convert = True
     return was_upgraded
 

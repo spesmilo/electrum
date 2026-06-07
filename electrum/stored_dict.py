@@ -296,6 +296,9 @@ class StoredDict(BaseStoredObject):
     def should_convert(self):
         return self._db._should_convert
 
+    def write_batch(self):
+        return self._db.write_batch()
+
     def dump(self) -> dict:
         data = {}
         for k, v in self.items():

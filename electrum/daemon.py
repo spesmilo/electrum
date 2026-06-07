@@ -544,9 +544,9 @@ class Daemon(Logger):
             force_check_password: bool = False,  # if set, always validate password
     ) -> Optional[Abstract_Wallet]:
         path = standardize_path(path)
-        storage = DictStorage(path, allow_partial_writes=config.WALLET_PARTIAL_WRITES)
-        if not storage.file_exists():
+        if not os.path.exists(path):
             raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), path)
+        storage = DictStorage(path, allow_partial_writes=config.WALLET_PARTIAL_WRITES)
         if storage.is_encrypted():
             if not password:
                 raise InvalidPassword('No password given')
