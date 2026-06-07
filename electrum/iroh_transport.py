@@ -124,6 +124,9 @@ class IrohTransport(asyncio.Transport):
     # aiorpcx expects these attributes on the transport
     kind = 'SSL'  # pretend to be SSL so aiorpcx does not try to use TLS
     
+    def remote_address(self):
+        return None
+
     def get_extra_info(self, name, default=None):
         if name == 'peername':
             return (self._node_id, 0)
