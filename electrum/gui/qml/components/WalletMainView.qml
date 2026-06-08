@@ -136,6 +136,11 @@ Item {
         Daemon.currentWallet.createRequest(qamt, _request_description, _request_expiry, lightning, reuse_address)
     }
 
+    function createOffer() {
+        var qamt = Config.unitsToSats(_request_amount)
+        Daemon.currentWallet.createOffer(qamt, _request_description, _request_expiry)
+    }
+
     function startSweep() {
         var dialog = sweepDialog.createObject(app)
         dialog.accepted.connect(function() {
@@ -493,6 +498,25 @@ Item {
             })
             dialog.open()
         }
+        function onOfferCreateSuccess(offer) {
+            // reuse the same receive view as bolt11 requests, in offer mode
+            var qamt = Config.unitsToSats(_request_amount)
+            var dialog = receiveDialog.createObject(app, {
+                offer: offer,
+                offerAmountSat: qamt.satsInt,
+                offerMessage: _request_description
+            })
+            dialog.open()
+        }
+        function onOfferCreateError(error) {
+            console.log(error)
+            var dialog = app.messageDialog.createObject(app, {
+                title: qsTr('Error'),
+                iconSource: Qt.resolvedUrl('../../icons/warning.png'),
+                text: error
+            })
+            dialog.open()
+        }
         function onOtpRequested() {
             console.log('OTP requested')
             var dialog = otpDialog.createObject(mainView)
@@ -642,7 +666,11 @@ Item {
                 _request_amount = _receiveDetailsDialog.amount
                 _request_description = _receiveDetailsDialog.description
                 _request_expiry = _receiveDetailsDialog.expiry
-                createRequest(_receiveDetailsDialog.isLightning, false)
+                if (_receiveDetailsDialog.isOffer) {
+                    createOffer()
+                } else {
+                    createRequest(_receiveDetailsDialog.isLightning, false)
+                }
             }
             onRejected: {
                 console.log('rejected')
