@@ -4,7 +4,7 @@ import os
 import ssl
 import threading
 from concurrent.futures import Future
-from typing import TYPE_CHECKING, Optional, Dict, Sequence, Tuple, Iterable, List
+from typing import TYPE_CHECKING, Optional, Dict, Sequence, Tuple, Iterable, List, Callable
 from decimal import Decimal
 import math
 import time
@@ -1658,6 +1658,31 @@ class SwapServerTransport(Logger):
     def uses_proxy(self):
         return self.network.proxy and self.network.proxy.enabled
 
+    def initialize(self, done_callback: Optional[Callable[[Future], None]] = None):
+        async def _initialize_transport(transport):
+            try:
+                if isinstance(transport, NostrTransport):
+                    asyncio.create_task(transport.main_loop())
+                else:
+                    assert isinstance(transport, HttpTransport)
+                    asyncio.create_task(transport.get_pairs_just_once())
+                if not await self.sm.wait_for_swap_transport(transport):
+                    raise Exception(_('Swap transport failed.'))
+                return True
+            finally:
+                self.ongoing_connection_attempt = None
+
+        self.ongoing_connection_attempt = asyncio.run_coroutine_threadsafe(
+            _initialize_transport(self),
+            self.network.asyncio_loop,
+        )
+        if done_callback:
+            self.ongoing_connection_attempt.add_done_callback(done_callback)
+
+    def destroy(self):
+        if self.ongoing_connection_attempt:
+            self.ongoing_connection_attempt.cancel()
+
 
 class HttpTransport(SwapServerTransport):
 
@@ -1758,6 +1783,10 @@ class NostrTransport(SwapServerTransport):
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await wait_for2(self.stop(), timeout=5)
+
+    def destroy(self):
+        super().destroy()
+        asyncio.run_coroutine_threadsafe(self.stop(), self.network.asyncio_loop)
 
     @log_exceptions
     async def main_loop(self):

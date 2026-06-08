@@ -23,31 +23,30 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import asyncio
 from decimal import Decimal
 from functools import partial
 from typing import TYPE_CHECKING, Optional, Union, Sequence
-from concurrent.futures import Future
 from enum import Enum, auto
 
-from PyQt6.QtCore import Qt, QTimer, pyqtSlot, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer, pyqtSlot
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (QHBoxLayout, QVBoxLayout, QLabel, QGridLayout, QPushButton, QToolButton,
                              QComboBox, QTabWidget, QWidget, QStackedWidget)
 
 from electrum.i18n import _
 from electrum.util import (UserCancelled, quantize_feerate, profiler, NotEnoughFunds, NoDynamicFeeEstimates,
-                           get_asyncio_loop, wait_for2, UserFacingException)
+                           UserFacingException)
 from electrum.plugin import run_hook
 from electrum.transaction import PartialTransaction, PartialTxOutput, Transaction
 from electrum.wallet import InternalAddressCorruption
 from electrum.bitcoin import DummyAddress
 from electrum.fee_policy import FeePolicy, FixedFeePolicy, FeeMethod
 from electrum.logging import Logger
-from electrum.submarine_swaps import NostrTransport, HttpTransport, SwapServerTransport, SwapServerError
+from electrum.submarine_swaps import NostrTransport, SwapServerError
 from electrum.gui.messages import MSG_SUBMARINE_PAYMENT_HELP_TEXT
 
-from electrum.gui.common_qt.util import QtEventListener, qt_event_listener
+from electrum.gui.common_qt.util import qt_event_listener
+from electrum.gui.common_qt.swaps import SubmarineSwapMixin
 
 from .util import (WindowModalDialog, ColorScheme, HelpLabel, Buttons, CancelButton, WWLabel,
                    read_QIcon, IconLabel, HelpButton, RunCoroutineDialog)
@@ -71,9 +70,7 @@ class TxEditorContext(Enum):
     CHANNEL_FUNDING = auto()
 
 
-class TxEditor(WindowModalDialog, QtEventListener, Logger):
-
-    swap_availability_changed = pyqtSignal()
+class TxEditor(WindowModalDialog, SubmarineSwapMixin, Logger):
 
     def __init__(
             self, *, title='',
@@ -87,6 +84,7 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
 
         WindowModalDialog.__init__(self, window, title=title)
         Logger.__init__(self)
+        SubmarineSwapMixin.__init__(self, window.create_sm_transport)
         self.main_window = window
         self.make_tx = make_tx
         self.output_value = output_value
@@ -109,9 +107,9 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         self._base_tx = None  # type: Optional[Transaction]  # for batching
         self.batching_candidates = batching_candidates
 
-        self.swap_manager = self.wallet.lnworker.swap_manager if self.wallet.has_lightning() else None
-        self.swap_transport = None  # type: Optional[SwapServerTransport]
-        self.swap_availability_changed.connect(self.on_swap_availability_changed, Qt.ConnectionType.QueuedConnection)
+        self.swapAvailabilityChanged.connect(self.on_swap_availability_changed, Qt.ConnectionType.QueuedConnection)
+        self.swapOffersChanged.connect(self.on_swap_offers_changed, Qt.ConnectionType.QueuedConnection)
+        self.set_wallet_for_swap(window.wallet)
         self.did_swap = False  # used to clear the PI on send tab
 
         self.locktime_e = LockTimeEdit(self)
@@ -168,24 +166,16 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         # debug_widget_layouts(self)  # enable to show red lines around all elements
 
     def accept(self):
-        self._cleanup()
+        self.swap_transport_cleanup()
         super().accept()
 
     def reject(self):
-        self._cleanup()
+        self.swap_transport_cleanup()
         super().reject()
 
     def closeEvent(self, event):
-        self._cleanup()
+        self.swap_transport_cleanup()
         super().closeEvent(event)
-
-    def _cleanup(self):
-        self.unregister_callbacks()
-        if self.swap_transport and self.swap_transport.ongoing_connection_attempt:
-            self.swap_transport.ongoing_connection_attempt.cancel()
-        if isinstance(self.swap_transport, NostrTransport):
-            asyncio.run_coroutine_threadsafe(self.swap_transport.stop(), get_asyncio_loop())
-        self.swap_transport = None  # HTTPTransport doesn't need to be closed
 
     def on_tab_changed(self, index):
         if self.tab_widget.widget(index) == self.submarine_payment_tab:
@@ -742,67 +732,10 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
     def can_pay_assuming_zero_fees(self, confirmed_only: bool) -> bool:
         raise NotImplementedError
 
-    ### --- Shared functionality for submarine swaps (change to ln and submarine payments) ---
-    def prepare_swap_transport(self):
-        if not self.swap_manager:
-            return  # no swaps possible, lightning disabled
-        if self.swap_transport is not None:
-            if self.swap_transport.is_connected.is_set():
-                # we already have a connected transport, no need to create a new one
-                return
-            if self.swap_transport.ongoing_connection_attempt:
-                # another task is currently trying to connect
-                return
-
-        # there should only be a connected transport.
-        # a useless transport should get cleaned up and not stored.
-        assert self.swap_transport is None, "swap transport wasn't cleaned up properly"
-
-        new_swap_transport = self.main_window.create_sm_transport()
-        if not new_swap_transport:
-            # user declined to enable Nostr and has no http server configured
-            self.swap_availability_changed.emit()
-            return
-
-        async def _initialize_transport(transport):
-            try:
-                if isinstance(transport, NostrTransport):
-                    asyncio.create_task(transport.main_loop())
-                else:
-                    assert isinstance(transport, HttpTransport)
-                    asyncio.create_task(transport.get_pairs_just_once())
-                if not await self.swap_manager.wait_for_swap_transport(transport):
-                    return
-                self.swap_transport = transport
-            except Exception:
-                self.logger.exception("failed to create swap transport")
-            finally:
-                self.swap_transport.ongoing_connection_attempt = None
-                self.swap_availability_changed.emit()
-
-        # this task will get cancelled if the TxEditor gets closed
-        self.swap_transport.ongoing_connection_attempt = asyncio.run_coroutine_threadsafe(
-            _initialize_transport(new_swap_transport),
-            get_asyncio_loop(),
-        )
-
-    @qt_event_listener
-    def on_event_swap_provider_changed(self):
-        self.swap_availability_changed.emit()
-
-    @qt_event_listener
-    def on_event_channel(self, wallet, _channel):
-        # useful e.g. if the user quickly opens the tab after startup before the channels are initialized
-        if wallet == self.wallet and self.swap_manager and self.swap_manager.is_initialized.is_set():
-            self.swap_availability_changed.emit()
-
-    @qt_event_listener
-    def on_event_swap_offers_changed(self, _):
+    @pyqtSlot()
+    def on_swap_offers_changed(self):
         self.change_to_ln_swap_providers_button.update()
         self.submarine_payment_provider_button.update()
-        if self.swap_transport and self.swap_transport.ongoing_connection_attempt:
-            return
-        self.swap_availability_changed.emit()
 
     @pyqtSlot()
     def on_swap_availability_changed(self):
