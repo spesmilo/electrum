@@ -523,32 +523,39 @@ class Test_LNRouter(ElectrumTestCase):
 
     async def test_find_path_for_onion_message(self):
         self.prepare_graph()
-        amount_to_send = 1000  # we route along channels, and we use find_path_for_payment, so dummy this.
 
-        path = self.path_finder.find_path_for_payment(
-            nodeA=node('a'),
-            nodeB=node('c'),
-            invoice_amount_msat=amount_to_send,
-            node_filter=is_onion_message_node)
+        path = self.path_finder.find_path_for_onion_message(nodeA=node('a'), nodeB=node('c'))
         self.assertEqual([
             PathEdge(start_node=node('a'), end_node=node('d'), short_channel_id=channel(6)),
             PathEdge(start_node=node('d'), end_node=node('c'), short_channel_id=channel(4)),
         ], path)
 
-        # impossible routes
-        path = self.path_finder.find_path_for_payment(
-            nodeA=node('e'),
-            nodeB=node('a'),
-            invoice_amount_msat=amount_to_send,
-            node_filter=is_onion_message_node)
+        # node e doesn't support onion messages
+        path = self.path_finder.find_path_for_onion_message(nodeA=node('a'), nodeB=node('e'))
         self.assertIsNone(path)
 
+    async def test_find_path_for_onion_message_ignores_amount_constraints(self):
+        self.prepare_graph()
+
+        # bump htlc_minimum_msat on channel(4) d->c direction
+        key = (node('d'), channel(4))
+        self.cdb._policies[key] = self.cdb._policies[key]._replace(htlc_minimum_msat=10_000_000)
+
+        # a small payment can no longer be routed
         path = self.path_finder.find_path_for_payment(
             nodeA=node('a'),
-            nodeB=node('e'),
-            invoice_amount_msat=amount_to_send,
-            node_filter=is_onion_message_node)
+            nodeB=node('c'),
+            invoice_amount_msat=1000,
+            node_filter=is_onion_message_node,
+        )
         self.assertIsNone(path)
+
+        # but an onion message still routes through the same hop
+        path = self.path_finder.find_path_for_onion_message(nodeA=node('a'), nodeB=node('c'))
+        self.assertEqual([
+            PathEdge(start_node=node('a'), end_node=node('d'), short_channel_id=channel(6)),
+            PathEdge(start_node=node('d'), end_node=node('c'), short_channel_id=channel(4)),
+        ], path)
 
 
 def _tramp_edge(start: str, end: str, *, fee_base=PLACEHOLDER_FEE, fee_prop=PLACEHOLDER_FEE, cltv=576) -> TrampolineEdge:

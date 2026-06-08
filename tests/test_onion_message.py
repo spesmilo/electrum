@@ -19,10 +19,11 @@ from electrum.lnonion import (
     encrypt_hops_recipient_data, blinding_privkey, decrypt_onionmsg_data_tlv)
 from electrum.crypto import get_ecdh, privkey_to_pubkey
 from electrum.lntransport import LNPeerAddr
-from electrum.lnutil import LnFeatures, Keypair, MIN_FINAL_CLTV_DELTA_ACCEPTED, REMOTE
+from electrum.lnutil import (LnFeatures, Keypair, MIN_FINAL_CLTV_DELTA_ACCEPTED, REMOTE,
+                             MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE)
 from electrum.onion_message import (
     create_blinded_path, OnionMessageManager, NoRouteFound, Timeout,
-    create_route_to_introduction_point, get_blinded_paths_to_me
+    create_route_to_introduction_point, get_blinded_paths_to_me, NoOnionMessagePeers
 )
 from electrum.util import bfh, read_json_file, OldTaskGroup, get_asyncio_loop
 from electrum.logging import console_stderr_handler
@@ -271,12 +272,13 @@ class MockNetwork:
         self.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS = True
 
 
-class MockPeer:
-    their_features = LnFeatures(LnFeatures.OPTION_ONION_MESSAGE_OPT)
+ONION_MESSAGE_CAPABLE_PEER_FEATURES = LnFeatures(LnFeatures.OPTION_ONION_MESSAGE_OPT)
 
-    def __init__(self, pubkey, on_send_message=None):
+class MockPeer:
+    def __init__(self, pubkey, on_send_message=None, their_features=ONION_MESSAGE_CAPABLE_PEER_FEATURES):
         self.pubkey = pubkey
         self.on_send_message = on_send_message
+        self.their_features = their_features
 
     async def wait_one_htlc_switch_iteration(self, *args):
         pass
@@ -501,6 +503,7 @@ class TestOnionMessageUtils(TestPeer):
         bob_update = decode_msg(bob_update_raw)[1]
         bob_update['raw'] = bob_update_raw
         alice_chan.set_remote_update(bob_update)
+        alice.lnpeermgr.get_peer_by_pubkey(bob.node_keypair.pubkey).their_features |= LnFeatures.OPTION_ROUTE_BLINDING_OPT
 
         final_recipient_data = {'path_id': {'data': os.urandom(32)}}
         paths, payinfos = get_blinded_paths_to_me(alice, final_recipient_data, onion_message=False)
@@ -511,7 +514,7 @@ class TestOnionMessageUtils(TestPeer):
         self.assertEqual(payinfos[0], {
             'fee_base_msat': bob_chan.forwarding_fee_base_msat,
             'fee_proportional_millionths': bob_chan.forwarding_fee_proportional_millionths,
-            'cltv_expiry_delta': bob_chan.forwarding_cltv_delta + MIN_FINAL_CLTV_DELTA_ACCEPTED,
+            'cltv_expiry_delta': bob_chan.forwarding_cltv_delta + MIN_FINAL_CLTV_DELTA_ACCEPTED + MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE,
             'htlc_minimum_msat': bob_chan.config[REMOTE].htlc_minimum_msat,
             'htlc_maximum_msat': min(bob_chan.config[REMOTE].max_htlc_value_in_flight_msat, 1000 * bob_chan.constraints.capacity),
             'flen': 0,
