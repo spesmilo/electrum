@@ -112,7 +112,6 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
         self.swap_manager = self.wallet.lnworker.swap_manager if self.wallet.has_lightning() else None
         self.swap_transport = None  # type: Optional[SwapServerTransport]
         self.swap_availability_changed.connect(self.on_swap_availability_changed, Qt.ConnectionType.QueuedConnection)
-        self.ongoing_swap_transport_connection_attempt = None  # type: Optional[Future]
         self.did_swap = False  # used to clear the PI on send tab
 
         self.locktime_e = LockTimeEdit(self)
@@ -182,8 +181,8 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
 
     def _cleanup(self):
         self.unregister_callbacks()
-        if self.ongoing_swap_transport_connection_attempt:
-            self.ongoing_swap_transport_connection_attempt.cancel()
+        if self.swap_transport and self.swap_transport.ongoing_connection_attempt:
+            self.swap_transport.ongoing_connection_attempt.cancel()
         if isinstance(self.swap_transport, NostrTransport):
             asyncio.run_coroutine_threadsafe(self.swap_transport.stop(), get_asyncio_loop())
         self.swap_transport = None  # HTTPTransport doesn't need to be closed
@@ -658,7 +657,8 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
 
         if self.config.WALLET_SEND_CHANGE_TO_LIGHTNING:
             self.change_to_ln_swap_providers_button.setVisible(True)
-            self.change_to_ln_swap_providers_button.fetching = bool(self.ongoing_swap_transport_connection_attempt)
+            self.change_to_ln_swap_providers_button.fetching = \
+                bool(self.swap_transport and self.swap_transport.ongoing_connection_attempt)
             self.change_to_ln_swap_providers_button.update()
         else:
             self.change_to_ln_swap_providers_button.setVisible(False)
@@ -693,7 +693,7 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
                     swap_fee_msg = " [" + _("Swap fees:") + " " + self.main_window.format_amount_and_units(swap_fees) + "]."
             messages.append(swap_msg + swap_fee_msg)
         elif self.config.WALLET_SEND_CHANGE_TO_LIGHTNING \
-                and not self.ongoing_swap_transport_connection_attempt \
+                and not (self.swap_transport and self.swap_transport.ongoing_connection_attempt) \
                 and self.tx.has_change():
             swap_msg = _('Will not send change to Lightning')
             swap_msg_reason = None
@@ -714,7 +714,7 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
                         self.main_window.format_amount_and_units(max_amount)
                     )
             messages.append(swap_msg + (f": {swap_msg_reason}" if swap_msg_reason else '.'))
-        elif self.ongoing_swap_transport_connection_attempt:
+        elif self.swap_transport and self.swap_transport.ongoing_connection_attempt:
             messages.append(_("Fetching submarine swap providers..."))
         # warn if spending unconf
         if any((txin.block_height is not None and txin.block_height<=0) for txin in self.tx.inputs()):
@@ -774,12 +774,13 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
     def prepare_swap_transport(self):
         if not self.swap_manager:
             return  # no swaps possible, lightning disabled
-        if self.swap_transport is not None and self.swap_transport.is_connected.is_set():
-            # we already have a connected transport, no need to create a new one
-            return
-        if self.ongoing_swap_transport_connection_attempt:
-            # another task is currently trying to connect
-            return
+        if self.swap_transport is not None:
+            if self.swap_transport.is_connected.is_set():
+                # we already have a connected transport, no need to create a new one
+                return
+            if self.swap_transport.ongoing_connection_attempt:
+                # another task is currently trying to connect
+                return
 
         # there should only be a connected transport.
         # a useless transport should get cleaned up and not stored.
@@ -804,11 +805,11 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
             except Exception:
                 self.logger.exception("failed to create swap transport")
             finally:
-                self.ongoing_swap_transport_connection_attempt = None
+                self.swap_transport.ongoing_connection_attempt = None
                 self.swap_availability_changed.emit()
 
         # this task will get cancelled if the TxEditor gets closed
-        self.ongoing_swap_transport_connection_attempt = asyncio.run_coroutine_threadsafe(
+        self.swap_transport.ongoing_connection_attempt = asyncio.run_coroutine_threadsafe(
             _initialize_transport(new_swap_transport),
             get_asyncio_loop(),
         )
@@ -827,7 +828,7 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
     def on_event_swap_offers_changed(self, _):
         self.change_to_ln_swap_providers_button.update()
         self.submarine_payment_provider_button.update()
-        if self.ongoing_swap_transport_connection_attempt:
+        if self.swap_transport and self.swap_transport.ongoing_connection_attempt:
             return
         self.swap_availability_changed.emit()
 
@@ -951,7 +952,7 @@ class TxEditor(WindowModalDialog, QtEventListener, Logger):
             self.set_submarine_payment_tab_warning(_("Enable Lightning in the 'Channels' tab to use Submarine Swaps."))
             return
         if not self.swap_manager.is_initialized.is_set() \
-                and self.ongoing_swap_transport_connection_attempt:
+                and self.swap_transport and self.swap_transport.ongoing_connection_attempt:
             self.show_swap_transport_connection_message()
             return
         if not self.swap_transport:
