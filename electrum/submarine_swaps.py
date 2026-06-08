@@ -341,6 +341,36 @@ class SwapManager(Logger):
             keypair = self.lnworker.nostr_keypair if self.is_server else generate_random_keypair()
             return NostrTransport(self.config, self, keypair)
 
+    async def wait_for_swap_transport(self, new_swap_transport: 'SwapServerTransport') -> bool:
+        """
+        Wait until we found the announcement event of the configured swap server.
+        If it is not found but the relay connection is established return True anyway,
+        the user will then need to select a different swap server.
+        """
+        timeout = new_swap_transport.connect_timeout + 1
+        try:
+            # swap_manager.is_initialized gets set once we got pairs of the configured swap server
+            await wait_for2(self.is_initialized.wait(), timeout)
+        except asyncio.TimeoutError:
+            self.logger.debug(f"swap transport initialization timed out after {timeout} sec")
+
+        if self.is_initialized.is_set():
+            return True
+
+        # timed out above
+        if self.config.SWAPSERVER_URL:
+            # http swapserver didn't return pairs
+            self.logger.error(f"couldn't request pairs from {self.config.SWAPSERVER_URL=}")
+            return False
+        elif new_swap_transport.is_connected.is_set():
+            assert isinstance(new_swap_transport, NostrTransport)
+            # couldn't find announcement of configured swapserver, maybe it is gone.
+            # update_submarine_payment_tab will tell the user to select a different swap server.
+            return True
+
+        # we couldn't even connect to the relays, this transport is useless. maybe network issues.
+        return False
+
     async def set_nostr_proof_of_work(self) -> None:
         current_pow = get_nostr_ann_pow_amount(
             self.lnworker.nostr_keypair.pubkey[1:],
