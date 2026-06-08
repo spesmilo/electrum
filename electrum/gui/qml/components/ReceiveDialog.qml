@@ -11,10 +11,15 @@ import "controls"
 ElDialog {
     id: dialog
 
-    title: qsTr('Receive Payment')
+    title: isOffer ? qsTr('Lightning Offer') : qsTr('Receive Payment')
     iconSource: Qt.resolvedUrl('../../icons/tab_receive.png')
 
     property string key
+    // when 'offer' is set, the dialog shows a reusable Lightning offer instead of a request
+    property string offer: ''
+    readonly property bool isOffer: offer !== ''
+    property var offerAmountSat: 0
+    property string offerMessage: ''
     property bool isLightning: request.isLightning
 
     property string _bolt11: request.bolt11
@@ -94,10 +99,12 @@ ElDialog {
                     Layout.alignment: Qt.AlignHCenter
 
                     Label {
+                        visible: !dialog.isOffer
                         text: qsTr('Status')
                         color: Material.accentColor
                     }
                     Label {
+                        visible: !dialog.isOffer
                         text: request.status_str
                     }
                     Label {
@@ -178,9 +185,11 @@ ElDialog {
                             : _bip21uri
                                 ? _bip21uri
                                 : _address,
-                        _bolt11 || _bip21uri
-                            ? qsTr('Payment Request')
-                            : qsTr('Onchain address')
+                        dialog.isOffer
+                            ? qsTr('Lightning Offer')
+                            : _bolt11 || _bip21uri
+                                ? qsTr('Payment Request')
+                                : qsTr('Onchain address')
                     )
                     enabled = true
                 }
@@ -203,7 +212,11 @@ ElDialog {
     }
 
     Component.onCompleted: {
-        request.key = dialog.key
+        if (dialog.isOffer) {
+            request.setOffer(dialog.offer, dialog.offerAmountSat, dialog.offerMessage)
+        } else {
+            request.key = dialog.key
+        }
     }
 
     // hack. delay qr rendering until dialog is shown
