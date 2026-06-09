@@ -29,7 +29,7 @@ from typing import Callable
 from functools import partial
 
 from electrum.wallet import Wallet, Abstract_Wallet
-from electrum.stored_dict import WalletStorage
+from electrum.stored_dict import DictStorage
 from electrum.wallet_db import WalletDB
 from electrum.simple_config import SimpleConfig
 from electrum.util import InvalidPassword
@@ -39,7 +39,7 @@ ALLOWED_CHARS = digits + ascii_uppercase + ascii_lowercase
 MAX_PASSWORD_LEN = 12
 
 
-def test_password_for_storage_encryption(storage: WalletStorage, password: str) -> bool:
+def test_password_for_storage_encryption(storage: DictStorage, password: str) -> bool:
     try:
         storage.decrypt(password)
     except InvalidPassword:
@@ -76,7 +76,7 @@ if __name__ == '__main__':
     path = sys.argv[1]
 
     config = SimpleConfig()
-    storage = WalletStorage(path)
+    storage = DictStorage(path)
     if not storage.file_exists():
         print(f"ERROR. wallet file not found at path: {path}")
         sys.exit(1)

@@ -432,7 +432,7 @@ class StoredList(BaseStoredObject):
 
 
 
-class WalletStorage(StoredDict):
+class DictStorage(StoredDict):
     """ stored dict at the root of the file """
 
     def __init__(self, path: str, init_db: bool = True, allow_partial_writes: bool = True):
