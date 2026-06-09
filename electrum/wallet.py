@@ -499,7 +499,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def save_backup(self, backup_dir):
         import json
-        from .util import MyEncoder
+        from .stored_dict import to_default
         # create data
         data = self.storage.dump()
         if self.lnworker:
@@ -510,10 +510,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             data.pop('channels', None)
             data.pop('lightning_privkey2', None)
         json_str = json.dumps(
-            data,
+            to_default(data),
             indent=4,
             sort_keys=True,
-            cls=MyEncoder,
         )
         new_path = os.path.join(backup_dir, self.basename() + '.backup')
         new_storage = DictStorage(path=new_path)
@@ -2938,7 +2937,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def export_request(self, x: Request) -> Dict[str, Any]:
         key = x.get_id()
         status = self.get_invoice_status(x)
-        d = x.as_dict(status)
+        d = x.export(status)
         d['request_id'] = d.pop('id')
         if x.is_lightning():
             d['rhash'] = x.rhash
@@ -2964,7 +2963,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def export_invoice(self, x: Invoice) -> Dict[str, Any]:
         key = x.get_id()
         status = self.get_invoice_status(x)
-        d = x.as_dict(status)
+        d = x.export(status)
         d['invoice_id'] = d.pop('id')
         if x.is_lightning():
             d['lightning_invoice'] = x.lightning_invoice
@@ -4511,6 +4510,8 @@ def restore_wallet_from_text(
         if gap_limit_for_change is not None:
             db.put('gap_limit_for_change', gap_limit_for_change)
         wallet = wallet_factory(db, config=config)
+    if storage:
+        assert not storage.file_exists(), "file was created too soon! plaintext keys might have been written to disk"
     wallet.synchronize()
     msg = ("This wallet was restored offline. It may contain more addresses than displayed. "
            "Start a daemon and use load_wallet to sync its history.")

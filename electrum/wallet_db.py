@@ -104,8 +104,14 @@ class WalletFileExceptionVersion51(WalletFileException): pass
 register_name('/transactions/*', None, lambda x: tx_from_any(x, deserialize=False, sanitize=False))
 register_name('/channels/*/data_loss_protect_remote_pcp/*', None, lambda x: bytes.fromhex(x))
 # register tuples, otherwise they will default to StoredList
+register_name('/channels/*/closing_height', None, tuple)
+register_name('/channels/*/funding_height', None, tuple)
+register_name('/forwarding_failures/*', None, tuple)
+register_name('/lightning_payments/*', None, tuple)
 register_name('/contacts/*', None, tuple)
 register_name('/lightning_preimages/*', None, tuple)
+register_name('/addr_history/*/*', None, tuple)
+register_name('/channels/*/funding_inputs/*', None, tuple)
 # register dicts that require key conversion
 for key in [
         '/channels/*/log/*/adds',
@@ -127,12 +133,9 @@ for key in [
 
 
 class WalletDBUpgrader(Logger):
-    def __init__(self, data: dict):
+    def __init__(self, data: StoredDict):
         Logger.__init__(self)
         self.data = data
-        # self.data must be in-memory dict (not a StoredDict or similar),
-        # so a failed, partial upgrade won't get commited to disk
-        assert type(self.data) == dict, type(self.data)
 
     def get(self, key, default=None):
         return self.data.get(key, default)
@@ -156,10 +159,10 @@ class WalletDBUpgrader(Logger):
         wallet_type = self.get('wallet_type')
         if wallet_type == 'old':
             assert len(d) == 2
-            data1 = copy.deepcopy(self.data)
+            data1 = copy.deepcopy(self.data.as_dict())
             data1['accounts'] = {'0': d['0']}
             data1['suffix'] = 'deterministic'
-            data2 = copy.deepcopy(self.data)
+            data2 = copy.deepcopy(self.data.as_dict())
             data2['accounts'] = {'/x': d['/x']}
             data2['seed'] = None
             data2['seed_version'] = None
@@ -173,11 +176,11 @@ class WalletDBUpgrader(Logger):
             mpk = self.get('master_public_keys')
             for k in d.keys():
                 i = int(k)
-                x = d[k]
+                x = d[k].as_dict()
                 if x.get("pending"):
                     continue
                 xpub = mpk["x/%d'"%i]
-                new_data = copy.deepcopy(self.data)
+                new_data = copy.deepcopy(self.data.as_dict())
                 # save account, derivation and xpub at index 0
                 new_data['accounts'] = {'0': x}
                 new_data['master_public_keys'] = {"x/0'": xpub}
@@ -193,6 +196,7 @@ class WalletDBUpgrader(Logger):
 
     @profiler
     def upgrade(self):
+        assert self.data.should_convert() is False
         self.logger.info('upgrading wallet format')
         self._convert_imported()
         self._convert_wallet_type()
@@ -273,6 +277,8 @@ class WalletDBUpgrader(Logger):
         xprvs = self.get('master_private_keys', {})
         mpk = self.get('master_public_key')
         keypairs = self.get('keypairs')
+        if keypairs:
+            keypairs = keypairs.as_dict()
         key_type = self.get('key_type')
         if seed_version == OLD_SEED_VERSION or wallet_type == 'old':
             d = {
@@ -374,14 +380,14 @@ class WalletDBUpgrader(Logger):
 
         if self.get('wallet_type') =='imported':
             addresses = self.get('addresses')
-            if type(addresses) is list:
+            if type(addresses) is StoredList:
                 addresses = dict([(x, None) for x in addresses])
                 self.put('addresses', addresses)
         elif self.get('wallet_type') == 'standard':
             if self.get('keystore').get('type')=='imported':
                 addresses = set(self.get('addresses').get('receiving'))
                 pubkeys = self.get('keystore').get('keypairs').keys()
-                assert len(addresses) == len(pubkeys)
+                assert len(addresses) == len(list(pubkeys))
                 d = {}
                 for pubkey in pubkeys:
                     addr = bitcoin.pubkey_to_address('p2pkh', pubkey)
@@ -433,7 +439,7 @@ class WalletDBUpgrader(Logger):
 
         if self.get('wallet_type') == 'imported':
             addresses = self.get('addresses')
-            assert isinstance(addresses, dict)
+            assert isinstance(addresses, StoredDict)
             addresses_new = dict()
             for address, details in addresses.items():
                 if not bitcoin.is_address(address):
@@ -494,6 +500,7 @@ class WalletDBUpgrader(Logger):
         for ks_name in ('keystore', *['x{}/'.format(i) for i in range(1, 16)]):
             ks = self.get(ks_name, None)
             if ks is None: continue
+            assert isinstance(ks, StoredDict)
             xpub = ks.get('xpub', None)
             if xpub is None: continue
             bip32node = BIP32Node.from_xkey(xpub)
@@ -518,7 +525,6 @@ class WalletDBUpgrader(Logger):
                     root_fingerprint = bip32node.fingerprint.hex()
             ks['root_fingerprint'] = root_fingerprint
             ks.pop('ckcc_xfp', None)
-            self.put(ks_name, ks)
 
         self.put('seed_version', 20)
 
@@ -593,7 +599,7 @@ class WalletDBUpgrader(Logger):
         # convert channels to dict
         self.data['channels'] = {x['channel_id']: x for x in channels}
         # convert txi & txo
-        txi = self.get('txi', {})
+        txi = self.data.get('txi', {})
         for tx_hash, d in list(txi.items()):
             d2 = {}
             for addr, l in d.items():
@@ -601,8 +607,7 @@ class WalletDBUpgrader(Logger):
                 for ser, v in l:
                     d2[addr][ser] = v
             txi[tx_hash] = d2
-        self.data['txi'] = txi
-        txo = self.get('txo', {})
+        txo = self.data.get('txo', {})
         for tx_hash, d in list(txo.items()):
             d2 = {}
             for addr, l in d.items():
@@ -610,7 +615,6 @@ class WalletDBUpgrader(Logger):
                 for n, v, cb in l:
                     d2[addr][str(n)] = (v, cb)
             txo[tx_hash] = d2
-        self.data['txo'] = txo
 
         self.data['seed_version'] = 24
 
@@ -786,10 +790,12 @@ class WalletDBUpgrader(Logger):
         if not self._is_upgrade_method_needed(34, 34):
             return
         PR_TYPE_ONCHAIN = 0
-        requests_old = self.data.get('payment_requests', {})
-        requests_new = {k: item for k, item in requests_old.items()
-                        if not (item['type'] == PR_TYPE_ONCHAIN and item['outputs'] is None)}
-        self.data['payment_requests'] = requests_new
+        payment_requests = self.data.get('payment_requests', {})
+        for k in list(payment_requests.keys()):
+            item = payment_requests[k]
+            if (item['type'] == PR_TYPE_ONCHAIN and item['outputs'] is None):
+                payment_requests.pop(k)
+
         self.data['seed_version'] = 35
 
     def _convert_version_36(self):
@@ -892,13 +898,12 @@ class WalletDBUpgrader(Logger):
     def _convert_version_43(self):
         if not self._is_upgrade_method_needed(42, 42):
             return
-        channels = self.data.pop('channels', {})
+        channels = self.data.get('channels', {})
         for k, c in channels.items():
             log = c['log']
             c['fail_htlc_reasons'] = log.pop('fail_htlc_reasons', {})
             c['unfulfilled_htlcs'] = log.pop('unfulfilled_htlcs', {})
             log["1"]['unacked_updates'] = log.pop('unacked_local_updates2', {})
-        self.data['channels'] = channels
         self.data['seed_version'] = 43
 
     def _convert_version_44(self):
@@ -965,6 +970,7 @@ class WalletDBUpgrader(Logger):
             outputs = [PartialTxOutput.from_legacy_tuple(*output) for output in raw_outputs]
             outputs_str = "\n".join(f"{txout.scriptpubkey.hex()}, {txout.value}" for txout in outputs)
             return sha256d(outputs_str + "%d" % timestamp).hex()[0:10]
+        assert isinstance(invoices, StoredDict)
         for key, item in list(invoices.items()):
             item = item.dump() # convert StoredDict/List to dict/list
             is_lightning = item['lightning_invoice'] is not None
@@ -981,8 +987,9 @@ class WalletDBUpgrader(Logger):
     def _convert_version_46(self):
         if not self._is_upgrade_method_needed(45, 45):
             return
-        invoices = self.data.get('invoices', {})
-        self._convert_invoices_keys(invoices)
+        invoices = self.data.get('invoices')
+        if invoices:
+            self._convert_invoices_keys(invoices)
         self.data['seed_version'] = 46
 
     def _convert_version_47(self):
@@ -1030,8 +1037,9 @@ class WalletDBUpgrader(Logger):
     def _convert_version_50(self):
         if not self._is_upgrade_method_needed(49, 49):
             return
-        requests = self.data.get('payment_requests', {})
-        self._convert_invoices_keys(requests)
+        requests = self.data.get('payment_requests')
+        if requests:
+            self._convert_invoices_keys(requests)
         self.data['seed_version'] = 50
 
     def _convert_version_51(self):
@@ -1113,7 +1121,9 @@ class WalletDBUpgrader(Logger):
         # do not use '/' in dict keys
         for key in list(self.data.keys()):
             if key.endswith('/'):
-                self.data[key[:-1]] = self.data.pop(key)
+                item = self.data.get(key)
+                self.data[key[:-1]] = item.as_dict()
+                self.data.pop(key)
         self.data['seed_version'] = 55
 
     def _convert_version_56(self):
@@ -1168,7 +1178,6 @@ class WalletDBUpgrader(Logger):
             for htlc_id, (local_ctn, remote_ctn, onion_packet_hex, forwarding_key) in chan['unfulfilled_htlcs'].items():
                 unfulfilled_htlcs[htlc_id] = (onion_packet_hex, forwarding_key or None)
             chan['unfulfilled_htlcs'] = unfulfilled_htlcs
-        self.data['channels'] = channels
         self.data['seed_version'] = 59
 
     def _convert_version_60(self):
@@ -1368,7 +1377,7 @@ class WalletDBUpgrader(Logger):
             key = '-1' if is_initiator else '1'
             assert len(chan['log'][key]['fee_updates']) == 1, chan['log'][key]['fee_updates']
             chan['log'][key]['fee_updates'] = {}
-        self.data['channels'] = channels
+        #self.data['channels'] = channels
         self.data['seed_version'] = 67
 
     def _convert_version_68(self):
@@ -1532,7 +1541,7 @@ class WalletDBUpgrader(Logger):
         raise WalletFileException(msg)
 
 
-def upgrade_wallet_db(data: dict, do_upgrade: bool=True) -> Tuple[dict, bool]:
+def upgrade_wallet_db(data: 'StoredDict', do_upgrade: bool) -> Tuple[dict, bool]:
     was_upgraded = False
 
     if len(data) == 0:
@@ -1545,7 +1554,7 @@ def upgrade_wallet_db(data: dict, do_upgrade: bool=True) -> Tuple[dict, bool]:
             first_electrum_version_used=ELECTRUM_VERSION,
         )
         assert data.get("db_metadata", None) is None
-        data["db_metadata"] = v.to_json()
+        data["db_metadata"] = v.as_dict()
         was_upgraded = True
     # Test mainnet/testnet mixup. Do this before DB upgrades, as those might assume
     # network magic bytes (e.g. if they parse an address or an xpub).
@@ -1555,6 +1564,7 @@ def upgrade_wallet_db(data: dict, do_upgrade: bool=True) -> Tuple[dict, bool]:
               "Current chain: {}").format(constants.net.NET_NAME)
         )
 
+    data._db._should_convert = False
     dbu = WalletDBUpgrader(data)
     if dbu.requires_split():
         raise WalletRequiresSplit(dbu.get_split_accounts())
@@ -1563,10 +1573,15 @@ def upgrade_wallet_db(data: dict, do_upgrade: bool=True) -> Tuple[dict, bool]:
         was_upgraded = True
     if dbu.requires_upgrade():
         raise WalletRequiresUpgrade()
-    return dbu.data, was_upgraded
+    data._db._should_convert = True
+    return was_upgraded
 
 
 
+@stored_at('/txo/*/*/*', tuple)
+class TxoValue(NamedTuple):
+    value: int
+    is_coinbase: bool
 
 
 class WalletDB(Logger):
@@ -1576,7 +1591,7 @@ class WalletDB(Logger):
         self.storage = data
         self.lock = self.storage.lock
         # we must perform db upgrades on the storeddict
-        #was_upgraded = upgrade_wallet_db(self.storage, upgrade)
+        was_upgraded = upgrade_wallet_db(self.storage, upgrade)
         #self._modified |= was_upgraded
 
         # create pointers
@@ -1648,7 +1663,7 @@ class WalletDB(Logger):
         assert isinstance(tx_hash, str)
         assert isinstance(address, str)
         d = self.txo.get(tx_hash, {}).get(address, {})
-        return {int(n): (v, cb) for (n, (v, cb)) in d.items()}
+        return {int(n): (item.value, item.is_coinbase) for (n, item) in d.items()}
 
     @locked
     def add_txi_addr(self, tx_hash: str, addr: str, ser: str, v: int) -> None:
@@ -1676,7 +1691,7 @@ class WalletDB(Logger):
         d = self.txo[tx_hash]
         if addr not in d:
             d[addr] = {}
-        d[addr][n] = (v, is_coinbase)
+        d[addr][n] = TxoValue(v, is_coinbase)
 
     @locked
     def list_txi(self) -> Sequence[str]:
@@ -1820,12 +1835,7 @@ class WalletDB(Logger):
         assert isinstance(txid, str)
         if txid not in self.verified_tx:
             return None
-        height, timestamp, txpos, header_hash = self.verified_tx[txid]
-        return TxMinedInfo(_height=height,
-                           conf=None,
-                           timestamp=timestamp,
-                           txpos=txpos,
-                           header_hash=header_hash)
+        return self.verified_tx[txid]
 
     @locked
     def add_verified_tx(self, txid: str, info: TxMinedInfo):
@@ -1833,7 +1843,7 @@ class WalletDB(Logger):
         assert isinstance(info, TxMinedInfo)
         height = info._height  # number of conf is dynamic and might not be set here
         assert height > 0, height
-        self.verified_tx[txid] = (height, info.timestamp, info.txpos, info.header_hash)
+        self.verified_tx[txid] = info
 
     @locked
     def remove_verified_tx(self, txid: str):
