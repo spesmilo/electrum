@@ -62,6 +62,7 @@ from .lnutil import CHANNEL_OPENING_TIMEOUT_BLOCKS, CHANNEL_OPENING_TIMEOUT_SEC
 from .lnutil import ChannelBackupStorage, ImportedChannelBackupStorage, OnchainChannelBackupStorage
 from .lnutil import format_short_channel_id
 from .fee_policy import FEERATE_PER_KW_MIN_RELAY_LIGHTNING
+from .stored_dict import stored_at
 
 if TYPE_CHECKING:
     from .lnworker import LNWallet

@@ -383,7 +383,7 @@ class ChannelBackupStorage:
 class OnchainChannelBackupStorage(ChannelBackupStorage):
     node_id_prefix: bytes  # remote node pubkey (prefix)
 
-    def to_json(self) -> dict:
+    def as_dict(self) -> dict:
         return dataclasses.asdict(self)
 
     @staticmethod
@@ -2086,7 +2086,7 @@ class UpdateAddHtlc:
             htlc_id=htlc_id,
             timestamp=timestamp)
 
-    def to_json(self):
+    def as_tuple(self):
         self._validate()
         return dataclasses.astuple(self)
 

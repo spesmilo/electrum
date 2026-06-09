@@ -13,8 +13,8 @@ from electrum.lnutil import (
     ImportedChannelBackupStorage, OnchainChannelBackupStorage, list_enabled_ln_feature_bits, PaymentFeeBudget,
     LnFeatureContexts, Keypair, OnlyPubkeyKeypair, LOCAL
 )
-from electrum.util import bfh, MyEncoder
-from electrum.stored_dict import DictStorage
+from electrum.util import bfh
+from electrum.stored_dict import to_default, DictStorage
 from electrum.transaction import Transaction, PartialTransaction, Sighash
 from electrum.lnworker import LNWallet
 from electrum.lnchannel import ChannelBackup
@@ -513,11 +513,11 @@ class TestLNUtil(ElectrumTestCase):
                 raise Exception("iteration " + str(i) + ": " + str(e))
             if i % 1000 == 0:
                 c1 = consumer
-                s1 = json.dumps(storage._db.json_data, cls=MyEncoder)
+                s1 = json.dumps(storage._db.json_data, default=to_default)
                 storage2 = DictStorage(None)
                 storage2.set_data(s1)
                 c2 = RevocationStore(storage2["channels"]["0"]["revocation_store"])
-                s2 = json.dumps(storage2._db.json_data, cls=MyEncoder)
+                s2 = json.dumps(storage2._db.json_data, default=to_default)
                 self.assertEqual(s1, s2)
 
     def test_commitment_tx_with_all_five_HTLCs_untrimmed_minimum_feerate(self):
@@ -1232,7 +1232,7 @@ class TestLNUtil(ElectrumTestCase):
         )
         data = {'seed_version': FINAL_SEED_VERSION, 'onchain_channel_backups': {cb.channel_id().hex(): cb}}
         storage = DictStorage(None)
-        storage.set_data(json.dumps(data, cls=MyEncoder))
+        storage.set_data(json.dumps(data, default=to_default))
         db = WalletDB(storage, upgrade=False)
         self.assertEqual(cb, db.get_dict('onchain_channel_backups')[cb.channel_id().hex()])
 

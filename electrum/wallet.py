@@ -85,6 +85,7 @@ from .descriptor import Descriptor
 from .txbatcher import TxBatcher
 from .submarine_swaps import MIN_SWAP_AMOUNT_SAT
 from .stored_dict import DictStorage, StorageEncryptionVersion
+from .json_db import to_json_data
 
 if TYPE_CHECKING:
     from .network import Network
@@ -510,7 +511,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def save_backup(self, backup_dir):
         import json
-        from .util import MyEncoder
+        from .stored_dict import to_default
         # create data
         data = self.storage.dump()
         if self.lnworker:
@@ -520,10 +521,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             data['imported_channel_backups'] = channel_backups
             data.pop('channels', None)
         json_str = json.dumps(
-            data,
+            to_json_data(to_default(data)),
             indent=4,
             sort_keys=True,
-            cls=MyEncoder,
         )
         new_path = os.path.join(backup_dir, self.basename() + '.backup')
         new_storage = DictStorage(path=new_path, init_db=False)  # do not read a previous backup at that path
@@ -3003,7 +3003,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def export_request(self, x: Request) -> Dict[str, Any]:
         key = x.get_id()
         status = self.get_invoice_status(x)
-        d = x.as_dict(status)
+        d = x.export(status)
         d['request_id'] = d.pop('id')
         if x.is_lightning():
             d['rhash'] = x.rhash
@@ -3029,7 +3029,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def export_invoice(self, x: Invoice) -> Dict[str, Any]:
         key = x.get_id()
         status = self.get_invoice_status(x)
-        d = x.as_dict(status)
+        d = x.export(status)
         d['invoice_id'] = d.pop('id')
         if x.is_lightning():
             d['lightning_invoice'] = x.lightning_invoice

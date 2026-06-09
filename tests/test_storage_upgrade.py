@@ -5,11 +5,12 @@ import json
 from typing import Optional
 import asyncio
 import inspect
+from unittest import mock
 
 import electrum
 from electrum.stored_dict import DictStorage
 from electrum.stored_dict import StoredDict
-from electrum.wallet_db import WalletDBUpgrader, WalletDB, WalletRequiresUpgrade, WalletRequiresSplit
+from electrum.wallet_db import WalletDBUpgrader, WalletDB, WalletRequiresUpgrade, WalletRequiresSplit, FINAL_SEED_VERSION
 from electrum.bolt11 import BOLT11DecodeException
 from electrum.wallet import Wallet
 from electrum import constants
@@ -343,6 +344,43 @@ class TestStorageUpgrade(WalletTestCase):
         assert db.get("imported_channel_backups").get("ddb06b023f24a587d96a9f113c02d266549d010a57d7b151c1f5332a9bbaafd5") \
             == "0200017e634853dc47f0bc2f2e0d1054b302fcb414371ddbd889f29ba8aa4e8b62c7725d472c7b642b14176f275d6dca60c8d1ec5cfbf935169f1fe873e6bd0ad155da038863cf8ab91046230f561cd5b386cbff8309fa02e3f0c3ed161a3aeb64a643b9d5afba9b2a33f5c151b1d7570a019d5466d2023c119f6ad987a5243f026bb0dd00003e74623171357a64726430703772366d68353961726e636179763030326e727530347030706636653264756b6479326833707672726e67747336687473616a02f2fa10e1317153b9cca5c0af211bcdd48aac4cf67a6f4d1cb7de71857261a1190303a53b5175b7ad2de558fc1f140d129fc5dd0949f1fbfac28ce2c33b236fbc6ef00390000e3230332e3133322e39342e313936072602a1ceaaae7b1da9d2e679977615988c62903e93a2e5d972aff6f0441face4be10c87b61e091f3f786ca44dc25283557214686d5ddb138eeb9df484145b991356b"
 
+    async def test_convert_version_24_revocation_store(self):
+        # the conversion reads the buckets of the revocation store and stores them in a new dict:
+        # that must work for a channel that holds secrets (the new dict nests StoredList items)
+        secret = 'aa' * 32
+        buckets = [None] * 49
+        buckets[0] = [0, secret]
+        data = {'seed_version': 23, 'channels': [{'channel_id': 'c1', 'revocation_store': {'buckets': buckets, 'index': 1}}]}
+        storage = DictStorage(None)
+        storage.set_data(json.dumps(data))
+        storage._db._should_convert = False
+        WalletDBUpgrader(storage)._convert_version_24()
+        self.assertEqual(24, storage._db.json_data['seed_version'])
+        self.assertEqual(
+            {'c1': {'channel_id': 'c1', 'revocation_store': {'buckets': {'0': [0, secret]}, 'index': 1}}},
+            storage._db.json_data['channels'])
+
+    async def test_failed_upgrade_writes_nothing(self):
+        # a conversion that raises must leave the file untouched and the db consistent
+        data = {'seed_version': 72, 'wallet_type': 'imported', 'addresses': {}}
+        path = os.path.join(self.electrum_path, 'w')
+        with open(path, 'w') as f:
+            f.write(json.dumps(data))
+        with open(path, 'rb') as f:
+            file_before = f.read()
+        storage = DictStorage(path)
+        with mock.patch.object(WalletDBUpgrader, '_convert_version_73', side_effect=Exception('boom')):
+            with self.assertRaisesRegex(Exception, 'boom'):
+                WalletDB(storage, upgrade=True)
+        with open(path, 'rb') as f:
+            self.assertEqual(file_before, f.read())
+        self.assertTrue(storage._db._should_convert)
+        # without the failure, the same file upgrades and is written
+        db = WalletDB(DictStorage(path), upgrade=True)
+        self.assertEqual(FINAL_SEED_VERSION, db.get('seed_version'))
+        with open(path, 'rb') as f:
+            self.assertNotEqual(file_before, f.read())
+
     @as_testnet
     async def test_upgrade_removes_invoice_with_malformed_route_tag(self):
         # Db conversion 72->73 drops stored invoices that fail bolt11 decoding.
@@ -377,11 +415,12 @@ class TestStorageUpgrade(WalletTestCase):
         self.assertEqual(73, db.get('seed_version'))
         self.assertEqual(['good'], list(db.get_dict('invoices').keys()))
 
-        # sanity: without the conversion (i.e. already at seed_version 73) the same file
-        # would not load at all
+        # sanity: without the conversion (i.e. already at seed_version 73) the same
+        # invoice would fail to decode when it is read from the db
         data['seed_version'] = 73
+        db = self._load_db_from_json_string(wallet_json=json.dumps(data), upgrade=True)
         with self.assertRaisesRegex(BOLT11DecodeException, "Failed to decode tag 'r'"):
-            self._load_db_from_json_string(wallet_json=json.dumps(data), upgrade=True)
+            db.get_dict('invoices')['bad_r']
 
         # a pre-45 file: conversion 45 decodes the invoices itself and drops the bad ones
         data['seed_version'] = 44
