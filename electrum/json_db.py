@@ -30,9 +30,9 @@ from typing import TYPE_CHECKING, Optional, Sequence, List, Union, Dict, Any
 import jsonpatch
 import jsonpointer
 
-from .util import WalletFileException, profiler, sticky_property, MyEncoder
+from .util import WalletFileException, profiler, sticky_property
 from .logging import Logger
-from .stored_dict import _FLEX_KEY, BaseDB, _convert_dict_key, _convert_dict_value
+from .stored_dict import _FLEX_KEY, BaseDB
 from .storage import FileStorage
 
 
@@ -89,12 +89,10 @@ class JsonDB(BaseDB):
             *,
             allow_partial_writes = True,
             init_db = True,
-            encoder = MyEncoder,
     ):
         BaseDB.__init__(self, path)
         self._is_closed = True
         self.lock = threading.RLock()
-        self.encoder = encoder
         self.pending_changes = []  # type: List[str]
         self._modified = False
         if self.path:
@@ -105,18 +103,17 @@ class JsonDB(BaseDB):
                 self.init_db()
         else:
             self.storage = None
-            self.set_data('{}')
+            self.json_data = {}
             self._is_closed = False
 
     def set_data(self, json_str):
-        data = self.load_data(json_str)
-        self.json_data = self._convert_dict([], data)
+        self.json_data = self.load_data(json_str)
 
     def init_db(self):
         if self.storage.is_encrypted():
             assert self.storage.is_past_initial_decryption()
         json_str = self.storage.read()
-        self.set_data(json_str)
+        self.json_data = self.load_data(json_str)
         # write file in case there was a db upgrade
         self.write_and_force_consolidation()
         self._is_closed = False
@@ -286,7 +283,7 @@ class JsonDB(BaseDB):
 
     @locked
     def add_patch(self, patch):
-        self.pending_changes.append(json.dumps(patch, cls=self.encoder))
+        self.pending_changes.append(json.dumps(patch))
         self.set_modified(True)
 
     def db_add(self, path, key: _FLEX_KEY, value) -> None:
@@ -310,28 +307,7 @@ class JsonDB(BaseDB):
             self.json_data,
             indent=4 if human_readable else None,
             sort_keys=bool(human_readable),
-            cls=self.encoder,
         )
-
-    def _convert_dict_key(self, path: List[str], key: str) -> _FLEX_KEY:
-        return _convert_dict_key(path, key)
-
-    def _convert_dict_value(self, path: List[str], v) -> Any:
-        v = _convert_dict_value(path, v)
-        if isinstance(v, dict):
-            v = self._convert_dict(path, v)
-        return v
-
-    def _convert_dict(self, path: List[str], data: dict):
-        # recursively convert json dict to StoredDict
-        assert all(isinstance(x, str) for x in path), repr(path)
-        d = {}
-        for k, v in list(data.items()):
-            child_path = path + [k]
-            k = self._convert_dict_key(path, k)
-            v = self._convert_dict_value(child_path, v)
-            d[k] = v
-        return d
 
     @locked
     def write(self):
