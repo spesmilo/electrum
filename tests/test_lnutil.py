@@ -12,7 +12,7 @@ from electrum.lnutil import (
     ImportedChannelBackupStorage, list_enabled_ln_feature_bits, PaymentFeeBudget, LnFeatureContexts
 )
 from electrum.util import bfh, MyEncoder
-from electrum.stored_dict import WalletStorage
+from electrum.stored_dict import DictStorage
 from electrum.transaction import Transaction, PartialTransaction, Sighash
 from electrum.lnworker import LNWallet
 from electrum.wallet import Standard_Wallet
@@ -474,7 +474,7 @@ class TestLNUtil(ElectrumTestCase):
         ]
 
         for test in tests:
-            storage = WalletStorage(None)
+            storage = DictStorage(None)
             storage.set_data(json.dumps({"channels": {"0": { "revocation_store": {}}}}))
             receiver = RevocationStore(storage["channels"]["0"]["revocation_store"])
             for insert in test["inserts"]:
@@ -498,7 +498,7 @@ class TestLNUtil(ElectrumTestCase):
 
     def test_shachain_produce_consume(self):
         seed = bitcoin.sha256(b"shachaintest")
-        storage = WalletStorage(None)
+        storage = DictStorage(None)
         storage.set_data(json.dumps({"channels": {"0": { "revocation_store": {}}}}))
         consumer = RevocationStore(storage["channels"]["0"]["revocation_store"])
         for i in range(10000):
@@ -510,7 +510,7 @@ class TestLNUtil(ElectrumTestCase):
             if i % 1000 == 0:
                 c1 = consumer
                 s1 = json.dumps(storage._db.json_data, cls=MyEncoder)
-                storage2 = WalletStorage(None)
+                storage2 = DictStorage(None)
                 storage2.set_data(s1)
                 c2 = RevocationStore(storage2["channels"]["0"]["revocation_store"])
                 s2 = json.dumps(storage2._db.json_data, cls=MyEncoder)

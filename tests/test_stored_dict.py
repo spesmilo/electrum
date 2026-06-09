@@ -7,7 +7,7 @@ from io import StringIO
 import asyncio
 from pathlib import Path
 
-from electrum.stored_dict import WalletStorage, StoredDict
+from electrum.stored_dict import DictStorage, StoredDict
 
 
 
@@ -30,7 +30,7 @@ class TestStorage(ElectrumTestCase):
         sys.stdout = self._saved_stdout
 
     def test_db_roundtrip(self):
-        sd = WalletStorage(self.path)
+        sd = DictStorage(self.path)
         # list containing list and dict
         some_list = [[1, 2], {"c": "d"} ]
         sd['1'] = some_list
@@ -49,7 +49,7 @@ class TestStorage(ElectrumTestCase):
         self.assertEqual(sd['4'], complex_tuple)
 
     def test_db_iterators(self):
-        sd = WalletStorage(self.path)
+        sd = DictStorage(self.path)
         sd['a'] = [0, 1, 2, 3, 4]
         sl = sd.get('a')
         self.assertEqual(len(sl), 5)
@@ -57,7 +57,7 @@ class TestStorage(ElectrumTestCase):
             self.assertEqual(i, v)
 
     async def test_dangling_dict(self):
-        storage = WalletStorage(self.path)
+        storage = DictStorage(self.path)
         storage['a'] = {'b': {'c': 0}}
         storage.write()
         a = storage.get('a')
@@ -70,6 +70,6 @@ class TestStorage(ElectrumTestCase):
             b['c'] = 42
         storage.write()
         storage.close()
-        storage = WalletStorage(self.path)
+        storage = DictStorage(self.path)
         self.assertEqual(storage.dump(), {'a':{}})
 

@@ -17,7 +17,7 @@ class GuiImportError(ImportError):
 from .version import ELECTRUM_VERSION
 from .util import format_satoshis
 from .wallet import Wallet
-from .stored_dict import WalletStorage
+from .stored_dict import DictStorage
 from .coinchooser import COIN_CHOOSERS
 from .network import Network, pick_random_server
 from .interface import Interface
