@@ -11,8 +11,8 @@ from electrum.lnutil import (
     IncompatibleLightningFeatures, ChannelType, offered_htlc_trim_threshold_sat, received_htlc_trim_threshold_sat,
     ImportedChannelBackupStorage, list_enabled_ln_feature_bits, PaymentFeeBudget, LnFeatureContexts
 )
-from electrum.util import bfh, MyEncoder
-from electrum.stored_dict import DictStorage
+from electrum.util import bfh
+from electrum.stored_dict import to_default, DictStorage
 from electrum.transaction import Transaction, PartialTransaction, Sighash
 from electrum.lnworker import LNWallet
 from electrum.wallet import Standard_Wallet
@@ -509,11 +509,11 @@ class TestLNUtil(ElectrumTestCase):
                 raise Exception("iteration " + str(i) + ": " + str(e))
             if i % 1000 == 0:
                 c1 = consumer
-                s1 = json.dumps(storage._db.json_data, cls=MyEncoder)
+                s1 = json.dumps(storage._db.json_data, default=to_default)
                 storage2 = DictStorage(None)
                 storage2.set_data(s1)
                 c2 = RevocationStore(storage2["channels"]["0"]["revocation_store"])
-                s2 = json.dumps(storage2._db.json_data, cls=MyEncoder)
+                s2 = json.dumps(storage2._db.json_data, default=to_default)
                 self.assertEqual(s1, s2)
 
     def test_commitment_tx_with_all_five_HTLCs_untrimmed_minimum_feerate(self):

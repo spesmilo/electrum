@@ -43,10 +43,12 @@ class TestStorage(ElectrumTestCase):
         some_tuple = (1, 2, 3)
         sd['3'] = some_tuple
         self.assertEqual(sd['3'], some_tuple)
-        # complex tuple
+        # complex tuple: the third element is a StoredDict
         complex_tuple = (1, 2, [3, 4])
         sd['4'] = complex_tuple
-        self.assertEqual(sd['4'], complex_tuple)
+        with self.assertRaises(AssertionError):
+            self.assertEqual(sd['4'], complex_tuple)
+        self.assertEqual(sd['4'][2].dump(), complex_tuple[2])
 
     def test_db_iterators(self):
         sd = DictStorage(self.path)

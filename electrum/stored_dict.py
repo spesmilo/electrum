@@ -89,39 +89,29 @@ def stored_at(path, _type=dict):
     return decorator
 
 
-def _walk_path(d, path):
-    for k in path:
-        if k in d:
-            d = d[k]
-        elif '*' in d:
-            d = d['*']
-        else:
-            return None
-    return d
-
-def _convert_dict_key(path: List[str], key: str) -> _FLEX_KEY:
-    """Maybe convert key from str to python type (typically int or IntEnum)"""
-    assert all(isinstance(x, str) for x in path), repr(path)
-    r = _walk_path(registered_keys, path)
-    if r:
-        if func := r.get('self'):
-            key = func(key)
-    assert isinstance(key, _FLEX_KEY), f"unexpected type for {key=!r} at {path=}"
-    return key
-
-def _convert_dict_value(path: List[str], v) -> Any:
-    assert all(isinstance(x, str) for x in path), repr(path)
-    r = _walk_path(registered_names, path)
-    if r and type(r) is tuple:
-        _type, constructor = r
-        if _type == dict:
-            v = constructor(**v)
-        elif _type == tuple:
-            v = constructor(*v)
-        else:
-            v = constructor(v)
-    return v
-
+def to_default(obj):
+    """Convert user-defined classes to python built-in types.
+    Also convert bytes to hex, so that the result is json serializable.
+    """
+    if obj is None or isinstance(obj, (str, int, float)):
+        return obj
+    if isinstance(obj, bytes):
+        return obj.hex()
+    if hasattr(obj, 'as_str') and callable(obj.as_str):
+        return obj.as_str()
+    if hasattr(obj, 'as_dict') and callable(obj.as_dict):
+        obj = obj.as_dict()
+    if hasattr(obj, 'as_tuple') and callable(obj.as_tuple):
+        obj = obj.as_tuple()
+    if isinstance(obj, (set, frozenset)):
+        return [to_default(x) for x in list(obj)]
+    if isinstance(obj, dict):
+        return dict([(key_to_str(k), to_default(v)) for k, v in obj.items()])
+    if isinstance(obj, list):
+        return [to_default(x) for x in obj]
+    if isinstance(obj, tuple):
+        return tuple([to_default(x) for x in list(obj)])
+    raise Exception('unsupported type', type(obj))
 
 
 
@@ -131,6 +121,7 @@ class BaseDB(Logger):
         Logger.__init__(self)
         self._write_batch = None
         self.path = path
+        self._should_convert = True
 
     def file_exists(self):
         raise NotImplementedError()
@@ -178,9 +169,9 @@ class BaseStoredObject:
             value = StoredList(self._db, key=key, parent=self)
         elif isinstance(value, dict):
             value = StoredDict(self._db, key=key, parent=self)
-        #elif isinstance(value, tuple):
-        #    value = StoredList(self._db, key=key, parent=self)
-        #    value = tuple(value[:]) # do not expose StoredTuple to callers
+        elif isinstance(value, tuple):
+            value = StoredList(self._db, key=key, parent=self)
+            value = tuple(value[:]) # do not expose StoredTuple to callers
         return value
 
     @property
@@ -193,11 +184,36 @@ class BaseStoredObject:
     def db_get(self, key):
         value = self._db.get(self.hint, key)
         value = self._to_stored_dict_or_list(key, value)
+        if not self.should_convert():
+            return value
+        value = self._convert_value(key, value)
         # set db for StoredObject, because it is not set in the constructor
         if isinstance(value, StoredObject):
             value.set_db(self._db)
             value.set_parent(key=key, parent=self)
         return value
+
+    def _convert_key(self, key: str) -> _FLEX_KEY:
+        """Maybe convert key from str to python type (typically int or IntEnum)"""
+        if self._key_converters:
+            if func := self._key_converters.get('self'):
+                key = func(key)
+        assert isinstance(key, _FLEX_KEY), f"unexpected type for {key=!r} at {self._path}"
+        return key
+
+    def _convert_value(self, key, v) -> Any:
+        reg = self.get_constructor(key)
+        if reg:
+            if isinstance(v, (StoredDict, StoredList)):
+                v = v.dump()
+            _type, constructor = reg
+            if _type == dict:
+                v = constructor(**v)
+            elif _type == tuple:
+                v = constructor(*v)
+            else:
+                v = constructor(v)
+        return v
 
     def get_constructor(self, key):
         if self._constructor:
@@ -245,10 +261,10 @@ class StoredObject(BaseStoredObject):
         assert isinstance(key, str), repr(key)
         if not key.startswith('_') and self._path:
             if value != getattr(self, key):
-                self._db.replace(self.hint, self._path, key, value)
+                self._db.replace(self.hint, self._path, key, to_default(value))
         object.__setattr__(self, key, value)
 
-    def to_json(self):
+    def as_dict(self):
         d = dict(vars(self))
         # don't expose/store private stuff
         d = {k: v for k, v in d.items()
@@ -277,6 +293,9 @@ class StoredDict(BaseStoredObject):
         self.init_constructor()
         self.init_key_converters()
 
+    def should_convert(self):
+        return self._db._should_convert
+
     def dump(self) -> dict:
         data = {}
         for k, v in self.items():
@@ -286,18 +305,23 @@ class StoredDict(BaseStoredObject):
         return data
 
     def __getitem__(self, key: _FLEX_KEY) -> Any:
+        key = key_to_str(key)
         return self.db_get(key)
 
     def __setitem__(self, key: _FLEX_KEY, value: Any) -> None:
+        key = key_to_str(key)
         if isinstance(value, StoredObject):
             # side effect
             value.set_db(self._db)
             value.set_parent(key=key, parent=self)
         if isinstance(value, (StoredList, StoredDict)):
             value = value.dump()
+        # convert to python
+        value = to_default(value)
         self._db.put(self.hint, self._path, key, value)
 
     def __delitem__(self, key: _FLEX_KEY) -> None:
+        key = key_to_str(key)
         self._db.remove(self.hint, self._path, key)
 
     def __iter__(self) -> Iterator[str]:
@@ -309,11 +333,12 @@ class StoredDict(BaseStoredObject):
     # ---- Dict-like extras ----
 
     def __contains__(self, key: object) -> bool:
+        key = key_to_str(key)
         return self._db.dict_contains(self.hint, self._path, key)
 
     def keys(self) -> Iterable[str]:
         for k in self._db.iter_keys(self.hint, self._path):
-            yield k
+            yield self._convert_key(k)
 
     def values(self) -> Iterator[Any]:
         for k in self._db.iter_keys(self.hint, self._path):
@@ -321,7 +346,7 @@ class StoredDict(BaseStoredObject):
 
     def items(self) -> Iterator[Tuple[str, Any]]:
         for k in self._db.iter_keys(self.hint, self._path):
-            yield (k, self[k])
+            yield (self._convert_key(k), self[k])
 
     def get(self, key: _FLEX_KEY, default: Any = None, add_if_missing=False) -> Any:
         # If add_if_missing is True, create DB entry if it does not exist.
@@ -383,6 +408,9 @@ class StoredList(BaseStoredObject):
         self.init_constructor()
         self.init_key_converters()
 
+    def should_convert(self):
+        return self._db._should_convert
+
     def _get_list_item(self, key: int):
         key = int(key)
         return self.db_get(key)
@@ -408,6 +436,7 @@ class StoredList(BaseStoredObject):
             yield self._get_list_item(i)
 
     def append(self, value):
+        value = to_default(value)
         self._db.list_append(self.hint, self._path, value)
 
     def clear(self):
@@ -415,9 +444,11 @@ class StoredList(BaseStoredObject):
         assert len(self) == 0
 
     def index(self, item) -> int:
+        item = to_default(item)
         return self._db.list_index(self.hint, self._path, item)
 
     def remove(self, item):
+        item = to_default(item)
         self._db.list_remove(self.hint, self._path, item)
 
     def dump(self) -> list:
