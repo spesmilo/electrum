@@ -6,7 +6,6 @@ import asyncio
 from electrum.simple_config import SimpleConfig
 from electrum import constants
 from electrum.daemon import Daemon
-from electrum.stored_dict import WalletStorage
 from electrum.wallet import Wallet, create_new_wallet
 from electrum.wallet_db import WalletDB
 from electrum.commands import Commands

@@ -11,7 +11,7 @@ from jsonpointer import JsonPointerException
 
 from . import ElectrumTestCase
 
-from electrum.stored_dict import WalletStorage
+from electrum.stored_dict import DictStorage
 
 class TestJsonpatch(ElectrumTestCase):
 
@@ -112,20 +112,20 @@ class TestJsonDB(ElectrumTestCase):
 
     async def test_jsondb_partial_write_round_test(self):
         wallet_path = os.path.join(self.electrum_path, "somewallet")
-        storage = WalletStorage(wallet_path, allow_partial_writes=True)
+        storage = DictStorage(wallet_path, allow_partial_writes=True)
         storage['a'] = [1, 2, 3]
         storage._db.write_and_force_consolidation()
         storage['a'].append(4)
         storage._db._append_pending_changes()
-        storage = WalletStorage(wallet_path, allow_partial_writes=True)
+        storage = DictStorage(wallet_path, allow_partial_writes=True)
         self.assertEqual(len(storage['a']), 4)
 
     async def test_jsondb_list_clear(self):
         wallet_path = os.path.join(self.electrum_path, "somewallet")
-        storage = WalletStorage(wallet_path, allow_partial_writes=True)
+        storage = DictStorage(wallet_path, allow_partial_writes=True)
         storage['a'] = [1, 2, 3]
         storage._db.write()
         storage['a'].clear()
         storage._db.write()
-        storage = WalletStorage(wallet_path, allow_partial_writes=True)
+        storage = DictStorage(wallet_path, allow_partial_writes=True)
         self.assertEqual(len(storage['a']), 0)

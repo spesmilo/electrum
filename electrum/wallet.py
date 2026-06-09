@@ -81,7 +81,7 @@ from .lntransport import extract_nodeid
 from .descriptor import Descriptor
 from .txbatcher import TxBatcher
 from .submarine_swaps import MIN_SWAP_AMOUNT_SAT
-from .stored_dict import WalletStorage, StorageEncryptionVersion
+from .stored_dict import DictStorage, StorageEncryptionVersion
 
 if TYPE_CHECKING:
     from .network import Network
@@ -516,7 +516,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             cls=MyEncoder,
         )
         new_path = os.path.join(backup_dir, self.basename() + '.backup')
-        new_storage = WalletStorage(path=new_path)
+        new_storage = DictStorage(path=new_path)
         if self.storage.is_encrypted():
             new_storage._db.storage._encryption_version = self.storage._db.storage._encryption_version
             new_storage._db.storage.pubkey = self.storage._db.storage.pubkey
@@ -4392,7 +4392,7 @@ def register_constructor(wallet_type, constructor):
 class Wallet(object):
     """The main wallet "entry point".
     This class is actually a factory that will return a wallet of the correct
-    type when passed a WalletStorage instance."""
+    type when passed a WalletDB instance."""
 
     def __new__(cls, db: 'WalletDB', *, config: SimpleConfig) -> Abstract_Wallet:
         wallet_type = db.get('wallet_type')
@@ -4423,7 +4423,7 @@ def create_new_wallet(
     """Create a new wallet"""
     if os.path.exists(standardize_path(path)):
         raise UserFacingException("Remove the existing wallet first!")
-    storage = WalletStorage(path, allow_partial_writes=config.WALLET_PARTIAL_WRITES)
+    storage = DictStorage(path, allow_partial_writes=config.WALLET_PARTIAL_WRITES)
     if encrypt_file:
         storage.set_password(password, StorageEncryptionVersion.USER_PASSWORD)
     db = WalletDB(storage)
@@ -4464,11 +4464,11 @@ def restore_wallet_from_text(
     if encrypt_file is None:
         encrypt_file = True
     if path is None:  # create wallet in-memory
-        storage = WalletStorage(None)
+        storage = DictStorage(None)
     else:
         if os.path.exists(standardize_path(path)):
             raise UserFacingException("Remove the existing wallet first!")
-        storage = WalletStorage(path, allow_partial_writes=config.WALLET_PARTIAL_WRITES)
+        storage = DictStorage(path, allow_partial_writes=config.WALLET_PARTIAL_WRITES)
         if encrypt_file:
             storage.set_password(password, StorageEncryptionVersion.USER_PASSWORD)
 

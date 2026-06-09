@@ -2022,11 +2022,11 @@ class WalletDB(Logger):
     @classmethod
     def split_accounts(klass, root_path, split_data):
         # not covered by tests
-        from .stored_dict import WalletStorage
+        from .stored_dict import DictStorage
         file_list = []
         for data in split_data:
             path = root_path + '.' + data['suffix']
-            storage = WalletStorage(path)
+            storage = DictStorage(path)
             storage.set_data(json.dumps(data))
             db = WalletDB(storage, upgrade=True)
             storage.write()

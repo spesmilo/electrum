@@ -36,7 +36,7 @@ from electrum.transaction import Transaction, match_script_against_template
 from electrum.network import Network
 from electrum.address_synchronizer import AddressSynchronizer, TX_HEIGHT_LOCAL
 from electrum.wallet_db import WalletDB
-from electrum.stored_dict import WalletStorage
+from electrum.stored_dict import DictStorage
 from electrum.lnutil import WITNESS_TEMPLATE_RECEIVED_HTLC, WITNESS_TEMPLATE_OFFERED_HTLC
 from electrum.logging import Logger
 from electrum.util import EventListener, event_listener
@@ -68,7 +68,7 @@ class WatchTower(Logger, EventListener):
     def __init__(self, network: 'Network'):
         Logger.__init__(self)
         self.config = network.config
-        storage = WalletStorage(None)
+        storage = DictStorage(None)
         wallet_db = WalletDB(storage)
         self.adb = AddressSynchronizer(wallet_db, self.config, name=self.diagnostic_name())
         self.adb.start_network(network)
