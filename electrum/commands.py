@@ -1934,6 +1934,42 @@ class Commands(Logger):
         coro = wallet.lnworker.force_close_channel(chan_id) if force else wallet.lnworker.close_channel(chan_id)
         return await coro
 
+    @command('wpl')
+    async def delete_channel(self, channel_point, password=None, wallet: Abstract_Wallet = None):
+        """
+        Delete a lightning channel (only if channel-open funding has expired, or channel is in REDEEMED state)
+
+        arg:str:channel_point:channel point
+        """
+        txid, index = channel_point.split(':')
+        chan_id, _ = channel_id_from_funding_tx(txid, int(index))
+        if chan_id not in wallet.lnworker.channels:
+            raise UserFacingException(f'Unknown channel {channel_point}')
+        chan = wallet.lnworker.channels[chan_id]
+        if chan.is_backup():
+            raise UserFacingException(f'{channel_point} is a channel backup, use delete_channel_backup instead')
+        if not chan.can_be_deleted():
+            raise UserFacingException(f'Cannot delete channel {channel_point}')
+        wallet.lnworker.remove_channel(chan_id)
+
+    @command('wpl')
+    async def delete_channel_backup(self, channel_point, password=None, wallet: Abstract_Wallet = None):
+        """
+        Delete a lightning channel backup (only if imported, or channel is in REDEEMED state)
+
+        arg:str:channel_point:channel point
+        """
+        txid, index = channel_point.split(':')
+        chan_id, _ = channel_id_from_funding_tx(txid, int(index))
+        if chan_id not in wallet.lnworker.channel_backups:
+            raise UserFacingException(f'Unknown channel backup {channel_point}')
+        chan = wallet.lnworker.channel_backups[chan_id]
+        if not chan.is_backup():
+            raise UserFacingException(f'{channel_point} is not a channel backup, use delete_channel instead')
+        if not chan.can_be_deleted():
+            raise UserFacingException(f'Cannot delete channel backup {channel_point}')
+        wallet.lnworker.remove_channel_backup(chan_id)
+
     @command('wnpl')
     async def request_force_close(self, channel_point, connection_string=None, password=None, wallet: Abstract_Wallet = None):
         """
