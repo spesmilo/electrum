@@ -100,9 +100,13 @@ class AbstractNet:
     def DEFAULT_SERVERS(cls) -> Mapping[str, Mapping[str, str]]:
         if cls._cached_default_servers is None:
             default_file = {} if cls.TESTNET else None  # for mainnet we hard-fail if the file is missing.
-            cls._cached_default_servers = read_json(os.path.join('chains', cls.NET_NAME, 'servers.json'), default_file)
-        d = cls._cached_default_servers
-        return copy.deepcopy(d)
+            d = read_json(os.path.join('chains', cls.NET_NAME, 'servers.json'), default_file)
+            # sanity check
+            for k, v in d.items():
+                assert isinstance(v, dict), f'value for {k} not a dict in servers.json'
+                assert all(isinstance(v2, str) for v2 in v.values()), f'non-str values for key {k} in servers.json'
+            cls._cached_default_servers = d
+        return copy.deepcopy(cls._cached_default_servers)
 
     _cached_fallback_lnnodes = None
     @classproperty
