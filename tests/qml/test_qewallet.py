@@ -150,6 +150,7 @@ class TestQEWallet(QETestCase):
         qw1.sign(tx, on_success=sign_success, on_failure=sign_failed)
 
         self.assertTrue(er1.receivedForSignal(qw1.authRequired))
+        self.assertTrue(er1.receivedExactSequence([(qw1.authRequired, ('payment_auth', 'Sign on-chain transaction?'))]))
 
         qw1.authProceed()
 
@@ -182,6 +183,11 @@ class TestQEWallet(QETestCase):
         self.assertTrue(er1.receivedForSignal(qw1.authRequired))
         qw1.authProceed()
         self.assertTrue(self.waitForSignal(er1, qw1.paymentFailed))
+
+        self.assertTrue(er1.receivedExactSequence([
+            (qw1.authRequired, ('payment_auth', 'Pay lightning invoice?')),
+            qw1.paymentFailed
+        ]))
 
     @qt_test
     def test_bound_on_destroy_does_not_leak_wrapper(self):

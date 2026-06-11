@@ -2,6 +2,7 @@ import threading
 import traceback
 import unittest
 from functools import wraps, partial
+from typing import List, Sequence
 from unittest import SkipTest
 
 from PyQt6.QtCore import QCoreApplication, QMetaObject, Qt, pyqtSlot, QObject, QEventLoop, QTimer
@@ -28,17 +29,42 @@ class QEventReceiver(QObject):
         self.signals = []
         for signal in signals:
             self.signals.append(signal)
-            signal.connect(partial(self.doReceive, signal))
+            signal.connect(partial(self._doReceive, signal))
 
     # intentionally no pyqtSlot decorator, to catch all
-    def doReceive(self, signal, *args):
+    def _doReceive(self, signal, *args):
         logger.debug(f'received {signal=} {repr(args)}')
         with self._lock:
             self.received.append((signal, args))
 
-    def receivedForSignal(self, signal):
+    def receivedForSignal(self, signal) -> List:
         with self._lock:
             return list(filter(lambda x: x[0] == signal, self.received))
+
+    def receivedExactSequence(self, signals: List) -> bool:
+        """check if the exact signal sequence was received
+           if the signals parameter is a list of tuples/lists, the received
+           signal parameters are checked as well
+        """
+        with self._lock:
+            if len(self.received) != len(signals):
+                logger.error(f'num of received signals {len(self.received)} != num of required signals {len(signals)}')
+                return False
+
+            for i in range(0, len(signals)):
+                signal = signals[i]
+                rcvd = self.received[i]
+                if not isinstance(signal, Sequence):
+                    # ignore the received signal args
+                    rcvd = rcvd[0]
+                if rcvd == signal:
+                    continue
+                logger.error(f'received signal {rcvd} was unexpected at #{i}\n'
+                             f'received: {repr(rcvd)}\n'
+                             f'expected: {repr(signal)}\n')
+                return False
+
+            return True
 
     def clear(self):
         with self._lock:
