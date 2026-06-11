@@ -1,7 +1,7 @@
 import asyncio
 import copy
 from asyncio import Future
-from enum import IntEnum
+from enum import IntEnum, IntFlag
 import threading
 from decimal import Decimal
 from typing import Optional, TYPE_CHECKING, Callable
@@ -163,8 +163,18 @@ class FeeSlider(QObject):
 
 
 class TxFeeSlider(FeeSlider):
+
+    @pyqtEnum
+    class TxOptions(IntFlag):
+        NONE = 0
+        MULTIPLE_CHANGE = 1
+        OUTPUT_ROUNDING = 2
+        SEND_CHANGE_TO_LIGHTNING = 4
+
     def __init__(self, parent=None):
         FeeSlider.__init__(self, parent)
+
+        self._tx_options = TxFeeSlider.TxOptions.MULTIPLE_CHANGE | TxFeeSlider.TxOptions.OUTPUT_ROUNDING
 
         self._fee = QEAmount()
         self._feeRate = ''
@@ -178,6 +188,20 @@ class TxFeeSlider(FeeSlider):
         self._finalized_txid = ''
         self._valid = False
         self._warning = ''
+
+    txOptionsChanged = pyqtSignal()
+    @pyqtProperty(int, notify=txOptionsChanged)
+    def txOptions(self) -> int:
+        return int(self._tx_options)
+
+    @txOptions.setter
+    def txOptions(self, options: int):
+        options = TxFeeSlider.TxOptions(options)
+        if self._tx_options != options:
+            self._tx_options = options
+            self.txOptionsChanged.emit()
+            if self._wallet:  # recompute (e.g. swap message) for the new option set
+                self.update()
 
     feeChanged = pyqtSignal()
     @pyqtProperty(QVariant, notify=feeChanged)
@@ -504,6 +528,13 @@ class QETxFinalizer(TxFeeSlider, AuthMixin, SubmarineSwapMixin):
             self._swapStatusMsg = swap_status_msg
             self.swapStatusMsgChanged.emit()
 
+    def _send_change_to_lightning(self) -> bool:
+        # only honour the (persistent) config flag when this finalizer was set up to
+        # offer the option, so non-payment flows (channel open, sweep) never swap change
+        return (bool(self._tx_options & TxFeeSlider.TxOptions.SEND_CHANGE_TO_LIGHTNING)
+                and self._wallet.wallet.has_lightning()
+                and self._config.WALLET_SEND_CHANGE_TO_LIGHTNING)
+
     @profiler
     def make_tx(self, amount):
         self._logger.debug(f'make_tx amount={amount}')
@@ -519,7 +550,7 @@ class QETxFinalizer(TxFeeSlider, AuthMixin, SubmarineSwapMixin):
                 outputs=outputs,
                 fee_policy=self._fee_policy,
                 rbf=self._rbf,
-                send_change_to_lightning=self._config.WALLET_SEND_CHANGE_TO_LIGHTNING)
+                send_change_to_lightning=self._send_change_to_lightning())
 
         self._logger.debug('fee: %d, inputs: %d, outputs: %d' % (tx.get_fee(), len(tx.inputs()), len(tx.outputs())))
 
@@ -530,7 +561,8 @@ class QETxFinalizer(TxFeeSlider, AuthMixin, SubmarineSwapMixin):
             self._logger.debug('wallet not set, ignoring update()')
             return
 
-        if self._wallet.wallet.has_lightning() and self._config.WALLET_SEND_CHANGE_TO_LIGHTNING:
+        send_change_to_lightning = self._send_change_to_lightning()
+        if send_change_to_lightning:
             self._logger.debug('sending change to lightning')
             self.prepare_swap_transport()
 
@@ -539,7 +571,7 @@ class QETxFinalizer(TxFeeSlider, AuthMixin, SubmarineSwapMixin):
             amount = '!' if self._amount.isMax else self._amount.satsInt
             tx = self.make_tx(amount=amount)
             msg = ''
-            if self.config.WALLET_SEND_CHANGE_TO_LIGHTNING:
+            if send_change_to_lightning:
                 msg = self.swap_manager.get_message_for_swap_change(self.swap_transport, tx)
             self.swapStatusMsg = msg
 
