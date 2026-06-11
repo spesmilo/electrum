@@ -256,6 +256,9 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self.paymentFailed.emit(key, reason)
 
     def on_destroy(self):
+        if self not in QEWallet.__instances:
+            return
+        QEWallet.__instances.remove(self)
         self.unregister_callbacks()
 
     def add_tx_notification(self, tx: Transaction):
