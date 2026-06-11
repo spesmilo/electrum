@@ -1,3 +1,4 @@
+import gc
 import threading
 import traceback
 import unittest
@@ -5,7 +6,7 @@ from functools import wraps, partial
 from typing import List, Sequence
 from unittest import SkipTest
 
-from PyQt6.QtCore import QCoreApplication, QMetaObject, Qt, pyqtSlot, QObject, QEventLoop, QTimer
+from PyQt6.QtCore import QCoreApplication, QMetaObject, Qt, pyqtSlot, QObject, QEventLoop, QTimer, QEvent
 
 from electrum.util import create_and_start_event_loop
 
@@ -193,6 +194,27 @@ def qt_test(func):
             # so subclasses can destroy the QObjects they created on their owning thread.
             try:
                 self.qt_teardown()
+            except Exception as e:
+                if self._e is None:
+                    self._e = e
+            # QObject.deleteLater() merely posts a DeferredDelete event, which Qt only
+            # delivers once the event loop unwinds to the loop level at which it was
+            # posted. This test body runs *inside* app.exec() (one level deep, invoked
+            # via doInvoke), so neither returning here nor a processEvents() call (which
+            # runs at a deeper level) delivers those events. The C++ objects would then
+            # linger until some later, racy spin of the QtTestThread's loop, and with
+            # them everything they reference (e.g. a QEWallet's self.wallet). Flush them
+            # synchronously now so QObject destruction is deterministic and complete by
+            # the time the test is considered done.
+            try:
+                self.app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+                # Force a cyclic GC pass now that the QObjects are gone. The test's
+                # wallets and helpers sit in reference cycles (e.g. wallet<->txbatcher)
+                # and would otherwise survive until some later, unrelated gc.collect().
+                # Collecting here runs their EventListener.__del__, which unregisters
+                # their callbacks, so we don't pollute global state (electrum.util.
+                # callback_mgr) for the tests that run after this one.
+                gc.collect()
             except Exception as e:
                 if self._e is None:
                     self._e = e
