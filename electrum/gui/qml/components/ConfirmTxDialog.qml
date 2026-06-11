@@ -14,7 +14,6 @@ ElDialog {
     required property var satoshis  // type: Amount
     property string address
     property string message
-    property bool showOptions: true
     property alias amountLabelText: amountLabel.text
     property alias sendButtonText: sendButton.text
 
@@ -155,7 +154,7 @@ ElDialog {
                     Layout.columnSpan: 2
                     labelText: qsTr('Options')
                     color: Material.accentColor
-                    visible: showOptions
+                    visible: finalizer.txOptions
                 }
 
                 DialogHighlightPane {
@@ -171,7 +170,9 @@ ElDialog {
                         rowSpacing: 0
 
                         ElCheckBox {
+                            id: cb_multiple_change
                             Layout.fillWidth: true
+                            visible: finalizer.txOptions & TxFinalizer.TxOptions.MULTIPLE_CHANGE
                             text: qsTr('Use multiple change addresses')
                             onCheckedChanged: {
                                 if (activeFocus) {
@@ -185,13 +186,16 @@ ElDialog {
                         }
 
                         HelpButton {
+                            visible: cb_multiple_change.visible
                             heading: qsTr('Use multiple change addresses')
                             helptext: [qsTr('In some cases, use up to 3 change addresses in order to break up large coin amounts and obfuscate the recipient address.'),
                                        qsTr('This may result in higher transactions fees.')].join(' ')
                         }
 
                         ElCheckBox {
+                            id: cb_output_rounding
                             Layout.fillWidth: true
+                            visible: finalizer.txOptions & TxFinalizer.TxOptions.OUTPUT_ROUNDING
                             text: Config.shortDescFor('WALLET_COIN_CHOOSER_OUTPUT_ROUNDING')
                             onCheckedChanged: {
                                 if (activeFocus) {
@@ -205,6 +209,7 @@ ElDialog {
                         }
 
                         HelpButton {
+                            visible: cb_output_rounding.visible
                             heading: Config.shortDescFor('WALLET_COIN_CHOOSER_OUTPUT_ROUNDING')
                             helptext: Config.longDescFor('WALLET_COIN_CHOOSER_OUTPUT_ROUNDING')
                         }
@@ -212,7 +217,8 @@ ElDialog {
                         ElCheckBox {
                             id: cb_send_change_to_lightning
                             Layout.fillWidth: true
-                            visible: Daemon.currentWallet.isLightning && Daemon.currentWallet.lightningCanReceive.satsInt > 0
+                            visible: finalizer.txOptions & TxFinalizer.TxOptions.SEND_CHANGE_TO_LIGHTNING
+                                && Daemon.currentWallet.isLightning && Daemon.currentWallet.lightningCanReceive.satsInt > 0
                             text: Config.shortDescFor('WALLET_SEND_CHANGE_TO_LIGHTNING')
                             onCheckedChanged: {
                                 if (activeFocus) {
@@ -226,7 +232,7 @@ ElDialog {
                         }
 
                         HelpButton {
-                            visible: Daemon.currentWallet.isLightning && Daemon.currentWallet.lightningCanReceive.satsInt > 0
+                            visible: cb_send_change_to_lightning.visible
                             heading: Config.shortDescFor('WALLET_SEND_CHANGE_TO_LIGHTNING')
                             helptext: Config.longDescFor('WALLET_SEND_CHANGE_TO_LIGHTNING')
                         }

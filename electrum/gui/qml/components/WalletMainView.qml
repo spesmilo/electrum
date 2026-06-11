@@ -107,7 +107,6 @@ Item {
             var finalizerDialog = confirmSweepDialog.createObject(mainView, {
                 privateKeys: dialog.privateKeys,
                 message: qsTr('Sweep transaction'),
-                showOptions: false,
                 amountLabelText: qsTr('Total sweep amount'),
                 sendButtonText: Daemon.currentWallet.isWatchOnly
                     ? qsTr('Sweep...')
@@ -614,6 +613,9 @@ Item {
                 property var _swapwaitdialog
                 wallet: Daemon.currentWallet
                 canRbf: true
+                txOptions: TxFinalizer.TxOptions.MULTIPLE_CHANGE
+                    | TxFinalizer.TxOptions.OUTPUT_ROUNDING
+                    | TxFinalizer.TxOptions.SEND_CHANGE_TO_LIGHTNING
                 onFinished: (signed, saved, complete) => {
                     if (!complete) {
                         var msg
@@ -695,6 +697,7 @@ Item {
                 wallet: Daemon.currentWallet
                 canRbf: true
                 privateKeys: _confirmSweepDialog.privateKeys
+                txOptions: TxFinalizer.TxOptions.NONE
             }
 
             onClosed: destroy()
