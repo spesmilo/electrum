@@ -103,7 +103,7 @@ def satoshis(amount):
     return int(COIN*to_decimal(amount)) if amount is not None else None
 
 
-def format_satoshis(x: Union[float, int, Decimal, None]) -> Optional[str]:
+def format_satoshis(x: Union[int, Decimal, None]) -> Optional[str]:
     """
     input: satoshis as a Number
     output: str formatted as bitcoin amount
