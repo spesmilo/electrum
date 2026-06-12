@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Dict, Any
 
-from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QMetaObject
 from PyQt6.QtCore import Qt, QAbstractListModel, QModelIndex
 
 from electrum.logging import get_logger
@@ -27,8 +27,6 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
     _ROLE_RMAP = dict(zip(_ROLE_NAMES, _ROLE_KEYS))
 
-    requestRefresh = pyqtSignal()
-
     def __init__(self, wallet: 'Abstract_Wallet', parent=None, *, onchain_domain=None, include_lightning=True):
         super().__init__(parent)
         self.wallet = wallet
@@ -38,8 +36,7 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
         self.tx_history = []
 
         self.register_callbacks()
-        self.destroyed.connect(lambda: self.on_destroy())
-        self.requestRefresh.connect(lambda: self.initModel())
+        self.destroyed.connect(self.on_destroy)
 
         self._dirty = True
         self.initModel()
@@ -86,6 +83,10 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
     def on_event_labels_received(self, wallet, labels):
         if wallet == self.wallet:
             self.initModel(True)  # TODO: be less dramatic
+
+    def requestRefresh(self):
+        # ensure execute on qt thread
+        QMetaObject.invokeMethod(self, 'initModel', Qt.ConnectionType.QueuedConnection)
 
     def rowCount(self, index):
         return len(self.tx_history)

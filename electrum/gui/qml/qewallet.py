@@ -3,7 +3,7 @@ import base64
 import queue
 import threading
 import time
-from typing import TYPE_CHECKING, Callable, Optional, Any, Tuple
+from typing import TYPE_CHECKING, Callable, Optional, Tuple
 from functools import partial
 
 from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer
@@ -132,9 +132,14 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         # window from being GC-ed when closed, callbacks should be
         # methods of this class only, and specifically not be
         # partials, lambdas or methods of subobjects.  Hence...
-
         self.register_callbacks()
-        self.destroyed.connect(lambda: self.on_destroy())
+
+        # NOTE: keep a handle to this connection so on_destroy() can break it.
+        # The lambda closes over "self", so PyQt -- which holds the connected
+        # slot alive -- keeps this QEWallet (and via self.wallet etc. everything
+        # it references) alive even after the underlying C++ object is deleted,
+        # leaking the wallet. on_destroy() disconnects it to break that cycle.
+        self._destroyed_connection = self.destroyed.connect(lambda: self.on_destroy())
         self.synchronizing = not wallet.is_up_to_date()
 
     synchronizingChanged = pyqtSignal()
@@ -260,6 +265,21 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             return
         QEWallet.__instances.remove(self)
         self.unregister_callbacks()
+
+        # break the self-referencing connection set up in __init__, otherwise
+        # PyQt keeps this wrapper (and self.wallet) alive after C++ destruction.
+        # safe to call even while running inside the destroyed signal.
+        try:
+            self.destroyed.disconnect(self._destroyed_connection)
+        except (TypeError, RuntimeError):
+            pass
+
+        # tear down the list models we own.
+        for model in (self._historyModel, self._addressCoinModel, self._requestModel,
+                      self._invoiceModel, self._channelModel):
+            if model is None:
+                continue
+            model.on_destroy()
 
     def add_tx_notification(self, tx: Transaction):
         self._logger.debug('new transaction event')
@@ -527,21 +547,21 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
     @auth_protect(message=_('Sign and send on-chain transaction?'))
     def sign_and_broadcast(self, tx, *,
-                           on_success: Callable[[Transaction], None] = None,
-                           on_failure: Callable[[Optional[Any]], None] = None) -> None:
+                           on_success: Callable[[], None] = None,
+                           on_failure: Callable[[str], None] = None) -> None:
         self.do_sign(tx, True, on_success, on_failure)
 
     @auth_protect(message=_('Sign on-chain transaction?'))
     def sign(self, tx, *,
-             on_success: Callable[[Transaction], None] = None,
-             on_failure: Callable[[Optional[Any]], None] = None) -> None:
+             on_success: Callable[[], None] = None,
+             on_failure: Callable[[str], None] = None) -> None:
         self.do_sign(tx, False, on_success, on_failure)
 
-    def do_sign(self, tx, broadcast, on_success: Callable[[Transaction], None] = None, on_failure: Callable[[Optional[Any]], None] = None):
+    def do_sign(self, tx, broadcast, on_success: Callable[[], None] = None, on_failure: Callable[[str], None] = None):
         # tc_sign_wrapper is only used by 2fa. don't pass on_failure handler, it is handled via otpFailed signal
         sign_hook = run_hook('tc_sign_wrapper', self.wallet, tx,
-                             partial(self.on_sign_complete, broadcast, on_success),
-                             partial(self.on_sign_failed, None))
+                             partial(self.on_tc_sign_complete, broadcast, on_success),
+                             partial(self.on_tc_sign_failed, None))
         try:
             # ignore_warnings=True, because UI checks and asks user confirmation itself
             tx = self.wallet.sign_transaction(tx, self.password, ignore_warnings=True)
@@ -554,7 +574,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         if tx is None:
             self._logger.info('did not sign')
             if on_failure:
-                on_failure()
+                on_failure(_('Could not sign'))
             return
 
         if sign_hook:
@@ -576,18 +596,18 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self.historyModel.initModel(True)
 
         if on_success:
-            on_success(tx)
+            on_success()
 
-    # this assumes a 2fa wallet, but there are no other tc_sign_wrapper hooks, so that's ok
-    def on_sign_complete(self, broadcast, cb: Callable[[Transaction], None] = None, tx: Transaction = None):
+    # trustedcoin tc_sign_wrapper
+    def on_tc_sign_complete(self, broadcast, cb: Callable[[], None] = None, tx: Transaction = None):
         self.otpSuccess.emit()
         if cb:
-            cb(tx)
+            cb()
         if broadcast:
             self.broadcast(tx)
 
-    # this assumes a 2fa wallet, but there are no other tc_sign_wrapper hooks, so that's ok
-    def on_sign_failed(self, cb: Callable[[], None] = None, error: str = None):
+    # trustedcoin tc_sign_wrapper
+    def on_tc_sign_failed(self, cb: Callable[[], None] = None, error: str = None):
         self.otpFailed.emit('error', error)
         if cb:
             cb()
@@ -602,7 +622,13 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self._otp_on_submit(otp)
         threading.Thread(target=submit_otp_task, daemon=True).start()
 
-    def broadcast(self, tx):
+    def broadcast(
+        self,
+        tx,
+        *,
+        on_success: Callable[[], None] = None,
+        on_failure: Callable[[str], None] = None
+    ):
         assert tx.is_complete()
 
         async def broadcast_coro():
@@ -613,15 +639,24 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             except TxBroadcastError as e:
                 self._logger.error(repr(e))
                 self.broadcastFailed.emit(tx.txid(), '', e.get_message_for_gui())
+                if on_failure:
+                    on_failure(e.get_message_for_gui())
             except BestEffortRequestFailed as e:
                 self._logger.error(repr(e))
                 self.broadcastFailed.emit(tx.txid(), '', repr(e))
-            except Exception:
+                if on_failure:
+                    on_failure(repr(e))
+            except Exception as e:
                 self._logger.exception("failed to broadcast tx")
+                self.broadcastFailed.emit(tx.txid(), '', repr(e))
+                if on_failure:
+                    on_failure(repr(e))
             else:
-                self._logger.info('broadcast success')
                 self.broadcastSucceeded.emit(tx.txid())
-                self.historyModel.requestRefresh.emit()  # via qt thread
+                if self._historyModel:
+                    self._historyModel.requestRefresh()
+                if on_success:
+                    on_success()
             finally:
                 self.wallet.set_broadcasting(tx, broadcasting_status=None)
 

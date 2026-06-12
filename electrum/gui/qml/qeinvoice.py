@@ -79,7 +79,7 @@ class QEInvoice(QObject, QtEventListener):
         self._updating_max = False
 
         self.register_callbacks()
-        self.destroyed.connect(lambda: self.on_destroy())
+        self.destroyed.connect(self.on_destroy)
 
     def on_destroy(self):
         self.unregister_callbacks()
