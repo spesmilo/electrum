@@ -185,7 +185,7 @@ class QEInvoiceListModel(QEAbstractInvoiceListModel, QtEventListener):
     def __init__(self, wallet, parent=None):
         super().__init__(wallet, parent)
         self.register_callbacks()
-        self.destroyed.connect(lambda: self.on_destroy())
+        self.destroyed.connect(self.on_destroy)
 
     _logger = get_logger(__name__)
 
@@ -220,7 +220,7 @@ class QERequestListModel(QEAbstractInvoiceListModel, QtEventListener):
     def __init__(self, wallet, parent=None):
         super().__init__(wallet, parent)
         self.register_callbacks()
-        self.destroyed.connect(lambda: self.on_destroy())
+        self.destroyed.connect(self.on_destroy)
 
     _logger = get_logger(__name__)
 
