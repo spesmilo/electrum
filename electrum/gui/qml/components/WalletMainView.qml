@@ -238,6 +238,18 @@ Item {
             }
         }
 
+        MenuItem {
+            icon.color: action.enabled ? 'transparent' : Material.iconDisabledColor
+            icon.source: '../../icons/tab_console.png'
+            visible: Config.showConsole
+            height: visible ? implicitHeight : 0
+            action: Action {
+                text: qsTr('Console')
+                enabled: Config.showConsole && app.stack.currentItem.objectName != 'Console'
+                onTriggered: menu.openPage(Qt.resolvedUrl('Console.qml'))
+            }
+        }
+
         MenuSeparator { }
 
         MenuItem {
