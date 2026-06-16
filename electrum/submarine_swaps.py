@@ -259,13 +259,14 @@ class SwapManager(Logger):
 
         # note: accessing swaps dicts (besides simple lookup) needs swaps_lock
         self.swaps_lock = threading.Lock()
-        self._swaps = self.wallet.db.get_dict('submarine_swaps')  # type: Dict[str, SwapData]
+        swaps = self.wallet.db.get_dict('submarine_swaps')  # type: Dict[str, SwapData]
+        self._swaps = {} # cached values
         self._swaps_by_funding_outpoint = {}  # type: Dict[TxOutpoint, SwapData]
         self._swaps_by_lockup_address = {}  # type: Dict[str, SwapData]
-        for payment_hash_hex, swap in self._swaps.items():
+        for payment_hash_hex, swap in swaps.items():
             payment_hash = bytes.fromhex(payment_hash_hex)
             swap._payment_hash = payment_hash
-            self._add_or_reindex_swap(swap, is_new=False)
+            self._reindex_swap(swap.payment_hash, swap)
             if not swap.is_reverse and not swap.is_redeemed and not self.lnworker.get_preimage(swap.payment_hash):
                 self.lnworker.register_hold_invoice(payment_hash, self.hold_invoice_callback)
 
@@ -480,8 +481,10 @@ class SwapManager(Logger):
         self.lnwatcher.remove_callback(swap.lockup_address)
         if not swap.is_funded():
             with self.swaps_lock:
-                if self._swaps.pop(swap.payment_hash.hex(), None) is None:
+                swaps = self.wallet.db.get_dict('submarine_swaps')
+                if swaps.pop(swap.payment_hash.hex(), None) is None:
                     self.logger.debug(f"swap {swap.payment_hash.hex()} has already been deleted.")
+                self._swaps.pop(swap.payment_hash.hex(), None)
                 if swap._funding_prevout is not None:
                     self._swaps_by_funding_outpoint.pop(swap._funding_prevout, None)
                 self._swaps_by_lockup_address.pop(swap.lockup_address, None)
@@ -535,7 +538,7 @@ class SwapManager(Logger):
             # note: swap.funding_txid can change due to RBF, it will get updated here:
             swap.funding_txid = txin.prevout.txid.hex()
             swap._funding_prevout = txin.prevout
-            self._add_or_reindex_swap(swap, is_new=False)  # to update _swaps_by_funding_outpoint
+            self._reindex_swap(swap.payment_hash, swap)  # to update _swaps_by_funding_outpoint
             funding_height = self.lnwatcher.adb.get_tx_height(txin.prevout.txid.hex())
             spent_height = txin.spent_height
             # set spending_txid (even if tx is local), for GUI grouping
@@ -820,8 +823,7 @@ class SwapManager(Logger):
             funding_txid=None,
             spending_txid=None,
         )
-        swap._payment_hash = payment_hash
-        self._add_or_reindex_swap(swap, is_new=True)
+        self._add_swap(payment_hash, swap)
         self.add_lnwatcher_callback(swap)
         return swap, invoice, prepay_invoice
 
@@ -896,8 +898,7 @@ class SwapManager(Logger):
             if prepay_hash in self._prepayments:
                 raise Exception("prepay_hash already in use")
             self._prepayments[prepay_hash] = payment_hash
-        swap._payment_hash = payment_hash
-        self._add_or_reindex_swap(swap, is_new=True)
+        self._add_swap(payment_hash, swap)
         self.add_lnwatcher_callback(swap)
         return swap
 
@@ -1260,11 +1261,21 @@ class SwapManager(Logger):
         await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
         return swap.funding_txid
 
-    def _add_or_reindex_swap(self, swap: SwapData, *, is_new: bool) -> None:
+    def _add_swap(self, payment_hash: bytes, swap: SwapData):
+        # add swap to storage
+        swaps = self.wallet.db.get_dict('submarine_swaps')
+        key = payment_hash.hex()
+        assert key not in swaps
+        swaps[key] = swap
+        # set _payment_hash and reindex
+        swap._payment_hash = payment_hash
+        self._reindex_swap(payment_hash, swap)
+
+    def _reindex_swap(self, payment_hash: bytes, swap: SwapData) -> None:
         with self.swaps_lock:
-            assert is_new == (swap.payment_hash.hex() not in self._swaps), is_new
-            if swap.payment_hash.hex() not in self._swaps:
-                self._swaps[swap.payment_hash.hex()] = swap
+            key = payment_hash.hex()
+            if key not in self._swaps:
+                self._swaps[key] = swap
             if swap._funding_prevout:
                 self._swaps_by_funding_outpoint[swap._funding_prevout] = swap
             self._swaps_by_lockup_address[swap.lockup_address] = swap
