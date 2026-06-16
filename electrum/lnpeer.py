@@ -1178,7 +1178,13 @@ class Peer(Logger, EventListener):
             funding_txn_minimum_depth=funding_txn_minimum_depth
         )
         storage = self.create_channel_storage(
-            channel_id, outpoint, local_config, remote_config, constraints, our_channel_type)
+            channel_id=channel_id,
+            outpoint=outpoint,
+            local_config=local_config,
+            remote_config=remote_config,
+            constraints=constraints,
+            channel_type=our_channel_type,
+        )
         # temporary channel object, not stored (storage is a dict)
         temp_chan = Channel(
             storage,
@@ -1217,7 +1223,15 @@ class Peer(Logger, EventListener):
             self.send_channel_ready(chan)
         return chan, funding_tx
 
-    def create_channel_storage(self, channel_id, outpoint, local_config, remote_config, constraints, channel_type):
+    def create_channel_storage(
+        self, *,
+        channel_id: bytes,
+        outpoint: Outpoint,
+        local_config: LocalConfig,
+        remote_config: RemoteConfig,
+        constraints: ChannelConstraints,
+        channel_type: ChannelType,
+    ) -> dict:
         chan_dict = {
             "node_id": self.pubkey.hex(),
             "channel_id": channel_id.hex(),
@@ -1406,7 +1420,13 @@ class Peer(Logger, EventListener):
         )
         outpoint = Outpoint(funding_txid, funding_idx)
         chan_dict = self.create_channel_storage(
-            channel_id, outpoint, local_config, remote_config, constraints, channel_type)
+            channel_id=channel_id,
+            outpoint=outpoint,
+            local_config=local_config,
+            remote_config=remote_config,
+            constraints=constraints,
+            channel_type=channel_type,
+        )
         # temporary channel object, not stored (storage is a dict)
         temp_chan = Channel(
             chan_dict,

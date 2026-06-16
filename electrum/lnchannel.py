@@ -778,7 +778,7 @@ class Channel(AbstractChannel):
 
     def __init__(
         self,
-        state: 'StoredDict', *,
+        state: 'StoredDict | dict', *,
         name=None,
         lnworker: 'LNWallet',
         initial_feerate=None,
@@ -792,6 +792,7 @@ class Channel(AbstractChannel):
         self.lnworker = lnworker
         self.storage = state
         self.db_lock = threading.RLock() if type(self.storage) is dict else self.storage.lock
+        assert self.db_lock
         self.config = {}
         self.config[LOCAL] = state["local_config"]
         self.config[REMOTE] = state["remote_config"]

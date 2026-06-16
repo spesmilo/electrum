@@ -91,6 +91,7 @@ from .trampoline import (
     create_trampoline_route_and_onion, is_legacy_relay, trampolines_by_id, hardcoded_trampoline_nodes,
     is_hardcoded_trampoline, decode_routing_info, encode_next_trampolines, decode_next_trampolines
 )
+from .stored_dict import StoredDict
 
 if TYPE_CHECKING:
     from .network import Network
@@ -1661,21 +1662,24 @@ class LNWallet(Logger):
             self._channels[chan.channel_id] = chan
         self.lnwatcher.add_channel(chan)
 
-    def add_new_channel(self, chan: Channel):
-        # delete the old channel object, becauses it uses a dict
-        assert type(chan.storage) is dict
-        channel_id = chan.channel_id.hex()
+    def add_new_channel(self, temp_chan: Channel) -> Channel:
+        """Add a new channel into the persisted DB.
+        Deletes the given temporary channel object, because it uses a simple dict.
+        """
+        assert type(temp_chan.storage) is dict
+        channel_id = temp_chan.channel_id.hex()
         channels_db = self.db.get_dict('channels')
-        channels_db[channel_id] = chan.storage
-        jit_opening_fee = chan.jit_opening_fee
-        peer_state = chan.peer_state
-        del chan
+        channels_db[channel_id] = temp_chan.storage
+        jit_opening_fee = temp_chan.jit_opening_fee
+        peer_state = temp_chan.peer_state
+        del temp_chan
         storage = channels_db[channel_id] # StoredDict
         chan = Channel(
             storage,
             lnworker=self,
             jit_opening_fee=jit_opening_fee,
         )
+        assert type(chan.storage) is StoredDict, type(chan.storage)
         chan.peer_state = peer_state
         self.add_channel(chan)
         self.wallet.set_reserved_addresses_for_chan(chan, reserved=True)
