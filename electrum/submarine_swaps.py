@@ -61,6 +61,17 @@ if TYPE_CHECKING:
 
 
 SWAP_TX_SIZE = 150  # default tx size, used for mining fee estimation
+# ^ used for both swap directions. TODO if we had asymmetric fees, the base fee should also be asymmetric.
+# - client-forward-swap: needs to cover server paying for claim_tx
+# - client-reverse-swap: 2x of this needs to cover server paying for funding_tx + potential timeout refund tx
+#                        (Hence 2x is used for prepayment. But only 1x is added to overall total,
+#                         as in the happy case, the server only needs to pay for the funding_tx,
+#                         and the user pays for the claim_tx out-of-pocket.)
+# This is the budget tx_batcher will have to fund/claim/timeout TXOs, however tx_batcher
+# will independently re-estimate tx sizes instead of using this constant. If tx_batcher e.g. creates
+# a large tx consolidating many UTXOs or claiming/funding multiple swaps, it can end up paying more
+# on-chain fees than the nostr-advertised base mining fees. In some cases swap profits can go negative
+# for a server for a given swap (high mempool feerates AND low swap value AND tx_batcher creates tx with many inputs).
 
 MIN_SWAP_AMOUNT_SAT = 20_000
 MIN_LOCKTIME_DELTA = 60
