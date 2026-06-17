@@ -1,12 +1,13 @@
 import io
+import os
 
 from electrum.lnmsg import (read_bigsize_int, write_bigsize_int, FieldEncodingNotMinimal,
                             UnexpectedEndOfStream, LNSerializer, UnknownMandatoryTLVRecordType,
                             MalformedMsg, MsgTrailingGarbage, MsgInvalidFieldOrder, encode_msg,
                             decode_msg, UnexpectedFieldSizeForEncoder, OnionWireSerializer,
-                            UnknownMsgType)
+                            UnknownMsgType, _tlv_merkle_root, _read_tlv_record)
 from electrum.lnonion import OnionRoutingFailure
-from electrum.util import bfh
+from electrum.util import bfh, read_json_file
 from electrum.lnutil import ShortChannelID, LnFeatures
 from electrum.channel_db import NodeInfo
 from electrum import constants
@@ -116,9 +117,8 @@ class TestLNMsg(ElectrumTestCase):
             lnser.read_tlv_stream(fd=io.BytesIO(bfh("0329023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb0000000000000001")), tlv_stream_name="n1")
         with self.assertRaises(UnexpectedEndOfStream):
             lnser.read_tlv_stream(fd=io.BytesIO(bfh("0330023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb000000000000000100000000000001")), tlv_stream_name="n1")
-        # check if ECC point is valid?... skip for now.
-        #with self.assertRaises(Exception):
-        #    lnser.read_tlv_stream(fd=io.BytesIO(bfh("0331043da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb00000000000000010000000000000002")), tlv_stream_name="n1")
+        with self.assertRaises(MalformedMsg):  # check if ECC point is valid
+           lnser.read_tlv_stream(fd=io.BytesIO(bfh("0331043da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb00000000000000010000000000000002")), tlv_stream_name="n1")
         with self.assertRaises(MsgTrailingGarbage):
             lnser.read_tlv_stream(fd=io.BytesIO(bfh("0332023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb0000000000000001000000000000000001")), tlv_stream_name="n1")
         with self.assertRaises(UnexpectedEndOfStream):
@@ -413,3 +413,26 @@ class TestLNMsg(ElectrumTestCase):
             self.assertEqual(paf(taf(host, port)), [(host, port)])
         for input_, output in valid_inputs_with_defined_output:
             self.assertEqual(paf(taf(*input_)), output)
+
+    def test_bolt12_merkle_root_test_vectors(self):
+        """Tests against the test vector file from the bolts repository."""
+        test_vector_file = os.path.join(os.path.dirname(__file__), "bolt12-signature-test.json")
+        vectors = read_json_file(test_vector_file)
+        leaf_key_prefix = "H(`LnLeaf`,"
+
+        def _extract_tlvs(vector):
+            tlvs = []
+            for leaf in vector["leaves"]:
+                leaf_tlv_hex = next(  # "H(`LnLeaf`,010203e8)" <- extract the tlv hex
+                    k[len(leaf_key_prefix):-1] for k in leaf if k.startswith(leaf_key_prefix)
+                )
+                tlv_bytes = bfh(leaf_tlv_hex)
+                tlv_type, _, _ = _read_tlv_record(fd=io.BytesIO(tlv_bytes))
+                tlvs.append((tlv_type, tlv_bytes))
+            return tlvs
+
+        for vector in vectors:
+            with self.subTest(comment=vector["comment"]):
+                tlvs = _extract_tlvs(vector)
+                merkle_root = _tlv_merkle_root(tlvs)
+                self.assertEqual(vector["merkle"], merkle_root.hex())
