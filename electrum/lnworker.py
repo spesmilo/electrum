@@ -3734,12 +3734,20 @@ class LNWallet(Logger):
         to have lightning channels.  Since these wallets do not have
         private keys, we use their master public key to encrypt
         channel backups. This allows users to import channel backups
-        in these wallets. Note that these are static backups: they
-        only allow to request a force close (and, in some scenarios,
-        to sweep funds after a channel has been force closed).
+        in these wallets.
 
         The creation of lightning channels in watching-only wallets
         has been disabled for anchor channels.
+
+        Note that these are static backups: they
+        only allow requesting a force close (and, in some scenarios,
+        sweeping funds after a channel has been force closed).
+        The LN node privkey is also contained (needed to establish a BOLT-08 transport with
+        the counterparty and request the force-close).
+
+        This makes the xpub somewhat sensitive: having *both* the wallet xpub
+        and an encrypted-channel-backup allows the above actions.
+        TODO instead of xpub, encrypt with a secret derived from the seed along a dedicated hardened path?
         """
         xpub = self.wallet.get_fingerprint()
         backup_bytes = self.create_channel_backup(channel_id).to_bytes()
