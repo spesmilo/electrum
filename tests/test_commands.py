@@ -11,7 +11,7 @@ import shutil
 import electrum
 from electrum.commands import Commands, eval_bool
 from electrum import storage, wallet
-from electrum.lnutil import RECEIVED
+from electrum.lnutil import RECEIVED, channel_id_from_funding_tx
 from electrum.lnworker import RecvMPPResolution
 from electrum.wallet import Abstract_Wallet
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
@@ -768,3 +768,95 @@ class TestCommandsTestnet(ElectrumTestCase):
         result = await cmds.add_peer(connection_string=connection_string, wallet=w)
         assert called == 2
         self.assertTrue(result)
+
+    # arbitrary funding outpoint
+    _CHANNEL_POINT = 'ede61d39e501d65ccf34e6300da439419c43393f793bb9a8a4b06b2d0d80a8a0:0'
+
+    @staticmethod
+    def _mock_channel(*, is_backup: bool, can_be_deleted: bool) -> mock.Mock:
+        chan = mock.Mock()
+        chan.is_backup.return_value = is_backup
+        chan.can_be_deleted.return_value = can_be_deleted
+        return chan
+
+    @staticmethod
+    def mock_lnworker(w, channels=None, channel_backups=None):
+        w.lnworker = mock.Mock()
+        w.lnworker.channels = channels if channels else {}
+        w.lnworker.channel_backups = channel_backups if channel_backups else {}
+
+    @classmethod
+    def _chan_id_for(cls, channel_point: str) -> bytes:
+        txid, index = channel_point.split(':')
+        chan_id, _ = channel_id_from_funding_tx(txid, int(index))
+        return chan_id
+
+    async def test_delete_channel(self):
+        w = restore_wallet_from_text__for_unittest(
+            'disagree rug lemon bean unaware square alone beach tennis exhibit fix mimic',
+            path=None,
+            config=self.config)['wallet']
+        cmds = Commands(config=self.config)
+
+        # no such channel
+        self.mock_lnworker(w)
+
+        with self.assertRaises(UserFacingException):
+            result = await cmds.delete_channel(self._CHANNEL_POINT, wallet=w)
+
+        # can't delete
+        chan_id = self._chan_id_for(self._CHANNEL_POINT)
+        chan = self._mock_channel(is_backup=False, can_be_deleted=False)
+        self.mock_lnworker(w, {chan_id: chan})
+        with self.assertRaises(UserFacingException):
+            result = await cmds.delete_channel(self._CHANNEL_POINT, wallet=w)
+
+        # is backup
+        chan_id = self._chan_id_for(self._CHANNEL_POINT)
+        chan = self._mock_channel(is_backup=True, can_be_deleted=True)
+        self.mock_lnworker(w, {chan_id: chan})
+        with self.assertRaises(UserFacingException):
+            result = await cmds.delete_channel(self._CHANNEL_POINT, wallet=w)
+
+        chan_id = self._chan_id_for(self._CHANNEL_POINT)
+        chan = self._mock_channel(is_backup=False, can_be_deleted=True)
+
+        self.mock_lnworker(w, {chan_id: chan})
+        result = await cmds.delete_channel(self._CHANNEL_POINT, wallet=w)
+        self.assertIsNone(result)
+        w.lnworker.remove_channel.assert_called_once_with(chan_id)
+
+    async def test_delete_channel_backup(self):
+        w = restore_wallet_from_text__for_unittest(
+            'disagree rug lemon bean unaware square alone beach tennis exhibit fix mimic',
+            path=None,
+            config=self.config)['wallet']
+        cmds = Commands(config=self.config)
+
+        # no such channel
+        self.mock_lnworker(w)
+
+        with self.assertRaises(UserFacingException):
+            result = await cmds.delete_channel_backup(self._CHANNEL_POINT, wallet=w)
+
+        # can't delete
+        chan_id = self._chan_id_for(self._CHANNEL_POINT)
+        chan = self._mock_channel(is_backup=True, can_be_deleted=False)
+        self.mock_lnworker(w, None, {chan_id: chan})
+        with self.assertRaises(UserFacingException):
+            result = await cmds.delete_channel_backup(self._CHANNEL_POINT, wallet=w)
+
+        # is not backup
+        chan_id = self._chan_id_for(self._CHANNEL_POINT)
+        chan = self._mock_channel(is_backup=False, can_be_deleted=True)
+        self.mock_lnworker(w, None, {chan_id: chan})
+        with self.assertRaises(UserFacingException):
+            result = await cmds.delete_channel_backup(self._CHANNEL_POINT, wallet=w)
+
+        chan_id = self._chan_id_for(self._CHANNEL_POINT)
+        chan = self._mock_channel(is_backup=True, can_be_deleted=True)
+
+        self.mock_lnworker(w, None, {chan_id: chan})
+        result = await cmds.delete_channel_backup(self._CHANNEL_POINT, wallet=w)
+        self.assertIsNone(result)
+        w.lnworker.remove_channel_backup.assert_called_once_with(chan_id)
