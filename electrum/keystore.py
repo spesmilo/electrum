@@ -1,6 +1,3 @@
-#!/usr/bin/env python2
-# -*- mode: python -*-
-#
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2016  The Electrum developers
 #
