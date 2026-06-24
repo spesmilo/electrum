@@ -152,6 +152,19 @@ class QEDaemon(AuthMixin, QObject):
     walletDeleteError = pyqtSignal([str, str], arguments=['code', 'message'])
     walletRenameError = pyqtSignal([str], arguments=['message'])
 
+    __qewallet_instances = []
+
+    # this factory method should be used to instantiate QEWallet
+    # so we have only one QEWallet for each electrum.wallet
+    @classmethod
+    def getQEWalletInstanceFor(cls, wallet):
+        for i in cls.__qewallet_instances:
+            if i.wallet == wallet:
+                return i
+        i = QEWallet(wallet, QEDaemon.instance)
+        cls.__qewallet_instances.append(i)
+        return i
+
     def __init__(self, daemon: 'Daemon', plugins: 'Plugins', parent=None):
         super().__init__(parent)
         if QEDaemon.instance:
@@ -205,7 +218,7 @@ class QEDaemon(AuthMixin, QObject):
 
         wallet_already_open = self.daemon.get_wallet(self._path)
         if wallet_already_open is not None:
-            password = QEWallet.getInstanceFor(wallet_already_open).password
+            password = QEDaemon.getQEWalletInstanceFor(wallet_already_open).password
 
         def load_wallet_task():
             success = False
@@ -267,7 +280,7 @@ class QEDaemon(AuthMixin, QObject):
         self._logger.debug('_on_backend_wallet_loaded')
         wallet = self.daemon.get_wallet(self._path)
         assert wallet is not None
-        self._current_wallet = QEWallet.getInstanceFor(wallet)
+        self._current_wallet = QEDaemon.getQEWalletInstanceFor(wallet)
         self.availableWallets.updateWallet(self._path)
         wallet.unlock(password or None)  # not conditional on wallet.requires_unlock in qml, as
         # the auth wrapper doesn't pass the entered password, but instead we rely on the password in memory
@@ -301,9 +314,7 @@ class QEDaemon(AuthMixin, QObject):
     def delete_wallet(self, wallet):
         path = standardize_path(wallet.wallet.storage.get_path())
         self._logger.debug('deleting wallet with path %s' % path)
-        self._current_wallet = None
-        # TODO walletLoaded signal is confusing
-        self.walletLoaded.emit(None, None)
+        self.unloadWallet(wallet)
 
         if not self.daemon.delete_wallet(path):
             self.walletDeleteError.emit('error', _('Problem deleting wallet'))
@@ -349,13 +360,24 @@ class QEDaemon(AuthMixin, QObject):
         new_path = standardize_path(os.path.join(wallet_dir, new_name))
         if old_path == new_path:
             return
-        self._current_wallet = None
-        self.daemon.stop_wallet(old_path)
+        self.unloadWallet(wallet)
         try:
             self.daemon.rename_wallet_file(old_path, new_path)
         except Exception as e:
             self.walletRenameError.emit(_('Error renaming wallet:\n') + str(e))
-        self.walletLoaded.emit(None, None)
+
+    # @pyqtSlot()
+    # TODO: make slot once the GUI/backend properly handles not ending up in a no wallet loaded scenario
+    def unloadWallet(self, wallet: QEWallet):
+        if wallet:
+            wallet_path = standardize_path(wallet.wallet.storage.get_path())
+            self.daemon.stop_wallet(wallet_path)
+            QEDaemon.__qewallet_instances.remove(wallet)
+            if wallet == self._current_wallet:
+                self._current_wallet = None
+                # TODO walletLoaded signal is confusing
+                self.walletLoaded.emit(None, None)
+            wallet.deleteLater()
 
     @pyqtProperty(bool, notify=loadingChanged)
     def loading(self):

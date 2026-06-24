@@ -37,19 +37,6 @@ if TYPE_CHECKING:
 
 
 class QEWallet(AuthMixin, QObject, QtEventListener):
-    __instances = []
-
-    # this factory method should be used to instantiate QEWallet
-    # so we have only one QEWallet for each electrum.wallet
-    @classmethod
-    def getInstanceFor(cls, wallet):
-        for i in cls.__instances:
-            if i.wallet == wallet:
-                return i
-        i = QEWallet(wallet)
-        cls.__instances.append(i)
-        return i
-
     _logger = get_logger(__name__)
 
     # emitted when wallet wants to display a user notification
@@ -125,21 +112,13 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         self.sync_progress_timer.setInterval(2000)
         self.sync_progress_timer.timeout.connect(self.update_sync_progress)
 
-        # post-construction init in GUI thread
-        # QMetaObject.invokeMethod(self, 'qt_init', Qt.QueuedConnection)
-
         # To avoid leaking references to "self" that prevent the
         # window from being GC-ed when closed, callbacks should be
         # methods of this class only, and specifically not be
         # partials, lambdas or methods of subobjects.  Hence...
         self.register_callbacks()
 
-        # NOTE: keep a handle to this connection so on_destroy() can break it.
-        # The lambda closes over "self", so PyQt -- which holds the connected
-        # slot alive -- keeps this QEWallet (and via self.wallet etc. everything
-        # it references) alive even after the underlying C++ object is deleted,
-        # leaking the wallet. on_destroy() disconnects it to break that cycle.
-        self._destroyed_connection = self.destroyed.connect(lambda: self.on_destroy())
+        self.destroyed.connect(self.on_destroy)
         self.synchronizing = not wallet.is_up_to_date()
 
     synchronizingChanged = pyqtSignal()
@@ -261,25 +240,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self.paymentFailed.emit(key, reason)
 
     def on_destroy(self):
-        if self not in QEWallet.__instances:
-            return
-        QEWallet.__instances.remove(self)
         self.unregister_callbacks()
-
-        # break the self-referencing connection set up in __init__, otherwise
-        # PyQt keeps this wrapper (and self.wallet) alive after C++ destruction.
-        # safe to call even while running inside the destroyed signal.
-        try:
-            self.destroyed.disconnect(self._destroyed_connection)
-        except (TypeError, RuntimeError):
-            pass
-
-        # tear down the list models we own.
-        for model in (self._historyModel, self._addressCoinModel, self._requestModel,
-                      self._invoiceModel, self._channelModel):
-            if model is None:
-                continue
-            model.on_destroy()
 
     def add_tx_notification(self, tx: Transaction):
         self._logger.debug('new transaction event')
@@ -321,35 +282,35 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     @pyqtProperty(QETransactionListModel, notify=historyModelChanged)
     def historyModel(self):
         if self._historyModel is None:
-            self._historyModel = QETransactionListModel(self.wallet)
+            self._historyModel = QETransactionListModel(self.wallet, parent=self)
         return self._historyModel
 
     addressCoinModelChanged = pyqtSignal()
     @pyqtProperty(QEAddressCoinListModel, notify=addressCoinModelChanged)
     def addressCoinModel(self):
         if self._addressCoinModel is None:
-            self._addressCoinModel = QEAddressCoinListModel(self.wallet)
+            self._addressCoinModel = QEAddressCoinListModel(self.wallet, parent=self)
         return self._addressCoinModel
 
     requestModelChanged = pyqtSignal()
     @pyqtProperty(QERequestListModel, notify=requestModelChanged)
     def requestModel(self):
         if self._requestModel is None:
-            self._requestModel = QERequestListModel(self.wallet)
+            self._requestModel = QERequestListModel(self.wallet, parent=self)
         return self._requestModel
 
     invoiceModelChanged = pyqtSignal()
     @pyqtProperty(QEInvoiceListModel, notify=invoiceModelChanged)
     def invoiceModel(self):
         if self._invoiceModel is None:
-            self._invoiceModel = QEInvoiceListModel(self.wallet)
+            self._invoiceModel = QEInvoiceListModel(self.wallet, parent=self)
         return self._invoiceModel
 
     channelModelChanged = pyqtSignal()
     @pyqtProperty(QEChannelListModel, notify=channelModelChanged)
     def channelModel(self):
         if self._channelModel is None:
-            self._channelModel = QEChannelListModel(self.wallet)
+            self._channelModel = QEChannelListModel(self.wallet, parent=self)
         return self._channelModel
 
     nameChanged = pyqtSignal()
