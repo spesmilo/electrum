@@ -266,16 +266,17 @@ class TestStorage(ElectrumTestCase):
         storage = DictStorage(self.path)
         storage['a'] = {'b': {'c': 0}}
         storage.write()
+        storage.close()
+        storage = DictStorage(self.path, allow_partial_writes=True)  # reopen, so that later writes are appended
         a = storage.get('a')
         b = a['b']
-        self.assertEqual(type(b), StoredDict)
+        self.assertEqual(b['c'], 0)  # read through b, so that its hint is cached
         b2 = a.pop('b')
         self.assertEqual(type(b2), dict)
-        # replace item. this must not been written to db
         with self.assertRaises(KeyError):
             b['c'] = 42
         storage.write()
         storage.close()
         storage = DictStorage(self.path)
-        self.assertEqual(storage.dump(), {'a':{}})
+        self.assertEqual(storage.dump(), {'a': {}})
 

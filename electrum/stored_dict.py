@@ -139,6 +139,13 @@ class BaseDB(Logger, ABC):
     scalars, or dict/list/tuple/set containers of them. How they are serialized is up to
     the backend (e.g. JsonDB stores tuples and sets as lists).
 
+    Hints: get_hint(path) returns a handle for the container at path, which the wrappers
+    pass back as the first argument of every access to that container, so that the
+    backend does not have to walk the path each time. A hint is valid only while its
+    container is in place: the backend increments _structure_version whenever a
+    container is removed or replaced, and the wrappers then ask for a new hint
+    (see BaseStoredObject.hint).
+
     Locking: the backend takes self.lock in every mutation. The wrappers take it too,
     around operations that read then write, and around dump().
     """
@@ -150,6 +157,8 @@ class BaseDB(Logger, ABC):
         # whether reads convert values to their registered types (see stored_at).
         # Db upgrades turn it off, as they work on the raw containers.
         self._should_convert = True
+        # incremented whenever a container is removed or replaced (see BaseStoredObject.hint)
+        self._structure_version = 0
 
     def get_path(self) -> Optional[str]:
         return self.path
@@ -157,7 +166,14 @@ class BaseDB(Logger, ABC):
     # --- containers
 
     @abstractmethod
-    def get(self, path: Sequence[_FLEX_KEY], key: _FLEX_KEY) -> Any:
+    def get_hint(self, path: Sequence[_FLEX_KEY]) -> Any:
+        """Handle for the container at path (see the class docstring).
+        The wrappers compare hints by identity: a container that replaces another one
+        at the same path must get a different hint."""
+        pass
+
+    @abstractmethod
+    def get(self, hint, path: Sequence[_FLEX_KEY], key: _FLEX_KEY) -> Any:
         """Value under key in the container at path.
         Raises KeyError (dict) or IndexError (list) if there is none."""
         pass
@@ -165,59 +181,59 @@ class BaseDB(Logger, ABC):
     # dicts
 
     @abstractmethod
-    def iter_keys(self, path: Sequence[_FLEX_KEY]) -> Iterator[str]:
+    def iter_keys(self, hint, path: Sequence[_FLEX_KEY]) -> Iterator[str]:
         pass
 
     @abstractmethod
-    def dict_len(self, path: Sequence[_FLEX_KEY]) -> int:
+    def dict_len(self, hint, path: Sequence[_FLEX_KEY]) -> int:
         pass
 
     @abstractmethod
-    def contains(self, path: Sequence[_FLEX_KEY], key: str) -> bool:
+    def dict_contains(self, hint, path: Sequence[_FLEX_KEY], key: str) -> bool:
         pass
 
     @abstractmethod
-    def put(self, path: Sequence[_FLEX_KEY], key: str, value) -> None:
+    def put(self, hint, path: Sequence[_FLEX_KEY], key: str, value) -> None:
         """Store value under key, adding the key if needed.
         A container value replaces the previous one whole."""
         pass
 
     @abstractmethod
-    def replace(self, path: Sequence[_FLEX_KEY], key: str, value) -> None:
+    def replace(self, hint, path: Sequence[_FLEX_KEY], key: str, value) -> None:
         """Like put, for a key that exists (used by StoredObject attribute writes)."""
         pass
 
     @abstractmethod
-    def remove(self, path: Sequence[_FLEX_KEY], key: str) -> None:
+    def remove(self, hint, path: Sequence[_FLEX_KEY], key: str) -> None:
         """Delete key. Raises KeyError if there is none."""
         pass
 
     @abstractmethod
-    def clear(self, path: Sequence[_FLEX_KEY]) -> None:
+    def clear(self, hint, path: Sequence[_FLEX_KEY]) -> None:
         pass
 
     # lists
 
     @abstractmethod
-    def list_len(self, path: Sequence[_FLEX_KEY]) -> int:
+    def list_len(self, hint, path: Sequence[_FLEX_KEY]) -> int:
         pass
 
     @abstractmethod
-    def list_append(self, path: Sequence[_FLEX_KEY], item) -> None:
+    def list_append(self, hint, path: Sequence[_FLEX_KEY], item) -> None:
         pass
 
     @abstractmethod
-    def list_index(self, path: Sequence[_FLEX_KEY], item) -> int:
+    def list_index(self, hint, path: Sequence[_FLEX_KEY], item) -> int:
         """Index of the first element equal to item. Raises ValueError if there is none."""
         pass
 
     @abstractmethod
-    def list_remove(self, path: Sequence[_FLEX_KEY], item) -> None:
+    def list_remove(self, hint, path: Sequence[_FLEX_KEY], item) -> None:
         """Remove the first element equal to item. Raises ValueError if there is none."""
         pass
 
     @abstractmethod
-    def list_clear(self, path: Sequence[_FLEX_KEY]) -> None:
+    def list_clear(self, hint, path: Sequence[_FLEX_KEY]) -> None:
         pass
 
     # --- persistence
@@ -295,6 +311,7 @@ class BaseStoredObject:
     _parent: Optional['BaseStoredObject'] = None
     _lock: threading.RLock = None
     _path = None
+    _hint = None  # (object, structure_version)
 
     def set_db(self, db):
         self._db = db
@@ -323,8 +340,18 @@ class BaseStoredObject:
             value = StoredDict(self._db, key=key, parent=self)
         return value
 
+    @property
+    def hint(self):
+        # cached object returned by the db (performance optimization)
+        # The cache is dropped if a subtree was removed or replaced since it was filled,
+        # so that a reference to a removed subtree raises instead of writing into it.
+        version = self._db._structure_version
+        if self._hint is None or self._hint[1] != version:
+            self._hint = (self._db.get_hint(self._path), version)
+        return self._hint[0]
+
     def db_get(self, key):
-        value = self._db.get(self._path, key)
+        value = self._db.get(self.hint, self._path, key)
         value = self._to_stored_dict_or_list(key, value)
         if not self.should_convert():
             return value
@@ -404,7 +431,7 @@ class StoredObject(BaseStoredObject):
         if not key.startswith('_') and self._path:
             with self.lock:
                 if value != getattr(self, key):
-                    self._db.replace(self._path, key, to_default(value))
+                    self._db.replace(self.hint, self._path, key, to_default(value))
                 object.__setattr__(self, key, value)
                 return
         object.__setattr__(self, key, value)
@@ -463,25 +490,25 @@ class StoredDict(BaseStoredObject, MutableMapping):
             value.set_parent(key=key, parent=self)
         # convert to python
         value = to_default(value)
-        self._db.put(self._path, key, value)
+        self._db.put(self.hint, self._path, key, value)
 
     @locked
     def __delitem__(self, key: _FLEX_KEY) -> None:
         key = key_to_str(key)
-        self._db.remove(self._path, key)
+        self._db.remove(self.hint, self._path, key)
 
     def __iter__(self) -> Iterator[_FLEX_KEY]:
-        for k in self._db.iter_keys(self._path):
+        for k in self._db.iter_keys(self.hint, self._path):
             yield self._convert_key(k)
 
     def __len__(self) -> int:
-        return self._db.dict_len(self._path)
+        return self._db.dict_len(self.hint, self._path)
 
     # ---- Dict-like extras ----
 
     def __contains__(self, key: object) -> bool:
         key = key_to_str(key)
-        return self._db.contains(self._path, key)
+        return self._db.dict_contains(self.hint, self._path, key)
 
     @locked
     def get(self, key: _FLEX_KEY, default: Any = None, add_if_missing=False) -> Any:
@@ -497,7 +524,7 @@ class StoredDict(BaseStoredObject, MutableMapping):
 
     @locked
     def clear(self) -> None:
-        self._db.clear(self._path)
+        self._db.clear(self.hint, self._path)
 
     @locked
     def pop(self, key: _FLEX_KEY, default: Any = _RaiseKeyError) -> Any:
@@ -557,10 +584,10 @@ class StoredList(BaseStoredObject):
         raise TypeError(f'list indices must be integers or slices, not {type(s).__name__}')
 
     def __len__(self):
-        return self._db.list_len(self._path)
+        return self._db.list_len(self.hint, self._path)
 
     def __iter__(self) -> Iterator[str]:
-        for i in range(self._db.list_len(self._path)):
+        for i in range(self._db.list_len(self.hint, self._path)):
             yield self._get_list_item(i)
 
     def __eq__(self, other):
@@ -573,21 +600,21 @@ class StoredList(BaseStoredObject):
     @locked
     def append(self, value):
         value = to_default(value)
-        self._db.list_append(self._path, value)
+        self._db.list_append(self.hint, self._path, value)
 
     @locked
     def clear(self):
-        self._db.list_clear(self._path)
+        self._db.list_clear(self.hint, self._path)
         assert len(self) == 0
 
     def index(self, item) -> int:
         item = to_default(item)
-        return self._db.list_index(self._path, item)
+        return self._db.list_index(self.hint, self._path, item)
 
     @locked
     def remove(self, item):
         item = to_default(item)
-        self._db.list_remove(self._path, item)
+        self._db.list_remove(self.hint, self._path, item)
 
     @locked
     def dump(self) -> list:

@@ -166,80 +166,76 @@ class JsonDB(BaseDB):
             d = d[k]
         return d
 
-    def iter_keys(self, path):
-        d = self._subdict(path)
+    def iter_keys(self, d, path):
         return d.__iter__()
 
-    def dict_len(self, path):
-        d = self._subdict(path)
+    def dict_len(self, d, path):
         return len(d)
 
-    def contains(self, path, key):
-        d = self._subdict(path)
+    def dict_contains(self, d, path, key):
         return key in d
 
-    def replace(self, path, key, value):
+    def replace(self, d, path, key, value):
         # called by setattr
-        self.put(path, key, value)
+        self.put(d, path, key, value)
 
     @modifier
-    def put(self, path, key, value):
+    def put(self, d, path, key, value):
         value = to_json_data(value)
-        d = self._subdict(path)
         is_new = key not in d
         if not is_new and d[key] == value:
             return
+        if not is_new and isinstance(d[key], (dict, list)):
+            self._structure_version += 1  # the old subtree is detached
         d[key] = value
         self.db_add(path, key, value) if is_new else self.db_replace(path, key, value)
 
     @modifier
-    def clear(self, path):
-        d = self._subdict(path)
+    def clear(self, d, path):
+        self._structure_version += 1  # subtrees are detached
         d.clear()
         path, key = path[:-1], path[-1]
         self.db_replace(path, key, {})
 
-    def get(self, path, key):
-        d = self._subdict(path)
+    def get(self, d, path, key):
         return d[key]
 
     def get_hint(self, path):
         return self._subdict(path)
 
     @modifier
-    def remove(self, path, key):
-        d = self._subdict(path)
+    def remove(self, d, path, key):
+        if isinstance(d[key], (dict, list)):
+            self._structure_version += 1  # the subtree is detached
         d.pop(key)
         self.db_remove(path, key)
 
     @modifier
-    def list_append(self, path, item):
+    def list_append(self, _list, path, item):
         item = to_json_data(item)
-        _list = self._subdict(path)
         n = len(_list)
         _list.append(item)
         self.db_add(path, str(n), item)
 
-    def list_index(self, path, item):
-        _list = self._subdict(path)
+    def list_index(self, _list, path, item):
         return _list.index(to_json_data(item))
 
-    def list_len(self, path):
-        _list = self._subdict(path)
+    def list_len(self, _list, path):
         return len(_list)
 
     @modifier
-    def list_clear(self, path):
-        _list = self._subdict(path)
+    def list_clear(self, _list, path):
+        self._structure_version += 1  # subtrees are detached
         _list.clear()
         self.db_remove(path[:-1], path[-1])
         self.db_add(path[:-1], path[-1], [])
 
     @modifier
-    def list_remove(self, path, item):
+    def list_remove(self, _list, path, item):
         item = to_json_data(item)
-        _list = self._subdict(path)
         n = _list.index(item)
+        if isinstance(item, (dict, list)):
+            self._structure_version += 1  # the subtree is detached
         _list.remove(item)
         self.db_remove(path, str(n)) # fixme: keys
 
