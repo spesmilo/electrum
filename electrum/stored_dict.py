@@ -151,6 +151,7 @@ class BaseStoredObject:
     _parent: Optional['BaseStoredObject'] = None
     _lock: threading.RLock = None
     _path = None
+    _hint = None
 
     def set_db(self, db):
         self._db = db
@@ -182,8 +183,15 @@ class BaseStoredObject:
         #    value = tuple(value[:]) # do not expose StoredTuple to callers
         return value
 
+    @property
+    def hint(self):
+        # cached object returned by the db (performance optimization)
+        if self._hint is None:
+            self._hint = self._db.get_hint(self._path)
+        return self._hint
+
     def db_get(self, key):
-        value = self._db.get(key)
+        value = self._db.get(self.hint, key)
         value = self._to_stored_dict_or_list(key, value)
         # set db for StoredObject, because it is not set in the constructor
         if isinstance(value, StoredObject):
@@ -237,7 +245,7 @@ class StoredObject(BaseStoredObject):
         assert isinstance(key, str), repr(key)
         if not key.startswith('_') and self._path:
             if value != getattr(self, key):
-                self._db.replace(self._path, key, value)
+                self._db.replace(self.hint, self._path, key, value)
         object.__setattr__(self, key, value)
 
     def to_json(self):
@@ -287,32 +295,32 @@ class StoredDict(BaseStoredObject):
             value.set_parent(key=key, parent=self)
         if isinstance(value, (StoredList, StoredDict)):
             value = value.dump()
-        self._db.put(self._path, key, value)
+        self._db.put(self.hint, self._path, key, value)
 
     def __delitem__(self, key: _FLEX_KEY) -> None:
-        self._db.remove(self._path, key)
+        self._db.remove(self.hint, self._path, key)
 
     def __iter__(self) -> Iterator[str]:
-        return self._db.iter_keys(self._path)
+        return self._db.iter_keys(self.hint, self._path)
 
     def __len__(self) -> int:
-        return self._db.dict_len(self._path)
+        return self._db.dict_len(self.hint, self._path)
 
     # ---- Dict-like extras ----
 
     def __contains__(self, key: object) -> bool:
-        return self._db.contains(self._path, key)
+        return self._db.dict_contains(self.hint, self._path, key)
 
     def keys(self) -> Iterable[str]:
-        for k in self._db.iter_keys(self._path):
+        for k in self._db.iter_keys(self.hint, self._path):
             yield k
 
     def values(self) -> Iterator[Any]:
-        for k in self._db.iter_keys(self._path):
+        for k in self._db.iter_keys(self.hint, self._path):
             yield self[k]
 
     def items(self) -> Iterator[Tuple[str, Any]]:
-        for k in self._db.iter_keys(self._path):
+        for k in self._db.iter_keys(self.hint, self._path):
             yield (k, self[k])
 
     def get(self, key: _FLEX_KEY, default: Any = None, add_if_missing=False) -> Any:
@@ -327,7 +335,7 @@ class StoredDict(BaseStoredObject):
             return default
 
     def clear(self) -> None:
-        self._db.clear(self._path)
+        self._db.clear(self.hint, self._path)
 
     def pop(self, key: _FLEX_KEY, default: Any = _RaiseKeyError) -> Any:
         # This will return dict/list
@@ -380,7 +388,7 @@ class StoredList(BaseStoredObject):
         return self.db_get(key)
 
     def __getitem__(self, s: slice) -> Any:
-        n = self._db.list_len(self._path)
+        n = self._db.list_len(self.hint, self._path)
         if type(s) is int:
             s = n + s if s < 0 else s
             return self._get_list_item(s)
@@ -393,24 +401,24 @@ class StoredList(BaseStoredObject):
             raise Exception()
 
     def __len__(self):
-        return self._db.list_len(self._path)
+        return self._db.list_len(self.hint, self._path)
 
     def __iter__(self) -> Iterator[str]:
-        for i in range(self._db.list_len(self._path)):
+        for i in range(self._db.list_len(self.hint, self._path)):
             yield self._get_list_item(i)
 
     def append(self, value):
-        self._db.list_append(self._path, value)
+        self._db.list_append(self.hint, self._path, value)
 
     def clear(self):
-        self._db.list_clear(self._path)
+        self._db.list_clear(self.hint, self._path)
         assert len(self) == 0
 
     def index(self, item) -> int:
-        return self._db.list_index(self._path, item)
+        return self._db.list_index(self.hint, self._path, item)
 
     def remove(self, item):
-        self._db.list_remove(self._path, item)
+        self._db.list_remove(self.hint, self._path, item)
 
     def dump(self) -> list:
         data = []
