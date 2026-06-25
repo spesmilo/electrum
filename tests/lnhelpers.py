@@ -2,7 +2,9 @@ import asyncio
 import copy
 import os
 from pprint import pformat
-from typing import NamedTuple, Tuple, Dict, Mapping, TYPE_CHECKING, Sequence
+from typing import NamedTuple, Tuple, Dict, Mapping, TYPE_CHECKING, Optional
+
+from electrum_ecc import ECPrivkey
 
 import electrum
 import electrum.trampoline
@@ -15,15 +17,16 @@ from electrum.bolt11 import BOLT11Addr
 from electrum.lnpeer import Peer
 from electrum.lnutil import (
     LnFeatures, PaymentFeeBudget, LOCAL, REMOTE, ChannelType, LocalConfig, RemoteConfig,
-    OnlyPubkeyKeypair, secret_to_pubkey,
+    OnlyPubkeyKeypair, secret_to_pubkey, UnblindedRoutingInfo,
 )
 from electrum.lnchannel import ChannelState, Channel
 from electrum.lnrouter import LNPathFinder
 from electrum.channel_db import ChannelDB
-from electrum.lnworker import LNWallet, PaySession
+from electrum.lnworker import LNWallet, PaySession, LNWALLET_FEATURES
 from electrum.simple_config import SimpleConfig
 from electrum.fee_policy import FeeTimeEstimates, FEE_ETA_TARGETS
 from electrum.wallet import  Standard_Wallet
+from electrum.lnonion import BlindedPathInfo, BlindedPayInfo, BlindedPath, BlindedPathHop
 
 from . import restore_wallet_from_text__for_unittest
 
@@ -155,15 +158,19 @@ class MockLNWallet(LNWallet):
             await self.channel_db.stopped_event.wait()
 
     async def create_routes_from_invoice(self, amount_msat: int, decoded_invoice: BOLT11Addr, *, full_path=None):
-        paysession = PaySession(
-            payment_hash=decoded_invoice.paymenthash,
+        routing_info = UnblindedRoutingInfo(
+            node_pubkey=decoded_invoice.pubkey.serialize(),
+            r_tags=decoded_invoice.get_routing_info('r'),
             payment_secret=decoded_invoice.payment_secret,
+            final_cltv_delta=decoded_invoice.get_min_final_cltv_delta() + lnutil.get_final_cltv_offset(),
+            invoice_features=decoded_invoice.get_features(),
+        )
+        paysession = PaySession(
+            routing_info=routing_info,
+            payment_hash=decoded_invoice.paymenthash,
             initial_trampoline_fee_level=0,
             invoice_features=decoded_invoice.get_features(),
-            r_tags=decoded_invoice.get_routing_info('r'),
-            min_final_cltv_delta=decoded_invoice.get_min_final_cltv_delta(),
             amount_to_pay=amount_msat,
-            invoice_pubkey=decoded_invoice.pubkey.serialize(),
             uses_trampoline=False,
         )
         payment_key = decoded_invoice.paymenthash + decoded_invoice.payment_secret
@@ -530,3 +537,29 @@ def create_test_channels(
     assert alice.channel_id == bob.channel_id
 
     return alice, bob
+
+
+def get_dummy_paths(first_node_id: Optional[bytes] = None) -> list[BlindedPathInfo]:
+    ip_node_id = first_node_id or ECPrivkey.generate_random_key().get_public_key_bytes()
+    first_path_key = ECPrivkey.generate_random_key().get_public_key_bytes()
+    dummy_paths = [BlindedPathInfo(
+        path=BlindedPath(
+            first_node_id=ip_node_id,
+            first_path_key=first_path_key,
+            num_hops=(1).to_bytes(1, 'big'),
+            path=[BlindedPathHop(
+                blinded_node_id=ECPrivkey.generate_random_key().get_public_key_bytes(),  # dummy
+                enclen=5,
+                encrypted_recipient_data=b'12345',
+            )],
+        ),
+        payinfo=BlindedPayInfo(
+            fee_base_msat=1000,
+            fee_proportional_millionths=1000,
+            cltv_expiry_delta=221,
+            htlc_minimum_msat=1,
+            htlc_maximum_msat=10000000000,
+            features=LNWALLET_FEATURES.for_blinded_path(),
+        ),
+    )]
+    return dummy_paths

@@ -484,7 +484,7 @@ if [[ $1 == "lnwatcher_waits_until_fees_go_down" ]]; then
     assert_utxo_exists $ctx_id $htlc_output_index2
     # fee levels rise. now small htlc is ~dust
     $alice test_inject_fee_etas "{2:300000}"
-    new_blocks 300  # this goes past the CLTV of the HTLC-output in ctx
+    new_blocks 450  # this goes past the CLTV of the HTLC-output in ctx
     wait_until_spent $ctx_id $htlc_output_index2
     assert_utxo_exists $ctx_id $htlc_output_index1
     new_blocks 24  # note: >20 blocks depth is considered "DEEP" by lnwatcher
@@ -603,7 +603,7 @@ if [[ $1 == "redeem_offered_htlcs" ]]; then
     new_blocks 1
     sleep 3
     echo "alice balance after closing channel:" $($alice getbalance)
-    new_blocks 150
+    new_blocks 300  # cltv delta + random offset [72;143]
     sleep 10
     new_blocks 1
     sleep 3
@@ -707,8 +707,8 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     fi
     echo "wait for cltv_expiry blocks"
     # note: this will let alice redeem both to_local and the htlc.
-    # (to_local needs to_self_delay blocks; htlc needs whatever we put in invoice)
-    new_blocks 150
+    # (to_local needs to_self_delay blocks; htlc needs whatever we put in invoice and the offset add on top when sending)
+    new_blocks 300
     $alice stop
     $alice daemon -d
     $alice load_wallet -w /tmp/alice/regtest/wallets/toxic_wallet
@@ -770,6 +770,25 @@ if [[ $1 == "watchtower" ]]; then
     wait_until_spent $ctx_id $output_index  # alice's to_local gets punished
 fi
 
+if [[ $1 == "bolt12" ]]; then
+#    $carol enable_htlc_settle false
+    bob_node=$($bob nodeid)
+    wait_for_balance carol 1
+    echo "alice and carol open channels with bob"
+    chan_id1=$($alice open_channel $bob_node 0.15 --password='' --push_amount=0.075)
+    chan_id2=$($carol open_channel $bob_node 0.15 --password='' --push_amount=0.075)
+    new_blocks 3
+    wait_until_channel_open alice
+    wait_until_channel_open carol
+    echo "alice pays carol"
+    offer=$($carol add_lightning_offer --amount=0.001| jq '.offer')
+    result=$($alice pay_bolt12_offer $offer)
+    echo $result
+    if [[ $(echo $result|jq '.success') == false ]]; then
+	exit 1
+    fi
+fi
+
 if [[ $1 == "fw_fail_htlc" ]]; then
     $carol enable_htlc_settle false
     bob_node=$($bob nodeid)
@@ -793,7 +812,7 @@ if [[ $1 == "fw_fail_htlc" ]]; then
     ctx_id=$($bob close_channel $chan_id2 --force)
     new_blocks 1
     sleep 1
-    new_blocks 150 # cltv before bob can broadcast
+    new_blocks 300 # cltv before bob can broadcast
     # index of htlc
     if [ $TEST_SRK_CHANNELS != True ] ; then  # anchors
         output_index=2

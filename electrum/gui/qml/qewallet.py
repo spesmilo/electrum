@@ -17,6 +17,7 @@ from electrum.util import (
     InvalidPassword, event_listener, AddTransactionException, get_asyncio_loop, NotEnoughFunds, NoDynamicFeeEstimates
 )
 from electrum.lnutil import MIN_FUNDING_SAT
+from electrum.onion_message import NoOnionMessagePeers
 from electrum.plugin import run_hook
 from electrum.wallet import Multisig_Wallet
 from electrum.crypto import pw_decode_with_version_and_mac
@@ -63,6 +64,8 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     requestStatusChanged = pyqtSignal([str, int], arguments=['key', 'status'])
     requestCreateSuccess = pyqtSignal([str], arguments=['key'])
     requestCreateError = pyqtSignal([str], arguments=['error'])
+    offerCreateSuccess = pyqtSignal([str], arguments=['offer'])
+    offerCreateError = pyqtSignal([str], arguments=['error'])
     invoiceStatusChanged = pyqtSignal([str, int], arguments=['key', 'status'])
     invoiceCreateSuccess = pyqtSignal()
     invoiceCreateError = pyqtSignal([str, str], arguments=['code', 'error'])
@@ -716,6 +719,27 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         self.addressCoinModel.setDirty()
         self.requestModel.add_invoice(self.wallet.get_request(key))
         self.requestCreateSuccess.emit(key)
+
+    @pyqtSlot(QEAmount, str, int)
+    def createOffer(self, amount: QEAmount, message: str, expiration: int):
+        lnworker = self.wallet.lnworker
+        try:
+            amount_msat = amount.satsInt * 1000 if amount.satsInt > 0 else None
+            offer = lnworker.create_offer(
+                amount_msat=amount_msat,
+                description=message or None,
+                relative_expiry=expiration or None,
+            )
+            offer_str = offer.encode(as_bech32=True).upper()
+        except NoOnionMessagePeers:
+            msg = [
+                _('Cannot create a Lightning offer right now.'),
+                _('None of your channel peers support the private paths an offer needs.'),
+            ]
+            self.offerCreateError.emit(' '.join(msg))
+            return
+        self._logger.debug('created offer')
+        self.offerCreateSuccess.emit(offer_str)
 
     @pyqtSlot(str)
     def deleteRequest(self, key: str):

@@ -16,9 +16,9 @@ from electrum.lnmsg import decode_msg, OnionWireSerializer
 from electrum.lnonion import (
     OnionHopsDataSingle, OnionPacket, process_onion_packet, get_bolt04_onion_key, encrypt_onionmsg_data_tlv,
     get_shared_secrets_along_route, new_onion_packet, ONION_MESSAGE_LARGE_SIZE, HOPS_DATA_SIZE, InvalidPayloadSize,
-    encrypt_hops_recipient_data, blinding_privkey, decrypt_onionmsg_data_tlv)
+    encrypt_hops_recipient_data, blinding_privkey, decrypt_onionmsg_data_tlv, BlindedPath)
 from electrum.crypto import get_ecdh, privkey_to_pubkey
-from electrum.lntransport import LNPeerAddr
+from electrum.lntransport import LNPeerAddr, extract_nodeid
 from electrum.lnutil import (LnFeatures, Keypair, MIN_FINAL_CLTV_DELTA_ACCEPTED, REMOTE,
                              MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE)
 from electrum.onion_message import (
@@ -164,17 +164,9 @@ class TestOnionMessage(ElectrumTestCase):
     def test_decrypt_onion_message(self):
         o = OnionPacket.from_bytes(ONION_MESSAGE_PACKET)
         our_privkey = bfh(test_vectors['decrypt']['hops'][0]['privkey'])
-        blinding = bfh(test_vectors['route']['first_path_key'])
+        path_key = bfh(test_vectors['route']['first_path_key'])
 
-        shared_secret = get_ecdh(our_privkey, blinding)
-        b_hmac = get_bolt04_onion_key(b'blinded_node_id', shared_secret)
-        b_hmac_int = int.from_bytes(b_hmac, byteorder="big")
-
-        our_privkey_int = int.from_bytes(our_privkey, byteorder="big")
-        our_privkey_int = our_privkey_int * b_hmac_int % ecc.CURVE_ORDER
-        our_privkey = our_privkey_int.to_bytes(32, byteorder="big")
-
-        p = process_onion_packet(o, our_privkey, tlv_stream_name='onionmsg_tlv')
+        p = process_onion_packet(o, our_privkey, tlv_stream_name='onionmsg_tlv', current_path_key=path_key)
 
         self.assertEqual(p.hop_data.blind_fields, {})
         self.assertEqual(p.hop_data.hmac, bfh('a5296325ba478ba1e1a9d1f30a2d5052b2e2889bbd64f72c72bc71d8817288a2'))
@@ -201,14 +193,14 @@ class TestOnionMessage(ElectrumTestCase):
         final_recipient_data = {'path_id': {'data': bfh('0102')}}
         rp = create_blinded_path(session_key, [pubkey], final_recipient_data)
 
-        self.assertEqual(pubkey, rp['first_node_id'])
-        self.assertEqual(bfh('022ed557f5ad336b31a49857e4e9664954ac33385aa20a93e2d64bfe7f08f51277'), rp['first_path_key'])
-        self.assertEqual(b"\x01", rp['num_hops'])
+        self.assertEqual(pubkey, rp.first_node_id)
+        self.assertEqual(bfh('022ed557f5ad336b31a49857e4e9664954ac33385aa20a93e2d64bfe7f08f51277'), rp.first_path_key)
+        self.assertEqual(b"\x01", rp.num_hops)
         self.assertEqual([{
             'blinded_node_id': bfh('031e5d91e6c417f6e8c16d1086db1887edef7be9334f5e744d04edb8da7507481e'),
             'enclen': 20,
             'encrypted_recipient_data': bfh('2dbaa54a819775aa0548ab85db68c5099e7b1180')
-        }], rp['path'])
+        }], [dataclasses.asdict(p) for p in rp.path])
 
         # TODO: serialization test to test_lnmsg.py
         with io.BytesIO() as blinded_path_fd:
@@ -216,7 +208,7 @@ class TestOnionMessage(ElectrumTestCase):
                 fd=blinded_path_fd,
                 field_type='blinded_path',
                 count=1,
-                value=rp)
+                value=dataclasses.asdict(rp))
             blinded_path = blinded_path_fd.getvalue()
         self.assertEqual(blinded_path, bfh('02eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619022ed557f5ad336b31a49857e4e9664954ac33385aa20a93e2d64bfe7f08f5127701031e5d91e6c417f6e8c16d1086db1887edef7be9334f5e744d04edb8da7507481e00142dbaa54a819775aa0548ab85db68c5099e7b1180'))
 
@@ -248,10 +240,10 @@ class TestOnionMessage(ElectrumTestCase):
         encrypt_hops_recipient_data(hops_data, hop_shared_secrets)
 
         blinded_path_blinded_ids = []
-        for i, x in enumerate(blinded_path_to_dave.get('path')):
-            blinded_path_blinded_ids.append(x.get('blinded_node_id'))
-            payload = {'encrypted_recipient_data': {'encrypted_recipient_data': x.get('encrypted_recipient_data')}}
-            if i == len(blinded_path_to_dave.get('path')) - 1:
+        for i, x in enumerate(blinded_path_to_dave.path):
+            blinded_path_blinded_ids.append(x.blinded_node_id)
+            payload = {'encrypted_recipient_data': {'encrypted_recipient_data': x.encrypted_recipient_data}}
+            if i == len(blinded_path_to_dave.path) - 1:
                 # add final recipient payload
                 payload['message'] = {'text': bfh(test_vectors['onionmessage']['unknown_tag_1'])}
             hops_data.append(
@@ -286,7 +278,7 @@ class MockPeer:
     def is_initialized(self):
         return True
 
-    def send_message(self, *args, **kwargs):
+    def send_onion_message(self, *args, **kwargs):
         if self.on_send_message:
             self.on_send_message(*args, **kwargs)
 
@@ -311,6 +303,16 @@ class TestOnionMessageManager(ElectrumTestCase):
         self.dave = keypair(ECPrivkey(privkey_bytes=b'\x44'*32))
         self.eve = keypair(ECPrivkey(privkey_bytes=b'\x45'*32))
         self.fred = keypair(ECPrivkey(privkey_bytes=b'\x46'*32))
+        self.gerald = keypair(ECPrivkey(privkey_bytes=b'\x47'*32))
+        self.harry = keypair(ECPrivkey(privkey_bytes=b'\x48'*32))
+
+    async def run_test_exception(self, t):
+        t1 = t.submit_send(
+            payload={'message': {'text': 'no_onionmsg_peers'.encode('utf-8')}},
+            node_id_or_blinded_paths=self.harry.pubkey)
+
+        with self.assertRaises(NoOnionMessagePeers):
+            await t1
 
     async def run_test1(self, t):
         t1 = t.submit_send(
@@ -347,13 +349,38 @@ class TestOnionMessageManager(ElectrumTestCase):
         self.assertEqual(t4_result, ({'path_id': {'data': b'electrum' + rkey}}, {}))
 
     async def run_test5(self, t):
-        t5 = t.submit_send(
-            payload={'message': {'text': 'no_peer'.encode('utf-8')}},
+        lnw = t.lnwallet
+        self.assertFalse(self.eve.pubkey in lnw.lnpeermgr.peers)
+
+        t.send_direct_connect_fallback = True
+        t5_1 = t.submit_send(
+            payload={'message': {'text': 'no_route_peer_address_known'.encode('utf-8')}},
             node_id_or_blinded_paths=self.eve.pubkey)
 
+        with self.assertRaises(Timeout) as c:
+            await t5_1
+
+        self.assertTrue(self.eve.pubkey in lnw.lnpeermgr._peers)
+        del lnw.lnpeermgr._peers[self.eve.pubkey]
+
+        t5_2 = t.submit_send(
+            payload={'message': {'text': 'no_route_no_peer_address'.encode('utf-8')}},
+            node_id_or_blinded_paths=self.gerald.pubkey)
+
+        # will not find route to gerald, and doesn't have gerald's address
+        with self.assertRaises(NoRouteFound) as c:
+            await t5_2
+
+        self.assertIsNone(c.exception.peer_address)
+
+        t.send_direct_connect_fallback = False
+        t5_3 = t.submit_send(
+            payload={'message': {'text': 'no_route_peer_address_known_but_ignored'.encode('utf-8')}},
+            node_id_or_blinded_paths=self.eve.pubkey)
         # will not find route to eve, but has eve's address, but we are configured to not direct connect
         with self.assertRaises(NoRouteFound) as c:
-            await t5
+            await t5_3
+
         self.assertEqual(c.exception.peer_address, LNPeerAddr('localhost', 1234, self.eve.pubkey))
 
     async def run_test6(self, t, rkey):
@@ -374,7 +401,7 @@ class TestOnionMessageManager(ElectrumTestCase):
         # mock add_peer for direct connection fallback
         async def mock__add_peer(host, port, node_id):
             mock_peer = MockPeer(pubkey=node_id)
-            # lnw.lnpeermgr._peers[node_id] = mock_peer
+            lnw.lnpeermgr._peers[node_id] = mock_peer
             return mock_peer
         lnw.lnpeermgr._add_peer = mock__add_peer
 
@@ -388,21 +415,27 @@ class TestOnionMessageManager(ElectrumTestCase):
             time.sleep(2*TIME_STEP)
             t.on_onion_message_received({'path_id': {'data': b'electrum' + key}}, {})
 
-        rkey1 = bfh('0102030405060708')
-        rkey2 = bfh('0102030405060709')
-        rkey3 = bfh('010203040506070a')
-
-        lnw.lnpeermgr._peers[self.alice.pubkey] = MockPeer(self.alice.pubkey)
-        lnw.lnpeermgr._peers[self.bob.pubkey] = MockPeer(self.bob.pubkey, on_send_message=slow)
-        lnw.lnpeermgr._peers[self.carol.pubkey] = MockPeer(self.carol.pubkey, on_send_message=partial(withreply, rkey1))
-        lnw.lnpeermgr._peers[self.dave.pubkey] = MockPeer(self.dave.pubkey, on_send_message=partial(slowwithreply, rkey2))
-        lnw.channel_db._addresses[self.eve.pubkey] = {NetAddress('localhost', '1234'): int(time.time())}
-        lnw.lnpeermgr._peers[self.fred.pubkey] = MockPeer(self.fred.pubkey, on_send_message=partial(withreply, rkey3))
         t = OnionMessageManager(lnw)
         t.start_network(network=n)
 
         try:
             await asyncio.sleep(TIME_STEP)
+
+            await self.run_test_exception(t)
+            lnw.lnpeermgr._peers[self.harry.pubkey] = MockPeer(self.harry.pubkey, their_features=LnFeatures(0))
+            await self.run_test_exception(t)
+
+            rkey1 = bfh('0102030405060708')
+            rkey2 = bfh('0102030405060709')
+            rkey3 = bfh('010203040506070a')
+
+            lnw.lnpeermgr._peers[self.alice.pubkey] = MockPeer(self.alice.pubkey)
+            lnw.lnpeermgr._peers[self.bob.pubkey] = MockPeer(self.bob.pubkey, on_send_message=slow)
+            lnw.lnpeermgr._peers[self.carol.pubkey] = MockPeer(self.carol.pubkey, on_send_message=partial(withreply, rkey1))
+            lnw.lnpeermgr._peers[self.dave.pubkey] = MockPeer(self.dave.pubkey, on_send_message=partial(slowwithreply, rkey2))
+            lnw.channel_db._addresses[self.eve.pubkey] = {NetAddress('localhost', '1234'): int(time.time())}
+            lnw.lnpeermgr._peers[self.fred.pubkey] = MockPeer(self.fred.pubkey, on_send_message=partial(withreply, rkey3))
+
             self.logger.debug('tests in sequence')
             await self.run_test1(t)
             await self.run_test2(t)
@@ -506,12 +539,11 @@ class TestOnionMessageUtils(TestPeer):
         alice.lnpeermgr.get_peer_by_pubkey(bob.node_keypair.pubkey).their_features |= LnFeatures.OPTION_ROUTE_BLINDING_OPT
 
         final_recipient_data = {'path_id': {'data': os.urandom(32)}}
-        paths, payinfos = get_blinded_paths_to_me(alice, final_recipient_data, onion_message=False)
+        blinded_path_infos = get_blinded_paths_to_me(alice, final_recipient_data, onion_message=False)
 
-        self.assertEqual(len(paths), 1)
-        self.assertEqual(len(payinfos), 1)
+        self.assertEqual(len(blinded_path_infos), 1)
 
-        self.assertEqual(payinfos[0], {
+        self.assertEqual(blinded_path_infos[0].payinfo.to_dict(), {
             'fee_base_msat': bob_chan.forwarding_fee_base_msat,
             'fee_proportional_millionths': bob_chan.forwarding_fee_proportional_millionths,
             'cltv_expiry_delta': bob_chan.forwarding_cltv_delta + MIN_FINAL_CLTV_DELTA_ACCEPTED + MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE,
@@ -521,13 +553,13 @@ class TestOnionMessageUtils(TestPeer):
             'features': bytes(0),
         })
 
-        blinded_path = paths[0]
-        self.assertEqual(len(blinded_path['path']), 2)
-        self.assertEqual(blinded_path['first_node_id'], bob.node_keypair.pubkey)
-        self.assertEqual(len(blinded_path['first_path_key']), 33)
-        self.assertEqual(blinded_path['num_hops'], len(blinded_path['path']).to_bytes(length=1, byteorder='big'))
-        self.assertIn('blinded_node_id', blinded_path['path'][0])
-        self.assertIn('encrypted_recipient_data', blinded_path['path'][0])
+        blinded_path = blinded_path_infos[0].path
+        self.assertEqual(len(blinded_path.path), 2)
+        self.assertEqual(blinded_path.first_node_id, bob.node_keypair.pubkey)
+        self.assertEqual(len(blinded_path.first_path_key), 33)
+        self.assertEqual(blinded_path.num_hops, len(blinded_path.path).to_bytes(length=1, byteorder='big'))
+        self.assertIsNotNone(blinded_path.path[0].blinded_node_id)
+        self.assertIsNotNone(blinded_path.path[0].encrypted_recipient_data)
 
     async def test_create_route_to_introduction_point(self):
         # A -- B -- C -- D -- E
@@ -539,9 +571,13 @@ class TestOnionMessageUtils(TestPeer):
         session_key = os.urandom(32)
         introduction_point = edward.node_keypair.pubkey
         first_path_key = ecc.ECPrivkey.generate_random_key().get_public_key_bytes()
-        blinded_path = {
-            'first_path_key': first_path_key,
-        }
+        BlindedPath.__post_init__ = lambda _: None   # disable sanity checks
+        blinded_path = BlindedPath(
+            first_path_key=first_path_key,
+            first_node_id=None,
+            num_hops=None,
+            path=None,
+        )
         with self.assertRaises(NoRouteFound):
             create_route_to_introduction_point(alice, blinded_path, introduction_point, session_key)
 

@@ -30,9 +30,11 @@ import time
 import threading
 from threading import RLock
 from math import inf
+from dataclasses import dataclass
 
 import attr
 
+from .lnonion import BlindedPathInfo
 from .util import profiler, with_lock
 from .logging import Logger
 from .lnutil import (NUM_MAX_EDGES_IN_PAYMENT_PATH, ShortChannelID, LnFeatures,
@@ -41,6 +43,7 @@ from .channel_db import ChannelDB, Policy, NodeInfo
 
 if TYPE_CHECKING:
     from .lnchannel import Channel
+    from .lnonion import BlindedPayInfo
 
 DEFAULT_PENALTY_BASE_MSAT = 500  # how much base fee we apply for unknown sending capability of a channel
 DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH = 100  # how much relative fee we apply for unknown sending capability of a channel
@@ -115,7 +118,8 @@ class RouteEdge(PathEdge):
 
 @attr.s
 class TrampolineEdge(RouteEdge):
-    invoice_routing_info = attr.ib(type=Sequence[bytes], default=None)
+    # r-tags (non e2e bolt11) or a sequence of `payment_blinded_path` (non e2e bolt12)
+    invoice_routing_info = attr.ib(type=Sequence[bytes] | Sequence[BlindedPathInfo], default=None)
     invoice_features = attr.ib(type=int, default=None)
     # this is re-defined from parent just to specify a default value:
     short_channel_id = attr.ib(default=ShortChannelID(8), repr=lambda val: str(val))
@@ -129,20 +133,45 @@ LNPaymentRoute = Sequence[RouteEdge]
 LNPaymentTRoute = Sequence[TrampolineEdge]
 
 
+@dataclass(frozen=True, kw_only=True)
+class FinalForwardFees:
+    fee_base_msat: int
+    fee_proportional_millionths: int
+
+    # cltv budget for the last forwarder (e.g. legacy trampoline)
+    # this is counted into our PaymentFeeBudget
+    forwarder_cltv_delta: int = 0
+
+    # also for the last forwarder, but specifically to account for subsequent blinded path
+    # this is excluded from our PaymentFeeBudget (see comment in PaymentFeeBudget)
+    blinded_path_cltv_delta: int = 0
+
+    def fee_for_edge(self, amount_msat: int) -> int:
+        return fee_for_edge_msat(
+            forwarded_amount_msat=amount_msat,
+            fee_base_msat=self.fee_base_msat,
+            fee_proportional_millionths=self.fee_proportional_millionths,
+        )
+
+
 def is_route_within_budget(
     route: LNPaymentRoute,
     *,
     budget: PaymentFeeBudget,
     amount_msat_for_dest: int,  # that final receiver gets
-    cltv_delta_for_dest: int,   # that final receiver gets
+    cltv_delta_for_dest: int,   # that final receiver gets (IP cltv_delta or recipient min_final_cltv_delta)
+    final_forward_fees: Optional['FinalForwardFees'] = None,
 ) -> bool:
     """Run some sanity checks on the whole route, before attempting to use it.
     called when we are paying; so e.g. lower cltv is better
     """
-    if len(route) > NUM_MAX_EDGES_IN_PAYMENT_PATH:
+    if len(route) > NUM_MAX_EDGES_IN_PAYMENT_PATH:  # doesn't count blinded path hops
         return False
     amt = amount_msat_for_dest
     cltv_cost_of_route = 0  # excluding cltv_delta_for_dest
+    if final_forward_fees:
+        amt += final_forward_fees.fee_for_edge(amt)
+        cltv_cost_of_route += final_forward_fees.forwarder_cltv_delta
     for route_edge in reversed(route[1:]):
         amt += route_edge.fee_for_edge(amt)
         cltv_cost_of_route += route_edge.cltv_delta

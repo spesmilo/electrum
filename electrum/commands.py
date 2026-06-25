@@ -25,6 +25,7 @@
 import io
 import sys
 import datetime
+import dataclasses
 import time
 import argparse
 import json
@@ -43,15 +44,18 @@ import re
 
 import electrum_ecc as ecc
 
-from . import util
+from . import util, bolt12
+from .bolt12 import BOLT12Invoice, BOLT12Offer, BOLT12InvoiceRequest
 from .lnmsg import OnionWireSerializer
 from .lnworker import LN_P2P_NETWORK_TIMEOUT
 from .logging import Logger
 from .onion_message import create_blinded_path, send_onion_message_to
+from .lnonion import BlindedPath
+from .segwit_addr import INVALID_BECH32
 from .submarine_swaps import NostrTransport
 from .util import (
     bfh, json_decode, json_normalize, is_hash256_str, is_hex_str, to_bytes, parse_max_spend, to_decimal,
-    UserFacingException, InvalidPassword
+    UserFacingException, InvalidPassword, json_encode
 )
 from . import bitcoin
 from .bitcoin import is_address,  hash_160, COIN
@@ -1385,6 +1389,73 @@ class Commands(Logger):
         return wallet.export_request(req)
 
     @command('wnl')
+    async def pay_bolt12_offer(
+            self,
+            offer: str,
+            amount: Optional[Decimal] = None,
+            payer_note: Optional[str] = None,
+            wallet: Abstract_Wallet = None
+    ):
+        """Retrieve an invoice from a bolt12 offer, and pay that invoice
+
+        arg:str:offer:bolt-12 offer (bech32)
+        arg:decimal:amount:Amount to send
+        arg:str:payer_note:Text note for the recipient
+        """
+        amount_msat = satoshis(amount) * 1000 if amount else None
+        bolt12_offer = bolt12.BOLT12Offer.decode(offer)
+        offer_amount_msat = bolt12_offer.offer_amount
+        if offer_amount_msat and amount_msat and offer_amount_msat != amount_msat:
+            raise ValueError(f"{amount_msat=} different than {offer_amount_msat=}")
+        send_amount = offer_amount_msat or amount_msat
+        if not send_amount:
+            raise ValueError(f"Missing amount to send: {amount_msat=}")
+        lnworker = wallet.lnworker
+        bolt12_invoice, invoice_tlv = await lnworker.request_bolt12_invoice(
+            bolt12_offer,
+            amount_msat=send_amount,
+            payer_note=payer_note,
+        )
+        invoice_bech32 = bolt12.bolt12_tlv_bytes_to_bech32(invoice_tlv, bolt12.BOLT12Invoice)
+        invoice = Invoice.from_bech32(invoice_bech32)
+        success, log = await lnworker.pay_invoice(invoice)
+        return {
+            'success': success,
+            'log': [x.formatted_tuple() for x in log]
+        }
+
+    @command('wnl')
+    async def add_lightning_offer(
+            self,
+            amount: Optional[Decimal] = None,
+            description: Optional[str] = None,
+            relative_expiry: Optional[int] = None,
+            issuer_name: Optional[str] = None,
+            allow_unblinded: bool = False,
+            wallet: Abstract_Wallet = None
+    ):
+        """Create a bolt12 offer.
+
+        arg:decimal:amount:Requested amount (in btc)
+        arg:str:description:Description of the request
+        arg:int:relative_expiry:Time in seconds.
+        arg:str:issuer_name:Issuer name string
+        arg:bool:allow_unblinded:Allow revealing node id for unblinded offers
+        """
+        amount_msat = satoshis(amount) * 1000 if amount else None
+        offer = wallet.lnworker.create_offer(
+            amount_msat=amount_msat,
+            description=description,
+            relative_expiry=relative_expiry,
+            issuer_name=issuer_name,
+            allow_unblinded=allow_unblinded,
+        )
+
+        return {
+            'offer': offer.encode(as_bech32=True)
+        }
+
+    @command('wnl')
     async def add_hold_invoice(
             self,
             payment_hash: str,
@@ -2265,6 +2336,8 @@ class Commands(Logger):
 
         node_id_or_blinded_path = bfh(node_id_or_blinded_path_hex)
         assert len(node_id_or_blinded_path) >= 33
+        if len(node_id_or_blinded_path) > 33:  # assume blinded path
+            node_id_or_blinded_path = BlindedPath.decode(node_id_or_blinded_path)
 
         destination_payload = {
             'message': {'text': message.encode('utf-8')}
@@ -2308,10 +2381,26 @@ class Commands(Logger):
                 fd=blinded_path_fd,
                 field_type='blinded_path',
                 count=1,
-                value=blinded_path)
+                value=dataclasses.asdict(blinded_path))
             encoded_blinded_path = blinded_path_fd.getvalue()
 
         return encoded_blinded_path.hex()
+
+    @command('')
+    async def decode_bolt12(self, bech32: str):
+        """Decode bolt12 object
+
+        arg:str:bech32:Offer, Invoice Request or Invoice
+        """
+        dec = bolt12.bech32_decode(bech32, ignore_long_length=True, with_checksum=False)
+        if dec == INVALID_BECH32:
+            raise UserFacingException('invalid bech32')
+        d = {
+            'lni': BOLT12Invoice.decode,
+            'lno': BOLT12Offer.decode,
+            'lnr': BOLT12InvoiceRequest.decode,
+        }[dec.hrp](bech32)
+        return json_encode(d.serialize(with_signature=True))
 
 
 def plugin_command(s, plugin_name):
