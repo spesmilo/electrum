@@ -15,10 +15,11 @@ from electrum.invoices import (
 from electrum.transaction import PartialTxOutput, TxOutput
 from electrum.lnutil import format_short_channel_id
 from electrum.lnurl import LNURL6Data
+from electrum.lnchannel import PeerState, ChannelState
 from electrum.bitcoin import COIN, address_to_script
 from electrum.payment_identifier import PaymentIdentifier, PaymentIdentifierState, PaymentIdentifierType
 from electrum.network import Network
-from electrum.util import event_listener
+from electrum.util import event_listener, now
 
 from electrum.gui.common_qt.util import QtEventListener
 
@@ -29,6 +30,8 @@ from ...util import InvoiceError
 
 
 class QEInvoice(QObject, QtEventListener):
+    TIMEOUT_WAIT_FOR_CHANNEL_REESTABLISHMENT = 15  # duration we show the "connecting to lightning peers..." message
+
     @pyqtEnum
     class Type(IntEnum):
         Invalid = -1
@@ -46,6 +49,12 @@ class QEInvoice(QObject, QtEventListener):
         Failed = PR_FAILED
         Routing = PR_ROUTING
         Unconfirmed = PR_UNCONFIRMED
+
+    @pyqtEnum
+    class UserinfoStatus(IntEnum):
+        Info = 0
+        Warning = 1
+        Error = 2
 
     _logger = get_logger(__name__)
 
@@ -65,6 +74,7 @@ class QEInvoice(QObject, QtEventListener):
         self._invoiceType = QEInvoice.Type.Invalid
         self._effectiveInvoice = None  # type: Optional[Invoice]
         self._userinfo = ''
+        self._userinfoStatus = QEInvoice.UserinfoStatus.Info
         self._paid_in_this_session = False
         self._lnprops = {}
         self._amount = QEAmount()
@@ -96,7 +106,7 @@ class QEInvoice(QObject, QtEventListener):
         if wallet == self._wallet.wallet and key == self.key:
             self.statusChanged.emit()
             self.determine_can_pay()
-            self.userinfo = _('Payment failed: ') + reason
+            self.set_userinfo(_('Payment failed: ') + reason, QEInvoice.UserinfoStatus.Error)
 
     @event_listener
     def on_event_invoice_status(self, wallet, key, status):
@@ -233,8 +243,15 @@ class QEInvoice(QObject, QtEventListener):
     def userinfo(self):
         return self._userinfo
 
-    @userinfo.setter
-    def userinfo(self, userinfo):
+    userinfoStatusChanged = pyqtSignal()
+    @pyqtProperty(int, notify=userinfoStatusChanged)
+    def userinfoStatus(self):
+        return self._userinfoStatus
+
+    def set_userinfo(self, userinfo: str, status: 'QEInvoice.UserinfoStatus' = UserinfoStatus.Info):
+        if self._userinfoStatus != status:
+            self._userinfoStatus = status
+            self.userinfoStatusChanged.emit()
         if self._userinfo != userinfo:
             self._userinfo = userinfo
             self.userinfoChanged.emit()
@@ -306,7 +323,7 @@ class QEInvoice(QObject, QtEventListener):
         self.set_status_timer()
 
     def update_userinfo(self):
-        self.userinfo = ''
+        self.set_userinfo('')
 
         if not self.amountOverride.isEmpty:
             amount = self.amountOverride
@@ -314,7 +331,7 @@ class QEInvoice(QObject, QtEventListener):
             amount = self.amount
 
         if self.amount.isEmpty:
-            self.userinfo = _('Enter the amount you want to send')
+            self.set_userinfo(_('Enter the amount you want to send'))
 
         status = self.status
 
@@ -334,11 +351,18 @@ class QEInvoice(QObject, QtEventListener):
             }[_status]
 
         if status in [PR_UNPAID, PR_FAILED]:
-            x, self.userinfo = self.check_can_pay_amount(amount)
+            can_pay, msg = self.check_can_pay_amount(amount)
+            if can_pay is None:
+                userinfo_status = QEInvoice.UserinfoStatus.Warning
+            elif can_pay is False:
+                userinfo_status = QEInvoice.UserinfoStatus.Error
+            else:
+                userinfo_status = QEInvoice.UserinfoStatus.Info
+            self.set_userinfo(msg, userinfo_status)
         elif status == PR_PAID and self._paid_in_this_session:
-            self.userinfo = _('Paid!')
+            self.set_userinfo(_('Paid!'))
         else:
-            self.userinfo = userinfo_for_invoice_status(status)
+            self.set_userinfo(userinfo_for_invoice_status(status))
 
     def determine_can_pay(self):
         self.canPay = False
@@ -360,9 +384,10 @@ class QEInvoice(QObject, QtEventListener):
             return
 
         if status in [PR_UNPAID, PR_FAILED]:
-            self.canPay, x = self.check_can_pay_amount(amount)
+            self.canPay = self.check_can_pay_amount(amount)[0] is True
 
-    def check_can_pay_amount(self, amount: QEAmount) -> Tuple[bool, Optional[str]]:
+    def check_can_pay_amount(self, amount: QEAmount) -> Tuple[Optional[bool], Optional[str]]:
+        # can_pay bool: None is warning, False is Error
         assert self.status in [PR_UNPAID, PR_FAILED]
         if self.invoiceType == QEInvoice.Type.LightningInvoice:
             if self.get_max_spendable_lightning() * 1000 >= amount.msatsInt:
@@ -371,6 +396,9 @@ class QEInvoice(QObject, QtEventListener):
                     return False, _('Cannot pay less than the amount specified in the invoice')
                 else:
                     return True, None
+            if count := self.count_connecting_channels():
+                userinfo = _('Connecting to Lightning peers...') if count > 1 else _('Connecting to Lightning peer...')
+                return None, userinfo
             elif self.address and self.get_max_spendable_onchain() > amount.satsInt:
                 return True, None
         elif self.invoiceType == QEInvoice.Type.OnchainInvoice:
@@ -401,6 +429,18 @@ class QEInvoice(QObject, QtEventListener):
 
     def get_max_spendable_lightning(self):
         return self._wallet.wallet.lnworker.num_sats_can_send() if self._wallet.wallet.lnworker else 0
+
+    def count_connecting_channels(self) -> int:
+        """Return count of channels that would become usable as soon as they are reestablished until a timeout"""
+        if not (lnworker := self._wallet.wallet.lnworker):
+            return 0
+        uptime = now() - lnworker.instantiation_timestamp
+        if uptime > self.TIMEOUT_WAIT_FOR_CHANNEL_REESTABLISHMENT:
+            return 0
+        reestablishing_chans = [chan for chan in lnworker.channels.values()
+                                    if chan.get_state() == ChannelState.OPEN
+                                    and chan.peer_state <= PeerState.REESTABLISHING]
+        return len(reestablishing_chans)
 
     @pyqtSlot()
     def updateMaxAmount(self):
@@ -484,7 +524,7 @@ class QEInvoiceParser(QEInvoice):
         self._lnurlData = None
         self.canSave = False
         self.canPay = False
-        self.userinfo = ''
+        self.set_userinfo('')
         self.invoiceChanged.emit()
 
     def setValidOnchainInvoice(self, invoice: Invoice):
