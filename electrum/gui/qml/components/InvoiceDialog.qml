@@ -505,7 +505,7 @@ ElDialog {
     }
 
     Component.onCompleted: {
-        if (invoice.amount.isEmpty && !invoice.status == Invoice.Expired) {
+        if (invoice.amount.isEmpty && invoice.status != Invoice.Expired) {
             amountContainer.editmode = true
         } else if (invoice.amount.isMax) {
             amountMax.checked = true
