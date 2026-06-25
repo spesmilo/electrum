@@ -26,7 +26,7 @@ from . import bitcoin, util
 from . import constants
 from .util import (log_exceptions, ignore_exceptions, chunks, OldTaskGroup,
                    UnrelatedTransactionException, error_text_bytes_to_safe_str, AsyncHangDetector,
-                   NoDynamicFeeEstimates, event_listener, EventListener)
+                   NoDynamicFeeEstimates, event_listener, EventListener, RESERVED_OWNER_LIGHTNING)
 from . import transaction
 from .bitcoin import make_op_return, DummyAddress
 from .transaction import PartialTxOutput, match_script_against_template, Sighash
@@ -960,12 +960,12 @@ class Peer(Logger, EventListener):
             change_addresses = [txout.address for txout in funding_tx.outputs()
                                 if wallet.is_change(txout.address)]
             for addr in change_addresses:
-                wallet.set_reserved_state_of_address(addr, reserved=True)
+                wallet.set_reserved_state_of_address(addr, reserved=True, owner=RESERVED_OWNER_LIGHTNING)
             try:
                 return await func(self, *args, **kwargs)
             finally:
                 for addr in change_addresses:
-                    self.lnworker.wallet.set_reserved_state_of_address(addr, reserved=False)
+                    self.lnworker.wallet.set_reserved_state_of_address(addr, reserved=False, owner=RESERVED_OWNER_LIGHTNING)
         return wrapper
 
     @temporarily_reserve_funding_tx_change_address

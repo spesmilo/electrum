@@ -6,15 +6,18 @@ from typing import TYPE_CHECKING, Callable, List, Optional, Sequence, Tuple, Any
 from electrum.bitcoin import address_to_script
 from electrum.plugin import BasePlugin
 from electrum.transaction import PartialTxOutput, PartialTxInput, TxOutpoint
-from electrum.util import bfh
+from electrum.util import bfh, make_plugin_reservation_owner
 
 if TYPE_CHECKING:
     from electrum.gui.qt import ElectrumWindow
     from electrum.transaction import PartialTransaction, TxOutput
     from electrum.wallet import Abstract_Wallet
 
+PLUGIN_NAME = "timelock_recovery"
 ALERT_ADDRESS_LABEL = "Timelock Recovery Alert Address"
 CANCELLATION_ADDRESS_LABEL = "Timelock Recovery Cancellation Address"
+ALERT_ADDRESS_TAG = "alert"
+CANCELLATION_ADDRESS_TAG = "cancellation"
 
 class PartialTxInputWithFixedNsequence(PartialTxInput):
     _fixed_nsequence: int
@@ -54,30 +57,38 @@ class TimelockRecoveryContext:
         self.wallet = wallet
         self.wallet_name = str(self.wallet)
 
-    def _get_address_by_label(self, label: str) -> str:
-        unused_addresses = list(self.wallet.get_unused_addresses())
-        for addr in unused_addresses:
-            if self.wallet.get_label_for_address(addr) == label:
+    def _get_reserved_address(self, *, tag: str, label: str) -> str:
+        # the address is identified by its reservation (owner + tag); the label is only for display
+        owner = make_plugin_reservation_owner(PLUGIN_NAME)
+        # reuse a previously assigned address for this purpose, if it is still unused
+        for addr in self.wallet.get_reserved_addresses(owner=owner, tag=tag):
+            if not self.wallet.adb.is_used(addr):
                 return addr
-        for addr in unused_addresses:
-            if not self.wallet.is_address_reserved(addr) and not self.wallet.get_label_for_address(addr):
+        # otherwise pick a fresh unused address, then reserve and label it
+        # (get_unused_addresses already excludes reserved addresses)
+        for addr in self.wallet.get_unused_addresses():
+            if not self.wallet.get_label_for_address(addr):
+                self.wallet.set_reserved_state_of_address(addr, reserved=True, owner=owner, tag=tag)
                 self.wallet.set_label(addr, label)
                 return addr
         if self.wallet.is_deterministic():
             addr = self.wallet.create_new_address(False)
             if addr:
+                self.wallet.set_reserved_state_of_address(addr, reserved=True, owner=owner, tag=tag)
                 self.wallet.set_label(addr, label)
                 return addr
         return ''
 
     def get_alert_address(self) -> str:
         if self._alert_address is None:
-            self._alert_address = self._get_address_by_label(ALERT_ADDRESS_LABEL)
+            self._alert_address = self._get_reserved_address(
+                tag=ALERT_ADDRESS_TAG, label=ALERT_ADDRESS_LABEL)
         return self._alert_address
 
     def get_cancellation_address(self) -> str:
         if self._cancellation_address is None:
-            self._cancellation_address = self._get_address_by_label(CANCELLATION_ADDRESS_LABEL)
+            self._cancellation_address = self._get_reserved_address(
+                tag=CANCELLATION_ADDRESS_TAG, label=CANCELLATION_ADDRESS_LABEL)
         return self._cancellation_address
 
     def make_unsigned_alert_tx(self, fee_policy) -> 'PartialTransaction':
@@ -157,6 +168,22 @@ class TimelockRecoveryContext:
 class TimelockRecoveryPlugin(BasePlugin):
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
+
+    def _migrate_labeled_addresses(self, wallet) -> None:
+        # conversion from older wallets, bring addresses that earlier plugin versions tagged by labels
+        # into the reservation mechanism
+        if self.get_reserved_wallet_addresses(wallet):
+            return  # already migrated
+
+        tag_by_label = {
+            ALERT_ADDRESS_LABEL: ALERT_ADDRESS_TAG,
+            CANCELLATION_ADDRESS_LABEL: CANCELLATION_ADDRESS_TAG,
+        }
+
+        for key, label in wallet.get_all_labels().items():
+            tag = tag_by_label.get(label)
+            if tag is not None:
+                self.reserve_wallet_address(wallet, key, tag=tag)
 
     @classmethod
     def json_checksum(cls, json_data: dict[str, Any]) -> str:

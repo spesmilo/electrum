@@ -323,7 +323,15 @@ class TestStorageUpgrade(WalletTestCase):
         # some labels, frozen addresses, saved local txs, invoices/requests, etc. The file also has partial writes.
         # Also, regression test for #8913
         wallet_str = self._get_wallet_str()
-        await self._upgrade_storage(wallet_str)
+        db = await self._upgrade_storage(wallet_str)
+        # _convert_version_72: the old flat 'reserved_addresses' list becomes a {addr: "ow:ner[:tag]"}
+        # dict, marking existing entries with the core:lightning owner.
+        self.assertEqual(72, db.get('seed_version'))
+        reserved = db.get('reserved_addresses')
+        self.assertIsInstance(reserved, dict)
+        for addr in ("tb1qcmq7v2zg0jjy5g47k90fqd0h7a4mcyp7f3ly6r",
+                     "tb1qgqfvg54gaads92a6dhwcgvvfjvnxdtq373guj5"):
+            self.assertEqual("core:lightning", reserved.get(addr))
 
 ##########
 

@@ -35,7 +35,8 @@ import attr
 
 from . import bitcoin
 from . import constants
-from .util import profiler, WalletFileException, multisig_type, TxMinedInfo, MyEncoder
+from .util import (profiler, WalletFileException, multisig_type, TxMinedInfo, MyEncoder,
+                   reservation_owner_namespace, plugin_name_from_reservation_owner, RESERVED_OWNER_NS_PLUGIN)
 from .keystore import bip44_derivation
 from .transaction import Transaction, TxOutpoint, tx_from_any, PartialTransaction, PartialTxOutput, BadHeaderMagic
 from .logging import Logger
@@ -71,7 +72,7 @@ class WalletUnfinished(WalletFileException):
 # seed_version is now used for the version of the wallet file
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 71     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 72     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -259,6 +260,7 @@ class WalletDBUpgrader(Logger):
         self._convert_version_69()
         self._convert_version_70()
         self._convert_version_71()
+        self._convert_version_72()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
     def _convert_wallet_type(self):
@@ -1435,6 +1437,16 @@ class WalletDBUpgrader(Logger):
         self.data['genesis_blockhash'] = constants.net.GENESIS
         self.data['seed_version'] = 71
 
+    def _convert_version_72(self):
+        # 'reserved_addresses' changes from a flat list of addresses to a dict {addr: "ow:ner:tag"}.
+        # The existing entries were all written by lnpeer, so tag them with the core:lightning owner.
+        if not self._is_upgrade_method_needed(71, 71):
+            return
+        old = self.data.get('reserved_addresses', [])
+        if isinstance(old, list):
+            self.data['reserved_addresses'] = {addr: 'core:lightning' for addr in old}
+        self.data['seed_version'] = 72
+
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):
             return
@@ -2031,6 +2043,23 @@ class WalletDB(JsonDB):
             if name not in installed_plugins:
                 plugin_storage.pop(name)
                 self.logger.info(f"deleting plugin data: {name=}")
+
+    def prune_uninstalled_plugin_reserved_addresses(self, installed_plugins: AbstractSet[str]) -> None:
+        """Release address reservations owned by plugins that are not installed anymore."""
+        reserved = self.get('reserved_addresses', {})
+        if not isinstance(reserved, dict):
+            return
+        changed = False
+        for addr in list(reserved.keys()):
+            stored = reserved[addr]  # serialized "<owner>[:<tag>]"
+            if not isinstance(stored, str) or reservation_owner_namespace(stored) != RESERVED_OWNER_NS_PLUGIN:
+                continue
+            if plugin_name_from_reservation_owner(stored) not in installed_plugins:
+                reserved.pop(addr)
+                changed = True
+                self.logger.info(f"releasing reserved address of uninstalled plugin: {stored=}")
+        if changed:
+            self.put('reserved_addresses', reserved)
 
     def set_keystore_encryption(self, enable):
         self.put('use_encryption', enable)

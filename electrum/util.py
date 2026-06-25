@@ -90,6 +90,58 @@ def all_subclasses(cls) -> Set:
     return res
 
 
+# Addresses can be "reserved" so the wallet does not hand them out for new payment
+# requests. Each reservation has an "owner" string "<namespace>:<name>" identifying who made it:
+#   - "plugin:<plugin_name>" for plugins
+#   - "core:<subsystem>" for internal owners, e.g. "core:lightning"
+# Only the owner may later release or re-reserve the address. A reservation may also carry an optional
+# free-form `tag` that the owner can use to sub-categorise its own reservations.
+# Plugin reservations are pruned when the plugin is uninstalled
+# (see WalletDB.prune_uninstalled_plugin_reserved_addresses).
+RESERVED_OWNER_NS_PLUGIN = "plugin"
+RESERVED_OWNER_NS_CORE = "core"
+RESERVED_OWNER_LIGHTNING = f"{RESERVED_OWNER_NS_CORE}:lightning"
+
+
+class ReservedAddress(NamedTuple):
+    owner: str
+    tag: Optional[str] = None
+
+    def serialize(self) -> str:
+        # a single colon-namespaced string "<owner>[:<tag>]" (owner is itself "<namespace>:<name>")
+        return f"{self.owner}:{self.tag}" if self.tag is not None else self.owner
+
+    @classmethod
+    def deserialize(cls, s: str) -> 'ReservedAddress':
+        parts = s.split(":", 2)  # owner is the first two components; anything after that is the tag
+        if len(parts) > 2:
+            return cls(owner=f"{parts[0]}:{parts[1]}", tag=parts[2])
+        return cls(owner=s, tag=None)
+
+
+def make_plugin_reservation_owner(plugin_name: str) -> str:
+    return f"{RESERVED_OWNER_NS_PLUGIN}:{plugin_name}"
+
+
+def reservation_owner_namespace(owner: str) -> str:
+    return owner.split(":", 1)[0]
+
+
+def plugin_name_from_reservation_owner(owner: str) -> str:
+    """Given a 'plugin:<name>[:<tag>]' (serialized) string, return '<name>'."""
+    return owner.split(":")[1]
+
+
+def reserved_addresses_from_stored(stored: Any) -> Dict[str, ReservedAddress]:
+    """Parse the persisted 'reserved_addresses' value ({addr: '<owner>[:<tag>]'})."""
+    result = {}  # type: Dict[str, ReservedAddress]
+    if isinstance(stored, dict):
+        for addr, v in stored.items():
+            if isinstance(v, str) and v:
+                result[addr] = ReservedAddress.deserialize(v)
+    return result
+
+
 ca_path = certifi.where()
 
 

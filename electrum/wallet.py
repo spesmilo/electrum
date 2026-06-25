@@ -55,7 +55,8 @@ from .util import (
     WalletFileException, BitcoinException, InvalidPassword, format_time, timestamp_to_datetime,
     Satoshis, Fiat, TxMinedInfo, quantize_feerate, OrderedDictWithIndex, multisig_type, parse_max_spend,
     OnchainHistoryItem, read_json_file, write_json_file, UserFacingException, FileImportFailed, EventListener,
-    event_listener
+    event_listener,
+    RESERVED_OWNER_LIGHTNING, ReservedAddress, reserved_addresses_from_stored,
 )
 from .bitcoin import COIN, is_address, is_minikey, relayfee, dust_threshold, DummyAddress, DummyAddressUsedInTxException
 from .keystore import (
@@ -436,7 +437,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self.fiat_value            = db.get_dict('fiat_value')
         self._receive_requests     = db.get_dict('payment_requests')  # type: Dict[str, Request]
         self._invoices             = db.get_dict('invoices')  # type: Dict[str, Invoice]
-        self._reserved_addresses   = set(db.get('reserved_addresses', []))
+        self._reserved_addresses   = reserved_addresses_from_stored(
+                                     db.get('reserved_addresses', {}))  # type: Dict[str, ReservedAddress]
         self._num_parents          = db.get_dict('num_parents')
 
         self._freeze_lock = threading.RLock()  # for mutating/iterating frozen_{addresses,coins}
@@ -579,7 +581,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         finally:  # even if we get cancelled
             if any([ks.is_requesting_to_be_rewritten_to_wallet_file for ks in self.get_keystores()]):
                 self.save_keystore()
-            self.db.prune_uninstalled_plugin_data(self.config.get_installed_plugins())
+            installed_plugins = self.config.get_installed_plugins()
+            self.db.prune_uninstalled_plugin_data(installed_plugins)
+            self.db.prune_uninstalled_plugin_reserved_addresses(installed_plugins)
             self.save_db()
 
     def is_up_to_date(self) -> bool:
@@ -2242,25 +2246,58 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             self.save_db()
 
     def is_address_reserved(self, addr: str) -> bool:
-        # note: atm 'reserved' status is only taken into consideration for 'change addresses'
+        # reserved addresses are withheld from new payment requests and from change selection.
         return addr in self._reserved_addresses
 
-    def set_reserved_state_of_address(self, addr: str, *, reserved: bool) -> None:
+    def set_reserved_state_of_address(self, addr: str, *, reserved: bool, owner: str, tag: Optional[str] = None) -> None:
+        """Reserve (or release) an address so it is not handed out for other uses, e.g. payment requests.
+        `owner` identifies who made the reservation, e.g. util.make_plugin_reservation_owner(plugin.name)
+        or util.RESERVED_OWNER_LIGHTNING.
+        `tag` is an optional free-form label the owner may use to sub-categorise its own reservations.
+        """
         if not self.is_mine(addr):
             # silently ignore non-ismine addresses
             return
         with self.lock:
-            has_changed = (addr in self._reserved_addresses) != reserved
+            prev = self._reserved_addresses.get(addr)
+            if prev is not None and prev.owner != owner:
+                # owned by core or another plugin: refuse to take it over or to release it
+                self.logger.info(
+                    f"ignoring reservation change for {addr} by {owner!r}: owned by {prev.owner!r}")
+                return
             if reserved:
-                self._reserved_addresses.add(addr)
+                new = ReservedAddress(owner=owner, tag=tag)
+                if prev == new:
+                    return  # nothing changed
+                self._reserved_addresses[addr] = new
             else:
-                self._reserved_addresses.discard(addr)
-            if has_changed:
-                self.db.put('reserved_addresses', list(self._reserved_addresses))
+                if prev is None:
+                    return  # not reserved; nothing to do
+                self._reserved_addresses.pop(addr, None)
+            self._save_reserved_addresses()
+
+    def _save_reserved_addresses(self) -> None:
+        self.db.put('reserved_addresses',
+                    {addr: r.serialize() for addr, r in self._reserved_addresses.items()})
+
+    def get_reserved_addresses(self, *, owner: Optional[str] = None, tag: Optional[str] = None) -> Sequence[str]:
+        """Addresses currently reserved, optionally filtered by `owner` and/or `tag`."""
+        with self.lock:
+            return [addr for addr, r in self._reserved_addresses.items()
+                    if (owner is None or r.owner == owner)
+                    and (tag is None or r.tag == tag)]
+
+    def get_address_reservation_owner(self, addr: str) -> Optional[str]:
+        r = self._reserved_addresses.get(addr)
+        return r.owner if r is not None else None
+
+    def get_address_reservation_tag(self, addr: str) -> Optional[str]:
+        r = self._reserved_addresses.get(addr)
+        return r.tag if r is not None else None
 
     def set_reserved_addresses_for_chan(self, chan: 'AbstractChannel', *, reserved: bool) -> None:
         for addr in chan.get_wallet_addresses_channel_might_want_reserved():
-            self.set_reserved_state_of_address(addr, reserved=reserved)
+            self.set_reserved_state_of_address(addr, reserved=reserved, owner=RESERVED_OWNER_LIGHTNING)
 
     def can_export(self):
         return not self.is_watching_only() and hasattr(self.keystore, 'get_private_key')
@@ -2815,7 +2852,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def get_unused_addresses(self) -> Sequence[str]:
         domain = self.get_receiving_addresses()
-        return [addr for addr in domain if not self.adb.is_used(addr) and not self.get_request_by_addr(addr)]
+        return [addr for addr in domain
+                if not self.adb.is_used(addr)
+                and not self.get_request_by_addr(addr)
+                and not self.is_address_reserved(addr)]
 
     @check_returned_address_for_corruption
     def get_unused_address(self) -> Optional[str]:
@@ -2838,7 +2878,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         choice = domain[0]
         for addr in domain:
             if not self.adb.is_used(addr):
-                if self.get_request_by_addr(addr) is None:
+                if self.get_request_by_addr(addr) is None and not self.is_address_reserved(addr):
                     return addr
                 else:
                     choice = addr
