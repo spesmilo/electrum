@@ -506,7 +506,8 @@ class TxEditor(WindowModalDialog, SubmarineSwapMixin, Logger):
         def cb():
             self.set_locktime_visible()
             self.resize_to_fit_content()
-        self.pref_menu.addConfig(self.config.cv.GUI_QT_TX_EDITOR_SHOW_LOCKTIME, callback=cb)
+        if self.context != TxEditorContext.CHANNEL_FUNDING:
+            self.pref_menu.addConfig(self.config.cv.GUI_QT_TX_EDITOR_SHOW_LOCKTIME, callback=cb)
         self.pref_menu.addSeparator()
         can_have_lightning = self.wallet.can_have_lightning()
         send_ch_to_ln = self.pref_menu.addConfig(
@@ -590,7 +591,7 @@ class TxEditor(WindowModalDialog, SubmarineSwapMixin, Logger):
             w.show()
 
     def set_locktime_visible(self):
-        b = self.config.GUI_QT_TX_EDITOR_SHOW_LOCKTIME
+        b = self.config.GUI_QT_TX_EDITOR_SHOW_LOCKTIME and self.context != TxEditorContext.CHANNEL_FUNDING
         for w in [
                 self.locktime_e,
                 self.locktime_label]:
