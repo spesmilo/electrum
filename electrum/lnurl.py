@@ -248,6 +248,9 @@ async def callback_lnurl(url: str, params: dict) -> dict:
     status = response.get("status")
     if status and status == "ERROR":
         raise UntrustedLNURLError(f"LNURL request encountered an error: {response.get('reason', '<missing reason>')}")
+    # TODO: implement LUD-09 (https://github.com/lnurl/luds/blob/luds/09.md), e.g. useful for paying offline devices
+    if 'successAction' in response:
+        raise LNURLError("successAction are not yet supported by Electrum.")
     # TODO: handling of specific errors (validate fields, e.g. for lnurl6)
     return response
 
