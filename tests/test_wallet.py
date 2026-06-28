@@ -291,6 +291,8 @@ class TestHistoryExport(ElectrumTestCase):
             # compare line by line for more readable traceback on difference
             for reference, test in zip(reference_text, test_export_text):
                 self.assertEqual(reference, test)
+        # stop wallet
+        await daemon._stop_wallet(wallet_path)
 
 
 class TestCreateRestoreWallet(WalletTestCase):

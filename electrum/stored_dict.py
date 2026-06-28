@@ -498,12 +498,6 @@ class DictStorage(StoredDict):
     def set_data(self, data:str):
         return self._db.set_data(data)
 
-    def set_modified(self, b: bool):
-        return self._db.set_modified(b)
-
-    def write_and_force_consolidation(self):
-        self._db.write_and_force_consolidation()
-
     def get_encryption_versions(self) -> PasswordType:
         return self._db.get_encryption_versions()
 
@@ -519,8 +513,8 @@ class DictStorage(StoredDict):
     def is_encrypted_with_user_pw(self):
         return self._db.is_encrypted_with_user_pw()
 
-    def write(self):
-        return self._db.write()
+    def write(self, **kwargs):
+        return self._db.write(**kwargs)
 
     def close(self):
         return self._db.close()

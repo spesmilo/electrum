@@ -1426,7 +1426,6 @@ class LNWallet(Logger):
         assert type(chan) is Channel
         if chan.config[REMOTE].next_per_commitment_point == chan.config[REMOTE].current_per_commitment_point:
             raise Exception("Tried to save channel with next_point == current_point, this should not happen")
-        self.wallet.save_db()
         util.trigger_callback('channel', self.wallet, chan)
 
     def channel_by_txo(self, txo: str) -> Optional[AbstractChannel]:
@@ -2746,8 +2745,6 @@ class LNWallet(Logger):
         )
         self.save_preimage(payment_hash, payment_preimage, write_to_disk=False)
         self.save_payment_info(info, write_to_disk=False)
-        if write_to_disk:
-            self.wallet.save_db()
         return payment_hash
 
     def bundle_payments(self, hash_list: Sequence[bytes]) -> None:
@@ -2839,8 +2836,6 @@ class LNWallet(Logger):
             return
         self.logger.debug(f"saving preimage for {payment_hash.hex()} (public={mark_as_public})")
         self._preimages[payment_hash.hex()] = new_tuple
-        if write_to_disk:
-            self.wallet.save_db()
 
     def get_preimage(self, payment_hash: bytes) -> Optional[bytes]:
         assert isinstance(payment_hash, bytes), f"expected bytes, but got {type(payment_hash)}"
@@ -2939,8 +2934,6 @@ class LNWallet(Logger):
                     raise Exception(f"payment_hash already in use: {info=} != {old_info=}")
             v = info.amount_msat, info.status, info.min_final_cltv_delta, info.expiry_delay, info.creation_ts, int(info.invoice_features)
             self.payment_info[info.db_key] = v
-        if write_to_disk:
-            self.wallet.save_db()
 
     def update_or_create_mpp_with_received_htlc(
         self,
@@ -3000,7 +2993,6 @@ class LNWallet(Logger):
             raise ValueError(f'forbidden mpp set transition: {mpp_status.resolution} -> {new_resolution}')
         self.logger.info(f'set_mpp_resolution {new_resolution.name} {len(mpp_status.htlcs)=}: {payment_key=}')
         self.received_mpp_htlcs[payment_key] = mpp_status._replace(resolution=new_resolution)
-        self.wallet.save_db()
         return self.received_mpp_htlcs[payment_key]
 
     def set_htlc_set_error(
@@ -3783,7 +3775,6 @@ class LNWallet(Logger):
             cb = ChannelBackup(cb_storage, lnworker=self)
             self._channel_backups[channel_id] = cb
         self.wallet.set_reserved_addresses_for_chan(cb, reserved=True)
-        self.wallet.save_db()
         util.trigger_callback('channels_updated', self.wallet)
         self.lnwatcher.add_channel(cb)
 
@@ -3811,7 +3802,6 @@ class LNWallet(Logger):
         with self.lock:
             self._channel_backups.pop(channel_id)
         self.wallet.set_reserved_addresses_for_chan(chan, reserved=False)
-        self.wallet.save_db()
         util.trigger_callback('channels_updated', self.wallet)
 
     @log_exceptions
@@ -3901,7 +3891,6 @@ class LNWallet(Logger):
         d[channel_id] = cb_storage
         cb = ChannelBackup(cb_storage, lnworker=self)
         self.wallet.set_reserved_addresses_for_chan(cb, reserved=True)
-        self.wallet.save_db()
         with self.lock:
             self._channel_backups[bfh(channel_id)] = cb
         util.trigger_callback('channels_updated', self.wallet)

@@ -31,9 +31,9 @@ from contextlib import contextmanager
 import jsonpatch
 import jsonpointer
 
-from .util import WalletFileException, profiler, sticky_property
+from .util import profiler, sticky_property
 from .logging import Logger
-from .stored_dict import _FLEX_KEY, BaseDB
+from .stored_dict import _FLEX_KEY, BaseDB, StorageException
 from .storage import FileStorage
 
 
@@ -67,12 +67,6 @@ def key_path(path: Sequence[_FLEX_KEY], key: _FLEX_KEY) -> str:
     return '/'.join(items)
 
 
-def modifier(func):
-    def wrapper(self, *args, **kwargs):
-        with self.lock:
-            self._modified = True
-            return func(self, *args, **kwargs)
-    return wrapper
 
 def locked(func):
     def wrapper(self, *args, **kwargs):
@@ -96,7 +90,6 @@ class JsonDB(BaseDB):
         self.lock = threading.RLock()
         self.pending_changes = []  # type: List[str]
         self._write_batch = False
-        self._modified = False
         if self.path:
             self.storage = FileStorage(path, allow_partial_writes=allow_partial_writes)
             if init_db and not self.is_encrypted():
@@ -116,9 +109,9 @@ class JsonDB(BaseDB):
             assert self.storage.is_past_initial_decryption()
         json_str = self.storage.read()
         self.json_data = self.load_data(json_str)
-        # write file in case there was a db upgrade
-        self.write_and_force_consolidation()
         self._is_closed = False
+        # write file in case there was a db upgrade
+        self.write(force_consolidation=True)
 
     def decrypt(self, password: str):
         self.storage.decrypt(password)
@@ -146,15 +139,12 @@ class JsonDB(BaseDB):
 
     def add_password(self, password: str, password_type=None):
         self.storage.add_password(password, password_type=password_type)
-        self.set_modified(True)
 
     def update_password(self, password: str, new_password: str, new_password_type):
         self.storage.update_password(password, new_password, new_password_type)
-        self.set_modified(True)
 
     def remove_password(self, password: str):
         self.storage.remove_password(password)
-        self.set_modified(True)
 
     def file_exists(self):
         return self.storage and self.storage.file_exists()
@@ -178,19 +168,16 @@ class JsonDB(BaseDB):
         # called by setattr
         self.put(d, path, key, value)
 
-    @modifier
     def put(self, d, path, key, value):
         is_new = key not in d
         if not is_new and d[key] == value:
             return
-        d[key] = value
-        self.db_add(path, key, value) if is_new else self.db_replace(path, key, value)
+        op = 'dict_add' if is_new else 'dict_replace'
+        self.add_pending_change(d, op, path, key, value)
 
-    @modifier
     def clear(self, d, path):
-        d.clear()
         path, key = path[:-1], path[-1]
-        self.db_replace(path, key, {})
+        self.add_pending_change(d, 'dict_clear', path, key, None)
 
     def get(self, d, key):
         return d[key]
@@ -198,16 +185,11 @@ class JsonDB(BaseDB):
     def get_hint(self, path):
         return self._subdict(path)
 
-    @modifier
     def remove(self, d, path, key):
-        d.pop(key)
-        self.db_remove(path, key)
+        self.add_pending_change(d, 'dict_remove', path, key, None)
 
-    @modifier
     def list_append(self, _list, path, item):
-        n = len(_list)
-        _list.append(item)
-        self.db_add(path, str(n), item)
+        self.add_pending_change(_list, 'list_append', path, None, item)
 
     def list_index(self, _list, path, item):
         return _list.index(item)
@@ -215,17 +197,11 @@ class JsonDB(BaseDB):
     def list_len(self, _list, path):
         return len(_list)
 
-    @modifier
     def list_clear(self, _list, path):
-        _list.clear()
-        self.db_remove(path[:-1], path[-1])
-        self.db_add(path[:-1], path[-1], [])
+        self.add_pending_change(_list, 'list_clear', path[:-1], path[-1], None)
 
-    @modifier
     def list_remove(self, _list, path, item):
-        n = _list.index(item)
-        _list.remove(item)
-        self.db_remove(path, str(n)) # fixme: keys
+        self.add_pending_change(_list, 'list_remove', path[:-1], path[-1], item)
 
     def load_data(self, s: str) -> Dict[str, Any]:
         if s == '':
@@ -239,15 +215,14 @@ class JsonDB(BaseDB):
             elif r := self.maybe_load_incomplete_data(s):
                 data, patches = r, []
             else:
-                raise WalletFileException("Cannot read wallet file. (parsing failed)")
+                raise StorageException("Cannot read wallet file. (parsing failed)")
         if not isinstance(data, dict):
-            raise WalletFileException("Malformed wallet file (not dict)")
+            raise StorageException("Malformed wallet file (not dict)")
         if patches:
             # apply patches
             self.logger.info('found %d patches'%len(patches))
             patch = jsonpatch.JsonPatch(patches)
             data = patch.apply(data)
-            self.set_modified(True)
         return data
 
     def maybe_load_ast_data(self, s) ->Dict[str, Any]:
@@ -285,29 +260,19 @@ class JsonDB(BaseDB):
                 self.logger.info('found incomplete data {s[i:]}')
                 return self.load_data(s[0:-2])
 
-    def set_modified(self, b):
-        with self.lock:
-            self._modified = b
-
-    def modified(self):
-        return self._modified
-
     @locked
-    def add_patch(self, patch):
-        self.pending_changes.append(json.dumps(patch))
-        self.set_modified(True)
+    def add_pending_change(self, hint, op, path, key, value):
+        self.pending_changes.append((hint, op, path, key, value))
+        if not self._write_batch:
+            self.write()
 
-    def db_add(self, path, key: _FLEX_KEY, value) -> None:
+    def db_replace(self, hint, path, key: _FLEX_KEY, value) -> None:
         assert isinstance(key, _FLEX_KEY), repr(key)
-        self.add_patch({'op': 'add', 'path': key_path(path, key), 'value': value})
+        self.add_pending_change(hint, 'replace', key_path(path, key), value)
 
-    def db_replace(self, path, key: _FLEX_KEY, value) -> None:
+    def db_remove(self, hint, path, key: _FLEX_KEY) -> None:
         assert isinstance(key, _FLEX_KEY), repr(key)
-        self.add_patch({'op': 'replace', 'path': key_path(path, key), 'value': value})
-
-    def db_remove(self, path, key: _FLEX_KEY) -> None:
-        assert isinstance(key, _FLEX_KEY), repr(key)
-        self.add_patch({'op': 'remove', 'path': key_path(path, key)})
+        self.add_pending_change(hint, 'remove', key_path(path, key), None)
 
     @locked
     def dump(self, *, human_readable: bool = True) -> str:
@@ -327,21 +292,8 @@ class JsonDB(BaseDB):
         try:
             yield
         finally:
-            # FIXME: if an exception is raised here, changes will not be
-            # written to disk, but they will be added to the in-memory dict.
             self._write_batch = False
-        if self.storage:
-            self.write()
-
-    @locked
-    def write(self):
-        assert self._write_batch is False
-        if not self.storage:
-            return
-        if self.storage.should_do_full_write_next():
-            self.write_and_force_consolidation()
-        else:
-            self._append_pending_changes()
+        self.write()
 
     def close(self):
         # do not call write, because we may need to close the DB after an exception was raised during a batch write
@@ -350,26 +302,68 @@ class JsonDB(BaseDB):
     def is_closed(self):
         return self._is_closed
 
+    def _commit_pending_changes(self):
+        patches = []
+        for hint, op, _path, key, value in self.pending_changes:
+            path = key_path(_path, key)
+            if op == 'dict_add':
+                hint[key] = value
+                patch = {'op': 'add', 'path': path, 'value': value}
+            elif op == 'dict_remove':
+                hint.pop(key, None)
+                patch = {'op': 'remove', 'path': path}
+            elif op == 'dict_replace':
+                hint[key] = value
+                patch = {'op': 'replace', 'path': path, 'value': value}
+            elif op == 'dict_clear':
+                hint.clear()
+                patch = {'op': 'replace', 'path': path, 'value': {}}
+            elif op == 'list_append':
+                n = len(hint)
+                hint.append(value)
+                path = key_path(_path, str(n))
+                patch = {'op': 'add', 'path': path, 'value': value}
+            elif op == 'list_remove':
+                hint.remove(value)
+                # we replace the whole list because indexes are deprecated
+                patch = {'op': 'replace', 'path': path, 'value': hint}
+            elif op == 'list_clear':
+                hint.clear()
+                patch = {'op': 'replace', 'path': path, 'value': []}
+            else:
+                raise Exception('unknown operation')
+            patches.append(patch)
+        self.pending_changes = []
+        return patches
+
     @locked
-    def _append_pending_changes(self):
+    def write(self, force_consolidation=False):
+        if self._is_closed:
+            raise StorageException('DB is closed')
+        assert self._write_batch is False
+        patches = self._commit_pending_changes()
+        if not self.storage:
+            return
+        if force_consolidation or self.storage.should_do_full_write_next():
+            self._write_and_force_consolidation()
+        else:
+            self._append_pending_changes(patches)
+
+    @locked
+    def _append_pending_changes(self, patches):
         if threading.current_thread().daemon:
             raise Exception('daemon thread cannot write db')
-        if not self.pending_changes:
+        if not patches:
             self.logger.info('no pending changes')
             return
-        self.logger.info(f'appending {len(self.pending_changes)} pending changes')
-        s = ''.join([',\n' + x for x in self.pending_changes])
+        self.logger.info(f'appending {len(patches)} pending changes')
+        s = ''.join([',\n' + json.dumps(x) for x in patches])
         self.storage.append(s)
-        self.pending_changes = []
 
     @locked
     @profiler
-    def write_and_force_consolidation(self):
+    def _write_and_force_consolidation(self):
         if threading.current_thread().daemon:
             raise Exception('daemon thread cannot write db')
-        if not self.modified():
-            return
         json_str = self.dump(human_readable=not self.storage.is_encrypted())
         self.storage.write(json_str)
-        self.pending_changes = []
-        self.set_modified(False)

@@ -495,10 +495,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             #       have history that are mined and SPV-verified.
             await run_in_thread(self.synchronize)
 
-    def save_db(self):
-        if self.storage:
-            self.storage.write()
-
     def save_backup(self, new_path, password, password_type: PasswordType):
         import json
         from .stored_dict import to_default
@@ -521,8 +517,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if password:
             new_storage.add_password(password, password_type)
         new_storage.set_data(json_str)
-        new_storage.set_modified(True)
-        new_storage.write_and_force_consolidation()
+        new_storage.write(force_consolidation=True)
 
     def has_lightning(self) -> bool:
         return bool(self.lnworker)
@@ -567,7 +562,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             ln_xprv = node.to_xprv()
             self.db.put('lightning_privkey2', ln_xprv)
         self.lnworker = LNWallet(self, ln_xprv)
-        self.save_db()
         if self.network:
             self._start_network_lightning()
 
@@ -589,7 +583,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             if any([ks.is_requesting_to_be_rewritten_to_wallet_file for ks in self.get_keystores()]):
                 self.save_keystore()
             self.db.prune_uninstalled_plugin_data(self.config.get_installed_plugins())
-            self.save_db()
             if self.storage:
                 self.storage.close()
 
@@ -620,7 +613,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             self._up_to_date = up_to_date
         if up_to_date:
             self.adb.reset_netrequest_counters()  # sync progress indicator
-            self.save_db()
         # fire triggers
         if status_changed or up_to_date:  # suppress False->False transition, as it is spammy
             if self.lnworker:
@@ -669,7 +661,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def clear_history(self):
         self.adb.clear_history()
-        self.save_db()
 
     def start_network(self, network: 'Network'):
         assert self.network is None, "already started"
@@ -1296,17 +1287,13 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 for txout in invoice.get_outputs():
                     self._invoices_from_scriptpubkey_map[txout.scriptpubkey].add(key)
         self._invoices[key] = invoice
-        if write_to_disk:
-            self.save_db()
 
     def clear_invoices(self):
         self._invoices.clear()
-        self.save_db()
 
     def clear_requests(self):
         self._receive_requests.clear()
         self._requests_addr_to_key.clear()
-        self.save_db()
 
     def get_invoices(self) -> List[Invoice]:
         out = list(self._invoices.values())
@@ -1328,7 +1315,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             except Exception:
                 raise FileImportFailed(_("Invalid invoice format"))
             self.add_payment_request(req, write_to_disk=False)
-        self.save_db()
 
     def export_requests(self, path):
         # note: this does not export preimages for LN bolt11 invoices
@@ -1342,7 +1328,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             except Exception:
                 raise FileImportFailed(_("Invalid invoice format"))
             self.save_invoice(invoice, write_to_disk=False)
-        self.save_db()
 
     def export_invoices(self, path):
         write_json_file(path, list(self._invoices.values()))
@@ -2222,8 +2207,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     self._frozen_addresses -= set(addrs)
                 self.db.put('frozen_addresses', list(self._frozen_addresses))
             util.trigger_callback('status')
-            if write_to_disk:
-                self.save_db()
             return True
         return False
 
@@ -2249,8 +2232,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 else:
                     self._frozen_coins[utxo] = bool(freeze)
         util.trigger_callback('status')
-        if write_to_disk:
-            self.save_db()
 
     def is_address_reserved(self, addr: str) -> bool:
         # note: atm 'reserved' status is only taken into consideration for 'change addresses'
@@ -3070,8 +3051,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self._receive_requests[request_id] = req
         if addr := req.get_address():
             self._requests_addr_to_key[addr].add(request_id)
-        if write_to_disk:
-            self.save_db()
         return request_id
 
     def delete_request(self, request_id, *, write_to_disk: bool = True):
@@ -3084,8 +3063,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             self._requests_addr_to_key[addr].discard(request_id)
         if req.is_lightning() and self.lnworker:
             self.lnworker.delete_payment_info(req.rhash, direction=RECEIVED)
-        if write_to_disk:
-            self.save_db()
 
     def delete_invoice(self, invoice_id, *, write_to_disk: bool = True):
         """ lightning or on-chain """
@@ -3094,8 +3071,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             return
         if inv.is_lightning() and self.lnworker:
             self.lnworker.delete_payment_info(inv.rhash, direction=SENT)
-        if write_to_disk:
-            self.save_db()
 
     def get_requests(self) -> List[Request]:
         out = [self.get_request(x) for x in self._receive_requests.keys()]
@@ -3121,8 +3096,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def delete_requests(self, keys):
         for key in keys:
             self.delete_request(key, write_to_disk=False)
-        if keys:
-            self.save_db()
 
     @abstractmethod
     def get_fingerprint(self) -> str:
@@ -3202,15 +3175,15 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 assert password_type in self.get_available_storage_encryption_versions()
                 if self.storage.is_encrypted():
                     self.storage.update_password(old_pw, new_pw, password_type)
+                    self.storage.write(force_consolidation=True)
                 else:
                     # we never add more than one password
                     self.storage.add_password(new_pw, password_type)
+                    self.storage.write(force_consolidation=True)
             else:
                 if self.storage.is_encrypted():
                     self.storage.remove_password(old_pw)
-        # make sure next storage.write() saves changes
-        self.storage.set_modified(True)
-
+                    self.storage.write(force_consolidation=True)
         # note: Encrypting storage with a hw device is currently only
         #       allowed for non-multisig wallets. Further,
         #       Hardware_KeyStore.may_have_password() == False.
@@ -3221,7 +3194,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self.db.set_keystore_encryption(bool(new_pw) and encrypt_keystore)
         # save changes. force full rewrite to rm remnants of old password
         if self.storage.file_exists():
-            self.storage.write_and_force_consolidation()
+            self.storage.write(force_consolidation=True)
         # if wallet was previously unlocked, reset password_in_memory
         self.lock_wallet()
 
@@ -3835,8 +3808,6 @@ class Imported_Wallet(Simple_Wallet):
             good_addr.append(address)
             self.db.add_imported_address(address, {})
             self.adb.add_address(address)
-        if write_to_disk:
-            self.save_db()
         return good_addr, bad_addr
 
     def import_address(self, address: str) -> str:
@@ -3890,7 +3861,6 @@ class Imported_Wallet(Simple_Wallet):
                 else:
                     self.keystore.delete_imported_key(pubkey)
                     self.save_keystore()
-            self.save_db()
 
     def get_change_addresses_for_new_transaction(self, *args, **kwargs) -> List[str]:
         # for an imported wallet, if all "change addresses" are already used,
@@ -3938,8 +3908,6 @@ class Imported_Wallet(Simple_Wallet):
         good_inputs, bad_keys = self.keystore.import_private_keys(keys, password)
         self.save_keystore()
         self._add_imported_addresses(good_inputs)
-        if write_to_disk:
-            self.save_db()
         good_addr = [bitcoin.pubkey_to_address(txin_type, pubkey) for txin_type, pubkey in good_inputs]
         return good_addr, bad_keys
 
@@ -4063,7 +4031,6 @@ class Deterministic_Wallet(Abstract_Wallet):
         if value >= self.min_acceptable_gap():
             self.gap_limit = value
             self.db.put('gap_limit', self.gap_limit)
-            self.save_db()
             return True
         else:
             return False
@@ -4450,7 +4417,6 @@ def create_new_wallet(
     wallet = Wallet(db, config=config)
     wallet.synchronize()
     msg = "Please keep your seed in a safe place; if you lose it, you will not be able to restore your wallet."
-    wallet.save_db()
     return {'seed': seed, 'wallet': wallet, 'msg': msg}
 
 
@@ -4522,5 +4488,4 @@ def restore_wallet_from_text(
     wallet.synchronize()
     msg = ("This wallet was restored offline. It may contain more addresses than displayed. "
            "Start a daemon and use load_wallet to sync its history.")
-    wallet.save_db()
     return {'wallet': wallet, 'msg': msg}

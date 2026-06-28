@@ -198,69 +198,17 @@ class WalletDBUpgrader(Logger):
     def upgrade(self):
         assert self.data.should_convert() is False
         self.logger.info('upgrading wallet format')
-        self._convert_imported()
-        self._convert_wallet_type()
-        self._convert_account()
-        self._convert_version_13_b()
-        self._convert_version_14()
-        self._convert_version_15()
-        self._convert_version_16()
-        self._convert_version_17()
-        self._convert_version_18()
-        self._convert_version_19()
-        self._convert_version_20()
-        self._convert_version_21()
-        self._convert_version_22()
-        self._convert_version_23()
-        self._convert_version_24()
-        self._convert_version_25()
-        self._convert_version_26()
-        self._convert_version_27()
-        self._convert_version_28()
-        self._convert_version_29()
-        self._convert_version_30()
-        self._convert_version_31()
-        self._convert_version_32()
-        self._convert_version_33()
-        self._convert_version_34()
-        self._convert_version_35()
-        self._convert_version_36()
-        self._convert_version_37()
-        self._convert_version_38()
-        self._convert_version_39()
-        self._convert_version_40()
-        self._convert_version_41()
-        self._convert_version_42()
-        self._convert_version_43()
-        self._convert_version_44()
-        self._convert_version_45()
-        self._convert_version_46()
-        self._convert_version_47()
-        self._convert_version_48()
-        self._convert_version_49()
-        self._convert_version_50()
-        self._convert_version_51()
-        self._convert_version_52()
-        self._convert_version_53()
-        self._convert_version_54()
-        self._convert_version_55()
-        self._convert_version_56()
-        self._convert_version_57()
-        self._convert_version_58()
-        self._convert_version_59()
-        self._convert_version_60()
-        self._convert_version_61()
-        self._convert_version_62()
-        self._convert_version_63()
-        self._convert_version_64()
-        self._convert_version_65()
-        self._convert_version_66()
-        self._convert_version_67()
-        self._convert_version_68()
-        self._convert_version_69()
-        self._convert_version_70()
-        self._convert_version_71()
-        self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
+        with self.data.write_batch():
+            self._convert_imported()
+        with self.data.write_batch():
+            self._convert_wallet_type()
+        with self.data.write_batch():
+            self._convert_account()
+        for i in range(13, FINAL_SEED_VERSION + 1):
+            f = getattr(self, '_convert_version_%d'%i)
+            with self.data.write_batch():
+                f()
+        self._put_seed_version(FINAL_SEED_VERSION)  # just to be sure
 
     def _convert_wallet_type(self):
         if not self._is_upgrade_method_needed(0, 13):
@@ -354,7 +302,7 @@ class WalletDBUpgrader(Logger):
         self.put('keypairs', None)
         self.put('key_type', None)
 
-    def _convert_version_13_b(self):
+    def _convert_version_13(self):
         # version 13 is ambiguous, and has an earlier and a later structure
         if not self._is_upgrade_method_needed(0, 13):
             return
@@ -371,7 +319,7 @@ class WalletDBUpgrader(Logger):
                 self.put('addresses', d)
                 self.put('pubkeys', None)
 
-        self.put('seed_version', 13)
+        self._put_seed_version(13)
 
     def _convert_version_14(self):
         # convert imported wallets for 3.0
@@ -400,7 +348,7 @@ class WalletDBUpgrader(Logger):
                 self.put('addresses', d)
                 self.put('pubkeys', None)
                 self.put('wallet_type', 'imported')
-        self.put('seed_version', 14)
+        self._put_seed_version(14)
 
     def _convert_version_15(self):
         if not self._is_upgrade_method_needed(14, 14):
@@ -408,7 +356,7 @@ class WalletDBUpgrader(Logger):
         if self.get('seed_type') == 'segwit':
             # should not get here; get_seed_version should have caught this
             raise Exception('unsupported derivation (development segwit, v14)')
-        self.put('seed_version', 15)
+        self._put_seed_version(15)
 
     def _convert_version_16(self):
         # fixes issue #3193 for Imported_Wallets with addresses
@@ -451,7 +399,7 @@ class WalletDBUpgrader(Logger):
                     addresses_new[address] = details
             self.put('addresses', addresses_new)
 
-        self.put('seed_version', 16)
+        self._put_seed_version(16)
 
     def _convert_version_17(self):
         # delete pruned_txo; construct spent_outpoints
@@ -472,21 +420,21 @@ class WalletDBUpgrader(Logger):
                 spent_outpoints[prevout_hash][str(prevout_n)] = txid
         self.put('spent_outpoints', spent_outpoints)
 
-        self.put('seed_version', 17)
+        self._put_seed_version(17)
 
     def _convert_version_18(self):
         # delete verified_tx3 as its structure changed
         if not self._is_upgrade_method_needed(17, 17):
             return
         self.put('verified_tx3', None)
-        self.put('seed_version', 18)
+        self._put_seed_version(18)
 
     def _convert_version_19(self):
         # delete tx_fees as its structure changed
         if not self._is_upgrade_method_needed(18, 18):
             return
         self.put('tx_fees', None)
-        self.put('seed_version', 19)
+        self._put_seed_version(19)
 
     def _convert_version_20(self):
         # store 'derivation' (prefix) and 'root_fingerprint' in all xpub-based keystores.
@@ -526,7 +474,7 @@ class WalletDBUpgrader(Logger):
             ks['root_fingerprint'] = root_fingerprint
             ks.pop('ckcc_xfp', None)
 
-        self.put('seed_version', 20)
+        self._put_seed_version(20)
 
     def _convert_version_21(self):
         if not self._is_upgrade_method_needed(20, 20):
@@ -536,7 +484,7 @@ class WalletDBUpgrader(Logger):
             for channel in channels:
                 channel['state'] = 'OPENING'
             self.put('channels', channels)
-        self.put('seed_version', 21)
+        self._put_seed_version(21)
 
     def _convert_version_22(self):
         # construct prevouts_by_scripthash
@@ -554,7 +502,7 @@ class WalletDBUpgrader(Logger):
                 prevouts_by_scripthash[scripthash].append((outpoint, txout.value))
         self.put('prevouts_by_scripthash', prevouts_by_scripthash)
 
-        self.put('seed_version', 22)
+        self._put_seed_version(22)
 
     def _convert_version_23(self):
         if not self._is_upgrade_method_needed(22, 22):
@@ -580,7 +528,7 @@ class WalletDBUpgrader(Logger):
                 log[str(int(sub))]['fee_updates'] = d
         self.data['channels'] = channels
 
-        self.data['seed_version'] = 23
+        self._put_seed_version(23)
 
     def _convert_version_24(self):
         if not self._is_upgrade_method_needed(23, 23):
@@ -616,7 +564,7 @@ class WalletDBUpgrader(Logger):
                     d2[addr][str(n)] = (v, cb)
             txo[tx_hash] = d2
 
-        self.data['seed_version'] = 24
+        self._put_seed_version(24)
 
     def _convert_version_25(self):
         from .crypto import sha256
@@ -645,7 +593,7 @@ class WalletDBUpgrader(Logger):
             if pr_id != k:
                 continue
             del invoices[k]
-        self.data['seed_version'] = 25
+        self._put_seed_version(25)
 
     def _convert_version_26(self):
         if not self._is_upgrade_method_needed(25, 25):
@@ -660,7 +608,7 @@ class WalletDBUpgrader(Logger):
                     c['funding_height'] = funding_txid, funding_height, funding_timestamp
                 if closing_txid:
                     c['closing_height'] = closing_txid, closing_height, closing_timestamp
-        self.data['seed_version'] = 26
+        self._put_seed_version(26)
 
     def _convert_version_27(self):
         if not self._is_upgrade_method_needed(26, 26):
@@ -668,7 +616,7 @@ class WalletDBUpgrader(Logger):
         channels = self.data.get('channels', {})
         for channel_id, c in channels.items():
             c['local_config']['htlc_minimum_msat'] = 1
-        self.data['seed_version'] = 27
+        self._put_seed_version(27)
 
     def _convert_version_28(self):
         if not self._is_upgrade_method_needed(27, 27):
@@ -676,7 +624,7 @@ class WalletDBUpgrader(Logger):
         channels = self.data.get('channels', {})
         for channel_id, c in channels.items():
             c['local_config']['channel_seed'] = None
-        self.data['seed_version'] = 28
+        self._put_seed_version(28)
 
     def _convert_version_29(self):
         if not self._is_upgrade_method_needed(28, 28):
@@ -713,7 +661,7 @@ class WalletDBUpgrader(Logger):
                         'invoice': r['invoice'],
                     })
                 d[key] = item
-        self.data['seed_version'] = 29
+        self._put_seed_version(29)
 
     def _convert_version_30(self):
         if not self._is_upgrade_method_needed(29, 29):
@@ -736,7 +684,7 @@ class WalletDBUpgrader(Logger):
                     item.pop('time')
                 else:
                     raise Exception(f"unknown invoice type: {_type}")
-        self.data['seed_version'] = 30
+        self._put_seed_version(30)
 
     def _convert_version_31(self):
         if not self._is_upgrade_method_needed(30, 30):
@@ -750,7 +698,7 @@ class WalletDBUpgrader(Logger):
                     item['amount_sat'] = item['amount_sat'] or 0
                     item['exp'] = item['exp'] or 0
                     item['time'] = item['time'] or 0
-        self.data['seed_version'] = 31
+        self._put_seed_version(31)
 
     def _convert_version_32(self):
         if not self._is_upgrade_method_needed(31, 31):
@@ -760,7 +708,7 @@ class WalletDBUpgrader(Logger):
         invoices_new = {k: item for k, item in invoices_old.items()
                         if not (item['type'] == PR_TYPE_ONCHAIN and item['outputs'] is None)}
         self.data['invoices'] = invoices_new
-        self.data['seed_version'] = 32
+        self._put_seed_version(32)
 
     def _convert_version_33(self):
         if not self._is_upgrade_method_needed(32, 32):
@@ -772,7 +720,7 @@ class WalletDBUpgrader(Logger):
             for key, item in list(d.items()):
                 if item['type'] == PR_TYPE_ONCHAIN:
                     item['height'] = item.get('height') or 0
-        self.data['seed_version'] = 33
+        self._put_seed_version(33)
 
     def _convert_version_34(self):
         if not self._is_upgrade_method_needed(33, 33):
@@ -783,7 +731,7 @@ class WalletDBUpgrader(Logger):
                 item['local_config'].get('upfront_shutdown_script') or ""
             item['remote_config']['upfront_shutdown_script'] = \
                 item['remote_config'].get('upfront_shutdown_script') or ""
-        self.data['seed_version'] = 34
+        self._put_seed_version(34)
 
     def _convert_version_35(self):
         # same as 32, but for payment_requests
@@ -796,7 +744,7 @@ class WalletDBUpgrader(Logger):
             if (item['type'] == PR_TYPE_ONCHAIN and item['outputs'] is None):
                 payment_requests.pop(k)
 
-        self.data['seed_version'] = 35
+        self._put_seed_version(35)
 
     def _convert_version_36(self):
         if not self._is_upgrade_method_needed(35, 35):
@@ -804,7 +752,7 @@ class WalletDBUpgrader(Logger):
         old_frozen_coins = self.data.get('frozen_coins', [])
         new_frozen_coins = {coin: True for coin in old_frozen_coins}
         self.data['frozen_coins'] = new_frozen_coins
-        self.data['seed_version'] = 36
+        self._put_seed_version(36)
 
     def _convert_version_37(self):
         if not self._is_upgrade_method_needed(36, 36):
@@ -815,7 +763,7 @@ class WalletDBUpgrader(Logger):
             amount_msat = amount_sat * 1000 if amount_sat is not None else None
             payments[k] = amount_msat, direction, status
         self.data['lightning_payments'] = payments
-        self.data['seed_version'] = 37
+        self._put_seed_version(37)
 
     def _convert_version_38(self):
         if not self._is_upgrade_method_needed(37, 37):
@@ -840,14 +788,14 @@ class WalletDBUpgrader(Logger):
                         continue
                     if not (isinstance(amount_msat, int) and 0 <= amount_msat <= max_sats * 1000):
                         del d[key]
-        self.data['seed_version'] = 38
+        self._put_seed_version(38)
 
     def _convert_version_39(self):
         # this upgrade prevents initialization of lightning_privkey2 after lightning_xprv has been set
         if not self._is_upgrade_method_needed(38, 38):
             return
         self.data['imported_channel_backups'] = self.data.pop('channel_backups', {})
-        self.data['seed_version'] = 39
+        self._put_seed_version(39)
 
     def _convert_version_40(self):
         # put 'seed_type' into keystores
@@ -870,7 +818,7 @@ class WalletDBUpgrader(Logger):
                 seed_type = 'old'
             if seed_type is not None:
                 ks['seed_type'] = seed_type
-        self.data['seed_version'] = 40
+        self._put_seed_version(40)
 
     def _convert_version_41(self):
         # this is a repeat of upgrade 39, to fix wallet backup files (see #7339)
@@ -879,7 +827,7 @@ class WalletDBUpgrader(Logger):
         imported_channel_backups = self.data.pop('channel_backups', {})
         imported_channel_backups.update(self.data.get('imported_channel_backups', {}))
         self.data['imported_channel_backups'] = imported_channel_backups
-        self.data['seed_version'] = 41
+        self._put_seed_version(41)
 
     def _convert_version_42(self):
         # in OnchainInvoice['outputs'], convert values from None to 0
@@ -893,7 +841,7 @@ class WalletDBUpgrader(Logger):
                 if item['type'] == PR_TYPE_ONCHAIN:
                     item['outputs'] = [(_type, addr, (val or 0))
                                        for _type, addr, val in item['outputs']]
-        self.data['seed_version'] = 42
+        self._put_seed_version(42)
 
     def _convert_version_43(self):
         if not self._is_upgrade_method_needed(42, 42):
@@ -904,7 +852,7 @@ class WalletDBUpgrader(Logger):
             c['fail_htlc_reasons'] = log.pop('fail_htlc_reasons', {})
             c['unfulfilled_htlcs'] = log.pop('unfulfilled_htlcs', {})
             log["1"]['unacked_updates'] = log.pop('unacked_local_updates2', {})
-        self.data['seed_version'] = 43
+        self._put_seed_version(43)
 
     def _convert_version_44(self):
         if not self._is_upgrade_method_needed(43, 43):
@@ -917,7 +865,7 @@ class WalletDBUpgrader(Logger):
                 channel_type = ChannelType(0)
             item.pop('static_remotekey_enabled', None)
             item['channel_type'] = channel_type
-        self.data['seed_version'] = 44
+        self._put_seed_version(44)
 
     def _convert_version_45(self):
         from .bolt11 import decode_bolt11_invoice
@@ -961,7 +909,7 @@ class WalletDBUpgrader(Logger):
                     'bip70':bip70,
                     'lightning_invoice':lightning_invoice,
                 }
-        self.data['seed_version'] = 45
+        self._put_seed_version(45)
 
     def _convert_invoices_keys(self, invoices):
         # recalc keys of outgoing on-chain invoices
@@ -990,7 +938,7 @@ class WalletDBUpgrader(Logger):
         invoices = self.data.get('invoices')
         if invoices:
             self._convert_invoices_keys(invoices)
-        self.data['seed_version'] = 46
+        self._put_seed_version(46)
 
     def _convert_version_47(self):
         from .bolt11 import decode_bolt11_invoice
@@ -1006,7 +954,7 @@ class WalletDBUpgrader(Logger):
                 if key != rhash:
                     requests[rhash] = item
                     del requests[key]
-        self.data['seed_version'] = 47
+        self._put_seed_version(47)
 
     def _convert_version_48(self):
         # fix possible corruption of invoice amounts, see #7774
@@ -1016,7 +964,7 @@ class WalletDBUpgrader(Logger):
         for key, item in list(invoices.items()):
             if item['amount_msat'] == 1000 * "!":
                 item['amount_msat'] = "!"
-        self.data['seed_version'] = 48
+        self._put_seed_version(48)
 
     def _convert_version_49(self):
         if not self._is_upgrade_method_needed(48, 48):
@@ -1032,7 +980,7 @@ class WalletDBUpgrader(Logger):
                 f"Please use Electrum 4.3.0 to open this wallet, close the channels, "
                 f"and delete them from the wallet."
             )
-        self.data['seed_version'] = 49
+        self._put_seed_version(49)
 
     def _convert_version_50(self):
         if not self._is_upgrade_method_needed(49, 49):
@@ -1040,7 +988,7 @@ class WalletDBUpgrader(Logger):
         requests = self.data.get('payment_requests')
         if requests:
             self._convert_invoices_keys(requests)
-        self.data['seed_version'] = 50
+        self._put_seed_version(50)
 
     def _convert_version_51(self):
         from .bolt11 import decode_bolt11_invoice
@@ -1055,7 +1003,7 @@ class WalletDBUpgrader(Logger):
                 lnaddr = decode_bolt11_invoice(lightning_invoice)
                 payment_hash = lnaddr.paymenthash.hex()
             item['payment_hash'] = payment_hash
-        self.data['seed_version'] = 51
+        self._put_seed_version(51)
 
     def _detect_insane_version_51(self) -> int:
         """Returns 0 if file okay,
@@ -1087,7 +1035,7 @@ class WalletDBUpgrader(Logger):
         if (error_code := self._detect_insane_version_51()) != 0:
             # should not get here; get_seed_version should have caught this
             raise Exception(f'unsupported wallet file: version_51 with error {error_code}')
-        self.data['seed_version'] = 52
+        self._put_seed_version(52)
 
     def _convert_version_53(self):
         if not self._is_upgrade_method_needed(52, 52):
@@ -1096,7 +1044,7 @@ class WalletDBUpgrader(Logger):
         for channel_id, cb in list(cbs.items()):
             if 'local_payment_pubkey' not in cb:
                 cb['local_payment_pubkey'] = None
-        self.data['seed_version'] = 53
+        self._put_seed_version(53)
 
     def _convert_version_54(self):
         # note: similar to convert_version_38
@@ -1113,7 +1061,7 @@ class WalletDBUpgrader(Logger):
                     continue
                 if not (isinstance(amount_msat, int) and 0 <= amount_msat <= max_sats * 1000):
                     del d[key]
-        self.data['seed_version'] = 54
+        self._put_seed_version(54)
 
     def _convert_version_55(self):
         if not self._is_upgrade_method_needed(54, 54):
@@ -1124,7 +1072,7 @@ class WalletDBUpgrader(Logger):
                 item = self.data.get(key)
                 self.data[key[:-1]] = item.as_dict()
                 self.data.pop(key)
-        self.data['seed_version'] = 55
+        self._put_seed_version(55)
 
     def _convert_version_56(self):
         if not self._is_upgrade_method_needed(55, 55):
@@ -1136,7 +1084,7 @@ class WalletDBUpgrader(Logger):
                 item[c]['announcement_node_sig'] = ''
                 item[c]['announcement_bitcoin_sig'] = ''
             item['local_config'].pop('was_announced')
-        self.data['seed_version'] = 56
+        self._put_seed_version(56)
 
     def _convert_version_57(self):
         if not self._is_upgrade_method_needed(56, 56):
@@ -1144,7 +1092,7 @@ class WalletDBUpgrader(Logger):
         # The 'seed_type' field could be present both at the top-level and inside keystores.
         # We delete the one that is top-level.
         self.data.pop('seed_type', None)
-        self.data['seed_version'] = 57
+        self._put_seed_version(57)
 
     def _convert_version_58(self):
         # re-construct prevouts_by_scripthash
@@ -1166,7 +1114,7 @@ class WalletDBUpgrader(Logger):
                     prevouts_by_scripthash[scripthash] = {}
                 prevouts_by_scripthash[scripthash][outpoint] = txout.value
         self.put('prevouts_by_scripthash', prevouts_by_scripthash)
-        self.data['seed_version'] = 58
+        self._put_seed_version(58)
 
     def _convert_version_59(self):
         if not self._is_upgrade_method_needed(58, 58):
@@ -1178,7 +1126,7 @@ class WalletDBUpgrader(Logger):
             for htlc_id, (local_ctn, remote_ctn, onion_packet_hex, forwarding_key) in chan['unfulfilled_htlcs'].items():
                 unfulfilled_htlcs[htlc_id] = (onion_packet_hex, forwarding_key or None)
             chan['unfulfilled_htlcs'] = unfulfilled_htlcs
-        self.data['seed_version'] = 59
+        self._put_seed_version(59)
 
     def _convert_version_60(self):
         if not self._is_upgrade_method_needed(59, 59):
@@ -1187,7 +1135,7 @@ class WalletDBUpgrader(Logger):
         for channel_id, cb in list(cbs.items()):
             if 'multisig_funding_privkey' not in cb:
                 cb['multisig_funding_privkey'] = None
-        self.data['seed_version'] = 60
+        self._put_seed_version(60)
 
     def _convert_version_61(self):
         if not self._is_upgrade_method_needed(60, 60):
@@ -1199,7 +1147,7 @@ class WalletDBUpgrader(Logger):
         for rhash, (amount_msat, direction, is_paid) in list(lightning_payments.items()):
             new = (amount_msat, direction, is_paid, 147, expiry_never, migration_time)
             lightning_payments[rhash] = new
-        self.data['seed_version'] = 61
+        self._put_seed_version(61)
 
     def _convert_version_62(self):
         if not self._is_upgrade_method_needed(61, 61):
@@ -1210,7 +1158,7 @@ class WalletDBUpgrader(Logger):
         for swap in swaps.values():
             del swap['receive_address']
             swap['claim_to_output'] = None
-        self.data['seed_version'] = 62
+        self._put_seed_version(62)
 
     def _convert_version_63(self):
         if not self._is_upgrade_method_needed(62, 62):
@@ -1304,7 +1252,7 @@ class WalletDBUpgrader(Logger):
                 else:
                     unfulfilled_htlcs[htlc_id] = unprocessed_onion
 
-        self.data['seed_version'] = 63
+        self._put_seed_version(63)
 
     def _convert_version_64(self):
         """Key payment_info by "rhash:direction" instead of just rhash to allow storing a PaymentInfo
@@ -1322,7 +1270,7 @@ class WalletDBUpgrader(Logger):
             new_payment_infos[new_key] = new_values  # save new entry
 
         self.data['lightning_payments'] = new_payment_infos
-        self.data['seed_version'] = 64
+        self._put_seed_version(64)
 
     def _convert_version_65(self):
         """Store channel_id instead of short_channel_id in ReceivedMPPHtlc"""
@@ -1355,7 +1303,7 @@ class WalletDBUpgrader(Logger):
             new_mpp_sets[payment_key] = (resolution, new_htlc_list, parent_set_key)
 
         self.data['received_mpp_htlcs'] = new_mpp_sets
-        self.data['seed_version'] = 65
+        self._put_seed_version(65)
 
     def _convert_version_66(self):
         """Add invoice features to PaymentInfo"""
@@ -1371,7 +1319,7 @@ class WalletDBUpgrader(Logger):
             new_payment_infos[key] = new_v
 
         self.data['lightning_payments'] = new_payment_infos
-        self.data['seed_version'] = 66
+        self._put_seed_version(66)
 
     def _convert_version_67(self):
         if not self._is_upgrade_method_needed(66, 66):
@@ -1383,7 +1331,7 @@ class WalletDBUpgrader(Logger):
             assert len(chan['log'][key]['fee_updates']) == 1, chan['log'][key]['fee_updates']
             chan['log'][key]['fee_updates'] = {}
         #self.data['channels'] = channels
-        self.data['seed_version'] = 67
+        self._put_seed_version(67)
 
     def _convert_version_68(self):
         if not self._is_upgrade_method_needed(67, 67):
@@ -1393,7 +1341,7 @@ class WalletDBUpgrader(Logger):
         for _hash, preimage in old_preimages.items():
             new_preimages[_hash] = (preimage, False)
         self.data['lightning_preimages'] = new_preimages
-        self.data['seed_version'] = 68
+        self._put_seed_version(68)
 
     def _convert_version_69(self):
         """Convert PaymentInfo amounts from 0 to None"""
@@ -1412,7 +1360,7 @@ class WalletDBUpgrader(Logger):
             new_v = (amount_msat, *old_v[1:])
             new_payment_infos[key] = new_v
         self.data['lightning_payments'] = new_payment_infos
-        self.data['seed_version'] = 69
+        self._put_seed_version(69)
 
     def _convert_version_70(self):
         """
@@ -1426,7 +1374,7 @@ class WalletDBUpgrader(Logger):
             for amount_sat, timestamp in connection.get('budget_spends', []):
                 new_budget_spends.append([amount_sat * 1000, timestamp])
             connection['budget_spends'] = new_budget_spends
-        self.data['seed_version'] = 70
+        self._put_seed_version(70)
 
     def _convert_version_71(self):
         """Save 'genesis_blockhash' in DB."""
@@ -1447,7 +1395,7 @@ class WalletDBUpgrader(Logger):
                     f"e.g. {neutered_addr} (len={len(first_address)})")
         # if so, save genesis hash
         self.data['genesis_blockhash'] = constants.net.GENESIS
-        self.data['seed_version'] = 71
+        self._put_seed_version(71)
 
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):
@@ -1494,6 +1442,9 @@ class WalletDBUpgrader(Logger):
                 .format(cur_version, min_version, max_version))
         else:
             return True
+
+    def _put_seed_version(self, n):
+        self.data['seed_version'] = n
 
     def get_seed_version(self):
         seed_version = self.get('seed_version')
@@ -1570,15 +1521,14 @@ def upgrade_wallet_db(data: 'StoredDict', do_upgrade: bool) -> Tuple[dict, bool]
         )
 
     data._db._should_convert = False
-    with data.write_batch():
-        dbu = WalletDBUpgrader(data)
-        if dbu.requires_split():
-            raise WalletRequiresSplit(dbu.get_split_accounts())
-        if dbu.requires_upgrade() and do_upgrade:
-            dbu.upgrade()
-            was_upgraded = True
-        if dbu.requires_upgrade():
-            raise WalletRequiresUpgrade()
+    dbu = WalletDBUpgrader(data)
+    if dbu.requires_split():
+        raise WalletRequiresSplit(dbu.get_split_accounts())
+    if dbu.requires_upgrade() and do_upgrade:
+        dbu.upgrade()
+        was_upgraded = True
+    if dbu.requires_upgrade():
+        raise WalletRequiresUpgrade()
     data._db._should_convert = True
     return was_upgraded
 

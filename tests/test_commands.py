@@ -10,7 +10,7 @@ import shutil
 
 import electrum
 from electrum.commands import Commands, eval_bool
-from electrum import storage, wallet
+from electrum import storage
 from electrum.lnutil import RECEIVED, channel_id_from_funding_tx
 from electrum.lnutil import ReceivedMPPStatus, UpdateAddHtlc, ReceivedMPPHtlc
 from electrum.lnworker import RecvMPPResolution
@@ -210,8 +210,9 @@ class TestCommandsTestnet(ElectrumTestCase):
         assert self.daemon.network is None
 
     async def asyncTearDown(self):
-        with mock.patch.object(wallet.Abstract_Wallet, 'save_db'):
-            await self.daemon.stop()
+        with mock.patch.object(storage.FileStorage, 'write'):
+            with mock.patch.object(storage.FileStorage, 'append'):
+                await self.daemon.stop()
         await super().asyncTearDown()
 
     async def test_convert_xkey(self):

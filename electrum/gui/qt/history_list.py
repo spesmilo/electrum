@@ -810,7 +810,6 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         if not self.main_window.question(msg=question, title=_("Please confirm")):
             return
         self.wallet.adb.remove_transaction(tx_hash)
-        self.wallet.save_db()
         # need to update at least: history_list, utxo_list, address_list
         self.main_window.need_update.set()
 

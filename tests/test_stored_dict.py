@@ -74,8 +74,8 @@ class TestStorage(ElectrumTestCase):
         except Exception as e:
             pass
         self.assertEqual(sd._db._write_batch, False)
-        # at this point, the StoredDict length is 2
-        self.assertEqual(len(sd), 2)
+        # at this point, the StoredDict length is 1
+        self.assertEqual(len(sd), 1)
         sd.close()
         # check that changes have not been written to disk
         sd = DictStorage(self.path)

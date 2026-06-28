@@ -282,9 +282,6 @@ async def run_offline_command(config: 'SimpleConfig', config_options: dict, wall
     cmd_runner = Commands(config=config)
     func = getattr(cmd_runner, cmd.name)
     result = await func(*args, **kwargs)
-    # save wallet
-    if wallet:
-        wallet.save_db()
     return result
 
 

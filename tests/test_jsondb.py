@@ -114,9 +114,9 @@ class TestJsonDB(ElectrumTestCase):
         wallet_path = os.path.join(self.electrum_path, "somewallet")
         storage = DictStorage(wallet_path, allow_partial_writes=True)
         storage['a'] = [1, 2, 3]
-        storage._db.write_and_force_consolidation()
+        storage._db.write()
         storage['a'].append(4)
-        storage._db._append_pending_changes()
+        storage._db.write()
         storage = DictStorage(wallet_path, allow_partial_writes=True)
         self.assertEqual(len(storage['a']), 4)
 

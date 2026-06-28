@@ -637,7 +637,6 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
                 self.saveTxError.emit(tx.txid(), 'conflict',
                             _("Transaction could not be saved.") + "\n" + _("It conflicts with current history."))
                 return False
-            self.wallet.save_db()
             self.saveTxSuccess.emit(tx.txid())
             self.historyModel.initModel(True)
             return True
