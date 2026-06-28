@@ -360,7 +360,6 @@ class Commands(Logger):
             else:
                 encrypt_file = wallet.storage.is_encrypted()
         wallet.update_password(password, new_password, encrypt_storage=encrypt_file)
-        wallet.save_db()
         return {'password': wallet.has_password()}
 
     @command('w')
@@ -1553,7 +1552,6 @@ class Commands(Logger):
         tx = Transaction(tx)
         if not wallet.adb.add_transaction(tx):
             return False
-        wallet.save_db()
         return tx.txid()
 
     @command('w')
@@ -1667,7 +1665,6 @@ class Commands(Logger):
                 f'Only local transactions can be removed. '
                 f'This tx has height: {height} != {TX_HEIGHT_LOCAL}')
         wallet.adb.remove_transaction(txid)
-        wallet.save_db()
 
     @command('wn')
     async def get_tx_status(self, txid, wallet: Abstract_Wallet = None):

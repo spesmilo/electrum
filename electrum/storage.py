@@ -44,7 +44,7 @@ from .stored_dict import StorageReadWriteError, StorageException, PasswordType
 
 
 STORAGE_VERSION = 0
-STORAGE_MAGIC_BYTES = b'Electrum'
+STORAGE_MAGIC_BYTES = b'Electrum' # pass this as parameter
 
 STORAGE_FLAG_ZIP_FIRST_BLOB = 0x01
 STORAGE_FLAGS = STORAGE_FLAG_ZIP_FIRST_BLOB
