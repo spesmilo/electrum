@@ -115,9 +115,12 @@ class AmountEdit(SizedFreezableLineEdit):
     def _get_text_from_amount(self, amount) -> str:
         x = to_decimal(amount)
         scale_factor = pow(10, self.decimal_point())
-        nfmt = "{:." + str(self.decimal_point() + self.extra_precision()) + "f}"
-        text = nfmt.format(x / scale_factor).rstrip('0').rstrip('.')
-        text = text.replace('.', DECIMAL_POINT)
+        total_precision = self.decimal_point() + self.extra_precision()
+        nfmt = "{:." + str(total_precision) + "f}"
+        text = nfmt.format(x / scale_factor)
+        if total_precision > 0:
+            text = text.rstrip('0').rstrip('.')
+            text = text.replace('.', DECIMAL_POINT)
         return text
 
     def setAmount(self, amount):
