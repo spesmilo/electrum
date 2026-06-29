@@ -910,7 +910,7 @@ class WCTrezorInit(WalletWizardComponent, Logger):
                 self.wizard.requestNext.emit()  # triggers Next GUI thread from event loop
             except Exception as e:
                 self.valid = False
-                self.error = repr(e)
+                self.error = str(e)
                 self.logger.exception(repr(e))
             finally:
                 self.busy = False
@@ -954,7 +954,7 @@ class WCTrezorPair(WalletWizardComponent, Logger):
                 self.wizard_data['trezor_initialized'] = client.features.initialized
                 self.wizard.requestNext.emit()  # triggers Next GUI thread from event loop
             except Exception as e:
-                self.error = repr(e)  # TODO: handle user interaction exceptions (e.g. invalid pin) more gracefully
+                self.error = str(e)  # TODO: handle user interaction exceptions (e.g. invalid pin) more gracefully
                 self.logger.exception(repr(e))
             finally:
                 self.busy = False
