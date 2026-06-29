@@ -2013,6 +2013,8 @@ class CallbackManager(Logger):
                 self._wcallbacks[event].add(wcb)
 
     def unregister_callback(self, cb: Callable) -> None:
+        # FIXME if trigger_callback() was just called for this cb, it could race so that
+        #       the cb gets code exec *after* unregister_callback() returns.
         wcb = self._wcb_from_any_callback(cb)
         with self.callback_lock:
             # note: ^ callback_lock needs to be re-entrant, as we can now trigger __del__, which also takes the lock
