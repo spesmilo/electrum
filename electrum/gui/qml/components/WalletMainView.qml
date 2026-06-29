@@ -16,10 +16,6 @@ Item {
 
     property var _sendDialog
 
-    property string _request_amount
-    property string _request_description
-    property string _request_expiry
-
     function openInvoice(key) {
         invoice.key = key
         var dialog = invoiceDialog.createObject(app, { invoice: invoice })
@@ -131,9 +127,8 @@ Item {
         dialog.open()
     }
 
-    function createRequest(lightning, reuse_address) {
-        var qamt = Config.baseunitStrToAmount(_request_amount)
-        Daemon.currentWallet.createRequest(qamt, _request_description, _request_expiry, lightning, reuse_address)
+    function createRequest(lightning, amount, description, expiry, reuse_address) {
+        Daemon.currentWallet.createRequest(amount, description, expiry, lightning, reuse_address)
     }
 
     function startSweep() {
@@ -625,10 +620,8 @@ Item {
             anchors.centerIn: parent
             onAccepted: {
                 console.log('accepted')
-                _request_amount = _receiveDetailsDialog.amount
-                _request_description = _receiveDetailsDialog.description
-                _request_expiry = _receiveDetailsDialog.expiry
-                createRequest(_receiveDetailsDialog.isLightning, false)
+                createRequest(_receiveDetailsDialog.isLightning, _receiveDetailsDialog.amount,
+                              _receiveDetailsDialog.description, _receiveDetailsDialog.expiry, false)
             }
             onRejected: {
                 console.log('rejected')
