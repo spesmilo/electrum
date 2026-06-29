@@ -176,7 +176,8 @@ class BTCAmountEdit(AmountEdit):
     def setMillisatPrecision(self, millisat_precision: bool):
         if self.millisat_precision != millisat_precision:
             self.millisat_precision = millisat_precision
-            self.setAmount(self._get_amount_from_text(self.text()))
+            if self.text() != '!':
+                self.setAmount(self._get_amount_from_text(self.text()))
 
 
 class FeerateEdit(AmountEdit):
