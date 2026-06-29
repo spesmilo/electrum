@@ -60,8 +60,7 @@ class QEAmount(QObject):
 
     @pyqtProperty('qint64', notify=valueChanged)
     def satsInt(self) -> int:
-        if self._amount_msat is None:  # should normally be defined when accessing this property
-            self._logger.warning('amount_msat is undefined, returning 0')
+        if self._amount_msat is None:
             return 0
         return self._msat_to_sat(self._amount_msat)
 
@@ -75,8 +74,7 @@ class QEAmount(QObject):
 
     @pyqtProperty('qint64', notify=valueChanged)
     def msatsInt(self) -> int:
-        if self._amount_msat is None:  # should normally be defined when accessing this property
-            self._logger.warning('amount_msat is undefined, returning 0')
+        if self._amount_msat is None:
             return 0
         return self._amount_msat
 
@@ -126,7 +124,7 @@ class QEAmount(QObject):
     @pyqtSlot('QVariant')
     def copyFrom(self, amount: 'QEAmount|None'):
         if not amount:
-            self._logger.warning('copyFrom with None argument. assuming 0')  # TODO
+            self._logger.warning('copyFrom with None argument. assuming 0')
             amount = QEAmount()
 
         changed = False
