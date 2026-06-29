@@ -17,6 +17,11 @@ class QEAmount(QObject):
        QML 'quint64' and 'qint64' can be used, but be aware these will in some cases be downcast
        by QML to 'int' (e.g. when using the property in a property binding, _even_ when a binding
        is done between two q(u)int64 properties (at least up until Qt6.4))
+
+       When passing QEAmount to QML scope using a pyqtProperty, avoid overwriting the returned
+       instance with a new QEAmount. Use .copyFrom(..) instead, otherwise the old QEAmount will be
+       gc'ed, resulting in amount property bindings being momentarily 'null' (until the property's
+       notify signal gets processed)
     """
 
     _logger = get_logger(__name__)
