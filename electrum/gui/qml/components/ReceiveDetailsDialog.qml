@@ -14,7 +14,7 @@ ElDialog {
     title: qsTr('Create Invoice')
     iconSource: Qt.resolvedUrl('../../icons/tab_receive.png')
 
-    property alias amount: amountBtc.text
+    property alias amount: amountBtc.textAsSats
     property alias description: message.text
     property alias expiry: expires.currentValue
     property bool isLightning: false
