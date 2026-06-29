@@ -291,7 +291,7 @@ class TestOutgoingInvoicesPaidCache(ElectrumTestCase):
         wallet = self._make_wallet()
         inv = self._make_outgoing_invoice("tb1qmjzmg8nd4z56ar4fpngzsr6euktrhnjg9td385", 5_000)
         wallet.save_invoice(inv, write_to_disk=False)
-        self.assertNotIn(inv.get_id(), wallet._paid_invoice_keys)
+        self.assertNotIn(inv.get_id(), wallet._paid_invoice_keys_cache)
         self.assertEqual(PR_UNPAID, wallet.get_invoice_status(inv))
         self.assertEqual([inv], wallet.get_unpaid_invoices())
 
@@ -309,7 +309,7 @@ class TestOutgoingInvoicesPaidCache(ElectrumTestCase):
         wallet.db.put('stored_height', 1010)
         wallet.adb.add_verified_tx(tx.txid(), TxMinedInfo(_height=1001, timestamp=1700000001, txpos=1, header_hash="01"*32))
         self.assertEqual(PR_PAID, wallet.get_invoice_status(inv))
-        self.assertIn(inv.get_id(), wallet._paid_invoice_keys)
+        self.assertIn(inv.get_id(), wallet._paid_invoice_keys_cache)
         self.assertEqual([], wallet.get_unpaid_invoices())
 
     async def test_paid_keys_removed_on_delete_and_clear(self):
@@ -317,21 +317,21 @@ class TestOutgoingInvoicesPaidCache(ElectrumTestCase):
         inv = self._make_outgoing_invoice("tb1qmjzmg8nd4z56ar4fpngzsr6euktrhnjg9td385", 5_000)
         wallet.save_invoice(inv, write_to_disk=False)
         # Force into the cache via the internal hook so we don't depend on the slow path here.
-        wallet._paid_invoice_keys.add(inv.get_id())
+        wallet._paid_invoice_keys_cache.add(inv.get_id())
         wallet.delete_invoice(inv.get_id(), write_to_disk=False)
-        self.assertNotIn(inv.get_id(), wallet._paid_invoice_keys)
+        self.assertNotIn(inv.get_id(), wallet._paid_invoice_keys_cache)
         # Re-add and clear all
         wallet.save_invoice(inv, write_to_disk=False)
-        wallet._paid_invoice_keys.add(inv.get_id())
+        wallet._paid_invoice_keys_cache.add(inv.get_id())
         wallet.clear_invoices()
-        self.assertEqual(set(), wallet._paid_invoice_keys)
+        self.assertEqual(set(), wallet._paid_invoice_keys_cache)
 
     async def test_get_invoice_status_short_circuits_on_cache_hit(self):
         wallet = self._make_wallet()
         inv = self._make_outgoing_invoice("tb1qmjzmg8nd4z56ar4fpngzsr6euktrhnjg9td385", 5_000)
         wallet.save_invoice(inv, write_to_disk=False)
         # Seed the cache and assert the slow path is not taken.
-        wallet._paid_invoice_keys.add(inv.get_id())
+        wallet._paid_invoice_keys_cache.add(inv.get_id())
         called = []
         orig = wallet._is_onchain_invoice_paid
         def spy(invoice):
@@ -349,7 +349,7 @@ class TestOutgoingInvoicesPaidCache(ElectrumTestCase):
         inv_unpaid = self._make_outgoing_invoice(dest, 5_000, t=1700000005)
         wallet.save_invoice(inv_paid, write_to_disk=False)
         wallet.save_invoice(inv_unpaid, write_to_disk=False)
-        wallet._paid_invoice_keys.add(inv_paid.get_id())
+        wallet._paid_invoice_keys_cache.add(inv_paid.get_id())
 
         events = []
         def on_status(w, key, status):
@@ -382,7 +382,7 @@ class TestOutgoingInvoicesPaidCache(ElectrumTestCase):
             inv = self._make_outgoing_invoice(dest, 1_000 + i, t=1700000000 + i)
             wallet.save_invoice(inv, write_to_disk=False)
             paid_ids.add(inv.get_id())
-            wallet._paid_invoice_keys.add(inv.get_id())
+            wallet._paid_invoice_keys_cache.add(inv.get_id())
         # One fresh unpaid invoice with the same destination.
         unpaid = self._make_outgoing_invoice(dest, 9_999, t=1700001000)
         wallet.save_invoice(unpaid, write_to_disk=False)
@@ -424,9 +424,9 @@ class TestOutgoingInvoicesPaidCache(ElectrumTestCase):
         wallet.db.put('stored_height', 1010)
         wallet.adb.add_verified_tx(tx.txid(), TxMinedInfo(_height=1001, timestamp=1700000001, txpos=1, header_hash="01"*32))
         # Force a rebuild of the cache as would happen at wallet load.
-        wallet._paid_invoice_keys.clear()
+        wallet._paid_invoice_keys_cache.clear()
         wallet._prepare_onchain_invoice_paid_detection()
-        self.assertIn(inv.get_id(), wallet._paid_invoice_keys)
+        self.assertIn(inv.get_id(), wallet._paid_invoice_keys_cache)
 
     async def test_paid_keys_demoted_on_reorg(self):
         """A reorg unverifying the paying tx must remove the invoice from the cache,
@@ -444,11 +444,11 @@ class TestOutgoingInvoicesPaidCache(ElectrumTestCase):
         wallet.db.put('stored_height', 1010)
         wallet.adb.add_verified_tx(tx.txid(), TxMinedInfo(_height=1001, timestamp=1700000001, txpos=1, header_hash="01"*32))
         self.assertEqual(PR_PAID, wallet.get_invoice_status(inv))
-        self.assertIn(inv.get_id(), wallet._paid_invoice_keys)
+        self.assertIn(inv.get_id(), wallet._paid_invoice_keys_cache)
         # Simulate reorg: unverify the tx and fire the same event the verifier would.
         wallet.adb.db.remove_verified_tx(tx.txid())
         wallet.on_event_adb_removed_verified_tx(wallet.adb, tx.txid())
-        self.assertNotIn(inv.get_id(), wallet._paid_invoice_keys)
+        self.assertNotIn(inv.get_id(), wallet._paid_invoice_keys_cache)
         self.assertNotEqual(PR_PAID, wallet.get_invoice_status(inv))
 
     async def test_clear_history_resets_paid_keys(self):
@@ -466,8 +466,8 @@ class TestOutgoingInvoicesPaidCache(ElectrumTestCase):
         wallet.adb.receive_tx_callback(tx, tx_height=TX_HEIGHT_UNCONFIRMED)
         wallet.db.put('stored_height', 1010)
         wallet.adb.add_verified_tx(tx.txid(), TxMinedInfo(_height=1001, timestamp=1700000001, txpos=1, header_hash="01"*32))
-        self.assertIn(inv.get_id(), wallet._paid_invoice_keys)
+        self.assertIn(inv.get_id(), wallet._paid_invoice_keys_cache)
         # Wipe history.
         wallet.clear_history()
-        self.assertNotIn(inv.get_id(), wallet._paid_invoice_keys)
+        self.assertNotIn(inv.get_id(), wallet._paid_invoice_keys_cache)
         self.assertNotEqual(PR_PAID, wallet.get_invoice_status(inv))
