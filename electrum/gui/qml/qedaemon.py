@@ -325,6 +325,9 @@ class QEDaemon(AuthMixin, QObject):
         for forbidden_char in ("/", "\\", ):
             if forbidden_char in wallet_name:
                 return False
+        if wallet_name.startswith('.'):  # not shown in wallet list
+            # TODO: allow wallets starting with '.' as hidden wallets, opened e.g. through wallet creation wizard
+            return False
         if os.path.basename(wallet_name) != wallet_name:  # '/foo/bar/' returns 'bar'
             return False
         wallet_path = self.wallet_path_from_wallet_name(wallet_name)
