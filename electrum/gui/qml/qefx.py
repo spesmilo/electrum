@@ -158,7 +158,7 @@ class QEFX(QObject, QtEventListener):
         try:
             fd = Decimal(fiat)
         except Exception:
-            return ''
+            return self._amount  # zero
         v = fd / Decimal(rate) * COIN
         if not v.is_nan():
             self._amount.satsInt = int(v.to_integral_value())
