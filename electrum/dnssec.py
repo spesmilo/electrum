@@ -144,6 +144,8 @@ async def query(url: str, rtype: dns.rdatatype.RdataType) -> Tuple[dns.rrset.RRs
     so the caller must carefully consider whether the response can be used for anything if validated=False.
     """
     # FIXME this method is not using the network proxy. (although the proxy might not support UDP?)
+    #       if the proxy is a Tor SOCKS proxy, we could use Tor's "RESOLVE" extension command.
+    #         (see https://spec.torproject.org/socks-extensions.html)
     # 8.8.8.8 is Google's public DNS server
     nameservers = ['8.8.8.8']
     ns = nameservers[0]
