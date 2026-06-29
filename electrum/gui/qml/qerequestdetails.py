@@ -49,7 +49,7 @@ class QERequestDetails(QObject, QtEventListener):
         self._key = None
         self._req = None
         self._timer = None
-        self._amount = None
+        self._amount = QEAmount()
 
         self._lnurlData = None  # type: Optional[dict]
         self._busy = False
@@ -182,7 +182,7 @@ class QERequestDetails(QObject, QtEventListener):
             self._logger.error(f'payment request key {self._key} unknown in wallet {self._wallet.name}')
             return
 
-        self._amount = QEAmount(from_invoice=self._req)
+        self._amount.copyFrom(QEAmount(from_invoice=self._req))
 
         self.detailsChanged.emit()
         self.statusChanged.emit()
