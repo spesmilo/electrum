@@ -462,7 +462,7 @@ class NWCServer(Logger, EventListener):
         expiry = params.get('expiry', 3600)  # type: int
         # create payment request
         key: str = self.wallet.create_request(
-            amount_sat=amount_msat // 1000,
+            amount_msat=amount_msat,
             message=description,
             exp_delay=expiry,
             address=None
