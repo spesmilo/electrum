@@ -19,6 +19,8 @@ ElDialog {
     property alias expiry: expires.currentValue
     property bool isLightning: false
 
+    property bool _canReceiveLightningAmount: Daemon.currentWallet.lightningCanReceive.msatsInt > amountBtc.textAsSats.msatsInt
+
     padding: 0
     needsSystemBarPadding: false
 
@@ -110,12 +112,11 @@ ElDialog {
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
-                enabled: Daemon.currentWallet.isLightning && (Daemon.currentWallet.lightningCanReceive.gt(amountBtc.textAsSats)
-                    || Daemon.currentWallet.canGetZeroconfChannel)
+                enabled: Daemon.currentWallet.isLightning && (_canReceiveLightningAmount || Daemon.currentWallet.canGetZeroconfChannel)
                 text: qsTr('Lightning')
                 icon.source: '../../icons/lightning.png'
                 onClicked: {
-                    if (Daemon.currentWallet.lightningCanReceive.gt(amountBtc.textAsSats)) {
+                    if (_canReceiveLightningAmount) {
                         // can receive on existing channel
                         dialog.isLightning = true
                         doAccept()
