@@ -11,9 +11,11 @@ from electrum.logging import Logger
 from electrum.plugin import runs_in_hwd_thread
 from electrum.hw_wallet.plugin import OutdatedHwFirmwareException, HardwareClientBase
 
-from trezorlib.client import TrezorClient, PassphraseSetting, get_default_client
+from trezorlib.client import TrezorClient, PassphraseSetting, AppManifest, get_client
 from trezorlib.exceptions import TrezorFailure, Cancelled, OutdatedFirmwareError
-from trezorlib.messages import WordRequestType, FailureType, ButtonRequestType, Capability
+from trezorlib.messages import WordRequestType, FailureType, ButtonRequestType, Capability, Features
+from trezorlib import models
+from trezorlib.thp.pairing import CodeEntry, ControllerLifecycle
 import trezorlib.btc
 import trezorlib.device
 
@@ -42,23 +44,36 @@ MESSAGES = {
     'default': _("Check your {} device to continue"),
 }
 
+# trezorlib THP does not support cross-thread cancellation.
+# https://github.com/trezor/trezor-firmware/issues/7112
+CANCEL_SUPPORTED = frozenset({models.T1B1, models.T2T1, models.T2B1, models.T3T1, models.T3B1})
 
 class TrezorClientBase(HardwareClientBase, Logger):
     def __init__(self, transport, handler, plugin):
         HardwareClientBase.__init__(self, plugin=plugin)
+        Logger.__init__(self)
+
         if plugin.is_outdated_fw_ignored():
             TrezorClient.is_outdated = lambda *args, **kwargs: False
 
-        self.client = get_default_client(
-            app_name="Electrum",
-            path_or_transport=transport,
-            button_callback=self.button_request,
-            pin_callback=self.get_pin,
-        )
         self._session = None
         self.device = plugin.device
         self.handler = handler
-        Logger.__init__(self)
+
+        self.transport = transport
+        self.app = AppManifest(
+            app_name="Electrum",
+            credentials=(),
+            button_callback=self.button_request,
+            pin_callback=self.get_pin,
+        )
+        self._client = None
+        # Makes sure the client is connected (on THP, a channel has been established)
+        model = self.client.model
+        if model.is_unknown:
+            self.logger.warning("Unknown Trezor model: %s", model)
+
+        # Pairing cannot be done during device enumeration, since UI handler is unset).
 
         self.msg = None
         self.creating_wallet = False
@@ -67,10 +82,34 @@ class TrezorClientBase(HardwareClientBase, Logger):
 
         self.used()
 
+    def is_paired(self) -> bool:
+        return self.client.pairing.is_paired()
+
+    def pair_if_needed(self) -> None:
+        if self.is_paired():
+            return
+
+        assert self.handler is not None, "No UI handler for pairing"
+
+        pairing = self.client.pairing
+        with self.client:
+            try:
+                method = CodeEntry(pairing)
+                code = self.handler.get_word(_("Enter 6-digit pairing code:"))
+                method.send_code(code)
+
+                assert pairing.state is ControllerLifecycle.PAIRING_COMPLETED
+                pairing.finish()
+            except Exception:
+                # Drop THP client (a new channel will be created later)
+                self._client = None
+                raise
+
     @property
     def session(self):
         if self._session is None:
-            assert self.handler is not None
+            assert self.handler is not None, "No UI handler for session"
+            self.pair_if_needed()
 
             # If needed, unlock the device (triggering PIN entry dialog for legacy model).
             with self.client.get_session(passphrase=PassphraseSetting.STANDARD_WALLET) as session:
@@ -125,22 +164,36 @@ class TrezorClientBase(HardwareClientBase, Logger):
         return True
 
     @property
+    def client(self) -> TrezorClient:
+        if self._client is None:
+            # Connect to the device, without pairing (on THP)
+            self._client = get_client(self.app, self.transport)
+        return self._client
+
+    @property
     def features(self):
+        assert self.is_paired(), "No features"
         return self.client.features
 
-    def __str__(self):
-        return "%s/%s" % (self.label(), self.features.device_id)
-
     def label(self):
+        if not self.is_paired():
+            return None
         return self.features.label
 
     def get_soft_device_id(self):
+        if not self.is_paired():
+            return None
         return self.features.device_id
 
-    def is_initialized(self):
-        return self.features.initialized
+    def is_initialized(self) -> bool | None:
+        if not self.is_paired():
+            return None  # Pairing will be done later
+
+        return bool(self.features.initialized)
 
     def is_pairable(self):
+        if not self.is_paired():
+            return True
         return not self.features.bootloader_mode
 
     @runs_in_hwd_thread
@@ -150,8 +203,8 @@ class TrezorClientBase(HardwareClientBase, Logger):
 
         try:
             self.client.ping(message="")
-        except BaseException:
-            self.logger.exception("Ping failed")
+        except Exception as e:
+            self.logger.exception("No connection: %s", e)
             return False
         return True
 
@@ -242,8 +295,7 @@ class TrezorClientBase(HardwareClientBase, Logger):
         return self.client.version >= self.plugin.minimum_firmware
 
     def get_trezor_model(self):
-        """Returns '1' for Trezor One, 'T' for Trezor T, etc."""
-        return self.features.model
+        return self.client.model.name
 
     def device_model_name(self):
         model = self.get_trezor_model()
@@ -255,6 +307,8 @@ class TrezorClientBase(HardwareClientBase, Logger):
             return "Trezor Safe 3"
         elif model == "Safe 5":
             return "Trezor Safe 5"
+        elif model == "Safe 7":
+            return "Trezor Safe 7"
         return None
 
     @runs_in_hwd_thread
@@ -325,7 +379,8 @@ class TrezorClientBase(HardwareClientBase, Logger):
 
     def button_request(self, br):
         message = self.msg or MESSAGES.get(br.code) or MESSAGES['default']
-        self.handler.show_message(message.format(self.device), self.client.cancel)
+        on_cancel = self.client.cancel if self.client.model in CANCEL_SUPPORTED else None
+        self.handler.show_message(message.format(self.device), on_cancel)
 
     def get_pin(self, code=None):
         show_strength = True

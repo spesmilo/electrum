@@ -476,6 +476,7 @@ class Plugin(TrezorPlugin, QtPlugin):
             'trezor_choose_new_recover': {'gui': WCTrezorInitParams},
             'trezor_do_init': {'gui': WCTrezorInit},
             'trezor_unlock': {'gui': WCHWUnlock},
+            'trezor_unpaired': {'gui': WCTrezorPair},
         }
         wizard.navmap_merge(views)
 
@@ -909,7 +910,7 @@ class WCTrezorInit(WalletWizardComponent, Logger):
                 self.wizard.requestNext.emit()  # triggers Next GUI thread from event loop
             except Exception as e:
                 self.valid = False
-                self.error = repr(e)
+                self.error = str(e)
                 self.logger.exception(repr(e))
             finally:
                 self.busy = False
@@ -919,6 +920,48 @@ class WCTrezorInit(WalletWizardComponent, Logger):
             args=(settings, method, device_id, client.handler),
             daemon=True)
         t.start()
+
+    def apply(self):
+        pass
+
+
+class WCTrezorPair(WalletWizardComponent, Logger):
+    def __init__(self, parent, wizard):
+        WalletWizardComponent.__init__(self, parent, wizard, title=_('Trezor Pairing'))
+        Logger.__init__(self)
+        self.plugins = wizard.plugins
+        self._busy = True
+
+    def on_ready(self):
+        current_cosigner = self.wizard.current_cosigner(self.wizard_data)
+        _name, _info = current_cosigner['hardware_device']
+        self.plugin = self.plugins.get_plugin(_info.plugin_name)
+
+        device_id = _info.device.id_
+        client = self.plugins.device_manager.client_by_id(device_id, scan_now=False)
+        if client is None:
+            self.error = _("Client for hardware device was unpaired.")
+            self.busy = False
+            return
+
+        client.handler = self.plugin.create_handler(self.wizard)
+
+        def pair_task(client):
+            try:
+                with client.run_flow(f"Confirm pairing with {client.device_model_name()}"):
+                    client.pair_if_needed()
+
+                self.wizard_data['trezor_initialized'] = client.features.initialized
+                self.wizard.requestNext.emit()  # triggers Next GUI thread from event loop
+            except Exception as e:
+                self.error = str(e)  # TODO: handle user interaction exceptions (e.g. invalid pin) more gracefully
+                self.logger.exception(repr(e))
+            finally:
+                self.busy = False
+
+        t = threading.Thread(target=pair_task, args=(client,), daemon=True)
+        t.start()
+
 
     def apply(self):
         pass

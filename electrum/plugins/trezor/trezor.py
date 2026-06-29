@@ -510,6 +510,10 @@ class TrezorPlugin(HW_PluginBase):
         return t
 
     def wizard_entry_for_device(self, device_info: 'DeviceInfo', *, new_wallet=True) -> str:
+        if device_info.initialized is None:
+            # Device state is unknown - pairing is needed.
+            return 'trezor_unpaired'
+
         if new_wallet:  # new wallet
             return 'trezor_not_initialized' if not device_info.initialized else 'trezor_start'
         else:  # unlock existing wallet
@@ -517,6 +521,15 @@ class TrezorPlugin(HW_PluginBase):
 
     # insert trezor pages in new wallet wizard
     def extend_wizard(self, wizard: 'NewWalletWizard'):
+        def _after_pairing(d: dict) -> str:
+            if d['wallet_exists']:
+                return 'trezor_unlock'
+
+            if not d['trezor_initialized']:
+                return 'trezor_not_initialized'
+
+            return 'trezor_start'
+
         views = {
             'trezor_start': {
                 'next': 'trezor_xpub',
@@ -534,6 +547,9 @@ class TrezorPlugin(HW_PluginBase):
             },
             'trezor_do_init': {
                 'next': 'trezor_start',
+            },
+            'trezor_unpaired': {
+                'next': _after_pairing,
             },
             'trezor_unlock': {
                 'last': True
