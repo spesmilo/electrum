@@ -16,10 +16,12 @@ TextField {
     }
 
     onTextChanged: {
-        if (amountFiat.activeFocus)
-            btcfield.text = text == ''
+        if (amountFiat.activeFocus) {
+            var amount = Daemon.fx.satoshiValue(amountFiat.text)
+            btcfield.text = (text == '' || amount.isEmpty)
                 ? ''
-                : Config.amountToBaseunitStr(Daemon.fx.satoshiValue(amountFiat.text))
+                : Config.amountToBaseunitStr(amount)
+        }
     }
 
     Connections {
