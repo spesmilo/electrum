@@ -84,6 +84,8 @@ class QtHandlerBase(HardwareHandlerBase, QObject, Logger):
         self.win = win
         self.device = device
         self.dialog = None
+        self.dialog_label = None
+        self._dialog_on_cancel = None
         self.done = threading.Event()
 
     def top_level_window(self):
@@ -174,12 +176,22 @@ class QtHandlerBase(HardwareHandlerBase, QObject, Logger):
 
     MESSAGE_DIALOG_TITLE = None  # type: Optional[str]
     def message_dialog(self, msg, on_cancel=None):
+        # If a dialog is already open, update its text instead of rebuilding it.
+        # A device emits one button request per output, and rebuilding the
+        # window-modal dialog each time is slow and visibly janky on macOS
+        # (the modal "sheet" animates closed/open between outputs). See #10718.
+        if self.dialog is not None and self._dialog_on_cancel == on_cancel:
+            self.dialog_label.setText(msg)
+            if not self.dialog.isVisible():  # e.g. was hidden by a user "cancel"
+                self.dialog.show()
+            return
         self.clear_dialog()
         title = self.MESSAGE_DIALOG_TITLE
         if title is None:
             title = _('Please check your {} device').format(self.device)
         self.dialog = dialog = WindowModalDialog(self.top_level_window(), title)
-        label = QLabel(msg)
+        self._dialog_on_cancel = on_cancel
+        self.dialog_label = label = QLabel(msg)
         label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         vbox = QVBoxLayout(dialog)
         vbox.addWidget(label)
@@ -197,6 +209,8 @@ class QtHandlerBase(HardwareHandlerBase, QObject, Logger):
         if self.dialog:
             self.dialog.accept()
             self.dialog = None
+            self.dialog_label = None
+            self._dialog_on_cancel = None
 
     def win_query_choice(self, msg: str, choices: Sequence[ChoiceItem]):
         try:
