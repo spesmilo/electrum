@@ -672,7 +672,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def clear_history(self):
         self.adb.clear_history()
-        # the paid-keys cache is derived from on-chain prevouts that adb.clear_history just wiped
         self._paid_invoice_keys_cache.clear()
         self.save_db()
 
@@ -1294,21 +1293,13 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def save_invoice(self, invoice: Invoice, *, write_to_disk: bool = True) -> None:
         key = invoice.get_id()
-        if invoice.is_lightning():
-            is_paid = bool(self.lnworker and self.lnworker.get_invoice_status(invoice) == PR_PAID)
-        else:
-            is_paid_onchain, conf = self.is_onchain_invoice_paid(invoice)
-            if is_paid_onchain:
+        if not invoice.is_lightning():
+            if self.is_onchain_invoice_paid(invoice)[0]:
                 _logger.info("saving invoice... but it is already paid!")
             with self.lock:
                 for txout in invoice.get_outputs():
                     self._invoices_from_scriptpubkey_map[txout.scriptpubkey].add(key)
-            is_paid = is_paid_onchain and conf is not None and conf >= 1
         self._invoices[key] = invoice
-        if is_paid:
-            self._paid_invoice_keys_cache.add(key)
-        else:
-            self._paid_invoice_keys_cache.discard(key)
         if write_to_disk:
             self.save_db()
 
@@ -1388,9 +1379,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         for invoice_key in invoice_keys:
             invoice = self._invoices.get(invoice_key)
             if not invoice:
-                self._paid_invoice_keys_cache.discard(invoice_key)
                 continue
-            # clear the cache first so get_invoice_status takes the slow path,
+            # clear the cache first so self.get_invoice_status takes the slow path,
             # which is needed to detect paid->unpaid transitions (e.g. reorgs)
             self._paid_invoice_keys_cache.discard(invoice_key)
             if invoice.is_lightning():
@@ -1401,17 +1391,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     continue
             is_paid, conf_needed, relevant_txs = self._is_onchain_invoice_paid(invoice)
             if is_paid:
-                assert conf_needed is not None and conf_needed >= 0
-                status = PR_UNCONFIRMED if conf_needed == 0 else PR_PAID
                 for txid in relevant_txs:
                     self._invoices_from_txid_map[txid].add(invoice_key)
-            else:
-                status = invoice.get_broadcasting_status() or PR_UNPAID
             for txout in invoice.get_outputs():
                 self._invoices_from_scriptpubkey_map[txout.scriptpubkey].add(invoice_key)
-            status = self.check_expired_status(invoice, status)
-            if status == PR_PAID:
-                self._paid_invoice_keys_cache.add(invoice_key)
+            # update invoice status
+            status = self.get_invoice_status(invoice)
             util.trigger_callback('invoice_status', self, invoice_key, status)
 
     def _is_onchain_invoice_paid(self, invoice: BaseInvoice) -> Tuple[bool, Optional[int], Sequence[str]]:

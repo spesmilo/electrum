@@ -447,7 +447,7 @@ class TestOutgoingInvoicesPaidCache(ElectrumTestCase):
         self.assertIn(inv.get_id(), wallet._paid_invoice_keys_cache)
         # Simulate reorg: unverify the tx and fire the same event the verifier would.
         wallet.adb.db.remove_verified_tx(tx.txid())
-        wallet.on_event_adb_removed_verified_tx(wallet.adb, tx.txid())
+        util.trigger_callback('adb_removed_verified_tx', wallet.adb, tx.txid())
         self.assertNotIn(inv.get_id(), wallet._paid_invoice_keys_cache)
         self.assertNotEqual(PR_PAID, wallet.get_invoice_status(inv))
 
