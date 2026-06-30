@@ -662,7 +662,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     @event_listener
     def on_event_invoice_status(self, wallet, key, status):
-        # keep _paid_invoice_keys in sync with LN-driven status changes
+        # keep _paid_invoice_keys_cache in sync with all invoice status changes
         if wallet != self:
             return
         if status == PR_PAID:
