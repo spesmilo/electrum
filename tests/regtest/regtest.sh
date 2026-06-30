@@ -566,6 +566,7 @@ if [[ $1 == "extract_preimage" ]]; then
     new_blocks 1
     wait_until_preimage alice $rhash1
     wait_until_preimage bob $rhash2
+    while screen -ls | grep -q _payment; do sleep 1; done  # wait until lnpay return before checking logs
     # check both "lnpay" commands succeeded
     success=$(cat /tmp/alice/screen1.log | jq -r ".success")
     if [[ "$success" != "true" ]]; then echo "alice payment failed"; exit 1; fi
