@@ -507,7 +507,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
                 self.logger.info('wizard dialog cancelled by user')
                 return
             db.put('x3', wizard.get_wizard_data()['x3'])
-            db.write_and_force_consolidation()  # TODO API for db is a bit weird: there should be a close method
+            db.storage.write()  # TODO API for db is a bit weird: there should be a close method
 
         wallet = self.daemon.load_wallet(wallet_file, password, upgrade=True)
         return wallet

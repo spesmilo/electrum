@@ -15,13 +15,13 @@ from electrum.daemon import Daemon
 from electrum.i18n import _
 from electrum.keystore import bip44_derivation, bip39_to_seed, purpose48_derivation, ScriptTypeNotSupported
 from electrum.plugin import run_hook, HardwarePluginLibraryUnavailable
-from electrum.storage import StorageReadWriteError
+from electrum.storage import StorageReadWriteError, StorageException
 from electrum.util import WalletFileException, get_new_wallet_name, UserFacingException, InvalidPassword
 from electrum.util import is_subpath, ChoiceItem, multisig_type, UserCancelled, standardize_path
 from electrum.wallet import wallet_types
 from .wizard import QEAbstractWizard, WizardComponent
 from electrum.logging import get_logger, Logger
-from electrum import WalletStorage, mnemonic, keystore
+from electrum import DictStorage, mnemonic, keystore
 from electrum.wallet_db import WalletDB
 from electrum.wizard import NewWalletWizard, KeystoreWizard, WizardViewState
 
@@ -176,7 +176,7 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard, MessageBoxMixin):
 
         wallet_file = wizard_data['wallet_name']
 
-        storage = WalletStorage(wallet_file)
+        storage = DictStorage(wallet_file)
         assert storage.file_exists(), f"file {wallet_file!r} does not exist"
         if not storage.is_encrypted_with_user_pw() and not storage.is_encrypted_with_hw_device():
             return True
@@ -280,7 +280,7 @@ class WCWalletName(WalletWizardComponent, Logger):
         self.layout().addLayout(hbox2)
         self.layout().addStretch(1)
 
-        temp_storage = None  # type: Optional[WalletStorage]
+        temp_storage = None  # type: Optional[DictStorage]
         datadir_wallet_folder = self.wizard.config.get_datadir_wallet_path()
 
         def relative_path(path):
@@ -313,12 +313,12 @@ class WCWalletName(WalletWizardComponent, Logger):
                 wallet_from_memory = self.wizard._daemon.get_wallet(_path)
                 try:
                     if wallet_from_memory:
-                        temp_storage = wallet_from_memory.storage  # type: Optional[WalletStorage]
+                        temp_storage = wallet_from_memory.storage  # type: Optional[DictStorage]
                         self.wallet_is_open = True
                     else:
-                        temp_storage = WalletStorage(_path)
+                        temp_storage = DictStorage(_path, init_db=False)
                     self.wallet_exists = temp_storage.file_exists()
-                except (StorageReadWriteError, WalletFileException) as e:
+                except (StorageReadWriteError, StorageException) as e:
                     msg = _('Cannot read file') + f'\n{repr(e)}'
                 except Exception as e:
                     self.logger.exception('')
@@ -327,7 +327,7 @@ class WCWalletName(WalletWizardComponent, Logger):
                 msg = ""
             self.valid = temp_storage is not None
             user_needs_to_enter_password = False
-            if temp_storage:
+            if temp_storage is not None:
                 if not temp_storage.file_exists():
                     msg = _("This file does not exist.") + '\n' \
                           + _("Press 'Next' to create this wallet, or choose another file.")
@@ -1376,7 +1376,7 @@ class WCHWUnlock(WalletWizardComponent, Logger):
     def check_hw_decrypt(self):
         wallet_file = self.wizard_data['wallet_name']
 
-        storage = WalletStorage(wallet_file)
+        storage = DictStorage(wallet_file)
         if not storage.is_encrypted_with_hw_device():
             return True
 

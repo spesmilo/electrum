@@ -6,9 +6,9 @@ import dataclasses
 from aiorpcx import timeout_after
 
 import electrum.fee_policy
-from electrum import keystore, wallet, lnutil
+from electrum import keystore, lnutil
 from electrum import SimpleConfig
-from electrum import util
+from electrum import util, storage
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
 from electrum.transaction import Transaction, PartialTxInput, PartialTxOutput, TxOutpoint
 from electrum.logging import console_stderr_handler, Logger
@@ -144,8 +144,8 @@ class TestTxBatcher(ElectrumTestCase):
         self.network.wallets.append(wallet)
         return wallet
 
-    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
-    async def test_batch_payments(self, mock_save_db):
+    @mock.patch.object(storage.FileStorage, 'append')
+    async def test_batch_payments(self, mock_append):
         # output 1:     tx1(o1) ---------------
         #                                      \
         # output 2:     tx1'(o1,o2)             ----> tx2(tx1|o2)
@@ -190,8 +190,8 @@ class TestTxBatcher(ElectrumTestCase):
         assert tx2.inputs()[0].prevout.txid.hex() == tx1.txid()
 
 
-    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
-    async def test_rbf_batching__cannot_batch_as_would_need_to_use_ismine_outputs_of_basetx(self, mock_save_db):
+    @mock.patch.object(storage.FileStorage, 'append')
+    async def test_rbf_batching__cannot_batch_as_would_need_to_use_ismine_outputs_of_basetx(self, mock_append):
         """Wallet history contains unconf tx1 that spends all its coins to two ismine outputs,
         one 'recv' address (20k sats) and one 'change' (80k sats).
         The user tries to create tx2, that pays an invoice for 90k sats.
@@ -228,8 +228,8 @@ class TestTxBatcher(ElectrumTestCase):
         assert output2 in tx2.outputs()
 
 
-    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
-    async def test_sweep_from_submarine_swap(self, mock_save_db):
+    @mock.patch.object(storage.FileStorage, 'append')
+    async def test_sweep_from_submarine_swap(self, mock_append):
         self.maxDiff = None
         # create wallet
         wallet = self._create_wallet()

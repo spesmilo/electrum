@@ -8,7 +8,7 @@ import copy
 
 from electrum import bitcoin, keystore, bip32, slip39
 from electrum.wallet_db import WalletDB
-from electrum.storage import WalletStorage
+from electrum.stored_dict import DictStorage
 from electrum import SimpleConfig
 from electrum import util
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE
@@ -55,7 +55,8 @@ class WalletIntegrityHelper:
 
     @classmethod
     def create_standard_wallet(cls, ks, *, config: SimpleConfig, gap_limit=None, gap_limit_for_change=None):
-        db = WalletDB('', storage=None, upgrade=True)
+        storage = DictStorage(None)
+        db = WalletDB(storage)
         db.put('keystore', ks.dump())
         db.put('gap_limit', gap_limit or cls.gap_limit)
         db.put('gap_limit_for_change', gap_limit_for_change or cls.gap_limit_for_change)
@@ -65,7 +66,8 @@ class WalletIntegrityHelper:
 
     @classmethod
     def create_imported_wallet(cls, *, config: SimpleConfig, privkeys: bool):
-        db = WalletDB('', storage=None, upgrade=True)
+        storage = DictStorage(None)
+        db = WalletDB(storage)
         if privkeys:
             k = keystore.Imported_KeyStore({})
             db.put('keystore', k.dump())
@@ -79,12 +81,14 @@ class WalletIntegrityHelper:
         multisig_type: str,
         *,
         config: SimpleConfig,
-        storage: WalletStorage | None = None,
+        storage: DictStorage | None = None,
         gap_limit=None,
         gap_limit_for_change=None,
     ):
         """Creates a multisig wallet."""
-        db = WalletDB('', storage=storage, upgrade=False)
+        if storage is None:
+            storage = DictStorage(None)
+        db = WalletDB(storage)
         for i, ks in enumerate(keystores):
             cosigner_index = i + 1
             db.put('x%d' % cosigner_index, ks.dump())

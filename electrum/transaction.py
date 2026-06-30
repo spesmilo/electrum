@@ -164,6 +164,9 @@ class TxOutput:
             return TYPE_ADDRESS, self.address, self.value
         return TYPE_SCRIPT, self.scriptpubkey.hex(), self.value
 
+    def as_tuple(self):
+        return self.to_legacy_tuple()
+
     @classmethod
     def from_legacy_tuple(cls, _type: int, addr: str, val: Union[int, str]) -> Union['TxOutput', 'PartialTxOutput']:
         if _type == TYPE_ADDRESS:
@@ -305,8 +308,8 @@ class TxOutpoint(NamedTuple):
     def to_str(self) -> str:
         return f"{self.txid.hex()}:{self.out_idx}"
 
-    def to_json(self):
-        return [self.txid.hex(), self.out_idx]
+    def as_tuple(self):
+        return (self.txid.hex(), self.out_idx)
 
     def serialize_to_network(self) -> bytes:
         return self.txid[::-1] + int.to_bytes(self.out_idx, length=4, byteorder="little", signed=False)
@@ -906,6 +909,9 @@ class Transaction:
 
     def __str__(self):
         return self.serialize()
+
+    def as_str(self):
+        return str(self)
 
     def __init__(self, raw):
         if raw is None:

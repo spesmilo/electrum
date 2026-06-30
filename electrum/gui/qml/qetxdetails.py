@@ -498,7 +498,6 @@ class QETxDetails(QObject, QtEventListener):
             return
 
         self._wallet.wallet.adb.remove_transaction(txid)
-        self._wallet.wallet.save_db()
 
         # NOTE: from here, the tx/txid is unknown and all properties are invalid.
         # UI should close TxDetails and avoid interacting with this qetxdetails instance.
