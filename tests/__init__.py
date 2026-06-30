@@ -136,6 +136,28 @@ def as_testnet(func):
                 constants.net = old_net
     return run_test
 
+def as_regtest(func):
+    """Function decorator to run a single unit test in regtest mode.
+
+    NOTE: this is inherently sequential; tests running in parallel would break things
+    """
+    old_net = constants.net
+    if inspect.iscoroutinefunction(func):
+        async def run_test(*args, **kwargs):
+            try:
+                constants.BitcoinRegtest.set_as_network()
+                return await func(*args, **kwargs)
+            finally:
+                constants.net = old_net
+    else:
+        def run_test(*args, **kwargs):
+            try:
+                constants.BitcoinRegtest.set_as_network()
+                return func(*args, **kwargs)
+            finally:
+                constants.net = old_net
+    return run_test
+
 
 @functools.wraps(restore_wallet_from_text)
 def restore_wallet_from_text__for_unittest(*args, gap_limit=2, gap_limit_for_change=1, **kwargs):
