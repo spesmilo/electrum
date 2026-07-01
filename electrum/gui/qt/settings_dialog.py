@@ -138,6 +138,29 @@ class SettingsDialog(QDialog, QtEventListener):
             util.trigger_callback('channels_updated', self.wallet)
         trampoline_cb.stateChanged.connect(on_trampoline_checked)
 
+        # minimum channel funding amount (the risk warning is shown right below the field)
+        min_funding_label = HelpLabel.from_configvar(self.config.cv.LIGHTNING_MIN_FUNDING_SAT)
+        min_funding_sb = QSpinBox()
+        min_funding_sb.setMinimum(0)
+        min_funding_sb.setMaximum(self.config.LIGHTNING_MAX_FUNDING_SAT)
+        min_funding_sb.setSingleStep(1000)
+        min_funding_sb.setGroupSeparatorShown(True)
+        min_funding_sb.setSuffix(' ' + _('sat'))
+        min_funding_sb.setValue(self.config.LIGHTNING_MIN_FUNDING_SAT)
+        if not self.config.cv.LIGHTNING_MIN_FUNDING_SAT.is_modifiable():
+            for w in [min_funding_sb, min_funding_label]:
+                w.setEnabled(False)
+
+        def on_min_funding():
+            value = min_funding_sb.value()
+            if self.config.LIGHTNING_MIN_FUNDING_SAT != value:
+                self.config.LIGHTNING_MIN_FUNDING_SAT = value
+        min_funding_sb.valueChanged.connect(on_min_funding)
+
+        min_funding_warning = QLabel(self.config.cv.LIGHTNING_MIN_FUNDING_SAT.get_long_desc())
+        min_funding_warning.setWordWrap(True)
+        min_funding_warning.setStyleSheet(ColorScheme.ORANGE.as_stylesheet())
+
 
         alias_label = HelpLabel.from_configvar(self.config.cv.OPENALIAS_ID)
         alias = self.config.OPENALIAS_ID
@@ -361,6 +384,8 @@ class SettingsDialog(QDialog, QtEventListener):
         units_widgets.append((thousandsep_cb, None))
         lightning_widgets = []
         lightning_widgets.append((trampoline_cb, None))
+        lightning_widgets.append((min_funding_label, min_funding_sb))
+        lightning_widgets.append((min_funding_warning, None))
         fiat_widgets = []
         fiat_widgets.append((QLabel(_('Fiat currency')), ccy_combo))
         fiat_widgets.append((QLabel(_('Source')), ex_combo))
