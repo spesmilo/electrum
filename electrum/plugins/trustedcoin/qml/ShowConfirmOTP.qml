@@ -42,12 +42,16 @@ WizardComponent {
             render: plugin.otpSecret
             onClicked: {
                 if (plugin.otpSecret) {
-                    if (AppController.isAndroid()) {
-                        Qt.openUrlExternally(qrdata)
-                    } else {
-                        AppController.textToClipboard(plugin.otpSecret)
-                        toaster.show(this, qsTr('Copied!'))
-                    }
+                    AppController.textToClipboard(plugin.otpSecret)
+                    toaster.show(this, qsTr('Copied!'))
+                    // On Android the app will get killed when switching to the authenticator app,
+                    // losing the wizard state. TODO: re-enable once we have means to keep app alive in background.
+                    // if (AppController.isAndroid()) {
+                    //     Qt.openUrlExternally(qrdata)
+                    // } else {
+                    //     AppController.textToClipboard(plugin.otpSecret)
+                    //     toaster.show(this, qsTr('Copied!'))
+                    // }
                 }
             }
         }
@@ -78,7 +82,7 @@ WizardComponent {
             Layout.fillWidth: true
             visible: !otpVerified && plugin.otpSecret
             wrapMode: Text.Wrap
-            text: qsTr('Tap the QR code to open in your authenticator app, or scan it manually. Then authenticate below')
+            text: qsTr('Enter or scan into authenticator app. Then authenticate below')
         }
 
         Label {
