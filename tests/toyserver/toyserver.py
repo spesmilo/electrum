@@ -6,7 +6,7 @@ import asyncio
 import collections
 from dataclasses import dataclass
 from functools import partial
-from typing import Optional, Sequence, Iterable, List, Set, Callable, TypeVar
+from typing import Optional, Sequence, Iterable, List, Set, Callable, TypeVar, Any
 
 import aiorpcx
 from aiorpcx import RPCError
@@ -490,12 +490,11 @@ class ToyServerSession(aiorpcx.RPCSession, Logger):
     async def _handle_server_features(self) -> dict:
         return {
             'genesis_hash': constants.net.GENESIS,
-            'hosts': {"14.3.140.101": {"tcp_port": 51001, "ssl_port": 51002}},
+            'hosts': {"127.0.0.1": {"tcp_port": 51001, "ssl_port": 51002}},
             'protocol_max': '1.7',
             'protocol_min': '1.7',
             'pruning': None,
-            'server_version': 'ElectrumX 1.19.0',
-            'hash_function': 'sha256',
+            'server_version': 'toyserver 0.1',
         }
 
     async def _handle_estimatefee(self, number, mode=None):
@@ -574,13 +573,15 @@ class ToyServerSession(aiorpcx.RPCSession, Logger):
         hist = self.svr.calc_spk_history(spk)
         return history_status(hist)
 
-    async def _handle_spk_get_history(self, spk: str) -> Sequence[dict]:
+    async def _handle_spk_get_history(self, spk: str) -> dict[str, Any]:
+        res = dict()
         hist_tuples = self.svr.calc_spk_history(spk)
         hist_dicts = [{"height": height, "tx_hash": txid} for (txid, height) in hist_tuples]
         for hist_dict in hist_dicts:  # add "fee" key for mempool txs
             if hist_dict["height"] in (0, -1,):
                 hist_dict["fee"] = 0
-        return hist_dicts
+        res["history"] = hist_dicts
+        return res
 
     async def server_send_notifications(self, *, touched_spks: Iterable[str], height_changed: bool = False) -> None:
         if height_changed and self.subbed_headers and self.notified_height != self.svr.cur_height:

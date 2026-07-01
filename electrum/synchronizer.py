@@ -35,7 +35,10 @@ from .transaction import Transaction, PartialTransaction
 from .util import make_aiohttp_session, NetworkJobOnDefaultServer, random_shuffled_copy, OldTaskGroup, log_exceptions
 from .bitcoin import address_to_script, script_to_scripthash, is_address, neuter_bitcoin_address
 from .logging import Logger
-from .interface import GracefulDisconnect, NetworkTimeout, HistoryTooLong, assert_hash256_str
+from .interface import (
+    GracefulDisconnect, NetworkTimeout, HistoryTooLong, assert_hash256_str, assert_non_negative_integer,
+    assert_dict_contains_field, assert_dict, assert_integer,
+)
 
 if TYPE_CHECKING:
     from .network import Network
@@ -120,10 +123,10 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
         """
         raise NotImplementedError()  # implemented by subclasses
 
-    async def _on_outpoint_status(self, txid: str, index:int, status: dict):
+    async def _on_outpoint_status(self, txid: str, index: int, status: dict):
         raise NotImplementedError()  # implemented by subclasses
 
-    async def _subscribe_to_address(self, addr):
+    async def _subscribe_to_address(self, addr: str):
         spk = address_to_script(addr)
         h = script_to_scripthash(spk)
         self.scripthash_to_address[h] = addr
@@ -153,8 +156,13 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
     @log_exceptions
     async def handle_address_status(self):
         while True:
-            h, status = await self.address_status_queue.get()
-            addr = self.scripthash_to_address[h]
+            sh, status = await self.address_status_queue.get()
+            # basic checks for response
+            assert_hash256_str(sh)
+            if status is not None:
+                assert_hash256_str(status)
+            # process status
+            addr = self.scripthash_to_address[sh]
             self._handling_addr_statuses.add(addr)
             self.requested_addrs.discard(addr)  # ok for addr not to be present
             await self.taskgroup.spawn(self._on_address_status, addr, status)
@@ -164,7 +172,12 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
     async def handle_outpoint_status(self):
         while True:
             txid, index, status = await self.outpoint_status_queue.get()
-            outpoint = txid + ':%d'%index
+            # basic checks for response. more checks done in _on_outpoint_status
+            assert_hash256_str(txid)
+            assert_non_negative_integer(index)
+            assert_dict(status)
+            # process status
+            outpoint = f"{txid}:{index}"
             self._handling_outpoint_statuses.add(outpoint)
             self.requested_outpoints.discard(outpoint)  # ok for addr not to be present
             await self.taskgroup.spawn(self._on_outpoint_status, txid, index, status)
@@ -284,26 +297,28 @@ class Synchronizer(SynchronizerBase):
 
     async def _on_outpoint_status(self, txid: str, index: int, status: dict):
         try:
-            assert isinstance(status, dict)
+            # check inputs (coming from server)
             assert_hash256_str(txid)
+            assert_non_negative_integer(index)
+            #
             txs = set()
             txs.add(txid)
-            height = status.get('funder_height')
-            if height is not None:
-                assert isinstance(height, int)
+            funder_height = status.get('funder_height')
+            if funder_height is not None:
+                assert_integer(funder_height)
                 # spv the input
-                self.adb.add_unverified_or_unconfirmed_tx(txid, height)
+                self.adb.add_unverified_or_unconfirmed_tx(txid, funder_height)
             # fetch the output
             spender_txid = status.get('spender_txhash')
             if spender_txid is not None:
                 assert_hash256_str(spender_txid)
-                spender_height = status.get('spender_height')
-                assert isinstance(spender_height, int)
+                spender_height = assert_dict_contains_field(status, field_name='spender_height')
+                assert_integer(spender_height)
                 self.adb.add_unverified_or_unconfirmed_tx(spender_txid, spender_height)
                 txs.add(spender_txid)
             await self._request_missing_txs(txs, allow_server_not_finding_tx=False)
         finally:
-            outpoint = txid + ':%d'%index
+            outpoint = f"{txid}:{index}"
             self._handling_outpoint_statuses.discard(outpoint)
 
 
