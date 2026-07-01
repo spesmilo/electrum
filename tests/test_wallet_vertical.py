@@ -3597,6 +3597,51 @@ class TestWalletSending(ElectrumTestCase):
         wallet1.sign_transaction(tx, password=None)
         self.assertTrue(tx.is_complete())
 
+    async def test_sighash_warnings_beyond_gap_limit(self):
+        """Test sighash sanity checks are not skipped for is-mine inputs that are beyond the wallet's gap limit."""
+        wallet1 = self.create_standard_wallet_from_seed(
+            'rule purchase season popular noise profit tornado social wise regret senior source',
+            gap_limit=10,
+        )
+
+        # bootstrap wallet1. this creates a UTXO at m/0/9, just within gap_limit=10
+        funding_tx = Transaction('02000000000101d55f9bf809ac8da2e0369762a5e0564b987acd2f0e2919e963bf73b0a6d05cba0100000000fdffffff0240420f0000000000160014e3c966766c2f95d9768ec3913207ed32f361ce9114ca10000000000016001458d65b7019466e3a20e2e5bce17c7fba24d2d9fd02473044022029512b2a4b470208496d3a79ab846eecd944261744195930f2f4cbe1435e392b0220214af4e24af8d78a4a85fbe29365d79bec2541416df740a3cd4080dc9ca0bdbb012102f6a8f9c92f637f894f163a6536a972c3d0cb81eba703bc32325ebb199c59e65efb714c00')
+        wallet1.adb.receive_tx_callback(funding_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+
+        outputs = [PartialTxOutput.from_address_and_value('tb1qhkyjkuwtwh9fh78dqfvtqvr52q3spvvmzcpw5z', '!')]
+        coins = wallet1.get_spendable_coins(domain=None)
+        tx1 = wallet1.make_unsigned_transaction(coins=coins, outputs=outputs, fee_policy=FixedFeePolicy(1000))
+        self.assertEqual(1, len(tx1.inputs()))
+
+        tx1.inputs()[0].sighash = Sighash.NONE
+        partial_tx = tx1.serialize_as_bytes().hex()
+        self.assertEqual(
+            "70736274ff0100520200000001e39029a99d01a33b098f8b40575b869293a12196078c18e0f5890a7b844965650000000000fdffffff01583e0f0000000000160014bd892b71cb75ca9bf8ed0258b03074502300b19b000000000001011f40420f0000000000160014e3c966766c2f95d9768ec3913207ed32f361ce910100de02000000000101d55f9bf809ac8da2e0369762a5e0564b987acd2f0e2919e963bf73b0a6d05cba0100000000fdffffff0240420f0000000000160014e3c966766c2f95d9768ec3913207ed32f361ce9114ca10000000000016001458d65b7019466e3a20e2e5bce17c7fba24d2d9fd02473044022029512b2a4b470208496d3a79ab846eecd944261744195930f2f4cbe1435e392b0220214af4e24af8d78a4a85fbe29365d79bec2541416df740a3cd4080dc9ca0bdbb012102f6a8f9c92f637f894f163a6536a972c3d0cb81eba703bc32325ebb199c59e65efb714c0001030402000000220603fde364bd385f90972819d2645f31d06f47c884b265214ab3c257c4da17e13feb1008abf7800000008000000000090000000000",
+            partial_tx)
+        txid1 = tx1.txid()
+
+        self.assertEqual(TxSighashRiskLevel.INSANE_SIGHASH, wallet1.check_sighash(tx1).risk_level)
+        with self.assertRaises(TransactionDangerousException):
+            wallet1.sign_transaction(tx1, password=None)
+        with self.assertRaises(TransactionDangerousException):
+            wallet1.sign_transaction(tx1, password=None, ignore_warnings=True)
+
+        # Now restore the wallet from seed, and reconstruct the tx from just the psbt.
+        # Logically we would expect wallet1==wallet2, and tx1==tx2, to some definition of "equality".
+        # Except, we restore the wallet with a much shorter gap limit!
+        wallet2 = self.create_standard_wallet_from_seed(
+            'rule purchase season popular noise profit tornado social wise regret senior source',
+            gap_limit=2,
+        )
+        tx2 = tx_from_any(partial_tx)
+        self.assertEqual(txid1, tx2.txid())
+
+        self.assertEqual(TxSighashRiskLevel.INSANE_SIGHASH, wallet2.check_sighash(tx2).risk_level)
+        with self.assertRaises(TransactionDangerousException):
+            wallet2.sign_transaction(tx2, password=None)
+        with self.assertRaises(TransactionDangerousException):
+            wallet2.sign_transaction(tx2, password=None, ignore_warnings=True)
+
 
 class TestWalletOfflineSigning(ElectrumTestCase):
     TESTNET = True

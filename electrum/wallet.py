@@ -3383,6 +3383,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def check_sighash(self, tx: 'PartialTransaction') -> TxSighashDanger:
         """Checks the Sighash for my inputs and considers if the tx is safe to sign."""
         assert isinstance(tx, PartialTransaction)
+        tx = copy.deepcopy(tx)  # make a copy so that we don't mutate the input
+        tx.add_info_from_wallet(self)
+
         rl = TxSighashRiskLevel
         hintmap = {
             0:                    (rl.SAFE,           None),
