@@ -1,65 +1,48 @@
 import asyncio
 import dataclasses
-import shutil
 import copy
-import tempfile
 import os
-from contextlib import contextmanager
-from collections import defaultdict
 import logging
-import concurrent
-from concurrent import futures
-from functools import lru_cache
 from unittest import mock
-from typing import Iterable, NamedTuple, Tuple, List, Dict, Sequence, Mapping, Optional
+from typing import List, Mapping, Optional
 from types import MappingProxyType
 import time
 import statistics
 
-from aiorpcx import timeout_after, TaskTimeout
-from electrum_ecc import ECPrivkey
 import electrum_ecc as ecc
 
 import electrum
 import electrum.trampoline
 from electrum import bitcoin
 from electrum import util
-from electrum import constants
-from electrum import bip32
-from electrum.network import Network, ProxySettings
-from electrum import simple_config, lnutil
+from electrum import lnutil
 from electrum.bolt11 import encode_bolt11_invoice, BOLT11Addr
 from electrum.bitcoin import sha256
 from electrum.transaction import Transaction
-from electrum.util import NetworkRetryManager, bfh, OldTaskGroup, EventListener, InvoiceError
+from electrum.util import OldTaskGroup, InvoiceError
 from electrum.lnpeer import Peer
 from electrum.lnpeer import CoopCloseFailure
 from electrum.lntransport import LNPeerAddr
 from electrum.crypto import privkey_to_pubkey
-from electrum.lnutil import Keypair, PaymentFailure, LnFeatures, HTLCOwner, PaymentFeeBudget, RECEIVED
+from electrum.lnutil import PaymentFailure, LnFeatures, HTLCOwner, RECEIVED, PaymentFeeBudget
 from electrum.lnchannel import ChannelState, PeerState, Channel
-from electrum.lnrouter import LNPathFinder, PathEdge, LNPathInconsistent
+from electrum.lnrouter import PathEdge, LNPathInconsistent
 from electrum.channel_db import ChannelDB, InvalidGossipMsg
-from electrum.lnworker import LNWallet, NoPathFound, SentHtlcInfo, PaySession, LNPeerManager
+from electrum.lnworker import LNWallet, NoPathFound, SentHtlcInfo
 from electrum.lnmsg import encode_msg, decode_msg
 from electrum import lnmsg
-from electrum.logging import console_stderr_handler, Logger
+from electrum.logging import console_stderr_handler
 from electrum.lnonion import OnionFailureCode, OnionRoutingFailure, OnionHopsDataSingle, OnionPacket
 from electrum.lnutil import LOCAL, REMOTE, UpdateAddHtlc, RecvMPPResolution, RevocationStore
 from electrum.invoices import PR_PAID, PR_UNPAID, Invoice
 from electrum.interface import GracefulDisconnect
-from electrum.fee_policy import FeeTimeEstimates, FEE_ETA_TARGETS
 from electrum.mpp_split import split_amount_normal
-from electrum.wallet import Abstract_Wallet, Standard_Wallet
 
-from .test_bitcoin import needs_test_with_all_chacha20_implementations
-from . import ElectrumTestCase, restore_wallet_from_text__for_unittest, lnhelpers
-from .lnhelpers import Graph, MockLNWallet, create_test_channels, low_fee_channel, depleted_channel
-
-
-class PaymentDone(Exception): pass
-class PaymentTimeout(Exception): pass
-class SuccessfulTest(Exception): pass
+from . import ElectrumTestCase, lnhelpers
+from .lnhelpers import (
+    Graph, MockLNWallet, create_test_channels, low_fee_channel, depleted_channel, SuccessfulTest,
+    PaymentDone, PaymentTimeout,
+)
 
 
 def inject_chan_into_gossipdb(
@@ -1380,6 +1363,26 @@ class TestPeerDirect(TestPeer):
             p1.send_warning(alice_channel.channel_id, 'be warned!', close_connection=True)
         gath = asyncio.gather(action(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
         with self.assertRaises(GracefulDisconnect):
+            await gath
+
+    async def test_channel_close_after_previous_warning(self):
+        """We receive a warning, and later a shutdown.
+        We shouldn't fail the shutdown due to some unconsumed warning message in the queue."""
+        graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
+        p1, p2 = graph.peers.values()
+        alice_channel = graph.channels[('alice', 'bob')][0]
+
+        async def action():
+            await util.wait_for2(p1.initialized, 1)
+            await util.wait_for2(p2.initialized, 1)
+            p1.send_warning(alice_channel.channel_id, 'be warned!', close_connection=False)
+            await asyncio.sleep(0.05)
+            # one hour later peer tries to close, close_channel depends on a message response
+            await p1.close_channel(alice_channel.channel_id)
+            self.assertTrue(alice_channel.is_closed_or_closing())
+            raise SuccessfulTest
+        gath = asyncio.gather(action(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
+        with self.assertRaises(SuccessfulTest):
             await gath
 
     async def test_error(self):
