@@ -1252,7 +1252,14 @@ class Peer(Logger, EventListener):
         return chan_dict
 
     @non_blocking_msg_handler
-    async def on_open_channel(self, payload):
+    async def on_open_channel(self, payload: dict):
+        try:
+            with self.lnworker.incoming_channel_rate_limiter.rate_limit(self.pubkey):
+                await self._on_open_channel(payload)
+        except lnutil.IncomingChannelRateLimiter.ChannelOpeningRateLimited as e:
+            self.send_warning(payload["temporary_channel_id"], message=str(e), close_connection=False)
+
+    async def _on_open_channel(self, payload):
         """Implements the channel acceptance flow.
 
         <- open_channel message
