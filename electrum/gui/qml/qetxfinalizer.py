@@ -452,6 +452,7 @@ class QETxFinalizer(TxFeeSlider, AuthMixin, SubmarineSwapMixin):
         self._extraFee = QEAmount()
         self._canRbf = False
         self._swapStatusMsg = ''
+        self._busy = False
         self.swap_task: Future = None
 
         self.swapAvailabilityChanged.connect(self.on_swap_availability_changed, Qt.ConnectionType.QueuedConnection)
@@ -492,6 +493,17 @@ class QETxFinalizer(TxFeeSlider, AuthMixin, SubmarineSwapMixin):
             self._logger.debug(str(amount))
             self._amount.copyFrom(amount)
             self.amountChanged.emit()
+
+    busyChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=busyChanged)
+    def busy(self) -> bool:
+        return self._busy
+
+    @busy.setter
+    def busy(self, busy: bool):
+        if self._busy != busy:
+            self._busy = busy
+            self.busyChanged.emit()
 
     effectiveAmountChanged = pyqtSignal()
     @pyqtProperty(QEAmount, notify=effectiveAmountChanged)
@@ -646,6 +658,10 @@ class QETxFinalizer(TxFeeSlider, AuthMixin, SubmarineSwapMixin):
             self._logger.debug('no valid tx')
             return
 
+        if self.busy:
+            self._logger.debug('busy')
+            return
+
         tx = self._tx
 
         if self.f_accept:
@@ -662,6 +678,8 @@ class QETxFinalizer(TxFeeSlider, AuthMixin, SubmarineSwapMixin):
     def _send_with_swap_change(self, tx):
         assert self._wallet.wallet.lnworker
         assert tx.get_dummy_output(DummyAddress.SWAP)
+
+        self.busy = True
 
         async def handle_swap_task():
             try:
@@ -721,6 +739,7 @@ class QETxFinalizer(TxFeeSlider, AuthMixin, SubmarineSwapMixin):
             finally:
                 # ensures that swap_task is always set None if transport closes
                 self.swap_task = None
+                self.busy = False
 
         self.swap_task = asyncio.run_coroutine_threadsafe(handle_swap_task(), get_asyncio_loop())
 
