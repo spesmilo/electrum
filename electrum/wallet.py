@@ -422,6 +422,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self.lock = self.adb.lock
         self._last_full_history = None
         self._tx_parents_cache = {}
+        self._paid_invoice_keys_cache = set()  # type: Set[str]
+        self._coin_price_cache = {}
         self._default_labels = {}
         self._accounting_addresses = set()  # addresses counted as ours after successful sweep
 
@@ -451,7 +453,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if self.db.get('wallet_type') is None:
             self.db.put('wallet_type', self.wallet_type)
         self.contacts = Contacts(self.db)
-        self._coin_price_cache = {}
 
         # true when synchronized. this is stricter than adb.is_up_to_date():
         # to-be-generated (HD) addresses are also considered here (gap-limit-roll-forward)
@@ -630,7 +631,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self.clear_tx_parents_cache()
         if self.lnworker:
             self.lnworker.maybe_add_backup_from_tx(tx)
-        self._update_invoices_and_reqs_touched_by_tx(tx_hash)
+        self._update_invoices_and_reqs_touched_by_tx(tx)
         util.trigger_callback('new_transaction', self, tx)
 
     @event_listener
@@ -640,13 +641,15 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if not tx or not self.tx_is_related(tx):
             return
         self.clear_tx_parents_cache()
+        self._update_invoices_and_reqs_touched_by_tx(tx)
         util.trigger_callback('removed_transaction', self, tx)
 
     @event_listener
     def on_event_adb_added_verified_tx(self, adb, tx_hash):
         if adb != self.adb:
             return
-        self._update_invoices_and_reqs_touched_by_tx(tx_hash)
+        if tx := self.db.get_transaction(tx_hash):
+            self._update_invoices_and_reqs_touched_by_tx(tx)
         tx_mined_status = self.adb.get_tx_height(tx_hash)
         util.trigger_callback('verified', self, tx_hash, tx_mined_status)
 
@@ -654,10 +657,22 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def on_event_adb_removed_verified_tx(self, adb, tx_hash):
         if adb != self.adb:
             return
-        self._update_invoices_and_reqs_touched_by_tx(tx_hash)
+        if tx := self.db.get_transaction(tx_hash):
+            self._update_invoices_and_reqs_touched_by_tx(tx)
+
+    @event_listener
+    def on_event_invoice_status(self, wallet, key, status):
+        # keep _paid_invoice_keys_cache in sync with all invoice status changes
+        if wallet != self:
+            return
+        if status == PR_PAID:
+            self._paid_invoice_keys_cache.add(key)
+        else:
+            self._paid_invoice_keys_cache.discard(key)
 
     def clear_history(self):
         self.adb.clear_history()
+        self._paid_invoice_keys_cache.clear()
         self.save_db()
 
     def start_network(self, network: 'Network'):
@@ -1290,6 +1305,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def clear_invoices(self):
         self._invoices.clear()
+        self._paid_invoice_keys_cache.clear()
         self.save_db()
 
     def clear_requests(self):
@@ -1364,10 +1380,15 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             invoice = self._invoices.get(invoice_key)
             if not invoice:
                 continue
-            if invoice.is_lightning() and not invoice.get_address():
-                continue
-            if invoice.is_lightning() and self.lnworker and self.lnworker.get_invoice_status(invoice) == PR_PAID:
-                continue
+            # clear the cache first so self.get_invoice_status takes the slow path,
+            # which is needed to detect paid->unpaid transitions (e.g. reorgs)
+            self._paid_invoice_keys_cache.discard(invoice_key)
+            if invoice.is_lightning():
+                is_paid_lightning = bool(self.lnworker and self.lnworker.get_invoice_status(invoice) == PR_PAID)
+                if is_paid_lightning:
+                    self._paid_invoice_keys_cache.add(invoice_key)
+                if is_paid_lightning or not invoice.get_address():
+                    continue
             is_paid, conf_needed, relevant_txs = self._is_onchain_invoice_paid(invoice)
             if is_paid:
                 for txid in relevant_txs:
@@ -2869,6 +2890,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def get_invoice_status(self, invoice: BaseInvoice):
         """Returns status of (incoming) request or (outgoing) invoice."""
+        # PR_PAID is terminal (reorgs clear the cache in _update_onchain_invoice_paid_detection)
+        if isinstance(invoice, Invoice) and invoice.get_id() in self._paid_invoice_keys_cache:
+            return PR_PAID
         # lightning invoices can be paid onchain
         if invoice.is_lightning() and self.lnworker:
             status = self.lnworker.get_invoice_status(invoice)
@@ -2980,13 +3004,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     invoice_keys.add(invoice_key)
         return request_keys, invoice_keys
 
-    def _update_invoices_and_reqs_touched_by_tx(self, tx_hash: str) -> None:
+    def _update_invoices_and_reqs_touched_by_tx(self, tx: Transaction) -> None:
         # FIXME in some cases if tx2 replaces unconfirmed tx1 in the mempool, we are not called.
         #       For a given receive request, if tx1 touches it but tx2 does not, then
         #       we were called when tx1 was added, but we will not get called when tx2 replaces tx1.
-        tx = self.db.get_transaction(tx_hash)
-        if tx is None:
-            return
         request_keys, invoice_keys = self.get_invoices_and_requests_touched_by_tx(tx)
         for key in request_keys:
             request = self.get_request(key)
@@ -2999,6 +3020,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def set_broadcasting(self, tx: Transaction, *, broadcasting_status: Optional[int]):
         request_keys, invoice_keys = self.get_invoices_and_requests_touched_by_tx(tx)
         for key in invoice_keys:
+            if key in self._paid_invoice_keys_cache:
+                # already-paid invoices ignore _broadcasting_status; skip the prevout scan
+                continue
             invoice = self._invoices.get(key)
             if not invoice:
                 continue
@@ -3081,6 +3105,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         inv = self._invoices.pop(invoice_id, None)
         if inv is None:
             return
+        self._paid_invoice_keys_cache.discard(invoice_id)
         if inv.is_lightning() and self.lnworker:
             self.lnworker.delete_payment_info(inv.rhash, direction=SENT)
         if write_to_disk:

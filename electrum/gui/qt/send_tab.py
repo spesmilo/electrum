@@ -809,7 +809,6 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                 success, msg = result
                 if success:
                     parent.show_message(_('Payment sent.') + '\n' + msg)
-                    self.invoice_list.update()
                     self.wallet.set_broadcasting(tx, broadcasting_status=PR_BROADCAST)
                 else:
                     msg = msg or ''
