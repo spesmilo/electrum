@@ -327,7 +327,7 @@ ElDialog {
                         ? qsTr('Finalize...')
                         : qsTr('Pay...')
                 icon.source: '../../icons/confirmed.png'
-                enabled: finalizer.valid
+                enabled: finalizer.valid && !finalizer.busy
                 onClicked: confirmed()
             }
         }
