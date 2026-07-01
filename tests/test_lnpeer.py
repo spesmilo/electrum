@@ -1,62 +1,47 @@
 import asyncio
 import dataclasses
-import shutil
 import copy
-import tempfile
 from decimal import Decimal
 import os
-from contextlib import contextmanager
-from collections import defaultdict
 import logging
-import concurrent
-from concurrent import futures
-from functools import lru_cache
 from unittest import mock
-from typing import Iterable, NamedTuple, Tuple, List, Dict, Sequence, Mapping
+from typing import Tuple, List, Mapping
 from types import MappingProxyType
 import time
 import statistics
 
-from aiorpcx import timeout_after, TaskTimeout
-from electrum_ecc import ECPrivkey
 import electrum_ecc as ecc
 
 import electrum
 import electrum.trampoline
 from electrum import bitcoin
 from electrum import util
-from electrum import constants
-from electrum import bip32
-from electrum.network import Network, ProxySettings
-from electrum import simple_config, lnutil
+from electrum import lnutil
 from electrum.bolt11 import encode_bolt11_invoice, BOLT11Addr, decode_bolt11_invoice
 from electrum.bitcoin import COIN, sha256
 from electrum.transaction import Transaction
-from electrum.util import NetworkRetryManager, bfh, OldTaskGroup, EventListener, InvoiceError
+from electrum.util import OldTaskGroup, InvoiceError
 from electrum.lnpeer import Peer
 from electrum.lntransport import LNPeerAddr
 from electrum.crypto import privkey_to_pubkey
-from electrum.lnutil import Keypair, PaymentFailure, LnFeatures, HTLCOwner, PaymentFeeBudget, RECEIVED
+from electrum.lnutil import PaymentFailure, LnFeatures, HTLCOwner, RECEIVED
 from electrum.lnchannel import ChannelState, PeerState, Channel
-from electrum.lnrouter import LNPathFinder, PathEdge, LNPathInconsistent
+from electrum.lnrouter import PathEdge, LNPathInconsistent
 from electrum.channel_db import ChannelDB, InvalidGossipMsg
-from electrum.lnworker import LNWallet, NoPathFound, SentHtlcInfo, PaySession, LNPeerManager
+from electrum.lnworker import LNWallet, NoPathFound, SentHtlcInfo
 from electrum.lnmsg import encode_msg, decode_msg
 from electrum import lnmsg
-from electrum.logging import console_stderr_handler, Logger
+from electrum.logging import console_stderr_handler
 from electrum.lnworker import PaymentInfo
 from electrum.lnonion import OnionFailureCode, OnionRoutingFailure, OnionHopsDataSingle, OnionPacket
 from electrum.lnutil import LOCAL, REMOTE, UpdateAddHtlc, RecvMPPResolution, RevocationStore
 from electrum.invoices import PR_PAID, PR_UNPAID, Invoice, LN_EXPIRY_NEVER
 from electrum.interface import GracefulDisconnect
 from electrum.simple_config import SimpleConfig
-from electrum.fee_policy import FeeTimeEstimates, FEE_ETA_TARGETS
 from electrum.mpp_split import split_amount_normal
-from electrum.wallet import Abstract_Wallet, Standard_Wallet
 
-from .test_bitcoin import needs_test_with_all_chacha20_implementations
-from . import ElectrumTestCase, restore_wallet_from_text__for_unittest, lnhelpers
-from .lnhelpers import Graph, MockLNWallet, create_test_channels
+from . import ElectrumTestCase, lnhelpers
+from .lnhelpers import Graph, MockLNWallet, create_test_channels, SuccessfulTest, PaymentDone, PaymentTimeout
 
 
 high_fee_channel = {
@@ -172,11 +157,6 @@ _GRAPH_DEFINITIONS = {
         },
     },
 }
-
-
-class PaymentDone(Exception): pass
-class PaymentTimeout(Exception): pass
-class SuccessfulTest(Exception): pass
 
 
 def inject_chan_into_gossipdb(

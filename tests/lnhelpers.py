@@ -23,7 +23,9 @@ from electrum.channel_db import ChannelDB
 from electrum.lnworker import LNWallet, PaySession
 from electrum.simple_config import SimpleConfig
 from electrum.fee_policy import FeeTimeEstimates, FEE_ETA_TARGETS
-from electrum.wallet import  Standard_Wallet
+from electrum.wallet import  Standard_Wallet, Abstract_Wallet
+from electrum.transaction import PartialTransaction, PartialTxInput, PartialTxOutput, TxOutpoint
+from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
 
 from . import restore_wallet_from_text__for_unittest
 
@@ -49,6 +51,9 @@ class MockNetwork:
         self._blockchain = MockBlockchain()
 
     def get_local_height(self):
+        return self.blockchain().height()
+
+    def get_server_height(self):
         return self.blockchain().height()
 
     def blockchain(self):
@@ -230,6 +235,26 @@ def prepare_lnwallets(elec_test_case: 'ElectrumTestCase', graph_definition) -> M
     for a, definition in graph_definition.items():
         workers[a] = elec_test_case.create_mock_lnwallet(name=a)
     return workers
+
+
+def fund_wallet(wallet: 'Abstract_Wallet', *, value_sat: int) -> PartialTransaction:
+    """Give a mock wallet a spendable on-chain UTXO."""
+    txin = PartialTxInput(prevout=TxOutpoint(txid=bytes(32), out_idx=0))
+    txin._trusted_value_sats = value_sat
+    txin.script_type = 'p2wpkh'
+    txout = PartialTxOutput.from_address_and_value(wallet.get_receiving_address(), value_sat)
+    tx = PartialTransaction.from_io([txin], [txout], version=2)
+    wallet.adb.receive_tx_callback(tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+    return tx
+
+
+def force_state_transition(chanA: Channel, chanB: Channel) -> None:
+    chanB.receive_new_commitment(*chanA.sign_next_commitment())
+    rev = chanB.revoke_current_commitment()
+    bob_sig, bob_htlc_sigs = chanB.sign_next_commitment()
+    chanA.receive_revocation(rev)
+    chanA.receive_new_commitment(bob_sig, bob_htlc_sigs)
+    chanB.receive_revocation(chanA.revoke_current_commitment())
 
 
 def prepare_chans_and_peers_in_graph(
@@ -530,3 +555,9 @@ def create_test_channels(
     assert alice.channel_id == bob.channel_id
 
     return alice, bob
+
+
+class PaymentDone(Exception): pass
+class PaymentTimeout(Exception): pass
+class SuccessfulTest(Exception): pass
+
