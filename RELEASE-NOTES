@@ -1,3 +1,79 @@
+# Release 4.8.0 - Artisanal Handwritten Code (July 2, 2026)
+ * Security fixes and disclosures:
+    - (sev-low) SPV verification: fix CVE-2012-2459: reject left-sibling duplicates (#10568)
+ * General:
+    - new: support LNURL LUD-17 payment identifiers (#10575)
+    - new: detect when opening a wallet file created on a different chain (#10592)
+    - changed: crash reporter: improve detection of altcoin forks (#10613)
+    - changed: refuse to pay LNURL-pay payment identifiers if 'successAction' field is present (#10712)
+    - changed: remove support for BIP-70 payment identifiers (#10535)
+    - fix: update CoinGecko exchange rate provider (#10572)
+    - fix: remove broken CoinDesk exchange rate provider (#10720)
+    - fix: clean up lightning URI hooks on Windows uninstall (#10575)
+ * Onchain / Wallet:
+    - fix: transaction batching regression (#10591)
+    - fix: cache paid invoices to prevent GUI freezes after tx broadcast (#10658)
+ * Qt GUI (desktop):
+    - changed: forward more wallet loading exceptions to crash handler (#10605)
+    - changed: prevent modifying locktime for lightning channel funding tx (#10711)
+    - changed: history export: show tx fees in bitcoin, minor fixes (#10451)
+    - fix: crash occurring while resolving stale payment identifiers (#10726)
+ * QML GUI & Android:
+    - new: support renaming wallets (#10573)
+    - changed: update python-for-android, Qt and NDK versions (#10485)
+    - changed: improve wallet history scrolling performance (#10615)
+    - changed: give feedback about ongoing lightning channel reestablishment in invoice view (#10698)
+    - fix: race condition causing UI to show incorrect payment status (#10631)
+    - fix: show exchange rate when launching app directly from invoice URI (#10698)
+    - fix: disallow using wallet names starting with '.' (#10715)
+ * Lightning:
+    - new: lazy trampoline: allow trampoline forwarding through direct paths without network graph (#10544)
+    - new: towards supporting bolt12: add merkle tree signing scheme (#10597)
+    - new: utilize trampoline nodes for onion message pathfinding (#10646)
+    - changed: require newly opened channels to support anchor outputs (#10622)
+    - changed: more restrictive channel reestablishment logic (#10600)
+    - changed: handle trampoline edges with known fees during route construction (#10606)
+    - changed: give offered HTLCs some time to fail on restart to prevent force closes (#10654)
+    - changed: introduce loop to ensure chain monitoring callbacks get called regularly (#10656)
+    - changed: gossip fetching node instance now also signals OPTION_ANCHORS_OPT feature bit (2e640c8)
+    - changed: add rate-limiting against ping message flood (#10665)
+    - changed: ignore amount constraints during pathfinding for onion messages (#10646)
+    - changed: don't claim anchor outputs onchain if ctx fee is already high enough (#10093)
+    - changed: simplify and batch sending commitment updates (#10509)
+    - changed: allow trampoline onions of arbitrary size (#10532)
+    - changed: signal trampoline support in invoices, even if trampoline is disabled (#10541)
+    - fix: also send peer channel updates for private channels if forwarding (#10630)
+    - fix: regression causing slow peer selection when fetching gossip (#10633)
+    - fix: regression preventing channel rebalancing with partially frozen channels (#10653)
+    - fix: stop double counting onion HMAC size (#10668)
+    - fix: payment amount splitting bug (#10674)
+    - fix: wait for maturity if funding tx is coinbase tx (#10681)
+ * CLI/RPC:
+    - new: list_channel_htlcs: list failed, inflight and settled HTLCs for a channel (#10619)
+    - new: delete_channel and delete_channel_backup (#10698)
+    - new: add CLI argument to disable Linux memory hardening (#10680)
+    - changed: list_channels: add more options (4680369)
+ * Contrib:
+    - changed: move CI from Cirrus CI to GitHub Actions (#10651)
+    - changed: windows build: upgrade docker base image 12 -> 13 (#10500)
+    - fix: check for unsigned APKs in release.sh (#10566)
+    - fix: minor Android build pipeline issues (#10486)
+ * Dependencies:
+    - changed: bump minimum ledger_bitcoin version: 0.2.0 -> 0.4.1 (#10603)
+    - changed: bump minimum trezorlib version: 0.13.0 -> 0.20.0 (#10465)
+    - changed: update AppImage build Dockerfile dependencies (#10596)
+ * Plugins:
+    - nwc (Nostr Wallet Connect):
+      - changed: default relay for new connections to 'relay.primal.net' (#10676)
+      - changed: regularly rebroadcast info event for improved availability (#10689)
+      - fix: improve client compatibility by handling 'null' params in requests (#10571)
+ * Hardware wallets:
+    - new: Trezor: support Safe 7 (#10677)
+    - fix: Ledger: compatibility with legacy bitcoin app by using GET_MASTER_FINGERPRINT instruction (#10603)
+ * Testing:
+    - new: implement a minimal Electrum server for more advanced unittests (#10629)
+
+
 # Release 4.7.2 (April 1, 2026)
  * security fixes and disclosures:
    - (sev-medium) External Plugin authorization bypass: local code execution
