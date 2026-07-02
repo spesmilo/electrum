@@ -29,7 +29,7 @@ from PyQt6.QtCore import pyqtSignal, pyqtSlot
 from electrum.i18n import _
 from electrum.plugin import hook
 
-from electrum.gui.qml.qewallet import QEWallet
+from electrum.gui.qml.qedaemon import QEDaemon
 from electrum.gui.common_qt.plugins import PluginQObject
 
 from .labels import LabelsPlugin
@@ -137,7 +137,7 @@ class Plugin(LabelsPlugin):
         threading.Thread(target=pull_thread, args=[wallet]).start()
 
     def on_pulled(self, wallet):
-        _wallet = QEWallet.getInstanceFor(wallet)
+        _wallet = QEDaemon.getQEWalletInstanceFor(wallet)
         self.logger.debug('wallet ' + ('found' if _wallet else 'not found'))
 
     @hook

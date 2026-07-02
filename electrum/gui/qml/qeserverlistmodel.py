@@ -27,7 +27,7 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
         self.network = network
         self.initModel()
         self.register_callbacks()
-        self.destroyed.connect(lambda: self.unregister_callbacks())
+        self.destroyed.connect(self.unregister_callbacks)
 
     @qt_event_listener
     def on_event_network_updated(self):
