@@ -81,7 +81,7 @@ Pane {
                 Layout.alignment: Qt.AlignRight
             }
             Label {
-                text: 'Thomas Voegtlin\nSomberNight\nSander van Grieken'
+                text: 'Thomas Voegtlin\nSomberNight\nSander van Grieken\nFelix B.'
             }
             Item {
                 width: 1
