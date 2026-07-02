@@ -1138,6 +1138,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             *,
             nonlocal_only: bool = False,
             confirmed_only: bool = None,
+            ignore_frozen: bool = False,
+            coincontrol: bool = False,
     ) -> Sequence[PartialTxInput]:
         with self._freeze_lock:
             frozen_addresses = self._frozen_addresses.copy()
@@ -1145,12 +1147,17 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             confirmed_only = self.config.WALLET_SPEND_CONFIRMED_ONLY
         utxos = self.get_utxos(
             domain=domain,
-            excluded_addresses=frozen_addresses,
+            excluded_addresses=[] if ignore_frozen else frozen_addresses,
             mature_only=True,
             confirmed_funding_only=confirmed_only,
             nonlocal_only=nonlocal_only,
         )
-        utxos = [utxo for utxo in utxos if not self.is_frozen_coin(utxo)]
+        if coincontrol:
+            if cc := self.get_coincontrol_outpoints():
+                utxos = [utxo for utxo in utxos if utxo.prevout.to_str() in cc]
+        if not ignore_frozen:
+            utxos = [utxo for utxo in utxos if not self.is_frozen_coin(utxo)]
+
         return utxos
 
     @abstractmethod
@@ -3643,6 +3650,30 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     frozen_str = self.config.format_amount_and_units(frozen_bal)
                 if frozen_str:
                     text = _('Not enough funds') + " " + _('({} are frozen)').format(frozen_str)
+                if hint:
+                    text += '. ' + hint
+        return text
+
+    def get_text_not_enough_funds_mentioning_coincontrol(
+            self,
+            *,
+            for_amount: Optional[Union[int, str]] = None,
+            hint: Optional[str] = None
+    ) -> str:
+        """Generate 'Not enough funds' text.
+        Include mention of coincontrol coins (and append optional hint), iff expanding cc would satisfy for_amount
+        """
+        text = _('Not enough funds')
+        if for_amount is not None:
+            if ccc := self.get_coincontrol_coins():
+                cc_bal = sum([coin.value_sats() for coin in ccc])
+                cc_str = self.config.format_amount_and_units(cc_bal)
+                if isinstance(for_amount, int):
+                    if self.get_spendable_balance_sat() > for_amount:
+                        text += _('({} in coin control)').format(cc_str)
+                elif for_amount == '!':
+                    text += _('({} in coin control)').format(cc_str)
+
                 if hint:
                     text += '. ' + hint
         return text
