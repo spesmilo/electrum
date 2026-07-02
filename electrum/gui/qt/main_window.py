@@ -1569,16 +1569,35 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                 self.show_error(str(pi.error))
 
     def set_frozen_state_of_addresses(self, addrs, freeze: bool):
+        numcc = len(self.wallet.get_coincontrol_outpoints())
         self.wallet.set_frozen_state_of_addresses(addrs, freeze)
+        if numcc != len(self.wallet.get_coincontrol_outpoints()):
+            self.update_coincontrol_bar()
         self.address_list.refresh_all()
         self.utxo_list.refresh_all()
         self.address_list.selectionModel().clearSelection()
 
     def set_frozen_state_of_coins(self, utxos: Sequence[PartialTxInput], freeze: bool):
         utxos_str = {utxo.prevout.to_str() for utxo in utxos}
+        numcc = len(self.wallet.get_coincontrol_outpoints())
         self.wallet.set_frozen_state_of_coins(utxos_str, freeze)
+        if numcc != len(self.wallet.get_coincontrol_outpoints()):
+            self.update_coincontrol_bar()
         self.utxo_list.refresh_all()
         self.utxo_list.selectionModel().clearSelection()
+
+    def update_coincontrol_bar(self):
+        # update coincontrol status bar
+        cc_utxo_strs = self.wallet.get_coincontrol_outpoints()
+        if bool(cc_utxo_strs):
+            utxos = self.wallet.get_utxos()
+            coins = list(filter(lambda x: x.prevout.to_str() in cc_utxo_strs, utxos))
+            amount = sum(x.value_sats() for x in coins)
+            amount_str = self.format_amount_and_units(amount)
+            num_outputs_str = _("{} outputs available ({} total)").format(len(coins), len(utxos))
+            self.set_coincontrol_msg(_("Coin control active") + f': {num_outputs_str}, {amount_str}')
+        else:
+            self.set_coincontrol_msg(None)
 
     def create_list_tab(self, l):
         w = QWidget()
