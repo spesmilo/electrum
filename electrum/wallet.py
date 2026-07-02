@@ -631,7 +631,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self.clear_tx_parents_cache()
         if self.lnworker:
             self.lnworker.maybe_add_backup_from_tx(tx)
-        self._update_invoices_and_reqs_touched_by_tx(tx)
+        self._update_invoices_and_reqs_touched_by_tx(tx, skip_cached_paid=True)
         util.trigger_callback('new_transaction', self, tx)
 
     @event_listener
@@ -649,7 +649,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if adb != self.adb:
             return
         if tx := self.db.get_transaction(tx_hash):
-            self._update_invoices_and_reqs_touched_by_tx(tx)
+            self._update_invoices_and_reqs_touched_by_tx(tx, skip_cached_paid=True)
         tx_mined_status = self.adb.get_tx_height(tx_hash)
         util.trigger_callback('verified', self, tx_hash, tx_mined_status)
 
@@ -3009,7 +3009,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     invoice_keys.add(invoice_key)
         return request_keys, invoice_keys
 
-    def _update_invoices_and_reqs_touched_by_tx(self, tx: Transaction) -> None:
+    def _update_invoices_and_reqs_touched_by_tx(self, tx: Transaction, *, skip_cached_paid: bool = False) -> None:
         # FIXME in some cases if tx2 replaces unconfirmed tx1 in the mempool, we are not called.
         #       For a given receive request, if tx1 touches it but tx2 does not, then
         #       we were called when tx1 was added, but we will not get called when tx2 replaces tx1.
@@ -3020,6 +3020,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 continue
             status = self.get_invoice_status(request)
             util.trigger_callback('request_status', self, request.get_id(), status)
+        if skip_cached_paid:
+            # PR_PAID is terminal for tx additions: only a tx/verification removal
+            # (e.g. reorg) can demote a paid invoice, and those events rescan unconditionally
+            invoice_keys -= self._paid_invoice_keys_cache
         self._update_onchain_invoice_paid_detection(invoice_keys)
 
     def set_broadcasting(self, tx: Transaction, *, broadcasting_status: Optional[int]):
