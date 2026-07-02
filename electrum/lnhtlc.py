@@ -6,7 +6,7 @@ from .lnutil import SENT, RECEIVED, LOCAL, REMOTE, HTLCOwner, UpdateAddHtlc, Dir
 from .util import bfh, with_lock
 
 if TYPE_CHECKING:
-    from .json_db import StoredDict
+    from .stored_dict import StoredDict
 
 LOG_TEMPLATE = {
     'adds': {},              # "side who offered htlc" -> htlc_id -> htlc

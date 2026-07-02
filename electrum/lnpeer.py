@@ -1191,7 +1191,7 @@ class Peer(Logger, EventListener):
             lnworker=self.lnworker,
             initial_feerate=feerate
         )
-        temp_chan.storage['funding_inputs'] = [txin.prevout.to_json() for txin in funding_tx.inputs()]
+        temp_chan.storage['funding_inputs'] = [txin.prevout for txin in funding_tx.inputs()]
         temp_chan.storage['has_onchain_backup'] = has_onchain_backup
         temp_chan.storage['init_height'] = self.lnworker.network.get_local_height()
         temp_chan.storage['init_timestamp'] = int(time.time())
