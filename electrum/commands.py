@@ -1880,6 +1880,7 @@ class Commands(Logger):
                 'remote_reserve': chan.config[LOCAL].reserve_sat,
                 'local_unsettled_sent': chan.balance_tied_up_in_htlcs_by_direction(LOCAL, direction=SENT) // 1000,
                 'remote_unsettled_sent': chan.balance_tied_up_in_htlcs_by_direction(REMOTE, direction=SENT) // 1000,
+                'close_reason': (r := chan.get_close_reason()) and r.name or None,
             } for chan in wallet.lnworker.channels.values() if _filter(chan)
         ]
 
