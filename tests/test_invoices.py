@@ -461,6 +461,50 @@ class TestOutgoingInvoicesPaidCache(ElectrumTestCase):
         self.assertIn(inv.get_id(), wallet._paid_invoice_keys_cache)
         self.assertEqual(PR_PAID, wallet.get_invoice_status(inv))
 
+    async def test_new_tx_does_not_rescan_cached_paid_invoices(self):
+        """A tx addition can only promote an invoice towards paid; demotion needs a
+        tx/verification removal (e.g. reorg), which forces the rescan. So tx additions
+        must not rescan invoices already cached as PR_PAID - on wallets with many
+        invoices sharing a destination, that rescan storm starves the network loop
+        during sync."""
+        wallet = self._make_wallet()
+        dest = "tb1qmjzmg8nd4z56ar4fpngzsr6euktrhnjg9td385"
+        amount_sat = 5_000
+        inv = self._make_outgoing_invoice(dest, amount_sat)
+        wallet.save_invoice(inv, write_to_disk=False)
+        # Pay it (confirmed) -> cached as PR_PAID.
+        outputs = [PartialTxOutput.from_address_and_value(dest, amount_sat)]
+        tx = wallet.make_unsigned_transaction(outputs=outputs, fee_policy=FixedFeePolicy(1000))
+        wallet.sign_transaction(tx, password=None)
+        wallet.adb.receive_tx_callback(tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+        wallet.db.put('stored_height', 1010)
+        wallet.adb.add_verified_tx(tx.txid(), TxMinedInfo(_height=1001, timestamp=1700000001, txpos=1, header_hash="01"*32))
+        self.assertEqual(PR_PAID, wallet.get_invoice_status(inv))
+        self.assertIn(inv.get_id(), wallet._paid_invoice_keys_cache)
+
+        # Track the expensive prevout scan.
+        scanned = []
+        orig = wallet._is_onchain_invoice_paid
+        def spy(invoice):
+            scanned.append(invoice.get_id())
+            return orig(invoice)
+        wallet._is_onchain_invoice_paid = spy
+
+        # Another tx paying the same destination arrives.
+        tx2 = wallet.make_unsigned_transaction(
+            outputs=[PartialTxOutput.from_address_and_value(dest, 1_000)],
+            fee_policy=FixedFeePolicy(1000),
+        )
+        wallet.sign_transaction(tx2, password=None)
+        wallet.adb.receive_tx_callback(tx2, tx_height=TX_HEIGHT_UNCONFIRMED)
+        self.assertNotIn(inv.get_id(), scanned,
+                         "tx addition must not rescan an invoice already cached as PR_PAID")
+        # Verifying the new tx must not rescan either.
+        wallet.adb.add_verified_tx(tx2.txid(), TxMinedInfo(_height=1005, timestamp=1700000002, txpos=1, header_hash="02"*32))
+        self.assertNotIn(inv.get_id(), scanned,
+                         "tx verification must not rescan an invoice already cached as PR_PAID")
+        self.assertEqual(PR_PAID, wallet.get_invoice_status(inv))
+
     async def test_paid_keys_demoted_on_reorg(self):
         """A reorg unverifying the paying tx must remove the invoice from the cache,
         otherwise get_invoice_status would keep returning a stale PR_PAID."""
