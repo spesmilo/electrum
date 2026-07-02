@@ -2299,10 +2299,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             self._coincontrol_spend_set.add(utxo.prevout.to_str())
 
     def get_coincontrol_outpoints(self) -> set:
-        return self._coincontrol_spend_set
+        return set(x.prevout.to_str() for x in self.get_coincontrol_coins())
 
     def get_coincontrol_coins(self) -> set:
-        return set(filter(lambda x: x.prevout.to_str() in self._coincontrol_spend_set, self.get_utxos()))
+        return set(filter(lambda x: x.prevout.to_str() in self._coincontrol_spend_set and not self.is_frozen_coin(x),
+                          self.get_utxos()))
 
     def remove_from_coincontrol(self, coins: List[PartialTxInput]):
         for utxo in coins:
