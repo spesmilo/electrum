@@ -1,7 +1,7 @@
 import copy
 from enum import IntEnum
 import threading
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Optional, TYPE_CHECKING, Callable
 from functools import partial
 
@@ -219,7 +219,10 @@ class TxFeeSlider(FeeSlider):
         if self._userFeerate != userFeerate:
             self._logger.warn('userFeerate')
             self._userFeerate = userFeerate
-            as_decimal = Decimal(userFeerate) if userFeerate else 0
+            try:
+                as_decimal = Decimal(userFeerate) if userFeerate else 0
+            except InvalidOperation:
+                as_decimal = 0
             user_feerate = int(as_decimal * 1000)
             self._fee_policy = FeePolicy(f'feerate:{user_feerate}')
             self.userFeerateChanged.emit()
