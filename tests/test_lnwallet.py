@@ -6,20 +6,22 @@ from decimal import Decimal
 from typing import Optional
 
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
-from electrum import bitcoin
+from electrum import lnutil
 import electrum.trampoline
 from electrum.lnutil import RECEIVED, MIN_FINAL_CLTV_DELTA_ACCEPTED, serialize_htlc_key, LnFeatures, HTLCOwner
 from electrum.logging import console_stderr_handler
 from electrum.lntransport import LNPeerAddr
 from electrum.invoices import LN_EXPIRY_NEVER, PR_UNPAID
-from electrum.lnpeer import Peer
+from electrum.lnpeer import Peer, PeerWarning
 from electrum.lnchannel import Channel, ChannelState
 from electrum.lnonion import OnionPacket, OnionRoutingFailure
 from electrum.crypto import sha256
 from electrum.simple_config import SimpleConfig
+from electrum.util import OldTaskGroup
+from electrum.invoices import Invoice
 
 from . import ElectrumTestCase, lnhelpers
-from .lnhelpers import create_test_channels
+from .lnhelpers import create_test_channels, SuccessfulTest, force_state_transition
 
 
 class TestLNWallet(ElectrumTestCase):
@@ -474,3 +476,67 @@ class TestLNWallet(ElectrumTestCase):
         chan1.set_frozen_for_sending(True)  # shouldn't matter, this channel will receive
         success, log = await alice.rebalance_channels(chan0, chan1, amount_msat=150_000_000)
         self.assertTrue(success, msg=log)
+
+    async def test_channel_open_rate_limit(self):
+        alice = self.create_mock_lnwallet(name="alice")
+        bob = self.create_mock_lnwallet(name="bob")
+        carol = self.create_mock_lnwallet(name="carol")
+        dave = self.create_mock_lnwallet(name="dave")
+        alice.config.LIGHTNING_USE_RECOVERABLE_CHANNELS = False
+        bob.config.LIGHTNING_USE_RECOVERABLE_CHANNELS = False
+        alice.incoming_channel_rate_limiter.MAX_UNFUNDED_INCOMING_CHANNELS_GLOBAL = 3
+        for lnw in (alice, bob, carol, dave):
+            lnhelpers.fund_wallet(lnw.wallet, value_sat=10_000_000)
+
+        peer_loops = []
+        def connect(w1, w2):
+            t1, t2 = lnhelpers.transport_pair(w1.node_keypair, w2.node_keypair, w1.name, w2.name)
+            peer_1 = lnhelpers.PeerInTests(w1, w2.node_keypair.pubkey, t1)
+            peer_2 = lnhelpers.PeerInTests(w2, w1.node_keypair.pubkey, t2)
+            w1.lnpeermgr._peers[w2.node_keypair.pubkey] = peer_1
+            w2.lnpeermgr._peers[w1.node_keypair.pubkey] = peer_2
+            peer_loops.extend([peer_1, peer_2])
+            return peer_1, peer_2
+
+        bob_alice_peer, alice_bob_peer = connect(bob, alice)
+        carol_alice_peer, _ = connect(carol, alice)
+        dave_alice_peer, _ = connect(dave, alice)
+
+        async def open_channel(initiator_peer, funding_sat=lnutil.MIN_FUNDING_SAT):
+            initiator_peer.lnworker.network._blockchain._height += 1
+            return await initiator_peer.lnworker.open_channel_with_peer(peer=initiator_peer, funding_sat=funding_sat)
+
+        async def run_test():
+            chan1, _ = await open_channel(bob_alice_peer)
+            chan2, _ = await open_channel(bob_alice_peer)
+            # test per-peer rate limit
+            with self.assertLogs('electrum', level='ERROR') as logs:
+                with self.assertRaises(PeerWarning):
+                    await open_channel(bob_alice_peer)  # bob exhausted his allowed budget
+            self.assertTrue(any("remote peer sent warning [DO NOT TRUST THIS MESSAGE]: 'per-peer rate limit" in msg for msg in logs.output))
+
+            chan3, _ = await open_channel(carol_alice_peer)
+            # test global rate limit
+            with self.assertLogs('electrum', level='ERROR') as logs:
+                with self.assertRaises(PeerWarning):
+                    await open_channel(dave_alice_peer)  # global limit is full, dave cannot open channel
+            self.assertTrue(any("remote peer sent warning [DO NOT TRUST THIS MESSAGE]: 'global rate limit" in msg for msg in logs.output))
+
+            # alice can still open channels to bob, exceeding her own rate-limit(s)
+            await open_channel(alice_bob_peer)
+
+            # a known peer is allowed to exceed the global rate limit
+            # inject a confirmed channel into alice so she knows dave
+            graph_def = {"alice": {"channels": {"dave": [{"local_balance_msat": 10_000_000_000,"remote_balance_msat": 50_000_000}],}}, "dave": {}}
+            g = lnhelpers.prepare_chans_and_peers_in_graph(self, graph_def, workers={'alice': alice, 'dave': dave})
+            # bump the ctn of 'alice->dave' so the channel is considered active by alice
+            force_state_transition(g.channels[('alice', 'dave')][0], g.channels[('dave', 'alice')][0])
+            await open_channel(dave_alice_peer)  # dave should now be able to open a channel as he is known to alice
+
+            raise SuccessfulTest
+
+        with self.assertRaises(SuccessfulTest):
+            async with OldTaskGroup() as group:
+                await group.spawn(asyncio.wait_for(run_test(), timeout=5))
+                for peer in peer_loops:
+                    await group.spawn(peer.main_loop())
