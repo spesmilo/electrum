@@ -146,6 +146,123 @@ class TestWalletStorage(WalletTestCase):
         self.assertEqual(PR_UNCONFIRMED, wallet1.get_invoice_status(pr))
 
 
+class TestReservedAddresses(WalletTestCase):
+
+    def _make_wallet(self) -> Standard_Wallet:
+        text = 'cycle rocket west magnet parrot shuffle foot correct salt library feed song'
+        d = restore_wallet_from_text__for_unittest(text, path=self.wallet_path, config=self.config)
+        return d['wallet']
+
+    async def test_reserved_address_excluded_from_payment_requests(self):
+        wallet = self._make_wallet()
+        owner = util.make_plugin_reservation_owner("myplugin")
+        addr = wallet.get_unused_address()
+        self.assertIsNotNone(addr)
+        wallet.set_reserved_state_of_address(addr, reserved=True, owner=owner)
+        self.assertTrue(wallet.is_address_reserved(addr))
+        # withheld from payment-request address handout
+        self.assertNotIn(addr, wallet.get_unused_addresses())
+        self.assertNotEqual(addr, wallet.get_unused_address())
+        # but get_receiving_address() is still guaranteed to return something
+        self.assertIsNotNone(wallet.get_receiving_address())
+        # query helpers
+        self.assertEqual([addr], list(wallet.get_reserved_addresses(owner=owner)))
+        self.assertEqual(owner, wallet.get_address_reservation_owner(addr))
+        # releasing makes it available again
+        wallet.set_reserved_state_of_address(addr, reserved=False, owner=owner)
+        self.assertFalse(wallet.is_address_reserved(addr))
+        self.assertIn(addr, wallet.get_unused_addresses())
+        await wallet.stop()
+
+    async def test_reservations_are_persisted(self):
+        self.config.enable_plugin("myplugin")  # so stop()'s prune keeps the plugin reservation
+        wallet = self._make_wallet()
+        addrs = list(wallet.get_unused_addresses())
+        plugin_addr, ln_addr = addrs[0], addrs[1]
+        wallet.set_reserved_state_of_address(
+            plugin_addr, reserved=True, owner=util.make_plugin_reservation_owner("myplugin"))
+        wallet.set_reserved_state_of_address(
+            ln_addr, reserved=True, owner=util.RESERVED_OWNER_LIGHTNING)
+        # both the plugin and the core/lightning reservation are written to the db
+        self.assertEqual(
+            {plugin_addr: "plugin:myplugin", ln_addr: "core:lightning"},
+            wallet.db.get('reserved_addresses'))
+        await wallet.stop()
+        # reload (this wallet has no lightning): both reservations survive purely via persistence
+        del wallet
+        wallet = Daemon._load_wallet(self.wallet_path, password=None, config=self.config)
+        self.assertTrue(wallet.is_address_reserved(plugin_addr))
+        self.assertTrue(wallet.is_address_reserved(ln_addr))
+        await wallet.stop()
+
+    async def test_reservation_owner_is_enforced(self):
+        wallet = self._make_wallet()
+        # core/lightning reserves an address
+        addr = wallet.get_unused_address()
+        wallet.set_reserved_state_of_address(addr, reserved=True, owner=util.RESERVED_OWNER_LIGHTNING)
+        # a plugin can neither release it ...
+        wallet.set_reserved_state_of_address(
+            addr, reserved=False, owner=util.make_plugin_reservation_owner("foo"))
+        self.assertTrue(wallet.is_address_reserved(addr))
+        self.assertEqual(util.RESERVED_OWNER_LIGHTNING, wallet.get_address_reservation_owner(addr))
+        # ... nor take it over by re-reserving under its own name
+        wallet.set_reserved_state_of_address(
+            addr, reserved=True, owner=util.make_plugin_reservation_owner("foo"))
+        self.assertEqual(util.RESERVED_OWNER_LIGHTNING, wallet.get_address_reservation_owner(addr))
+
+        # one plugin cannot release another plugin's reservation
+        addr2 = wallet.get_unused_address()
+        self.assertNotEqual(addr, addr2)
+        wallet.set_reserved_state_of_address(
+            addr2, reserved=True, owner=util.make_plugin_reservation_owner("alice"))
+        wallet.set_reserved_state_of_address(
+            addr2, reserved=False, owner=util.make_plugin_reservation_owner("bob"))
+        self.assertEqual("plugin:alice", wallet.get_address_reservation_owner(addr2))
+        # but the real owner can
+        wallet.set_reserved_state_of_address(
+            addr2, reserved=False, owner=util.make_plugin_reservation_owner("alice"))
+        self.assertFalse(wallet.is_address_reserved(addr2))
+        await wallet.stop()
+
+    async def test_tagged_reservations_and_owner_scoped_management(self):
+        wallet = self._make_wallet()
+        foo = util.make_plugin_reservation_owner("foo")
+        addr_a = wallet.get_unused_address()
+        wallet.set_reserved_state_of_address(addr_a, reserved=True, owner=foo, tag="alert")
+        addr_b = wallet.get_unused_address()
+        self.assertNotEqual(addr_a, addr_b)
+        wallet.set_reserved_state_of_address(addr_b, reserved=True, owner=foo, tag="cancellation")
+        # filter by owner returns all of foo's; by owner+tag returns the specific one
+        self.assertEqual({addr_a, addr_b}, set(wallet.get_reserved_addresses(owner=foo)))
+        self.assertEqual([addr_a], list(wallet.get_reserved_addresses(owner=foo, tag="alert")))
+        self.assertEqual("alert", wallet.get_address_reservation_tag(addr_a))
+        # owner and tag are serialized together as one colon-namespaced string
+        self.assertEqual(
+            {addr_a: "plugin:foo:alert", addr_b: "plugin:foo:cancellation"},
+            wallet.db.get('reserved_addresses'))
+        # another plugin (different owner) cannot release foo's reservation ...
+        wallet.set_reserved_state_of_address(
+            addr_a, reserved=False, owner=util.make_plugin_reservation_owner("bar"))
+        self.assertTrue(wallet.is_address_reserved(addr_a))
+        # ... but foo can release its own (tag is not needed to release)
+        wallet.set_reserved_state_of_address(addr_a, reserved=False, owner=foo)
+        self.assertFalse(wallet.is_address_reserved(addr_a))
+        self.assertEqual({addr_b: "plugin:foo:cancellation"}, wallet.db.get('reserved_addresses'))
+        await wallet.stop()
+
+    async def test_prune_uninstalled_plugin_reserved_addresses(self):
+        wallet = self._make_wallet()
+        addrs = list(wallet.get_unused_addresses())
+        a_keep, a_drop = addrs[0], addrs[1]
+        wallet.set_reserved_state_of_address(
+            a_keep, reserved=True, owner=util.make_plugin_reservation_owner("installed_plugin"))
+        wallet.set_reserved_state_of_address(
+            a_drop, reserved=True, owner=util.make_plugin_reservation_owner("gone_plugin"))
+        wallet.db.prune_uninstalled_plugin_reserved_addresses({"installed_plugin"})
+        self.assertEqual({a_keep: "plugin:installed_plugin"}, wallet.db.get('reserved_addresses'))
+        await wallet.stop()
+
+
 class FakeExchange(ExchangeBase):
     def __init__(self, rate):
         super().__init__(lambda self: None, lambda self: None)
