@@ -1,7 +1,11 @@
+from base64 import b64encode
+
 from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum.logging import get_logger
 from electrum.i18n import _
+from electrum.ur.cbor_lite import CBORDecoder
+from electrum.ur.ur import UR
 
 
 class QEAmount(QObject):
@@ -141,3 +145,38 @@ class QEBytes(QObject):
 
     def __repr__(self):
         return f"<QEBytes data={'None' if self._data is None else self._data.hex()}>"
+
+
+class QEUR(QObject):
+    def __init__(self, data: UR = None, *, parent=None):
+        super().__init__(parent)
+        self.data = data
+
+    @property
+    def data(self):
+        return self._data
+
+    @data.setter
+    def data(self, _data):
+        self._data = _data
+
+    @pyqtProperty(str)
+    def getType(self):
+        if self._data is None:
+            return ""
+        return self._data.type
+
+    @pyqtProperty(str)
+    def getBytes(self):
+        if self._data is None:
+            return ""
+        data, _ = CBORDecoder(self._data.cbor).decodeBytes()
+        return b64encode(data).decode()
+
+    def __str__(self):
+        return f'{self.getBytes}'
+
+    def __repr__(self):
+        if self._data is None:
+            return "<QEUR None>"
+        return f"<QEUR type={self.getType} data={self.getBytes}>"
