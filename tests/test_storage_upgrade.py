@@ -7,6 +7,8 @@ import asyncio
 import inspect
 
 import electrum
+from electrum.stored_dict import DictStorage
+from electrum.stored_dict import StoredDict
 from electrum.wallet_db import WalletDBUpgrader, WalletDB, WalletRequiresUpgrade, WalletRequiresSplit
 from electrum.wallet import Wallet
 from electrum import constants
@@ -369,7 +371,9 @@ class TestStorageUpgrade(WalletTestCase):
                 self.assertEqual(accounts, len(split_data))
                 for item in split_data:
                     data = json.dumps(item)
-                    new_db = WalletDB(data, storage=None, upgrade=True)
+                    storage = DictStorage(None)
+                    storage.set_data(data)
+                    new_db = WalletDB(storage, upgrade=True)
                     await self._sanity_check_upgraded_db(new_db)
 
     async def _sanity_check_upgraded_db(self, db):
@@ -378,5 +382,7 @@ class TestStorageUpgrade(WalletTestCase):
 
     @staticmethod
     def _load_db_from_json_string(*, wallet_json, upgrade):
-        db = WalletDB(wallet_json, storage=None, upgrade=upgrade)
+        storage = DictStorage(None)
+        storage.set_data(wallet_json)
+        db = WalletDB(storage, upgrade=upgrade)
         return db

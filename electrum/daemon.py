@@ -47,7 +47,7 @@ from .util import (
     log_exceptions, randrange, OldTaskGroup, UserFacingException, JsonRPCError, os_chmod
 )
 from .wallet import Wallet, Abstract_Wallet
-from .storage import WalletStorage
+from .stored_dict import DictStorage
 from .wallet_db import WalletDB, WalletUnfinished
 from .commands import known_commands, Commands
 from .simple_config import SimpleConfig
@@ -544,15 +544,14 @@ class Daemon(Logger):
             force_check_password: bool = False,  # if set, always validate password
     ) -> Optional[Abstract_Wallet]:
         path = standardize_path(path)
-        storage = WalletStorage(path, allow_partial_writes=config.WALLET_PARTIAL_WRITES)
+        storage = DictStorage(path, allow_partial_writes=config.WALLET_PARTIAL_WRITES)
         if not storage.file_exists():
             raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), path)
         if storage.is_encrypted():
             if not password:
                 raise InvalidPassword('No password given')
             storage.decrypt(password)
-        # read data, pass it to db
-        db = WalletDB(storage.read(), storage=storage, upgrade=upgrade)
+        db = WalletDB(storage, upgrade=upgrade)
         if db.get_action():
             raise WalletUnfinished(db)
         wallet = Wallet(db, config=config)

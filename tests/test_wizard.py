@@ -12,7 +12,7 @@ from electrum import util
 from electrum import slip39
 from electrum.bip32 import KeyOriginInfo
 from electrum import keystore
-from electrum.storage import WalletStorage
+from electrum.stored_dict import DictStorage
 
 from . import ElectrumTestCase
 from .test_wallet_vertical import UNICODE_HORROR, WalletIntegrityHelper
@@ -403,7 +403,7 @@ class KeystoreWizardTestCase(WizardTestCase):
             ],
             '2of2',
             config=self.config,
-            storage=WalletStorage(self.wallet_path),
+            storage=DictStorage(self.wallet_path),
         )
 
         w, v = self._wizard_for(wallet_type=wallet.wallet_type)
