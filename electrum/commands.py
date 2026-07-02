@@ -103,7 +103,7 @@ def satoshis(amount):
     return int(COIN*to_decimal(amount)) if amount is not None else None
 
 
-def format_satoshis(x: Union[float, int, Decimal, None]) -> Optional[str]:
+def format_satoshis(x: Union[int, Decimal, None]) -> Optional[str]:
     """
     input: satoshis as a Number
     output: str formatted as bitcoin amount
@@ -1380,7 +1380,7 @@ class Commands(Logger):
         else:
             addr = None
         expiry = int(expiry) if expiry else None
-        key = wallet.create_request(amount, memo, expiry, addr)
+        key = wallet.create_request(amount_sat=amount, message=memo, exp_delay=expiry, address=addr)
         req = wallet.get_request(key)
         return wallet.export_request(req)
 

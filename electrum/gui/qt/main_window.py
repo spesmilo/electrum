@@ -972,7 +972,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             add_thousands_sep=add_thousands_sep,
         )
 
-    def format_amount_and_units(self, amount_sat, *, timestamp: int = None) -> str:
+    def format_amount_and_units(self, amount_sat: int | Decimal | None, *, timestamp: int = None) -> str:
         """Returns string with both bitcoin and fiat amounts, in desired units.
         E.g. 500_000 -> '0.005 BTC (191.42 EUR)'
         """
@@ -982,7 +982,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             text += f' ({fiat})'
         return text
 
-    def format_fiat_and_units(self, amount_sat) -> str:
+    def format_fiat_and_units(self, amount_sat: int | Decimal | None) -> str:
         """Returns string of FX fiat amount, in desired units.
         E.g. 500_000 -> '191.42 EUR'
         """
@@ -1372,7 +1372,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         if status == PR_PAID:
             # FIXME notification should only be shown if request was not PAID before
             msg = _('Payment received')
-            amount = req.get_amount_sat()
+            amount = req.get_amount_sat_msat_precision()
             if amount:
                 msg += ': ' + self.format_amount_and_units(amount)
             msg += '\n' + req.get_message()
@@ -1687,7 +1687,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         grid.addWidget(QLabel(_("Public Key") + ':'), 0, 0)
         grid.addWidget(pubkey_e, 0, 1)
         grid.addWidget(QLabel(_("Amount") + ':'), 1, 0)
-        amount_str = self.format_amount(invoice.get_amount_sat()) + ' ' + self.base_unit()
+        amount_sat = invoice.get_amount_sat_msat_precision()
+        amount_str = self.format_amount(amount_sat) + ' ' + self.base_unit()
         grid.addWidget(QLabel(amount_str), 1, 1)
         grid.addWidget(QLabel(_("Description") + ':'), 2, 0)
         grid.addWidget(QLabel(invoice.message), 2, 1)
