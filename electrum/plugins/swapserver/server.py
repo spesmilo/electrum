@@ -132,5 +132,5 @@ class HttpSwapServer(Logger, EventListener):
 
     async def create_swap(self, r):
         request = await r.json()
-        response = self.sm.server_create_swap(request)
+        response = await self.sm.server_create_swap(request)
         return web.json_response(response)
