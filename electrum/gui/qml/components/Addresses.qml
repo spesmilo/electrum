@@ -122,6 +122,8 @@ Pane {
                     property QtObject filterModel: Daemon.currentWallet.addressCoinModel.filterModel
                     property bool selectMode: false
                     property bool freeze: true
+                    property bool coincontrol: true
+                    property bool coincontrolAllowed: true
                     model: visualModel
                     currentIndex: -1
 
@@ -239,7 +241,12 @@ Pane {
 
                     onSelectModeChanged: {
                         if (selectMode) {
-                            listview.freeze = !selectedGroup.get(0).model.held
+                            let firstItem = selectedGroup.get(0).model
+                            listview.freeze = !firstItem.held
+                            listview.coincontrol = !firstItem.coincontrol
+                            // a frozen coin (or coin on a frozen address) can never be added to
+                            // coin control (see wallet._filter_frozen_coins), so don't offer it
+                            listview.coincontrolAllowed = !(firstItem.held || firstItem.address_held)
                         }
                     }
 
@@ -263,17 +270,19 @@ Pane {
                     selectedGroup.remove(0, selectedGroup.count)
                 }
             }
-            // FlatButton {
-            //     Layout.fillWidth: true
-            //     Layout.preferredWidth: 1
-            //     text: qsTr('Pay from...')
-            //     icon.source: '../../icons/tab_send.png'
-            //     visible: listview.selectMode
-            //     enabled: false // TODO
-            //     onClicked: {
-            //         //
-            //     }
-            // }
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                text: listview.coincontrol ? qsTr('Add to coin control') : qsTr('Remove from coin control')
+                icon.source: '../../icons/tab_coins.png'
+                // hide "Add to coin control" for frozen coins; "Remove" stays available
+                visible: listview.selectMode && (!listview.coincontrol || listview.coincontrolAllowed)
+                onClicked: {
+                    var items = listview.getSelectedItems()
+                    listview.backingModel.setCoinControlForItems(listview.coincontrol, items)
+                    selectedGroup.remove(0, selectedGroup.count)
+                }
+            }
         }
 
     }
