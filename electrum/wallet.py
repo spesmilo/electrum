@@ -1393,6 +1393,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             if is_paid:
                 for txid in relevant_txs:
                     self._invoices_from_txid_map[txid].add(invoice_key)
+                # re-add to the cache, so that self.get_invoice_status below short-circuits
+                # instead of redoing the prevout scan. not for lightning invoices:
+                # their LN status takes precedence there (e.g. an in-flight LN payment)
+                if not invoice.is_lightning() and conf_needed:
+                    self._paid_invoice_keys_cache.add(invoice_key)
             for txout in invoice.get_outputs():
                 self._invoices_from_scriptpubkey_map[txout.scriptpubkey].add(invoice_key)
             # update invoice status

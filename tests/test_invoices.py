@@ -428,6 +428,39 @@ class TestOutgoingInvoicesPaidCache(ElectrumTestCase):
         wallet._prepare_onchain_invoice_paid_detection()
         self.assertIn(inv.get_id(), wallet._paid_invoice_keys_cache)
 
+    async def test_update_detection_scans_each_onchain_invoice_once(self):
+        """_update_onchain_invoice_paid_detection needs the prevout scan for relevant_txs;
+        it must reuse that result instead of scanning a second time via get_invoice_status."""
+        wallet = self._make_wallet()
+        dest = "tb1qmjzmg8nd4z56ar4fpngzsr6euktrhnjg9td385"
+        amount_sat = 5_000
+        inv = self._make_outgoing_invoice(dest, amount_sat)
+        wallet.save_invoice(inv, write_to_disk=False)
+        # Pay it (confirmed).
+        outputs = [PartialTxOutput.from_address_and_value(dest, amount_sat)]
+        tx = wallet.make_unsigned_transaction(outputs=outputs, fee_policy=FixedFeePolicy(1000))
+        wallet.sign_transaction(tx, password=None)
+        wallet.adb.receive_tx_callback(tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+        wallet.db.put('stored_height', 1010)
+        wallet.adb.add_verified_tx(tx.txid(), TxMinedInfo(_height=1001, timestamp=1700000001, txpos=1, header_hash="01"*32))
+
+        # Track the expensive prevout scan.
+        scanned = []
+        orig = wallet._is_onchain_invoice_paid
+        def spy(invoice):
+            scanned.append(invoice.get_id())
+            return orig(invoice)
+        wallet._is_onchain_invoice_paid = spy
+
+        wallet._paid_invoice_keys_cache.clear()  # force the slow path
+        wallet._prepare_onchain_invoice_paid_detection()
+
+        self.assertEqual(1, scanned.count(inv.get_id()),
+                         "onchain invoice must be scanned exactly once during load")
+        # The dedup must not change the observable outcome.
+        self.assertIn(inv.get_id(), wallet._paid_invoice_keys_cache)
+        self.assertEqual(PR_PAID, wallet.get_invoice_status(inv))
+
     async def test_paid_keys_demoted_on_reorg(self):
         """A reorg unverifying the paying tx must remove the invoice from the cache,
         otherwise get_invoice_status would keep returning a stale PR_PAID."""
