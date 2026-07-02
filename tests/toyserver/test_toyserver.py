@@ -165,8 +165,8 @@ class TestToyServer(ElectrumTestCase):
             await self.toyserver.mempool_add_tx(tx1d)
         self.assertEqual(self.toyserver.get_mempool_txids(), set())
 
-    async def test_sort_order_of_scripthash_get_history(self):
-        """txs touching a sh, as returned by 'blockchain.scripthash.get_history', must be in a canonical order"""
+    async def test_sort_order_of_spk_get_history(self):
+        """txs touching a sh, as returned by 'blockchain.scriptpubkey.get_history', must be in a canonical order"""
         # create a "gateway" wallet with many UTXOs, so later it can send without chaining unconfirmed txs
         w_gateway = restore_wallet_from_text__for_unittest(
             "9dk", passphrase="gateway", gap_limit=10, path=None, config=self.config)['wallet']  # type: Abstract_Wallet
@@ -236,13 +236,13 @@ class TestToyServer(ElectrumTestCase):
         await self.toyserver.mempool_add_tx(tx9)
 
         self.assertEqual(len(self.toyserver.get_mempool_txids()), 5)
-        # finally, validate "blockchain.scripthash.get_history" sort order
-        sh_history = self.toyserver.calc_sh_history(bitcoin.address_to_scripthash(w_addr0))
-        self.assertEqual(len(sh_history), 9)
+        # finally, validate "blockchain.scriptpubkey.get_history" sort order
+        spk_history = self.toyserver.calc_spk_history(bitcoin.address_to_script(w_addr0).hex())
+        self.assertEqual(len(spk_history), 9)
         tx123_A, tx123_B, tx123_C = sorted([tx1.txid(), tx2.txid(), tx3.txid()], key=lambda x: self.toyserver.block_height_and_pos_from_txid(x))
         tx567_A, tx567_B, tx567_C = sorted([tx5.txid(), tx6.txid(), tx7.txid()])
         tx89_A, tx89_B = sorted([tx8.txid(), tx9.txid()])
-        self.assertEqual(sh_history, [
+        self.assertEqual(spk_history, [
             (tx123_A, self.toyserver.cur_height - 1),
             (tx123_B, self.toyserver.cur_height - 1),
             (tx123_C, self.toyserver.cur_height - 1),

@@ -55,12 +55,12 @@ jobs:
           sudo apt-get update
           sudo apt-get -y install curl jq bc automake libtool
       - name: Install Electrum and ElectrumX
-        # installs e-x some commits after 1.18.0 tag
+        # installs e-x 2.0b2 (that supports protocol version 1.7)
         # uses --ignore-installed to ignore installed system installed attrs
         run: |
           python3 -m pip install --user --upgrade pip
           python3 -m pip install --user .[tests] --ignore-installed
-          python3 -m pip install --user git+https://github.com/spesmilo/electrumx.git@0b260d4345242cc41e316e97d7de10ae472fd172
+          python3 -m pip install --user "e_x[leveldb]@git+https://github.com/spesmilo/electrumx.git@7d106654b41c38dbbebeea44e6f736be5d2f1f69"
       - name: Fetch bitcoind binary
         env:
           BITCOIND_VERSION: ${{ steps.bitcoind-version.outputs.version }}

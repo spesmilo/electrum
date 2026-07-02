@@ -58,7 +58,7 @@ from . import version
 from . import blockchain
 from .blockchain import Blockchain, HEADER_SIZE, CHUNK_SIZE
 from . import bitcoin
-from .bitcoin import DummyAddress, DummyAddressUsedInTxException
+from .bitcoin import DummyAddress, DummyAddressUsedInTxException, script_to_scripthash
 from . import constants
 from .i18n import _
 from .logging import Logger
@@ -82,6 +82,11 @@ assert PREFERRED_NETWORK_PROTOCOL in KNOWN_ELEC_PROTOCOL_TRANSPORTS
 MAX_NUM_HEADERS_PER_REQUEST = 2016
 assert MAX_NUM_HEADERS_PER_REQUEST >= CHUNK_SIZE
 
+RPC_ERROR_HISTORY_TOO_LONG = 10001
+
+class HistoryTooLong(Exception):
+    # we should not close the connection in that case
+    pass
 
 class NetworkTimeout:
     # seconds
@@ -121,14 +126,18 @@ def assert_hash256_str(val: Any) -> None:
         raise RequestCorrupted(f'{val!r} should be a hash256 str')
 
 
-def assert_hex_str(val: Any) -> None:
-    if not is_hex_str(val):
+def assert_hex_str(val: Any, *, allow_odd_len: bool = False) -> None:
+    if not is_hex_str(val, allow_odd_len=allow_odd_len):
         raise RequestCorrupted(f'{val!r} should be a hex str')
 
 
-def assert_dict_contains_field(d: Any, *, field_name: str) -> Any:
+def assert_dict(d: Any) -> None:
     if not isinstance(d, dict):
         raise RequestCorrupted(f'{d!r} should be a dict')
+
+
+def assert_dict_contains_field(d: Any, *, field_name: str) -> Any:
+    assert_dict(d)
     if field_name not in d:
         raise RequestCorrupted(f'required field {field_name!r} missing from dict')
     return d[field_name]
@@ -174,10 +183,15 @@ class NotificationSession(RPCSession):
         #self.logger.setLevel(logging.DEBUG)  # from aiorpcx
         #self.verbosity = 4
 
-    async def handle_request(self, request):
+    async def handle_request(self, request: aiorpcx.Request | aiorpcx.Notification) -> None:
         self.maybe_log(f"--> {request}")
+        # TODO handle request.args being a dict
         try:
             if isinstance(request, Notification):
+                if request.method == "server.ping":
+                    data = request.args[0]
+                    await self.interface.phandle_on_ping_notification(data=data)
+                    return
                 params, result = request.args[:-1], request.args[-1]
                 key = self.get_hashable_key_for_rpc_call(request.method, params)
                 if key in self.subscriptions:
@@ -208,7 +222,10 @@ class NotificationSession(RPCSession):
             raise RequestTimedOut(f'request timed out: {args} (id: {msg_id})') from e
         except CodeMessageError as e:
             self.maybe_log(f"--> {repr(e)} (id: {msg_id})")
-            raise
+            if e.code == RPC_ERROR_HISTORY_TOO_LONG:
+                raise HistoryTooLong()
+            else:
+                raise
         except BaseException as e:  # cancellations, etc. are useful for debugging
             self.maybe_log(f"--> {repr(e)} (id: {msg_id})")
             raise
@@ -222,17 +239,24 @@ class NotificationSession(RPCSession):
         assert hasattr(self, "max_send_delay")        # in base class
         self.max_send_delay = timeout
 
-    async def subscribe(self, method: str, params: List, queue: asyncio.Queue):
+    async def subscribe(self, method: str, params: List, queue: asyncio.Queue) -> None:
         # note: until the cache is written for the first time,
         # each 'subscribe' call might make a request on the network.
-        key = self.get_hashable_key_for_rpc_call(method, params)
+        notif_params = params[:]
+        if method == 'blockchain.scriptpubkey.subscribe':
+            # params: spk
+            notif_params[0] = script_to_scripthash(bytes.fromhex(params[0]))  # convert spk->sh
+        elif method == 'blockchain.outpoint.subscribe':
+            # params: tx_hash, txout_idx, spk_hint
+            notif_params = notif_params[0:2]  # drop spk_hint
+        key = self.get_hashable_key_for_rpc_call(method, notif_params)
         self.subscriptions[key].append(queue)
         if key in self.cache:
             result = self.cache[key]
         else:
             result = await self.send_request(method, params)
             self.cache[key] = result
-        await queue.put(params + [result])
+        await queue.put(notif_params + [result])
 
     def unsubscribe(self, queue):
         """Unsubscribe a callback to free object references to enable GC."""
@@ -1058,13 +1082,13 @@ class Interface(Logger):
         # Adding a bit of randomness generates some noise against traffic analysis.
         while True:
             await asyncio.sleep(random.random() * 300)
-            await self.session.send_request('server.ping')
+            await self.send_ping()
             await self._maybe_send_noise()
 
     async def _maybe_send_noise(self):
         while random.random() < 0.2:
             await asyncio.sleep(random.random())
-            await self.session.send_request('server.ping')
+            await self.send_ping()
 
     async def request_fee_estimates(self):
         while True:
@@ -1417,7 +1441,7 @@ class Interface(Logger):
             raise TxBroadcastHashMismatch(_("Server returned unexpected transaction ID."))
         # broadcast succeeded.
         # We now cache the rawtx, for *this interface only*. The tx likely touches some ismine addresses, affecting
-        # the status of a scripthash we are subscribed to. Caching here will save a future get_transaction RPC.
+        # the status of a scriptpubkey we are subscribed to. Caching here will save a future get_transaction RPC.
         self._rawtx_cache[txid_calc] = bytes.fromhex(rawtx)
 
     async def broadcast_txpackage(self, txs: Sequence['Transaction']) -> bool:
@@ -1442,20 +1466,19 @@ class Interface(Logger):
         assert success
         # broadcast succeeded.
         # We now cache the rawtx, for *this interface only*. The tx likely touches some ismine addresses, affecting
-        # the status of a scripthash we are subscribed to. Caching here will save a future get_transaction RPC.
+        # the status of a scriptpubkey we are subscribed to. Caching here will save a future get_transaction RPC.
         for tx, rawtx in zip(txs, rawtxs):
             self._rawtx_cache[tx.txid()] = bytes.fromhex(rawtx)
         return True
 
-    async def get_history_for_scripthash(self, sh: str) -> List[dict]:
-        if not is_hash256_str(sh):
-            raise Exception(f"{repr(sh)} is not a scripthash")
+    async def get_history_for_spk(self, spk: str) -> List[dict]:
         # do request
-        res = await self.session.send_request('blockchain.scripthash.get_history', [sh])
+        res = await self.session.send_request('blockchain.scriptpubkey.get_history', [spk])
         # check response
-        assert_list_or_tuple(res)
+        hist = assert_dict_contains_field(res, field_name='history')
+        assert_list_or_tuple(hist)
         prev_height = 1
-        for tx_item in res:
+        for tx_item in hist:
             height = assert_dict_contains_field(tx_item, field_name='height')
             assert_dict_contains_field(tx_item, field_name='tx_hash')
             assert_integer(height)
@@ -1473,25 +1496,24 @@ class Interface(Logger):
                 prev_height = height
         if self.active_protocol_tuple >= (1, 6):
             # enforce order of mempool txs
-            mempool_txs = [tx_item for tx_item in res if tx_item['height'] <= 0]
+            mempool_txs = [tx_item for tx_item in hist if tx_item['height'] <= 0]
             if mempool_txs != sorted(mempool_txs, key=lambda x: (-x['height'], bytes.fromhex(x['tx_hash']))):
                 raise RequestCorrupted(f'mempool txs not in canonical order')
-        hashes = set(map(lambda item: item['tx_hash'], res))
-        if len(hashes) != len(res):
+        hashes = set(map(lambda item: item['tx_hash'], hist))
+        if len(hashes) != len(hist):
             # Either server is sending garbage... or maybe if server is race-prone
             # a recently mined tx could be included in both last block and mempool?
             # Still, it's simplest to just disregard the response.
-            raise RequestCorrupted(f"server history has non-unique txids for sh={sh}")
-        return res
+            raise RequestCorrupted(f"server history has non-unique txids for spk={spk}")
+        return hist
 
-    async def listunspent_for_scripthash(self, sh: str) -> List[dict]:
-        if not is_hash256_str(sh):
-            raise Exception(f"{repr(sh)} is not a scripthash")
+    async def listunspent_for_spk(self, spk: str) -> List[dict]:
         # do request
-        res = await self.session.send_request('blockchain.scripthash.listunspent', [sh])
+        res = await self.session.send_request('blockchain.scriptpubkey.listunspent', [spk])
         # check response
-        assert_list_or_tuple(res)
-        for utxo_item in res:
+        utxos = assert_dict_contains_field(res, field_name='utxos')
+        assert_list_or_tuple(utxos)
+        for utxo_item in utxos:
             assert_dict_contains_field(utxo_item, field_name='tx_pos')
             assert_dict_contains_field(utxo_item, field_name='value')
             assert_dict_contains_field(utxo_item, field_name='tx_hash')
@@ -1500,13 +1522,11 @@ class Interface(Logger):
             assert_non_negative_integer(utxo_item['value'])
             assert_non_negative_integer(utxo_item['height'])
             assert_hash256_str(utxo_item['tx_hash'])
-        return res
+        return utxos
 
-    async def get_balance_for_scripthash(self, sh: str) -> dict:
-        if not is_hash256_str(sh):
-            raise Exception(f"{repr(sh)} is not a scripthash")
+    async def get_balance_for_spk(self, spk: str) -> dict:
         # do request
-        res = await self.session.send_request('blockchain.scripthash.get_balance', [sh])
+        res = await self.session.send_request('blockchain.scriptpubkey.get_balance', [spk])
         # check response
         assert_dict_contains_field(res, field_name='confirmed')
         assert_dict_contains_field(res, field_name='unconfirmed')
@@ -1618,6 +1638,25 @@ class Interface(Logger):
         if res != -1:
             assert_non_negative_int_or_float(res)
             res = int(res * bitcoin.COIN)
+        return res
+
+    async def phandle_on_ping_notification(self, data=""):
+        assert self.active_protocol_tuple >= (1, 7)
+        assert_hex_str(data, allow_odd_len=True)
+        # nothing to do.
+
+    async def send_ping(self, pong_len: int = None, data: str = None) -> dict[str, Any]:
+        if pong_len is None:
+            pong_len = random.randint(0, 128)  # simply to exercise server logic
+        if data is None:
+            data = "0" * random.randint(0, 128)  # simply to exercise server logic
+        assert isinstance(pong_len, int), repr(pong_len)
+        assert is_hex_str(data, allow_odd_len=True), repr(data)
+        res = await self.session.send_request("server.ping", (pong_len, data))
+        data2 = assert_dict_contains_field(res, field_name='data')
+        assert_hex_str(data2, allow_odd_len=True)
+        if len(data2) != pong_len:
+            raise RequestCorrupted(f'length of data ({len(data2)}) does not match requested {pong_len=}')
         return res
 
 

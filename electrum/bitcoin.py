@@ -512,6 +512,7 @@ def address_to_scripthash(addr: str, *, net=None) -> str:
 
 
 def script_to_scripthash(script: bytes) -> str:
+    assert type(script) is bytes
     h = sha256(script)
     return h[::-1].hex()
 
