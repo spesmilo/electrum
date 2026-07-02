@@ -1409,18 +1409,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.notify(_('Payment failed') + '\n\n' + description + '\n\n' + reason)
 
     def get_coins(self, **kwargs) -> Sequence[PartialTxInput]:
-        coins = self.get_manually_selected_coins()
-        if coins is not None:
-            return coins
-        else:
-            return self.wallet.get_spendable_coins(None, **kwargs)
-
-    def get_manually_selected_coins(self) -> Optional[Sequence[PartialTxInput]]:
-        """Return a list of selected coins or None.
-        Note: None means selection is not being used,
-              while an empty sequence means the user specifically selected that.
-        """
-        return self.utxo_list.get_spend_list()
+        cc = kwargs.pop('coincontrol', True)
+        return self.wallet.get_spendable_coins(None, coincontrol=cc, **kwargs)
 
     def broadcast_or_show(self, tx: Transaction, *, invoice: 'Invoice' = None):
         if not tx.is_complete():
@@ -1569,16 +1559,35 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                 self.show_error(str(pi.error))
 
     def set_frozen_state_of_addresses(self, addrs, freeze: bool):
+        numcc = len(self.wallet.get_coincontrol_outpoints())
         self.wallet.set_frozen_state_of_addresses(addrs, freeze)
+        if numcc != len(self.wallet.get_coincontrol_outpoints()):
+            self.update_coincontrol_bar()
         self.address_list.refresh_all()
         self.utxo_list.refresh_all()
         self.address_list.selectionModel().clearSelection()
 
     def set_frozen_state_of_coins(self, utxos: Sequence[PartialTxInput], freeze: bool):
         utxos_str = {utxo.prevout.to_str() for utxo in utxos}
+        numcc = len(self.wallet.get_coincontrol_outpoints())
         self.wallet.set_frozen_state_of_coins(utxos_str, freeze)
+        if numcc != len(self.wallet.get_coincontrol_outpoints()):
+            self.update_coincontrol_bar()
         self.utxo_list.refresh_all()
         self.utxo_list.selectionModel().clearSelection()
+
+    def update_coincontrol_bar(self):
+        # update coincontrol status bar
+        if bool(self.wallet.get_coincontrol_outpoints()):
+            utxos = self.wallet.get_utxos()
+            cc_utxo_strs = self.wallet.get_coincontrol_outpoints()
+            coins = list(filter(lambda x: x.prevout.to_str() in cc_utxo_strs, utxos))
+            amount = sum(x.value_sats() for x in coins)
+            amount_str = self.format_amount_and_units(amount)
+            num_outputs_str = _("{} outputs available ({} total)").format(len(coins), len(utxos))
+            self.set_coincontrol_msg(_("Coin control active") + f': {num_outputs_str}, {amount_str}')
+        else:
+            self.set_coincontrol_msg(None)
 
     def create_list_tab(self, l):
         w = QWidget()
