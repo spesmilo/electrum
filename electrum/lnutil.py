@@ -125,8 +125,8 @@ class ChannelConfig(StoredObject):
         ):
             if not (len(key.pubkey) == 33 and ecc.ECPubkey.is_pubkey_bytes(key.pubkey)):
                 raise Exception(f"{conf_name}. invalid pubkey in channel config")
-        if funding_sat < MIN_FUNDING_SAT:
-            raise Exception(f"funding_sat too low: {funding_sat} sat < {MIN_FUNDING_SAT}")
+        if funding_sat < config.LIGHTNING_MIN_FUNDING_SAT:
+            raise Exception(f"funding_sat too low: {funding_sat} sat < {config.LIGHTNING_MIN_FUNDING_SAT} (config setting)")
         if not peer_features.supports(LnFeatures.OPTION_SUPPORT_LARGE_CHANNEL_OPT):
             # MUST set funding_satoshis to less than 2^24 satoshi
             if funding_sat > LN_MAX_FUNDING_SAT_LEGACY:
@@ -499,8 +499,10 @@ CHANNEL_OPENING_TIMEOUT_SEC = 14*24*60*60  # 2 weeks
 # force-closing the channel costs much of the funds in the channel.
 # Closing a channel uses ~200 vbytes onchain, feerates could spike to 100 sat/vbyte or even higher;
 # that in itself is already 20_000 sats. This mining fee is reserved and cannot be used for payments.
-# The value below is chosen arbitrarily to be one order of magnitude higher than that.
-MIN_FUNDING_SAT = 200_000
+# The value below is the default minimum; it can be overridden by the user via the
+# LIGHTNING_MIN_FUNDING_SAT config setting (see simple_config.py). Users lowering it should be
+# aware of the risks small channels carry in a high onchain-fee environment.
+MIN_FUNDING_SAT = 50_000
 
 
 ##### CLTV-expiry-delta-related values

@@ -9,7 +9,6 @@ from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QVariant
 from electrum.i18n import _
 from electrum.gui import messages
 from electrum.util import bfh
-from electrum.lnutil import MIN_FUNDING_SAT
 from electrum.lntransport import extract_nodeid, ConnStringFormatError
 from electrum.bitcoin import DummyAddress
 from electrum.lnworker import hardcoded_trampoline_nodes
@@ -159,9 +158,10 @@ class QEChannelOpener(QObject, AuthMixin):
             return
 
         # for MAX, estimate is assumed to be calculated and set in self._amount.satsInt
-        if self._amount.satsInt < MIN_FUNDING_SAT:
+        min_funding_sat = self._wallet.wallet.config.LIGHTNING_MIN_FUNDING_SAT
+        if self._amount.satsInt < min_funding_sat:
             message = _('Minimum required amount: {}').format(
-                self._wallet.wallet.config.format_amount_and_units(MIN_FUNDING_SAT)
+                self._wallet.wallet.config.format_amount_and_units(min_funding_sat)
             )
             if self._amount.isMax and self._determine_max_message:
                 message += '\n' + self._determine_max_message

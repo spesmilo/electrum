@@ -1976,11 +1976,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             tab.searchable_list.filter(t)
 
     def new_channel_dialog(self, *, amount_sat=None, min_amount_sat=None):
-        from electrum.lnutil import MIN_FUNDING_SAT
         from .new_channel_dialog import NewChannelDialog
         assert self.wallet.can_have_lightning()
         confirmed = self.wallet.get_spendable_balance_sat(confirmed_only=True)
-        min_amount_sat = min_amount_sat or MIN_FUNDING_SAT
+        min_amount_sat = min_amount_sat or self.config.LIGHTNING_MIN_FUNDING_SAT
         if confirmed < min_amount_sat:
             msg = _('Not enough funds') + '\n\n' + _('You need at least {} to open a channel.').format(self.format_amount_and_units(min_amount_sat))
             self.show_error(msg)
