@@ -101,10 +101,16 @@ class UTXOList(MyTreeView):
     @profiler(min_threshold=0.05)
     def update(self):
         # not calling maybe_defer_update() as it interferes with coincontrol status bar
-        self.proxy.setDynamicSortFilter(False)  # temp. disable re-sorting after every change
         utxos = self.wallet.get_utxos()
         self._maybe_reset_coincontrol(utxos)
         self._utxo_dict = dict([(utxo.prevout.to_str(), utxo) for utxo in utxos])
+        if self.maybe_defer_update():
+            self.update_coincontrol_bar()
+            self.num_coins_label.setText(
+                _('{} unspent transaction outputs').format(len(utxos))
+            )
+            return
+        self.proxy.setDynamicSortFilter(False)  # temp. disable re-sorting after every change
         self.std_model.clear()
         self.update_headers(self.__class__.headers)
         for idx, utxo in enumerate(utxos):
