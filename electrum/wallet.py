@@ -441,6 +441,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self._reserved_addresses   = set(db.get('reserved_addresses', []))
         self._num_parents          = db.get_dict('num_parents')
 
+        # not saved
+        self._coincontrol_spend_set = set()
+
         self._freeze_lock = threading.RLock()  # for mutating/iterating frozen_{addresses,coins}
 
         self.load_keystore()
@@ -2227,6 +2230,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if all(self.is_mine(addr) for addr in addrs):
             with self._freeze_lock:
                 if freeze:
+                    coins = self.get_spendable_coins(addrs)
+                    self.remove_from_coincontrol(coins)
                     self._frozen_addresses |= set(addrs)
                 else:
                     self._frozen_addresses -= set(addrs)
@@ -2253,14 +2258,51 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         [TxOutpoint.from_str(utxo) for utxo in utxos]
         assert freeze in (None, False, True), f"{freeze=!r}"
         with self._freeze_lock:
+            wallet_utxos = self.get_utxos() if bool(freeze) else []
             for utxo in utxos:
                 if freeze is None:
                     self._frozen_coins.pop(utxo, None)
                 else:
                     self._frozen_coins[utxo] = bool(freeze)
+                if bool(freeze):
+                    # frozen coins trump coincontrol coins
+                    if utxo in self._coincontrol_spend_set:
+                        self.logger.info('about to remove utxos from cc')
+                        txinputs = list(filter(lambda x: x.prevout.to_str() == utxo, wallet_utxos))
+                        self.remove_from_coincontrol(txinputs)
+
         util.trigger_callback('status')
         if write_to_disk:
             self.save_db()
+
+    def _filter_frozen_coins(self, coins: List[PartialTxInput]) -> List[PartialTxInput]:
+        coins = [utxo for utxo in coins
+                 if (not self.is_frozen_address(utxo.address) and
+                     not self.is_frozen_coin(utxo))]
+        return coins
+
+    def are_in_coincontrol(self, coins: List[PartialTxInput]) -> bool:
+        return all([utxo.prevout.to_str() in self._coincontrol_spend_set for utxo in coins])
+
+    def add_to_coincontrol(self, coins: List[PartialTxInput]):
+        coins = self._filter_frozen_coins(coins)
+        if not coins:
+            return
+        for utxo in coins:
+            self._coincontrol_spend_set.add(utxo.prevout.to_str())
+
+    def get_coincontrol_outpoints(self) -> set:
+        return self._coincontrol_spend_set
+
+    def get_coincontrol_coins(self) -> set:
+        return set(filter(lambda x: x.prevout.to_str() in self._coincontrol_spend_set, self.get_utxos()))
+
+    def remove_from_coincontrol(self, coins: List[PartialTxInput]):
+        for utxo in coins:
+            self._coincontrol_spend_set.discard(utxo.prevout.to_str())
+
+    def clear_coincontrol(self):
+        self._coincontrol_spend_set.clear()
 
     def is_address_reserved(self, addr: str) -> bool:
         # note: atm 'reserved' status is only taken into consideration for 'change addresses'
