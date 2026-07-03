@@ -1387,6 +1387,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def on_event_invoice_status(self, wallet, key, status):
         if wallet != self.wallet:
             return
+        if not wallet.is_up_to_date():
+            # while syncing, these events arrive in bulk (per touched invoice per tx), and
+            # refresh_item recomputes the status, scanning prevouts on the GUI thread.
+            # update_wallet() rebuilds the list in one batch once we are up_to_date again.
+            self.need_update.set()
+            return
         if status == PR_PAID:
             self.send_tab.invoice_list.delete_item(key)
         else:
