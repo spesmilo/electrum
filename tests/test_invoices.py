@@ -275,7 +275,7 @@ class TestOutgoingInvoicesPaidCache(ElectrumTestCase):
         wallet.adb.receive_tx_callback(funding_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
         return wallet
 
-    def _make_outgoing_invoice(self, dest_addr: str, amount_sat: int, *, t: int = 1700000000):
+    def _make_outgoing_invoice(self, dest_addr: str, amount_sat: int, *, t: int = 1700000000, height: int = 0):
         outputs = [PartialTxOutput.from_address_and_value(dest_addr, amount_sat)]
         return Invoice(
             amount_msat=amount_sat * 1000,
@@ -283,7 +283,7 @@ class TestOutgoingInvoicesPaidCache(ElectrumTestCase):
             time=t,
             exp=LN_EXPIRY_NEVER,
             outputs=outputs,
-            height=0,
+            height=height,
             lightning_invoice=None,
         )
 
@@ -504,6 +504,44 @@ class TestOutgoingInvoicesPaidCache(ElectrumTestCase):
         self.assertNotIn(inv.get_id(), scanned,
                          "tx verification must not rescan an invoice already cached as PR_PAID")
         self.assertEqual(PR_PAID, wallet.get_invoice_status(inv))
+
+    async def test_detection_pass_looks_up_each_scripthash_once(self):
+        """Invoices sharing a destination scriptpubkey must not each redo the same
+        prevout lookup within one detection pass; the per-invoice height filtering
+        must still apply on top of the shared lookup."""
+        wallet = self._make_wallet()
+        dest = "tb1qmjzmg8nd4z56ar4fpngzsr6euktrhnjg9td385"
+        invs = [self._make_outgoing_invoice(dest, 1_000 + i, t=1700000000 + i) for i in range(5)]
+        # This one was created above the paying tx's height, so the tx must not count for it.
+        inv_late = self._make_outgoing_invoice(dest, 1_000, t=1700000010, height=1005)
+        for inv in invs + [inv_late]:
+            wallet.save_invoice(inv, write_to_disk=False)
+        # Pay the shared destination (confirmed at height 1001).
+        outputs = [PartialTxOutput.from_address_and_value(dest, 50_000)]
+        tx = wallet.make_unsigned_transaction(outputs=outputs, fee_policy=FixedFeePolicy(1000))
+        wallet.sign_transaction(tx, password=None)
+        wallet.adb.receive_tx_callback(tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+        wallet.db.put('stored_height', 1010)
+        wallet.adb.add_verified_tx(tx.txid(), TxMinedInfo(_height=1001, timestamp=1700000001, txpos=1, header_hash="01"*32))
+
+        # Track the prevout lookups.
+        looked_up = []
+        orig = wallet.db.get_prevouts_by_scripthash
+        def spy(scripthash):
+            looked_up.append(scripthash)
+            return orig(scripthash)
+        wallet.db.get_prevouts_by_scripthash = spy
+
+        wallet._paid_invoice_keys_cache.clear()  # force the slow path
+        wallet._prepare_onchain_invoice_paid_detection()
+
+        self.assertEqual(1, len(looked_up),
+                         "one shared scriptpubkey must be looked up exactly once per pass")
+        # The shared lookup must not change the per-invoice outcomes.
+        for inv in invs:
+            self.assertIn(inv.get_id(), wallet._paid_invoice_keys_cache)
+        self.assertNotIn(inv_late.get_id(), wallet._paid_invoice_keys_cache)
+        self.assertEqual(PR_UNPAID, wallet.get_invoice_status(inv_late))
 
     async def test_paid_keys_demoted_on_reorg(self):
         """A reorg unverifying the paying tx must remove the invoice from the cache,
