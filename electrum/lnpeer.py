@@ -7,9 +7,11 @@
 from collections import OrderedDict, defaultdict
 import asyncio
 import os
+import random
 import time
 from typing import Tuple, Dict, TYPE_CHECKING, Optional, Union, Set, Callable, Coroutine, List, Any
 from datetime import datetime
+import enum
 import functools
 from functools import partial
 import inspect
@@ -64,6 +66,12 @@ if TYPE_CHECKING:
 
 
 LN_P2P_NETWORK_TIMEOUT = 20
+
+
+class HtlcContext(enum.Enum):
+    DEFAULT = enum.auto()      # not part of a blinded path (or we are both introduction node and final recipient)
+    INTRO_NODE = enum.auto()   # we are the introduction point of a blinded path
+    INSIDE_PATH = enum.auto()  # we are a non-introduction node inside a blinded path
 
 
 class Peer(Logger, EventListener):
@@ -129,6 +137,7 @@ class Peer(Logger, EventListener):
         self.taskgroup = OldTaskGroup()
         # HTLCs offered by REMOTE, that we started removing but are still active:
         self.received_htlcs_pending_removal = set()  # type: Set[Tuple[Channel, int]]
+        self._deferred_fail_htlcs = LRUCache(maxsize=1000)  # type: LRUCache[Tuple[Channel, int], float]
         self.received_htlc_removed_event = asyncio.Event()
         self._htlc_switch_iterstart_event = asyncio.Event()
         self._htlc_switch_iterdone_event = asyncio.Event()
@@ -2396,7 +2405,6 @@ class Peer(Logger, EventListener):
         assert htlc_set.resolution in (RecvMPPResolution.FAILED, RecvMPPResolution.EXPIRED)
 
         raw_error, error_code, error_data = error_tuple
-        local_height = self.network.blockchain().height()
         payment_hash = htlc_set.get_payment_hash()
         assert payment_hash is not None, "Empty htlc set?"
         for mpp_htlc in list(htlc_set.htlcs):
@@ -2413,6 +2421,8 @@ class Peer(Logger, EventListener):
                 self.logger.debug(f"{mpp_htlc=} was already failed before, dropping it.")
                 htlc_set = htlc_set._replace(htlcs=htlc_set.htlcs - {mpp_htlc})
                 continue
+            if not self._blinded_intro_fail_delay_elapsed(chan, htlc_id):
+                continue  # failure already decided, don't re-process until the delay has elapsed
             onion_packet = self._parse_onion_packet(mpp_htlc.unprocessed_onion)
             processed_onion_packet = self._process_incoming_onion_packet(
                 onion_packet,
@@ -2420,9 +2430,9 @@ class Peer(Logger, EventListener):
                 current_path_key=mpp_htlc.htlc.path_key,
                 is_trampoline=False,
             )
-            if raw_error:
-                error_bytes = obfuscate_onion_error(raw_error, onion_packet.public_key, self.privkey)
-            else:
+
+            error = raw_error
+            if not error:
                 assert isinstance(error_code, (OnionFailureCode, int))
                 if error_code == OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS:
                     amount_to_forward = processed_onion_packet.amt_to_forward
@@ -2435,20 +2445,71 @@ class Peer(Logger, EventListener):
                             is_trampoline=True,
                         )
                         amount_to_forward = processed_trampoline_onion_packet.amt_to_forward
-                    error_data = amount_to_forward.to_bytes(8, byteorder="big")
-                e = OnionRoutingFailure(code=error_code, data=error_data or b'')
-                error_bytes = e.to_wire_msg(onion_packet, self.privkey, local_height)
-            self.fail_htlc(
+                    if amount_to_forward is not None:
+                        error_data = amount_to_forward.to_bytes(8, byteorder="big")
+                error = OnionRoutingFailure(code=error_code, data=error_data or b'')
+
+            if self._fail_incoming_htlc(
                 chan=chan,
-                htlc_id=htlc_id,
-                error_bytes=error_bytes,
-            )
-            htlc_set = htlc_set._replace(htlcs=htlc_set.htlcs - {mpp_htlc})
+                htlc=mpp_htlc.htlc,
+                htlc_context=self._get_htlc_context(htlc=mpp_htlc.htlc, processed_onion=processed_onion_packet),
+                error=error,
+                onion_packet=onion_packet,
+            ):
+                htlc_set = htlc_set._replace(htlcs=htlc_set.htlcs - {mpp_htlc})
 
         self.lnworker.received_mpp_htlcs[payment_key] = htlc_set  # save updated set
 
-    def fail_htlc(self, *, chan: Channel, htlc_id: int, error_bytes: bytes):
-        self.logger.info(f"fail_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}.")
+    def _fail_incoming_htlc(
+        self, *,
+        chan: Channel,
+        htlc: UpdateAddHtlc,
+        htlc_context: HtlcContext,
+        error: Union[bytes, OnionRoutingFailure],
+        onion_packet: Optional[OnionPacket],
+        can_defer: bool = True,
+    ) -> bool:
+        """
+        Decides:
+        * error to return: `error` is what we intended to send. Inside a blinded path we might
+          override errors with `INVALID_ONION_BLINDING`.
+        * message type: update_fail_malformed_htlc (onion parsing errors and errors inside
+          a blinded path) or update_fail_htlc (everything else).
+        * timing: as blinded path introduction node the failure is deferred until a random
+          delay has elapsed (unless `can_defer` is False).
+        Returns False if failing was deferred, in which case the htlc must not be deleted and failed again
+        in the next switch iteration.
+        """
+        assert chan.can_update_ctx(proposer=LOCAL), f"cannot send updates: {chan.short_channel_id}"
+        send_malformed = isinstance(error, OnionParsingError)
+        if htlc_context in (HtlcContext.INTRO_NODE, HtlcContext.INSIDE_PATH):
+            # override any local or downstream error, within a blinded path only invalid_onion_blinding may be returned
+            if onion_packet is not None:
+                error_data = onion_packet.onion_hash
+            else:  # we couldn't parse the onion, the parsing error carries the hash of the raw payload
+                assert isinstance(error, OnionParsingError), f"unparsed onion but got {error!r}"
+                error_data = error.data
+            error = OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_BLINDING, data=error_data)
+            send_malformed = htlc_context == HtlcContext.INSIDE_PATH
+            if htlc_context == HtlcContext.INTRO_NODE and can_defer \
+                    and self._maybe_defer_blinded_intro_fail(chan, htlc):
+                return False  # don't fail yet, wait for delay
+
+        if send_malformed:
+            assert isinstance(error, OnionRoutingFailure), repr(error)
+            self._send_update_fail_malformed_htlc(chan=chan, htlc_id=htlc.htlc_id, reason=error)
+        else:
+            assert onion_packet is not None, "cannot construct an onion error without the onion"
+            if isinstance(error, bytes):  # pre-encrypted error from a downstream node, just wrap it
+                error_bytes = obfuscate_onion_error(error, onion_packet.public_key, self.privkey)
+            else:
+                error_bytes = error.to_wire_msg(onion_packet, self.privkey, self.network.get_local_height())
+            self._send_update_fail_htlc(chan=chan, htlc_id=htlc.htlc_id, error_bytes=error_bytes)
+        self._deferred_fail_htlcs.pop((chan, htlc.htlc_id), None)
+        return True
+
+    def _send_update_fail_htlc(self, *, chan: Channel, htlc_id: int, error_bytes: bytes):
+        self.logger.info(f"_send_update_fail_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}.")
         assert chan.can_update_ctx(proposer=LOCAL), f"cannot send updates: {chan.short_channel_id}"
         self.received_htlcs_pending_removal.add((chan, htlc_id))
         chan.fail_htlc(htlc_id)
@@ -2460,8 +2521,8 @@ class Peer(Logger, EventListener):
             reason=error_bytes)
         self.maybe_send_commitment(chan)
 
-    def fail_malformed_htlc(self, *, chan: Channel, htlc_id: int, reason: OnionParsingError):
-        self.logger.info(f"fail_malformed_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}.")
+    def _send_update_fail_malformed_htlc(self, *, chan: Channel, htlc_id: int, reason: OnionRoutingFailure):
+        self.logger.info(f"_send_update_fail_malformed_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}.")
         assert chan.can_update_ctx(proposer=LOCAL), f"cannot send updates: {chan.short_channel_id}"
         if not (reason.code & OnionFailureCodeMetaFlag.BADONION and len(reason.data) == 32):
             raise Exception(f"unexpected reason when sending 'update_fail_malformed_htlc': {reason!r}")
@@ -2474,6 +2535,39 @@ class Peer(Logger, EventListener):
             sha256_of_onion=reason.data,
             failure_code=reason.code)
         self.maybe_send_commitment(chan)
+
+    @staticmethod
+    def _get_htlc_context(*, htlc: UpdateAddHtlc, processed_onion: Optional[ProcessedOnionPacket]) -> HtlcContext:
+        """
+        Return the context of the htlc (see `HtlcContext`) to decide on how we should fail given htlc.
+        https://github.com/lightning/bolts/blob/94eb038c42e664dd7862faeec6508ccd25f63ff8/02-peer-protocol.md?plain=1#L2972-L2984
+        """
+        if htlc.path_key:  # we are got a `path_key` in `update_add_htlc` and are therefore inside a blinded path
+            return HtlcContext.INSIDE_PATH
+        if processed_onion is not None and processed_onion.blinded_path_recipient_data is not None \
+                and not processed_onion.are_we_final:
+            return HtlcContext.INTRO_NODE
+        # if we are introduction node and final, the sender knows we are the recipient, so it seems fine
+        # to send a regular error (instead of overriding with INVALID_ONION_BLINDING)
+        return HtlcContext.DEFAULT
+
+    def _maybe_defer_blinded_intro_fail(self, chan: Channel, htlc: UpdateAddHtlc) -> bool:
+        """
+        As introduction point we should delay the failure by a random delay to prevent senders
+        from probing positions inside the blinded path.
+        https://github.com/lightning/bolts/blob/94eb038c42e664dd7862faeec6508ccd25f63ff8/02-peer-protocol.md?plain=1#L2979
+        """
+        if (chan, htlc.htlc_id) not in self._deferred_fail_htlcs:
+            delay = random.uniform(1.5, 3.0)
+            self._deferred_fail_htlcs[(chan, htlc.htlc_id)] = min(time.time() + delay, htlc.timestamp + 10)
+        return not self._blinded_intro_fail_delay_elapsed(chan, htlc.htlc_id)
+
+    def _blinded_intro_fail_delay_elapsed(self, chan: Channel, htlc_id: int) -> bool:
+        """True if the htlc is ready to be failed (delay elapsed or no delay)."""
+        if self.lnworker.lnpeermgr.stopping_soon:
+            return True
+        deadline = self._deferred_fail_htlcs.get((chan, htlc_id))
+        return deadline is None or time.time() >= deadline
 
     def on_revoke_and_ack(self, chan: Channel, payload) -> None:
         self.logger.info(f'on_revoke_and_ack. chan {chan.short_channel_id}. ctn: {chan.get_oldest_unrevoked_ctn(REMOTE)}')
@@ -2924,18 +3018,16 @@ class Peer(Logger, EventListener):
                     continue
 
                 htlc = chan.hm.get_htlc_by_id(REMOTE, htlc_id)
+                if not self._blinded_intro_fail_delay_elapsed(chan, htlc_id):
+                    continue  # failure already decided, don't re-process until the delay has elapsed
+
+                onion_packet = None  # type: Optional[OnionPacket]
+                processed_onion_packet = None  # type: Optional[ProcessedOnionPacket]
+                error = None  # type: Optional[OnionRoutingFailure]
+                unexpected_exc = None  # type: Optional[Exception]
+                htlc_context = None  # type: Optional[HtlcContext]
                 try:
                     onion_packet = self._parse_onion_packet(onion_packet_hex)
-                except OnionParsingError as e:
-                    self.fail_malformed_htlc(
-                        chan=chan,
-                        htlc_id=htlc.htlc_id,
-                        reason=e,
-                    )
-                    del unfulfilled[htlc_id]
-                    continue
-
-                try:
                     processed_onion_packet = self._process_incoming_onion_packet(
                         onion_packet,
                         payment_hash=htlc.payment_hash,
@@ -2953,31 +3045,32 @@ class Peer(Logger, EventListener):
                         htlc=htlc,
                         unprocessed_onion_packet=onion_packet_hex,  # outer onion if trampoline
                     )
-                except OnionParsingError as e:  # could be raised when parsing the inner trampoline onion
-                    self.fail_malformed_htlc(
-                        chan=chan,
-                        htlc_id=htlc.htlc_id,
-                        reason=e,
-                    )
-                except Exception as e:
+                except InvalidBlindedOnion:
+                    error = OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_BLINDING, data=bytes(32))
+                    htlc_context = HtlcContext.INTRO_NODE if htlc.path_key is None else HtlcContext.INSIDE_PATH
+                except OnionRoutingFailure as e:
                     # Fail the htlc directly if it fails to pass these tests, it will not get added to a htlc set.
                     # https://github.com/lightning/bolts/blob/14272b1bd9361750cfdb3e5d35740889a6b510b5/04-onion-routing.md?plain=1#L388
-                    reraise = False
-                    if isinstance(e, OnionRoutingFailure):
-                        orf = e
-                    else:
-                        orf = OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
-                        reraise = True  # propagate this out, as this might suggest a bug
-                    error_bytes = orf.to_wire_msg(onion_packet, self.privkey, self.network.get_local_height())
-                    self.fail_htlc(
-                        chan=chan,
-                        htlc_id=htlc.htlc_id,
-                        error_bytes=error_bytes,
-                    )
-                    if reraise:
-                        raise
-                finally:
+                    error = e
+                except Exception as e:
+                    error = OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
+                    unexpected_exc = e  # propagate this out after failing the htlc, as this might suggest a bug
+
+                if error is None:
                     del unfulfilled[htlc_id]
+                    continue
+                htlc_context = htlc_context or self._get_htlc_context(htlc=htlc, processed_onion=processed_onion_packet)
+                if self._fail_incoming_htlc(
+                    chan=chan,
+                    htlc=htlc,
+                    htlc_context=htlc_context,
+                    error=error,
+                    onion_packet=onion_packet,
+                    can_defer=unexpected_exc is None,
+                ):
+                    del unfulfilled[htlc_id]
+                if unexpected_exc is not None:
+                    raise unexpected_exc
 
         # 2. Step: Acting on sets of htlcs.
         #    Doing further checks that have to be done on sets of htlcs (e.g. total amount checks)
@@ -3378,7 +3471,7 @@ class Peer(Logger, EventListener):
         except InvalidOnionMac:
             raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_HMAC, data=onion_hash)
         except InvalidBlindedOnion:
-            raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_BLINDING, data=onion_hash)
+            raise  # similar to OnionParsingError, except that we know this was a blinded payment
         except Exception as e:
             self.logger.warning(f"error processing onion packet: {e!r}")
             raise OnionParsingError(data=onion_hash)
