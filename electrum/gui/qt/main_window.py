@@ -1409,18 +1409,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.notify(_('Payment failed') + '\n\n' + description + '\n\n' + reason)
 
     def get_coins(self, **kwargs) -> Sequence[PartialTxInput]:
-        coins = self.get_manually_selected_coins()
-        if coins is not None:
-            return coins
-        else:
-            return self.wallet.get_spendable_coins(None, **kwargs)
-
-    def get_manually_selected_coins(self) -> Optional[Sequence[PartialTxInput]]:
-        """Return a list of selected coins or None.
-        Note: None means selection is not being used,
-              while an empty sequence means the user specifically selected that.
-        """
-        return self.utxo_list.get_spend_list()
+        cc = kwargs.pop('coincontrol', True)
+        return self.wallet.get_spendable_coins(None, coincontrol=cc, **kwargs)
 
     def broadcast_or_show(self, tx: Transaction, *, invoice: 'Invoice' = None):
         if not tx.is_complete():

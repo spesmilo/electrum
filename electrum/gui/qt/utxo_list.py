@@ -202,13 +202,6 @@ class UTXOList(MyTreeView):
         self.main_window.update_coincontrol_bar()
         self.selectionModel().clearSelection()
 
-    def get_spend_list(self) -> Optional[Sequence[PartialTxInput]]:
-        spend_set = self.wallet.get_coincontrol_outpoints()
-        if not bool(spend_set):
-            return None
-        utxos = [self._utxo_dict[x] for x in spend_set]
-        return copy.deepcopy(utxos)  # copy so that side-effects don't affect utxo_dict
-
     def _maybe_reset_coincontrol(self, current_wallet_utxos: Sequence[PartialTxInput]) -> None:
         spend_set = self.wallet.get_coincontrol_outpoints()
         if not bool(spend_set) and not self._currently_open_menu:
