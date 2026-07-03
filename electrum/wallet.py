@@ -1138,6 +1138,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             *,
             nonlocal_only: bool = False,
             confirmed_only: bool = None,
+            coincontrol: bool = False,
     ) -> Sequence[PartialTxInput]:
         with self._freeze_lock:
             frozen_addresses = self._frozen_addresses.copy()
@@ -1150,7 +1151,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             confirmed_funding_only=confirmed_only,
             nonlocal_only=nonlocal_only,
         )
+        if coincontrol:
+            if cc := self.get_coincontrol_outpoints():
+                utxos = [utxo for utxo in utxos if utxo.prevout.to_str() in cc]
         utxos = [utxo for utxo in utxos if not self.is_frozen_coin(utxo)]
+
         return utxos
 
     @abstractmethod
