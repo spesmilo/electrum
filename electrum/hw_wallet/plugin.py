@@ -86,9 +86,11 @@ class HW_PluginBase(BasePlugin, ABC):
     def close_wallet(self, wallet: 'Abstract_Wallet'):
         for keystore in wallet.get_keystores():
             if isinstance(keystore, self.keystore_class):
-                self.device_manager().unpair_pairing_code(keystore.pairing_code())
+                # stop the thread first: if unpairing raises, the thread must not be leaked,
+                # as a still-running QThread would make Qt abort() the process at shutdown
                 if keystore.thread:
                     keystore.thread.stop()
+                self.device_manager().unpair_pairing_code(keystore.pairing_code())
 
     def get_client(self, keystore: 'Hardware_KeyStore', force_pair: bool = True, *,
                    devices: Sequence['Device'] = None,
