@@ -423,6 +423,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self._last_full_history = None
         self._tx_parents_cache = {}
         self._paid_invoice_keys_cache = set()  # type: Set[str]
+        # only set while an _update_onchain_invoice_paid_detection pass runs, see there
+        self._invoice_prevouts_cache = None  # type: Optional[Dict[bytes, Sequence[Tuple[str, int, int, int]]]]
         self._coin_price_cache = {}
         self._default_labels = {}
         self._accounting_addresses = set()  # addresses counted as ours after successful sweep
@@ -1376,33 +1378,39 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self._update_onchain_invoice_paid_detection(self._invoices.keys())
 
     def _update_onchain_invoice_paid_detection(self, invoice_keys: Iterable[str]) -> None:
-        for invoice_key in invoice_keys:
-            invoice = self._invoices.get(invoice_key)
-            if not invoice:
-                continue
-            # clear the cache first so self.get_invoice_status takes the slow path,
-            # which is needed to detect paid->unpaid transitions (e.g. reorgs)
-            self._paid_invoice_keys_cache.discard(invoice_key)
-            if invoice.is_lightning():
-                is_paid_lightning = bool(self.lnworker and self.lnworker.get_invoice_status(invoice) == PR_PAID)
-                if is_paid_lightning:
-                    self._paid_invoice_keys_cache.add(invoice_key)
-                if is_paid_lightning or not invoice.get_address():
+        # invoices often share scriptpubkeys; share the prevout lookups across this pass,
+        # including the ones done by self.get_invoice_status below
+        self._invoice_prevouts_cache = {}
+        try:
+            for invoice_key in invoice_keys:
+                invoice = self._invoices.get(invoice_key)
+                if not invoice:
                     continue
-            is_paid, conf_needed, relevant_txs = self._is_onchain_invoice_paid(invoice)
-            if is_paid:
-                for txid in relevant_txs:
-                    self._invoices_from_txid_map[txid].add(invoice_key)
-                # re-add to the cache, so that self.get_invoice_status below short-circuits
-                # instead of redoing the prevout scan. not for lightning invoices:
-                # their LN status takes precedence there (e.g. an in-flight LN payment)
-                if not invoice.is_lightning() and conf_needed:
-                    self._paid_invoice_keys_cache.add(invoice_key)
-            for txout in invoice.get_outputs():
-                self._invoices_from_scriptpubkey_map[txout.scriptpubkey].add(invoice_key)
-            # update invoice status
-            status = self.get_invoice_status(invoice)
-            util.trigger_callback('invoice_status', self, invoice_key, status)
+                # clear the cache first so self.get_invoice_status takes the slow path,
+                # which is needed to detect paid->unpaid transitions (e.g. reorgs)
+                self._paid_invoice_keys_cache.discard(invoice_key)
+                if invoice.is_lightning():
+                    is_paid_lightning = bool(self.lnworker and self.lnworker.get_invoice_status(invoice) == PR_PAID)
+                    if is_paid_lightning:
+                        self._paid_invoice_keys_cache.add(invoice_key)
+                    if is_paid_lightning or not invoice.get_address():
+                        continue
+                is_paid, conf_needed, relevant_txs = self._is_onchain_invoice_paid(invoice)
+                if is_paid:
+                    for txid in relevant_txs:
+                        self._invoices_from_txid_map[txid].add(invoice_key)
+                    # re-add to the cache, so that self.get_invoice_status below short-circuits
+                    # instead of redoing the prevout scan. not for lightning invoices:
+                    # their LN status takes precedence there (e.g. an in-flight LN payment)
+                    if not invoice.is_lightning() and conf_needed:
+                        self._paid_invoice_keys_cache.add(invoice_key)
+                for txout in invoice.get_outputs():
+                    self._invoices_from_scriptpubkey_map[txout.scriptpubkey].add(invoice_key)
+                # update invoice status
+                status = self.get_invoice_status(invoice)
+                util.trigger_callback('invoice_status', self, invoice_key, status)
+        finally:
+            self._invoice_prevouts_cache = None
 
     def _is_onchain_invoice_paid(self, invoice: BaseInvoice) -> Tuple[bool, Optional[int], Sequence[str]]:
         """Returns whether on-chain invoice/request is satisfied, num confs required txs have,
@@ -1419,15 +1427,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         conf_needed = None  # type: Optional[int]
         with self.lock:
             for invoice_scriptpubkey, invoice_amt in invoice_amounts.items():
-                scripthash = bitcoin.script_to_scripthash(invoice_scriptpubkey)
-                prevouts_and_values = self.db.get_prevouts_by_scripthash(scripthash)
                 confs_and_values = []
-                for prevout, v in prevouts_and_values:
-                    relevant_txs.add(prevout.txid.hex())
-                    tx_height = self.adb.get_tx_height(prevout.txid.hex())
-                    if 0 < tx_height.height() <= invoice.height:  # exclude txs older than invoice
+                for txid, height, conf, v in self._get_prevout_infos_for_scriptpubkey(invoice_scriptpubkey):
+                    relevant_txs.add(txid)
+                    if 0 < height <= invoice.height:  # exclude txs older than invoice
                         continue
-                    confs_and_values.append((tx_height.conf or 0, v))
+                    confs_and_values.append((conf, v))
                 # check that there is at least one TXO, and that they pay enough.
                 # note: "at least one TXO" check is needed for zero amount invoice (e.g. OP_RETURN)
                 vsum = 0
@@ -1439,6 +1444,23 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 else:
                     is_paid = False
         return is_paid, conf_needed, list(relevant_txs)
+
+    def _get_prevout_infos_for_scriptpubkey(self, scriptpubkey: bytes) -> Sequence[Tuple[str, int, int, int]]:
+        """Returns (txid, height, conf, value) for each prevout paying scriptpubkey.
+        Memoized while an _update_onchain_invoice_paid_detection pass runs (see there).
+        """
+        cache = self._invoice_prevouts_cache
+        infos = cache.get(scriptpubkey) if cache is not None else None
+        if infos is None:
+            scripthash = bitcoin.script_to_scripthash(scriptpubkey)
+            infos = []
+            for prevout, v in self.db.get_prevouts_by_scripthash(scripthash):
+                txid = prevout.txid.hex()
+                tx_height = self.adb.get_tx_height(txid)
+                infos.append((txid, tx_height.height(), tx_height.conf or 0, v))
+            if cache is not None:
+                cache[scriptpubkey] = infos
+        return infos
 
     def is_onchain_invoice_paid(self, invoice: BaseInvoice) -> Tuple[bool, Optional[int]]:
         is_paid, conf_needed, relevant_txs = self._is_onchain_invoice_paid(invoice)
