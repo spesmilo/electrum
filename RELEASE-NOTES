@@ -21,6 +21,7 @@
  * QML GUI & Android:
     - new: support renaming wallets (#10573)
     - changed: update python-for-android, Qt and NDK versions (#10485)
+      - this bumps the minimum OS requirement: Android 6.0->8.0
     - changed: improve wallet history scrolling performance (#10615)
     - changed: give feedback about ongoing lightning channel reestablishment in invoice view (#10698)
     - fix: race condition causing UI to show incorrect payment status (#10631)
