@@ -298,7 +298,7 @@ class SettingsDialog(QDialog, QtEventListener):
             if not self.fx:
                 return
             h = self.config.FX_HISTORY_RATES
-            currencies = sorted(self.fx.get_currencies(h))
+            currencies = sorted(sorted(self.fx.get_currencies(h)), key=lambda x: x != 'USD')
             ccy_combo.clear()
             ccy_combo.addItems([_('None')] + currencies)
             if self.fx.is_enabled():
