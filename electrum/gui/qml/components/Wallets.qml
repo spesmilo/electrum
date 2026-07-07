@@ -37,6 +37,38 @@ Pane {
                 text: qsTr('Wallets')
             }
 
+            TextField {
+                id: searchEdit
+                Layout.fillWidth: true
+                Layout.leftMargin: constants.paddingLarge
+                Layout.rightMargin: constants.paddingLarge
+
+                placeholderText: qsTr('search')
+                inputMethodHints: Qt.ImhNoPredictiveText
+
+                onAccepted: {
+                    // load a wallet (e.g. a hidden wallet not shown in the list) when
+                    // the search text exactly matches an available wallet name
+                    var path = Daemon.availableWallets.pathForName(text)
+                    if (path && !Daemon.loading) {
+                        if (!Daemon.currentWallet || Daemon.currentWallet.name != text) {
+                            Daemon.loadWallet(path)
+                        } else {
+                            app.stack.pop()
+                        }
+                    }
+                }
+
+                Image {
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.rightMargin: constants.paddingMedium
+                    source: Qt.resolvedUrl('../../icons/zoom.png')
+                    sourceSize.width: constants.iconSizeMedium
+                    sourceSize.height: constants.iconSizeMedium
+                }
+            }
+
             Frame {
                 id: detailsFrame
                 Layout.fillWidth: true
@@ -52,9 +84,14 @@ Pane {
                     model: Daemon.availableWallets
 
                     delegate: ItemDelegate {
+                        property bool matchesSearch: searchEdit.text.length === 0
+                            || model.name.toLowerCase().indexOf(searchEdit.text.toLowerCase()) !== -1
+                        property bool hiddenWallet: model.name.startsWith('.') && !model.active
                         width: ListView.view.width
-                        height: row.height
-
+                        height: visible ? row.height : 0
+                        // visible: searchEdit.text.length === 0
+                        //     || model.name.toLowerCase().indexOf(searchEdit.text.toLowerCase()) !== -1
+                        visible: matchesSearch && !hiddenWallet
                         onClicked: {
                             if (!Daemon.currentWallet || Daemon.currentWallet.name != model.name) {
                                 if (!Daemon.loading) // wallet load in progress
