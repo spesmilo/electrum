@@ -176,6 +176,7 @@ RUN apt -y update -qq \
     && apt -y install -qq --no-install-recommends --allow-downgrades \
         libopengl-dev \
         libegl-dev \
+        ninja-build \
     && apt -y autoremove \
     && apt -y clean
 
@@ -225,7 +226,7 @@ RUN /opt/venv/bin/python3 -m pip install --no-build-isolation --no-dependencies 
     -r /opt/deterministic-build/requirements-build-android.txt
 
 # install buildozer
-ENV BUILDOZER_CHECKOUT_COMMIT="4403ecf445f10b5fbf7c74f4621bf2b922ad35b5"
+ENV BUILDOZER_CHECKOUT_COMMIT="6242e3e41365e70f76bd18f30992dcc5898ad40e"
 # ^ from branch electrum_20240930 (note: careful with force-pushing! see #8162)
 RUN cd /opt \
     && git clone https://github.com/spesmilo/buildozer \
@@ -234,7 +235,7 @@ RUN cd /opt \
     && /opt/venv/bin/python3 -m pip install --no-build-isolation --no-dependencies -e .
 
 # install python-for-android
-ENV P4A_CHECKOUT_COMMIT="1098be6964cfc2156959e435e81c2c50f8398586"
+ENV P4A_CHECKOUT_COMMIT="8c0fcc9ef2e559918ca96ecde6e09fe521bb1427"
 # ^ from branch electrum_202602 (note: careful with force-pushing! see #8162)
 RUN cd /opt \
     && git clone https://github.com/spesmilo/python-for-android \
