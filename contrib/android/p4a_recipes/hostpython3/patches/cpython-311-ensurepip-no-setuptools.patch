@@ -1,0 +1,33 @@
+Backport of Python 3.12's removal of setuptools from ensurepip (gh-95299,
+https://github.com/python/cpython/pull/101039) onto CPython 3.11.
+
+ensurepip is only used to bootstrap pip into hostpython. Without this patch
+it would also install its bundled, unpinned setuptools, which would later
+coexist with the hash-pinned setuptools we install ourselves: pip's
+"--target" mode cannot uninstall, so the stale setuptools-79.0.1.dist-info
+would survive next to the pinned version and which distribution gets picked
+up during the build depends on os.listdir() order, breaking reproducibility.
+
+The now-unreferenced setuptools wheel in Lib/ensurepip/_bundled/ is left in
+the source tree ("patch" cannot delete binary files); it is never installed.
+
+The deleted _SETUPTOOLS_VERSION line changes between CPython 3.11.x releases,
+so this patch is coupled to the CPython version pinned in our hostpython3
+recipe and must be refreshed together with it. Remove the patch when
+hostpython3 is >= 3.12.
+
+--- a/Lib/ensurepip/__init__.py
++++ b/Lib/ensurepip/__init__.py
+@@ -9,11 +9,9 @@
+ 
+ 
+ __all__ = ["version", "bootstrap"]
+-_PACKAGE_NAMES = ('setuptools', 'pip')
+-_SETUPTOOLS_VERSION = "79.0.1"
++_PACKAGE_NAMES = ('pip',)
+ _PIP_VERSION = "24.0"
+ _PROJECTS = [
+-    ("setuptools", _SETUPTOOLS_VERSION, "py3"),
+     ("pip", _PIP_VERSION, "py3"),
+ ]
+ 
