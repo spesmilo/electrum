@@ -641,6 +641,12 @@ class SimpleConfig(Logger):
     NETWORK_PROXY_USER = ConfigVar('proxy_user', default=None, type_=str)
     NETWORK_PROXY_PASSWORD = ConfigVar('proxy_password', default=None, type_=str)
     NETWORK_PROXY_ENABLED = ConfigVar('enable_proxy', default=lambda config: config.NETWORK_PROXY not in [None, "none"], type_=bool)
+    NETWORK_PROXY_DOH_ENDPOINT = ConfigVar(
+        'proxy_doh_endpoint', default="https://cloudflare-dns.com/dns-query", type_=str,
+        short_desc=lambda: _('DNS-over-HTTPS server'),
+        long_desc=lambda: (
+            _('DNS-over-HTTPS resolver used for DNSSEC lookups (e.g. OpenAlias) when a proxy is configured.')),
+    )
     NETWORK_SERVER = ConfigVar('server', default=None, type_=str)
     NETWORK_NOONION = ConfigVar('noonion', default=False, type_=bool)
     NETWORK_OFFLINE = ConfigVar('offline', default=False, type_=bool)
