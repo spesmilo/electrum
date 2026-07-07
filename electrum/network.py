@@ -36,6 +36,7 @@ import copy
 import functools
 from enum import IntEnum
 from contextlib import nullcontext
+import urllib.parse
 
 import aiorpcx
 from aiorpcx import ignore_after, NetAddress
@@ -44,7 +45,7 @@ from aiohttp import ClientResponse
 from . import util
 from .util import (
     log_exceptions, ignore_exceptions, OldTaskGroup, make_aiohttp_session,
-    NetworkRetryManager, error_text_str_to_safe_str, detect_tor_socks_proxy
+    NetworkRetryManager, error_text_str_to_safe_str, detect_tor_socks_proxy, is_private_netaddress
 )
 from . import constants
 from . import dns_hacks
@@ -166,6 +167,24 @@ def is_valid_host(ph: str):
     return True
 
 
+def is_valid_doh_endpoint(url: str) -> bool:
+    """DNS-over-HTTPS endpoint URL. Plain http is only allowed for private/local hosts."""
+    if not url or any(c.isspace() for c in url):
+        return False
+    try:
+        parsed = urllib.parse.urlparse(url)
+        hostname, _port = parsed.hostname, parsed.port  # port getter raises ValueError if invalid
+    except ValueError:
+        return False
+    if not hostname:
+        return False
+    if parsed.scheme == 'https':
+        return True
+    if parsed.scheme == 'http':
+        return is_private_netaddress(hostname)
+    return False
+
+
 class ProxySettings:
     MODES = ['socks4', 'socks5']
 
@@ -178,6 +197,7 @@ class ProxySettings:
         self.port = ''
         self.user = None
         self.password = None
+        self.doh_endpoint = ''
 
     def set_defaults(self):
         self.__init__()  # call __init__ for default values
@@ -222,7 +242,8 @@ class ProxySettings:
             'host': self.host,
             'port': self.port,
             'user': self.user,
-            'password': self.password
+            'password': self.password,
+            'doh_endpoint': self.doh_endpoint,
         }
 
     @classmethod
@@ -232,6 +253,7 @@ class ProxySettings:
             config.NETWORK_PROXY, config.NETWORK_PROXY_USER, config.NETWORK_PROXY_PASSWORD
         )
         proxy.enabled = config.NETWORK_PROXY_ENABLED
+        proxy.doh_endpoint = config.NETWORK_PROXY_DOH_ENDPOINT
         return proxy
 
     @classmethod
@@ -243,6 +265,7 @@ class ProxySettings:
         proxy.port = d.get('port', proxy.port)
         proxy.user = d.get('user', proxy.user)
         proxy.password = d.get('password', proxy.password)
+        proxy.doh_endpoint = d.get('doh_endpoint', proxy.doh_endpoint)
         return proxy
 
     @classmethod
@@ -269,7 +292,8 @@ class ProxySettings:
             and self.host == other.host \
             and self.port == other.port \
             and self.user == other.user \
-            and self.password == other.password
+            and self.password == other.password \
+            and self.doh_endpoint == other.doh_endpoint
 
     def __str__(self):
         return f'{self.enabled=} {self.mode=} {self.host=} {self.port=} {self.user=}'
@@ -764,13 +788,12 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         proxy_enabled = proxy.enabled
         proxy_user = proxy.user
         proxy_pass = proxy.password
+        proxy_doh_endpoint = proxy.doh_endpoint
         server = net_params.server
         # sanitize parameters
         try:
             if proxy:
-                # proxy_modes.index(proxy['mode']) + 1
                 ProxySettings.MODES.index(proxy.mode) + 1
-                # int(proxy['port'])
                 int(proxy.port)
         except Exception:
             proxy.enabled = False
@@ -781,6 +804,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         self.config.NETWORK_PROXY = proxy_str
         self.config.NETWORK_PROXY_USER = proxy_user
         self.config.NETWORK_PROXY_PASSWORD = proxy_pass
+        self.config.NETWORK_PROXY_DOH_ENDPOINT = proxy_doh_endpoint
         self.config.NETWORK_SERVER = str(server)
         # abort if changes were not allowed by config
         if self.config.NETWORK_SERVER != str(server) \
@@ -788,6 +812,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                 or self.config.NETWORK_PROXY != proxy_str \
                 or self.config.NETWORK_PROXY_USER != proxy_user \
                 or self.config.NETWORK_PROXY_PASSWORD != proxy_pass \
+                or self.config.NETWORK_PROXY_DOH_ENDPOINT != proxy_doh_endpoint \
                 or self.config.NETWORK_ONESERVER != net_params.oneserver:
             return
 
