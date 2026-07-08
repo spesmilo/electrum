@@ -1,4 +1,4 @@
-# Release 4.8.0 - Artisanal Handwritten Code (July 2, 2026)
+# Release 4.8.0 - Artisanal Handwritten Code (July 8, 2026)
  * Security fixes and disclosures:
     - (sev-low) SPV verification: fix CVE-2012-2459: reject left-sibling duplicates (#10568)
  * General:
