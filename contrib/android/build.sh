@@ -32,9 +32,10 @@ mkdir -p "${PROJECT_ROOT}/.buildozer_$1"
 ln -s ".buildozer_$1" ${PROJECT_ROOT}/.buildozer
 
 DOCKER_BUILD_FLAGS=""
+DOCKER_RUN_FLAGS=""
 if [ ! -z "$ELECBUILD_NOCACHE" ] ; then
     info "ELECBUILD_NOCACHE is set. forcing rebuild of docker image."
-    DOCKER_BUILD_FLAGS="--pull --no-cache"
+    DOCKER_BUILD_FLAGS="$DOCKER_BUILD_FLAGS --pull --no-cache"
 fi
 
 if [ -z "$ELECBUILD_COMMIT" ] ; then  # local dev build
@@ -51,21 +52,31 @@ docker build \
 # maybe do fresh clone
 if [ ! -z "$ELECBUILD_COMMIT" ] ; then
     info "ELECBUILD_COMMIT=$ELECBUILD_COMMIT. doing fresh clone and git checkout."
-    FRESH_CLONE=${FRESH_CLONE:-"/var/tmp/electrum_build/android/fresh_clone/electrum"}
+    FRESH_CLONE_BASE=${FRESH_CLONE_BASE:-"/var/tmp/electrum_build/android"}
+    FRESH_CLONE="$FRESH_CLONE_BASE/fresh_clone/electrum"
     rm -rf "$FRESH_CLONE" 2>/dev/null || ( info "we need sudo to rm prev FRESH_CLONE." && sudo rm -rf "$FRESH_CLONE" )
     umask 0022
     git clone "$PROJECT_ROOT" "$FRESH_CLONE"
     cd "$FRESH_CLONE"
     git checkout "$ELECBUILD_COMMIT"
     PROJECT_ROOT_OR_FRESHCLONE_ROOT="$FRESH_CLONE"
+    if [ -z "$ELECBUILD_NOCACHE" ] ; then
+        info "ELECBUILD_NOCACHE is not set. mounting p4a download cache."
+        GIT_TAG="$(git describe --abbrev=0)"
+        mkdir -p "$FRESH_CLONE_BASE/downloads_cache/$GIT_TAG/p4a_packages"
+        mkdir -p "$FRESH_CLONE"/.buildozer/android/platform/build-{armeabi-v7a,arm64-v8a,x86,x86_64}/packages
+        DOCKER_RUN_FLAGS="$DOCKER_RUN_FLAGS -v $FRESH_CLONE_BASE/downloads_cache/$GIT_TAG/p4a_packages:/home/user/wspace/electrum/.buildozer/android/platform/build-armeabi-v7a/packages"
+        DOCKER_RUN_FLAGS="$DOCKER_RUN_FLAGS -v $FRESH_CLONE_BASE/downloads_cache/$GIT_TAG/p4a_packages:/home/user/wspace/electrum/.buildozer/android/platform/build-arm64-v8a/packages"
+        DOCKER_RUN_FLAGS="$DOCKER_RUN_FLAGS -v $FRESH_CLONE_BASE/downloads_cache/$GIT_TAG/p4a_packages:/home/user/wspace/electrum/.buildozer/android/platform/build-x86/packages"
+        DOCKER_RUN_FLAGS="$DOCKER_RUN_FLAGS -v $FRESH_CLONE_BASE/downloads_cache/$GIT_TAG/p4a_packages:/home/user/wspace/electrum/.buildozer/android/platform/build-x86_64/packages"
+    fi
 else
     info "not doing fresh clone."
 fi
 
-DOCKER_RUN_FLAGS=""
 if [[ "$3" == "release" ]] ; then
     info "'release' mode selected. mounting ~/.keystore inside container."
-    DOCKER_RUN_FLAGS="-v $HOME/.keystore:/home/user/.keystore"
+    DOCKER_RUN_FLAGS="$DOCKER_RUN_FLAGS -v $HOME/.keystore:/home/user/.keystore"
 fi
 if sh -c ": >/dev/tty" >/dev/null 2>/dev/null; then
     info "/dev/tty is available and usable"
@@ -77,8 +88,8 @@ mkdir --parents "$PROJECT_ROOT_OR_FRESHCLONE_ROOT"/.buildozer/.gradle
 # check uid and maybe chown. see #8261
 if [ ! -z "$ELECBUILD_COMMIT" ] ; then  # fresh clone (reproducible build)
     if [ $(id -u) != "1000" ] || [ $(id -g) != "1000" ] ; then
-        info "need to chown -R FRESH_CLONE dir. prompting for sudo."
-        sudo chown -R 1000:1000 "$FRESH_CLONE"
+        info "need to chown -R FRESH_CLONE_BASE dir. prompting for sudo."
+        sudo chown -R 1000:1000 "$FRESH_CLONE_BASE"
     fi
 fi
 docker run --rm \
