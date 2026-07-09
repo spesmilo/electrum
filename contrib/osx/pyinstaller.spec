@@ -118,7 +118,9 @@ exe = EXE(
     upx=True,
     icon=ICONS_FILE,
     console=False,
-    target_arch='x86_64',  # TODO investigate building 'universal2'
+    # note: ELECTRUM_MACOS_ARCH is set by make_osx.sh. All collected binaries
+    #       (which might be universal2/"fat") get thinned to this single arch.
+    target_arch=os.environ.get('ELECTRUM_MACOS_ARCH') or 'x86_64',
 )
 
 app = BUNDLE(
