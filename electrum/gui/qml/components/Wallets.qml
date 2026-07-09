@@ -45,7 +45,7 @@ Pane {
 
                 placeholderText: qsTr('search')
                 inputMethodHints: Qt.ImhNoPredictiveText
-
+                EnterKey.type: Qt.EnterKeyDone
                 onAccepted: {
                     // load a wallet (e.g. a hidden wallet not shown in the list) when
                     // the search text exactly matches an available wallet name
@@ -155,6 +155,8 @@ Pane {
 
         ButtonContainer {
             Layout.fillWidth: true
+            visible: !searchEdit.text
+
             FlatButton {
                 Layout.fillWidth: true
                 text: qsTr('Create Wallet')
