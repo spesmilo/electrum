@@ -3,6 +3,7 @@ import re
 import os
 import sys
 import importlib
+import importlib.util
 from collections import defaultdict
 
 
@@ -13,13 +14,15 @@ if len(sys.argv) < 2:
 # cd to project root
 os.chdir(os.path.dirname(os.path.dirname(__file__)))
 
-# load version.py; needlessly complicated alternative to "imp.load_source":
-version_spec = importlib.util.spec_from_file_location('version', 'electrum/version.py')
-version_module = importlib.util.module_from_spec(version_spec)
-version_spec.loader.exec_module(version_module)
+# load print_electrum_version.py; needlessly complicated alternative to "imp.load_source":
+pev_spec = importlib.util.spec_from_file_location('print_electrum_version', 'contrib/print_electrum_version.py')
+pev_module = importlib.util.module_from_spec(pev_spec)
+pev_spec.loader.exec_module(pev_module)
 
-ELECTRUM_VERSION = version_module.ELECTRUM_VERSION
-print(f"version: {ELECTRUM_VERSION}", file=sys.stderr)
+versionb = pev_module.get_bare_version()
+versionc = pev_module.get_versionc()
+print(f"{versionb=!r}", file=sys.stderr)
+print(f"{versionc=!r}", file=sys.stderr)
 
 dirname = sys.argv[1]
 
@@ -31,22 +34,21 @@ download_template = download_page + ".template"
 with open(download_template) as f:
     download_page_str = f.read()
 
-version = ELECTRUM_VERSION
-download_page_str = download_page_str.replace("##VERSION##", version)
+download_page_str = download_page_str.replace("##VERSION##", versionb)
 
 # note: all dist files need to be listed here that we expect sigs for,
 #       even if they are not linked to from the website
 files = {
-    "tgz": f"Electrum-{version}.tar.gz",
-    "tgz_srconly": f"Electrum-sourceonly-{version}.tar.gz",
-    "appimage": f"electrum-{version}-x86_64.AppImage",
-    "mac": f"electrum-{version}.dmg",
-    "win": f"electrum-{version}.exe",
-    "win_setup": f"electrum-{version}-setup.exe",
-    "win_portable": f"electrum-{version}-portable.exe",
-    "apk_arm64": f"Electrum-{version}-arm64-v8a-release.apk",
-    "apk_armeabi": f"Electrum-{version}-armeabi-v7a-release.apk",
-    "apk_x86_64": f"Electrum-{version}-x86_64-release.apk",
+    "tgz": f"Electrum-{versionc}.tar.gz",
+    "tgz_srconly": f"Electrum-sourceonly-{versionc}.tar.gz",
+    "appimage": f"electrum-{versionc}-x86_64.AppImage",
+    "mac": f"electrum-{versionc}.dmg",
+    "win": f"electrum-{versionc}.exe",
+    "win_setup": f"electrum-{versionc}-setup.exe",
+    "win_portable": f"electrum-{versionc}-portable.exe",
+    "apk_arm64": f"Electrum-{versionc}-arm64-v8a-release.apk",
+    "apk_armeabi": f"Electrum-{versionc}-armeabi-v7a-release.apk",
+    "apk_x86_64": f"Electrum-{versionc}-x86_64-release.apk",
 }
 
 # default signers
@@ -74,8 +76,8 @@ download_page_str = download_page_str.replace("##signers_list##", signers_list)
 
 for k, filename in files.items():
     path = "dist/%s"%filename
-    assert filename in list_dir
-    link = "https://download.electrum.org/%s/%s"%(version, filename)
+    assert filename in list_dir, f"{filename!r} missing from dist/"
+    link = "https://download.electrum.org/%s/%s"%(versionb, filename)
     download_page_str = download_page_str.replace("##link_%s##" % k, link)
     download_page_str = download_page_str.replace("##sigs_%s##" % k, link + '.asc')
     download_page_str = download_page_str.replace("##distname_%s##" % k, filename)

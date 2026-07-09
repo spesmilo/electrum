@@ -211,17 +211,17 @@ find "$VENV_DIR/lib/python$PY_VER_MAJOR/site-packages/" -type f -name '*.so' -pr
 info "Faking timestamps..."
 find . -exec touch -t '200101220000' {} + || true
 
-# note: no --dirty, as we have dirtied electrum/locale/ ourselves.
-VERSION=$(git describe --tags --always)
+VERSIONB=$("$CONTRIB"/print_electrum_version.py)
+VERSIONC=$("$CONTRIB"/print_electrum_version.py --with-commit)
 
 info "Building binary"
-ELECTRUM_VERSION=$VERSION pyinstaller --noconfirm --clean contrib/osx/pyinstaller.spec || fail "Could not build binary"
+ELECTRUM_VERSION="$VERSIONB" pyinstaller --noconfirm --clean contrib/osx/pyinstaller.spec || fail "Could not build binary"
 
 info "Finished building unsigned dist/${PACKAGE}.app. This hash should be reproducible:"
 find "dist/${PACKAGE}.app" -type f -print0 | sort -z | xargs -0 shasum -a 256 | shasum -a 256
 
 info "Creating unsigned .DMG"
-hdiutil create -fs HFS+ -volname $PACKAGE -srcfolder dist/$PACKAGE.app dist/electrum-$VERSION-unsigned.dmg || fail "Could not create .DMG"
+hdiutil create -fs HFS+ -volname "$PACKAGE" -srcfolder "dist/$PACKAGE.app" "dist/electrum-$VERSIONC-unsigned.dmg" || fail "Could not create .DMG"
 
 info "App was built successfully but was not code signed. Users may get security warnings from macOS."
 info "Now you also need to run sign_osx.sh to codesign/notarize the binary."

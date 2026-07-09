@@ -6,7 +6,7 @@ SSHUSER=$1
 TRIGGERVERSION=$2
 if [ -z "$SSHUSER" ] || [ -z "$TRIGGERVERSION" ]; then
     echo "usage: $0 SSHUSER TRIGGERVERSION"
-    echo "e.g. $0 thomasv 3.0.0"
+    echo "e.g. $0 thomasv 3.0.0"  # bare version, without commit
     echo "e.g. $0 thomasv website"
     exit 1
 fi

@@ -34,8 +34,8 @@ if [ -z "$ELECTRUM_SIGNING_WALLET" ] || [ -z "$ELECTRUM_SIGNING_ADDRESS" ]; then
     exit 1
 fi
 
-VERSION=$("$CONTRIB"/print_electrum_version.py)
-info "VERSION: $VERSION"
+VERSIONB=$("$CONTRIB"/print_electrum_version.py)
+info "VERSIONB: $VERSIONB"
 
 ANDROID_VERSIONCODE_NULLARCH=$("$CONTRIB"/android/get_apk_versioncode.py "null")
 # ^ note: should parse as an integer in the final json
@@ -46,13 +46,13 @@ set -x
 info "updating www repo"
 ./contrib/make_download "$WWW_DIR"
 info "signing the version announcement file"
-sig=$(./run_electrum -o signmessage "$ELECTRUM_SIGNING_ADDRESS" "$VERSION" -w "$ELECTRUM_SIGNING_WALLET")
+sig=$(./run_electrum -o signmessage "$ELECTRUM_SIGNING_ADDRESS" "$VERSIONB" -w "$ELECTRUM_SIGNING_WALLET")
 # note: the contents of "extradata" are currently not signed. We could add another field, extradata_sigs,
 #       containing signature(s) for "extradata". extradata, being json, would have to be canonically
 #       serialized before signing.
 cat <<EOF > "$WWW_DIR"/version
 {
-    "version": "$VERSION",
+    "version": "$VERSIONB",
     "signatures": {"$ELECTRUM_SIGNING_ADDRESS": "$sig"},
     "extradata": {
         "android_versioncode_nullarch": $ANDROID_VERSIONCODE_NULLARCH
@@ -63,7 +63,7 @@ EOF
 # push changes to website repo
 pushd "$WWW_DIR"
 git diff
-git commit -a -m "version $VERSION"
+git commit -a -m "version $VERSIONB"
 git push
 popd
 
