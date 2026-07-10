@@ -78,6 +78,7 @@ for k, filename in files.items():
     link = "https://download.electrum.org/%s/%s"%(version, filename)
     download_page_str = download_page_str.replace("##link_%s##" % k, link)
     download_page_str = download_page_str.replace("##sigs_%s##" % k, link + '.asc')
+    download_page_str = download_page_str.replace("##distname_%s##" % k, filename)
 
 
 # download page has been constructed from template; now insert it into index.html
