@@ -171,6 +171,7 @@ class TestTypes(QETestCase):
     def test_lt_gt_eq(self):
         a = QEAmount(amount_msat=100)
         b = QEAmount(amount_msat=200)
+        c = QEAmount(amount_msat=-100)
 
         self.assertTrue(a.lt(b))
         self.assertTrue(b.gt(a))
@@ -178,6 +179,8 @@ class TestTypes(QETestCase):
         self.assertTrue(a.lte(b))
         self.assertTrue(b.gte(a))
         self.assertTrue(a.lte(a))
+
+        self.assertTrue(c.lt(b))
 
         c = QEAmount()
 
@@ -219,11 +222,15 @@ class TestTypes(QETestCase):
         b = QEAmount(amount_msat=200)
         c = QEAmount(amount_msat=200)
         d = QEAmount()
+        e = QEAmount(amount_msat=-100)
 
         self.assertTrue(a.eq(o.min(a, b)))
         self.assertTrue(b.eq(o.max(a, b)))
         self.assertTrue(b.eq(o.max(b, c)))
         self.assertTrue(c.eq(o.max(b, c)))
+
+        self.assertTrue(b.eq(o.max(b, e)))
+        self.assertTrue(e.eq(o.min(b, e)))
 
         self.assertTrue(a.eq(o.max(a, None)))
         self.assertTrue(a.eq(o.max(None, a)))

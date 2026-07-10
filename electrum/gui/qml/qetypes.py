@@ -143,8 +143,6 @@ class QEAmount(QObject):
             other = QEAmount()
         assert isinstance(other, QEAmount)
         assert not (self.isMax or other.isMax), "'lt/lte' operator undefined for MAX amounts"
-        if self.isEmpty and not other.isEmpty:
-            return True
         return self.msatsInt < other.msatsInt
 
     @pyqtSlot('QVariant', result=bool)
@@ -157,8 +155,6 @@ class QEAmount(QObject):
             other = QEAmount()
         assert isinstance(other, QEAmount)
         assert not (self.isMax or other.isMax), "'gt/gte' operator undefined for MAX amounts"
-        if self.isEmpty and not other.isEmpty:
-            return False
         return self.msatsInt > other.msatsInt
 
     @pyqtSlot('QVariant', result=bool)
