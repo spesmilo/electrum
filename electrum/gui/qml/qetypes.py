@@ -182,11 +182,11 @@ class QEAmount(QObject):
         # - raise (let the GUI avoid comparisons against MAX)
         # - define MAX as always being larger than any value
         if one.isMax:
-            return one
+            return self.copy(one)
         if two.isMax:
-            return two
+            return self.copy(two)
 
-        return one if one.gt(two) else two
+        return self.copy(one if one.gt(two) else two)
 
     @pyqtSlot('QVariant', 'QVariant', result='QVariant')
     def min(self, one: 'QEAmount|None', two: 'QEAmount|None'):
@@ -196,14 +196,27 @@ class QEAmount(QObject):
             two = QEAmount()
         assert isinstance(one, QEAmount)
         assert isinstance(two, QEAmount)
+
         # TODO: as gt/lt is undefined for operands being isMax, we can either
         # - raise (let the GUI avoid comparisons against MAX)
         # - define MAX as always being larger than any value
         if one.isMax:
-            return two
+            return self.copy(two)
         if two.isMax:
-            return one
-        return one if one.lt(two) else two
+            return self.copy(one)
+
+        return self.copy(one if one.lt(two) else two)
+
+    def copy(self, amount: 'QEAmount') -> 'QEAmount':
+        """return copy of amount, parented to self.
+           - return a copy instead of returning QEAmount.min()/max() argument instances directly
+             (which might be reparented in QML)
+           - parent the copy to self, so its lifecycle is tied to the parent QEAmount (we need to avoid GC
+             of the result, which requires a strong ref to remain after returning a new QEAmount)
+           """
+        r = QEAmount(self)
+        r.copyFrom(amount)
+        return r
 
     def __eq__(self, other: 'QEAmount') -> bool:
         assert True if other is None else isinstance(other, QEAmount)
