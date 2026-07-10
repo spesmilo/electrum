@@ -908,7 +908,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             self.wallet.lnworker.num_sats_can_receive()
         )
         min_text = self.format_amount_and_units(Decimal(lnurl_data.min_withdrawable_msat) / 1000)
-        if min_amount > int(self.wallet.lnworker.num_sats_can_receive()):
+        if min_amount > self.wallet.lnworker.num_sats_can_receive():
             self.show_error("".join([
                 _("Too little incoming liquidity to satisfy this withdrawal request."), "\n\n",
                 _("Can receive: {}").format(
