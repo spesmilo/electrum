@@ -275,13 +275,17 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
 
     @pyqtSlot(int)
     def updateBlockchainHeight(self, height):
-        self._logger.debug('updating height to %d' % height)
+        self._logger.debug(f'updating height to {height}')
+        if not self.tx_history:
+            return
         for i, tx_item in enumerate(self.tx_history):
             if 'height' in tx_item:
                 if tx_item['height'] > 0:
                     tx_item['confirmations'] = height - tx_item['height'] + 1
-                    index = self.index(i, 0)
-                    roles = [self._ROLE_RMAP['confirmations']]
-                    self.dataChanged.emit(index, index, roles)
                 elif tx_item['height'] in (TX_HEIGHT_FUTURE, TX_HEIGHT_LOCAL):
                     self._update_future_txitem(i)
+        self.dataChanged.emit(
+            self.index(0, 0),
+            self.index(len(self.tx_history) - 1, 0),
+            [self._ROLE_RMAP['confirmations']],
+        )
