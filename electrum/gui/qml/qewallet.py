@@ -204,7 +204,10 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self.add_tx_notification(tx)
             self.addressCoinModel.setDirty()
             self.historyModel.setDirty()  # assuming wallet.is_up_to_date triggers after
-            self.balanceChanged.emit()
+            if self.wallet.is_up_to_date():
+                # don't update during sync as this recomputes the balance on each new tx, blocking the UI thread.
+                # on_event_wallet_updated emits balanceChanged once we are up-to-date.
+                self.balanceChanged.emit()
 
     @qt_event_listener
     def on_event_adb_tx_height_changed(self, adb, txid, old_height, new_height):
