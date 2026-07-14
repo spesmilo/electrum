@@ -112,6 +112,9 @@ ElDialog {
                             function onEffectiveAmountChanged() {
                                 updateAmountText()
                             }
+                            function onValidChanged() {
+                                updateAmountText()
+                            }
                         }
                     }
                 }
