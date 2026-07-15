@@ -98,6 +98,21 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.timer.start()
         signal.signal(signal.SIGINT, lambda *args: self._handle_sigint())
 
+        # schedule the hourly background "Chainwatch" service (Android only; no-op elsewhere)
+        from .service.chainwatch import schedule_chainwatch
+        try:
+            schedule_chainwatch()
+        except Exception as e:
+            self.logger.warning(f'could not schedule chainwatch: {e!r}')
+
+        # # DEBUG: fire one immediate run so the worker/service is observable
+        # # without waiting for the hourly period. uncomment to debug on startup.
+        # from .service.chainwatch import run_chainwatch_now
+        # try:
+        #     run_chainwatch_now()
+        # except Exception as e:
+        #     self.logger.warning(f'could not run chainwatch now: {e!r}')
+
         self.logger.info('Entering main loop')
         self.app.exec()
 
