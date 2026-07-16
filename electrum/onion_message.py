@@ -167,7 +167,7 @@ def encode_blinded_path(blinded_path: dict):
         return blinded_path_fd.getvalue()
 
 
-def is_onion_message_node(node_id: bytes, node_info: Optional['NodeInfo']) -> bool:
+def is_onion_message_node(_node_id: bytes, node_info: Optional['NodeInfo']) -> bool:
     if not node_info:
         return False
     return LnFeatures(node_info.features).supports(LnFeatures.OPTION_ONION_MESSAGE_OPT)
@@ -563,8 +563,8 @@ class OnionMessageManager(Logger):
     SLEEP_DELAY = 1
     REQUEST_REPLY_TIMEOUT = 30
     REQUEST_REPLY_RETRY_DELAY = 5
-    FORWARD_RETRY_TIMEOUT = 4
     FORWARD_RETRY_DELAY = 2
+    FORWARD_RETRY_TIMEOUT = 15
     FORWARD_MAX_QUEUE = 3
     MAX_CONCURRENT_DIRECT_CONNECTION_ATTEMPTS = 10  # allocated once for sending and once for forwarding
 
@@ -642,6 +642,33 @@ class OnionMessageManager(Logger):
             try:
                 onion_packet_b = onion_packet.to_bytes()
                 next_peer = self.lnwallet.lnpeermgr.get_peer_by_pubkey(node_id)
+
+                if not next_peer:
+                    self.logger.debug(f"not connected to next onion message hop: {node_id.hex()=}")
+                    # clients rely on trampoline nodes opening a direct connection for onion message forwarding
+                    # if they don't have access to the gossip and cannot open a connection by themselves
+                    if self.lnwallet.config.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS \
+                            and self.lnwallet.config.ONION_MESSAGE_OPEN_DIRECT_CONNECTIONS \
+                            and self.lnwallet.channel_db:
+                        node_info = self.lnwallet.channel_db.get_node_info_for_node_id(node_id)
+                        if not is_onion_message_node(node_id, node_info):
+                            continue
+                        if peer_addr := self.lnwallet.channel_db.get_last_good_address(node_id):
+                            delayed_forward_item = (scheduled, expires, onion_packet, blinding, node_id)
+                            def _requeue_forward(t, forward_item = delayed_forward_item):
+                                _, _, _, _, node_id_ = forward_item
+                                if t.cancelled() or t.exception() or not self.lnwallet.lnpeermgr.get_peer_by_pubkey(node_id_):
+                                    return
+                                self.forward_queue.put_nowait(forward_item)
+                            if peer_addr.pubkey in self._send_direct_connection_attempts \
+                                    or peer_addr.pubkey in self._forward_direct_connection_attempts \
+                                    or len(self._forward_direct_connection_attempts) >= self.MAX_CONCURRENT_DIRECT_CONNECTION_ATTEMPTS:
+                                # we're already trying to connect to this node, try forwarding again later
+                                self.forward_queue.put_nowait((scheduled + self.FORWARD_RETRY_DELAY, expires, onion_packet, blinding, node_id))
+                            else:
+                                task = self._connect_to_fallback_address(peer_addr, connection_set=self._forward_direct_connection_attempts)
+                                task.add_done_callback(_requeue_forward)
+                    continue
 
                 next_peer.send_onion_message(
                     path_key=blinding,
@@ -902,11 +929,10 @@ class OnionMessageManager(Logger):
             self.logger.error('cannot forward onion_message, path_id in encrypted_data_tlv')
             return
 
-        next_node_id = recipient_data.get('next_node_id')
-        if not next_node_id:
+        next_node_id = recipient_data.get('next_node_id', {}).get('node_id')
+        if not isinstance(next_node_id, bytes):
             self.logger.error('cannot forward onion_message, next_node_id missing in encrypted_data_tlv')
             return
-        next_node_id = next_node_id['node_id']
 
         is_dummy_hop = False
         if next_node_id == self.lnwallet.node_keypair.pubkey:
@@ -914,14 +940,9 @@ class OnionMessageManager(Logger):
             is_dummy_hop = True
         else:
             # not a dummy hop, check if we are configured to forward
-            if not self.network.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS:
+            if not self.lnwallet.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS:
                 self.logger.info(
                     'onion_message dropped (not forwarding due to lightning_forward_payments config option disabled')
-                return
-            # is next_node one of our peers?
-            next_peer = self.lnwallet.lnpeermgr.get_peer_by_pubkey(next_node_id)
-            if not next_peer:
-                self.logger.info(f'next node {next_node_id.hex()} not a peer, dropping message')
                 return
 
         if is_dummy_hop:
