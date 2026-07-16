@@ -40,6 +40,7 @@ from electrum.lnutil import (
 )
 from electrum.logging import console_stderr_handler
 from electrum.lnchannel import ChannelState, Channel
+from electrum.coinchooser import PRNG
 
 from . import ElectrumTestCase
 from .lnhelpers import create_test_channels
@@ -589,7 +590,7 @@ class TestChannel(ElectrumTestCase):
         self.assertTrue(chan.is_zeroconf())
         # add channel to lnwallet/db
         bob._channels[chan.channel_id] = chan
-        bob.db.get('channels')[chan.channel_id.hex()] = "something"
+        bob.db.get_dict('channels')[chan.channel_id.hex()] = "something"
         self.assertIsNotNone(bob.get_channel_by_id(chan.channel_id))
         chan.storage['init_height'] = 0  # checked by has_funding_timed_out
         chan.storage['init_timestamp'] = int(time.time())
@@ -601,7 +602,7 @@ class TestChannel(ElectrumTestCase):
 
         # assert nothing happened
         self.assertIsNotNone(bob.get_channel_by_id(chan.channel_id))
-        self.assertIsNotNone(bob.db.get('channels').get(chan.channel_id.hex()))
+        self.assertIsNotNone(bob.db.get_dict('channels').get(chan.channel_id.hex()))
         self.assertEqual(chan.get_state(), ChannelState.OPEN)
         self.assertEqual(bob.config.ZEROCONF_TRUSTED_NODE, trusted_node)
 
@@ -613,7 +614,7 @@ class TestChannel(ElectrumTestCase):
 
         # assert nothing happened again
         self.assertIsNotNone(bob.get_channel_by_id(chan.channel_id))
-        self.assertIsNotNone(bob.db.get('channels').get(chan.channel_id.hex()))
+        self.assertIsNotNone(bob.db.get_dict('channels').get(chan.channel_id.hex()))
         self.assertEqual(chan.get_state(), ChannelState.OPEN)
         self.assertEqual(bob.config.ZEROCONF_TRUSTED_NODE, trusted_node)
         self.assertFalse(chan.is_frozen_for_receiving())
@@ -636,7 +637,7 @@ class TestChannel(ElectrumTestCase):
 
         # check that channel got removed, now that funding has timed out
         self.assertIsNone(self.alice_lnwallet.get_channel_by_id(chan.channel_id))
-        self.assertIsNone(self.alice_lnwallet.db.get('channels').get(chan.channel_id.hex()))
+        self.assertIsNone(self.alice_lnwallet.db.get_dict('channels').get(chan.channel_id.hex()))
 
     async def test_should_be_closed_due_to_expiring_htlcs_offered_htlcs(self):
         alice_lnwallet = self.create_mock_lnwallet(name="alice")

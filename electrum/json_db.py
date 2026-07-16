@@ -26,18 +26,16 @@ import threading
 import copy
 import json
 from typing import TYPE_CHECKING, Optional, Sequence, List, Union, Dict, Any
+from contextlib import contextmanager
 
 import jsonpatch
 import jsonpointer
 
-from . import util
 from .util import WalletFileException, profiler, sticky_property
 from .logging import Logger
-from .stored_dict import StoredDict, _FLEX_KEY, registered_names, registered_keys, _convert_dict_key, _convert_dict_value
+from .stored_dict import _FLEX_KEY, BaseDB
+from .storage import FileStorage
 
-
-if TYPE_CHECKING:
-    from .storage import WalletStorage
 
 
 # We monkeypatch exceptions in the jsonpatch package to ensure they do not contain secrets from the DB.
@@ -84,36 +82,141 @@ def locked(func):
 
 
 
-
-class JsonDB(Logger):
+class JsonDB(BaseDB):
 
     def __init__(
-        self,
-        s: str,
-        *,
-        storage: Optional['WalletStorage'] = None,
-        encoder=None,
-        upgrader=None,
+            self,
+            path: Optional[str],
+            *,
+            allow_partial_writes = True,
+            init_db = True,
     ):
-        Logger.__init__(self)
+        BaseDB.__init__(self, path)
+        self._is_closed = True
         self.lock = threading.RLock()
-        self.storage = storage
-        self.encoder = encoder
         self.pending_changes = []  # type: List[str]
+        self._write_batch = False
         self._modified = False
-        # load data
-        data = self.load_data(s)
-        if upgrader:
-            data, was_upgraded = upgrader(data)
-            self._modified |= was_upgraded
-        # convert json to python objects
-        data = self._convert_dict([], data)
-        # convert dict to StoredDict
-        self.data = StoredDict(data, self)
-        self.data.set_parent(key='', parent=None)
+        if self.path:
+            self.storage = FileStorage(path, allow_partial_writes=allow_partial_writes)
+            if init_db and not self.is_encrypted():
+                # open DB if file is not encrypted
+                # otherwise, this will be called in self.decrypt
+                self.init_db()
+        else:
+            self.storage = None
+            self.json_data = {}
+            self._is_closed = False
+
+    def set_data(self, json_str):
+        self.json_data = self.load_data(json_str)
+
+    def init_db(self):
+        if self.storage.is_encrypted():
+            assert self.storage.is_past_initial_decryption()
+        json_str = self.storage.read()
+        self.json_data = self.load_data(json_str)
         # write file in case there was a db upgrade
-        if self.storage and self.storage.file_exists():
-            self.write_and_force_consolidation()
+        self.write_and_force_consolidation()
+        self._is_closed = False
+
+    def decrypt(self, password: str):
+        self.storage.decrypt(password)
+        json_str = self.storage.read()
+        self.set_data(json_str)
+        self._is_closed = False
+
+    def check_password(self, password):
+        self.storage.check_password(password)
+
+    def supports_file_encryption(self):
+        return bool(self.storage)
+
+    def get_encryption_version(self):
+        return self.storage.get_encryption_version()
+
+    def is_encrypted(self):
+        return self.storage and self.storage.is_encrypted()
+
+    def is_encrypted_with_user_pw(self) -> bool:
+        return self.storage and self.storage.is_encrypted_with_user_pw()
+
+    def is_encrypted_with_hw_device(self) -> bool:
+        return self.storage and self.storage.is_encrypted_with_hw_device()
+
+    def set_password(self, password: str, enc_version=None):
+        self.storage.set_password(password, enc_version=enc_version)
+
+    def file_exists(self):
+        return self.storage and self.storage.file_exists()
+
+    def _subdict(self, path):
+        d = self.json_data
+        for k in path[1:]:
+            d = d[k]
+        return d
+
+    def iter_keys(self, d, path):
+        return d.__iter__()
+
+    def dict_len(self, d, path):
+        return len(d)
+
+    def dict_contains(self, d, path, key):
+        return key in d
+
+    def replace(self, d, path, key, value):
+        # called by setattr
+        self.put(d, path, key, value)
+
+    @modifier
+    def put(self, d, path, key, value):
+        is_new = key not in d
+        if not is_new and d[key] == value:
+            return
+        d[key] = value
+        self.db_add(path, key, value) if is_new else self.db_replace(path, key, value)
+
+    @modifier
+    def clear(self, d, path):
+        d.clear()
+        path, key = path[:-1], path[-1]
+        self.db_replace(path, key, {})
+
+    def get(self, d, key):
+        return d[key]
+
+    def get_hint(self, path):
+        return self._subdict(path)
+
+    @modifier
+    def remove(self, d, path, key):
+        d.pop(key)
+        self.db_remove(path, key)
+
+    @modifier
+    def list_append(self, _list, path, item):
+        n = len(_list)
+        _list.append(item)
+        self.db_add(path, str(n), item)
+
+    def list_index(self, _list, path, item):
+        return _list.index(item)
+
+    def list_len(self, _list, path):
+        return len(_list)
+
+    @modifier
+    def list_clear(self, _list, path):
+        _list.clear()
+        self.db_remove(path[:-1], path[-1])
+        self.db_add(path[:-1], path[-1], [])
+
+    @modifier
+    def list_remove(self, _list, path, item):
+        n = _list.index(item)
+        _list.remove(item)
+        self.db_remove(path, str(n)) # fixme: keys
 
     def load_data(self, s: str) -> Dict[str, Any]:
         if s == '':
@@ -182,58 +285,20 @@ class JsonDB(Logger):
 
     @locked
     def add_patch(self, patch):
-        self.pending_changes.append(json.dumps(patch, cls=self.encoder))
+        self.pending_changes.append(json.dumps(patch))
         self.set_modified(True)
 
-    def add(self, path, key: _FLEX_KEY, value) -> None:
+    def db_add(self, path, key: _FLEX_KEY, value) -> None:
         assert isinstance(key, _FLEX_KEY), repr(key)
         self.add_patch({'op': 'add', 'path': key_path(path, key), 'value': value})
 
-    def replace(self, path, key: _FLEX_KEY, value) -> None:
+    def db_replace(self, path, key: _FLEX_KEY, value) -> None:
         assert isinstance(key, _FLEX_KEY), repr(key)
         self.add_patch({'op': 'replace', 'path': key_path(path, key), 'value': value})
 
-    def remove(self, path, key: _FLEX_KEY) -> None:
+    def db_remove(self, path, key: _FLEX_KEY) -> None:
         assert isinstance(key, _FLEX_KEY), repr(key)
         self.add_patch({'op': 'remove', 'path': key_path(path, key)})
-
-    @locked
-    def get(self, key, default=None):
-        v = self.data.get(key)
-        if v is None:
-            v = default
-        return v
-
-    @modifier
-    def put(self, key, value):
-        try:
-            json.dumps(key, cls=self.encoder)
-            json.dumps(value, cls=self.encoder)
-        except Exception:
-            self.logger.info(f"json error: cannot save {repr(key)} ({repr(value)})")
-            return False
-        if value is not None:
-            if self.data.get(key) != value:
-                self.data[key] = copy.deepcopy(value)
-                return True
-        elif key in self.data:
-            self.data.pop(key)
-            return True
-        return False
-
-    @locked
-    def get_dict(self, name) -> dict:
-        # Warning: interacts un-intuitively with 'put': certain parts
-        # of 'data' will have pointers saved as separate variables.
-        if name not in self.data:
-            self.data[name] = {}
-        return self.data[name]
-
-    @locked
-    def get_stored_item(self, key, default) -> dict:
-        if key not in self.data:
-            self.data[key] = default
-        return self.data[key]
 
     @locked
     def dump(self, *, human_readable: bool = True) -> str:
@@ -241,41 +306,40 @@ class JsonDB(Logger):
         'human_readable': makes the json indented and sorted, but this is ~2x slower
         """
         return json.dumps(
-            self.data,
+            self.json_data,
             indent=4 if human_readable else None,
             sort_keys=bool(human_readable),
-            cls=self.encoder,
         )
 
-    def _should_convert_to_stored_dict(self, key) -> bool:
-        return True
-
-    def _convert_dict_key(self, path: List[str], key: str) -> _FLEX_KEY:
-        return _convert_dict_key(path, key)
-
-    def _convert_dict_value(self, path: List[str], v) -> Any:
-        v = _convert_dict_value(path, v)
-        if isinstance(v, dict):
-            v = self._convert_dict(path, v)
-        return v
-
-    def _convert_dict(self, path: List[str], data: dict):
-        # recursively convert json dict to StoredDict
-        assert all(isinstance(x, str) for x in path), repr(path)
-        d = {}
-        for k, v in list(data.items()):
-            child_path = path + [k]
-            k = self._convert_dict_key(path, k)
-            v = self._convert_dict_value(child_path, v)
-            d[k] = v
-        return d
+    @contextmanager
+    def write_batch(self):
+        assert self._write_batch is False
+        self._write_batch = True
+        try:
+            yield
+        finally:
+            # FIXME: if an exception is raised here, changes will not be
+            # written to disk, but they will be added to the in-memory dict.
+            self._write_batch = False
+        if self.storage:
+            self.write()
 
     @locked
     def write(self):
+        assert self._write_batch is False
+        if not self.storage:
+            return
         if self.storage.should_do_full_write_next():
             self.write_and_force_consolidation()
         else:
             self._append_pending_changes()
+
+    def close(self):
+        # do not call write, because we may need to close the DB after an exception was raised during a batch write
+        self._is_closed = True
+
+    def is_closed(self):
+        return self._is_closed
 
     @locked
     def _append_pending_changes(self):
