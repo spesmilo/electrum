@@ -81,7 +81,9 @@ class SubmarineSwapMixin(QtEventListener):
 
         def transport_initialize_done(future: Future):
             if future.cancelled() or future.exception() is not None:
-                self.swap_transport = None
+                if self.swap_transport is not None:
+                    self.swap_transport.destroy()
+                    self.swap_transport = None
             self.swapAvailabilityChanged.emit()
 
         self.swap_transport.initialize(transport_initialize_done)

@@ -1658,7 +1658,7 @@ class SwapServerTransport(Logger):
         self.config = config
         self.is_connected = asyncio.Event()
         self.connect_timeout = 10 if self.uses_proxy else 5
-        self.ongoing_connection_attempt: Future = None
+        self.ongoing_connection_attempt: Optional[Future] = None
 
     def __enter__(self):
         pass
