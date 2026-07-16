@@ -98,6 +98,16 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.timer.start()
         signal.signal(signal.SIGINT, lambda *args: self._handle_sigint())
 
+        # Starting ChainwatchService from the background needs the app to be on
+        # the battery-optimization allowlist (Android 12+ FGS-start rule).
+        # Ask at most once; the method no-ops if already allowlisted.
+        try:
+            if not self.config.WALLET_ANDROID_BATTERY_OPTIMIZATION_PROMPTED:
+                self.app.appController.requestIgnoreBatteryOptimizations()
+                self.config.WALLET_ANDROID_BATTERY_OPTIMIZATION_PROMPTED = True
+        except Exception as e:
+            self.logger.warning(f'could not prompt battery optimization exemption: {e!r}')
+
         # schedule the hourly background "Chainwatch" service (Android only; no-op elsewhere)
         from .service.chainwatch import schedule_chainwatch
         try:
