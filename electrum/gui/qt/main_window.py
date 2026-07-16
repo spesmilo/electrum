@@ -1748,7 +1748,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
     def update_console(self):
         console = self.console
-        console.history = self.wallet.db.get_stored_item("qt-console-history", [])
+        console.history = self.wallet.db.get_list("qt-console-history")
         console.history_index = len(console.history)
 
         console.updateNamespace({
@@ -1950,8 +1950,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.update_lock_menu()
 
     def _update_wallet_password(self, *, old_password, new_password, xpub_encrypt=False):
+        encrypt_storage = self.wallet.storage.supports_file_encryption()
         try:
-            self.wallet.update_password(old_password, new_password, encrypt_storage=True, xpub_encrypt=xpub_encrypt)
+            self.wallet.update_password(
+                old_password, new_password,
+                encrypt_storage=encrypt_storage,
+                xpub_encrypt=xpub_encrypt)
         except InvalidPassword as e:
             self.show_error(str(e))
             return
