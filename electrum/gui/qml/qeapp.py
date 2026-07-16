@@ -228,6 +228,35 @@ class QEAppController(BaseCrashReporter, QObject):
         if permission_result_cb:
             permission_result_cb(grant_result)
 
+    @pyqtSlot(result=bool)
+    def hasBatteryOptimizationExemption(self) -> bool:
+        # Whether the app is on the battery-optimization allowlist, which is
+        # required to start ChainwatchService from the background (Android 12+
+        # FGS-start rule). NOTE: this is not a runtime permission -
+        # checkSelfPermission(REQUEST_IGNORE_BATTERY_OPTIMIZATIONS) is always
+        # granted; only PowerManager reflects the real allowlist state.
+        if not self.isAndroid():
+            return True
+        Context = autoclass('android.content.Context')
+        pm = cast('android.os.PowerManager',
+                  jpythonActivity.getSystemService(Context.POWER_SERVICE))
+        return pm.isIgnoringBatteryOptimizations(jpythonActivity.getPackageName())
+
+    @pyqtSlot()
+    def requestIgnoreBatteryOptimizations(self):
+        # Prompt the user (one-tap system dialog) to allowlist the app. No-op if
+        # already allowlisted. Requires the REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+        # permission. This is a Settings action, not a requestPermissions() flow.
+        if not self.isAndroid():
+            return
+        if self.hasBatteryOptimizationExemption():
+            return
+        Settings = autoclass('android.provider.Settings')
+        Uri = autoclass('android.net.Uri')
+        intent = jIntent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+        intent.setData(Uri.parse("package:" + jpythonActivity.getPackageName()))
+        jpythonActivity.startActivity(intent)
+
     def on_new_intent(self, intent):
         if not self._app_started:
             self._intent = intent
