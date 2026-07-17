@@ -692,7 +692,10 @@ class OnionMessageManager(Logger):
                 req.future.set_exception(copy.copy(e))
             else:
                 self.logger.debug(f'resubmit {key=}')
-                self.send_queue.put_nowait((now() + self.REQUEST_REPLY_RETRY_DELAY, expires, key))
+                delay = self.REQUEST_REPLY_RETRY_DELAY
+                if any(d.state is DestinationState.UNTRIED for d in req.destinations):
+                    delay = 0  # quickly try all destinations
+                self.send_queue.put_nowait((now() + delay, expires, key))
 
     def _remove_pending_message(self, key: bytes) -> None:
         with self.pending_lock:
