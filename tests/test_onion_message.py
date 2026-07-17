@@ -25,7 +25,7 @@ from electrum.onion_message import (
     create_blinded_path, OnionMessageManager, NoRouteFound, Timeout,
     create_route_to_introduction_point, get_blinded_paths_to_me, NoOnionMessagePeers
 )
-from electrum.util import bfh, read_json_file, OldTaskGroup, get_asyncio_loop
+from electrum.util import bfh, read_json_file, OldTaskGroup, get_asyncio_loop, wait_for2
 from electrum.logging import console_stderr_handler
 
 from . import ElectrumTestCase
@@ -501,16 +501,11 @@ class TestOnionMessageManager(ElectrumTestCase):
         lnw = self.create_mock_lnwallet(name='alice')
         lnw.node_keypair = self.alice
 
-        self.was_sent = False
+        sent = asyncio.Future()
 
         def on_send(to: str, *args, **kwargs):
-            self.assertEqual(to, 'bob')
-            self.was_sent = True
-            # validate what's sent to bob
-            self.assertEqual(bfh(HOPS[1]['E']), kwargs['path_key'])
-            message_type, payload = decode_msg(bfh(test_vectors['decrypt']['hops'][1]['onion_message']))
-            self.assertEqual(message_type, 'onion_message')
-            self.assertEqual(payload['onion_message_packet'], kwargs['onion_message_packet'])
+            if not sent.done():
+                sent.set_result((to, kwargs))
 
         lnw.lnpeermgr._peers[self.bob.pubkey] = MockPeer(self.bob.pubkey, on_send_message=partial(on_send, 'bob'))
         lnw.lnpeermgr._peers[self.carol.pubkey] = MockPeer(self.carol.pubkey, on_send_message=partial(on_send, 'carol'))
@@ -524,6 +519,7 @@ class TestOnionMessageManager(ElectrumTestCase):
                 'len': len(onionmsg),
                 'onion_message_packet': onionmsg
             })
+            to, kwargs = await wait_for2(sent, timeout=100*TIME_STEP)
         finally:
             await asyncio.sleep(2*TIME_STEP)
 
@@ -531,7 +527,12 @@ class TestOnionMessageManager(ElectrumTestCase):
             await t.stop()
             await lnw.stop()
 
-        self.assertTrue(self.was_sent)
+        self.assertEqual(to, 'bob')
+        # validate what's sent to bob
+        self.assertEqual(bfh(HOPS[1]['E']), kwargs['path_key'])
+        message_type, payload = decode_msg(bfh(test_vectors['decrypt']['hops'][1]['onion_message']))
+        self.assertEqual(message_type, 'onion_message')
+        self.assertEqual(payload['onion_message_packet'], kwargs['onion_message_packet'])
 
     async def test_receive_unsolicited(self):
         n = MockNetwork()
