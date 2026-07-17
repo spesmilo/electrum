@@ -18,7 +18,7 @@ Pane {
 
     // Whether to validate individual words against the wordlist.
     // When true, invalid words are visually flagged (red underline area).
-    // Does not block input — user can still type and correct.
+    // Does not block input - user can still type and correct.
     property bool validateWords: false
 
     property var _suggestions: []
