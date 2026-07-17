@@ -211,6 +211,7 @@ LNWALLET_FEATURES = (
     | LnFeatures.OPTION_SUPPORT_LARGE_CHANNEL_OPT
     | LnFeatures.OPTION_CHANNEL_TYPE_REQ
     | LnFeatures.OPTION_ROUTE_BLINDING_OPT
+    | LnFeatures.OPTION_ONION_MESSAGE_OPT
 )
 
 LNGOSSIP_FEATURES = (
@@ -1023,8 +1024,6 @@ class LNWallet(Logger):
             features = LNWALLET_FEATURES
             if self.config.OPEN_ZEROCONF_CHANNELS:
                 features |= LnFeatures.OPTION_ZEROCONF_OPT
-            if self.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS or self.config.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS:
-                features |= LnFeatures.OPTION_ONION_MESSAGE_OPT
             if self.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS and self.config.LIGHTNING_USE_GOSSIP:
                 features |= LnFeatures.GOSSIP_QUERIES_OPT  # signal we have gossip to fetch
         Logger.__init__(self)
