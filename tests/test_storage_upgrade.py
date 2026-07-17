@@ -7,6 +7,8 @@ import asyncio
 import inspect
 
 import electrum
+from electrum.stored_dict import DictStorage
+from electrum.stored_dict import StoredDict
 from electrum.wallet_db import WalletDBUpgrader, WalletDB, WalletRequiresUpgrade, WalletRequiresSplit
 from electrum.wallet import Wallet
 from electrum import constants
@@ -289,6 +291,7 @@ class TestStorageUpgrade(WalletTestCase):
         # see #6066
         wallet_str = self._get_wallet_str()
         db = await self._upgrade_storage(wallet_str)
+        assert not db.storage.is_closed()
         wallet = Wallet(db, config=self.config)
         ks = wallet.keystore
         # to simulate ks.opportunistically_fill_in_missing_info_from_device():
@@ -300,6 +303,7 @@ class TestStorageUpgrade(WalletTestCase):
         # see #6401
         wallet_str = self._get_wallet_str()
         db = await self._upgrade_storage(wallet_str)
+        assert not db.storage.is_closed()
         wallet = Wallet(db, config=self.config)
         wallet.import_private_keys(
             ["p2wpkh:L1cgMEnShp73r9iCukoPE3MogLeueNYRD9JVsfT1zVHyPBR3KqBY"],
@@ -357,7 +361,6 @@ class TestStorageUpgrade(WalletTestCase):
                 db = self._load_db_from_json_string(
                     wallet_json=wallet_json,
                     upgrade=True)
-                await self._sanity_check_upgraded_db(db)
             return db
         else:
             try:
@@ -369,14 +372,13 @@ class TestStorageUpgrade(WalletTestCase):
                 self.assertEqual(accounts, len(split_data))
                 for item in split_data:
                     data = json.dumps(item)
-                    new_db = WalletDB(data, storage=None, upgrade=True)
-                    await self._sanity_check_upgraded_db(new_db)
-
-    async def _sanity_check_upgraded_db(self, db):
-        wallet = Wallet(db, config=self.config)
-        await wallet.stop()
+                    storage = DictStorage(None)
+                    storage.set_data(data)
+                    new_db = WalletDB(storage, upgrade=True)
 
     @staticmethod
     def _load_db_from_json_string(*, wallet_json, upgrade):
-        db = WalletDB(wallet_json, storage=None, upgrade=upgrade)
+        storage = DictStorage(None)
+        storage.set_data(wallet_json)
+        db = WalletDB(storage, upgrade=upgrade)
         return db

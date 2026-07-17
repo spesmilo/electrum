@@ -637,7 +637,6 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
                 self.saveTxError.emit(tx.txid(), 'conflict',
                             _("Transaction could not be saved.") + "\n" + _("It conflicts with current history."))
                 return False
-            self.wallet.save_db()
             self.saveTxSuccess.emit(tx.txid())
             self.historyModel.initModel(True)
             return True
@@ -754,7 +753,8 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
         try:
             self._logger.info('setting new password')
-            self.wallet.update_password(current_password, password, encrypt_storage=True)
+            encrypt_storage = self.wallet.storage.supports_file_encryption()
+            self.wallet.update_password(current_password, password, encrypt_storage=encrypt_storage)
             # restore the invariant that all loaded wallets in qml must be unlocked:
             self.wallet.unlock(password)
             return True

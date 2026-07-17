@@ -140,6 +140,9 @@ class LNWatcher(Logger, EventListener):
         # early return if address has not been added yet
         if not self.adb.is_mine(address):
             return
+        # early return if storage has been closed
+        if self.adb.db.storage.is_closed():
+            return
         # inspect_tx_candidate might have added new addresses, in which case we return early
         # note: maybe we should wait until adb.is_up_to_date... (?)
         funding_txid = funding_outpoint.split(':')[0]

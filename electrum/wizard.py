@@ -12,7 +12,8 @@ from electrum.logging import get_logger
 from electrum.network import ProxySettings
 from electrum.plugin import run_hook
 from electrum.slip39 import EncryptedSeed
-from electrum.storage import WalletStorage, StorageEncryptionVersion, StorageReadWriteError
+from electrum.stored_dict import StorageReadWriteError
+from electrum.stored_dict import DictStorage, PasswordType
 from electrum.util import UserFacingException
 from electrum.wallet_db import WalletDB
 from electrum.bip32 import normalize_bip32_derivation, xpub_type
@@ -687,7 +688,7 @@ class NewWalletWizard(KeystoreWizard):
         if os.path.exists(path):
             raise UserFacingException(_('File already exists at path: {}').format(path))
         try:
-            storage = WalletStorage(path)
+            storage = DictStorage(path)
         except StorageReadWriteError as e:
             raise UserFacingException(e)
 
@@ -772,15 +773,15 @@ class NewWalletWizard(KeystoreWizard):
             if k and k.may_have_password():
                 k.update_password(None, data['password'])
 
-        if data['encrypt']:
+        if data['password'] and data['encrypt']:
             if data.get('xpub_encrypt'):
                 assert data.get('keystore_type') == 'hardware' and data['wallet_type'] == 'standard'
-                enc_version = StorageEncryptionVersion.XPUB_PASSWORD
+                password_type = PasswordType.XPUB
             else:
-                enc_version = StorageEncryptionVersion.USER_PASSWORD
-            storage.set_password(data['password'], enc_version=enc_version)
+                password_type = PasswordType.USER
+            storage.add_password(data['password'], password_type)
 
-        db = WalletDB('', storage=storage, upgrade=True)
+        db = WalletDB(storage)
         db.set_keystore_encryption(bool(data['password']))
 
         db.put('wallet_type', data['wallet_type'])
@@ -823,7 +824,8 @@ class NewWalletWizard(KeystoreWizard):
             db.put('lightning_xprv', k.get_lightning_xprv(data['password']))
 
         db.load_plugins()
-        db.write()
+        storage.write()
+        storage.close()
 
 
 class ServerConnectWizard(AbstractWizard):
