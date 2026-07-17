@@ -16,7 +16,13 @@ Pane {
     property string indicatorText
     property bool indicatorValid
 
+    // Whether to validate individual words against the wordlist.
+    // When true, invalid words are visually flagged (red underline area).
+    // Does not block input — user can still type and correct.
+    property bool validateWords: false
+
     property var _suggestions: []
+    property var _invalidWordIndices: []
 
     onTextChanged: {
         if (seedtextarea.text != text)
@@ -63,6 +69,19 @@ Pane {
                 _suggestions = bitcoin.mnemonicsFor(seedtextarea.text.split(' ').pop())
                 // TODO: cursorPosition only on suggestion apply
                 cursorPosition = text.length
+
+                // per-word validation: flag words not in the wordlist
+                if (root.validateWords) {
+                    var words = seedtextarea.text.split(' ')
+                    // last word may be incomplete (still being typed), skip it
+                    var invalid = []
+                    for (var i = 0; i < words.length - 1; i++) {
+                        if (words[i].length > 0 && !bitcoin.isWordInWordlist(words[i])) {
+                            invalid.push(i)
+                        }
+                    }
+                    _invalidWordIndices = invalid
+                }
             }
 
             Rectangle {
@@ -84,6 +103,19 @@ Pane {
                 font.bold: false
                 font.pixelSize: constants.fontSizeSmall
             }
+        }
+
+        Label {
+            id: invalidWordWarning
+            visible: root.validateWords && _invalidWordIndices.length > 0
+            text: _invalidWordIndices.length === 1
+                ? qsTr('Word %1 is not in the word list').arg(_invalidWordIndices[0] + 1)
+                : qsTr('%1 words are not in the word list').arg(_invalidWordIndices.length)
+            color: Material.color(Material.Red)
+            font.pixelSize: constants.fontSizeSmall
+            Layout.fillWidth: true
+            wrapMode: Text.Wrap
+            leftPadding: constants.paddingXXSmall
         }
 
         Flickable {

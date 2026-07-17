@@ -125,3 +125,11 @@ class QEBitcoin(QObject):
         if not self._words:
             self._words = set(Mnemonic('en').wordlist).union(set(old_wordlist))
         return sorted(filter(lambda x: x.startswith(fragment), self._words))
+
+    @pyqtSlot(str, result=bool)
+    def isWordInWordlist(self, word):
+        if not word:
+            return True
+        if not self._words:
+            self._words = set(Mnemonic('en').wordlist).union(set(old_wordlist))
+        return word in self._words
