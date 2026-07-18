@@ -6,6 +6,7 @@ import sys
 import inspect
 
 import electrum_ecc as ecc
+from electrum_ecc.util import bip340_tagged_hash
 
 from electrum import bitcoin
 from electrum.bitcoin import (public_key_to_p2pkh, address_from_private_key,
@@ -16,7 +17,7 @@ from electrum.bitcoin import (public_key_to_p2pkh, address_from_private_key,
                               is_compressed_privkey, EncodeBase58Check, DecodeBase58Check,
                               script_num_to_bytes, push_script, add_number_to_script,
                               opcodes, base_encode, base_decode, BitcoinException,
-                              tapleaf_hash, taproot_tweak_pubkey, taproot_tweak_seckey, taproot_output_script,
+                              tapleaf_hash, taproot_tweak_hash, taproot_tweak_pubkey, taproot_tweak_seckey, taproot_output_script,
                               control_block_for_taproot_script_spend)
 from electrum import bip32
 from electrum import segwit_addr
@@ -1166,6 +1167,21 @@ class TestBaseEncode(ElectrumTestCase):
 
 
 class TestTaprootHelpers(ElectrumTestCase):
+
+    def test_taproot_tweak_hash_preserves_helper_assertions(self):
+        pubkey32 = bytes.fromhex("79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798")
+        self.assertEqual(
+            taproot_tweak_hash(pubkey32, b""),
+            bip340_tagged_hash(b"TapTweak", pubkey32),
+        )
+        for pubkey, merkle_root in (
+            (bytearray(pubkey32), b""),
+            (pubkey32, bytearray()),
+            (bytes(31), b""),
+        ):
+            with self.subTest(pubkey=pubkey, merkle_root=merkle_root):
+                with self.assertRaises(AssertionError):
+                    taproot_tweak_hash(pubkey, merkle_root)
 
     def test_tapleaf_hash_validates_leaf_versions(self):
         for leaf_version in (0x00, 0x66, 0xC0, 0xFE):
