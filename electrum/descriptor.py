@@ -32,7 +32,9 @@ import electrum_ecc as ecc
 
 from .bip32 import convert_bip32_strpath_to_intpath, BIP32Node, KeyOriginInfo, BIP32_PRIME
 from . import bitcoin
-from .bitcoin import construct_script, opcodes, construct_witness, taproot_output_script
+from .bitcoin import (
+    LEAF_VERSION_TAPSCRIPT, construct_script, opcodes, construct_witness, taproot_output_script,
+)
 from . import constants
 from .crypto import hash_160, sha256
 from . import segwit_addr
@@ -808,9 +810,8 @@ class TRDescriptor(Descriptor):
         if self.desc_tree:
             def transform(tree_node):
                 if isinstance(tree_node, Descriptor):
-                    leaf_version = 0xc0
                     leaf_script = tree_node.expand(pos=pos).scriptcode_for_sighash  # FIXME maybe rename scriptcode_for_sighash
-                    return (leaf_version, leaf_script)
+                    return (LEAF_VERSION_TAPSCRIPT, leaf_script)
                 assert len(tree_node) == 2, len(tree_node)
                 return [transform(tree_node[0]), transform(tree_node[1])]
             script_tree = transform(self.desc_tree)

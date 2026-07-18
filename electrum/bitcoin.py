@@ -793,6 +793,19 @@ class DummyAddress:
 class DummyAddressUsedInTxException(Exception): pass
 
 
+LEAF_VERSION_TAPSCRIPT = 0xC0
+
+
+def tapleaf_hash(*, leaf_version: int, script: bytes) -> bytes:
+    if not isinstance(script, bytes):
+        raise TypeError("tapleaf script must be bytes")
+    if type(leaf_version) is not int:
+        raise TypeError("tapleaf version must be an integer")
+    if not 0 <= leaf_version <= 0xFE or leaf_version & 1 or leaf_version == 0x50:
+        raise ValueError("invalid tapleaf version")
+    return bip340_tagged_hash(b"TapLeaf", bytes([leaf_version]) + witness_push(script))
+
+
 def taproot_tweak_pubkey(pubkey32: bytes, h: bytes) -> Tuple[int, bytes]:
     assert isinstance(pubkey32, bytes), type(pubkey32)
     assert isinstance(h, bytes), type(h)
@@ -832,8 +845,9 @@ TapTree = Union[TapTreeLeaf, Sequence['TapTree']]
 def taproot_tree_helper(script_tree: TapTree):
     if isinstance(script_tree, tuple):
         leaf_version, script = script_tree
-        h = bip340_tagged_hash(b"TapLeaf", bytes([leaf_version]) + witness_push(script))
-        return [((leaf_version, script), bytes())], h
+        return [((leaf_version, script), bytes())], tapleaf_hash(
+            leaf_version=leaf_version, script=script
+        )
     left, left_h = taproot_tree_helper(script_tree[0])
     right, right_h = taproot_tree_helper(script_tree[1])
     ret = [(l, c + right_h) for l, c in left] + [(l, c + left_h) for l, c in right]

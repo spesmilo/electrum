@@ -522,6 +522,7 @@ class TxBatch(Logger):
                     txin.make_witness = sweep_info.txin.make_witness
                     txin.privkey = sweep_info.txin.privkey
                     txin.witness_script = sweep_info.txin.witness_script
+                    txin.tap_script_signing_data = sweep_info.txin.tap_script_signing_data
                     txin.script_sig = sweep_info.txin.script_sig
 
     def _create_batch_tx(

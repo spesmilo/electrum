@@ -47,7 +47,7 @@ from .util import to_bytes, bfh, chunks, is_hex_str, parse_max_spend
 from .bitcoin import (
     TYPE_ADDRESS, TYPE_SCRIPT, hash_160, hash160_to_p2sh, hash160_to_p2pkh, hash_to_segwit_addr, var_int,
     TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN, opcodes, base_decode, base_encode, construct_witness, construct_script,
-    taproot_tweak_seckey
+    LEAF_VERSION_TAPSCRIPT, tapleaf_hash, taproot_tweak_pubkey, taproot_tweak_seckey, witness_push,
 )
 from .crypto import sha256d, sha256
 from .logging import get_logger
@@ -126,6 +126,65 @@ class Sighash(IntEnum):
         if sighash == Sighash.DEFAULT:
             return b""
         return sighash.to_bytes(length=1, byteorder="big")
+
+
+class TapScriptSigningData(NamedTuple):
+    """Ephemeral BIP342 signing data. This is deliberately not serialized to PSBT."""
+
+    script: bytes
+    control_block: bytes
+    annex: Optional[bytes] = None
+    key_version: int = 0
+    codesep_pos: int = 0xFFFFFFFF
+
+    def validate(self, *, scriptpubkey: bytes) -> bytes:
+        if not isinstance(self.script, bytes):
+            raise TypeError("tapscript must be bytes")
+        if not isinstance(self.control_block, bytes):
+            raise TypeError("taproot control block must be bytes")
+        if len(self.control_block) < 33 or (len(self.control_block) - 33) % 32:
+            raise ValueError("invalid taproot control block length")
+        if (len(self.control_block) - 33) // 32 > 128:
+            raise ValueError("taproot control block Merkle path is too deep")
+        leaf_version = self.control_block[0] & 0xFE
+        if leaf_version != LEAF_VERSION_TAPSCRIPT:
+            raise ValueError("unsupported tapscript leaf version")
+        if type(self.key_version) is not int or self.key_version != 0:
+            raise ValueError("invalid tapscript key version")
+        if type(self.codesep_pos) is not int or not 0 <= self.codesep_pos <= 0xFFFFFFFF:
+            raise ValueError("invalid tapscript code-separator position")
+        if self.codesep_pos != 0xFFFFFFFF:
+            try:
+                opcode = next(
+                    opcode for pos, (opcode, _data, _end) in enumerate(script_GetOp(self.script))
+                    if pos == self.codesep_pos
+                )
+            except (MalformedBitcoinScript, StopIteration) as e:
+                raise ValueError("invalid tapscript code-separator position") from e
+            if opcode != opcodes.OP_CODESEPARATOR:
+                raise ValueError("tapscript code-separator position does not reference OP_CODESEPARATOR")
+        if self.annex is not None:
+            if not isinstance(self.annex, bytes):
+                raise TypeError("taproot annex must be bytes")
+            if not self.annex or self.annex[0] != 0x50:
+                raise ValueError("taproot annex must start with 0x50")
+        if (not isinstance(scriptpubkey, bytes)
+                or len(scriptpubkey) != 34
+                or scriptpubkey[:2] != b"\x51\x20"):
+            raise ValueError("tapscript signing requires a P2TR scriptPubKey")
+
+        leaf_hash = tapleaf_hash(leaf_version=leaf_version, script=self.script)
+        root = leaf_hash
+        for pos in range(33, len(self.control_block), 32):
+            sibling = self.control_block[pos:pos + 32]
+            root = bip340_tagged_hash(b"TapBranch", min(root, sibling) + max(root, sibling))
+        try:
+            parity, output_key = taproot_tweak_pubkey(self.control_block[1:33], root)
+        except (ValueError, ecc.InvalidECPointException) as e:
+            raise ValueError("invalid taproot control block internal key") from e
+        if parity != (self.control_block[0] & 1) or output_key != scriptpubkey[2:]:
+            raise ValueError("taproot control block does not match scriptPubKey")
+        return leaf_hash
 
 
 class TxOutput:
@@ -347,6 +406,7 @@ class TxInput:
         self.__value_sats = None  # type: Optional[int]
 
         self._is_taproot = None  # type: Optional[bool]  # None means unknown
+        self.tap_script_signing_data = None  # type: Optional[TapScriptSigningData]
 
     def get_time_based_relative_locktime(self) -> Optional[int]:
         # see bip 68
@@ -1074,7 +1134,29 @@ class Transaction:
             sighash_cache = SighashCache()
         if txin.is_segwit():
             if txin.is_taproot():
+                tap_script_data = txin.tap_script_signing_data
+                if tap_script_data is not None:
+                    # The existing BIP341 cache eagerly computes all shared fields.
+                    for required_txin in inputs:
+                        prevout = required_txin.prevout
+                        if (not isinstance(prevout, TxOutpoint)
+                                or not isinstance(prevout.txid, bytes) or len(prevout.txid) != 32
+                                or type(prevout.out_idx) is not int or not 0 <= prevout.out_idx <= 0xFFFFFFFF):
+                            raise ValueError("missing or invalid taproot input outpoint")
+                        value = required_txin.value_sats()
+                        if type(value) is not int or not 0 <= value <= TOTAL_COIN_SUPPLY_LIMIT_IN_BTC * COIN:
+                            raise ValueError("missing or invalid taproot input value")
+                        if not isinstance(required_txin.scriptpubkey, bytes):
+                            raise ValueError("missing or invalid taproot input scriptPubKey")
+                        if type(required_txin.nsequence) is not int or not 0 <= required_txin.nsequence <= 0xFFFFFFFF:
+                            raise ValueError("invalid taproot input sequence")
+                    scriptpubkey = txin.scriptpubkey
+                    if not isinstance(scriptpubkey, bytes):
+                        raise ValueError("missing or invalid taproot input scriptPubKey")
+                    tapleaf = tap_script_data.validate(scriptpubkey=scriptpubkey)
                 scache = sighash_cache.get_witver1_data_for_tx(self)
+                ext_flag = 1 if tap_script_data is not None else 0
+                annex = tap_script_data.annex if tap_script_data is not None else None
                 sighash_epoch = b"\x00"
                 hash_type = int.to_bytes(sighash, length=1, byteorder="little", signed=False)
                 # txdata
@@ -1090,7 +1172,7 @@ class Transaction:
                     preimage_txdata += scache.sha_outputs
                 # inputdata
                 preimage_inputdata = bytearray()
-                spend_type = bytes([0])  # (ext_flag * 2) + annex_present
+                spend_type = bytes([ext_flag * 2 + (annex is not None)])
                 preimage_inputdata += spend_type
                 if sighash & 0x80 == Sighash.ANYONECANPAY:
                     preimage_inputdata += txin.prevout.serialize_to_network()
@@ -1099,7 +1181,8 @@ class Transaction:
                     preimage_inputdata += int.to_bytes(txin.nsequence, length=4, byteorder="little", signed=False)
                 else:
                     preimage_inputdata += int.to_bytes(txin_index, length=4, byteorder="little", signed=False)
-                # TODO sha_annex
+                if annex is not None:
+                    preimage_inputdata += sha256(witness_push(annex))
                 # outputdata
                 preimage_outputdata = bytearray()
                 if sighash & 3 == Sighash.SINGLE:
@@ -1109,7 +1192,13 @@ class Transaction:
                         raise Exception("Using SIGHASH_SINGLE without a corresponding output") from None
                     # note: we could cache this to avoid some potential DOS vectors:
                     preimage_outputdata += sha256(txout.serialize_to_network())
-                return bytes(sighash_epoch + hash_type + preimage_txdata + preimage_inputdata + preimage_outputdata)
+                preimage_ext = bytearray()
+                if tap_script_data is not None:
+                    preimage_ext += tapleaf
+                    preimage_ext += bytes([tap_script_data.key_version])
+                    preimage_ext += tap_script_data.codesep_pos.to_bytes(4, byteorder="little")
+                return bytes(sighash_epoch + hash_type + preimage_txdata + preimage_inputdata
+                             + preimage_outputdata + preimage_ext)
             else:  # segwit (witness v0)
                 scache = sighash_cache.get_witver0_data_for_tx(self)
                 if not (sighash & Sighash.ANYONECANPAY):
@@ -1742,6 +1831,7 @@ class PartialTxInput(TxInput, PSBTSection):
                              witness=None if strip_witness else txin.witness,
                              is_coinbase_output=txin.is_coinbase_output())
         res.utxo = txin.utxo
+        res.tap_script_signing_data = txin.tap_script_signing_data
         return res
 
     def validate_data(
@@ -2497,14 +2587,31 @@ class PartialTransaction(Transaction):
         *,
         sighash_cache: SighashCache = None,
     ) -> bytes:
-        txin = self.inputs()[txin_index]
+        inputs = self.inputs()
+        if type(txin_index) is not int or not 0 <= txin_index < len(inputs):
+            raise ValueError(f"invalid transaction input index: {txin_index!r}")
+        txin = inputs[txin_index]
         txin.validate_data(for_signing=True)
+        if txin.tap_script_signing_data is not None:
+            sighash = txin.sighash if txin.sighash is not None else Sighash.DEFAULT
+            if not Sighash.is_valid(sighash, is_taproot=True):
+                raise ValueError(f"SIGHASH_FLAG ({sighash}) not supported!")
+            value = txin.value_sats()
+            if type(value) is not int or not 0 <= value <= TOTAL_COIN_SUPPLY_LIMIT_IN_BTC * COIN:
+                raise ValueError("missing or invalid taproot input value")
+            if not isinstance(txin.scriptpubkey, bytes):
+                raise ValueError("missing or invalid taproot input scriptPubKey")
+            if txin.is_taproot() is not True:
+                raise ValueError("tapscript signing requires a P2TR input")
         pre_hash = self.serialize_preimage(txin_index, sighash_cache=sighash_cache)
         if txin.is_taproot():
-            # note: privkey_bytes is the internal key
-            merkle_root = txin.tap_merkle_root or bytes()
-            output_privkey_bytes = taproot_tweak_seckey(privkey_bytes, merkle_root)
-            output_privkey = ecc.ECPrivkey(output_privkey_bytes)
+            if txin.tap_script_signing_data is not None:
+                output_privkey = ecc.ECPrivkey(privkey_bytes)
+            else:
+                # note: privkey_bytes is the internal key
+                merkle_root = txin.tap_merkle_root or bytes()
+                output_privkey_bytes = taproot_tweak_seckey(privkey_bytes, merkle_root)
+                output_privkey = ecc.ECPrivkey(output_privkey_bytes)
             msg_hash = bip340_tagged_hash(b"TapSighash", pre_hash)
             sig = output_privkey.schnorr_sign(msg_hash)
             sighash = txin.sighash if txin.sighash is not None else Sighash.DEFAULT
