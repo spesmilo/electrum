@@ -85,6 +85,7 @@ class HttpSwapServer(Logger, EventListener):
             "info": [],
             "warnings": [],
             "htlcFirst": True,
+            "protocols": ["taproot-v1"],
             "pairs": {
                 "BTC/BTC": {
                     "rate": 1,

@@ -1047,29 +1047,47 @@ class SwapManager(Logger):
         """ server method.
         (client-forward-swap phase2)
         """
-        invoice = request['invoice']
-        invoice = Invoice.from_bech32(invoice)
-        key = invoice.rhash
-        payment_hash = bytes.fromhex(key)
-        their_pubkey = bytes.fromhex(request['refundPublicKey'])
+        if type(request) is not dict:
+            raise ValueError("add swap invoice request must be an object")
+        try:
+            invoice = Invoice.from_bech32(request['invoice'])
+            their_pubkey = _parse_compressed_pubkey(request['refundPublicKey'], name="refund public key")
+            invoice_amount = int(invoice.get_amount_sat())
+            key = invoice.rhash
+            payment_hash = bytes.fromhex(key)
+        except Exception as e:
+            raise ValueError("invalid add swap invoice request") from e
         with self.swaps_lock:
-            assert key in self._swaps
-            swap = self._swaps[key]
-            assert swap.lightning_amount == int(invoice.get_amount_sat())
-            assert swap.is_reverse is True
+            swap = self._swaps.get(key)
+            if swap is None:
+                raise ValueError("unknown swap")
+            if swap.lightning_amount != invoice_amount:
+                raise ValueError("invoice amount does not match swap")
+            if swap.is_reverse is not True:
+                raise ValueError("swap direction does not accept an invoice")
             # check that we have the preimage
-            assert sha256(swap.preimage) == payment_hash
-            assert swap.spending_txid is None
-            # check their_pubkey by recalculating redeem_script
-            our_pubkey = ECPrivkey(swap.privkey).get_public_key_bytes(compressed=True)
-            redeem_script = _construct_swap_scriptcode(
-                payment_hash=payment_hash, locktime=swap.locktime, refund_pubkey=their_pubkey, claim_pubkey=our_pubkey,
-            )
-            assert swap.redeem_script == redeem_script
-            assert key not in self.invoices_to_pay
-            self.invoices_to_pay[key] = 0
-            assert self.wallet.get_invoice(invoice.get_id()) is None
+            if swap.preimage is None or sha256(swap.preimage) != payment_hash:
+                raise ValueError("swap preimage does not match invoice")
+            if swap.spending_txid is not None:
+                raise ValueError("swap funding output is already spent")
+            if swap.protocol == TAPROOT_SWAP_PROTOCOL:
+                if not swap.is_provider or swap.their_pubkey != their_pubkey:
+                    raise ValueError("refund public key does not match Taproot swap")
+                self._validate_taproot_swap(swap)
+            else:
+                our_pubkey = ECPrivkey(swap.privkey).get_public_key_bytes(compressed=True)
+                redeem_script = _construct_swap_scriptcode(
+                    payment_hash=payment_hash,
+                    locktime=swap.locktime,
+                    refund_pubkey=their_pubkey,
+                    claim_pubkey=our_pubkey,
+                )
+                if swap.redeem_script != redeem_script:
+                    raise ValueError("refund public key does not match swap contract")
+            if key in self.invoices_to_pay or self.wallet.get_invoice(invoice.get_id()) is not None:
+                raise ValueError("swap invoice is already queued or stored")
             self.wallet.save_invoice(invoice)
+            self.invoices_to_pay[key] = 0
         return {}
 
     async def normal_swap(
@@ -1738,13 +1756,25 @@ class SwapManager(Logger):
 
     def server_create_normal_swap(self, request):
         # normal for client, reverse for server
-        #request = await r.json()
-        lightning_amount_sat = request['invoiceAmount']
-        their_pubkey = bytes.fromhex(request['refundPublicKey'])
-        assert len(their_pubkey) == 33
+        if type(request) is not dict:
+            raise ValueError("normal swap request must be an object")
+        protocol = request.get('protocol')
+        if protocol not in (None, TAPROOT_SWAP_PROTOCOL):
+            raise ValueError("unsupported swap protocol")
+        try:
+            lightning_amount_sat = request['invoiceAmount']
+            their_pubkey = _parse_compressed_pubkey(
+                request['refundPublicKey'], name="refund public key",
+            )
+        except (KeyError, TypeError, ValueError) as e:
+            raise ValueError("invalid normal swap request") from e
+        if type(lightning_amount_sat) is not int or lightning_amount_sat <= 0:
+            raise ValueError("invalid invoice amount")
+        is_taproot = protocol == TAPROOT_SWAP_PROTOCOL
         swap = self.create_reverse_swap(
             lightning_amount_sat=lightning_amount_sat,
             their_pubkey=their_pubkey,
+            is_taproot=is_taproot,
         )
         response = {
             "id": swap.payment_hash.hex(),
@@ -1753,40 +1783,74 @@ class SwapManager(Logger):
             "expectedAmount": swap.onchain_amount,
             "timeoutBlockHeight": swap.locktime,
             "address": swap.lockup_address,
-            "redeemScript": swap.redeem_script.hex(),
         }
+        if is_taproot:
+            contract = self.get_taproot_contract(swap)
+            response.update({
+                'protocol': TAPROOT_SWAP_PROTOCOL,
+                'claimPublicKey': contract.provider_pubkey.hex(),
+                'swapTree': contract.serialized_tree(),
+            })
+        else:
+            response['redeemScript'] = swap.redeem_script.hex()
         return response
 
     def server_create_swap(self, request):
         # reverse for client, forward for server
-        # requesting a normal swap (old protocol) will raise an exception
-        #request = await r.json()
-        req_type = request['type']
-        assert request['pairId'] == 'BTC/BTC'
+        if type(request) is not dict:
+            raise ValueError("create swap request must be an object")
+        protocol = request.get('protocol')
+        if protocol not in (None, TAPROOT_SWAP_PROTOCOL):
+            raise ValueError("unsupported swap protocol")
+        try:
+            req_type = request['type']
+            pair_id = request['pairId']
+        except KeyError as e:
+            raise ValueError("invalid create swap request") from e
+        if pair_id != 'BTC/BTC':
+            raise ValueError("unsupported swap pair")
         if req_type == 'reversesubmarine':
-            lightning_amount_sat=request['invoiceAmount']
-            payment_hash=bytes.fromhex(request['preimageHash'])
-            their_pubkey=bytes.fromhex(request['claimPublicKey'])
-            assert len(payment_hash) == 32
-            assert len(their_pubkey) == 33
+            try:
+                lightning_amount_sat = request['invoiceAmount']
+                payment_hash = bytes.fromhex(request['preimageHash'])
+                their_pubkey = _parse_compressed_pubkey(
+                    request['claimPublicKey'], name="claim public key",
+                )
+            except (KeyError, TypeError, ValueError) as e:
+                raise ValueError("invalid reverse swap request") from e
+            if type(lightning_amount_sat) is not int or lightning_amount_sat <= 0:
+                raise ValueError("invalid invoice amount")
+            if len(payment_hash) != 32:
+                raise ValueError("invalid preimage hash")
+            is_taproot = protocol == TAPROOT_SWAP_PROTOCOL
             swap, invoice, prepay_invoice = self.create_normal_swap(
                 lightning_amount_sat=lightning_amount_sat,
                 payment_hash=payment_hash,
-                their_pubkey=their_pubkey
+                their_pubkey=their_pubkey,
+                is_taproot=is_taproot,
             )
             response = {
                 'id': payment_hash.hex(),
                 'invoice': invoice,
                 'minerFeeInvoice': prepay_invoice,
                 'lockupAddress': swap.lockup_address,
-                'redeemScript': swap.redeem_script.hex(),
                 'timeoutBlockHeight': swap.locktime,
                 "onchainAmount": swap.onchain_amount,
             }
+            if is_taproot:
+                contract = self.get_taproot_contract(swap)
+                response.update({
+                    'protocol': TAPROOT_SWAP_PROTOCOL,
+                    'acceptZeroConf': False,
+                    'refundPublicKey': contract.provider_pubkey.hex(),
+                    'swapTree': contract.serialized_tree(),
+                })
+            else:
+                response['redeemScript'] = swap.redeem_script.hex()
         elif req_type == 'submarine':
             raise Exception('Deprecated API. Please upgrade your version of Electrum')
         else:
-            raise Exception('unsupported request type:' + req_type)
+            raise ValueError('unsupported request type:' + str(req_type))
         return response
 
     def get_groups_for_onchain_history(self):
@@ -2149,6 +2213,7 @@ class NostrTransport(SwapServerTransport):
             'max_forward_amount': sm._max_forward,
             'max_reverse_amount': sm._max_reverse,
             'relays': sm.config.NOSTR_RELAYS,
+            'protocols': [TAPROOT_SWAP_PROTOCOL],
             'pow_nonce': hex(sm.config.SWAPSERVER_ANN_POW_NONCE),
         }
         # the first value of a single letter tag is indexed and can be filtered for
@@ -2200,6 +2265,8 @@ class NostrTransport(SwapServerTransport):
         self.dm_replies[(server_pubkey, event_id)] = fut = asyncio.Future()
         response = await fut
         assert isinstance(response, dict)
+        response = dict(response)
+        response.pop('reply_to', None)
         if 'error' in response:
             self.logger.warning(f"error from swap server [DO NOT TRUST THIS MESSAGE]: {response['error']}")
             raise SwapServerError()
