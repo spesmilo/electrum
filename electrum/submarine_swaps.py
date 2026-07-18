@@ -252,10 +252,12 @@ class SwapData(StoredObject):
     protocol = attr.ib(type=Optional[str], default=None)
     their_pubkey = attr.ib(type=Optional[bytes], converter=hex_to_bytes, default=None)
     is_cooperative = attr.ib(type=bool, default=False)
+    refund_cancelled = attr.ib(type=bool, default=False)
     is_provider = attr.ib(type=bool, default=False)
 
     _funding_prevout = None  # type: Optional[TxOutpoint]  # for RBF
     _payment_hash = None
+    _lightning_payment_pending = False
     _payment_pending = False # for forward swaps
 
     @property
@@ -318,6 +320,8 @@ class SwapManager(Logger):
         for k, swap in self._swaps.items():
             if swap.prepay_hash is not None:
                 self._prepayments[swap.prepay_hash] = bytes.fromhex(k)
+        # MuSig secret nonces are intentionally memory-only.
+        self._musig_sessions = {}
         self.invoices_to_pay = {}
         self.is_server = False # overridden by swapserver plugin if enabled
         self.is_initialized = asyncio.Event()
@@ -483,13 +487,25 @@ class SwapManager(Logger):
 
     async def pay_invoice(self, key):
         self.logger.info(f'trying to pay invoice {key}')
-        self.invoices_to_pay[key] = 1000000000000 # lock
+        with self.swaps_lock:
+            swap = self._swaps.get(key)
+            if swap is not None and swap.refund_cancelled:
+                self.logger.info(f'not paying cancelled swap invoice {key}')
+                self.invoices_to_pay.pop(key, None)
+                return
+            self.invoices_to_pay[key] = 1000000000000 # lock
+            if swap is not None:
+                swap._lightning_payment_pending = True
         try:
             invoice = self.wallet.get_invoice(key)
             success, log = await self.lnworker.pay_invoice(invoice)
         except Exception as e:
             self.logger.info(f'exception paying {key}, will not retry')
             self.invoices_to_pay.pop(key, None)
+        finally:
+            if swap is not None:
+                with self.swaps_lock:
+                    swap._lightning_payment_pending = False
             return
         if not success:
             self.logger.info(f'failed to pay {key}, will retry in 10 minutes')
@@ -584,7 +600,8 @@ class SwapManager(Logger):
         if swap.protocol != TAPROOT_SWAP_PROTOCOL:
             raise ValueError("unsupported persisted Taproot swap protocol")
         if (type(swap.is_reverse) is not bool or type(swap.is_provider) is not bool
-                or type(swap.is_cooperative) is not bool):
+                or type(swap.is_cooperative) is not bool
+                or type(swap.refund_cancelled) is not bool):
             raise ValueError("invalid persisted Taproot swap roles")
         if type(swap.onchain_amount) is not int or swap.onchain_amount < dust_threshold():
             raise ValueError("invalid persisted Taproot swap amount")
@@ -1074,6 +1091,7 @@ class SwapManager(Logger):
             prepay=True,
             protocol=TAPROOT_SWAP_PROTOCOL if is_taproot else None,
             their_pubkey=their_pubkey if is_taproot else None,
+            is_cooperative=is_taproot,
             is_provider=is_taproot,
         )
         self.lnworker.register_hold_invoice(payment_hash, self.hold_invoice_callback)
@@ -1220,6 +1238,7 @@ class SwapManager(Logger):
             lightning_amount_sat=lightning_amount_sat,
             protocol=TAPROOT_SWAP_PROTOCOL if is_taproot else None,
             their_pubkey=their_pubkey if is_taproot else None,
+            is_cooperative=is_taproot,
             is_provider=is_taproot,
         )
         return swap
@@ -1331,6 +1350,192 @@ class SwapManager(Logger):
             self.wallet.save_invoice(invoice)
             self.invoices_to_pay[key] = 0
         return {}
+    def _get_provider_taproot_swap(
+        self, swap_id: object, *, direction: SwapDirection,
+    ) -> SwapData:
+        if not isinstance(swap_id, str) or len(swap_id) != 64:
+            raise ValueError("invalid Taproot swap ID")
+        with self.swaps_lock:
+            swap = self._swaps.get(swap_id)
+        if (swap is None or not swap.is_provider or not swap.is_cooperative
+                or swap.protocol != TAPROOT_SWAP_PROTOCOL):
+            raise ValueError("unknown provider Taproot swap")
+        contract = self._validate_taproot_swap(swap)
+        if contract.direction is not direction:
+            raise ValueError("Taproot swap direction does not match request")
+        return swap
+
+    @staticmethod
+    def _parse_musig_session_id(session_id: object) -> bytes:
+        if not isinstance(session_id, str) or len(session_id) != 64:
+            raise ValueError("invalid MuSig session ID")
+        try:
+            session_id_bytes = bytes.fromhex(session_id)
+        except ValueError as e:
+            raise ValueError("invalid MuSig session ID") from e
+        if session_id != session_id_bytes.hex():
+            raise ValueError("MuSig session ID must use canonical lowercase hex")
+        return session_id_bytes
+
+    def _check_provider_cooperative_eligible(
+        self, swap: SwapData, *, direction: SwapDirection, preimage: Optional[bytes],
+    ) -> None:
+        if direction is SwapDirection.REVERSE:
+            if preimage is None or len(preimage) != 32 or sha256(preimage) != swap.payment_hash:
+                raise ValueError("cooperative claim preimage does not match swap")
+            return
+        if self.network.get_local_height() < swap.locktime:
+            raise ValueError("cooperative refund timeout has not been reached")
+        payment_status = self.lnworker.get_payment_status(
+            swap.payment_hash, direction=lnutil.SENT,
+        )
+        inflight = getattr(self.lnworker, 'inflight_payments', ())
+        get_payments = getattr(self.lnworker, 'get_payments', None)
+        channel_payments = get_payments(status='inflight') if get_payments else {}
+        if payment_status == PR_PAID:
+            raise ValueError("swap Lightning invoice has already been paid")
+        if (swap._payment_pending or swap._lightning_payment_pending
+                or payment_status == PR_INFLIGHT
+                or swap.payment_hash in inflight
+                or swap.payment_hash.hex() in inflight
+                or swap.payment_hash in channel_payments):
+            raise ValueError("swap Lightning payment is in flight")
+
+    def _start_provider_cooperative_spend(
+        self, request: dict, *, direction: SwapDirection,
+    ) -> dict:
+        expected_fields = {'id', 'sessionId', 'transaction'}
+        if direction is SwapDirection.REVERSE:
+            expected_fields.add('preimage')
+        if set(request) != expected_fields:
+            raise ValueError("invalid cooperative spend request fields")
+        session_id = request.get('sessionId')
+        session_id_bytes = self._parse_musig_session_id(session_id)
+        swap = self._get_provider_taproot_swap(request.get('id'), direction=direction)
+        tx, msg32 = self._parse_cooperative_transaction(
+            swap, request.get('transaction'), require_confirmed=True,
+        )
+        preimage = None
+        if direction is SwapDirection.REVERSE:
+            try:
+                preimage = bytes.fromhex(request['preimage'])
+            except (TypeError, ValueError) as e:
+                raise ValueError("invalid cooperative claim preimage") from e
+        now_monotonic = time.monotonic()
+        with self.swaps_lock:
+            self._check_provider_cooperative_eligible(
+                swap, direction=direction, preimage=preimage,
+            )
+            self._musig_sessions = {
+                key: value for key, value in self._musig_sessions.items()
+                if value[0] > now_monotonic
+            }
+            if session_id in self._musig_sessions:
+                raise ValueError("MuSig session ID is already active")
+            if any(value[2] is swap for value in self._musig_sessions.values()):
+                raise ValueError("Taproot swap already has an active MuSig session")
+            if len(self._musig_sessions) >= MUSIG_SESSION_MAX_ENTRIES:
+                raise ValueError("MuSig session capacity reached")
+            signer = MuSig2Session.create(
+                contract=self.get_taproot_contract(swap),
+                local_seckey=swap.privkey,
+                msg32=msg32,
+                session_id32=session_id_bytes,
+            )
+            self._musig_sessions[session_id] = (
+                now_monotonic + MUSIG_SESSION_TTL_SEC,
+                direction,
+                swap,
+                tx.serialize_to_network(include_sigs=False),
+                msg32,
+                signer,
+                preimage,
+            )
+            if direction is SwapDirection.FORWARD:
+                swap.refund_cancelled = True
+                self.invoices_to_pay.pop(swap.payment_hash.hex(), None)
+        return {
+            'sessionId': session_id,
+            'pubNonce': signer.public_nonce.hex(),
+            'transaction': tx.serialize_to_network(include_sigs=False),
+        }
+
+    def _finish_provider_cooperative_spend(
+        self, request: dict, *, direction: SwapDirection,
+    ) -> dict:
+        session_id = request.get('sessionId')
+        self._parse_musig_session_id(session_id)
+        with self.swaps_lock:
+            session = self._musig_sessions.pop(session_id, None)
+        if session is None:
+            raise ValueError("unknown or already used MuSig session")
+        if set(request) != {'id', 'sessionId', 'pubNonce', 'partialSignature'}:
+            raise ValueError("invalid cooperative signing request fields")
+        expires, session_direction, swap, unsigned_tx, msg32, signer, preimage = session
+        if time.monotonic() >= expires:
+            raise ValueError("MuSig session expired")
+        if session_direction is not direction or request.get('id') != swap.payment_hash.hex():
+            raise ValueError("MuSig session does not match swap")
+        try:
+            client_nonce = bytes.fromhex(request['pubNonce'])
+            client_partial = bytes.fromhex(request['partialSignature'])
+        except (TypeError, ValueError) as e:
+            raise ValueError("invalid cooperative nonce or partial signature") from e
+        if len(client_nonce) != 66 or len(client_partial) != 32:
+            raise ValueError("invalid cooperative nonce or partial signature length")
+        with self.swaps_lock:
+            checked_tx, checked_msg32 = self._parse_cooperative_transaction(
+                swap, unsigned_tx, require_confirmed=True,
+            )
+            self._check_provider_cooperative_eligible(
+                swap, direction=direction, preimage=preimage,
+            )
+            if checked_msg32 != msg32:
+                raise ValueError("cooperative transaction identity changed while signing")
+            provider_partial = signer.sign_partial(client_nonce)
+            signature = signer.aggregate(client_partial)
+            checked_tx.inputs()[0].witness = construct_witness([signature])
+            raw_signed_tx = checked_tx.serialize_to_network()
+            signed_tx = Transaction(raw_signed_tx)
+            if signed_tx.serialize_to_network(include_sigs=False) != unsigned_tx:
+                raise ValueError("cooperative transaction identity changed while signing")
+            self._verify_cooperative_witness(
+                swap, signed_tx, msg32=msg32, expected_signature=signature,
+            )
+            swap.cooperative_tx = raw_signed_tx
+            swap.spending_txid = signed_tx.txid()
+            if direction is SwapDirection.REVERSE:
+                self.lnworker.save_preimage(swap.payment_hash, preimage, mark_as_public=True)
+                swap.preimage = preimage
+        if not self.wallet.adb.get_transaction(signed_tx.txid()):
+            try:
+                self.wallet.adb.add_transaction(signed_tx)
+            except Exception:
+                self.logger.exception("could not add cooperative swap transaction")
+        return {
+            'sessionId': session_id,
+            'partialSignature': provider_partial.hex(),
+            'transaction': raw_signed_tx,
+        }
+
+    def _server_cooperative_spend(
+        self, request: dict, *, direction: SwapDirection,
+    ) -> dict:
+        if type(request) is not dict:
+            raise ValueError("cooperative spend request must be an object")
+        handler = (
+            self._finish_provider_cooperative_spend
+            if {'pubNonce', 'partialSignature'} & set(request)
+            else self._start_provider_cooperative_spend
+        )
+        return handler(request, direction=direction)
+
+    def server_claim_taproot_swap(self, request: dict) -> dict:
+        return self._server_cooperative_spend(request, direction=SwapDirection.REVERSE)
+
+    def server_refund_taproot_swap(self, request: dict) -> dict:
+        return self._server_cooperative_spend(request, direction=SwapDirection.FORWARD)
+
 
     async def normal_swap(
             self,
@@ -2486,7 +2691,7 @@ class NostrTransport(SwapServerTransport):
             'max_forward_amount': sm._max_forward,
             'max_reverse_amount': sm._max_reverse,
             'relays': sm.config.NOSTR_RELAYS,
-            'protocols': [TAPROOT_SWAP_PROTOCOL],
+            'protocols': [TAPROOT_SWAP_PROTOCOL, TAPROOT_COOPERATIVE_CAPABILITY],
             'pow_nonce': hex(sm.config.SWAPSERVER_ANN_POW_NONCE),
         }
         # the first value of a single letter tag is indexed and can be filtered for
@@ -2696,6 +2901,10 @@ class NostrTransport(SwapServerTransport):
                     r = self.sm.server_create_swap(request)
                 elif method == 'createnormalswap':  # client-forward-swap phase1
                     r = self.sm.server_create_normal_swap(request)
+                elif method == 'claimtaprootswap':
+                    r = self.sm.server_claim_taproot_swap(request)
+                elif method == 'refundtaprootswap':
+                    r = self.sm.server_refund_taproot_swap(request)
                 else:
                     raise Exception(method)
                 r['reply_to'] = event_id

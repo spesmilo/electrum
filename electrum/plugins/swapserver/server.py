@@ -31,6 +31,7 @@ from aiohttp import web
 
 from electrum.util import log_exceptions, ignore_exceptions
 from electrum.logging import Logger
+from electrum.submarine_swaps import TAPROOT_COOPERATIVE_CAPABILITY, TAPROOT_SWAP_PROTOCOL
 from electrum.util import EventListener
 
 if TYPE_CHECKING:
@@ -71,6 +72,8 @@ class HttpSwapServer(Logger, EventListener):
         app.add_routes([web.post('/createswap', self.create_swap)])
         app.add_routes([web.post('/createnormalswap', self.create_normal_swap)])
         app.add_routes([web.post('/addswapinvoice', self.add_swap_invoice)])
+        app.add_routes([web.post('/claimtaprootswap', self.claim_taproot_swap)])
+        app.add_routes([web.post('/refundtaprootswap', self.refund_taproot_swap)])
 
         runner = web.AppRunner(app)
         await runner.setup()
@@ -85,7 +88,7 @@ class HttpSwapServer(Logger, EventListener):
             "info": [],
             "warnings": [],
             "htlcFirst": True,
-            "protocols": ["taproot-v1"],
+            "protocols": [TAPROOT_SWAP_PROTOCOL, TAPROOT_COOPERATIVE_CAPABILITY],
             "pairs": {
                 "BTC/BTC": {
                     "rate": 1,
@@ -134,4 +137,14 @@ class HttpSwapServer(Logger, EventListener):
     async def create_swap(self, r):
         request = await r.json()
         response = self.sm.server_create_swap(request)
+        return web.json_response(response)
+
+    async def claim_taproot_swap(self, r):
+        request = await r.json()
+        response = self.sm.server_claim_taproot_swap(request)
+        return web.json_response(response)
+
+    async def refund_taproot_swap(self, r):
+        request = await r.json()
+        response = self.sm.server_refund_taproot_swap(request)
         return web.json_response(response)
