@@ -16,7 +16,7 @@ from electrum.bitcoin import (public_key_to_p2pkh, address_from_private_key,
                               is_compressed_privkey, EncodeBase58Check, DecodeBase58Check,
                               script_num_to_bytes, push_script, add_number_to_script,
                               opcodes, base_encode, base_decode, BitcoinException,
-                              taproot_tweak_pubkey, taproot_tweak_seckey, taproot_output_script,
+                              tapleaf_hash, taproot_tweak_pubkey, taproot_tweak_seckey, taproot_output_script,
                               control_block_for_taproot_script_spend)
 from electrum import bip32
 from electrum import segwit_addr
@@ -1167,6 +1167,18 @@ class TestBaseEncode(ElectrumTestCase):
 
 class TestTaprootHelpers(ElectrumTestCase):
 
+    def test_tapleaf_hash_validates_leaf_versions(self):
+        for leaf_version in (0x00, 0x66, 0xC0, 0xFE):
+            with self.subTest(leaf_version=leaf_version):
+                self.assertEqual(32, len(tapleaf_hash(leaf_version=leaf_version, script=b"")))
+        for leaf_version in (-2, 0x50, 0xC1, 0x100):
+            with self.subTest(leaf_version=leaf_version), self.assertRaises(ValueError):
+                tapleaf_hash(leaf_version=leaf_version, script=b"")
+        with self.assertRaises(TypeError):
+            tapleaf_hash(leaf_version=True, script=b"")
+        with self.assertRaises(TypeError):
+            tapleaf_hash(leaf_version=0xC0, script=bytearray())
+
     def test_taproot_tweak_homomorphism(self):
         # For any byte string h it holds that
         # taproot_tweak_pubkey(pubkey_gen(seckey), h)[1] == pubkey_gen(taproot_tweak_seckey(seckey, h)).
@@ -1202,6 +1214,10 @@ class TestTaprootHelpers(ElectrumTestCase):
             self.assertEqual(tcase["expected"]["bip350Address"], bitcoin.script_to_address(spk))
             if script_tree:
                 flat_tree = flatten_tree(script_tree)
+                self.assertEqual(
+                    tcase["intermediary"]["leafHashes"],
+                    [tapleaf_hash(leaf_version=v, script=s).hex() for v, s in flat_tree],
+                )
                 for script_num, jcontrol_block in enumerate(tcase["expected"]["scriptPathControlBlocks"]):
                     leaf_script, control_block = control_block_for_taproot_script_spend(
                         internal_pubkey=internal_pubkey, script_tree=script_tree, script_num=script_num)
