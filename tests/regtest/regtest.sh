@@ -383,8 +383,8 @@ if [[ $1 == "swapserver_taproot_reverse" ]]; then
         "[{\"txid\":\"$funding_txid\",\"vout\":0}]" | jq -r '.[0].spendingtxid')
     witness_items=$($bitcoin_cli getrawtransaction "$spending_txid" true | \
         jq '.vin[0].txinwitness | length')
-    if [[ "$witness_items" != "4" ]]; then
-        printf "expected Taproot claim-leaf spend, got %s witness items\n" "$witness_items"
+    if [[ "$witness_items" != "1" ]]; then
+        printf "expected cooperative Taproot key-path claim, got %s witness items\n" "$witness_items"
         exit 1
     fi
     wait_until_htlcs_settled alice

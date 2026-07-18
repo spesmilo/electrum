@@ -1,8 +1,8 @@
-import copy
 import asyncio
+import copy
 import json
-import secrets
 import os
+import secrets
 import ssl
 import threading
 from concurrent.futures import Future
@@ -14,8 +14,8 @@ import time
 import attr
 import aiohttp
 
-from electrum_ecc.util import bip340_tagged_hash
 from electrum_ecc import ECPrivkey, ECPubkey
+from electrum_ecc.util import bip340_tagged_hash
 
 import electrum_aionostr as aionostr
 import electrum_aionostr.key
@@ -66,7 +66,6 @@ if TYPE_CHECKING:
     from aiohttp_socks import ProxyConnector
 
 
-COOPERATIVE_SWAP_TX_SIZE = 111
 SWAP_TX_SIZE = 150  # default tx size, used for mining fee estimation
 # ^ used for both swap directions. TODO if we had asymmetric fees, the base fee should also be asymmetric.
 # - client-forward-swap: needs to cover server paying for claim_tx
@@ -79,10 +78,11 @@ SWAP_TX_SIZE = 150  # default tx size, used for mining fee estimation
 # a large tx consolidating many UTXOs or claiming/funding multiple swaps, it can end up paying more
 # on-chain fees than the nostr-advertised base mining fees. In some cases swap profits can go negative
 # for a server for a given swap (high mempool feerates AND low swap value AND tx_batcher creates tx with many inputs).
+COOPERATIVE_SWAP_TX_SIZE = 111
+TAPROOT_SWAP_PROTOCOL = "taproot-v1"
 TAPROOT_COOPERATIVE_CAPABILITY = "taproot-cooperative-v1"
 MUSIG_SESSION_TTL_SEC = 90
 MUSIG_SESSION_MAX_ENTRIES = 32
-TAPROOT_SWAP_PROTOCOL = "taproot-v1"
 
 MIN_SWAP_AMOUNT_SAT = 20_000
 MIN_LOCKTIME_DELTA = 60
@@ -251,14 +251,17 @@ class SwapData(StoredObject):
     is_redeemed = attr.ib(type=bool)
     protocol = attr.ib(type=Optional[str], default=None)
     their_pubkey = attr.ib(type=Optional[bytes], converter=hex_to_bytes, default=None)
+    is_provider = attr.ib(type=bool, default=False)
+    cooperative_tx = attr.ib(type=Optional[str], default=None)
     is_cooperative = attr.ib(type=bool, default=False)
     refund_cancelled = attr.ib(type=bool, default=False)
-    is_provider = attr.ib(type=bool, default=False)
 
     _funding_prevout = None  # type: Optional[TxOutpoint]  # for RBF
     _payment_hash = None
-    _lightning_payment_pending = False
     _payment_pending = False # for forward swaps
+    _lightning_payment_pending = False
+    _coop_spend_pending = False
+    _coop_spend_failed = False
 
     @property
     def payment_hash(self) -> bytes:
@@ -320,9 +323,9 @@ class SwapManager(Logger):
         for k, swap in self._swaps.items():
             if swap.prepay_hash is not None:
                 self._prepayments[swap.prepay_hash] = bytes.fromhex(k)
+        self.invoices_to_pay = {}
         # MuSig secret nonces are intentionally memory-only.
         self._musig_sessions = {}
-        self.invoices_to_pay = {}
         self.is_server = False # overridden by swapserver plugin if enabled
         self.is_initialized = asyncio.Event()
         self.pairs_updated = asyncio.Event()
@@ -502,11 +505,11 @@ class SwapManager(Logger):
         except Exception as e:
             self.logger.info(f'exception paying {key}, will not retry')
             self.invoices_to_pay.pop(key, None)
+            return
         finally:
             if swap is not None:
                 with self.swaps_lock:
                     swap._lightning_payment_pending = False
-            return
         if not success:
             self.logger.info(f'failed to pay {key}, will retry in 10 minutes')
             self.invoices_to_pay[key] = now() + 600
@@ -612,11 +615,48 @@ class SwapManager(Logger):
             raise ValueError("persisted Taproot swap output script does not match contract")
         if swap.lockup_address != contract.address():
             raise ValueError("persisted Taproot swap address does not match contract")
+        if swap.cooperative_tx is not None:
+            if not swap.is_cooperative:
+                raise ValueError("non-cooperative Taproot swap has a cooperative transaction")
+            cooperative_tx, msg32 = cls._parse_persisted_cooperative_transaction(swap)
+            if swap.spending_txid != cooperative_tx.txid():
+                raise ValueError("persisted cooperative swap transaction ID does not match")
+            cls._verify_cooperative_witness(swap, cooperative_tx, msg32=msg32)
         return contract
+
+    @classmethod
+    def _parse_persisted_cooperative_transaction(
+        cls, swap: SwapData,
+    ) -> Tuple[Transaction, bytes]:
+        try:
+            tx = Transaction(swap.cooperative_tx)
+        except Exception as e:
+            raise ValueError("invalid persisted cooperative swap transaction") from e
+        if len(tx.inputs()) != 1 or tx.serialize_to_network() != swap.cooperative_tx:
+            raise ValueError("persisted cooperative transaction identity changed")
+        unsigned_tx = copy.deepcopy(tx)
+        unsigned_tx.inputs()[0].witness = None
+        _checked_tx, msg32 = cls._parse_cooperative_transaction(
+            cls, swap, unsigned_tx.serialize_to_network(include_sigs=False),
+            require_confirmed=False,
+            funding_txout=TxOutput(scriptpubkey=swap.redeem_script, value=swap.onchain_amount),
+        )
+        return tx, msg32
+
+    async def _rebroadcast_cooperative_spend(self, swap: SwapData) -> None:
+        if swap.cooperative_tx is None:
+            return
+        try:
+            SwapManager._validate_taproot_swap(swap)
+            await self.network.broadcast_transaction(Transaction(swap.cooperative_tx))
+        except Exception as e:
+            self.logger.info(
+                f'cooperative spend rebroadcast failed for {swap.payment_hash.hex()}: {e!r}'
+            )
 
     def _reconstruct_taproot_funding_txin(
         self, swap: SwapData, txin: PartialTxInput, *, require_confirmed: bool,
-    ) -> None:
+    ) -> TxOutput:
         self._validate_taproot_swap(swap)
         funding_txid = txin.prevout.txid.hex()
         if require_confirmed and self.lnwatcher.adb.get_tx_height(funding_txid).conf <= 0:
@@ -631,8 +671,8 @@ class SwapManager(Logger):
                 or funding_txout.scriptpubkey != swap.redeem_script
                 or txin.value_sats() != swap.onchain_amount):
             raise ValueError("funding output does not match Taproot swap contract")
-        return funding_txout
         txin.witness_utxo = funding_txout
+        return funding_txout
 
     @log_exceptions
     async def _claim_swap(self, swap: SwapData) -> None:
@@ -644,7 +684,13 @@ class SwapManager(Logger):
         remaining_time = swap.locktime - current_height
         txos = self.lnwatcher.adb.get_addr_outputs(swap.lockup_address)
 
-        for txin in txos.values():
+        if swap.cooperative_tx is not None:
+            cooperative_tx, _msg32 = self._parse_persisted_cooperative_transaction(swap)
+            txin = txos.get(cooperative_tx.inputs()[0].prevout)
+            candidates = (txin,) if txin is not None else ()
+        else:
+            candidates = txos.values()
+        for txin in candidates:
             if (swap.protocol == TAPROOT_SWAP_PROTOCOL
                     and txin.value_sats() != swap.onchain_amount):
                 continue
@@ -679,9 +725,13 @@ class SwapManager(Logger):
             self._reindex_swap(swap.payment_hash, swap)  # to update _swaps_by_funding_outpoint
             spent_height = txin.spent_height
             # set spending_txid (even if tx is local), for GUI grouping
-            swap.spending_txid = txin.spent_txid
+            if txin.spent_txid is not None and swap.cooperative_tx is None:
+                swap.spending_txid = txin.spent_txid
             # Never construct a competing spend while a local transaction exists.
             if spent_height in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:
+                if (swap.cooperative_tx is not None
+                        and txin.spent_txid == swap.spending_txid):
+                    await self._rebroadcast_cooperative_spend(swap)
                 return
             if spent_height is not None:
                 if spent_height > 0 and swap.preimage:
@@ -693,6 +743,11 @@ class SwapManager(Logger):
                         if not swap.is_reverse:
                             self.lnworker.delete_payment_bundle(payment_hash=swap.payment_hash)
                             self.lnworker.unregister_hold_invoice(swap.payment_hash)
+
+            if swap.cooperative_tx is not None:
+                if txin.spent_txid is None:
+                    await self._rebroadcast_cooperative_spend(swap)
+                return
 
             if not swap.is_reverse:
                 if swap.preimage is None and spent_height is not None:
@@ -736,7 +791,18 @@ class SwapManager(Logger):
                     # for testing: do not create claim tx
                     return
 
-            if txin.spent_txid is not None:
+            if txin.spent_txid is not None or spent_height is not None and spent_height > 0:
+                return
+            if (swap.protocol == TAPROOT_SWAP_PROTOCOL and swap.is_cooperative
+                    and not swap.is_provider
+                    and not swap._coop_spend_failed):
+                if not swap._coop_spend_pending:
+                    swap._coop_spend_pending = True
+                    try:
+                        await self.taskgroup.spawn(self._cooperative_spend(swap, txin))
+                    except BaseException:
+                        swap._coop_spend_pending = False
+                        raise
                 return
             txin, locktime = self.create_claim_txin(txin=txin, swap=swap)
             if swap.is_reverse and swap.claim_to_output:
@@ -797,6 +863,7 @@ class SwapManager(Logger):
                 await self.wallet.network.broadcast_transaction(tx)
             except Exception:
                 self.logger.exception(f"cannot broadcast swap to output claim tx")
+
     def _get_taproot_funding_output(
         self,
         swap: SwapData,
@@ -993,6 +1060,33 @@ class SwapManager(Logger):
         swap.spending_txid = signed_tx.txid()
         return signed_tx
 
+    @log_exceptions
+    async def _cooperative_spend(self, swap: SwapData, txin: PartialTxInput) -> None:
+        try:
+            tx = await self._create_cooperative_spend_tx(swap, txin)
+            if not self.wallet.adb.get_transaction(tx.txid()):
+                try:
+                    self.wallet.adb.add_transaction(tx)
+                except Exception:
+                    self.logger.exception("could not add cooperative swap transaction")
+        except Exception as e:
+            self.logger.info(
+                f'cooperative spend failed for {swap.payment_hash.hex()}, '
+                f'using script fallback: {e!r}'
+            )
+            swap._coop_spend_failed = True
+        else:
+            try:
+                await self.network.broadcast_transaction(tx)
+            except Exception as e:
+                self.logger.info(
+                    f'cooperative spend broadcast failed for {tx.txid()}, will rebroadcast: {e!r}'
+                )
+        finally:
+            swap._coop_spend_pending = False
+        if swap._coop_spend_failed:
+            await self._claim_swap(swap)
+
     def get_fee_for_txbatcher(self):
         return self._get_tx_fee(self.config.FEE_POLICY_SWAPS)
 
@@ -1091,8 +1185,8 @@ class SwapManager(Logger):
             prepay=True,
             protocol=TAPROOT_SWAP_PROTOCOL if is_taproot else None,
             their_pubkey=their_pubkey if is_taproot else None,
-            is_cooperative=is_taproot,
             is_provider=is_taproot,
+            is_cooperative=is_taproot,
         )
         self.lnworker.register_hold_invoice(payment_hash, self.hold_invoice_callback)
         return swap, invoice, prepay_invoice
@@ -1110,8 +1204,8 @@ class SwapManager(Logger):
             min_final_cltv_expiry_delta: Optional[int] = None,
             protocol: Optional[str] = None,
             their_pubkey: Optional[bytes] = None,
-            is_cooperative: bool = False,
             is_provider: bool = False,
+            is_cooperative: bool = False,
     ) -> Tuple[SwapData, str, Optional[str]]:
         """creates a hold invoice"""
         if payment_hash.hex() in self._swaps:
@@ -1186,8 +1280,8 @@ class SwapManager(Logger):
             spending_txid=None,
             protocol=protocol,
             their_pubkey=their_pubkey,
-            is_cooperative=is_cooperative,
             is_provider=is_provider,
+            is_cooperative=is_cooperative,
         )
         swap._payment_hash = payment_hash
         if protocol == TAPROOT_SWAP_PROTOCOL:
@@ -1238,8 +1332,8 @@ class SwapManager(Logger):
             lightning_amount_sat=lightning_amount_sat,
             protocol=TAPROOT_SWAP_PROTOCOL if is_taproot else None,
             their_pubkey=their_pubkey if is_taproot else None,
-            is_cooperative=is_taproot,
             is_provider=is_taproot,
+            is_cooperative=is_taproot,
         )
         return swap
 
@@ -1257,8 +1351,8 @@ class SwapManager(Logger):
         claim_to_output: Optional[TxOutput] = None,
         protocol: Optional[str] = None,
         their_pubkey: Optional[bytes] = None,
-        is_cooperative: bool = False,
         is_provider: bool = False,
+        is_cooperative: bool = False,
     ) -> SwapData:
         if payment_hash.hex() in self._swaps:
             raise Exception("payment_hash already in use")
@@ -1290,8 +1384,8 @@ class SwapManager(Logger):
             spending_txid=None,
             protocol=protocol,
             their_pubkey=their_pubkey,
-            is_cooperative=is_cooperative,
             is_provider=is_provider,
+            is_cooperative=is_cooperative,
         )
         if prepay_hash:
             if prepay_hash in self._prepayments:
@@ -1350,6 +1444,7 @@ class SwapManager(Logger):
             self.wallet.save_invoice(invoice)
             self.invoices_to_pay[key] = 0
         return {}
+
     def _get_provider_taproot_swap(
         self, swap_id: object, *, direction: SwapDirection,
     ) -> SwapData:
@@ -1536,7 +1631,6 @@ class SwapManager(Logger):
     def server_refund_taproot_swap(self, request: dict) -> dict:
         return self._server_cooperative_spend(request, direction=SwapDirection.FORWARD)
 
-
     async def normal_swap(
             self,
             *,
@@ -1595,8 +1689,8 @@ class SwapManager(Logger):
             "invoiceAmount": lightning_amount_sat,
             "refundPublicKey": refund_pubkey.hex()
         }
-        use_cooperative = TAPROOT_COOPERATIVE_CAPABILITY in transport.protocols
         use_taproot = TAPROOT_SWAP_PROTOCOL in transport.protocols
+        use_cooperative = TAPROOT_COOPERATIVE_CAPABILITY in transport.protocols
         if use_taproot:
             request_data['protocol'] = TAPROOT_SWAP_PROTOCOL
         data = await transport.send_request_to_server('createnormalswap', request_data)
@@ -1676,8 +1770,8 @@ class SwapManager(Logger):
             prepay=False,
             channels=channels,
             protocol=TAPROOT_SWAP_PROTOCOL if use_taproot else None,
-            is_cooperative=use_taproot and use_cooperative,
             their_pubkey=provider_pubkey,
+            is_cooperative=use_taproot and use_cooperative,
             # When the client is doing a normal swap, we create a ln-invoice with larger than usual final_cltv_delta.
             # If the user goes offline after broadcasting the funding tx (but before it is mined and
             # the server claims it), they need to come back online before the held ln-htlc expires (see #8940).
@@ -1825,8 +1919,8 @@ class SwapManager(Logger):
             "preimageHash": payment_hash.hex(),
             "claimPublicKey": our_pubkey.hex(),
         }
-        use_cooperative = TAPROOT_COOPERATIVE_CAPABILITY in transport.protocols
         use_taproot = TAPROOT_SWAP_PROTOCOL in transport.protocols
+        use_cooperative = TAPROOT_COOPERATIVE_CAPABILITY in transport.protocols
         if use_taproot:
             request_data['protocol'] = TAPROOT_SWAP_PROTOCOL
         self.logger.debug(f'rswap: sending request for {lightning_amount_sat}')
@@ -1947,8 +2041,8 @@ class SwapManager(Logger):
             lightning_amount_sat=lightning_amount_sat,
             claim_to_output=claim_to_output,
             protocol=TAPROOT_SWAP_PROTOCOL if use_taproot else None,
-            is_cooperative=use_taproot and use_cooperative,
             their_pubkey=provider_pubkey,
+            is_cooperative=use_taproot and use_cooperative,
         )
         # initiate fee payment.
         if fee_invoice_obj:
