@@ -12,7 +12,7 @@ import time
 import attr
 import aiohttp
 
-from electrum_ecc import ECPrivkey
+from electrum_ecc import ECPrivkey, ECPubkey
 
 import electrum_aionostr as aionostr
 import electrum_aionostr.key
@@ -29,6 +29,7 @@ from .crypto import sha256, ripemd
 from .bitcoin import (script_to_p2wsh, opcodes, dust_threshold, DummyAddress, construct_witness,
                       construct_script, address_to_script)
 from . import bitcoin
+from .taproot_swaps import SwapDirection, TaprootSwapContract
 from .transaction import (
     PartialTxInput, PartialTxOutput, PartialTransaction, Transaction, TxInput, TxOutpoint, script_GetOp,
     match_script_against_template, OPPushDataGeneric, OPPushDataPubkey, TxOutput,
@@ -73,6 +74,7 @@ SWAP_TX_SIZE = 150  # default tx size, used for mining fee estimation
 # a large tx consolidating many UTXOs or claiming/funding multiple swaps, it can end up paying more
 # on-chain fees than the nostr-advertised base mining fees. In some cases swap profits can go negative
 # for a server for a given swap (high mempool feerates AND low swap value AND tx_batcher creates tx with many inputs).
+TAPROOT_SWAP_PROTOCOL = "taproot-v1"
 
 MIN_SWAP_AMOUNT_SAT = 20_000
 MIN_LOCKTIME_DELTA = 60
@@ -191,6 +193,7 @@ class SwapOffer:
     pow_bits = attr.ib(type=int)
     server_pubkey = attr.ib(type=str)
     timestamp = attr.ib(type=int)
+    protocols = attr.ib(type=Tuple[str, ...], converter=tuple, default=())
 
     @property
     def server_npub(self):
@@ -213,6 +216,9 @@ class SwapData(StoredObject):
     funding_txid = attr.ib(type=Optional[str])
     spending_txid = attr.ib(type=Optional[str])
     is_redeemed = attr.ib(type=bool)
+    protocol = attr.ib(type=Optional[str], default=None)
+    their_pubkey = attr.ib(type=Optional[bytes], converter=hex_to_bytes, default=None)
+    is_provider = attr.ib(type=bool, default=False)
 
     _funding_prevout = None  # type: Optional[TxOutpoint]  # for RBF
     _payment_hash = None
@@ -266,6 +272,10 @@ class SwapManager(Logger):
         for payment_hash_hex, swap in swaps.items():
             payment_hash = bytes.fromhex(payment_hash_hex)
             swap._payment_hash = payment_hash
+            if swap.protocol not in (None, TAPROOT_SWAP_PROTOCOL):
+                raise ValueError("unsupported persisted swap protocol")
+            if swap.protocol == TAPROOT_SWAP_PROTOCOL:
+                self._validate_taproot_swap(swap)
             self._reindex_swap(swap.payment_hash, swap)
             if not swap.is_reverse and not swap.is_redeemed and not self.lnworker.get_preimage(swap.payment_hash):
                 self.lnworker.register_hold_invoice(payment_hash, self.hold_invoice_callback)
@@ -274,6 +284,7 @@ class SwapManager(Logger):
         for k, swap in self._swaps.items():
             if swap.prepay_hash is not None:
                 self._prepayments[swap.prepay_hash] = bytes.fromhex(k)
+        self.invoices_to_pay = {}
         self.is_server = False # overridden by swapserver plugin if enabled
         self.is_initialized = asyncio.Event()
         self.pairs_updated = asyncio.Event()
@@ -454,7 +465,6 @@ class SwapManager(Logger):
             self.invoices_to_pay.pop(key, None)
 
     async def pay_pending_invoices(self):
-        self.invoices_to_pay = {}
         while True:
             await asyncio.sleep(5)
             for key, not_before in list(self.invoices_to_pay.items()):
@@ -509,6 +519,48 @@ class SwapManager(Logger):
             if sha256(preimage) == swap.payment_hash:
                 return preimage
         return None
+
+    @staticmethod
+    def _get_swap_pubkeys(swap: SwapData) -> Tuple[bytes, bytes]:
+        if swap.their_pubkey is None:
+            raise ValueError("Taproot swap is missing the counterparty public key")
+        our_pubkey = ECPrivkey(swap.privkey).get_public_key_bytes(compressed=True)
+        if swap.is_provider:
+            return our_pubkey, swap.their_pubkey
+        return swap.their_pubkey, our_pubkey
+
+    @classmethod
+    def get_taproot_contract(cls, swap: SwapData) -> TaprootSwapContract:
+        provider_pubkey, user_pubkey = cls._get_swap_pubkeys(swap)
+        direction = (
+            SwapDirection.REVERSE
+            if swap.is_reverse ^ swap.is_provider
+            else SwapDirection.FORWARD
+        )
+        return TaprootSwapContract(
+            direction=direction,
+            payment_hash=swap.payment_hash,
+            locktime=swap.locktime,
+            provider_pubkey=provider_pubkey,
+            user_pubkey=user_pubkey,
+        )
+
+    @classmethod
+    def _validate_taproot_swap(cls, swap: SwapData) -> TaprootSwapContract:
+        if swap.protocol != TAPROOT_SWAP_PROTOCOL:
+            raise ValueError("unsupported persisted Taproot swap protocol")
+        if type(swap.is_reverse) is not bool or type(swap.is_provider) is not bool:
+            raise ValueError("invalid persisted Taproot swap roles")
+        if type(swap.onchain_amount) is not int or swap.onchain_amount < dust_threshold():
+            raise ValueError("invalid persisted Taproot swap amount")
+        if swap.preimage is not None and sha256(swap.preimage) != swap.payment_hash:
+            raise ValueError("persisted Taproot swap preimage does not match payment hash")
+        contract = cls.get_taproot_contract(swap)
+        if swap.redeem_script != contract.output_script:
+            raise ValueError("persisted Taproot swap output script does not match contract")
+        if swap.lockup_address != contract.address():
+            raise ValueError("persisted Taproot swap address does not match contract")
+        return contract
 
     @log_exceptions
     async def _claim_swap(self, swap: SwapData) -> None:
@@ -713,7 +765,14 @@ class SwapManager(Logger):
         else:
             self.logger.info(f'key not in swaps {key}')
 
-    def create_normal_swap(self, *, lightning_amount_sat: int, payment_hash: bytes, their_pubkey: bytes = None):
+    def create_normal_swap(
+        self,
+        *,
+        lightning_amount_sat: int,
+        payment_hash: bytes,
+        their_pubkey: bytes,
+        is_taproot: bool = False,
+    ):
         """ server method """
         assert lightning_amount_sat
         if payment_hash.hex() in self._swaps:
@@ -726,12 +785,22 @@ class SwapManager(Logger):
         onchain_amount_sat = self._get_recv_amount(lightning_amount_sat, is_reverse=True) # what the client is going to receive
         if not onchain_amount_sat:
             raise Exception("no onchain amount")
-        redeem_script = _construct_swap_scriptcode(
-            payment_hash=payment_hash,
-            locktime=locktime,
-            refund_pubkey=our_pubkey,
-            claim_pubkey=their_pubkey,
-        )
+        if is_taproot:
+            contract = TaprootSwapContract(
+                direction=SwapDirection.REVERSE,
+                payment_hash=payment_hash,
+                locktime=locktime,
+                provider_pubkey=our_pubkey,
+                user_pubkey=their_pubkey,
+            )
+            redeem_script = contract.output_script
+        else:
+            redeem_script = _construct_swap_scriptcode(
+                payment_hash=payment_hash,
+                locktime=locktime,
+                refund_pubkey=our_pubkey,
+                claim_pubkey=their_pubkey,
+            )
         swap, invoice, prepay_invoice = self.add_normal_swap(
             redeem_script=redeem_script,
             locktime=locktime,
@@ -740,6 +809,9 @@ class SwapManager(Logger):
             payment_hash=payment_hash,
             our_privkey=our_privkey,
             prepay=True,
+            protocol=TAPROOT_SWAP_PROTOCOL if is_taproot else None,
+            their_pubkey=their_pubkey if is_taproot else None,
+            is_provider=is_taproot,
         )
         self.lnworker.register_hold_invoice(payment_hash, self.hold_invoice_callback)
         return swap, invoice, prepay_invoice
@@ -755,6 +827,9 @@ class SwapManager(Logger):
             prepay: bool,
             channels: Optional[Sequence['Channel']] = None,
             min_final_cltv_expiry_delta: Optional[int] = None,
+            protocol: Optional[str] = None,
+            their_pubkey: Optional[bytes] = None,
+            is_provider: bool = False,
     ) -> Tuple[SwapData, str, Optional[str]]:
         """creates a hold invoice"""
         if payment_hash.hex() in self._swaps:
@@ -807,7 +882,12 @@ class SwapManager(Logger):
             prepay_invoice = None
             prepay_hash = None
 
-        lockup_address = script_to_p2wsh(redeem_script)
+        lockup_address = (
+            bitcoin.script_to_address(redeem_script)
+            if protocol == TAPROOT_SWAP_PROTOCOL else script_to_p2wsh(redeem_script)
+        )
+        if lockup_address is None:
+            raise ValueError("invalid Taproot swap output script")
         swap = SwapData(
             redeem_script=redeem_script,
             locktime=locktime,
@@ -822,12 +902,20 @@ class SwapManager(Logger):
             is_redeemed=False,
             funding_txid=None,
             spending_txid=None,
+            protocol=protocol,
+            their_pubkey=their_pubkey,
+            is_provider=is_provider,
         )
+        swap._payment_hash = payment_hash
+        if protocol == TAPROOT_SWAP_PROTOCOL:
+            self._validate_taproot_swap(swap)
         self._add_swap(payment_hash, swap)
         self.add_lnwatcher_callback(swap)
         return swap, invoice, prepay_invoice
 
-    def create_reverse_swap(self, *, lightning_amount_sat: int, their_pubkey: bytes) -> SwapData:
+    def create_reverse_swap(
+        self, *, lightning_amount_sat: int, their_pubkey: bytes, is_taproot: bool = False,
+    ) -> SwapData:
         """ server method. """
         assert lightning_amount_sat is not None
         locktime = self.network.get_local_height() + LOCKTIME_DELTA_REFUND
@@ -840,12 +928,22 @@ class SwapManager(Logger):
             raise Exception("no onchain amount")
         preimage = os.urandom(32)
         payment_hash = sha256(preimage)
-        redeem_script = _construct_swap_scriptcode(
-            payment_hash=payment_hash,
-            locktime=locktime,
-            refund_pubkey=their_pubkey,
-            claim_pubkey=our_pubkey,
-        )
+        if is_taproot:
+            contract = TaprootSwapContract(
+                direction=SwapDirection.FORWARD,
+                payment_hash=payment_hash,
+                locktime=locktime,
+                provider_pubkey=our_pubkey,
+                user_pubkey=their_pubkey,
+            )
+            redeem_script = contract.output_script
+        else:
+            redeem_script = _construct_swap_scriptcode(
+                payment_hash=payment_hash,
+                locktime=locktime,
+                refund_pubkey=their_pubkey,
+                claim_pubkey=our_pubkey,
+            )
         swap = self.add_reverse_swap(
             redeem_script=redeem_script,
             locktime=locktime,
@@ -854,7 +952,11 @@ class SwapManager(Logger):
             payment_hash=payment_hash,
             prepay_hash=None,
             onchain_amount_sat=onchain_amount_sat,
-            lightning_amount_sat=lightning_amount_sat)
+            lightning_amount_sat=lightning_amount_sat,
+            protocol=TAPROOT_SWAP_PROTOCOL if is_taproot else None,
+            their_pubkey=their_pubkey if is_taproot else None,
+            is_provider=is_taproot,
+        )
         return swap
 
     def add_reverse_swap(
@@ -869,11 +971,19 @@ class SwapManager(Logger):
         payment_hash: bytes,
         prepay_hash: Optional[bytes] = None,
         claim_to_output: Optional[TxOutput] = None,
+        protocol: Optional[str] = None,
+        their_pubkey: Optional[bytes] = None,
+        is_provider: bool = False,
     ) -> SwapData:
         if payment_hash.hex() in self._swaps:
             raise Exception("payment_hash already in use")
         assert sha256(preimage) == payment_hash
-        lockup_address = script_to_p2wsh(redeem_script)
+        lockup_address = (
+            bitcoin.script_to_address(redeem_script)
+            if protocol == TAPROOT_SWAP_PROTOCOL else script_to_p2wsh(redeem_script)
+        )
+        if lockup_address is None:
+            raise ValueError("invalid Taproot swap output script")
         if claim_to_output is not None:
             # the claim_to_output value needs to be lower than the funding utxo value, otherwise
             # there are no funds left for the fee of the claim tx
