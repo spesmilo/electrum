@@ -806,13 +806,17 @@ def tapleaf_hash(*, leaf_version: int, script: bytes) -> bytes:
     return bip340_tagged_hash(b"TapLeaf", bytes([leaf_version]) + witness_push(script))
 
 
-def taproot_tweak_pubkey(pubkey32: bytes, h: bytes) -> Tuple[int, bytes]:
+def taproot_tweak_hash(pubkey32: bytes, h: bytes) -> bytes:
     assert isinstance(pubkey32, bytes), type(pubkey32)
     assert isinstance(h, bytes), type(h)
     assert len(pubkey32) == 32, len(pubkey32)
+    return bip340_tagged_hash(b"TapTweak", pubkey32 + h)
+
+
+def taproot_tweak_pubkey(pubkey32: bytes, h: bytes) -> Tuple[int, bytes]:
     int_from_bytes = lambda x: int.from_bytes(x, byteorder="big", signed=False)
 
-    tweak = int_from_bytes(bip340_tagged_hash(b"TapTweak", pubkey32 + h))
+    tweak = int_from_bytes(taproot_tweak_hash(pubkey32, h))
     if tweak >= ecc.CURVE_ORDER:
         raise ValueError
     P = ecc.ECPubkey(b"\x02" + pubkey32)
@@ -829,7 +833,7 @@ def taproot_tweak_seckey(seckey0: bytes, h: bytes) -> bytes:
     P = ecc.ECPrivkey(seckey0)
     seckey = P.secret_scalar if P.has_even_y() else ecc.CURVE_ORDER - P.secret_scalar
     pubkey32 = P.get_public_key_bytes(compressed=True)[1:]
-    tweak = int_from_bytes(bip340_tagged_hash(b"TapTweak", pubkey32 + h))
+    tweak = int_from_bytes(taproot_tweak_hash(pubkey32, h))
     if tweak >= ecc.CURVE_ORDER:
         raise ValueError
     return int.to_bytes((seckey + tweak) % ecc.CURVE_ORDER, length=32, byteorder="big", signed=False)
