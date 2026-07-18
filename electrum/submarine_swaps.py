@@ -29,10 +29,10 @@ from .crypto import sha256, ripemd
 from .bitcoin import (script_to_p2wsh, opcodes, dust_threshold, DummyAddress, construct_witness,
                       construct_script, address_to_script)
 from . import bitcoin
-from .taproot_swaps import SwapDirection, TaprootSwapContract
+from .taproot_swaps import SwapDirection, SwapLeaf, TaprootSwapContract
 from .transaction import (
     PartialTxInput, PartialTxOutput, PartialTransaction, Transaction, TxInput, TxOutpoint, script_GetOp,
-    match_script_against_template, OPPushDataGeneric, OPPushDataPubkey, TxOutput,
+    match_script_against_template, OPPushDataGeneric, OPPushDataPubkey, TapScriptSigningData, TxOutput,
 )
 from .util import (
     log_exceptions, ignore_exceptions, BelowDustLimit, OldTaskGroup, ca_path, gen_nostr_ann_pow,
@@ -587,6 +587,25 @@ class SwapManager(Logger):
             raise ValueError("persisted Taproot swap address does not match contract")
         return contract
 
+    def _reconstruct_taproot_funding_txin(
+        self, swap: SwapData, txin: PartialTxInput, *, require_confirmed: bool,
+    ) -> None:
+        self._validate_taproot_swap(swap)
+        funding_txid = txin.prevout.txid.hex()
+        if require_confirmed and self.lnwatcher.adb.get_tx_height(funding_txid).conf <= 0:
+            raise ValueError("Taproot funding output is not confirmed")
+        try:
+            funding_txout = self.lnwatcher.adb.get_transaction(
+                funding_txid
+            ).outputs()[txin.prevout.out_idx]
+        except (AttributeError, IndexError) as e:
+            raise ValueError("Taproot funding transaction is unavailable") from e
+        if (funding_txout.value != swap.onchain_amount
+                or funding_txout.scriptpubkey != swap.redeem_script
+                or txin.value_sats() != swap.onchain_amount):
+            raise ValueError("funding output does not match Taproot swap contract")
+        txin.witness_utxo = funding_txout
+
     @log_exceptions
     async def _claim_swap(self, swap: SwapData) -> None:
         assert self.network
@@ -598,6 +617,9 @@ class SwapManager(Logger):
         txos = self.lnwatcher.adb.get_addr_outputs(swap.lockup_address)
 
         for txin in txos.values():
+            if (swap.protocol == TAPROOT_SWAP_PROTOCOL
+                    and txin.value_sats() != swap.onchain_amount):
+                continue
             if swap.is_reverse and txin.value_sats() < swap.onchain_amount:
                 # amount too low, we must not reveal the preimage
                 continue
@@ -612,17 +634,27 @@ class SwapManager(Logger):
 
         if txin:
             # the swap is funded
+            funding_height = self.lnwatcher.adb.get_tx_height(txin.prevout.txid.hex())
+            if swap.protocol == TAPROOT_SWAP_PROTOCOL:
+                try:
+                    self._reconstruct_taproot_funding_txin(
+                        swap,
+                        txin,
+                        require_confirmed=swap.is_reverse and not swap.is_provider,
+                    )
+                except ValueError as e:
+                    self.logger.info(f'ignoring invalid Taproot funding output: {e}')
+                    return
             # note: swap.funding_txid can change due to RBF, it will get updated here:
             swap.funding_txid = txin.prevout.txid.hex()
             swap._funding_prevout = txin.prevout
             self._reindex_swap(swap.payment_hash, swap)  # to update _swaps_by_funding_outpoint
-            funding_height = self.lnwatcher.adb.get_tx_height(txin.prevout.txid.hex())
             spent_height = txin.spent_height
             # set spending_txid (even if tx is local), for GUI grouping
             swap.spending_txid = txin.spent_txid
-            # discard local spenders
+            # Never construct a competing spend while a local transaction exists.
             if spent_height in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:
-                spent_height = None
+                return
             if spent_height is not None:
                 if spent_height > 0 and swap.preimage:
                     if current_height - spent_height > REDEEM_AFTER_DOUBLE_SPENT_DELAY:
@@ -676,7 +708,7 @@ class SwapManager(Logger):
                     # for testing: do not create claim tx
                     return
 
-            if spent_height is not None and spent_height > 0:
+            if txin.spent_txid is not None:
                 return
             txin, locktime = self.create_claim_txin(txin=txin, swap=swap)
             if swap.is_reverse and swap.claim_to_output:
@@ -1282,6 +1314,8 @@ class SwapManager(Logger):
         return swap.funding_txid
 
     def create_funding_output(self, swap: SwapData) -> PartialTxOutput:
+        if swap.protocol == TAPROOT_SWAP_PROTOCOL:
+            self._validate_taproot_swap(swap)
         return PartialTxOutput.from_address_and_value(swap.lockup_address, swap.onchain_amount)
 
     def create_funding_tx(
@@ -1703,14 +1737,28 @@ class SwapManager(Logger):
         """Add some info to a claim txin.
         note: even without signing, this is useful for tx size estimation.
         """
+        txin.script_sig = b''
+        txin.nsequence = 1 if swap.is_reverse else 0xffffffff - 2
+        if swap.protocol == TAPROOT_SWAP_PROTOCOL:
+            leaf = SwapLeaf.CLAIM if swap.is_reverse else SwapLeaf.REFUND
+            script, control_block = cls.get_taproot_contract(swap).script_path(leaf)
+            txin.tap_script_signing_data = TapScriptSigningData(
+                script=script, control_block=control_block,
+            )
+            sig_dummy = bytes(64)
+            witness_items = (
+                [sig_dummy, swap.preimage or bytes(32), script, control_block]
+                if swap.is_reverse
+                else [sig_dummy, script, control_block]
+            )
+            txin.witness_sizehint = len(construct_witness(witness_items))
+            return
         preimage = swap.preimage if swap.is_reverse else 0
         witness_script = swap.redeem_script
-        txin.script_sig = b''
         txin.witness_script = witness_script
         sig_dummy = b'\x00' * 71  # DER-encoded ECDSA sig, with low S and low R
         witness = [sig_dummy, preimage, witness_script]
         txin.witness_sizehint = len(construct_witness(witness))
-        txin.nsequence = 1 if swap.is_reverse else 0xffffffff - 2
 
     @classmethod
     def create_claim_txin(
@@ -1726,11 +1774,22 @@ class SwapManager(Logger):
             locktime = swap.locktime
         cls.add_txin_info(swap, txin)
         txin.privkey = swap.privkey
-        def make_witness(sig):
-            # preimae not known yet
-            preimage = swap.preimage if swap.is_reverse else 0
-            witness_script = swap.redeem_script
-            return construct_witness([sig, preimage, witness_script])
+        if swap.protocol == TAPROOT_SWAP_PROTOCOL:
+            tap_script_data = txin.tap_script_signing_data
+            def make_witness(sig):
+                items = [sig]
+                if swap.is_reverse:
+                    if swap.preimage is None or sha256(swap.preimage) != swap.payment_hash:
+                        raise ValueError("Taproot claim preimage is unavailable")
+                    items.append(swap.preimage)
+                items.extend((tap_script_data.script, tap_script_data.control_block))
+                return construct_witness(items)
+        else:
+            def make_witness(sig):
+                # preimage not known yet
+                preimage = swap.preimage if swap.is_reverse else 0
+                witness_script = swap.redeem_script
+                return construct_witness([sig, preimage, witness_script])
         txin.make_witness = make_witness
         return txin, locktime
 

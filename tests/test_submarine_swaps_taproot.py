@@ -9,6 +9,7 @@ from unittest import mock
 from electrum_ecc import ECPrivkey
 
 from electrum import bitcoin
+from electrum.address_synchronizer import TX_HEIGHT_LOCAL
 from electrum.crypto import sha256
 from electrum.invoices import Invoice
 from electrum.plugins.swapserver.server import HttpSwapServer
@@ -23,7 +24,15 @@ from electrum.submarine_swaps import (
     SwapServerError,
     _construct_swap_scriptcode,
 )
-from electrum.taproot_swaps import SwapDirection, TaprootSwapContract
+from electrum.taproot_swaps import SwapDirection, SwapLeaf, TaprootSwapContract
+from electrum.transaction import (
+    PartialTransaction,
+    PartialTxInput,
+    PartialTxOutput,
+    Transaction,
+    TxOutpoint,
+    TxOutput,
+)
 from electrum.util import MyEncoder
 
 from . import ElectrumTestCase
@@ -80,8 +89,73 @@ def make_swap(*, direction: SwapDirection, is_provider: bool) -> SwapData:
     return swap
 
 
+def make_funding(swap: SwapData, *, amount=ONCHAIN_AMOUNT, scriptpubkey=None):
+    source = PartialTxInput(prevout=TxOutpoint(txid=b"\x33" * 32, out_idx=0))
+    source.script_sig = b""
+    source.nsequence = 0xffffffff
+    source.witness = bitcoin.construct_witness([b"funding"])
+    funding_txout = TxOutput(
+        scriptpubkey=swap.redeem_script if scriptpubkey is None else scriptpubkey,
+        value=amount,
+    )
+    funding = PartialTransaction.from_io(
+        [source], [PartialTxOutput.from_txout(funding_txout)], version=2, BIP69_sort=False,
+    )
+    funding_tx = Transaction(funding.serialize_to_network())
+    swap.funding_txid = funding_tx.txid()
+    prevout = TxOutpoint(txid=bytes.fromhex(swap.funding_txid), out_idx=0)
+    swap._funding_prevout = prevout
+    watched = PartialTxInput(prevout=prevout)
+    watched._trusted_address = swap.lockup_address
+    watched._trusted_value_sats = amount
+    watched.spent_height = None
+    watched.spent_txid = None
+    return funding_tx, funding_txout, watched
+
+
 def logger():
     return logging.getLogger("taproot-swap-integration-test")
+
+
+def manager_for_watcher(
+    swap: SwapData, *, confirmed=True, amount=ONCHAIN_AMOUNT, scriptpubkey=None,
+):
+    funding_tx, funding_txout, watched = make_funding(
+        swap, amount=amount, scriptpubkey=scriptpubkey,
+    )
+    swap.funding_txid = None
+    swap._funding_prevout = None
+    tx_height = SimpleNamespace(conf=1 if confirmed else 0)
+    adb = SimpleNamespace(
+        get_addr_outputs=lambda _address: {watched.prevout: watched},
+        get_transaction=lambda txid: funding_tx if txid == funding_tx.txid() else None,
+        get_tx_height=lambda _txid: tx_height,
+        is_up_to_date=lambda: True,
+    )
+    manager = SwapManager.__new__(SwapManager)
+    manager.logger = logger()
+    manager.swaps_lock = threading.Lock()
+    manager._swaps = {swap.payment_hash.hex(): swap}
+    manager._swaps_by_funding_outpoint = {watched.prevout: swap}
+    manager._swaps_by_lockup_address = {swap.lockup_address: swap}
+    manager._prepayments = {}
+    manager.invoices_to_pay = {swap.payment_hash.hex(): 0}
+    manager.lnwatcher = SimpleNamespace(adb=adb, remove_callback=mock.Mock())
+    manager.lnworker = SimpleNamespace(
+        get_preimage=mock.Mock(return_value=swap.preimage),
+        save_preimage=mock.Mock(),
+        hold_invoice_callbacks={},
+    )
+    manager.network = SimpleNamespace(
+        get_local_height=lambda: LOCKTIME - 1,
+        config=SimpleNamespace(TEST_SWAPSERVER_REFUND=False),
+    )
+    manager.wallet = SimpleNamespace(
+        txbatcher=SimpleNamespace(add_sweep_input=mock.Mock()),
+    )
+    manager.config = SimpleNamespace(FEE_POLICY_SWAPS="fixed:1")
+    manager._add_or_reindex_swap = mock.Mock()
+    return manager, funding_txout, watched
 
 
 class TestCapabilities(ElectrumTestCase):
@@ -643,3 +717,73 @@ class TestPersistenceInvoicesAndSettlement(ElectrumTestCase):
                     "refundPublicKey": PROVIDER_PUBKEY.hex(),
                 })
         manager.wallet.save_invoice.assert_not_called()
+
+    def test_all_role_witnesses_use_claim_or_refund_leaf(self):
+        signature = b"\x44" * 64
+        for direction in SwapDirection:
+            for is_provider in (False, True):
+                with self.subTest(direction=direction, is_provider=is_provider):
+                    swap = make_swap(direction=direction, is_provider=is_provider)
+                    _funding, funding_txout, watched = make_funding(swap)
+                    watched.witness_utxo = funding_txout
+                    txin, locktime = SwapManager.create_claim_txin(txin=watched, swap=swap)
+                    leaf = SwapLeaf.CLAIM if swap.is_reverse else SwapLeaf.REFUND
+                    script, control = contract(direction).script_path(leaf)
+                    txin.witness = txin.make_witness(signature)
+                    expected = (
+                        [signature, PREIMAGE, script, control]
+                        if swap.is_reverse else [signature, script, control]
+                    )
+                    self.assertEqual(expected, list(txin.witness_elements()))
+                    self.assertEqual(None if swap.is_reverse else LOCKTIME, locktime)
+                    self.assertEqual(1 if swap.is_reverse else 0xffffffff - 2, txin.nsequence)
+                    self.assertIsNotNone(txin.tap_script_signing_data)
+
+                    spend = PartialTransaction.from_io(
+                        [txin],
+                        [PartialTxOutput(scriptpubkey=b"\x51", value=ONCHAIN_AMOUNT - 1_000)],
+                        locktime=locktime or 0,
+                        BIP69_sort=False,
+                    )
+                    txin.witness = txin.make_witness(
+                        spend.sign_txin(0, swap.privkey)
+                    )
+                    self.assertTrue(txin.is_complete())
+
+    async def test_reverse_client_claim_waits_for_exact_confirmed_funding(self):
+        for confirmed, amount, scriptpubkey, should_claim in (
+            (False, ONCHAIN_AMOUNT, None, False),
+            (True, ONCHAIN_AMOUNT + 1, None, False),
+            (True, ONCHAIN_AMOUNT, bytes(34), False),
+            (True, ONCHAIN_AMOUNT, None, True),
+        ):
+            with self.subTest(confirmed=confirmed, amount=amount, scriptpubkey=scriptpubkey):
+                swap = make_swap(direction=SwapDirection.REVERSE, is_provider=False)
+                manager, _funding, watched = manager_for_watcher(
+                    swap, confirmed=confirmed, amount=amount, scriptpubkey=scriptpubkey,
+                )
+                await manager._claim_swap(swap)
+                self.assertEqual(
+                    should_claim, manager.wallet.txbatcher.add_sweep_input.called,
+                )
+                if not should_claim:
+                    manager.lnworker.get_preimage.assert_not_called()
+                    self.assertIsNone(swap.funding_txid)
+                if should_claim:
+                    self.assertEqual(swap.redeem_script, watched.witness_utxo.scriptpubkey)
+
+    async def test_local_spend_suppresses_competing_claim(self):
+        swap = make_swap(direction=SwapDirection.REVERSE, is_provider=False)
+        manager, _funding, watched = manager_for_watcher(swap)
+        watched.spent_height = TX_HEIGHT_LOCAL
+        watched.spent_txid = "44" * 32
+        await manager._claim_swap(swap)
+        manager.wallet.txbatcher.add_sweep_input.assert_not_called()
+        self.assertEqual(watched.spent_txid, swap.spending_txid)
+
+    def test_taproot_funding_output_uses_validated_output_script(self):
+        swap = make_swap(direction=SwapDirection.FORWARD, is_provider=False)
+        manager = SwapManager.__new__(SwapManager)
+        output = manager.create_funding_output(swap)
+        self.assertEqual(swap.redeem_script, output.scriptpubkey)
+        self.assertEqual(swap.onchain_amount, output.value)

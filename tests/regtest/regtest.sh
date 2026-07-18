@@ -362,6 +362,63 @@ if [[ $1 == "swapserver_success_forward" ]]; then
 fi
 
 
+if [[ $1 == "swapserver_taproot_reverse" ]]; then
+    wait_for_balance alice 1
+    echo "alice opens channel"
+    bob_node=$($bob nodeid)
+    channel=$($alice open_channel "$bob_node" 0.15 --password='')
+    new_blocks 3
+    wait_until_channel_open alice
+    echo "alice initiates taproot reverse-swap"
+    dryrun=$($alice reverse_swap 0.02 dryrun)
+    onchain_amount=$(jq -r ".onchain_amount" <<< "$dryrun")
+    prepayment=$(jq -r ".prepayment" <<< "$dryrun")
+    swap=$($alice reverse_swap 0.02 "$onchain_amount" --prepayment "$prepayment")
+    printf '%s\n' "$swap" | jq
+    funding_txid=$(jq -r ".funding_txid" <<< "$swap")
+    assert_utxo_exists "$funding_txid" 0
+    new_blocks 1
+    wait_until_spent "$funding_txid" 0
+    spending_txid=$($bitcoin_cli gettxspendingprevout \
+        "[{\"txid\":\"$funding_txid\",\"vout\":0}]" | jq -r '.[0].spendingtxid')
+    witness_items=$($bitcoin_cli getrawtransaction "$spending_txid" true | \
+        jq '.vin[0].txinwitness | length')
+    if [[ "$witness_items" != "4" ]]; then
+        printf "expected Taproot claim-leaf spend, got %s witness items\n" "$witness_items"
+        exit 1
+    fi
+    wait_until_htlcs_settled alice
+fi
+
+
+if [[ $1 == "swapserver_taproot_forward" ]]; then
+    wait_for_balance alice 1
+    echo "alice opens channel"
+    bob_node=$($bob nodeid)
+    channel=$($alice open_channel "$bob_node" 0.15 --password='' --push_amount=0.075)
+    new_blocks 3
+    wait_until_channel_open alice
+    echo "alice initiates taproot forward-swap"
+    dryrun=$($alice normal_swap 0.02 dryrun)
+    lightning_amount=$(jq -r ".lightning_amount" <<< "$dryrun")
+    swap=$($alice normal_swap 0.02 "$lightning_amount")
+    printf '%s\n' "$swap" | jq
+    funding_txid=$(jq -r ".txid" <<< "$swap")
+    assert_utxo_exists "$funding_txid" 0
+    new_blocks 1
+    wait_until_spent "$funding_txid" 0
+    spending_txid=$($bitcoin_cli gettxspendingprevout \
+        "[{\"txid\":\"$funding_txid\",\"vout\":0}]" | jq -r '.[0].spendingtxid')
+    witness_items=$($bitcoin_cli getrawtransaction "$spending_txid" true | \
+        jq '.vin[0].txinwitness | length')
+    if [[ "$witness_items" != "4" ]]; then
+        printf "expected Taproot claim-leaf spend, got %s witness items\n" "$witness_items"
+        exit 1
+    fi
+    wait_until_htlcs_settled bob
+fi
+
+
 if [[ $1 == "swapserver_forceclose" ]]; then
     # Alice starts reverse-swap with Bob.
     # Alice sends hold-HTLCs via LN, Bob funds locking script onchain.
