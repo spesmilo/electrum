@@ -359,6 +359,27 @@ class TxWalletDelta(NamedTuple):
     fee: Optional[int]
 
 
+class WatchedItemType(str, enum.Enum):
+    """What a WatchedItem is being watched for. str-mixed so members serialize
+    to their string value (e.g. in JSON) and compare equal to that string."""
+    REQUEST = 'request'      # a payment-request receive address
+    SWAP = 'swap'            # a submarine-swap funding/claim script
+    LIGHTNING = 'lightning'  # a lightning channel outpoint
+
+    def __str__(self):
+        return self.value
+
+
+class WatchedItem(NamedTuple):
+    # 'outpoint' and 'address' are an either/or: exactly one is set, the other is
+    # None. An item watches either a specific outpoint (for a spend) or an address
+    # (scripthash subscription), not both.
+    depth: int                              # min confirmations to trigger (0 = mempool/seen)
+    type: Optional[WatchedItemType] = None  # what kind of item this is
+    outpoint: Optional[str] = None          # "txid:idx"
+    address: Optional[str] = None           # scriptpubkey address
+
+
 class TxWalletDetails(NamedTuple):
     txid: Optional[str]
     status: str
@@ -1128,6 +1149,32 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if domain is None:
             domain = self.get_addresses()
         return self.adb.get_utxos(domain=domain, **kwargs)
+
+    def get_watched_addresses_and_outpoints(self) -> List['WatchedItem']:
+        """Enumerate the outpoints/addresses this wallet is interested in watching on-chain.
+
+        Only used on android, this feeds the background chain-watch service.
+
+        Returns a list of WatchedItem, one per watched item. 'outpoint' and
+        'address' are an either/or: exactly one of them is set per item (the other
+        is None). An item watches either a specific outpoint (for a spend) or an
+        address (scripthash subscription), not both.
+        """
+        result = []  # type: List[WatchedItem]
+
+        for req in self.get_unpaid_requests():
+            if self.get_invoice_status(req) == PR_EXPIRED:
+                continue
+            address = req.get_address()
+            if not address:
+                continue
+            result.append(WatchedItem(
+                depth=0,  # notify as soon as a payment is seen (even in mempool)
+                type=WatchedItemType.REQUEST,
+                address=address,
+            ))
+
+        return result
 
     def get_spendable_coins(
             self,
