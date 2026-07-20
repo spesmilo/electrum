@@ -8,12 +8,13 @@ from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum.i18n import _
 from electrum.logging import get_logger
-from electrum.util import WalletFileException, standardize_path, InvalidPassword, send_exception_to_crash_reporter
+from electrum.util import WalletFileException, standardize_path, InvalidPassword, send_exception_to_crash_reporter, write_json_file, read_json_file
 from electrum.plugin import run_hook
 from electrum.lnchannel import ChannelState
 from electrum.bitcoin import is_address
 from electrum.bitcoin import verify_usermessage_with_address
 from electrum.storage import StorageReadWriteError, WalletStorage
+from electrum.gui.common_qt.util import QtEventListener, qt_event_listener
 
 from .auth import AuthMixin, auth_protect
 from .qefx import QEFX
@@ -120,7 +121,7 @@ class QEWalletListModel(QAbstractListModel):
             i += 1
 
 
-class QEDaemon(AuthMixin, QObject):
+class QEDaemon(AuthMixin, QObject, QtEventListener):
     instance = None  # type: Optional[QEDaemon]
 
     _logger = get_logger(__name__)
@@ -162,6 +163,7 @@ class QEDaemon(AuthMixin, QObject):
         self.qefx = QEFX(daemon.fx, daemon.config)
 
         self._backendWalletLoaded.connect(self._on_backend_wallet_loaded)
+        self.register_callbacks()
 
     @pyqtSlot()
     def passwordValidityCheck(self):
@@ -274,6 +276,7 @@ class QEDaemon(AuthMixin, QObject):
         self._loading = False
         self.loadingChanged.emit()
         self.walletLoaded.emit(self._name, self._path)
+        self.export_watched_items()
 
     @pyqtSlot(QEWallet)
     @pyqtSlot(QEWallet, bool)
@@ -513,3 +516,48 @@ class QEDaemon(AuthMixin, QObject):
         if len(password) == 0:
             return 0
         return check_password_strength(password)[0]
+
+    def get_watched_items_by_wallet(self) -> dict:
+        """Collect the watched addresses/outpoints of every loaded wallet,
+        keyed by wallet name."""
+        result = {}
+        for wallet in self.daemon.get_wallets().values():
+            result[wallet.basename()] = [
+                {
+                    'type': item.type,
+                    'outpoint': item.outpoint,
+                    'address': item.address,
+                    'depth': item.depth,  # min confirmations to trigger (0 = mempool/seen)
+                }
+                for item in wallet.get_watched_addresses_and_outpoints()
+            ]
+        return result
+
+    @qt_event_listener
+    def on_event_request_status(self, wallet, key, status):
+        # a payment request was added or paid; keep the export in sync.
+        # note: passive expiry does not fire an event, but expired requests are
+        # filtered out on the next export anyway (added/paid/wallet-load).
+        self.export_watched_items()
+
+    def watched_items_path(self) -> str:
+        return os.path.join(self.daemon.config.path, 'watched_items.json')
+
+    def export_watched_items(self):
+        """Serialize the watched items of all loaded wallets into a single
+        JSON file, keyed by wallet name.
+
+        Existing entries are read first and merged, so wallets that are not
+        currently loaded keep their previously exported watched items instead of
+        being dropped. (On android basenames are unique, so keys cannot collide.)
+        """
+        if 'ANDROID_DATA' not in os.environ:
+            return
+        path = self.watched_items_path()
+        data = {}
+        if os.path.exists(path):
+            data = read_json_file(path)
+        data.update(self.get_watched_items_by_wallet())
+        # prune wallets with no watched items (e.g. dormant/closed channels)
+        data = {name: items for name, items in data.items() if items}
+        write_json_file(path, data)
