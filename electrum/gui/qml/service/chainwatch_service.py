@@ -10,6 +10,10 @@
 
 import os
 import sys
+import time
+import asyncio
+from contextlib import contextmanager
+from typing import List
 
 
 def _bootstrap_syspath():
@@ -72,6 +76,16 @@ def _repair_ctypes_pythonapi():
 _bootstrap_syspath()
 _repair_ctypes_pythonapi()
 
+# electrum imports only AFTER the two calls above: _bootstrap_syspath() puts the
+# bundled packages/ dir (aiohttp etc.) on sys.path, and _repair_ctypes_pythonapi()
+# must run before electrum's crypto code first touches ctypes.pythonapi.
+from electrum.util import create_and_start_event_loop, read_json_file, write_json_file
+from electrum.bitcoin import address_to_scripthash, script_to_scripthash
+from electrum.transaction import Transaction
+from electrum.network import Network
+from electrum import constants
+from electrum.simple_config import SimpleConfig
+
 CHANNEL_ID = "electrum_chainwatch"
 CHANNEL_NAME = "Chainwatch"
 NOTIFICATION_ID = 4711
@@ -87,7 +101,7 @@ def _stop_self():
         pass
 
 
-def _notify(title, text):
+def _notify(title, text: str, wallets: List[str] = None):
     """Post a notification whose tap target opens the app.
 
     The activity is launched by the OS when the user taps (via the
@@ -104,6 +118,7 @@ def _notify(title, text):
     NotificationManager = autoclass('android.app.NotificationManager')
     NotificationChannel = autoclass('android.app.NotificationChannel')
     String = autoclass('java.lang.String')
+    ArrayList = autoclass('java.util.ArrayList')
 
     service = PythonService.mService
     nm = cast('android.app.NotificationManager',
@@ -117,7 +132,11 @@ def _notify(title, text):
     # Tap target: (re)open the app.
     intent = Intent(service, PythonActivity)
     intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NEW_TASK)
-    intent.putExtra("chainwatch", String(text))
+    jWallets = ArrayList()
+    wallets = [] if wallets is None else wallets
+    for wallet in wallets:
+        jWallets.add(String(wallet))
+    intent.putStringArrayListExtra("chainwatch_wallets", jWallets)
     pi = PendingIntent.getActivity(
         service, 0, intent,
         PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE)
@@ -145,8 +164,6 @@ def _build_config():
     """Build the SimpleConfig for this service process and select the chain.
     """
     from jnius import autoclass
-    from electrum import constants
-    from electrum.simple_config import SimpleConfig
 
     service = autoclass('org.kivy.android.PythonService').mService
     pkgname = str(service.getPackageName())
@@ -167,17 +184,16 @@ def _build_config():
     return config
 
 
-def _fetch_chain_tip(config, timeout=45):
-    """Connect to the configured server and return the current chain-tip height.
+@contextmanager
+def _network_session(config, timeout=45):
+    """Start a private asyncio loop + Network and yield the connected Network.
 
-    Starts a private asyncio loop + Network and returns the height, or None on
-    failure/timeout. Bounded by `timeout` seconds.
+    Honors the config's server and proxy settings. Waits up to `timeout` seconds
+    for the initial connection; the yielded Network may still be disconnected if
+    the timeout elapsed, so callers should check `network.is_connected()`.
+    Guarantees the network is stopped and the loop torn down on exit, keeping the
+    service well under the shortService ~3-minute cap.
     """
-    import time
-    import asyncio
-    from electrum.network import Network
-    from electrum.util import create_and_start_event_loop
-
     loop, stopping_fut, loop_thread = create_and_start_event_loop()
     network = Network(config)
     network.start()
@@ -186,10 +202,7 @@ def _fetch_chain_tip(config, timeout=45):
         while not network.is_connected() and waited < timeout:
             time.sleep(1.0)
             waited += 1.0
-        if not network.is_connected():
-            return None
-        # server's claimed tip; fall back to the POW-verified local height
-        return network.get_server_height() or network.get_local_height()
+        yield network
     finally:
         # set_result must run on the loop thread; stop the network first so its
         # tasks unwind cleanly before the loop is torn down.
@@ -203,14 +216,199 @@ def _fetch_chain_tip(config, timeout=45):
             loop_thread.join(1)
 
 
+def _fetch_chain_tip(network):
+    """Return the current chain-tip height for a connected Network.
+    """
+    # server's claimed tip
+    return network.get_server_height()
+
+
+def _confirmations_for_height(height: int, tip: int) -> int:
+    """Actual confirmation depth of a tx given its server history height.
+
+    0 means unconfirmed/in mempool (also when our tip is unknown or behind, so
+    we never over-report). Server heights: >0 confirmed at that block; 0 or -1
+    unconfirmed (in mempool, possibly with an unconfirmed parent).
+    """
+    if height <= 0 or not tip:
+        return 0
+    return max(0, tip - height + 1)
+
+
+def _query_watched_items(network, config, tip, timeout=30):
+    """Read watched_items.json and query the server for the relevant event.
+
+    The GUI process exports the addresses/outpoints it wants watched to
+    <data_dir>/watched_items.json (see QEDaemon.export_watched_items), keyed by
+    wallet name. Detection differs by how the item is watched:
+
+    - address: *arrival* -- any tx paying the address' scripthash.
+    - outpoint: *spend* -- a tx whose input spends the specific outpoint
+
+    `txids` holds the tx(s) that constitute the event (the incoming payment(s),
+    or the single spending tx); it is empty when the event has not happened yet.
+    `confirmations` is the actual confirmation depth of that event (deepest
+    incoming tx for an address; the spending tx for an outpoint), 0 when
+    unconfirmed or nothing qualifies. The caller triggers once it is >= the
+    item's required depth.
+
+    Returns {wallet_name: [{'item': item, 'txids': [...], 'confirmations': n}, ...]}.
+    """
+
+    path = os.path.join(config.path, 'watched_items.json')
+    if not os.path.exists(path):
+        return {}
+    data = read_json_file(path)
+
+    def _get_tx(txid):
+        raw = network.run_from_another_thread(
+            network.get_transaction(txid), timeout=timeout)
+        return Transaction(raw)
+
+    def _history(sh):
+        return network.run_from_another_thread(
+            network.get_history_for_scripthash(sh), timeout=timeout)
+
+    def _query_address(address):
+        """Arrival detection: any history on the address' scripthash counts.
+        confirmations is the deepest incoming tx (max)."""
+        history = _history(address_to_scripthash(address))
+        txids = [h['tx_hash'] for h in history]
+        confirmations = max(
+            (_confirmations_for_height(h['height'], tip) for h in history),
+            default=0)
+        return txids, confirmations
+
+    def _query_outpoint(outpoint):
+        """Spend detection: find the tx that spends this specific outpoint.
+
+        The funding tx gives us the watched output's scriptpubkey -> scripthash;
+        its history contains the funder plus anything spending from that script.
+        A history tx spends our outpoint iff one of its inputs' prevout equals
+        txid:idx. An outpoint is spent at most once, so we stop at the first hit
+        and report that tx and its confirmations."""
+        fund_txid, idx = outpoint.split(':')
+        spk = _get_tx(fund_txid).outputs()[int(idx)].scriptpubkey
+        for h in _history(script_to_scripthash(spk)):
+            if h['tx_hash'] == fund_txid:
+                continue  # the funder itself cannot spend its own output
+            spender = _get_tx(h['tx_hash'])
+            if any(txin.prevout.to_str() == outpoint for txin in spender.inputs()):
+                return [h['tx_hash']], _confirmations_for_height(h['height'], tip)
+        return [], 0
+
+    result = {}
+    for wallet_name, items in data.items():
+        found = []
+        for item in items:
+            try:
+                if address := item.get('address'):
+                    txids, confirmations = _query_address(address)
+                elif outpoint := item.get('outpoint'):
+                    txids, confirmations = _query_outpoint(outpoint)
+                else:
+                    continue
+                found.append({
+                    'item': item,
+                    'txids': txids,
+                    'confirmations': confirmations,
+                })
+            except Exception:
+                import traceback
+                traceback.print_exc()
+        if found:
+            result[wallet_name] = found
+    return result
+
+
+def _describe_events(entries):
+    """Human-readable notification text summarizing the fired events by type.
+
+    Phrasing reflects what each WatchedItemType actually observed: a REQUEST
+    address received a payment, while a SWAP/LIGHTNING lockup outpoint was spent
+    (swap claim/refund, or channel close)."""
+    counts = {}
+    for e in entries:
+        t = e['item'].get('type') or 'unknown'
+        counts[t] = counts.get(t, 0) + 1
+    phrasing = {
+        'request': lambda n: f"{n} payment(s) received",
+        'swap': lambda n: f"{n} swap lockup(s) spent",
+        'lightning': lambda n: f"{n} channel(s) closed on-chain",
+    }
+    parts = [
+        phrasing.get(t, lambda n: f"{n} {t} event(s)")(n)
+        for t, n in counts.items()
+    ]
+    return "; ".join(parts)
+
+
+def _mark_notified(config, entries):
+    """Persist a `notified` flag onto the given watched items in watched_items.json.
+
+    We reuse the existing export file as our notify-once state store (no extra
+    file): the flag survives across the repeated background runs that happen
+    while the GUI is closed. When the GUI later re-exports a loaded wallet it
+    recomputes the list from scratch, dropping the flag -- which is harmless, as
+    a paid request drops out entirely and an app that's open won't spam anyway.
+
+    Best-effort: never raises.
+    """
+    try:
+        path = os.path.join(config.path, 'watched_items.json')
+        if not os.path.exists(path):
+            return
+        data = read_json_file(path)
+        keys = {(e['item'].get('address'), e['item'].get('outpoint')) for e in entries}
+        changed = False
+        for items in data.values():
+            for item in items:
+                if (item.get('address'), item.get('outpoint')) in keys and not item.get('notified'):
+                    item['notified'] = True
+                    changed = True
+        if changed:
+            write_json_file(path, data)
+    except Exception:
+        import traceback
+        traceback.print_exc()
+
+
 def main():
     try:
         config = _build_config()
-        height = _fetch_chain_tip(config)
-        if height:
-            _notify("Electrum", f"Current block height: {height:,}")
-        else:
-            _notify("Electrum", "Could not reach the Electrum server")
+        with _network_session(config) as network:
+            if not network.is_connected():
+                return
+            height = _fetch_chain_tip(network)
+            watched = _query_watched_items(network, config, height)
+            n_items = sum(len(items) for items in watched.values())
+            n_txids = sum(len(entry['txids']) for items in watched.values() for entry in items)
+            print(f"chainwatch: queried {n_items} watched item(s) across "
+                  f"{len(watched)} wallet(s); {n_txids} relevant tx(s) at {height=}")
+            # Every watched item is notified exactly once, and only once its tx
+            # has reached the item's required depth, i.e. its actual confirmation
+            # count is >= the item's `depth` (0 = trigger as soon as seen, even in
+            # mempool). An empty txids means the event (arrival / spend) has not
+            # happened yet.
+            def _required_depth(item):
+                try:
+                    return int(item.get('depth', 0))
+                except (TypeError, ValueError):
+                    return 0
+            fresh = [
+                entry
+                for items in watched.values() for entry in items
+                if entry['txids']
+                and entry['confirmations'] >= _required_depth(entry['item'])
+                and not entry['item'].get('notified')
+            ]
+            if fresh:
+                wallets = sorted({
+                    name for name, items in watched.items()
+                    if any(e in fresh for e in items)
+                })
+                _notify("Electrum", _describe_events(fresh), wallets)
+                _mark_notified(config, fresh)
     except Exception as e:
         # p4a redirects stdout/stderr to logcat, so this makes failures of this
         # otherwise-invisible background service debuggable.
