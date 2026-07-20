@@ -49,7 +49,7 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc, ChannelConf
                      IncompatibleOrInsaneFeatures, ReceivedMPPStatus, ReceivedMPPHtlc,
                      GossipForwardingMessage, GossipTimestampFilter, channel_id_from_funding_tx,
                      serialize_htlc_key, Keypair, RecvMPPResolution)
-from .lntransport import LNTransport, LNTransportBase, LightningPeerConnectionClosed, HandshakeFailed
+from .lntransport import LNTransport, LNTransportBase, LNResponderTransport, LightningPeerConnectionClosed, HandshakeFailed
 from .lnmsg import encode_msg, decode_msg, UnknownOptionalMsgType, FailedToParseMsg
 from .interface import GracefulDisconnect
 from .invoices import PR_PAID
@@ -110,6 +110,7 @@ class Peer(Logger, EventListener):
         self.node_ids = [self.pubkey, privkey_to_pubkey(self.privkey)]
         assert self.node_ids[0] != self.node_ids[1]
         self.last_message_time = 0
+        self.initialization_time = None  # type: Optional[float]
         self.pong_event = asyncio.Event()
         self.reply_channel_range = None  # type: Optional[asyncio.Queue]
         # gossip uses a single queue to preserve message order
@@ -171,12 +172,17 @@ class Peer(Logger, EventListener):
             return
         if self._sent_init and self._received_init:
             self.initialized.set_result(True)
+            self.initialization_time = time.monotonic()
 
     def is_initialized(self) -> bool:
         return (self.initialized.done()
                 and not self.initialized.cancelled()
                 and self.initialized.exception() is None
                 and self.initialized.result() is True)
+
+    def is_incoming(self) -> bool:
+        """Whether the remote party initiated the connection."""
+        return isinstance(self.transport, LNResponderTransport)
 
     async def initialize(self):
         # If outgoing transport, do handshake now. For incoming, it has already been done.
