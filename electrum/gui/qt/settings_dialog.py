@@ -205,8 +205,8 @@ class SettingsDialog(QDialog, QtEventListener):
         qr_combo.currentIndexChanged.connect(on_video_device)
 
         colortheme_combo = QComboBox()
-        colortheme_combo.addItem(_('Light'), 'default')
-        colortheme_combo.addItem(_('Dark'), 'dark')
+        colortheme_combo.addItem(_("System"), "default")
+        colortheme_combo.addItem("qdarkstyle", "dark")
         index = colortheme_combo.findData(self.config.GUI_QT_COLOR_THEME)
         colortheme_combo.setCurrentIndex(index)
         colortheme_label = QLabel(self.config.cv.GUI_QT_COLOR_THEME.get_short_desc() + ':')
