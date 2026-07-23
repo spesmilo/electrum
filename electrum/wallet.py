@@ -3132,6 +3132,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             self._requests_addr_to_key[addr].add(request_id)
         if write_to_disk:
             self.save_db()
+        util.trigger_callback('request_status', self, request_id, self.get_invoice_status(req))
         return request_id
 
     def delete_request(self, request_id, *, write_to_disk: bool = True):
