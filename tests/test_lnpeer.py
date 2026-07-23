@@ -2,6 +2,7 @@ import asyncio
 import dataclasses
 import shutil
 import copy
+import socket
 import tempfile
 from decimal import Decimal
 import os
@@ -33,8 +34,8 @@ from electrum.bolt11 import encode_bolt11_invoice, BOLT11Addr, decode_bolt11_inv
 from electrum.bitcoin import COIN, sha256
 from electrum.transaction import Transaction
 from electrum.util import NetworkRetryManager, bfh, OldTaskGroup, EventListener, InvoiceError
-from electrum.lnpeer import Peer
-from electrum.lntransport import LNPeerAddr
+from electrum.lnpeer import Peer, LN_P2P_NETWORK_TIMEOUT
+from electrum.lntransport import LNPeerAddr, LNTransport
 from electrum.crypto import privkey_to_pubkey
 from electrum.lnutil import Keypair, PaymentFailure, LnFeatures, HTLCOwner, PaymentFeeBudget, RECEIVED
 from electrum.lnchannel import ChannelState, PeerState, Channel
@@ -411,6 +412,28 @@ class TestPeerUtils(TestPeer):
             )
             alice, _ = graph.peers.values()
             self.assertTrue(alice.features.supports(LnFeatures.OPTION_ZEROCONF_OPT))
+
+    async def test_initialized_future_resolves_on_failed_connection(self):
+        """The self.initialized future should return a connection exception if the connection fails, so consumers
+        awaiting it don't wait until their timeout if the connection failed"""
+        lnworker = self.create_mock_lnwallet(name='alice')
+        with socket.socket() as s:  # allocate a localhost port with no listener
+            s.bind(('127.0.0.1', 0))
+            port = s.getsockname()[1]
+        remote_pubkey = ECPrivkey.generate_random_key().get_public_key_bytes()
+        peer_addr = LNPeerAddr('127.0.0.1', port, remote_pubkey)
+        transport = LNTransport(lnworker.node_keypair.privkey, peer_addr, e_proxy=None)
+        peer = Peer(lnworker, remote_pubkey, transport)
+        main_loop_task = asyncio.create_task(peer.main_loop())
+        try:
+            async with timeout_after(LN_P2P_NETWORK_TIMEOUT // 5):
+                with self.assertRaises(ConnectionRefusedError):
+                    await peer.initialized
+                await main_loop_task
+            self.assertTrue(peer.got_disconnected.is_set())
+        finally:
+            if not main_loop_task.done():
+                main_loop_task.cancel()
 
 
 class TestPeerDirect(TestPeer):

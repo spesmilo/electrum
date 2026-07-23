@@ -892,6 +892,8 @@ class Peer(Logger, EventListener):
         try:
             await util.wait_for2(self.initialize(), LN_P2P_NETWORK_TIMEOUT)
         except (OSError, asyncio.TimeoutError, HandshakeFailed) as e:
+            if not self.initialized.done():
+                self.initialized.set_exception(e)  # forward exc so waiters can fail too
             raise GracefulDisconnect(f'initialize failed: {repr(e)}') from e
         async for msg in self.transport.read_messages():
             await self._process_message(msg)
