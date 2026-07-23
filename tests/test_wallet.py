@@ -91,6 +91,26 @@ class TestWalletStorage(WalletTestCase):
         for key, value in some_dict.items():
             self.assertEqual(d[key], value)
 
+    async def test_appends_after_incomplete_data_recovery_survive_reload(self):
+        storage = WalletStorage(self.wallet_path, allow_partial_writes=True)
+        db = JsonDB('', storage=storage)
+        db.put("a", "b")
+        db.write()
+        # simulate a crash that truncated an appended patch
+        with open(self.wallet_path, "a") as f:
+            f.write(',\n{"op": "add", "path": "/x", "value": {"inco')
+        # reopen: recovery drops the incomplete patch
+        storage = WalletStorage(self.wallet_path, allow_partial_writes=True)
+        db = JsonDB(storage.read(), storage=storage)
+        self.assertEqual(db.get("a"), "b")
+        # append a new patch to the recovered wallet
+        db.put("c", "d")
+        db.write()
+        # reopen: the appended patch must not be lost
+        storage = WalletStorage(self.wallet_path, allow_partial_writes=True)
+        db = JsonDB(storage.read(), storage=storage)
+        self.assertEqual(db.get("c"), "d")
+
     async def test_storage_imported_add_privkeys_persistence_test(self):
         text = ' '.join([
             'p2wpkh:L4jkdiXszG26SUYvwwJhzGwg37H2nLhrbip7u6crmgNeJysv5FHL',

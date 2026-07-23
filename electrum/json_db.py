@@ -126,6 +126,7 @@ class JsonDB(Logger):
                 data, patches = r, []
             elif r := self.maybe_load_incomplete_data(s):
                 data, patches = r, []
+                self.set_modified(True)
             else:
                 raise WalletFileException("Cannot read wallet file. (parsing failed)")
         if not isinstance(data, dict):
@@ -170,7 +171,7 @@ class JsonDB(Logger):
             if n == 0:
                 s = s[0:i]
                 assert s[-2:] == ',\n'
-                self.logger.info('found incomplete data {s[i:]}')
+                self.logger.info('found incomplete data')
                 return self.load_data(s[0:-2])
 
     def set_modified(self, b):
