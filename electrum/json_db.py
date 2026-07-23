@@ -62,7 +62,7 @@ def key_path(path: Sequence[_FLEX_KEY], key: _FLEX_KEY) -> str:
             return str(int(x))
         else:
             assert isinstance(x, str), f"unexpected key type for: {x!r}"
-            return x
+            return jsonpointer.escape(x)  # RFC 6901: escape '~' and '/'
     items = [to_str(x) for x in path]
     if key is not None:
         items.append(to_str(key))

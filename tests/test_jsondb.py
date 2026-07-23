@@ -152,3 +152,15 @@ class TestJsonDB(ElectrumTestCase):
                 jpatch = jsonpatch.JsonPatch(patches)
                 data = jpatch.apply(data)
                 self.assertEqual(data, {'d': 3})
+
+    async def test_jsondb_pointer_escaping(self):
+        # keys containing '/' or '~' must be escaped per RFC 6901 in emitted patches
+        data = {'labels': {'some/label~key': 'hello'}, 'x1/': {'type': 'bip32'}}
+        db = JsonDB(json.dumps(data))
+        labels = db.get_dict('labels')
+        labels['some/label~key'] = 'world'
+        db.data.pop('x1/')
+        patches = json.loads('[' + ','.join(db.pending_changes) + ']')
+        self.assertEqual({'/labels/some~1label~0key', '/x1~1'}, {p['path'] for p in patches})
+        data = jsonpatch.JsonPatch(patches).apply(data)
+        self.assertEqual({'labels': {'some/label~key': 'world'}}, data)
