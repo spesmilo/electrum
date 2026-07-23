@@ -2271,7 +2271,11 @@ class Commands(Logger):
         }
 
         try:
-            send_onion_message_to(wallet.lnworker, node_id_or_blinded_path, destination_payload)
+            wallet.lnworker.onion_message_manager.submit_send(
+                payload=destination_payload,
+                node_id_or_blinded_paths=node_id_or_blinded_path,
+            ).add_done_callback(lambda t: t.cancelled() or t.exception())
+            # not awaiting task as there won't be a response for 'message' so it would raise Timeout
             return {'success': True}
         except Exception as e:
             msg = str(e)
