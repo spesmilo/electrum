@@ -192,7 +192,11 @@ def create_onion_message_route_to(lnwallet: 'LNWallet', node_id: bytes) -> Seque
             raise NoRouteFound('no path found, peer_addr available', peer_address=peer_addr)
     else:
         # if we use trampoline just assume the trampoline will open a direct connection to the next_node_id
-        trampoline_peers = [p for p in lnwallet.lnpeermgr.peers.values() if lnwallet.is_trampoline_peer(p.pubkey)]
+        trampoline_peers = [
+            p for p in lnwallet.lnpeermgr.peers.values() \
+                if lnwallet.is_trampoline_peer(p.pubkey) \
+                and p.their_features.supports(LnFeatures.OPTION_ONION_MESSAGE_OPT)
+        ]
         if trampoline_peers:
             random_trampoline_peer = random.choice(trampoline_peers)
             return [
