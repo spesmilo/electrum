@@ -47,7 +47,7 @@ from ._vendor.distutils.version import StrictVersion
 from .version import ELECTRUM_VERSION
 from .i18n import _
 from .util import (profiler, DaemonThread, UserCancelled, ThreadJob, UserFacingException, ChoiceItem,
-                   make_dir, make_aiohttp_session)
+                   make_dir, make_aiohttp_session, make_plugin_reservation_owner)
 from . import bip32
 from . import plugins
 from .simple_config import SimpleConfig
@@ -909,6 +909,23 @@ class BasePlugin(Logger):
         """Returns a dict which is persisted in the per-wallet database."""
         plugin_storage = wallet.db.get_plugin_storage()
         return plugin_storage.setdefault(self.name, {})
+
+    def reserve_wallet_address(self, wallet: 'Abstract_Wallet', addr: str, *, tag: Optional[str] = None) -> None:
+        """Reserve a wallet address so it is not handed out for new payment requests.
+        The reservation is owned by this plugin (optionally sub-categorised by `tag`),
+        persisted, and released automatically if the plugin is uninstalled."""
+        wallet.set_reserved_state_of_address(
+            addr, reserved=True, owner=make_plugin_reservation_owner(self.name), tag=tag)
+
+    def release_wallet_address(self, wallet: 'Abstract_Wallet', addr: str) -> None:
+        """Release a reservation previously made by this plugin (regardless of tag)."""
+        wallet.set_reserved_state_of_address(
+            addr, reserved=False, owner=make_plugin_reservation_owner(self.name))
+
+    def get_reserved_wallet_addresses(self, wallet: 'Abstract_Wallet', *, tag: Optional[str] = None) -> Sequence[str]:
+        """Return the addresses reserved by this plugin; if `tag` is given, only that
+        sub-category, otherwise all of this plugin's reservations."""
+        return wallet.get_reserved_addresses(owner=make_plugin_reservation_owner(self.name), tag=tag)
 
 
 class DeviceUnpairableError(UserFacingException): pass

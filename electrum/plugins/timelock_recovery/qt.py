@@ -101,6 +101,7 @@ class Plugin(TimelockRecoveryPlugin):
 
     @hook
     def load_wallet(self, wallet, window):
+        self._migrate_labeled_addresses(wallet)
         if self._init_qt_received:  # only need/want the first signal
             return
         self._init_qt_received = True
