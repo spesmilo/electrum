@@ -222,6 +222,8 @@ LNGOSSIP_FEATURES = (
 
 
 class LNPeerManager(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
+    MAX_CHANNELLESS_PEERS_PER_DIRECTION = 100
+    CHANNELLESS_PEER_GRACE_PERIOD = 60  # duration before we start disconnecting, to give time for actual action
 
     def __init__(
         self, node_keypair,
@@ -341,6 +343,50 @@ class LNPeerManager(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
                     except ErrorAddingPeer as e:
                         self.logger.info(f"failed to add peer: {peer}. exc: {e!r}")
 
+    def _get_channelless_peers(self) -> tuple[list[Peer], list[Peer]]:
+        """Returns all connected peers with which we have/had no channels yet, sorted by initialization timestamp."""
+        channels = self._lnwallet_or_lngossip.channels if isinstance(self._lnwallet_or_lngossip, LNWallet) else {}
+        # redeemed channels count (they cost sats to fake), unfunded channels need to be rate-limited separately
+        nodes_with_channels = {chan.node_id for chan in channels.values()}
+        incoming, outgoing = [], []
+        with self.lock:
+            for node_id, peer in self._peers.items():
+                if node_id not in nodes_with_channels and peer.initialization_time is not None:
+                    if peer.is_incoming():
+                        incoming.append(peer)
+                    else:
+                        outgoing.append(peer)
+        eviction_order = lambda p: p.initialization_time
+        incoming.sort(key=eviction_order, reverse=True)
+        outgoing.sort(key=eviction_order, reverse=True)
+        return incoming, outgoing
+
+    async def _cleanup_unused_peers(self):
+        """
+        Peers without channels can accumulate over time through manual connections, failed channel opening flows,
+        onion message fallbacks and incoming connections.
+        This regularly closes the oldest channelless connections once the amount of channelless peers
+        exceeds a threshold to keep the resource usage bounded.
+        """
+        assert isinstance(self._lnwallet_or_lngossip, LNWallet), "lngossip does _maintain_connectivity"
+        while True:
+            await asyncio.sleep(10)
+            channelless_peers = self._get_channelless_peers()
+            protected_peers = set(cp[2].lower() for cp in self.config.LIGHTNING_PEERS or [] if len(cp) == 3)  # host, port, pubkey
+            if self._lnwallet_or_lngossip.trusted_zeroconf_node_id:
+                protected_peers.add(self._lnwallet_or_lngossip.trusted_zeroconf_node_id.hex())
+            # incoming peers should only be able to exceed peer count limit by becoming channelless after
+            # connection. Incoming connections that would already exceed the count will get rejected right away.
+            for peers in channelless_peers:  # incoming, outgoing
+                while len(peers) > self.MAX_CHANNELLESS_PEERS_PER_DIRECTION:
+                    oldest_peer = peers.pop()
+                    if oldest_peer.pubkey.hex() in protected_peers:
+                        continue
+                    peer_age = time.monotonic() - oldest_peer.initialization_time
+                    if peer_age <= self.CHANNELLESS_PEER_GRACE_PERIOD:
+                        break
+                    oldest_peer.close_and_cleanup()
+
     async def _add_peer(self, host: str, port: int, node_id: bytes) -> Peer:
         if node_id in self._peers:
             return self._peers[node_id]
@@ -383,7 +429,7 @@ class LNPeerManager(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
                 assert node_id not in self._channelless_incoming_peers
                 chans = [chan for chan in self.channels_for_peer(node_id).values() if chan.is_funded()]
                 if not chans:
-                    if len(self._channelless_incoming_peers) > 100:
+                    if len(self._channelless_incoming_peers) >= self.MAX_CHANNELLESS_PEERS_PER_DIRECTION:
                         transport.close()
                         return None
                     self._channelless_incoming_peers.add(node_id)
@@ -432,6 +478,9 @@ class LNPeerManager(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         if maintain_random_peers:
             tg_coro = self.taskgroup.spawn(self._maintain_connectivity())
             asyncio.run_coroutine_threadsafe(tg_coro, get_asyncio_loop())
+        else:
+            cleanup_coro = self.taskgroup.spawn(self._cleanup_unused_peers())
+            asyncio.run_coroutine_threadsafe(cleanup_coro, get_asyncio_loop())
 
     async def stop(self):
         self.stopping_soon = True
@@ -579,6 +628,13 @@ class LNPeerManager(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         for peer in self.peers.values():
             peer.close_and_cleanup()
         self._clear_addr_retry_times()
+
+    @event_listener
+    def on_event_channel(self, wallet: 'Abstract_Wallet', channel: 'Channel'):
+        if channel.is_funded() \
+                and isinstance(self._lnwallet_or_lngossip, LNWallet) and self._lnwallet_or_lngossip.wallet == wallet:
+            with self.lock:
+                self._channelless_incoming_peers.discard(channel.node_id)
 
     @log_exceptions
     async def add_peer(self, connect_str: str) -> Peer:
