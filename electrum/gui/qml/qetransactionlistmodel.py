@@ -134,11 +134,11 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
             item['lightning'] = False
 
         if item['lightning']:
-            item['value'] = QEAmount(amount_sat=item['value'].value, amount_msat=item['amount_msat'])
+            item['value'] = QEAmount(amount_msat=item['amount_msat'])
             item['incoming'] = True if item['amount_msat'] > 0 else False
             item['confirmations'] = 0
         else:
-            item['value'] = QEAmount(amount_sat=item['value'].value)
+            item['value'] = QEAmount(amount_sat=int(item['value'].value))
 
         if 'txid' in item:
             tx = self.wallet.db.get_transaction(item['txid'])

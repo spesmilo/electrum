@@ -106,8 +106,8 @@ Pane {
                     Label {
                         Layout.preferredWidth: 1
                         Layout.fillWidth: true
-                        visible: !txdetails.isUnrelated && txdetails.amount.satsInt != 0
-                        text: txdetails.amount.satsInt > 0
+                        visible: !txdetails.isUnrelated && !txdetails.amount.isEmpty
+                        text: txdetails.amount.positive
                                 ? qsTr('Amount received onchain')
                                 : qsTr('Amount sent onchain')
                         color: Material.accentColor
@@ -117,15 +117,15 @@ Pane {
                     FormattedAmount {
                         Layout.preferredWidth: 1
                         Layout.fillWidth: true
-                        visible: !txdetails.isUnrelated && txdetails.amount.satsInt != 0
+                        visible: !txdetails.isUnrelated && !txdetails.amount.isEmpty
                         amount: txdetails.amount
                         timestamp: txdetails.timestamp
                     }
 
                     Label {
                         Layout.fillWidth: true
-                        visible: !txdetails.isUnrelated && txdetails.lnAmount.satsInt != 0
-                        text: txdetails.lnAmount.satsInt > 0
+                        visible: !txdetails.isUnrelated && !txdetails.lnAmount.isEmpty
+                        text: txdetails.lnAmount.positive
                                 ? qsTr('Amount received in channels')
                                 : qsTr('Amount withdrawn from channels')
                         color: Material.accentColor
@@ -133,7 +133,7 @@ Pane {
                     }
 
                     FormattedAmount {
-                        visible: !txdetails.isUnrelated && txdetails.lnAmount.satsInt != 0
+                        visible: !txdetails.isUnrelated && !txdetails.lnAmount.isEmpty
                         Layout.preferredWidth: 1
                         Layout.fillWidth: true
                         amount: txdetails.lnAmount.isEmpty ? txdetails.amount : txdetails.lnAmount

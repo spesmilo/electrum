@@ -115,7 +115,7 @@ class InvoiceList(MyTreeView):
             else:
                 icon_name = 'bitcoin.png'
             status = self.wallet.get_invoice_status(item)
-            amount = item.get_amount_sat()
+            amount = item.get_amount_sat_msat_precision()
             amount_str = self.main_window.format_amount(amount, whitespaces=True) if amount else ""
             amount_str_nots = self.main_window.format_amount(amount, whitespaces=True, add_thousands_sep=False) if amount else ""
             timestamp = item.time or 0
@@ -182,7 +182,7 @@ class InvoiceList(MyTreeView):
             copy_menu.addAction(_("Address"), lambda: self.main_window.do_copy(invoice.get_address(), title='Bitcoin Address'))
         status = wallet.get_invoice_status(invoice)
         if status == PR_UNPAID:
-            if bool(invoice.get_amount_sat()):
+            if bool(invoice.get_amount_msat()):
                 menu.addAction(_("Pay") + "...", lambda: self.send_tab.do_pay_invoice(invoice))
             else:
                 menu.addAction(_("Pay") + "...", lambda: self.send_tab.do_edit_invoice(invoice))
