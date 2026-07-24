@@ -3228,6 +3228,7 @@ class LNWallet(Logger):
                         [x.node_id for x in route],
                         onion_key)
                 except Exception as e:
+                    self.logger.warning(f"failed to decode onion error for htlc {htlc_id}", exc_info=True)
                     sender_idx = None
                     failure_message = OnionRoutingFailure(OnionFailureCode.INVALID_ONION_PAYLOAD, str(e).encode())
             else:

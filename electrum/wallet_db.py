@@ -106,6 +106,7 @@ class WalletFileExceptionVersion51(WalletFileException): pass
 # register dicts that require value conversions not handled by constructor
 register_name('/transactions/*', None, lambda x: tx_from_any(x, deserialize=False, sanitize=False))
 register_name('/channels/*/data_loss_protect_remote_pcp/*', None, lambda x: bytes.fromhex(x))
+register_name('/channels/*/onion_keys/*', None, lambda x: bytes.fromhex(x))
 # register tuples, otherwise they will default to StoredList
 register_name('/contacts/*', None, tuple)
 register_name('/lightning_preimages/*', None, tuple)
