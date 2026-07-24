@@ -85,6 +85,7 @@ from electrum.transaction import Transaction
 from electrum.network import Network
 from electrum import constants
 from electrum.simple_config import SimpleConfig
+from electrum.i18n import _, set_language
 
 CHANNEL_ID = "electrum_chainwatch"
 CHANNEL_NAME = "Chainwatch"
@@ -179,6 +180,8 @@ def _build_config():
 
     # reads the same user config the GUI uses, incl. server + proxy settings.
     config = SimpleConfig(options)
+    # use proper translations (with the same language the GUI uses).
+    set_language(config.LOCALIZATION_LANGUAGE)
     # set the global constants.net (ports, genesis, default servers).
     config.get_selected_chain().set_as_network()
     return config
@@ -322,23 +325,25 @@ def _query_watched_items(network, config, tip, timeout=30):
 
 
 def _describe_events(entries):
-    """Human-readable notification text summarizing the fired events by type.
-
-    Phrasing reflects what each WatchedItemType actually observed: a REQUEST
-    address received a payment, while a SWAP/LIGHTNING lockup outpoint was spent
-    (swap claim/refund, or channel close)."""
+    """Human-readable notification text summarizing the fired events.
+    """
     counts = {}
     for e in entries:
-        t = e['item'].get('type') or 'unknown'
-        counts[t] = counts.get(t, 0) + 1
+        item = e['item']
+        t = item.get('type') or 'unknown'
+        how = 'address' if item.get('address') else 'outpoint'
+        key = (t, how)
+        counts[key] = counts.get(key, 0) + 1
     phrasing = {
-        'request': lambda n: f"{n} payment(s) received",
-        'swap': lambda n: f"{n} swap lockup(s) spent",
-        'lightning': lambda n: f"{n} channel(s) closed on-chain",
+        ('request', 'address'): lambda n: _("{} payment(s) received").format(n),
+        ('swap', 'address'): lambda n: _("{} swap(s) claimable").format(n),
+        ('swap', 'outpoint'): lambda n: _("{} swap lockup(s) spent").format(n),
+        ('lightning', 'address'): lambda n: _("{} force-close(s) matured").format(n),
+        ('lightning', 'outpoint'): lambda n: _("{} channel(s) closed on-chain").format(n),
     }
     parts = [
-        phrasing.get(t, lambda n: f"{n} {t} event(s)")(n)
-        for t, n in counts.items()
+        phrasing.get(key, lambda n, key=key: _("{count} {type} event(s)").format(count=n, type=key[0]))(n)
+        for key, n in counts.items()
     ]
     return "; ".join(parts)
 
