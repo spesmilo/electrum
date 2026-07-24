@@ -73,8 +73,14 @@ PLUGIN_PASSWORD_VERSION = 1
 class Plugins(DaemonThread):
 
     pkgpath = os.path.dirname(plugins.__file__)
-    # TODO: use XDG Base Directory Specification instead of hardcoding /etc
-    keyfile_posix = '/etc/electrum/plugins_key'
+    # https://specifications.freedesktop.org/basedir-spec/latest/#variables
+    if os.environ.get('XDG_CONFIG_HOME'):
+        base_path = os.environ.get('XDG_CONFIG_HOME')
+    elif os.environ.get('HOME'):
+        base_path = os.environ.get('HOME') + '/.config'
+    else:
+        base_path = '/etc'
+    keyfile_posix = base_path + '/electrum/plugins_key'
     keyfile_windows = r'HKEY_LOCAL_MACHINE\SOFTWARE\Electrum\PluginsKey'
 
     @profiler
@@ -204,9 +210,29 @@ class Plugins(DaemonThread):
                                          _("To set it you can also use the Auto-Setup or run "
                                            "the following terminal command"),
                                          ":\n\n",
-                                         f"sudo sh -c \"{self._posix_plugin_key_creation_command(key_hex)}\"",
+                                         self._get_user_facing_posix_plugin_key_setup_command(key_hex),
             ])
         return keyfile_path, keyfile_help
+
+    def _get_user_facing_posix_plugin_key_setup_command(self, key_hex: str) -> str:
+        electrum_key_dir = os.path.dirname(self.keyfile_posix)
+        def mkdir_needs_root(parent_dir: str):
+            # Keep checking parent directories until we find one that exists
+            while parent_dir and not os.path.exists(parent_dir):
+                parent_dir = os.path.dirname(parent_dir)
+            # If we found a parent directory, check if we have write permissions
+            if parent_dir:
+                return not os.access(parent_dir, os.W_OK)
+            return True
+        if mkdir_needs_root(electrum_key_dir):
+            # puts the mkdir inside the sudo sh command
+            command = (f"sudo sh -c \"mkdir -p {electrum_key_dir} && "
+                       f"{self._posix_plugin_key_creation_command(key_hex)}\"")
+        else:
+            # dir can be created without sudo
+            command = (f"mkdir -p {electrum_key_dir} && "
+                       f"sudo sh -c \"{self._posix_plugin_key_creation_command(key_hex)}\"")
+        return command
 
     def try_auto_key_setup(self, pubkey_hex: str) -> bool:
         """Can be called from the GUI to store the plugin pubkey as root/admin user"""
@@ -240,13 +266,10 @@ class Plugins(DaemonThread):
         return True
 
     def _posix_plugin_key_creation_command(self, pubkey_hex: str) -> str:
-        """creates the dir (dir_path), writes the key in file, and sets permissions to 644"""
-        dir_path: str = os.path.dirname(self.keyfile_posix)
+        """writes the key in file, and sets its permissions to 644"""
         sh_command = (
-                     f"mkdir -p {dir_path} "  # create the /etc/electrum dir
-                     f"&& printf '%s' '{pubkey_hex}' > {self.keyfile_posix} "  # write the key to the file
-                     f"&& chmod 644 {self.keyfile_posix} "  # set read permissions for the file
-                     f"&& chmod 755 {dir_path}"  # set read permissions for the dir
+                     f"printf '%s' '{pubkey_hex}' > {self.keyfile_posix} "  # write the key to the file
+                     f"&& chmod 644 {self.keyfile_posix}"  # set read permissions for the file
         )
         return sh_command
 
@@ -355,9 +378,14 @@ class Plugins(DaemonThread):
         This will open an OS dialog asking for the root password. Can only succeed if
         the system has polkit installed.
         """
-        assert os.path.exists("/etc"), "System does not have /etc directory"
-
         sh_command: str = self._posix_plugin_key_creation_command(key_hex)
+        # create base directory
+        base_dir_path = os.path.dirname(self.keyfile_posix)
+        try:
+            os.makedirs(base_dir_path, exist_ok=True)
+        except OSError:
+            # fallback to creating the dir with root permissions too
+            sh_command = f"mkdir -p {base_dir_path} && " + sh_command
         commands = ['pkexec', 'sh', '-c', sh_command]
         self._execute_commands_in_subprocess(commands)
 
@@ -373,21 +401,27 @@ class Plugins(DaemonThread):
         if not os.path.exists(self.keyfile_posix):
             self.logger.debug(f'file {self.keyfile_posix} does not exist')
             return
-        if not self._has_root_permissions(self.keyfile_posix):
+        try:
             os.unlink(self.keyfile_posix)
-            return
+        except OSError:
+            self.logger.debug(f"unlinking {self.keyfile_posix} failed, retrying with root")
+            # use pkexec to delete the file as root user
+            commands = ['pkexec', 'rm', self.keyfile_posix]
+            self._execute_commands_in_subprocess(commands)
 
-        # use pkexec to delete the file as root user
-        commands = ['pkexec', 'rm', self.keyfile_posix]
-        self._execute_commands_in_subprocess(commands)
         assert not os.path.exists(self.keyfile_posix), f'file {self.keyfile_posix} still exists'
 
     def _write_key_to_root_file_macos(self, key_hex: str) -> None:
-        assert os.path.exists("/etc"), "System does not have /etc directory"
-
         sh_command: str = self._posix_plugin_key_creation_command(key_hex)
-        macos_commands = self._get_macos_osascript_command(["sh", "-c", sh_command])
+        # create base directory
+        base_dir_path = os.path.dirname(self.keyfile_posix)
+        try:
+            os.makedirs(base_dir_path, exist_ok=True)
+        except OSError:
+            # fallback to creating the dir with root permissions too
+            sh_command = f"mkdir -p {base_dir_path} && " + sh_command
 
+        macos_commands = self._get_macos_osascript_command(["sh", "-c", sh_command])
         self._execute_commands_in_subprocess(macos_commands)
         with open(self.keyfile_posix, 'r') as f:
             assert f.read() == key_hex, f'file content mismatch: {f.read()} != {key_hex}'
@@ -397,12 +431,12 @@ class Plugins(DaemonThread):
         if not os.path.exists(self.keyfile_posix):
             self.logger.debug(f'file {self.keyfile_posix} does not exist')
             return
-        if not self._has_root_permissions(self.keyfile_posix):
+        try:
             os.unlink(self.keyfile_posix)
-            return
-        # use osascript to delete the file as root user
-        macos_commands = self._get_macos_osascript_command(["rm", self.keyfile_posix])
-        self._execute_commands_in_subprocess(macos_commands)
+        except OSError:
+            # use osascript to delete the file as root user
+            macos_commands = self._get_macos_osascript_command(["rm", self.keyfile_posix])
+            self._execute_commands_in_subprocess(macos_commands)
         assert not os.path.exists(self.keyfile_posix), f'file {self.keyfile_posix} still exists'
 
     def _write_key_to_regedit_windows(self, key_hex: str) -> None:
