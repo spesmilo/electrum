@@ -193,6 +193,7 @@ class TxEditor(WindowModalDialog, SubmarineSwapMixin, Logger):
             self.needs_update = False
 
     def update(self):
+        self.error = ''
         self.update_tx()
         self.set_locktime()
         self._update_widgets()

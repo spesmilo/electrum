@@ -3312,6 +3312,58 @@ class TestWalletSending(ElectrumTestCase):
             wallet.set_frozen_state_of_coins([utxo1], freeze=None)
             self.assertTrue(utxo1 not in wallet._frozen_coins)
 
+        with self.subTest(msg="coincontrol"):
+            coins = {txi.prevout.to_str(): txi for txi in wallet.get_utxos()}
+            coin1, coin2 = coins[utxo1], coins[utxo2]
+
+            wallet.add_to_coincontrol({coin1})
+            self.assertEqual({utxo1}, wallet.get_coincontrol_outpoints())
+            self.assertEqual(
+                {utxo1, utxo2},
+                {txi.prevout.to_str() for txi in wallet.get_spendable_coins()})
+            self.assertEqual(
+                {utxo1},
+                {txi.prevout.to_str() for txi in wallet.get_spendable_coins(coincontrol=True)})
+            wallet.add_to_coincontrol({coin2})
+            self.assertEqual(
+                {utxo1, utxo2},
+                {txi.prevout.to_str() for txi in wallet.get_spendable_coins(coincontrol=True)})
+            self.assertEqual(
+                {utxo2},
+                {txi.prevout.to_str() for txi in wallet.get_spendable_coins(
+                    ["tb1q6n99dl96mx8mfh90m3tn5awk5mllkzdh25dw7z"], coincontrol=True)})
+            wallet.remove_from_coincontrol({coin1, coin2})
+            self.assertEqual(set(), wallet.get_coincontrol_outpoints())
+            self.assertEqual(
+                {utxo1, utxo2},
+                {txi.prevout.to_str() for txi in wallet.get_spendable_coins(coincontrol=True)})
+            wallet.add_to_coincontrol({coin1})
+            self.assertEqual(
+                set(),
+                {txi.prevout.to_str() for txi in wallet.get_spendable_coins(
+                    ["tb1q6n99dl96mx8mfh90m3tn5awk5mllkzdh25dw7z"], coincontrol=True)})
+            wallet.clear_coincontrol()
+            self.assertEqual(set(), wallet.get_coincontrol_outpoints())
+
+        # freezing trumps coin control
+        with self.subTest(msg="coincontrol_and_freeze"):
+            coins = {txi.prevout.to_str(): txi for txi in wallet.get_utxos()}
+            coin1, coin2 = coins[utxo1], coins[utxo2]
+
+            wallet.add_to_coincontrol({coin1, coin2})
+            self.assertEqual({utxo1, utxo2}, wallet.get_coincontrol_outpoints())
+            wallet.set_frozen_state_of_coins([utxo1], freeze=True)
+            self.assertEqual({utxo2}, wallet.get_coincontrol_outpoints())
+            self.assertEqual(
+                {utxo2},
+                {txi.prevout.to_str() for txi in wallet.get_spendable_coins(coincontrol=True)})
+            wallet.add_to_coincontrol({coin1})
+            self.assertEqual({utxo2}, wallet.get_coincontrol_outpoints())
+            # cleanup
+            wallet.set_frozen_state_of_coins([utxo1], freeze=None)
+            wallet.clear_coincontrol()
+            self.assertEqual(set(), wallet.get_coincontrol_outpoints())
+
     async def test_export_psbt_with_xpubs__multisig(self):
         """When exporting a PSBT to be signed by a hw device, test that we populate
         the PSBT_GLOBAL_XPUB field with wallet xpubs.
