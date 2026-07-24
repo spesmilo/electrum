@@ -42,7 +42,7 @@ from electrum.logging import console_stderr_handler
 from electrum.lnchannel import ChannelState, Channel
 
 from . import ElectrumTestCase
-from .lnhelpers import create_test_channels
+from .lnhelpers import create_test_channels, force_state_transition
 
 
 one_bitcoin_in_msat = bitcoin.COIN * 1000
@@ -1014,10 +1014,3 @@ class TestDustNoAnchors(TestDust):
     TEST_ANCHOR_CHANNELS = False
 
 
-def force_state_transition(chanA: Channel, chanB: Channel) -> None:
-    chanB.receive_new_commitment(*chanA.sign_next_commitment())
-    rev = chanB.revoke_current_commitment()
-    bob_sig, bob_htlc_sigs = chanB.sign_next_commitment()
-    chanA.receive_revocation(rev)
-    chanA.receive_new_commitment(bob_sig, bob_htlc_sigs)
-    chanB.receive_revocation(chanA.revoke_current_commitment())

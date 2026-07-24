@@ -66,6 +66,9 @@ if TYPE_CHECKING:
 LN_P2P_NETWORK_TIMEOUT = 20
 
 
+class PeerWarning(Exception): pass
+
+
 class Peer(Logger, EventListener):
     # note: in general this class is NOT thread-safe. Most methods are assumed to be running on asyncio thread.
 
@@ -295,6 +298,8 @@ class Peer(Logger, EventListener):
         self.logger.info(f"remote peer sent warning [DO NOT TRUST THIS MESSAGE]: "
                          f"{error_text_bytes_to_safe_str(err_bytes, max_len=None)}. chan_id={chan_id.hex()}. "
                          f"{is_known_chan_id=}")
+        if is_known_chan_id:
+            self.ordered_message_queues[chan_id].put_nowait((None, {'warning': err_bytes}))
 
     def on_error(self, payload):
         chan_id = payload.get("channel_id")
@@ -394,11 +399,12 @@ class Peer(Logger, EventListener):
     async def wait_for_message(self, expected_name: str, channel_id: bytes):
         q = self.ordered_message_queues[channel_id]
         name, payload = await util.wait_for2(q.get(), LN_P2P_NETWORK_TIMEOUT)
-        # raise exceptions for errors, so that the caller sees them
-        if (err_bytes := payload.get("error")) is not None:
+        # raise exceptions for warnings and errors, so that the caller sees them
+        if (err_bytes := payload.get("error", payload.get("warning"))) is not None:
             err_text = error_text_bytes_to_safe_str(err_bytes)
-            raise GracefulDisconnect(
-                f"remote peer sent error [DO NOT TRUST THIS MESSAGE]: {err_text}")
+            msg_type = "error" if "error" in payload else "warning"
+            exc_str = f"remote peer sent {msg_type} [DO NOT TRUST THIS MESSAGE]: {err_text}"
+            raise GracefulDisconnect(exc_str) if "error" in payload else PeerWarning(exc_str)
         if name != expected_name:
             raise Exception(f"Received unexpected '{name}'")
         return payload
@@ -1252,7 +1258,14 @@ class Peer(Logger, EventListener):
         return chan_dict
 
     @non_blocking_msg_handler
-    async def on_open_channel(self, payload):
+    async def on_open_channel(self, payload: dict):
+        try:
+            with self.lnworker.incoming_channel_rate_limiter.rate_limit(self.pubkey):
+                await self._on_open_channel(payload)
+        except lnutil.IncomingChannelRateLimiter.ChannelOpeningRateLimited as e:
+            self.send_warning(payload["temporary_channel_id"], message=str(e), close_connection=False)
+
+    async def _on_open_channel(self, payload):
         """Implements the channel acceptance flow.
 
         <- open_channel message

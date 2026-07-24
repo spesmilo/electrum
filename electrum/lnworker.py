@@ -1048,6 +1048,7 @@ class LNWallet(Logger):
         for channel_id, c in random_shuffled_copy(channels.items()):
             self._channels[bfh(channel_id)] = chan = Channel(c, lnworker=self)
             self.wallet.set_reserved_addresses_for_chan(chan, reserved=True)
+        self.incoming_channel_rate_limiter = lnutil.IncomingChannelRateLimiter(self.lnpeermgr)
 
         self._channel_backups = {}  # type: Dict[bytes, ChannelBackup]
         # order is important: imported should overwrite onchain

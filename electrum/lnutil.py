@@ -3,10 +3,12 @@
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
 from enum import IntFlag, IntEnum
 import enum
-from typing import NamedTuple, List, Tuple, Mapping, Optional, TYPE_CHECKING, Union, Dict, Set, Sequence, FrozenSet
+from typing import NamedTuple, List, Tuple, Mapping, Optional, TYPE_CHECKING, Union, Dict, Set, Sequence, FrozenSet, Iterable
 import sys
 import time
 from functools import lru_cache
+from collections import defaultdict
+from contextlib import contextmanager
 
 import electrum_ecc as ecc
 from electrum_ecc import CURVE_ORDER, ecdsa_sig64_from_der_sig
@@ -36,6 +38,7 @@ if TYPE_CHECKING:
     from .lnchannel import Channel, AbstractChannel
     from .lnrouter import LNPaymentRoute
     from .lnonion import OnionRoutingFailure
+    from .lnworker import LNPeerManager
     from .simple_config import SimpleConfig
 
 
@@ -1777,6 +1780,64 @@ class GossipForwardingMessage:
         except KeyError:
             return None
         return cls(msg, scid, timestamp, sender_node_id)
+
+
+class IncomingChannelRateLimiter:
+    """
+    Rate limiting for new incoming channels.
+    If there previously was an active channel with the given peer before we allow it to bypass the global pending limit.
+    """
+    MAX_UNFUNDED_INCOMING_CHANNELS_PER_PEER = 2
+    MAX_UNFUNDED_INCOMING_CHANNELS_GLOBAL = 20
+
+    class ChannelOpeningRateLimited(Exception): pass
+
+    def __init__(self, lnpeermgr: 'LNPeerManager'):
+        self._lnpeermgr = lnpeermgr
+        # stores the pending opening flows as they are not yet part of lnworker.channels
+        self._pending_channel_openings = defaultdict(int)  # type: dict[bytes, int]
+
+    @contextmanager
+    def rate_limit(self, node_id: bytes):
+        self._try_acquire(node_id)
+        try:
+            yield
+        finally:
+            self._release(node_id)
+
+    def _try_acquire(self, node_id: bytes):
+        if self._count_unfunded_channels_with_peer(node_id) >= self.MAX_UNFUNDED_INCOMING_CHANNELS_PER_PEER:
+            raise self.ChannelOpeningRateLimited(f"per-peer rate limit ({self.MAX_UNFUNDED_INCOMING_CHANNELS_PER_PEER}) exceeded")
+        if not self._is_trusted_peer(node_id) \
+                and self._count_unfunded_channels_global() >= self.MAX_UNFUNDED_INCOMING_CHANNELS_GLOBAL:
+            raise self.ChannelOpeningRateLimited(f"global rate limit ({self.MAX_UNFUNDED_INCOMING_CHANNELS_GLOBAL}) exceeded")
+        self._pending_channel_openings[node_id] += 1
+
+    def _release(self, node_id: bytes):
+        self._pending_channel_openings[node_id] -= 1
+        if self._pending_channel_openings[node_id] <= 0:
+            del self._pending_channel_openings[node_id]
+
+    @staticmethod
+    def _count_unfunded_channels(channels: Iterable['Channel']) -> int:
+        # count zeroconf as unfunded, flag gets dropped after 3 confirmations by LNWatcher.
+        # zeroconf channels aren't unbounded here as the LSP might even have an incentive
+        # to DOS us so we are unable to broadcast a fraud proof/preimage onchain?
+        return sum(1 for c in channels if (not c.is_funded() or c.is_zeroconf()) and not c.is_initiator())
+
+    def _is_trusted_peer(self, node_id: bytes) -> bool:
+        return any(c.get_latest_ctn(HTLCOwner.LOCAL) > 0 for c in self._lnpeermgr.channels_for_peer(node_id).values())
+
+    def _count_unfunded_channels_with_peer(self, node_id: bytes) -> int:
+        channels_with_peer = self._lnpeermgr.channels_for_peer(node_id).values()
+        count_unfunded_channels = self._count_unfunded_channels(channels_with_peer)
+        count_pending_channel_openings = self._pending_channel_openings.get(node_id, 0)
+        return count_unfunded_channels + count_pending_channel_openings
+
+    def _count_unfunded_channels_global(self) -> int:
+        global_channels = self._lnpeermgr._lnwallet_or_lngossip.channels.values()
+        count_global_channels = self._count_unfunded_channels(global_channels)
+        return count_global_channels + sum(self._pending_channel_openings.values())
 
 
 def list_enabled_ln_feature_bits(features: int) -> tuple[int, ...]:
