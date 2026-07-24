@@ -1,8 +1,11 @@
 # Copyright (C) 2018 The Electrum developers
 # Distributed under the MIT software license, see the accompanying
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
+import os
 from enum import IntFlag, IntEnum
 import enum
+from abc import ABC, abstractmethod
+from collections import defaultdict
 from typing import NamedTuple, List, Tuple, Mapping, Optional, TYPE_CHECKING, Union, Dict, Set, Sequence, FrozenSet
 import sys
 import time
@@ -14,7 +17,7 @@ from electrum_ecc.util import bip340_tagged_hash
 import dataclasses
 import attr
 
-from .util import bfh, UserFacingException, list_enabled_bits, is_hex_str
+from .util import bfh, UserFacingException, list_enabled_bits, is_hex_str, randrange
 from .util import ShortID as ShortChannelID, format_short_id as format_short_channel_id
 
 from .crypto import sha256, pw_decode_with_version_and_mac
@@ -35,7 +38,7 @@ from .stored_dict import StoredObject, stored_at
 if TYPE_CHECKING:
     from .lnchannel import Channel, AbstractChannel
     from .lnrouter import LNPaymentRoute
-    from .lnonion import OnionRoutingFailure
+    from .lnonion import OnionRoutingFailure, BlindedPathInfo, BlindedPayInfo
     from .simple_config import SimpleConfig
 
 
@@ -530,6 +533,18 @@ MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED = 2016
 ZEROCONF_TIMEOUT = 60 * 10
 
 TIME_FOR_OFFERED_HTLCS_TO_GET_FAILED_OFFCHAIN_ON_RESTART = 30
+
+
+def get_final_cltv_offset() -> int:
+    """
+    Return offset to be added to the expiry height of the recipient.
+    The offset makes it harder for intermediate nodes to guess their position in the route.
+    The offset is taken from lightning-kmp (Phoenix).
+    """
+    # https://github.com/lightning/bolts/blob/94eb038c42e664dd7862faeec6508ccd25f63ff8/04-onion-routing.md?plain=1#L274-L277
+    # https://github.com/ACINQ/lightning-kmp/blob/0a857347dc5a6363693ba7ac05cddc247a018f72/modules/core/src/commonMain/kotlin/fr/acinq/lightning/NodeParams.kt#L111-L127
+    random_offset = 71 + randrange(144 - 71)  # [72; 143]
+    return random_offset
 
 
 class RevocationStore:
@@ -1415,6 +1430,7 @@ class LnFeatureContexts(enum.Flag):
     BOLT12_INVREQ = enum.auto()
     BOLT12_INVOICE = enum.auto()
     BLINDED_PATH = enum.auto()
+    BLINDED_PAYINFO = enum.auto()
 
 
 LNFC = LnFeatureContexts
@@ -1573,6 +1589,9 @@ class LnFeatures(IntFlag):
     def for_blinded_path(self) -> 'LnFeatures':
         return self._for_context(LnFeatureContexts.BLINDED_PATH)
 
+    def for_blinded_payinfo(self) -> 'LnFeatures':
+        return self._for_context(LnFeatureContexts.BLINDED_PAYINFO)
+
     def for_channel_announcement(self) -> 'LnFeatures':
         features = LnFeatures(0)
         for flag in list_enabled_ln_feature_bits(self):
@@ -1713,6 +1732,8 @@ LN_FEATURES_IMPLEMENTED = (
         | LnFeatures.OPTION_ANCHORS_OPT | LnFeatures.OPTION_ANCHORS_REQ
         | LnFeatures.OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT | LnFeatures.OPTION_UPFRONT_SHUTDOWN_SCRIPT_REQ
         | LnFeatures.OPTION_SUPPORT_LARGE_CHANNEL_OPT | LnFeatures.OPTION_SUPPORT_LARGE_CHANNEL_REQ
+        | LnFeatures.OPTION_ROUTE_BLINDING_OPT | LnFeatures.OPTION_ROUTE_BLINDING_REQ
+        | LnFeatures.OPTION_ONION_MESSAGE_OPT | LnFeatures.OPTION_ONION_MESSAGE_REQ
 )
 
 
@@ -1846,8 +1867,13 @@ def validate_features(features: int, *, context: LnFeatureContexts) -> LnFeature
     features = LnFeatures(features)
     enabled_features = list_enabled_bits(features)
     for fbit in enabled_features:
-        if (1 << fbit) & LN_FEATURES_IMPLEMENTED == 0 and fbit % 2 == 0:
-            raise UnknownEvenFeatureBits(fbit)
+        if (1 << fbit) & LN_FEATURES_IMPLEMENTED == 0:
+            if fbit % 2 == 0:
+                raise UnknownEvenFeatureBits(fbit)
+            if context == LnFeatureContexts.BLINDED_PATH:
+                # bolt 04 requires unknown odd features to be failed :/
+                # https://github.com/lightning/bolts/blob/94eb038c42e664dd7862faeec6508ccd25f63ff8/04-onion-routing.md?plain=1#L313
+                raise IncompatibleOrInsaneFeatures(f"unknown odd features in blinded path context: {features.get_names()=}")
     if not features.validate_transitive_dependencies(context=context):
         raise IncompatibleOrInsaneFeatures(f"not all transitive dependencies are set. "
                                            f"features={features}")
@@ -1904,6 +1930,7 @@ class LnKeyFamily(IntEnum):
     PAYMENT_SECRET_KEY = 8 | BIP32_PRIME
     NOSTR_KEY = 9 | BIP32_PRIME
     FUNDING_ROOT_KEY = 10 | BIP32_PRIME
+    BOLT12_SECRET_KEY = 11 | BIP32_PRIME
 
 
 def generate_keypair(node: BIP32Node, key_family: LnKeyFamily) -> Keypair:
@@ -1931,16 +1958,19 @@ class UpdateAddHtlc:
     cltv_abs: int
     htlc_id: Optional[int] = dataclasses.field(default=None)
     timestamp: int = dataclasses.field(default_factory=lambda: int(time.time()))
+    path_key: Optional[bytes] = None
 
     @staticmethod
     @stored_at('/channels/*/log/*/adds/*', tuple)
-    def from_tuple(amount_msat, rhash, cltv_abs, htlc_id, timestamp) -> 'UpdateAddHtlc':
+    def from_tuple(amount_msat, rhash, cltv_abs, htlc_id, timestamp, path_key = None) -> 'UpdateAddHtlc':
         return UpdateAddHtlc(
             amount_msat=amount_msat,
             payment_hash=bytes.fromhex(rhash),
             cltv_abs=cltv_abs,
             htlc_id=htlc_id,
-            timestamp=timestamp)
+            timestamp=timestamp,
+            path_key=None if not path_key else bytes.fromhex(path_key),
+        )
 
     def to_json(self):
         self._validate()
@@ -1952,6 +1982,7 @@ class UpdateAddHtlc:
         assert isinstance(self.cltv_abs, int) and self.cltv_abs <= NLOCKTIME_BLOCKHEIGHT_MAX, self.cltv_abs
         assert isinstance(self.htlc_id, int) or self.htlc_id is None, self.htlc_id
         assert isinstance(self.timestamp, int), self.timestamp
+        assert self.path_key is None or (isinstance(self.path_key, bytes) and len(self.path_key) == 33)
 
     def __post_init__(self):
         self._validate()
@@ -2134,3 +2165,56 @@ class PaymentFeeBudget(NamedTuple):
         fees_msat = max(total_amount_msat - amount_minus_fees, cutoff_clamped)
         fees_msat = min(fees_msat, total_amount_msat)  # to handle (invalid?) inputs below cutoff_clamped
         return fees_msat
+
+    def subtract_blinded_path_fees(self, blinded_payinfo: 'BlindedPayInfo', amount_msat: int) -> 'PaymentFeeBudget':
+        """Subtract the blinded path's aggregate fees from this budget, returning the remaining budget
+        available for the non-blinded part of the route (e.g. trampoline fees).
+
+        Raises FeeBudgetExceeded if the blinded path fees or cltv exceed the budget.
+        """
+        from .lnrouter import fee_for_edge_msat
+        blinded_fee_msat = fee_for_edge_msat(
+            forwarded_amount_msat=amount_msat,
+            fee_base_msat=blinded_payinfo.fee_base_msat,
+            fee_proportional_millionths=blinded_payinfo.fee_proportional_millionths,
+        )
+        remaining_fee_msat = self.fee_msat - blinded_fee_msat
+        remaining_cltv = self.cltv - blinded_payinfo.cltv_expiry_delta
+        if remaining_fee_msat < 0 or remaining_cltv < 0:
+            raise FeeBudgetExceeded(
+                f"blinded path fees exceed budget: "
+                f"{blinded_fee_msat=}, fee budget: {self.fee_msat}, "
+                f"{blinded_payinfo.cltv_expiry_delta=}, cltv budget: {self.cltv=}"
+            )
+        return PaymentFeeBudget(fee_msat=remaining_fee_msat, cltv=remaining_cltv)
+
+
+@dataclasses.dataclass(kw_only=True, frozen=True)
+class UnblindedRoutingInfo:
+    node_pubkey: bytes
+    payment_secret: bytes
+    final_cltv_delta: int  # invoice + random offset
+    r_tags: Sequence[Sequence[Sequence[bytes | int]]]
+    invoice_features: LnFeatures
+
+    @property
+    def id(self):
+        """key to prevent concurrent attempts of this payment (invoice)"""
+        return self.payment_secret
+
+@dataclasses.dataclass(kw_only=True, frozen=True)
+class BlindedRoutingInfo:
+    paths: tuple['BlindedPathInfo', ...]
+    final_cltv_delta: int  # random offset
+    invoice_features: LnFeatures
+
+    def __post_init__(self):
+        assert self.paths
+        assert all(p.payinfo for p in self.paths)
+
+    @property
+    def id(self):
+        first_path = self.paths[0].path
+        return sha256(first_path.first_node_id + first_path.first_path_key)
+
+RoutingInfo = Union[UnblindedRoutingInfo, BlindedRoutingInfo]

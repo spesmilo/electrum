@@ -44,7 +44,7 @@ Item {
         // Android based send dialog if on android
         var scanner = app.scanDialog.createObject(mainView, {
             hint: Daemon.currentWallet.isLightning
-                ? qsTr('Scan an Invoice, an Address, an LNURL, a PSBT or a Channel Backup')
+                ? qsTr('Scan an Invoice, an Address, an Offer, a LNURL, a PSBT or a Channel Backup')
                 : qsTr('Scan an Invoice, an Address, an LNURL or a PSBT')
         })
         scanner.onFoundText.connect(function(data) {
@@ -134,6 +134,11 @@ Item {
     function createRequest(lightning, reuse_address) {
         var qamt = Config.unitsToSats(_request_amount)
         Daemon.currentWallet.createRequest(qamt, _request_description, _request_expiry, lightning, reuse_address)
+    }
+
+    function createOffer() {
+        var qamt = Config.unitsToSats(_request_amount)
+        Daemon.currentWallet.createOffer(qamt, _request_description, _request_expiry)
     }
 
     function startSweep() {
@@ -438,6 +443,20 @@ Item {
             })
             dialog.open()
         }
+        onBolt12Offer: {
+            closeSendDialog()
+            var dialog = bolt12OfferDialog.createObject(app, {
+                invoiceParser: invoiceParser
+            })
+            dialog.open()
+        }
+        onBolt12Invoice: {
+            closeSendDialog()
+            var dialog = invoiceDialog.createObject(app, {
+                invoice: invoiceParser
+            })
+            dialog.open()
+        }
     }
 
     Bitcoin {
@@ -471,6 +490,25 @@ Item {
             openRequest(key)
         }
         function onRequestCreateError(error) {
+            console.log(error)
+            var dialog = app.messageDialog.createObject(app, {
+                title: qsTr('Error'),
+                iconSource: Qt.resolvedUrl('../../icons/warning.png'),
+                text: error
+            })
+            dialog.open()
+        }
+        function onOfferCreateSuccess(offer) {
+            // reuse the same receive view as bolt11 requests, in offer mode
+            var qamt = Config.unitsToSats(_request_amount)
+            var dialog = receiveDialog.createObject(app, {
+                offer: offer,
+                offerAmountSat: qamt.satsInt,
+                offerMessage: _request_description
+            })
+            dialog.open()
+        }
+        function onOfferCreateError(error) {
             console.log(error)
             var dialog = app.messageDialog.createObject(app, {
                 title: qsTr('Error'),
@@ -628,7 +666,11 @@ Item {
                 _request_amount = _receiveDetailsDialog.amount
                 _request_description = _receiveDetailsDialog.description
                 _request_expiry = _receiveDetailsDialog.expiry
-                createRequest(_receiveDetailsDialog.isLightning, false)
+                if (_receiveDetailsDialog.isOffer) {
+                    createOffer()
+                } else {
+                    createRequest(_receiveDetailsDialog.isLightning, false)
+                }
             }
             onRejected: {
                 console.log('rejected')
@@ -741,6 +783,16 @@ Item {
     Component {
         id: lnurlWithdrawDialog
         LnurlWithdrawRequestDialog {
+            width: parent.width * 0.9
+            anchors.centerIn: parent
+
+            onClosed: destroy()
+        }
+    }
+
+    Component {
+        id: bolt12OfferDialog
+        Bolt12OfferDialog {
             width: parent.width * 0.9
             anchors.centerIn: parent
 
