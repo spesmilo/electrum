@@ -8,7 +8,8 @@ from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum.i18n import _
 from electrum.logging import get_logger
-from electrum.util import WalletFileException, standardize_path, InvalidPassword, send_exception_to_crash_reporter, write_json_file, read_json_file
+from electrum.util import WalletFileException, standardize_path, InvalidPassword, send_exception_to_crash_reporter, \
+    write_json_file, read_json_file, FileImportFailed
 from electrum.plugin import run_hook
 from electrum.lnchannel import ChannelState
 from electrum.bitcoin import is_address
@@ -556,7 +557,10 @@ class QEDaemon(AuthMixin, QObject, QtEventListener):
         path = self.watched_items_path()
         data = {}
         if os.path.exists(path):
-            data = read_json_file(path)
+            try:
+                data = read_json_file(path)
+            except FileImportFailed:
+                pass  # corrupt, start from scratch, will be eventually correct.
         data.update(self.get_watched_items_by_wallet())
         # prune wallets with no watched items (e.g. dormant/closed channels)
         data = {name: items for name, items in data.items() if items}
