@@ -1086,7 +1086,7 @@ class CosignWidget(QWidget):
 
 
 class WCChooseHWDevice(WalletWizardComponent, Logger):
-    scanFailed = pyqtSignal([str, str], arguments=['code', 'message'])
+    scanFailed = pyqtSignal([str, str, str], arguments=['code', 'message', 'debug_message'])
     scanComplete = pyqtSignal()
 
     def __init__(self, parent, wizard):
@@ -1099,6 +1099,14 @@ class WCChooseHWDevice(WalletWizardComponent, Logger):
 
         self.error_l = WWLabel()
         self.error_l.setVisible(False)
+
+        self.debug_message_toggle = QLabel()
+        self.debug_message_toggle.setTextInteractionFlags(Qt.TextInteractionFlag.LinksAccessibleByMouse)
+        self.debug_message_toggle.linkActivated.connect(self.on_toggle_debug_message)
+        self.debug_message_toggle.setVisible(False)
+
+        self.debug_l = WWLabel()
+        self.debug_l.setVisible(False)
 
         self.device_list = QWidget()
         self.device_list_layout = QVBoxLayout()
@@ -1122,6 +1130,8 @@ class WCChooseHWDevice(WalletWizardComponent, Logger):
         self.layout().addStretch(1)
         self.layout().addLayout(hbox)
         self.layout().addStretch(1)
+        self.layout().addWidget(self.debug_l)
+        self.layout().addWidget(self.debug_message_toggle, alignment=Qt.AlignmentFlag.AlignLeft)
 
     def on_ready(self):
         self.scan_devices()
@@ -1134,15 +1144,29 @@ class WCChooseHWDevice(WalletWizardComponent, Logger):
         d.exec()
         self.scan_devices()
 
-    def on_scan_failed(self, code, message):
+    def on_scan_failed(self, code, message, debug_message):
         self.error_l.setText(message)
         self.error_l.setVisible(True)
+        self.debug_l.setText(debug_message)
+        self.debug_l.setVisible(False)
+        self._update_debug_message_toggle()
+        self.debug_message_toggle.setVisible(True)
         self.device_list.setVisible(False)
 
         self.valid = False
 
+    def _update_debug_message_toggle(self):
+        link = _('Hide debug message') if self.debug_l.isVisible() else _('Show debug message')
+        self.debug_message_toggle.setText(f'<a href="toggle">{link}</a>')
+
+    def on_toggle_debug_message(self, _link):
+        self.debug_l.setVisible(not self.debug_l.isVisible())
+        self._update_debug_message_toggle()
+
     def on_scan_complete(self):
         self.error_l.setVisible(False)
+        self.debug_message_toggle.setVisible(False)
+        self.debug_l.setVisible(False)
         self.device_list.setVisible(True)
 
         choices = []  # type: List[ChoiceItem]
@@ -1235,10 +1259,9 @@ class WCChooseHWDevice(WalletWizardComponent, Logger):
                     msg += _('While this is less than ideal, it might help if you run Electrum as Administrator.') + '\n'
                 else:
                     msg += _('On Linux, you might have to add a new permission to your udev rules.') + '\n'
-                msg += '\n\n'
-                msg += _('Debug message') + '\n' + debug_msg
 
-                self.scanFailed.emit('no_devices', msg)
+                debug_message = _('Debug message') + '\n' + debug_msg
+                self.scanFailed.emit('no_devices', msg, debug_message)
                 self.busy = False
                 return
 
