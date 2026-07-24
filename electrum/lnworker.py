@@ -629,6 +629,13 @@ class LNPeerManager(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
             peer.close_and_cleanup()
         self._clear_addr_retry_times()
 
+    @event_listener
+    def on_event_channel(self, wallet: 'Abstract_Wallet', channel: 'Channel'):
+        if channel.is_funded() \
+                and isinstance(self._lnwallet_or_lngossip, LNWallet) and self._lnwallet_or_lngossip.wallet == wallet:
+            with self.lock:
+                self._channelless_incoming_peers.discard(channel.node_id)
+
     @log_exceptions
     async def add_peer(self, connect_str: str) -> Peer:
         node_id, rest = extract_nodeid(connect_str)
