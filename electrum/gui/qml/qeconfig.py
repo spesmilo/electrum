@@ -120,6 +120,17 @@ class QEConfig(AuthMixin, QObject):
         self.config.amt_add_thousands_sep = checked
         self.thousandsSeparatorChanged.emit()
 
+    hideAmountsChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=hideAmountsChanged)
+    def hideAmounts(self):
+        return self.config.GUI_QML_HIDE_AMOUNTS
+
+    @hideAmounts.setter
+    def hideAmounts(self, hide: bool):
+        if hide != self.config.GUI_QML_HIDE_AMOUNTS:
+            self.config.GUI_QML_HIDE_AMOUNTS = hide
+            self.hideAmountsChanged.emit()
+
     spendUnconfirmedChanged = pyqtSignal()
     @pyqtProperty(bool, notify=spendUnconfirmedChanged)
     def spendUnconfirmed(self):
@@ -362,9 +373,13 @@ class QEConfig(AuthMixin, QObject):
 
     @pyqtSlot('qint64', result=str)
     @pyqtSlot('qint64', bool, result=str)
+    @pyqtSlot('qint64', bool, bool, result=str)
     @pyqtSlot(QEAmount, result=str)
     @pyqtSlot(QEAmount, bool, result=str)
-    def formatSats(self, satoshis, with_unit=False):
+    @pyqtSlot(QEAmount, bool, bool, result=str)
+    def formatSats(self, satoshis, with_unit=False, hide_amounts: bool = False):
+        if hide_amounts:
+            return '****'
         if isinstance(satoshis, QEAmount):
             satoshis = satoshis.satsInt
         if with_unit:
@@ -374,8 +389,11 @@ class QEConfig(AuthMixin, QObject):
 
     @pyqtSlot(QEAmount, result=str)
     @pyqtSlot(QEAmount, bool, result=str)
-    def formatMilliSats(self, amount, with_unit=False):
+    @pyqtSlot(QEAmount, bool, bool, result=str)
+    def formatMilliSats(self, amount, with_unit=False, hide_amounts: bool = False):
         assert isinstance(amount, QEAmount), f"unexpected type for amount: {type(amount)}"
+        if hide_amounts:
+            return '****'
         msats = amount.msatsInt
         precision = 3  # config.amt_precision_post_satoshi is not exposed in preferences
         if with_unit:

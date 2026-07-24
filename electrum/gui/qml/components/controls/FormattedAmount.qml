@@ -10,6 +10,7 @@ GridLayout {
     property bool showAlt: true
     property bool singleLine: true
     property bool valid: true
+    property bool redacted: false
     property bool historic: Daemon.fx.historicRates
     property int timestamp: 0
 
@@ -26,11 +27,11 @@ GridLayout {
     }
     Label {
         visible: valid
-        text: amount.msatsInt != 0 ? Config.formatMilliSats(amount) : Config.formatSats(amount)
+        text: amount.msatsInt != 0 ? Config.formatMilliSats(amount, false, redacted) : Config.formatSats(amount, false, redacted)
         font.family: FixedFont
     }
     Label {
-        visible: valid
+        visible: valid && !redacted
         text: Config.baseUnit
         color: Material.accentColor
     }
@@ -38,7 +39,7 @@ GridLayout {
     Label {
         id: fiatLabel
         Layout.columnSpan: singleLine ? 1 : 2
-        visible: showAlt && Daemon.fx.enabled && valid
+        visible: showAlt && Daemon.fx.enabled && valid && !redacted
         font.pixelSize: constants.fontSizeSmall
     }
 
