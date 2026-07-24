@@ -319,8 +319,6 @@ class PaymentIdentifier(Logger):
                 openalias_task = asyncio.create_task(self.resolve_openalias(openalias_key))
 
                 # prefers lnurl over openalias if both are available
-                # FIXME resolving openalias disregards the network proxy and leaks our IP to
-                #       the DNS server. (see dnssec.query)
                 lnurl = lightning_address_to_url(self.emaillike) if self.emaillike else None
                 if lnurl is not None and (lnurl_result := await try_resolve_lnurlpay(lnurl)):
                     openalias_task.cancel()
