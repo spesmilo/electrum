@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # For usage in shell, to get the version of electrum, without needing electrum installed.
-# usage: ./print_electrum_version.py [<attr_name>]
+# usage: ./print_electrum_version.py [--with-commit]
 #
 # For example:
 # $ VERSION=$("$CONTRIB"/print_electrum_version.py)
@@ -9,16 +9,15 @@
 
 import importlib.util
 import os
+import subprocess
 import sys
 
 
-if __name__ == '__main__':
-    if len(sys.argv) >= 2:
-        attr_name = sys.argv[1]
-    else:
-        attr_name = "ELECTRUM_VERSION"
+project_root = os.path.abspath(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-    project_root = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+
+def get_bare_version() -> str:
+    """example: '4.8.0' """
     version_file_path = os.path.join(project_root, "electrum", "version.py")
 
     # load version.py; needlessly complicated alternative to "imp.load_source":
@@ -26,6 +25,25 @@ if __name__ == '__main__':
     version_module = version = importlib.util.module_from_spec(version_spec)
     version_spec.loader.exec_module(version_module)
 
-    attr_val = getattr(version, attr_name)
-    print(attr_val, file=sys.stdout)
+    elec_ver = getattr(version, "ELECTRUM_VERSION")
+    return str(elec_ver)
+
+
+def get_versionc() -> str:
+    """example: '4.8.0-8c0adcd' """
+    commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=project_root)
+    commit = str(commit, "utf8").strip()
+    commit = commit[:7]
+    elec_ver = get_bare_version()
+    return f"{elec_ver}-{commit}"
+
+
+if __name__ == '__main__':
+    if len(sys.argv) == 1:
+        print(get_bare_version(), file=sys.stdout)
+    elif len(sys.argv) == 2 and sys.argv[1] == "--with-commit":
+        print(get_versionc(), file=sys.stdout)
+    else:
+        print("usage: ./print_electrum_version.py [--with-commit]", file=sys.stderr)
+        sys.exit(1)
 

@@ -59,8 +59,7 @@ function DoCodeSignMaybe { # ARGS: infoName fileOrDirName
     codesign -f -v $deep -s "$CODESIGN_CERT" $hardened_arg "$file" || fail "Could not code sign ${infoName}"
 }
 
-# note: no --dirty, as we have dirtied electrum/locale/ ourselves.
-VERSION=$(git describe --tags --always)
+VERSIONC=$("$CONTRIB"/print_electrum_version.py --with-commit)
 
 DoCodeSignMaybe "app bundle" "dist/${PACKAGE}.app"
 
@@ -74,6 +73,6 @@ if [ ! -z "$CODESIGN_CERT" ]; then
 fi
 
 info "Creating .DMG"
-hdiutil create -fs HFS+ -volname $PACKAGE -srcfolder dist/$PACKAGE.app dist/electrum-$VERSION.dmg || fail "Could not create .DMG"
+hdiutil create -fs HFS+ -volname "$PACKAGE" -srcfolder "dist/$PACKAGE.app" "dist/electrum-$VERSIONC.dmg" || fail "Could not create .DMG"
 
-DoCodeSignMaybe ".DMG" "dist/electrum-${VERSION}.dmg"
+DoCodeSignMaybe ".DMG" "dist/electrum-${VERSIONC}.dmg"

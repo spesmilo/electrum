@@ -13,8 +13,10 @@ set -e
 
 pushd "$PROJECT_ROOT"
 
-VERSION=$(git describe --tags --dirty --always)
-info "Last commit: $VERSION"
+VERSIONB=$("$CONTRIB"/print_electrum_version.py)
+VERSIONC=$("$CONTRIB"/print_electrum_version.py --with-commit)
+info "VERSIONB: $VERSIONB"
+info "VERSIONC: $VERSIONC"
 
 info "preparing electrum-locale."
 (
@@ -62,7 +64,7 @@ rm -rf dist/
 
 # build standalone and portable versions
 info "Running pyinstaller..."
-ELECTRUM_CMDLINE_NAME="$NAME_ROOT-$VERSION" wine "$WINE_PYHOME/scripts/pyinstaller.exe" --noconfirm --clean pyinstaller.spec
+ELECTRUM_CMDLINE_NAME="$NAME_ROOT-$VERSIONC" wine "$WINE_PYHOME/scripts/pyinstaller.exe" --noconfirm --clean pyinstaller.spec
 
 # set timestamps in dist, in order to make the installer reproducible
 pushd dist
@@ -71,10 +73,10 @@ popd
 
 info "building NSIS installer"
 # $VERSION could be passed to the electrum.nsi script, but this would require some rewriting in the script itself.
-makensis -DPRODUCT_VERSION=$VERSION electrum.nsi
+makensis "-DPRODUCT_VERSION=$VERSIONB" electrum.nsi
 
 cd dist
-mv electrum-setup.exe $NAME_ROOT-$VERSION-setup.exe
+mv electrum-setup.exe "$NAME_ROOT-$VERSIONC-setup.exe"
 cd ..
 
 info "Padding binaries to 8-byte boundaries, and fixing COFF image checksum in PE header"

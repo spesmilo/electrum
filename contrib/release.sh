@@ -24,8 +24,11 @@
 #     2. cd to the submodule dir, and git pull
 #     3. cd .. && git push
 # - update RELEASE-NOTES and version.py
-# - $ git tag -s "$VERSION" -m "$VERSION"
-# - $ git push "$REMOTE_ORIGIN" tag "$VERSION"
+#   - ELECTRUM_VERSION = '9.8.7'
+# - create git tag
+#       (initially suffix tag name with -rcX)
+#   - $ git tag -s "9.8.7-rc1" -m "9.8.7-rc1"
+#   - $ git push "$REMOTE_ORIGIN" tag "9.8.7-rc1"
 #
 # -----
 # Then, typical release flow:
@@ -40,7 +43,7 @@
 # - after some time, RM can run release_www.sh to create and commit website-update
 #   - then run WWW_DIR/publish.sh to update website
 # - at least two people need to run WWW_DIR/publish.sh
-#
+# - create a new git tag for the rc that became the release: "9.8.7"
 
 set -e
 
@@ -84,12 +87,12 @@ if [ ! -z "$RELEASEMANAGER" ] ; then
 fi
 
 
-VERSION=$("$CONTRIB"/print_electrum_version.py)
-info "VERSION: $VERSION"
-REV=$(git describe --tags)
-info "REV: $REV"
-COMMIT=$(git rev-parse HEAD)
+VERSIONB=$("$CONTRIB"/print_electrum_version.py)  # Bare version
+VERSIONC=$("$CONTRIB"/print_electrum_version.py --with-commit)  # version+Commit
+info "VERSIONB: $VERSIONB"
+info "VERSIONC: $VERSIONC"
 
+COMMIT=$(git rev-parse HEAD)
 export ELECBUILD_COMMIT="${COMMIT}^{commit}"
 
 
@@ -102,7 +105,7 @@ fi
 set -x
 
 # create tarball
-tarball="Electrum-$VERSION.tar.gz"
+tarball="Electrum-$VERSIONC.tar.gz"
 if test -f "dist/$tarball"; then
     info "file exists: $tarball"
 else
@@ -110,7 +113,7 @@ else
 fi
 
 # create source-only tarball
-srctarball="Electrum-sourceonly-$VERSION.tar.gz"
+srctarball="Electrum-sourceonly-$VERSIONC.tar.gz"
 if test -f "dist/$srctarball"; then
     info "file exists: $srctarball"
 else
@@ -118,7 +121,7 @@ else
 fi
 
 # appimage
-appimage="electrum-$REV-x86_64.AppImage"
+appimage="electrum-$VERSIONC-x86_64.AppImage"
 if test -f "dist/$appimage"; then
     info "file exists: $appimage"
 else
@@ -127,9 +130,9 @@ fi
 
 
 # windows
-win1="electrum-$REV.exe"
-win2="electrum-$REV-portable.exe"
-win3="electrum-$REV-setup.exe"
+win1="electrum-$VERSIONC.exe"
+win2="electrum-$VERSIONC-portable.exe"
+win3="electrum-$VERSIONC-setup.exe"
 if test -f "dist/$win1"; then
     info "file exists: $win1"
 else
@@ -150,13 +153,13 @@ else
 fi
 
 # android
-apk1="Electrum-$VERSION-armeabi-v7a-release.apk"
-apk2="Electrum-$VERSION-arm64-v8a-release.apk"
-apk3="Electrum-$VERSION-x86_64-release.apk"
+apk1="Electrum-$VERSIONC-armeabi-v7a-release.apk"
+apk2="Electrum-$VERSIONC-arm64-v8a-release.apk"
+apk3="Electrum-$VERSIONC-x86_64-release.apk"
 for arch in armeabi-v7a arm64-v8a x86_64
 do
-    apk="Electrum-$VERSION-$arch-release.apk"
-    apk_unsigned="Electrum-$VERSION-$arch-release-unsigned.apk"
+    apk="Electrum-$VERSIONC-$arch-release.apk"
+    apk_unsigned="Electrum-$VERSIONC-$arch-release-unsigned.apk"
     if test -f "dist/$apk"; then
         info "file exists: $apk"
     else
@@ -177,7 +180,7 @@ done
 
 # the macos binary is built on a separate machine.
 # the file that needs to be copied over is the codesigned release binary (regardless of builder role)
-dmg="electrum-$VERSION.dmg"
+dmg="electrum-$VERSIONC.dmg"
 if ! test -f "dist/$dmg"; then
     if [ ! -z "$RELEASEMANAGER" ] ; then  # RM
         fail "dmg is missing, aborting. Please build and codesign the dmg on a mac and copy it over."
@@ -219,7 +222,7 @@ if [ -z "$RELEASEMANAGER" ] ; then
 
     if [ -z "$SSHUSER" ]; then
         info "No SFTP access, downloading binaries from website"
-        BASE_URL="https://download.electrum.org/$VERSION"
+        BASE_URL="https://download.electrum.org/$VERSIONB"
         FILES_TO_DOWNLOAD=(
             "$tarball"
             "$srctarball"
@@ -245,7 +248,7 @@ if [ -z "$RELEASEMANAGER" ] ; then
         # TODO check somehow that RM had finished uploading
         sftp -oBatchMode=no -b - "$SSHUSER@uploadserver" <<-EOF
            cd electrum-downloads-airlock
-           cd "$VERSION"
+           cd "$VERSIONB"
            mget *
            bye
 EOF
@@ -315,10 +318,6 @@ else
     test -f "$PROJECT_ROOT/dist/$apk2"       || fail "apk2 not found among built files"
     test -f "$PROJECT_ROOT/dist/$apk3"       || fail "apk3 not found among built files"
     test -f "$PROJECT_ROOT/dist/$dmg"        || fail "dmg not found among built files"
-
-    if [ "$REV" != "$VERSION" ]; then
-        fail "versions differ, not uploading"
-    fi
 
     # upload the files
     ./contrib/upload.sh

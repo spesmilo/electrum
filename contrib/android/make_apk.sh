@@ -11,6 +11,9 @@ PACKAGES="$PROJECT_ROOT"/packages/
 
 git -C "$PROJECT_ROOT" rev-parse 2>/dev/null || fail "Building outside a git clone is not supported."
 
+VERSIONC=$("$CONTRIB"/print_electrum_version.py --with-commit)
+info "VERSIONC: $VERSIONC"
+export APP_VERSION="$VERSIONC"
 
 # arguments have been checked in build.sh
 export ELEC_APK_GUI=$1
