@@ -3,7 +3,7 @@ import base64
 import queue
 import threading
 import time
-from typing import TYPE_CHECKING, Callable, Optional, Any, Tuple
+from typing import TYPE_CHECKING, Callable, Optional, Tuple
 from functools import partial
 
 from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer
@@ -37,19 +37,6 @@ if TYPE_CHECKING:
 
 
 class QEWallet(AuthMixin, QObject, QtEventListener):
-    __instances = []
-
-    # this factory method should be used to instantiate QEWallet
-    # so we have only one QEWallet for each electrum.wallet
-    @classmethod
-    def getInstanceFor(cls, wallet):
-        for i in cls.__instances:
-            if i.wallet == wallet:
-                return i
-        i = QEWallet(wallet)
-        cls.__instances.append(i)
-        return i
-
     _logger = get_logger(__name__)
 
     # emitted when wallet wants to display a user notification
@@ -125,16 +112,13 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         self.sync_progress_timer.setInterval(2000)
         self.sync_progress_timer.timeout.connect(self.update_sync_progress)
 
-        # post-construction init in GUI thread
-        # QMetaObject.invokeMethod(self, 'qt_init', Qt.QueuedConnection)
-
         # To avoid leaking references to "self" that prevent the
         # window from being GC-ed when closed, callbacks should be
         # methods of this class only, and specifically not be
         # partials, lambdas or methods of subobjects.  Hence...
-
         self.register_callbacks()
-        self.destroyed.connect(lambda: self.on_destroy())
+
+        self.destroyed.connect(self.on_destroy)
         self.synchronizing = not wallet.is_up_to_date()
 
     synchronizingChanged = pyqtSignal()
@@ -256,9 +240,6 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self.paymentFailed.emit(key, reason)
 
     def on_destroy(self):
-        if self not in QEWallet.__instances:
-            return
-        QEWallet.__instances.remove(self)
         self.unregister_callbacks()
 
     def add_tx_notification(self, tx: Transaction):
@@ -301,35 +282,35 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     @pyqtProperty(QETransactionListModel, notify=historyModelChanged)
     def historyModel(self):
         if self._historyModel is None:
-            self._historyModel = QETransactionListModel(self.wallet)
+            self._historyModel = QETransactionListModel(self.wallet, parent=self)
         return self._historyModel
 
     addressCoinModelChanged = pyqtSignal()
     @pyqtProperty(QEAddressCoinListModel, notify=addressCoinModelChanged)
     def addressCoinModel(self):
         if self._addressCoinModel is None:
-            self._addressCoinModel = QEAddressCoinListModel(self.wallet)
+            self._addressCoinModel = QEAddressCoinListModel(self.wallet, parent=self)
         return self._addressCoinModel
 
     requestModelChanged = pyqtSignal()
     @pyqtProperty(QERequestListModel, notify=requestModelChanged)
     def requestModel(self):
         if self._requestModel is None:
-            self._requestModel = QERequestListModel(self.wallet)
+            self._requestModel = QERequestListModel(self.wallet, parent=self)
         return self._requestModel
 
     invoiceModelChanged = pyqtSignal()
     @pyqtProperty(QEInvoiceListModel, notify=invoiceModelChanged)
     def invoiceModel(self):
         if self._invoiceModel is None:
-            self._invoiceModel = QEInvoiceListModel(self.wallet)
+            self._invoiceModel = QEInvoiceListModel(self.wallet, parent=self)
         return self._invoiceModel
 
     channelModelChanged = pyqtSignal()
     @pyqtProperty(QEChannelListModel, notify=channelModelChanged)
     def channelModel(self):
         if self._channelModel is None:
-            self._channelModel = QEChannelListModel(self.wallet)
+            self._channelModel = QEChannelListModel(self.wallet, parent=self)
         return self._channelModel
 
     nameChanged = pyqtSignal()
@@ -527,21 +508,21 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
     @auth_protect(message=_('Sign and send on-chain transaction?'))
     def sign_and_broadcast(self, tx, *,
-                           on_success: Callable[[Transaction], None] = None,
-                           on_failure: Callable[[Optional[Any]], None] = None) -> None:
+                           on_success: Callable[[], None] = None,
+                           on_failure: Callable[[str], None] = None) -> None:
         self.do_sign(tx, True, on_success, on_failure)
 
     @auth_protect(message=_('Sign on-chain transaction?'))
     def sign(self, tx, *,
-             on_success: Callable[[Transaction], None] = None,
-             on_failure: Callable[[Optional[Any]], None] = None) -> None:
+             on_success: Callable[[], None] = None,
+             on_failure: Callable[[str], None] = None) -> None:
         self.do_sign(tx, False, on_success, on_failure)
 
-    def do_sign(self, tx, broadcast, on_success: Callable[[Transaction], None] = None, on_failure: Callable[[Optional[Any]], None] = None):
+    def do_sign(self, tx, broadcast, on_success: Callable[[], None] = None, on_failure: Callable[[str], None] = None):
         # tc_sign_wrapper is only used by 2fa. don't pass on_failure handler, it is handled via otpFailed signal
         sign_hook = run_hook('tc_sign_wrapper', self.wallet, tx,
-                             partial(self.on_sign_complete, broadcast, on_success),
-                             partial(self.on_sign_failed, None))
+                             partial(self.on_tc_sign_complete, broadcast, on_success),
+                             partial(self.on_tc_sign_failed, None))
         try:
             # ignore_warnings=True, because UI checks and asks user confirmation itself
             tx = self.wallet.sign_transaction(tx, self.password, ignore_warnings=True)
@@ -554,7 +535,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         if tx is None:
             self._logger.info('did not sign')
             if on_failure:
-                on_failure()
+                on_failure(_('Could not sign'))
             return
 
         if sign_hook:
@@ -576,18 +557,18 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self.historyModel.initModel(True)
 
         if on_success:
-            on_success(tx)
+            on_success()
 
-    # this assumes a 2fa wallet, but there are no other tc_sign_wrapper hooks, so that's ok
-    def on_sign_complete(self, broadcast, cb: Callable[[Transaction], None] = None, tx: Transaction = None):
+    # trustedcoin tc_sign_wrapper
+    def on_tc_sign_complete(self, broadcast, cb: Callable[[], None] = None, tx: Transaction = None):
         self.otpSuccess.emit()
         if cb:
-            cb(tx)
+            cb()
         if broadcast:
             self.broadcast(tx)
 
-    # this assumes a 2fa wallet, but there are no other tc_sign_wrapper hooks, so that's ok
-    def on_sign_failed(self, cb: Callable[[], None] = None, error: str = None):
+    # trustedcoin tc_sign_wrapper
+    def on_tc_sign_failed(self, cb: Callable[[], None] = None, error: str = None):
         self.otpFailed.emit('error', error)
         if cb:
             cb()
@@ -602,7 +583,13 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self._otp_on_submit(otp)
         threading.Thread(target=submit_otp_task, daemon=True).start()
 
-    def broadcast(self, tx):
+    def broadcast(
+        self,
+        tx,
+        *,
+        on_success: Callable[[], None] = None,
+        on_failure: Callable[[str], None] = None
+    ):
         assert tx.is_complete()
 
         async def broadcast_coro():
@@ -613,15 +600,24 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             except TxBroadcastError as e:
                 self._logger.error(repr(e))
                 self.broadcastFailed.emit(tx.txid(), '', e.get_message_for_gui())
+                if on_failure:
+                    on_failure(e.get_message_for_gui())
             except BestEffortRequestFailed as e:
                 self._logger.error(repr(e))
                 self.broadcastFailed.emit(tx.txid(), '', repr(e))
-            except Exception:
+                if on_failure:
+                    on_failure(repr(e))
+            except Exception as e:
                 self._logger.exception("failed to broadcast tx")
+                self.broadcastFailed.emit(tx.txid(), '', repr(e))
+                if on_failure:
+                    on_failure(repr(e))
             else:
-                self._logger.info('broadcast success')
                 self.broadcastSucceeded.emit(tx.txid())
-                self.historyModel.requestRefresh.emit()  # via qt thread
+                if self._historyModel:
+                    self._historyModel.requestRefresh()
+                if on_success:
+                    on_success()
             finally:
                 self.wallet.set_broadcasting(tx, broadcasting_status=None)
 

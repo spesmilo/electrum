@@ -50,7 +50,7 @@ class QEChannelDetails(AuthMixin, QObject, QtEventListener):
         self._is_closing = False
 
         self.register_callbacks()
-        self.destroyed.connect(lambda: self.on_destroy())
+        self.destroyed.connect(self.on_destroy)
 
     @event_listener
     def on_event_channel(self, wallet: 'Abstract_Wallet', channel: 'AbstractChannel'):
