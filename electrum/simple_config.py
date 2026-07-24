@@ -14,7 +14,7 @@ from .util import base_units, base_unit_name_to_decimal_point, decimal_point_to_
 from .util import format_satoshis, format_fee_satoshis, os_chmod
 from .util import user_dir, make_dir
 from .util import is_valid_websocket_url
-from .lnutil import LN_MAX_FUNDING_SAT_LEGACY
+from .lnutil import LN_MAX_FUNDING_SAT_LEGACY, MIN_FUNDING_SAT
 from .i18n import _
 from .logging import get_logger, Logger
 
@@ -751,6 +751,16 @@ Note that static backups only allow you to request a force-close with the remote
 If this is enabled, other nodes cannot open a channel to you. Channel recovery data is encrypted, so that only your wallet can decrypt it. However, blockchain analysis will be able to tell that the transaction was probably created by Electrum."""),
     )
     LIGHTNING_TO_SELF_DELAY_CSV = ConfigVar('lightning_to_self_delay', default=7 * 144, type_=int)
+    LIGHTNING_MIN_FUNDING_SAT = ConfigVar(
+        'lightning_min_funding_sat', default=MIN_FUNDING_SAT, type_=int,
+        short_desc=lambda: _("Minimum channel funding amount (sat)"),
+        long_desc=lambda: _(
+            "⚠️ Warning: Small channel sizes (<50 000 sats) come with some risks. "
+            "If your channel partner tries to cheat you by publishing an old channel state and "
+            "does so in a high onchain fee environment, on-chain fees could make challenging that "
+            "uneconomical (you could lose money). Don't open small channels with channel partners "
+            "you don't trust."),
+    )
     LIGHTNING_MAX_FUNDING_SAT = ConfigVar('lightning_max_funding_sat', default=LN_MAX_FUNDING_SAT_LEGACY, type_=int)
     LIGHTNING_MAX_HTLC_VALUE_IN_FLIGHT_MSAT = ConfigVar('lightning_max_htlc_value_in_flight_msat', default=None, type_=int)
     INITIAL_TRAMPOLINE_FEE_LEVEL = ConfigVar('initial_trampoline_fee_level', default=1, type_=int)

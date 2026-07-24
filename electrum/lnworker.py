@@ -71,7 +71,7 @@ from .lnutil import (
     LnKeyFamily, LOCAL, REMOTE, MIN_FINAL_CLTV_DELTA_ACCEPTED, SENT, RECEIVED, HTLCOwner, UpdateAddHtlc, LnFeatures,
     ShortChannelID, HtlcLog, NoPathFound, InvalidGossipMsg, FeeBudgetExceeded, ImportedChannelBackupStorage,
     OnchainChannelBackupStorage, ln_compare_features, IncompatibleLightningFeatures, PaymentFeeBudget,
-    NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, GossipForwardingMessage, MIN_FUNDING_SAT,
+    NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, GossipForwardingMessage,
     MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE, RecvMPPResolution, ReceivedMPPStatus, ReceivedMPPHtlc,
     PaymentSuccess, ChannelType, LocalConfig, Keypair, ZEROCONF_TIMEOUT,
 )
@@ -1808,7 +1808,7 @@ class LNWallet(Logger):
         lightning_needed = amount_to_pay - num_sats_can_send
         assert lightning_needed > 0
         min_funding_sat = lightning_needed + (lightning_needed // 20) + 1000  # safety margin
-        min_funding_sat = max(min_funding_sat, MIN_FUNDING_SAT)  # at least MIN_FUNDING_SAT
+        min_funding_sat = max(min_funding_sat, self.config.LIGHTNING_MIN_FUNDING_SAT)  # at least the configured minimum
         if min_funding_sat > self.config.LIGHTNING_MAX_FUNDING_SAT:
             return
         fee_policy = FeePolicy(f'feerate:{FEERATE_FALLBACK_STATIC_FEE}')

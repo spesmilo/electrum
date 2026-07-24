@@ -34,7 +34,6 @@ from PyQt6.QtWidgets import QAbstractItemView, QMenu
 from electrum.i18n import _
 from electrum.bitcoin import is_address
 from electrum.transaction import PartialTxInput, PartialTxOutput
-from electrum.lnutil import MIN_FUNDING_SAT
 from electrum.util import profiler
 from electrum.plugin import run_hook
 
@@ -266,7 +265,7 @@ class UTXOList(MyTreeView):
         if self.wallet.lnworker is None:
             return False
         value = sum(x.value_sats() for x in coins)
-        return value >= MIN_FUNDING_SAT and value <= self.config.LIGHTNING_MAX_FUNDING_SAT
+        return value >= self.config.LIGHTNING_MIN_FUNDING_SAT and value <= self.config.LIGHTNING_MAX_FUNDING_SAT
 
     def open_channel_with_coins(self, coins: list[PartialTxInput]) -> None:
         assert coins, "no coins selected?"

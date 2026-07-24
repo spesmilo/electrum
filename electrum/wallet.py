@@ -78,7 +78,7 @@ from .invoices import BaseInvoice, Invoice, Request, PR_PAID, PR_UNPAID, PR_EXPI
 from .contacts import Contacts
 from .mnemonic import Mnemonic
 from .lnworker import LNWallet
-from .lnutil import MIN_FUNDING_SAT, RECEIVED, SENT
+from .lnutil import RECEIVED, SENT
 from .lntransport import extract_nodeid
 from .descriptor import Descriptor
 from .txbatcher import TxBatcher
@@ -3523,11 +3523,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     ln_swap_suggestion = self.lnworker.suggest_swap_to_receive(max(amount_sat, MIN_SWAP_AMOUNT_SAT))
                     # prefer to use swaps over JIT channels if possible
                     if can_get_zeroconf_channel and not bool(ln_rebalance_suggestion) and not bool(ln_swap_suggestion):
-                        if amount_sat < MIN_FUNDING_SAT:
+                        if amount_sat < self.config.LIGHTNING_MIN_FUNDING_SAT:
                             ln_is_error = True
                             ln_help = (_('Cannot receive this payment. Request at least {} '
                                        'to purchase a Lightning channel from your service provider.')
-                                       .format(self.config.format_amount_and_units(amount_sat=MIN_FUNDING_SAT)))
+                                       .format(self.config.format_amount_and_units(amount_sat=self.config.LIGHTNING_MIN_FUNDING_SAT)))
                         else:
                             ln_zeroconf_suggestion = True
                             ln_help = _(f'Receiving this payment will purchase a payment channel from your '
