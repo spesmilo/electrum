@@ -1174,6 +1174,28 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 address=address,
             ))
 
+        if self.has_lightning():
+            result.extend(self._get_lightning_breach_watched_items())
+
+        return result
+
+    def _get_lightning_breach_watched_items(self) -> List['WatchedItem']:
+        """WatchedItems that alert the instant a live channel is force-closed."""
+        result = []  # type: List[WatchedItem]
+        for chan in self.lnworker.channels.values():
+            try:
+                if not chan.is_funded() or chan.is_closed_or_closing():
+                    continue
+                funding_outpoint = chan.funding_outpoint.to_str()
+                if self.adb.get_spender(funding_outpoint):
+                    continue  # already spent on-chain; nothing left to race
+                result.append(WatchedItem(
+                    depth=0,  # alert the instant the force-close is seen (even in mempool)
+                    type=WatchedItemType.LIGHTNING,
+                    outpoint=funding_outpoint,
+                ))
+            except Exception:
+                self.logger.exception(f"failed to build breach watched item for {chan.get_id_for_log()}")
         return result
 
     def get_spendable_coins(
