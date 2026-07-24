@@ -749,6 +749,18 @@ class NewWalletWizard(KeystoreWizard):
                 else:
                     if t1 not in ['standard', 'p2wpkh', 'p2wpkh-p2sh']:
                         raise UserFacingException(_('Wrong key type {}').format(t1))
+                _der = data.get('key_origin_derivation', '').strip()
+                _fp  = data.get('key_origin_fingerprint', '').strip().lower()
+                if _der or _fp:
+                    try:
+                        k.add_key_origin(
+                            derivation_prefix=_der or None,
+                            root_fingerprint=_fp  or None,
+                        )
+                    except Exception as e:
+                        raise UserFacingException(
+                            _('Invalid key origin info: {}').format(e)
+                        ) from e
             elif isinstance(k, keystore.Old_KeyStore):
                 pass
             else:
