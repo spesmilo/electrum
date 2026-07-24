@@ -1175,6 +1175,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             ))
 
         if self.has_lightning():
+            result.extend(self._get_lightning_forceclose_watched_items())
             result.extend(self._get_lightning_breach_watched_items())
 
         return result
@@ -1196,6 +1197,48 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 ))
             except Exception:
                 self.logger.exception(f"failed to build breach watched item for {chan.get_id_for_log()}")
+        return result
+
+    def _get_lightning_forceclose_watched_items(self) -> List['WatchedItem']:
+        """WatchedItems for force-closed channels' time-locked outputs."""
+        from .lnsweep import SweepInfo
+        result = []  # type: List[WatchedItem]
+        for chan in self.lnworker.get_channel_objects().values():
+            try:
+                if chan.is_redeemed():
+                    continue  # fully swept long ago; nothing left to claim
+                funding_outpoint = chan.funding_outpoint.to_str()
+                closing_txid = self.adb.get_spender(funding_outpoint)
+                if not closing_txid:
+                    continue  # not closed (or closing tx still local/unconfirmed)
+                closing_tx = self.adb.get_transaction(closing_txid)
+                if not closing_tx:
+                    continue
+                _is_local_ctx, sweep_info_dict = chan.get_ctx_sweep_info(closing_tx)
+                for prevout, sweep_info in sweep_info_dict.items():
+                    # only CSV-delayed outputs we sweep ourselves (the to_local
+                    # output); skip anchors, and htlc/cltv outputs whose maturity
+                    # is an absolute height rather than a confirmation depth.
+                    if not isinstance(sweep_info, SweepInfo) or sweep_info.is_anchor():
+                        continue
+                    csv_delay = sweep_info.csv_delay
+                    if not csv_delay:
+                        continue
+                    if self.adb.get_spender(prevout):
+                        continue  # output already swept; no longer claimable
+                    prev_txid, prev_idx = prevout.split(':')
+                    if prev_txid != closing_txid:
+                        continue  # can only resolve an address for ctx outputs
+                    address = closing_tx.outputs()[int(prev_idx)].address
+                    if not address:
+                        continue
+                    result.append(WatchedItem(
+                        depth=csv_delay,  # claimable once the ctx is this deep
+                        type=WatchedItemType.LIGHTNING,
+                        address=address,
+                    ))
+            except Exception:
+                self.logger.exception(f"failed to build forceclose watched item for {chan.get_id_for_log()}")
         return result
 
     def get_spendable_coins(
