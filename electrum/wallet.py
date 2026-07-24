@@ -1180,7 +1180,35 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             result.extend(self._get_lightning_forceclose_watched_items())
             result.extend(self._get_lightning_breach_watched_items())
             result.extend(self._get_reverse_swap_watched_items())
+            result.extend(self._get_forward_swap_watched_items())
 
+        return result
+
+    def _get_forward_swap_watched_items(self) -> List['WatchedItem']:
+        """WatchedItems that alert when a forward swap's funding is claimed.
+        """
+        sm = self.lnworker.swap_manager
+        with sm.swaps_lock:
+            swaps = list(sm._swaps.values())
+        result = []  # type: List[WatchedItem]
+        for swap in swaps:
+            # forward swaps we have funded but not yet resolved (claimed/refunded)
+            if swap.is_reverse or swap.is_redeemed or swap.preimage or swap.spending_txid:
+                continue
+            if not swap.funding_txid:
+                continue
+            funding_tx = self.adb.get_transaction(swap.funding_txid)
+            if not funding_tx:
+                continue
+            idxs = funding_tx.get_output_idxs_from_address(swap.lockup_address)
+            if not idxs:
+                continue
+            outpoint = f"{swap.funding_txid}:{min(idxs)}"
+            result.append(WatchedItem(
+                depth=0,  # react the instant the server's claim (preimage reveal) is seen
+                type=WatchedItemType.SWAP,
+                outpoint=outpoint,
+            ))
         return result
 
     def _get_reverse_swap_watched_items(self) -> List['WatchedItem']:
