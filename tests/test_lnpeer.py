@@ -782,6 +782,41 @@ class TestPeerDirect(TestPeer):
             with self.assertRaises(PaymentFailure):
                 await self._test_simple_payment(test_trampoline=test_trampoline, test_hold_invoice=True, test_failure=True)
 
+    async def test_blinded_htlc_fails_with_invalid_onion_blinding(self):
+        """
+        Alice -> Bob. Alice sets a path_key in update_add_htlc, Bob should fail with invalid_onion_blinding.
+        """
+        graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
+        p1, p2 = graph.peers.values()
+        w1, w2 = graph.workers.values()
+        path_key = ECPrivkey.generate_random_key().get_public_key_bytes()
+        orig_send_htlc = p1.send_htlc
+        def send_htlc_with_path_key(**kwargs):
+            return orig_send_htlc(**{**kwargs, 'next_path_key': path_key})
+
+        async def pay(pay_req):
+            result, log = await w1.pay_invoice(pay_req)
+            self.assertFalse(result)
+            self.assertEqual(OnionFailureCode.INVALID_ONION_BLINDING, log[0].failure_msg.code)
+            raise PaymentFailure()
+
+        async def f():
+            async with OldTaskGroup() as group:
+                for peer in (p1, p2):
+                    await group.spawn(peer._message_loop())
+                    await group.spawn(peer.htlc_switch())
+                for peer in (p1, p2):
+                    await peer.initialized
+                lnaddr, pay_req = self.prepare_invoice(w2)
+                await group.spawn(pay(pay_req))
+
+        with mock.patch.object(p1, 'send_htlc', send_htlc_with_path_key):
+            with self.assertLogs('electrum', level='INFO') as logs:
+                with self.assertRaises(PaymentFailure):
+                    await f()
+        self.assertTrue(any('bob->alice' in msg and 'fail_malformed_htlc' in msg for msg in logs.output))
+        self.assertTrue(any('alice->bob' in msg and 'on_update_fail_malformed_htlc' in msg for msg in logs.output))
+
     async def test_check_invoice_before_payment(self):
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
         p1, p2 = graph.peers.values()

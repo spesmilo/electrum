@@ -1713,6 +1713,7 @@ LN_FEATURES_IMPLEMENTED = (
         | LnFeatures.OPTION_ANCHORS_OPT | LnFeatures.OPTION_ANCHORS_REQ
         | LnFeatures.OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT | LnFeatures.OPTION_UPFRONT_SHUTDOWN_SCRIPT_REQ
         | LnFeatures.OPTION_SUPPORT_LARGE_CHANNEL_OPT | LnFeatures.OPTION_SUPPORT_LARGE_CHANNEL_REQ
+        | LnFeatures.OPTION_ROUTE_BLINDING_OPT | LnFeatures.OPTION_ROUTE_BLINDING_REQ
 )
 
 
@@ -1846,8 +1847,13 @@ def validate_features(features: int, *, context: LnFeatureContexts) -> LnFeature
     features = LnFeatures(features)
     enabled_features = list_enabled_bits(features)
     for fbit in enabled_features:
-        if (1 << fbit) & LN_FEATURES_IMPLEMENTED == 0 and fbit % 2 == 0:
-            raise UnknownEvenFeatureBits(fbit)
+        if (1 << fbit) & LN_FEATURES_IMPLEMENTED == 0:
+            if fbit % 2 == 0:
+                raise UnknownEvenFeatureBits(fbit)
+            if context == LnFeatureContexts.BLINDED_PATH:
+                # bolt 04 requires unknown odd features to be failed :/
+                # https://github.com/lightning/bolts/blob/94eb038c42e664dd7862faeec6508ccd25f63ff8/04-onion-routing.md?plain=1#L313
+                raise IncompatibleOrInsaneFeatures(f"unknown odd features in blinded path context: {features.get_names()=}")
     if not features.validate_transitive_dependencies(context=context):
         raise IncompatibleOrInsaneFeatures(f"not all transitive dependencies are set. "
                                            f"features={features}")
@@ -1931,16 +1937,19 @@ class UpdateAddHtlc:
     cltv_abs: int
     htlc_id: Optional[int] = dataclasses.field(default=None)
     timestamp: int = dataclasses.field(default_factory=lambda: int(time.time()))
+    path_key: Optional[bytes] = None
 
     @staticmethod
     @stored_at('/channels/*/log/*/adds/*', tuple)
-    def from_tuple(amount_msat, rhash, cltv_abs, htlc_id, timestamp) -> 'UpdateAddHtlc':
+    def from_tuple(amount_msat, rhash, cltv_abs, htlc_id, timestamp, path_key = None) -> 'UpdateAddHtlc':
         return UpdateAddHtlc(
             amount_msat=amount_msat,
             payment_hash=bytes.fromhex(rhash),
             cltv_abs=cltv_abs,
             htlc_id=htlc_id,
-            timestamp=timestamp)
+            timestamp=timestamp,
+            path_key=None if not path_key else bytes.fromhex(path_key),
+        )
 
     def to_json(self):
         self._validate()
@@ -1952,6 +1961,7 @@ class UpdateAddHtlc:
         assert isinstance(self.cltv_abs, int) and self.cltv_abs <= NLOCKTIME_BLOCKHEIGHT_MAX, self.cltv_abs
         assert isinstance(self.htlc_id, int) or self.htlc_id is None, self.htlc_id
         assert isinstance(self.timestamp, int), self.timestamp
+        assert self.path_key is None or (isinstance(self.path_key, bytes) and len(self.path_key) == 33)
 
     def __post_init__(self):
         self._validate()
