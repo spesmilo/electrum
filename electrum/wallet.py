@@ -3715,8 +3715,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def get_user_notifications_for_new_txns(self, txns: Sequence[Transaction]) -> Sequence[str]:
         notifications = []
-        # Combine the transactions if there are at least three
-        if len(txns) >= 3:
+        if len(txns) > 20:
+            # skip the delta calculation if there are many txs, otherwise it may block the UI for seconds
+            notifications.append(_('{} new transactions').format(len(txns)))
+        elif len(txns) >= 3:
+            # Combine the transactions if there are at least three
             total_amount = 0
             total_debit = 0
             total_credit = 0

@@ -35,7 +35,8 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
         self.onchain_domain = onchain_domain
         self.include_lightning = include_lightning
 
-        self.tx_history = []
+        self.tx_history: list[dict] = []
+        self._tx_positions: dict[str, int] = {}  # txid -> row index in tx_history
 
         self.register_callbacks()
         self.destroyed.connect(lambda: self.on_destroy())
@@ -58,10 +59,9 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
         if adb != self.wallet.adb:
             return
         self._logger.debug(f'adb_set_future_tx event for txid {txid}')
-        for i, item in enumerate(self.tx_history):
-            if 'txid' in item and item['txid'] == txid:
-                self._update_future_txitem(i)
-                return
+        i = self._tx_positions.get(txid)
+        if i is not None:
+            self._update_future_txitem(i)
 
     @qt_event_listener
     def on_event_fee_histogram(self, histogram):
@@ -122,6 +122,7 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
     def clear(self):
         self.beginResetModel()
         self.tx_history = []
+        self._tx_positions = {}
         self.endResetModel()
 
     def tx_to_model(self, tx_item):
@@ -224,6 +225,7 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
         self.beginInsertRows(QModelIndex(), 0, len(txs) - 1)
         self.tx_history = txs
         self.tx_history.reverse()
+        self._tx_positions = {tx['txid']: i for i, tx in enumerate(self.tx_history) if 'txid' in tx}
         self.endInsertRows()
 
         self.countChanged.emit()
@@ -231,17 +233,18 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
         self._dirty = False
 
     def on_tx_verified(self, txid: str, info: TxMinedInfo):
-        for i, tx in enumerate(self.tx_history):
-            if 'txid' in tx and tx['txid'] == txid:
-                tx['height'] = info.height()
-                tx['confirmations'] = info.conf
-                tx['timestamp'] = info.timestamp
-                tx['section'] = self.get_section_by_timestamp(info.timestamp)
-                tx['date'] = self.format_date_by_section(tx['section'], datetime.fromtimestamp(info.timestamp))
-                index = self.index(i, 0)
-                roles = [self._ROLE_RMAP[x] for x in ['section', 'height', 'confirmations', 'timestamp', 'date']]
-                self.dataChanged.emit(index, index, roles)
-                return
+        i = self._tx_positions.get(txid)
+        if i is None:
+            return
+        tx = self.tx_history[i]
+        tx['height'] = info.height()
+        tx['confirmations'] = info.conf
+        tx['timestamp'] = info.timestamp
+        tx['section'] = self.get_section_by_timestamp(info.timestamp)
+        tx['date'] = self.format_date_by_section(tx['section'], datetime.fromtimestamp(info.timestamp))
+        index = self.index(i, 0)
+        roles = [self._ROLE_RMAP[x] for x in ['section', 'height', 'confirmations', 'timestamp', 'date']]
+        self.dataChanged.emit(index, index, roles)
 
     def _update_future_txitem(self, tx_item_idx: int):
         tx_item = self.tx_history[tx_item_idx]
@@ -272,13 +275,17 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
 
     @pyqtSlot(int)
     def updateBlockchainHeight(self, height):
-        self._logger.debug('updating height to %d' % height)
+        self._logger.debug(f'updating height to {height}')
+        if not self.tx_history:
+            return
         for i, tx_item in enumerate(self.tx_history):
             if 'height' in tx_item:
                 if tx_item['height'] > 0:
                     tx_item['confirmations'] = height - tx_item['height'] + 1
-                    index = self.index(i, 0)
-                    roles = [self._ROLE_RMAP['confirmations']]
-                    self.dataChanged.emit(index, index, roles)
                 elif tx_item['height'] in (TX_HEIGHT_FUTURE, TX_HEIGHT_LOCAL):
                     self._update_future_txitem(i)
+        self.dataChanged.emit(
+            self.index(0, 0),
+            self.index(len(self.tx_history) - 1, 0),
+            [self._ROLE_RMAP['confirmations']],
+        )
