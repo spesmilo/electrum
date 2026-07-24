@@ -55,6 +55,7 @@ info "Building $pkgname..."
             --enable-module-recovery \
             --enable-module-extrakeys \
             --enable-module-schnorrsig \
+            --enable-module-musig \
             --enable-experimental \
             --enable-module-ecdh \
             --disable-benchmark \

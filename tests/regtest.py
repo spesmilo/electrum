@@ -107,6 +107,12 @@ class TestLightningSwapserver(TestLightning):
     def test_swapserver_success_reverse(self):
         self.run_shell(['swapserver_success_reverse'])
 
+    def test_swapserver_taproot_forward(self):
+        self.run_shell(['swapserver_taproot_forward'], timeout=180)
+
+    def test_swapserver_taproot_reverse(self):
+        self.run_shell(['swapserver_taproot_reverse'], timeout=180)
+
     def test_swapserver_forceclose(self):
         self.run_shell(['swapserver_forceclose'])
 

@@ -10,7 +10,10 @@ from electrum import keystore, wallet, lnutil
 from electrum import SimpleConfig
 from electrum import util
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
-from electrum.transaction import Transaction, PartialTxInput, PartialTxOutput, TxOutpoint
+from electrum.transaction import (
+    Transaction, PartialTransaction, PartialTxInput, PartialTxOutput, TapScriptSigningData, TxOutpoint,
+)
+from electrum.txbatcher import TxBatch
 from electrum.logging import console_stderr_handler, Logger
 from electrum.submarine_swaps import SwapManager, SwapData
 from electrum.lnsweep import SweepInfo, sweep_ctx_anchor
@@ -143,6 +146,22 @@ class TestTxBatcher(ElectrumTestCase):
         wallet.txbatcher.SLEEP_INTERVAL = 0.01
         self.network.wallets.append(wallet)
         return wallet
+
+    def test_add_sweep_info_preserves_tapscript_signing_metadata(self):
+        source = PartialTxInput(prevout=TxOutpoint(txid=b"\x01" * 32, out_idx=0))
+        source.make_witness = lambda _sig: b""
+        source.privkey = b"\x02" * 32
+        source.tap_script_signing_data = TapScriptSigningData(
+            script=b"\x51", control_block=b"\xc0" + b"\x03" * 32
+        )
+        rebuilt = PartialTxInput(prevout=source.prevout)
+        batch = TxBatch.__new__(TxBatch)
+        batch.batch_inputs = {source.prevout: mock.Mock(txin=source)}
+
+        batch.add_sweep_info_to_tx(PartialTransaction.from_io(
+            [rebuilt], [PartialTxOutput(scriptpubkey=b"", value=0)], BIP69_sort=False
+        ))
+        self.assertIs(source.tap_script_signing_data, rebuilt.tap_script_signing_data)
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_batch_payments(self, mock_save_db):
