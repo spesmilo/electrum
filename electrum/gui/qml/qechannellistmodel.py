@@ -46,7 +46,7 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
         # methods of this class only, and specifically not be
         # partials, lambdas or methods of subobjects.  Hence...
         self.register_callbacks()
-        self.destroyed.connect(lambda: self.on_destroy())
+        self.destroyed.connect(self.on_destroy)
 
     @qt_event_listener
     def on_event_channel(self, wallet, channel):
