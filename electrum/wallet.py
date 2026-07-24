@@ -1177,7 +1177,26 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if self.has_lightning():
             result.extend(self._get_lightning_forceclose_watched_items())
             result.extend(self._get_lightning_breach_watched_items())
+            result.extend(self._get_reverse_swap_watched_items())
 
+        return result
+
+    def _get_reverse_swap_watched_items(self) -> List['WatchedItem']:
+        """WatchedItems for reverse swaps awaiting the confirmation we claim on.
+        """
+        sm = self.lnworker.swap_manager
+        with sm.swaps_lock:
+            swaps = list(sm._swaps.values())
+        result = []  # type: List[WatchedItem]
+        for swap in swaps:
+            # reverse swaps we have not yet claimed (spending_txid) or wound down
+            if not swap.is_reverse or swap.is_redeemed or swap.spending_txid:
+                continue
+            result.append(WatchedItem(
+                depth=1,  # claimable once the funding tx has 1 confirmation
+                type=WatchedItemType.SWAP,
+                address=swap.lockup_address,
+            ))
         return result
 
     def _get_lightning_breach_watched_items(self) -> List['WatchedItem']:
