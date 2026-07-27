@@ -2333,6 +2333,42 @@ class TestPeerForwarding(TestPeer):
         with self.assertRaises(NoPathFound):
             await self._run_mpp(graph, {'mpp_invoice': False})
 
+    async def test_payment_multipart_fee_budget(self):
+        """The fee budget must be shared between the parts of an MPP payment: each part
+        is checked with its part amount against its share of the budget, so that the
+        aggregate fee over all parts cannot exceed the budget."""
+        graph_def = self.GRAPH_DEFINITIONS['square_graph']
+        # use base-fee-dominated routing fees, so each part pays the full base fee
+        # and the aggregate fee doubles when the payment is split into two parts
+        base_fee_msat = 1_000_000
+        for node in ('bob', 'carol'):
+            graph_def[node]['channels']['dave'][0].update({'local_base_fee_msat': base_fee_msat, 'local_fee_rate_millionths': 0})
+        graph = self.prepare_chans_and_peers_in_graph(graph_def)
+        amount_to_pay = 600_000_000_000  # exceeds single channel capacity
+        alice_w, dave_w = graph.workers['alice'], graph.workers['dave']
+        dave_w.features |= LnFeatures.BASIC_MPP_OPT
+        self.assertFalse(alice_w.uses_trampoline())
+        peers = graph.peers.values()
+        async def pay(fee_budget_msat: int) -> bool:
+            lnaddr, pay_req = self.prepare_invoice(dave_w, include_routing_hints=True, amount_msat=amount_to_pay)
+            budget = PaymentFeeBudget.from_invoice_amount(invoice_amount_msat=amount_to_pay, config=alice_w.config, max_fee_msat=fee_budget_msat)
+            result, log = await alice_w.pay_invoice(pay_req, attempts=1, budget=budget)
+            return result
+        async def f():
+            async with OldTaskGroup() as group:
+                for peer in peers:
+                    await group.spawn(peer._message_loop())
+                    await group.spawn(peer.htlc_switch())
+                for peer in peers:
+                    await peer.initialized
+                # a budget covering one part's base fee but not both must fail the payment
+                self.assertFalse(await pay(fee_budget_msat=base_fee_msat * 3 // 2))
+                # a budget covering the base fee of both parts must succeed
+                self.assertTrue(await pay(fee_budget_msat=base_fee_msat * 2))
+                raise PaymentDone()
+        with self.assertRaises(PaymentDone):
+            await f()
+
     async def test_payment_multipart_trampoline_e2e(self):
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['square_graph'])
         electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
