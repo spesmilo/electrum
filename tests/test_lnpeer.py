@@ -2250,6 +2250,23 @@ class TestPeerForwarding(TestPeer):
         with self.assertRaises(PaymentDone):
             await f()
 
+    async def _assert_no_inflight_htlcs_in_liquidity_hints(self, w: MockLNWallet):
+        # pay_invoice returns when the first htlc resolution is processed; the remaining
+        # parts resolve later. only when all parts have resolved is the paysession removed.
+        async def wait_for_paysessions_to_be_cleaned_up():
+            while w._paysessions:
+                await asyncio.sleep(0.01)
+        await util.wait_for2(wait_for_paysessions_to_be_cleaned_up(), timeout=10)
+        for hint in w.network.path_finder.liquidity_hints._liquidity_hints.values():
+            self.assertEqual(0, hint.num_inflight_htlcs(True))
+            self.assertEqual(0, hint.num_inflight_htlcs(False))
+
+    def _assert_all_parts_reported_can_send(self, w: MockLNWallet):
+        # every part of the mpp resolved successfully, so every edge an htlc was
+        # sent over should have received a can_send report for its direction of use
+        for hint in w.network.path_finder.liquidity_hints._liquidity_hints.values():
+            self.assertTrue(hint.can_send(True) is not None or hint.can_send(False) is not None)
+
     async def _run_mpp(self, graph, kwargs):
         """Tests a multipart payment scenario for failing and successful cases."""
         self.assertEqual(500_000_000_000, graph.channels[('alice', 'bob')][0].balance(LOCAL))
@@ -2299,8 +2316,11 @@ class TestPeerForwarding(TestPeer):
                         await g.spawn(peer.wait_one_htlc_switch_iteration())
                 for peer in peers:
                     self.assertEqual(len(peer.lnworker.received_mpp_htlcs), 0)
+                await self._assert_no_inflight_htlcs_in_liquidity_hints(alice_w)
+                self._assert_all_parts_reported_can_send(alice_w)
                 raise PaymentDone()
             elif len(log) == 1 and log[0].failure_msg.code == OnionFailureCode.MPP_TIMEOUT:
+                await self._assert_no_inflight_htlcs_in_liquidity_hints(alice_w)
                 raise PaymentTimeout()
             else:
                 raise NoPathFound()
