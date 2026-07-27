@@ -81,6 +81,7 @@ class QEAppController(BaseCrashReporter, QObject):
     wantCloseChanged = pyqtSignal()
     pluginLoaded = pyqtSignal(str)
     startupFinished = pyqtSignal()
+    loadWalletRequested = pyqtSignal(str, arguments=['wallet_name'])
 
     def __init__(self, qeapp: 'ElectrumQmlApplication', plugins: 'Plugins'):
         BaseCrashReporter.__init__(self, None, None, None)
@@ -94,6 +95,8 @@ class QEAppController(BaseCrashReporter, QObject):
         self._app_started = False
         self._intent = ''
         self._secureWindow = False
+
+        self._intent_requested_wallet = ''
 
         # map of permissions and grant status _after_ asking user
         self._permissions = {}  # type: dict[str, bool]
@@ -258,8 +261,19 @@ class QEAppController(BaseCrashReporter, QObject):
         jpythonActivity.startActivity(intent)
 
     def on_new_intent(self, intent):
+        intent_requested_wallets = self._chainwatch_wallets_from_intent(intent)
         if not self._app_started:
-            self._intent = intent
+            # store requested wallet name on cold start
+            if intent_requested_wallets:
+                self._intent_requested_wallet = intent_requested_wallets[0]
+            else:
+                self._intent = intent
+                self.logger.info(f'new intent stashed for later')
+            return
+
+        if intent_requested_wallets:
+            self._intent_requested_wallet = intent_requested_wallets[0]
+            self.loadWalletRequested.emit(self._intent_requested_wallet)
             return
 
         data = str(intent.getDataString())
@@ -270,7 +284,22 @@ class QEAppController(BaseCrashReporter, QObject):
                 or scheme in SUPPORTED_LNURL_SCHEMES:
             self.uriReceived.emit(data)
 
+    def _chainwatch_wallets_from_intent(self, intent) -> List[str]:
+        """Read the `chainwatch_wallets` string-array extra as a python list.
+        """
+        try:
+            jlist = intent.getStringArrayListExtra(jString("chainwatch_wallets"))
+            return [str(jlist.get(i)) for i in range(jlist.size())] if jlist else []
+        except Exception as e:
+            self.logger.error(f'could not read chainwatch_wallets extra: {repr(e)}')
+            return []
+
+    @pyqtSlot(result=str)
+    def getIntentRequestedWallet(self) -> str:
+        return self._intent_requested_wallet
+
     def startup_finished(self):
+        self.logger.info('GUI startup finished')
         self._app_started = True
         self.startupFinished.emit()
         for plugin_name in self._plugins.plugins.keys():
