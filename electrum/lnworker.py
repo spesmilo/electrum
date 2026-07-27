@@ -2093,14 +2093,6 @@ class LNWallet(Logger):
         or OnionRoutingFailure (if forwarding trampoline).
         """
         if htlc_log.success:
-            if self.network.path_finder:
-                # TODO: report every route to liquidity hints for mpp
-                # in the case of success, we report channels of the
-                # route as being able to send the same amount in the future,
-                # as we assume to not know the capacity
-                self.network.path_finder.update_liquidity_hints(htlc_log.route, htlc_log.amount_msat)
-                # remove inflight htlcs from liquidity hints
-                self.network.path_finder.update_inflight_htlcs(htlc_log.route, add_htlcs=False)
             raise PaymentSuccess()
         # htlc failed
         # if we get a tmp channel failure, it might work to split the amount and try more routes
@@ -2168,7 +2160,7 @@ class LNWallet(Logger):
             self.logger.info(f'adding active forwarding {fw_payment_key}')
             self.active_forwardings[fw_payment_key].append(htlc_key)
         if self.network.path_finder:
-            # add inflight htlcs to liquidity hints
+            # add inflight htlcs to liquidity hints; removed again in htlc_fulfilled/htlc_failed
             self.network.path_finder.update_inflight_htlcs(shi.route, add_htlcs=True)
         util.trigger_callback('htlc_added', chan, htlc, SENT)
 
@@ -2182,9 +2174,6 @@ class LNWallet(Logger):
 
         assert self.channel_db  # cannot be in trampoline mode
         assert self.network.path_finder
-
-        # remove inflight htlcs from liquidity hints
-        self.network.path_finder.update_inflight_htlcs(route, add_htlcs=False)
 
         code, data = failure_msg.code, failure_msg.data
         # TODO can we use lnmsg.OnionWireSerializer here?
@@ -3168,6 +3157,9 @@ class LNWallet(Logger):
         shi = self.sent_htlcs_info.get((payment_hash, chan.short_channel_id, htlc_id))
         if shi and htlc_id in chan.onion_keys:
             chan.pop_onion_key(htlc_id)
+            if self.network.path_finder:
+                self.network.path_finder.update_liquidity_hints(shi.route, shi.amount_receiver_msat)
+                self.network.path_finder.update_inflight_htlcs(shi.route, add_htlcs=False)
             payment_key = payment_hash + shi.payment_secret_orig
             paysession = self._paysessions[payment_key]
             q = paysession.sent_htlcs_q
@@ -3214,6 +3206,8 @@ class LNWallet(Logger):
         shi = self.sent_htlcs_info.get((payment_hash, chan.short_channel_id, htlc_id))
         if shi and htlc_id in chan.onion_keys:
             onion_key = chan.pop_onion_key(htlc_id)
+            if self.network.path_finder:
+                self.network.path_finder.update_inflight_htlcs(shi.route, add_htlcs=False)
             payment_okey = payment_hash + shi.payment_secret_orig
             paysession = self._paysessions[payment_okey]
             q = paysession.sent_htlcs_q
