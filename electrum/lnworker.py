@@ -2524,8 +2524,8 @@ class LNWallet(Logger):
                                     full_path=full_path,
                                 ))
                             if not is_route_within_budget(
-                                    route, budget=budget,
-                                    amount_msat_for_dest=amount_msat,
+                                    route, budget=budget._replace(fee_msat=budget.fee_msat // sc.config.number_parts()),
+                                    amount_msat_for_dest=part_amount_msat,
                                     cltv_delta_for_dest=paysession.min_final_cltv_delta):
                                 self.logger.info(f"rejecting route (exceeds budget): {route=}. {budget=}")
                                 raise FeeBudgetExceeded()
