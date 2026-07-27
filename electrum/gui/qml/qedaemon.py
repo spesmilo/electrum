@@ -192,6 +192,9 @@ class QEDaemon(AuthMixin, QObject, QtEventListener):
             if self._path is None:
                 self._path = self.daemon.config.CURRENT_WALLET
         else:
+            # wallet name -> wallet path
+            if path == os.path.basename(path):
+                path = os.path.join(self.daemon.config.get_datadir_wallet_path(), path)
             self._path = path
         if self._path is None:
             self._loading = False
