@@ -11,6 +11,7 @@ from jsonpointer import JsonPointerException
 from . import ElectrumTestCase
 
 from electrum.json_db import JsonDB
+from electrum.util import WalletFileException
 
 class TestJsonpatch(ElectrumTestCase):
 
@@ -159,6 +160,31 @@ class TestJsonDB(ElectrumTestCase):
         raw_json_db = raw_json_db[:-4]  # truncate some characters, to trigger maybe_load_incomplete_data()
         db = JsonDB(raw_json_db)
         self.assertEqual({"a": {"b": "c1"}, "d": "e"}, dict(db.data))
+
+    async def test_json_db_load_arbitrarily_truncated_data(self):
+        # a file cut at any offset after the main object must recover to a valid prefix state;
+        # a cut inside the main object must raise WalletFileException
+        base = {'labels': {'tx1': 'nasty } { label'}, 'nested': {'a': [1, {'b': '}}}'}]}}
+        patches = [
+            {'op': 'add', 'path': '/labels/tx2', 'value': 'user_supp}}}lied {{{ text'},
+            {'op': 'replace', 'path': '/labels/tx1', 'value': 'fake ,\\n{ separator'},
+        ]
+        # the valid prefix states: base with 0, 1, ..., len(patches) patches applied
+        states = [base]
+        for p in patches:
+            states.append(jsonpatch.JsonPatch([p]).apply(states[-1]))
+        s = json.dumps(base)
+        for p in patches:
+            s += ',\n' + json.dumps(p)
+        self.assertEqual(states[-1], json.loads(json.dumps(JsonDB(s).data)))
+        main_len = len(json.dumps(base))
+        for i in range(1, len(s)):
+            if i < main_len:  # main object truncated: unrecoverable
+                with self.assertRaises(WalletFileException):
+                    JsonDB(s[:i])
+            else:  # main object intact: must recover
+                db = JsonDB(s[:i])
+                self.assertIn(json.loads(json.dumps(db.data)), states)
 
     async def test_jsondb_pointer_escaping(self):
         # keys containing '/' or '~' must be escaped per RFC 6901 in emitted patches
