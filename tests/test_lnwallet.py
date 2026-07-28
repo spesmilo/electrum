@@ -15,6 +15,7 @@ from electrum.invoices import LN_EXPIRY_NEVER, PR_UNPAID
 from electrum.lnpeer import Peer
 from electrum.lnchannel import Channel, ChannelState
 from electrum.lnonion import OnionPacket, OnionRoutingFailure
+from electrum.mpp_split import SplitConfig, SplitConfigRating
 from electrum.crypto import sha256
 from electrum.simple_config import SimpleConfig
 
@@ -474,3 +475,24 @@ class TestLNWallet(ElectrumTestCase):
         chan1.set_frozen_for_sending(True)  # shouldn't matter, this channel will receive
         success, log = await alice.rebalance_channels(chan0, chan1, amount_msat=150_000_000)
         self.assertTrue(success, msg=log)
+
+    async def test_payment_multipart_single_channel_split(self):
+        """A split configuration can put multiple parts on a single channel. The parts
+        must then be sent over that channel, instead of the pathfinder freely choosing
+        a first hop, which would ignore the balance allocation of the config."""
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice_w, dave_w = graph.workers['alice'], graph.workers['dave']
+        dave_w.features |= LnFeatures.BASIC_MPP_OPT
+        self.assertFalse(alice_w.uses_trampoline())
+        amount_to_pay = 200_000_000
+        lnaddr, _pay_req = lnhelpers.prepare_invoice(dave_w, include_routing_hints=True, amount_msat=amount_to_pay)
+        # force a split config with two parts on the high-fee alice-bob channel,
+        # although the pathfinder considers the route via carol cheaper
+        bob_chan = graph.channels[('alice', 'bob')][0]
+        split_config = SplitConfig({(bob_chan.channel_id, bob_chan.node_id): [amount_to_pay // 2, amount_to_pay // 2]})
+        alice_w.suggest_payment_splits = lambda **kwargs: [SplitConfigRating(config=split_config, rating=0)]
+        routes = await alice_w.create_routes_from_invoice(amount_to_pay, decoded_invoice=lnaddr)
+        self.assertEqual(2, len(routes))
+        for shi, _, _ in routes:
+            # all constructed routes use the outgoing channel of the split config
+            self.assertEqual(bob_chan.short_channel_id, shi.route[0].short_channel_id)
