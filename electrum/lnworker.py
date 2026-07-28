@@ -2421,7 +2421,6 @@ class LNWallet(Logger):
             receiver_pubkey=paysession.invoice_pubkey,
         )
         for sc in split_configurations:
-            is_multichan_mpp = len(sc.config.items()) > 1
             is_mpp = sc.config.number_parts() > 1
             if is_mpp and not paysession.invoice_features.supports(LnFeatures.BASIC_MPP_OPT):
                 continue
@@ -2520,7 +2519,7 @@ class LNWallet(Logger):
                                     invoice_pubkey=paysession.invoice_pubkey,
                                     r_tags=paysession.r_tags,
                                     invoice_features=paysession.invoice_features,
-                                    my_sending_channels=[channel] if is_multichan_mpp else my_active_channels,
+                                    my_sending_channels=[channel] if is_mpp else my_active_channels,
                                     full_path=full_path,
                                 ))
                             if not is_route_within_budget(
