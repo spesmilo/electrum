@@ -153,6 +153,13 @@ class TestJsonDB(ElectrumTestCase):
                 data = jpatch.apply(data)
                 self.assertEqual(data, {'d': 3})
 
+    async def test_json_db_maybe_load_incomplete_data_with_control_characters(self):
+        # user-supplied text such as tx labels can contain arbitrary characters, such as "}"
+        raw_json_db = '{"a": {"b": "c1"}, "d": "e"},\n{"op": "replace", "path": "/a/b", "value": "user_supp}}}lied_text"}'
+        raw_json_db = raw_json_db[:-4]  # truncate some characters, to trigger maybe_load_incomplete_data()
+        db = JsonDB(raw_json_db)
+        self.assertEqual({"a": {"b": "c1"}, "d": "e"}, dict(db.data))
+
     async def test_jsondb_pointer_escaping(self):
         # keys containing '/' or '~' must be escaped per RFC 6901 in emitted patches
         data = {'labels': {'some/label~key': 'hello'}, 'x1/': {'type': 'bip32'}}
