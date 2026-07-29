@@ -2122,7 +2122,7 @@ class LNWallet(Logger):
                 failure_msg=failure_msg)
         else:
             self.handle_error_code_from_failed_htlc(
-                route=route, sender_idx=sender_idx, failure_msg=failure_msg, amount=htlc_log.amount_msat)
+                route=route, sender_idx=sender_idx, failure_msg=failure_msg, amount_msat=htlc_log.amount_msat)
 
     async def pay_to_route(
             self, *,
@@ -2170,7 +2170,8 @@ class LNWallet(Logger):
             route: LNPaymentRoute,
             sender_idx: int,
             failure_msg: OnionRoutingFailure,
-            amount: int) -> None:
+            amount_msat: int,
+    ) -> None:
 
         assert self.channel_db  # cannot be in trampoline mode
         assert self.network.path_finder
@@ -2215,7 +2216,7 @@ class LNWallet(Logger):
                 if code == OnionFailureCode.TEMPORARY_CHANNEL_FAILURE:
                     self.network.path_finder.update_liquidity_hints(
                         route,
-                        amount,
+                        amount_msat,
                         failing_channel=ShortChannelID(failing_channel))
                 # if we can't decide on some action, we are stuck
                 if not (blacklist or update):

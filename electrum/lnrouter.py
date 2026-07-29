@@ -168,11 +168,11 @@ class LiquidityHint:
     """
     def __init__(self):
         # use "can_send_forward + can_send_backward < cannot_send_forward + cannot_send_backward" as a sanity check?
-        self._can_send_forward = None
-        self._cannot_send_forward = None
-        self._can_send_backward = None
-        self._cannot_send_backward = None
-        self.hint_timestamp = 0
+        self._can_send_forward = None  # type: Optional[int]
+        self._cannot_send_forward = None  # type: Optional[int]
+        self._can_send_backward = None  # type: Optional[int]
+        self._cannot_send_backward = None  # type: Optional[int]
+        self.hint_timestamp = 0  # type: int
         self._inflight_htlcs_forward = 0
         self._inflight_htlcs_backward = 0
 
@@ -181,89 +181,89 @@ class LiquidityHint:
         return now - self.hint_timestamp > HINT_DURATION
 
     @property
-    def can_send_forward(self):
+    def can_send_forward(self) -> Optional[int]:
         return None if self.is_hint_invalid() else self._can_send_forward
 
     @can_send_forward.setter
-    def can_send_forward(self, amount):
+    def can_send_forward(self, amount_msat: int) -> None:
         # we don't want to record less significant info
         # (sendable amount is lower than known sendable amount):
-        if self._can_send_forward and self._can_send_forward > amount:
+        if self._can_send_forward and self._can_send_forward > amount_msat:
             return
-        self._can_send_forward = amount
+        self._can_send_forward = amount_msat
         # we make a sanity check that sendable amount is lower than not sendable amount
         if self._cannot_send_forward and self._can_send_forward > self._cannot_send_forward:
             self._cannot_send_forward = None
 
     @property
-    def can_send_backward(self):
+    def can_send_backward(self) -> Optional[int]:
         return None if self.is_hint_invalid() else self._can_send_backward
 
     @can_send_backward.setter
-    def can_send_backward(self, amount):
-        if self._can_send_backward and self._can_send_backward > amount:
+    def can_send_backward(self, amount_msat: int) -> None:
+        if self._can_send_backward and self._can_send_backward > amount_msat:
             return
-        self._can_send_backward = amount
+        self._can_send_backward = amount_msat
         if self._cannot_send_backward and self._can_send_backward > self._cannot_send_backward:
             self._cannot_send_backward = None
 
     @property
-    def cannot_send_forward(self):
+    def cannot_send_forward(self) -> Optional[int]:
         return None if self.is_hint_invalid() else self._cannot_send_forward
 
     @cannot_send_forward.setter
-    def cannot_send_forward(self, amount):
+    def cannot_send_forward(self, amount_msat: int) -> None:
         # we don't want to record less significant info
         # (not sendable amount is higher than known not sendable amount):
-        if self._cannot_send_forward and self._cannot_send_forward < amount:
+        if self._cannot_send_forward and self._cannot_send_forward < amount_msat:
             return
-        self._cannot_send_forward = amount
+        self._cannot_send_forward = amount_msat
         if self._can_send_forward and self._can_send_forward > self._cannot_send_forward:
             self._can_send_forward = None
         # if we can't send over the channel, we should be able to send in the
         # reverse direction
-        self.can_send_backward = amount
+        self.can_send_backward = amount_msat
 
     @property
-    def cannot_send_backward(self):
+    def cannot_send_backward(self) -> Optional[int]:
         return None if self.is_hint_invalid() else self._cannot_send_backward
 
     @cannot_send_backward.setter
-    def cannot_send_backward(self, amount):
-        if self._cannot_send_backward and self._cannot_send_backward < amount:
+    def cannot_send_backward(self, amount_msat: int) -> None:
+        if self._cannot_send_backward and self._cannot_send_backward < amount_msat:
             return
-        self._cannot_send_backward = amount
+        self._cannot_send_backward = amount_msat
         if self._can_send_backward and self._can_send_backward > self._cannot_send_backward:
             self._can_send_backward = None
-        self.can_send_forward = amount
+        self.can_send_forward = amount_msat
 
-    def can_send(self, is_forward_direction: bool):
+    def can_send(self, is_forward_direction: bool) -> Optional[int]:
         # make info invalid after some time?
         if is_forward_direction:
             return self.can_send_forward
         else:
             return self.can_send_backward
 
-    def cannot_send(self, is_forward_direction: bool):
+    def cannot_send(self, is_forward_direction: bool) -> Optional[int]:
         # make info invalid after some time?
         if is_forward_direction:
             return self.cannot_send_forward
         else:
             return self.cannot_send_backward
 
-    def update_can_send(self, is_forward_direction: bool, amount: int):
+    def update_can_send(self, is_forward_direction: bool, *, amount_msat: int) -> None:
         self.hint_timestamp = int(time.time())
         if is_forward_direction:
-            self.can_send_forward = amount
+            self.can_send_forward = amount_msat
         else:
-            self.can_send_backward = amount
+            self.can_send_backward = amount_msat
 
-    def update_cannot_send(self, is_forward_direction: bool, amount: int):
+    def update_cannot_send(self, is_forward_direction: bool, *, amount_msat: int) -> None:
         self.hint_timestamp = int(time.time())
         if is_forward_direction:
-            self.cannot_send_forward = amount
+            self.cannot_send_forward = amount_msat
         else:
-            self.cannot_send_backward = amount
+            self.cannot_send_backward = amount_msat
 
     def num_inflight_htlcs(self, is_forward_direction: bool) -> int:
         if is_forward_direction:
@@ -271,13 +271,13 @@ class LiquidityHint:
         else:
             return self._inflight_htlcs_backward
 
-    def add_htlc(self, is_forward_direction: bool):
+    def add_htlc(self, is_forward_direction: bool) -> None:
         if is_forward_direction:
             self._inflight_htlcs_forward += 1
         else:
             self._inflight_htlcs_backward += 1
 
-    def remove_htlc(self, is_forward_direction: bool):
+    def remove_htlc(self, is_forward_direction: bool) -> None:
         if is_forward_direction:
             self._inflight_htlcs_forward = max(0, self._inflight_htlcs_forward - 1)
         else:
@@ -310,14 +310,14 @@ class LiquidityHintMgr:
         return hint
 
     @with_lock
-    def update_can_send(self, node_from: bytes, node_to: bytes, channel_id: ShortChannelID, amount: int):
+    def update_can_send(self, node_from: bytes, node_to: bytes, channel_id: ShortChannelID, *, amount_msat: int) -> None:
         hint = self.get_hint(channel_id)
-        hint.update_can_send(node_from < node_to, amount)
+        hint.update_can_send(node_from < node_to, amount_msat=amount_msat)
 
     @with_lock
-    def update_cannot_send(self, node_from: bytes, node_to: bytes, channel_id: ShortChannelID, amount: int):
+    def update_cannot_send(self, node_from: bytes, node_to: bytes, channel_id: ShortChannelID, *, amount_msat: int) -> None:
         hint = self.get_hint(channel_id)
-        hint.update_cannot_send(node_from < node_to, amount)
+        hint.update_cannot_send(node_from < node_to, amount_msat=amount_msat)
 
     @with_lock
     def add_htlc(self, node_from: bytes, node_to: bytes, channel_id: ShortChannelID):
@@ -329,7 +329,14 @@ class LiquidityHintMgr:
         hint = self.get_hint(channel_id)
         hint.remove_htlc(node_from < node_to)
 
-    def penalty(self, node_from: bytes, node_to: bytes, channel_id: ShortChannelID, amount: int) -> float:
+    def penalty(
+        self,
+        node_from: bytes,
+        node_to: bytes,
+        channel_id: ShortChannelID,
+        *,
+        amount_msat: int,
+    ) -> float:
         """Gives a penalty when sending from node1 to node2 over channel_id with an
         amount in units of millisatoshi.
 
@@ -359,11 +366,11 @@ class LiquidityHintMgr:
             cannot_send = hint.cannot_send(node_from < node_to)
             num_inflight_htlcs = hint.num_inflight_htlcs(node_from < node_to)
 
-        if cannot_send is not None and amount >= cannot_send:
+        if cannot_send is not None and amount_msat >= cannot_send:
             return inf
-        if can_send is not None and amount <= can_send:
+        if can_send is not None and amount_msat <= can_send:
             return 0
-        success_fee = fee_for_edge_msat(amount, DEFAULT_PENALTY_BASE_MSAT, DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH)
+        success_fee = fee_for_edge_msat(amount_msat, DEFAULT_PENALTY_BASE_MSAT, DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH)
         inflight_htlc_fee = num_inflight_htlcs * success_fee
         return success_fee + inflight_htlc_fee
 
@@ -430,15 +437,15 @@ class LNPathFinder(Logger):
         for r in route:
             if r.short_channel_id != failing_channel:
                 self.logger.info(f"report {r.short_channel_id} to be able to forward {amount_msat} msat")
-                self.liquidity_hints.update_can_send(r.start_node, r.end_node, r.short_channel_id, amount_msat)
+                self.liquidity_hints.update_can_send(r.start_node, r.end_node, r.short_channel_id, amount_msat=amount_msat)
             else:
                 self.logger.info(f"report {r.short_channel_id} to be unable to forward {amount_msat} msat")
-                self.liquidity_hints.update_cannot_send(r.start_node, r.end_node, r.short_channel_id, amount_msat)
+                self.liquidity_hints.update_cannot_send(r.start_node, r.end_node, r.short_channel_id, amount_msat=amount_msat)
                 break
         else:
             assert failing_channel is None
 
-    def update_inflight_htlcs(self, route: LNPaymentRoute, add_htlcs: bool):
+    def update_inflight_htlcs(self, route: LNPaymentRoute, *, add_htlcs: bool) -> None:
         self.logger.info(f"{'Adding' if add_htlcs else 'Removing'} inflight htlcs to graph (liquidity hints).")
         for r in route:
             if add_htlcs:
@@ -523,7 +530,7 @@ class LNPathFinder(Logger):
         cltv_cost = route_edge.cltv_delta * payment_amt_msat * 15 / 1_000_000_000
         # the liquidty penalty takes care we favor edges that should be able to forward
         # the payment and penalize edges that cannot
-        liquidity_penalty = self.liquidity_hints.penalty(start_node, end_node, short_channel_id, payment_amt_msat)
+        liquidity_penalty = self.liquidity_hints.penalty(start_node, end_node, short_channel_id, amount_msat=payment_amt_msat)
         overall_cost = fee_msat + cltv_cost + liquidity_penalty
         return overall_cost, fee_msat
 
