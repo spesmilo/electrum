@@ -2161,7 +2161,7 @@ class LNWallet(Logger):
             self.active_forwardings[fw_payment_key].append(htlc_key)
         if self.network.path_finder:
             # add inflight htlcs to liquidity hints; removed again in htlc_fulfilled/htlc_failed
-            self.network.path_finder.update_inflight_htlcs(shi.route, add_htlcs=True)
+            self.network.path_finder.update_num_inflight_htlcs(shi.route, add_htlcs=True)
         util.trigger_callback('htlc_added', chan, htlc, SENT)
 
     def handle_error_code_from_failed_htlc(
@@ -3160,7 +3160,7 @@ class LNWallet(Logger):
             chan.pop_onion_key(htlc_id)
             if self.network.path_finder:
                 self.network.path_finder.update_liquidity_hints(shi.route, shi.amount_receiver_msat)
-                self.network.path_finder.update_inflight_htlcs(shi.route, add_htlcs=False)
+                self.network.path_finder.update_num_inflight_htlcs(shi.route, add_htlcs=False)
             payment_key = payment_hash + shi.payment_secret_orig
             paysession = self._paysessions[payment_key]
             q = paysession.sent_htlcs_q
@@ -3208,7 +3208,7 @@ class LNWallet(Logger):
         if shi and htlc_id in chan.onion_keys:
             onion_key = chan.pop_onion_key(htlc_id)
             if self.network.path_finder:
-                self.network.path_finder.update_inflight_htlcs(shi.route, add_htlcs=False)
+                self.network.path_finder.update_num_inflight_htlcs(shi.route, add_htlcs=False)
             payment_okey = payment_hash + shi.payment_secret_orig
             paysession = self._paysessions[payment_okey]
             q = paysession.sent_htlcs_q

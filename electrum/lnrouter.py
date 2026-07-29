@@ -428,12 +428,16 @@ class LNPathFinder(Logger):
             self,
             route: LNPaymentRoute,
             amount_msat: int,
-            failing_channel: ShortChannelID=None
+            failing_channel: ShortChannelID = None,
     ):
-        # go through the route and record successes until the failing channel is reached,
-        # for the failing channel, add a cannot_send liquidity hint
-        # note: actual routable amounts are slightly different than reported here
-        # as fees would need to be added
+        """We mark all channels along the route as able to forward the amount, until
+        the failing channel is reached. For the failing channel, add a cannot_send liquidity hint.
+        In the case of success (failing_channel=None), we still mark channels of the route
+        as being able to send the same amount in the future, as we assume to not know the capacity.
+
+        note: actual routable amounts are slightly different than reported here
+              as fees would need to be added.
+        """
         for r in route:
             if r.short_channel_id != failing_channel:
                 self.logger.info(f"report {r.short_channel_id} to be able to forward {amount_msat} msat")
@@ -445,7 +449,7 @@ class LNPathFinder(Logger):
         else:
             assert failing_channel is None
 
-    def update_inflight_htlcs(self, route: LNPaymentRoute, *, add_htlcs: bool) -> None:
+    def update_num_inflight_htlcs(self, route: LNPaymentRoute, *, add_htlcs: bool) -> None:
         self.logger.info(f"{'Adding' if add_htlcs else 'Removing'} inflight htlcs to graph (liquidity hints).")
         for r in route:
             if add_htlcs:
