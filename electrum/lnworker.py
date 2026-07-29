@@ -2265,7 +2265,12 @@ class LNWallet(Logger):
             self.logger.info(f'channel update is not more recent.')
             blacklist = True
         elif r == UpdateStatus.UNCHANGED:
-            blacklist = True
+            if failure_msg.code == OnionFailureCode.TEMPORARY_CHANNEL_FAILURE:
+                # the sent htlc might have exceeded the channel's liquidity, no need to blacklist,
+                # we record liquidity hints and can attempt again with a smaller htlc
+                update = True
+            else:
+                blacklist = True
         return blacklist, update
 
     @classmethod
