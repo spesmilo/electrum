@@ -192,7 +192,8 @@ class LiquidityHint:
 
     @property
     def can_send_forward(self) -> Optional[int]:
-        return self._can_send_forward.get_valid_amount() if self._can_send_forward else None
+        la = self._can_send_forward
+        return la.get_valid_amount() if la else None
 
     @can_send_forward.setter
     def can_send_forward(self, amount_msat: int) -> None:
@@ -208,7 +209,8 @@ class LiquidityHint:
 
     @property
     def can_send_backward(self) -> Optional[int]:
-        return self._can_send_backward.get_valid_amount() if self._can_send_backward else None
+        la = self._can_send_backward
+        return la.get_valid_amount() if la else None
 
     @can_send_backward.setter
     def can_send_backward(self, amount_msat: int) -> None:
@@ -221,7 +223,8 @@ class LiquidityHint:
 
     @property
     def cannot_send_forward(self) -> Optional[int]:
-        return self._cannot_send_forward.get_valid_amount() if self._cannot_send_forward else None
+        la = self._cannot_send_forward
+        return la.get_valid_amount() if la else None
 
     @cannot_send_forward.setter
     def cannot_send_forward(self, amount_msat: int) -> None:
@@ -239,7 +242,8 @@ class LiquidityHint:
 
     @property
     def cannot_send_backward(self) -> Optional[int]:
-        return self._cannot_send_backward.get_valid_amount() if self._cannot_send_backward else None
+        la = self._cannot_send_backward
+        return la.get_valid_amount() if la else None
 
     @cannot_send_backward.setter
     def cannot_send_backward(self, amount_msat: int) -> None:
@@ -375,7 +379,11 @@ class LiquidityHintMgr:
         was chosen such that the penalty will be able to compete with the regular
         base and relative fees.
         """
-        # we only evaluate hints here, so use dict get (to not create many hints with self.get_hint)
+        # note: self.lock is not taken for performance reasons, as we are called ~100k times per path-finding,
+        #       and just acquiring+releasing locks that many times is expensive(?).
+        #       (tho find_path_for_payment() could take LiquidityHintMgr.lock for the whole duration of the pathfinding)
+        #       We only read the hints, so this should mostly be fine. Except a concurrent update could still happen...
+        # note: we only evaluate hints here, so use dict get (to not create many hints with self.get_hint)
         hint = self._liquidity_hints.get(channel_id)
         if not hint:
             can_send, cannot_send, num_inflight_htlcs = None, None, 0
