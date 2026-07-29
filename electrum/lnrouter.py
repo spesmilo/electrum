@@ -159,12 +159,12 @@ def is_route_within_budget(
     return True
 
 
-class LiquidityHintItem(NamedTuple):
+class LiquidAmount(NamedTuple):
     amount_msat: int
     timestamp: int
 
     @classmethod
-    def from_amount(cls, amount_msat: int) -> 'LiquidityHintItem':
+    def from_amount(cls, amount_msat: int) -> 'LiquidAmount':
         return cls(amount_msat=amount_msat, timestamp=now())
 
     def get_valid_amount(self) -> Optional[int]:
@@ -183,10 +183,10 @@ class LiquidityHint:
     """
     def __init__(self):
         # use "can_send_forward + can_send_backward < cannot_send_forward + cannot_send_backward" as a sanity check?
-        self._can_send_forward = None  # type: Optional[LiquidityHintItem]
-        self._cannot_send_forward = None  # type: Optional[LiquidityHintItem]
-        self._can_send_backward = None  # type: Optional[LiquidityHintItem]
-        self._cannot_send_backward = None  # type: Optional[LiquidityHintItem]
+        self._can_send_forward = None  # type: Optional[LiquidAmount]
+        self._cannot_send_forward = None  # type: Optional[LiquidAmount]
+        self._can_send_backward = None  # type: Optional[LiquidAmount]
+        self._cannot_send_backward = None  # type: Optional[LiquidAmount]
         self._inflight_htlcs_forward = 0
         self._inflight_htlcs_backward = 0
 
@@ -201,7 +201,7 @@ class LiquidityHint:
         known = self.can_send_forward
         if known is not None and known > amount_msat:
             return
-        self._can_send_forward = LiquidityHintItem.from_amount(amount_msat)
+        self._can_send_forward = LiquidAmount.from_amount(amount_msat)
         # we make a sanity check that sendable amount is lower than not sendable amount
         if self._cannot_send_forward and self._can_send_forward.amount_msat > self._cannot_send_forward.amount_msat:
             self._cannot_send_forward = None
@@ -215,7 +215,7 @@ class LiquidityHint:
         known = self.can_send_backward
         if known is not None and known > amount_msat:
             return
-        self._can_send_backward = LiquidityHintItem.from_amount(amount_msat)
+        self._can_send_backward = LiquidAmount.from_amount(amount_msat)
         if self._cannot_send_backward and self._can_send_backward.amount_msat > self._cannot_send_backward.amount_msat:
             self._cannot_send_backward = None
 
@@ -230,7 +230,7 @@ class LiquidityHint:
         known = self.cannot_send_forward
         if known is not None and known < amount_msat:
             return
-        self._cannot_send_forward = LiquidityHintItem.from_amount(amount_msat)
+        self._cannot_send_forward = LiquidAmount.from_amount(amount_msat)
         if self._can_send_forward and self._can_send_forward.amount_msat > self._cannot_send_forward.amount_msat:
             self._can_send_forward = None
         # if we can't send over the channel, we should be able to send in the
@@ -246,7 +246,7 @@ class LiquidityHint:
         known = self.cannot_send_backward
         if known is not None and known < amount_msat:
             return
-        self._cannot_send_backward = LiquidityHintItem.from_amount(amount_msat)
+        self._cannot_send_backward = LiquidAmount.from_amount(amount_msat)
         if self._can_send_backward and self._can_send_backward.amount_msat > self._cannot_send_backward.amount_msat:
             self._can_send_backward = None
         self.can_send_forward = amount_msat
