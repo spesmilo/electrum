@@ -1,6 +1,7 @@
 import random
 import unittest
 from math import inf
+from unittest import mock
 from typing import Optional
 from os import urandom
 
@@ -18,7 +19,8 @@ from electrum import bitcoin, lnrouter
 from electrum.constants import BitcoinTestnet
 from electrum.simple_config import SimpleConfig
 from electrum.lnrouter import (PathEdge, LiquidityHintMgr, DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH,
-                               DEFAULT_PENALTY_BASE_MSAT, fee_for_edge_msat, LNPaymentTRoute, TrampolineEdge)
+                               DEFAULT_PENALTY_BASE_MSAT, fee_for_edge_msat, LNPaymentTRoute, TrampolineEdge,
+                               HINT_DURATION)
 
 from . import ElectrumTestCase
 from .test_bitcoin import needs_test_with_all_chacha20_implementations
@@ -372,6 +374,28 @@ class Test_LNRouter(ElectrumTestCase):
         liquidity_hints.get_hint(channel_id)
         # we have got 600 (attempt) + 600 (inflight) penalty
         self.assertEqual(1200, liquidity_hints.penalty(node_from, node_to, channel_id, amount_msat=1_000_000))
+
+    def test_liquidity_hints_expiry(self):
+        liquidity_hints = LiquidityHintMgr()
+        node_from = bytes(0)
+        node_to = bytes(1)
+        channel_id = ShortChannelID.from_components(0, 0, 0)
+        mock_time = 1_000_000
+        with mock.patch.object(lnrouter, 'now', lambda: mock_time):
+            liquidity_hints.update_cannot_send(node_from, node_to, channel_id, amount_msat=1_000_000)
+            self.assertEqual(inf, liquidity_hints.penalty(node_from, node_to, channel_id, amount_msat=1_000_000))
+            # updating can_send after cannot_send expired must not resurrect the old cannot_send
+            mock_time += HINT_DURATION + 1
+            liquidity_hints.update_can_send(node_from, node_to, channel_id, amount_msat=10_000)
+            hint = liquidity_hints.get_hint(channel_id)
+            self.assertEqual(10_000, hint.can_send(node_from < node_to))
+            self.assertEqual(None, hint.cannot_send(node_from < node_to))
+            self.assertNotEqual(inf, liquidity_hints.penalty(node_from, node_to, channel_id, amount_msat=1_000_000))
+            # an expired higher can_send must not block recording a lower can_send
+            mock_time += HINT_DURATION + 1
+            liquidity_hints.update_can_send(node_from, node_to, channel_id, amount_msat=5_000)
+            hint = liquidity_hints.get_hint(channel_id)
+            self.assertEqual(5_000, hint.can_send(node_from < node_to))
 
     def test_reset_liquidity_hints_clears_inflight_htlcs(self):
         liquidity_hints = LiquidityHintMgr()
