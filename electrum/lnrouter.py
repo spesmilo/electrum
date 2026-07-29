@@ -371,6 +371,8 @@ class LiquidityHintMgr:
     def reset_liquidity_hints(self):
         for k, v in self._liquidity_hints.items():
             v.hint_timestamp = 0
+            v._inflight_htlcs_forward = 0
+            v._inflight_htlcs_backward = 0
 
     def __repr__(self):
         string = "liquidity hints:\n"

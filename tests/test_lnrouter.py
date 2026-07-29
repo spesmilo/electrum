@@ -373,6 +373,19 @@ class Test_LNRouter(ElectrumTestCase):
         # we have got 600 (attempt) + 600 (inflight) penalty
         self.assertEqual(1200, liquidity_hints.penalty(node_from, node_to, channel_id, 1_000_000))
 
+    def test_reset_liquidity_hints_clears_inflight_htlcs(self):
+        liquidity_hints = LiquidityHintMgr()
+        node_from, node_to = bytes(0), bytes(1)
+        channel_id = ShortChannelID.from_components(0, 0, 0)
+        liquidity_hints.add_htlc(node_from, node_to, channel_id)
+        liquidity_hints.add_htlc(node_to, node_from, channel_id)
+        hint = liquidity_hints.get_hint(channel_id)
+        self.assertEqual(1, hint.num_inflight_htlcs(node_from < node_to))
+        self.assertEqual(1, hint.num_inflight_htlcs(node_to < node_from))
+        liquidity_hints.reset_liquidity_hints()
+        self.assertEqual(0, hint.num_inflight_htlcs(node_from < node_to))
+        self.assertEqual(0, hint.num_inflight_htlcs(node_to < node_from))
+
     @needs_test_with_all_chacha20_implementations
     def test_new_onion_packet(self):
         # test vector from bolt-04
