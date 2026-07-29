@@ -610,6 +610,9 @@ class LNPathFinder(Logger):
                         continue
                     if not ignore_amount_constraints \
                             and not my_sending_channels[edge_channel_id].can_pay(amount_msat, check_frozen=True):
+                        # note: in case of MPP, we might be constructing multiple routes for different HTLCs around the same time,
+                        #       and only a tiny bit later will the HTLCs get added to the channels. If another HTLC has not been
+                        #       added yet but we already selected to use the same channel for it, this "can_pay()" can return a false positive.
                         continue
                 edge_cost, fee_for_edge_msat = self._edge_cost(
                     short_channel_id=edge_channel_id,

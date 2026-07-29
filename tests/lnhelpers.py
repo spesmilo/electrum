@@ -1,6 +1,7 @@
 import asyncio
 import copy
 import os
+from decimal import Decimal
 from pprint import pformat
 from typing import NamedTuple, Tuple, Dict, Mapping, TYPE_CHECKING, Sequence
 
@@ -11,16 +12,18 @@ from electrum import (
 )
 from electrum.coinchooser import PRNG
 from electrum.network import ProxySettings
-from electrum.bolt11 import BOLT11Addr
+from electrum.bitcoin import COIN, sha256
+from electrum.bolt11 import encode_bolt11_invoice, BOLT11Addr, decode_bolt11_invoice
+from electrum.invoices import PR_UNPAID, Invoice, LN_EXPIRY_NEVER
 from electrum.lnpeer import Peer
 from electrum.lnutil import (
     LnFeatures, PaymentFeeBudget, LOCAL, REMOTE, ChannelType, LocalConfig, RemoteConfig,
-    OnlyPubkeyKeypair, secret_to_pubkey,
+    OnlyPubkeyKeypair, secret_to_pubkey, RECEIVED,
 )
 from electrum.lnchannel import ChannelState, Channel
 from electrum.lnrouter import LNPathFinder
 from electrum.channel_db import ChannelDB
-from electrum.lnworker import LNWallet, PaySession
+from electrum.lnworker import LNWallet, PaySession, PaymentInfo
 from electrum.simple_config import SimpleConfig
 from electrum.fee_policy import FeeTimeEstimates, FEE_ETA_TARGETS
 from electrum.wallet import  Standard_Wallet
@@ -29,6 +32,121 @@ from . import restore_wallet_from_text__for_unittest
 
 if TYPE_CHECKING:
     from . import ElectrumTestCase
+
+
+high_fee_channel = {
+   'local_balance_msat': 10 * bitcoin.COIN * 1000 // 2,
+   'remote_balance_msat': 10 * bitcoin.COIN * 1000 // 2,
+   'local_base_fee_msat': 500_000,
+   'local_fee_rate_millionths': 500,
+   'remote_base_fee_msat': 500_000,
+   'remote_fee_rate_millionths': 500,
+}
+
+low_fee_channel = {
+    'local_balance_msat': 10 * bitcoin.COIN * 1000 // 2,
+    'remote_balance_msat': 10 * bitcoin.COIN * 1000 // 2,
+    'local_base_fee_msat': 1_000,
+    'local_fee_rate_millionths': 1,
+    'remote_base_fee_msat': 1_000,
+    'remote_fee_rate_millionths': 1,
+}
+
+depleted_channel = {
+    'local_balance_msat': 330 * 1000, # local pays anchors
+    'remote_balance_msat': 10 * bitcoin.COIN * 1000,
+    'local_base_fee_msat': 1_000,
+    'local_fee_rate_millionths': 1,
+    'remote_base_fee_msat': 1_000,
+    'remote_fee_rate_millionths': 1,
+}
+
+_GRAPH_DEFINITIONS = {
+    # A -- B
+    'single_chan' : {
+        'alice': {
+            'channels': {
+                'bob': [
+                    {
+                       'local_balance_msat': 10 * bitcoin.COIN * 1000 // 2,
+                       'remote_balance_msat': 10 * bitcoin.COIN * 1000 // 2,
+                    },
+                ],
+            },
+        },
+        'bob': {
+        },
+    },
+    #                A
+    #     high fee /   \ low fee
+    #             B     C
+    #     high fee \   / low fee
+    #                D
+    'square_graph': {
+        'alice': {
+            'channels': {
+                # we should use copies of channel definitions if
+                # we want to independently alter them in a test
+                'bob': [high_fee_channel.copy()],
+                'carol': [low_fee_channel.copy()],
+            },
+        },
+        'bob': {
+            'channels': {
+                'dave': [high_fee_channel.copy()],
+            },
+            'config': {
+                SimpleConfig.EXPERIMENTAL_LN_FORWARD_PAYMENTS: True,
+                SimpleConfig.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS: True,
+            },
+        },
+        'carol': {
+            'channels': {
+                'dave': [low_fee_channel.copy()],
+            },
+            'config': {
+                SimpleConfig.EXPERIMENTAL_LN_FORWARD_PAYMENTS: True,
+                SimpleConfig.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS: True,
+            },
+        },
+        'dave': {
+        },
+    },
+    # A -- B -- C -- D -- E
+    'line_graph': {
+        'alice': {
+            'channels': {
+                'bob': [low_fee_channel.copy()],
+            },
+        },
+        'bob': {  # Trampoline Forwarder
+            'channels': {
+                'carol': [low_fee_channel.copy()],
+            },
+            'config': {
+                SimpleConfig.EXPERIMENTAL_LN_FORWARD_PAYMENTS: True,
+            },
+        },
+        'carol': {
+            'channels': {
+                'dave': [low_fee_channel.copy()],
+            },
+            'config': {
+                SimpleConfig.EXPERIMENTAL_LN_FORWARD_PAYMENTS: True,
+            },
+        },
+        'dave': {  # Trampoline Forwarder
+            'channels': {
+                'edward': [low_fee_channel.copy()],
+            },
+            'config': {
+                SimpleConfig.EXPERIMENTAL_LN_FORWARD_PAYMENTS: True,
+            },
+        },
+        'edward': {
+        },
+    },
+}
 
 
 class MockNetwork:
@@ -225,6 +343,63 @@ def transport_pair(k1, k2, name1, name2):
     return t1, t2
 
 
+def prepare_invoice(
+        w2: MockLNWallet,  # receiver
+        *,
+        amount_msat=100_000_000,
+        include_routing_hints=False,
+        payment_preimage: bytes = None,
+        payment_hash: bytes = None,
+        invoice_features: LnFeatures = None,
+        min_final_cltv_delta: int = None,
+        expiry: int = None,
+) -> Tuple[BOLT11Addr, Invoice]:
+    amount_btc = amount_msat/Decimal(COIN*1000)
+    if payment_preimage is None and not payment_hash:
+        payment_preimage = os.urandom(32)
+    if payment_hash is None:
+        payment_hash = sha256(payment_preimage)
+    if payment_preimage:
+        w2.save_preimage(payment_hash, payment_preimage)
+    if include_routing_hints:
+        routing_hints = w2.calc_routing_hints_for_invoice(amount_msat)
+    else:
+        routing_hints = []
+        trampoline_hints = []
+    if invoice_features is None:
+        invoice_features = w2.features.for_bolt11_invoice()
+    if invoice_features.supports(LnFeatures.PAYMENT_SECRET_OPT):
+        payment_secret = w2.get_payment_secret(payment_hash)
+    else:
+        payment_secret = None
+    if min_final_cltv_delta is None:
+        min_final_cltv_delta = lnutil.MIN_FINAL_CLTV_DELTA_ACCEPTED
+    info = PaymentInfo(
+        payment_hash=payment_hash,
+        amount_msat=amount_msat,
+        direction=RECEIVED,
+        status=PR_UNPAID,
+        min_final_cltv_delta=min_final_cltv_delta,
+        expiry_delay=expiry or LN_EXPIRY_NEVER,
+        invoice_features=invoice_features,
+    )
+    w2.save_payment_info(info)
+    lnaddr1 = BOLT11Addr(
+        paymenthash=payment_hash,
+        amount=amount_btc,
+        tags=[
+            ('c', min_final_cltv_delta),
+            ('d', 'coffee'),
+            ('9', invoice_features),
+            ('x', expiry or 3600),
+        ] + routing_hints,
+        payment_secret=payment_secret,
+    )
+    invoice = encode_bolt11_invoice(lnaddr1, w2.node_keypair.privkey)
+    lnaddr2 = decode_bolt11_invoice(invoice)  # unlike lnaddr1, this now has a pubkey set
+    return lnaddr2, Invoice.from_bech32(invoice)
+
+
 def prepare_lnwallets(elec_test_case: 'ElectrumTestCase', graph_definition) -> Mapping[str, MockLNWallet]:
     workers = {}  # type: Dict[str, MockLNWallet]
     for a, definition in graph_definition.items():
@@ -239,10 +414,8 @@ def prepare_chans_and_peers_in_graph(
     workers: Dict[str, MockLNWallet] = None,
     channels: dict[Tuple[str, str], list[Channel]] = None,
 ) -> Graph:
-    from . import test_lnpeer
-
     if graph_definition is None:
-        graph_definition = test_lnpeer._GRAPH_DEFINITIONS['single_chan']
+        graph_definition = _GRAPH_DEFINITIONS['single_chan']
     graph_definition = copy.deepcopy(graph_definition)  # paranoia
 
     # create workers
