@@ -391,14 +391,24 @@ class LiquidityHintMgr:
             can_send = hint.can_send(node_from < node_to)
             cannot_send = hint.cannot_send(node_from < node_to)
             num_inflight_htlcs = hint.num_inflight_htlcs(node_from < node_to)
+        assert isinstance(num_inflight_htlcs, int), f"{num_inflight_htlcs=!r} should be an int"
+        assert num_inflight_htlcs >= 0, f"{num_inflight_htlcs=!r} should be non-negative"
 
+        # above known liquidity interval: inf
         if cannot_send is not None and amount_msat >= cannot_send:
             return inf
+        # below known liquidity interval: free
         if can_send is not None and amount_msat <= can_send:
             return 0
+        # inside known liquidity interval, or liquidity unknown
+        likely_cannotsend_factor = 0
+        if cannot_send is not None:
+            fcan_send = can_send or 0
+            # apply extra penalty if we are close to known interval upper bound
+            if amount_msat >= fcan_send + 0.8 * (cannot_send - fcan_send):
+                likely_cannotsend_factor = 2
         success_fee = fee_for_edge_msat(amount_msat, DEFAULT_PENALTY_BASE_MSAT, DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH)
-        inflight_htlc_fee = num_inflight_htlcs * success_fee
-        return success_fee + inflight_htlc_fee
+        return success_fee * (1 + num_inflight_htlcs + likely_cannotsend_factor)
 
     @with_lock
     def reset_liquidity_hints(self):
