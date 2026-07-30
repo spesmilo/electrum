@@ -72,7 +72,7 @@ class QEWalletListModel(QAbstractListModel):
         wallet_folder = os.path.dirname(self.daemon.config.get_wallet_path())
         with os.scandir(wallet_folder) as it:
             for i in it:
-                if i.is_file() and not i.name.startswith('.'):
+                if i.is_file():
                     available.append(i.path)
         for path in sorted(available):
             wallet = self.daemon.get_wallet(path)
@@ -108,6 +108,13 @@ class QEWalletListModel(QAbstractListModel):
             if name == wallet_name:
                 return True
         return False
+
+    @pyqtSlot(str, result=str)
+    def pathForName(self, name):
+        for wallet_name, wallet_path in self._wallets:
+            if name == wallet_name:
+                return wallet_path
+        return ''
 
     @pyqtSlot(str)
     def updateWallet(self, path):
@@ -325,8 +332,10 @@ class QEDaemon(AuthMixin, QObject):
         for forbidden_char in ("/", "\\", ):
             if forbidden_char in wallet_name:
                 return False
-        if wallet_name.startswith('.'):  # not shown in wallet list
-            # TODO: allow wallets starting with '.' as hidden wallets, opened e.g. through wallet creation wizard
+        # note: wallet names starting with '.' are allowed as hidden wallets; they are not shown
+        # in the wallet list unless active (see Wallets.qml) but can be created via the wizard.
+        # disallow double '..*' filenames though.
+        if wallet_name.startswith('..'):
             return False
         if os.path.basename(wallet_name) != wallet_name:  # '/foo/bar/' returns 'bar'
             return False
