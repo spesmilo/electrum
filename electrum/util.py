@@ -607,6 +607,13 @@ def get_new_wallet_name(wallet_folder: str) -> str:
     return filename
 
 
+def is_hidden_wallet_path(wallet_path: Any) -> bool:
+    if not isinstance(wallet_path, str):
+        return False
+    fname = os.path.basename(wallet_path)
+    return fname.startswith(".")
+
+
 def is_android_debug_apk() -> bool:
     is_android = 'ANDROID_DATA' in os.environ
     if not is_android:

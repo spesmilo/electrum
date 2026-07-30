@@ -768,7 +768,9 @@ class Daemon(Logger):
             old_password=old_password, new_password=new_password, wallet_dir=wallet_dir)
         return True
 
-    def update_recently_opened_wallets(self, wallet_path, *, remove: bool = False):
+    def update_recently_opened_wallets(self, wallet_path, *, remove: bool = False) -> None:
+        if util.is_hidden_wallet_path(wallet_path):
+            return None  # don't save "hidden wallet" paths
         recent = self.config.RECENTLY_OPEN_WALLET_FILES or []
         if wallet_path in recent:
             recent.remove(wallet_path)
