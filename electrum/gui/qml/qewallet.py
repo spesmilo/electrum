@@ -200,16 +200,20 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     @qt_event_listener
     def on_event_new_transaction(self, wallet: 'Abstract_Wallet', tx: Transaction):
         if wallet == self.wallet:
-            self._logger.info(f'new transaction {tx.txid()}')
+            self._logger.debug(f'new transaction {tx.txid()}')
             self.add_tx_notification(tx)
-            self.addressCoinModel.setDirty()
+            if self._addressCoinModel is not None:  # only setDirty if it was already initialized
+                self._addressCoinModel.setDirty()
             self.historyModel.setDirty()  # assuming wallet.is_up_to_date triggers after
-            self.balanceChanged.emit()
+            if self.wallet.is_up_to_date():
+                # don't update during sync as this recomputes the balance on each new tx, blocking the UI thread.
+                # on_event_wallet_updated emits balanceChanged once we are up-to-date.
+                self.balanceChanged.emit()
 
     @qt_event_listener
     def on_event_adb_tx_height_changed(self, adb, txid, old_height, new_height):
         if adb == self.wallet.adb:
-            self._logger.info(f'tx_height_changed {txid}. {old_height} -> {new_height}')
+            self._logger.debug(f'tx_height_changed {txid}. {old_height} -> {new_height}')
             self.historyModel.setDirty()  # assuming wallet.is_up_to_date triggers after
 
     @qt_event_listener
@@ -218,7 +222,8 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         # is deleted along with multiple associated txs
         if wallet == self.wallet:
             self._logger.info(f'removed transaction {tx.txid()}')
-            self.addressCoinModel.setDirty()
+            if self._addressCoinModel is not None:
+                self._addressCoinModel.setDirty()
             self.historyModel.setDirty()
             self.balanceChanged.emit()
 
