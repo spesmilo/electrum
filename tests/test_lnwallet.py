@@ -1,20 +1,24 @@
 import logging
 import os
 import asyncio
+import time
 from unittest import mock
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, Sequence
 
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
 from electrum import bitcoin
 import electrum.trampoline
+from electrum.channel_db import UpdateStatus
 from electrum.lnutil import RECEIVED, MIN_FINAL_CLTV_DELTA_ACCEPTED, serialize_htlc_key, LnFeatures, HTLCOwner
 from electrum.logging import console_stderr_handler
+from electrum.lnmsg import decode_msg
+from electrum.lnrouter import RouteEdge
 from electrum.lntransport import LNPeerAddr
 from electrum.invoices import LN_EXPIRY_NEVER, PR_UNPAID
 from electrum.lnpeer import Peer
 from electrum.lnchannel import Channel, ChannelState
-from electrum.lnonion import OnionPacket, OnionRoutingFailure
+from electrum.lnonion import OnionPacket, OnionRoutingFailure, OnionFailureCode
 from electrum.mpp_split import SplitConfig, SplitConfigRating
 from electrum.crypto import sha256
 from electrum.simple_config import SimpleConfig
@@ -496,3 +500,87 @@ class TestLNWallet(ElectrumTestCase):
         for shi, _, _ in routes:
             # all constructed routes use the outgoing channel of the split config
             self.assertEqual(bob_chan.short_channel_id, shi.route[0].short_channel_id)
+
+    async def test_unchanged_channel_update_from_failed_htlc(self):
+        # a TEMPORARY_CHANNEL_FAILURE carrying a channel update identical to what we
+        # already have (UpdateStatus.UNCHANGED) is a liquidity issue: the recorded
+        # liquidity hint is sufficient and the channel must not get blacklisted, so
+        # that smaller (mpp) retry amounts can still use it. for other failure codes
+        # an unchanged update still results in blacklisting.
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice_w = graph.workers['alice']
+        path_finder = alice_w.network.path_finder
+        amount_msat = 100_000_000
+        now = int(time.time())
+
+        def add_chan_to_alice_channel_db(chan: Channel) -> bytes:
+            # inject with a backdated policy, so that presenting the current signed
+            # update in an onion error below yields UpdateStatus.UNCHANGED
+            chan_ann = decode_msg(chan.construct_channel_announcement_without_sigs()[0])[1]
+            alice_w.channel_db.add_channel_announcements(chan_ann, trusted=True)
+            chan_upd_raw = chan.get_outgoing_gossip_channel_update()
+            chan_upd = decode_msg(chan_upd_raw)[1]
+            chan_upd['timestamp'] -= 3600
+            self.assertEqual(UpdateStatus.GOOD, alice_w.channel_db.add_channel_update(chan_upd, verify=False))
+            return chan_upd_raw
+
+        def two_hop_route(middle: str) -> Sequence[RouteEdge]:
+            return [
+                RouteEdge(
+                    start_node=graph.workers[a].node_keypair.pubkey,
+                    end_node=graph.workers[b].node_keypair.pubkey,
+                    short_channel_id=graph.channels[(a, b)][0].short_channel_id,
+                    fee_base_msat=0, fee_proportional_millionths=0, cltv_delta=10, node_features=0,
+                ) for a, b in [('alice', middle), (middle, 'dave')]
+            ]
+
+        # bob fails an htlc with a liquidity error: no blacklisting, only a liquidity hint
+        chan_bd = graph.channels[('bob', 'dave')][0]
+        chan_upd_raw = add_chan_to_alice_channel_db(chan_bd)
+        failure_data = len(chan_upd_raw).to_bytes(2, 'big') + chan_upd_raw
+        alice_w.handle_error_code_from_failed_htlc(
+            route=two_hop_route('bob'), sender_idx=0, amount_msat=amount_msat,
+            failure_msg=OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=failure_data))
+        self.assertFalse(path_finder._is_edge_blacklisted(chan_bd.short_channel_id, now=now))
+        hint_bd = path_finder.liquidity_hints.get_hint(chan_bd.short_channel_id)
+        pubkey_b = graph.workers['bob'].node_keypair.pubkey
+        pubkey_d = graph.workers['dave'].node_keypair.pubkey
+        self.assertEqual(amount_msat, hint_bd.cannot_send(pubkey_b < pubkey_d))
+
+        # carol fails an htlc with a non-liquidity error: the channel gets blacklisted
+        chan_cd = graph.channels[('carol', 'dave')][0]
+        chan_upd_raw = add_chan_to_alice_channel_db(chan_cd)
+        failure_data = amount_msat.to_bytes(8, 'big') + len(chan_upd_raw).to_bytes(2, 'big') + chan_upd_raw
+        alice_w.handle_error_code_from_failed_htlc(
+            route=two_hop_route('carol'), sender_idx=0, amount_msat=amount_msat,
+            failure_msg=OnionRoutingFailure(code=OnionFailureCode.FEE_INSUFFICIENT, data=failure_data))
+        self.assertTrue(path_finder._is_edge_blacklisted(chan_cd.short_channel_id, now=now))
+
+    async def test_missing_channel_update_from_failed_htlc(self):
+        # the channel_update in UPDATE-type failure messages is optional, nodes
+        # omitting it set the channel_update len field to zero:
+        # https://github.com/lightning/bolts/blob/93b7ee031b50acd59967a105f1326176a37628f9/04-onion-routing.md?plain=1#L1384-L1389
+        # a TEMPORARY_CHANNEL_FAILURE without channel update is a liquidity issue:
+        # we record a liquidity hint and must not blacklist the channel
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice_w = graph.workers['alice']
+        path_finder = alice_w.network.path_finder
+        amount_msat = 100_000_000
+        route = [
+            RouteEdge(
+                start_node=graph.workers[a].node_keypair.pubkey,
+                end_node=graph.workers[b].node_keypair.pubkey,
+                short_channel_id=graph.channels[(a, b)][0].short_channel_id,
+                fee_base_msat=0, fee_proportional_millionths=0, cltv_delta=10, node_features=0,
+            ) for a, b in [('alice', 'bob'), ('bob', 'dave')]
+        ]
+        failure_data = (0).to_bytes(2, 'big')  # channel_update len field set to zero
+        alice_w.handle_error_code_from_failed_htlc(
+            route=route, sender_idx=0, amount_msat=amount_msat,
+            failure_msg=OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=failure_data))
+        chan_bd = graph.channels[('bob', 'dave')][0]
+        self.assertFalse(path_finder._is_edge_blacklisted(chan_bd.short_channel_id, now=int(time.time())))
+        hint_bd = path_finder.liquidity_hints.get_hint(chan_bd.short_channel_id)
+        pubkey_b = graph.workers['bob'].node_keypair.pubkey
+        pubkey_d = graph.workers['dave'].node_keypair.pubkey
+        self.assertEqual(amount_msat, hint_bd.cannot_send(pubkey_b < pubkey_d))

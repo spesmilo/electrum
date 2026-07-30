@@ -2194,13 +2194,18 @@ class LNWallet(Logger):
             raise PaymentFailure(f'payment destination reported error: {failure_msg.code_name()}') from None
 
         # TODO: handle unknown next peer?
-        # handle failure codes that include a channel update
+        # handle failure codes that may include a channel update
         if code in failure_codes:
             offset = failure_codes[code]
             channel_update_len = int.from_bytes(data[offset:offset+2], byteorder="big")
             channel_update_as_received = data[offset+2: offset+2+channel_update_len]
-            payload = self._decode_channel_update_msg(channel_update_as_received)
-            if payload is None:
+            if channel_update_len == 0:
+                # the channel_update became optional
+                # https://github.com/lightning/bolts/blob/93b7ee031b50acd59967a105f1326176a37628f9/04-onion-routing.md?plain=1#L1384-L1389
+                # without an update we cannot correct our local policy for the channel, so we avoid (blacklist) it,
+                # except for liquidity failures, where the liquidity hint suffices to retry
+                blacklist = code != OnionFailureCode.TEMPORARY_CHANNEL_FAILURE
+            elif (payload := self._decode_channel_update_msg(channel_update_as_received)) is None:
                 self.logger.info(f'could not decode channel_update for failed htlc: '
                                  f'{channel_update_as_received.hex()}')
                 blacklist = True
@@ -2209,19 +2214,17 @@ class LNWallet(Logger):
                 blacklist = True
             else:
                 # apply the channel update or get blacklisted
-                blacklist, update = self._handle_chanupd_from_failed_htlc(
+                blacklist, handled = self._handle_chanupd_from_failed_htlc(
                     payload, route=route, sender_idx=sender_idx, failure_msg=failure_msg)
-                # we interpret a temporary channel failure as a liquidity issue
-                # in the channel and update our liquidity hints accordingly
-                if code == OnionFailureCode.TEMPORARY_CHANNEL_FAILURE:
-                    self.network.path_finder.update_liquidity_hints(
-                        route,
-                        amount_msat,
-                        failing_channel=ShortChannelID(failing_channel))
-                # if we can't decide on some action, we are stuck
-                if not (blacklist or update):
-                    raise PaymentFailure(failure_msg.code_name())
-        # for errors that do not include a channel update
+                assert blacklist or handled, "some action has to be taken on a failure with channel update"
+            # we interpret a temporary channel failure as a liquidity issue
+            # in the channel and update our liquidity hints accordingly
+            if code == OnionFailureCode.TEMPORARY_CHANNEL_FAILURE:
+                self.network.path_finder.update_liquidity_hints(
+                    route,
+                    amount_msat,
+                    failing_channel=ShortChannelID(failing_channel))
+        # for errors that never include a channel update
         else:
             blacklist = True
         if blacklist:
@@ -2234,7 +2237,7 @@ class LNWallet(Logger):
         failure_msg: OnionRoutingFailure,
     ) -> Tuple[bool, bool]:
         blacklist = False
-        update = False
+        handled = False
         try:
             r = self.channel_db.add_channel_update(payload, verify=True)
         except InvalidGossipMsg:
@@ -2247,7 +2250,7 @@ class LNWallet(Logger):
             for chan in self.channels.values():
                 if chan.short_channel_id == short_channel_id:
                     chan.set_remote_update(payload)
-            update = True
+            handled = True
         elif r == UpdateStatus.ORPHANED:
             # maybe it is a private channel (and data in invoice was outdated)
             self.logger.info(f"Could not find {short_channel_id}. maybe update is for private channel?")
@@ -2257,16 +2260,23 @@ class LNWallet(Logger):
                 # eclair sends CHANNEL_DISABLED if its peer is offline. E.g. we might be trying to pay
                 # a mobile phone with the app closed. So we cache this with a short TTL.
                 cache_ttl = self.channel_db.PRIVATE_CHAN_UPD_CACHE_TTL_SHORT
-            update = self.channel_db.add_channel_update_for_private_channel(payload, start_node_id, cache_ttl=cache_ttl)
-            blacklist = not update
+            handled = self.channel_db.add_channel_update_for_private_channel(payload, start_node_id, cache_ttl=cache_ttl)
+            blacklist = not handled
         elif r == UpdateStatus.EXPIRED:
             blacklist = True
         elif r == UpdateStatus.DEPRECATED:
             self.logger.info(f'channel update is not more recent.')
             blacklist = True
         elif r == UpdateStatus.UNCHANGED:
-            blacklist = True
-        return blacklist, update
+            if failure_msg.code == OnionFailureCode.TEMPORARY_CHANNEL_FAILURE:
+                # the sent htlc might have exceeded the channel's liquidity, no need to blacklist,
+                # we record liquidity hints and can attempt again with a smaller htlc
+                handled = True
+            else:
+                blacklist = True
+        else:
+            raise Exception(f"unexpected chan upd UpdateStatus: {r}")
+        return blacklist, handled
 
     @classmethod
     def _decode_channel_update_msg(cls, chan_upd_msg: bytes) -> Optional[Dict[str, Any]]:
