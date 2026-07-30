@@ -555,3 +555,32 @@ class TestLNWallet(ElectrumTestCase):
             route=two_hop_route('carol'), sender_idx=0, amount_msat=amount_msat,
             failure_msg=OnionRoutingFailure(code=OnionFailureCode.FEE_INSUFFICIENT, data=failure_data))
         self.assertTrue(path_finder._is_edge_blacklisted(chan_cd.short_channel_id, now=now))
+
+    async def test_missing_channel_update_from_failed_htlc(self):
+        # the channel_update in UPDATE-type failure messages is optional, nodes
+        # omitting it set the channel_update len field to zero:
+        # https://github.com/lightning/bolts/blob/93b7ee031b50acd59967a105f1326176a37628f9/04-onion-routing.md?plain=1#L1384-L1389
+        # a TEMPORARY_CHANNEL_FAILURE without channel update is a liquidity issue:
+        # we record a liquidity hint and must not blacklist the channel
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice_w = graph.workers['alice']
+        path_finder = alice_w.network.path_finder
+        amount_msat = 100_000_000
+        route = [
+            RouteEdge(
+                start_node=graph.workers[a].node_keypair.pubkey,
+                end_node=graph.workers[b].node_keypair.pubkey,
+                short_channel_id=graph.channels[(a, b)][0].short_channel_id,
+                fee_base_msat=0, fee_proportional_millionths=0, cltv_delta=10, node_features=0,
+            ) for a, b in [('alice', 'bob'), ('bob', 'dave')]
+        ]
+        failure_data = (0).to_bytes(2, 'big')  # channel_update len field set to zero
+        alice_w.handle_error_code_from_failed_htlc(
+            route=route, sender_idx=0, amount_msat=amount_msat,
+            failure_msg=OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=failure_data))
+        chan_bd = graph.channels[('bob', 'dave')][0]
+        self.assertFalse(path_finder._is_edge_blacklisted(chan_bd.short_channel_id, now=int(time.time())))
+        hint_bd = path_finder.liquidity_hints.get_hint(chan_bd.short_channel_id)
+        pubkey_b = graph.workers['bob'].node_keypair.pubkey
+        pubkey_d = graph.workers['dave'].node_keypair.pubkey
+        self.assertEqual(amount_msat, hint_bd.cannot_send(pubkey_b < pubkey_d))
