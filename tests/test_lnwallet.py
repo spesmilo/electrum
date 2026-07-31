@@ -19,7 +19,8 @@ from electrum import constants
 from electrum.bolt12 import BOLT12Offer, BOLT12InvoiceRequest, BOLT12Invoice, BOLT12InvoicePathIDPayload, Bolt12InvoiceError
 from electrum.lnonion import BlindedPath, BlindedPathHop, BlindedPathInfo, BlindedPayInfo
 from electrum.channel_db import UpdateStatus
-from electrum.lnutil import RECEIVED, MIN_FINAL_CLTV_DELTA_ACCEPTED, serialize_htlc_key, LnFeatures, HTLCOwner
+from electrum.lnutil import (RECEIVED, MIN_FINAL_CLTV_DELTA_ACCEPTED, serialize_htlc_key, LnFeatures, HTLCOwner,
+                             BlindedRoutingInfo, HtlcLog, PaymentFailure, ShortChannelID)
 from electrum.logging import console_stderr_handler
 from electrum.lnmsg import decode_msg
 from electrum.lnrouter import RouteEdge
@@ -31,7 +32,7 @@ from electrum.lnonion import OnionPacket, OnionRoutingFailure, OnionFailureCode
 from electrum.mpp_split import SplitConfig, SplitConfigRating
 from electrum.crypto import sha256, hmac_oneshot
 from electrum.simple_config import SimpleConfig
-from electrum.lnworker import LNWALLET_FEATURES
+from electrum.lnworker import LNWALLET_FEATURES, PaySession
 
 from . import ElectrumTestCase, lnhelpers
 from .lnhelpers import create_test_channels, get_dummy_paths
@@ -625,6 +626,113 @@ class TestLNWallet(ElectrumTestCase):
         pubkey_b = graph.workers['bob'].node_keypair.pubkey
         pubkey_d = graph.workers['dave'].node_keypair.pubkey
         self.assertEqual(amount_msat, hint_bd.cannot_send(pubkey_b < pubkey_d))
+
+    def _make_blinded_paysession(self, paths: Sequence[BlindedPathInfo], *, uses_trampoline: bool) -> PaySession:
+        routing_info = BlindedRoutingInfo(
+            paths=tuple(paths),
+            final_cltv_delta=144,
+            invoice_features=LnFeatures(0),
+        )
+        return PaySession(
+            routing_info=routing_info,
+            payment_hash=os.urandom(32),
+            initial_trampoline_fee_level=0,
+            invoice_features=LnFeatures(0),
+            amount_to_pay=1_000_000,
+            uses_trampoline=uses_trampoline,
+        )
+
+    def test_get_blinded_paths_to_try(self):
+        def dummy_path(*, fee_base_msat: int = 1000, htlc_maximum_msat: int = 10_000_000_000,
+                       features: Optional[LnFeatures] = None) -> BlindedPathInfo:
+            path_info = get_dummy_paths()[0]
+            payinfo = dataclasses.replace(
+                path_info.payinfo,
+                fee_base_msat=fee_base_msat,
+                fee_proportional_millionths=0,
+                htlc_maximum_msat=htlc_maximum_msat)
+            if features is not None:
+                payinfo = dataclasses.replace(payinfo, features=features)
+            return path_info._replace(payinfo=payinfo)
+
+        expensive = dummy_path(fee_base_msat=5000)
+        cheap = dummy_path(fee_base_msat=100)
+        too_small = dummy_path(htlc_maximum_msat=100_000)
+        unusable = dummy_path(features=LnFeatures(1 << 100))  # unknown even feature bit
+        expensive_twin = dummy_path(fee_base_msat=5000)  # same cost as expensive, but listed later
+        paysession = self._make_blinded_paysession(
+            [expensive, cheap, too_small, unusable, expensive_twin], uses_trampoline=False)
+        # ranked by fee/cltv cost (ties keep invoice order), filtered by htlc_maximum_msat and features
+        self.assertEqual([cheap, expensive, expensive_twin], paysession.get_blinded_paths_to_try(1_000_000))
+        # without an amount only failed and feature-incompatible paths are filtered
+        self.assertEqual([cheap, too_small, expensive, expensive_twin], paysession.get_blinded_paths_to_try())
+        # amounts below htlc_minimum_msat cannot use any path
+        self.assertEqual([], paysession.get_blinded_paths_to_try(0))
+        # failed paths are not tried again
+        paysession.record_failed_blinded_path(cheap)
+        self.assertEqual([expensive, expensive_twin], paysession.get_blinded_paths_to_try(1_000_000))
+
+    async def test_failed_htlc_discards_blinded_path(self):
+        w = self.lnwallet_anchors
+        path_a, path_b = get_dummy_paths()[0], get_dummy_paths()[0]
+        paysession = self._make_blinded_paysession([path_a, path_b], uses_trampoline=False)
+        node1 = ECPrivkey.generate_random_key().get_public_key_bytes()
+        route = [
+            RouteEdge(
+                start_node=w.node_keypair.pubkey, end_node=node1, short_channel_id=ShortChannelID(bytes(8)),
+                fee_base_msat=0, fee_proportional_millionths=0, cltv_delta=10, node_features=0),
+            RouteEdge(
+                start_node=node1, end_node=path_a.path.first_node_id, short_channel_id=ShortChannelID(bytes(8)),
+                fee_base_msat=0, fee_proportional_millionths=0, cltv_delta=10, node_features=0),
+        ]
+        def htlc_log(sender_idx: Optional[int], blinded_path: BlindedPathInfo) -> HtlcLog:
+            return HtlcLog(
+                success=False, amount_msat=100_000, route=route, sender_idx=sender_idx,
+                failure_msg=OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_BLINDING, data=b''),
+                blinded_path=blinded_path)
+        with patch.object(w, 'uses_trampoline', return_value=False):
+            # error from the introduction node: discard the path but keep the session alive
+            await w._process_htlc_log(
+                paysession=paysession, htlc_log=htlc_log(1, path_a), is_forwarding_trampoline=False)
+            self.assertEqual([path_b], paysession.get_blinded_paths_to_try())
+            # error before the introduction node concerns our route to it, the path stays usable
+            with patch.object(w, 'handle_error_code_from_failed_htlc') as handle_mock:
+                await w._process_htlc_log(
+                    paysession=paysession, htlc_log=htlc_log(0, path_b), is_forwarding_trampoline=False)
+            handle_mock.assert_called_once()
+            self.assertEqual([path_b], paysession.get_blinded_paths_to_try())
+            # undecodable error from within the blinded path: discard
+            await w._process_htlc_log(
+                paysession=paysession, htlc_log=htlc_log(None, path_b), is_forwarding_trampoline=False)
+            self.assertEqual([], paysession.get_blinded_paths_to_try())
+
+    def test_failed_trampoline_htlc_discards_blinded_path(self):
+        path_a, path_b = get_dummy_paths()[0], get_dummy_paths()[0]
+        paysession = self._make_blinded_paysession([path_a, path_b], uses_trampoline=True)
+        my_pubkey = ECPrivkey.generate_random_key().get_public_key_bytes()
+        trampoline = ECPrivkey.generate_random_key().get_public_key_bytes()
+        route = [RouteEdge(
+            start_node=my_pubkey, end_node=trampoline, short_channel_id=ShortChannelID(bytes(8)),
+            fee_base_msat=0, fee_proportional_millionths=0, cltv_delta=10, node_features=0)]
+        def htlc_log(blinded_path: Optional[BlindedPathInfo]) -> HtlcLog:
+            return HtlcLog(
+                success=False, amount_msat=100_000, route=route, trampoline_fee_level=0,
+                blinded_path=blinded_path)
+        # the last trampoline could not forward into the blinded path
+        paysession.handle_failed_trampoline_htlc(
+            node_id=trampoline, htlc_log=htlc_log(path_a),
+            failure_msg=OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b''))
+        self.assertEqual([path_b], paysession.get_blinded_paths_to_try())
+        # errors that would give up the payment discard the path instead
+        paysession.handle_failed_trampoline_htlc(
+            node_id=trampoline, htlc_log=htlc_log(path_b),
+            failure_msg=OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_BLINDING, data=b''))
+        self.assertEqual([], paysession.get_blinded_paths_to_try())
+        # unblinded payments still fail permanently on such errors
+        with self.assertRaises(PaymentFailure):
+            paysession.handle_failed_trampoline_htlc(
+                node_id=trampoline, htlc_log=htlc_log(None),
+                failure_msg=OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_BLINDING, data=b''))
 
     async def test_request_bolt12_invoice(self):
         wallet = self.lnwallet_anchors

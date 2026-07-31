@@ -898,6 +898,8 @@ class PaySession(Logger):
         self.failed_trampoline_routes = []
         self.next_trampolines = dict() # node_id -> next_trampoline -> tuple
         self._sent_buckets = dict()  # psecret_bucket -> (amount_sent, amount_failed)
+        self._failed_blinded_path_ids = set()  # type: set[int]  # indices into routing_info.paths
+        self._bucket_blinded_paths = dict()  # type: dict[bytes, BlindedPathInfo]  # psecret_bucket -> used blinded path
 
         self._amount_inflight = 0  # what we sent in htlcs (that receiver gets, without fees)
         self._nhtlcs_inflight = 0
@@ -953,7 +955,15 @@ class PaySession(Logger):
             if failure_msg.code == OnionFailureCode.UNKNOWN_NEXT_PEER:
                 self.next_trampolines[node_id] = decode_next_trampolines(failure_msg.data)
                 self.logger.info(f'received {self.next_trampolines[node_id]=}')
+            if htlc_log.blinded_path and node_id == trampoline_route[-1].end_node:
+                # the last trampoline could not forward into the blinded path
+                self.record_failed_blinded_path(htlc_log.blinded_path)
         else:
+            if htlc_log.blinded_path:
+                # e.g. INVALID_ONION_BLINDING: the blinded path is unusable, other invoice paths
+                # may still work; once all paths failed, path selection raises NoPathFound
+                self.record_failed_blinded_path(htlc_log.blinded_path)
+                return
             raise PaymentFailure(failure_msg.code_name())
 
     async def wait_for_one_htlc_to_resolve(self) -> HtlcLog:
@@ -1001,13 +1011,47 @@ class PaySession(Logger):
     def get_outstanding_amount_to_send(self) -> int:
         return self.amount_to_pay - self._amount_inflight
 
-    def get_blinded_path_to_try(self) -> Optional[BlindedPathInfo]:
-        # TODO: check direct channels
-        # TODO: consider amount to send
-        # TODO: consider previously failed paths
-        if isinstance(self.routing_info, BlindedRoutingInfo):
-            return self.routing_info.paths[0]
-        return None
+    def get_blinded_paths_to_try(self, amount_msat: Optional[int] = None) -> Sequence[BlindedPathInfo]:
+        """Returns the invoice's blinded paths usable for an htlc of amount_msat
+        (all not-yet-failed, feature-compatible paths if amount_msat is None), best first.
+        https://github.com/lightning/bolts/blob/34455ffe28b308dd7ac7552234d565890af8605b/12-offer-encoding.md?plain=1#L776-L788
+        """
+        assert isinstance(self.routing_info, BlindedRoutingInfo), self.routing_info
+        candidates = []
+        for idx, path_info in enumerate(self.routing_info.paths):
+            payinfo = path_info.payinfo
+            if idx in self._failed_blinded_path_ids:
+                continue
+            if payinfo.requires_unknown_mandatory_features:
+                continue
+            if amount_msat is not None \
+                    and not payinfo.htlc_minimum_msat <= amount_msat <= payinfo.htlc_maximum_msat:
+                continue
+            amt = amount_msat if amount_msat is not None else self.amount_to_pay
+            fee_msat = fee_for_edge_msat(
+                forwarded_amount_msat=amt,
+                fee_base_msat=payinfo.fee_base_msat,
+                fee_proportional_millionths=payinfo.fee_proportional_millionths)
+            # fee/cltv weighting as in LNPathFinder._edge_cost, on cost ties we keep the
+            # invoice order as the recipient lists the paths most-preferred first
+            cost = fee_msat + payinfo.cltv_expiry_delta * amt * 15 / 1_000_000_000
+            candidates.append((cost, idx, path_info))
+        candidates.sort(key=lambda candidate: (candidate[0], candidate[1]))
+        return [path_info for _cost, _idx, path_info in candidates]
+
+    def record_failed_blinded_path(self, path_info: BlindedPathInfo) -> None:
+        """Stops get_blinded_paths_to_try from returning this path for the rest of the session."""
+        assert isinstance(self.routing_info, BlindedRoutingInfo), self.routing_info
+        idx = self.routing_info.paths.index(path_info)
+        self._failed_blinded_path_ids.add(idx)
+        self.logger.info(f'discarding blinded path {idx} (IP={path_info.path.first_node_id.hex()})')
+
+    def register_bucket_blinded_path(self, bucket_key: bytes, path_info: BlindedPathInfo) -> None:
+        """Remembers the blinded path a trampoline bucket was sent over, for failure attribution."""
+        self._bucket_blinded_paths[bucket_key] = path_info
+
+    def get_bucket_blinded_path(self, bucket_key: Optional[bytes]) -> Optional[BlindedPathInfo]:
+        return self._bucket_blinded_paths.get(bucket_key)
 
     def can_be_deleted(self) -> bool:
         """Returns True iff finished sending htlcs AND all pending htlcs have resolved."""
@@ -2124,6 +2168,14 @@ class LNWallet(Logger):
         route = htlc_log.route
         sender_idx = htlc_log.sender_idx
         failure_msg = htlc_log.failure_msg
+        if htlc_log.blinded_path and not self.uses_trampoline():
+            # Failures at or beyond the introduction node (errors of blinded hops cannot be
+            # decoded, then sender_idx is None) make us stop using this blinded path. Other
+            # invoice paths may still work; once all failed, path selection raises NoPathFound.
+            # Failures before the introduction node concern our route to it, handled below.
+            if sender_idx is None or sender_idx >= len(route) - 1:
+                paysession.record_failed_blinded_path(htlc_log.blinded_path)
+                return
         if sender_idx is None:
             raise PaymentFailure(failure_msg.code_name())
         erring_node_id = route[sender_idx].node_id
@@ -2463,7 +2515,6 @@ class LNWallet(Logger):
         trampoline_features = LnFeatures.VAR_ONION_OPT
         local_height = self.wallet.adb.get_local_height()
         routing_info = paysession.routing_info
-        blinded_path = paysession.get_blinded_path_to_try()
         fee_related_error = None  # type: Optional[FeeBudgetExceeded]
         if channels:
             my_active_channels = channels
@@ -2491,9 +2542,13 @@ class LNWallet(Logger):
             self.logger.info(f"trying split configuration: {sc.config.values()} rating: {sc.rating}")
             routes = []
             try:
-                destination_pubkey = blinded_path.path.first_node_id if blinded_path else routing_info.node_pubkey
                 # FIXME: determine is_direct_path per sc key
-                is_direct_path = all(node_id == destination_pubkey for (chan_id, node_id) in sc.config.keys())
+                if isinstance(routing_info, BlindedRoutingInfo):
+                    # note: paths that cannot fit the individual htlc amounts get filtered later
+                    usable_intro_nodes = {p.path.first_node_id for p in paysession.get_blinded_paths_to_try()}
+                    is_direct_path = all(node_id in usable_intro_nodes for (chan_id, node_id) in sc.config.keys())
+                else:
+                    is_direct_path = all(node_id == routing_info.node_pubkey for (chan_id, node_id) in sc.config.keys())
                 if self.uses_trampoline() and not is_direct_path:
                     if fwd_trampoline_onion:
                         raise NoPathFound()
@@ -2506,6 +2561,14 @@ class LNWallet(Logger):
                     # for each trampoline forwarder, construct mpp trampoline
                     for trampoline_node_id, trampoline_parts in per_trampoline_channel_amounts.items():
                         per_trampoline_amount = sum([x[1] for x in trampoline_parts])
+                        blinded_path = None
+                        if isinstance(routing_info, BlindedRoutingInfo):
+                            # the last trampoline forwards the whole bucket over a single blinded
+                            # path (see create_trampoline_route), so we select by bucket amount
+                            blinded_paths = paysession.get_blinded_paths_to_try(per_trampoline_amount)
+                            if not blinded_paths:
+                                raise NoPathFound(f'no usable blinded path for bucket of {per_trampoline_amount} msat')
+                            blinded_path = blinded_paths[0]
                         trampoline_route, trampoline_onion, per_trampoline_amount_with_fees, per_trampoline_cltv_delta = create_trampoline_route_and_onion(
                             amount_msat=per_trampoline_amount,
                             total_msat=paysession.amount_to_pay,
@@ -2522,6 +2585,8 @@ class LNWallet(Logger):
                         )
                         # node_features is only used to determine is_tlv
                         per_trampoline_secret = os.urandom(32)
+                        if blinded_path:
+                            paysession.register_bucket_blinded_path(per_trampoline_secret, blinded_path)
                         per_trampoline_fees = per_trampoline_amount_with_fees - per_trampoline_amount
                         self.logger.info(f'created route with trampoline fee level={paysession.trampoline_fee_level}')
                         self.logger.info(f'trampoline hops: {[hop.end_node.hex() for hop in trampoline_route.edges]}')
@@ -2567,15 +2632,26 @@ class LNWallet(Logger):
                     for (chan_id, _), part_amounts_msat in sc.config.items():
                         for part_amount_msat in part_amounts_msat:
                             channel = self._channels[chan_id]
-                            if is_direct_path:  # to recipient or blinded path introduction node
+                            if isinstance(routing_info, BlindedRoutingInfo):
+                                blinded_path, route = await self.create_route_via_blinded_path(
+                                    paysession=paysession,
+                                    amount_msat=part_amount_msat,
+                                    channel=channel,
+                                    use_single_channel=is_mpp,
+                                    my_active_channels=my_active_channels,
+                                    full_path=full_path,
+                                )
+                            elif is_direct_path:  # to recipient
+                                blinded_path = None
                                 route = self.create_direct_route(channel=channel)
                             else:
                                 assert not self.uses_trampoline()
+                                blinded_path = None
                                 route = await run_in_thread(partial(
                                     self.create_route_for_single_htlc,
                                     amount_msat=part_amount_msat,
                                     routing_info=routing_info,
-                                    blinded_path=blinded_path,
+                                    blinded_path=None,
                                     my_sending_channels=[channel] if is_mpp else my_active_channels,
                                     full_path=full_path,
                                 ))
@@ -2643,6 +2719,45 @@ class LNWallet(Logger):
             node_features=0)
         route = [route_edge]
         return route
+
+    async def create_route_via_blinded_path(
+            self, *,
+            paysession: PaySession,
+            amount_msat: int,  # that final receiver gets
+            channel: Channel,
+            use_single_channel: bool,
+            my_active_channels: Sequence[Channel],
+            full_path: Optional[LNPaymentPath],
+    ) -> Tuple[BlindedPathInfo, LNPaymentRoute]:
+        """Selects the invoice blinded path to use for a single htlc and creates a route to
+        its introduction node. Prefers a direct channel to an introduction node, otherwise
+        tries to find a route to the introduction nodes of the usable paths, best path first."""
+        candidates = paysession.get_blinded_paths_to_try(amount_msat)
+        if not candidates:
+            raise NoPathFound(f'no usable blinded path for htlc of {amount_msat} msat')
+        for blinded_path in candidates:
+            if blinded_path.path.first_node_id == channel.node_id:
+                return blinded_path, self.create_direct_route(channel=channel)
+        if self.uses_trampoline():
+            # without a direct channel to an introduction node the payment goes via a
+            # trampoline (handled by our caller), we cannot do pathfinding ourselves
+            raise NoPathFound('sending channel peer is not a usable introduction node')
+        for blinded_path in candidates:
+            try:
+                route = await run_in_thread(partial(
+                    self.create_route_for_single_htlc,
+                    amount_msat=amount_msat,
+                    routing_info=paysession.routing_info,
+                    blinded_path=blinded_path,
+                    my_sending_channels=[channel] if use_single_channel else my_active_channels,
+                    full_path=full_path,
+                ))
+                return blinded_path, route
+            except NoPathFound:
+                continue
+            except LNPathInconsistent:
+                continue  # a given full_path can only match one introduction node
+        raise NoPathFound('found no route to any blinded path introduction node')
 
     @profiler
     def create_route_for_single_htlc(
@@ -3349,7 +3464,8 @@ class LNWallet(Logger):
                 error_bytes=error_bytes,
                 failure_msg=failure_message,
                 sender_idx=sender_idx,
-                trampoline_fee_level=shi.trampoline_fee_level)
+                trampoline_fee_level=shi.trampoline_fee_level,
+                blinded_path=shi.blinded_path or paysession.get_bucket_blinded_path(shi.per_trampoline_payment_secret))
             q.put_nowait(htlc_log)
             if paysession.can_be_deleted():
                 self._paysessions.pop(shi.payment_key)
