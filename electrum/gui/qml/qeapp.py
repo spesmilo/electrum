@@ -289,7 +289,11 @@ class QEAppController(BaseCrashReporter, QObject):
         """
         try:
             jlist = intent.getStringArrayListExtra(jString("chainwatch_wallets"))
-            return [str(jlist.get(i)) for i in range(jlist.size())] if jlist else []
+            wallets = [str(jlist.get(i)) for i in range(jlist.size())] if jlist else []
+            if any([wallet != os.path.basename(wallet) for wallet in wallets]):
+                # avoid confused-deputy, ignore if any wallet is passed as (abs/rel) path instead of wallet name
+                wallets = []
+            return wallets
         except Exception as e:
             self.logger.error(f'could not read chainwatch_wallets extra: {repr(e)}')
             return []
