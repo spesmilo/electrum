@@ -8,7 +8,7 @@ from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum.i18n import _
 from electrum.logging import get_logger
-from electrum.util import WalletFileException, standardize_path, InvalidPassword, send_exception_to_crash_reporter
+from electrum.util import WalletFileException, standardize_path, InvalidPassword, send_exception_to_crash_reporter, is_hidden_wallet_path
 from electrum.plugin import run_hook
 from electrum.lnchannel import ChannelState
 from electrum.bitcoin import is_address
@@ -42,6 +42,7 @@ class QEWalletListModel(QAbstractListModel):
         QAbstractListModel.__init__(self, parent)
         self.daemon = daemon
         self._wallets = []
+        self._hidden = []
         self.reload()
 
     def rowCount(self, index):
@@ -75,8 +76,10 @@ class QEWalletListModel(QAbstractListModel):
                 if i.is_file():
                     available.append(i.path)
         for path in sorted(available):
-            wallet = self.daemon.get_wallet(path)
-            self.add_wallet(wallet_path=path)
+            if is_hidden_wallet_path(path) and self.daemon.get_wallet(path) is None:
+                self._hidden.append((os.path.basename(path), standardize_path(path)))
+            else:
+                self.add_wallet(wallet_path=path)
 
     def add_wallet(self, wallet_path):
         self.beginInsertRows(QModelIndex(), len(self._wallets), len(self._wallets))
@@ -104,14 +107,14 @@ class QEWalletListModel(QAbstractListModel):
 
     @pyqtSlot(str, result=bool)
     def wallet_name_exists(self, name):
-        for wallet_name, wallet_path in self._wallets:
+        for wallet_name, wallet_path in self._wallets + self._hidden:
             if name == wallet_name:
                 return True
         return False
 
     @pyqtSlot(str, result=str)
     def pathForName(self, name):
-        for wallet_name, wallet_path in self._wallets:
+        for wallet_name, wallet_path in self._wallets + self._hidden:
             if name == wallet_name:
                 return wallet_path
         return ''
