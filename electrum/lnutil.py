@@ -454,6 +454,7 @@ class HtlcLog(NamedTuple):
     failure_msg: Optional['OnionRoutingFailure'] = None
     sender_idx: Optional[int] = None
     trampoline_fee_level: Optional[int] = None
+    blinded_path: Optional['BlindedPathInfo'] = None  # invoice blinded path the htlc was sent over
 
     def formatted_tuple(self):
         route = self.route
