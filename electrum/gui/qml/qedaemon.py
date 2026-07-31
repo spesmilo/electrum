@@ -82,12 +82,13 @@ class QEWalletListModel(QAbstractListModel):
                 self.add_wallet(wallet_path=path)
 
     def add_wallet(self, wallet_path):
-        self.beginInsertRows(QModelIndex(), len(self._wallets), len(self._wallets))
         wallet_name = os.path.basename(wallet_path)
         wallet_path = standardize_path(wallet_path)
         item = (wallet_name, wallet_path)
-        self._wallets.append(item)
-        self.endInsertRows()
+        if item not in self._wallets:
+            self.beginInsertRows(QModelIndex(), len(self._wallets), len(self._wallets))
+            self._wallets.append(item)
+            self.endInsertRows()
 
     def remove_wallet(self, path):
         i = 0
@@ -278,6 +279,7 @@ class QEDaemon(AuthMixin, QObject):
         wallet = self.daemon.get_wallet(self._path)
         assert wallet is not None
         self._current_wallet = QEWallet.getInstanceFor(wallet)
+        self.availableWallets.add_wallet(self._path)  # idempotent, needed for hidden wallets
         self.availableWallets.updateWallet(self._path)
         wallet.unlock(password or None)  # not conditional on wallet.requires_unlock in qml, as
         # the auth wrapper doesn't pass the entered password, but instead we rely on the password in memory
