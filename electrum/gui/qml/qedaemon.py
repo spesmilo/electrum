@@ -506,7 +506,7 @@ class QEDaemon(AuthMixin, QObject):
     @pyqtSlot(str, str, str, result=bool)
     def verifyMessage(self, address, message, signature):
         address = address.strip()
-        message = message.strip().encode('utf-8')
+        message = message.encode('utf-8')
         if not is_address(address):
             return False
         try:

@@ -2131,7 +2131,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     @protected
     def do_sign(self, address, message, signature, password):
         address  = address.text().strip()
-        message = message.toPlainText().strip()
+        message = message.toPlainText()
         if not bitcoin.is_address(address):
             self.show_message(_('Invalid Bitcoin address.'))
             return
@@ -2159,7 +2159,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
     def do_verify(self, address, message, signature):
         address  = address.text().strip()
-        message = message.toPlainText().strip().encode('utf-8')
+        message = message.toPlainText().encode('utf-8')
         if not bitcoin.is_address(address):
             self.show_message(_('Invalid Bitcoin address.'))
             return
