@@ -3289,9 +3289,14 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if isinstance(self, Imported_Wallet):
             # this branch is significantly faster. Imported_Wallet.pubkeys_to_address is slow.
             addr_index = pubkey
+            assert isinstance(self.keystore, keystore.Imported_KeyStore)
+            if pubkey not in self.keystore.keypairs:
+                raise UserFacingException(_("Pubkey unrelated to wallet."))
         else:
             addr = self.pubkeys_to_address([pubkey])  # note: broken for multisig
             addr_index = self.get_address_index(addr)
+            if addr_index is None:
+                raise UserFacingException(_("Pubkey unrelated to wallet."))
         return self.keystore.decrypt_message(addr_index, message, password)
 
     @classmethod
