@@ -2159,12 +2159,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     ) -> None:
         address = address_e.text().strip()
         message = message_e.toPlainText().strip()
-        verified = self.wallet.verify_message(
-            address=address, signature=str(signature_e.toPlainText()), message=message)
-        if verified:
-            self.show_message(_("Signature verified"))
-        else:
-            self.show_error(_("Wrong signature"))
+        task = partial(
+            self.wallet.verify_message,
+            address=address,
+            signature=str(signature_e.toPlainText()),
+            message=message,
+        )
+
+        def on_result(verified):
+            if verified:
+                self.show_message(_("Signature verified"))
+            else:
+                self.show_error(_("Wrong signature"))
+
+        self.thread.add(task, on_success=on_result)
 
     def sign_verify_message(self, address: str = "") -> None:
         d = WindowModalDialog(self, _('Sign/verify Message'))
@@ -2238,15 +2246,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         encrypted_e: QTextEdit,
     ) -> None:
         message = message_e.toPlainText()
-        try:
-            encrypted = self.wallet.encrypt_message(
-                pubkey=pubkey_e.text(),
-                message=message,
-            )
-        except UserFacingException as e:
-            self.show_warning(str(e))
-            return
-        encrypted_e.setText(encrypted)
+        task = partial(
+            self.wallet.encrypt_message,
+            pubkey=pubkey_e.text(),
+            message=message,
+        )
+
+        def setText(text):
+            try:
+                encrypted_e.setText(text)
+            except RuntimeError:
+                # (encrypted_e) wrapped C/C++ object has been deleted
+                pass
+
+        self.thread.add(task, on_success=setText)
 
     def encrypt_message(self, address: str = "") -> None:
         d = WindowModalDialog(self, _('Encrypt/decrypt Message'))
