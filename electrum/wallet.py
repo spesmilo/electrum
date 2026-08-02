@@ -3234,10 +3234,14 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def _update_password_for_keystore(self, old_pw: Optional[str], new_pw: Optional[str]) -> None:
         pass
 
-    def sign_message(self, *, address: str, message: str, password) -> bytes:
+    def sign_message(self, *, address: str, message: str, password, strip_inputs: bool = True) -> bytes:
         """Caller must handle UserFacingException."""
         assert isinstance(address, str), f"address must be str. got {type(address)}"
         assert isinstance(message, str), f"message must be str. got {type(message)}"
+        if strip_inputs:
+            # stripping whitespaces leads to better UX for GUIs, but it's counter-productive for CLI
+            address = address.strip()
+            message = message.strip()
         if not bitcoin.is_address(address):
             raise UserFacingException(_("Invalid Bitcoin address."))
         if self.is_watching_only():
@@ -3260,11 +3264,16 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return self.keystore.sign_message(index, message, password, script_type=txin_type)
 
     @classmethod
-    def verify_message(cls, *, address: str, signature: str, message: str) -> bool:
+    def verify_message(cls, *, address: str, signature: str, message: str, strip_inputs: bool = True) -> bool:
         """Caller must handle UserFacingException."""
         assert isinstance(address, str), f"address must be str. got {type(address)}"
         assert isinstance(signature, str), f"signature must be str. got {type(signature)}"
         assert isinstance(message, str), f"message must be str. got {type(message)}"
+        if strip_inputs:
+            # stripping whitespaces leads to better UX for GUIs, but it's counter-productive for CLI
+            address = address.strip()
+            signature = signature.strip()
+            message = message.strip()
         if not is_address(address):
             raise UserFacingException(_("Invalid Bitcoin address."))
         try:

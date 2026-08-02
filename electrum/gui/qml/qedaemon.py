@@ -506,9 +506,6 @@ class QEDaemon(AuthMixin, QObject):
 
     @pyqtSlot(str, str, str, result=bool)
     def verifyMessage(self, address, message, signature):
-        address = address.strip()
-        message = message.strip()
-        signature = signature.strip()
         try:
             return Abstract_Wallet.verify_message(address=address, signature=signature, message=message)
         except UserFacingException as e:
