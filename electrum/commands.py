@@ -1235,11 +1235,7 @@ class Commands(Logger):
         arg:str:encrypted:Encrypted message
         arg:str:pubkey:Public key of one of your wallet addresses
         """
-        if not is_hex_str(pubkey):
-            raise UserFacingException(f"pubkey must be a hex string instead of {repr(pubkey)}")
-        if not isinstance(encrypted, str):
-            raise UserFacingException(f"encrypted must be a str instead of {repr(encrypted)}")
-        decrypted = wallet.decrypt_message(pubkey, encrypted, password)
+        decrypted = wallet.decrypt_message(pubkey=pubkey, message=encrypted, password=password)
         return decrypted.decode('utf-8')
 
     @command('w')

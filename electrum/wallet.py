@@ -3253,13 +3253,27 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         message = util.to_bytes(message)
         return bitcoin.verify_usermessage_with_address(address, sig, message)
 
-    def decrypt_message(self, pubkey: str, message: str, password) -> bytes:
-        addr = self.pubkeys_to_address([pubkey])
-        index = self.get_address_index(addr)
-        return self.keystore.decrypt_message(index, message, password)
+    def decrypt_message(self, *, pubkey: Any | str, message: str, password) -> bytes:
+        """Caller must handle UserFacingException."""
+        if self.is_watching_only():
+            raise UserFacingException(_("This is a watching-only wallet."))
+        if isinstance(self, Multisig_Wallet):  # FIXME does not work with multisig wallets. (see #5856)
+            raise UserFacingException(_("Decrypting messages is currently not implemented for multisig wallets."))
+        if not isinstance(message, str):
+            raise UserFacingException(f"message must be a str instead of {type(message)}")
+        if not is_hex_str(pubkey):
+            raise UserFacingException(f"pubkey must be a hex string instead of {type(pubkey)}")
+        if isinstance(self, Imported_Wallet):
+            # this branch is significantly faster. Imported_Wallet.pubkeys_to_address is slow.
+            addr_index = pubkey
+        else:
+            addr = self.pubkeys_to_address([pubkey])  # note: broken for multisig
+            addr_index = self.get_address_index(addr)
+        return self.keystore.decrypt_message(addr_index, message, password)
 
     @classmethod
     def encrypt_message(cls, *, pubkey: Any | str, message: Any | str) -> str:
+        """Caller must handle UserFacingException."""
         try:
             message = util.to_bytes(message)
         except TypeError:
@@ -4027,10 +4041,6 @@ class Imported_Wallet(Simple_Wallet):
             if self.db.get_imported_address(addr)['pubkey'] == pubkey:
                 return addr
         return None
-
-    def decrypt_message(self, pubkey: str, message, password) -> bytes:
-        # this is significantly faster than the implementation in the superclass
-        return self.keystore.decrypt_message(pubkey, message, password)
 
 
 class Deterministic_Wallet(Abstract_Wallet):
