@@ -2134,7 +2134,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     ) -> None:
         address = address_e.text().strip()
         message = message_e.toPlainText().strip()
-        task = partial(self.wallet.sign_message, address, message, password)
+        task = partial(
+            self.wallet.sign_message,
+            address=address,
+            message=message,
+            password=password,
+        )
 
         def show_signed_message(sig):
             try:

@@ -852,7 +852,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         address = address.strip()
         message = message.strip()
         try:
-            sig = self.wallet.sign_message(address, message, self.password)
+            sig = self.wallet.sign_message(address=address, message=message, password=self.password)
         except UserFacingException as e:
             self.signMessageError.emit(str(e))
             return

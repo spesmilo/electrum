@@ -918,7 +918,7 @@ class Commands(Logger):
             raise UserFacingException(f"address must be a str instead of {type(address)}")
         if not isinstance(message, str):
             raise UserFacingException(f"message must be a str instead of {type(message)}")
-        sig = wallet.sign_message(address, message, password)
+        sig = wallet.sign_message(address=address, message=message, password=password)
         return base64.b64encode(sig).decode('ascii')
 
     @command('')

@@ -3234,7 +3234,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def _update_password_for_keystore(self, old_pw: Optional[str], new_pw: Optional[str]) -> None:
         pass
 
-    def sign_message(self, address: str, message: str, password) -> bytes:
+    def sign_message(self, *, address: str, message: str, password) -> bytes:
         """Caller must handle UserFacingException."""
         assert isinstance(address, str), f"address must be str. got {type(address)}"
         assert isinstance(message, str), f"message must be str. got {type(message)}"
