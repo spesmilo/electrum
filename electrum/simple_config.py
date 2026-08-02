@@ -684,6 +684,9 @@ class SimpleConfig(Logger):
     WALLET_ANDROID_BIOMETRIC_AUTH_ENCRYPTED_WRAP_KEY = ConfigVar('android_biometrics_encrypted_wrap_key', default='', type_=str)
     # this is the "unified wallet password", encrypted with the wrap key
     WALLET_ANDROID_BIOMETRIC_AUTH_WRAPPED_WALLET_PASSWORD = ConfigVar('android_biometrics_wrapped_wallet_password', default='', type_=str)
+    # whether we already prompted the user to allowlist the app from battery
+    # optimizations (needed for the background Chainwatch service); ask at most once
+    WALLET_ANDROID_BATTERY_OPTIMIZATION_PROMPTED = ConfigVar('android_battery_optimization_prompted', default=False, type_=bool)
     # note: 'use_change' and 'multiple_change' are per-wallet settings
     WALLET_SEND_CHANGE_TO_LIGHTNING = ConfigVar(
         'send_change_to_lightning', default=False, type_=bool,

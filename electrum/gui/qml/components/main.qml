@@ -560,9 +560,14 @@ ApplicationWindow
                 })
                 dialog.open()
             } else {
+                console.log('Starting network and load wallet if available')
                 Daemon.startNetwork()
                 if (Daemon.availableWallets.rowCount() > 0) {
-                    Daemon.loadWallet()
+                    if (AppController.getIntentRequestedWallet()) {
+                        Daemon.loadWallet(AppController.getIntentRequestedWallet())
+                    } else {
+                        Daemon.loadWallet()
+                    }
                 } else {
                     var newww = app.newWalletWizard.createObject(app)
                     newww.walletCreated.connect(function() {
@@ -772,6 +777,10 @@ ApplicationWindow
         function onUriReceived(uri) {
             console.log('uri received (main): ' + uri)
             app.pendingIntent = uri
+        }
+        function onLoadWalletRequested(wname) {
+            console.log('onLoadWalletRequested: ', wname)
+            Daemon.loadWallet(wname)
         }
     }
 
