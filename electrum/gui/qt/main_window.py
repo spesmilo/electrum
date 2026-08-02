@@ -2253,17 +2253,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         pubkey_e: QLineEdit,
         encrypted_e: QTextEdit,
     ) -> None:
-        from electrum import crypto
         message = message_e.toPlainText()
-        message = message.encode('utf-8')
         try:
-            public_key = ecc.ECPubkey(bfh(pubkey_e.text()))
-        except BaseException as e:
-            self.logger.exception('Invalid Public key')
-            self.show_warning(_('Invalid Public key'))
+            encrypted = self.wallet.encrypt_message(
+                pubkey=pubkey_e.text(),
+                message=message,
+            )
+        except UserFacingException as e:
+            self.show_warning(str(e))
             return
-        encrypted = crypto.ecies_encrypt_message(public_key, message)
-        encrypted_e.setText(encrypted.decode('ascii'))
+        encrypted_e.setText(encrypted)
 
     def encrypt_message(self, address: str = "") -> None:
         d = WindowModalDialog(self, _('Encrypt/decrypt Message'))

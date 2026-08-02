@@ -48,6 +48,7 @@ from aiorpcx import ignore_after, run_in_thread
 
 from . import util, keystore, transaction, bitcoin, coinchooser, bip32, descriptor
 from . import constants
+from . import crypto
 from .i18n import _
 from .bip32 import BIP32Node, convert_bip32_intpath_to_strpath, convert_bip32_strpath_to_intpath
 from .logging import get_logger, Logger
@@ -56,7 +57,7 @@ from .util import (
     WalletFileException, BitcoinException, InvalidPassword, format_time, timestamp_to_datetime,
     Satoshis, Fiat, TxMinedInfo, quantize_feerate, OrderedDictWithIndex, multisig_type, parse_max_spend,
     OnchainHistoryItem, read_json_file, write_json_file, UserFacingException, FileImportFailed, EventListener,
-    event_listener
+    event_listener, is_hex_str,
 )
 from .bitcoin import COIN, is_address, is_minikey, relayfee, dust_threshold, DummyAddress, DummyAddressUsedInTxException
 from .keystore import (
@@ -3256,6 +3257,22 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         addr = self.pubkeys_to_address([pubkey])
         index = self.get_address_index(addr)
         return self.keystore.decrypt_message(index, message, password)
+
+    @classmethod
+    def encrypt_message(cls, *, pubkey: Any | str, message: Any | str) -> str:
+        try:
+            message = util.to_bytes(message)
+        except TypeError:
+            raise UserFacingException(f"message must be a str instead of {type(message)}") from None
+        if not is_hex_str(pubkey):
+            raise UserFacingException(f"pubkey must be a hex string instead of {type(pubkey)}")
+        pubkey_bytes = bytes.fromhex(pubkey)
+        try:
+            eckey = ecc.ECPubkey(pubkey_bytes)
+        except ecc.InvalidECPointException as e:
+            raise UserFacingException(_("Invalid Public key")) from e
+        encrypted = crypto.ecies_encrypt_message(eckey, message)
+        return encrypted.decode("ascii")
 
     @abstractmethod
     def pubkeys_to_address(self, pubkeys: Sequence[str]) -> Optional[str]:

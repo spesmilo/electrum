@@ -1226,15 +1226,7 @@ class Commands(Logger):
         arg:str:pubkey:Public key
         arg:str:message:Clear text message. Use quotes if it contains spaces.
         """
-        if not is_hex_str(pubkey):
-            raise UserFacingException(f"pubkey must be a hex string instead of {repr(pubkey)}")
-        try:
-            message = to_bytes(message)
-        except TypeError:
-            raise UserFacingException(f"message must be a str instead of {repr(message)}")
-        public_key = ecc.ECPubkey(bfh(pubkey))
-        encrypted = crypto.ecies_encrypt_message(public_key, message)
-        return encrypted.decode('utf-8')
+        return Abstract_Wallet.encrypt_message(pubkey=pubkey, message=message)
 
     @command('wp')
     async def decrypt(self, pubkey, encrypted, password=None, wallet: Abstract_Wallet = None) -> str:
