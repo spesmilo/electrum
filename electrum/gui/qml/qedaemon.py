@@ -7,7 +7,9 @@ from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum.i18n import _
 from electrum.logging import get_logger
-from electrum.util import WalletFileException, standardize_path, InvalidPassword, send_exception_to_crash_reporter
+from electrum.util import (
+    WalletFileException, standardize_path, InvalidPassword, send_exception_to_crash_reporter, UserFacingException,
+)
 from electrum.plugin import run_hook
 from electrum.lnchannel import ChannelState
 from electrum.storage import StorageReadWriteError, WalletStorage
@@ -156,6 +158,7 @@ class QEDaemon(AuthMixin, QObject):
     walletOpenError = pyqtSignal([str], arguments=["error"])
     walletDeleteError = pyqtSignal([str, str], arguments=['code', 'message'])
     walletRenameError = pyqtSignal([str], arguments=['message'])
+    verifyMessageError = pyqtSignal([str], arguments=['error'])
 
     def __init__(self, daemon: 'Daemon', plugins: 'Plugins', parent=None):
         super().__init__(parent)
@@ -506,7 +509,11 @@ class QEDaemon(AuthMixin, QObject):
         address = address.strip()
         message = message.strip()
         signature = signature.strip()
-        return Abstract_Wallet.verify_message(address=address, signature=signature, message=message)
+        try:
+            return Abstract_Wallet.verify_message(address=address, signature=signature, message=message)
+        except UserFacingException as e:
+            self.verifyMessageError.emit(str(e))
+            return False
 
     @pyqtSlot(str, result=int)
     def passwordStrength(self, password):

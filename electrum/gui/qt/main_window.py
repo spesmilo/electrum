@@ -2123,12 +2123,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         d.setLayout(vbox)
         d.exec()
 
-    msg_sign = _("Signing with an address actually means signing with the corresponding "
-                "private key, and verifying with the corresponding public key. The "
-                "address you have entered does not have a unique public key, so these "
-                "operations cannot be performed.") + '\n\n' + \
-               _('The operation is undefined. Not just in Electrum, but in general.')
-
     @protected
     def do_sign(
         self,
@@ -2140,20 +2134,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     ) -> None:
         address = address_e.text().strip()
         message = message_e.toPlainText().strip()
-        if not bitcoin.is_address(address):
-            self.show_message(_('Invalid Bitcoin address.'))
-            return
-        if self.wallet.is_watching_only():
-            self.show_message(_('This is a watching-only wallet.'))
-            return
-        if not self.wallet.is_mine(address):
-            self.show_message(_('Address not in wallet.'))
-            return
-        txin_type = self.wallet.get_txin_type(address)
-        if txin_type not in ['p2pkh', 'p2wpkh', 'p2wpkh-p2sh']:
-            self.show_message(_('Cannot sign messages with this type of address:') + \
-                              ' ' + txin_type + '\n\n' + self.msg_sign)
-            return
         task = partial(self.wallet.sign_message, address, message, password)
 
         def show_signed_message(sig):
@@ -2174,9 +2154,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     ) -> None:
         address = address_e.text().strip()
         message = message_e.toPlainText().strip()
-        if not bitcoin.is_address(address):
-            self.show_message(_('Invalid Bitcoin address.'))
-            return
         verified = self.wallet.verify_message(
             address=address, signature=str(signature_e.toPlainText()), message=message)
         if verified:

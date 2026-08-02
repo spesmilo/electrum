@@ -914,6 +914,10 @@ class Commands(Logger):
         arg:str:address:Bitcoin address
         arg:str:message:Clear text message. Use quotes if it contains spaces.
         """
+        if not isinstance(address, str):
+            raise UserFacingException(f"address must be a str instead of {type(address)}")
+        if not isinstance(message, str):
+            raise UserFacingException(f"message must be a str instead of {type(message)}")
         sig = wallet.sign_message(address, message, password)
         return base64.b64encode(sig).decode('ascii')
 
@@ -925,6 +929,12 @@ class Commands(Logger):
         arg:str:message:Clear text message. Use quotes if it contains spaces.
         arg:str:signature:The signature, base64-encoded.
         """
+        if not isinstance(address, str):
+            raise UserFacingException(f"address must be a str instead of {type(address)}")
+        if not isinstance(signature, str):
+            raise UserFacingException(f"signature must be a str instead of {type(signature)}")
+        if not isinstance(message, str):
+            raise UserFacingException(f"message must be a str instead of {type(message)}")
         return Abstract_Wallet.verify_message(address=address, signature=signature, message=message)
 
     def _get_fee_policy(self, fee: str, feerate: str):
@@ -1226,6 +1236,10 @@ class Commands(Logger):
         arg:str:pubkey:Public key
         arg:str:message:Clear text message. Use quotes if it contains spaces.
         """
+        if not isinstance(pubkey, str):
+            raise UserFacingException(f"pubkey must be a str instead of {type(pubkey)}")
+        if not isinstance(message, str):
+            raise UserFacingException(f"message must be a str instead of {type(message)}")
         return Abstract_Wallet.encrypt_message(pubkey=pubkey, message=message)
 
     @command('wp')
@@ -1235,6 +1249,10 @@ class Commands(Logger):
         arg:str:encrypted:Encrypted message
         arg:str:pubkey:Public key of one of your wallet addresses
         """
+        if not isinstance(pubkey, str):
+            raise UserFacingException(f"pubkey must be a str instead of {type(pubkey)}")
+        if not isinstance(encrypted, str):
+            raise UserFacingException(f"encrypted must be a str instead of {type(encrypted)}")
         decrypted = wallet.decrypt_message(pubkey=pubkey, message=encrypted, password=password)
         return decrypted.decode('utf-8')
 

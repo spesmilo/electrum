@@ -215,6 +215,26 @@ ElDialog {
         function onMessageSigned(sig) {
             signature.text = sig
         }
+        function onSignMessageError(error) {
+            var dialog = app.messageDialog.createObject(app, {
+                title: qsTr('Error'),
+                iconSource: Qt.resolvedUrl('../../icons/warning.png'),
+                text: error
+            })
+            dialog.open()
+        }
+    }
+
+    Connections {
+        target: Daemon
+        function onVerifyMessageError(error) {
+            var dialog = app.messageDialog.createObject(app, {
+                title: qsTr('Error'),
+                iconSource: Qt.resolvedUrl('../../icons/warning.png'),
+                text: error
+            })
+            dialog.open()
+        }
     }
 
     Component.onCompleted: {

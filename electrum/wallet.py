@@ -3235,15 +3235,38 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         pass
 
     def sign_message(self, address: str, message: str, password) -> bytes:
+        """Caller must handle UserFacingException."""
+        assert isinstance(address, str), f"address must be str. got {type(address)}"
+        assert isinstance(message, str), f"message must be str. got {type(message)}"
+        if not bitcoin.is_address(address):
+            raise UserFacingException(_("Invalid Bitcoin address."))
+        if self.is_watching_only():
+            raise UserFacingException(_("This is a watching-only wallet."))
+        if not self.is_mine(address):
+            raise UserFacingException(_("Address not in wallet."))
+        txin_type = self.get_txin_type(address)
+        assert txin_type != "address"  # logic error, as this implies watching-only
+        if txin_type not in ['p2pkh', 'p2wpkh', 'p2wpkh-p2sh']:
+            raise UserFacingException(
+                _("Cannot sign messages with this type of address:") +
+                " " + txin_type + "\n\n"
+                + _("Signing with an address actually means signing with the corresponding "
+                     "private key, and verifying with the corresponding public key. The "
+                     "address you have entered does not have a unique public key, so these "
+                     "operations cannot be performed.") + "\n\n"
+                + _("The operation is undefined. Not just in Electrum, but in general.")
+            )
         index = self.get_address_index(address)
-        script_type = self.get_txin_type(address)
-        assert script_type != "address"
-        return self.keystore.sign_message(index, message, password, script_type=script_type)
+        return self.keystore.sign_message(index, message, password, script_type=txin_type)
 
     @classmethod
     def verify_message(cls, *, address: str, signature: str, message: str) -> bool:
+        """Caller must handle UserFacingException."""
+        assert isinstance(address, str), f"address must be str. got {type(address)}"
+        assert isinstance(signature, str), f"signature must be str. got {type(signature)}"
+        assert isinstance(message, str), f"message must be str. got {type(message)}"
         if not is_address(address):
-            return False
+            raise UserFacingException(_("Invalid Bitcoin address."))
         try:
             sig = base64.b64decode(signature, validate=True)
         except ValueError:
@@ -3253,14 +3276,14 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         message = util.to_bytes(message)
         return bitcoin.verify_usermessage_with_address(address, sig, message)
 
-    def decrypt_message(self, *, pubkey: Any | str, message: str, password) -> bytes:
+    def decrypt_message(self, *, pubkey: str, message: str, password) -> bytes:
         """Caller must handle UserFacingException."""
+        assert isinstance(pubkey, str), f"pubkey must be str. got {type(pubkey)}"
+        assert isinstance(message, str), f"message must be str. got {type(message)}"
         if self.is_watching_only():
             raise UserFacingException(_("This is a watching-only wallet."))
         if isinstance(self, Multisig_Wallet):  # FIXME does not work with multisig wallets. (see #5856)
             raise UserFacingException(_("Decrypting messages is currently not implemented for multisig wallets."))
-        if not isinstance(message, str):
-            raise UserFacingException(f"message must be a str instead of {type(message)}")
         if not is_hex_str(pubkey):
             raise UserFacingException(f"pubkey must be a hex string instead of {type(pubkey)}")
         if isinstance(self, Imported_Wallet):
@@ -3272,12 +3295,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return self.keystore.decrypt_message(addr_index, message, password)
 
     @classmethod
-    def encrypt_message(cls, *, pubkey: Any | str, message: Any | str) -> str:
+    def encrypt_message(cls, *, pubkey: str, message: str) -> str:
         """Caller must handle UserFacingException."""
-        try:
-            message = util.to_bytes(message)
-        except TypeError:
-            raise UserFacingException(f"message must be a str instead of {type(message)}") from None
+        assert isinstance(pubkey, str), f"pubkey must be str. got {type(pubkey)}"
+        assert isinstance(message, str), f"message must be str. got {type(message)}"
+        message = util.to_bytes(message)
         if not is_hex_str(pubkey):
             raise UserFacingException(f"pubkey must be a hex string instead of {type(pubkey)}")
         pubkey_bytes = bytes.fromhex(pubkey)
