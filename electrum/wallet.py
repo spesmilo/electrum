@@ -41,6 +41,7 @@ import threading
 import enum
 import asyncio
 from dataclasses import dataclass
+import base64
 
 import electrum_ecc as ecc
 from aiorpcx import ignore_after, run_in_thread
@@ -3238,7 +3239,20 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         assert script_type != "address"
         return self.keystore.sign_message(index, message, password, script_type=script_type)
 
-    def decrypt_message(self, pubkey: str, message, password) -> bytes:
+    @classmethod
+    def verify_message(cls, *, address: str, signature: str, message: str) -> bool:
+        if not is_address(address):
+            return False
+        try:
+            sig = base64.b64decode(signature, validate=True)
+        except ValueError:
+            # note: unicode chars in signature would result in ValueError,
+            #       so it is insufficient to catch binascii.Error(ValueError)
+            return False
+        message = util.to_bytes(message)
+        return bitcoin.verify_usermessage_with_address(address, sig, message)
+
+    def decrypt_message(self, pubkey: str, message: str, password) -> bytes:
         addr = self.pubkeys_to_address([pubkey])
         index = self.get_address_index(addr)
         return self.keystore.decrypt_message(index, message, password)

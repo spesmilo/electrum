@@ -1,4 +1,3 @@
-import base64
 import os
 import threading
 from typing import TYPE_CHECKING
@@ -11,9 +10,8 @@ from electrum.logging import get_logger
 from electrum.util import WalletFileException, standardize_path, InvalidPassword, send_exception_to_crash_reporter
 from electrum.plugin import run_hook
 from electrum.lnchannel import ChannelState
-from electrum.bitcoin import is_address
-from electrum.bitcoin import verify_usermessage_with_address
 from electrum.storage import StorageReadWriteError, WalletStorage
+from electrum.wallet import Abstract_Wallet
 
 from .auth import AuthMixin, auth_protect
 from .qefx import QEFX
@@ -506,16 +504,9 @@ class QEDaemon(AuthMixin, QObject):
     @pyqtSlot(str, str, str, result=bool)
     def verifyMessage(self, address, message, signature):
         address = address.strip()
-        message = message.strip().encode('utf-8')
-        if not is_address(address):
-            return False
-        try:
-            # This can throw on invalid base64
-            sig = base64.b64decode(str(signature.strip()), validate=True)
-            verified = verify_usermessage_with_address(address, sig, message)
-        except Exception as e:
-            verified = False
-        return verified
+        message = message.strip()
+        signature = signature.strip()
+        return Abstract_Wallet.verify_message(address=address, signature=signature, message=message)
 
     @pyqtSlot(str, result=int)
     def passwordStrength(self, password):

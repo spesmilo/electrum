@@ -2173,16 +2173,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         signature_e: ButtonsTextEdit,
     ) -> None:
         address = address_e.text().strip()
-        message = message_e.toPlainText().strip().encode('utf-8')
+        message = message_e.toPlainText().strip()
         if not bitcoin.is_address(address):
             self.show_message(_('Invalid Bitcoin address.'))
             return
-        try:
-            # This can throw on invalid base64
-            sig = base64.b64decode(str(signature_e.toPlainText()), validate=True)
-            verified = bitcoin.verify_usermessage_with_address(address, sig, message)
-        except Exception as e:
-            verified = False
+        verified = self.wallet.verify_message(
+            address=address, signature=str(signature_e.toPlainText()), message=message)
         if verified:
             self.show_message(_("Signature verified"))
         else:
