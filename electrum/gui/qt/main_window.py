@@ -92,7 +92,8 @@ from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialo
                    CloseButton, MessageBoxMixin, EnterButton, import_meta_gui, export_meta_gui,
                    filename_field, address_field, char_width_in_lineedit, webopen,
                    TRANSACTION_FILE_EXTENSION_FILTER_ANY, MONOSPACE_FONT,
-                   getOpenFileName, getSaveFileName, ShowQRLineEdit, scan_qr_from_screenshot)
+                   getOpenFileName, getSaveFileName, ShowQRLineEdit, scan_qr_from_screenshot,
+                   ButtonsTextEdit)
 from .wizard.wallet import WIF_HELP_TEXT
 from .history_list import HistoryList, HistoryModel
 from .update_checker import UpdateCheck, UpdateCheckThread
@@ -2122,59 +2123,58 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         d.setLayout(vbox)
         d.exec()
 
-    msg_sign = _("Signing with an address actually means signing with the corresponding "
-                "private key, and verifying with the corresponding public key. The "
-                "address you have entered does not have a unique public key, so these "
-                "operations cannot be performed.") + '\n\n' + \
-               _('The operation is undefined. Not just in Electrum, but in general.')
-
     @protected
-    def do_sign(self, address, message, signature, password):
-        address  = address.text().strip()
-        message = message.toPlainText().strip()
-        if not bitcoin.is_address(address):
-            self.show_message(_('Invalid Bitcoin address.'))
-            return
-        if self.wallet.is_watching_only():
-            self.show_message(_('This is a watching-only wallet.'))
-            return
-        if not self.wallet.is_mine(address):
-            self.show_message(_('Address not in wallet.'))
-            return
-        txin_type = self.wallet.get_txin_type(address)
-        if txin_type not in ['p2pkh', 'p2wpkh', 'p2wpkh-p2sh']:
-            self.show_message(_('Cannot sign messages with this type of address:') + \
-                              ' ' + txin_type + '\n\n' + self.msg_sign)
-            return
-        task = partial(self.wallet.sign_message, address, message, password)
+    def do_sign(
+        self,
+        *,
+        address_e: QLineEdit,
+        message_e: QTextEdit,
+        signature_e: ButtonsTextEdit,
+        password,
+    ) -> None:
+        address = address_e.text().strip()
+        message = message_e.toPlainText().strip()
+        task = partial(
+            self.wallet.sign_message,
+            address=address,
+            message=message,
+            password=password,
+        )
 
         def show_signed_message(sig):
             try:
-                signature.setText(base64.b64encode(sig).decode('ascii'))
+                signature_e.setText(base64.b64encode(sig).decode('ascii'))
             except RuntimeError:
-                # (signature) wrapped C/C++ object has been deleted
+                # (signature_e) wrapped C/C++ object has been deleted
                 pass
 
         self.thread.add(task, on_success=show_signed_message)
 
-    def do_verify(self, address, message, signature):
-        address  = address.text().strip()
-        message = message.toPlainText().strip().encode('utf-8')
-        if not bitcoin.is_address(address):
-            self.show_message(_('Invalid Bitcoin address.'))
-            return
-        try:
-            # This can throw on invalid base64
-            sig = base64.b64decode(str(signature.toPlainText()), validate=True)
-            verified = bitcoin.verify_usermessage_with_address(address, sig, message)
-        except Exception as e:
-            verified = False
-        if verified:
-            self.show_message(_("Signature verified"))
-        else:
-            self.show_error(_("Wrong signature"))
+    def do_verify(
+        self,
+        *,
+        address_e: QLineEdit,
+        message_e: QTextEdit,
+        signature_e: ButtonsTextEdit,
+    ) -> None:
+        address = address_e.text().strip()
+        message = message_e.toPlainText().strip()
+        task = partial(
+            self.wallet.verify_message,
+            address=address,
+            signature=str(signature_e.toPlainText()),
+            message=message,
+        )
 
-    def sign_verify_message(self, address=''):
+        def on_result(verified):
+            if verified:
+                self.show_message(_("Signature verified"))
+            else:
+                self.show_error(_("Wrong signature"))
+
+        self.thread.add(task, on_success=on_result)
+
+    def sign_verify_message(self, address: str = "") -> None:
         d = WindowModalDialog(self, _('Sign/verify Message'))
         d.setMinimumSize(610, 290)
 
@@ -2199,11 +2199,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         hbox = QHBoxLayout()
 
         b = QPushButton(_("Sign"))
-        b.clicked.connect(lambda: self.do_sign(address_e, message_e, signature_e))
+        b.clicked.connect(lambda: self.do_sign(address_e=address_e, message_e=message_e, signature_e=signature_e))
         hbox.addWidget(b)
 
         b = QPushButton(_("Verify"))
-        b.clicked.connect(lambda: self.do_verify(address_e, message_e, signature_e))
+        b.clicked.connect(lambda: self.do_verify(address_e=address_e, message_e=message_e, signature_e=signature_e))
         hbox.addWidget(b)
 
         b = QPushButton(_("Close"))
@@ -2213,12 +2213,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         d.exec()
 
     @protected
-    def do_decrypt(self, message_e, pubkey_e, encrypted_e, password):
-        if self.wallet.is_watching_only():
-            self.show_message(_('This is a watching-only wallet.'))
-            return
+    def do_decrypt(
+        self,
+        *,
+        message_e: QTextEdit,
+        pubkey_e: QLineEdit,
+        encrypted_e: QTextEdit,
+        password,
+    ) -> None:
         ciphertext = encrypted_e.toPlainText()
-        task = partial(self.wallet.decrypt_message, pubkey_e.text(), ciphertext, password)
+        task = partial(
+            self.wallet.decrypt_message,
+            pubkey=pubkey_e.text(),
+            message=ciphertext,
+            password=password,
+        )
 
         def setText(text):
             try:
@@ -2229,20 +2238,30 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
         self.thread.add(task, on_success=setText)
 
-    def do_encrypt(self, message_e, pubkey_e, encrypted_e):
-        from electrum import crypto
+    def do_encrypt(
+        self,
+        *,
+        message_e: QTextEdit,
+        pubkey_e: QLineEdit,
+        encrypted_e: QTextEdit,
+    ) -> None:
         message = message_e.toPlainText()
-        message = message.encode('utf-8')
-        try:
-            public_key = ecc.ECPubkey(bfh(pubkey_e.text()))
-        except BaseException as e:
-            self.logger.exception('Invalid Public key')
-            self.show_warning(_('Invalid Public key'))
-            return
-        encrypted = crypto.ecies_encrypt_message(public_key, message)
-        encrypted_e.setText(encrypted.decode('ascii'))
+        task = partial(
+            self.wallet.encrypt_message,
+            pubkey=pubkey_e.text(),
+            message=message,
+        )
 
-    def encrypt_message(self, address=''):
+        def setText(text):
+            try:
+                encrypted_e.setText(text)
+            except RuntimeError:
+                # (encrypted_e) wrapped C/C++ object has been deleted
+                pass
+
+        self.thread.add(task, on_success=setText)
+
+    def encrypt_message(self, address: str = "") -> None:
         d = WindowModalDialog(self, _('Encrypt/decrypt Message'))
         d.setMinimumSize(610, 490)
 
@@ -2269,11 +2288,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
         hbox = QHBoxLayout()
         b = QPushButton(_("Encrypt"))
-        b.clicked.connect(lambda: self.do_encrypt(message_e, pubkey_e, encrypted_e))
+        b.clicked.connect(lambda: self.do_encrypt(message_e=message_e, pubkey_e=pubkey_e, encrypted_e=encrypted_e))
         hbox.addWidget(b)
 
         b = QPushButton(_("Decrypt"))
-        b.clicked.connect(lambda: self.do_decrypt(message_e, pubkey_e, encrypted_e))
+        b.clicked.connect(lambda: self.do_decrypt(message_e=message_e, pubkey_e=pubkey_e, encrypted_e=encrypted_e))
         hbox.addWidget(b)
 
         b = QPushButton(_("Close"))

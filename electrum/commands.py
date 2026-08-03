@@ -914,7 +914,11 @@ class Commands(Logger):
         arg:str:address:Bitcoin address
         arg:str:message:Clear text message. Use quotes if it contains spaces.
         """
-        sig = wallet.sign_message(address, message, password)
+        if not isinstance(address, str):
+            raise UserFacingException(f"address must be a str instead of {type(address)}")
+        if not isinstance(message, str):
+            raise UserFacingException(f"message must be a str instead of {type(message)}")
+        sig = wallet.sign_message(address=address, message=message, password=password)
         return base64.b64encode(sig).decode('ascii')
 
     @command('')
@@ -925,12 +929,13 @@ class Commands(Logger):
         arg:str:message:Clear text message. Use quotes if it contains spaces.
         arg:str:signature:The signature, base64-encoded.
         """
-        try:
-            sig = base64.b64decode(signature, validate=True)
-        except binascii.Error:
-            return False
-        message = util.to_bytes(message)
-        return bitcoin.verify_usermessage_with_address(address, sig, message)
+        if not isinstance(address, str):
+            raise UserFacingException(f"address must be a str instead of {type(address)}")
+        if not isinstance(signature, str):
+            raise UserFacingException(f"signature must be a str instead of {type(signature)}")
+        if not isinstance(message, str):
+            raise UserFacingException(f"message must be a str instead of {type(message)}")
+        return Abstract_Wallet.verify_message(address=address, signature=signature, message=message)
 
     def _get_fee_policy(self, fee: str, feerate: str):
         if fee is not None and feerate is not None:
@@ -1231,15 +1236,11 @@ class Commands(Logger):
         arg:str:pubkey:Public key
         arg:str:message:Clear text message. Use quotes if it contains spaces.
         """
-        if not is_hex_str(pubkey):
-            raise UserFacingException(f"pubkey must be a hex string instead of {repr(pubkey)}")
-        try:
-            message = to_bytes(message)
-        except TypeError:
-            raise UserFacingException(f"message must be a string-like object instead of {repr(message)}")
-        public_key = ecc.ECPubkey(bfh(pubkey))
-        encrypted = crypto.ecies_encrypt_message(public_key, message)
-        return encrypted.decode('utf-8')
+        if not isinstance(pubkey, str):
+            raise UserFacingException(f"pubkey must be a str instead of {type(pubkey)}")
+        if not isinstance(message, str):
+            raise UserFacingException(f"message must be a str instead of {type(message)}")
+        return Abstract_Wallet.encrypt_message(pubkey=pubkey, message=message)
 
     @command('wp')
     async def decrypt(self, pubkey, encrypted, password=None, wallet: Abstract_Wallet = None) -> str:
@@ -1248,11 +1249,11 @@ class Commands(Logger):
         arg:str:encrypted:Encrypted message
         arg:str:pubkey:Public key of one of your wallet addresses
         """
-        if not is_hex_str(pubkey):
-            raise UserFacingException(f"pubkey must be a hex string instead of {repr(pubkey)}")
-        if not isinstance(encrypted, (str, bytes, bytearray)):
-            raise UserFacingException(f"encrypted must be a string-like object instead of {repr(encrypted)}")
-        decrypted = wallet.decrypt_message(pubkey, encrypted, password)
+        if not isinstance(pubkey, str):
+            raise UserFacingException(f"pubkey must be a str instead of {type(pubkey)}")
+        if not isinstance(encrypted, str):
+            raise UserFacingException(f"encrypted must be a str instead of {type(encrypted)}")
+        decrypted = wallet.decrypt_message(pubkey=pubkey, message=encrypted, password=password)
         return decrypted.decode('utf-8')
 
     @command('w')
