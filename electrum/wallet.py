@@ -2295,14 +2295,16 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             return
         with self._freeze_lock:
             for utxo in coins:
-                self._coincontrol_utxos[utxo.prevout.to_str()] = utxo
+                stored_utxo = copy.deepcopy(utxo)
+                self._coincontrol_utxos[utxo.prevout.to_str()] = stored_utxo
 
     def get_coincontrol_outpoints(self) -> Set[str]:
         return {x.prevout.to_str() for x in self.get_coincontrol_coins()}
 
     def get_coincontrol_coins(self) -> Set[PartialTxInput]:
         with self._freeze_lock:
-            return self._filter_frozen_coins(set(self._coincontrol_utxos.values()))
+            coins = self._filter_frozen_coins(set(self._coincontrol_utxos.values()))
+            return copy.deepcopy(coins)
 
     def remove_from_coincontrol(self, coins: Set[PartialTxInput]):
         with self._freeze_lock:
