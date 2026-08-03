@@ -8,7 +8,7 @@ from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum.i18n import _
 from electrum.logging import get_logger
-from electrum.util import WalletFileException, standardize_path, InvalidPassword, send_exception_to_crash_reporter
+from electrum.util import WalletFileException, standardize_path, InvalidPassword, send_exception_to_crash_reporter, is_hidden_wallet_path
 from electrum.plugin import run_hook
 from electrum.lnchannel import ChannelState
 from electrum.bitcoin import is_address
@@ -42,6 +42,7 @@ class QEWalletListModel(QAbstractListModel):
         QAbstractListModel.__init__(self, parent)
         self.daemon = daemon
         self._wallets = []
+        self._hidden = []
         self.reload()
 
     def rowCount(self, index):
@@ -75,16 +76,19 @@ class QEWalletListModel(QAbstractListModel):
                 if i.is_file():
                     available.append(i.path)
         for path in sorted(available):
-            wallet = self.daemon.get_wallet(path)
-            self.add_wallet(wallet_path=path)
+            if is_hidden_wallet_path(path) and self.daemon.get_wallet(path) is None:
+                self._hidden.append((os.path.basename(path), standardize_path(path)))
+            else:
+                self.add_wallet(wallet_path=path)
 
     def add_wallet(self, wallet_path):
-        self.beginInsertRows(QModelIndex(), len(self._wallets), len(self._wallets))
         wallet_name = os.path.basename(wallet_path)
         wallet_path = standardize_path(wallet_path)
         item = (wallet_name, wallet_path)
-        self._wallets.append(item)
-        self.endInsertRows()
+        if item not in self._wallets:
+            self.beginInsertRows(QModelIndex(), len(self._wallets), len(self._wallets))
+            self._wallets.append(item)
+            self.endInsertRows()
 
     def remove_wallet(self, path):
         i = 0
@@ -104,14 +108,14 @@ class QEWalletListModel(QAbstractListModel):
 
     @pyqtSlot(str, result=bool)
     def wallet_name_exists(self, name):
-        for wallet_name, wallet_path in self._wallets:
+        for wallet_name, wallet_path in self._wallets + self._hidden:
             if name == wallet_name:
                 return True
         return False
 
     @pyqtSlot(str, result=str)
     def pathForName(self, name):
-        for wallet_name, wallet_path in self._wallets:
+        for wallet_name, wallet_path in self._wallets + self._hidden:
             if name == wallet_name:
                 return wallet_path
         return ''
@@ -275,6 +279,7 @@ class QEDaemon(AuthMixin, QObject):
         wallet = self.daemon.get_wallet(self._path)
         assert wallet is not None
         self._current_wallet = QEWallet.getInstanceFor(wallet)
+        self.availableWallets.add_wallet(self._path)  # idempotent, needed for hidden wallets
         self.availableWallets.updateWallet(self._path)
         wallet.unlock(password or None)  # not conditional on wallet.requires_unlock in qml, as
         # the auth wrapper doesn't pass the entered password, but instead we rely on the password in memory

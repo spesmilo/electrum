@@ -797,10 +797,7 @@ Warning: setting this to too low will result in lots of payment failures."""),
     DISABLE_MEMORY_HARDENING_LINUX = ConfigVar('nohardening', default=None, type_=bool) # default is False in add_global_options
 
     GUI_NAME = ConfigVar('gui', default='qt', type_=str)
-    CURRENT_WALLET = ConfigVar(
-        'current_wallet', default=None, type_=str,
-        convert_setter=lambda v: None if util.is_hidden_wallet_path(v) else v,  # don't save "hidden wallet" paths
-    )
+    CURRENT_WALLET = ConfigVar('current_wallet', default=None, type_=str)
 
     GUI_QT_COLOR_THEME = ConfigVar(
         'qt_gui_color_theme', default='default', type_=str,

@@ -44,7 +44,7 @@ from . import util
 from .network import Network
 from .util import (
     json_decode, to_bytes, to_string, profiler, standardize_path, constant_time_compare, InvalidPassword,
-    log_exceptions, randrange, OldTaskGroup, UserFacingException, JsonRPCError, os_chmod
+    log_exceptions, randrange, OldTaskGroup, UserFacingException, JsonRPCError, os_chmod, is_hidden_wallet_path
 )
 from .wallet import Wallet, Abstract_Wallet
 from .storage import WalletStorage
@@ -515,7 +515,7 @@ class Daemon(Logger):
         if wallet := self._wallets.get(wallet_key):
             if force_check_password:
                 wallet.check_password(password)
-            if self.config.get('wallet_path') is None:
+            if self.config.get('wallet_path') is None and not is_hidden_wallet_path(path):
                 self.config.CURRENT_WALLET = path
             return wallet
         wallet = self._load_wallet(
@@ -527,7 +527,7 @@ class Daemon(Logger):
             coro = wallet.lnworker.lnwatcher.trigger_callbacks(requires_synchronizer=False)
             asyncio.run_coroutine_threadsafe(coro, self.asyncio_loop)
         self.add_wallet(wallet)
-        if self.config.get('wallet_path') is None:
+        if self.config.get('wallet_path') is None and not is_hidden_wallet_path(path):
             self.config.CURRENT_WALLET = path
         self.update_recently_opened_wallets(path)
         return wallet
@@ -593,7 +593,7 @@ class Daemon(Logger):
         os.rename(old_path, new_path)
         self.logger.debug(f'renamed wallet: {old_path} -> {new_path}')
         self.update_recently_opened_wallets(old_path, remove=True)
-        if self.config.CURRENT_WALLET == old_path:
+        if self.config.CURRENT_WALLET == old_path and not is_hidden_wallet_path(new_path):
             self.config.CURRENT_WALLET = new_path
 
     def stop_wallet(self, path: str) -> bool:
@@ -613,7 +613,7 @@ class Daemon(Logger):
         await wallet.stop()
         if self.config.get('wallet_path') is None:
             wallet_paths = [w.storage.get_path() for w in self._wallets.values()
-                            if w.storage and w.storage.get_path()]
+                            if w.storage and w.storage.get_path() and not is_hidden_wallet_path(w.storage.get_path())]
             if self.config.CURRENT_WALLET == path and wallet_paths:
                 self.config.CURRENT_WALLET = wallet_paths[0]
         return True
