@@ -78,6 +78,7 @@ class UTXOList(MyTreeView):
         )
 
         self._utxo_dict = {}
+        self._spend_set = set()
         self.wallet = self.main_window.wallet
         self.std_model = QStandardItemModel(self)
         self.proxy = MySortModel(self, sort_role=self.ROLE_SORT_ORDER)
@@ -103,6 +104,7 @@ class UTXOList(MyTreeView):
         self.proxy.setDynamicSortFilter(False)  # temp. disable re-sorting after every change
         utxos = self.wallet.get_utxos()
         self._maybe_reset_coincontrol(utxos)
+        self._spend_set = self.wallet.get_coincontrol_outpoints()
         self._utxo_dict = dict([(utxo.prevout.to_str(), utxo) for utxo in utxos])
         self.std_model.clear()
         self.update_headers(self.__class__.headers)
@@ -146,8 +148,7 @@ class UTXOList(MyTreeView):
             str(utxo.short_id),                                           # order inside block (if mined), or just txid
         )
         utxo_item[self.Columns.OUTPOINT].setData(sort_key, self.ROLE_SORT_ORDER)
-        spend_set = self.wallet.get_coincontrol_outpoints()
-        if key in spend_set:
+        if key in self._spend_set:
             tooltip = key + "\n" + _('Coin selected to be spent')
             color = ColorScheme.GREEN.as_color(True)
         else:
@@ -198,6 +199,7 @@ class UTXOList(MyTreeView):
         self.add_to_coincontrol(coins)
 
     def _refresh_coincontrol(self):
+        self._spend_set = self.wallet.get_coincontrol_outpoints()
         self.refresh_all()
         self.main_window.update_coincontrol_bar()
         self.selectionModel().clearSelection()
