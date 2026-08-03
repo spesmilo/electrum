@@ -2233,9 +2233,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     ) -> bool:
         """Set frozen state of the addresses to FREEZE, True or False"""
         if all(self.is_mine(addr) for addr in addrs):
+            coins = self.get_spendable_coins(addrs) if freeze else []
             with self._freeze_lock:
                 if freeze:
-                    coins = self.get_spendable_coins(addrs)
                     self.remove_from_coincontrol(set(coins))
                     self._frozen_addresses |= set(addrs)
                 else:
@@ -2303,8 +2303,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def get_coincontrol_coins(self) -> Set[PartialTxInput]:
         with self._freeze_lock:
-            coins = self._filter_frozen_coins(set(self._coincontrol_utxos.values()))
-            return copy.deepcopy(coins)
+            coins = set(self._coincontrol_utxos.values())
+        coins = self._filter_frozen_coins(coins)
+        return copy.deepcopy(coins)
 
     def remove_from_coincontrol(self, coins: Set[PartialTxInput]):
         with self._freeze_lock:
