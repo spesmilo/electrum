@@ -3333,9 +3333,9 @@ class TestWalletSending(ElectrumTestCase):
                 {txi.prevout.to_str() for txi in wallet.get_spendable_coins(
                     ["tb1q6n99dl96mx8mfh90m3tn5awk5mllkzdh25dw7z"], coincontrol=True)})
             wallet.remove_from_coincontrol({coin1, coin2})
-            self.assertEqual(set(), wallet.get_coincontrol_outpoints())
+            self.assertIsNone(wallet.get_coincontrol_outpoints())
             self.assertEqual(
-                set(),
+                {utxo1, utxo2},
                 {txi.prevout.to_str() for txi in wallet.get_spendable_coins(coincontrol=True)})
             wallet.add_to_coincontrol({coin1})
             self.assertEqual(

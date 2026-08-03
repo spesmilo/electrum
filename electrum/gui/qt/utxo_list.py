@@ -148,7 +148,7 @@ class UTXOList(MyTreeView):
             str(utxo.short_id),                                           # order inside block (if mined), or just txid
         )
         utxo_item[self.Columns.OUTPOINT].setData(sort_key, self.ROLE_SORT_ORDER)
-        if key in self._spend_set:
+        if self._spend_set and key in self._spend_set:
             tooltip = key + "\n" + _('Coin selected to be spent')
             color = ColorScheme.GREEN.as_color(True)
         else:

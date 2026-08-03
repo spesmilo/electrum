@@ -442,7 +442,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self._num_parents          = db.get_dict('num_parents')
 
         # not saved
-        self._coincontrol_utxos = dict()
+        self._coincontrol_utxos = None
 
         self._freeze_lock = threading.RLock()  # for mutating/iterating frozen_{addresses,coins}
 
@@ -2272,7 +2272,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     self._frozen_coins[utxo] = bool(freeze)
                 if bool(freeze):
                     # frozen coins trump coincontrol coins
-                    if utxo in self._coincontrol_utxos:
+                    cc = self._coincontrol_utxos or dict()
+                    if utxo in cc:
                         txinputs = set(filter(lambda x: x.prevout.to_str() == utxo, wallet_utxos))
                         self.remove_from_coincontrol(txinputs)
 
@@ -2322,6 +2323,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 return
             for utxo in coins:
                 self._coincontrol_utxos.pop(utxo.prevout.to_str(), None)
+            if not self._coincontrol_utxos:
+                self._coincontrol_utxos = None
 
     def clear_coincontrol(self):
         with self._freeze_lock:

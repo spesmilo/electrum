@@ -1569,9 +1569,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
     def set_frozen_state_of_coins(self, utxos: Sequence[PartialTxInput], freeze: bool):
         utxos_str = {utxo.prevout.to_str() for utxo in utxos}
-        numcc = len(self.wallet.get_coincontrol_outpoints())
+        numcc = len(self.wallet.get_coincontrol_outpoints() or set())
         self.wallet.set_frozen_state_of_coins(utxos_str, freeze)
-        if numcc != len(self.wallet.get_coincontrol_outpoints()):
+        if numcc != len(self.wallet.get_coincontrol_outpoints() or set()):
             self.update_coincontrol_bar()
         self.utxo_list.refresh_all()
         self.utxo_list.selectionModel().clearSelection()
@@ -1579,7 +1579,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def update_coincontrol_bar(self):
         # update coincontrol status bar
         cc_utxo_strs = self.wallet.get_coincontrol_outpoints()
-        if bool(cc_utxo_strs):
+        if cc_utxo_strs is not None:
             utxos = self.wallet.get_utxos()
             coins = list(filter(lambda x: x.prevout.to_str() in cc_utxo_strs, utxos))
             amount = sum(x.value_sats() for x in coins)
