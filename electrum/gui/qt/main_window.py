@@ -2132,12 +2132,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         signature_e: ButtonsTextEdit,
         password,
     ) -> None:
-        address = address_e.text().strip()
-        message = message_e.toPlainText().strip()
         task = partial(
             self.wallet.sign_message,
-            address=address,
-            message=message,
+            address=address_e.text(),
+            message=message_e.toPlainText(),
             password=password,
         )
 
@@ -2157,13 +2155,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         message_e: QTextEdit,
         signature_e: ButtonsTextEdit,
     ) -> None:
-        address = address_e.text().strip()
-        message = message_e.toPlainText().strip()
         task = partial(
             self.wallet.verify_message,
-            address=address,
+            address=address_e.text(),
             signature=str(signature_e.toPlainText()),
-            message=message,
+            message=message_e.toPlainText(),
         )
 
         def on_result(verified):

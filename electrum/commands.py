@@ -918,7 +918,12 @@ class Commands(Logger):
             raise UserFacingException(f"address must be a str instead of {type(address)}")
         if not isinstance(message, str):
             raise UserFacingException(f"message must be a str instead of {type(message)}")
-        sig = wallet.sign_message(address=address, message=message, password=password)
+        sig = wallet.sign_message(
+            address=address,
+            message=message,
+            password=password,
+            strip_inputs=False,  # respect whitespaces for CLI
+        )
         return base64.b64encode(sig).decode('ascii')
 
     @command('')
@@ -935,7 +940,12 @@ class Commands(Logger):
             raise UserFacingException(f"signature must be a str instead of {type(signature)}")
         if not isinstance(message, str):
             raise UserFacingException(f"message must be a str instead of {type(message)}")
-        return Abstract_Wallet.verify_message(address=address, signature=signature, message=message)
+        return Abstract_Wallet.verify_message(
+            address=address,
+            signature=signature,
+            message=message,
+            strip_inputs=False,  # respect whitespaces for CLI
+        )
 
     def _get_fee_policy(self, fee: str, feerate: str):
         if fee is not None and feerate is not None:

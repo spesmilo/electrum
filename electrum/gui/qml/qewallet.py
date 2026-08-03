@@ -848,9 +848,6 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     @pyqtSlot(str, str)
     @auth_protect(message=_("Sign message?"))
     def signMessage(self, address, message):
-        # strip, as in qt gui and in qml verifyMessage (see #4327)
-        address = address.strip()
-        message = message.strip()
         try:
             sig = self.wallet.sign_message(address=address, message=message, password=self.password)
         except UserFacingException as e:
