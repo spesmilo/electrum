@@ -1152,7 +1152,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             nonlocal_only=nonlocal_only,
         )
         if coincontrol:
-            if cc := self.get_coincontrol_outpoints():
+            cc = self.get_coincontrol_outpoints()
+            if cc is not None:
                 utxos = [utxo for utxo in utxos if utxo.prevout.to_str() in cc]
         utxos = [utxo for utxo in utxos if not self.is_frozen_coin(utxo)]
 
@@ -2286,35 +2287,45 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return coins
 
     def are_in_coincontrol(self, coins: Set[PartialTxInput]) -> bool:
+        outpoints = self._coincontrol_utxos if self._coincontrol_utxos else {}
         with self._freeze_lock:
-            return all([utxo.prevout.to_str() in self._coincontrol_utxos.keys() for utxo in coins])
+            return all([utxo.prevout.to_str() in outpoints.keys() for utxo in coins])
 
     def add_to_coincontrol(self, coins: Set[PartialTxInput]):
         coins = self._filter_frozen_coins(coins)
         if not coins:
             return
         with self._freeze_lock:
+            if self._coincontrol_utxos is None:
+                self._coincontrol_utxos = dict()
             for utxo in coins:
                 stored_utxo = copy.deepcopy(utxo)
                 self._coincontrol_utxos[utxo.prevout.to_str()] = stored_utxo
 
-    def get_coincontrol_outpoints(self) -> Set[str]:
-        return {x.prevout.to_str() for x in self.get_coincontrol_coins()}
+    def get_coincontrol_outpoints(self) -> None | Set[str]:
+        coins = self.get_coincontrol_coins()
+        if coins is None:
+            return None
+        return {x.prevout.to_str() for x in coins}
 
-    def get_coincontrol_coins(self) -> Set[PartialTxInput]:
+    def get_coincontrol_coins(self) -> None | Set[PartialTxInput]:
         with self._freeze_lock:
+            if self._coincontrol_utxos is None:
+                return None
             coins = set(self._coincontrol_utxos.values())
         coins = self._filter_frozen_coins(coins)
         return copy.deepcopy(coins)
 
     def remove_from_coincontrol(self, coins: Set[PartialTxInput]):
         with self._freeze_lock:
+            if self._coincontrol_utxos is None:
+                return
             for utxo in coins:
                 self._coincontrol_utxos.pop(utxo.prevout.to_str(), None)
 
     def clear_coincontrol(self):
         with self._freeze_lock:
-            self._coincontrol_utxos.clear()
+            self._coincontrol_utxos = None
 
     def is_address_reserved(self, addr: str) -> bool:
         # note: atm 'reserved' status is only taken into consideration for 'change addresses'

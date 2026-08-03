@@ -3335,7 +3335,7 @@ class TestWalletSending(ElectrumTestCase):
             wallet.remove_from_coincontrol({coin1, coin2})
             self.assertEqual(set(), wallet.get_coincontrol_outpoints())
             self.assertEqual(
-                {utxo1, utxo2},
+                set(),
                 {txi.prevout.to_str() for txi in wallet.get_spendable_coins(coincontrol=True)})
             wallet.add_to_coincontrol({coin1})
             self.assertEqual(
@@ -3343,7 +3343,7 @@ class TestWalletSending(ElectrumTestCase):
                 {txi.prevout.to_str() for txi in wallet.get_spendable_coins(
                     ["tb1q6n99dl96mx8mfh90m3tn5awk5mllkzdh25dw7z"], coincontrol=True)})
             wallet.clear_coincontrol()
-            self.assertEqual(set(), wallet.get_coincontrol_outpoints())
+            self.assertIsNone(wallet.get_coincontrol_outpoints())
 
         # freezing trumps coin control
         with self.subTest(msg="coincontrol_and_freeze"):
@@ -3360,9 +3360,11 @@ class TestWalletSending(ElectrumTestCase):
             wallet.add_to_coincontrol({coin1})
             self.assertEqual({utxo2}, wallet.get_coincontrol_outpoints())
             # cleanup
-            wallet.set_frozen_state_of_coins([utxo1], freeze=None)
+            wallet.set_frozen_state_of_coins([utxo1], freeze=False)
+            # unfreeze does not re-add
+            self.assertEqual({utxo2}, wallet.get_coincontrol_outpoints())
             wallet.clear_coincontrol()
-            self.assertEqual(set(), wallet.get_coincontrol_outpoints())
+            self.assertIsNone(wallet.get_coincontrol_outpoints())
 
     async def test_export_psbt_with_xpubs__multisig(self):
         """When exporting a PSBT to be signed by a hw device, test that we populate
