@@ -32,6 +32,7 @@ class ToyNetwork:
         self.debug = True
         self.bhi_lock = asyncio.Lock()
         self.interface = None  # type: Interface | None
+        self.relay_fee = None  # type: int | None  # sat/kbyte, set from the server on connect
 
     async def connect(self, server: ToyServer, *, client_name: str = None) -> Interface:
         """connect to server, and wait until we have synced its headers"""
@@ -43,6 +44,7 @@ class ToyNetwork:
         async with util.async_timeout(5):
             await interface.ready
             await interface._blockchain_updated.wait()
+            self.relay_fee = await interface.get_relay_fee()
         return interface
 
     async def stop(self) -> None:
