@@ -11,11 +11,10 @@ from electrum.bitcoin import COIN, DUST_LIMIT_P2WSH
 from electrum.util import bfh, now, wait_for2
 from electrum.crypto import sha256
 from electrum.interface import PaddedRSTransport
-from electrum.lnutil import REDEEM_AFTER_DOUBLE_SPENT_DELAY
 from electrum.simple_config import SimpleConfig
 from electrum.submarine_swaps import (
     SwapManager, SwapData, SwapServerTransport, LOCKTIME_DELTA_REFUND,
-    MIN_LOCKTIME_DELTA_FOR_CLAIM, _construct_swap_scriptcode)
+    MIN_LOCKTIME_DELTA_FOR_CLAIM, SPENDER_FINALITY_DELAY, _construct_swap_scriptcode)
 from electrum.transaction import (
     PartialTransaction, PartialTxOutput, Transaction, TxOutput, TxOutpoint)
 from electrum.txbatcher import TxBatcher
@@ -135,6 +134,19 @@ class TestSwapClaim(ElectrumTestCase):
     async def mine_until_swap_expires(self, swap: SwapData) -> None:
         await self.mine_blocks(swap.locktime - self.network.get_local_height())
 
+    async def reorg_replace_tip_tx(self, tx: Transaction, replacement: Transaction) -> None:
+        """The block at the tip is reorged out and mined again at the same height, but now
+        it contains replacement, which conflicts with tx. tx is evicted along the way.
+        """
+        self.assertEqual(self.server.cur_height, self.server.block_height_from_txid(tx.txid()))
+        await self.server.unmine_block()
+        await self.server.mempool_rm_tx(tx)
+        await self.server.mempool_add_tx(replacement)
+        await self.server.mine_block()
+        await self.wait_until(
+            lambda: self.adb.get_tx_height(replacement.txid()).conf > 0)
+        await self.sync()
+
     async def restart_txbatcher(self) -> None:
         """Restart the txbatcher, the way a wallet restart would: TxBatcher.__init__ rebuilds
         its batches from the wallet db, which persists only the txids and the prevout of the
@@ -240,6 +252,10 @@ class TestSwapClaim(ElectrumTestCase):
 
     async def server_claims_utxo(self, swap: SwapData, prevout: TxOutpoint) -> Transaction:
         """the server spends a lockup utxo, revealing the preimage in the witness"""
+        return await self.broadcast(self.server_claim_tx(swap, prevout))
+
+    def server_claim_tx(self, swap: SwapData, prevout: TxOutpoint) -> Transaction:
+        """the tx with which the server spends a lockup utxo, revealing the preimage"""
         server_swap = SwapData(
             is_reverse=True,  # the server's point of view of our forward swap
             locktime=swap.locktime,
@@ -264,7 +280,6 @@ class TestSwapClaim(ElectrumTestCase):
         )
         txin.witness = txin.make_witness(tx.sign_txin(0, server_swap.privkey))
         assert tx.is_complete(), tx
-        await self.broadcast(tx)
         return tx
 
     def server_refund_tx(self, swap: SwapData, prevout: TxOutpoint, *, fee: int) -> Transaction:
@@ -392,7 +407,7 @@ class TestSwapClaim(ElectrumTestCase):
         self.assertEqual(swap.funding_txid, swap._funding_prevout.txid.hex())
 
     async def test_forward_swap_stops_watching_after_claim_tx_is_deeply_confirmed(self):
-        """Once the server's claim tx is buried, the swap is done: we stop watching the
+        """Once the server's claim tx is confirmed deeply, the swap is done: we stop watching the
         lockup address and release the hold invoice, instead of watching it forever.
         """
         swap = self.create_forward_swap(onchain_amount=100_000)
@@ -405,8 +420,13 @@ class TestSwapClaim(ElectrumTestCase):
         self.assertEqual(self.preimage, swap.preimage)
         self.assertFalse(swap.is_redeemed)
         self.assertIn(swap.lockup_address, self.wallet.lnworker.lnwatcher.callbacks)
-        # the claim tx can no longer be reorged out
-        await self.mine_blocks(REDEEM_AFTER_DOUBLE_SPENT_DELAY + 1)
+        # one block short of finality we keep watching
+        await self.mine_blocks(SPENDER_FINALITY_DELAY - 1)
+        await self.sm._claim_swap(swap)
+        self.assertFalse(swap.is_redeemed)
+        self.assertIn(swap.lockup_address, self.wallet.lnworker.lnwatcher.callbacks)
+        # now the claim tx can no longer be reorged out
+        await self.mine_blocks(1)
         await self.sm._claim_swap(swap)
         self.assertTrue(swap.is_redeemed)
         self.assertNotIn(swap.lockup_address, self.wallet.lnworker.lnwatcher.callbacks)
@@ -447,8 +467,36 @@ class TestSwapClaim(ElectrumTestCase):
         self.assertTrue(self.wallet.adb.is_mine(refund_tx.outputs()[0].address))
         self.assertIsNone(self.spender_of(TxOutpoint(bfh(decoy_tx.txid()), 0)))
 
+    async def test_forward_swap_keeps_htlcs_until_refund_tx_is_deeply_confirmed(self):
+        """A refund tx with a single confirmation can still be reorged out and replaced by
+        the server's claim tx. Failing the held htlcs is irreversible, so until the refund
+        is confirmed deeply we must keep holding them: otherwise we give the ln payment back while
+        the server can still take our on-chain coins.
+        """
+        swap = self.create_forward_swap(onchain_amount=100_000)
+        payment_hash = swap.payment_hash
+        await self.client_funds_swap(swap)
+        await self.mine_until_swap_expires(swap)
+        await self.sm._claim_swap(swap)
+        refund_tx = await self.wait_for_spender_of(swap._funding_prevout)
+        await self.mine_blocks(1)
+        await self.sm._claim_swap(swap)
+        self.assertEqual(refund_tx.txid(), swap.spending_txid)
+        self.assertIn(payment_hash, self.wallet.lnworker.hold_invoice_callbacks)
+        self.assertIn(swap.lockup_address, self.wallet.lnworker.lnwatcher.callbacks)
+
+        # the reorg replaces our refund tx with the claim tx of the server
+        claim_tx = self.server_claim_tx(swap, swap._funding_prevout)
+        await self.reorg_replace_tip_tx(refund_tx, claim_tx)
+        await self.sm._claim_swap(swap)
+        # we still hold the htlcs, so the preimage is worth something to us
+        self.assertEqual(claim_tx.txid(), swap.spending_txid)
+        self.assertEqual(self.preimage, swap.preimage)
+        self.assertEqual(self.preimage, self.wallet.lnworker.get_preimage(payment_hash))
+        self.assertIn(payment_hash, self.wallet.lnworker.hold_invoice_callbacks)
+
     async def test_forward_swap_fails_swap_when_refund_tx_confirms(self):
-        """Once our refund is confirmed we can never learn the preimage, so the held htlcs
+        """Once our refund is confirmed deeply we can never learn the preimage, so the held htlcs
         must be failed. Otherwise they stay pending until the server force-closes on us.
         """
         swap = self.create_forward_swap(onchain_amount=100_000)
@@ -457,6 +505,11 @@ class TestSwapClaim(ElectrumTestCase):
         await self.mine_until_swap_expires(swap)
         await self.sm._claim_swap(swap)
         refund_tx = await self.wait_for_spender_of(swap._funding_prevout)
+        # one block short of finality we must still hold the htlcs
+        await self.mine_blocks(SPENDER_FINALITY_DELAY)
+        await self.sm._claim_swap(swap)
+        self.assertIn(payment_hash, self.wallet.lnworker.hold_invoice_callbacks)
+        # now the refund tx can no longer be reorged out
         await self.mine_blocks(1)
         with self.assertLogs(self.sm.logger.name, level='INFO') as logs:
             await self.sm._claim_swap(swap)

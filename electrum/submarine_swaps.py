@@ -39,7 +39,7 @@ from .util import (
     run_sync_function_on_asyncio_thread, trigger_callback, NoDynamicFeeEstimates, UserFacingException, now
 )
 from . import lnutil
-from .lnutil import hex_to_bytes, REDEEM_AFTER_DOUBLE_SPENT_DELAY, Keypair
+from .lnutil import hex_to_bytes, Keypair
 from .bolt11 import decode_bolt11_invoice
 from .stored_dict import StoredObject, stored_at
 from . import constants
@@ -80,10 +80,12 @@ MIN_LOCKTIME_DELTA_FOR_CLAIM = 30  # minimum amt of blocks we want to have left 
 LOCKTIME_DELTA_REFUND = 70
 MAX_LOCKTIME_DELTA = 100
 MIN_FINAL_CLTV_DELTA_FOR_CLIENT = 3 * 144  # note: put in invoice, but is not enforced by receiver in lnpeer.py
+SPENDER_FINALITY_DELAY = 6  # delay after which the swap is considered final once the funding UTXO was claimed or refunded
+assert SPENDER_FINALITY_DELAY < MIN_LOCKTIME_DELTA_FOR_CLAIM
 assert MIN_LOCKTIME_DELTA_FOR_CLAIM < MIN_LOCKTIME_DELTA
 assert MIN_LOCKTIME_DELTA <= LOCKTIME_DELTA_REFUND <= MAX_LOCKTIME_DELTA
-assert MAX_LOCKTIME_DELTA < lnutil.MIN_FINAL_CLTV_DELTA_ACCEPTED
-assert MAX_LOCKTIME_DELTA < MIN_FINAL_CLTV_DELTA_FOR_CLIENT
+assert MAX_LOCKTIME_DELTA + SPENDER_FINALITY_DELAY < lnutil.MIN_FINAL_CLTV_DELTA_ACCEPTED
+assert MAX_LOCKTIME_DELTA + SPENDER_FINALITY_DELAY < MIN_FINAL_CLTV_DELTA_FOR_CLIENT
 
 
 # The script of the reverse swaps has one extra check in it to verify
@@ -567,16 +569,16 @@ class SwapManager(Logger):
         # discard local spenders
         if spent_height in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:
             spent_height = None
-        if spent_height is not None:
-            if spent_height > TX_HEIGHT_UNCONFIRMED and swap.preimage:
-                if current_height - spent_height > REDEEM_AFTER_DOUBLE_SPENT_DELAY:
-                    self.logger.info(f'stop watching swap {swap.lockup_address}')
-                    swap.is_redeemed = True
-                    # cleanup
-                    self.lnwatcher.remove_callback(swap.lockup_address)
-                    if not swap.is_reverse:
-                        self.lnworker.delete_payment_bundle(payment_hash=swap.payment_hash)
-                        self.lnworker.unregister_hold_invoice(swap.payment_hash)
+        spender_is_final = spent_height is not None and spent_height > TX_HEIGHT_UNCONFIRMED \
+                                and current_height - spent_height >= SPENDER_FINALITY_DELAY
+        if spender_is_final and swap.preimage:
+            self.logger.info(f'stop watching swap {swap.lockup_address}')
+            swap.is_redeemed = True
+            # cleanup
+            self.lnwatcher.remove_callback(swap.lockup_address)
+            if not swap.is_reverse:
+                self.lnworker.delete_payment_bundle(payment_hash=swap.payment_hash)
+                self.lnworker.unregister_hold_invoice(swap.payment_hash)
 
         public_preimage = self._get_public_preimage(swap)
         if not swap.is_reverse:
@@ -586,10 +588,10 @@ class SwapManager(Logger):
                     self.logger.info(f'found preimage: {public_preimage.hex()}')
                     self.lnworker.save_preimage(swap.payment_hash, public_preimage, mark_as_public=True)
                 else:
-                    # this is our refund tx
-                    if spent_height > TX_HEIGHT_UNCONFIRMED:
+                    # This is our refund tx.
+                    if spender_is_final:
                         self.logger.info(f'refund tx confirmed: {txin.spent_txid} {spent_height}')
-                        self._fail_swap(swap, 'refund tx confirmed')
+                        self._fail_swap(swap, 'refund tx confirmed')  # also fails htlcs we hold
                         return
             if remaining_time > 0:
                 # too early for refund
@@ -799,10 +801,10 @@ class SwapManager(Logger):
             fallback_address=None,
             channels=channels,
         )
-        margin_to_get_refund_tx_mined = MIN_LOCKTIME_DELTA
-        if not (locktime + margin_to_get_refund_tx_mined < self.network.get_local_height() + lnaddr1.get_min_final_cltv_delta()):
+        margin_to_get_refund_tx_final = MIN_LOCKTIME_DELTA + SPENDER_FINALITY_DELAY
+        if not (locktime + margin_to_get_refund_tx_final < self.network.get_local_height() + lnaddr1.get_min_final_cltv_delta()):
             raise Exception(
-                f"onchain locktime ({locktime}+{margin_to_get_refund_tx_mined}) "
+                f"onchain locktime ({locktime}+{margin_to_get_refund_tx_final}) "
                 f"too close to LN-htlc-expiry ({self.network.get_local_height()+lnaddr1.get_min_final_cltv_delta()})")
 
         if prepay:
