@@ -539,7 +539,10 @@ class BaseDecodeError(BitcoinException): pass
 
 
 def base_encode(v: bytes, *, base: int) -> str:
-    """ encode v, which is a string of bytes, to base58."""
+    """ encode v, which is a string of bytes, to base58.
+
+    note: time complexity is O(len(v)^2), due to big-int arithmetic.
+    """
     assert_bytes(v)
     if base not in (58, 43):
         raise ValueError('not supported base: {}'.format(base))
@@ -563,6 +566,8 @@ def base_encode(v: bytes, *, base: int) -> str:
 
 def base_decode(v: Union[bytes, str], *, base: int) -> Optional[bytes]:
     """ decode v into a string of len bytes.
+
+    note: time complexity is O(len(v)^2), due to big-int arithmetic.
 
     based on the work of David Keijser in https://github.com/keis/base58
     """

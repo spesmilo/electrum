@@ -1228,7 +1228,8 @@ class Transaction:
             tx.convert_all_utxos_to_witness_utxos()
             is_complete = False
         tx_bytes = tx.serialize_as_bytes()
-        return base_encode(tx_bytes, base=43), is_complete
+        tx_base43 = base_encode(tx_bytes, base=43)  # FIXME this takes quadratic time in len(tx)
+        return tx_base43, is_complete
 
     def txid(self) -> Optional[str]:
         if self._cached_txid is None:
@@ -1501,6 +1502,10 @@ def convert_raw_tx_to_hex(raw: Union[str, bytes]) -> str:
         pass
     # try base43
     try:
+        # FIXME This takes quadratic time in len(tx).
+        #       We could prefix all txs we base43-serialize with e.g. "BASE43TX:",
+        #       (and break-compat with old versions).  Then at least we would not attempt
+        #       the expensive deser here if it's not needed.
         return base_decode(raw, base=43).hex()
     except Exception:
         pass
