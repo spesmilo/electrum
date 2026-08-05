@@ -555,10 +555,11 @@ def base_encode(v: bytes, *, base: int) -> str:
     newlen = len(v)
 
     num = int.from_bytes(v, byteorder='big')
-    string = b""
+    string_rev = bytearray()
     while num:
         num, idx = divmod(num, base)
-        string = chars[idx:idx + 1] + string
+        string_rev += chars[idx:idx + 1]
+    string = string_rev[::-1]
 
     result = chars[0:1] * (origlen - newlen) + string
     return result.decode('ascii')
