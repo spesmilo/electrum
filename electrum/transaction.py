@@ -1500,6 +1500,12 @@ def convert_raw_tx_to_hex(raw: Union[str, bytes]) -> str:
         return binascii.unhexlify(raw).hex()
     except Exception:
         pass
+    # try base64
+    if raw[0:6] in ('cHNidP', b'cHNidP'):  # base64 psbt
+        try:
+            return base64.b64decode(raw, validate=True).hex()
+        except Exception:
+            pass
     # try base43
     try:
         # FIXME This takes quadratic time in len(tx).
@@ -1509,12 +1515,6 @@ def convert_raw_tx_to_hex(raw: Union[str, bytes]) -> str:
         return base_decode(raw, base=43).hex()
     except Exception:
         pass
-    # try base64
-    if raw[0:6] in ('cHNidP', b'cHNidP'):  # base64 psbt
-        try:
-            return base64.b64decode(raw, validate=True).hex()
-        except Exception:
-            pass
     # raw bytes
     if isinstance(raw, (bytes, bytearray)):
         return raw.hex()
