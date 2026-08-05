@@ -1511,6 +1511,19 @@ class Peer(Logger, EventListener):
         #       until this msg is processed. If we are behind (lost state), and send chan_reest to the remote,
         #       when the remote realizes we are behind, they might send an "error" message - but the spec mandates
         #       they send chan_reest first. If we processed the error first, we might force-close and lose money!
+        # note: if we are genuinely behind (e.g. user restored an old backup), the remote peer is able to steal
+        #       the channel funds. We are at their mercy. Unfortunately we have to accept this,
+        #       it seems fundamentally unfixable with the current penalty-based Lightning protocol.
+        #       A node, Mallory, who wants to try to steal money from Alice would:
+        #       - always try to go second (wait for Alice to send channel_reestablish first)
+        #       - after receiving channel_reestablish, Mallory can tell if Alice has lost state
+        #         - if so, Mallory, triggers Alice to force-close in any number of ways, e.g.
+        #           by sending channel_reestablish for an even older state
+        #           (or ctn==0, receiving which the spec explicitly says triggers a force-close),
+        #           or by sending an "error" message
+        #         - if Alice has not lost state, Mallory proceeds as usual, and they keep using the channel
+        # design goal: if we have lost state but the other node is well-behaving/honest, we SHOULD not lose money.
+        # design goal: if we have NOT lost state, the other node MUST not be able to steal money.
         # FIXME there are a lot of "SHOULD send an error and fail the channel" BOLT-02 cases here
         #       where we don't send the error, but directly fail the channel
         their_next_local_ctn = msg["next_commitment_number"]
