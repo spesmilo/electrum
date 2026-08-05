@@ -1,20 +1,21 @@
 import asyncio
 import os
 from typing import Optional, Sequence
+from unittest import mock
 
 from electrum_ecc import ECPrivkey
 
 from electrum import util, bitcoin
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
 from electrum.bitcoin import COIN, DUST_LIMIT_P2WSH
-from electrum.util import bfh, wait_for2
+from electrum.util import bfh, now, wait_for2
 from electrum.crypto import sha256
 from electrum.interface import PaddedRSTransport
 from electrum.lnutil import REDEEM_AFTER_DOUBLE_SPENT_DELAY
 from electrum.simple_config import SimpleConfig
 from electrum.submarine_swaps import (
-    SwapManager, SwapData, LOCKTIME_DELTA_REFUND, MIN_LOCKTIME_DELTA_FOR_CLAIM,
-    _construct_swap_scriptcode)
+    SwapManager, SwapData, SwapServerTransport, LOCKTIME_DELTA_REFUND,
+    MIN_LOCKTIME_DELTA_FOR_CLAIM, _construct_swap_scriptcode)
 from electrum.transaction import (
     PartialTransaction, PartialTxOutput, Transaction, TxOutput, TxOutpoint)
 from electrum.txbatcher import TxBatcher
@@ -28,6 +29,17 @@ from .toyserver.toyserver import ToyServer
 def random_address() -> str:
     """an address that does not belong to any wallet of the test"""
     return bitcoin.pubkey_to_address('p2wpkh', ECPrivkey(os.urandom(32)).get_public_key_hex(compressed=True))
+
+
+class MockSwapServerTransport(SwapServerTransport):
+    def __init__(self, *, config: SimpleConfig, sm: SwapManager):
+        super().__init__(config=config, sm=sm)
+        self.requests = []  # type: list[tuple[str, Optional[dict]]]
+        self.is_connected.set()
+
+    async def send_request_to_server(self, method: str, request_data: Optional[dict]) -> dict:
+        self.requests.append((method, request_data))
+        return {}
 
 
 class SwapTestWallet(Standard_Wallet):
@@ -44,9 +56,7 @@ class SwapTestWalletFactory(Wallet):
 
 
 class TestSwapClaim(ElectrumTestCase):
-    """Tests for SwapManager._claim_swap, using a real wallet that syncs against the toyserver.
-
-    The counterparty ("the server") is simulated: we keep its privkey and the preimage in the
+    """The counterparty ("the server") is simulated: we keep its privkey and the preimage in the
     test, and build its claim tx with the same code the server would use.
     """
     REGTEST = True
@@ -175,7 +185,7 @@ class TestSwapClaim(ElectrumTestCase):
             refund_pubkey=refund_pubkey,
             claim_pubkey=server_pubkey,
         )
-        swap, _invoice, _prepay = self.sm.add_normal_swap(
+        swap, invoice, _prepay = self.sm.add_normal_swap(
             redeem_script=redeem_script,
             locktime=locktime,
             onchain_amount_sat=onchain_amount,
@@ -184,6 +194,7 @@ class TestSwapClaim(ElectrumTestCase):
             our_privkey=refund_privkey,
             prepay=False,
         )
+        self.invoice = invoice  # the hold invoice we hand to the server
         # the client holds the incoming htlcs until it learns the preimage from the claim tx
         self.sm.lnworker.register_hold_invoice(payment_hash, self.sm.hold_invoice_callback)
         return swap
@@ -457,6 +468,30 @@ class TestSwapClaim(ElectrumTestCase):
         self.assertNotIn(swap.lockup_address, self.wallet.lnworker.lnwatcher.callbacks)
         # the swap was funded, so we keep it: the history groups funding and refund tx
         self.assertIn(payment_hash.hex(), self.wallet.db.get_dict('submarine_swaps'))
+
+    async def test_forward_swap_fails_swap_when_htlcs_never_arrive(self):
+        """The server took our hold invoice and never paid it. When the invoice expires the
+        swap must be failed, so that no caller can go on to broadcast the funding tx anyway.
+        """
+        swap = self.create_forward_swap(onchain_amount=100_000)
+        payment_hash = swap.payment_hash
+        tx = self.sm.create_funding_tx(swap, None, password=None)
+        transport = MockSwapServerTransport(config=self.config, sm=self.sm)
+        # the hold invoice is created with a 300s expiry, so this is one second past it
+        expired_clock = now() + 301
+        with mock.patch('electrum.submarine_swaps.now', lambda: expired_clock):
+            funding_txid = await self.sm.wait_for_htlcs_and_broadcast(
+                transport=transport, swap=swap, invoice=self.invoice, tx=tx)
+        # we sent the request to the server
+        self.assertEqual(['addswapinvoice'], [method for method, _data in transport.requests])
+        self.assertIsNone(funding_txid)
+        self.assertIsNone(swap.funding_txid)
+        # nothing was locked up
+        self.assertNotIn(tx.txid(), self.server.txs)
+        # the swap is gone
+        self.assertNotIn(payment_hash, self.wallet.lnworker.hold_invoice_callbacks)
+        self.assertNotIn(payment_hash.hex(), self.wallet.db.get_dict('submarine_swaps'))
+        self.assertNotIn(swap.lockup_address, self.wallet.lnworker.lnwatcher.callbacks)
 
     async def test_reverse_swap_does_not_claim_underpaid_lockup_utxo(self):
         """As the client of a reverse swap we know the preimage, and we must

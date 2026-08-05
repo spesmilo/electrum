@@ -787,6 +787,9 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                     sm.cancel_normal_swap(swap)
                     return
                 self.window.on_swap_result(funding_txid, is_reverse=False)
+                if not funding_txid:
+                    # the swap has been failed, we must not try to broadcast the funding tx again below
+                    return
 
         def broadcast_thread():
             # non-GUI thread
