@@ -510,6 +510,10 @@ class SwapManager(Logger):
     def _get_public_preimage(self, swap: SwapData) -> Optional[bytes]:
         if swap.spending_txid is None:
             return None
+        # note: the used Electrum server could omit the claim tx maliciously, causing us to miss the preimage.
+        #       It's an accepted tradeoff and rather unlikely that the swap counterparty manages to make us connect to
+        #       their malicious Electrum server, unless they would spin-up some form of sybil attack and the user isn't
+        #       using their personal Electrum server.
         spending_tx = self.lnwatcher.adb.get_transaction(swap.spending_txid)
         if spending_tx is None:
             return None
@@ -539,11 +543,15 @@ class SwapManager(Logger):
 
         for txin in txos.values():
             if txin.block_height is None or txin.block_height <= TX_HEIGHT_LOCAL:
+                # they could create a decoy funding utxo and then double spend it, so it sticks in our adb as local tx
                 continue
             if txin.value_sats() < swap.onchain_amount:
                 # reverse swap: amount too low, we must not reveal the preimage.
                 # forward swap: the counterparty might create dust outputs to the funding address,
                 #               trying to distract us from their claim of the 'real' funding output.
+                #               note: a malicious counterparty could still create utxos >= onchain_amount,
+                #               however there is no economic gain for them (or loss for us), if we pick
+                #               the output they claimed, we see the preimage, otherwise we refund their decoy one.
                 continue
             break
         else:
@@ -644,6 +652,8 @@ class SwapManager(Logger):
         Construct claim tx that spends exactly the funding utxo to the swap output, independent of the
         current fee environment to guarantee the correct amount is being sent to the claim output which
         might be an external address.
+        This means we won't be able to bump the tx fee later (when claiming), however the risk of sharp increases
+        in transaction fees between requesting the swap and claiming is an acceptable low-risk tradeoff.
         """
         assert swap.claim_to_output, swap
         txout = PartialTxOutput.from_address_and_value(swap.claim_to_output[0], swap.claim_to_output[1])
@@ -781,7 +791,7 @@ class SwapManager(Logger):
             raise Exception("payment_hash already in use")
         if prepay:
             # server requests 2 * the mining fee as instantly settled prepayment so that the mining
-            # fees of the funding tx and potential timeout refund tx are always covered
+            # fees of the funding tx and potential timeout refund tx are always covered (see reverse_swap() docstring)
             prepay_amount_sat = self.mining_fee * 2
             invoice_amount_sat = lightning_amount_sat - prepay_amount_sat
         else:
@@ -1194,6 +1204,8 @@ class SwapManager(Logger):
         Note: prepayment_sat is passed as argument instead of accessing self.mining_fee to ensure
         the mining fees the user sees in the GUI are also the values used for the checks performed here.
         We commit to prepayment_sat as it limits the max fee pre-payment amt, which the server is trusted with.
+        The prepayment is an intentional tradeoff protecting the swapserver from griefing through clients by
+        making the client put a negligible amount of trust into the swapserver.
         """
         assert self.network
         assert self.lnwatcher
@@ -1494,7 +1506,10 @@ class SwapManager(Logger):
         sig_dummy = b'\x00' * 71  # DER-encoded ECDSA sig, with low S and low R
         witness = [sig_dummy, preimage, witness_script]
         txin.witness_sizehint = len(construct_witness(witness))
-        # note: there is no csv in the script, we just set this so that txbatcher waits for one confirmation
+        # note: there is no csv in the script, we just set this so that txbatcher waits for one confirmation.
+        #       This means we will reveal the preimage after one confirmation of the funding transaction, which could
+        #       be double spent through a reorg. This is a known UX/safety tradeoff.
+        #       TODO: confirmations could be made dynamic based on swap value
         txin.nsequence = 1 if swap.is_reverse else 0xffffffff - 2
 
     @classmethod
