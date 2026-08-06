@@ -1039,10 +1039,12 @@ class SwapManager(Logger):
             # see assert in register_hold_invoice
             raise Exception("payment_hash already in use")
 
-        # check that onchain_amount is not more than what we estimated
-        if onchain_amount > expected_onchain_amount_sat:
-            raise Exception(f"fswap check failed: onchain_amount is more than what we estimated: "
-                            f"{onchain_amount} > {expected_onchain_amount_sat}")
+        # check that onchain_amount equals what we estimated, leave minor buffer for rounding differences
+        # note: lower bounds check is critical too, as _claim_swap picks the funding utxo based on amount
+        # accept off-by ones, similar to get_recv_amount
+        if not (expected_onchain_amount_sat - 1 <= onchain_amount <= expected_onchain_amount_sat):
+            raise Exception(f"fswap check failed: onchain_amount is not what we estimated: "
+                            f"{onchain_amount=} != {expected_onchain_amount_sat=}")
         # verify that they don't make us fund an already expired swap
         if locktime - self.network.get_local_height() < MIN_LOCKTIME_DELTA:
             raise Exception("fswap check failed: locktime too close")
