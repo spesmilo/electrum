@@ -1043,6 +1043,9 @@ class SwapManager(Logger):
         if onchain_amount > expected_onchain_amount_sat:
             raise Exception(f"fswap check failed: onchain_amount is more than what we estimated: "
                             f"{onchain_amount} > {expected_onchain_amount_sat}")
+        # verify that they don't make us fund an already expired swap
+        if locktime - self.network.get_local_height() < MIN_LOCKTIME_DELTA:
+            raise Exception("fswap check failed: locktime too close")
         # verify that they are not locking up funds for too long
         if locktime - self.network.get_local_height() > MAX_LOCKTIME_DELTA:
             raise Exception("fswap check failed: locktime too far in future")
