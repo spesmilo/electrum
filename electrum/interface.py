@@ -230,9 +230,6 @@ class NotificationSession(RPCSession):
     async def subscribe(self, method: str, params: List, queue: asyncio.Queue):
         assert queue.maxsize > 0, "infinite queue maxsize not allowed"
         key = self.get_hashable_key_for_rpc_call(method, params)
-        # note: multiple Synchronizers (from different Wallet objects) might sub to the same key,
-        #       hence subscriptions map key->list[queue]
-        self.subscriptions[key].append(queue)
         if key in self.subs_cache:
             result = self.subs_cache[key]
         else:
@@ -240,6 +237,12 @@ class NotificationSession(RPCSession):
             #       each 'subscribe' call might make a request on the network.
             result = await self.send_request(method, params)
             self.subs_cache[key] = result
+        # note: multiple Synchronizers (from different Wallet objects) might sub to the same key,
+        #       hence subscriptions map key->list[queue]
+        # note: only after we got the initial response from the network, we save the subscription.
+        #       This way we disallow force all notifications to arrive after the initial response.
+        #       (as the queue size is bounded, that could even cause a deadlock)
+        self.subscriptions[key].append(queue)
         # note: if queue is full, queue.put will block until a free slot is available. This limits memory usage.
         await queue.put(params + [result])
 
