@@ -1529,6 +1529,11 @@ class Peer(Logger, EventListener):
         # sanity checks of received values
         assert their_next_local_ctn >= 0  # already done by lnmsg, as type is u64
         assert their_oldest_unrevoked_remote_ctn >= 0
+        if max(their_next_local_ctn, their_oldest_unrevoked_remote_ctn) >= 2**48:
+            # TODO: upstream this check to lightning/bolts spec
+            self.logger.error(f"channel_reestablish ({chan.get_id_for_log()}): ctn overflow")
+            self.schedule_force_closing(chan.channel_id)
+            raise RemoteMisbehaving("channel_reestablish: ctn overflow")
         # ctns
         oldest_unrevoked_local_ctn = chan.get_oldest_unrevoked_ctn(LOCAL)
         latest_remote_ctn = chan.get_latest_ctn(REMOTE)

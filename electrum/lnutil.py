@@ -3,7 +3,10 @@
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
 from enum import IntFlag, IntEnum
 import enum
-from typing import NamedTuple, List, Tuple, Mapping, Optional, TYPE_CHECKING, Union, Dict, Set, Sequence, FrozenSet
+from typing import (
+    NamedTuple, List, Tuple, Mapping, Optional, TYPE_CHECKING, Union, Dict, Set, Sequence, FrozenSet,
+    TypedDict,
+)
 import sys
 import time
 from functools import lru_cache
@@ -532,19 +535,24 @@ ZEROCONF_TIMEOUT = 60 * 10
 TIME_FOR_OFFERED_HTLCS_TO_GET_FAILED_OFFCHAIN_ON_RESTART = 30
 
 
+class RevStoreStorage(TypedDict):
+    index: int
+    buckets: dict[int, 'ShachainElement']
+
 class RevocationStore:
     # closely based on code in lightningnetwork/lnd
 
-    START_INDEX = 2 ** 48 - 1
+    NUM_BITS = 48
+    START_INDEX = 2 ** NUM_BITS - 1
 
-    def __init__(self, storage):
+    def __init__(self, storage: RevStoreStorage):
         if len(storage) == 0:
             storage['index'] = self.START_INDEX
             storage['buckets'] = {}
         self.storage = storage
         self.buckets = storage['buckets']
 
-    def add_next_entry(self, hsh):
+    def add_next_entry(self, hsh: bytes) -> None:
         index = self.storage['index']
         new_element = ShachainElement(index=index, secret=hsh)
         bucket = count_trailing_zeros(index)
@@ -553,12 +561,15 @@ class RevocationStore:
             e = shachain_derive(new_element, this_bucket.index)
             if e != this_bucket:
                 raise Exception("hash is not derivable: {} {} {}".format(e.secret.hex(), this_bucket.secret.hex(), this_bucket.index))
+        # update state
+        new_index = index - 1
+        assert new_index > 3  # arbitrary small positive int. could not hurt to fail a bit early, before underflow
         self.buckets[bucket] = new_element
-        self.storage['index'] = index - 1
+        self.storage['index'] = new_index
 
     def retrieve_secret(self, index: int) -> bytes:
-        assert index <= self.START_INDEX, index
-        for i in range(0, 49):
+        assert 0 < index <= self.START_INDEX, index
+        for i in range(0, self.NUM_BITS + 1):
             bucket = self.buckets.get(i)
             if bucket is None:
                 raise UnableToDeriveSecret()
@@ -570,17 +581,24 @@ class RevocationStore:
         raise UnableToDeriveSecret()
 
 
-def count_trailing_zeros(index):
+def count_trailing_zeros(index: int) -> int:
     """ BOLT-03 (where_to_put_secret) """
-    try:
-        return list(reversed(bin(index)[2:])).index("1")
-    except ValueError:
-        return 48
+    assert isinstance(index, int)
+    assert 0 < index <= RevocationStore.START_INDEX, f"{index=}"
+    tz = list(reversed(bin(index)[2:])).index("1")
+    assert 0 <= tz < RevocationStore.NUM_BITS
+    return tz
 
 
-def shachain_derive(element, to_index):
-    def get_prefix(index, pos):
-        mask = (1 << 64) - 1 - ((1 << pos) - 1)
+def shachain_derive(element: 'ShachainElement', to_index: int) -> 'ShachainElement':
+    assert isinstance(to_index, int)
+    assert 0 < to_index <= RevocationStore.START_INDEX, f"{to_index=}"
+    def get_prefix(index: int, pos: int) -> int:
+        assert isinstance(index, int)
+        assert isinstance(pos, int)
+        max_mask_len = 64  # TODO just use RevocationStore.NUM_BITS + 1 ?
+        assert max_mask_len > RevocationStore.NUM_BITS
+        mask = (1 << max_mask_len) - 1 - ((1 << pos) - 1)
         return index & mask
     from_index = element.index
     zeros = count_trailing_zeros(from_index)
@@ -603,8 +621,12 @@ class ShachainElement(NamedTuple):
         return ShachainElement(bfh(x[0]), int(x[1]))
 
 
-def get_per_commitment_secret_from_seed(seed: bytes, i: int, bits: int = 48) -> bytes:
+def get_per_commitment_secret_from_seed(seed: bytes, i: int, bits: int = RevocationStore.NUM_BITS) -> bytes:
     """Generate per commitment secret."""
+    assert isinstance(seed, bytes) and len(seed) == 32
+    assert isinstance(bits, int) and (0 <= bits <= RevocationStore.NUM_BITS)
+    assert isinstance(i, int)
+    assert 0 < i <= RevocationStore.START_INDEX, f"{i=}"
     per_commitment_secret = bytearray(seed)
     for bitindex in range(bits - 1, -1, -1):
         mask = 1 << bitindex
