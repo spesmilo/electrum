@@ -163,8 +163,8 @@ class NotificationSession(RPCSession):
 
     def __init__(self, *args, interface: 'Interface', **kwargs):
         super(NotificationSession, self).__init__(*args, **kwargs)
-        self.subscriptions = defaultdict(list)
-        self.cache = {}
+        self.subscriptions = defaultdict(list)  # type: defaultdict[str, list[asyncio.Queue]]
+        self.subs_cache = {}  # type: dict[str, Any]
         self._msg_counter = itertools.count(start=1)
         self.interface = interface
         self.taskgroup = interface.taskgroup
@@ -181,7 +181,7 @@ class NotificationSession(RPCSession):
                 params, result = request.args[:-1], request.args[-1]
                 key = self.get_hashable_key_for_rpc_call(request.method, params)
                 if key in self.subscriptions:
-                    self.cache[key] = result
+                    self.subs_cache[key] = result
                     for queue in self.subscriptions[key]:
                         await queue.put(request.args)
                 else:
@@ -223,15 +223,17 @@ class NotificationSession(RPCSession):
         self.max_send_delay = timeout
 
     async def subscribe(self, method: str, params: List, queue: asyncio.Queue):
-        # note: until the cache is written for the first time,
-        # each 'subscribe' call might make a request on the network.
         key = self.get_hashable_key_for_rpc_call(method, params)
+        # note: multiple Synchronizers (from different Wallet objects) might sub to the same key,
+        #       hence subscriptions map key->list[queue]
         self.subscriptions[key].append(queue)
-        if key in self.cache:
-            result = self.cache[key]
+        if key in self.subs_cache:
+            result = self.subs_cache[key]
         else:
+            # note: until subs_cache is written for the first time,
+            #       each 'subscribe' call might make a request on the network.
             result = await self.send_request(method, params)
-            self.cache[key] = result
+            self.subs_cache[key] = result
         await queue.put(params + [result])
 
     def unsubscribe(self, queue):
