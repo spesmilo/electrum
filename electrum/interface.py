@@ -161,6 +161,9 @@ class ChainResolutionMode(enum.Enum):
 
 class NotificationSession(RPCSession):
 
+    INC_REQ_CONCURRENCY_FOR_MAIN_IFACE = 5
+    INC_REQ_CONCURRENCY_FOR_OTHER_IFACE = 2
+
     def __init__(self, *args, interface: 'Interface', **kwargs):
         super(NotificationSession, self).__init__(*args, **kwargs)
         self.subscriptions = defaultdict(list)  # type: defaultdict[str, list[asyncio.Queue]]
@@ -168,7 +171,11 @@ class NotificationSession(RPCSession):
         self._msg_counter = itertools.count(start=1)
         self.interface = interface
         self.taskgroup = interface.taskgroup
+        assert hasattr(self, "cost_hard_limit")  # in base class
         self.cost_hard_limit = 0  # disable aiorpcx resource limits
+        assert hasattr(self, "initial_concurrent")  # in base class
+        self.initial_concurrent = self.INC_REQ_CONCURRENCY_FOR_OTHER_IFACE
+        self._incoming_concurrency.set_target(self.INC_REQ_CONCURRENCY_FOR_OTHER_IFACE)  # this limits memory usage
 
         # To log pre-processed json traffic, uncomment:
         #self.logger.setLevel(logging.DEBUG)  # from aiorpcx
@@ -188,6 +195,7 @@ class NotificationSession(RPCSession):
                     for queue in self.subscriptions[key]:
                         # note: if queue is full, queue.put will block until a free slot is available.
                         #       This limits memory usage.
+                        # note: there are up to "initial_concurrent" handle_request() calls blocking here.
                         await queue.put(request.args)
                 else:
                     raise Exception(f'unexpected notification')
@@ -987,6 +995,12 @@ class Interface(Logger):
     def is_main_server(self) -> bool:
         return (self.network.interface == self or
                 self.network.interface is None and self.network.default_server == self.server)
+
+    def mark_as_main_server(self) -> None:
+        """Called when the network switches to this interface."""
+        assert self.session
+        self.session.initial_concurrent = self.session.INC_REQ_CONCURRENCY_FOR_MAIN_IFACE
+        self.session._incoming_concurrency.set_target(self.session.INC_REQ_CONCURRENCY_FOR_MAIN_IFACE)
 
     async def open_session(
         self,
