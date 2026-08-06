@@ -782,13 +782,14 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                 coro = sm.wait_for_htlcs_and_broadcast(
                     transport=transport, swap=swap, invoice=tx.swap_invoice, tx=tx)
                 try:
-                    funding_txid = self.window.run_coroutine_dialog(coro, _('Awaiting lightning payment...'))
+                    self.window.run_coroutine_dialog(coro, _('Awaiting lightning payment...'))
                 except UserCancelled:
-                    sm.cancel_normal_swap(swap)
-                    return
-                self.window.on_swap_result(funding_txid, is_reverse=False)
-                if not funding_txid:
-                    # the swap has been failed, we must not try to broadcast the funding tx again below
+                    if sm.cancel_normal_swap(swap):
+                        return
+                self.window.on_swap_result(swap.funding_txid, is_reverse=False)
+                if not swap._payment_pending:
+                    # we decided not to broadcast the funding tx, so we must not do it below either
+                    # note: swap.funding_txid can be influenced by the counterparty so it is not a sufficient check here
                     return
 
         def broadcast_thread():

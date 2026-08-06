@@ -221,6 +221,7 @@ class SwapData(StoredObject):
     _funding_prevout = None  # type: Optional[TxOutpoint]  # for RBF
     _payment_hash = None
     _payment_pending = False # for forward swaps
+    _is_cancelled = False  # forward swaps: funding must not be broadcast
 
     @property
     def payment_hash(self) -> bytes:
@@ -228,6 +229,9 @@ class SwapData(StoredObject):
 
     def is_funded(self) -> bool:
         return self._payment_pending or bool(self.funding_txid)
+
+    def set_unfunded(self):
+        self._payment_pending, self.funding_txid = False, None
 
 
 def pubkey_to_rgb_color(swapserver_pubkey: str) -> Tuple[int, int, int]:
@@ -264,7 +268,7 @@ class SwapManager(Logger):
         # note: accessing swaps dicts (besides simple lookup) needs swaps_lock
         self.swaps_lock = threading.Lock()
         swaps = self.wallet.db.get_dict('submarine_swaps')  # type: Dict[str, SwapData]
-        self._swaps = {} # cached values
+        self._swaps = {}  # type: dict[str, SwapData]  # cached values
         self._swaps_by_funding_outpoint = {}  # type: Dict[TxOutpoint, SwapData]
         self._swaps_by_lockup_address = {}  # type: Dict[str, SwapData]
         self._prepayments = {}  # type: Dict[bytes, bytes] # fee_rhash -> rhash
@@ -471,24 +475,28 @@ class SwapManager(Logger):
                     continue
                 await self.taskgroup.spawn(self.pay_invoice(key))
 
-    def cancel_normal_swap(self, swap: SwapData):
-        """ we must not have broadcast the funding tx """
+    def cancel_normal_swap(self, swap: Optional[SwapData], *, reason: str = 'user cancelled') -> bool:
+        """Fail/cancel the swap, unless its funding tx is already being broadcast. Safe to call from the GUI thread."""
         if swap is None:
-            return
-        if swap.is_funded():
-            self.logger.info(f'cannot cancel swap {swap.payment_hash.hex()}: already funded')
-            return
-        self._fail_swap(swap, 'user cancelled')
+            return False
+        with self.swaps_lock:  # the hold invoice callback might already have been scheduled for incoming htlcs
+            if swap.is_funded():
+                self.logger.info(f'cannot cancel swap {swap.payment_hash.hex()}: already funded')
+                return False
+            swap._is_cancelled = True
+        self._fail_swap(swap, reason)
+        return True
 
     def _fail_swap(self, swap: SwapData, reason: str):
         self.logger.info(f'failing swap {swap.payment_hash.hex()}: {reason}')
+        swap._is_cancelled = True
         if not swap.is_reverse and swap.payment_hash in self.lnworker.hold_invoice_callbacks:
             # unregister_hold_invoice will fail pending htlcs if there is no preimage available
             self.lnworker.unregister_hold_invoice(swap.payment_hash)
             self.lnworker.delete_payment_info(swap.payment_hash.hex(), direction=lnutil.RECEIVED)
             self.lnworker.clear_invoices_cache()
-        self.lnwatcher.remove_callback(swap.lockup_address)
         if not swap.is_funded():
+            self.lnwatcher.remove_callback(swap.lockup_address)
             with self.swaps_lock:
                 swaps = self.wallet.db.get_dict('submarine_swaps')
                 if swaps.pop(swap.payment_hash.hex(), None) is None:
@@ -560,7 +568,12 @@ class SwapManager(Logger):
             # if it is a normal swap, we might have double spent the funding tx
             # in that case we need to fail the HTLCs
             if remaining_time <= 0:
-                self._fail_swap(swap, 'expired')
+                if swap.is_reverse:
+                    # we don't set forward swaps unfunded as this would render us unable to
+                    # refund them later on if the funding tx happens to get mined
+                    swap.set_unfunded()
+                if not swap._is_cancelled:  # otherwise we already tried to fail the swap this session
+                    self._fail_swap(swap, f'expired: {remaining_time=} blocks')
 
         if txin is None:
             return  # not funded yet
@@ -599,7 +612,9 @@ class SwapManager(Logger):
                     # This is our refund tx.
                     if spender_is_final:
                         self.logger.info(f'refund tx confirmed: {txin.spent_txid} {spent_height}')
+                        swap.is_redeemed = True
                         self._fail_swap(swap, 'refund tx confirmed')  # also fails htlcs we hold
+                        self.lnwatcher.remove_callback(swap.lockup_address)
                         return
             if remaining_time > 0:
                 # too early for refund
@@ -729,13 +744,19 @@ class SwapManager(Logger):
     async def hold_invoice_callback(self, payment_hash: bytes) -> None:
         # note: this assumes the wallet has been unlocked
         key = payment_hash.hex()
-        if swap := self._swaps.get(key):
-            if not swap.is_funded():
-                output = self.create_funding_output(swap)
-                self.wallet.txbatcher.add_payment_output('swaps', output)
-                swap._payment_pending = True
-        else:
+        swap = self._swaps.get(key)
+        if swap is None:
             self.logger.info(f'key not in swaps {key}')
+            return
+        with self.swaps_lock:
+            if swap._is_cancelled:
+                self.logger.info(f'swap {key} was cancelled, not funding it, failing htlcs')
+                raise OnionRoutingFailure(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
+            if swap.is_funded():
+                return
+            swap._payment_pending = True
+        output = self.create_funding_output(swap)
+        self.wallet.txbatcher.add_payment_output('swaps', output)
 
     def create_normal_swap(self, *, lightning_amount_sat: int, payment_hash: bytes, their_pubkey: bytes = None):
         """ server method """
@@ -1094,16 +1115,21 @@ class SwapManager(Logger):
         await transport.is_connected.wait()
         payment_hash = swap.payment_hash
         refund_pubkey = ECPrivkey(swap.privkey).get_public_key_bytes(compressed=True)
-        funding_broadcast = asyncio.Event()
+        lightning_payment = asyncio.Event()
         async def lightning_payment_callback(_payment_hash):
-            swap.funding_txid = tx.txid()  # must happen before first await
             try:
+                with self.swaps_lock:
+                    if swap._is_cancelled:
+                        self.logger.info('swap was cancelled, not broadcasting funding tx, failing htlcs')
+                        raise OnionRoutingFailure(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
+                    swap._payment_pending = True  # blocks a concurrent cancel from here on
+                    swap.funding_txid = tx.txid()  # must happen before first await
                 await self.network.broadcast_transaction(tx)
             except TxBroadcastError as e:
                 # FIXME: We will never retry the hold-invoice-callback.
                 self.logger.error(f"failed to broadcast swap funding transaction: {e}")
             finally:
-                funding_broadcast.set()
+                lightning_payment.set()
 
         self.lnworker.register_hold_invoice(payment_hash, lightning_payment_callback)
 
@@ -1120,12 +1146,11 @@ class SwapManager(Logger):
         lnaddr = decode_bolt11_invoice(invoice)
         seconds_to_expiry = (lnaddr.date + lnaddr.get_expiry()) - now()
         try:
-            await wait_for2(funding_broadcast.wait(), timeout=seconds_to_expiry)
+            await wait_for2(lightning_payment.wait(), timeout=seconds_to_expiry)
         except asyncio.TimeoutError:
             self.logger.warning("timeout waiting for funding tx broadcast, invoice expired")
             # The htlcs never arrived, so we must fail the swap here, the swap must not get funded anymore.
-            if swap.funding_txid is None:
-                self._fail_swap(swap, 'invoice expired before htlcs arrived')
+            self.cancel_normal_swap(swap, reason="invoice expired before htlcs arrived")
         return swap.funding_txid
 
     def create_funding_output(self, swap: SwapData) -> PartialTxOutput:

@@ -486,8 +486,10 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         try:
             funding_txid = self.window.run_coroutine_dialog(coro, _('Awaiting swap payment...'))
         except UserCancelled:
-            self.swap_manager.cancel_normal_swap(self._current_swap)
-            self.window.show_message(_('Swap cancelled'))
+            if self._current_swap is None or self.swap_manager.cancel_normal_swap(self._current_swap):
+                self.window.show_message(_('Swap cancelled'))
+            else:
+                self.window.show_message(_('Swap was already funded, refusing to cancel'))
             return
         except Exception as e:
             self.window.show_error(str(e))

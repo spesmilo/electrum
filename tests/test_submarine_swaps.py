@@ -11,6 +11,7 @@ from electrum.bitcoin import COIN, DUST_LIMIT_P2WSH
 from electrum.util import bfh, now, wait_for2
 from electrum.crypto import sha256
 from electrum.interface import PaddedRSTransport
+from electrum.lnonion import OnionRoutingFailure
 from electrum.simple_config import SimpleConfig
 from electrum.submarine_swaps import (
     SwapManager, SwapData, SwapServerTransport, LOCKTIME_DELTA_REFUND,
@@ -352,10 +353,10 @@ class TestSwapClaim(ElectrumTestCase):
         swap = self.create_forward_swap(onchain_amount=100_000)
         payment_hash = swap.payment_hash
         await self.pay_to_address(swap.lockup_address, swap.onchain_amount - 1)
-        await self.mine_until_swap_expires(swap)
         with self.assertLogs(self.sm.logger.name, level='INFO') as logs:
+            await self.mine_until_swap_expires(swap)
             await self.sm._claim_swap(swap)
-        self.assertIn(f'failing swap {payment_hash.hex()}: expired', [record.getMessage() for record in logs.records])
+        self.assertIn(f'failing swap {payment_hash.hex()}: expired: remaining_time=0 blocks', [record.getMessage() for record in logs.records])
         self.assertNotIn(payment_hash, self.wallet.lnworker.hold_invoice_callbacks)
         self.assertNotIn(payment_hash.hex(), self.wallet.db.get_dict('submarine_swaps'))
         self.assertNotIn(swap.lockup_address, self.wallet.lnworker.lnwatcher.callbacks)
@@ -545,6 +546,52 @@ class TestSwapClaim(ElectrumTestCase):
         self.assertNotIn(payment_hash, self.wallet.lnworker.hold_invoice_callbacks)
         self.assertNotIn(payment_hash.hex(), self.wallet.db.get_dict('submarine_swaps'))
         self.assertNotIn(swap.lockup_address, self.wallet.lnworker.lnwatcher.callbacks)
+
+    async def test_forward_swap_cancel_does_not_race_dispatched_hold_invoice_callback(self):
+        """lnpeer dispatches the hold-invoice callback as an independent task, so a cancel
+        can land after the callback is scheduled but before it runs. The callback must then
+        not broadcast the funding tx, and must fail the htlcs rather than leave them hanging.
+        """
+        swap = self.create_forward_swap(onchain_amount=100_000)
+        payment_hash = swap.payment_hash
+        tx = self.sm.create_funding_tx(swap, None, password=None)
+        transport = MockSwapServerTransport(config=self.config, sm=self.sm)
+        fut = asyncio.create_task(self.sm.wait_for_htlcs_and_broadcast(
+            transport=transport, swap=swap, invoice=self.invoice, tx=tx))
+        # the callback is registered just before the invoice is sent to the server
+        await self.wait_until(lambda: bool(transport.requests))
+        # the server's htlcs arrived: lnpeer looked up the callback and scheduled it,
+        # but the user cancels before it gets to run
+        callback = self.wallet.lnworker.hold_invoice_callbacks[payment_hash]
+        self.assertTrue(self.sm.cancel_normal_swap(swap))
+        with self.assertRaises(OnionRoutingFailure):
+            await callback(payment_hash)
+        self.assertIsNone(await fut)
+        self.assertIsNone(swap.funding_txid)
+        # nothing was locked up, and the swap is gone
+        self.assertNotIn(tx.txid(), self.server.txs)
+        self.assertNotIn(payment_hash, self.wallet.lnworker.hold_invoice_callbacks)
+        self.assertNotIn(payment_hash.hex(), self.wallet.db.get_dict('submarine_swaps'))
+        self.assertNotIn(swap.lockup_address, self.wallet.lnworker.lnwatcher.callbacks)
+
+    async def test_forward_swap_cannot_be_cancelled_once_funding_is_broadcast(self):
+        """Once the callback has claimed the swap the cancel must be refused, and it must
+        leave the refund key and the lnwatcher callback intact.
+        """
+        swap = self.create_forward_swap(onchain_amount=100_000)
+        payment_hash = swap.payment_hash
+        tx = self.sm.create_funding_tx(swap, None, password=None)
+        transport = MockSwapServerTransport(config=self.config, sm=self.sm)
+        fut = asyncio.create_task(self.sm.wait_for_htlcs_and_broadcast(
+            transport=transport, swap=swap, invoice=self.invoice, tx=tx))
+        await self.wait_until(lambda: bool(transport.requests))
+        # the htlcs arrived and the callback ran: we are committed to the swap
+        await self.wallet.lnworker.hold_invoice_callbacks[payment_hash](payment_hash)
+        self.assertEqual(tx.txid(), await fut)
+        self.assertFalse(self.sm.cancel_normal_swap(swap))
+        self.assertIn(tx.txid(), self.server.txs)
+        self.assertIn(payment_hash.hex(), self.wallet.db.get_dict('submarine_swaps'))
+        self.assertIn(swap.lockup_address, self.wallet.lnworker.lnwatcher.callbacks)
 
     async def test_reverse_swap_does_not_claim_underpaid_lockup_utxo(self):
         """As the client of a reverse swap we know the preimage, and we must
