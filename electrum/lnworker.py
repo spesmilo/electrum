@@ -2769,6 +2769,9 @@ class LNWallet(Logger):
                 self._payment_bundles_pkey_to_canon[pkey] = canon_pkey
             self._payment_bundles_canon_to_pkeylist[canon_pkey] = tuple(payment_keys)
 
+    def has_payment_bundle(self, payment_hash: bytes) -> bool:
+        return bool(self.get_payment_bundle(self._get_payment_key(payment_hash)))
+
     def get_payment_bundle(self, payment_key: Union[bytes, str]) -> Sequence[bytes]:
         with self.lock:
             if isinstance(payment_key, str):
