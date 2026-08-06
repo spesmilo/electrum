@@ -126,9 +126,13 @@ def assert_hex_str(val: Any) -> None:
         raise RequestCorrupted(f'{val!r} should be a hex str')
 
 
-def assert_dict_contains_field(d: Any, *, field_name: str) -> Any:
+def assert_dict(d: Any) -> None:
     if not isinstance(d, dict):
         raise RequestCorrupted(f'{d!r} should be a dict')
+
+
+def assert_dict_contains_field(d: Any, *, field_name: str) -> Any:
+    assert_dict(d)
     if field_name not in d:
         raise RequestCorrupted(f'required field {field_name!r} missing from dict')
     return d[field_name]
@@ -1125,10 +1129,17 @@ class Interface(Logger):
         await self.session.subscribe('blockchain.headers.subscribe', [], header_queue)
         while True:
             item = await header_queue.get()
-            raw_header = item[0]
-            height = raw_header['height']
-            header_bytes = bfh(raw_header['hex'])
+            # parse response
+            assert len(item) == 1
+            resp_header = item[0]
+            assert_dict(resp_header)
+            height = assert_dict_contains_field(resp_header, field_name='height')
+            assert_non_negative_integer(height)
+            header_hex = assert_dict_contains_field(resp_header, field_name='hex')
+            header_bytes = bfh(header_hex)
+            assert len(resp_header) == 2, f"resp_header contains redundant fields. got {resp_header.keys()}"
             header_dict = blockchain.deserialize_header(header_bytes, height)
+            # process header
             self.tip_header = header_dict
             self.tip = height
             if self.tip < constants.net.max_checkpoint():

@@ -35,7 +35,7 @@ from .transaction import Transaction, PartialTransaction
 from .util import make_aiohttp_session, NetworkJobOnDefaultServer, random_shuffled_copy, OldTaskGroup
 from .bitcoin import address_to_scripthash, is_address, neuter_bitcoin_address
 from .logging import Logger
-from .interface import GracefulDisconnect, NetworkTimeout
+from .interface import GracefulDisconnect, NetworkTimeout, assert_hash256_str
 
 if TYPE_CHECKING:
     from .network import Network
@@ -117,8 +117,13 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
 
     async def handle_status(self):
         while True:
-            h, status = await self.status_queue.get()
-            addr = self.scripthash_to_address[h]
+            sh, status = await self.status_queue.get()
+            # basic checks for response
+            assert_hash256_str(sh)
+            if status is not None:
+                assert_hash256_str(status)
+            # process status
+            addr = self.scripthash_to_address[sh]
             self._handling_addr_statuses.add(addr)
             self.requested_addrs.discard(addr)  # ok for addr not to be present
             await self.taskgroup.spawn(self._on_address_status, addr, status)
