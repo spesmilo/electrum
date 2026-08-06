@@ -116,8 +116,8 @@ RUN apt -y update -qq \
 RUN yes | ${ANDROID_SDK_MANAGER} --licenses > /dev/null
 
 
-ENV ANDROID_SDK_BUILD_TOOLS_MAJOR_V="35"
-ENV ANDROID_SDK_BUILD_TOOLS_VERSION="35.0.0"
+ENV ANDROID_SDK_BUILD_TOOLS_MAJOR_V="36"
+ENV ANDROID_SDK_BUILD_TOOLS_VERSION="36.0.0"
 
 # download platforms, API, build tools
 RUN ${ANDROID_SDK_MANAGER} "platforms;android-${ANDROID_SDK_BUILD_TOOLS_MAJOR_V}" > /dev/null && \
@@ -235,7 +235,7 @@ RUN cd /opt \
     && /opt/venv/bin/python3 -m pip install --no-build-isolation --no-dependencies -e .
 
 # install python-for-android
-ENV P4A_CHECKOUT_COMMIT="8c0fcc9ef2e559918ca96ecde6e09fe521bb1427"
+ENV P4A_CHECKOUT_COMMIT="760f7f0f1d1946325be1cd4456179194635353eb"
 # ^ from branch electrum_202602 (note: careful with force-pushing! see #8162)
 RUN cd /opt \
     && git clone https://github.com/spesmilo/python-for-android \
