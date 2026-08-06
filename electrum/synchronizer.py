@@ -71,7 +71,7 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
         self.scripthash_to_address = {}
         self._processed_some_notifications = False  # so that we don't miss them
         # Queues
-        self.status_queue = asyncio.Queue()
+        self.status_queue = asyncio.Queue(maxsize=15)  # maxsize limits memory usage
 
     async def _run_tasks(self, *, taskgroup):
         await super()._run_tasks(taskgroup=taskgroup)

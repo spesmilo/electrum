@@ -176,6 +176,9 @@ class NotificationSession(RPCSession):
 
     async def handle_request(self, request):
         self.maybe_log(f"--> {request}")
+        # note: size of a single request is bounded by the framer: config.NETWORK_MAX_INCOMING_MSG_SIZE.
+        #       That bound is too relaxed, to allow requesting a large tx. Most messages should
+        #       be MUCH smaller, especially notifications...
         try:
             if isinstance(request, Notification):
                 params, result = request.args[:-1], request.args[-1]
@@ -183,6 +186,8 @@ class NotificationSession(RPCSession):
                 if key in self.subscriptions:
                     self.subs_cache[key] = result
                     for queue in self.subscriptions[key]:
+                        # note: if queue is full, queue.put will block until a free slot is available.
+                        #       This limits memory usage.
                         await queue.put(request.args)
                 else:
                     raise Exception(f'unexpected notification')
@@ -223,6 +228,7 @@ class NotificationSession(RPCSession):
         self.max_send_delay = timeout
 
     async def subscribe(self, method: str, params: List, queue: asyncio.Queue):
+        assert queue.maxsize > 0, "infinite queue maxsize not allowed"
         key = self.get_hashable_key_for_rpc_call(method, params)
         # note: multiple Synchronizers (from different Wallet objects) might sub to the same key,
         #       hence subscriptions map key->list[queue]
@@ -234,6 +240,7 @@ class NotificationSession(RPCSession):
             #       each 'subscribe' call might make a request on the network.
             result = await self.send_request(method, params)
             self.subs_cache[key] = result
+        # note: if queue is full, queue.put will block until a free slot is available. This limits memory usage.
         await queue.put(params + [result])
 
     def unsubscribe(self, queue):
@@ -1091,7 +1098,7 @@ class Interface(Logger):
         # monitor_connection will cancel tasks
 
     async def run_fetch_blocks(self):
-        header_queue = asyncio.Queue()
+        header_queue = asyncio.Queue(maxsize=1)  # maxsize limits memory usage
         await self.session.subscribe('blockchain.headers.subscribe', [], header_queue)
         while True:
             item = await header_queue.get()

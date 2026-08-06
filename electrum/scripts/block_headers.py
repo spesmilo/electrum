@@ -21,7 +21,7 @@ while not network.is_connected():
     time.sleep(1)
     print_msg("waiting for network to get connected...")
 
-header_queue = asyncio.Queue()
+header_queue = asyncio.Queue(maxsize=1)
 
 @log_exceptions
 async def f():
