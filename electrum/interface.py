@@ -183,6 +183,7 @@ class NotificationSession(RPCSession):
 
     async def handle_request(self, request):
         self.maybe_log(f"--> {request}")
+        # note: the caller enforces a timeout (processing_timeout) on us, after which we will get cancelled
         # note: size of a single request is bounded by the framer: config.NETWORK_MAX_INCOMING_MSG_SIZE.
         #       That bound is too relaxed, to allow requesting a large tx. Most messages should
         #       be MUCH smaller, especially notifications...
@@ -201,9 +202,13 @@ class NotificationSession(RPCSession):
                     raise Exception(f'unexpected notification')
             else:
                 raise Exception(f'unexpected request. not a notification')
-        except Exception as e:
+        except BaseException as e:
+            # note: we must not silently drop any notification, so we even catch CancelledError(BaseException).
+            #       Instead, make sure we disconnect.
             self.interface.logger.info(f"error handling request {request}. exc: {repr(e)}")
             await self.close()
+            if isinstance(e, asyncio.CancelledError):
+                raise
 
     async def send_request(self, *args, timeout=None, **kwargs):
         # note: semaphores/timeouts/backpressure etc are handled by
@@ -251,7 +256,8 @@ class NotificationSession(RPCSession):
         #       This way we disallow force all notifications to arrive after the initial response.
         #       (as the queue size is bounded, that could even cause a deadlock)
         self.subscriptions[key].append(queue)
-        # note: if queue is full, queue.put will block until a free slot is available. This limits memory usage.
+        # note: if queue is full, queue.put will block until a free slot is available.
+        #       This limits memory usage.  FIXME add timeout??
         await queue.put(params + [result])
 
     def unsubscribe(self, queue):
