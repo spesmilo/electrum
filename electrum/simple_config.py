@@ -294,7 +294,8 @@ class SimpleConfig(Logger):
             json.dumps(key)
             json.dumps(value)
         except Exception:
-            self.logger.info(f"json error: cannot save {repr(key)} ({repr(value)})")
+            # note: "value" might be secret material, should probably not log it
+            self.logger.info(f"json error: cannot save {key=!r} ({type(value)})")
             return
         self._set_key_in_user_config(key, value, save=save)
 
