@@ -1,5 +1,9 @@
 # Coldcard Hardware Wallet Plugin
 
+## ⚠ Security notice
+
+Coinkite disclosed (July 2026) a firmware build error that reduced generated-seed entropy on **Coldcard Mk3** (firmware 4.0.1–5.0.3) and pre-fix **Mk4/Q**. Seeds generated on-device without extra dice rolls may be brute-forceable. Update to fixed firmware, generate a new seed and move your funds. See the [Coinkite advisory](https://blog.coinkite.com/coldcard-mk3-seed-generation-warning/).
+
 ## Just the glue please
 
 This code connects the public USB API and Electrum. Leverages all
