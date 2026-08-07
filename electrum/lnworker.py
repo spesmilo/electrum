@@ -1669,6 +1669,7 @@ class LNWallet(Logger):
         assert type(temp_chan.storage) is dict
         channel_id = temp_chan.channel_id.hex()
         channels_db = self.db.get_dict('channels')
+        assert channel_id not in channels_db
         channels_db[channel_id] = temp_chan.storage
         jit_opening_fee = temp_chan.jit_opening_fee
         peer_state = temp_chan.peer_state
