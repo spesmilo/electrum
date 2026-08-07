@@ -202,3 +202,11 @@ class TestInterface(ElectrumTestCase):
             w1.adb.get_address_history(w1_addr),
             {funding_txid: server_blockheight})
 
+    async def test_we_disconnect_on_incoming_request(self):
+        """We don't expect the server to send us any requests of its own."""
+        interface = await self._start_iface_and_wait_for_sync()
+        with self.assertLogs('electrum', level='INFO') as logs:
+            with self.assertRaises(asyncio.CancelledError):
+                await self._get_server_session().send_request('blockchain.block.header', [999])
+        self.assertTrue(any(("Interface.[127.0.0.1:" in msg and "unexpected request. not a notification" in msg)
+                            for msg in logs.output))
