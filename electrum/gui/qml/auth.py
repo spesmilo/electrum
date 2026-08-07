@@ -39,14 +39,13 @@ class AuthMixin:
 
     @pyqtSlot()
     def authProceed(self):
-        self._auth_logger.debug('Proceeding with authed fn()')
         try:
-            self._auth_logger.debug(str(getattr(self, '__auth_fcall')))
             (func, args, kwargs, reject) = getattr(self, '__auth_fcall')
+            self._auth_logger.debug(f'Proceeding with authed func={func.__name__}')
             r = func(self, *args, **kwargs)
             return r
         except Exception as e:
-            self._auth_logger.error(f'Error executing wrapped fn(): {repr(e)}')
+            self._auth_logger.error(f'Error executing wrapped function: {repr(e)}')
             raise e
         finally:
             delattr(self, '__auth_fcall')
@@ -61,11 +60,12 @@ class AuthMixin:
             (func, args, kwargs, reject) = getattr(self, '__auth_fcall')
             if reject is not None:
                 if hasattr(self, reject):
+                    self._auth_logger.debug(f'reject={reject}')
                     getattr(self, reject)()
                 else:
                     self._auth_logger.error(f'Reject method "{reject}" not defined')
         except Exception as e:
-            self._auth_logger.error(f'Error executing reject function "{reject}": {repr(e)}')
+            self._auth_logger.error(f'Error executing reject function: {repr(e)}')
             raise e
         finally:
             delattr(self, '__auth_fcall')
