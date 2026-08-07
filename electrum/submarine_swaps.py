@@ -477,19 +477,29 @@ class SwapManager(Logger):
         self._fail_swap(swap, 'user cancelled')
 
     def _fail_swap(self, swap: SwapData, reason: str):
-        self.logger.info(f'failing swap {swap.payment_hash.hex()}: {reason}')
+        key = swap.payment_hash.hex()
+        self.logger.info(f'failing swap {key}: {reason}')
         if not swap.is_reverse and swap.payment_hash in self.lnworker.hold_invoice_callbacks:
             # unregister_hold_invoice will fail pending htlcs if there is no preimage available
             self.lnworker.unregister_hold_invoice(swap.payment_hash)
-            self.lnworker.delete_payment_info(swap.payment_hash.hex(), direction=lnutil.RECEIVED)
+            self.lnworker.delete_payment_info(key, direction=lnutil.RECEIVED)
             self.lnworker.clear_invoices_cache()
+        if swap.is_reverse:
+            if self.lnworker.get_payment_status(swap.payment_hash, direction=lnutil.SENT) != PR_PAID:
+                self.invoices_to_pay.pop(key, None)
+                self.wallet.delete_invoice(key)  # this also deletes payment_info
+            if swap.prepay_hash:
+                prepay_key = swap.prepay_hash.hex()
+                if self.lnworker.get_payment_status(swap.prepay_hash, direction=lnutil.SENT) != PR_PAID:
+                    self.invoices_to_pay.pop(prepay_key, None)
+                    self.wallet.delete_invoice(prepay_key)
         self.lnwatcher.remove_callback(swap.lockup_address)
         if not swap.is_funded():
             with self.swaps_lock:
                 swaps = self.wallet.db.get_dict('submarine_swaps')
-                if swaps.pop(swap.payment_hash.hex(), None) is None:
-                    self.logger.debug(f"swap {swap.payment_hash.hex()} has already been deleted.")
-                self._swaps.pop(swap.payment_hash.hex(), None)
+                if swaps.pop(key, None) is None:
+                    self.logger.debug(f"swap {key} has already been deleted.")
+                self._swaps.pop(key, None)
                 if swap._funding_prevout is not None:
                     self._swaps_by_funding_outpoint.pop(swap._funding_prevout, None)
                 self._swaps_by_lockup_address.pop(swap.lockup_address, None)
