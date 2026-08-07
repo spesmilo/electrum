@@ -81,7 +81,8 @@ MIN_LOCKTIME_DELTA = 60
 MIN_LOCKTIME_DELTA_FOR_CLAIM = 30  # minimum amt of blocks we want to have left when broadcasting a claim tx
 LOCKTIME_DELTA_REFUND = 70
 MAX_LOCKTIME_DELTA = 100
-MIN_FINAL_CLTV_DELTA_FOR_CLIENT = 3 * 144  # note: put in invoice, but is not enforced by receiver in lnpeer.py
+MIN_FINAL_CLTV_DELTA_FOR_CLIENT = 3 * 144  # note: put in invoice
+MAX_MIN_FINAL_CLTV_DELTA = 3 * 144 + 3     # prevent funds being locked for too long
 SPENDER_FINALITY_DELAY = 6  # delay after which the swap is considered final once the funding UTXO was claimed or refunded
 assert SPENDER_FINALITY_DELAY < MIN_LOCKTIME_DELTA_FOR_CLAIM
 assert MIN_LOCKTIME_DELTA_FOR_CLAIM < MIN_LOCKTIME_DELTA
@@ -972,6 +973,7 @@ class SwapManager(Logger):
         (client-forward-swap phase2)
         """
         invoice = request['invoice']
+        self.lnworker._check_bolt11_invoice(invoice, max_min_final_cltv_delta=MAX_MIN_FINAL_CLTV_DELTA)
         invoice = Invoice.from_bech32(invoice)
         key = invoice.rhash
         payment_hash = bytes.fromhex(key)
@@ -1301,12 +1303,12 @@ class SwapManager(Logger):
         if self.network.blockchain().is_tip_stale():
             raise Exception("our blockchain tip is stale")
         # verify invoice payment_hash
-        lnaddr = self.lnworker._check_bolt11_invoice(invoice)
+        lnaddr = self.lnworker._check_bolt11_invoice(invoice, max_min_final_cltv_delta=MAX_MIN_FINAL_CLTV_DELTA)
         invoice_amount = int(lnaddr.get_amount_sat())
         if lnaddr.paymenthash != payment_hash:
             raise Exception("rswap check failed: inconsistent RHASH and invoice")
         if fee_invoice:
-            fee_lnaddr = self.lnworker._check_bolt11_invoice(fee_invoice)
+            fee_lnaddr = self.lnworker._check_bolt11_invoice(fee_invoice, max_min_final_cltv_delta=MAX_MIN_FINAL_CLTV_DELTA)
             if fee_lnaddr.get_amount_sat() > prepayment_sat:
                 raise SwapServerError(_("Mining fee requested by swap-server larger "
                                         "than what was announced in their offer."))
