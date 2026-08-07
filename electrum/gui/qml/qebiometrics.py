@@ -3,7 +3,7 @@ import secrets
 from enum import Enum
 from typing import Optional, TYPE_CHECKING
 
-from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot, pyqtProperty
+from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot, pyqtProperty, QMetaObject, Qt
 
 from electrum.i18n import _
 from electrum.logging import get_logger
@@ -147,6 +147,14 @@ class QEBiometrics(AuthMixin, QObject):
         activity.bind(on_activity_result=self._on_activity_result)
         jPythonActivity.startActivityForResult(intent, self.REQUEST_CODE_BIOMETRIC_ACTIVITY)
 
+    def unbind(self):
+        # unbind later from event loop
+        QMetaObject.invokeMethod(self, '_unbind', Qt.ConnectionType.QueuedConnection)
+
+    @pyqtSlot()
+    def _unbind(self):
+        activity.unbind(on_activity_result=self._on_activity_result)
+
     def _on_activity_result(self, requestCode: int, resultCode: int, intent):
         if requestCode != self.REQUEST_CODE_BIOMETRIC_ACTIVITY:
             return
@@ -155,7 +163,7 @@ class QEBiometrics(AuthMixin, QObject):
         self._current_action = None
 
         try:
-            activity.unbind(on_activity_result=self._on_activity_result)
+            self.unbind()
             if resultCode == -1: # RESULT_OK
                 data = intent.getStringExtra(jString("data"))
                 if action == BiometricAction.ENCRYPT:
