@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 from electrum.i18n import _
 from electrum.plugin import hook
@@ -14,16 +14,20 @@ if TYPE_CHECKING:
     from electrum.gui.qml import ElectrumQmlApplication
     from electrum.wallet import Abstract_Wallet
     from electrum.wizard import NewWalletWizard
+    from electrum.transaction import PartialTransaction
+
+    from .trustedcoin import Wallet_2fa
 
 
 class Plugin(TrustedCoinPlugin):
     def __init__(self, *args):
         super().__init__(*args)
-        self._app = None
-        self.so = None
-        self.on_success = None
-        self.on_failure = None
-        self.tx = None
+        self._app = None  # type: ElectrumQmlApplication
+        self.wallet = None  # type: Wallet_2fa
+        self.so = None  # type: TrustedcoinPluginQObject
+        self.on_success = None  # type: Callable
+        self.on_failure = None  # type: Callable
+        self.tx = None  # type: PartialTransaction
 
     @hook
     def load_wallet(self, wallet: 'Abstract_Wallet'):
@@ -101,7 +105,13 @@ class Plugin(TrustedCoinPlugin):
 
     # running wallet functions
 
-    def prompt_user_for_otp(self, wallet, tx, on_success, on_failure):
+    def prompt_user_for_otp(
+        self,
+        wallet: 'Wallet_2fa',
+        tx: 'PartialTransaction',
+        on_success: Callable,
+        on_failure: Callable
+    ):
         self.logger.debug('prompt_user_for_otp')
         self.on_success = on_success
         self.on_failure = on_failure if on_failure else lambda x: self.logger.error(x)
@@ -111,11 +121,11 @@ class Plugin(TrustedCoinPlugin):
         qewallet.request_otp(self.on_otp)
 
     def on_otp(self, otp):
+        self.logger.debug('on_otp')
+
         if not otp:
             self.on_failure(_('No auth code'))
             return
-
-        self.logger.debug(f'on_otp {otp} for tx {repr(self.tx)}')
 
         try:
             self.wallet.on_otp(self.tx, otp)
