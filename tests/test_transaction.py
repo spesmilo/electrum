@@ -2,14 +2,15 @@ import json
 import os
 from typing import NamedTuple, Union
 
-from electrum_ecc import ECPrivkey
+from electrum_ecc import ECPrivkey, ECPubkey
+from electrum_ecc.util import bip340_tagged_hash
 
 from electrum import transaction, bitcoin
 from electrum.transaction import (convert_raw_tx_to_hex, tx_from_any, Transaction,
                                   PartialTransaction, TxOutpoint, PartialTxInput,
                                   PartialTxOutput, Sighash, match_script_against_template,
                                   SCRIPTPUBKEY_TEMPLATE_ANYSEGWIT, TxOutput, script_GetOp,
-                                  MalformedBitcoinScript)
+                                  MalformedBitcoinScript, TapScriptSigningData)
 from electrum.util import bfh
 from electrum.bitcoin import (deserialize_privkey, opcodes,
                               construct_script, construct_witness)
@@ -1124,6 +1125,243 @@ class TestSighashBIP143(ElectrumTestCase):
 
 
 class TestSighashBIP341(ElectrumTestCase):
+
+    # bitcoinjs-lib test/fixtures/psbt.json at ab9fad5978bc1f4fb6542d1cde903d4427c3344e,
+    # "Sign PSBT with 1 input [P2TR] (script-path, 3-of-3) and one output [P2TR]".
+    BITCOINJS_UNSIGNED_TX = (
+        "0200000001053618b8ff1d338437cd381dce8944d4cb33b1260e52017631b61b5694c36eba"
+        "0000000000ffffffff01801a060000000000225120df9b0b19ea415d46d1f775dfc4325c601"
+        "087a8d563c3f8e880e80f55d89cd54800000000"
+    )
+    BITCOINJS_PREVOUT_SCRIPT = "5120559c78fad1de39171bd230c99cecadace9cd3862f5b92d0c74c520d4641e4b5e"
+    BITCOINJS_SCRIPT = (
+        "208f891aaf2e2d7b146178c54a87e2aeddd9d1d686692257928e67cf08174ff375ac"
+        "20395f8129dd63b4a5c2f12124eaa05b7a7ed30f70e51fb93305deecc542e7f9ebba"
+        "20a8ab37bc1609d834c3913b3538dad1c84d7f9b6a835ffc175777915a37ae3572ba539c"
+    )
+    BITCOINJS_CONTROL_BLOCK = (
+        "c166b903f8b3576ceca26d30e8787d3c35402831916500dc5500b94cca1f38c3be"
+        "1a529c9fb3cd7e776d61b6225b6c610e8906fb8faa6c59ac5c3e95b5f82d29d6"
+        "1a529c9fb3cd7e776d61b6225b6c610e8906fb8faa6c59ac5c3e95b5f82d29d6"
+    )
+    BITCOINJS_LEAF_HASH = "aea23415d65d2882cb2d981154af0bf419f68a353a21ca2aab22262885addccb"
+    BITCOINJS_PUBKEY = "8f891aaf2e2d7b146178c54a87e2aeddd9d1d686692257928e67cf08174ff375"
+    BITCOINJS_PRIVKEY = "bb17e45f2f0f5d872cdeb6d991f16ffb73d51e91a66c5ed2ba1dfad46e7c581e"
+    BITCOINJS_SIGNATURE = (
+        "74ce475305d31829f4ff1b4e6f008fe71c3becbbeed3c705cdd56340e210da47"
+        "5c0870d8bfa8d18ddc4301acfa0cd1a53e53db3554f807806247fd5148073f3c"
+    )
+    # Generated with bitcoinjs-lib 7.0.0 Transaction.hashForWitnessV1 from the
+    # fixture above. This exercises every BIP341-defined hash type with ext_flag=1.
+    BITCOINJS_SIGHASHES = {
+        Sighash.DEFAULT: "99942b0689ef782c5be603d2189325228bc999e144e10c65423f29e98fd9e938",
+        Sighash.ALL: "65123a859a7d0994505d641aa1259fff03a4776fcdcb3ee972ef4ac03e179f4b",
+        Sighash.NONE: "20e6ef102c03b2abddff3bb20b872d09e48c9f018ca9dff7c0e4ff34fb96b3ff",
+        Sighash.SINGLE: "ffc58d201d986f765cc773c9b355070949410408b52afa754cc8c37e356169a1",
+        Sighash.ALL | Sighash.ANYONECANPAY:
+            "327ce7a9e9dc6ca286d83198046beb7d6e5eac94967f38b4631e38719c73835a",
+        Sighash.NONE | Sighash.ANYONECANPAY:
+            "5dabc9256db23439120ad81485d91da77d149ba6984656fa6237073f996a031b",
+        Sighash.SINGLE | Sighash.ANYONECANPAY:
+            "12766ae3fcb45f6bf3aa91a5cb879e84d10d2a29651008cce8341cf015109b54",
+    }
+    BITCOINJS_ANNEX_SIGHASHES = {
+        Sighash.DEFAULT: "db798afde39e8caa852995b7d51fe2ad7c1d8fcb800e52def4032668538b6fbc",
+        Sighash.NONE | Sighash.ANYONECANPAY:
+            "6f58ffe203fd7fbb8ca02fc3b00e6af4ddddcf3eaba17f72feaa5798f2db29c5",
+    }
+
+    # Bitcoin Core qa-assets, script_assets_test.json at
+    # b33d85102d169b54d966ea315ad81a636680aefa, "sighash/branched_codesep/left".
+    CORE_CODESEP_TX = (
+        "8978a00f01c8fcf6c075055bed05468c08217fcd9834a0cea986e17a5461ad52"
+        "f2c96314c51302000000505f90cb018ea22401000000001600146f246454d9cda265"
+        "b3944397c63270c3c6b160b658010000"
+    )
+    CORE_CODESEP_PREVOUT = (
+        "cab2b101000000002251203cf3576a5e98c16948a4f626ce0fb7ac42b499875f18"
+        "ea92ad913ae63522d523"
+    )
+    CORE_CODESEP_SCRIPT = (
+        "01897563ab20703009f4e84cd691802b7a9075eabd8d0df500d719827f22b1301a"
+        "2e2874038967ab20ef1c38d2738c8d14e5e75007cb88258f2c0b5f9bc8b7e9aa9"
+        "748fdd2f1a5b37468ac"
+    )
+    CORE_CODESEP_CONTROL_BLOCK = (
+        "c1703009f4e84cd691802b7a9075eabd8d0df500d719827f22b1301a2e28740389"
+        "deb4902faa2b24a6d42639bb50c0bfbb077c97c0a0cdf4ed93d76d6175be5c24"
+    )
+    CORE_CODESEP_PUBKEY = "703009f4e84cd691802b7a9075eabd8d0df500d719827f22b1301a2e28740389"
+    CORE_CODESEP_SIGNATURE = (
+        "347d4d5c88fdd439ada417661324ccb7dfacc55269111f2d9cf67f8bb33d2c2f"
+        "88b5b9f3a75c798ce58d2bc0b5ceb3604df6a0159bf44eb7e32c3f69c0ae5960"
+    )
+
+    def _bitcoinjs_tapscript_tx(self):
+        tx = PartialTransaction.from_tx(Transaction(self.BITCOINJS_UNSIGNED_TX))
+        txin = tx.inputs()[0]
+        txin.witness_utxo = TxOutput(
+            scriptpubkey=bfh(self.BITCOINJS_PREVOUT_SCRIPT), value=420_000
+        )
+        txin.tap_script_signing_data = TapScriptSigningData(
+            script=bfh(self.BITCOINJS_SCRIPT),
+            control_block=bfh(self.BITCOINJS_CONTROL_BLOCK),
+        )
+        return tx, txin
+
+    def test_tapscript_sighash_and_signing_bitcoinjs_vector(self):
+        tx, _txin = self._bitcoinjs_tapscript_tx()
+        preimage = tx.serialize_preimage(0)
+        self.assertEqual(
+            self.BITCOINJS_LEAF_HASH,
+            bitcoin.tapleaf_hash(leaf_version=0xC0, script=bfh(self.BITCOINJS_SCRIPT)).hex(),
+        )
+        msg_hash = bip340_tagged_hash(b"TapSighash", preimage)
+        self.assertEqual(self.BITCOINJS_SIGHASHES[Sighash.DEFAULT], msg_hash.hex())
+
+        pubkey = ECPubkey(b"\x02" + bfh(self.BITCOINJS_PUBKEY))
+        self.assertTrue(pubkey.schnorr_verify(bfh(self.BITCOINJS_SIGNATURE), msg_hash))
+        signature = tx.sign_txin(0, bfh(self.BITCOINJS_PRIVKEY))
+        self.assertEqual(64, len(signature))
+        self.assertTrue(pubkey.schnorr_verify(signature, msg_hash))
+
+    def test_tapscript_sighash_modes_bitcoinjs(self):
+        tx, txin = self._bitcoinjs_tapscript_tx()
+        for sighash, expected in self.BITCOINJS_SIGHASHES.items():
+            with self.subTest(sighash=sighash):
+                msg_hash = bip340_tagged_hash(
+                    b"TapSighash", tx.serialize_preimage(0, sighash=sighash)
+                )
+                self.assertEqual(expected, msg_hash.hex())
+
+        txin.tap_script_signing_data = txin.tap_script_signing_data._replace(annex=b"\x50annex")
+        for sighash, expected in self.BITCOINJS_ANNEX_SIGHASHES.items():
+            with self.subTest(sighash=sighash, annex=True):
+                msg_hash = bip340_tagged_hash(
+                    b"TapSighash", tx.serialize_preimage(0, sighash=sighash)
+                )
+                self.assertEqual(expected, msg_hash.hex())
+
+    def test_tapscript_codesep_position_is_opcode_ordinal_bitcoin_core(self):
+        tx = PartialTransaction.from_tx(Transaction(self.CORE_CODESEP_TX))
+        txin = tx.inputs()[0]
+        txin.witness_utxo = TxOutput.from_network_bytes(bfh(self.CORE_CODESEP_PREVOUT))
+        txin.tap_script_signing_data = TapScriptSigningData(
+            script=bfh(self.CORE_CODESEP_SCRIPT),
+            control_block=bfh(self.CORE_CODESEP_CONTROL_BLOCK),
+            codesep_pos=3,
+        )
+        msg_hash = bip340_tagged_hash(b"TapSighash", tx.serialize_preimage(0))
+        pubkey = ECPubkey(b"\x02" + bfh(self.CORE_CODESEP_PUBKEY))
+        self.assertTrue(pubkey.schnorr_verify(bfh(self.CORE_CODESEP_SIGNATURE), msg_hash))
+
+        # OP_CODESEPARATOR is opcode ordinal 3 but byte offset 4 in this script.
+        txin.tap_script_signing_data = txin.tap_script_signing_data._replace(codesep_pos=4)
+        with self.assertRaisesRegex(ValueError, "code-separator position"):
+            tx.serialize_preimage(0)
+
+    def test_tapscript_control_block_depth_boundary(self):
+        tx, txin = self._bitcoinjs_tapscript_tx()
+        data = txin.tap_script_signing_data
+        internal_key = data.control_block[1:33]
+        merkle_path = data.control_block[33:] + bytes(32 * 126)
+        root = bitcoin.tapleaf_hash(leaf_version=0xC0, script=data.script)
+        for pos in range(0, len(merkle_path), 32):
+            sibling = merkle_path[pos:pos + 32]
+            root = bip340_tagged_hash(b"TapBranch", min(root, sibling) + max(root, sibling))
+        parity, output_key = bitcoin.taproot_tweak_pubkey(internal_key, root)
+        control_block = bytes([0xC0 | parity]) + internal_key + merkle_path
+        txin.witness_utxo = TxOutput(scriptpubkey=b"\x51\x20" + output_key, value=txin.value_sats())
+
+        data = data._replace(control_block=control_block)
+        self.assertEqual(128, (len(control_block) - 33) // 32)
+        data.validate(scriptpubkey=txin.scriptpubkey)
+        with self.assertRaisesRegex(ValueError, "too deep"):
+            data._replace(control_block=control_block + bytes(32)).validate(
+                scriptpubkey=txin.scriptpubkey
+            )
+
+    def test_tapscript_signing_rejects_tampered_metadata(self):
+        def mutate_script(data):
+            return data._replace(script=data.script + b"\x00")
+
+        def mutate_control_path(data):
+            return data._replace(control_block=data.control_block[:-1] + bytes([data.control_block[-1] ^ 1]))
+
+        def mutate_leaf_version(data):
+            return data._replace(control_block=b"\xc2" + data.control_block[1:])
+
+        for name, mutate in (
+            ("script", mutate_script),
+            ("control path", mutate_control_path),
+            ("leaf version", mutate_leaf_version),
+            ("internal key", lambda data: data._replace(
+                control_block=data.control_block[:1] + b"\xff" * 32 + data.control_block[33:])),
+            ("parity", lambda data: data._replace(
+                control_block=bytes([data.control_block[0] ^ 1]) + data.control_block[1:])),
+            ("annex", lambda data: data._replace(annex=b"invalid")),
+            ("key version", lambda data: data._replace(key_version=1)),
+            ("codesep range", lambda data: data._replace(codesep_pos=2**32)),
+            ("codesep opcode", lambda data: data._replace(codesep_pos=0)),
+        ):
+            with self.subTest(name=name):
+                tx, txin = self._bitcoinjs_tapscript_tx()
+                txin.tap_script_signing_data = mutate(txin.tap_script_signing_data)
+                with self.assertRaises((TypeError, ValueError)):
+                    tx.sign_txin(0, bfh(self.BITCOINJS_PRIVKEY))
+
+        tx, txin = self._bitcoinjs_tapscript_tx()
+        txin.witness_utxo = TxOutput(
+            scriptpubkey=txin.scriptpubkey[:-1] + bytes([txin.scriptpubkey[-1] ^ 1]),
+            value=txin.value_sats(),
+        )
+        with self.assertRaisesRegex(ValueError, "control block"):
+            tx.sign_txin(0, bfh(self.BITCOINJS_PRIVKEY))
+
+        for control_block in (b"", b"\xc0" + bytes(33), b"\xc0" + bytes(32 * 130)):
+            with self.subTest(control_block_len=len(control_block)):
+                tx, txin = self._bitcoinjs_tapscript_tx()
+                txin.tap_script_signing_data = txin.tap_script_signing_data._replace(
+                    control_block=control_block
+                )
+                with self.assertRaisesRegex(ValueError, "control block"):
+                    tx.sign_txin(0, bfh(self.BITCOINJS_PRIVKEY))
+
+    def test_tapscript_signing_rejects_invalid_transaction_metadata(self):
+        tx, txin = self._bitcoinjs_tapscript_tx()
+        txin.sighash = 4
+        with self.assertRaisesRegex(ValueError, "SIGHASH_FLAG"):
+            tx.sign_txin(0, bfh(self.BITCOINJS_PRIVKEY))
+
+        tx, txin = self._bitcoinjs_tapscript_tx()
+        txin.prevout = TxOutpoint(txid=bytes(31), out_idx=0)
+        with self.assertRaisesRegex(ValueError, "outpoint"):
+            tx.sign_txin(0, bfh(self.BITCOINJS_PRIVKEY))
+
+        tx, txin = self._bitcoinjs_tapscript_tx()
+        txin._witness_utxo = None
+        with self.assertRaisesRegex(ValueError, "input value"):
+            tx.sign_txin(0, bfh(self.BITCOINJS_PRIVKEY))
+        with self.assertRaisesRegex(ValueError, "input index"):
+            tx.sign_txin(-1, bfh(self.BITCOINJS_PRIVKEY))
+
+        tx, _txin = self._bitcoinjs_tapscript_tx()
+        tx.add_inputs([
+            PartialTxInput(prevout=TxOutpoint(txid=b"\x02" * 32, out_idx=0))
+        ], BIP69_sort=False)
+        with self.assertRaisesRegex(ValueError, "input value"):
+            tx.sign_txin(0, bfh(self.BITCOINJS_PRIVKEY))
+
+    def test_tapscript_metadata_propagation_and_psbt_boundary(self):
+        tx, txin = self._bitcoinjs_tapscript_tx()
+        serialized = tx.serialize_as_bytes(force_psbt=True)
+        copied_txin = PartialTxInput.from_txin(txin)
+        self.assertEqual(txin.tap_script_signing_data, copied_txin.tap_script_signing_data)
+        copied_tx = PartialTransaction.from_tx(tx)
+        self.assertEqual(txin.tap_script_signing_data, copied_tx.inputs()[0].tap_script_signing_data)
+
+        txin.tap_script_signing_data = txin.tap_script_signing_data._replace(annex=b"\x50annex")
+        self.assertEqual(serialized, tx.serialize_as_bytes(force_psbt=True))
 
     def test_taproot_keypath_spending(self):
         test_vector_file = os.path.join(os.path.dirname(__file__), "bip-0341", "wallet-test-vectors.json")
