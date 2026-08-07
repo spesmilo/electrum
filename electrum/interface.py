@@ -176,7 +176,7 @@ class NotificationSession(RPCSession):
         self.interface = interface
         self.taskgroup = interface.taskgroup
         assert hasattr(self, "cost_hard_limit")  # in base class
-        self.cost_hard_limit = 0  # disable aiorpcx resource limits
+        self.cost_hard_limit = 0  # disable aiorpcx resource limits  # TODO secondaries
         assert hasattr(self, "initial_concurrent")  # in base class
         self.initial_concurrent = self.INC_REQ_CONCURRENCY_FOR_OTHER_IFACE
         self._incoming_concurrency.set_target(self.INC_REQ_CONCURRENCY_FOR_OTHER_IFACE)  # this limits memory usage
@@ -635,6 +635,7 @@ class Interface(Logger):
         # Failing verification will get the interface closed.
         self.tip_header = None  # type: Optional[dict]
         self.tip = 0
+        self._tip_unprocessed_evt = asyncio.Event()
 
         self._headers_cache = {}  # type: Dict[int, bytes]
         self._rawtx_cache = LRUCache(maxsize=20)  # type: LRUCache[str, bytes]  # txid->rawtx
@@ -1080,7 +1081,8 @@ class Interface(Logger):
                 async with self.taskgroup as group:
                     await group.spawn(self.ping)
                     await group.spawn(self.request_fee_estimates)
-                    await group.spawn(self.run_fetch_blocks)
+                    await group.spawn(self._subscribe_to_headers)
+                    await group.spawn(self._loop_process_header_at_tip)
                     await group.spawn(self.monitor_connection)
             except aiorpcx.jsonrpc.RPCError as e:
                 if e.code in (
@@ -1145,11 +1147,11 @@ class Interface(Logger):
             await self.session.close(force_after=force_after)
         # monitor_connection will cancel tasks
 
-    async def run_fetch_blocks(self):
-        header_queue = asyncio.Queue(maxsize=1)  # maxsize limits memory usage
-        await self.session.subscribe('blockchain.headers.subscribe', [], header_queue)
+    async def _subscribe_to_headers(self):
+        unsanitized_header_queue = asyncio.Queue(maxsize=1)  # maxsize limits memory usage
+        await self.session.subscribe('blockchain.headers.subscribe', [], unsanitized_header_queue)
         while True:
-            item = await header_queue.get()
+            item = await unsanitized_header_queue.get()
             # parse response
             assert len(item) == 1
             resp_header = item[0]
@@ -1166,16 +1168,22 @@ class Interface(Logger):
             if self.tip < constants.net.max_checkpoint():
                 raise GracefulDisconnect(
                     f"server tip below max checkpoint. ({self.tip} < {constants.net.max_checkpoint()})")
-            self._mark_ready()
             self._headers_cache.clear()  # tip changed, so assume anything could have happened with chain
             self._headers_cache[height] = header_bytes
+            self._tip_unprocessed_evt.set()
+
+    async def _loop_process_header_at_tip(self):
+        while True:
+            # wait until tip changes
+            await self._tip_unprocessed_evt.wait()
+            self._mark_ready()
             try:
                 blockchain_updated = await self._process_header_at_tip()
             finally:
                 self._headers_cache.clear()  # to reduce memory usage
             # header processing done
             if self.is_main_server() or blockchain_updated:
-                self.logger.info(f"new chain tip. {height=}")
+                self.logger.info(f"new chain tip. height={self.tip}")
             if blockchain_updated:
                 util.trigger_callback('blockchain_updated')
                 self._blockchain_updated.set()
@@ -1191,7 +1199,7 @@ class Interface(Logger):
         True - new header we didn't have, or reorg
         """
         height, header = self.tip, self.tip_header
-        async with self.network.bhi_lock:
+        async with self.network.bhi_lock:  # FIXME secondary server can starve main
             if self.blockchain.height() >= height and self.blockchain.check_header(header):
                 # another interface amended the blockchain
                 return False
