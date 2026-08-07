@@ -159,20 +159,25 @@ class JsonDB(Logger):
         # json roundtrip: recursively converts int keys to str
         return json.loads(json.dumps(data))
 
-    def maybe_load_incomplete_data(self, s):
-        n = s.count('{') - s.count('}')
-        i = len(s)
-        while n > 0 and i > 0:
-            i = i - 1
-            if s[i] == '{':
-                n = n - 1
-            if s[i] == '}':
-                n = n + 1
-            if n == 0:
-                s = s[0:i]
-                assert s[-2:] == ',\n'
-                self.logger.info('found incomplete data')
-                return self.load_data(s[0:-2])
+    def maybe_load_incomplete_data(self, s: str) -> Optional[Dict[str, Any]]:
+        """Try to recover a file that was truncated mid-write (e.g. crash during append).
+        The file consists of a JSON object followed by JSON patches, separated by ',\n'
+        (see _append_pending_changes). We parse complete segments with a real JSON parser,
+        and drop the incomplete tail (note there might be '{' and '}' in user-controled input).
+        """
+        decoder = json.JSONDecoder()
+        end: Optional[int] = None  # end of last complete segment
+        try:
+            _, end = decoder.raw_decode(s)  # main json object
+            while end < len(s):
+                if not (s.startswith(',\n', end) or s[end:] == ','):
+                    return None  # unexpected structure, not a truncated append. cannot recover.
+                _, end = decoder.raw_decode(s, end + 2)  # patch
+        except json.JSONDecodeError:
+            if end is None:
+                return None  # main json object itself is truncated. cannot recover.
+            self.logger.warning(f'found incomplete data, dropping {len(s) - end} trailing characters from json database')
+            return self.load_data(s[0:end])
 
     def set_modified(self, b):
         with self.lock:
