@@ -75,6 +75,8 @@ SWAP_TX_SIZE = 150  # default tx size, used for mining fee estimation
 # for a server for a given swap (high mempool feerates AND low swap value AND tx_batcher creates tx with many inputs).
 
 MIN_SWAP_AMOUNT_SAT = 20_000
+MAX_PREPAY_RATIO = 0.5
+MAX_PREPAY_FEE_MULTIPLIER = 4
 MIN_LOCKTIME_DELTA = 60
 MIN_LOCKTIME_DELTA_FOR_CLAIM = 30  # minimum amt of blocks we want to have left when broadcasting a claim tx
 LOCKTIME_DELTA_REFUND = 70
@@ -727,6 +729,16 @@ class SwapManager(Logger):
             if costs_ratio > 0.15:
                 raise exc
 
+    def _sanity_check_prepayment(self, *, prepayment_sat: int, lightning_amount_sat: int):
+        max_prepayment_sat = min(
+            int(MAX_PREPAY_RATIO * lightning_amount_sat),
+            MAX_PREPAY_FEE_MULTIPLIER * self.get_fee_for_txbatcher(),
+        )
+        if prepayment_sat > max_prepayment_sat:
+            raise UserFacingException(
+                _("Mining fee prepayment requested by the swap provider is insane.")
+                + f"\n({prepayment_sat=} sat, {max_prepayment_sat=} sat)")
+
     def get_swap(self, payment_hash: bytes) -> Optional[SwapData]:
         # for history
         swap = self._swaps.get(payment_hash.hex())
@@ -817,6 +829,8 @@ class SwapManager(Logger):
             invoice_amount_sat = lightning_amount_sat - prepay_amount_sat
         else:
             invoice_amount_sat = lightning_amount_sat
+        if invoice_amount_sat <= 0:
+            raise Exception(f"negative {invoice_amount_sat=}")
 
         # add payment info to lnworker
         self.lnworker.add_payment_info_for_hold_invoice(
@@ -1234,8 +1248,8 @@ class SwapManager(Logger):
         """
         assert self.network
         assert self.lnwatcher
-        self._sanity_check_swap_costs(
-            incoming_sat=expected_onchain_amount_sat, outgoing_sat=lightning_amount_sat)
+        self._sanity_check_swap_costs(incoming_sat=expected_onchain_amount_sat, outgoing_sat=lightning_amount_sat)
+        self._sanity_check_prepayment(prepayment_sat=prepayment_sat, lightning_amount_sat=lightning_amount_sat)
         privkey = os.urandom(32)
         our_pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
         preimage = os.urandom(32)
@@ -1352,7 +1366,7 @@ class SwapManager(Logger):
     def server_update_pairs(self) -> None:
         """ for server """
         self.percentage = Decimal(self.config.SWAPSERVER_FEE_MILLIONTHS) / 10000  # type: ignore
-        self._min_amount = MIN_SWAP_AMOUNT_SAT
+        self._min_amount = MIN_SWAP_AMOUNT_SAT  # FIXME: adapt to mining fee environment
         oc_balance_sat: int = self.wallet.get_spendable_balance_sat()
         MAX_SWAP_AMT = bitcoin.COIN // 10  # just to minimise accidental damage. not enforced client-side
         max_forward: int = min(int(self.lnworker.num_sats_can_receive()), oc_balance_sat, MAX_SWAP_AMT)
