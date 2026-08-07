@@ -1228,7 +1228,8 @@ class Transaction:
             tx.convert_all_utxos_to_witness_utxos()
             is_complete = False
         tx_bytes = tx.serialize_as_bytes()
-        return base_encode(tx_bytes, base=43), is_complete
+        tx_base43 = base_encode(tx_bytes, base=43)  # FIXME this takes quadratic time in len(tx)
+        return tx_base43, is_complete
 
     def txid(self) -> Optional[str]:
         if self._cached_txid is None:
@@ -1499,17 +1500,26 @@ def convert_raw_tx_to_hex(raw: Union[str, bytes]) -> str:
         return binascii.unhexlify(raw).hex()
     except Exception:
         pass
-    # try base43
-    try:
-        return base_decode(raw, base=43).hex()
-    except Exception:
-        pass
     # try base64
     if raw[0:6] in ('cHNidP', b'cHNidP'):  # base64 psbt
         try:
             return base64.b64decode(raw, validate=True).hex()
         except Exception:
             pass
+    # try base43
+    try:
+        # FIXME This takes quadratic time in len(tx).
+        #       We could prefix all txs we base43-serialize with e.g. "BASE43TX:",
+        #       (and break-compat with old versions).  Then at least we would not attempt
+        #       the expensive deser here if it's not needed.
+        if len(raw) > 30_000:
+            # note: base_decode for this length takes around 0.2 sec on my laptop.
+            # note: We only use/expect base43 inside QR codes. The max data a QR can fit is around 4 KB,
+            #       serializing that to b43 results in a length of ~5500. 30k is already over 5x that.
+            raise ValueError("raw tx too large for base43")
+        return base_decode(raw, base=43).hex()
+    except Exception:
+        pass
     # raw bytes
     if isinstance(raw, (bytes, bytearray)):
         return raw.hex()
