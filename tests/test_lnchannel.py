@@ -1008,6 +1008,43 @@ class TestDust(ElectrumTestCase):
         self.assertEqual(2, len(bob_channel.get_next_commitment(LOCAL).outputs()) - (2 if self.TEST_ANCHOR_CHANNELS else 0))
         self.assertEqual(htlc_amt, alice_channel.total_msat(SENT) // 1000)
 
+    async def test_DustLimit_at_trim_threshold(self):
+        """An HTLC worth *exactly* the trim threshold must NOT be trimmed.
+
+        BOLT-3 only trims when "the HTLC amount minus the HTLC-timeout/success fee
+        would be less than dust_limit_satoshis". For anchor channels that fee is
+        zero, so the threshold collapses onto the dust limit itself.
+        """
+        alice_channel, bob_channel = create_test_channels(
+            alice_lnwallet=self.alice_lnwallet, bob_lnwallet=self.bob_lnwallet)
+        dust_limit_bob = bob_channel.config[LOCAL].dust_limit_sat
+        feerate = bob_channel.get_next_feerate(LOCAL)
+        threshold_sat = lnutil.received_htlc_trim_threshold_sat(
+            dust_limit_sat=dust_limit_bob, feerate=feerate,
+            has_anchors=self.TEST_ANCHOR_CHANNELS)
+        htlc = UpdateAddHtlc(
+            payment_hash=bitcoin.sha256(b"\x01" * 32),
+            amount_msat=1000 * threshold_sat,
+            cltv_abs=5,  # consistent with channel policy
+            timestamp=0,
+        )
+        alice_channel.add_htlc(htlc)
+        bob_channel.receive_htlc(htlc)
+
+        ctn = bob_channel.get_next_ctn(LOCAL)
+        ctx = bob_channel.get_next_commitment(LOCAL)
+        _secret, pcp = bob_channel.get_secret_and_point(subject=LOCAL, ctn=ctn)
+        # the htlc counts as non-dust for fee purposes...
+        self.assertEqual(1, len(bob_channel.included_htlcs(LOCAL, RECEIVED, ctn=ctn)))
+        # ...so it must really have an output in the ctx
+        self.assertEqual(3, len(ctx.outputs()) - (2 if self.TEST_ANCHOR_CHANNELS else 0))
+        self.assertIn(threshold_sat, [x.value for x in ctx.outputs()])
+        self.assertEqual(1, len(lnutil.map_htlcs_to_ctx_output_idxs(
+            chan=bob_channel, ctx=ctx, pcp=pcp, subject=LOCAL, ctn=ctn)))
+        # ...and the peer must be sent exactly one htlc signature for it
+        _sig, htlc_sigs = alice_channel.sign_next_commitment()
+        self.assertEqual(1, len(htlc_sigs))
+
 
 class TestDustNoAnchors(TestDust):
     assert TestDust.TEST_ANCHOR_CHANNELS is True
