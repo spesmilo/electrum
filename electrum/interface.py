@@ -165,6 +165,8 @@ class ChainResolutionMode(enum.Enum):
 
 class NotificationSession(RPCSession):
 
+    COST_INCOMING_REQUEST = 100
+
     def __init__(self, *args, interface: 'Interface', **kwargs):
         super(NotificationSession, self).__init__(*args, **kwargs)
         self.subscriptions = defaultdict(list)  # type: defaultdict[str, list[asyncio.Queue]]
@@ -172,14 +174,16 @@ class NotificationSession(RPCSession):
         self._msg_counter = itertools.count(start=1)
         self.interface = interface
         self.taskgroup = interface.taskgroup
-        self.cost_hard_limit = 0  # disable aiorpcx resource limits
+        self.set_strict_resource_limits()
 
         # To log pre-processed json traffic, uncomment:
         #self.logger.setLevel(logging.DEBUG)  # from aiorpcx
         #self.verbosity = 4
 
     async def handle_request(self, request):
+        # note: we get called for incoming Requests and Notifications. (not for Responses)
         self.maybe_log(f"--> {request}")
+        self.bump_cost(self.COST_INCOMING_REQUEST)
         try:
             if isinstance(request, Notification):
                 params, result = request.args[:-1], request.args[-1]
@@ -276,6 +280,40 @@ class NotificationSession(RPCSession):
             #       wait until this timeout is triggered
             force_after = 1  # seconds
         await super().close(force_after=force_after)
+
+    def set_strict_resource_limits(self):
+        # Apply strict resource limits to each interface.
+        # - This limits incoming bandwidth, and indirectly limits e.g. memory usage.
+        #   FIXME limit memory usage directly
+        #   - confusingly for our "client" use case, outgoing bandwidth is also counted,
+        #     however any meaningful limiting only happens in _throttled_message->_incoming_concurrency,
+        #     which only gets called on inc-notifications and inc-requests (reqs we should not receive though).
+        #   - processing an inc-notification or an inc-request also incurs COST_INCOMING_REQUEST.
+        # - These limits are intended for the non-main secondary interfaces,
+        #   as the main interface is expected to have a lot of traffic.
+        # - Secondary interfaces should generate minimal traffic:
+        #   as they are only used for polled fee estimates (minimal data) and header subs (minimal data).
+        #   Note a header notification can force us into fork resolution and downloading lots
+        #   of headers. The initial headers download might also happen on any interface.
+        #   Headers download uses non-trivial amounts of data, e.g. 100k x 160 hex headers take 16 MB.
+        assert hasattr(NotificationSession, "cost_hard_limit")  # in base class
+        self.bw_cost_per_byte = 1 / 1_000
+        self.cost_hard_limit = 30_000  # 30 MB of bandwidth, in+out
+        self.cost_soft_limit = self.cost_hard_limit - 1  # this effectively disables the soft limit
+        self.cost_decay_per_sec = self.cost_hard_limit / 600  # refund over 10 minutes
+
+    def remove_resource_limits(self):
+        assert hasattr(NotificationSession, "cost_hard_limit")  # in base class
+        # remove static limits:
+        self.cost_hard_limit = 0
+        self.cost_soft_limit = 0
+        # try to reset costs incurred so far (e.g. when promoting a non-main interface to main):
+        self._cost_last = self.cost = 0
+        self._cost_fraction = 0
+        self._incoming_concurrency.set_target(self.initial_concurrent)
+
+    def on_disconnect_due_to_excessive_session_cost(self):
+        self.interface.logger.info(f"closing session over resource usage. cost={self.cost}")
 
 
 class NetworkException(Exception): pass
@@ -982,6 +1020,11 @@ class Interface(Logger):
         return (self.network.interface == self or
                 self.network.interface is None and self.network.default_server == self.server)
 
+    def mark_as_main_server(self) -> None:
+        """Called when the network switches to this interface."""
+        assert self.session
+        self.session.remove_resource_limits()
+
     async def open_session(
         self,
         *,
@@ -1110,7 +1153,7 @@ class Interface(Logger):
             assert len(resp_header) == 2, f"resp_header contains redundant fields. got {resp_header.keys()}"
             header_dict = blockchain.deserialize_header(header_bytes, height)
             # process header
-            self.tip_header = header_dict
+            self.tip_header = header_dict  # TODO assert it got changed to something different?
             self.tip = height
             if self.tip < constants.net.max_checkpoint():
                 raise GracefulDisconnect(

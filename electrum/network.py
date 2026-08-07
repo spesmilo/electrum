@@ -891,6 +891,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
         # Stop any current interface in order to terminate subscriptions,
         # and to cancel tasks in interface.taskgroup.
+        # This also indirectly undoes i.mark_as_main_server().
         if old_server and old_server != server:
             # don't wait for old_interface to close as that might be slow:
             await self.taskgroup.spawn(self._close_interface(old_interface))
@@ -907,6 +908,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             self.logger.info(f"switching to {server}")
             blockchain_updated = i.blockchain != self.blockchain()
             self.interface = i
+            i.mark_as_main_server()
             try:
                 await i.taskgroup.spawn(self._request_server_info(i))
             except RuntimeError as e:  # see #7677

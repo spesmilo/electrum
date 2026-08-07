@@ -210,3 +210,31 @@ class TestInterface(ElectrumTestCase):
                 await self._get_server_session().send_request('blockchain.block.header', [999])
         self.assertTrue(any(("Interface.[127.0.0.1:" in msg and "unexpected request. not a notification" in msg)
                             for msg in logs.output))
+
+    async def test_we_disconnect_on_incoming_notification_spam(self):
+        """We don't expect the server to send us any requests of its own."""
+        interface = await self._start_iface_and_wait_for_sync()
+        # set lower resource limits on client
+        assert interface.session.cost_hard_limit > 0
+        interface.session.cost_hard_limit /= 30
+        interface.session.cost_soft_limit = interface.session.cost_hard_limit - 1
+        interface.session.bw_cost_per_byte *= 10
+        with self.assertLogs('electrum', level='INFO') as logs:
+            # server now sends a crazy number of notifications to the client
+            srv_sess = self._get_server_session()
+            headersub_res = (srv_sess._get_headersub_result(),)
+            spam_count = 200_000
+            for i in range(spam_count):
+                if srv_sess.got_disconnected.is_set():
+                    break
+                await srv_sess.send_notification('blockchain.headers.subscribe', headersub_res)
+            # both parties should close their end of the session (triggered by the client DC-ing)
+            await asyncio.sleep(0)
+            assert srv_sess.got_disconnected.is_set()
+            async with util.async_timeout(1):
+                await interface.got_disconnected.wait()
+        # the client should not have received most of the spam:
+        assert interface.session.recv_count < spam_count / 20
+        assert interface.session.cost > interface.session.cost_hard_limit
+        self.assertTrue(any(("Interface.[127.0.0.1:" in msg and "closing session over resource usage" in msg)
+                            for msg in logs.output))
