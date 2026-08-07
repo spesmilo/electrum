@@ -214,6 +214,27 @@ class NotificationSession(RPCSession):
             if isinstance(e, asyncio.CancelledError):
                 raise
 
+    async def _throttled_request(self, request):
+        # If we are already processing too many received messages, pause reading from the transport.
+        # This limits memory usage.
+        # FIXME this is a horrible ugly hack, accessing deep internals inside aiorpcx.
+        #       A proper fix instead should be implemented inside aiorpcx.
+        #       A proper fix should also be looking at the cumulative byte size of pending requests,
+        #       instead of request count.
+        # note: we get called for incoming Requests and Notifications. (not for Responses)
+        #       As we are not server, we don't expect getting Requests: handle_request will raise and close().
+        rstransport = self.transport  # type: PaddedRSTransport
+        asyncio_transport = rstransport._asyncio_transport  # type: asyncio.Transport
+        if self._incoming_concurrency._semaphore.locked():
+            asyncio_transport.pause_reading()
+        try:
+            return await super()._throttled_request(request)
+        finally:
+            # Just finished processing one received request. If there are not too many unprocessed ones
+            # AND the outgoing send buffer has room, we can resume reading:
+            if not self._incoming_concurrency._semaphore.locked() and rstransport._can_send.is_set():
+                asyncio_transport.resume_reading()
+
     async def send_request(self, *args, timeout=None, **kwargs):
         # note: semaphores/timeouts/backpressure etc are handled by
         # aiorpcx. the timeout arg here in most cases should not be set
