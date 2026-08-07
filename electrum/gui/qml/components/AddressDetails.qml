@@ -351,6 +351,7 @@ Pane {
     Binding {
         target: AppController
         property: 'secureWindow'
+        when: root.visible  // enables stacking multiple secureWindow dialogs
         value: Boolean(addressdetails.privkey)
     }
 }

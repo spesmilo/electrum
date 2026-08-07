@@ -155,6 +155,7 @@ ElDialog {
             Binding {
                 target: AppController
                 property: 'secureWindow'
+                when: pages.visible  // enables stacking multiple secureWindow dialogs
                 value: pages.contentChildren[pages.currentIndex].securePage
             }
         }
