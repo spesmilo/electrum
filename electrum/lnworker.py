@@ -3975,8 +3975,9 @@ class LNWallet(Logger):
         #        - for example; atm we forward first and then persist "forwarding_info",
         #          so if we segfault in-between and restart, we might forward an HTLC twice...
         #          (same for trampoline forwarding)
-        #        - we could check for the exposure to dust HTLCs, see:
+        #        - we should check for the exposure to dust HTLCs ("max_dust_htlc_exposure_msat"), see:
         #          https://github.com/ACINQ/eclair/pull/1985
+        #          https://github.com/lightning/bolts/blob/35e79db504560b9d3494a0ed07bf1e8379c3663a/02-peer-protocol.md#bounding-exposure-to-trimmed-in-flight-htlcs-max_dust_htlc_exposure_msat
 
         def log_fail_reason(reason: str):
             self.logger.debug(

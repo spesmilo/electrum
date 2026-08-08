@@ -56,7 +56,12 @@ HTLC_OUTPUT_WEIGHT = 172
 FIXED_ANCHOR_SAT = 330
 
 LN_MAX_FUNDING_SAT_LEGACY = pow(2, 24) - 1
-DUST_LIMIT_MAX = 1000
+
+# We should tolerate higher-ish "dust_limit_sat" for channels,
+# however we cannot set this too high until we implement "max_dust_htlc_exposure_msat".
+# Until then, our exposure is (max_accepted_htlcs * dust_limit_sat).
+# ref https://github.com/lightning/bolts/commit/b456256b2e515359da3ff8bb14bb0337cac24969
+DUST_LIMIT_MAX = 5_000
 
 SCRIPT_TEMPLATE_FUNDING = [opcodes.OP_2, OPPushDataPubkey, OPPushDataPubkey, opcodes.OP_2, opcodes.OP_CHECKMULTISIG]
 
