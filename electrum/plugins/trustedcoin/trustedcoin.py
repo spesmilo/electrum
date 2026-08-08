@@ -366,6 +366,8 @@ class Wallet_2fa(Multisig_Wallet):
                 raise Exception('trustedcoin billing address inconsistency.. '
                                 'for index {}, already saved {}, now got {}'
                                 .format(billing_index, saved_addr, address))
+        if billing_index > 50_000:  # otherwise DOS against CPU/memory/disk
+            raise Exception(f"trustedcoin billing_index too high. got {billing_index} > 50_000")
         # do we have all prior indices? (are we synced?)
         largest_index_we_have = max(billing_addresses_of_this_type) if billing_addresses_of_this_type else -1
         if largest_index_we_have + 1 < billing_index:  # need to sync
