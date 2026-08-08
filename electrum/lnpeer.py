@@ -1412,6 +1412,10 @@ class Peer(Logger, EventListener):
         funding_idx = funding_created['funding_output_index']
         funding_txid = funding_created['funding_txid'][::-1].hex()
         channel_id, funding_txid_bytes = channel_id_from_funding_tx(funding_txid, funding_idx)
+
+        if channel_id in self.lnworker._channels or channel_id in self.lnworker._channel_backups:
+            raise Exception('cannot add new channel: channel_id collision')
+
         constraints = ChannelConstraints(
             flags=channel_flags,
             capacity=funding_sat,
