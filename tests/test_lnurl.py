@@ -18,8 +18,55 @@ class TestLnurl(TestCase):
             lnurl_)
 
     def test_lightning_address_to_url(self):
-        url = lnurl.lightning_address_to_url("mempool@jhoenicke.de")
-        self.assertEqual("https://jhoenicke.de/.well-known/lnurlp/mempool", url)
+        for address, expected in (
+            ("mempool@jhoenicke.de",
+             "https://jhoenicke.de/.well-known/lnurlp/mempool"),
+            ("first.last@sub.domain.example.co.uk",
+             "https://sub.domain.example.co.uk/.well-known/lnurlp/first.last"),
+            ("Some_User-1@Example.COM",
+             "https://Example.COM/.well-known/lnurlp/Some_User-1"),
+            ("user-with+tag@domain.com",
+             "https://domain.com/.well-known/lnurlp/user-with+tag")
+        ):
+            self.assertEqual(expected, lnurl.lightning_address_to_url(address))
+
+        # only one tag
+        for address in (
+            "+user@domain.com",
+            "user++tag@domain.com",
+            "user+tag+@domain.com",
+            "user+tag+othertag@domain.com",
+            "user+@domain.com",
+        ):
+            self.assertIsNone(lnurl.lightning_address_to_url(address), f"should be rejected: {address!r}")
+
+    def test_lightning_address_to_url_rejects_url_metacharacters(self):
+        """username and domain are interpolated into the url, so they must not be able to
+        steer the request elsewhere."""
+        for address in (
+            # path traversal / path append
+            "../../admin/reset@bank.com",
+            "a/b@bank.com",
+            "..@bank.com",
+            ".@bank.com",
+            # percent-encoding, which the server may well decode back into a '/'
+            "a%2e%2e%2fadmin@bank.com",
+            # query and fragment
+            "user?redirect=evil@bank.com",
+            "user#@bank.com",
+            # host trickery
+            "user@bank.com/x.y",
+            "user@bank.com:8443",
+            "user@bank.com@evil.com",
+            "user@127.0.0.1",
+            # trailing newline
+            "user@bank.com\n",
+            # not an address at all
+            "user@localhost",
+            "userbank.com",
+            "",
+        ):
+            self.assertIsNone(lnurl.lightning_address_to_url(address), f"should be rejected: {address!r}")
 
     def test_parse_lnurl3_response(self):
         # Test successful parsing with all fields
