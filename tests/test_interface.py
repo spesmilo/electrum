@@ -94,7 +94,6 @@ class MockNetwork:
     def get_local_height(self) -> int:
         return self.blockchain().height()
 
-
 class TestInterface(ElectrumTestCase):
     REGTEST = True
 
@@ -169,16 +168,16 @@ class TestInterface(ElectrumTestCase):
         self.assertEqual(self._get_server_session()._method_counts["blockchain.transaction.get"], 0)
 
     async def test_dont_request_gethistory_if_status_change_results_from_mempool_txs_simply_getting_mined(self):
-        """After a new block is mined, we recv "blockchain.scripthash.subscribe" notifs.
+        """After a new block is mined, we recv "blockchain.scriptpubkey.subscribe" notifs.
         We opportunistically guess the scripthash status changed purely because touching mempool txs just got mined.
-        If the guess is correct, we won't call the "blockchain.scripthash.get_history" RPC.
+        If the guess is correct, we won't call the "blockchain.scriptpubkey.get_history" RPC.
         """
         interface = await self._start_iface_and_wait_for_sync()
         server_blockheight = interface.tip
         w1 = restore_wallet_from_text__for_unittest("9dk", path=None, config=self.config)['wallet']  # type: Abstract_Wallet
         w1.start_network(self.network)
         await w1.up_to_date_changed_event.wait()
-        self.assertEqual(self._get_server_session()._method_counts["blockchain.scripthash.get_history"], 0)
+        self.assertEqual(self._get_server_session()._method_counts["blockchain.scriptpubkey.get_history"], 0)
         # fund w1 (in mempool)
         w1_addr = w1.get_receiving_address()
         funding_tx = await self._toyserver.ask_faucet([TxOutput.from_address_and_value(w1_addr, 1 * COIN)])
@@ -186,7 +185,7 @@ class TestInterface(ElectrumTestCase):
         await w1.up_to_date_changed_event.wait()
         while not w1.is_up_to_date():
             await w1.up_to_date_changed_event.wait()
-        self.assertEqual(self._get_server_session()._method_counts["blockchain.scripthash.get_history"], 1)
+        self.assertEqual(self._get_server_session()._method_counts["blockchain.scriptpubkey.get_history"], 1)
         self.assertEqual(
             w1.adb.get_address_history(w1_addr),
             {funding_txid: 0})
@@ -197,7 +196,7 @@ class TestInterface(ElectrumTestCase):
         while not w1.is_up_to_date():
             await w1.up_to_date_changed_event.wait()
         # see if we managed to guess new history, and hence did not need to call get_history RPC
-        self.assertEqual(self._get_server_session()._method_counts["blockchain.scripthash.get_history"], 1)
+        self.assertEqual(self._get_server_session()._method_counts["blockchain.scriptpubkey.get_history"], 1)
         self.assertEqual(
             w1.adb.get_address_history(w1_addr),
             {funding_txid: server_blockheight})

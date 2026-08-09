@@ -34,6 +34,7 @@ import electrum_ecc as ecc
 from electrum_ecc import ECPubkey
 
 from . import constants, util
+from . import bitcoin
 from .util import bfh, chunks, TxMinedInfo, error_text_bytes_to_safe_str, now
 from .bitcoin import redeem_script_to_address, COINBASE_MATURITY
 from .crypto import sha256, sha256d
@@ -476,6 +477,9 @@ class AbstractChannel(Logger, ABC):
     @abstractmethod
     def get_funding_address(self) -> str:
         pass
+
+    def get_funding_scriptpubkey(self) -> bytes:
+        return bitcoin.address_to_script(self.get_funding_address())
 
     def get_funding_tx(self) -> Optional[Transaction]:
         funding_txid = self.funding_outpoint.txid

@@ -102,6 +102,7 @@ class AddressSynchronizer(Logger, EventListener):
 
         self._get_balance_cache = {}
         self._get_utxos_cache = {}
+        self._subscribed_outpoints = {}  # type: dict[str, str]  # outpoint->spk_hint
 
         self.load_and_cleanup()
 
@@ -231,10 +232,20 @@ class AddressSynchronizer(Logger, EventListener):
                 self.network = None
 
     def add_address(self, address: str) -> None:
-        if address not in self.db.history:
-            self.db.history[address] = []
+        if address in self.db.history:
+            return
+        self.db.history[address] = []
         if self.synchronizer:
-            self.synchronizer.add(address)
+            self.synchronizer.add_address(address)
+        self.up_to_date_changed()
+
+    def subscribe_to_outpoint(self, outpoint: str, *, spk_hint: str) -> None:
+        if outpoint in self._subscribed_outpoints:
+            return
+        self._subscribed_outpoints[outpoint] = spk_hint
+        if self.synchronizer:
+            # fixme: launch polling task in synchronizer
+            self.synchronizer.add_outpoint(outpoint, spk_hint=spk_hint)
         self.up_to_date_changed()
 
     @with_lock
@@ -1063,6 +1074,12 @@ class AddressSynchronizer(Logger, EventListener):
                 continue
             if not self.is_mine(o.address):
                 self.add_address(o.address)
+
+    def subscribe_to_tx_outpoints(self, spender_txid: str):
+        spender_tx = self.get_transaction(spender_txid)
+        for i, o in enumerate(spender_tx.outputs()):
+            txo = spender_txid + ':%d'%i
+            self.subscribe_to_outpoint(txo, spk_hint=o.scriptpubkey.hex())
 
     def get_tx_mined_depth(self, txid: str):
         if not txid:

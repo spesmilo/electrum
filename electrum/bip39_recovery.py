@@ -59,8 +59,7 @@ async def account_has_history(network: 'Network', account_node: BIP32Node, scrip
             pubkey = address_node.eckey.get_public_key_hex()
             address = bitcoin.pubkey_to_address(script_type, pubkey)
             script = bitcoin.address_to_script(address)
-            scripthash = bitcoin.script_to_scripthash(script)
-            get_history = network.get_history_for_scripthash(scripthash)
+            get_history = network.get_history_for_spk(script.hex())
             get_history_tasks.append(await group.spawn(get_history))
     for task in get_history_tasks:
         history = task.result()

@@ -477,8 +477,8 @@ class Commands(Logger):
 
         arg:str:address:Bitcoin address
         """
-        sh = bitcoin.address_to_scripthash(address)
-        return await self.network.get_history_for_scripthash(sh)
+        spk = bitcoin.address_to_script(address)
+        return await self.network.get_history_for_spk(spk.hex())
 
     @command('wp')
     async def unlock(self, wallet: Abstract_Wallet = None, password=None):
@@ -505,8 +505,8 @@ class Commands(Logger):
 
         arg:str:address:Bitcoin address
         """
-        sh = bitcoin.address_to_scripthash(address)
-        return await self.network.listunspent_for_scripthash(sh)
+        spk = bitcoin.address_to_script(address)
+        return await self.network.listunspent_for_spk(spk.hex())
 
     @command('')
     async def serialize(self, jsontx):
@@ -753,8 +753,8 @@ class Commands(Logger):
 
         arg:str:address:Bitcoin address
         """
-        sh = bitcoin.address_to_scripthash(address)
-        out = await self.network.get_balance_for_scripthash(sh)
+        spk = bitcoin.address_to_script(address)
+        out = await self.network.get_balance_for_spk(spk.hex())
         out["confirmed"] = format_satoshis(out["confirmed"])
         out["unconfirmed"] = format_satoshis(out["unconfirmed"])
         return out
