@@ -1,3 +1,63 @@
+# Release 4.8.1 (August 10, 2026)
+ * Qt GUI (desktop):
+   - changed: rename color themes for clarity (#10768)
+ * QML GUI & Android:
+   - new: wallets with a name prefixed by "." are now considered "hidden wallets" (#10688)
+     - such wallets are not shown in the wallet list, and can only be opened "by exact name"
+   - changed: bump Android target SDK version to 36 (#10806)
+   - changed: improve UI responsiveness during sync (#10750)
+   - fix: update ConfirmTxDialog onValidChanged (#10754)
+   - fix: strip whitespace from message before signing, as in qt gui (#10787, #10791)
+   - fix: protect WIF keys from screenshots in more places (#10799)
+   - fix: biometrics: avoid ConcurrentModificationException in _on_activity_result (#10812)
+   - changed: trustedcoin: reduce excessive logging (#10818)
+ * General:
+   - changed: transaction: cap max tx size we allow for base43 to 30k chars (#10798)
+   - fix: wallet_db: register onion_keys converter (#10763)
+   - fix: json_db: escape '\' and '~' in json patch pointer (#10764)
+   - fix: json_db: set_modified after removing incomplete data (#10765)
+   - fix: json_db: handle structural json characters in data during recovery (#10775)
+   - fix: json_db: sanitize logging of unserializable values (#10807)
+   - fix: wallet: check_sighash: handle unknown sighash gracefully (#10808)
+   - fix: trustedcoin: billing_index: mitigate against CPU DOS from malicious server (#10822)
+ * Lightning:
+   - new: log warnings if using *experimental* LN forwarding on mainnet (#10837)
+     - you really should not be doing that, yet.
+   - new: lnutil: RevocationStore: add type hints, asserts, sanity checks (#10796)
+   - changed: lnutil: tolerate higher dust_limit_sat for channels (1000->5000 sat) (#10824)
+   - changed: lnrouter: liquidity hints: add extra penalty if amount near cannot_send (#10782)
+   - fix: lnrouter: fee budgets were only partially enforced due to a regression (#10773)
+   - fix: lnrouter: move liquidity hint update to lnworker htlc removal callbacks (#10774)
+   - fix: lnrouter: use split config channel for single channel MPP (#10776)
+   - fix: lnrouter: use separate timestamp per liquidity hint value (#10779)
+   - fix: lnrouter: don't blacklist chans on missing/unchanged channel_update in htlc fail (#10780)
+   - fix: if we are accepting channels, check for channel_id collisions (#10819)
+   - fix: lnurl: restrict lightning address to the LUD-16 charset (#10828)
+   - fix: lnutil: don't trim htlcs equal to dust level. off-by-one. (#10820)
+ * Submarine swaps:
+   - new: introduce unittest suite for submarine swaps (#10827)
+   - fix: destroy swap transport on failed initialization (#10753)
+   - fix: re-bundle_payments on startup (#10811)
+   - fix: nostr: check_dms: duplicate replies from server could crash transport (#10833)
+   - fix: reverse swaps: lower acceptable cltv_delta value (#10836)
+ * Electrum protocol:
+   - new: interface: hardening against resource exhaustion (#10821)
+ * Hardware wallets:
+   - changed: qt: reuse message dialog to fix lag between device prompts, for performance (#10718)
+   - fix: trezor: drop session after closing it (#10781)
+   - fix: coldcard: fix get_soft_device_id() discarding its return value (#10789)
+   - docs: coldcard: add seed-entropy security notice to plugin README (#10805, #10829)
+ * Plugins:
+   - nwc (Nostr Wallet Connect):
+     - fix: don't try to decrypt event with "UNSUPPORTED_ENCRYPTION" (#10831)
+ * Contrib:
+   - changed: android build: cache p4a recipe downloads even for FRESH_CLONE builds (#10744)
+   - changed: android build: don't download unused unpinned platform-tools (#10832)
+ * Dependencies:
+   - drop protobuf from base requirements (#10835)
+     - it is now only needed for hw wallet support (bitbox02, keepkey)
+
+
 # Release 4.8.0 - Artisanal Handwritten Code (July 8, 2026)
  * Security fixes and disclosures:
     - (sev-low) SPV verification: fix CVE-2012-2459: reject left-sibling duplicates (#10568)
