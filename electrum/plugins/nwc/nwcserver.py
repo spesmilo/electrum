@@ -338,6 +338,7 @@ class NWCServer(Logger, EventListener):
             if len(tag) == 2 and tag[0] == 'encryption':
                 if tag[1] not in self.SUPPORTED_ENCRYPTION_SCHEMES:
                     await self.send_error(event, "UNSUPPORTED_ENCRYPTION", " ".join(self.SUPPORTED_ENCRYPTION_SCHEMES))
+                    return
                 break
 
         # decrypt the requests content
