@@ -76,7 +76,6 @@ def check_imports():
         import dns
         import certifi
         import qrcode
-        import google.protobuf
         import aiorpcx
         import aiohttp
         import aiohttp_socks
@@ -87,11 +86,6 @@ def check_imports():
         sys.exit(f"Error: {str(e)}. Some dependencies are missing. Have you read the README? Or just try '$ python3 -m pip install -r contrib/requirements/requirements.txt'")
     if not ((0, 25, 0) <= aiorpcx._version < (0, 26)):
         raise RuntimeError(f'aiorpcX version {aiorpcx._version} does not match required: 0.25.0<=ver<0.26')
-    # the following imports are for pyinstaller
-    from google.protobuf import descriptor
-    from google.protobuf import message
-    from google.protobuf import reflection
-    from google.protobuf import descriptor_pb2
     # make sure that certificates are here
     assert os.path.exists(certifi.where())
 
