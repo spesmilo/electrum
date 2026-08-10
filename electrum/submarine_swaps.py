@@ -39,7 +39,7 @@ from .util import (
     run_sync_function_on_asyncio_thread, trigger_callback, NoDynamicFeeEstimates, UserFacingException, now
 )
 from . import lnutil
-from .lnutil import hex_to_bytes, REDEEM_AFTER_DOUBLE_SPENT_DELAY, Keypair
+from .lnutil import hex_to_bytes, Keypair
 from .bolt11 import decode_bolt11_invoice
 from .stored_dict import StoredObject, stored_at
 from . import constants
@@ -75,13 +75,19 @@ SWAP_TX_SIZE = 150  # default tx size, used for mining fee estimation
 # for a server for a given swap (high mempool feerates AND low swap value AND tx_batcher creates tx with many inputs).
 
 MIN_SWAP_AMOUNT_SAT = 20_000
+MAX_PREPAY_RATIO = 0.5
+MAX_PREPAY_FEE_MULTIPLIER = 4
 MIN_LOCKTIME_DELTA = 60
+MIN_LOCKTIME_DELTA_FOR_CLAIM = 30  # minimum amt of blocks we want to have left when broadcasting a claim tx
 LOCKTIME_DELTA_REFUND = 70
 MAX_LOCKTIME_DELTA = 100
 MIN_FINAL_CLTV_DELTA_FOR_CLIENT = 3 * 144  # note: put in invoice, but is not enforced by receiver in lnpeer.py
+SPENDER_FINALITY_DELAY = 6  # delay after which the swap is considered final once the funding UTXO was claimed or refunded
+assert SPENDER_FINALITY_DELAY < MIN_LOCKTIME_DELTA_FOR_CLAIM
+assert MIN_LOCKTIME_DELTA_FOR_CLAIM < MIN_LOCKTIME_DELTA
 assert MIN_LOCKTIME_DELTA <= LOCKTIME_DELTA_REFUND <= MAX_LOCKTIME_DELTA
-assert MAX_LOCKTIME_DELTA < lnutil.MIN_FINAL_CLTV_DELTA_ACCEPTED
-assert MAX_LOCKTIME_DELTA < MIN_FINAL_CLTV_DELTA_FOR_CLIENT
+assert MAX_LOCKTIME_DELTA + SPENDER_FINALITY_DELAY < lnutil.MIN_FINAL_CLTV_DELTA_ACCEPTED
+assert MAX_LOCKTIME_DELTA + SPENDER_FINALITY_DELAY < MIN_FINAL_CLTV_DELTA_FOR_CLIENT
 
 
 # The script of the reverse swaps has one extra check in it to verify
@@ -217,6 +223,7 @@ class SwapData(StoredObject):
     _funding_prevout = None  # type: Optional[TxOutpoint]  # for RBF
     _payment_hash = None
     _payment_pending = False # for forward swaps
+    _is_cancelled = False  # forward swaps: funding must not be broadcast
 
     @property
     def payment_hash(self) -> bytes:
@@ -224,6 +231,9 @@ class SwapData(StoredObject):
 
     def is_funded(self) -> bool:
         return self._payment_pending or bool(self.funding_txid)
+
+    def set_unfunded(self):
+        self._payment_pending, self.funding_txid = False, None
 
 
 def pubkey_to_rgb_color(swapserver_pubkey: str) -> Tuple[int, int, int]:
@@ -260,7 +270,7 @@ class SwapManager(Logger):
         # note: accessing swaps dicts (besides simple lookup) needs swaps_lock
         self.swaps_lock = threading.Lock()
         swaps = self.wallet.db.get_dict('submarine_swaps')  # type: Dict[str, SwapData]
-        self._swaps = {} # cached values
+        self._swaps = {}  # type: dict[str, SwapData]  # cached values
         self._swaps_by_funding_outpoint = {}  # type: Dict[TxOutpoint, SwapData]
         self._swaps_by_lockup_address = {}  # type: Dict[str, SwapData]
         self._prepayments = {}  # type: Dict[bytes, bytes] # fee_rhash -> rhash
@@ -467,24 +477,28 @@ class SwapManager(Logger):
                     continue
                 await self.taskgroup.spawn(self.pay_invoice(key))
 
-    def cancel_normal_swap(self, swap: SwapData):
-        """ we must not have broadcast the funding tx """
+    def cancel_normal_swap(self, swap: Optional[SwapData], *, reason: str = 'user cancelled') -> bool:
+        """Fail/cancel the swap, unless its funding tx is already being broadcast. Safe to call from the GUI thread."""
         if swap is None:
-            return
-        if swap.is_funded():
-            self.logger.info(f'cannot cancel swap {swap.payment_hash.hex()}: already funded')
-            return
-        self._fail_swap(swap, 'user cancelled')
+            return False
+        with self.swaps_lock:  # the hold invoice callback might already have been scheduled for incoming htlcs
+            if swap.is_funded():
+                self.logger.info(f'cannot cancel swap {swap.payment_hash.hex()}: already funded')
+                return False
+            swap._is_cancelled = True
+        self._fail_swap(swap, reason)
+        return True
 
     def _fail_swap(self, swap: SwapData, reason: str):
         self.logger.info(f'failing swap {swap.payment_hash.hex()}: {reason}')
+        swap._is_cancelled = True
         if not swap.is_reverse and swap.payment_hash in self.lnworker.hold_invoice_callbacks:
             # unregister_hold_invoice will fail pending htlcs if there is no preimage available
             self.lnworker.unregister_hold_invoice(swap.payment_hash)
             self.lnworker.delete_payment_info(swap.payment_hash.hex(), direction=lnutil.RECEIVED)
             self.lnworker.clear_invoices_cache()
-        self.lnwatcher.remove_callback(swap.lockup_address)
         if not swap.is_funded():
+            self.lnwatcher.remove_callback(swap.lockup_address)
             with self.swaps_lock:
                 swaps = self.wallet.db.get_dict('submarine_swaps')
                 if swaps.pop(swap.payment_hash.hex(), None) is None:
@@ -502,6 +516,18 @@ class SwapManager(Logger):
                         self.lnworker.delete_payment_info(swap.prepay_hash.hex(), direction=lnutil.SENT)
                 if self.lnworker.get_payment_status(swap.payment_hash, direction=lnutil.SENT) != PR_PAID:
                     self.lnworker.delete_payment_info(swap.payment_hash.hex(), direction=lnutil.SENT)
+
+    def _get_public_preimage(self, swap: SwapData) -> Optional[bytes]:
+        if swap.spending_txid is None:
+            return None
+        # note: the used Electrum server could omit the claim tx maliciously, causing us to miss the preimage.
+        #       It's an accepted tradeoff and rather unlikely that the swap counterparty manages to make us connect to
+        #       their malicious Electrum server, unless they would spin-up some form of sybil attack and the user isn't
+        #       using their personal Electrum server.
+        spending_tx = self.lnwatcher.adb.get_transaction(swap.spending_txid)
+        if spending_tx is None:
+            return None
+        return self.extract_preimage(swap, spending_tx)
 
     @classmethod
     def extract_preimage(cls, swap: SwapData, claim_tx: Transaction) -> Optional[bytes]:
@@ -526,8 +552,16 @@ class SwapManager(Logger):
         txos = self.lnwatcher.adb.get_addr_outputs(swap.lockup_address)
 
         for txin in txos.values():
-            if swap.is_reverse and txin.value_sats() < swap.onchain_amount:
-                # amount too low, we must not reveal the preimage
+            if txin.block_height is None or txin.block_height <= TX_HEIGHT_LOCAL:
+                # they could create a decoy funding utxo and then double spend it, so it sticks in our adb as local tx
+                continue
+            if txin.value_sats() < swap.onchain_amount:
+                # reverse swap: amount too low, we must not reveal the preimage.
+                # forward swap: the counterparty might create dust outputs to the funding address,
+                #               trying to distract us from their claim of the 'real' funding output.
+                #               note: a malicious counterparty could still create utxos >= onchain_amount,
+                #               however there is no economic gain for them (or loss for us), if we pick
+                #               the output they claimed, we see the preimage, otherwise we refund their decoy one.
                 continue
             break
         else:
@@ -536,105 +570,107 @@ class SwapManager(Logger):
             # if it is a normal swap, we might have double spent the funding tx
             # in that case we need to fail the HTLCs
             if remaining_time <= 0:
-                self._fail_swap(swap, 'expired')
+                if swap.is_reverse:
+                    # we don't set forward swaps unfunded as this would render us unable to
+                    # refund them later on if the funding tx happens to get mined
+                    swap.set_unfunded()
+                if not swap._is_cancelled:  # otherwise we already tried to fail the swap this session
+                    self._fail_swap(swap, f'expired: {remaining_time=} blocks')
 
-        if txin:
-            # the swap is funded
-            # note: swap.funding_txid can change due to RBF, it will get updated here:
-            swap.funding_txid = txin.prevout.txid.hex()
-            swap._funding_prevout = txin.prevout
-            self._reindex_swap(swap.payment_hash, swap)  # to update _swaps_by_funding_outpoint
-            funding_height = self.lnwatcher.adb.get_tx_height(txin.prevout.txid.hex())
-            spent_height = txin.spent_height
-            # set spending_txid (even if tx is local), for GUI grouping
-            swap.spending_txid = txin.spent_txid
-            # discard local spenders
-            if spent_height in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:
-                spent_height = None
-            if spent_height is not None:
-                if spent_height > 0 and swap.preimage:
-                    if current_height - spent_height > REDEEM_AFTER_DOUBLE_SPENT_DELAY:
-                        self.logger.info(f'stop watching swap {swap.lockup_address}')
-                        swap.is_redeemed = True
-                        # cleanup
-                        self.lnwatcher.remove_callback(swap.lockup_address)
-                        if not swap.is_reverse:
-                            self.lnworker.delete_payment_bundle(payment_hash=swap.payment_hash)
-                            self.lnworker.unregister_hold_invoice(swap.payment_hash)
+        if txin is None:
+            return  # not funded yet
+        assert isinstance(txin, PartialTxInput)
 
+        # the swap is funded
+        # note: swap.funding_txid can change due to RBF, it will get updated here:
+        swap.funding_txid = txin.prevout.txid.hex()
+        swap._funding_prevout = txin.prevout
+        self._reindex_swap(swap.payment_hash, swap)  # to update _swaps_by_funding_outpoint
+        spent_height = txin.spent_height
+        # set spending_txid (even if tx is local), for GUI grouping
+        swap.spending_txid = txin.spent_txid
+        # discard local spenders
+        if spent_height in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:
+            spent_height = None
+        spender_is_final = spent_height is not None and spent_height > TX_HEIGHT_UNCONFIRMED \
+                                and current_height - spent_height >= SPENDER_FINALITY_DELAY
+        if spender_is_final and swap.preimage:
+            self.logger.info(f'stop watching swap {swap.lockup_address}')
+            swap.is_redeemed = True
+            # cleanup
+            self.lnwatcher.remove_callback(swap.lockup_address)
             if not swap.is_reverse:
-                if swap.preimage is None and spent_height is not None:
-                    # extract the preimage, add it to lnwatcher
-                    claim_tx = self.lnwatcher.adb.get_transaction(txin.spent_txid)
-                    preimage = self.extract_preimage(swap, claim_tx)
-                    if preimage:
-                        swap.preimage = preimage
-                        self.logger.info(f'found preimage: {preimage.hex()}')
-                        self.lnworker.save_preimage(swap.payment_hash, preimage, mark_as_public=True)
-                    else:
-                        # this is our refund tx
-                        if spent_height > 0:
-                            self.logger.info(f'refund tx confirmed: {txin.spent_txid} {spent_height}')
-                            self._fail_swap(swap, 'refund tx confirmed')
-                            return
-                if remaining_time > 0:
-                    # too early for refund
-                    return
-                if swap.preimage:
-                    # we have been paid. do not try to get refund.
-                    return
-            else:
-                if swap.preimage is None:
-                    swap.preimage = self.lnworker.get_preimage(swap.payment_hash)
-                if swap.preimage is None:
-                    if funding_height.conf <= 0:
-                        return
-                    key = swap.payment_hash.hex()
-                    if remaining_time <= MIN_LOCKTIME_DELTA:
-                        if key in self.invoices_to_pay:
-                            # fixme: should consider cltv of ln payment
-                            self.logger.info(f'locktime too close {key} {remaining_time}')
-                            self.invoices_to_pay.pop(key, None)
-                        return
-                    if key not in self.invoices_to_pay:
-                        self.invoices_to_pay[key] = 0
-                    return
+                self.lnworker.delete_payment_bundle(payment_hash=swap.payment_hash)
+                self.lnworker.unregister_hold_invoice(swap.payment_hash)
 
-                if self.network.config.TEST_SWAPSERVER_REFUND:
-                    # for testing: do not create claim tx
-                    return
-
-            if spent_height is not None and spent_height > 0:
+        public_preimage = self._get_public_preimage(swap)
+        if not swap.is_reverse:
+            if swap.preimage is None and spent_height is not None:
+                if public_preimage:  # add it to lnwatcher
+                    swap.preimage = public_preimage
+                    self.logger.info(f'found preimage: {public_preimage.hex()}')
+                    self.lnworker.save_preimage(swap.payment_hash, public_preimage, mark_as_public=True)
+                else:
+                    # This is our refund tx.
+                    if spender_is_final:
+                        self.logger.info(f'refund tx confirmed: {txin.spent_txid} {spent_height}')
+                        swap.is_redeemed = True
+                        self._fail_swap(swap, 'refund tx confirmed')  # also fails htlcs we hold
+                        self.lnwatcher.remove_callback(swap.lockup_address)
+                        return
+            if remaining_time > 0:
+                # too early for refund
                 return
-            txin, locktime = self.create_claim_txin(txin=txin, swap=swap)
-            if swap.is_reverse and swap.claim_to_output:
+            if swap.preimage:
+                # we have been paid. do not try to get refund.
+                return
+        else:
+            assert swap.preimage, f"reverse swap missing preimage? {swap.payment_hash.hex()=}"
+            # if we revealed the preimage before we must continue trying to claim
+            if remaining_time <= MIN_LOCKTIME_DELTA_FOR_CLAIM and public_preimage is None:
+                self.logger.warning(f'not claiming reverse swap {swap.payment_hash.hex()}, locktime too close: {remaining_time=}')
+                return
+            if self.network.config.TEST_SWAPSERVER_REFUND:
+                # for testing: do not create claim tx
+                return
+
+        if spent_height is not None and spent_height > TX_HEIGHT_UNCONFIRMED:
+            return  # already claimed or refunded
+        txin, locktime = self.create_claim_txin(txin=txin, swap=swap)
+        if swap.is_reverse:
+            assert txin.nsequence == 1, f"need relative locktime to make txbatcher wait for funding conf: {txin.nsequence=}"
+            if swap.claim_to_output:
                 asyncio.create_task(self._claim_to_output(swap, txin))
                 return
-            # note: there is no csv in the script, we just set this so that txbatcher waits for one confirmation
-            name = 'swap claim' if swap.is_reverse else 'swap refund'
-            can_be_batched = True
-            sweep_info = SweepInfo(
-                txin=txin,
-                cltv_abs=locktime,
-                txout=None,
-                name=name,
-                can_be_batched=can_be_batched,
-                dust_override=False,
-            )
-            try:
-                self.wallet.txbatcher.add_sweep_input('swaps', sweep_info)
-            except BelowDustLimit:
-                self.logger.info('utxo value below dust threshold')
-                return
-            except NoDynamicFeeEstimates:
-                self.logger.info('got NoDynamicFeeEstimates')
-                return
+        name = 'swap claim' if swap.is_reverse else 'swap refund'
+        # don't attempt to claim too close to the locktime to avoid rbf race against counterparty refund tx
+        expiry = swap.locktime - MIN_LOCKTIME_DELTA_FOR_CLAIM if swap.is_reverse and public_preimage is None else None
+        can_be_batched = True
+        sweep_info = SweepInfo(
+            txin=txin,
+            cltv_abs=locktime,
+            txout=None,
+            name=name,
+            can_be_batched=can_be_batched,
+            dust_override=False,
+            expiry_height=expiry,
+        )
+        try:
+            self.wallet.txbatcher.add_sweep_input('swaps', sweep_info)
+        except BelowDustLimit:
+            self.logger.info('utxo value below dust threshold')
+            return
+        except NoDynamicFeeEstimates:
+            self.logger.info('got NoDynamicFeeEstimates')
+            return
 
     async def _claim_to_output(self, swap: SwapData, claim_txin: PartialTxInput):
         """
         Construct claim tx that spends exactly the funding utxo to the swap output, independent of the
         current fee environment to guarantee the correct amount is being sent to the claim output which
         might be an external address.
+        This means we won't be able to bump the tx fee later (when claiming), however the risk of sharp increases
+        in transaction fees between requesting the swap and claiming is an acceptable low-risk tradeoff.
         """
         assert swap.claim_to_output, swap
         txout = PartialTxOutput.from_address_and_value(swap.claim_to_output[0], swap.claim_to_output[1])
@@ -693,6 +729,16 @@ class SwapManager(Logger):
             if costs_ratio > 0.15:
                 raise exc
 
+    def _sanity_check_prepayment(self, *, prepayment_sat: int, lightning_amount_sat: int):
+        max_prepayment_sat = min(
+            int(MAX_PREPAY_RATIO * lightning_amount_sat),
+            MAX_PREPAY_FEE_MULTIPLIER * self.get_fee_for_txbatcher(),
+        )
+        if prepayment_sat > max_prepayment_sat:
+            raise UserFacingException(
+                _("Mining fee prepayment requested by the swap provider is insane.")
+                + f"\n({prepayment_sat=} sat, {max_prepayment_sat=} sat)")
+
     def get_swap(self, payment_hash: bytes) -> Optional[SwapData]:
         # for history
         swap = self._swaps.get(payment_hash.hex())
@@ -710,13 +756,19 @@ class SwapManager(Logger):
     async def hold_invoice_callback(self, payment_hash: bytes) -> None:
         # note: this assumes the wallet has been unlocked
         key = payment_hash.hex()
-        if swap := self._swaps.get(key):
-            if not swap.is_funded():
-                output = self.create_funding_output(swap)
-                self.wallet.txbatcher.add_payment_output('swaps', output)
-                swap._payment_pending = True
-        else:
+        swap = self._swaps.get(key)
+        if swap is None:
             self.logger.info(f'key not in swaps {key}')
+            return
+        with self.swaps_lock:
+            if swap._is_cancelled:
+                self.logger.info(f'swap {key} was cancelled, not funding it, failing htlcs')
+                raise OnionRoutingFailure(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
+            if swap.is_funded():
+                return
+            swap._payment_pending = True
+        output = self.create_funding_output(swap)
+        self.wallet.txbatcher.add_payment_output('swaps', output)
 
     def create_normal_swap(self, *, lightning_amount_sat: int, payment_hash: bytes, their_pubkey: bytes = None):
         """ server method """
@@ -772,11 +824,13 @@ class SwapManager(Logger):
             raise Exception("payment_hash already in use")
         if prepay:
             # server requests 2 * the mining fee as instantly settled prepayment so that the mining
-            # fees of the funding tx and potential timeout refund tx are always covered
+            # fees of the funding tx and potential timeout refund tx are always covered (see reverse_swap() docstring)
             prepay_amount_sat = self.mining_fee * 2
             invoice_amount_sat = lightning_amount_sat - prepay_amount_sat
         else:
             invoice_amount_sat = lightning_amount_sat
+        if invoice_amount_sat <= 0:
+            raise Exception(f"negative {invoice_amount_sat=}")
 
         # add payment info to lnworker
         self.lnworker.add_payment_info_for_hold_invoice(
@@ -792,10 +846,10 @@ class SwapManager(Logger):
             fallback_address=None,
             channels=channels,
         )
-        margin_to_get_refund_tx_mined = MIN_LOCKTIME_DELTA
-        if not (locktime + margin_to_get_refund_tx_mined < self.network.get_local_height() + lnaddr1.get_min_final_cltv_delta()):
+        margin_to_get_refund_tx_final = MIN_LOCKTIME_DELTA + SPENDER_FINALITY_DELAY
+        if not (locktime + margin_to_get_refund_tx_final < self.network.get_local_height() + lnaddr1.get_min_final_cltv_delta()):
             raise Exception(
-                f"onchain locktime ({locktime}+{margin_to_get_refund_tx_mined}) "
+                f"onchain locktime ({locktime}+{margin_to_get_refund_tx_final}) "
                 f"too close to LN-htlc-expiry ({self.network.get_local_height()+lnaddr1.get_min_final_cltv_delta()})")
 
         if prepay:
@@ -1030,10 +1084,15 @@ class SwapManager(Logger):
             # see assert in register_hold_invoice
             raise Exception("payment_hash already in use")
 
-        # check that onchain_amount is not more than what we estimated
-        if onchain_amount > expected_onchain_amount_sat:
-            raise Exception(f"fswap check failed: onchain_amount is more than what we estimated: "
-                            f"{onchain_amount} > {expected_onchain_amount_sat}")
+        # check that onchain_amount equals what we estimated, leave minor buffer for rounding differences
+        # note: lower bounds check is critical too, as _claim_swap picks the funding utxo based on amount
+        # accept off-by ones, similar to get_recv_amount
+        if not (expected_onchain_amount_sat - 1 <= onchain_amount <= expected_onchain_amount_sat):
+            raise Exception(f"fswap check failed: onchain_amount is not what we estimated: "
+                            f"{onchain_amount=} != {expected_onchain_amount_sat=}")
+        # verify that they don't make us fund an already expired swap
+        if locktime - self.network.get_local_height() < MIN_LOCKTIME_DELTA:
+            raise Exception("fswap check failed: locktime too close")
         # verify that they are not locking up funds for too long
         if locktime - self.network.get_local_height() > MAX_LOCKTIME_DELTA:
             raise Exception("fswap check failed: locktime too far in future")
@@ -1070,16 +1129,21 @@ class SwapManager(Logger):
         await transport.is_connected.wait()
         payment_hash = swap.payment_hash
         refund_pubkey = ECPrivkey(swap.privkey).get_public_key_bytes(compressed=True)
-        funding_broadcast = asyncio.Event()
+        lightning_payment = asyncio.Event()
         async def lightning_payment_callback(_payment_hash):
             try:
+                with self.swaps_lock:
+                    if swap._is_cancelled:
+                        self.logger.info('swap was cancelled, not broadcasting funding tx, failing htlcs')
+                        raise OnionRoutingFailure(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
+                    swap._payment_pending = True  # blocks a concurrent cancel from here on
+                    swap.funding_txid = tx.txid()  # must happen before first await
                 await self.network.broadcast_transaction(tx)
             except TxBroadcastError as e:
                 # FIXME: We will never retry the hold-invoice-callback.
                 self.logger.error(f"failed to broadcast swap funding transaction: {e}")
             finally:
-                swap.funding_txid = tx.txid()
-                funding_broadcast.set()
+                lightning_payment.set()
 
         self.lnworker.register_hold_invoice(payment_hash, lightning_payment_callback)
 
@@ -1096,9 +1160,11 @@ class SwapManager(Logger):
         lnaddr = decode_bolt11_invoice(invoice)
         seconds_to_expiry = (lnaddr.date + lnaddr.get_expiry()) - now()
         try:
-            await wait_for2(funding_broadcast.wait(), timeout=seconds_to_expiry)
+            await wait_for2(lightning_payment.wait(), timeout=seconds_to_expiry)
         except asyncio.TimeoutError:
             self.logger.warning("timeout waiting for funding tx broadcast, invoice expired")
+            # The htlcs never arrived, so we must fail the swap here, the swap must not get funded anymore.
+            self.cancel_normal_swap(swap, reason="invoice expired before htlcs arrived")
         return swap.funding_txid
 
     def create_funding_output(self, swap: SwapData) -> PartialTxOutput:
@@ -1177,11 +1243,13 @@ class SwapManager(Logger):
         Note: prepayment_sat is passed as argument instead of accessing self.mining_fee to ensure
         the mining fees the user sees in the GUI are also the values used for the checks performed here.
         We commit to prepayment_sat as it limits the max fee pre-payment amt, which the server is trusted with.
+        The prepayment is an intentional tradeoff protecting the swapserver from griefing through clients by
+        making the client put a negligible amount of trust into the swapserver.
         """
         assert self.network
         assert self.lnwatcher
-        self._sanity_check_swap_costs(
-            incoming_sat=expected_onchain_amount_sat, outgoing_sat=lightning_amount_sat)
+        self._sanity_check_swap_costs(incoming_sat=expected_onchain_amount_sat, outgoing_sat=lightning_amount_sat)
+        self._sanity_check_prepayment(prepayment_sat=prepayment_sat, lightning_amount_sat=lightning_amount_sat)
         privkey = os.urandom(32)
         our_pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
         preimage = os.urandom(32)
@@ -1298,7 +1366,7 @@ class SwapManager(Logger):
     def server_update_pairs(self) -> None:
         """ for server """
         self.percentage = Decimal(self.config.SWAPSERVER_FEE_MILLIONTHS) / 10000  # type: ignore
-        self._min_amount = MIN_SWAP_AMOUNT_SAT
+        self._min_amount = MIN_SWAP_AMOUNT_SAT  # FIXME: adapt to mining fee environment
         oc_balance_sat: int = self.wallet.get_spendable_balance_sat()
         MAX_SWAP_AMT = bitcoin.COIN // 10  # just to minimise accidental damage. not enforced client-side
         max_forward: int = min(int(self.lnworker.num_sats_can_receive()), oc_balance_sat, MAX_SWAP_AMT)
@@ -1477,6 +1545,10 @@ class SwapManager(Logger):
         sig_dummy = b'\x00' * 71  # DER-encoded ECDSA sig, with low S and low R
         witness = [sig_dummy, preimage, witness_script]
         txin.witness_sizehint = len(construct_witness(witness))
+        # note: there is no csv in the script, we just set this so that txbatcher waits for one confirmation.
+        #       This means we will reveal the preimage after one confirmation of the funding transaction, which could
+        #       be double spent through a reorg. This is a known UX/safety tradeoff.
+        #       TODO: confirmations could be made dynamic based on swap value
         txin.nsequence = 1 if swap.is_reverse else 0xffffffff - 2
 
     @classmethod

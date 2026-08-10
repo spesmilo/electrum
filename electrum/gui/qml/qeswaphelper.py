@@ -663,9 +663,12 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
                 except RuntimeError:
                     pass
             except asyncio.CancelledError:
-                self._wallet.wallet.lnworker.swap_manager.cancel_normal_swap(self._swap)
-                self.userinfo = _('Swap cancelled')
-                self.state = QESwapHelper.State.Cancelled
+                if self._wallet.wallet.lnworker.swap_manager.cancel_normal_swap(self._swap):
+                    self.userinfo = _('Swap cancelled')
+                    self.state = QESwapHelper.State.Cancelled
+                else:
+                    self.userinfo = _('Swap was already funded, refusing to cancel')
+                    self.state = QESwapHelper.State.Success
             except Exception as e:
                 try:  # swaphelper might be destroyed at this point
                     self.state = QESwapHelper.State.Failed

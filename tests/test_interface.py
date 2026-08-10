@@ -1,21 +1,17 @@
 import asyncio
-from functools import partial
-
-import aiorpcx
 from aiorpcx import RPCError
 
-from electrum.bitcoin import COIN, COINBASE_MATURITY
-from electrum.interface import ServerAddr, Interface, PaddedRSTransport
-from electrum import util, blockchain
-from electrum.util import OldTaskGroup, bfh
+from electrum import util
+from electrum.bitcoin import COIN
+from electrum.interface import ServerAddr, PaddedRSTransport
+from electrum.util import bfh
 from electrum.simple_config import SimpleConfig
 from electrum.transaction import Transaction, TxOutput
 from electrum.wallet import Abstract_Wallet
-from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
-from electrum.blockchain import Blockchain
 
 from . import ElectrumTestCase
 from . import restore_wallet_from_text__for_unittest
+from .toyserver.toynetwork import ToyNetwork
 from .toyserver.toyserver import ToyServer, ToyServerSession
 
 
@@ -64,37 +60,6 @@ class TestServerAddr(ElectrumTestCase):
                          ServerAddr(host="2400:6180:0:d1::86b:e001", port=50001, protocol="t").to_friendly_name())
 
 
-class MockNetwork:
-
-    def __init__(self, *, config: SimpleConfig):
-        self.config = config
-        self.asyncio_loop = util.get_asyncio_loop()
-        self.taskgroup = OldTaskGroup()
-        blockchain.read_blockchains(self.config)
-        blockchain.init_headers_file_for_best_chain()
-        self.proxy = None
-        self.debug = True
-        self.bhi_lock = asyncio.Lock()
-        self.interface = None  # type: Interface | None
-
-    async def connection_down(self, interface: Interface):
-        pass
-    def get_network_timeout_seconds(self, request_type) -> int:
-        return 10
-    def check_interface_against_healthy_spread_of_connected_servers(self, iface_to_check: Interface) -> bool:
-        return True
-    def update_fee_estimates(self, *, fee_est: dict[int, int] = None):
-        pass
-    async def switch_unwanted_fork_interface(self):
-        pass
-    async def switch_lagging_interface(self):
-        pass
-    def blockchain(self) -> Blockchain:
-        return self.interface.blockchain
-    def get_local_height(self) -> int:
-        return self.blockchain().height()
-
-
 class TestInterface(ElectrumTestCase):
     REGTEST = True
 
@@ -113,25 +78,18 @@ class TestInterface(ElectrumTestCase):
         await super().asyncSetUp()
         self._toyserver = ToyServer()
         await self._toyserver.start()
-        self.network = MockNetwork(config=self.config)
+        self.network = ToyNetwork(config=self.config)
         for _ in range(10):  # mine some blocks
             await self._toyserver.mine_block()
         await self._toyserver.set_up_faucet(config=self.config)
 
     async def asyncTearDown(self):
-        if self.network.interface:
-            await self.network.interface.close()
+        await self.network.stop()
         await self._toyserver.stop()
         await super().asyncTearDown()
 
     async def _start_iface_and_wait_for_sync(self):
-        interface = Interface(network=self.network, server=ServerAddr(host="127.0.0.1", port=self._toyserver.server_port, protocol="t"))
-        interface.client_name = lambda: "alice"
-        self.network.interface = interface
-        async with util.async_timeout(5):
-            await interface.ready
-            await interface._blockchain_updated.wait()
-        return interface
+        return await self.network.connect(self._toyserver, client_name="alice")
 
     def _get_server_session(self) -> ToyServerSession:
         return self._toyserver.get_session_by_name("alice")

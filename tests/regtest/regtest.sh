@@ -424,9 +424,11 @@ if [[ $1 == "swapserver_refund" ]]; then
     swap=$($alice reverse_swap 0.02 $onchain_amount --prepayment $prepayment)
     echo $swap | jq
     funding_txid=$(echo $swap| jq -r ".funding_txid")
-    new_blocks 140
+    # mine past LOCKTIME_DELTA_REFUND (70), so that bob can refund
+    new_blocks 75
     wait_until_spent $funding_txid 0
-    new_blocks 1
+    # bob only fails the hold-HTLCs once his refund tx is final (SPENDER_FINALITY_DELAY)
+    new_blocks 8
     wait_until_htlcs_settled alice
 fi
 

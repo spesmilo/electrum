@@ -2755,6 +2755,11 @@ class LNWallet(Logger):
         - all gets fulfilled, or
         - none of them gets fulfilled.
         (we are the recipient of this payment)
+        note: payment bundles are kept only in-memory. if the process restarts the bundle is dissolved and the
+              payments with known preimage will get settled immediately independent of the other parts status.
+              For swaps specifically this is fine as only swapservers receive a (bundled) trusted prepayment. Swapservers
+              are long-running daemon and the risk of them restarting mid-swap and claiming a prepayment for an
+              otherwise failing swap is negligible.
         """
         payment_keys = [self._get_payment_key(x) for x in hash_list]
         with self.lock:

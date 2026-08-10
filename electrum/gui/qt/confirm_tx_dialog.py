@@ -974,6 +974,9 @@ class TxEditor(WindowModalDialog, SubmarineSwapMixin, Logger):
         swap_dummy_output = self.tx.get_dummy_output(DummyAddress.SWAP)
         sm, transport = self.swap_manager, self.swap_transport
         assert sm and transport and swap_dummy_output and isinstance(swap_dummy_output.value, int)
+        # note: request_swap_for_amount will use the current fees, we don't commit to the fees that were shown
+        #       to the user in the GUI, so if the server changes fees in this brief moment they would be paid unseen.
+        #       This is an accepted tradeoff due to the brief time window in which it could actually happen.
         coro = sm.request_swap_for_amount(transport=transport, onchain_amount=int(swap_dummy_output.value))
         coro_dialog = RunCoroutineDialog(self, _('Requesting swap invoice...'), coro)
         try:

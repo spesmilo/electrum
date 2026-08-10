@@ -45,9 +45,16 @@ class SweepInfo(NamedTuple):
     txout: Optional[PartialTxOutput]  # only for first-stage htlc tx
     can_be_batched: bool # todo: this could be more fine-grained
     dust_override: bool
+    expiry_height: Optional[int] = None  # first height at which we will not start sweeping this utxo
 
     def is_anchor(self):
         return self.name in ['local_anchor', 'remote_anchor']
+
+    def is_expired(self, local_height: int) -> bool:
+        """If this is True, we must not add the input to a new tx.
+        note: if we already broadcast a tx spending it, we keep bumping that tx.
+        """
+        return self.expiry_height is not None and local_height >= self.expiry_height
 
     @property
     def csv_delay(self):

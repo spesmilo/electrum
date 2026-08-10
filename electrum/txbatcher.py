@@ -287,6 +287,9 @@ class TxBatch(Logger):
     @locked
     def add_sweep_input(self, sweep_info: 'SweepInfo') -> None:
         """Can raise BelowDustLimit or NoDynamicFeeEstimates."""
+        if sweep_info.is_expired(self.wallet.adb.get_local_height()):
+            self.logger.info(f'not adding expired sweep: {sweep_info.name}')
+            return
         if self.is_dust(sweep_info):
             # note: this uses the current fee estimates. Just because something is dust
             #       at the current fee levels, if fees go down, it might still become
@@ -328,6 +331,15 @@ class TxBatch(Logger):
         result = []  # type: list[tuple[TxOutpoint, SweepInfo]]
         for prevout, sweep_info in list(self.batch_inputs.items()):
             assert prevout == sweep_info.txin.prevout
+            if prevout in tx_prevouts:
+                # the current batch tx spends this input. We must not drop the sweep_info
+                # here: add_sweep_info_to_tx needs it to sign the replacement of that tx.
+                continue
+            if sweep_info.is_expired(self.wallet.adb.get_local_height()):
+                self.logger.info(f"sweep expired, giving up on {sweep_info.name} {prevout}")
+                self.batch_inputs.pop(prevout)
+                self._unconfirmed_sweeps.discard(prevout)
+                continue
             prev_txid, index = prevout.to_str().split(':')
             if not (prev_tx := self.wallet.adb.db.get_transaction(prev_txid)):
                 continue
@@ -335,7 +347,7 @@ class TxBatch(Logger):
                 prev_tx_mined_status = self.wallet.adb.get_tx_height(prev_txid)
                 if prev_tx_mined_status.conf > 0:
                     self.logger.info(f"anchor not needed {prevout}")
-                    self.batch_inputs.pop(prevout)  # note: if the input is already in a batch tx, this will trigger assert error
+                    self.batch_inputs.pop(prevout)
                     continue
                 prev_tx_current_fee = self.wallet.adb.get_tx_fee(prev_txid)
                 try:
@@ -356,8 +368,6 @@ class TxBatch(Logger):
                 tx_mined_status = self.wallet.adb.get_tx_height(spender_txid)
                 if tx_mined_status.height() not in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:
                     continue
-            if prevout in tx_prevouts:
-                continue
             result.append((prevout, sweep_info))
         return dict(result)
 
