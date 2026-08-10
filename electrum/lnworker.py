@@ -1026,7 +1026,6 @@ class LNWallet(Logger):
                 features |= LnFeatures.OPTION_ONION_MESSAGE_OPT
             if self.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS and self.config.LIGHTNING_USE_GOSSIP:
                 features |= LnFeatures.GOSSIP_QUERIES_OPT  # signal we have gossip to fetch
-        Logger.__init__(self)
         self.lock = threading.RLock()
         self.lnpeermgr = LNPeerManager(self.node_keypair, features=features, config=self.config, lnwallet_or_lngossip=self)
         self.taskgroup = OldTaskGroup()
