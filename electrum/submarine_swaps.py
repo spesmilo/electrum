@@ -263,17 +263,22 @@ class SwapManager(Logger):
         self._swaps = {} # cached values
         self._swaps_by_funding_outpoint = {}  # type: Dict[TxOutpoint, SwapData]
         self._swaps_by_lockup_address = {}  # type: Dict[str, SwapData]
+        self._prepayments = {}  # type: Dict[bytes, bytes] # fee_rhash -> rhash
         for payment_hash_hex, swap in swaps.items():
             payment_hash = bytes.fromhex(payment_hash_hex)
             swap._payment_hash = payment_hash
             self._reindex_swap(swap.payment_hash, swap)
-            if not swap.is_reverse and not swap.is_redeemed and not self.lnworker.get_preimage(swap.payment_hash):
-                self.lnworker.register_hold_invoice(payment_hash, self.hold_invoice_callback)
-
-        self._prepayments = {}  # type: Dict[bytes, bytes] # fee_rhash -> rhash
-        for k, swap in self._swaps.items():
             if swap.prepay_hash is not None:
-                self._prepayments[swap.prepay_hash] = bytes.fromhex(k)
+                self._prepayments[swap.prepay_hash] = payment_hash
+            if not swap.is_reverse and not swap.is_redeemed and not self.lnworker.get_preimage(swap.payment_hash):
+                if (swap.prepay_hash is not None
+                        and self.lnworker.get_payment_status(swap.prepay_hash, direction=lnutil.RECEIVED) != PR_PAID):
+                    # re-bundle payments, because lnworker does not persist bundles.
+                    # note: if the prepay is already PR_PAID, lnpeer completed and deleted the bundle before
+                    #       shutdown; re-creating it would make is_payment_bundle_complete() permanently False.
+                    # TODO: drop this once lnworker persists _payment_bundles_* (lnworker.py:1093-1094)
+                    self.lnworker.bundle_payments([payment_hash, swap.prepay_hash])
+                self.lnworker.register_hold_invoice(payment_hash, self.hold_invoice_callback)
         self.is_server = False # overridden by swapserver plugin if enabled
         self.is_initialized = asyncio.Event()
         self.pairs_updated = asyncio.Event()
@@ -718,6 +723,12 @@ class SwapManager(Logger):
         assert lightning_amount_sat
         if payment_hash.hex() in self._swaps:
             raise Exception("payment_hash already in use")
+        if self.lnworker.get_preimage(payment_hash) is not None:
+            # see assert in register_hold_invoice
+            raise Exception("payment_hash already in use")
+        if self.lnworker.has_payment_bundle(payment_hash):
+            # see assert in bundle_payments. Note: only needed for server
+            raise Exception("payment_hash already in use")
         locktime = self.network.get_local_height() + LOCKTIME_DELTA_REFUND
         if self.network.blockchain().is_tip_stale():
             raise Exception("our blockchain tip is stale")
@@ -1014,6 +1025,10 @@ class SwapManager(Logger):
             refund_pubkey=refund_pubkey,
             claim_pubkey=None,
         )
+
+        if self.lnworker.get_preimage(payment_hash) is not None:
+            # see assert in register_hold_invoice
+            raise Exception("payment_hash already in use")
 
         # check that onchain_amount is not more than what we estimated
         if onchain_amount > expected_onchain_amount_sat:
