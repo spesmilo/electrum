@@ -114,6 +114,8 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         self._seed = ''
         self._seed_passphrase = ''
 
+        self._otp_on_submit = None  # type: Callable[[str], None]
+
         self.tx_notification_queue = queue.Queue()
         self.tx_notification_last_time = 0
 
@@ -599,7 +601,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         if cb:
             cb()
 
-    def request_otp(self, on_submit):
+    def request_otp(self, on_submit: Callable[[str], None]):
         self._otp_on_submit = on_submit
         self.otpRequested.emit()
 
