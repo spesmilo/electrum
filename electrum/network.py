@@ -86,12 +86,12 @@ class ConnectionState(IntEnum):
     CONNECTED     = 2
 
 
-def parse_servers(result: Sequence[Tuple[str, str, List[str]]]) -> Dict[str, dict]:
+def parse_servers(proto_resp: Sequence[Tuple[str, str, Sequence[str]]]) -> Dict[str, dict]:
     """Convert servers list (from protocol method "server.peers.subscribe") into dict format.
     Also validate values, such as IP addresses and ports.
     """
     servers = {}
-    for item in result:
+    for item in proto_resp:
         host = item[1]
         out = {}
         version = None
@@ -520,7 +520,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             self.donation_address = await interface.get_donation_address()
 
         async def get_server_peers():
-            server_peers = await session.send_request('server.peers.subscribe')
+            server_peers = await interface.get_server_peers()
             random.shuffle(server_peers)
             max_accepted_peers = len(constants.net.DEFAULT_SERVERS) + NUM_RECENT_SERVERS
             server_peers = server_peers[:max_accepted_peers]
@@ -1358,8 +1358,8 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
     async def get_peers(self):
         while not self.is_connected():
             await asyncio.sleep(1)
-        session = self.interface.session
-        return parse_servers(await session.send_request('server.peers.subscribe'))
+        server_peers = await self.interface.get_server_peers()
+        return parse_servers(server_peers)
 
     async def send_multiple_requests(
             self,

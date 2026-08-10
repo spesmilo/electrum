@@ -1676,6 +1676,26 @@ class Interface(Logger):
             res = int(res * bitcoin.COIN)
         return res
 
+    async def get_server_peers(self) -> list[tuple[str, str, Sequence[str]]]:
+        # do request
+        peers = await self.session.send_request('server.peers.subscribe')
+        # check response
+        assert_list_or_tuple(peers)
+        for peer in peers:
+            assert_list_or_tuple(peer)
+            if len(peer) != 3:
+                raise RequestCorrupted(f"found peer in list with unexpected length. {peer=!r}")
+            ip_addr, hostname, features = peer
+            if not isinstance(ip_addr, str):
+                raise RequestCorrupted(f"peer ip_addr should be str, got {ip_addr!r}")
+            if not isinstance(hostname, str):
+                raise RequestCorrupted(f"peer hostname should be str, got {hostname!r}")
+            assert_list_or_tuple(features)
+            for feat in features:
+                if not isinstance(feat, str):
+                    raise RequestCorrupted(f"peer feature should be str, got {feat!r}")
+        return [tuple(peer) for peer in peers]
+
 
 def _assert_header_does_not_check_against_any_chain(header: dict) -> None:
     chain_bad = blockchain.check_header(header)
