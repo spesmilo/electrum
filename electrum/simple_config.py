@@ -225,6 +225,7 @@ class SimpleConfig(Logger):
         self.amt_precision_post_satoshi = self.BTC_AMOUNTS_PREC_POST_SAT
         self.amt_add_thousands_sep = self.BTC_AMOUNTS_ADD_THOUSANDS_SEP
 
+        self.warn_on_experimental_features()
         self._init_done = True
 
     def list_config_vars(self) -> Sequence[str]:
@@ -585,6 +586,19 @@ class SimpleConfig(Logger):
             f"Tried to define new instance attribute for config: {name=!r}. "
             "Did you perhaps mistype a ConfigVar?"
         )
+
+    def warn_on_experimental_features(self):
+        chain = self.get_selected_chain()  # use this instead of constants.net, as the latter might not be set yet
+        if not chain.TESTNET:
+            # ln forwarding
+            if self.EXPERIMENTAL_LN_FORWARD_PAYMENTS or self.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS:
+                if self.EXPERIMENTAL_LN_FORWARD_PAYMENTS:
+                    self.logger.warning(f"Found config setting {self.cv.EXPERIMENTAL_LN_FORWARD_PAYMENTS.key()!r}={self.EXPERIMENTAL_LN_FORWARD_PAYMENTS}")
+                if self.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS:
+                    self.logger.warning(f"Found config setting {self.cv.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS.key()!r}={self.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS}")
+                self.logger.warning(
+                    f"Lightning payment forwarding is an experimental feature that still has known bugs. "
+                    f"You really SHOULD NOT be running it on mainnet!!!")
 
     @cached_property
     def cv(config):
