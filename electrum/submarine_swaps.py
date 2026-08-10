@@ -2095,8 +2095,13 @@ class NostrTransport(SwapServerTransport):
                 prev_event_id = content['reply_to']
                 server_pubkey = event.pubkey
                 fut = self.dm_replies.get((server_pubkey, prev_event_id))
-                if fut:
-                    fut.set_result(content)
+                if fut is None:
+                    self.logger.debug(f"got reply from {server_pubkey=} for unknown {prev_event_id=}")
+                    continue
+                if fut.done():
+                    self.logger.debug(f"got reply from {server_pubkey=} for already done {prev_event_id=}")
+                    continue
+                fut.set_result(content)
             elif self.sm.is_server and 'method' in content:
                 if self._swap_server_requests.full():
                     self.logger.warning(f"too many swap requests, dropping incoming request: {event.id[:10]}...")
