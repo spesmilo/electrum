@@ -304,80 +304,80 @@ class NWCServer(Logger, EventListener):
             await self._handle_single_request(event)
 
     async def _handle_single_request(self, event: nEvent) -> None:
-            if event.pubkey not in self.connections.keys():
+        if event.pubkey not in self.connections.keys():
+            return
+
+        # check if the connection is expired, if so we delete it and send an error
+        valid_until: Optional[int] = self.connections[event.pubkey].get('valid_until')
+        if valid_until and valid_until <= int(time.time()):
+            await self.send_error(event, "UNAUTHORIZED", "Connection expired")
+            del self.connections[event.pubkey]
+            self.logger.info(f"Deleting expired NWC connection: {event.pubkey}")
+            self.restart_event_handler()
+            return
+
+        if event.kind != self.REQUEST_EVENT_KIND:
+            self.logger.debug(f"Unknown nwc request event kind: {event.kind}")
+            await self.send_error(event, "NOT_IMPLEMENTED")
+            return
+
+        # if the request has an explicitly set expiration tag, ignore it if it is expired
+        # otherwise ignore requests older than 30 sec to not handle requests the user may
+        # already expect to have timed out
+        if event.expires_at() is not None:
+            if event.is_expired():
+                self.logger.debug(f"expired nwc request event: {event.content}")
                 return
+        elif event.created_at < int(time.time()) - 30:
+            self.logger.debug(f"old nwc request event: {event.content}")
+            await self.send_error(event, "OTHER", f"not handling too old request")
+            return
 
-            # check if the connection is expired, if so we delete it and send an error
-            valid_until: Optional[int] = self.connections[event.pubkey].get('valid_until')
-            if valid_until and valid_until <= int(time.time()):
-                await self.send_error(event, "UNAUTHORIZED", "Connection expired")
-                del self.connections[event.pubkey]
-                self.logger.info(f"Deleting expired NWC connection: {event.pubkey}")
-                self.restart_event_handler()
-                return
+        # check encryption scheme
+        for tag in event.tags:
+            if len(tag) == 2 and tag[0] == 'encryption':
+                if tag[1] not in self.SUPPORTED_ENCRYPTION_SCHEMES:
+                    await self.send_error(event, "UNSUPPORTED_ENCRYPTION", " ".join(self.SUPPORTED_ENCRYPTION_SCHEMES))
+                break
 
-            if event.kind != self.REQUEST_EVENT_KIND:
-                self.logger.debug(f"Unknown nwc request event kind: {event.kind}")
-                await self.send_error(event, "NOT_IMPLEMENTED")
-                return
+        # decrypt the requests content
+        our_secret: str = self.connections[event.pubkey]['our_secret']
+        our_connection_secret = PrivateKey(raw_secret=bytes.fromhex(our_secret))
+        try:
+            content = our_connection_secret.decrypt_message(event.content, event.pubkey)
+            content = json.loads(content)
+            if not isinstance(content, dict):
+                raise Exception("malformed content, not dict")
+            params: dict = content.get('params') or {}  # some clients send 'params: null' or no params key at all
+            if not isinstance(params, dict):
+                raise Exception(f"malformed params, not dict: {content=}")
+        except Exception:
+            self.logger.debug(f"Invalid request event content: {event.content}", exc_info=True)
+            return
 
-            # if the request has an explicitly set expiration tag, ignore it if it is expired
-            # otherwise ignore requests older than 30 sec to not handle requests the user may
-            # already expect to have timed out
-            if event.expires_at() is not None:
-                if event.is_expired():
-                    self.logger.debug(f"expired nwc request event: {event.content}")
-                    return
-            elif event.created_at < int(time.time()) - 30:
-                self.logger.debug(f"old nwc request event: {event.content}")
-                await self.send_error(event, "OTHER", f"not handling too old request")
-                return
+        # run the according method
+        method: str = content.get('method')
+        self.logger.debug(f"got request: {method=}, {params=}")
+        task: Optional[Awaitable] = None
+        if method == "pay_invoice" and not self.is_receive_only(event.pubkey):
+            task = self.handle_pay_invoice(event, params)
+        elif method == "make_invoice":
+            task = self.handle_make_invoice(event, params)
+        elif method == "lookup_invoice":
+            task = self.handle_lookup_invoice(event, params)
+        elif method == "get_balance":
+            task = self.handle_get_balance(event)
+        elif method == "get_info":
+            task = self.handle_get_info(event)
+        elif method == "list_transactions":
+            task = self.handle_list_transactions(event, params)
+        else:
+            self.logger.debug(f"Unsupported nwc method requested: {method}")
+            await self.send_error(event, "NOT_IMPLEMENTED", f"{method} not supported", error_restype=method)
+            return
 
-            # check encryption scheme
-            for tag in event.tags:
-                if len(tag) == 2 and tag[0] == 'encryption':
-                    if tag[1] not in self.SUPPORTED_ENCRYPTION_SCHEMES:
-                        await self.send_error(event, "UNSUPPORTED_ENCRYPTION", " ".join(self.SUPPORTED_ENCRYPTION_SCHEMES))
-                    break
-
-            # decrypt the requests content
-            our_secret: str = self.connections[event.pubkey]['our_secret']
-            our_connection_secret = PrivateKey(raw_secret=bytes.fromhex(our_secret))
-            try:
-                content = our_connection_secret.decrypt_message(event.content, event.pubkey)
-                content = json.loads(content)
-                if not isinstance(content, dict):
-                    raise Exception("malformed content, not dict")
-                params: dict = content.get('params') or {}  # some clients send 'params: null' or no params key at all
-                if not isinstance(params, dict):
-                    raise Exception(f"malformed params, not dict: {content=}")
-            except Exception:
-                self.logger.debug(f"Invalid request event content: {event.content}", exc_info=True)
-                return
-
-            # run the according method
-            method: str = content.get('method')
-            self.logger.debug(f"got request: {method=}, {params=}")
-            task: Optional[Awaitable] = None
-            if method == "pay_invoice" and not self.is_receive_only(event.pubkey):
-                task = self.handle_pay_invoice(event, params)
-            elif method == "make_invoice":
-                task = self.handle_make_invoice(event, params)
-            elif method == "lookup_invoice":
-                task = self.handle_lookup_invoice(event, params)
-            elif method == "get_balance":
-                task = self.handle_get_balance(event)
-            elif method == "get_info":
-                task = self.handle_get_info(event)
-            elif method == "list_transactions":
-                task = self.handle_list_transactions(event, params)
-            else:
-                self.logger.debug(f"Unsupported nwc method requested: {method}")
-                await self.send_error(event, "NOT_IMPLEMENTED", f"{method} not supported", error_restype=method)
-                return
-
-            if task:
-                await self.taskgroup.spawn(self.run_request_task(task, request_event=event, request_method=method))
+        if task:
+            await self.taskgroup.spawn(self.run_request_task(task, request_event=event, request_method=method))
 
     async def run_request_task(self, task: Awaitable, *, request_event: nEvent, request_method: str = None) -> None:
         """Catches request handling exceptions and send an error response"""
