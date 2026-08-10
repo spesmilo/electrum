@@ -301,8 +301,11 @@ class NWCServer(Logger, EventListener):
             "since": int(time.time())
         }
         async for event in self.manager.get_events(query, single_event=False, only_stored=False):
+            await self._handle_single_request(event)
+
+    async def _handle_single_request(self, event: nEvent) -> None:
             if event.pubkey not in self.connections.keys():
-                continue
+                return
 
             # check if the connection is expired, if so we delete it and send an error
             valid_until: Optional[int] = self.connections[event.pubkey].get('valid_until')
@@ -311,12 +314,12 @@ class NWCServer(Logger, EventListener):
                 del self.connections[event.pubkey]
                 self.logger.info(f"Deleting expired NWC connection: {event.pubkey}")
                 self.restart_event_handler()
-                continue
+                return
 
             if event.kind != self.REQUEST_EVENT_KIND:
                 self.logger.debug(f"Unknown nwc request event kind: {event.kind}")
                 await self.send_error(event, "NOT_IMPLEMENTED")
-                continue
+                return
 
             # if the request has an explicitly set expiration tag, ignore it if it is expired
             # otherwise ignore requests older than 30 sec to not handle requests the user may
@@ -324,11 +327,11 @@ class NWCServer(Logger, EventListener):
             if event.expires_at() is not None:
                 if event.is_expired():
                     self.logger.debug(f"expired nwc request event: {event.content}")
-                    continue
+                    return
             elif event.created_at < int(time.time()) - 30:
                 self.logger.debug(f"old nwc request event: {event.content}")
                 await self.send_error(event, "OTHER", f"not handling too old request")
-                continue
+                return
 
             # check encryption scheme
             for tag in event.tags:
@@ -350,7 +353,7 @@ class NWCServer(Logger, EventListener):
                     raise Exception(f"malformed params, not dict: {content=}")
             except Exception:
                 self.logger.debug(f"Invalid request event content: {event.content}", exc_info=True)
-                continue
+                return
 
             # run the according method
             method: str = content.get('method')
@@ -371,7 +374,7 @@ class NWCServer(Logger, EventListener):
             else:
                 self.logger.debug(f"Unsupported nwc method requested: {method}")
                 await self.send_error(event, "NOT_IMPLEMENTED", f"{method} not supported", error_restype=method)
-                continue
+                return
 
             if task:
                 await self.taskgroup.spawn(self.run_request_task(task, request_event=event, request_method=method))
