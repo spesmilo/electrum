@@ -1870,7 +1870,7 @@ class Channel(AbstractChannel):
     def make_closing_tx(self, local_script: bytes, remote_script: bytes,
                         fee_sat: int, *, drop_remote = False) -> Tuple[bytes, PartialTransaction]:
         """ cooperative close """
-        _, outputs = make_commitment_outputs(
+        outputs = make_commitment_outputs(
             fees_per_participant={
                 LOCAL: fee_sat * 1000 if self.constraints.is_initiator else 0,
                 REMOTE: fee_sat * 1000 if not self.constraints.is_initiator else 0,
