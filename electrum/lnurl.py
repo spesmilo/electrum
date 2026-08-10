@@ -255,10 +255,19 @@ async def callback_lnurl(url: str, params: dict) -> dict:
     return response
 
 
+LN_ADDRESS_RE = re.compile(
+    r"[a-zA-Z0-9\-_][a-zA-Z0-9\-_.]*(\+[a-zA-Z0-9\-_.]+)?"          # username
+    r"@"
+    r"[a-zA-Z0-9\-]+(\.[a-zA-Z0-9\-]+)*"       # domain labels
+    r"\.[a-zA-Z]{2,}"                          # tld (alphabetic, so no bare IPv4)
+)
+
+
 def lightning_address_to_url(address: str) -> Optional[str]:
     """Converts an email-type lightning address to a decoded lnurl.
     see https://github.com/fiatjaf/lnurl-rfc/blob/luds/16.md
     """
-    if re.match(r"^[^@]+@[^.@]+(\.[^.@]+)+$", address):
+    if LN_ADDRESS_RE.fullmatch(address):
         username, domain = address.split("@")
-        return f"https://{domain}/.well-known/lnurlp/{username}"
+        scheme = 'http' if domain.endswith('.onion') else 'https'
+        return f"{scheme}://{domain}/.well-known/lnurlp/{username}"
