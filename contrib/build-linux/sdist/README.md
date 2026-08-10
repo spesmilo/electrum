@@ -11,7 +11,6 @@ and a strictly source-only one (for Linux distro packagers).
 The normal tarball, in addition to including everything from
 the source-only one, also includes:
 - compiled (`.mo`) locale files (in addition to source `.po` locale files)
-- compiled (`_pb2.py`) protobuf files (in addition to source `.proto` files)
 - the `packages/` folder containing source-only pure-python runtime dependencies
 
 

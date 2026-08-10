@@ -1,5 +1,4 @@
 qrcode
-protobuf>=3.20
 qdarkstyle>=3.2
 aiorpcx>=0.25.0,<0.26
 aiohttp>=3.11.0,<4.0.0
