@@ -203,6 +203,7 @@ Note that the notarization process will be skipped as it is not possible to nota
 an executable with Apple using a self-signed certificate.
 
 #### To generate a self-signed certificate, inside your **MacOS VM**:
+
 1. Open the `Keychain Access` application.
 2. In the menubar go to `Keychain Access` > `Certificate Assistant` > `Create a Certificate...`
 3. Set a name (e.g. `signing_dummy`)
@@ -210,6 +211,32 @@ an executable with Apple using a self-signed certificate.
 5. Click `Create` and `Continue`.
 
 You now have a self-signed certificate `signing_dummy` added to your `login` keychain.
+
+#### Fix "Access Control" settings for private key (of new cert)
+
+If you try using your cert with `codesign`, it will fail:
+```
+% cp -f /bin/ls ./CODESIGN_TEST
+% set +e
+% codesign -s "signing_dummy" --dryrun -f ./CODESIGN_TEST
+./CODESIGN_TEST: replacing existing signature
+./CODESIGN_TEST: errSecInternalComponent
+```
+
+To fix this, find the corresponding private key (for the cert) also named `signing_dummy`,
+in `Keychain Access`.
+- Right-click the private key item > `Get Info` > `Access Control`.
+- There is a list of allowed apps in the popup that can access the private key.
+- Click the small `+` (plus) icon. Then press `Win`+`Shift`+`G`: go to folder: `/usr/bin/codesign`,
+  and add the codesign executable to the list.
+- Click `Save Changes`.
+
+Now try again:
+```
+% security unlock-keychain login.keychain
+% codesign -s "signing_dummy" --dryrun -f ./CODESIGN_TEST
+./CODESIGN_TEST: replacing existing signature
+```
 
 #### To sign the executables with the self-signed certificate:
 
