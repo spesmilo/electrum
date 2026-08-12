@@ -1,0 +1,48 @@
+Build against the toolchain the builder image and p4a already provide.
+
+The gradle wrapper is pinned with distributionSha256Sum so the wrapper
+verifies it before executing it. Keep both in sync with p4a's
+bootstraps/common/build/gradle/wrapper/gradle-wrapper.properties.
+
+diff --git a/build.gradle b/build.gradle
+index ab1f634..9ca5f7f 100644
+--- a/build.gradle
++++ b/build.gradle
+@@ -1,7 +1,7 @@
+ buildscript {
+ 	ext {
+-		tools_version = '9.2.1'
+-		sdk_version = 37
++		tools_version = '9.1.0'
++		sdk_version = 36
+ 	}
+
+ 	repositories {
+diff --git a/cameraview/build.gradle b/cameraview/build.gradle
+index df34e2d..5e85193 100644
+--- a/cameraview/build.gradle
++++ b/cameraview/build.gradle
+@@ -16,6 +16,10 @@ android {
+ 	namespace = 'de.markusfisch.android.cameraview'
+ 	compileSdk sdk_version
+
++	// use the build-tools installed in the builder image, instead of
++	// letting AGP download its own default version
++	buildToolsVersion System.getenv('ANDROID_SDK_BUILD_TOOLS_VERSION')
++
+ 	defaultConfig {
+ 		minSdk 9
+ 		targetSdk sdk_version
+diff --git a/gradle/wrapper/gradle-wrapper.properties b/gradle/wrapper/gradle-wrapper.properties
+index c309d8d..b7818e8 100644
+--- a/gradle/wrapper/gradle-wrapper.properties
++++ b/gradle/wrapper/gradle-wrapper.properties
+@@ -1,6 +1,7 @@
+ #Wed Jan 26 11:58:22 CET 2022
+ distributionBase=GRADLE_USER_HOME
+-distributionUrl=https\://services.gradle.org/distributions/gradle-9.4.1-bin.zip
++distributionUrl=https\://services.gradle.org/distributions/gradle-9.4.1-all.zip
++distributionSha256Sum=708d2c6ecc97ca9a11838ef64a6c2301151b8dd10387e22dc1a12c30557cab5b
+ distributionPath=wrapper/dists
+ networkTimeout=10000
+ zipStorePath=wrapper/dists
