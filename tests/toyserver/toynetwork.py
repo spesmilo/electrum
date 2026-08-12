@@ -6,12 +6,20 @@ import asyncio
 
 from electrum import blockchain, util
 from electrum.blockchain import Blockchain
+from electrum.fee_policy import FeeTimeEstimates, FEE_ETA_TARGETS
 from electrum.interface import Interface, ServerAddr
 from electrum.simple_config import SimpleConfig
 from electrum.transaction import Transaction
 from electrum.util import OldTaskGroup
+from electrum.wallet import Abstract_Wallet
 
 from .toyserver import ToyServer
+
+
+class MockDaemon:
+
+    def get_wallets(self) -> dict[str, Abstract_Wallet]:
+        return {}
 
 
 class ToyNetwork:
@@ -31,7 +39,17 @@ class ToyNetwork:
         self.debug = True
         self.bhi_lock = asyncio.Lock()
         self.interface = None  # type: Interface | None
+
         self.relay_fee = None  # type: int | None  # sat/kbyte, set from the server on connect
+        self.fee_estimates = FeeTimeEstimates()
+        for target in FEE_ETA_TARGETS[:-1]:
+            self.fee_estimates.set_data(target, 50_000 // target)
+
+        self.daemon = MockDaemon()
+        self.channel_db = None
+        self.path_finder = None
+        self.lngossip = None
+        self.is_proxy_tor = False
 
     async def connect(self, server: ToyServer, *, client_name: str = None) -> Interface:
         """connect to server, and wait until we have synced its headers"""
@@ -61,6 +79,8 @@ class ToyNetwork:
     async def switch_unwanted_fork_interface(self):
         pass
     async def switch_lagging_interface(self):
+        pass
+    def start_gossip(self):
         pass
     def blockchain(self) -> Blockchain:
         return self.interface.blockchain
