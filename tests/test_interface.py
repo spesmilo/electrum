@@ -187,8 +187,8 @@ class TestInterface(ElectrumTestCase):
                     break
                 await srv_sess.send_notification('blockchain.headers.subscribe', headersub_res)
             # both parties should close their end of the session (triggered by the client DC-ing)
-            await asyncio.sleep(0)
-            assert srv_sess.got_disconnected.is_set()
+            async with util.async_timeout(1):
+                await srv_sess.got_disconnected.wait()
             async with util.async_timeout(1):
                 await interface.got_disconnected.wait()
         # the client should not have received most of the spam:
