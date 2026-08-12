@@ -1,19 +1,25 @@
 Resolve CameraView and zxing-cpp from a local maven repo instead of jitpack.io.
 
+diff --git a/build.gradle b/build.gradle
+index 9be7983..aa513b2 100644
 --- a/build.gradle
 +++ b/build.gradle
-@@ -18,7 +18,13 @@ allprojects {
+@@ -16,9 +16,17 @@ buildscript {
+
+ allprojects {
  	repositories {
- 		google()
- 		mavenCentral()
--		maven { url 'https://jitpack.io' }
++		// our own builds of CameraView and zxing-cpp, populated by
++		// contrib/android/make_barcode_scanner.sh. declared first so these
++		// coordinates always resolve locally and cannot be shadowed by an
++		// artifact published under the same group on a remote repository.
 +		maven {
-+			// electrum: our own builds of CameraView and zxing-cpp,
-+			// populated by contrib/android/make_barcode_scanner.sh
 +			def m2 = System.getenv('ELEC_LOCAL_M2')
 +			if (!m2) throw new GradleException('ELEC_LOCAL_M2 is not set')
 +			url m2
 +		}
+ 		google()
+ 		mavenCentral()
+-		maven { url 'https://jitpack.io' }
  	}
 
  	gradle.projectsEvaluated {
