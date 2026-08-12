@@ -1,4 +1,6 @@
 # Release 4.8.1 (August 10, 2026)
+ * Security fixes and disclosures:
+   - This release contains important security fixes. Details will be disclosed later.
  * Qt GUI (desktop):
    - changed: rename color themes for clarity (#10768)
  * QML GUI & Android:
