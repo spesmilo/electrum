@@ -3164,6 +3164,8 @@ class LNWallet(Logger):
             upstream_peer.downstream_htlc_resolved_event.clear()
 
     def htlc_fulfilled(self, chan: Channel, payment_hash: bytes, htlc_id: int):
+        """Called when an HTLC *WE proposed* becomes irrevocably fulfilled."""
+        # note: this may be called several times for the same htlc
 
         util.trigger_callback('htlc_fulfilled', payment_hash, chan, htlc_id)
         htlc_key = serialize_htlc_key(chan.get_scid_or_local_alias(), htlc_id)
@@ -3211,7 +3213,9 @@ class LNWallet(Logger):
             payment_hash: bytes,
             htlc_id: int,
             error_bytes: Optional[bytes],
-            failure_message: Optional['OnionRoutingFailure']):
+            failure_message: Optional['OnionRoutingFailure'],
+    ):
+        """Called when an HTLC *WE proposed* becomes irrevocably failed."""
         # note: this may be called several times for the same htlc
 
         util.trigger_callback('htlc_failed', payment_hash, chan, htlc_id)
