@@ -745,6 +745,7 @@ class TestChannelBackup(ToyServerTestCase):
         # alice imports the channel backup, and asks bob to force-close
         alice.lnworker.import_channel_backup(backup)
         cb = alice.lnworker.channel_backups[chan_id]
+        self.assertEqual(anchors, cb.has_anchors())
         self.assertEqual(alice.lnworker.has_deterministic_node_id(), alice.lnworker.node_keypair.privkey == cb.cb.privkey)
         await self.wait_until(lambda: cb.get_state() == ChannelState.FUNDED)
         await alice.lnworker.request_force_close(chan_id)
@@ -868,6 +869,7 @@ class TestChannelBackup(ToyServerTestCase):
         onchain_balance_before = sum(alice.get_balance())
         alice.lnworker.import_channel_backup(backup)
         cb = alice.lnworker.channel_backups[chan_id]
+        self.assertEqual(anchors, cb.has_anchors())
 
         # once the CSV delay expired, alice claims her balance out of her old ctx
         await self.mine_blocks(csv_delay)

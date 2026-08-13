@@ -742,6 +742,8 @@ class ChannelBackup(AbstractChannel):
         return self.lnworker.wallet.get_new_sweep_address_for_channel()
 
     def has_anchors(self) -> Optional[bool]:
+        if isinstance(self.cb, ImportedChannelBackupStorage):
+            return bool(self.cb.channel_type & ChannelType.OPTION_ANCHORS)
         return None
 
     def is_zeroconf(self) -> bool:
