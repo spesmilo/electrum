@@ -203,6 +203,7 @@ Note that the notarization process will be skipped as it is not possible to nota
 an executable with Apple using a self-signed certificate.
 
 #### To generate a self-signed certificate, inside your **MacOS VM**:
+
 1. Open the `Keychain Access` application.
 2. In the menubar go to `Keychain Access` > `Certificate Assistant` > `Create a Certificate...`
 3. Set a name (e.g. `signing_dummy`)
@@ -210,6 +211,32 @@ an executable with Apple using a self-signed certificate.
 5. Click `Create` and `Continue`.
 
 You now have a self-signed certificate `signing_dummy` added to your `login` keychain.
+
+#### Fix "Access Control" settings for private key (of new cert)
+
+If you try using your cert with `codesign`, it will fail:
+```
+% cp -f /bin/ls ./CODESIGN_TEST
+% set +e
+% codesign -s "signing_dummy" --dryrun -f ./CODESIGN_TEST
+./CODESIGN_TEST: replacing existing signature
+./CODESIGN_TEST: errSecInternalComponent
+```
+
+To fix this, find the corresponding private key (for the cert) also named `signing_dummy`,
+in `Keychain Access`.
+- Right-click the private key item > `Get Info` > `Access Control`.
+- There is a list of allowed apps in the popup that can access the private key.
+- Click the small `+` (plus) icon. Then press `Win`+`Shift`+`G`: go to folder: `/usr/bin/codesign`,
+  and add the codesign executable to the list.
+- Click `Save Changes`.
+
+Now try again:
+```
+% security unlock-keychain login.keychain
+% codesign -s "signing_dummy" --dryrun -f ./CODESIGN_TEST
+./CODESIGN_TEST: replacing existing signature
+```
 
 #### To sign the executables with the self-signed certificate:
 
@@ -228,3 +255,45 @@ After `sign_osx.sh` finished, you will have a new `*.dmg` inside `electrum/dist`
 Running `compare_dmg` with `IS_NOTARIZED=false` should succeed:
 
 `$ IS_NOTARIZED=false ./electrum/contrib/osx/compare_dmg <unsigned executable> <self-signed executable>`
+
+
+### Historical issues codesigning with production cert
+
+#### "Trust" settings of developer certificate must be set to "Use System Defaults"
+
+Fiddling with the trust settings of the cert produces all kinds of obscure results/errors.
+
+Error1:
+```
+% export CODESIGN_CERT="Developer ID Application: Electrum Technologies GmbH (L6P37P7P56)"
+% cp -f /bin/ls ./CODESIGN_TEST
+% codesign -s "$CODESIGN_CERT" -f ./CODESIGN_TEST
+./CODESIGN_TEST: replacing existing signature
+Warning: unable to build chain to self-signed root for signer "Developer ID Application: Electrum Technologies GmbH (L6P37P7P56)"
+./CODESIGN_TEST: errSecInternalComponent
+```
+
+We saw error1 when multiple use-cases had trust settings set to "Always Trust".
+
+
+Error2:
+```
+% export CODESIGN_CERT="Developer ID Application: Electrum Technologies GmbH (L6P37P7P56)"
+% cp -f /bin/ls ./CODESIGN_TEST
+% codesign -s "$CODESIGN_CERT" -f --timestamp CODESIGN_TEST
+CODESIGN_TEST: replacing existing signature
+% codesign --verify --strict --verbose=2 CODESIGN_TEST
+CODESIGN_TEST: valid on disk
+CODESIGN_TEST: does not satisfy its designated Requirement
+```
+
+We saw error2 when only "Code Signing" was set to "Always Trust".
+
+
+Solution:
+- Open the `Keychain Access` application.
+- Right-click the certificate item > `Get Info`.
+- Open the `Trust` dropdown.
+- Set: "When using this certificate" to "Use System Defaults"
+
+Note: cannot reproduce issue using self-signed "signing_dummy" cert, only using prod cert.
