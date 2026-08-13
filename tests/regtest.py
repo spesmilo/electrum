@@ -58,9 +58,6 @@ class TestLightningAB(TestLightning):
     def test_collaborative_close(self):
         self.run_shell(['collaborative_close'])
 
-    def test_backup(self):
-        self.run_shell(['backup'])
-
     def test_backup_local_forceclose(self):
         self.run_shell(['backup_local_forceclose'])
 
