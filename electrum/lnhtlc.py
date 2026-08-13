@@ -559,30 +559,30 @@ class HTLCManager:
         return htlcs
 
     def received_in_ctn(self, local_ctn: int) -> Sequence[UpdateAddHtlc]:
+        """Returns HTLCs (that *THEY proposed*) that just became irrevocably fulfilled, in local_ctn.
+        These HTLCs have *just* been irrevocably removed, now from both parties' ctxs.
         """
-        received htlcs that became fulfilled when we send a revocation.
-        we check only local, because they are committed in the remote ctx first.
-        """
+        # we check only ctx_owner=LOCAL, because that's where the removal happens last
         return self._get_htlcs_that_got_removed_exactly_at_ctn(local_ctn,
                                                                ctx_owner=LOCAL,
                                                                htlc_proposer=REMOTE,
                                                                log_action='settles')
 
     def sent_in_ctn(self, remote_ctn: int) -> Sequence[UpdateAddHtlc]:
+        """Returns HTLCs (that *WE proposed*) that just became irrevocably fulfilled, in remote_ctn.
+        These HTLCs have *just* been irrevocably removed, now from both parties' ctxs.
         """
-        sent htlcs that became fulfilled when we received a revocation
-        we check only remote, because they are committed in the local ctx first.
-        """
+        # we check only ctx_owner=REMOTE, because that's where the removal happens last
         return self._get_htlcs_that_got_removed_exactly_at_ctn(remote_ctn,
                                                                ctx_owner=REMOTE,
                                                                htlc_proposer=LOCAL,
                                                                log_action='settles')
 
     def failed_in_ctn(self, remote_ctn: int) -> Sequence[UpdateAddHtlc]:
+        """Returns HTLCs (that *WE proposed*) that just became irrevocably failed, in remote_ctn.
+        These HTLCs have *just* been irrevocably removed, now from both parties' ctxs.
         """
-        sent htlcs that became failed when we received a revocation
-        we check only remote, because they are committed in the local ctx first.
-        """
+        # we check only ctx_owner=REMOTE, because that's where the removal happens last
         return self._get_htlcs_that_got_removed_exactly_at_ctn(remote_ctn,
                                                                ctx_owner=REMOTE,
                                                                htlc_proposer=LOCAL,
