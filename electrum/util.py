@@ -669,7 +669,7 @@ def to_string(x, enc) -> str:
         raise TypeError("Not a string or bytes like object")
 
 
-def to_bytes(something, encoding='utf8') -> bytes:
+def to_bytes(something: str | bytes | bytearray, encoding='utf8') -> bytes:
     """
     cast string to bytes() like object, but for python2 support it's bytearray copy
     """

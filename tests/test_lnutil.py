@@ -1117,6 +1117,7 @@ class TestLNUtil(ElectrumTestCase):
         decoded_cb = ImportedChannelBackupStorage.from_encrypted_str(encrypted_cb, password=wallet1.get_fingerprint())
         self.assertEqual(
             ImportedChannelBackupStorage(
+                backup_version=0,
                 funding_txid='97767fdefef3152319363b772914d71e5eb70e793b835c13dce20037d3ac13fe',
                 funding_index=1,
                 funding_address='tb1qfsxllwl2edccpar9jas9wsxd4vhcewlxqwmn0w27kurkme3jvkdqn4msdp',
@@ -1126,11 +1127,12 @@ class TestLNUtil(ElectrumTestCase):
                 host='lightning.electrum.org',
                 port=9739,
                 channel_seed=bfh('ce9bad44ff8521d9f57fd202ad7cdedceb934f0056f42d0f3aa7a576b505332a'),
+                channel_type=int(ChannelType.OPTION_STATIC_REMOTEKEY),
                 local_delay=1008,
                 remote_delay=720,
                 remote_payment_pubkey=bfh('02a1bbc818e2e88847016a93c223eb4adef7bb8becb3709c75c556b6beb3afe7bd'),
                 remote_revocation_pubkey=bfh('022f28b7d8d1f05768ada3df1b0966083b8058e1e7197c57393e302ec118d7f0ae'),
-                local_payment_pubkey=None,
+                local_payment_basepoint=None,
                 multisig_funding_privkey=None,
             ),
             decoded_cb,
@@ -1145,6 +1147,7 @@ class TestLNUtil(ElectrumTestCase):
         decoded_cb = ImportedChannelBackupStorage.from_encrypted_str(encrypted_cb, password=wallet1.get_fingerprint())
         self.assertEqual(
             ImportedChannelBackupStorage(
+                backup_version=1,
                 funding_txid='97767fdefef3152319363b772914d71e5eb70e793b835c13dce20037d3ac13fe',
                 funding_index=1,
                 funding_address='tb1qfsxllwl2edccpar9jas9wsxd4vhcewlxqwmn0w27kurkme3jvkdqn4msdp',
@@ -1154,15 +1157,44 @@ class TestLNUtil(ElectrumTestCase):
                 host='195.201.207.61',
                 port=9739,
                 channel_seed=bfh('ce9bad44ff8521d9f57fd202ad7cdedceb934f0056f42d0f3aa7a576b505332a'),
+                channel_type=int(ChannelType.OPTION_STATIC_REMOTEKEY),
                 local_delay=1008,
                 remote_delay=720,
                 remote_payment_pubkey=bfh('02a1bbc818e2e88847016a93c223eb4adef7bb8becb3709c75c556b6beb3afe7bd'),
                 remote_revocation_pubkey=bfh('022f28b7d8d1f05768ada3df1b0966083b8058e1e7197c57393e302ec118d7f0ae'),
-                local_payment_pubkey=bfh('0308d686712782a44b0cef220485ad83dae77853a5bf8501a92bb79056c9dcb25a'),
+                local_payment_basepoint=bfh('0308d686712782a44b0cef220485ad83dae77853a5bf8501a92bb79056c9dcb25a'),
                 multisig_funding_privkey=None,
             ),
             decoded_cb,
         )
+        with self.assertRaisesRegex(Exception, "cannot re-serialize old-version channel backup"):
+            decoded_cb.to_bytes()  # to bytes refuses to serialize old version
+
+    @as_testnet
+    async def test_decode_imported_channel_backup_v3(self):
+        encrypted_cb = "channel_backup:ARHqOO7du8fTSdHVOr5BaL3EGiFJT4RZ6kDLlPNJ3nHB0X+u6zVGE4jEkyt8JlsEJmLOsxGl4dH12/FgoAUJlr4A6h0xM9xO0XUkhz3+rWtx6/DPw16cqrfnSr90zJw67jeQHQVHfmAZVgKR+BEsGnGY/4cx6OEtobQSTFfwdVq6G5NgPxokP5828eklQ0lDmtYxXz+TPCrx97Nkrs5wdAInJKVVYtmVXw6AbenxsrRwKW7NtuuZ6D1iYkfFEvQ8XDYXDbietqzOLrGIjBUrz+SyYIlhdRON4kb+RN0t4e0V05aqeTDTlETIKg7/gBIgYhEySBv702/VQjW1kXvoNifjUj5mHbpAbTLm/vBNGM73cG0h6S8yTQ2b6wGBMLeS3Lf6SdSssv7lS+LOR7bIvtfNOtMVREPjXhTVk4ACwo23bzd7pWv5Is/XRf5T2gqSZvM9aozYieBgD4BXMK7aA/7bUKxYGa0G9DYbWOFKGFcKYHTvdENWJfZ17xIb1eeHws9uzcY="
+        wallet_vpub = "vpub5UQGRCM7BGYjn1ttbgxRW9yMXAwWvTXD4LSxs3F9EvEZxYdB3AwYsXG3vKtyJyjuRQKFQBaVZ7cMqNVHFZsk2Rm5HoRNcAJnPPNiEhxW8et"
+        decoded_cb = ImportedChannelBackupStorage.from_encrypted_str(encrypted_cb, password=wallet_vpub)
+        reference = ImportedChannelBackupStorage(
+            backup_version=3,
+            funding_txid='4d6aa822ba3ded69d27c4d245658cb3dbba511621e411be095deef4118baf5d5',
+            funding_index=0,
+            funding_address='tb1qzx6xzdavjlawmkd6j43vqxclvw6lj7asegpmjq0k6e3xlztzhyeqpkuwmg',
+            is_initiator=True,
+            node_id=bfh('03933884aaf1d6b108397e5efe5c86bcf2d8ca8d2f700eda99db9214fc2712b134'),
+            privkey=bfh('a73df0a2ac3dc4764254a3b0227a72768f229cf419f80d1653efc07584517e30'),
+            host='13.248.222.197',
+            port=9735,
+            channel_seed=bfh('7c5e51f115741b92c9746dc0e6f2f31f2830ec003f35d74a1abd0d106a3e07e9'),
+            channel_type=ChannelType.OPTION_STATIC_REMOTEKEY | ChannelType.OPTION_ANCHORS,
+            local_delay=1008,
+            remote_delay=720,
+            remote_payment_pubkey=bfh('02039b955bef1e02d5b5e8f592d9ed15ea2be49f5ee979c88071b1485cfe78a6da'),
+            remote_revocation_pubkey=bfh('026c9e1e2ce5ae47a36df3bb90dbeb6d7874086e3a4ab1ea2a6211331dbd285973'),
+            local_payment_basepoint=bfh('f406b0899040d762a326035631c2ce38b22c2db18102ab9e3c666c87d9e0ab65'),
+            multisig_funding_privkey=bfh('a21d6110f9af75def01f2145ef1338dfa53c2fb2a58dd9ae0ecf3358ee663783'),
+        )
+        self.assertEqual(reference, decoded_cb)
 
     def test_onchain_channel_backup_json_roundtrip(self):
         cb = OnchainChannelBackupStorage(
