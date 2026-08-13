@@ -3730,6 +3730,10 @@ class LNWallet(Logger):
         assert chan.is_static_remotekey_enabled()
         peer_addresses = list(chan.get_peer_addresses())
         peer_addr = peer_addresses[0] if peer_addresses else None
+        if chan.has_anchors():
+            local_payment_basepoint = chan.config[LOCAL].payment_basepoint.privkey
+        else:
+            local_payment_basepoint = chan.config[LOCAL].payment_basepoint.pubkey
         return ImportedChannelBackupStorage(
             node_id=chan.node_id,
             privkey=self.node_keypair.privkey,
@@ -3740,11 +3744,12 @@ class LNWallet(Logger):
             port=peer_addr.port if peer_addr else 0,
             is_initiator=chan.constraints.is_initiator,
             channel_seed=chan.config[LOCAL].channel_seed,
+            channel_type=int(chan.storage['channel_type']),
             local_delay=chan.config[LOCAL].to_self_delay,
             remote_delay=chan.config[REMOTE].to_self_delay,
             remote_revocation_pubkey=chan.config[REMOTE].revocation_basepoint.pubkey,
             remote_payment_pubkey=chan.config[REMOTE].payment_basepoint.pubkey,
-            local_payment_pubkey=chan.config[LOCAL].payment_basepoint.pubkey,
+            local_payment_basepoint=local_payment_basepoint,
             multisig_funding_privkey=chan.config[LOCAL].multisig_key.privkey,
         )
 

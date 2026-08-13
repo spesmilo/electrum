@@ -575,8 +575,7 @@ class ChannelBackup(AbstractChannel):
       - detect force close
       - request force close
       - sweep my ctx to_local
-    future:
-      - will need to sweep their ctx to_remote
+      - sweep their ctx to_remote (anchor channels, with srk it is a wallet address)
     """
 
     def __init__(self, cb: ChannelBackupStorage, *, lnworker: 'LNWallet'):
@@ -598,10 +597,10 @@ class ChannelBackup(AbstractChannel):
         self.unconfirmed_closing_txid = None # not a state, only for GUI
 
     def init_config(self, cb: ImportedChannelBackupStorage):
-        local_payment_pubkey = cb.local_payment_pubkey
-        if local_payment_pubkey is None:
+        local_payment_basepoint = cb.local_payment_basepoint
+        if local_payment_basepoint is None:
             self.logger.warning(
-                f"local_payment_pubkey missing from (old-type) channel backup. "
+                f"local_payment_basepoint missing from (old-type) channel backup. "
                 f"You should export and re-import a newer backup.")
         multisig_funding_keypair = None
         if multisig_funding_secret := cb.multisig_funding_privkey:
@@ -615,10 +614,13 @@ class ChannelBackup(AbstractChannel):
             # there are three cases of backups:
             # 1. legacy: payment_basepoint will be derived
             # 2. static_remotekey: to_remote sweep not necessary due to wallet address
-            # 3. anchor outputs: sweep to_remote by deriving the key from the funding pubkeys
-            static_remotekey=local_payment_pubkey,
+            # 3. anchor outputs: sweep to_remote with local_payment_basepoint if it is a private key, otherwise
+            #           by deriving the key from the funding pubkeys
+            channel_type=cb.channel_type,
+            payment_basepoint=local_payment_basepoint,
             multisig_key=multisig_funding_keypair,
             # dummy values
+            static_remotekey=None,
             static_payment_key=None,
             dust_limit_sat=None,
             max_htlc_value_in_flight_msat=None,

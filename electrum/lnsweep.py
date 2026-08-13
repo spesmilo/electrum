@@ -20,7 +20,7 @@ from .lnutil import (make_commitment_output_to_remote_address, make_commitment_o
                      RevocationStore, extract_ctn_from_tx_and_chan, UnableToDeriveSecret, SENT, RECEIVED,
                      map_htlcs_to_ctx_output_idxs, Direction, make_commitment_output_to_remote_witness_script,
                      derive_payment_basepoint, ctx_has_anchors, SCRIPT_TEMPLATE_FUNDING, Keypair,
-                     derive_multisig_funding_key_if_we_opened, derive_multisig_funding_key_if_they_opened)
+                     derive_multisig_funding_key_if_we_opened, derive_multisig_funding_key_if_they_opened, LocalConfig)
 from .transaction import (Transaction, TxInput, PartialTxInput,
                           PartialTxOutput, TxOutpoint, script_GetOp, match_script_against_template)
 from .logging import get_logger, Logger
@@ -569,55 +569,71 @@ def sweep_their_ctx_to_remote_backup(
         *, chan: 'ChannelBackup',
         ctx: Transaction,
         funding_tx: Transaction,
-) -> Optional[Dict[str, SweepInfo]]:
-    txs = {}  # type: Dict[str, SweepInfo]
+) -> Dict[str, SweepInfo]:
     """If we only have a backup, and the remote force-closed with their ctx,
     and anchors are enabled, we need to sweep to_remote."""
 
+    txs = {}  # type: Dict[str, SweepInfo]
+    local_config = chan.config.get(LOCAL)  # type: Optional[LocalConfig]
+    fp_idx = None  # type: Optional[int]
     if ctx_has_anchors(ctx):
-        # for anchors we need to sweep to_remote
         funding_pubkeys = extract_funding_pubkeys_from_ctx(ctx.inputs()[0])
-        _logger.debug(f'checking their ctx for funding pubkeys: {[pk.hex() for pk in funding_pubkeys]}')
-        # check which of the pubkey was ours
-        for fp_idx, pubkey in enumerate(funding_pubkeys):
-            candidate_basepoint = derive_payment_basepoint(chan.lnworker.static_payment_key.privkey, funding_pubkey=pubkey)
-            candidate_to_remote_address = make_commitment_output_to_remote_address(candidate_basepoint.pubkey, has_anchors=True)
-            if ctx.get_output_idxs_from_address(candidate_to_remote_address):
-                our_payment_pubkey = candidate_basepoint
-                to_remote_address = candidate_to_remote_address
-                _logger.debug(f'found funding pubkey')
-                break
+        # for anchors we need the payment_basepoint to spend the to_remote
+        if local_config and isinstance(local_config.payment_basepoint, Keypair):
+            # note: v0 backups have a Keypair too (but no anchors), which is derived in LocalConfig.from_seed()
+            _logger.debug("using payment_basepoint key from channel backup")
+            # if we have a channel backup v3+ the imported payment_basepoint is a private key for anchor channels
+            # so non-deterministic LNWallets can recover their to_remote outputs
+            our_payment_keypair = local_config.payment_basepoint
+            to_remote_address = make_commitment_output_to_remote_address(our_payment_keypair.pubkey, has_anchors=True)
+            if not ctx.get_output_idxs_from_address(to_remote_address):
+                _logger.debug(f"no to_remote output found for {to_remote_address=} from backup")
+                return {}
         else:
-            return
+            # check which of the pubkey was ours
+            # might be from a channel backup < v3, if LNWallet got seeded deterministically from an Electrum-type seed
+            # the basepoint derivation is deterministic too. If they used a nondeterministic seed their funds are lost.
+            _logger.debug(f'checking their ctx for funding pubkeys: {[pk.hex() for pk in funding_pubkeys]}')
+            for fp_idx, pubkey in enumerate(funding_pubkeys):
+                candidate_basepoint = derive_payment_basepoint(chan.lnworker.static_payment_key.privkey, funding_pubkey=pubkey)
+                candidate_to_remote_address = make_commitment_output_to_remote_address(candidate_basepoint.pubkey, has_anchors=True)
+                if ctx.get_output_idxs_from_address(candidate_to_remote_address):
+                    our_payment_keypair = candidate_basepoint
+                    to_remote_address = candidate_to_remote_address
+                    _logger.debug(f'found funding pubkey')
+                    break
+            else:
+                return {}
     else:
         # we are dealing with static_remotekey which is locked to a wallet address
         return {}
 
-    # remote anchor
-    # derive funding_privkey ("multisig_key")
+    # get remote anchor funding_privkey ("multisig_key")
     # note: for imported backups, we already have this as 'local_config.multisig_key'
     #       but for on-chain backups, we need to derive it.
-    #       For symmetry, we derive it now regardless of type
-    our_funding_pubkey = funding_pubkeys[fp_idx]
-    their_funding_pubkey = funding_pubkeys[1 - fp_idx]
-    remote_node_id = chan.node_id  # for onchain backups, this is only the prefix
-    if chan.is_initiator():
-        funding_kp_cand = derive_multisig_funding_key_if_we_opened(
-            funding_root_secret=chan.lnworker.funding_root_keypair.privkey,
-            remote_node_id_or_prefix=remote_node_id,
-            nlocktime=funding_tx.locktime,
-        )
-    else:
-        funding_kp_cand = derive_multisig_funding_key_if_they_opened(
-            funding_root_secret=chan.lnworker.funding_root_keypair.privkey,
-            remote_node_id_or_prefix=remote_node_id,
-            remote_funding_pubkey=their_funding_pubkey,
-        )
-    assert funding_kp_cand.pubkey == our_funding_pubkey, f"funding pubkey mismatch1. {chan.is_initiator()=}"
-    our_ms_funding_keypair = funding_kp_cand
-    # sanity check funding_privkey, if we had it already (if backup is imported):
-    if local_config := chan.config.get(LOCAL):
-        assert our_ms_funding_keypair == local_config.multisig_key, f"funding pubkey mismatch2. {chan.is_initiator()=}"
+    our_ms_funding_keypair = None
+    if local_config and local_config.multisig_key.pubkey in funding_pubkeys:
+        _logger.debug("using multisig_key from channel backup to spend remote anchor")
+        our_ms_funding_keypair = local_config.multisig_key
+    elif fp_idx is not None:
+        _logger.debug("found no multisig_key for remote anchor in channel backup, deriving key")
+        our_funding_pubkey = funding_pubkeys[fp_idx]
+        their_funding_pubkey = funding_pubkeys[1 - fp_idx]
+        remote_node_id = chan.node_id  # for onchain backups, this is only the prefix
+        if chan.is_initiator():
+            funding_kp_cand = derive_multisig_funding_key_if_we_opened(
+                funding_root_secret=chan.lnworker.funding_root_keypair.privkey,
+                remote_node_id_or_prefix=remote_node_id,
+                nlocktime=funding_tx.locktime,
+            )
+        else:
+            funding_kp_cand = derive_multisig_funding_key_if_they_opened(
+                funding_root_secret=chan.lnworker.funding_root_keypair.privkey,
+                remote_node_id_or_prefix=remote_node_id,
+                remote_funding_pubkey=their_funding_pubkey,
+            )
+        assert funding_kp_cand.pubkey == our_funding_pubkey, f"funding pubkey mismatch1. {chan.is_initiator()=}"
+        our_ms_funding_keypair = funding_kp_cand
 
     if our_ms_funding_keypair:
         if txin := sweep_ctx_anchor(ctx=ctx, multisig_key=our_ms_funding_keypair):
@@ -631,7 +647,7 @@ def sweep_their_ctx_to_remote_backup(
             )
 
     # to_remote
-    our_payment_privkey = ecc.ECPrivkey(our_payment_pubkey.privkey)
+    our_payment_privkey = ecc.ECPrivkey(our_payment_keypair.privkey)
     output_idxs = ctx.get_output_idxs_from_address(to_remote_address)
     if output_idxs:
         output_idx = output_idxs.pop()
