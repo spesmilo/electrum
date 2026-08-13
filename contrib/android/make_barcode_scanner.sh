@@ -36,6 +36,14 @@ MARKUSFISCH_GROUP_ID="com.github.markusfisch"
 # don't let gradle pull in build dependencies
 GRADLE_NO_SDK_DOWNLOAD="-Pandroid.builder.sdkDownload=false"
 
+# set by make_verification_metadata.sh: regenerate the dependency verification metadata
+# instead of enforcing it. gradle disables verification for such a run and rewrites
+# gradle/verification-metadata.xml from what it actually resolves.
+GRADLE_GEN_ARGS=()
+if [ -n "$ELEC_WRITE_VERIFICATION_METADATA" ]; then
+    GRADLE_GEN_ARGS=(--write-verification-metadata sha256)
+fi
+
 # CMake for the zxing-cpp native build.
 ANDROID_CMAKE_VERSION="3.22.1"
 ANDROID_CMAKE_HASH="9196644852a978012caf7a4067ba1898debf6cc204c3341562771e31080d6869"
@@ -103,6 +111,45 @@ install_cmake() {
     info "cmake $ANDROID_CMAKE_VERSION installed into $CMAKE_DIR"
 }
 
+# install the checked-in gradle dependency verification metadata into a checked out repo.
+# with this in place gradle verifies the sha256 of every artifact it resolves (including the
+# AGP plugin classpath) and fails the build on a mismatch, instead of trusting whatever the
+# repositories hand back. usage: install_verification_metadata <name> <gradle-project-dir>
+# regenerate after any toolchain or dependency bump with:
+#   ./gradlew --write-verification-metadata sha256 <task>
+# and copy the result back over verification-metadata/<name>.xml
+install_verification_metadata() {
+    local name=$1
+    local project_dir=$2
+    local src="$CONTRIB_ANDROID/verification-metadata/$name.xml"
+
+    if [ -n "$ELEC_WRITE_VERIFICATION_METADATA" ]; then
+        # about to be regenerated; installing a stale copy first would be pointless
+        rm -f "$project_dir/gradle/verification-metadata.xml"
+        return
+    fi
+    if [ ! -f "$src" ]; then
+        fail "verification metadata not found at $src"
+    fi
+    mkdir -p "$project_dir/gradle"
+    cp "$src" "$project_dir/gradle/verification-metadata.xml"
+    info "installed dependency verification metadata for $name"
+}
+
+# in generation mode every gradle invocation must resolve against a cold artifact cache.
+# gradle only records what it actually resolves, so artifacts already in modules-2 from an
+# earlier project in the same run (parent poms, BOM descriptors like guava-parent and
+# junit-bom) are silently left out, and the next clean build then fails verification on
+# them. dropping modules-2 forces re-resolution; the wrapper dists are left alone so the
+# gradle distribution itself is not re-downloaded each time.
+drop_gradle_artifact_cache() {
+    if [ -n "$ELEC_WRITE_VERIFICATION_METADATA" ]; then
+        local home="${GRADLE_USER_HOME:-$HOME/.gradle}"
+        info "generation mode: dropping $home/caches/modules-2"
+        rm -rf "$home/caches/modules-2"
+    fi
+}
+
 # check the given patch files exist, and set PATCH_ID to a short digest of them.
 # PATCH_ID goes into the build cache keys, so editing a patch invalidates cached AARs.
 set_patch_id() {
@@ -112,7 +159,7 @@ set_patch_id() {
             fail "patch not found at $patch"
         fi
     done
-    PATCH_ID=$(cat "$@" | sha256sum | cut -c1-12)
+    PATCH_ID=$(cat "$@" "$CONTRIB_ANDROID"/verification-metadata/*.xml | sha256sum | cut -c1-12)
 }
 
 # target architecture passed as argument by`make_apk.sh`
@@ -182,11 +229,13 @@ else
     chmod +x gradlew
 
     install_cmake
+    install_verification_metadata zxingcpp "$ZXING_CPP_DIR/wrappers/aar"
 
     # Set local.properties to use SDK of docker container, and our pinned cmake
     echo "sdk.dir=${ANDROID_SDK_HOME}" > local.properties
     echo "cmake.dir=${CMAKE_DIR}" >> local.properties
-    ./gradlew :zxingcpp:assembleRelease "$GRADLE_NO_SDK_DOWNLOAD" \
+    drop_gradle_artifact_cache
+    ./gradlew :zxingcpp:assembleRelease "$GRADLE_NO_SDK_DOWNLOAD" "${GRADLE_GEN_ARGS[@]}" \
         -Pandroid.injected.build.abi="$TARGET_ARCH"
 
     # Copy the built AAR to cache directory
@@ -221,11 +270,14 @@ else
     for patch in "${CAMERA_VIEW_PATCHES[@]}"; do
         apply_patch "$patch" "$CAMERA_VIEW_DIR"
     done
+    install_verification_metadata cameraview "$CAMERA_VIEW_DIR"
+
     cd "$CAMERA_VIEW_DIR"
     chmod +x gradlew
 
     echo "sdk.dir=${ANDROID_SDK_HOME}" > local.properties
-    ./gradlew :cameraview:assembleRelease "$GRADLE_NO_SDK_DOWNLOAD"
+    drop_gradle_artifact_cache
+    ./gradlew :cameraview:assembleRelease "$GRADLE_NO_SDK_DOWNLOAD" "${GRADLE_GEN_ARGS[@]}"
 
     CAMERA_AAR_SOURCE="$CAMERA_VIEW_DIR/cameraview/build/outputs/aar/cameraview-release.aar"
     CAMERA_AAR_DEST_GENERIC="$CACHEDIR/aars/CameraView.aar"
@@ -266,11 +318,14 @@ else
         "$MARKUSFISCH_GROUP_ID" "zxing-cpp" "$ZXING_CPP_VERSION"
     export ELEC_LOCAL_M2="$LOCAL_M2"
 
+    install_verification_metadata barcodescannerview "$BARCODE_SCANNER_VIEW_DIR"
+
     cd "$BARCODE_SCANNER_VIEW_DIR"
     chmod +x gradlew
 
     echo "sdk.dir=${ANDROID_SDK_HOME}" > local.properties
-    ./gradlew :barcodescannerview:assembleRelease "$GRADLE_NO_SDK_DOWNLOAD"
+    drop_gradle_artifact_cache
+    ./gradlew :barcodescannerview:assembleRelease "$GRADLE_NO_SDK_DOWNLOAD" "${GRADLE_GEN_ARGS[@]}"
 
     BARCODE_AAR_SOURCE="$BARCODE_SCANNER_VIEW_DIR/barcodescannerview/build/outputs/aar/barcodescannerview-release.aar"
     BARCODE_AAR_DEST_GENERIC="$CACHEDIR/aars/BarcodeScannerView.aar"
