@@ -18,15 +18,27 @@ from electrum.lnurl import LNURL6Data
 from electrum.lnchannel import PeerState, ChannelState
 from electrum.bitcoin import COIN, address_to_script
 from electrum.payment_identifier import PaymentIdentifier, PaymentIdentifierState, PaymentIdentifierType
-from electrum.network import Network
-from electrum.util import event_listener, now
+from electrum.util import event_listener, now, InvoiceError
 
 from electrum.gui.common_qt.util import QtEventListener
 
 from .qetypes import QEAmount
 from .qewallet import QEWallet
 from .util import status_update_timer_interval
-from ...util import InvoiceError
+
+
+def userinfo_for_invoice_status(status: int) -> str:
+    # note: keep this a function, so _() is evaluated at call time, not at import time
+    return {
+        PR_EXPIRED: _('This invoice has expired'),
+        PR_PAID: _('This invoice was already paid'),
+        PR_INFLIGHT: _('Payment in progress...'),
+        PR_ROUTING: _('Payment in progress...'),
+        PR_BROADCASTING: _('Payment in progress...') + ' (' + _('broadcasting') + ')',
+        PR_BROADCAST:  _('Payment in progress...') + ' (' + _('broadcast successfully') + ')',
+        PR_UNCONFIRMED: _('Payment in progress...') + ' (' + _('waiting for confirmation') + ')',
+        PR_UNKNOWN: _('Invoice has unknown status'),
+    }[status]
 
 
 class QEInvoice(QObject, QtEventListener):
@@ -98,28 +110,26 @@ class QEInvoice(QObject, QtEventListener):
     def on_event_payment_succeeded(self, wallet, key):
         if wallet == self._wallet.wallet and key == self.key:
             self.statusChanged.emit()
-            self.determine_can_pay()
-            self.update_userinfo()
+            self.update_status()
 
     @event_listener
     def on_event_payment_failed(self, wallet, key, reason):
         if wallet == self._wallet.wallet and key == self.key:
             self.statusChanged.emit()
-            self.determine_can_pay()
+            self.update_status()
+            # deliberately override the userinfo computed by update_status()
             self.set_userinfo(_('Payment failed: ') + reason, QEInvoice.UserinfoStatus.Error)
 
     @event_listener
     def on_event_invoice_status(self, wallet, key, status):
         if self._wallet and wallet == self._wallet.wallet and key == self.key:
-            self.update_userinfo()
-            self.determine_can_pay()
+            self.update_status()
             self.statusChanged.emit()
 
     @event_listener
     def on_event_channel(self, wallet, channel):
         if self._wallet and wallet == self._wallet.wallet:
-            self.update_userinfo()
-            self.determine_can_pay()
+            self.update_status()
 
     walletChanged = pyqtSignal()
     @pyqtProperty(QVariant, notify=walletChanged)
@@ -178,8 +188,7 @@ class QEInvoice(QObject, QtEventListener):
 
     @pyqtSlot()
     def _on_amountoverride_value_changed(self):
-        self.update_userinfo()
-        self.determine_can_pay()
+        self.update_status()
 
     statusChanged = pyqtSignal()
     @pyqtProperty(int, notify=statusChanged)
@@ -297,8 +306,7 @@ class QEInvoice(QObject, QtEventListener):
 
         self.set_lnprops()
 
-        self.update_userinfo()
-        self.determine_can_pay()
+        self.update_status()
 
         self.invoiceChanged.emit()
         self.statusChanged.emit()
@@ -314,77 +322,57 @@ class QEInvoice(QObject, QtEventListener):
                     self._timer.setInterval(interval)  # msec
                     self._timer.start()
         else:
-            self.update_userinfo()
-            self.determine_can_pay()  # status went to PR_EXPIRED
+            self.update_status()  # status went to PR_EXPIRED
 
     @pyqtSlot()
     def updateStatusString(self):
         self.statusChanged.emit()
         self.set_status_timer()
 
-    def update_userinfo(self):
-        self.set_userinfo('')
-
-        if not self.amountOverride.isEmpty:
-            amount = self.amountOverride
-        else:
-            amount = self.amount
-
-        if self.amount.isEmpty:
-            self.set_userinfo(_('Enter the amount you want to send'))
-
-        status = self.status
-
-        if amount.isEmpty and status == PR_UNPAID:  # unspecified amount
-            return
-
-        def userinfo_for_invoice_status(_status: int) -> str:
-            return {
-                PR_EXPIRED: _('This invoice has expired'),
-                PR_PAID: _('This invoice was already paid'),
-                PR_INFLIGHT: _('Payment in progress...'),
-                PR_ROUTING: _('Payment in progress...'),
-                PR_BROADCASTING: _('Payment in progress...') + ' (' + _('broadcasting') + ')',
-                PR_BROADCAST:  _('Payment in progress...') + ' (' + _('broadcast successfully') + ')',
-                PR_UNCONFIRMED: _('Payment in progress...') + ' (' + _('waiting for confirmation') + ')',
-                PR_UNKNOWN: _('Invoice has unknown status'),
-            }[_status]
-
-        if status in [PR_UNPAID, PR_FAILED]:
-            can_pay, msg = self.check_can_pay_amount(amount)
-            if can_pay is None:
-                userinfo_status = QEInvoice.UserinfoStatus.Warning
-            elif can_pay is False:
-                userinfo_status = QEInvoice.UserinfoStatus.Error
-            else:
-                userinfo_status = QEInvoice.UserinfoStatus.Info
-            self.set_userinfo(msg, userinfo_status)
-        elif status == PR_PAID and self._paid_in_this_session:
-            self.set_userinfo(_('Paid!'))
-        else:
-            self.set_userinfo(userinfo_for_invoice_status(status))
-
-    def determine_can_pay(self):
+    def update_status(self):
+        """Update GUI:
+        - sets canPay flag
+        - sets canSave flag
+        - updates user info text
+        """
         self.canPay = False
         self.canSave = False
 
-        if self.invoiceType not in [QEInvoice.Type.LightningInvoice, QEInvoice.Type.OnchainInvoice]:
-            return
+        amount = self.amountOverride if not self.amountOverride.isEmpty else self.amount
 
-        if not self.amountOverride.isEmpty:
-            amount = self.amountOverride
-        else:
-            amount = self.amount
+        # Invalid and LNURLPayRequest have no _effectiveInvoice, so payability cannot be determined.
+        is_directly_payable = self.invoiceType in [
+            QEInvoice.Type.LightningInvoice, QEInvoice.Type.OnchainInvoice]
 
-        self.canSave = not bool(self._wallet.wallet.get_invoice(self._effectiveInvoice.get_id()))
+        if is_directly_payable:
+            self.canSave = not bool(self._wallet.wallet.get_invoice(self._effectiveInvoice.get_id()))
 
-        status = self.status
+        userinfo = ''
+        userinfo_status = QEInvoice.UserinfoStatus.Info
+        try:
+            if self.amount.isEmpty:
+                userinfo = _('Enter the amount you want to send')
 
-        if amount.isEmpty and status == PR_UNPAID:  # unspecified amount
-            return
+            status = self.status
 
-        if status in [PR_UNPAID, PR_FAILED]:
-            self.canPay = self.check_can_pay_amount(amount)[0] is True
+            if amount.isEmpty and status == PR_UNPAID:  # unspecified amount
+                return
+
+            if status in [PR_UNPAID, PR_FAILED]:
+                can_pay, userinfo = self.check_can_pay_amount(amount)
+                self.canPay = is_directly_payable and can_pay is True
+                if can_pay is None:
+                    userinfo_status = QEInvoice.UserinfoStatus.Warning
+                elif can_pay is False:
+                    userinfo_status = QEInvoice.UserinfoStatus.Error
+                else:
+                    userinfo_status = QEInvoice.UserinfoStatus.Info
+            elif status == PR_PAID and self._paid_in_this_session:
+                userinfo = _('Paid!')
+            else:
+                userinfo = userinfo_for_invoice_status(status)
+        finally:
+            self.set_userinfo(userinfo if userinfo is not None else '', userinfo_status)
 
     def check_can_pay_amount(self, amount: QEAmount) -> Tuple[Optional[bool], Optional[str]]:
         # can_pay bool: None is warning, False is Error
