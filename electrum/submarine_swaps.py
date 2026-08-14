@@ -552,11 +552,12 @@ class SwapManager(Logger):
         remaining_time = swap.locktime - current_height
         txos = self.lnwatcher.adb.get_addr_outputs(swap.lockup_address)
 
-        for txin in txos.values():
-            if txin.block_height is None or txin.block_height <= TX_HEIGHT_LOCAL:
+        txin: Optional[PartialTxInput] = None
+        for funding_utxo in txos.values():
+            if funding_utxo.block_height is None or funding_utxo.block_height <= TX_HEIGHT_LOCAL:
                 # they could create a decoy funding utxo and then double spend it, so it sticks in our adb as local tx
                 continue
-            if txin.value_sats() < swap.onchain_amount:
+            if funding_utxo.value_sats() < swap.onchain_amount:
                 # reverse swap: amount too low, we must not reveal the preimage.
                 # forward swap: the counterparty might create dust outputs to the funding address,
                 #               trying to distract us from their claim of the 'real' funding output.
@@ -564,10 +565,12 @@ class SwapManager(Logger):
                 #               however there is no economic gain for them (or loss for us), if we pick
                 #               the output they claimed, we see the preimage, otherwise we refund their decoy one.
                 continue
-            break
-        else:
-            # swap not funded.
-            txin = None
+            txin = funding_utxo
+            if txin.block_height > TX_HEIGHT_UNCONFIRMED:
+                # we prefer confirmed utxos over mempool ones as someone might intentionally create low-fee funding txs
+                break
+
+        if txin is None:
             # if it is a normal swap, we might have double spent the funding tx
             # in that case we need to fail the HTLCs
             if remaining_time <= 0:
@@ -577,10 +580,7 @@ class SwapManager(Logger):
                     swap.set_unfunded()
                 if not swap._is_cancelled:  # otherwise we already tried to fail the swap this session
                     self._fail_swap(swap, f'expired: {remaining_time=} blocks')
-
-        if txin is None:
             return  # not funded yet
-        assert isinstance(txin, PartialTxInput)
 
         # the swap is funded
         # note: swap.funding_txid can change due to RBF, it will get updated here:
