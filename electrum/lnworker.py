@@ -3818,6 +3818,15 @@ class LNWallet(Logger):
         self.wallet.save_db()
         util.trigger_callback('channels_updated', self.wallet)
         self.lnwatcher.add_channel(cb)
+        if not cb.can_sweep_their_ctx_to_remote():
+            # the user has lost their channel state and cannot locally force close. If they'd request a remote fclose
+            # they wouldn't be able to claim their to_remote output. However, they could collaborate with the channel
+            # counterparty (likely one of the hardcoded trampolines) and manually construct a transaction to spend
+            # the channel funding UTXO as they do have the multisig key in their backup ("manual collaborative close").
+            raise util.UserFacingException(
+                _("The channel backup you imported cannot be used to request a force close. Please generate a new backup. "
+                  "If you lost your wallet data, please open an issue on GitHub.")
+            )
 
     def has_conflicting_backup_with(self, remote_node_id: bytes):
         """ Returns whether we have an active channel with this node on another device, using same local node id. """
