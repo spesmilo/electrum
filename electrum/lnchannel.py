@@ -658,6 +658,20 @@ class ChannelBackup(AbstractChannel):
             announcement_bitcoin_sig=b'',
         )
 
+    def can_sweep_their_ctx_to_remote(self) -> bool:
+        cb = self.cb
+        if not isinstance(cb, ImportedChannelBackupStorage):
+            return True  # on-chain backups only exist for deterministic wallets
+        if self.has_anchors():
+            return True  # has_anchors can only be determined with >=v3, which also has the secret for the to_remote sweep
+        if cb.local_payment_basepoint is None:
+            return True  # v0 backup, only had srk channels
+        to_remote_addr = make_commitment_output_to_remote_address(cb.local_payment_basepoint, has_anchors=False)
+        if self.lnworker.wallet.is_mine(to_remote_addr):
+            return True  # legacy static_remotekey: to_remote is a wallet address
+        # pre-v3: only sweepable if we still have the LN keys that created this backup
+        return cb.privkey == self.lnworker.node_keypair.privkey
+
     def can_be_deleted(self):
         return self.is_imported or self.is_redeemed()
 
@@ -749,7 +763,7 @@ class ChannelBackup(AbstractChannel):
 
     def get_close_options(self) -> Sequence[ChanCloseOption]:
         ret = []
-        if self.get_state() == ChannelState.FUNDED:
+        if self.get_state() == ChannelState.FUNDED and self.can_sweep_their_ctx_to_remote():
             ret.append(ChanCloseOption.REQUEST_REMOTE_FCLOSE)
         return ret
 
