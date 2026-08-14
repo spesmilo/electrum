@@ -379,6 +379,13 @@ class TxWalletDetails(NamedTuple):
     is_related_to_wallet: bool
 
 
+class WalletWarning(NamedTuple):
+    key: str      # stable identifier, used to remember that the user has seen this warning
+    title: str
+    message: str
+    show_once: bool  # if True acceptance is persisted and the warning won't be shown again
+
+
 @dataclass(kw_only=True, slots=True, frozen=True)
 class PiechartBalance:
     confirmed: int    # confirmed and matured and NOT frozen
@@ -516,6 +523,22 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         new_db.set_modified(True)
         new_db.write()
         return new_path
+
+    def get_startup_warnings(self) -> Sequence[WalletWarning]:
+        """Warnings that should be shown to the user once, when the wallet is opened in a GUI."""
+        warnings = []  # type: List[WalletWarning]
+        if self.lnworker:
+            warnings += self.lnworker.get_lightning_startup_warnings()
+        acknowledged = self.db.get('acknowledged_warnings', [])
+        return [warning for warning in warnings if warning.key not in acknowledged or warning.show_once is False]
+
+    def acknowledge_warning(self, key: str) -> None:
+        """Remember that the user has seen this warning, so that it is not shown again."""
+        acknowledged = self.db.get('acknowledged_warnings', [])
+        if key in acknowledged:
+            return
+        self.db.put('acknowledged_warnings', list(acknowledged) + [key])
+        self.save_db()
 
     def has_lightning(self) -> bool:
         return bool(self.lnworker)

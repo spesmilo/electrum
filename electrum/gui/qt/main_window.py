@@ -681,6 +681,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         if cb_checked:
             self.config.DONT_SHOW_TESTNET_WARNING = True
 
+    def show_startup_warnings(self):
+        for warning in self.wallet.get_startup_warnings():
+            self.show_warning(warning.message, title=warning.title)
+            self.wallet.acknowledge_warning(warning.key)
+
     def open_wallet(self):
         try:
             wallet_folder = self.get_wallet_folder()

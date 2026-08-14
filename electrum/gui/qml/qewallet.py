@@ -528,6 +528,18 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             return self.wallet.lnworker.lnpeermgr.num_peers()
         return 0
 
+    @pyqtProperty('QVariantList', notify=dataChanged)
+    def startupWarnings(self):
+        return [{
+            'key': warning.key,
+            'title': warning.title,
+            'message': warning.message,
+        } for warning in self.wallet.get_startup_warnings()]
+
+    @pyqtSlot(str)
+    def acknowledgeWarning(self, key: str):
+        self.wallet.acknowledge_warning(key)
+
     @pyqtSlot()
     def enableLightning(self):
         self.wallet.init_lightning(password=self.password)

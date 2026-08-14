@@ -618,10 +618,6 @@ class ChannelBackup(AbstractChannel):
 
     def init_config(self, cb: ImportedChannelBackupStorage):
         local_payment_basepoint = cb.local_payment_basepoint
-        if local_payment_basepoint is None:
-            self.logger.warning(
-                f"local_payment_basepoint missing from (old-type) channel backup. "
-                f"You should export and re-import a newer backup.")
         multisig_funding_keypair = None
         if multisig_funding_secret := cb.multisig_funding_privkey:
             multisig_funding_keypair = Keypair(
