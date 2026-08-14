@@ -53,6 +53,27 @@ jobs:
       - name: Run ban_unicode
         run: ./contrib/ban_unicode.py
 
+  qml-lint:
+    name: "linter: qmllint"
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: "3.10"
+          cache: 'pip'
+          # key the pip cache on this file so the PySide6 wheels (~255MB) are
+          # actually cached (and invalidated when the pin below changes)
+          cache-dependency-path: .github/workflows/tests.yml
+      - name: Install qmllint (from PySide6; lint-only dependency, never shipped)
+        # newest qmllint at time of writing; NB the Android gui ships Qt 6.10.2
+        # (contrib/android/p4a_recipes/), so lint semantics can be newer than runtime
+        run: pip install "PySide6-Essentials==6.11.1" "PySide6-Addons==6.11.1"
+      - name: Run qmllint
+        run: ./contrib/qml_lint/run_qml_lint.py
+
   # unittests using the 'latest' runtime python-dependencies
   unittests:
     name: "unittests: py${{ matrix.python }}${{ matrix.debug && ', debug-mode' || '' }}"
