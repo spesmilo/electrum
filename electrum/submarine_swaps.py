@@ -2079,9 +2079,9 @@ class NostrTransport(SwapServerTransport):
                 continue
             try:
                 pow_nonce = int(content.get('pow_nonce', "0"), 16)  # type: int
+                pow_bits = get_nostr_ann_pow_amount(bytes.fromhex(pubkey), pow_nonce)
             except Exception:
                 continue
-            pow_bits = get_nostr_ann_pow_amount(bytes.fromhex(pubkey), pow_nonce)
             if pow_bits < self.config.SWAPSERVER_POW_TARGET:
                 self.logger.debug(f"too low pow: {pubkey}: pow: {pow_bits} nonce: {pow_nonce}")
                 continue
