@@ -25,7 +25,7 @@
 import os
 import asyncio
 from collections import defaultdict
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from aiohttp import web
 
@@ -54,6 +54,8 @@ class HttpSwapServer(Logger, EventListener):
         self.sm = self.wallet.lnworker.swap_manager
         self.port = self.config.SWAPSERVER_PORT
         self.register_callbacks() # eventlistener
+        self.runner = None  # type: Optional[web.AppRunner]
+        self._start_task = None  # type: Optional[asyncio.Task]
 
         self.pending = defaultdict(asyncio.Event)
         self.pending_msg = {}
@@ -66,17 +68,37 @@ class HttpSwapServer(Logger, EventListener):
             self.logger.info("This wallet is password-protected. Please unlock it to start the swapserver plugin")
             await asyncio.sleep(10)
 
+        # note: starting the site must not be interrupted, hence the shield. TCPSite.start()
+        # registers the site with the runner before it has a server to close, getting cancelled
+        # in between leaves a listening socket behind that nothing holds a reference to anymore.
+        self._start_task = asyncio.create_task(self._start_site())
+        await asyncio.shield(self._start_task)
+
+    async def _start_site(self):
         app = web.Application()
         app.add_routes([web.get('/getpairs', self.get_pairs)])
         app.add_routes([web.post('/createswap', self.create_swap)])
         app.add_routes([web.post('/createnormalswap', self.create_normal_swap)])
         app.add_routes([web.post('/addswapinvoice', self.add_swap_invoice)])
 
-        runner = web.AppRunner(app)
+        self.runner = runner = web.AppRunner(app)
         await runner.setup()
         site = web.TCPSite(runner, host='localhost', port=self.port)
         await site.start()
         self.logger.info(f"running and listening on port {self.port}")
+
+    async def stop(self):
+        """note: run() returns as soon as the site is up, so cancelling its task does not
+        stop the server. It has to be shut down explicitly."""
+        self.unregister_callbacks()
+        if self._start_task is not None:
+            # the site might still be coming up (see run), and we can only clean up what it created
+            await asyncio.gather(self._start_task, return_exceptions=True)
+            self._start_task = None
+        if self.runner is not None:
+            await self.runner.cleanup()
+            self.runner = None
+        self.logger.info(f"stopped listening on port {self.port}")
 
     async def get_pairs(self, r):
         sm = self.sm

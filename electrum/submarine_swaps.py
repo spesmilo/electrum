@@ -291,6 +291,9 @@ class SwapManager(Logger):
                     self.lnworker.bundle_payments([payment_hash, swap.prepay_hash])
                 self.lnworker.register_hold_invoice(payment_hash, self.hold_invoice_callback)
         self.is_server = False # overridden by swapserver plugin if enabled
+        self.http_server = None  # set by the swapserver plugin if enabled
+        self._server_tasks = []  # type: List[asyncio.Task]
+        self._stopping_server = False
         self.is_initialized = asyncio.Event()
         self.pairs_updated = asyncio.Event()
 
@@ -309,6 +312,9 @@ class SwapManager(Logger):
             self.add_lnwatcher_callback(swap)
         asyncio.run_coroutine_threadsafe(self.main_loop(), self.network.asyncio_loop)
 
+    # note: must swallow its exceptions (like http_server.run does), otherwise it takes the whole
+    # taskgroup down with it.
+    @ignore_exceptions
     @log_exceptions
     async def run_nostr_server(self):
         await self.set_nostr_proof_of_work()
@@ -317,7 +323,7 @@ class SwapManager(Logger):
             self.logger.info("This wallet is password-protected. Please unlock it to start the swapserver plugin")
             await asyncio.sleep(10)
 
-        with NostrTransport(self.config, self, self.lnworker.nostr_keypair) as transport:
+        async with NostrTransport(self.config, self, self.lnworker.nostr_keypair) as transport:
             await transport.is_connected.wait()
             self.logger.info(f'nostr is connected')
             # will publish a new announcement if liquidity changed or every OFFER_UPDATE_INTERVAL_SEC
@@ -347,20 +353,65 @@ class SwapManager(Logger):
 
     @log_exceptions
     async def main_loop(self):
-        tasks = [self.pay_pending_invoices()]
+        server_tasks = []
         if self.is_server:
             # nostr and http are not mutually exclusive
             if self.config.SWAPSERVER_PORT:
-                tasks.append(self.http_server.run())
+                server_tasks.append(self.http_server.run())
             if self.config.NOSTR_RELAYS:
-                tasks.append(self.run_nostr_server())
+                server_tasks.append(self.run_nostr_server())
 
         async with self.taskgroup as group:
-            for task in tasks:
-                await group.spawn(task)
+            await group.spawn(self.pay_pending_invoices())
+            for coro in server_tasks:
+                # keep a reference, so that stop_server() can cancel them
+                self._server_tasks.append(await group.spawn(coro))
 
     async def stop(self):
         await self.taskgroup.cancel_remaining()
+
+    def stop_server(self) -> None:
+        """Stops serving swaps. Called by the swapserver plugin when it gets disabled.
+        Note: this returns before we actually stopped; is_server stays set until we did.
+        Note: this does not affect swaps we are running as a client.
+        """
+        if not self.is_server or self._stopping_server:
+            return
+        if self.network is None:
+            # main_loop never ran, so there is nothing to unwind
+            self.is_server = False
+            self.http_server = None
+            return
+        self._stopping_server = True
+        asyncio.run_coroutine_threadsafe(self._stop_server_tasks(), self.network.asyncio_loop)
+
+    @log_exceptions
+    async def _stop_server_tasks(self) -> None:
+        assert get_running_loop() == get_asyncio_loop(), f"this must be run on the asyncio thread!"
+        try:
+            # loop, as main_loop spawns the server tasks one by one, so it might add
+            # another one while we are already waiting for the previous ones to unwind
+            while tasks := self._server_tasks:
+                self._server_tasks = []
+                for task in tasks:
+                    task.cancel()
+                # cancel() only requests cancellation, wait for task unwind before we shut the http server down,
+                # so that we are not tearing it down underneath a task that is still using it.
+                try:
+                    await wait_for2(asyncio.gather(*tasks, return_exceptions=True), timeout=10)
+                except asyncio.TimeoutError:
+                    # we gave up waiting; better to finish stopping than to stay a half-cancelled server
+                    self.logger.warning("timed out waiting for the swap server tasks to stop")
+                    break
+
+            http_server, self.http_server = self.http_server, None
+            if http_server is not None:
+                await http_server.stop()
+        finally:
+            # Best-effort: on the timeout above we clear it even though a task might still
+            # be running, as staying a server with cancelled tasks would be worse.
+            self.is_server = False
+            self._stopping_server = False
 
     def create_transport(self) -> 'SwapServerTransport':
         from .lnutil import generate_random_keypair
@@ -1876,12 +1927,15 @@ class NostrTransport(SwapServerTransport):
         self.dm_replies = {}  # type: Dict[tuple[str, str], asyncio.Future[dict]]
         self.ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_path)
         self.relay_manager = None  # type: Optional[aionostr.Manager]
+        self._main_loop_task = None  # type: Optional[asyncio.Task]
         self.taskgroup = OldTaskGroup()
         self._last_swapserver_relays = self._load_last_swapserver_relays()  # type: Optional[Sequence[str]]
         self._swap_server_requests = asyncio.Queue(maxsize=5)  # type: asyncio.Queue[dict]
 
     def __enter__(self):
-        asyncio.run_coroutine_threadsafe(self.main_loop(), self.network.asyncio_loop)
+        def start_main_loop():
+            self._main_loop_task = asyncio.create_task(self.main_loop())
+        self.network.asyncio_loop.call_soon_threadsafe(start_main_loop)
         return self
 
     def __exit__(self, ex_type, ex, tb):
@@ -1889,7 +1943,7 @@ class NostrTransport(SwapServerTransport):
         fut.result(timeout=5)
 
     async def __aenter__(self):
-        asyncio.create_task(self.main_loop())
+        self._main_loop_task = asyncio.create_task(self.main_loop())
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -1934,8 +1988,16 @@ class NostrTransport(SwapServerTransport):
         self.logger.info("shutting down nostr transport")
         self.sm.is_initialized.clear()
         self.is_connected.clear()
+        if self._main_loop_task is not None:
+            # note: main_loop is not in the taskgroup below (it owns it), so cancel it here.
+            #       Otherwise it could still be about to connect to the relays, and we would
+            #       not even have a relay_manager to close yet.
+            self._main_loop_task.cancel()
+            self._main_loop_task = None
         await self.taskgroup.cancel_remaining()
-        await self.relay_manager.close()
+        if self.relay_manager is not None:
+            # note: main_loop sets it, and it might not have run yet (or have failed)
+            await self.relay_manager.close()
         self.logger.info("nostr transport shut down")
 
     @property
