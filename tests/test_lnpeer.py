@@ -1277,12 +1277,6 @@ class TestPeerDirect(TestPeer):
             self.logger.debug(f"test_mpp_cleanup_after_expiry: {use_trampoline=}")
             await run_test(use_trampoline)
 
-    async def test_legacy_shutdown_low(self):
-        await self._test_shutdown(alice_fee=100, bob_fee=150)
-
-    async def test_legacy_shutdown_high(self):
-        await self._test_shutdown(alice_fee=2000, bob_fee=100)
-
     async def test_modern_shutdown_with_overlap(self):
         await self._test_shutdown(
             alice_fee=1,
@@ -1304,7 +1298,7 @@ class TestPeerDirect(TestPeer):
         # note: "Task exception was never retrieved" for "Exception: There is no overlap [...]"
         #       is because we don't start peer.main_loop and hence peer.taskgroup is never joined.
 
-    async def _test_shutdown(self, alice_fee, bob_fee, alice_fee_range=None, bob_fee_range=None):
+    async def _test_shutdown(self, alice_fee, bob_fee, alice_fee_range, bob_fee_range):
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
         p1, p2 = graph.peers.values()
         w1, w2 = graph.workers.values()
@@ -1312,14 +1306,8 @@ class TestPeerDirect(TestPeer):
         bob_channel = graph.channels[('bob', 'alice')][0]
         w1.network.config.TEST_SHUTDOWN_FEE = alice_fee
         w2.network.config.TEST_SHUTDOWN_FEE = bob_fee
-        if alice_fee_range is not None:
-            w1.network.config.TEST_SHUTDOWN_FEE_RANGE = alice_fee_range
-        else:
-            w1.network.config.TEST_SHUTDOWN_LEGACY = True
-        if bob_fee_range is not None:
-            w2.network.config.TEST_SHUTDOWN_FEE_RANGE = bob_fee_range
-        else:
-            w2.network.config.TEST_SHUTDOWN_LEGACY = True
+        w1.network.config.TEST_SHUTDOWN_FEE_RANGE = alice_fee_range
+        w2.network.config.TEST_SHUTDOWN_FEE_RANGE = bob_fee_range
         w2.enable_htlc_settle = False
         lnaddr, pay_req = self.prepare_invoice(w2)
         async def pay():
