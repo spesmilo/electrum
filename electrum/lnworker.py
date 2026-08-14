@@ -95,7 +95,7 @@ from .stored_dict import StoredDict
 
 if TYPE_CHECKING:
     from .network import Network
-    from .wallet import Abstract_Wallet
+    from .wallet import Abstract_Wallet, WalletWarning
     from .channel_db import ChannelDB
     from .simple_config import SimpleConfig
 
@@ -1122,6 +1122,33 @@ class LNWallet(Logger):
         """Returns True if any active channel is an anchor channel."""
         return any(chan.has_anchors() and not chan.is_closed()
                    for chan in self.channels.values())
+
+    def get_lightning_startup_warnings(self) -> Sequence['WalletWarning']:
+        from .wallet import WalletWarning
+        warnings = []
+        if not self.has_deterministic_node_id() and self.has_anchor_channels():
+            # backups exported before we started storing the payment_basepoint privkey
+            # (backup v3) cannot sweep the to_remote output of an anchor channel
+            warnings.append(WalletWarning(
+                key='ln_outdated_channel_backups',
+                title=_('Outdated channel backups'),
+                message=''.join([
+                    _("The Lightning channels of this wallet cannot be recovered from seed."), ' ',
+                    _("Channel backups that were exported with an older version of Electrum "
+                      "cannot be used to request a force close of these channels."), '\n\n',
+                    _("Please export new channel backups and store them in a safe place."),
+                ])))
+        if any(not cb.can_sweep_their_ctx_to_remote() for cb in self.channel_backups.values()):
+            warnings.append(WalletWarning(
+                key='ln_unusable_channel_backups',
+                title=_('Unusable channel backups'),
+                message=''.join([
+                    _("This wallet contains channel backups that cannot be used to request a force close, "
+                      "because they were exported with an older version of Electrum."), ' ',
+                    _("Please import new backups, exported by the wallet these channels belong to."), '\n\n',
+                    _("If you have lost access to that wallet, please open an issue on GitHub."),
+                ])))
+        return warnings
 
     @property
     def features(self) -> 'LnFeatures':

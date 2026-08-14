@@ -698,6 +698,28 @@ ApplicationWindow
         }
     }
 
+    function showStartupWarnings() {
+        if (!Daemon.currentWallet)
+            return
+        let warnings = Daemon.currentWallet.startupWarnings
+        // show the warnings one after another, as the dialogs are not modal
+        function showWarning(i) {
+            if (i >= warnings.length)
+                return
+            let dialog = app.messageDialog.createObject(app, {
+                title: warnings[i].title,
+                iconSource: Qt.resolvedUrl('../../icons/warning.png'),
+                text: warnings[i].message
+            })
+            dialog.closed.connect(function() {
+                showWarning(i + 1)
+            })
+            dialog.open()
+            Daemon.currentWallet.acknowledgeWarning(warnings[i].key)
+        }
+        showWarning(0)
+    }
+
     Connections {
         target: Daemon
         function onWalletRequiresPassword(name, path) {
@@ -734,6 +756,7 @@ ApplicationWindow
         }
         function onWalletLoaded() {
             app._loadingWalletContext = null  // either biometric auth or manual auth was successful
+            showStartupWarnings()
         }
     }
 
