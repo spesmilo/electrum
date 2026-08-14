@@ -123,9 +123,9 @@ class QEAddressCoinListModel(QAbstractListModel, QtEventListener):
         self._filterModel = None
 
         self.register_callbacks()
-        self.destroyed.connect(lambda: self.on_destroy())
+        self.destroyed.connect(self.on_destroy)
 
-        QEConfig.instance.freezeReusedAddressUtxosChanged.connect(lambda: self.setDirty())
+        QEConfig.instance.freezeReusedAddressUtxosChanged.connect(self.setDirty)
 
         self._dirty = True
         self.initModel()

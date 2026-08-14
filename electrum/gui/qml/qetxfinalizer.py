@@ -575,7 +575,7 @@ class QETxFinalizer(TxFeeSlider):
 
         self._wallet.sign(self._tx, on_success=partial(self.on_signed_tx, True), on_failure=self.on_sign_failed)
 
-    def on_signed_tx(self, save: bool, tx: Transaction):
+    def on_signed_tx(self, save: bool):
         self._logger.debug('on_signed_tx')
         saved = False
         if save and self._tx.txid():
@@ -583,7 +583,7 @@ class QETxFinalizer(TxFeeSlider):
                 saved = True
             else:
                 self._logger.error('Could not save tx')
-        self.finished.emit(True, saved, tx.is_complete())
+        self.finished.emit(True, saved, self._tx.is_complete())
 
     def on_sign_failed(self, msg: str = None):
         self._logger.debug('on_sign_failed')
@@ -615,7 +615,7 @@ class TxMonMixin(QtEventListener):
         self._txid = ''
 
         self.register_callbacks()
-        self.destroyed.connect(lambda: self.on_destroy())
+        self.destroyed.connect(self.on_destroy)
 
     def on_destroy(self):
         self.unregister_callbacks()
@@ -1213,7 +1213,7 @@ class QETxSweepFinalizer(QETxFinalizer):
         self._valid = True
         self.validChanged.emit()
 
-        self.on_signed_tx(False, tx)
+        self.on_signed_tx(False)
 
     @pyqtSlot()
     def send(self):

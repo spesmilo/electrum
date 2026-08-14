@@ -12,12 +12,12 @@ if TYPE_CHECKING:
 class TestConfig(QETestCase):
     @classmethod
     def setUpClass(cls):
+        super().setUpClass()
         QEConfig(SimpleConfig())
 
     def setUp(self):
         super().setUp()
         self.q: QEConfig = QEConfig.instance
-        # raise Exception()  # NOTE: exceptions in setUp() will block the test
 
     @qt_test
     def test_satstounits(self):
