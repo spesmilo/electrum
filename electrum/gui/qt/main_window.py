@@ -2314,6 +2314,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             return
         try:
             self.wallet.lnworker.import_channel_backup(encrypted)
+        except UserFacingException as e:
+            self.show_warning(str(e))
         except Exception as e:
             self.show_error("failed to import backup" + '\n' + str(e))
             return

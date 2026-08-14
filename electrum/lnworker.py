@@ -3810,6 +3810,11 @@ class LNWallet(Logger):
         self.wallet.save_db()
         util.trigger_callback('channels_updated', self.wallet)
         self.lnwatcher.add_channel(cb)
+        if not cb.can_sweep_their_ctx_to_remote():
+            raise util.UserFacingException(
+                _("The channel backup you imported cannot be used to request a force close. Please generate a new backup. "
+                  "If you lost your wallet data, please open an issue on GitHub.")
+            )
 
     def has_conflicting_backup_with(self, remote_node_id: bytes):
         """ Returns whether we have an active channel with this node on another device, using same local node id. """

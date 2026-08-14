@@ -793,6 +793,8 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def importChannelBackup(self, backup_str):
         try:
             self.wallet.lnworker.import_channel_backup(backup_str)
+        except UserFacingException as e:
+            self.importChannelBackupFailed.emit(str(e))
         except Exception as e:
             self._logger.debug(f'could not import channel backup: {repr(e)}')
             self.importChannelBackupFailed.emit(f'Failed to import backup:\n\n{str(e)}')
