@@ -1182,9 +1182,14 @@ class LNWallet(Logger):
                     watchtower.add_method('get_ctn')
                     watchtower.add_method('add_sweep_tx')
                     for chan in self.channels.values():
-                        await self.sync_channel_with_watchtower(chan, watchtower)
+                        try:
+                            await self.sync_channel_with_watchtower(chan, watchtower)
+                        except Exception:
+                            self.logger.exception(f'could not sync channel {chan.funding_outpoint} with watchtower')
             except aiohttp.ClientError:
                 self.logger.info(f'could not contact remote watchtower {watchtower_url}')
+            except Exception:
+                self.logger.exception(f'could not sync with remote watchtower {watchtower_url}')
 
     def get_watchtower_ctn(self, channel_point):
         return self.watchtower_ctns.get(channel_point)
@@ -1194,6 +1199,9 @@ class LNWallet(Logger):
         addr = chan.get_funding_address()
         current_ctn = chan.get_oldest_unrevoked_ctn(REMOTE)
         watchtower_ctn = await watchtower.get_ctn(outpoint, addr)
+        if type(watchtower_ctn) is not int or watchtower_ctn < 0:
+            self.logger.warning(f'watchtower get_ctn returned invalid ctn {watchtower_ctn!r} for {outpoint}')
+            return
         for ctn in range(watchtower_ctn + 1, current_ctn):
             sweeptxs = chan.create_sweeptxs_for_watchtower(ctn)
             for tx in sweeptxs:
