@@ -1,8 +1,10 @@
 import asyncio
 import os
+import socket
 from typing import Optional, Sequence
 from unittest import mock
 
+from aiohttp import web
 from electrum_ecc import ECPrivkey
 
 from electrum import util, bitcoin
@@ -12,9 +14,12 @@ from electrum.util import bfh, now, wait_for2
 from electrum.crypto import sha256
 from electrum.interface import PaddedRSTransport
 from electrum.lnonion import OnionRoutingFailure
+from electrum.lnutil import generate_random_keypair
+from electrum.plugins.swapserver.server import HttpSwapServer
+from electrum.plugins.swapserver.swapserver import SwapServerPlugin
 from electrum.simple_config import SimpleConfig
 from electrum.submarine_swaps import (
-    SwapManager, SwapData, SwapServerTransport, LOCKTIME_DELTA_REFUND,
+    SwapManager, SwapData, NostrTransport, SwapServerTransport, LOCKTIME_DELTA_REFUND,
     MIN_LOCKTIME_DELTA_FOR_CLAIM, SPENDER_FINALITY_DELAY, _construct_swap_scriptcode)
 from electrum.transaction import (
     PartialTransaction, PartialTxOutput, Transaction, TxOutput, TxOutpoint)
@@ -29,6 +34,15 @@ from .toyserver.toyserver import ToyServer
 def random_address() -> str:
     """an address that does not belong to any wallet of the test"""
     return bitcoin.pubkey_to_address('p2wpkh', ECPrivkey(os.urandom(32)).get_public_key_hex(compressed=True))
+
+
+TIME_STEP = 0.01
+
+
+async def wait_until(predicate, *, timeout: int = 10) -> None:
+    async with util.async_timeout(timeout):
+        while not predicate():
+            await asyncio.sleep(TIME_STEP)
 
 
 class MockSwapServerTransport(SwapServerTransport):
@@ -60,7 +74,6 @@ class TestSwapClaim(ElectrumTestCase):
     test, and build its claim tx with the same code the server would use.
     """
     REGTEST = True
-    TIME_STEP = 0.01
 
     def setUp(self):
         super().setUp()
@@ -69,7 +82,7 @@ class TestSwapClaim(ElectrumTestCase):
         self.config.FEE_POLICY = 'feerate:5000'
         self.config.FEE_POLICY_SWAPS = 'feerate:5000'
         self._orig_wait_for_buffer_growth = PaddedRSTransport.WAIT_FOR_BUFFER_GROWTH_SECONDS
-        PaddedRSTransport.WAIT_FOR_BUFFER_GROWTH_SECONDS *= self.TIME_STEP
+        PaddedRSTransport.WAIT_FOR_BUFFER_GROWTH_SECONDS *= TIME_STEP
 
     def tearDown(self):
         PaddedRSTransport.WAIT_FOR_BUFFER_GROWTH_SECONDS = self._orig_wait_for_buffer_growth
@@ -90,7 +103,7 @@ class TestSwapClaim(ElectrumTestCase):
         self.wallet.start_network(self.network)
         self.sm = self.wallet.lnworker.swap_manager
         self.adb = self.wallet.adb
-        self.wallet.txbatcher.SLEEP_INTERVAL *= self.TIME_STEP
+        self.wallet.txbatcher.SLEEP_INTERVAL *= TIME_STEP
         await self.pay_to_address(self.wallet.get_receiving_address(), 1 * COIN)
         await self.mine_blocks(1)
 
@@ -102,28 +115,23 @@ class TestSwapClaim(ElectrumTestCase):
 
     # --- chain and wallet helpers ---
 
-    async def wait_until(self, predicate, *, timeout: int = 10) -> None:
-        async with util.async_timeout(timeout):
-            while not predicate():
-                await asyncio.sleep(self.TIME_STEP)
-
     async def sync(self) -> None:
         """wait until the wallet has caught up with the server"""
-        await self.wait_until(
+        await wait_until(
             lambda: self.adb.get_local_height() == self.server.cur_height
             and self.adb.is_up_to_date()
             and self.wallet.is_up_to_date())
 
     async def broadcast(self, tx: Transaction) -> Transaction:
         await self.network.broadcast_transaction(tx)
-        await self.wait_until(lambda: self.adb.get_transaction(tx.txid()) is not None)
+        await wait_until(lambda: self.adb.get_transaction(tx.txid()) is not None)
         await self.sync()
         return tx
 
     async def pay_to_address(self, address: str, value: int) -> Transaction:
         """a third party (the faucet) sends coins to address, leaving the tx in the mempool"""
         tx = await self.server.ask_faucet([TxOutput.from_address_and_value(address, value)])
-        await self.wait_until(lambda: self.adb.get_transaction(tx.txid()) is not None)
+        await wait_until(lambda: self.adb.get_transaction(tx.txid()) is not None)
         await self.sync()
         return tx
 
@@ -144,7 +152,7 @@ class TestSwapClaim(ElectrumTestCase):
         await self.server.mempool_rm_tx(tx)
         await self.server.mempool_add_tx(replacement)
         await self.server.mine_block()
-        await self.wait_until(
+        await wait_until(
             lambda: self.adb.get_tx_height(replacement.txid()).conf > 0)
         await self.sync()
 
@@ -157,7 +165,7 @@ class TestSwapClaim(ElectrumTestCase):
         """
         await self.wallet.txbatcher.taskgroup.cancel_remaining()
         self.wallet.txbatcher = TxBatcher(self.wallet)
-        self.wallet.txbatcher.SLEEP_INTERVAL *= self.TIME_STEP
+        self.wallet.txbatcher.SLEEP_INTERVAL *= TIME_STEP
         await self.wallet.taskgroup.spawn(self.wallet.txbatcher.run())
 
     def utxos_at_lockup_address(self, swap: SwapData) -> Sequence[TxOutpoint]:
@@ -169,7 +177,7 @@ class TestSwapClaim(ElectrumTestCase):
 
     async def wait_for_spender_of(self, prevout: TxOutpoint) -> Transaction:
         """wait for the txbatcher to broadcast a tx spending prevout"""
-        await self.wait_until(lambda: self.spender_of(prevout) is not None)
+        await wait_until(lambda: self.spender_of(prevout) is not None)
         return Transaction(self.server.txs[self.spender_of(prevout)])
 
     async def spender_of_within(self, prevout: TxOutpoint, *, timeout: float = 2) -> Optional[Transaction]:
@@ -400,7 +408,7 @@ class TestSwapClaim(ElectrumTestCase):
         self.assertIn(swap.payment_hash.hex(), self.wallet.db.get_dict('submarine_swaps'))
         self.assertIn(swap.payment_hash, self.wallet.lnworker.hold_invoice_callbacks)
         # the txbatcher pays the lockup address
-        await self.wait_until(lambda: len(self.utxos_at_lockup_address(swap)) == 1)
+        await wait_until(lambda: len(self.utxos_at_lockup_address(swap)) == 1)
         await self.mine_blocks(1)
         await self.sm._claim_swap(swap)
         txin = self.adb.get_addr_outputs(swap.lockup_address)[swap._funding_prevout]
@@ -446,7 +454,7 @@ class TestSwapClaim(ElectrumTestCase):
         self.assertEqual(self.preimage, swap.preimage)
         # the claim tx is evicted, so the lockup utxo looks unspent again
         await self.server.mempool_rm_tx(claim_tx)
-        await self.wait_until(
+        await wait_until(
             lambda: self.adb.get_tx_height(claim_tx.txid()).height() == TX_HEIGHT_LOCAL)
         await self.mine_until_swap_expires(swap)
         await self.sm._claim_swap(swap)
@@ -559,7 +567,7 @@ class TestSwapClaim(ElectrumTestCase):
         fut = asyncio.create_task(self.sm.wait_for_htlcs_and_broadcast(
             transport=transport, swap=swap, invoice=self.invoice, tx=tx))
         # the callback is registered just before the invoice is sent to the server
-        await self.wait_until(lambda: bool(transport.requests))
+        await wait_until(lambda: bool(transport.requests))
         # the server's htlcs arrived: lnpeer looked up the callback and scheduled it,
         # but the user cancels before it gets to run
         callback = self.wallet.lnworker.hold_invoice_callbacks[payment_hash]
@@ -584,7 +592,7 @@ class TestSwapClaim(ElectrumTestCase):
         transport = MockSwapServerTransport(config=self.config, sm=self.sm)
         fut = asyncio.create_task(self.sm.wait_for_htlcs_and_broadcast(
             transport=transport, swap=swap, invoice=self.invoice, tx=tx))
-        await self.wait_until(lambda: bool(transport.requests))
+        await wait_until(lambda: bool(transport.requests))
         # the htlcs arrived and the callback ran: we are committed to the swap
         await self.wallet.lnworker.hold_invoice_callbacks[payment_hash](payment_hash)
         self.assertEqual(tx.txid(), await fut)
@@ -681,7 +689,7 @@ class TestSwapClaim(ElectrumTestCase):
 
         # with the sweep info back, the claim tx can still be replaced, e.g. to bump its fee
         self.config.FEE_POLICY_SWAPS = 'feerate:20000'
-        await self.wait_until(lambda: self.spender_of(swap._funding_prevout) != claim_tx.txid())
+        await wait_until(lambda: self.spender_of(swap._funding_prevout) != claim_tx.txid())
         replacement_tx = Transaction(self.server.txs[self.spender_of(swap._funding_prevout)])
         self.assertEqual(self.preimage, SwapManager.extract_preimage(swap, replacement_tx))
 
@@ -712,7 +720,7 @@ class TestSwapClaim(ElectrumTestCase):
         funding_tx = await self.pay_to_address(swap.lockup_address, swap.onchain_amount)
         await self.sm._claim_swap(swap)
         # the funding tx is unconfirmed, so the claim tx is only kept as a future tx
-        await self.wait_until(lambda: bool(self.adb.future_tx))
+        await wait_until(lambda: bool(self.adb.future_tx))
         self.assertIsNone(self.spender_of(swap._funding_prevout))
         self.assertEqual(funding_tx.txid(), swap.funding_txid)
         await self.mine_blocks(1)
@@ -722,3 +730,247 @@ class TestSwapClaim(ElectrumTestCase):
         self.assertEqual(1, len(claim_tx.outputs()))
         self.assertEqual(payee_address, claim_tx.outputs()[0].address)
         self.assertEqual(99_000, claim_tx.outputs()[0].value)
+
+
+class TestSwapServerShutdown(ElectrumTestCase):
+    """The swapserver plugin can be enabled and disabled at runtime, so being a server has to
+    be something we can actually stop again.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.config = SimpleConfig({'electrum_path': self.electrum_path})
+
+    def make_swap_manager(self) -> SwapManager:
+        """a SwapManager with no swaps in its db, and no network (unless the test sets one)"""
+        wallet = mock.MagicMock()
+        wallet.config = self.config
+        wallet.db.get_dict.return_value = {}
+        return SwapManager(wallet=wallet, lnworker=mock.MagicMock())
+
+    def make_http_swap_server(self) -> 'HttpSwapServer':
+        wallet = mock.MagicMock()
+        wallet.has_password.return_value = False
+        return HttpSwapServer(self.config, wallet)
+
+    @staticmethod
+    def get_free_port() -> int:
+        with socket.socket() as s:
+            s.bind(('localhost', 0))
+            return s.getsockname()[1]
+
+    async def test_stop_server_survives_a_server_task_erroring_on_cancellation(self):
+        """The server tasks share a taskgroup with pay_pending_invoices, and OldTaskGroup
+        cancels the whole group as soon as one task raises. So a server task that errors while
+        being cancelled must not take the invoices we still owe our clients down with it.
+        """
+        sm = self.make_swap_manager()
+        sm.network = mock.Mock(asyncio_loop=util.get_asyncio_loop(), proxy=None)
+        sm.wallet.has_password.return_value = False
+        sm.lnworker.nostr_keypair = generate_random_keypair()
+        self.config.SWAPSERVER_POW_TARGET = 0  # so that we don't grind out a nonce
+        sm.is_server = True
+        pay_loop_cancelled = asyncio.Event()
+
+        async def pay_pending_invoices(_self):
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                pay_loop_cancelled.set()
+                raise
+
+        async def aexit_that_raises(_self, *args):
+            # __aexit__ waits for the transport to stop with a 5 sec timeout, and stopping it
+            # has to close the relay connections. Both of those can raise while we are cancelled.
+            raise asyncio.TimeoutError("relays did not close in time")
+
+        with (mock.patch.object(SwapManager, 'pay_pending_invoices', new=pay_pending_invoices),
+              mock.patch.object(NostrTransport, 'main_loop', new=mock.AsyncMock()),
+              mock.patch.object(NostrTransport, '__aexit__', new=aexit_that_raises)):
+            asyncio.create_task(sm.main_loop())
+            await wait_until(lambda: len(sm._server_tasks) == 1)
+
+            sm.stop_server()
+
+            await asyncio.sleep(0.1)
+            self.assertFalse(pay_loop_cancelled.is_set())
+            self.assertFalse(sm.taskgroup.joined)  # or nothing can be spawned into it anymore
+
+    async def test_stop_server_cancels_the_server_tasks(self):
+        sm = self.make_swap_manager()
+        sm.network = mock.Mock(asyncio_loop=util.get_asyncio_loop())
+        http_server = mock.AsyncMock()
+        sm.is_server = True
+        sm.http_server = http_server
+        server_task = asyncio.create_task(asyncio.Event().wait())
+        sm._server_tasks.append(server_task)
+
+        sm.stop_server()
+
+        with self.assertRaises(asyncio.CancelledError):
+            await server_task
+        # is_server is the last thing to be cleared, so it tells us the shutdown is done
+        await wait_until(lambda: not sm.is_server)
+        # cancelling the task is not enough to stop the http server, see HttpSwapServer.stop
+        http_server.stop.assert_awaited_once()
+        self.assertEqual([], sm._server_tasks)
+        self.assertIsNone(sm.http_server)
+
+    async def test_stop_server_stays_a_server_until_the_shutdown_finished(self):
+        """The transports consult is_server while they are shutting down, to route incoming
+        messages and to publish offers, so it must not be cleared while we still serve.
+        """
+        sm = self.make_swap_manager()
+        sm.network = mock.Mock(asyncio_loop=util.get_asyncio_loop())
+        sm.is_server = True
+        sm.http_server = mock.AsyncMock()
+        unwinding = asyncio.Event()
+        may_finish = asyncio.Event()
+
+        async def server_task():
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                unwinding.set()
+                await may_finish.wait()  # a transport that takes a while to shut down
+                raise
+
+        sm._server_tasks.append(asyncio.create_task(server_task()))
+
+        sm.stop_server()
+
+        await unwinding.wait()
+        self.assertTrue(sm.is_server)
+        sm.http_server.stop.assert_not_awaited()
+
+        may_finish.set()
+
+        await wait_until(lambda: not sm.is_server)
+
+    def test_stop_server_when_nothing_was_started(self):
+        sm = self.make_swap_manager()
+        sm.is_server = True
+        sm.http_server = mock.AsyncMock()
+        self.assertIsNone(sm.network)
+
+        sm.stop_server()
+
+        self.assertFalse(sm.is_server)
+        self.assertIsNone(sm.http_server)
+
+    async def test_stop_server_stops_the_http_server_only_after_the_tasks_unwound(self):
+        """cancel() only requests cancellation, so we must not tear the http server down while
+        a task that is still running might be in the middle of starting it.
+        """
+        sm = self.make_swap_manager()
+        sm.network = mock.Mock(asyncio_loop=util.get_asyncio_loop())
+        sm.is_server = True
+        # a task that is still suspended when we stop the server, like HttpSwapServer.run
+        # waiting for the wallet to be unlocked
+        server_task = asyncio.create_task(asyncio.Event().wait())
+        sm._server_tasks.append(server_task)
+        tasks_done_when_stopped = None
+
+        async def stop():
+            nonlocal tasks_done_when_stopped
+            tasks_done_when_stopped = server_task.done()
+        sm.http_server = mock.Mock(stop=stop)
+
+        sm.stop_server()
+
+        await wait_until(lambda: tasks_done_when_stopped is not None)
+        self.assertTrue(tasks_done_when_stopped)
+
+    async def test_stop_server_cancels_tasks_spawned_while_it_was_stopping(self):
+        """main_loop spawns the server tasks one by one, so it can append another one after we
+        already took them to cancel them. Those must not be left running.
+        """
+        sm = self.make_swap_manager()
+        sm.network = mock.Mock(asyncio_loop=util.get_asyncio_loop())
+        sm.is_server = True
+        sm.http_server = mock.AsyncMock()
+        late_task = None
+
+        async def server_task():
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                # as main_loop would, getting to spawn the next server task only now
+                nonlocal late_task
+                late_task = asyncio.create_task(asyncio.Event().wait())
+                sm._server_tasks.append(late_task)
+                raise
+
+        sm._server_tasks.append(asyncio.create_task(server_task()))
+
+        sm.stop_server()
+
+        await wait_until(lambda: not sm.is_server)
+        self.assertTrue(late_task.cancelled(), msg="the late task was left running")
+
+    async def test_http_server_stop_releases_the_port(self):
+        self.config.SWAPSERVER_PORT = port = self.get_free_port()
+        http_server = self.make_http_swap_server()
+        await http_server.run()
+        # note: run() returns as soon as the site is up, so we can connect right away
+        _reader, writer = await asyncio.open_connection('localhost', port)
+        writer.close()
+
+        await http_server.stop()
+
+        # note: OSError, not ConnectionRefusedError: localhost can resolve to several addresses,
+        # and asyncio wraps the per-address refusals when all of them fail.
+        with self.assertRaises(OSError):
+            await asyncio.open_connection('localhost', port)
+
+
+class TestSwapServerPlugin(ElectrumTestCase):
+    """The plugin serves swaps with the first wallet the daemon loads."""
+
+    def setUp(self):
+        super().setUp()
+        self.config = SimpleConfig({'electrum_path': self.electrum_path})
+        self.plugin = SwapServerPlugin(mock.Mock(), self.config, 'swapserver')
+        self.addCleanup(self.plugin.close)  # unregisters the hooks again
+
+    def make_wallet(self, *, has_lightning: bool = True) -> 'Abstract_Wallet':
+        wallet = mock.MagicMock()
+        wallet.config = self.config
+        wallet.db.get_dict.return_value = {}
+        if not has_lightning:
+            wallet.lnworker = None
+            return wallet
+        wallet.lnworker.swap_manager = SwapManager(wallet=wallet, lnworker=wallet.lnworker)
+        return wallet
+
+    def load_wallet(self, wallet) -> None:
+        self.plugin.daemon_wallet_loaded(mock.Mock(), wallet)
+
+    def test_only_the_first_wallet_serves_swaps(self):
+        wallet1, wallet2 = self.make_wallet(), self.make_wallet()
+
+        self.load_wallet(wallet1)
+        self.load_wallet(wallet2)
+
+        # otherwise we would run a second server, on the same port and nostr identity
+        self.assertTrue(wallet1.lnworker.swap_manager.is_server)
+        self.assertFalse(wallet2.lnworker.swap_manager.is_server)
+
+    def test_wallet_without_lightning_is_skipped(self):
+        wallet1, wallet2 = self.make_wallet(has_lightning=False), self.make_wallet()
+
+        self.load_wallet(wallet1)
+        self.load_wallet(wallet2)
+
+        self.assertTrue(wallet2.lnworker.swap_manager.is_server)
+
+    def test_disabling_the_plugin_stops_the_server(self):
+        wallet = self.make_wallet()
+        self.load_wallet(wallet)
+        sm = wallet.lnworker.swap_manager
+        self.assertTrue(sm.is_server)
+
+        self.plugin.on_close()
+
+        self.assertFalse(sm.is_server)
+        self.assertIsNone(sm.http_server)
