@@ -46,11 +46,11 @@ _logger = get_logger(__name__)
 
 
 # defined in BOLT-03:
-HTLC_TIMEOUT_WEIGHT = 663
+HTLC_TIMEOUT_WEIGHT_SRK = 663
 HTLC_TIMEOUT_WEIGHT_ANCHORS = 666
-HTLC_SUCCESS_WEIGHT = 703
+HTLC_SUCCESS_WEIGHT_SRK = 703
 HTLC_SUCCESS_WEIGHT_ANCHORS = 706
-COMMITMENT_TX_WEIGHT = 724
+COMMITMENT_TX_WEIGHT_SRK = 724
 COMMITMENT_TX_WEIGHT_ANCHORS = 1124
 HTLC_OUTPUT_WEIGHT = 172
 FIXED_ANCHOR_SAT = 330
@@ -1194,15 +1194,16 @@ def make_commitment_outputs(
     return c_outputs
 
 
-def effective_htlc_tx_weight(success: bool, has_anchors: bool):
-    # for anchors-zero-fee-htlc we set an effective weight of zero
-    # we only trim htlcs below dust, as in the anchors commitment format,
+def effective_htlc_tx_weight(*, success: bool, has_anchors: bool):
+    # For option_anchors_zero_fee_htlc_tx (opt 22/23) we set an effective weight of zero.
+    # We only trim htlcs below dust, as in the anchors commitment format,
     # the fees for the hltc transaction don't need to be subtracted from
-    # the htlc output, but fees are taken from extra attached inputs
+    # the htlc output, but fees are taken from extra attached inputs.
     if has_anchors:
-        return 0 * HTLC_SUCCESS_WEIGHT_ANCHORS if success else 0 * HTLC_TIMEOUT_WEIGHT_ANCHORS
+        return 0
     else:
-        return HTLC_SUCCESS_WEIGHT if success else HTLC_TIMEOUT_WEIGHT
+        # SRK channels
+        return HTLC_SUCCESS_WEIGHT_SRK if success else HTLC_TIMEOUT_WEIGHT_SRK
 
 
 def offered_htlc_trim_threshold_sat(*, dust_limit_sat: int, feerate: int, has_anchors: bool) -> int:
@@ -1242,7 +1243,7 @@ def calc_fees_for_commitment_tx(
     if has_anchors:
         commitment_tx_weight = COMMITMENT_TX_WEIGHT_ANCHORS
     else:
-        commitment_tx_weight = COMMITMENT_TX_WEIGHT
+        commitment_tx_weight = COMMITMENT_TX_WEIGHT_SRK
     overall_weight = commitment_tx_weight + num_htlcs * HTLC_OUTPUT_WEIGHT
     fee = feerate * overall_weight
     if round_to_sat:
