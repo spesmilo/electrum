@@ -109,10 +109,15 @@ class TestSwapClaim(ElectrumTestCase):
 
     async def sync(self) -> None:
         """wait until the wallet has caught up with the server"""
-        await self.wait_until(
-            lambda: self.adb.get_local_height() == self.server.cur_height
-            and self.adb.is_up_to_date()
-            and self.wallet.is_up_to_date())
+        def is_synced() -> bool:
+            return self.adb.get_local_height() == self.server.cur_height \
+                    and self.adb.is_up_to_date() \
+                    and self.wallet.is_up_to_date()
+        while True:
+            await self.wait_until(is_synced)
+            # the adb_set_up_to_date callback might unsync the wallet again when syncing new addresses
+            if self.wallet.synchronize() == 0:
+                return
 
     async def broadcast(self, tx: Transaction) -> Transaction:
         await self.network.broadcast_transaction(tx)
@@ -159,6 +164,7 @@ class TestSwapClaim(ElectrumTestCase):
         self.wallet.txbatcher = TxBatcher(self.wallet)
         self.wallet.txbatcher.SLEEP_INTERVAL *= self.TIME_STEP
         await self.wallet.taskgroup.spawn(self.wallet.txbatcher.run())
+        await self.sync()
 
     def utxos_at_lockup_address(self, swap: SwapData) -> Sequence[TxOutpoint]:
         return list(self.adb.get_addr_outputs(swap.lockup_address).keys())
@@ -627,7 +633,8 @@ class TestSwapClaim(ElectrumTestCase):
         await self.mine_blocks(1)
         # the funding tx got its first confirmation in the block at swap.locktime
         self.assertEqual(swap.locktime, self.network.get_local_height())
-        self.assertEqual(swap.locktime, self.adb.get_tx_height(swap.funding_txid or '').height())
+        await self.wait_until(lambda: swap.funding_txid is not None)
+        self.assertEqual(swap.locktime, self.adb.get_tx_height(swap.funding_txid).height())
 
         await self.sm._claim_swap(swap)
         claim_tx = await self.spender_of_within(swap._funding_prevout, timeout=2)
