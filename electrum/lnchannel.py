@@ -221,6 +221,7 @@ class AbstractChannel(Logger, ABC):
 
     def is_funded(self) -> bool:
         # NOTE: also true for unfunded zeroconf channels (OPEN > FUNDED)
+        #     - also true for unfunded channel in ChannnelState.FORCE_CLOSING
         return self.get_state() >= ChannelState.FUNDED
 
     def is_open(self) -> bool:
@@ -262,23 +263,24 @@ class AbstractChannel(Logger, ABC):
     def get_close_options(self) -> Sequence[ChanCloseOption]:
         pass
 
-    def save_funding_height(self, *, txid: str, height: int, timestamp: Optional[int]) -> None:
-        self.storage['funding_height'] = txid, height, timestamp
+    def _maybe_save_tx_height(self, *, name, txid: str, info: TxMinedInfo) -> None:
+        height = info.height()
+        h = self.storage.get(name)
+        prev_height = h[1] if h else TX_HEIGHT_LOCAL
+        if prev_height > 0 and height <= 0:
+            # do not revert from confirmed to unconfirmed
+            return
+        if prev_height <= 0 and height == TX_HEIGHT_LOCAL:
+            # clear unconfirmed transaction evicted from mempool
+            self.storage.pop(name, None)
+            return
+        self.storage[name] = txid, height, info.timestamp
 
     def get_funding_height(self) -> Optional[Tuple[str, int, Optional[int]]]:
         return self.storage.get('funding_height')
 
-    def delete_funding_height(self):
-        self.storage.pop('funding_height', None)
-
-    def save_closing_height(self, *, txid: str, height: int, timestamp: Optional[int]) -> None:
-        self.storage['closing_height'] = txid, height, timestamp
-
     def get_closing_height(self) -> Optional[Tuple[str, int, Optional[int]]]:
         return self.storage.get('closing_height')
-
-    def delete_closing_height(self):
-        self.storage.pop('closing_height', None)
 
     def create_sweeptxs_for_our_ctx(self, ctx: Transaction) -> Dict[str, MaybeSweepInfo]:
         return sweep_our_ctx(chan=self, ctx=ctx)
@@ -329,8 +331,12 @@ class AbstractChannel(Logger, ABC):
 
     def update_onchain_state(self, *, funding_txid: str, funding_height: TxMinedInfo,
                              closing_txid: str, closing_height: TxMinedInfo, keep_watching: bool) -> None:
-        # note: state transitions are irreversible, but
-        # save_funding_height, save_closing_height are reversible
+
+        # first save funding and closing height
+        self._maybe_save_tx_height(name='funding_height', txid=funding_txid, info=funding_height)
+        self._maybe_save_tx_height(name='closing_height', txid=closing_txid, info=closing_height)
+
+        # update state. funding/closing tx may be unconfirmed
         if funding_height.height() == TX_HEIGHT_LOCAL:
             self.update_unfunded_state()
         elif closing_height.height() == TX_HEIGHT_LOCAL:
@@ -346,8 +352,6 @@ class AbstractChannel(Logger, ABC):
                 keep_watching=keep_watching)
 
     def update_unfunded_state(self) -> None:
-        self.delete_funding_height()
-        self.delete_closing_height()
         state = self.get_state()
         if state in [ChannelState.PREOPENING, ChannelState.OPENING, ChannelState.FORCE_CLOSING]:
             if self.is_initiator():
@@ -401,8 +405,6 @@ class AbstractChannel(Logger, ABC):
                         f"JIT provider: {self.lnworker.config.ZEROCONF_TRUSTED_NODE} or he didn't use our preimage")
 
     def update_funded_state(self, *, funding_txid: str, funding_height: TxMinedInfo) -> None:
-        self.save_funding_height(txid=funding_txid, height=funding_height.height(), timestamp=funding_height.timestamp)
-        self.delete_closing_height()
         if funding_height.conf>0:
             self.set_short_channel_id(ShortChannelID.from_components(
                 funding_height.height(), funding_height.txpos, self.funding_outpoint.output_index))
@@ -430,8 +432,6 @@ class AbstractChannel(Logger, ABC):
 
     def update_closed_state(self, *, funding_txid: str, funding_height: TxMinedInfo,
                             closing_txid: str, closing_height: TxMinedInfo, keep_watching: bool) -> None:
-        self.save_funding_height(txid=funding_txid, height=funding_height.height(), timestamp=funding_height.timestamp)
-        self.save_closing_height(txid=closing_txid, height=closing_height.height(), timestamp=closing_height.timestamp)
         if funding_height.conf>0:
             self.set_short_channel_id(ShortChannelID.from_components(
                 funding_height.height(), funding_height.txpos, self.funding_outpoint.output_index))
