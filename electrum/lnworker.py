@@ -424,6 +424,7 @@ class LNPeerManager(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         assert network
         assert self.network is None, "already started"
         self.network = network
+        assert network.config is self.config
         self._add_peers_from_config()
         asyncio.run_coroutine_threadsafe(self.main_loop(), get_asyncio_loop())
         if listen:
@@ -1211,6 +1212,7 @@ class LNWallet(Logger):
             self.logger.info("taskgroup stopped.")
 
     def start_network(self, network: 'Network'):
+        assert network.config is self.config
         asyncio.run_coroutine_threadsafe(self.main_loop(), get_asyncio_loop())
         self.lnpeermgr.start_network(network, listen=True)
         self.lnwatcher.start_network(network)

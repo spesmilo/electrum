@@ -204,6 +204,7 @@ class AddressSynchronizer(Logger, EventListener):
         assert self.network is None, "already started"
         self.network = network
         if self.network is not None:
+            assert network.config is self.config
             self.synchronizer = Synchronizer(self)
             self.verifier = SPV(self.network, self)
             self.asyncio_loop = network.asyncio_loop
