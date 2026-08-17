@@ -1698,6 +1698,8 @@ class SwapManager(Logger):
                     # address again from accounting addresses so the refund tx is not incorrectly
                     # shown in the wallet history as tx spending from this wallet
                     self.wallet._accounting_addresses.discard(swap.lockup_address)
+                    del d[txid]  # neither funding nor refund tx belongs in our history
+                    continue
                 # add the funding tx to the group as the total amount of the group would
                 # otherwise be ~2x the actual payment as the claim tx gets counted as negative
                 # value (as it sends from the wallet/accounting address balance)
