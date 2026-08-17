@@ -56,7 +56,6 @@ from .util import (
 from . import bitcoin
 from .bitcoin import is_address,  hash_160, COIN
 from .bip32 import BIP32Node
-from .i18n import _
 from .transaction import (
     Transaction, multisig_script, PartialTransaction, PartialTxOutput, tx_from_any, PartialTxInput, TxOutpoint,
     convert_raw_tx_to_hex
@@ -85,6 +84,10 @@ if TYPE_CHECKING:
     from .network import Network
     from .daemon import Daemon
     from electrum.lnworker import PaymentInfo
+
+
+def _(_):  # break translation
+    raise Exception("The CLI is intentionally always non-localized")
 
 
 known_commands = {}  # type: Dict[str, Command]
@@ -2451,7 +2454,7 @@ def subparser_call(self, parser, namespace, values, option_string=None):
         parser = self._name_parser_map[parser_name]
     except KeyError:
         tup = parser_name, ', '.join(self._name_parser_map)
-        msg = _('unknown parser {!r} (choices: {})').format(*tup)
+        msg = 'unknown parser {!r} (choices: {})'.format(*tup)
         raise ArgumentError(self, msg)
     # parse all the remaining options into the namespace
     # store any unrecognized options on the object, so that the top
