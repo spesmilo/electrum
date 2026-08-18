@@ -68,6 +68,7 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
         self._adding_addrs = set()
         self.requested_addrs = set()
         self._handling_addr_statuses = set()
+        self._last_announced_status = {}  # type: Dict[str, Optional[str]]
         self.scripthash_to_address = {}
         self._processed_some_notifications = False  # so that we don't miss them
         # Queues
@@ -124,6 +125,7 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
                 assert_hash256_str(status)
             # process status
             addr = self.scripthash_to_address[sh]
+            self._last_announced_status[addr] = status
             self._handling_addr_statuses.add(addr)
             self.requested_addrs.discard(addr)  # ok for addr not to be present
             await self.taskgroup.spawn(self._on_address_status, addr, status)
@@ -201,11 +203,11 @@ class Synchronizer(SynchronizerBase):
             self._handling_addr_statuses.discard(addr)
         result = await self._maybe_request_history_for_addr(addr, ann_status=status)
         hist = list(map(lambda item: (item['tx_hash'], item['height']), result))
-        # tx_fees
-        tx_fees = [(item['tx_hash'], item.get('fee')) for item in result]
-        tx_fees = dict(filter(lambda x:x[1] is not None, tx_fees))
+        if status != self._last_announced_status.get(addr):
+            # The server already sent us a newer status while we have been waiting for this history response.
+            self.logger.debug(f"discarding obsolete history for {addr}")
         # Check that the status corresponds to what was announced
-        if history_status(hist) != status:
+        elif history_status(hist) != status:
             # could happen naturally if history changed between getting status and history (race)
             self.logger.info(f"error: status mismatch: {addr}. we'll wait a bit for status update.")
             # The server is supposed to send a new status notification, which will trigger a new
@@ -217,6 +219,9 @@ class Synchronizer(SynchronizerBase):
             self._stale_histories[addr] = await self.taskgroup.spawn(disconnect_if_still_stale)
         else:
             self._stale_histories.pop(addr, asyncio.Future()).cancel()
+            # tx_fees
+            tx_fees = [(item['tx_hash'], item.get('fee')) for item in result]
+            tx_fees = dict(filter(lambda x: x[1] is not None, tx_fees))
             # Store received history
             self.adb.receive_history_callback(addr, hist, tx_fees)
             # Request transactions we don't have
