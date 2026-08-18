@@ -56,7 +56,6 @@ from .util import (
 from . import bitcoin
 from .bitcoin import is_address,  hash_160, COIN
 from .bip32 import BIP32Node
-from .i18n import _
 from .transaction import (
     Transaction, multisig_script, PartialTransaction, PartialTxOutput, tx_from_any, PartialTxInput, TxOutpoint,
     convert_raw_tx_to_hex
@@ -85,6 +84,10 @@ if TYPE_CHECKING:
     from .network import Network
     from .daemon import Daemon
     from electrum.lnworker import PaymentInfo
+
+
+def _(_):  # break translation
+    raise Exception("The CLI is intentionally always non-localized")
 
 
 known_commands = {}  # type: Dict[str, Command]
@@ -2132,7 +2135,8 @@ class Commands(Logger):
     @command('wnpl')
     async def normal_swap(self, onchain_amount, lightning_amount, password=None, wallet: Abstract_Wallet = None):
         """
-        Normal submarine swap: send on-chain BTC, receive on Lightning
+        Normal submarine swap: send on-chain BTC, receive on Lightning.
+        Note: fees can change between the dryrun and the following swap request, causing the request to error and require a new dryrun.
 
         arg:decimal_or_dryrun:lightning_amount:Amount to be received, in BTC. Set it to 'dryrun' to receive a value
         arg:decimal_or_dryrun:onchain_amount:Amount to be sent, in BTC. Set it to 'dryrun' to receive a value
@@ -2156,6 +2160,13 @@ class Commands(Logger):
             else:
                 lightning_amount_sat = satoshis(lightning_amount)
                 onchain_amount_sat = satoshis(onchain_amount)
+                required_onchain_amount_sat = sm.get_send_amount(lightning_amount_sat, is_reverse=False)
+                # same 1 sat rounding tolerance as in `request_normal_swap()`
+                if not required_onchain_amount_sat \
+                        or not (onchain_amount_sat - 1 <= required_onchain_amount_sat <= onchain_amount_sat):
+                    raise UserFacingException(
+                        "Swap fees have changed since the dryrun was calculated. Do a new dryrun first."
+                        + f" ({required_onchain_amount_sat} != {onchain_amount_sat} sat)")
                 txid = await wallet.lnworker.swap_manager.normal_swap(
                     transport=transport,
                     lightning_amount_sat=lightning_amount_sat,
@@ -2174,7 +2185,8 @@ class Commands(Logger):
         self, lightning_amount, onchain_amount, prepayment='dryrun', password=None, wallet: Abstract_Wallet = None,
     ):
         """
-        Reverse submarine swap: send on Lightning, receive on-chain
+        Reverse submarine swap: send on Lightning, receive on-chain.
+        Note: fees can change between the dryrun and the following swap request, causing the request to error and require a new dryrun.
 
         arg:decimal_or_dryrun:lightning_amount:Amount to be sent, in BTC. Set it to 'dryrun' to receive a value
         arg:decimal_or_dryrun:onchain_amount:Amount to be received, in BTC. Set it to 'dryrun' to receive a value
@@ -2190,32 +2202,38 @@ class Commands(Logger):
                 raise TimeoutError("Could not find configured swap provider. Setup another one. See 'get_submarine_swap_providers'")
             if onchain_amount == 'dryrun':
                 lightning_amount_sat = satoshis(lightning_amount)
-                onchain_amount_sat = sm.get_recv_amount(lightning_amount_sat, is_reverse=True)
+                onchain_recv_amount_sat = sm.get_recv_amount(lightning_amount_sat, is_reverse=True)
                 assert prepayment == "dryrun", f"Cannot use {prepayment=} in dryrun. Set it to 'dryrun'."
                 prepayment_sat = 2 * sm.mining_fee
                 funding_txid = None
             elif lightning_amount == 'dryrun':
-                onchain_amount_sat = satoshis(onchain_amount)
-                lightning_amount_sat = sm.get_send_amount(onchain_amount_sat, is_reverse=True)
+                onchain_recv_amount_sat = satoshis(onchain_amount)
+                lightning_amount_sat = sm.get_send_amount(onchain_recv_amount_sat, is_reverse=True)
                 assert prepayment == "dryrun", f"Cannot use {prepayment=} in dryrun. Set it to 'dryrun'."
                 prepayment_sat = 2 * sm.mining_fee
                 funding_txid = None
             else:
-                lightning_amount_sat = satoshis(lightning_amount)
-                claim_fee = sm.get_fee_for_txbatcher()
-                onchain_amount_sat = satoshis(onchain_amount) + claim_fee
                 assert prepayment != "dryrun", "Provide the 'prepayment' obtained from the dryrun."
+                lightning_amount_sat = satoshis(lightning_amount)
+                requested_recv_amount_sat = satoshis(onchain_amount)
+                claim_fee = sm.get_fee_for_txbatcher()
+                funding_utxo_value_sat = requested_recv_amount_sat + claim_fee
+                onchain_recv_amount_sat = sm.get_recv_amount(lightning_amount_sat, is_reverse=True)
+                if not onchain_recv_amount_sat or onchain_recv_amount_sat < requested_recv_amount_sat:
+                    raise UserFacingException(
+                        "Swap fees have changed since the dryrun was calculated. Do a new dryrun first."
+                        + f" ({onchain_recv_amount_sat} < {requested_recv_amount_sat} sat)")
                 prepayment_sat = satoshis(prepayment)
                 funding_txid = await wallet.lnworker.swap_manager.reverse_swap(
                     transport=transport,
                     lightning_amount_sat=lightning_amount_sat,
-                    expected_onchain_amount_sat=onchain_amount_sat,
+                    expected_onchain_amount_sat=funding_utxo_value_sat,
                     prepayment_sat=prepayment_sat,
                 )
         return {
             'funding_txid': funding_txid,
             'lightning_amount': format_satoshis(lightning_amount_sat),
-            'onchain_amount': format_satoshis(onchain_amount_sat),
+            'onchain_amount': format_satoshis(onchain_recv_amount_sat),
             'prepayment': format_satoshis(prepayment_sat)
         }
 
@@ -2436,7 +2454,7 @@ def subparser_call(self, parser, namespace, values, option_string=None):
         parser = self._name_parser_map[parser_name]
     except KeyError:
         tup = parser_name, ', '.join(self._name_parser_map)
-        msg = _('unknown parser {!r} (choices: {})').format(*tup)
+        msg = 'unknown parser {!r} (choices: {})'.format(*tup)
         raise ArgumentError(self, msg)
     # parse all the remaining options into the namespace
     # store any unrecognized options on the object, so that the top
