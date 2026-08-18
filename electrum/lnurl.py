@@ -11,6 +11,7 @@ import urllib.parse
 import aiohttp.client_exceptions
 
 from electrum import segwit_addr, util
+from electrum.bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
 from electrum.segwit_addr import bech32_decode, Encoding, convertbits, bech32_encode
 from electrum.bolt11 import BOLT11DecodeException, BOLT11EncodeException
 from electrum.network import Network
@@ -159,6 +160,9 @@ def _parse_lnurl6_response(lnurl_response: dict) -> LNURL6Data:
     try:
         max_sendable_msat = int(lnurl_response['maxSendable'])
         min_sendable_msat = int(lnurl_response['minSendable'])
+        assert 0 < max_sendable_msat <= COIN * TOTAL_COIN_SUPPLY_LIMIT_IN_BTC * 1000, \
+            f"Invalid max amount: {max_sendable_msat} msat"
+        assert max_sendable_msat >= min_sendable_msat, f"Invalid amounts: max < min amount"
     except Exception as e:
         raise LNURLError(
             f"Missing or malformed 'minSendable'/'maxSendable' field in lnurl6 response. {e=!r}") from e
@@ -186,11 +190,12 @@ def _parse_lnurl3_response(lnurl_response: dict) -> LNURL3Data:
     try:
         min_withdrawable_msat = int(lnurl_response['minWithdrawable'] or 0)
         max_withdrawable_msat = int(lnurl_response['maxWithdrawable'])
+        assert 0 < max_withdrawable_msat <= COIN * TOTAL_COIN_SUPPLY_LIMIT_IN_BTC * 1000, \
+            f"Invalid max amount: {max_withdrawable_msat} msat"
         assert max_withdrawable_msat >= min_withdrawable_msat, f"Invalid amounts: max < min amount"
-        assert max_withdrawable_msat > 0, f"Invalid max amount: {max_withdrawable_msat} msat"
     except Exception as e:
         raise LNURLError(
-            f"Missing or malformed 'minWithdrawable'/'minWithdrawable' field in lnurl3 response. {e=!r}") from e
+            f"Missing or malformed 'minWithdrawable'/'maxWithdrawable' field in lnurl3 response. {e=!r}") from e
     return LNURL3Data(
         callback_url=callback_url,
         k1=k1,
