@@ -215,6 +215,12 @@ class TestTypes(QETestCase):
         self.assertFalse(g.eq(c))
         self.assertTrue(g.eq(d))
 
+        h = QEAmount(amount_msat=0)
+        self.assertTrue(h.eq(c))
+        self.assertTrue(h.lte(c))
+        self.assertTrue(h.gte(c))
+        self.assertTrue(h == c)
+
     @qt_test
     def test_min_max(self):
         o = QEAmount()
