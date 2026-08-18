@@ -580,7 +580,6 @@ def sweep_their_ctx_to_remote_backup(
         funding_pubkeys = extract_funding_pubkeys_from_ctx(ctx.inputs()[0])
         # for anchors we need the payment_basepoint to spend the to_remote
         if local_config and isinstance(local_config.payment_basepoint, Keypair):
-            # note: v0 backups have a Keypair too (but no anchors), which is derived in LocalConfig.from_seed()
             _logger.debug("using payment_basepoint key from channel backup")
             # if we have a channel backup v3+ the imported payment_basepoint is a private key for anchor channels
             # so non-deterministic LNWallets can recover their to_remote outputs

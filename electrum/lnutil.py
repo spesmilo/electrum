@@ -268,9 +268,9 @@ class LocalConfig(ChannelConfig):
             else:
                 kwargs['payment_basepoint'] = OnlyPubkeyKeypair(payment_basepoint)
         else:
-            # v0 channel backup for srk channel, note the derived key is bogus and cannot be used
-            # see: https://github.com/spesmilo/electrum/pull/8536
-            kwargs['payment_basepoint'] = keypair_generator(LnKeyFamily.PAYMENT_BASE)
+            # v0 channel backup for srk channel: the real basepoint is a wallet pubkey that is
+            # not part of the backup and cannot be derived, see: https://github.com/spesmilo/electrum/pull/8536
+            kwargs['payment_basepoint'] = OnlyPubkeyKeypair(None)
 
         return LocalConfig(**kwargs)
 
