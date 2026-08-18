@@ -613,7 +613,7 @@ class ChannelBackup(AbstractChannel):
             to_self_delay=cb.local_delay,
             channel_type=cb.channel_type,
             # there are three cases of backups:
-            # 1. legacy: payment_basepoint will be derived
+            # 1. legacy: deprecated, it cannot be recovered
             # 2. static_remotekey: to_remote sweep not necessary due to wallet address
             # 3. anchor outputs: sweep to_remote with local_payment_basepoint if it is a private key, otherwise
             #           by deriving the key from the funding pubkeys
@@ -680,8 +680,8 @@ class ChannelBackup(AbstractChannel):
         return sweep_their_ctx_to_remote_backup(chan=self, ctx=ctx, funding_tx=funding_tx)
 
     def create_sweeptxs_for_our_ctx(self, ctx):
-        if self.is_imported:
-            return sweep_our_ctx(chan=self, ctx=ctx)
+        if self.is_imported and self.config[LOCAL].payment_basepoint.pubkey is not None:
+            return sweep_our_ctx(chan=self, ctx=ctx)  # v0 backups miss payment_basepoint (see #8536/1a46460)
         else:
             return {}
 
@@ -753,12 +753,12 @@ class ChannelBackup(AbstractChannel):
 
     def get_wallet_addresses_channel_might_want_reserved(self) -> Sequence[str]:
         if self.is_imported:
-            # For v1 imported cbs, we have the local_payment_pubkey, which is
+            # For v1+ imported cbs, we have the local_payment_basepoint, which is
             # directly used as p2wpkh() of static_remotekey channels.
-            # (for v0 imported cbs, the correct local_payment_pubkey is missing, and so
-            #  we might calculate a different address here, which might not be wallet.is_mine,
-            #  but that should be harmless)
+            # (for v0 imported cbs, it is missing, so we have no address to reserve)
             our_payment_pubkey = self.config[LOCAL].payment_basepoint.pubkey
+            if our_payment_pubkey is None:
+                return []
             to_remote_address = make_commitment_output_to_remote_address(our_payment_pubkey, has_anchors=self.has_anchors())
             return [to_remote_address]
         else:  # on-chain backup
