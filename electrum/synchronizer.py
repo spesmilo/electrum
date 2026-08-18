@@ -191,6 +191,7 @@ class Synchronizer(SynchronizerBase):
         try:
             old_history = self.adb.db.get_addr_history(addr)
             if history_status(old_history) == status:
+                self._stale_histories.pop(addr, asyncio.Future()).cancel()
                 return
             # No point in requesting history twice for the same announced status.
             # However if we got announced a new status, we should request history again:
@@ -216,6 +217,7 @@ class Synchronizer(SynchronizerBase):
                 timeout = self.network.get_network_timeout_seconds(NetworkTimeout.Generic)
                 await asyncio.sleep(timeout)
                 raise SynchronizerFailure(f"timeout reached waiting for addr {addr}: history still stale")
+            self._stale_histories.pop(addr, asyncio.Future()).cancel()
             self._stale_histories[addr] = await self.taskgroup.spawn(disconnect_if_still_stale)
         else:
             self._stale_histories.pop(addr, asyncio.Future()).cancel()
