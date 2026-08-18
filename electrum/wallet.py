@@ -681,6 +681,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self.taskgroup = OldTaskGroup()
         self.network = network
         if network:
+            assert network.config is self.config
             asyncio.run_coroutine_threadsafe(self.main_loop(), self.network.asyncio_loop)
             self.adb.start_network(network)
             if self.lnworker:
