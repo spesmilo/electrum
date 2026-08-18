@@ -147,6 +147,8 @@ class QEAmount(QObject):
 
     @pyqtSlot('QVariant', result=bool)
     def lte(self, other: 'QEAmount|None') -> bool:
+        if other is None:
+            other = QEAmount()
         return self.lt(other) or self == other
 
     @pyqtSlot('QVariant', result=bool)
@@ -159,6 +161,8 @@ class QEAmount(QObject):
 
     @pyqtSlot('QVariant', result=bool)
     def gte(self, other: 'QEAmount|None') -> bool:
+        if other is None:
+            other = QEAmount()
         return self.gt(other) or self == other
 
     @pyqtSlot('QVariant', result=bool)
@@ -209,10 +213,10 @@ class QEAmount(QObject):
         else:
             self.copyFrom(one if one.lt(two) else two)
 
-    def __eq__(self, other: 'QEAmount') -> bool:
+    def __eq__(self, other: 'QEAmount|None') -> bool:
         assert True if other is None else isinstance(other, QEAmount)
         if other is None:
-            return False
+            other = QEAmount()
         return self._amount_msat == other._amount_msat and self._is_max == other._is_max
 
     def __str__(self) -> str:
