@@ -10,11 +10,13 @@ from electrum.lnutil import (
     derive_privkey, derive_pubkey, make_htlc_tx, extract_ctn_from_tx, get_compressed_pubkey_from_bech32,
     ScriptHtlc, calc_fees_for_commitment_tx, UpdateAddHtlc, LnFeatures, ln_compare_features,
     IncompatibleLightningFeatures, ChannelType, offered_htlc_trim_threshold_sat, received_htlc_trim_threshold_sat,
-    ImportedChannelBackupStorage, list_enabled_ln_feature_bits, PaymentFeeBudget, LnFeatureContexts
+    ImportedChannelBackupStorage, list_enabled_ln_feature_bits, PaymentFeeBudget, LnFeatureContexts,
+    Keypair, OnlyPubkeyKeypair, LOCAL
 )
 from electrum.util import bfh, MyEncoder
 from electrum.transaction import Transaction, PartialTransaction, Sighash
 from electrum.lnworker import LNWallet
+from electrum.lnchannel import ChannelBackup
 from electrum.wallet import Standard_Wallet
 from electrum.simple_config import SimpleConfig
 
@@ -1134,6 +1136,9 @@ class TestLNUtil(ElectrumTestCase):
             ),
             decoded_cb,
         )
+        chan_backup = ChannelBackup(decoded_cb, lnworker=None)
+        self.assertEqual(OnlyPubkeyKeypair(None), chan_backup.config[LOCAL].payment_basepoint)
+        self.assertEqual([], chan_backup.get_wallet_addresses_channel_might_want_reserved())
 
     @as_testnet
     async def test_decode_imported_channel_backup_v1(self):
@@ -1165,6 +1170,11 @@ class TestLNUtil(ElectrumTestCase):
         )
         with self.assertRaisesRegex(Exception, "pre-v3"):
             decoded_cb.to_bytes()  # to bytes refuses to serialize old version
+        chan_backup = ChannelBackup(decoded_cb, lnworker=None)
+        self.assertEqual(
+            OnlyPubkeyKeypair(bfh('0308d686712782a44b0cef220485ad83dae77853a5bf8501a92bb79056c9dcb25a')),
+            chan_backup.config[LOCAL].payment_basepoint,
+        )
 
     @as_testnet
     async def test_decode_imported_channel_backup_v3(self):
@@ -1190,6 +1200,14 @@ class TestLNUtil(ElectrumTestCase):
             multisig_funding_privkey=bfh('a21d6110f9af75def01f2145ef1338dfa53c2fb2a58dd9ae0ecf3358ee663783'),
         )
         self.assertEqual(reference, decoded_cb)
+        chan_backup = ChannelBackup(decoded_cb, lnworker=None)
+        self.assertEqual(
+            Keypair(
+                privkey=bfh('f406b0899040d762a326035631c2ce38b22c2db18102ab9e3c666c87d9e0ab65'),
+                pubkey=bfh('0393145d5cb5d8a73cdffa3caaf3204ae0b2cf0c7a1a4b62c85d2182fefaaeee5e'),
+            ),
+            chan_backup.config[LOCAL].payment_basepoint,
+        )
 
     async def test_payment_fee_budget(self):
         config = SimpleConfig()
