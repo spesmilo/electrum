@@ -72,6 +72,11 @@ jobs:
         # (contrib/android/p4a_recipes/), so lint semantics can be newer than runtime
         run: pip install "PySide6-Essentials==6.11.1" "PySide6-Addons==6.11.1"
       - name: Run qmllint
+        # advisory while this job is new: its runtime deps are not exercised
+        # anywhere else in CI, so a problem with the job itself should not
+        # block unrelated PRs. The known warning backlogs are info-level in
+        # .qmllint.ini, so this can be dropped without them becoming fatal.
+        continue-on-error: true
         run: ./contrib/qml_lint/run_qml_lint.py
 
   # unittests using the 'latest' runtime python-dependencies
