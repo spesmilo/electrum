@@ -217,7 +217,7 @@ class QEAmount(QObject):
         assert True if other is None else isinstance(other, QEAmount)
         if other is None:
             other = QEAmount()
-        return self._amount_msat == other._amount_msat and self._is_max == other._is_max
+        return self.msatsInt == other.msatsInt and self._is_max == other._is_max
 
     def __str__(self) -> str:
         s = _('Amount')
