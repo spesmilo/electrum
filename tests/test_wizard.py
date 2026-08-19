@@ -622,6 +622,8 @@ class WalletWizardTestCase(WizardTestCase):
             'seed': 'powerful random nobody notice nothing important anyway look away hidden message over',
             'seed_type': 'old', 'seed_extend': True, 'seed_variant': 'electrum'})
         v = w.resolve_next(v.view, d)
+        # GUI unchecks the box; even if seed_extend is still True, skip have_ext.
+        self.assertEqual('wallet_password', v.view)
         self._set_password_and_check_address(v=v, w=w, recv_addr="1FJEEB8ihPMbzs2SkLmr37dHyRFzakqUmo")
 
     async def test_create_standard_wallet_haveseed_electrum(self):

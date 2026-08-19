@@ -726,7 +726,7 @@ class NewWalletWizard(KeystoreWizard):
                     #       TODO we should normalize them, but it only makes sense if we also do a walletDB-upgrade.
                     addresses[addr] = {}
         elif data['keystore_type'] in ['createseed', 'haveseed']:
-            seed_extension = data['seed_extra_words'] if data['seed_extend'] else ''
+            seed_extension = data.get('seed_extra_words', '') if data.get('seed_extend') else ''
             if data['seed_type'] in ['old', 'standard', 'segwit']:
                 self._logger.debug('creating keystore from electrum seed')
                 k = keystore.from_seed(data['seed'], passphrase=seed_extension, for_multisig=data['wallet_type'] == 'multisig')
