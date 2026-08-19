@@ -110,25 +110,21 @@ class TrezorClientBase(HardwareClientBase, Logger):
         if self._session is None:
             assert self.handler is not None, "No UI handler for session"
             self.pair_if_needed()
+            self.client.ensure_unlocked()  # unlock device so features are populated and we know about passphrase
 
-            # If needed, unlock the device (triggering PIN entry dialog for legacy model).
-            with self.client.get_session(passphrase=PassphraseSetting.STANDARD_WALLET) as session:
-                session.ensure_unlocked()
-
-            passphrase = PassphraseSetting.STANDARD_WALLET  # (empty passphrase)
-            if self.client.features.passphrase_protection:
-                passphrase = self.get_passphrase(Capability.PassphraseEntry in self.client.features.capabilities)
-
-            # Then, derive a session for this wallet (possibly with a passphrase)
-            if passphrase == PassphraseSetting.STANDARD_WALLET:
-                self._session = session  # reuse the session above to avoid re-derivation
-                self.logger.info("Opened standard %s", self._session)
+            features = self.client.features
+            if not features.passphrase_protection:
+                passphrase = PassphraseSetting.STANDARD_WALLET  # (empty passphrase)
+            elif features.passphrase_always_on_device:
+                # the device asks for the passphrase itself, prompting in electrum as well would make the user enter it twice
+                passphrase = PassphraseSetting.ON_DEVICE
             else:
-                self._session = self.client.get_session(passphrase)
-                self.logger.info("Re-opened passphrase %s", self._session)
+                passphrase = self.get_passphrase(Capability.PassphraseEntry in features.capabilities)
+
+            self._session = self.client.get_session(passphrase=passphrase)
+            self.logger.info(f"Opened {self._session} ({features.passphrase_protection=}, on_device={passphrase is PassphraseSetting.ON_DEVICE})")
 
         return self._session
-
 
     def run_flow(self, message=None, creating_wallet=False):
         if self.in_flow:
