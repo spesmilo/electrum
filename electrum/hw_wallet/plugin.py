@@ -334,6 +334,9 @@ class HardwareHandlerBase:
     def show_message(self, msg: str, on_cancel=None) -> None:
         raise NotImplementedError()
 
+    def show_warning(self, msg: str, blocking: bool = False) -> None:
+        raise NotImplementedError()
+
     def show_error(self, msg: str, blocking: bool = False) -> None:
         raise NotImplementedError()
 

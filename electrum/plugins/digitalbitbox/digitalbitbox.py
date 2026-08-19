@@ -125,17 +125,27 @@ class DigitalBitbox_Client(HardwareClientBase):
             raise UserFacingException(_('This device does not reveal xpubs corresponding to non-hardened paths'))
 
         reply = self._get_xpub(bip32_path)
-        if reply:
-            xpub = reply['xpub']
-            # Change type of xpub to the requested type. The firmware
-            # only ever returns the mainnet standard type, but it is agnostic
-            # to the type when signing.
-            if xtype != 'standard' or constants.net.TESTNET:
-                node = BIP32Node.from_xkey(xpub, net=constants.BitcoinMainnet)
-                xpub = node._replace(xtype=xtype).to_xpub()
-            return xpub
-        else:
+        if not reply:
             raise Exception('no reply')
+
+        xpub = reply['xpub']
+        # Change type of xpub to the requested type. The firmware
+        # only ever returns the mainnet standard type, but it is agnostic
+        # to the type when signing.
+        if xtype != 'standard' or constants.net.TESTNET:
+            node = BIP32Node.from_xkey(xpub, net=constants.BitcoinMainnet)
+            xpub = node._replace(xtype=xtype).to_xpub()
+
+        deprecation_warning = (
+            "DigitalBitbox (BitBox01) is being deprecated.\n\nIt is no longer supported by the manufacturer.\n"
+            "Future versions of Electrum will no longer be compatible with it.\n\n"
+            "You should move your coins and migrate to a modern hardware device.")
+        _logger.warning(deprecation_warning.replace("\n", " "))
+
+        if self.handler:
+            self.handler.show_warning(deprecation_warning, blocking=True)
+
+        return xpub
 
     def get_soft_device_id(self):
         return None
