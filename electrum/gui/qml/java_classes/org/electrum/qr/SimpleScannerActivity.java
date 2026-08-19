@@ -13,7 +13,9 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.Window;
 import android.view.WindowInsets;
+import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -47,6 +49,10 @@ public class SimpleScannerActivity extends Activity {
         String text = intent.getStringExtra(intent.EXTRA_TEXT);
         TextView hintTextView = (TextView) findViewById(R.id.hint);
         hintTextView.setText(text);
+
+        // secure this window
+        boolean secure = !intent.getBooleanExtra("allow_screenshots", false);
+        setSecureWindow(secure);
 
         // bind "paste" button
         Button btn = (Button) findViewById(R.id.paste_btn);
@@ -209,4 +215,44 @@ public class SimpleScannerActivity extends Activity {
             return insets;
         });
     }
+
+    public void setSecureWindow(boolean secure) {
+        // method duplicated from p4a bootstraps/ org.kivy.android.PythonActivity
+        runOnUiThread(new Runnable() {
+            private Activity mActivity;
+            private boolean mEnable;
+
+            public Runnable _initialize(Activity activity, boolean enable) {
+                this.mActivity = activity;
+                this.mEnable = enable;
+                return this;
+            }
+
+            @Override
+            public void run() {
+                Window window = this.mActivity.getWindow();
+
+                if ( !((window.getAttributes().flags & WindowManager.LayoutParams.FLAG_SECURE) != 0) ^ mEnable)
+                    return; // no change needed
+
+                if (mEnable) {
+                    Log.v(TAG, "Setting Secure Window");
+                    window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE);
+                } else {
+                    Log.v(TAG, "UnSetting Secure Window");
+                    window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
+                    // The below forces a redraw of the window/view, which is needed on some phones
+                    // to actually clear the flag. However on some other phones, it crashes the app...
+                    // see https://github.com/spesmilo/electrum/issues/8522
+                    /*if (ViewCompat.isAttachedToWindow(window.getDecorView())) {
+                        WindowManager wm = this.mActivity.getWindowManager();
+                        wm.removeViewImmediate(window.getDecorView());
+                        wm.addView(window.getDecorView(), window.getAttributes());
+                    }*/
+                }
+            }
+        }._initialize(this, secure));
+    }
+
+
 }
