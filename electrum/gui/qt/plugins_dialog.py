@@ -117,8 +117,7 @@ class PluginDialog(WindowModalDialog):
         privkey = self.window.get_plugins_privkey()
         if not privkey:
             return
-        filename = self.plugins.zip_plugin_path(self.name)
-        self.window.plugins.authorize_plugin(self.name, filename, privkey)
+        self.window.plugins.authorize_plugin(self.name, privkey)
         self.window.plugins.enable(self.name)
         d = self.plugins.get_metadata(self.name)
         if details := d.get('registers_keystore'):
