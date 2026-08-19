@@ -65,6 +65,11 @@ Item {
             }
             //scanner.destroy()  // TODO
         })
+        scanner.onFoundUR.connect(function(data) {
+            console.log("UR type:", data.getType)
+            console.log("UR data:", data.getBytes)
+            piResolver.recipient = data.getBytes
+        })
         scanner.open()
     }
 
