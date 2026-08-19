@@ -506,9 +506,12 @@ class SettingsDialog(WindowModalDialog):
                     raise RuntimeError("Device not connected")
                 if method:
                     getattr(client, method)(*args, **kw_args)
-                if unpair_after:
-                    devmgr.unpair_id(device_id)
-                return client.features
+                try:
+                    features = client.features  # some features are set None after unpairing, so store them first
+                finally:  # always clean up
+                    if unpair_after:
+                        devmgr.unpair_id(device_id)
+                return features
 
             thread.add(task, on_success=update)
 
@@ -531,7 +534,8 @@ class SettingsDialog(WindowModalDialog):
 
             device_label.setText(features.label)
             pin_set_label.setText(noyes[features.pin_protection])
-            passphrases_label.setText(disen[features.passphrase_protection])
+            passphrase_protection = features.passphrase_protection  # might be None if device is locked
+            passphrases_label.setText(disen[passphrase_protection] if passphrase_protection is not None else _("Unknown"))
             bl_hash_label.setText(bl_hash)
             label_edit.setText(features.label)
             device_id_label.setText(features.device_id)
@@ -541,7 +545,8 @@ class SettingsDialog(WindowModalDialog):
             clear_pin_warning.setVisible(features.pin_protection)
             pin_button.setText(setchange[features.pin_protection])
             pin_msg.setVisible(not features.pin_protection)
-            passphrase_button.setText(endis[features.passphrase_protection])
+            passphrase_button.setText(endis[bool(passphrase_protection)])
+            passphrase_button.setEnabled(passphrase_protection is not None)
             language_label.setText(features.language)
 
         def set_label_enabled():
