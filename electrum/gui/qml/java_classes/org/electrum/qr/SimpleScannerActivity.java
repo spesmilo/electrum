@@ -217,6 +217,7 @@ public class SimpleScannerActivity extends Activity {
     }
 
     public void setSecureWindow(boolean secure) {
+        // method duplicated from p4a bootstraps/ org.kivy.android.PythonActivity
         runOnUiThread(new Runnable() {
             private Activity mActivity;
             private boolean mEnable;
