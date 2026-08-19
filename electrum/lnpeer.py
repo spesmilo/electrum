@@ -53,7 +53,9 @@ from .lntransport import LNTransport, LNTransportBase, LightningPeerConnectionCl
 from .lnmsg import encode_msg, decode_msg, UnknownOptionalMsgType, FailedToParseMsg
 from .interface import GracefulDisconnect
 from .invoices import PR_PAID
-from .fee_policy import FEE_LN_ETA_TARGET, FEERATE_PER_KW_MIN_RELAY_LIGHTNING
+from .fee_policy import (
+    FEE_LN_ETA_TARGET, FEERATE_PER_KW_MIN_RELAY_LIGHTNING, FEERATE_MAX_DYNAMIC, FEE_LN_MINIMUM_ETA_TARGET, FEERATE_DEFAULT_RELAY,
+)
 from .channel_db import FLAG_DIRECTION
 
 if TYPE_CHECKING:
@@ -64,6 +66,9 @@ if TYPE_CHECKING:
 
 
 LN_P2P_NETWORK_TIMEOUT = 20
+
+
+class CoopCloseFailure(Exception): pass
 
 
 class Peer(Logger, EventListener):
@@ -2617,34 +2622,49 @@ class Peer(Logger, EventListener):
         # can fulfill or fail htlcs. cannot add htlcs, because state != OPEN
         chan.set_can_send_ctx_updates(True)
 
-    def get_shutdown_fee_range(self, chan, closing_tx, is_local):
-        """ return the closing fee and fee range we initially try to enforce """
+    def get_shutdown_fee_range(self, chan, closing_tx, is_local) -> Tuple[int, dict]:
+        """ return our closing fee, and the fee range we initially want to enforce. """
+        # Note: A malicious Electrum server can make us pay high closing fees, capped only by FEERATE_MAX_DYNAMIC
+        # The same issue exists with commitment transactions; we only make sure it is not worse here.
         config = self.config
+        is_initiator = chan.constraints.is_initiator
         our_fee = None
-        if config.TEST_SHUTDOWN_FEE:
+        if config.TEST_SHUTDOWN_FEE is not None:
             our_fee = config.TEST_SHUTDOWN_FEE
         else:
             fee_rate_per_kb = self.network.fee_estimates.eta_target_to_fee(FEE_LN_ETA_TARGET)
             if fee_rate_per_kb is None:  # fallback
                 from .fee_policy import FeePolicy
                 fee_rate_per_kb = FeePolicy(config.FEE_POLICY).fee_per_kb(self.network)
-            if fee_rate_per_kb is not None:
-                our_fee = fee_rate_per_kb * closing_tx.estimated_size() // 1000
-            # TODO: anchors: remove this, as commitment fee rate can be below chain head fee rate?
-            # BOLT2: The sending node MUST set fee less than or equal to the base fee of the final ctx
-            max_fee = chan.get_latest_fee(LOCAL if is_local else REMOTE)
-            if our_fee is None:  # fallback
+            if fee_rate_per_kb is None:  # fallback
                 self.logger.warning(f"got no fee estimates for co-op close! falling back to chan.get_latest_fee")
-                our_fee = max_fee
-            our_fee = min(our_fee, max_fee)
-        # config modern_fee_negotiation can be set in tests
-        if config.TEST_SHUTDOWN_LEGACY:
-            our_fee_range = None
-        elif config.TEST_SHUTDOWN_FEE_RANGE:
+                feerate_per_kw = chan.get_latest_feerate(LOCAL if is_local else REMOTE)
+                fee_rate_per_kb = 4 * feerate_per_kw
+            our_fee = fee_rate_per_kb * closing_tx.estimated_size() // 1000
+        # max value
+        max_fee = min(our_fee * 2, FEERATE_MAX_DYNAMIC * closing_tx.estimated_size() // 1000)
+        # make sure fee is payable by initiator
+        affordable = chan.balance(LOCAL if is_initiator else REMOTE) // 1000
+        max_fee = min(max_fee, affordable)
+        # min value. We aim at a fee between next block inclusion and some lower value.
+        fee_rate_per_kb = self.network.fee_estimates.eta_target_to_fee(FEE_LN_MINIMUM_ETA_TARGET) or FEERATE_DEFAULT_RELAY
+        superlow_min_fee = fee_rate_per_kb * closing_tx.estimated_size() // 1000
+        if is_initiator:
+            min_fee = our_fee // 2
+            min_fee = max(min_fee, superlow_min_fee)
+        else:
+            # The sending node, if it is not the funder:
+            # SHOULD set min_fee_satoshis to a fairly low value
+            min_fee = superlow_min_fee
+        # ensure order
+        min_fee = min(min_fee, max_fee)  # note: if min_fee was > max_fee, the tx might not relay... unclear what to do.
+        our_fee = max(min_fee, our_fee)
+        our_fee = min(our_fee, max_fee)
+        assert min_fee <= our_fee <= max_fee
+        if config.TEST_SHUTDOWN_FEE_RANGE:
             our_fee_range = config.TEST_SHUTDOWN_FEE_RANGE
         else:
-            # we aim at a fee between next block inclusion and some lower value
-            our_fee_range = {'min_fee_satoshis': our_fee // 2, 'max_fee_satoshis': our_fee * 2}
+            our_fee_range = {'min_fee_satoshis': min_fee, 'max_fee_satoshis': max_fee}
         self.logger.info(f"Our fee range: {our_fee_range} and fee: {our_fee}")
         return our_fee, our_fee_range
 
@@ -2671,10 +2691,7 @@ class Peer(Logger, EventListener):
 
         def send_closing_signed(our_fee, our_fee_range, drop_remote):
             nonlocal our_sig, closing_tx
-            if our_fee_range:
-                closing_signed_tlvs = {'fee_range': our_fee_range}
-            else:
-                closing_signed_tlvs = {}
+            closing_signed_tlvs = {'fee_range': our_fee_range}
             our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=our_fee, drop_remote=drop_remote)
             self.logger.info(f"Sending fee range: {closing_signed_tlvs} and fee: {our_fee}")
             self.send_message(
@@ -2697,10 +2714,14 @@ class Peer(Logger, EventListener):
                 cs_payload = await self.wait_for_message('closing_signed', chan.channel_id)
             except asyncio.exceptions.TimeoutError:
                 self.schedule_force_closing(chan.channel_id)
-                raise Exception("closing_signed not received, force closing.")
+                raise CoopCloseFailure("closing_signed not received, force closing.")
             their_fee = cs_payload['fee_satoshis']
             their_fee_range = cs_payload['closing_signed_tlvs'].get('fee_range')
             their_sig = cs_payload['signature']
+            # legacy negotiation is no longer supported
+            if their_fee_range is None:
+                self.schedule_force_closing(chan.channel_id)
+                raise CoopCloseFailure(f"Their fee range missing, force closing.")
             # perform checks
             our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=their_fee, drop_remote=False)
             if verify_signature(closing_tx, their_sig):
@@ -2712,7 +2733,7 @@ class Peer(Logger, EventListener):
                 else:
                     # this can happen if we consider our output too valuable to drop,
                     # but the remote drops it because it violates their dust limit
-                    raise Exception('failed to verify their signature')
+                    raise CoopCloseFailure('failed to verify their signature')
             # at this point we know how the closing tx looks like
             # check that their output is above their scriptpubkey's network dust limit
             to_remote_set = closing_tx.get_output_idxs_from_scriptpubkey(their_scriptpubkey)
@@ -2727,13 +2748,12 @@ class Peer(Logger, EventListener):
             fee_range_sent = our_fee_range and (is_initiator or (their_previous_fee is not None))
 
             # The sending node, if it is not the funder:
-            if our_fee_range and their_fee_range and not is_initiator and not self.config.TEST_SHUTDOWN_FEE_RANGE:
+            if not is_initiator:
                 # SHOULD set max_fee_satoshis to at least the max_fee_satoshis received
+                # note: we are submissive with the "max" but not with the "min" value.
                 our_fee_range['max_fee_satoshis'] = max(their_fee_range['max_fee_satoshis'], our_fee_range['max_fee_satoshis'])
-                # SHOULD set min_fee_satoshis to a fairly low value
-                our_fee_range['min_fee_satoshis'] = min(their_fee_range['min_fee_satoshis'], our_fee_range['min_fee_satoshis'])
                 # Note: the BOLT describes what the sending node SHOULD do.
-                # However, this assumes that we have decided to send 'funding_signed' in response to their fee_range.
+                # However, this assumes that we have decided to send 'closing_signed' in response to their fee_range.
                 # In practice, we might prefer to fail the channel in some cases (TODO)
 
             # the receiving node, if fee_satoshis matches its previously sent fee_range,
@@ -2742,7 +2762,7 @@ class Peer(Logger, EventListener):
                 our_fee = their_fee
 
             # the receiving node, if the message contains a fee_range
-            elif our_fee_range and their_fee_range:
+            else:
                 overlap_min = max(our_fee_range['min_fee_satoshis'], their_fee_range['min_fee_satoshis'])
                 overlap_max = min(our_fee_range['max_fee_satoshis'], their_fee_range['max_fee_satoshis'])
                 # if there is no overlap between that and its own fee_range
@@ -2750,14 +2770,14 @@ class Peer(Logger, EventListener):
                     # TODO: the receiving node should first send a warning, and fail the channel
                     # only if it doesn't receive a satisfying fee_range after a reasonable amount of time
                     self.schedule_force_closing(chan.channel_id)
-                    raise Exception("There is no overlap between between their and our fee range.")
+                    raise CoopCloseFailure("There is no overlap between their and our fee range.")
                 # otherwise, if it is the funder
                 if is_initiator:
                     # if fee_satoshis is not in the overlap between the sent and received fee_range:
                     if not (overlap_min <= their_fee <= overlap_max):
                         # MUST fail the channel
                         self.schedule_force_closing(chan.channel_id)
-                        raise Exception("Their fee is not in the overlap region, we force closed.")
+                        raise CoopCloseFailure("Their fee is not in the overlap region, we force closed.")
                     # otherwise, MUST reply with the same fee_satoshis.
                     our_fee = their_fee
                 # otherwise (it is not the funder):
@@ -2766,26 +2786,14 @@ class Peer(Logger, EventListener):
                     if fee_range_sent:
                         # fee_satoshis is not the same as the value we sent, we MUST fail the channel
                         self.schedule_force_closing(chan.channel_id)
-                        raise Exception("Expected the same fee as ours, we force closed.")
+                        raise CoopCloseFailure("Expected the same fee as ours, we force closed.")
                     # otherwise:
                     # MUST propose a fee_satoshis in the overlap between received and (about-to-be) sent fee_range.
                     our_fee = (overlap_min + overlap_max) // 2
-            else:
-                # otherwise, if fee_satoshis is not strictly between its last-sent fee_satoshis
-                # and its previously-received fee_satoshis, UNLESS it has since reconnected:
-                if their_previous_fee and not (min(our_fee, their_previous_fee) < their_fee < max(our_fee, their_previous_fee)):
-                    # SHOULD fail the connection.
-                    raise Exception('Their fee is not between our last sent and their last sent fee.')
-                # accept their fee if they are very close
-                if abs(their_fee - our_fee) < 2:
-                    our_fee = their_fee
-                else:
-                    # this will be "strictly between" (as in BOLT2) previous values because of the above
-                    our_fee = (our_fee + their_fee) // 2
 
             return our_fee, our_fee_range
 
-        # Fee negotiation: both parties exchange 'funding_signed' messages.
+        # Fee negotiation: both parties exchange 'closing_signed' messages.
         # The funder sends the first message, the non-funder sends the last message.
         # In the 'modern' case, at most 3 messages are exchanged, because choose_new_fee of the funder either returns their_fee or fails
         their_fee = None

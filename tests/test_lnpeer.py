@@ -11,7 +11,7 @@ import concurrent
 from concurrent import futures
 from functools import lru_cache
 from unittest import mock
-from typing import Iterable, NamedTuple, Tuple, List, Dict, Sequence, Mapping
+from typing import Iterable, NamedTuple, Tuple, List, Dict, Sequence, Mapping, Optional
 from types import MappingProxyType
 import time
 import statistics
@@ -33,6 +33,7 @@ from electrum.bitcoin import sha256
 from electrum.transaction import Transaction
 from electrum.util import NetworkRetryManager, bfh, OldTaskGroup, EventListener, InvoiceError
 from electrum.lnpeer import Peer
+from electrum.lnpeer import CoopCloseFailure
 from electrum.lntransport import LNPeerAddr
 from electrum.crypto import privkey_to_pubkey
 from electrum.lnutil import Keypair, PaymentFailure, LnFeatures, HTLCOwner, PaymentFeeBudget, RECEIVED
@@ -1277,34 +1278,53 @@ class TestPeerDirect(TestPeer):
             self.logger.debug(f"test_mpp_cleanup_after_expiry: {use_trampoline=}")
             await run_test(use_trampoline)
 
-    async def test_legacy_shutdown_low(self):
-        await self._test_shutdown(alice_fee=100, bob_fee=150)
-
-    async def test_legacy_shutdown_high(self):
-        await self._test_shutdown(alice_fee=2000, bob_fee=100)
-
     async def test_modern_shutdown_with_overlap(self):
-        await self._test_shutdown(
-            alice_fee=1,
-            bob_fee=200,
-            alice_fee_range={'min_fee_satoshis': 1, 'max_fee_satoshis': 10},
-            bob_fee_range={'min_fee_satoshis': 10, 'max_fee_satoshis': 300})
-
-    @mock.patch('electrum.lnpeer.LN_P2P_NETWORK_TIMEOUT', 0.05)
-    async def test_modern_shutdown_no_overlap(self):
-        with self.assertLogs('electrum', level='ERROR') as logs:
-            with self.assertRaisesRegex(Exception, "closing_signed not received"):
-                await self._test_shutdown(
+        for alice_closes in [True, False]:
+            with self.subTest(alice_closes=alice_closes):
+                chan_ab, chan_ba, coop_fail = await self._test_shutdown(
                     alice_fee=1,
                     bob_fee=200,
                     alice_fee_range={'min_fee_satoshis': 1, 'max_fee_satoshis': 10},
-                    bob_fee_range={'min_fee_satoshis': 50, 'max_fee_satoshis': 300})
-        self.assertTrue(any(("bob->alice" in msg and "There is no overlap between between their and our fee range." in msg) for msg in logs.output))
-        self.assertTrue(any(("alice->bob" in msg and "closing_signed not received, force closing." in msg) for msg in logs.output))
-        # note: "Task exception was never retrieved" for "Exception: There is no overlap [...]"
-        #       is because we don't start peer.main_loop and hence peer.taskgroup is never joined.
+                    bob_fee_range={'min_fee_satoshis': 10, 'max_fee_satoshis': 300},
+                    alice_closes=alice_closes,
+                )
+                await asyncio.sleep(0.1)  # FIXME test is a bit fragile...
+                self.assertIsNone(coop_fail)
+                self.assertEqual((chan_ab._state, chan_ba._state), (ChannelState.CLOSING, ChannelState.CLOSING))
 
-    async def _test_shutdown(self, alice_fee, bob_fee, alice_fee_range=None, bob_fee_range=None):
+    @mock.patch('electrum.lnpeer.LN_P2P_NETWORK_TIMEOUT', 0.05)
+    async def test_modern_shutdown_no_overlap(self):
+        for alice_closes in [True, False]:
+            with self.subTest(alice_closes=alice_closes):
+                with self.assertLogs('electrum', level='ERROR') as logs:
+                    chan_ab, chan_ba, coop_fail = await self._test_shutdown(
+                        alice_fee=1,
+                        bob_fee=200,
+                        alice_fee_range={'min_fee_satoshis': 1, 'max_fee_satoshis': 10},
+                        bob_fee_range={'min_fee_satoshis': 50, 'max_fee_satoshis': 300},
+                        alice_closes=alice_closes,
+                    )
+                    await asyncio.sleep(0.1)  # FIXME test is a bit fragile...
+                self.assertIsInstance(coop_fail, CoopCloseFailure)
+                if alice_closes:
+                    assert "closing_signed not received" in str(coop_fail)
+                else:
+                    assert "There is no overlap between their and our fee range" in str(coop_fail)
+        self.assertTrue(any(("bob->alice" in msg and "There is no overlap between their and our fee range." in msg) for msg in logs.output))
+        self.assertTrue(any(("alice->bob" in msg and "closing_signed not received, force closing." in msg) for msg in logs.output))
+        # note: "Task exception was never retrieved" for the other CoopCloseFailure
+        #       is because we don't start peer.main_loop and hence peer.taskgroup is never joined.
+        self.assertEqual((chan_ab._state, chan_ba._state), (ChannelState.FORCE_CLOSING, ChannelState.FORCE_CLOSING))
+
+    async def _test_shutdown(
+        self,
+        *,
+        alice_fee: int,
+        bob_fee: int,
+        alice_fee_range: dict,
+        bob_fee_range: dict,
+        alice_closes: bool,  # who sends "shutdown" first
+    ) -> tuple[Channel, Channel, Optional[CoopCloseFailure]]:
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
         p1, p2 = graph.peers.values()
         w1, w2 = graph.workers.values()
@@ -1312,14 +1332,8 @@ class TestPeerDirect(TestPeer):
         bob_channel = graph.channels[('bob', 'alice')][0]
         w1.network.config.TEST_SHUTDOWN_FEE = alice_fee
         w2.network.config.TEST_SHUTDOWN_FEE = bob_fee
-        if alice_fee_range is not None:
-            w1.network.config.TEST_SHUTDOWN_FEE_RANGE = alice_fee_range
-        else:
-            w1.network.config.TEST_SHUTDOWN_LEGACY = True
-        if bob_fee_range is not None:
-            w2.network.config.TEST_SHUTDOWN_FEE_RANGE = bob_fee_range
-        else:
-            w2.network.config.TEST_SHUTDOWN_LEGACY = True
+        w1.network.config.TEST_SHUTDOWN_FEE_RANGE = alice_fee_range
+        w2.network.config.TEST_SHUTDOWN_FEE_RANGE = bob_fee_range
         w2.enable_htlc_settle = False
         lnaddr, pay_req = self.prepare_invoice(w2)
         async def pay():
@@ -1335,15 +1349,24 @@ class TestPeerDirect(TestPeer):
                    min_final_cltv_delta=lnaddr.get_min_final_cltv_delta(),
                    payment_secret=lnaddr.payment_secret)
             await p2.received_commitsig_event.wait()
-            # alice closes
-            await p1.close_channel(alice_channel.channel_id)
-            gath.cancel()
+            # start mutual close
+            p_shutdown_sender = p1 if alice_closes else p2
+            await p_shutdown_sender.close_channel(alice_channel.channel_id)
+            raise SuccessfulTest()
         async def set_settle():
             await asyncio.sleep(0.1)
             w2.enable_htlc_settle = True
         gath = asyncio.gather(pay(), set_settle(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
-        with self.assertRaises(asyncio.CancelledError):
+
+        coop_close_failure = None
+        try:
             await gath
+        except SuccessfulTest:
+            pass
+        except CoopCloseFailure as e:
+            coop_close_failure = e
+
+        return alice_channel, bob_channel, coop_close_failure
 
     async def test_warning(self):
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
