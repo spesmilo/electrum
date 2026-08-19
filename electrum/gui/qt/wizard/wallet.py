@@ -513,11 +513,25 @@ class WCEnterExt(WalletWizardComponent, Logger):
     def __init__(self, parent, wizard):
         WalletWizardComponent.__init__(self, parent, wizard, title=_('Seed Extension'))
         Logger.__init__(self)
+        self.ext_edit = None
+        self.warn_label = None
 
-        message = '\n'.join([
-            _('You may extend your seed with custom words.'),
-            _('Your seed extension must be saved together with your seed.'),
-        ])
+    def on_ready(self):
+        wdata = self.wizard.current_cosigner(self.wizard_data)
+        is_bip39 = wdata.get('seed_variant') == 'bip39'
+        if is_bip39:
+            self.title = _('BIP39 Passphrase')
+            message = '\n'.join([
+                _('Enter an optional BIP39 passphrase.'),
+                _('Each passphrase derives a different wallet.'),
+                _('This is sometimes incorrectly called the "25th word".'),
+            ])
+        else:
+            self.title = _('Seed Extension')
+            message = '\n'.join([
+                _('You may extend your seed with custom words.'),
+                _('Your seed extension must be saved together with your seed.'),
+            ])
         warning = '\n'.join([
             _('Note that this is NOT your encryption password.'),
             _('If you do not know what this is, leave this field empty.'),
@@ -530,8 +544,6 @@ class WCEnterExt(WalletWizardComponent, Logger):
         self.warn_label = IconLabel(reverse=True, hide_if_empty=True)
         self.warn_label.setIcon(read_QIcon('warning.png'))
         self.layout().addWidget(self.warn_label)
-
-    def on_ready(self):
         self.validate()
 
     def on_text_edited(self, text):
@@ -549,7 +561,7 @@ class WCEnterExt(WalletWizardComponent, Logger):
 
     def apply(self):
         cosigner_data = self.wizard.current_cosigner(self.wizard_data)
-        cosigner_data['seed_extra_words'] = self.ext_edit.text()
+        cosigner_data['seed_extra_words'] = self.ext_edit.text() if self.ext_edit else ''
 
 
 class WCConfirmExt(WalletWizardComponent):

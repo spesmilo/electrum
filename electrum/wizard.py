@@ -292,7 +292,15 @@ class KeystoreWizard(AbstractWizard):
 
     def wants_ext(self, wizard_data: dict) -> bool:
         wdata = self.current_cosigner(wizard_data)
-        return 'seed_variant' in wdata and wdata['seed_extend']
+        if not ('seed_variant' in wdata and wdata['seed_extend']):
+            return False
+        if wdata.get('seed_variant') != 'electrum':
+            return True
+        # old / incomplete electrum seeds must not get an extra-word page
+        try:
+            return can_seed_have_passphrase(wdata.get('seed', ''))
+        except Exception:
+            return False
 
     def is_multisig(self, wizard_data: dict) -> bool:
         return wizard_data['wallet_type'] == 'multisig'

@@ -14,15 +14,18 @@ WizardComponent {
     valid: true
 
     property int cosigner: 0
+    property string seedVariant: ''
+
+    title: seedVariant == 'bip39' ? qsTr('BIP39 Passphrase') : qsTr('Seed Extension')
 
     function apply() {
-        var seed_extend = extendcb.checked
+        // page is only shown after the user opted in on the seed page
         if (cosigner) {
-            wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_extend'] = seed_extend
-            wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_extra_words'] = seed_extend ? customwordstext.text : ''
+            wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_extend'] = true
+            wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_extra_words'] = customwordstext.text
         } else {
-            wizard_data['seed_extend'] = seed_extend
-            wizard_data['seed_extra_words'] = seed_extend ? customwordstext.text : ''
+            wizard_data['seed_extend'] = true
+            wizard_data['seed_extra_words'] = customwordstext.text
         }
     }
 
@@ -30,17 +33,12 @@ WizardComponent {
         valid = false
         validationtext.text = ''
 
-        if (extendcb.checked && customwordstext.text == '') {
-            return
-        } else {
-            // passphrase is either disabled or filled with text
-            apply()
-            if (cosigner && wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_variant'] == 'electrum') {
-                // check if master keys are not duplicated after entering passphrase
-                if (wiz.hasDuplicateMasterKeys(wizard_data)) {
-                    validationtext.text = qsTr('Error: duplicate master public key')
-                    return
-                }
+        apply()
+        if (cosigner && wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_variant'] == 'electrum') {
+            // check if master keys are not duplicated after entering passphrase
+            if (wiz.hasDuplicateMasterKeys(wizard_data)) {
+                validationtext.text = qsTr('Error: duplicate master public key')
+                return
             }
         }
         valid = true
@@ -69,29 +67,29 @@ WizardComponent {
             Label {
                 Layout.fillWidth: true
                 wrapMode: Text.Wrap
-                text: [
-                    qsTr('You may extend your seed with custom words.'),
-                    qsTr('Your seed extension must be saved together with your seed.'),
-                    qsTr('Note that this is NOT your encryption password.'),
-                    '<br/>',
-                    qsTr('Do not enable it unless you know what it does!'),
-                ].join(' ')
-            }
-
-            ElCheckBox {
-                id: extendcb
-                Layout.columnSpan: 2
-                Layout.fillWidth: true
-                text: qsTr('Extend seed with custom words')
-                onCheckedChanged: checkValid()
+                text: seedVariant == 'bip39'
+                    ? [
+                        qsTr('Enter an optional BIP39 passphrase.'),
+                        qsTr('Each passphrase derives a different wallet.'),
+                        qsTr('This is sometimes incorrectly called the "25th word".'),
+                        qsTr('Note that this is NOT your encryption password.'),
+                        qsTr('If you do not know what this is, leave this field empty.'),
+                    ].join(' ')
+                    : [
+                        qsTr('You may extend your seed with custom words.'),
+                        qsTr('Your seed extension must be saved together with your seed.'),
+                        qsTr('Note that this is NOT your encryption password.'),
+                        qsTr('If you do not know what this is, leave this field empty.'),
+                    ].join(' ')
             }
 
             TextField {
                 id: customwordstext
-                visible: extendcb.checked  // users confuse this with the seed re-entry if shown
                 Layout.fillWidth: true
                 Layout.columnSpan: 2
-                placeholderText: qsTr('Enter your custom word(s)')
+                placeholderText: seedVariant == 'bip39'
+                    ? qsTr('Enter your BIP39 passphrase')
+                    : qsTr('Enter your custom word(s)')
                 inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
                 onTextChanged: startValidationTimer()
             }
@@ -115,6 +113,10 @@ WizardComponent {
             if ('multisig_current_cosigner' in wizard_data)
                 cosigner = wizard_data['multisig_current_cosigner']
         }
+        if (cosigner)
+            seedVariant = wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_variant']
+        else
+            seedVariant = wizard_data['seed_variant']
         checkValid()
     }
 }

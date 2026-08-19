@@ -622,15 +622,7 @@ class WalletWizardTestCase(WizardTestCase):
             'seed': 'powerful random nobody notice nothing important anyway look away hidden message over',
             'seed_type': 'old', 'seed_extend': True, 'seed_variant': 'electrum'})
         v = w.resolve_next(v.view, d)
-        # FIXME this diverges from the actual GUIs :(
-        #  the GUIs do validation using wizard.validate_seed() and don't go to 'have_ext' for next view.
-        #  the validation should be moved to the base impl!
-        self.assertEqual('have_ext', v.view)
-
-        d.update({'seed_extra_words': UNICODE_HORROR})
-        with self.assertRaises(Exception) as ctx:
-            v = w.resolve_next(v.view, d)
-        self.assertTrue("cannot have passphrase" in ctx.exception.args[0])
+        self._set_password_and_check_address(v=v, w=w, recv_addr="1FJEEB8ihPMbzs2SkLmr37dHyRFzakqUmo")
 
     async def test_create_standard_wallet_haveseed_electrum(self):
         w = self._wizard_for(wallet_type='standard')
