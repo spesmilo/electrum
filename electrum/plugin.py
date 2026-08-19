@@ -588,11 +588,14 @@ class Plugins(DaemonThread):
         else:
             raise Exception(f"could not find plugin {name!r}")
 
+    def base_module_name(self, name: str) -> str:
+        return ('electrum_external_plugins.' if self.is_external(name) else 'electrum.plugins.') + name
+
     def maybe_load_plugin_init_method(self, name: str) -> None:
         """Loads the __init__.py module of the plugin if it is not already loaded."""
         if not self.is_authorized(name):
             return
-        base_name = ('electrum_external_plugins.' if self.is_external(name) else 'electrum.plugins.') + name
+        base_name = self.base_module_name(name)
         if base_name not in sys.modules:
             metadata = self.get_metadata(name)
             is_zip = metadata.get('is_zip', False)
@@ -618,12 +621,7 @@ class Plugins(DaemonThread):
             return self.plugins[name]
         # if the plugin was not enabled on startup the init module hasn't been loaded yet
         self.maybe_load_plugin_init_method(name)
-        is_external = self.is_external(name)
-        if not is_external:
-            full_name = f'electrum.plugins.{name}.{self.gui_name}'
-        else:
-            full_name = f'electrum_external_plugins.{name}.{self.gui_name}'
-
+        full_name = f'{self.base_module_name(name)}.{self.gui_name}'
         spec = importlib.util.find_spec(full_name)
         if spec is None:
             raise RuntimeError(f"{self.gui_name} implementation for {name} plugin not found")
