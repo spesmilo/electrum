@@ -14,7 +14,8 @@ WizardComponent {
     function apply() {
         wizard_data['seed'] = seedtext.text
         wizard_data['seed_variant'] = 'electrum' // generated seed always electrum variant
-        wizard_data['seed_extend'] = true  // true so we get forwarded to the passphrase page
+        wizard_data['seed_extend'] = extendcb.checked
+        wizard_data['seed_extra_words'] = extendcb.checked ? customwordstext.text : ''
     }
 
     function setWarningText(numwords) {
@@ -68,6 +69,35 @@ WizardComponent {
                     height: parent.height * 2/3
                     visible: seedtext.text == ''
                 }
+            }
+
+            ElCheckBox {
+                id: extendcb
+                Layout.fillWidth: true
+                enabled: seedtext.text != ''
+                text: qsTr('Extend this seed with custom words')
+                onCheckedChanged: checkIsLast()
+            }
+
+            Label {
+                Layout.fillWidth: true
+                wrapMode: Text.Wrap
+                visible: extendcb.checked
+                text: [
+                    qsTr('You may extend your seed with custom words.'),
+                    qsTr('Your seed extension must be saved together with your seed.'),
+                    qsTr('Note that this is NOT your encryption password.'),
+                    qsTr('If you do not know what this is, leave this field empty.'),
+                ].join(' ')
+            }
+
+            TextField {
+                id: customwordstext
+                Layout.fillWidth: true
+                visible: extendcb.checked
+                placeholderText: qsTr('Enter your custom word(s)')
+                inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
+                onTextChanged: checkIsLast()
             }
 
             Component.onCompleted : {

@@ -212,9 +212,10 @@ class KeystoreWizard(AbstractWizard):
                 'next': self.on_keystore_type
             },
             'enter_seed': {
-                'next': lambda d: 'enter_ext' if self.wants_ext(d) else 'script_and_derivation',
-                'accept': lambda d: None if (self.wants_ext(d) or self.needs_derivation_path(d)) else self.update_keystore(d),
-                'last': lambda d: not self.wants_ext(d) and not self.needs_derivation_path(d),
+                # extra words are typed on this page
+                'next': 'script_and_derivation',
+                'accept': lambda d: None if self.needs_derivation_path(d) else self.update_keystore(d),
+                'last': lambda d: not self.needs_derivation_path(d),
             },
             'enter_ext': {
                 'next': 'script_and_derivation',
@@ -425,7 +426,8 @@ class NewWalletWizard(KeystoreWizard):
                 'next': self.on_keystore_type
             },
             'create_seed': {
-                'next': lambda d: 'create_ext' if self.wants_ext(d) else 'confirm_seed',
+                # extra words are typed on this page; confirm_ext still follows confirm_seed
+                'next': 'confirm_seed',
             },
             'create_ext': {
                 'next': 'confirm_seed',
@@ -441,10 +443,11 @@ class NewWalletWizard(KeystoreWizard):
                 'last': lambda d: self.is_single_password() and not self.is_multisig(d)
             },
             'have_seed': {
-                'next': lambda d: 'have_ext' if self.wants_ext(d) else self.on_have_or_confirm_seed(d),
-                'accept': lambda d: None if self.wants_ext(d) else self.maybe_master_pubkey(d),
+                # extra words are typed on this page
+                'next': self.on_have_or_confirm_seed,
+                'accept': self.maybe_master_pubkey,
                 'last': lambda d: self.is_single_password() and not
-                                    (self.needs_derivation_path(d) or self.is_multisig(d) or self.wants_ext(d)),
+                                    (self.needs_derivation_path(d) or self.is_multisig(d)),
             },
             'have_ext': {
                 'next': self.on_have_or_confirm_seed,
@@ -476,9 +479,9 @@ class NewWalletWizard(KeystoreWizard):
                 'last': lambda d: self.is_single_password() and self.last_cosigner(d)
             },
             'multisig_cosigner_seed': {
-                'next': lambda d: 'multisig_cosigner_have_ext' if self.wants_ext(d) else self.on_have_cosigner_seed(d),
+                'next': self.on_have_cosigner_seed,
                 'last': lambda d: self.is_single_password() and self.last_cosigner(d) and not
-                                  (self.needs_derivation_path(d) or self.wants_ext(d)),
+                                  self.needs_derivation_path(d),
             },
             'multisig_cosigner_have_ext': {
                 'next': self.on_have_cosigner_seed,

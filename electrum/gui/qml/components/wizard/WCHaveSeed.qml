@@ -29,11 +29,13 @@ WizardComponent {
             wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_variant'] = seed_variant_cb.currentValue
             wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_type'] = _seedType
             wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_extend'] = extendcb.checked
+            wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_extra_words'] = extendcb.checked ? customwordstext.text : ''
         } else {
             wizard_data['seed'] = seedtext.text
             wizard_data['seed_variant'] = seed_variant_cb.currentValue
             wizard_data['seed_type'] = _seedType
             wizard_data['seed_extend'] = extendcb.checked
+            wizard_data['seed_extra_words'] = extendcb.checked ? customwordstext.text : ''
 
             // determine script type from electrum seed type
             // (used to limit script type options for bip39 cosigners)
@@ -273,6 +275,39 @@ WizardComponent {
                 Layout.fillWidth: true
                 wrapMode: Text.Wrap
                 visible: text
+            }
+
+            Label {
+                Layout.columnSpan: 2
+                Layout.fillWidth: true
+                wrapMode: Text.Wrap
+                visible: extendcb.checked && extendcb.enabled
+                text: seed_variant_cb.currentValue == 'bip39'
+                    ? [
+                        qsTr('Enter an optional BIP39 passphrase.'),
+                        qsTr('Each passphrase derives a different wallet.'),
+                        qsTr('This is sometimes incorrectly called the "25th word".'),
+                        qsTr('Note that this is NOT your encryption password.'),
+                        qsTr('If you do not know what this is, leave this field empty.'),
+                    ].join(' ')
+                    : [
+                        qsTr('You may extend your seed with custom words.'),
+                        qsTr('Your seed extension must be saved together with your seed.'),
+                        qsTr('Note that this is NOT your encryption password.'),
+                        qsTr('If you do not know what this is, leave this field empty.'),
+                    ].join(' ')
+            }
+
+            TextField {
+                id: customwordstext
+                Layout.columnSpan: 2
+                Layout.fillWidth: true
+                visible: extendcb.checked && extendcb.enabled
+                placeholderText: seed_variant_cb.currentValue == 'bip39'
+                    ? qsTr('Enter your BIP39 passphrase')
+                    : qsTr('Enter your custom word(s)')
+                inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
+                onTextChanged: checkIsLast()
             }
         }
     }
