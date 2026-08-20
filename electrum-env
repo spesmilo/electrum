@@ -8,7 +8,7 @@
 # By default, not all optional dependencies are installed.
 # E.g. for hardware wallet support, do:
 # $ source ./env/bin/activate
-# $ pip install -r contrib/deterministic-build/requirements-hw.txt
+# $ pip install --no-dependencies -r contrib/deterministic-build/requirements-hw.txt
 # $ deactivate
 
 set -e
