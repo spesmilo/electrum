@@ -179,6 +179,7 @@ class ProxySettings:
         self.port = ''
         self.user = None
         self.password = None
+        self.doh_endpoint = ''
 
     def set_defaults(self):
         self.__init__()  # call __init__ for default values
@@ -223,7 +224,8 @@ class ProxySettings:
             'host': self.host,
             'port': self.port,
             'user': self.user,
-            'password': self.password
+            'password': self.password,
+            'doh_endpoint': self.doh_endpoint,
         }
 
     @classmethod
@@ -233,6 +235,7 @@ class ProxySettings:
             config.NETWORK_PROXY, config.NETWORK_PROXY_USER, config.NETWORK_PROXY_PASSWORD
         )
         proxy.enabled = config.NETWORK_PROXY_ENABLED
+        proxy.doh_endpoint = config.NETWORK_PROXY_DOH_ENDPOINT
         return proxy
 
     @classmethod
@@ -244,6 +247,7 @@ class ProxySettings:
         proxy.port = d.get('port', proxy.port)
         proxy.user = d.get('user', proxy.user)
         proxy.password = d.get('password', proxy.password)
+        proxy.doh_endpoint = d.get('doh_endpoint', proxy.doh_endpoint)
         return proxy
 
     @classmethod
@@ -265,6 +269,9 @@ class ProxySettings:
         cls.probe_fut = asyncio.run_coroutine_threadsafe(detect_task(on_finished), util.get_asyncio_loop())
 
     def __eq__(self, other):
+        # note: doh_endpoint is intentionally excluded; this equality gates network
+        # restarts (see Network._set_proxy / set_parameters), and the DoH endpoint
+        # only affects DNSSEC lookups, not the network transport/interfaces.
         return self.enabled == other.enabled \
             and self.mode == other.mode \
             and self.host == other.host \
