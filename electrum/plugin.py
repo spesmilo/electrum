@@ -23,6 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import io
 import json
 import os
 import pkgutil
@@ -37,7 +38,6 @@ from typing import (NamedTuple, Any, Union, TYPE_CHECKING, Optional, Tuple,
                     Dict, Iterable, List, Sequence, Callable, TypeVar, Mapping)
 import concurrent
 from concurrent.futures import Future
-import zipimport
 from functools import wraps, partial
 from itertools import chain
 
@@ -54,6 +54,7 @@ from .simple_config import SimpleConfig
 from .logging import get_logger, Logger
 from .crypto import sha256
 from .network import Network
+from .zip_importer import MemoryZipImporter
 
 if TYPE_CHECKING:
     from .hw_wallet import HW_PluginBase, HardwareClientBase, HardwareHandlerBase
@@ -83,6 +84,9 @@ class Plugins(DaemonThread):
         self.cmd_only = cmd_only  # type: bool
         self.internal_plugin_metadata = {}
         self.external_plugin_metadata = {}
+        # in-memory copies of zip plugins, keyed by plugin name. see _get_zip_bundle()
+        self._zip_bundles = {}  # type: Dict[str, MemoryZipImporter]
+        self._zip_bundles_lock = threading.RLock()
         if cmd_only:
             # only import the command modules of plugins
             Logger.__init__(self)
@@ -507,7 +511,13 @@ class Plugins(DaemonThread):
 
     def read_manifest(self, path) -> dict:
         """ return json dict """
-        with zipfile_lib.ZipFile(path) as file:
+        # Read the file exactly once. The manifest and the hash we record (and
+        # display to the user before they authorize the plugin) have to describe
+        # the same bytes; hashing the path separately would let the file be
+        # swapped in between.
+        with open(path, 'rb') as f:
+            blob = f.read()
+        with zipfile_lib.ZipFile(io.BytesIO(blob)) as file:
             for filename in file.namelist():
                 if filename.endswith('manifest.json'):
                     break
@@ -518,7 +528,7 @@ class Plugins(DaemonThread):
                 manifest['path'] = path  # external, path of the zipfile
                 manifest['dirname'] = os.path.dirname(filename)  # internal
                 manifest['is_zip'] = True
-                manifest['zip_hash_sha256'] = get_file_hash256(path).hex()
+                manifest['zip_hash_sha256'] = sha256(blob).hex()
                 return manifest
 
     def zip_plugin_path(self, name) -> str:
@@ -587,11 +597,14 @@ class Plugins(DaemonThread):
         else:
             raise Exception(f"could not find plugin {name!r}")
 
+    def base_module_name(self, name: str) -> str:
+        return ('electrum_external_plugins.' if self.is_external(name) else 'electrum.plugins.') + name
+
     def maybe_load_plugin_init_method(self, name: str) -> None:
         """Loads the __init__.py module of the plugin if it is not already loaded."""
         if not self.is_authorized(name):
             return
-        base_name = ('electrum_external_plugins.' if self.is_external(name) else 'electrum.plugins.') + name
+        base_name = self.base_module_name(name)
         if base_name not in sys.modules:
             metadata = self.get_metadata(name)
             is_zip = metadata.get('is_zip', False)
@@ -604,9 +617,16 @@ class Plugins(DaemonThread):
                 else:
                     init_spec = importlib.util.find_spec(base_name)
             else:
-                zipfile = zipimport.zipimporter(metadata['path'])
-                dirname = metadata['dirname']
-                init_spec = zipfile.find_spec(dirname)
+                # Import from the verified in-memory copy, never from the path.
+                # The bundle registers itself on sys.meta_path, so the later
+                # find_spec() for the gui submodule, in load_plugin_by_name(),
+                # is served from those same bytes too.
+                bundle = self._get_zip_bundle(name)
+                if bundle is None:
+                    raise Exception(f"plugin {name!r} is not authorized")
+                init_spec = bundle.find_spec(base_name)
+                if init_spec is None:
+                    raise Exception(f"no __init__.py for plugin {name!r} in {metadata['path']}")
 
             self.exec_module_from_spec(init_spec, base_name)
 
@@ -617,12 +637,7 @@ class Plugins(DaemonThread):
             return self.plugins[name]
         # if the plugin was not enabled on startup the init module hasn't been loaded yet
         self.maybe_load_plugin_init_method(name)
-        is_external = self.is_external(name)
-        if not is_external:
-            full_name = f'electrum.plugins.{name}.{self.gui_name}'
-        else:
-            full_name = f'electrum_external_plugins.{name}.{self.gui_name}'
-
+        full_name = f'{self.base_module_name(name)}.{self.gui_name}'
         spec = importlib.util.find_spec(full_name)
         if spec is None:
             raise RuntimeError(f"{self.gui_name} implementation for {name} plugin not found")
@@ -645,7 +660,21 @@ class Plugins(DaemonThread):
         secret = pbkdf2_hmac('sha256', pw.encode('utf-8'), salt, iterations=10**5)
         return ECPrivkey(secret)
 
+    def add_external_plugin_metadata(self, manifest: dict) -> None:
+        """Registers the metadata of a newly installed external plugin."""
+        name = manifest['name']
+        self.external_plugin_metadata[name] = manifest
+        # the metadata now points at a different file, so whatever we still hold
+        # in memory under this name is stale, and was signed for the old one
+        self._drop_zip_bundle(name)
+
+    def remove_external_plugin_metadata(self, name: str) -> None:
+        """Unregisters an external plugin that did not end up being installed."""
+        self.external_plugin_metadata.pop(name, None)
+        self._drop_zip_bundle(name)
+
     def uninstall(self, name: str):
+        self._drop_zip_bundle(name)
         if self.config.get(f'plugins.{name}'):
             self.config.set_key(f'plugins.{name}', None)
         if name in self.external_plugin_metadata:
@@ -667,32 +696,93 @@ class Plugins(DaemonThread):
         """an external plugin may be installed but not authorized """
         return (name in self.internal_plugin_metadata or name in self.external_plugin_metadata)
 
+    def _get_zip_bundle(self, name: str) -> Optional[MemoryZipImporter]:
+        """Returns an in-memory copy of a zip plugin's archive, or None if the
+        plugin is not (or no longer) authorized.
+
+        The archive is read from disk once, and the signature is verified over
+        the bytes that are then kept in memory. Module imports and read_file()
+        are served from those same bytes, so there is no second read left for an
+        attacker to race: replacing the file on disk after the check has no
+        effect on what gets imported.
+        """
+        metadata = self.get_metadata(name)
+        if metadata is None or not metadata.get('is_zip', False):
+            return None
+        is_external = self.is_external(name)
+        # internal plugins ship inside the application bundle, and are not signed separately
+        sig = self.config.get(f'plugins.{name}.authorized') if is_external else None
+        pubkey_bytes = None
+        if is_external:
+            if not sig:
+                self._drop_zip_bundle(name)
+                return None
+            pubkey_bytes, salt = self.get_pubkey_bytes()
+            if not pubkey_bytes:
+                self._drop_zip_bundle(name)
+                return None
+        with self._zip_bundles_lock:
+            if (cached := self._zip_bundles.get(name)) is not None:
+                return cached
+            # note: this is the path that was signed, which is not necessarily
+            # metadata['path'] (the path the archive was originally read from)
+            path = self.zip_plugin_path(name)
+            try:
+                with open(path, 'rb') as f:
+                    blob = f.read()
+            except OSError:
+                self.logger.info(f"could not read zip plugin {name!r}", exc_info=True)
+                return None
+            if is_external:
+                try:
+                    verified = ECPubkey(pubkey_bytes).ecdsa_verify(bytes.fromhex(sig), sha256(blob))
+                except Exception:
+                    self.logger.info(f"malformed signature for plugin {name!r}", exc_info=True)
+                    verified = False
+                if not verified:
+                    return None
+            try:
+                bundle = MemoryZipImporter(
+                    blob,
+                    root_name=self.base_module_name(name),
+                    prefix=metadata['dirname'],
+                    archive_path=path,
+                )
+            except Exception:
+                self.logger.info(f"could not open zip plugin {name!r}", exc_info=True)
+                return None
+            self._zip_bundles[name] = bundle.install()
+            return bundle
+
+    def _drop_zip_bundle(self, name: str) -> None:
+        with self._zip_bundles_lock:
+            bundle = self._zip_bundles.pop(name, None)
+        if bundle is not None:
+            bundle.close()
+
     def is_authorized(self, name) -> bool:
         if name in self.internal_plugin_metadata:
             return True
         if name not in self.external_plugin_metadata:
             return False
-        pubkey_bytes, salt = self.get_pubkey_bytes()
-        if not pubkey_bytes:
-            return False
-        if not self.is_plugin_zip(name):
-            return False
-        filename = self.zip_plugin_path(name)
-        plugin_hash = get_file_hash256(filename)
-        sig = self.config.get(f'plugins.{name}.authorized')
-        if not sig:
-            return False
-        pubkey = ECPubkey(pubkey_bytes)
-        return pubkey.ecdsa_verify(bytes.fromhex(sig), plugin_hash)
+        # Being authorized is a property of the bytes we hold, not of the file
+        # on disk: once verified, replacing the file neither de-authorizes the
+        # plugin nor changes the code that runs.
+        return self._get_zip_bundle(name) is not None
 
-    def authorize_plugin(self, name: str, filename, privkey: ECPrivkey):
+    def authorize_plugin(self, name: str, privkey: ECPrivkey):
         pubkey_bytes, salt = self.get_pubkey_bytes()
         assert pubkey_bytes == privkey.get_public_key_bytes()
-        plugin_hash = get_file_hash256(filename)
+        # We sign the hash from the manifest, which is the one the user was
+        # shown when they inspected the plugin, rather than re-reading the file
+        # here. If it has been replaced since, the signature will not verify and
+        # the plugin simply will not load.
+        plugin_hash = bytes.fromhex(self.get_metadata(name)['zip_hash_sha256'])
         sig = privkey.ecdsa_sign(plugin_hash)
         value = sig.hex()
         self.config.set_key(f'plugins.{name}.authorized', value)
         self.config.set_key(f'plugins.{name}.enabled', True)
+        self._drop_zip_bundle(name)  # re-read and re-verify under the new signature
 
     def enable(self, name: str) -> 'BasePlugin':
         self.config.enable_plugin(name)
@@ -799,11 +889,15 @@ class Plugins(DaemonThread):
 
     def read_file(self, name: str, filename: str) -> bytes:
         if self.is_plugin_zip(name):
-            plugin_filename = self.zip_plugin_path(name)
-            metadata = self.external_plugin_metadata[name]
-            dirname = metadata['dirname']
-            with zipfile_lib.ZipFile(plugin_filename) as myzip:
-                with myzip.open("/".join([dirname,filename])) as myfile:
+            if (bundle := self._get_zip_bundle(name)) is not None:
+                return bundle.read(filename)
+            # Not authorized (yet): the plugins dialog shows a plugin's icon
+            # before the user authorizes it. Only non-code resources are read
+            # on this path, and nothing read here is ever executed.
+            dirname = self.get_metadata(name)['dirname']
+            member = "/".join([dirname, filename]) if dirname else filename
+            with zipfile_lib.ZipFile(self.zip_plugin_path(name)) as myzip:
+                with myzip.open(member) as myfile:
                     return myfile.read()
         elif name in self.internal_plugin_metadata:
             path = os.path.join(os.path.dirname(__file__), 'plugins', name, filename)
@@ -811,12 +905,6 @@ class Plugins(DaemonThread):
                 return myfile.read()
         else:
             raise Exception(f"plugin not found: {name!r}")
-
-
-def get_file_hash256(path: str) -> bytes:
-    """Get the sha256 hash of a file, similar to `sha256sum`."""
-    with open(path, 'rb') as f:
-        return sha256(f.read())
 
 
 def hook(func):
