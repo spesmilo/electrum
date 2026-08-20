@@ -56,10 +56,15 @@ MSG_PASSPHRASE_WARN_ISSUE4566 = _("Warning") + ": "\
                                   "same wallet as newer versions or other software.")
 
 
-def seed_warning_msg(seed):
+def seed_warning_msg(seed, passphrase: str = ''):
+    n = len(seed.split())
+    if passphrase:
+        save_line = _("Please save these {0} words on paper and your seed extension Passphrase (order is important). ").format(n)
+    else:
+        save_line = _("Please save these {0} words on paper (order is important). ").format(n)
     return ''.join([
         "<p>",
-        _("Please save these {0} words on paper (order is important). "),
+        save_line,
         _("This seed will allow you to recover your wallet in case "
           "of computer failure."),
         "</p>",
@@ -69,7 +74,7 @@ def seed_warning_msg(seed):
         "<li>" + _("Never type it on a website.") + "</li>",
         "<li>" + _("Do not store it electronically.") + "</li>",
         "</ul>"
-    ]).format(len(seed.split()))
+    ])
 
 
 class SeedWidget(QWidget):
@@ -223,7 +228,7 @@ class SeedWidget(QWidget):
         if msg and self.ext_save_hint is not None:
             pass  # create-seed wizard: backup warning is the local text under the passphrase box
         elif msg:
-            self.seed_warning.setText(seed_warning_msg(seed))
+            self.seed_warning.setText(seed_warning_msg(seed, passphrase or ''))
         else:
             self.update_seed_warning()
 
