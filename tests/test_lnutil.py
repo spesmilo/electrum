@@ -1190,4 +1190,48 @@ class TestLNUtil(ElectrumTestCase):
         self.assertEqual(budget.fee_msat, config.LIGHTNING_PAYMENT_FEE_CUTOFF_MSAT)
         self.assertEqual(reversed_fee_msat, budget.fee_msat)
 
+    async def test_validate_params_min_funding_is_configurable(self):
+        # The minimum channel funding amount is read from config
+        # (LIGHTNING_MIN_FUNDING_SAT), not from a hardcoded constant.
+        from electrum.lnutil import LOCAL, MIN_FUNDING_SAT
+
+        lnwallet = self.create_mock_lnwallet(name="alice")
+        config = lnwallet.config
+        peer_features = lnwallet.features | LnFeatures.OPTION_SUPPORT_LARGE_CHANNEL_OPT
+        if config.TEST_LN_OPEN_SRK_CHANNELS:
+            channel_type = ChannelType.OPTION_STATIC_REMOTEKEY
+        else:
+            channel_type = ChannelType.OPTION_STATIC_REMOTEKEY | ChannelType.OPTION_ANCHORS
+
+        funding_sat = 100_000
+        lconfig = lnwallet.make_local_config_for_new_channel(
+            funding_sat=funding_sat,
+            push_msat=0,
+            initiator=LOCAL,
+            channel_type=channel_type,
+            multisig_funding_keypair=None,
+            peer_features=peer_features,
+        )
+
+        # sanity: the new default minimum is 50_000 (was hardcoded 200_000 before)
+        self.assertEqual(50_000, MIN_FUNDING_SAT)
+        self.assertEqual(MIN_FUNDING_SAT, config.LIGHTNING_MIN_FUNDING_SAT)
+
+        # with the default minimum (50k), a 100k channel is accepted
+        # (it would have been rejected under the old hardcoded 200k minimum).
+        lconfig.validate_params(
+            funding_sat=funding_sat, config=config, peer_features=peer_features)
+
+        # raising the configured minimum above the funding amount rejects it
+        config.LIGHTNING_MIN_FUNDING_SAT = 150_000
+        with self.assertRaises(Exception) as ctx:
+            lconfig.validate_params(
+                funding_sat=funding_sat, config=config, peer_features=peer_features)
+        self.assertIn("too low", str(ctx.exception))
+
+        # lowering the configured minimum below the funding amount accepts it again
+        config.LIGHTNING_MIN_FUNDING_SAT = 10_000
+        lconfig.validate_params(
+            funding_sat=funding_sat, config=config, peer_features=peer_features)
+
 

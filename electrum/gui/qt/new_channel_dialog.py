@@ -4,7 +4,6 @@ from PyQt6.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton, QComb
 import electrum_ecc as ecc
 
 from electrum.i18n import _
-from electrum.lnutil import MIN_FUNDING_SAT
 from electrum.lnworker import hardcoded_trampoline_nodes
 from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates
 from electrum.fee_policy import FeePolicy
@@ -37,7 +36,7 @@ class NewChannelDialog(WindowModalDialog):
         self.lnworker = self.window.wallet.lnworker
         self.trampolines = hardcoded_trampoline_nodes()
         self.trampoline_names = list(self.trampolines.keys())
-        self.min_amount_sat = min_amount_sat or MIN_FUNDING_SAT
+        self.min_amount_sat = min_amount_sat or self.config.LIGHTNING_MIN_FUNDING_SAT
         self.get_coins = get_coins
         vbox = QVBoxLayout(self)
         toolbar, menu = create_toolbar_with_menu(self.config, '')
