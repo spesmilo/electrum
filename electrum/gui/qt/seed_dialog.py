@@ -155,6 +155,7 @@ class SeedWidget(QWidget):
         self.ext_edit = None
         self.ext_help = None
         self.ext_issue4566 = None
+        self.ext_save_hint = None
         if options:
             # Options is only for BIP39/SLIP39; extra-word lives on this page
             if 'bip39' in options or 'slip39' in options:
@@ -162,7 +163,7 @@ class SeedWidget(QWidget):
                 hbox.addWidget(opt_button)
             vbox.addLayout(hbox)
             if 'ext' in options:
-                self.cb_ext = QCheckBox(_('Extend this seed with custom words'))
+                self.cb_ext = QCheckBox(_('Extend this seed with a Passphrase'))
                 self.cb_ext.setEnabled(False)
                 self.cb_ext.toggled.connect(self._on_ext_toggled)
                 vbox.addWidget(self.cb_ext)
@@ -175,7 +176,7 @@ class SeedWidget(QWidget):
                 self.ext_edit = QLineEdit()
                 self.ext_edit.textChanged.connect(self._on_ext_text)
                 ext_warn = WWLabel('\n'.join([
-                    _('Note that this is NOT your encryption password.'),
+                    _('Note that this is NOT your wallet file encryption password.'),
                     _('If you do not know what this is, leave this field empty.'),
                 ]))
                 self.ext_issue4566 = WWLabel(MSG_PASSPHRASE_WARN_ISSUE4566)
@@ -186,6 +187,9 @@ class SeedWidget(QWidget):
                 ext_vbox.addWidget(self.ext_issue4566)
                 self.ext_box.setVisible(False)
                 vbox.addWidget(self.ext_box)
+                vbox.addSpacing(font_height() // 2)
+                self.ext_save_hint = WWLabel('')
+                vbox.addWidget(self.ext_save_hint)
                 self._update_ext_controls()
         if passphrase:
             hbox = QHBoxLayout()
@@ -216,7 +220,9 @@ class SeedWidget(QWidget):
         self.seed_status = WWLabel('')
         vbox.addWidget(self.seed_status)
         self.seed_warning = WWLabel('')
-        if msg:
+        if msg and self.ext_save_hint is not None:
+            pass  # create-seed wizard: backup warning is the local text under the passphrase box
+        elif msg:
             self.seed_warning.setText(seed_warning_msg(seed))
         else:
             self.update_seed_warning()
@@ -384,6 +390,7 @@ class SeedWidget(QWidget):
         self.is_ext = checked
         if self.ext_box:
             self.ext_box.setVisible(bool(checked) and self.cb_ext.isEnabled())
+        self._update_ext_save_hint()
         self.updated.emit()
 
     def _on_ext_text(self, text: str):
@@ -413,9 +420,34 @@ class SeedWidget(QWidget):
         self.cb_ext.blockSignals(False)
         self.is_ext = checked
 
+    def _update_ext_save_hint(self):
+        if not self.ext_save_hint:
+            return
+        if not self.msg:
+            self.ext_save_hint.setText('')
+            return
+        n = len(self.seed_e.text().split())
+        if self.is_ext:
+            save_line = _("Please save these {0} words and your custom Passphrase on paper (order is important). ").format(n)
+        else:
+            save_line = _("Please save these {0} words on paper (order is important). ").format(n)
+        self.ext_save_hint.setText(''.join([
+            "<p>",
+            save_line,
+            _("This seed will allow you to recover your wallet in case of computer failure."),
+            "</p>",
+            "<b>" + _("WARNING") + ":</b>",
+            "<ul>",
+            "<li>" + _("Never disclose your seed.") + "</li>",
+            "<li>" + _("Never type it on a website.") + "</li>",
+            "<li>" + _("Do not store it electronically.") + "</li>",
+            "</ul>",
+        ]))
+
     def _sync_ext_box(self):
         if self.ext_box:
             self.ext_box.setVisible(bool(self.is_ext) and self.cb_ext.isEnabled())
+        self._update_ext_save_hint()
 
     def _update_ext_controls(self):
         if self.cb_ext is None:
@@ -430,16 +462,16 @@ class SeedWidget(QWidget):
                     _('This is sometimes incorrectly called the "25th word".'),
                 ]))
             if self.ext_edit:
-                self.ext_edit.setPlaceholderText(_('Enter your BIP39 passphrase'))
+                self.ext_edit.setPlaceholderText(_('Enter your BIP39 Passphrase'))
         else:
-            self.cb_ext.setText(_('Extend this seed with custom words'))
+            self.cb_ext.setText(_('Extend this seed with a Passphrase'))
             if self.ext_help:
                 self.ext_help.setText('\n'.join([
-                    _('You may extend your seed with custom words.'),
-                    _('Your seed extension must be saved together with your seed.'),
+                    _('You may extend your seed with a Passphrase (e.g. password manager generated passphrase, custom words, a combination of both...).'),
+                    _("You will need to save both your seed and the extension Passphrase together."),
                 ]))
             if self.ext_edit:
-                self.ext_edit.setPlaceholderText(_('Enter your custom word(s)'))
+                self.ext_edit.setPlaceholderText(_('Enter your custom Passphrase'))
         if self.seed_type in ('bip39', 'slip39'):
             self.ext_reason_label.setText('')
             if not seed_text:

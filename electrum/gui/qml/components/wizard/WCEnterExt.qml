@@ -76,9 +76,9 @@ WizardComponent {
                         qsTr('If you do not know what this is, leave this field empty.'),
                     ].join(' ')
                     : [
-                        qsTr('You may extend your seed with custom words.'),
-                        qsTr('Your seed extension must be saved together with your seed.'),
-                        qsTr('Note that this is NOT your encryption password.'),
+                        qsTr('You may extend your seed with a Passphrase (e.g. password manager generated passphrase, custom words, a combination of both...).'),
+                        qsTr("You will need to save both your seed and the extension Passphrase together."),
+                        qsTr('Note that this is NOT your wallet file encryption password.'),
                         qsTr('If you do not know what this is, leave this field empty.'),
                     ].join(' ')
             }
@@ -88,8 +88,8 @@ WizardComponent {
                 Layout.fillWidth: true
                 Layout.columnSpan: 2
                 placeholderText: seedVariant == 'bip39'
-                    ? qsTr('Enter your BIP39 passphrase')
-                    : qsTr('Enter your custom word(s)')
+                    ? qsTr('Enter your BIP39 Passphrase')
+                    : qsTr('Enter your custom Passphrase')
                 inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
                 onTextChanged: startValidationTimer()
             }

@@ -18,22 +18,6 @@ WizardComponent {
         wizard_data['seed_extra_words'] = extendcb.checked ? customwordstext.text : ''
     }
 
-    function setWarningText(numwords) {
-        var t = [
-            '<p>',
-            qsTr('Please save these %1 words on paper (order is important).').arg(numwords),
-            qsTr('This seed will allow you to recover your wallet in case of computer failure.'),
-            '</p>',
-            '<b>' + qsTr('WARNING') + ':</b>',
-            '<ul>',
-            '<li>' + qsTr('Never disclose your seed.') + '</li>',
-            '<li>' + qsTr('Never type it on a website.') + '</li>',
-            '<li>' + qsTr('Do not store it electronically.') + '</li>',
-            '</ul>'
-        ]
-        warningtext.text = t.join(' ')
-    }
-
     Flickable {
         anchors.fill: parent
         contentHeight: mainLayout.height
@@ -44,13 +28,6 @@ WizardComponent {
             id: mainLayout
             width: parent.width
             columns: 1
-
-            InfoTextArea {
-                id: warningtext
-                Layout.fillWidth: true
-                backgroundColor: constants.darkerDialogBackground
-                iconStyle: InfoTextArea.IconStyle.Warn
-            }
 
             Label {
                 Layout.topMargin: constants.paddingMedium
@@ -75,7 +52,7 @@ WizardComponent {
                 id: extendcb
                 Layout.fillWidth: true
                 enabled: seedtext.text != ''
-                text: qsTr('Extend this seed with custom words')
+                text: qsTr('Extend this seed with a Passphrase')
                 onCheckedChanged: checkIsLast()
             }
 
@@ -84,9 +61,9 @@ WizardComponent {
                 wrapMode: Text.Wrap
                 visible: extendcb.checked
                 text: [
-                    qsTr('You may extend your seed with custom words.'),
-                    qsTr('Your seed extension must be saved together with your seed.'),
-                    qsTr('Note that this is NOT your encryption password.'),
+                    qsTr('You may extend your seed with a Passphrase (e.g. password manager generated passphrase, custom words, a combination of both...).'),
+                    qsTr("You will need to save both your seed and the extension Passphrase together."),
+                    qsTr('Note that this is NOT your wallet file encryption password.'),
                     qsTr('If you do not know what this is, leave this field empty.'),
                 ].join(' ')
             }
@@ -94,14 +71,36 @@ WizardComponent {
             TextField {
                 id: customwordstext
                 Layout.fillWidth: true
+                Layout.topMargin: constants.paddingXSmall
                 visible: extendcb.checked
-                placeholderText: qsTr('Enter your custom word(s)')
+                placeholderText: qsTr('Enter your custom Passphrase')
                 inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
                 onTextChanged: checkIsLast()
             }
 
-            Component.onCompleted : {
-                setWarningText(12)
+            InfoTextArea {
+                Layout.fillWidth: true
+                Layout.topMargin: constants.paddingSmall
+                backgroundColor: constants.darkerDialogBackground
+                iconStyle: InfoTextArea.IconStyle.Warn
+                text: {
+                    var n = seedtext.text.split(' ').filter(Boolean).length || 12
+                    var save = extendcb.checked
+                        ? qsTr('Please save these %1 words and your custom Passphrase on paper (order is important).').arg(n)
+                        : qsTr('Please save these %1 words on paper (order is important).').arg(n)
+                    return [
+                        '<p>',
+                        save,
+                        qsTr('This seed will allow you to recover your wallet in case of computer failure.'),
+                        '</p>',
+                        '<b>' + qsTr('WARNING') + ':</b>',
+                        '<ul>',
+                        '<li>' + qsTr('Never disclose your seed.') + '</li>',
+                        '<li>' + qsTr('Never type it on a website.') + '</li>',
+                        '<li>' + qsTr('Do not store it electronically.') + '</li>',
+                        '</ul>'
+                    ].join(' ')
+                }
             }
         }
     }
@@ -114,7 +113,6 @@ WizardComponent {
         id: bitcoin
         onGeneratedSeedChanged: {
             seedtext.text = generatedSeed
-            setWarningText(generatedSeed.split(' ').length)
         }
     }
 }

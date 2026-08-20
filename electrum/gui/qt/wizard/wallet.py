@@ -530,11 +530,11 @@ class WCEnterExt(WalletWizardComponent, Logger):
         else:
             self.title = _('Seed Extension')
             message = '\n'.join([
-                _('You may extend your seed with custom words.'),
-                _('Your seed extension must be saved together with your seed.'),
+                _('You may extend your seed with a Passphrase (e.g. password manager generated passphrase, custom words, a combination of both...).'),
+                _("You will need to save both your seed and the extension Passphrase together."),
             ])
         warning = '\n'.join([
-            _('Note that this is NOT your encryption password.'),
+            _('Note that this is NOT your wallet file encryption password.'),
             _('If you do not know what this is, leave this field empty.'),
         ])
 
@@ -573,6 +573,7 @@ class WCConfirmExt(WalletWizardComponent):
             _('Please type it here.'),
         ])
         self.ext_edit = SeedExtensionEdit(self, message=message)
+        self.ext_edit.line.setPlaceholderText(_('Enter your custom Passphrase'))
         self.ext_edit.textEdited.connect(self.on_text_edited)
         self.layout().addWidget(self.ext_edit)
         self.layout().addStretch(1)

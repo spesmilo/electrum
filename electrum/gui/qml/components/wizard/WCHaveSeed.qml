@@ -114,7 +114,7 @@ WizardComponent {
             }
             return
         }
-        extendcb.text = qsTr('Extend this seed with custom words')
+        extendcb.text = qsTr('Extend this seed with a Passphrase')
         if (!_seedType) {
             extendcb.checked = false
             extendcb.enabled = false
@@ -265,7 +265,7 @@ WizardComponent {
                 Layout.columnSpan: 2
                 Layout.fillWidth: true
                 enabled: false
-                text: qsTr('Extend this seed with custom words')
+                text: qsTr('Extend this seed with a Passphrase')
                 onCheckedChanged: checkIsLast()
             }
 
@@ -291,9 +291,9 @@ WizardComponent {
                         qsTr('If you do not know what this is, leave this field empty.'),
                     ].join(' ')
                     : [
-                        qsTr('You may extend your seed with custom words.'),
-                        qsTr('Your seed extension must be saved together with your seed.'),
-                        qsTr('Note that this is NOT your encryption password.'),
+                        qsTr('You may extend your seed with a Passphrase (e.g. password manager generated passphrase, custom words, a combination of both...).'),
+                        qsTr("You will need to save both your seed and the extension Passphrase together."),
+                        qsTr('Note that this is NOT your wallet file encryption password.'),
                         qsTr('If you do not know what this is, leave this field empty.'),
                     ].join(' ')
             }
@@ -304,8 +304,8 @@ WizardComponent {
                 Layout.fillWidth: true
                 visible: extendcb.checked && extendcb.enabled
                 placeholderText: seed_variant_cb.currentValue == 'bip39'
-                    ? qsTr('Enter your BIP39 passphrase')
-                    : qsTr('Enter your custom word(s)')
+                    ? qsTr('Enter your BIP39 Passphrase')
+                    : qsTr('Enter your custom Passphrase')
                 inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
                 onTextChanged: checkIsLast()
             }
