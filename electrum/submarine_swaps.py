@@ -38,8 +38,7 @@ from .util import (
     get_nostr_ann_pow_amount, make_aiohttp_proxy_connector, get_running_loop, get_asyncio_loop, wait_for2,
     run_sync_function_on_asyncio_thread, trigger_callback, NoDynamicFeeEstimates, UserFacingException, now
 )
-from . import lnutil
-from .lnutil import hex_to_bytes, Keypair
+from .lnutil import hex_to_bytes, Keypair, SENT, RECEIVED, MIN_FINAL_CLTV_DELTA_ACCEPTED
 from .bolt11 import decode_bolt11_invoice
 from .stored_dict import StoredObject, stored_at
 from . import constants
@@ -87,7 +86,7 @@ SPENDER_FINALITY_DELAY = 6  # delay after which the swap is considered final onc
 assert SPENDER_FINALITY_DELAY < MIN_LOCKTIME_DELTA_FOR_CLAIM
 assert MIN_LOCKTIME_DELTA_FOR_CLAIM < MIN_LOCKTIME_DELTA
 assert MIN_LOCKTIME_DELTA <= LOCKTIME_DELTA_REFUND <= MAX_LOCKTIME_DELTA
-assert MAX_LOCKTIME_DELTA + SPENDER_FINALITY_DELAY < lnutil.MIN_FINAL_CLTV_DELTA_ACCEPTED
+assert MAX_LOCKTIME_DELTA + SPENDER_FINALITY_DELAY < MIN_FINAL_CLTV_DELTA_ACCEPTED
 assert MAX_LOCKTIME_DELTA + SPENDER_FINALITY_DELAY < MIN_FINAL_CLTV_DELTA_FOR_CLIENT
 
 
@@ -283,7 +282,7 @@ class SwapManager(Logger):
                 self._prepayments[swap.prepay_hash] = payment_hash
             if not swap.is_reverse and not swap.is_redeemed and not self.lnworker.get_preimage(swap.payment_hash):
                 if (swap.prepay_hash is not None
-                        and self.lnworker.get_payment_status(swap.prepay_hash, direction=lnutil.RECEIVED) != PR_PAID):
+                        and self.lnworker.get_payment_status(swap.prepay_hash, direction=RECEIVED) != PR_PAID):
                     # re-bundle payments, because lnworker does not persist bundles.
                     # note: if the prepay is already PR_PAID, lnpeer completed and deleted the bundle before
                     #       shutdown; re-creating it would make is_payment_bundle_complete() permanently False.
@@ -491,32 +490,34 @@ class SwapManager(Logger):
         return True
 
     def _fail_swap(self, swap: SwapData, reason: str):
-        self.logger.info(f'failing swap {swap.payment_hash.hex()}: {reason}')
         swap._is_cancelled = True
-        if not swap.is_reverse and swap.payment_hash in self.lnworker.hold_invoice_callbacks:
+        key = swap.payment_hash.hex()
+        lnw, wallet, lnwatcher = self.lnworker, self.wallet, self.lnwatcher
+        self.logger.info(f'failing swap {key}: {reason}')
+        if not swap.is_reverse and swap.payment_hash in lnw.hold_invoice_callbacks:
             # unregister_hold_invoice will fail pending htlcs if there is no preimage available
-            self.lnworker.unregister_hold_invoice(swap.payment_hash)
-            self.lnworker.delete_payment_info(swap.payment_hash.hex(), direction=lnutil.RECEIVED)
-            self.lnworker.clear_invoices_cache()
+            lnw.unregister_hold_invoice(swap.payment_hash)
+            lnw.delete_payment_info(key, direction=RECEIVED)
+            lnw.clear_invoices_cache()
         if not swap.is_funded():
-            self.lnwatcher.remove_callback(swap.lockup_address)
+            lnwatcher.remove_callback(swap.lockup_address)
             with self.swaps_lock:
-                swaps = self.wallet.db.get_dict('submarine_swaps')
-                if swaps.pop(swap.payment_hash.hex(), None) is None:
-                    self.logger.debug(f"swap {swap.payment_hash.hex()} has already been deleted.")
-                self._swaps.pop(swap.payment_hash.hex(), None)
+                swaps = wallet.db.get_dict('submarine_swaps')
+                if swaps.pop(key, None) is None:
+                    self.logger.debug(f"swap {key} has already been deleted.")
+                self._swaps.pop(key, None)
                 if swap._funding_prevout is not None:
                     self._swaps_by_funding_outpoint.pop(swap._funding_prevout, None)
                 self._swaps_by_lockup_address.pop(swap.lockup_address, None)
                 if swap.prepay_hash is not None:
                     self._prepayments.pop(swap.prepay_hash, None)
-                    if self.lnworker.get_payment_status(swap.prepay_hash, direction=lnutil.RECEIVED) != PR_PAID:
-                        self.lnworker.delete_payment_info(swap.prepay_hash.hex(), direction=lnutil.RECEIVED)
-                        self.lnworker.delete_payment_bundle(payment_hash=swap.payment_hash)
-                    if self.lnworker.get_payment_status(swap.prepay_hash, direction=lnutil.SENT) != PR_PAID:
-                        self.lnworker.delete_payment_info(swap.prepay_hash.hex(), direction=lnutil.SENT)
-                if self.lnworker.get_payment_status(swap.payment_hash, direction=lnutil.SENT) != PR_PAID:
-                    self.lnworker.delete_payment_info(swap.payment_hash.hex(), direction=lnutil.SENT)
+                    if lnw.get_payment_status(swap.prepay_hash, direction=RECEIVED) != PR_PAID:
+                        lnw.delete_payment_info(swap.prepay_hash.hex(), direction=RECEIVED)
+                        lnw.delete_payment_bundle(payment_hash=swap.payment_hash)
+                    if lnw.get_payment_status(swap.prepay_hash, direction=SENT) != PR_PAID:
+                        lnw.delete_payment_info(swap.prepay_hash.hex(), direction=SENT)
+                if lnw.get_payment_status(swap.payment_hash, direction=SENT) != PR_PAID:
+                    lnw.delete_payment_info(key, direction=SENT)
 
     def _get_public_preimage(self, swap: SwapData) -> Optional[bytes]:
         if swap.spending_txid is None:
@@ -837,10 +838,10 @@ class SwapManager(Logger):
         self.lnworker.add_payment_info_for_hold_invoice(
             payment_hash,
             lightning_amount_sat=invoice_amount_sat,
-            min_final_cltv_delta=min_final_cltv_expiry_delta or lnutil.MIN_FINAL_CLTV_DELTA_ACCEPTED,
+            min_final_cltv_delta=min_final_cltv_expiry_delta or MIN_FINAL_CLTV_DELTA_ACCEPTED,
             exp_delay=300,
         )
-        info = self.lnworker.get_payment_info(payment_hash, direction=lnutil.RECEIVED)
+        info = self.lnworker.get_payment_info(payment_hash, direction=RECEIVED)
         lnaddr1, invoice = self.lnworker.get_bolt11_invoice(
             payment_info=info,
             message='Submarine swap',
@@ -856,10 +857,10 @@ class SwapManager(Logger):
         if prepay:
             prepay_hash = self.lnworker.create_payment_info(
                 amount_msat=prepay_amount_sat*1000,
-                min_final_cltv_delta=min_final_cltv_expiry_delta or lnutil.MIN_FINAL_CLTV_DELTA_ACCEPTED,
+                min_final_cltv_delta=min_final_cltv_expiry_delta or MIN_FINAL_CLTV_DELTA_ACCEPTED,
                 exp_delay=300,
             )
-            info = self.lnworker.get_payment_info(prepay_hash, direction=lnutil.RECEIVED)
+            info = self.lnworker.get_payment_info(prepay_hash, direction=RECEIVED)
             lnaddr2, prepay_invoice = self.lnworker.get_bolt11_invoice(
                 payment_info=info,
                 message='Submarine swap prepayment',
