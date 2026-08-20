@@ -235,14 +235,14 @@ class NotificationSession(RPCSession):
         # note: multiple Synchronizers (from different Wallet objects) might sub to the same key,
         #       hence subscriptions map key->list[queue]
         self.subscriptions[key].append(queue)
-        if key in self.subs_cache:
-            result = self.subs_cache[key]
-        else:
+        if key not in self.subs_cache:
             # note: until subs_cache is written for the first time,
             #       each 'subscribe' call might make a request on the network.
             result = await self.send_request(method, params)
-            self.subs_cache[key] = result
-        await queue.put(params + [result])
+            # don't override what was already set in handle_request, it might be newer than the send_request response
+            if key not in self.subs_cache:
+                self.subs_cache[key] = result
+        await queue.put(params + [self.subs_cache[key]])
 
     def unsubscribe(self, queue):
         """Unsubscribe a callback to free object references to enable GC."""
@@ -1675,6 +1675,26 @@ class Interface(Logger):
             assert_non_negative_int_or_float(res)
             res = int(res * bitcoin.COIN)
         return res
+
+    async def get_server_peers(self) -> list[tuple[str, str, Sequence[str]]]:
+        # do request
+        peers = await self.session.send_request('server.peers.subscribe')
+        # check response
+        assert_list_or_tuple(peers)
+        for peer in peers:
+            assert_list_or_tuple(peer)
+            if len(peer) != 3:
+                raise RequestCorrupted(f"found peer in list with unexpected length. {peer=!r}")
+            ip_addr, hostname, features = peer
+            if not isinstance(ip_addr, str):
+                raise RequestCorrupted(f"peer ip_addr should be str, got {ip_addr!r}")
+            if not isinstance(hostname, str):
+                raise RequestCorrupted(f"peer hostname should be str, got {hostname!r}")
+            assert_list_or_tuple(features)
+            for feat in features:
+                if not isinstance(feat, str):
+                    raise RequestCorrupted(f"peer feature should be str, got {feat!r}")
+        return [tuple(peer) for peer in peers]
 
 
 def _assert_header_does_not_check_against_any_chain(header: dict) -> None:
