@@ -103,7 +103,7 @@ _CHAINWORK_CACHE = {
 
 class BlockchainManager(Logger):
 
-    def __init__(self, headers_dir: Path):
+    def __init__(self, *, headers_dir: Path):
         Logger.__init__(self)
         self.headers_dir = headers_dir
         self.forks_dir = headers_dir / 'forks'
@@ -244,6 +244,7 @@ class Blockchain(Logger):
 
     def __init__(
         self,
+        *,
         bc_mgr: 'BlockchainManager',
         forkpoint: int,
         parent: Optional['Blockchain'],
