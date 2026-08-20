@@ -258,6 +258,8 @@ class Blockchain(Logger):
             raise Exception(f"cannot fork below max checkpoint. forkpoint: {forkpoint}")
         Logger.__init__(self)
         self.bc_mgr = bc_mgr
+        if parent is not None:
+            assert bc_mgr is parent.bc_mgr
         self.forkpoint = forkpoint  # height of first header
         self.parent = parent
         self._forkpoint_hash = forkpoint_hash  # blockhash at forkpoint. "first hash"
