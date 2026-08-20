@@ -125,7 +125,7 @@ class BlockchainManager(Logger):
 
     def _read_blockchains(self):
         best_chain = Blockchain(
-            manager=self,
+            bc_mgr=self,
             forkpoint=0,
             parent=None,
             forkpoint_hash=constants.net.GENESIS,
@@ -166,7 +166,7 @@ class BlockchainManager(Logger):
             self._delete_chain(filename, "cannot find parent for chain")
             return
         b = Blockchain(
-            manager=self,
+            bc_mgr=self,
             forkpoint=forkpoint,
             parent=parent,
             forkpoint_hash=first_hash,
@@ -244,7 +244,7 @@ class Blockchain(Logger):
 
     def __init__(
         self,
-        manager: 'BlockchainManager',
+        bc_mgr: 'BlockchainManager',
         forkpoint: int,
         parent: Optional['Blockchain'],
         forkpoint_hash: str,
@@ -256,7 +256,7 @@ class Blockchain(Logger):
         if 0 < forkpoint <= constants.net.max_checkpoint():
             raise Exception(f"cannot fork below max checkpoint. forkpoint: {forkpoint}")
         Logger.__init__(self)
-        self.manager = manager
+        self.bc_mgr = bc_mgr
         self.forkpoint = forkpoint  # height of first header
         self.parent = parent
         self._forkpoint_hash = forkpoint_hash  # blockhash at forkpoint. "first hash"
@@ -280,12 +280,12 @@ class Blockchain(Logger):
         return mc if mc is not None else self.forkpoint
 
     def get_direct_children(self) -> Sequence['Blockchain']:
-        with self.manager.blockchains_lock:
-            return list(filter(lambda y: y.parent==self, self.manager.blockchains.values()))
+        with self.bc_mgr.blockchains_lock:
+            return list(filter(lambda y: y.parent==self, self.bc_mgr.blockchains.values()))
 
     def get_parent_heights(self) -> Mapping['Blockchain', int]:
         """Returns map: (parent chain -> height of last common block)"""
-        with self.lock, self.manager.blockchains_lock:
+        with self.lock, self.bc_mgr.blockchains_lock:
             result = {self: self.height()}
             chain = self
             while True:
@@ -332,7 +332,7 @@ class Blockchain(Logger):
             raise Exception("forking header does not connect to parent chain")
         forkpoint = header.get('block_height')
         self = Blockchain(
-            manager=parent.manager,
+            bc_mgr=parent.bc_mgr,
             forkpoint=forkpoint,
             parent=parent,
             forkpoint_hash=hash_header(header),
@@ -344,8 +344,8 @@ class Blockchain(Logger):
         # put into global dict. note that in some cases
         # save_header might have already put it there but that's OK
         chain_id = self.get_id()
-        with parent.manager.blockchains_lock:
-            parent.manager.blockchains[chain_id] = self
+        with parent.bc_mgr.blockchains_lock:
+            parent.bc_mgr.blockchains[chain_id] = self
         return self
 
     @with_lock
@@ -397,13 +397,13 @@ class Blockchain(Logger):
     @with_lock
     def path(self) -> Path:
         if self.parent is None:
-            return self.manager.headers_dir / 'blockchain_headers'
+            return self.bc_mgr.headers_dir / 'blockchain_headers'
         else:
             assert self.forkpoint > 0, self.forkpoint
             prev_hash = self._prev_hash.lstrip('0')
             first_hash = self._forkpoint_hash.lstrip('0')
             basename = f'fork2_{self.forkpoint}_{prev_hash}_{first_hash}'
-            return self.manager.forks_dir / basename
+            return self.bc_mgr.forks_dir / basename
 
     @with_lock
     def save_chunk(self, index: int, chunk: bytes):
@@ -411,7 +411,7 @@ class Blockchain(Logger):
         chunk_within_checkpoint_region = index < len(self.checkpoints)
         # chunks in checkpoint region are the responsibility of the 'main chain'
         if chunk_within_checkpoint_region and self.parent is not None:
-            main_chain = self.manager.get_best_chain()
+            main_chain = self.bc_mgr.get_best_chain()
             main_chain.save_chunk(index, chunk)
             return
 
@@ -427,7 +427,7 @@ class Blockchain(Logger):
         self.swap_with_parent()
 
     def swap_with_parent(self) -> None:
-        with self.lock, self.manager.blockchains_lock:
+        with self.lock, self.bc_mgr.blockchains_lock:
             # do the swap; possibly multiple ones
             cnt = 0
             while True:
@@ -436,7 +436,7 @@ class Blockchain(Logger):
                     break
                 # make sure we are making progress
                 cnt += 1
-                if cnt > len(self.manager.blockchains):
+                if cnt > len(self.bc_mgr.blockchains):
                     raise Exception(f'swapping fork with parent too many times: {cnt}')
                 # we might have become the parent of some of our former siblings
                 for old_sibling in old_parent.get_direct_children():
@@ -483,7 +483,7 @@ class Blockchain(Logger):
         self.update_size()
         parent.update_size()
         # update pointers
-        blockchains = self.manager.blockchains
+        blockchains = self.bc_mgr.blockchains
         blockchains.pop(child_old_id, None)
         blockchains.pop(parent_old_id, None)
         blockchains[self.get_id()] = self
@@ -496,7 +496,7 @@ class Blockchain(Logger):
     def assert_headers_file_available(self, path: Path):
         if path.exists():
             return
-        elif not self.manager.headers_dir.exists():
+        elif not self.bc_mgr.headers_dir.exists():
             raise FileNotFoundError('Electrum headers_dir does not exist. Was it deleted while running?')
         else:
             raise FileNotFoundError('Cannot find headers file but headers_dir is there. Should be at {}'.format(path))

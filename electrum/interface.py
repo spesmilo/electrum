@@ -607,7 +607,7 @@ class Interface(Logger):
         assert network.config.path
         self.cert_path = _get_cert_path_for_host(config=network.config, host=self.host)
         self.blockchain = None  # type: Optional[Blockchain]
-        self.blockchain_manager = network.blockchain_manager
+        self.bc_mgr = network.bc_mgr
         self._requested_chunks = set()  # type: Set[int]
         self.network = network
         self.session = None  # type: Optional[NotificationSession]
@@ -798,9 +798,9 @@ class Interface(Logger):
             return
 
         assert self.tip_header
-        chain = self.blockchain_manager.check_header(self.tip_header)
+        chain = self.bc_mgr.check_header(self.tip_header)
         if not chain:
-            self.blockchain = self.blockchain_manager.get_best_chain()
+            self.blockchain = self.bc_mgr.get_best_chain()
         else:
             self.blockchain = chain
         assert self.blockchain is not None
@@ -1240,7 +1240,7 @@ class Interface(Logger):
         )
         header = await self.get_block_header(height, mode=ChainResolutionMode.CATCHUP)
 
-        chain = self.blockchain_manager.check_header(header)
+        chain = self.bc_mgr.check_header(header)
         if chain:
             self.blockchain = chain
             # note: there is an edge case here that is not handled.
@@ -1249,12 +1249,12 @@ class Interface(Logger):
             # this situation resolves itself on the next block
             return ChainResolutionMode.CATCHUP, height+1
 
-        can_connect = self.blockchain_manager.can_connect(header)
+        can_connect = self.bc_mgr.can_connect(header)
         if not can_connect:
             self.logger.info(f"can't connect new block: {height=}")
             height, header, bad, bad_header = await self._search_headers_backwards(height, header=header)
-            chain = self.blockchain_manager.check_header(header)
-            can_connect = self.blockchain_manager.can_connect(header)
+            chain = self.bc_mgr.check_header(header)
+            can_connect = self.bc_mgr.can_connect(header)
             assert chain or can_connect
         if can_connect:
             height += 1
@@ -1285,7 +1285,7 @@ class Interface(Logger):
                 await self._maybe_warm_headers_cache(
                     from_height=good, to_height=bad, mode=ChainResolutionMode.BINARY)
             header = await self.get_block_header(height, mode=ChainResolutionMode.BINARY)
-            chain = self.blockchain_manager.check_header(header)
+            chain = self.bc_mgr.check_header(header)
             if chain:
                 self.blockchain = chain
                 good = height
@@ -1342,8 +1342,8 @@ class Interface(Logger):
                 height = constants.net.max_checkpoint()
                 checkp = True
             header = await self.get_block_header(height, mode=ChainResolutionMode.BACKWARD)
-            chain = self.blockchain_manager.check_header(header)
-            can_connect = self.blockchain_manager.can_connect(header)
+            chain = self.bc_mgr.check_header(header)
+            can_connect = self.bc_mgr.can_connect(header)
             if chain or can_connect:
                 return False
             if checkp:
@@ -1352,8 +1352,8 @@ class Interface(Logger):
 
         bad, bad_header = height, header
         self._assert_header_does_not_check_against_any_chain(bad_header)
-        with self.blockchain_manager.blockchains_lock:
-            chains = list(self.blockchain_manager.blockchains.values())
+        with self.bc_mgr.blockchains_lock:
+            chains = list(self.bc_mgr.blockchains.values())
         local_max = max([0] + [x.height() for x in chains])
         height = min(local_max + 1, height - 1)
         assert height >= 0
@@ -1699,7 +1699,7 @@ class Interface(Logger):
         return [tuple(peer) for peer in peers]
 
     def _assert_header_does_not_check_against_any_chain(self, header: dict) -> None:
-        chain_bad = self.blockchain_manager.check_header(header)
+        chain_bad = self.bc_mgr.check_header(header)
         if chain_bad:
             raise Exception('bad_header must not check!')
 

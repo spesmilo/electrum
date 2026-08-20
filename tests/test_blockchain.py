@@ -58,15 +58,15 @@ class TestBlockchain(ElectrumTestCase):
         super().setUp()
         self.data_dir = Path(self.electrum_path)
         self.config = SimpleConfig({'electrum_path': self.data_dir})
-        self.blockchain_manager = BlockchainManager.from_config(self.config)
+        self.bc_mgr = BlockchainManager.from_config(self.config)
 
     def _append_header(self, chain: Blockchain, header: dict):
         self.assertTrue(chain.can_connect(header))
         chain.save_header(header)
 
     def test_get_height_of_last_common_block_with_chain(self):
-        self.blockchain_manager.blockchains[constants.net.GENESIS] = chain_u = Blockchain(
-            manager=self.blockchain_manager, forkpoint=0, parent=None,
+        self.bc_mgr.blockchains[constants.net.GENESIS] = chain_u = Blockchain(
+            bc_mgr=self.bc_mgr, forkpoint=0, parent=None,
             forkpoint_hash=constants.net.GENESIS, prev_hash=None)
         open(chain_u.path(), 'w+').close()
         self._append_header(chain_u, self.HEADERS['A'])
@@ -121,8 +121,8 @@ class TestBlockchain(ElectrumTestCase):
         self.assertEqual(8, chain_z.get_height_of_last_common_block_with_chain(chain_l))
 
     def test_parents_after_forking(self):
-        self.blockchain_manager.blockchains[constants.net.GENESIS] = chain_u = Blockchain(
-            manager=self.blockchain_manager, forkpoint=0, parent=None,
+        self.bc_mgr.blockchains[constants.net.GENESIS] = chain_u = Blockchain(
+            bc_mgr=self.bc_mgr, forkpoint=0, parent=None,
             forkpoint_hash=constants.net.GENESIS, prev_hash=None)
         open(chain_u.path(), 'w+').close()
         self._append_header(chain_u, self.HEADERS['A'])
@@ -167,8 +167,8 @@ class TestBlockchain(ElectrumTestCase):
         self.assertEqual(None,    chain_z.parent)
 
     def test_forking_and_swapping(self):
-        self.blockchain_manager.blockchains[constants.net.GENESIS] = chain_u = Blockchain(
-            manager=self.blockchain_manager, forkpoint=0, parent=None,
+        self.bc_mgr.blockchains[constants.net.GENESIS] = chain_u = Blockchain(
+            bc_mgr=self.bc_mgr, forkpoint=0, parent=None,
             forkpoint_hash=constants.net.GENESIS, prev_hash=None)
         open(chain_u.path(), 'w+').close()
 
@@ -189,7 +189,7 @@ class TestBlockchain(ElectrumTestCase):
         self._append_header(chain_l, self.HEADERS['J'])
 
         # do checks
-        self.assertEqual(2, len(self.blockchain_manager.blockchains))
+        self.assertEqual(2, len(self.bc_mgr.blockchains))
         self.assertEqual(1, len(os.listdir(self.data_dir / "forks")))
         self.assertEqual(0, chain_u.forkpoint)
         self.assertEqual(None, chain_u.parent)
@@ -207,7 +207,7 @@ class TestBlockchain(ElectrumTestCase):
         self._append_header(chain_l, self.HEADERS['K'])
 
         # chains were swapped, do checks
-        self.assertEqual(2, len(self.blockchain_manager.blockchains))
+        self.assertEqual(2, len(self.bc_mgr.blockchains))
         self.assertEqual(1, len(os.listdir(self.data_dir / "forks")))
         self.assertEqual(6, chain_u.forkpoint)
         self.assertEqual(chain_l, chain_u.parent)
@@ -236,7 +236,7 @@ class TestBlockchain(ElectrumTestCase):
         self._append_header(chain_z, self.HEADERS['Z'])
 
         # chain_z became best chain, do checks
-        self.assertEqual(3, len(self.blockchain_manager.blockchains))
+        self.assertEqual(3, len(self.bc_mgr.blockchains))
         self.assertEqual(2, len(os.listdir(self.data_dir / "forks")))
         self.assertEqual(0, chain_z.forkpoint)
         self.assertEqual(None, chain_z.parent)
@@ -267,8 +267,8 @@ class TestBlockchain(ElectrumTestCase):
         self.assertEqual(hash_header(self.HEADERS['Z']), chain_z.get_hash(13))
 
     def test_doing_multiple_swaps_after_single_new_header(self):
-        self.blockchain_manager.blockchains[constants.net.GENESIS] = chain_u = Blockchain(
-            manager=self.blockchain_manager, forkpoint=0, parent=None,
+        self.bc_mgr.blockchains[constants.net.GENESIS] = chain_u = Blockchain(
+            bc_mgr=self.bc_mgr, forkpoint=0, parent=None,
             forkpoint_hash=constants.net.GENESIS, prev_hash=None)
         open(chain_u.path(), 'w+').close()
 
@@ -284,7 +284,7 @@ class TestBlockchain(ElectrumTestCase):
         self._append_header(chain_u, self.HEADERS['R'])
         self._append_header(chain_u, self.HEADERS['S'])
 
-        self.assertEqual(1, len(self.blockchain_manager.blockchains))
+        self.assertEqual(1, len(self.bc_mgr.blockchains))
         self.assertEqual(0, len(os.listdir(self.data_dir / "forks")))
 
         chain_l = chain_u.fork(self.HEADERS['G'])
@@ -294,14 +294,14 @@ class TestBlockchain(ElectrumTestCase):
         self._append_header(chain_l, self.HEADERS['K'])
         # now chain_u is best chain, but it's tied with chain_l
 
-        self.assertEqual(2, len(self.blockchain_manager.blockchains))
+        self.assertEqual(2, len(self.bc_mgr.blockchains))
         self.assertEqual(1, len(os.listdir(self.data_dir / "forks")))
 
         chain_z = chain_l.fork(self.HEADERS['M'])
         self._append_header(chain_z, self.HEADERS['N'])
         self._append_header(chain_z, self.HEADERS['X'])
 
-        self.assertEqual(3, len(self.blockchain_manager.blockchains))
+        self.assertEqual(3, len(self.bc_mgr.blockchains))
         self.assertEqual(2, len(os.listdir(self.data_dir / "forks")))
 
         # chain_z became best chain, do checks
@@ -337,11 +337,11 @@ class TestBlockchain(ElectrumTestCase):
     def get_chains_that_contain_header_helper(self, header: dict):
         height = header['block_height']
         header_hash = hash_header(header)
-        return self.blockchain_manager.get_chains_that_contain_header(height, header_hash)
+        return self.bc_mgr.get_chains_that_contain_header(height, header_hash)
 
     def test_get_chains_that_contain_header(self):
-        self.blockchain_manager.blockchains[constants.net.GENESIS] = chain_u = Blockchain(
-            manager=self.blockchain_manager, forkpoint=0, parent=None,
+        self.bc_mgr.blockchains[constants.net.GENESIS] = chain_u = Blockchain(
+            bc_mgr=self.bc_mgr, forkpoint=0, parent=None,
             forkpoint_hash=constants.net.GENESIS, prev_hash=None)
         open(chain_u.path(), 'w+').close()
         self._append_header(chain_u, self.HEADERS['A'])

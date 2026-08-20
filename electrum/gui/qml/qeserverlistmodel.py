@@ -92,7 +92,7 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
 
         for chain_id, interfaces in chains.items():
             self._logger.debug(f'chain {chain_id} has {len(interfaces)} interfaces')
-            b = self.network.blockchain_manager.blockchains.get(chain_id)
+            b = self.network.bc_mgr.blockchains.get(chain_id)
             if b is None:
                 continue
 

@@ -26,7 +26,7 @@ class ToyNetwork:
         self.config = config
         self.asyncio_loop = util.get_asyncio_loop()
         self.taskgroup = OldTaskGroup()
-        self.blockchain_manager = blockchain.BlockchainManager.from_config(self.config)
+        self.bc_mgr = blockchain.BlockchainManager.from_config(self.config)
         self.proxy = None
         self.debug = True
         self.bhi_lock = asyncio.Lock()
