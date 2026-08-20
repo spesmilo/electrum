@@ -77,6 +77,8 @@ if TYPE_CHECKING:
     from .simple_config import SimpleConfig
 
 
+ANDROID_BUILD_CONFIG_CLASS = 'org.electrum.electrum.res.BuildConfig'
+
 _logger = get_logger(__name__)
 
 
@@ -619,8 +621,7 @@ def is_android_debug_apk() -> bool:
     if not is_android:
         return False
     from jnius import autoclass
-    pkgname = get_android_package_name()
-    build_config = autoclass(f"{pkgname}.BuildConfig")
+    build_config = autoclass(ANDROID_BUILD_CONFIG_CLASS)
     return bool(build_config.DEBUG)
 
 

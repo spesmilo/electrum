@@ -1,0 +1,45 @@
+Build against the toolchain the builder image and p4a already provide.
+
+AGP defaults ndkVersion to its own bundled version and hard-fails [CXX1100]
+when that disagrees with ndkPath, so both have to be set. The Dockerfile pins
+the NDK release name while AGP compares the numeric revision, so
+make_barcode_scanner.sh reads it out of the NDK's own source.properties
+and exports it as ELEC_NDK_VERSION.
+
+The gradle wrapper is pointed at gradle-9.4.1-all, the same distribution p4a's
+bootstrap downloads, so the whole build shares one distribution instead of fetching
+several, and pinned with distributionSha256Sum so the wrapper verifies it before
+executing it. Keep both in sync with p4a's
+bootstraps/common/build/gradle/wrapper/gradle-wrapper.properties.
+
+diff --git a/wrappers/aar/gradle/wrapper/gradle-wrapper.properties b/wrappers/aar/gradle/wrapper/gradle-wrapper.properties
+index 2d3dd298..4e859cd0 100644
+--- a/wrappers/aar/gradle/wrapper/gradle-wrapper.properties
++++ b/wrappers/aar/gradle/wrapper/gradle-wrapper.properties
+@@ -1,6 +1,7 @@
+ #Wed Jan 26 11:58:22 CET 2022
+ distributionBase=GRADLE_USER_HOME
+-distributionUrl=https\://services.gradle.org/distributions/gradle-9.4.1-bin.zip
++distributionUrl=https\://services.gradle.org/distributions/gradle-9.4.1-all.zip
++distributionSha256Sum=708d2c6ecc97ca9a11838ef64a6c2301151b8dd10387e22dc1a12c30557cab5b
+ distributionPath=wrapper/dists
+ zipStorePath=wrapper/dists
+ zipStoreBase=GRADLE_USER_HOME
+diff --git a/wrappers/aar/zxingcpp/build.gradle b/wrappers/aar/zxingcpp/build.gradle
+index d0e973b1..62044d2b 100644
+--- a/wrappers/aar/zxingcpp/build.gradle
++++ b/wrappers/aar/zxingcpp/build.gradle
+@@ -6,6 +6,13 @@ plugins {
+ android {
+ 	namespace 'de.markusfisch.android.zxingcpp'
+ 	compileSdk sdk_version
++	// use the build-tools and NDK installed in the builder image, instead of
++	// letting AGP download its own defaults. AGP validates ndkVersion
++	// against ndkPath, so both must be given; make_barcode_scanner.sh reads
++	// ELEC_NDK_VERSION out of the NDK's own source.properties.
++	buildToolsVersion System.getenv('ANDROID_SDK_BUILD_TOOLS_VERSION')
++	ndkPath System.getenv('ANDROID_NDK_HOME')
++	ndkVersion System.getenv('ELEC_NDK_VERSION')
+
+ 	defaultConfig {
+ 		minSdk 21
