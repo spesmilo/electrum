@@ -28,10 +28,10 @@ import os
 import sys
 import re
 import subprocess
-from pathlib import Path
 from collections import defaultdict, OrderedDict
 from concurrent.futures.process import ProcessPoolExecutor
 import typing
+from pathlib import Path
 from typing import (
     NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable, Any, Sequence, Dict, Generic, TypeVar, List, Iterable,
     Set, Awaitable

@@ -5,7 +5,7 @@ from typing import List
 
 from electrum import constants
 from electrum.simple_config import SimpleConfig
-from electrum import blockchain
+from electrum.blockchain import BlockchainManager
 from electrum.interface import Interface, ServerAddr, ChainResolutionMode
 from electrum.crypto import sha256
 from electrum.util import OldTaskGroup
@@ -19,9 +19,10 @@ CRM = ChainResolutionMode
 
 class MockBlockchain:
 
-    def __init__(self, headers: List[str]):
+    def __init__(self, headers: List[str], manager: 'BlockchainManager'):
         self._headers = headers
         self.forkpoint = len(headers)
+        self.manager = manager
 
     def height(self) -> int:
         return len(self._headers) - 1
@@ -45,11 +46,11 @@ class MockBlockchain:
         if not parent.can_connect(header, check_height=False):
             raise Exception("forking header does not connect to parent chain")
         forkpoint = header.get('block_height')
-        self = MockBlockchain(parent._headers[:forkpoint])
+        self = MockBlockchain(parent._headers[:forkpoint], parent.manager)
         self.save_header(header)
         chain_id = header['mock']['id']
-        with blockchain.blockchains_lock:
-            blockchain.blockchains[chain_id] = self
+        with self.manager.blockchains_lock:
+            self.manager.blockchains[chain_id] = self
         return self
 
 
@@ -57,6 +58,7 @@ class MockNetwork:
 
     def __init__(self, config: SimpleConfig):
         self.config = config
+        self.blockchain_manager = BlockchainManager.from_config(config)
         self.asyncio_loop = util.get_asyncio_loop()
         self.taskgroup = OldTaskGroup()
         self.proxy = None
@@ -96,7 +98,6 @@ class TestHeaderChainResolution(ElectrumTestCase):
         constants.BitcoinMainnet.set_as_network()
 
     def tearDown(self):
-        blockchain.blockchains = {}
         super().tearDown()
 
     async def asyncSetUp(self):
@@ -110,43 +111,43 @@ class TestHeaderChainResolution(ElectrumTestCase):
         """
         ifa = self.interface
         ifa.tip = 6
-        ifa.blockchain = MockBlockchain(["00a", "01a", "02a", "03a", "04a", "05a"])
-        blockchain.blockchains = {
+        ifa.blockchain = MockBlockchain(["00a", "01a", "02a", "03a", "04a", "05a"], ifa.blockchain_manager)
+        ifa.blockchain_manager.blockchains = {
             "00a": ifa.blockchain,
         }
         ifa.q.put_nowait({'block_height': 6, 'mock': {CRM.CATCHUP:1, 'id': '06a', 'prev_id': '05a'}})
         res = await ifa.sync_until(ifa.tip)
         self.assertEqual((CRM.CATCHUP, 7), res)
         self.assertEqual(ifa.q.qsize(), 0)
-        self.assertEqual(len(blockchain.blockchains), 1)
+        self.assertEqual(len(ifa.blockchain_manager.blockchains), 1)
 
     async def test_catchup_already_up_to_date(self):
         """Single chain, local chain tip already matches server tip."""
         ifa = self.interface
         ifa.tip = 5
-        ifa.blockchain = MockBlockchain(["00a", "01a", "02a", "03a", "04a", "05a"])
-        blockchain.blockchains = {
+        ifa.blockchain = MockBlockchain(["00a", "01a", "02a", "03a", "04a", "05a"], ifa.blockchain_manager)
+        ifa.blockchain_manager.blockchains = {
             "00a": ifa.blockchain,
         }
         ifa.q.put_nowait({'block_height': 5, 'mock': {CRM.CATCHUP:1, 'id': '05a', 'prev_id': '04a'}})
         res = await ifa.sync_until(ifa.tip)
         self.assertEqual((CRM.CATCHUP, 6), res)
         self.assertEqual(ifa.q.qsize(), 0)
-        self.assertEqual(len(blockchain.blockchains), 1)
+        self.assertEqual(len(ifa.blockchain_manager.blockchains), 1)
 
     async def test_catchup_client_ahead_of_lagging_server(self):
         """Single chain, server is lagging."""
         ifa = self.interface
         ifa.tip = 3
-        ifa.blockchain = MockBlockchain(["00a", "01a", "02a", "03a", "04a", "05a"])
-        blockchain.blockchains = {
+        ifa.blockchain = MockBlockchain(["00a", "01a", "02a", "03a", "04a", "05a"], ifa.blockchain_manager)
+        ifa.blockchain_manager.blockchains = {
             "00a": ifa.blockchain,
         }
         ifa.q.put_nowait({'block_height': 3, 'mock': {CRM.CATCHUP:1, 'id': '03a', 'prev_id': '02a'}})
         res = await ifa.sync_until(ifa.tip)
         self.assertEqual((CRM.CATCHUP, 4), res)
         self.assertEqual(ifa.q.qsize(), 0)
-        self.assertEqual(len(blockchain.blockchains), 1)
+        self.assertEqual(len(ifa.blockchain_manager.blockchains), 1)
 
     async def test_catchup_fast_forward(self):
         """Single chain, but client is behind. The client's height is 5, server is already on block 12.
@@ -154,8 +155,8 @@ class TestHeaderChainResolution(ElectrumTestCase):
         """
         ifa = self.interface
         ifa.tip = 12
-        ifa.blockchain = MockBlockchain(["00a", "01a", "02a", "03a", "04a", "05a"])
-        blockchain.blockchains = {
+        ifa.blockchain = MockBlockchain(["00a", "01a", "02a", "03a", "04a", "05a"], ifa.blockchain_manager)
+        ifa.blockchain_manager.blockchains = {
             "00a": ifa.blockchain,
         }
         ifa.q.put_nowait({'block_height': 12, 'mock': {CRM.CATCHUP:1, 'id': '12a', 'prev_id': '11a'}})
@@ -166,7 +167,7 @@ class TestHeaderChainResolution(ElectrumTestCase):
         res = await ifa.sync_until(ifa.tip, next_height=9)
         self.assertEqual((CRM.CATCHUP, 10), res)
         self.assertEqual(ifa.q.qsize(), 0)
-        self.assertEqual(len(blockchain.blockchains), 1)
+        self.assertEqual(len(ifa.blockchain_manager.blockchains), 1)
 
     async def test_fork(self):
         """client starts on main chain, has no knowledge of any fork.
@@ -176,8 +177,8 @@ class TestHeaderChainResolution(ElectrumTestCase):
         """
         ifa = self.interface
         ifa.tip = 8
-        ifa.blockchain = MockBlockchain(["00a", "01a", "02a", "03a", "04a", "05a", "06a", "07a", "08a", "09a", "10a", "11a", "12a"])
-        blockchain.blockchains = {
+        ifa.blockchain = MockBlockchain(["00a", "01a", "02a", "03a", "04a", "05a", "06a", "07a", "08a", "09a", "10a", "11a", "12a"], ifa.blockchain_manager)
+        ifa.blockchain_manager.blockchains = {
             "00a": ifa.blockchain,
         }
         ifa.q.put_nowait({'block_height': 8, 'mock': {CRM.CATCHUP:1, 'id': '08b', 'prev_id': '07b'}})
@@ -187,7 +188,7 @@ class TestHeaderChainResolution(ElectrumTestCase):
         res = await ifa.sync_until(ifa.tip, next_height=7)
         self.assertEqual((CRM.FORK, 8), res)
         self.assertEqual(ifa.q.qsize(), 0)
-        self.assertEqual(len(blockchain.blockchains), 2)
+        self.assertEqual(len(ifa.blockchain_manager.blockchains), 2)
 
     async def test_can_connect_during_backward(self):
         """client starts on main chain. client already knows about another fork, which has local height 4.
@@ -197,10 +198,10 @@ class TestHeaderChainResolution(ElectrumTestCase):
         """
         ifa = self.interface
         ifa.tip = 8
-        ifa.blockchain = MockBlockchain(["00a", "01a", "02a", "03a", "04a", "05a", "06a", "07a", "08a", "09a", "10a", "11a", "12a"])
-        blockchain.blockchains = {
+        ifa.blockchain = MockBlockchain(["00a", "01a", "02a", "03a", "04a", "05a", "06a", "07a", "08a", "09a", "10a", "11a", "12a"], ifa.blockchain_manager)
+        ifa.blockchain_manager.blockchains = {
             "00a": ifa.blockchain,
-            "03b": MockBlockchain(["00a", "01a", "02a", "03b", "04b"]),
+            "03b": MockBlockchain(["00a", "01a", "02a", "03b", "04b"], ifa.blockchain_manager),
         }
         ifa.q.put_nowait({'block_height': 8, 'mock': {CRM.CATCHUP:1, 'id': '08b', 'prev_id': '07b'}})
         ifa.q.put_nowait({'block_height': 7, 'mock': {CRM.BACKWARD:1, 'id': '07b', 'prev_id': '06b'}})
@@ -209,7 +210,7 @@ class TestHeaderChainResolution(ElectrumTestCase):
         res = await ifa.sync_until(ifa.tip, next_height=6)
         self.assertEqual((CRM.CATCHUP, 7), res)
         self.assertEqual(ifa.q.qsize(), 0)
-        self.assertEqual(len(blockchain.blockchains), 2)
+        self.assertEqual(len(ifa.blockchain_manager.blockchains), 2)
 
     async def test_chain_false_during_binary(self):
         """client starts on main chain, has no knowledge of any fork.
@@ -219,8 +220,8 @@ class TestHeaderChainResolution(ElectrumTestCase):
         """
         ifa = self.interface
         ifa.tip = 8
-        ifa.blockchain = MockBlockchain(["00a", "01a", "02a", "03a", "04a", "05a", "06a", "07a", "08a", "09a", "10a", "11a", "12a"])
-        blockchain.blockchains = {
+        ifa.blockchain = MockBlockchain(["00a", "01a", "02a", "03a", "04a", "05a", "06a", "07a", "08a", "09a", "10a", "11a", "12a"], ifa.blockchain_manager)
+        ifa.blockchain_manager.blockchains = {
             "00a": ifa.blockchain,
         }
         ifa.q.put_nowait({'block_height': 8, 'mock': {CRM.CATCHUP:1, 'id': '08b', 'prev_id': '07b'}})
@@ -234,7 +235,7 @@ class TestHeaderChainResolution(ElectrumTestCase):
         res = await ifa.sync_until(ifa.tip, next_height=6)
         self.assertEqual((CRM.CATCHUP, 7), res)
         self.assertEqual(ifa.q.qsize(), 0)
-        self.assertEqual(len(blockchain.blockchains), 2)
+        self.assertEqual(len(ifa.blockchain_manager.blockchains), 2)
 
     async def test_chain_true_during_binary(self):
         """client starts on main chain. client already knows about another fork, which has local height 10.
@@ -244,10 +245,10 @@ class TestHeaderChainResolution(ElectrumTestCase):
         """
         ifa = self.interface
         ifa.tip = 20
-        ifa.blockchain = MockBlockchain(["00a", "01a", "02a", "03a", "04a", "05a", "06a", "07a", "08a", "09a", "10a", "11a", "12a", "13a", "14a"])
-        blockchain.blockchains = {
+        ifa.blockchain = MockBlockchain(["00a", "01a", "02a", "03a", "04a", "05a", "06a", "07a", "08a", "09a", "10a", "11a", "12a", "13a", "14a"], ifa.blockchain_manager)
+        ifa.blockchain_manager.blockchains = {
             "00a": ifa.blockchain,
-            "07b": MockBlockchain(["00a", "01a", "02a", "03a", "04a", "05a", "06a", "07b", "08b", "09b", "10b"]),
+            "07b": MockBlockchain(["00a", "01a", "02a", "03a", "04a", "05a", "06a", "07b", "08b", "09b", "10b"], ifa.blockchain_manager),
         }
         ifa.q.put_nowait({'block_height': 20, 'mock': {CRM.CATCHUP:1, 'id': '20b', 'prev_id': '19b'}})
         ifa.q.put_nowait({'block_height': 15, 'mock': {CRM.BACKWARD:1, 'id': '15b', 'prev_id': '14b'}})
@@ -261,7 +262,7 @@ class TestHeaderChainResolution(ElectrumTestCase):
         res = await ifa.sync_until(ifa.tip, next_height=13)
         self.assertEqual((CRM.CATCHUP, 14), res)
         self.assertEqual(ifa.q.qsize(), 0)
-        self.assertEqual(len(blockchain.blockchains), 2)
+        self.assertEqual(len(ifa.blockchain_manager.blockchains), 2)
 
 
 if __name__ == "__main__":
