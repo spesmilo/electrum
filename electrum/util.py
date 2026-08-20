@@ -27,9 +27,11 @@ import logging
 import os
 import sys
 import re
+import subprocess
 from collections import defaultdict, OrderedDict
 from concurrent.futures.process import ProcessPoolExecutor
 import typing
+from pathlib import Path
 from typing import (
     NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable, Any, Sequence, Dict, Generic, TypeVar, List, Iterable,
     Set, Awaitable
@@ -549,14 +551,18 @@ def android_data_dir():
     return PythonActivity.mActivity.getFilesDir().getPath() + '/data'
 
 
-def ensure_sparse_file(filename):
+def ensure_sparse_file(file_path: str | Path):
     # On modern Linux, no need to do anything.
     # On Windows, need to explicitly mark file.
     if os.name == "nt":
         try:
-            os.system('fsutil sparse setflag "{}" 1'.format(filename))
-        except Exception as e:
-            _logger.info(f'error marking file {filename} as sparse: {e}')
+            subprocess.run(
+                ['fsutil', 'sparse', 'setflag', file_path, '1'],
+                check=True,
+                capture_output=True,
+            )
+        except (subprocess.CalledProcessError, OSError) as e:
+            _logger.warning(f'error marking file {file_path} as sparse: {e}')
 
 
 def get_headers_dir(config):

@@ -47,10 +47,9 @@ from .util import (
     NetworkRetryManager, error_text_str_to_safe_str, detect_tor_socks_proxy
 )
 from . import constants
-from . import blockchain
 from . import dns_hacks
 from .transaction import Transaction
-from .blockchain import Blockchain
+from .blockchain import Blockchain, BlockchainManager
 from .interface import (
     Interface, PREFERRED_NETWORK_PROTOCOL, RequestTimedOut, NetworkTimeout, BUCKET_NAME_OF_ONION_SERVERS,
     NetworkException, RequestCorrupted, ServerAddr, TxBroadcastError, KNOWN_ELEC_PROTOCOL_TRANSPORTS,
@@ -349,13 +348,11 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         self.config = config
         self.daemon = daemon
 
-        blockchain.read_blockchains(self.config)
-        blockchain.init_headers_file_for_best_chain()
-        self.logger.info(f"blockchains {list(map(lambda b: b.forkpoint, blockchain.blockchains.values()))}")
-        self._blockchain_preferred_block = self.config.BLOCKCHAIN_PREFERRED_BLOCK  # type: Dict[str, Any]
+        self.bc_mgr = BlockchainManager.from_config(self.config)
+        self._blockchain_preferred_block = self.config.BLOCKCHAIN_PREFERRED_BLOCK  # type: Optional[Dict[str, Any]]
         if self._blockchain_preferred_block is None:
             self._set_preferred_chain(None)
-        self._blockchain = blockchain.get_best_chain()
+        self._blockchain = self.bc_mgr.get_best_chain()
 
         self._allowed_protocols = {PREFERRED_NETWORK_PROTOCOL}
 
@@ -863,8 +860,8 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         if pref_height == 0:
             return
         # maybe try switching chains; starting with most desirable first
-        matching_chains = blockchain.get_chains_that_contain_header(pref_height, pref_hash)
-        chains_to_try = list(matching_chains) + [blockchain.get_best_chain()]
+        matching_chains = self.bc_mgr.get_chains_that_contain_header(pref_height, pref_hash)
+        chains_to_try = list(matching_chains) + [self.bc_mgr.get_best_chain()]
         for rank, chain in enumerate(chains_to_try):
             # check if main interface is already on this fork
             if self.interface.blockchain == chain:
@@ -1151,8 +1148,10 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
     def get_blockchains(self) -> Mapping[str, Sequence[Interface]]:
         out = {}  # blockchain_id -> list(interfaces)
-        with blockchain.blockchains_lock: blockchain_items = list(blockchain.blockchains.items())
-        with self.interfaces_lock: interfaces_values = list(self.interfaces.values())
+        with self.bc_mgr.blockchains_lock:
+            blockchain_items = list(self.bc_mgr.blockchains.items())
+        with self.interfaces_lock:
+            interfaces_values = list(self.interfaces.values())
         for chain_id, bc in blockchain_items:
             r = list(filter(lambda i: i.blockchain==bc, interfaces_values))
             if r:
@@ -1173,7 +1172,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         self.config.BLOCKCHAIN_PREFERRED_BLOCK = self._blockchain_preferred_block
 
     async def follow_chain_given_id(self, chain_id: str) -> None:
-        bc = blockchain.blockchains.get(chain_id)
+        bc = self.bc_mgr.blockchains.get(chain_id)
         if not bc:
             raise Exception('blockchain {} not found'.format(chain_id))
         self._set_preferred_chain(bc)

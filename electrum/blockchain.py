@@ -24,18 +24,18 @@ import os
 import threading
 import time
 from typing import Optional, Dict, Mapping, Sequence, TYPE_CHECKING
+from pathlib import Path
 
 from . import util
 from .bitcoin import hash_encode
 from .crypto import sha256d
 from . import constants
 from .util import bfh, with_lock
-from .logging import get_logger, Logger
+from .logging import Logger
 
 if TYPE_CHECKING:
     from .simple_config import SimpleConfig
 
-_logger = get_logger(__name__)
 
 HEADER_SIZE = 80  # bytes
 CHUNK_SIZE = 2016  # num headers in a difficulty retarget period
@@ -79,7 +79,7 @@ def deserialize_header(s: bytes, height: int) -> dict:
     return h
 
 
-def hash_header(header: dict) -> str:
+def hash_header(header: Optional[dict]) -> str:
     if header is None:
         return '0' * 64
     if header.get('prev_block_hash') is None:
@@ -95,96 +95,146 @@ def hash_raw_header(header: bytes) -> str:
 pow_hash_header = hash_header
 
 
-# key: blockhash hex at forkpoint
-# the chain at some key is the best chain that includes the given hash
-blockchains = {}  # type: Dict[str, Blockchain]
-blockchains_lock = threading.RLock()  # lock order: take this last; so after Blockchain.lock
-
-
-def read_blockchains(config: 'SimpleConfig'):
-    best_chain = Blockchain(config=config,
-                            forkpoint=0,
-                            parent=None,
-                            forkpoint_hash=constants.net.GENESIS,
-                            prev_hash=None)
-    blockchains[constants.net.GENESIS] = best_chain
-    # consistency checks
-    if best_chain.height() > constants.net.max_checkpoint():
-        header_after_cp = best_chain.read_header(constants.net.max_checkpoint()+1)
-        if not header_after_cp or not best_chain.can_connect(header_after_cp, check_height=False):
-            _logger.info("[blockchain] deleting best chain. cannot connect header after last cp to last cp.")
-            os.unlink(best_chain.path())
-            best_chain.update_size()
-    # forks
-    fdir = os.path.join(util.get_headers_dir(config), 'forks')
-    util.make_dir(fdir)
-    # files are named as: fork2_{forkpoint}_{prev_hash}_{first_hash}
-    l = filter(lambda x: x.startswith('fork2_') and '.' not in x, os.listdir(fdir))
-    l = sorted(l, key=lambda x: int(x.split('_')[1]))  # sort by forkpoint
-
-    def delete_chain(filename, reason):
-        _logger.info(f"[blockchain] deleting chain {filename}: {reason}")
-        os.unlink(os.path.join(fdir, filename))
-
-    def instantiate_chain(filename):
-        __, forkpoint, prev_hash, first_hash = filename.split('_')
-        forkpoint = int(forkpoint)
-        prev_hash = (64-len(prev_hash)) * "0" + prev_hash  # left-pad with zeroes
-        first_hash = (64-len(first_hash)) * "0" + first_hash
-        # forks below the max checkpoint are not allowed
-        if forkpoint <= constants.net.max_checkpoint():
-            delete_chain(filename, "deleting fork below max checkpoint")
-            return
-        # find parent (sorting by forkpoint guarantees it's already instantiated)
-        for parent in blockchains.values():
-            if parent.check_hash(forkpoint - 1, prev_hash):
-                break
-        else:
-            delete_chain(filename, "cannot find parent for chain")
-            return
-        b = Blockchain(config=config,
-                       forkpoint=forkpoint,
-                       parent=parent,
-                       forkpoint_hash=first_hash,
-                       prev_hash=prev_hash)
-        # consistency checks
-        h = b.read_header(b.forkpoint)
-        if first_hash != hash_header(h):
-            delete_chain(filename, "incorrect first hash for chain")
-            return
-        if not b.parent.can_connect(h, check_height=False):
-            delete_chain(filename, "cannot connect chain to parent")
-            return
-        chain_id = b.get_id()
-        assert first_hash == chain_id, (first_hash, chain_id)
-        blockchains[chain_id] = b
-
-    for filename in l:
-        instantiate_chain(filename)
-
-
-def get_best_chain() -> 'Blockchain':
-    return blockchains[constants.net.GENESIS]
-
-
 # block hash -> chain work; up to and including that block
 _CHAINWORK_CACHE = {
     "0000000000000000000000000000000000000000000000000000000000000000": 0,  # virtual block at height -1
 }  # type: Dict[str, int]
 
 
-def init_headers_file_for_best_chain():
-    b = get_best_chain()
-    filename = b.path()
-    length = HEADER_SIZE * len(constants.net.CHECKPOINTS) * CHUNK_SIZE
-    if not os.path.exists(filename) or os.path.getsize(filename) < length:
-        with open(filename, 'wb') as f:
-            if length > 0:
-                f.seek(length - 1)
-                f.write(b'\x00')
-        util.ensure_sparse_file(filename)
-    with b.lock:
-        b.update_size()
+class BlockchainManager(Logger):
+
+    def __init__(self, *, headers_dir: Path):
+        Logger.__init__(self)
+        self.headers_dir = headers_dir
+        self.forks_dir = headers_dir / 'forks'
+        util.make_dir(self.forks_dir)
+
+        # key: blockhash hex at forkpoint
+        # the chain at some key is the best chain that includes the given hash
+        self.blockchains = {}  # type: Dict[str, Blockchain]
+        self.blockchains_lock = threading.RLock()  # lock order: take this last; so after Blockchain.lock
+
+        self._read_blockchains()
+        self._init_headers_file_for_best_chain()
+        self.logger.info(f"blockchains {list(map(lambda b: b.forkpoint, self.blockchains.values()))}")
+
+    @classmethod
+    def from_config(cls, config: 'SimpleConfig') -> 'BlockchainManager':
+        headers_dir = util.get_headers_dir(config)
+        return cls(headers_dir=Path(headers_dir))
+
+    def _read_blockchains(self):
+        best_chain = Blockchain(
+            bc_mgr=self,
+            forkpoint=0,
+            parent=None,
+            forkpoint_hash=constants.net.GENESIS,
+            prev_hash=None,
+        )
+        self.blockchains[constants.net.GENESIS] = best_chain
+
+        # consistency checks
+        if best_chain.height() > constants.net.max_checkpoint():
+            header_after_cp = best_chain.read_header(constants.net.max_checkpoint()+1)
+            if not header_after_cp or not best_chain.can_connect(header_after_cp, check_height=False):
+                self.logger.warning("[blockchain] deleting best chain. cannot connect header after last cp to last cp.")
+                best_chain.path().unlink()
+                best_chain.update_size()
+
+        # forks
+        # files are named as: fork2_{forkpoint}_{prev_hash}_{first_hash}
+        l = filter(lambda x: x.startswith('fork2_') and '.' not in x, os.listdir(self.forks_dir))
+        l = sorted(l, key=lambda x: int(x.split('_')[1]))  # sort by forkpoint
+
+        for filename in l:
+            self._instantiate_chain(filename)
+
+    def _instantiate_chain(self, filename: str):
+        __, forkpoint, prev_hash, first_hash = filename.split('_')
+        forkpoint = int(forkpoint)
+        prev_hash = (64-len(prev_hash)) * "0" + prev_hash  # left-pad with zeroes
+        first_hash = (64-len(first_hash)) * "0" + first_hash
+        # forks below the max checkpoint are not allowed
+        if forkpoint <= constants.net.max_checkpoint():
+            self._delete_chain(filename, "deleting fork below max checkpoint")
+            return
+        # find parent (sorting by forkpoint guarantees it's already instantiated)
+        for parent in self.blockchains.values():
+            if parent.check_hash(forkpoint - 1, prev_hash):
+                break
+        else:
+            self._delete_chain(filename, "cannot find parent for chain")
+            return
+        b = Blockchain(
+            bc_mgr=self,
+            forkpoint=forkpoint,
+            parent=parent,
+            forkpoint_hash=first_hash,
+            prev_hash=prev_hash,
+        )
+        # consistency checks
+        h = b.read_header(b.forkpoint)
+        if first_hash != hash_header(h):
+            self._delete_chain(filename, "incorrect first hash for chain")
+            return
+        if not b.parent.can_connect(h, check_height=False):
+            self._delete_chain(filename, "cannot connect chain to parent")
+            return
+        chain_id = b.get_id()
+        assert first_hash == chain_id, (first_hash, chain_id)
+        self.blockchains[chain_id] = b
+
+    def _delete_chain(self, filename: str, reason: str):
+        self.logger.info(f"[blockchain] deleting chain {filename}: {reason}")
+        file = self.forks_dir / filename
+        file.unlink()
+
+    def _init_headers_file_for_best_chain(self):
+        b = self.get_best_chain()
+        filename = b.path()
+        length = HEADER_SIZE * len(constants.net.CHECKPOINTS) * CHUNK_SIZE
+        if not filename.exists() or filename.stat().st_size < length:
+            with open(filename, 'wb') as f:
+                if length > 0:
+                    f.seek(length - 1)
+                    f.write(b'\x00')
+            util.ensure_sparse_file(filename)
+        with b.lock:
+            b.update_size()
+
+    def get_best_chain(self) -> 'Blockchain':
+        return self.blockchains[constants.net.GENESIS]
+
+    def check_header(self, header: dict) -> Optional['Blockchain']:
+        """Returns any Blockchain that contains header, or None."""
+        if type(header) is not dict:
+            return None
+        with self.blockchains_lock:
+            chains = list(self.blockchains.values())
+        for b in chains:
+            if b.check_header(header):
+                return b
+        return None
+
+    def can_connect(self, header: dict) -> Optional['Blockchain']:
+        """Returns the Blockchain that has a tip that directly links up
+        with header, or None.
+        """
+        with self.blockchains_lock:
+            chains = list(self.blockchains.values())
+        for b in chains:
+            if b.can_connect(header):
+                return b
+        return None
+
+    def get_chains_that_contain_header(self, height: int, header_hash: str) -> Sequence['Blockchain']:
+        """Returns a list of Blockchains that contain header, best chain first."""
+        with self.blockchains_lock:
+            chains = list(self.blockchains.values())
+        chains = [chain for chain in chains
+                  if chain.check_hash(height=height, header_hash=header_hash)]
+        chains = sorted(chains, key=lambda x: x.get_chainwork(), reverse=True)
+        return chains
 
 
 class Blockchain(Logger):
@@ -192,15 +242,24 @@ class Blockchain(Logger):
     Manages blockchain headers and their verification
     """
 
-    def __init__(self, config: 'SimpleConfig', forkpoint: int, parent: Optional['Blockchain'],
-                 forkpoint_hash: str, prev_hash: Optional[str]):
+    def __init__(
+        self,
+        *,
+        bc_mgr: 'BlockchainManager',
+        forkpoint: int,
+        parent: Optional['Blockchain'],
+        forkpoint_hash: str,
+        prev_hash: Optional[str],
+    ):
         assert isinstance(forkpoint_hash, str) and len(forkpoint_hash) == 64, forkpoint_hash
         assert (prev_hash is None) or (isinstance(prev_hash, str) and len(prev_hash) == 64), prev_hash
         # assert (parent is None) == (forkpoint == 0)
         if 0 < forkpoint <= constants.net.max_checkpoint():
             raise Exception(f"cannot fork below max checkpoint. forkpoint: {forkpoint}")
         Logger.__init__(self)
-        self.config = config
+        self.bc_mgr = bc_mgr
+        if parent is not None:
+            assert bc_mgr is parent.bc_mgr
         self.forkpoint = forkpoint  # height of first header
         self.parent = parent
         self._forkpoint_hash = forkpoint_hash  # blockhash at forkpoint. "first hash"
@@ -224,12 +283,12 @@ class Blockchain(Logger):
         return mc if mc is not None else self.forkpoint
 
     def get_direct_children(self) -> Sequence['Blockchain']:
-        with blockchains_lock:
-            return list(filter(lambda y: y.parent==self, blockchains.values()))
+        with self.bc_mgr.blockchains_lock:
+            return list(filter(lambda y: y.parent==self, self.bc_mgr.blockchains.values()))
 
     def get_parent_heights(self) -> Mapping['Blockchain', int]:
         """Returns map: (parent chain -> height of last common block)"""
-        with self.lock, blockchains_lock:
+        with self.lock, self.bc_mgr.blockchains_lock:
             result = {self: self.height()}
             chain = self
             while True:
@@ -275,19 +334,21 @@ class Blockchain(Logger):
         if not parent.can_connect(header, check_height=False):
             raise Exception("forking header does not connect to parent chain")
         forkpoint = header.get('block_height')
-        self = Blockchain(config=parent.config,
-                          forkpoint=forkpoint,
-                          parent=parent,
-                          forkpoint_hash=hash_header(header),
-                          prev_hash=parent.get_hash(forkpoint-1))
+        self = Blockchain(
+            bc_mgr=parent.bc_mgr,
+            forkpoint=forkpoint,
+            parent=parent,
+            forkpoint_hash=hash_header(header),
+            prev_hash=parent.get_hash(forkpoint-1),
+        )
         self.assert_headers_file_available(parent.path())
         open(self.path(), 'w+').close()
         self.save_header(header)
         # put into global dict. note that in some cases
         # save_header might have already put it there but that's OK
         chain_id = self.get_id()
-        with blockchains_lock:
-            blockchains[chain_id] = self
+        with parent.bc_mgr.blockchains_lock:
+            parent.bc_mgr.blockchains[chain_id] = self
         return self
 
     @with_lock
@@ -301,7 +362,7 @@ class Blockchain(Logger):
     @with_lock
     def update_size(self) -> None:
         p = self.path()
-        self._size = os.path.getsize(p)//HEADER_SIZE if os.path.exists(p) else 0
+        self._size = os.path.getsize(p)//HEADER_SIZE if p.exists() else 0
 
     @classmethod
     def verify_header(cls, header: dict, prev_hash: str, target: int, expected_header_hash: str=None) -> None:
@@ -337,17 +398,15 @@ class Blockchain(Logger):
             prev_hash = hash_header(header)
 
     @with_lock
-    def path(self):
-        d = util.get_headers_dir(self.config)
+    def path(self) -> Path:
         if self.parent is None:
-            filename = 'blockchain_headers'
+            return self.bc_mgr.headers_dir / 'blockchain_headers'
         else:
             assert self.forkpoint > 0, self.forkpoint
             prev_hash = self._prev_hash.lstrip('0')
             first_hash = self._forkpoint_hash.lstrip('0')
             basename = f'fork2_{self.forkpoint}_{prev_hash}_{first_hash}'
-            filename = os.path.join('forks', basename)
-        return os.path.join(d, filename)
+            return self.bc_mgr.forks_dir / basename
 
     @with_lock
     def save_chunk(self, index: int, chunk: bytes):
@@ -355,7 +414,7 @@ class Blockchain(Logger):
         chunk_within_checkpoint_region = index < len(self.checkpoints)
         # chunks in checkpoint region are the responsibility of the 'main chain'
         if chunk_within_checkpoint_region and self.parent is not None:
-            main_chain = get_best_chain()
+            main_chain = self.bc_mgr.get_best_chain()
             main_chain.save_chunk(index, chunk)
             return
 
@@ -371,7 +430,7 @@ class Blockchain(Logger):
         self.swap_with_parent()
 
     def swap_with_parent(self) -> None:
-        with self.lock, blockchains_lock:
+        with self.lock, self.bc_mgr.blockchains_lock:
             # do the swap; possibly multiple ones
             cnt = 0
             while True:
@@ -380,7 +439,7 @@ class Blockchain(Logger):
                     break
                 # make sure we are making progress
                 cnt += 1
-                if cnt > len(blockchains):
+                if cnt > len(self.bc_mgr.blockchains):
                     raise Exception(f'swapping fork with parent too many times: {cnt}')
                 # we might have become the parent of some of our former siblings
                 for old_sibling in old_parent.get_direct_children():
@@ -427,6 +486,7 @@ class Blockchain(Logger):
         self.update_size()
         parent.update_size()
         # update pointers
+        blockchains = self.bc_mgr.blockchains
         blockchains.pop(child_old_id, None)
         blockchains.pop(parent_old_id, None)
         blockchains[self.get_id()] = self
@@ -436,10 +496,10 @@ class Blockchain(Logger):
     def get_id(self) -> str:
         return self._forkpoint_hash
 
-    def assert_headers_file_available(self, path):
-        if os.path.exists(path):
+    def assert_headers_file_available(self, path: Path):
+        if path.exists():
             return
-        elif not os.path.exists(util.get_headers_dir(self.config)):
+        elif not self.bc_mgr.headers_dir.exists():
             raise FileNotFoundError('Electrum headers_dir does not exist. Was it deleted while running?')
         else:
             raise FileNotFoundError('Cannot find headers file but headers_dir is there. Should be at {}'.format(path))
@@ -626,7 +686,7 @@ class Blockchain(Logger):
         work_in_last_partial_chunk = (height % CHUNK_SIZE + 1) * work_in_single_header
         return running_total + work_in_last_partial_chunk
 
-    def can_connect(self, header: dict, *, check_height: bool = True) -> bool:
+    def can_connect(self, header: Optional[dict], *, check_height: bool = True) -> bool:
         if header is None:
             return False
         height = header['block_height']
@@ -669,34 +729,3 @@ class Blockchain(Logger):
             target = self.get_target(index)
             cp.append((h, target))
         return cp
-
-
-def check_header(header: dict) -> Optional[Blockchain]:
-    """Returns any Blockchain that contains header, or None."""
-    if type(header) is not dict:
-        return None
-    with blockchains_lock: chains = list(blockchains.values())
-    for b in chains:
-        if b.check_header(header):
-            return b
-    return None
-
-
-def can_connect(header: dict) -> Optional[Blockchain]:
-    """Returns the Blockchain that has a tip that directly links up
-    with header, or None.
-    """
-    with blockchains_lock: chains = list(blockchains.values())
-    for b in chains:
-        if b.can_connect(header):
-            return b
-    return None
-
-
-def get_chains_that_contain_header(height: int, header_hash: str) -> Sequence[Blockchain]:
-    """Returns a list of Blockchains that contain header, best chain first."""
-    with blockchains_lock: chains = list(blockchains.values())
-    chains = [chain for chain in chains
-              if chain.check_hash(height=height, header_hash=header_hash)]
-    chains = sorted(chains, key=lambda x: x.get_chainwork(), reverse=True)
-    return chains
