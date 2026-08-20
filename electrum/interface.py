@@ -235,14 +235,14 @@ class NotificationSession(RPCSession):
         # note: multiple Synchronizers (from different Wallet objects) might sub to the same key,
         #       hence subscriptions map key->list[queue]
         self.subscriptions[key].append(queue)
-        if key in self.subs_cache:
-            result = self.subs_cache[key]
-        else:
+        if key not in self.subs_cache:
             # note: until subs_cache is written for the first time,
             #       each 'subscribe' call might make a request on the network.
             result = await self.send_request(method, params)
-            self.subs_cache[key] = result
-        await queue.put(params + [result])
+            # don't override what was already set in handle_request, it might be newer than the send_request response
+            if key not in self.subs_cache:
+                self.subs_cache[key] = result
+        await queue.put(params + [self.subs_cache[key]])
 
     def unsubscribe(self, queue):
         """Unsubscribe a callback to free object references to enable GC."""
