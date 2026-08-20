@@ -60,8 +60,8 @@ source.exclude_patterns = Makefile,setup*,
     packages/frozenlist-*.dist-info/*
 
 # (str) Application versioning (method 1)
-version.regex = ELECTRUM_VERSION = '(.*)'
-version.filename = %(source.dir)s/electrum/version.py
+#version.regex = ELECTRUM_VERSION = '(.*)'
+#version.filename = %(source.dir)s/electrum/version.py
 
 # (str) Application versioning (method 2)
 #version = 1.9.8
