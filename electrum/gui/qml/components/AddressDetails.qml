@@ -99,8 +99,17 @@ Pane {
                     color: Material.accentColor
                 }
 
-                Label {
-                    text: addressdetails.numTx
+                RowLayout{
+                    Label {
+                        text: addressdetails.numTx
+                    }
+
+                    Label {
+                        visible: addressdetails.numTx
+                        text: '(<a href="#">' + qsTr("show...") + '</a>)'
+                        textFormat: Text.StyledText
+                        onLinkActivated: app.stack.push(Qt.resolvedUrl('AddressHistory.qml'), { address: root.address })
+                    }
                 }
 
                 Label {
