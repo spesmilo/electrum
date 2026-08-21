@@ -6,6 +6,9 @@
 
 from typing import TYPE_CHECKING, Mapping, Optional
 
+from electrum import crandom
+from electrum.crandom import CRANDOM_FEEDER_API
+
 if TYPE_CHECKING:
     from . import qt
     from electrum.simple_config import SimpleConfig
@@ -20,7 +23,13 @@ class BaseElectrumGui:
         self.plugins = plugins
 
     def main(self) -> None:
-        raise NotImplementedError()
+        """Main entry point to GUI. Normally this launches a GUI event loop and 'blocks' this thread.
+        The application will start to gracefully exit after this returns.
+        """
+        # Feed clock into crandom (again). This measures how long it took to create the GUI object.
+        crandom.rand_add_refresh()
+        # collect some GUI state as well:
+        self.rand_add_gui_static_env(crandom.feed_entropy)
 
     def stop(self) -> None:
         """Stops the GUI.
@@ -31,3 +40,9 @@ class BaseElectrumGui:
     @classmethod
     def version_info(cls) -> Mapping[str, Optional[str]]:
         return {}
+
+    def rand_add_gui_static_env(self, feed: CRANDOM_FEEDER_API) -> None:
+        """Gather non-cryptographic environment data, specific to the GUI, and feed that into crandom.
+        Never raises.
+        """
+        pass
