@@ -356,8 +356,12 @@ def describe_os_version() -> str:
 def get_git_version() -> Optional[str]:
     dir = os.path.dirname(os.path.realpath(__file__))
     try:
+        # note: this searches $PATH and perhaps $PWD for an executable named "git".  attack surface?
         version = subprocess.check_output(
-            ['git', 'describe', '--always', '--dirty'], cwd=dir)
+            ['git', 'describe', '--always', '--dirty'],
+            cwd=dir,
+            timeout=0.1,  # seconds
+        )
         version = str(version, "utf8").strip()
     except Exception:
         version = None
