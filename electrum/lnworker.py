@@ -1063,7 +1063,7 @@ class LNWallet(Logger):
         self._channel_sending_capacity_lock = asyncio.Lock()
 
         # detect inflight payments
-        self.inflight_payments = set()        # (not persisted) keys of invoices that are in PR_INFLIGHT state
+        self.inflight_payments = set()  # type: set[str]  # (not persisted) keys of invoices that are in PR_INFLIGHT state
         for payment_hash in self.get_payments(status='inflight').keys():
             self.set_invoice_status(payment_hash.hex(), PR_INFLIGHT)
 
@@ -1907,7 +1907,7 @@ class LNWallet(Logger):
         invoice_features = lnaddr.get_features()
         r_tags = lnaddr.get_routing_info('r')
         amount_to_pay = lnaddr.get_amount_msat()
-        status = self.get_payment_status(payment_hash, direction=SENT)
+        status = self.get_invoice_status(invoice)
         if status == PR_PAID:
             raise PaymentFailure(_("This invoice has been paid already"))
         if status == PR_INFLIGHT:
@@ -1931,7 +1931,7 @@ class LNWallet(Logger):
         if attempts is None and self.uses_trampoline():
             # we don't expect lots of failed htlcs with trampoline, so we can fail sooner
             attempts = 30
-        success = False
+        success, reason = False, _("unknown")
         try:
             await self.pay_to_node(
                 node_pubkey=invoice_pubkey,
@@ -1947,20 +1947,17 @@ class LNWallet(Logger):
                 budget=budget,
             )
             success = True
-        except PaymentFailure as e:
-            self.logger.info(f'payment failure: {e!r}')
-            reason = str(e)
-        except ChannelDBNotLoaded as e:
+        except (PaymentFailure, ChannelDBNotLoaded) as e:
             self.logger.info(f'payment failure: {e!r}')
             reason = str(e)
         finally:
             self.logger.info(f"pay_invoice ending session for RHASH={payment_hash.hex()}. {success=}")
-        if success:
-            self.set_invoice_status(key, PR_PAID)
-            util.trigger_callback('payment_succeeded', self.wallet, key)
-        else:
-            self.set_invoice_status(key, PR_UNPAID)
-            util.trigger_callback('payment_failed', self.wallet, key, reason)
+            if success:
+                self.set_invoice_status(key, PR_PAID)
+                util.trigger_callback('payment_succeeded', self.wallet, key)
+            else:
+                self.set_invoice_status(key, PR_UNPAID)  # allows retries (unless there are still unresolved htlcs)
+                util.trigger_callback('payment_failed', self.wallet, key, reason)
         log = self.logs[key]
         return success, log
 
