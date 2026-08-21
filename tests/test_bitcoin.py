@@ -763,6 +763,19 @@ class Test_xprv_xpub(ElectrumTestCase):
         self.assertEqual(bytes.fromhex("03f18e53f3386a5f9a9d2c369ad3b84b429eb397b4bc69ce600f2d833b54ba32f4"),
                          bip32node2.eckey.get_public_key_bytes(compressed=True))
 
+    def test_bip32_from_xkey_private_key_bad_prefix(self):
+        # A private extended key's key field must be 0x00 || ser256(k).
+        for invalid in (
+            # BIP32 test vector 5: prvkey version / pubkey mismatch
+            "xprv9s21ZrQH143K24Mfq5zL5MhWK9hUhhGbd45hLXo2Pq2oqzMMo63oStZzFGTQQD3dC4H2D5GBj7vWvSQaaBv5cxi9gafk7NF3pnBju6dwKvH"
+            # BIP32 test vector 5: invalid prvkey prefix 04
+            "xprv9s21ZrQH143K24Mfq5zL5MhWK9hUhhGbd45hLXo2Pq2oqzMMo63oStZzFGpWnsj83BHtEy5Zt8CcDr1UiRXuWCmTQLxEK9vbz5gPstX92JQ",
+            # BIP32 test vector 5: invalid prvkey prefix 01
+            "xprv9s21ZrQH143K24Mfq5zL5MhWK9hUhhGbd45hLXo2Pq2oqzMMo63oStZzFAzHGBP2UuGCqWLTAPLcMtD9y5gkZ6Eq3Rjuahrv17fEQ3Qen6J",
+        ):
+            with self.assertRaises(BitcoinException):
+                BIP32Node.from_xkey(invalid)
+
     def test_is_bip32_derivation(self):
         self.assertTrue(is_bip32_derivation("m/0'/1"))
         self.assertTrue(is_bip32_derivation("m/0'/0'"))
