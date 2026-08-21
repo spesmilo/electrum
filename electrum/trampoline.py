@@ -29,6 +29,7 @@ from .lntransport import LNPeerAddr
 from . import constants
 from .logging import get_logger
 from .util import random_shuffled_copy
+from . import crandom
 
 if TYPE_CHECKING:
     from .lnchannel import Channel
@@ -444,7 +445,7 @@ def create_trampoline_onion(
         hops_data[index] = dataclasses.replace(hops_data[index], payload=payload)
         _logger.debug(f"Using {len(routing_info_to_use)} of {len(invoice_routing_info)} r_tags")
 
-    trampoline_session_key = os.urandom(32)
+    trampoline_session_key = crandom.get_rand_bytes(32)
     trampoline_onion = new_onion_packet(payment_path_pubkeys, trampoline_session_key, hops_data, associated_data=payment_hash, trampoline=True)
     trampoline_onion = dataclasses.replace(
         trampoline_onion,

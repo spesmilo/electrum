@@ -29,6 +29,7 @@ from .crypto import sha256, ripemd
 from .bitcoin import (script_to_p2wsh, opcodes, dust_threshold, DummyAddress, construct_witness,
                       construct_script, address_to_script)
 from . import bitcoin
+from . import crandom
 from .transaction import (
     PartialTxInput, PartialTxOutput, PartialTransaction, Transaction, TxInput, TxOutpoint, script_GetOp,
     match_script_against_template, OPPushDataGeneric, OPPushDataPubkey, TxOutput,
@@ -760,7 +761,7 @@ class SwapManager(Logger):
         locktime = self.network.get_local_height() + LOCKTIME_DELTA_REFUND
         if self.network.blockchain().is_tip_stale():
             raise Exception("our blockchain tip is stale")
-        our_privkey = os.urandom(32)
+        our_privkey = crandom.get_rand_bytes(32)
         our_pubkey = ECPrivkey(our_privkey).get_public_key_bytes(compressed=True)
         onchain_amount_sat = self._get_recv_amount(lightning_amount_sat, is_reverse=True) # what the client is going to receive
         if not onchain_amount_sat:
@@ -874,12 +875,12 @@ class SwapManager(Logger):
         locktime = self.network.get_local_height() + LOCKTIME_DELTA_REFUND
         if self.network.blockchain().is_tip_stale():
             raise Exception("our blockchain tip is stale")
-        privkey = os.urandom(32)
+        privkey = crandom.get_rand_bytes(32)
         our_pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
         onchain_amount_sat = self._get_send_amount(lightning_amount_sat, is_reverse=False)
         if not onchain_amount_sat:
             raise Exception("no onchain amount")
-        preimage = os.urandom(32)
+        preimage = crandom.get_rand_bytes(32)
         payment_hash = sha256(preimage)
         redeem_script = _construct_swap_scriptcode(
             payment_hash=payment_hash,
@@ -1021,7 +1022,7 @@ class SwapManager(Logger):
         self._sanity_check_swap_costs(
             incoming_sat=lightning_amount_sat, outgoing_sat=expected_onchain_amount_sat)
         await self.is_initialized.wait() # add timeout
-        refund_privkey = os.urandom(32)
+        refund_privkey = crandom.get_rand_bytes(32)
         refund_pubkey = ECPrivkey(refund_privkey).get_public_key_bytes(compressed=True)
         self.logger.info('requesting preimage hash for swap')
         request_data = {
@@ -1224,9 +1225,9 @@ class SwapManager(Logger):
         assert self.lnwatcher
         self._sanity_check_swap_costs(incoming_sat=expected_onchain_amount_sat, outgoing_sat=lightning_amount_sat)
         self._sanity_check_prepayment(prepayment_sat=prepayment_sat, lightning_amount_sat=lightning_amount_sat)
-        privkey = os.urandom(32)
+        privkey = crandom.get_rand_bytes(32)
         our_pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
-        preimage = os.urandom(32)
+        preimage = crandom.get_rand_bytes(32)
         payment_hash = sha256(preimage)
         request_data = {
             "type": "reversesubmarine",
