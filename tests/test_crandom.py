@@ -1,4 +1,5 @@
 import hashlib
+import time
 from unittest import mock
 
 from electrum import crandom
@@ -7,6 +8,10 @@ from . import ElectrumTestCase
 from .test_wallet_vertical import UNICODE_HORROR
 
 class TestCRandom(ElectrumTestCase):
+
+    def setUp(self):
+        super().setUp()
+        crandom._rng._last_strengthened = time.monotonic()  # disable periodic strengthen() calls
 
     def test_feed_entropy_naive(self):
         def run():

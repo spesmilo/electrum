@@ -23,10 +23,12 @@
 import hashlib
 import os
 import threading
+import time
 from typing import Callable
 import zlib
 
 from . import crandom_env
+from .logging import Logger
 
 
 # Check that os.urandom works
@@ -43,11 +45,13 @@ def sha512(x: bytes) -> bytes:
 CRANDOM_FEEDER_API = Callable[[bytes | str | int], None]
 
 
-class RNGState:
+class RNGState(Logger):
 
     def __init__(self):
-        self.lock = threading.Lock()
+        Logger.__init__(self)
+        self.lock = threading.RLock()
         self._state = os.urandom(32)  # secret!  access needs lock.
+        self._last_strengthened = 0
         # gather ghetto-entropy:
         self.rand_add_refresh()  # clock
         crandom_env.rand_add_static_env(self.feed_entropy)
@@ -93,6 +97,13 @@ class RNGState:
         Never raises.
         """
         with self.lock:
+            now = time.monotonic()
+            if self._last_strengthened == 0:  # on first invocation, do some work
+                self._last_strengthened = now
+                self._strengthen(0.1)  # 100 ms
+            elif now - self._last_strengthened > 60:  # been more than 1 minute
+                self._last_strengthened = now
+                self._strengthen(0)    # single hash-loop
             fresh_entropy = os.urandom(32)
             h = sha512(fresh_entropy + self._state)
             out, self._state = h[0:32], h[32:64]
@@ -139,6 +150,28 @@ class RNGState:
         while ri >= upper_bound:
             ri = self._get_rand_bits(nbits)
         return ri
+
+    def _strengthen(self, duration_sec: float | int) -> None:
+        """Extract some random bytes, repeatedly hash it using SHA512, and then feed it back.
+
+        This sort of mimics the iteration count of a KDF: an attacker trying to bruteforce/enumerate
+        the possible internal states, e.g. due to broken (low-entropy) randomness,
+        has to re-do this hashing for each attempt.
+
+        Never raises.
+        """
+        self.logger.info(f"starting strengthen for {duration_sec} sec")
+        self.rand_add_refresh()  # clock
+        xhash = self._mix_extract()
+        t0 = time.monotonic()
+        cnt = 0
+        while cnt == 0 or time.monotonic() - t0 < duration_sec:
+            for _i in range(1000):
+                cnt += 1
+                xhash = sha512(xhash)
+        self.rand_add_refresh()  # clock again
+        self.feed_entropy(xhash)
+        self.logger.info(f"finished strengthen. iter count: {cnt:_}")
 
 
 _rng = RNGState()
