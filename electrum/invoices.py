@@ -1,6 +1,6 @@
 import time
-from typing import TYPE_CHECKING, List, Optional, Union, Dict, Any, Sequence
-from decimal import Decimal
+from functools import cached_property
+from typing import List, Optional, Union, Dict, Any, Sequence
 
 import attr
 
@@ -8,11 +8,11 @@ from .stored_dict import StoredObject, stored_at
 from .i18n import _
 from .util import age, InvoiceError, format_satoshis
 from .bip21 import create_bip21_uri
-from .lnutil import hex_to_bytes
+from .lnutil import hex_to_bytes, RoutingInfo, BlindedRoutingInfo, UnblindedRoutingInfo, LnFeatures, get_final_cltv_offset
+from .lnonion import BlindedPathInfo
 from .bolt11 import decode_bolt11_invoice, BOLT11Addr
-from . import constants
+from .bolt12 import BOLT12Invoice
 from .bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
-from .bitcoin import address_to_script
 from .transaction import PartialTxOutput
 from .crypto import sha256d
 
@@ -209,17 +209,19 @@ class BaseInvoice(StoredObject):
 
     @classmethod
     def from_bech32(cls, invoice: str) -> 'Invoice':
-        """Constructs Invoice object from BOLT-11 string.
+        """Constructs Invoice object from BOLT-11 or BOLT-12 string.
         Might raise InvoiceError.
         """
+        is_bolt12 = invoice.startswith('lni')
         try:
-            lnaddr = decode_bolt11_invoice(invoice)
+            inv_obj = BOLT12Invoice.decode(invoice) if is_bolt12 else decode_bolt11_invoice(invoice)
         except Exception as e:
             raise InvoiceError(e) from e
-        amount_msat = lnaddr.get_amount_msat()
-        timestamp = lnaddr.date
-        exp_delay = lnaddr.get_expiry()
-        message = lnaddr.get_description()
+        assert isinstance(inv_obj, BOLT12Invoice if is_bolt12 else BOLT11Addr)
+        amount_msat = inv_obj.invoice_amount if is_bolt12 else inv_obj.get_amount_msat()
+        timestamp = inv_obj.invoice_created_at if is_bolt12 else inv_obj.date
+        exp_delay = inv_obj.invoice_relative_expiry if is_bolt12 else inv_obj.get_expiry()
+        message = inv_obj.offer_description if is_bolt12 else inv_obj.get_description()
         return Invoice(
             message=message,
             amount_msat=amount_msat,
@@ -257,11 +259,15 @@ class BaseInvoice(StoredObject):
 @attr.s
 class Invoice(BaseInvoice):
     lightning_invoice = attr.ib(type=str, kw_only=True)  # type: Optional[str]
-    __lnaddr = None
     _broadcasting_status = None # can be None or PR_BROADCASTING or PR_BROADCAST
 
     def is_lightning(self):
         return self.lightning_invoice is not None
+
+    def set_amount_msat(self, amount_msat: Union[int, str]) -> None:
+        if self.bolt12_invoice and amount_msat != self.bolt12_invoice.invoice_amount:
+            raise Exception("cannot overwrite bolt12 invoice amount, request correct invoice beforehand")
+        super().set_amount_msat(amount_msat)
 
     def get_broadcasting_status(self):
         return self._broadcasting_status
@@ -271,35 +277,102 @@ class Invoice(BaseInvoice):
         if self.outputs:
             address = self.outputs[0].address if len(self.outputs) > 0 else None
         if not address and self.is_lightning():
-            address = self._lnaddr.get_fallback_address() or None
+            address = self.get_lightning_fallback_address()
         return address
 
+    def get_lightning_fallback_address(self) -> Optional[str]:
+        assert self.is_lightning()
+        if bolt12 := self.bolt12_invoice:
+            return bolt12.fallback_address
+        return self.bolt11_invoice.get_fallback_address() or None
+
     @property
-    def _lnaddr(self) -> BOLT11Addr:
-        if self.__lnaddr is None:
-            self.__lnaddr = decode_bolt11_invoice(self.lightning_invoice)
-        return self.__lnaddr
+    def bolt12_invoice(self) -> Optional['BOLT12Invoice']:
+        inv = self._decoded_invoice
+        return inv if isinstance(inv, BOLT12Invoice) else None
+
+    @property
+    def bolt11_invoice(self) -> Optional['BOLT11Addr']:
+        inv = self._decoded_invoice
+        return inv if isinstance(inv, BOLT11Addr) else None
+
+    @cached_property
+    def _decoded_invoice(self) -> Optional['BOLT12Invoice | BOLT11Addr']:
+        # _ prefix is necessary to prevent JsonDB from attempting to persist the cached attribute
+        if not self.lightning_invoice:
+            return None
+        if self.lightning_invoice.startswith('lni'):
+            return BOLT12Invoice.decode(self.lightning_invoice)
+        return decode_bolt11_invoice(self.lightning_invoice)
+
+    @property
+    def features(self) -> LnFeatures:
+        if b11 := self.bolt11_invoice:
+            return b11.get_features()
+        if b12 := self.bolt12_invoice:
+            return b12.invoice_features or LnFeatures(0)
+        raise AssertionError(self)
+
+    @property
+    def payment_hash(self) -> bytes:
+        if b11 := self.bolt11_invoice:
+            assert b11.paymenthash
+            return b11.paymenthash
+        if b12 := self.bolt12_invoice:
+            return b12.invoice_payment_hash
+        raise AssertionError(self)
 
     @property
     def rhash(self) -> str:
+        return self.payment_hash.hex()
+
+    @property
+    def issuer_pubkey(self) -> Optional[str]:
         assert self.is_lightning()
-        return self._lnaddr.paymenthash.hex()
+        if b11 := self.bolt11_invoice:
+            return b11.pubkey.serialize().hex()
+        # Note: b12 invoice_node_id can be blinded, so showing it to the user could be potentially misleading
+        return self.bolt12_invoice.invoice_node_id.hex()
+
+    def get_routing_info(self) -> 'RoutingInfo':
+        assert self.is_lightning(), self
+        if b12 := self.bolt12_invoice:
+            return BlindedRoutingInfo(
+                paths=tuple(
+                    BlindedPathInfo(path=path, payinfo=payinfo)
+                        for path, payinfo in zip(b12.invoice_paths, b12.invoice_blindedpay)
+                ),
+                invoice_features=b12.invoice_features or LnFeatures(0),
+                final_cltv_delta=get_final_cltv_offset(),
+            )
+        else:
+            b11 = self.bolt11_invoice
+            final_cltv_delta = b11.get_min_final_cltv_delta() + get_final_cltv_offset()
+            return UnblindedRoutingInfo(
+                node_pubkey=b11.pubkey.serialize(),
+                r_tags=b11.get_routing_info('r'),
+                payment_secret=b11.payment_secret,
+                final_cltv_delta=final_cltv_delta,
+                invoice_features=b11.get_features(),
+            )
 
     @lightning_invoice.validator
     def _validate_invoice_str(self, attribute, value):
         if value is not None:
-            lnaddr = decode_bolt11_invoice(value)  # this checks the str can be decoded
-            self.__lnaddr = lnaddr    # save it, just to avoid having to recompute later
+            if value.startswith('lni'):
+                assert isinstance(self.bolt12_invoice, BOLT12Invoice)
+            else:
+                assert isinstance(self.bolt11_invoice, BOLT11Addr)
 
     def can_be_paid_onchain(self) -> bool:
         if self.is_lightning():
-            return bool(self._lnaddr.get_fallback_address()) or (bool(self.outputs))
+            return bool(self.get_lightning_fallback_address()) or (bool(self.outputs))
         else:
             return True
 
     def to_debug_json(self) -> Dict[str, Any]:
         d = self.to_json()
-        d["lnaddr"] = self._lnaddr.to_debug_json()
+        d["lnaddr"] = self.bolt11_invoice.to_debug_json() if self.bolt11_invoice else self.bolt12_invoice.serialize(with_signature=True)
         return d
 
 

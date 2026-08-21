@@ -7,29 +7,32 @@ import logging
 from functools import partial
 from unittest.mock import patch
 from aiorpcx import NetAddress
+from typing import Callable
 
 import electrum_ecc as ecc
 from electrum_ecc import ECPrivkey
 
-from electrum import SimpleConfig
+from electrum import SimpleConfig, lnpeer
 from electrum.lnmsg import decode_msg, OnionWireSerializer
 from electrum.lnonion import (
     OnionHopsDataSingle, OnionPacket, process_onion_packet, get_bolt04_onion_key, encrypt_onionmsg_data_tlv,
     get_shared_secrets_along_route, new_onion_packet, ONION_MESSAGE_LARGE_SIZE, HOPS_DATA_SIZE, InvalidPayloadSize,
-    encrypt_hops_recipient_data, blinding_privkey, decrypt_onionmsg_data_tlv)
+    encrypt_hops_recipient_data, blinding_privkey, decrypt_onionmsg_data_tlv, BlindedPath)
 from electrum.crypto import get_ecdh, privkey_to_pubkey
+from electrum.channel_db import NodeInfo
 from electrum.lntransport import LNPeerAddr
 from electrum.lnutil import (LnFeatures, Keypair, MIN_FINAL_CLTV_DELTA_ACCEPTED, REMOTE,
                              MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE)
 from electrum.onion_message import (
-    create_blinded_path, OnionMessageManager, NoRouteFound, Timeout,
+    create_blinded_path, OnionMessageManager, NoRouteFound, Timeout, DestinationState,
     create_route_to_introduction_point, get_blinded_paths_to_me, NoOnionMessagePeers
 )
-from electrum.util import bfh, read_json_file, OldTaskGroup, get_asyncio_loop
+from electrum.util import bfh, read_json_file, OldTaskGroup, get_asyncio_loop, wait_for2, now
 from electrum.logging import console_stderr_handler
 
 from . import ElectrumTestCase
-from .test_lnpeer import TestPeer, inject_chan_into_gossipdb
+from .lnhelpers import PeerInTests, transport_pair
+from .test_lnpeer import TestPeer, inject_chan_into_gossipdb, SuccessfulTest
 
 
 TIME_STEP = 0.01  # run tests 100 x faster
@@ -38,6 +41,14 @@ OnionMessageManager.REQUEST_REPLY_TIMEOUT *= TIME_STEP
 OnionMessageManager.REQUEST_REPLY_RETRY_DELAY *= TIME_STEP
 OnionMessageManager.FORWARD_RETRY_TIMEOUT *= TIME_STEP
 OnionMessageManager.FORWARD_RETRY_DELAY *= TIME_STEP
+
+
+async def wait_until(condition: Callable, *, timeout=100 * TIME_STEP):
+    """wait until condition() is True (or raise TimeoutError)"""
+    async def poll():
+        while not condition():
+            await asyncio.sleep(TIME_STEP)
+    await wait_for2(poll(), timeout)
 
 # test vectors https://github.com/lightning/bolts/pull/759/files
 path = os.path.join(os.path.dirname(__file__), 'blinded-onion-message-onion-test.json')
@@ -164,17 +175,9 @@ class TestOnionMessage(ElectrumTestCase):
     def test_decrypt_onion_message(self):
         o = OnionPacket.from_bytes(ONION_MESSAGE_PACKET)
         our_privkey = bfh(test_vectors['decrypt']['hops'][0]['privkey'])
-        blinding = bfh(test_vectors['route']['first_path_key'])
+        path_key = bfh(test_vectors['route']['first_path_key'])
 
-        shared_secret = get_ecdh(our_privkey, blinding)
-        b_hmac = get_bolt04_onion_key(b'blinded_node_id', shared_secret)
-        b_hmac_int = int.from_bytes(b_hmac, byteorder="big")
-
-        our_privkey_int = int.from_bytes(our_privkey, byteorder="big")
-        our_privkey_int = our_privkey_int * b_hmac_int % ecc.CURVE_ORDER
-        our_privkey = our_privkey_int.to_bytes(32, byteorder="big")
-
-        p = process_onion_packet(o, our_privkey, tlv_stream_name='onionmsg_tlv')
+        p = process_onion_packet(o, our_privkey, tlv_stream_name='onionmsg_tlv', current_path_key=path_key)
 
         self.assertEqual(p.hop_data.blind_fields, {})
         self.assertEqual(p.hop_data.hmac, bfh('a5296325ba478ba1e1a9d1f30a2d5052b2e2889bbd64f72c72bc71d8817288a2'))
@@ -191,8 +194,8 @@ class TestOnionMessage(ElectrumTestCase):
         })
 
     def test_blinding_privkey(self):
-        a = blinding_privkey(bfh('4141414141414141414141414141414141414141414141414141414141414141'),
-                             bfh('031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f'))
+        a = blinding_privkey(bfh('4141414141414141414141414141414141414141414141414141414141414141'),  # privkey
+                             bfh('16a5d6594dbaa363305952ed9354fa9c38ddda718d218c5da6be19f0eaa11613'))  # shared secret
         self.assertEqual(a, bfh('7e959bf6bdd3a98caf26cbbee7b69678381d5fa2882c6c12eb2042c2367264b0'))
 
     def test_create_blinded_path(self):
@@ -201,14 +204,14 @@ class TestOnionMessage(ElectrumTestCase):
         final_recipient_data = {'path_id': {'data': bfh('0102')}}
         rp = create_blinded_path(session_key, [pubkey], final_recipient_data)
 
-        self.assertEqual(pubkey, rp['first_node_id'])
-        self.assertEqual(bfh('022ed557f5ad336b31a49857e4e9664954ac33385aa20a93e2d64bfe7f08f51277'), rp['first_path_key'])
-        self.assertEqual(b"\x01", rp['num_hops'])
+        self.assertEqual(pubkey, rp.first_node_id)
+        self.assertEqual(bfh('022ed557f5ad336b31a49857e4e9664954ac33385aa20a93e2d64bfe7f08f51277'), rp.first_path_key)
+        self.assertEqual(b"\x01", rp.num_hops)
         self.assertEqual([{
             'blinded_node_id': bfh('031e5d91e6c417f6e8c16d1086db1887edef7be9334f5e744d04edb8da7507481e'),
             'enclen': 20,
             'encrypted_recipient_data': bfh('2dbaa54a819775aa0548ab85db68c5099e7b1180')
-        }], rp['path'])
+        }], [dataclasses.asdict(p) for p in rp.path])
 
         # TODO: serialization test to test_lnmsg.py
         with io.BytesIO() as blinded_path_fd:
@@ -216,7 +219,7 @@ class TestOnionMessage(ElectrumTestCase):
                 fd=blinded_path_fd,
                 field_type='blinded_path',
                 count=1,
-                value=rp)
+                value=dataclasses.asdict(rp))
             blinded_path = blinded_path_fd.getvalue()
         self.assertEqual(blinded_path, bfh('02eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619022ed557f5ad336b31a49857e4e9664954ac33385aa20a93e2d64bfe7f08f5127701031e5d91e6c417f6e8c16d1086db1887edef7be9334f5e744d04edb8da7507481e00142dbaa54a819775aa0548ab85db68c5099e7b1180'))
 
@@ -248,10 +251,10 @@ class TestOnionMessage(ElectrumTestCase):
         encrypt_hops_recipient_data(hops_data, hop_shared_secrets)
 
         blinded_path_blinded_ids = []
-        for i, x in enumerate(blinded_path_to_dave.get('path')):
-            blinded_path_blinded_ids.append(x.get('blinded_node_id'))
-            payload = {'encrypted_recipient_data': {'encrypted_recipient_data': x.get('encrypted_recipient_data')}}
-            if i == len(blinded_path_to_dave.get('path')) - 1:
+        for i, x in enumerate(blinded_path_to_dave.path):
+            blinded_path_blinded_ids.append(x.blinded_node_id)
+            payload = {'encrypted_recipient_data': {'encrypted_recipient_data': x.encrypted_recipient_data}}
+            if i == len(blinded_path_to_dave.path) - 1:
                 # add final recipient payload
                 payload['message'] = {'text': bfh(test_vectors['onionmessage']['unknown_tag_1'])}
             hops_data.append(
@@ -269,7 +272,6 @@ class MockNetwork:
         self.asyncio_loop = get_asyncio_loop()
         self.taskgroup = OldTaskGroup()
         self.config = SimpleConfig()
-        self.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS = True
 
 
 ONION_MESSAGE_CAPABLE_PEER_FEATURES = LnFeatures(LnFeatures.OPTION_ONION_MESSAGE_OPT)
@@ -279,6 +281,8 @@ class MockPeer:
         self.pubkey = pubkey
         self.on_send_message = on_send_message
         self.their_features = their_features
+        self.initialized = asyncio.Future()
+        self.initialized.set_result(True)
 
     async def wait_one_htlc_switch_iteration(self, *args):
         pass
@@ -286,7 +290,7 @@ class MockPeer:
     def is_initialized(self):
         return True
 
-    def send_message(self, *args, **kwargs):
+    def send_onion_message(self, *args, **kwargs):
         if self.on_send_message:
             self.on_send_message(*args, **kwargs)
 
@@ -311,6 +315,17 @@ class TestOnionMessageManager(ElectrumTestCase):
         self.dave = keypair(ECPrivkey(privkey_bytes=b'\x44'*32))
         self.eve = keypair(ECPrivkey(privkey_bytes=b'\x45'*32))
         self.fred = keypair(ECPrivkey(privkey_bytes=b'\x46'*32))
+        self.gerald = keypair(ECPrivkey(privkey_bytes=b'\x47'*32))
+        self.harry = keypair(ECPrivkey(privkey_bytes=b'\x48'*32))
+        self.ivan = keypair(ECPrivkey(privkey_bytes=b'\x49'*32))
+
+    async def run_test_exception(self, t):
+        t1 = t.submit_send(
+            payload={'message': {'text': 'no_onionmsg_peers'.encode('utf-8')}},
+            node_id_or_blinded_paths=self.harry.pubkey)
+
+        with self.assertRaises(NoOnionMessagePeers):
+            await t1
 
     async def run_test1(self, t):
         t1 = t.submit_send(
@@ -347,13 +362,49 @@ class TestOnionMessageManager(ElectrumTestCase):
         self.assertEqual(t4_result, ({'path_id': {'data': b'electrum' + rkey}}, {}))
 
     async def run_test5(self, t):
-        t5 = t.submit_send(
-            payload={'message': {'text': 'no_peer'.encode('utf-8')}},
+        lnw = t.lnwallet
+        self.assertFalse(self.eve.pubkey in lnw.lnpeermgr.peers)
+
+        lnw.config.ONION_MESSAGE_OPEN_DIRECT_CONNECTIONS = True
+        t5_1 = t.submit_send(
+            payload={'message': {'text': 'no_route_peer_address_known'.encode('utf-8')}},
             node_id_or_blinded_paths=self.eve.pubkey)
 
+        with self.assertRaises(Timeout) as c:
+            await t5_1
+
+        self.assertTrue(self.eve.pubkey in lnw.lnpeermgr.peers)
+        del lnw.lnpeermgr._peers[self.eve.pubkey]
+
+        t5_2 = t.submit_send(
+            payload={'message': {'text': 'no_route_no_peer_address'.encode('utf-8')}},
+            node_id_or_blinded_paths=self.gerald.pubkey)
+
+        # will not find route to gerald, and doesn't have gerald's address
+        with self.assertRaises(NoRouteFound) as c:
+            await t5_2
+
+        self.assertIsNone(c.exception.peer_address)
+
+        # no route/addr for first target, addr for second target
+        t5_3 = t.submit_send(
+            payload={'message': {'text': 'multiple_destinations_peer_addr_for_one'.encode('utf-8')}},
+            node_id_or_blinded_paths=[self.gerald.pubkey, self.eve.pubkey])
+
+        with self.assertRaises(Timeout) as c:
+            await t5_3
+
+        self.assertTrue(self.eve.pubkey in lnw.lnpeermgr.peers)
+        del lnw.lnpeermgr._peers[self.eve.pubkey]
+
+        lnw.config.ONION_MESSAGE_OPEN_DIRECT_CONNECTIONS = False
+        t5_4 = t.submit_send(
+            payload={'message': {'text': 'no_route_peer_address_known_but_ignored'.encode('utf-8')}},
+            node_id_or_blinded_paths=self.eve.pubkey)
         # will not find route to eve, but has eve's address, but we are configured to not direct connect
         with self.assertRaises(NoRouteFound) as c:
-            await t5
+            await t5_4
+
         self.assertEqual(c.exception.peer_address, LNPeerAddr('localhost', 1234, self.eve.pubkey))
 
     async def run_test6(self, t, rkey):
@@ -367,6 +418,29 @@ class TestOnionMessageManager(ElectrumTestCase):
         t6_result = await t6
         self.assertEqual(t6_result, ({'path_id': {'data': b'electrum' + rkey}}, {}))
 
+    async def run_test7(self, t):
+        """test we use the fallback address for a peer if a previous message succeeded but a subsequent attempt failed"""
+        lnw = t.lnwallet
+        lnw.config.ONION_MESSAGE_OPEN_DIRECT_CONNECTIONS = True
+        lnw.lnpeermgr._peers[self.ivan.pubkey] = MockPeer(self.ivan.pubkey)
+        lnw.channel_db._addresses[self.ivan.pubkey] = {NetAddress('localhost', '4321'): int(time.time())}
+
+        t7 = t.submit_send(
+            payload={'message': {'text': 'sent_then_route_breaks'.encode('utf-8')}},
+            node_id_or_blinded_paths=self.ivan.pubkey)
+
+        # let the first send succeed via the connected peer, then break the route
+        await asyncio.sleep(2*TIME_STEP)
+        del lnw.lnpeermgr._peers[self.ivan.pubkey]
+
+        with self.assertRaises(Timeout):
+            await t7
+
+        # the retries should have picked the address and opened a direct connection
+        self.assertTrue(self.ivan.pubkey in lnw.lnpeermgr.peers)
+        del lnw.lnpeermgr._peers[self.ivan.pubkey]
+        lnw.config.ONION_MESSAGE_OPEN_DIRECT_CONNECTIONS = False
+
     async def test_request_and_reply(self):
         n = MockNetwork()
         lnw = self.create_mock_lnwallet(name='test_request_and_reply')
@@ -374,7 +448,7 @@ class TestOnionMessageManager(ElectrumTestCase):
         # mock add_peer for direct connection fallback
         async def mock__add_peer(host, port, node_id):
             mock_peer = MockPeer(pubkey=node_id)
-            # lnw.lnpeermgr._peers[node_id] = mock_peer
+            lnw.lnpeermgr._peers[node_id] = mock_peer
             return mock_peer
         lnw.lnpeermgr._add_peer = mock__add_peer
 
@@ -388,21 +462,27 @@ class TestOnionMessageManager(ElectrumTestCase):
             time.sleep(2*TIME_STEP)
             t.on_onion_message_received({'path_id': {'data': b'electrum' + key}}, {})
 
-        rkey1 = bfh('0102030405060708')
-        rkey2 = bfh('0102030405060709')
-        rkey3 = bfh('010203040506070a')
-
-        lnw.lnpeermgr._peers[self.alice.pubkey] = MockPeer(self.alice.pubkey)
-        lnw.lnpeermgr._peers[self.bob.pubkey] = MockPeer(self.bob.pubkey, on_send_message=slow)
-        lnw.lnpeermgr._peers[self.carol.pubkey] = MockPeer(self.carol.pubkey, on_send_message=partial(withreply, rkey1))
-        lnw.lnpeermgr._peers[self.dave.pubkey] = MockPeer(self.dave.pubkey, on_send_message=partial(slowwithreply, rkey2))
-        lnw.channel_db._addresses[self.eve.pubkey] = {NetAddress('localhost', '1234'): int(time.time())}
-        lnw.lnpeermgr._peers[self.fred.pubkey] = MockPeer(self.fred.pubkey, on_send_message=partial(withreply, rkey3))
         t = OnionMessageManager(lnw)
         t.start_network(network=n)
 
         try:
             await asyncio.sleep(TIME_STEP)
+
+            await self.run_test_exception(t)
+            lnw.lnpeermgr._peers[self.harry.pubkey] = MockPeer(self.harry.pubkey, their_features=LnFeatures(0))
+            await self.run_test_exception(t)
+
+            rkey1 = bfh('0102030405060708')
+            rkey2 = bfh('0102030405060709')
+            rkey3 = bfh('010203040506070a')
+
+            lnw.lnpeermgr._peers[self.alice.pubkey] = MockPeer(self.alice.pubkey)
+            lnw.lnpeermgr._peers[self.bob.pubkey] = MockPeer(self.bob.pubkey, on_send_message=slow)
+            lnw.lnpeermgr._peers[self.carol.pubkey] = MockPeer(self.carol.pubkey, on_send_message=partial(withreply, rkey1))
+            lnw.lnpeermgr._peers[self.dave.pubkey] = MockPeer(self.dave.pubkey, on_send_message=partial(slowwithreply, rkey2))
+            lnw.channel_db._addresses[self.eve.pubkey] = {NetAddress('localhost', '1234'): int(time.time())}
+            lnw.lnpeermgr._peers[self.fred.pubkey] = MockPeer(self.fred.pubkey, on_send_message=partial(withreply, rkey3))
+
             self.logger.debug('tests in sequence')
             await self.run_test1(t)
             await self.run_test2(t)
@@ -410,6 +490,7 @@ class TestOnionMessageManager(ElectrumTestCase):
             await self.run_test4(t, rkey2)
             await self.run_test5(t)
             await self.run_test6(t, rkey3)
+            await self.run_test7(t)
             self.logger.debug('tests in parallel')
             async with OldTaskGroup() as group:
                 await group.spawn(self.run_test1(t))
@@ -425,21 +506,133 @@ class TestOnionMessageManager(ElectrumTestCase):
             await t.stop()
             await lnw.stop()
 
-    async def test_forward(self):
+    async def test_get_next_destination(self):
+        req = OnionMessageManager.Request(
+            payload={'message': {'text': b'roundrobin'}},
+            node_id_or_blinded_paths=[b'\x02' * 33, b'\x03' * 33, b'\x04' * 33])
+        d1, d2, d3 = req.destinations
+        self.assertTrue(all(d.state is DestinationState.UNTRIED for d in req.destinations))
+
+        # untried destinations are cycled through
+        self.assertIs(d1, req.get_next_destination())
+        self.assertIs(d2, req.get_next_destination())
+        self.assertIs(d3, req.get_next_destination())
+        self.assertIs(d1, req.get_next_destination())
+
+        # unreachable destinations are skipped
+        d2.state = DestinationState.NOT_REACHABLE
+        self.assertIs(d3, req.get_next_destination())
+        self.assertIs(d1, req.get_next_destination())
+
+        # SENT, ADDR_KNOWN and CONNECTION_ESTABLISHED get returned
+        d1.state = DestinationState.SENT
+        d3.state = DestinationState.ADDR_KNOWN
+        self.assertIs(d3, req.get_next_destination())
+        self.assertIs(d1, req.get_next_destination())
+        d1.state = DestinationState.CONNECTION_ESTABLISHED
+        self.assertIs(d3, req.get_next_destination())
+        self.assertIs(d1, req.get_next_destination())
+
+        # only an ongoing connection attempt left
+        d1.state = DestinationState.CONNECTION_ONGOING
+        d3.state = DestinationState.NOT_REACHABLE
+        self.assertIsNone(req.get_next_destination())
+        self.assertIsNone(req.get_next_destination())
+
+        # all destinations unreachable
+        d1.state = DestinationState.NOT_REACHABLE
+        with self.assertRaises(NoRouteFound):
+            req.get_next_destination()
+
+    async def test_send_direct_connection_failure(self):
+        # if the direct connection fallback fails for all destinations, the request
+        # should fail immediately instead of idling until Timeout
+        n = MockNetwork()
+        lnw = self.create_mock_lnwallet(name='test_send_direct_connection_failure')
+        lnw.config.ONION_MESSAGE_OPEN_DIRECT_CONNECTIONS = True
+        lnw.lnpeermgr._peers[self.carol.pubkey] = MockPeer(self.carol.pubkey)  # to build reply paths
+        lnw.channel_db._addresses[self.eve.pubkey] = {NetAddress('localhost', '1234'): int(time.time())}
+        lnw.channel_db._addresses[self.fred.pubkey] = {NetAddress('localhost', '1235'): int(time.time())}
+
+        connect_attempts = []
+        async def mock__add_peer(host, port, node_id):
+            connect_attempts.append(node_id)
+            raise ConnectionRefusedError
+        lnw.lnpeermgr._add_peer = mock__add_peer
+
+        t = OnionMessageManager(lnw)
+        t.REQUEST_REPLY_TIMEOUT = 500 * TIME_STEP  # the failed connection must resolve the request, not the timeout
+        t.start_network(network=n)
+        try:
+            t1 = t.submit_send(
+                payload={'message': {'text': 'direct_connection_fails'.encode('utf-8')}},
+                node_id_or_blinded_paths=self.eve.pubkey)
+            with self.assertRaises(NoRouteFound) as c:
+                await t1
+            self.assertIn('all destinations unreachable', str(c.exception))
+            self.assertEqual([self.eve.pubkey], connect_attempts)
+            self.assertFalse(t._send_direct_connection_attempts)  # ongoing connections are cleaned up
+
+            # connection succeeds, but the peer turns out to not support onion messages
+            async def mock__add_peer_no_om(host, port, node_id):
+                mock_peer = MockPeer(node_id, their_features=LnFeatures(0))
+                lnw.lnpeermgr._peers[node_id] = mock_peer
+                return mock_peer
+            lnw.lnpeermgr._add_peer = mock__add_peer_no_om
+            t2 = t.submit_send(
+                payload={'message': {'text': 'connected_peer_without_om_support'.encode('utf-8')}},
+                node_id_or_blinded_paths=self.fred.pubkey)
+            with self.assertRaises(NoRouteFound) as c:
+                await t2
+            self.assertIn('all destinations unreachable', str(c.exception))
+            self.assertFalse(t._send_direct_connection_attempts)
+        finally:
+            await t.stop()
+            await lnw.stop()
+
+    async def test_untried_destinations_skip_retry_delay(self):
+        # with multiple destinations, the next untried destination should be tried
+        # immediately instead of after REQUEST_REPLY_RETRY_DELAY
+        n = MockNetwork()
+        lnw = self.create_mock_lnwallet(name='test_untried_destinations_skip_retry_delay')
+        rkey = os.urandom(8)
+
+        bob_sent = asyncio.Event()
+        def bob_noreply(*args, **kwargs):
+            bob_sent.set()
+
+        def fred_reply(*args, **kwargs):
+            t.on_onion_message_received({'path_id': {'data': b'electrum' + rkey}}, {})
+
+        lnw.lnpeermgr._peers[self.bob.pubkey] = MockPeer(self.bob.pubkey, on_send_message=bob_noreply)
+        lnw.lnpeermgr._peers[self.fred.pubkey] = MockPeer(self.fred.pubkey, on_send_message=fred_reply)
+
+        t = OnionMessageManager(lnw)
+        t.REQUEST_REPLY_RETRY_DELAY = 60  # large delay would time out if the delay skip doesn't work
+        t.start_network(network=n)
+        try:
+            task = t.submit_send(
+                payload={'message': {'text': 'skip_retry_delay'.encode('utf-8')}},
+                node_id_or_blinded_paths=[self.bob.pubkey, self.fred.pubkey],
+                key=rkey)
+            result = await task
+            self.assertEqual(result, ({'path_id': {'data': b'electrum' + rkey}}, {}))
+            self.assertTrue(bob_sent.is_set())
+        finally:
+            await t.stop()
+            await lnw.stop()
+
+    async def test_forward_vector(self):
         n = MockNetwork()
         lnw = self.create_mock_lnwallet(name='alice')
         lnw.node_keypair = self.alice
+        lnw.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS = True
 
-        self.was_sent = False
+        sent = asyncio.Future()
 
         def on_send(to: str, *args, **kwargs):
-            self.assertEqual(to, 'bob')
-            self.was_sent = True
-            # validate what's sent to bob
-            self.assertEqual(bfh(HOPS[1]['E']), kwargs['blinding'])
-            message_type, payload = decode_msg(bfh(test_vectors['decrypt']['hops'][1]['onion_message']))
-            self.assertEqual(message_type, 'onion_message')
-            self.assertEqual(payload['onion_message_packet'], kwargs['onion_message_packet'])
+            if not sent.done():
+                sent.set_result((to, kwargs))
 
         lnw.lnpeermgr._peers[self.bob.pubkey] = MockPeer(self.bob.pubkey, on_send_message=partial(on_send, 'bob'))
         lnw.lnpeermgr._peers[self.carol.pubkey] = MockPeer(self.carol.pubkey, on_send_message=partial(on_send, 'carol'))
@@ -453,6 +646,7 @@ class TestOnionMessageManager(ElectrumTestCase):
                 'len': len(onionmsg),
                 'onion_message_packet': onionmsg
             })
+            to, kwargs = await wait_for2(sent, timeout=100*TIME_STEP)
         finally:
             await asyncio.sleep(2*TIME_STEP)
 
@@ -460,7 +654,139 @@ class TestOnionMessageManager(ElectrumTestCase):
             await t.stop()
             await lnw.stop()
 
-        self.assertTrue(self.was_sent)
+        self.assertEqual(to, 'bob')
+        # validate what's sent to bob
+        self.assertEqual(bfh(HOPS[1]['E']), kwargs['path_key'])
+        message_type, payload = decode_msg(bfh(test_vectors['decrypt']['hops'][1]['onion_message']))
+        self.assertEqual(message_type, 'onion_message')
+        self.assertEqual(payload['onion_message_packet'], kwargs['onion_message_packet'])
+
+    async def test_forward_trampoline_direct_connection(self):
+        # a trampoline forwarder should open a direct connection to the next node if it
+        # is not a peer yet, and forward the onion message over the new connection
+        n = MockNetwork()
+        lnw = self.create_mock_lnwallet(name='alice')
+        lnw.node_keypair = self.alice
+        lnw.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS = True
+        lnw.config.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS = True
+        lnw.channel_db._addresses[self.bob.pubkey] = {NetAddress('localhost', '9735'): int(time.time())}
+        lnw.channel_db._nodes[self.bob.pubkey] = NodeInfo(
+            node_id=self.bob.pubkey,
+            features=LnFeatures.OPTION_ONION_MESSAGE_OPT,
+            timestamp=now() - 3600,
+            alias='bob',
+            raw=None,
+        )
+
+        sent_to_bob = asyncio.Future()
+
+        # mock add_peer for direct connection to bob
+        async def mock__add_peer(host, port, node_id):
+            def on_send(*args, **kwargs):
+                if not sent_to_bob.done():
+                    sent_to_bob.set_result(kwargs)
+            mock_peer = MockPeer(pubkey=node_id, on_send_message=on_send)
+            lnw.lnpeermgr._peers[node_id] = mock_peer
+            return mock_peer
+        lnw.lnpeermgr._add_peer = mock__add_peer
+
+        t = OnionMessageManager(lnw)
+        t.FORWARD_RETRY_TIMEOUT = 500 * TIME_STEP  # CI can be slow
+        t.start_network(network=n)
+
+        onionmsg = bfh(test_vectors['onionmessage']['onion_message_packet'])
+        try:
+            self.assertIsNone(lnw.lnpeermgr.get_peer_by_pubkey(self.bob.pubkey))
+            t.on_onion_message({
+                'path_key': bfh(test_vectors['route']['first_path_key']),
+                'len': len(onionmsg),
+                'onion_message_packet': onionmsg
+            })
+            await wait_for2(sent_to_bob, timeout=500 * TIME_STEP)
+        finally:
+            await t.stop()
+            await lnw.stop()
+
+        self.assertIsNotNone(lnw.lnpeermgr.get_peer_by_pubkey(self.bob.pubkey))
+        message_type, payload = decode_msg(bfh(test_vectors['decrypt']['hops'][1]['onion_message']))
+        self.assertEqual(sent_to_bob.result(), {
+            'path_key': payload['path_key'],
+            'onion_message_packet': payload['onion_message_packet'],
+        })
+
+    def _prepare_trampoline_forwarder(self):
+        """trampoline forwarder that is not connected to the next hop (bob), but knows bob's address from gossip.
+        Any direct connection attempt to bob will fail."""
+        lnw = self.create_mock_lnwallet(name='alice')
+        lnw.node_keypair = self.alice
+        lnw.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS = True
+        lnw.config.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS = True
+        lnw.channel_db._addresses[self.bob.pubkey] = {NetAddress('localhost', '9735'): int(time.time())}
+        lnw.channel_db._nodes[self.bob.pubkey] = NodeInfo(
+            node_id=self.bob.pubkey,
+            features=LnFeatures.OPTION_ONION_MESSAGE_OPT,
+            timestamp=now() - 3600,
+            alias='bob',
+            raw=None,
+        )
+
+        connect_attempted = asyncio.Event()
+        async def mock__add_peer(host, port, node_id):
+            connect_attempted.set()
+            raise ConnectionRefusedError
+        lnw.lnpeermgr._add_peer = mock__add_peer
+
+        onionmsg = bfh(test_vectors['onionmessage']['onion_message_packet'])
+        onion_message = {
+            'path_key': bfh(test_vectors['route']['first_path_key']),
+            'len': len(onionmsg),
+            'onion_message_packet': onionmsg,
+        }
+        return lnw, onion_message, connect_attempted
+
+    async def test_forward_no_direct_connection_when_gated(self):
+        # direct connections for forwarding are only opened by trampoline forwarders,
+        # and only if the next hop announces onion message support in its gossip
+        n = MockNetwork()
+        lnw, onion_message, connect_attempted = self._prepare_trampoline_forwarder()
+        t = OnionMessageManager(lnw)
+        t.start_network(network=n)
+        try:
+            lnw.config.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS = False
+            t.on_onion_message(onion_message)
+            self.assertEqual(1, t.forward_queue.qsize())
+            await wait_until(lambda: t.forward_queue.qsize() == 0)
+            await asyncio.sleep(2 * TIME_STEP)
+            self.assertFalse(connect_attempted.is_set())  # dropped, we are not a trampoline forwarder
+
+            lnw.config.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS = True
+            lnw.channel_db._nodes[self.bob.pubkey] = \
+                lnw.channel_db._nodes[self.bob.pubkey]._replace(features=LnFeatures(0))
+            t.on_onion_message(onion_message)
+            self.assertEqual(1, t.forward_queue.qsize())
+            await wait_until(lambda: t.forward_queue.qsize() == 0)
+            await asyncio.sleep(2 * TIME_STEP)
+            self.assertFalse(connect_attempted.is_set())  # dropped, bob doesn't announce onion message support
+        finally:
+            await t.stop()
+            await lnw.stop()
+
+    async def test_forward_direct_connection_failure_drops_msg(self):
+        # a failed direct connection attempt should drop the pending forward
+        n = MockNetwork()
+        lnw, onion_message, connect_attempted = self._prepare_trampoline_forwarder()
+        t = OnionMessageManager(lnw)
+        t.start_network(network=n)
+        try:
+            t.on_onion_message(onion_message)
+            await wait_for2(connect_attempted.wait(), timeout=100 * TIME_STEP)
+            await wait_until(lambda: not t._forward_direct_connection_attempts)  # attempt set is cleaned up
+            await asyncio.sleep(2 * TIME_STEP)  # let _requeue_forward run
+            self.assertIsNone(lnw.lnpeermgr.get_peer_by_pubkey(self.bob.pubkey))
+            self.assertEqual(0, t.forward_queue.qsize())
+        finally:
+            await t.stop()
+            await lnw.stop()
 
     async def test_receive_unsolicited(self):
         n = MockNetwork()
@@ -489,7 +815,128 @@ class TestOnionMessageManager(ElectrumTestCase):
             await lnw.stop()
 
 
+class TestPeerOnionMessages(ElectrumTestCase):
+    """test for Peer onion message send queue"""
+
+    def _create_peer(self) -> tuple:
+        lnw = self.create_mock_lnwallet(name='alice')
+        remote_keypair = Keypair(pubkey=privkey_to_pubkey(b'\x42' * 32), privkey=b'\x42' * 32)
+        transport, remote_transport = transport_pair(lnw.node_keypair, remote_keypair, 'alice->bob', 'bob->alice')
+        peer = PeerInTests(lnw, remote_keypair.pubkey, transport)
+        return peer, remote_transport
+
+    async def test_send_onion_message_queued_until_init(self):
+        peer, remote_transport = self._create_peer()
+        path_key = ECPrivkey.generate_random_key().get_public_key_bytes()
+        packet_a, packet_b = os.urandom(121), os.urandom(121)
+
+        # can be called before the peer is initialized, a duplicate of a queued message is dropped
+        peer.send_onion_message(path_key=path_key, onion_message_packet=packet_a)
+        peer.send_onion_message(path_key=path_key, onion_message_packet=packet_a)  # duplicate
+        peer.send_onion_message(path_key=path_key, onion_message_packet=packet_b)
+        self.assertEqual(2, peer._onion_message_send_queue.qsize())
+
+        with patch.object(lnpeer, 'ONION_MESSAGE_SEND_DELAY', TIME_STEP):
+            send_loop = asyncio.create_task(peer._send_onion_messages())
+            try:
+                await asyncio.sleep(2 * TIME_STEP)
+                self.assertTrue(remote_transport.queue.empty())  # nothing is sent before init
+
+                peer.their_features = ONION_MESSAGE_CAPABLE_PEER_FEATURES
+                peer.initialized.set_result(True)
+
+                raw_msg = await wait_for2(remote_transport.queue.get(), timeout=1)
+                self.assertEqual(('onion_message', {
+                    'path_key': path_key,
+                    'len': len(packet_a),
+                    'onion_message_packet': packet_a,
+                }), decode_msg(raw_msg))
+                raw_msg = await wait_for2(remote_transport.queue.get(), timeout=1)
+                self.assertEqual(packet_b, decode_msg(raw_msg)[1]['onion_message_packet'])
+                await asyncio.sleep(2 * TIME_STEP)
+                self.assertTrue(remote_transport.queue.empty())  # the duplicate was dropped
+                self.assertFalse(peer._pending_onion_messages)
+
+                # after delivery, the same message is accepted again
+                peer.send_onion_message(path_key=path_key, onion_message_packet=packet_a)
+                raw_msg = await wait_for2(remote_transport.queue.get(), timeout=1)
+                self.assertEqual(packet_a, decode_msg(raw_msg)[1]['onion_message_packet'])
+            finally:
+                send_loop.cancel()
+
+    async def test_send_onion_message_peer_without_feature(self):
+        # if it turns out after init that the peer doesn't support onion messages, the message is dropped
+        peer, remote_transport = self._create_peer()
+        peer.initialized.set_result(True)  # their_features remains empty
+        send_loop = asyncio.create_task(peer._send_onion_messages())
+        try:
+            peer.send_onion_message(
+                path_key=ECPrivkey.generate_random_key().get_public_key_bytes(),
+                onion_message_packet=os.urandom(121))
+            await wait_until(lambda: not peer._pending_onion_messages)
+            self.assertTrue(remote_transport.queue.empty())
+        finally:
+            send_loop.cancel()
+
+    async def test_send_onion_message_queue_full(self):
+        # excess messages are dropped and don't pollute the dedup set
+        peer, _remote_transport = self._create_peer()
+        path_key = ECPrivkey.generate_random_key().get_public_key_bytes()
+        maxsize = peer._onion_message_send_queue.maxsize
+        for i in range(maxsize + 50):
+            peer.send_onion_message(path_key=path_key, onion_message_packet=i.to_bytes(4, 'big'))
+        self.assertEqual(maxsize, peer._onion_message_send_queue.qsize())
+        self.assertEqual(maxsize, len(peer._pending_onion_messages))
+
+
 class TestOnionMessageUtils(TestPeer):
+
+    async def test_forward_onion_message(self):
+        # A -> B -> C forward, no direct connection fallback
+        line_graph = self.GRAPH_DEFINITIONS['line_graph']
+        graph = self.prepare_chans_and_peers_in_graph({
+            'alice': line_graph['alice'],
+            'bob': line_graph['bob'],  # sets EXPERIMENTAL_LN_FORWARD_PAYMENTS
+            'carol': {},
+        })
+        alice, bob, carol = graph.workers.values()
+
+        # alice needs gossip to find the route
+        for a, b in (('alice', 'bob'), ('bob', 'carol')):
+            inject_chan_into_gossipdb(
+                channel_db=alice.channel_db,
+                chanAB=graph.channels[(a, b)][0],
+                chanBA=graph.channels[(b, a)][0],
+            )
+
+        received = asyncio.Future()
+        def on_received_unsolicited(_recipient_data, payload):
+            if not received.done():
+                received.set_result(payload)
+        carol.onion_message_manager.on_onion_message_received_unsolicited = on_received_unsolicited
+
+        async def f():
+            async with OldTaskGroup() as group:
+                for peer in graph.peers.values():
+                    await group.spawn(peer._message_loop())
+                    await group.spawn(peer._send_onion_messages())
+                for peer in graph.peers.values():
+                    await peer.initialized
+                alice.onion_message_manager.start_network(network=alice.network)
+                bob.onion_message_manager.start_network(network=bob.network)
+
+                send_task = alice.onion_message_manager.submit_send(
+                    payload={'message': {'text': b'hello carol'}},
+                    node_id_or_blinded_paths=carol.node_keypair.pubkey)
+                payload = await asyncio.wait_for(received, timeout=1)
+                self.assertEqual(payload['message']['text'], b'hello carol')
+                self.assertIn('reply_path', payload)
+                send_task.cancel()
+                raise SuccessfulTest()
+
+        with patch('electrum.onion_message.is_onion_message_node', return_value=True):
+            with self.assertRaises(SuccessfulTest):
+                await f()
 
     async def test_get_blinded_paths_to_me_payment(self):
         # A <- B (alice generates blinded path from bob to herself)
@@ -506,12 +953,11 @@ class TestOnionMessageUtils(TestPeer):
         alice.lnpeermgr.get_peer_by_pubkey(bob.node_keypair.pubkey).their_features |= LnFeatures.OPTION_ROUTE_BLINDING_OPT
 
         final_recipient_data = {'path_id': {'data': os.urandom(32)}}
-        paths, payinfos = get_blinded_paths_to_me(alice, final_recipient_data, onion_message=False)
+        blinded_path_infos = get_blinded_paths_to_me(alice, final_recipient_data, onion_message=False)
 
-        self.assertEqual(len(paths), 1)
-        self.assertEqual(len(payinfos), 1)
+        self.assertEqual(len(blinded_path_infos), 1)
 
-        self.assertEqual(payinfos[0], {
+        self.assertEqual(blinded_path_infos[0].payinfo.to_dict(), {
             'fee_base_msat': bob_chan.forwarding_fee_base_msat,
             'fee_proportional_millionths': bob_chan.forwarding_fee_proportional_millionths,
             'cltv_expiry_delta': bob_chan.forwarding_cltv_delta + MIN_FINAL_CLTV_DELTA_ACCEPTED + MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE,
@@ -521,13 +967,13 @@ class TestOnionMessageUtils(TestPeer):
             'features': bytes(0),
         })
 
-        blinded_path = paths[0]
-        self.assertEqual(len(blinded_path['path']), 2)
-        self.assertEqual(blinded_path['first_node_id'], bob.node_keypair.pubkey)
-        self.assertEqual(len(blinded_path['first_path_key']), 33)
-        self.assertEqual(blinded_path['num_hops'], len(blinded_path['path']).to_bytes(length=1, byteorder='big'))
-        self.assertIn('blinded_node_id', blinded_path['path'][0])
-        self.assertIn('encrypted_recipient_data', blinded_path['path'][0])
+        blinded_path = blinded_path_infos[0].path
+        self.assertEqual(len(blinded_path.path), 2)
+        self.assertEqual(blinded_path.first_node_id, bob.node_keypair.pubkey)
+        self.assertEqual(len(blinded_path.first_path_key), 33)
+        self.assertEqual(blinded_path.num_hops, len(blinded_path.path).to_bytes(length=1, byteorder='big'))
+        self.assertIsNotNone(blinded_path.path[0].blinded_node_id)
+        self.assertIsNotNone(blinded_path.path[0].encrypted_recipient_data)
 
     async def test_create_route_to_introduction_point(self):
         # A -- B -- C -- D -- E
@@ -539,9 +985,13 @@ class TestOnionMessageUtils(TestPeer):
         session_key = os.urandom(32)
         introduction_point = edward.node_keypair.pubkey
         first_path_key = ecc.ECPrivkey.generate_random_key().get_public_key_bytes()
-        blinded_path = {
-            'first_path_key': first_path_key,
-        }
+        BlindedPath.__post_init__ = lambda _: None   # disable sanity checks
+        blinded_path = BlindedPath(
+            first_path_key=first_path_key,
+            first_node_id=None,
+            num_hops=None,
+            path=None,
+        )
         with self.assertRaises(NoRouteFound):
             create_route_to_introduction_point(alice, blinded_path, introduction_point, session_key)
 
