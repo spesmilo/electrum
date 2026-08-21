@@ -21,8 +21,8 @@ class TestWalletPaymentRequests(ElectrumTestCase):
     def setUp(self):
         super().setUp()
         self.config = SimpleConfig({'electrum_path': self.electrum_path})
-        self.wallet1_path = os.path.join(self.electrum_path, "somewallet1")
-        self.wallet2_path = os.path.join(self.electrum_path, "somewallet2")
+        self.wallet1_path = os.path.join(self.config.get_datadir_wallet_path(), "somewallet1")
+        self.wallet2_path = os.path.join(self.config.get_datadir_wallet_path(), "somewallet2")
         self._orig_get_cur_time = BaseInvoice._get_cur_time
 
     def tearDown(self):
@@ -264,7 +264,7 @@ class TestOutgoingInvoicesPaidCache(ElectrumTestCase):
     def setUp(self):
         super().setUp()
         self.config = SimpleConfig({'electrum_path': self.electrum_path})
-        self.wallet_path = os.path.join(self.electrum_path, "outgoing_inv_wallet")
+        self.wallet_path = os.path.join(self.config.get_datadir_wallet_path(), "outgoing_inv_wallet")
 
     def _make_wallet(self):
         # Seed matches the funding tx output below (see TestWalletPaymentRequests.create_wallet2).
