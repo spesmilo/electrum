@@ -450,6 +450,7 @@ class SwapManager(Logger):
             self.config.SWAPSERVER_POW_TARGET,
         )
         self.logger.debug(f"Found {pow_amount} bits of work for Nostr announcement.")
+        assert pow_amount >= self.config.SWAPSERVER_POW_TARGET, pow_amount
         self.config.SWAPSERVER_ANN_POW_NONCE = nonce
 
     async def pay_invoice(self, key):
