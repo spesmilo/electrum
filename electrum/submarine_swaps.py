@@ -38,8 +38,7 @@ from .util import (
     get_nostr_ann_pow_amount, make_aiohttp_proxy_connector, get_running_loop, get_asyncio_loop, wait_for2,
     run_sync_function_on_asyncio_thread, trigger_callback, NoDynamicFeeEstimates, UserFacingException, now
 )
-from . import lnutil
-from .lnutil import hex_to_bytes, Keypair
+from .lnutil import hex_to_bytes, Keypair, SENT, RECEIVED, MIN_FINAL_CLTV_DELTA_ACCEPTED, PaymentFailure
 from .bolt11 import decode_bolt11_invoice
 from .stored_dict import StoredObject, stored_at
 from . import constants
@@ -87,7 +86,7 @@ SPENDER_FINALITY_DELAY = 6  # delay after which the swap is considered final onc
 assert SPENDER_FINALITY_DELAY < MIN_LOCKTIME_DELTA_FOR_CLAIM
 assert MIN_LOCKTIME_DELTA_FOR_CLAIM < MIN_LOCKTIME_DELTA
 assert MIN_LOCKTIME_DELTA <= LOCKTIME_DELTA_REFUND <= MAX_LOCKTIME_DELTA
-assert MAX_LOCKTIME_DELTA + SPENDER_FINALITY_DELAY < lnutil.MIN_FINAL_CLTV_DELTA_ACCEPTED
+assert MAX_LOCKTIME_DELTA + SPENDER_FINALITY_DELAY < MIN_FINAL_CLTV_DELTA_ACCEPTED
 assert MAX_LOCKTIME_DELTA + SPENDER_FINALITY_DELAY < MIN_FINAL_CLTV_DELTA_FOR_CLIENT
 
 
@@ -283,7 +282,7 @@ class SwapManager(Logger):
                 self._prepayments[swap.prepay_hash] = payment_hash
             if not swap.is_reverse and not swap.is_redeemed and not self.lnworker.get_preimage(swap.payment_hash):
                 if (swap.prepay_hash is not None
-                        and self.lnworker.get_payment_status(swap.prepay_hash, direction=lnutil.RECEIVED) != PR_PAID):
+                        and self.lnworker.get_payment_status(swap.prepay_hash, direction=RECEIVED) != PR_PAID):
                     # re-bundle payments, because lnworker does not persist bundles.
                     # note: if the prepay is already PR_PAID, lnpeer completed and deleted the bundle before
                     #       shutdown; re-creating it would make is_payment_bundle_complete() permanently False.
@@ -347,17 +346,14 @@ class SwapManager(Logger):
 
     @log_exceptions
     async def main_loop(self):
-        tasks = [self.pay_pending_invoices()]
-        if self.is_server:
-            # nostr and http are not mutually exclusive
-            if self.config.SWAPSERVER_PORT:
-                tasks.append(self.http_server.run())
-            if self.config.NOSTR_RELAYS:
-                tasks.append(self.run_nostr_server())
-
+        # nostr and http are not mutually exclusive
         async with self.taskgroup as group:
-            for task in tasks:
-                await group.spawn(task)
+            if self.is_server:
+                if self.config.SWAPSERVER_PORT:
+                    await group.spawn(self.http_server.run())
+                if self.config.NOSTR_RELAYS:
+                    await group.spawn(self.run_nostr_server())
+            await group.spawn(asyncio.Event().wait())  # run until cancel
 
     async def stop(self):
         await self.taskgroup.cancel_remaining()
@@ -452,32 +448,6 @@ class SwapManager(Logger):
         self.logger.debug(f"Found {pow_amount} bits of work for Nostr announcement.")
         self.config.SWAPSERVER_ANN_POW_NONCE = nonce
 
-    async def pay_invoice(self, key):
-        self.logger.info(f'trying to pay invoice {key}')
-        self.invoices_to_pay[key] = 1000000000000 # lock
-        try:
-            invoice = self.wallet.get_invoice(key)
-            success, log = await self.lnworker.pay_invoice(invoice)
-        except Exception as e:
-            self.logger.info(f'exception paying {key}, will not retry')
-            self.invoices_to_pay.pop(key, None)
-            return
-        if not success:
-            self.logger.info(f'failed to pay {key}, will retry in 10 minutes')
-            self.invoices_to_pay[key] = now() + 600
-        else:
-            self.logger.info(f'paid invoice {key}')
-            self.invoices_to_pay.pop(key, None)
-
-    async def pay_pending_invoices(self):
-        self.invoices_to_pay = {}
-        while True:
-            await asyncio.sleep(5)
-            for key, not_before in list(self.invoices_to_pay.items()):
-                if now() < not_before:
-                    continue
-                await self.taskgroup.spawn(self.pay_invoice(key))
-
     def cancel_normal_swap(self, swap: Optional[SwapData], *, reason: str = 'user cancelled') -> bool:
         """Fail/cancel the swap, unless its funding tx is already being broadcast. Safe to call from the GUI thread."""
         if swap is None:
@@ -491,32 +461,34 @@ class SwapManager(Logger):
         return True
 
     def _fail_swap(self, swap: SwapData, reason: str):
-        self.logger.info(f'failing swap {swap.payment_hash.hex()}: {reason}')
         swap._is_cancelled = True
-        if not swap.is_reverse and swap.payment_hash in self.lnworker.hold_invoice_callbacks:
+        key = swap.payment_hash.hex()
+        lnw, wallet, lnwatcher = self.lnworker, self.wallet, self.lnwatcher
+        self.logger.info(f'failing swap {key}: {reason}')
+        if not swap.is_reverse and swap.payment_hash in lnw.hold_invoice_callbacks:
             # unregister_hold_invoice will fail pending htlcs if there is no preimage available
-            self.lnworker.unregister_hold_invoice(swap.payment_hash)
-            self.lnworker.delete_payment_info(swap.payment_hash.hex(), direction=lnutil.RECEIVED)
-            self.lnworker.clear_invoices_cache()
+            lnw.unregister_hold_invoice(swap.payment_hash)
+            lnw.delete_payment_info(key, direction=RECEIVED)
+            lnw.clear_invoices_cache()
         if not swap.is_funded():
-            self.lnwatcher.remove_callback(swap.lockup_address)
+            lnwatcher.remove_callback(swap.lockup_address)
             with self.swaps_lock:
-                swaps = self.wallet.db.get_dict('submarine_swaps')
-                if swaps.pop(swap.payment_hash.hex(), None) is None:
-                    self.logger.debug(f"swap {swap.payment_hash.hex()} has already been deleted.")
-                self._swaps.pop(swap.payment_hash.hex(), None)
+                swaps = wallet.db.get_dict('submarine_swaps')
+                if swaps.pop(key, None) is None:
+                    self.logger.debug(f"swap {key} has already been deleted.")
+                self._swaps.pop(key, None)
                 if swap._funding_prevout is not None:
                     self._swaps_by_funding_outpoint.pop(swap._funding_prevout, None)
                 self._swaps_by_lockup_address.pop(swap.lockup_address, None)
                 if swap.prepay_hash is not None:
                     self._prepayments.pop(swap.prepay_hash, None)
-                    if self.lnworker.get_payment_status(swap.prepay_hash, direction=lnutil.RECEIVED) != PR_PAID:
-                        self.lnworker.delete_payment_info(swap.prepay_hash.hex(), direction=lnutil.RECEIVED)
-                        self.lnworker.delete_payment_bundle(payment_hash=swap.payment_hash)
-                    if self.lnworker.get_payment_status(swap.prepay_hash, direction=lnutil.SENT) != PR_PAID:
-                        self.lnworker.delete_payment_info(swap.prepay_hash.hex(), direction=lnutil.SENT)
-                if self.lnworker.get_payment_status(swap.payment_hash, direction=lnutil.SENT) != PR_PAID:
-                    self.lnworker.delete_payment_info(swap.payment_hash.hex(), direction=lnutil.SENT)
+                    if lnw.get_payment_status(swap.prepay_hash, direction=RECEIVED) != PR_PAID:
+                        lnw.delete_payment_info(swap.prepay_hash.hex(), direction=RECEIVED)
+                        lnw.delete_payment_bundle(payment_hash=swap.payment_hash)
+                    if lnw.get_payment_status(swap.prepay_hash, direction=SENT) != PR_PAID:
+                        lnw.delete_payment_info(swap.prepay_hash.hex(), direction=SENT)
+                if lnw.get_payment_status(swap.payment_hash, direction=SENT) != PR_PAID:
+                    lnw.delete_payment_info(key, direction=SENT)
 
     def _get_public_preimage(self, swap: SwapData) -> Optional[bytes]:
         if swap.spending_txid is None:
@@ -837,10 +809,10 @@ class SwapManager(Logger):
         self.lnworker.add_payment_info_for_hold_invoice(
             payment_hash,
             lightning_amount_sat=invoice_amount_sat,
-            min_final_cltv_delta=min_final_cltv_expiry_delta or lnutil.MIN_FINAL_CLTV_DELTA_ACCEPTED,
+            min_final_cltv_delta=min_final_cltv_expiry_delta or MIN_FINAL_CLTV_DELTA_ACCEPTED,
             exp_delay=300,
         )
-        info = self.lnworker.get_payment_info(payment_hash, direction=lnutil.RECEIVED)
+        info = self.lnworker.get_payment_info(payment_hash, direction=RECEIVED)
         lnaddr1, invoice = self.lnworker.get_bolt11_invoice(
             payment_info=info,
             message='Submarine swap',
@@ -856,10 +828,10 @@ class SwapManager(Logger):
         if prepay:
             prepay_hash = self.lnworker.create_payment_info(
                 amount_msat=prepay_amount_sat*1000,
-                min_final_cltv_delta=min_final_cltv_expiry_delta or lnutil.MIN_FINAL_CLTV_DELTA_ACCEPTED,
+                min_final_cltv_delta=min_final_cltv_expiry_delta or MIN_FINAL_CLTV_DELTA_ACCEPTED,
                 exp_delay=300,
             )
-            info = self.lnworker.get_payment_info(prepay_hash, direction=lnutil.RECEIVED)
+            info = self.lnworker.get_payment_info(prepay_hash, direction=RECEIVED)
             lnaddr2, prepay_invoice = self.lnworker.get_bolt11_invoice(
                 payment_info=info,
                 message='Submarine swap prepayment',
@@ -968,7 +940,7 @@ class SwapManager(Logger):
         self.add_lnwatcher_callback(swap)
         return swap
 
-    def server_add_swap_invoice(self, request: dict) -> dict:
+    async def server_add_swap_invoice(self, request: dict) -> dict:
         """ server method.
         (client-forward-swap phase2)
         """
@@ -992,10 +964,7 @@ class SwapManager(Logger):
                 payment_hash=payment_hash, locktime=swap.locktime, refund_pubkey=their_pubkey, claim_pubkey=our_pubkey,
             )
             assert swap.redeem_script == redeem_script
-            assert key not in self.invoices_to_pay
-            self.invoices_to_pay[key] = 0
-            assert self.wallet.get_invoice(invoice.get_id()) is None
-            self.wallet.save_invoice(invoice)
+        await self.taskgroup.spawn(self.pay_invoice_safe(invoice))
         return {}
 
     async def normal_swap(
@@ -1739,6 +1708,16 @@ class SwapManager(Logger):
                 pending_swaps.append(swap)
         return pending_swaps
 
+    async def pay_invoice_safe(self, invoice: 'Invoice'):
+        try:
+            success, htlc_log = await self.lnworker.pay_invoice(invoice)  # prevents duplicate payment attempts
+            if not success:
+                raise PaymentFailure("\n".join(str(x.formatted_tuple()) for x in htlc_log))
+        except PaymentFailure as e:
+            self.logger.warning(f"failed to pay swap invoice {invoice.get_id()}: {e}")
+        except Exception:
+            self.logger.exception("exception while paying swap invoice")
+
 
 class SwapServerTransport(Logger):
 
@@ -2198,7 +2177,7 @@ class NostrTransport(SwapServerTransport):
                 method = request.pop('method')
                 self.logger.info(f'handle_request: id={event_id} {method} {request}')
                 if method == 'addswapinvoice':  # client-forward-swap phase2
-                    r = self.sm.server_add_swap_invoice(request)
+                    r = await self.sm.server_add_swap_invoice(request)
                 elif method == 'createswap':  # client-reverse-swap
                     r = self.sm.server_create_swap(request)
                 elif method == 'createnormalswap':  # client-forward-swap phase1

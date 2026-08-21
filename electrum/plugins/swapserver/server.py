@@ -122,7 +122,7 @@ class HttpSwapServer(Logger, EventListener):
 
     async def add_swap_invoice(self, r):
         request = await r.json()
-        self.sm.server_add_swap_invoice(request)
+        await self.sm.server_add_swap_invoice(request)
         return web.json_response({})
 
     async def create_normal_swap(self, r):
