@@ -1,5 +1,6 @@
 import copy
 import threading
+from decimal import Decimal
 from enum import IntEnum
 from typing import Optional, Dict, Any, Tuple
 from urllib.parse import urlparse
@@ -397,11 +398,8 @@ class QEInvoice(QObject, QtEventListener):
 
     @pyqtSlot()
     def payLightningInvoice(self):
-        if not self.canPay:
-            raise Exception('can not pay invoice, canPay is false')
-
-        if self.invoiceType != QEInvoice.Type.LightningInvoice:
-            raise Exception('payLightningInvoice can only pay lightning invoices')
+        assert self.canPay, 'can not pay invoice, canPay is false'
+        assert self.invoiceType == QEInvoice.Type.LightningInvoice, 'can only pay lightning invoices'
 
         amount_msat = None
         if self.amount.isEmpty:
@@ -412,10 +410,10 @@ class QEInvoice(QObject, QtEventListener):
         self._paid_in_this_session = True
         self._wallet.pay_lightning_invoice(self._effectiveInvoice, amount_msat)
 
-    def get_max_spendable_onchain(self):
+    def get_max_spendable_onchain(self) -> int:
         return self._wallet.wallet.get_spendable_balance_sat()
 
-    def get_max_spendable_lightning(self):
+    def get_max_spendable_lightning(self) -> int | Decimal:
         return self._wallet.wallet.lnworker.num_sats_can_send() if self._wallet.wallet.lnworker else 0
 
     def count_connecting_channels(self) -> int:
@@ -625,8 +623,8 @@ class QEInvoiceParser(QEInvoice):
         self._lnurlData = {
             'domain': urlparse(lnurldata.callback_url).netloc,
             'callback_url': lnurldata.callback_url,
-            'min_sendable_sat': lnurldata.min_sendable_sat,
-            'max_sendable_sat': lnurldata.max_sendable_sat,
+            'min_sendable_msat': QEAmount(amount_msat=lnurldata.min_sendable_msat),
+            'max_sendable_msat': QEAmount(amount_msat=lnurldata.max_sendable_msat),
             'metadata_plaintext': lnurldata.metadata_plaintext,
             'comment_allowed': lnurldata.comment_allowed,
         }
@@ -641,7 +639,7 @@ class QEInvoiceParser(QEInvoice):
         assert self.invoiceType == QEInvoice.Type.LNURLPayRequest
         self._logger.debug(f'{repr(self._lnurlData)}')
 
-        amount = self.amountOverride.satsInt
+        amount = Decimal(self.amountOverride.msatsInt) / 1000
 
         if self._lnurlData['comment_allowed'] == 0:
             comment = None
@@ -656,19 +654,19 @@ class QEInvoiceParser(QEInvoice):
                 else:
                     self.lnurlError.emit('lnurl', pi.get_error())
             else:
-                self.on_lnurl_invoice(self.amountOverride.satsInt, pi.bolt11)
+                self.on_lnurl_invoice(self.amountOverride.msatsInt, pi.bolt11)
 
         self._busy = True
         self.busyChanged.emit()
 
         self._pi.finalize(amount_sat=amount, comment=comment, on_finished=on_finished)
 
-    def on_lnurl_invoice(self, orig_amount, invoice):
+    def on_lnurl_invoice(self, orig_amount_msat, invoice):
         self._logger.debug('on_lnurl_invoice')
         self._logger.debug(f'{repr(invoice)}')
 
         # assure no shenanigans with the bolt11 invoice we get back
-        if orig_amount * 1000 != invoice.amount_msat:  # TODO msat precision can cause trouble here
+        if orig_amount_msat != invoice.amount_msat:
             raise Exception('Unexpected amount in invoice, differs from lnurl-pay specified amount')
 
         self.amountOverride = QEAmount()
@@ -688,7 +686,7 @@ class QEInvoiceParser(QEInvoice):
                 if self.invoiceType == QEInvoice.Type.OnchainInvoice and self.amountOverride.isMax:
                     self._effectiveInvoice.set_amount_msat('!')
                 else:
-                    self._effectiveInvoice.set_amount_msat(self.amountOverride.satsInt * 1000)
+                    self._effectiveInvoice.set_amount_msat(self.amountOverride.msatsInt)
         except InvoiceError as e:
             self.invoiceCreateError.emit('validation', str(e))
             return False
