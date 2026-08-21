@@ -175,6 +175,16 @@ class SafeTClientBase(HardwareClientBase, GuiMixin, Logger):
         address_n = self.expand_path(bip32_path)
         creating = False
         node = self.get_public_node(address_n, creating).node
+
+        deprecation_warning = (
+            "Archos Safe-T mini is being deprecated.\n\nIt is no longer supported by the manufacturer.\n"
+            "Future versions of Electrum will no longer be compatible with it.\n\n"
+            "You should move your coins and migrate to a modern hardware device.")
+        self.logger.warning(deprecation_warning.replace("\n", " "))
+
+        if self.handler:
+            self.handler.show_message(deprecation_warning)
+
         return BIP32Node(xtype=xtype,
                          eckey=ecc.ECPubkey(node.public_key),
                          chaincode=node.chain_code,
