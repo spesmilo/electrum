@@ -251,39 +251,6 @@ if [[ $1 == "breach" ]]; then
 fi
 
 
-if [[ $1 == "backup" ]]; then
-    # Alice has two channels with Bob.
-    # - chan1 has on-chain op_return backups,
-    # - chan2 has an imported backup.
-    # Alice restores from seed, and also imports backup for chan2.
-    # Test "request_force_close" works for both channels.
-    wait_for_balance alice 1
-    echo "alice opens channel"
-    bob_node=$($bob nodeid)
-    channel1=$($alice open_channel $bob_node 0.15 --password='')
-    new_blocks 1  # cannot open multiple chans with same node in same block
-    $alice setconfig use_recoverable_channels False
-    channel2=$($alice open_channel $bob_node 0.15 --password='')
-    new_blocks 3
-    wait_until_channel_open alice  # FIXME wait for *both* channels?
-    backup=$($alice export_channel_backup $channel2)
-    seed=$($alice getseed --password='')
-    $alice stop
-    mv /tmp/alice/regtest/wallets/default_wallet /tmp/alice/regtest/wallets/default_wallet.old
-    $alice -o restore "$seed"
-    $alice daemon -d
-    $alice load_wallet
-    $alice import_channel_backup $backup
-    $alice wait_for_sync
-    echo "request force close $channel1"
-    $alice request_force_close $channel1
-    echo "request force close $channel2"
-    $alice request_force_close $channel2
-    new_blocks 1
-    wait_for_balance alice 0.997
-fi
-
-
 if [[ $1 == "backup_local_forceclose" ]]; then
     # Alice does a local-force-close, and then restores from seed before sweeping CSV-locked coins
     wait_for_balance alice 1

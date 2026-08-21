@@ -528,6 +528,18 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             return self.wallet.lnworker.lnpeermgr.num_peers()
         return 0
 
+    @pyqtProperty('QVariantList', notify=dataChanged)
+    def startupWarnings(self):
+        return [{
+            'key': warning.key,
+            'title': warning.title,
+            'message': warning.message,
+        } for warning in self.wallet.get_startup_warnings()]
+
+    @pyqtSlot(str)
+    def acknowledgeWarning(self, key: str):
+        self.wallet.acknowledge_warning(key)
+
     @pyqtSlot()
     def enableLightning(self):
         self.wallet.init_lightning(password=self.password)
@@ -793,6 +805,8 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def importChannelBackup(self, backup_str):
         try:
             self.wallet.lnworker.import_channel_backup(backup_str)
+        except UserFacingException as e:
+            self.importChannelBackupFailed.emit(str(e))
         except Exception as e:
             self._logger.debug(f'could not import channel backup: {repr(e)}')
             self.importChannelBackupFailed.emit(f'Failed to import backup:\n\n{str(e)}')

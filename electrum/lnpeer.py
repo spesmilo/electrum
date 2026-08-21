@@ -1614,6 +1614,9 @@ class Peer(Logger, EventListener):
             self.schedule_force_closing(chan.channel_id)
             raise RemoteMisbehaving("channel_reestablish: data loss protect fields invalid")
         fut = self.channel_reestablish_msg[chan.channel_id]
+        def _fail_fut(exc):
+            fut.set_exception(exc)
+            fut.exception()  # mark as retrieved, so it doesn't pollute log output with "was never retrieved" warnings
         if they_are_ahead_with_proof:  # order matters, WE_ARE_TOXIC case must be checked first.
             self.logger.warning(
                 f"channel_reestablish ({chan.get_id_for_log()}): "
@@ -1625,19 +1628,19 @@ class Peer(Logger, EventListener):
             chan.peer_state = PeerState.BAD
             # raise after we send channel_reestablish, so the remote can realize they are ahead
             # FIXME what if we have multiple chans with peer? timing...
-            fut.set_exception(GracefulDisconnect("remote ahead of us (with proof)"))
+            _fail_fut(GracefulDisconnect("remote ahead of us (with proof)"))
         elif they_are_ahead_without_proof:
             self.logger.warning(
                 f"channel_reestablish ({chan.get_id_for_log()}): "
                 f"remote is ahead of us (without proof)! trying to force-close.")
             self.schedule_force_closing(chan.channel_id)
             # FIXME what if we have multiple chans with peer? timing...
-            fut.set_exception(GracefulDisconnect("remote ahead of us (without proof)"))
+            _fail_fut(GracefulDisconnect("remote ahead of us (without proof)"))
         elif we_are_ahead:
             self.logger.warning(f"channel_reestablish ({chan.get_id_for_log()}): we are ahead of remote! trying to force-close.")
             self.schedule_force_closing(chan.channel_id)
             # FIXME what if we have multiple chans with peer? timing...
-            fut.set_exception(GracefulDisconnect("we are ahead of remote"))
+            _fail_fut(GracefulDisconnect("we are ahead of remote"))
         else:
             # all good
             fut.set_result((we_must_resend_revoke_and_ack, their_next_local_ctn))

@@ -1,6 +1,7 @@
 import asyncio
 import copy
 import os
+import socket
 from decimal import Decimal
 from pprint import pformat
 from typing import NamedTuple, Tuple, Dict, Mapping, TYPE_CHECKING, Sequence
@@ -32,6 +33,12 @@ from . import restore_wallet_from_text__for_unittest
 
 if TYPE_CHECKING:
     from . import ElectrumTestCase
+
+
+def find_free_port() -> int:
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
 
 
 high_fee_channel = {

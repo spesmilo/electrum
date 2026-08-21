@@ -95,7 +95,7 @@ from .stored_dict import StoredDict
 
 if TYPE_CHECKING:
     from .network import Network
-    from .wallet import Abstract_Wallet
+    from .wallet import Abstract_Wallet, WalletWarning
     from .channel_db import ChannelDB
     from .simple_config import SimpleConfig
 
@@ -1122,6 +1122,33 @@ class LNWallet(Logger):
         """Returns True if any active channel is an anchor channel."""
         return any(chan.has_anchors() and not chan.is_closed()
                    for chan in self.channels.values())
+
+    def get_lightning_startup_warnings(self) -> Sequence['WalletWarning']:
+        from .wallet import WalletWarning
+        warnings = []
+        if not self.has_deterministic_node_id() and self.has_anchor_channels():
+            # backups exported before we started storing the payment_basepoint privkey
+            # (backup v3) cannot sweep the to_remote output of an anchor channel
+            warnings.append(WalletWarning(
+                key='ln_outdated_channel_backups',
+                title=_('Outdated channel backups'),
+                message=''.join([
+                    _("The Lightning channels of this wallet cannot be recovered from seed."), ' ',
+                    _("Channel backups that were exported with an older version of Electrum "
+                      "cannot be used to request a force close of these channels."), '\n\n',
+                    _("Please export new channel backups and store them in a safe place."),
+                ])))
+        if any(not cb.can_sweep_their_ctx_to_remote() for cb in self.channel_backups.values()):
+            warnings.append(WalletWarning(
+                key='ln_unusable_channel_backups',
+                title=_('Unusable channel backups'),
+                message=''.join([
+                    _("This wallet contains channel backups that cannot be used to request a force close, "
+                      "because they were exported with an older version of Electrum."), ' ',
+                    _("Please import new backups, exported by the wallet these channels belong to."), '\n\n',
+                    _("If you have lost access to that wallet, please open an issue on GitHub."),
+                ])))
+        return warnings
 
     @property
     def features(self) -> 'LnFeatures':
@@ -3730,6 +3757,10 @@ class LNWallet(Logger):
         assert chan.is_static_remotekey_enabled()
         peer_addresses = list(chan.get_peer_addresses())
         peer_addr = peer_addresses[0] if peer_addresses else None
+        if chan.has_anchors():
+            local_payment_basepoint = chan.config[LOCAL].payment_basepoint.privkey
+        else:
+            local_payment_basepoint = chan.config[LOCAL].payment_basepoint.pubkey
         return ImportedChannelBackupStorage(
             node_id=chan.node_id,
             privkey=self.node_keypair.privkey,
@@ -3740,11 +3771,12 @@ class LNWallet(Logger):
             port=peer_addr.port if peer_addr else 0,
             is_initiator=chan.constraints.is_initiator,
             channel_seed=chan.config[LOCAL].channel_seed,
+            channel_type=int(chan.storage['channel_type']),
             local_delay=chan.config[LOCAL].to_self_delay,
             remote_delay=chan.config[REMOTE].to_self_delay,
             remote_revocation_pubkey=chan.config[REMOTE].revocation_basepoint.pubkey,
             remote_payment_pubkey=chan.config[REMOTE].payment_basepoint.pubkey,
-            local_payment_pubkey=chan.config[LOCAL].payment_basepoint.pubkey,
+            local_payment_basepoint=local_payment_basepoint,
             multisig_funding_privkey=chan.config[LOCAL].multisig_key.privkey,
         )
 
@@ -3805,6 +3837,11 @@ class LNWallet(Logger):
         self.wallet.save_db()
         util.trigger_callback('channels_updated', self.wallet)
         self.lnwatcher.add_channel(cb)
+        if not cb.can_sweep_their_ctx_to_remote():
+            raise util.UserFacingException(
+                _("The channel backup you imported cannot be used to request a force close. Please generate a new backup. "
+                  "If you lost your wallet data, please open an issue on GitHub.")
+            )
 
     def has_conflicting_backup_with(self, remote_node_id: bytes):
         """ Returns whether we have an active channel with this node on another device, using same local node id. """

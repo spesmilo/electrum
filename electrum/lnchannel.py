@@ -575,8 +575,7 @@ class ChannelBackup(AbstractChannel):
       - detect force close
       - request force close
       - sweep my ctx to_local
-    future:
-      - will need to sweep their ctx to_remote
+      - sweep their ctx to_remote (anchor channels, with srk it is a wallet address)
     """
 
     def __init__(self, cb: ChannelBackupStorage, *, lnworker: 'LNWallet'):
@@ -598,10 +597,10 @@ class ChannelBackup(AbstractChannel):
         self.unconfirmed_closing_txid = None # not a state, only for GUI
 
     def init_config(self, cb: ImportedChannelBackupStorage):
-        local_payment_pubkey = cb.local_payment_pubkey
-        if local_payment_pubkey is None:
+        local_payment_basepoint = cb.local_payment_basepoint
+        if local_payment_basepoint is None:
             self.logger.warning(
-                f"local_payment_pubkey missing from (old-type) channel backup. "
+                f"local_payment_basepoint missing from (old-type) channel backup. "
                 f"You should export and re-import a newer backup.")
         multisig_funding_keypair = None
         if multisig_funding_secret := cb.multisig_funding_privkey:
@@ -613,12 +612,15 @@ class ChannelBackup(AbstractChannel):
             channel_seed=cb.channel_seed,
             to_self_delay=cb.local_delay,
             # there are three cases of backups:
-            # 1. legacy: payment_basepoint will be derived
+            # 1. v0: no payment_basepoint, it cannot be recovered
             # 2. static_remotekey: to_remote sweep not necessary due to wallet address
-            # 3. anchor outputs: sweep to_remote by deriving the key from the funding pubkeys
-            static_remotekey=local_payment_pubkey,
+            # 3. anchor outputs: sweep to_remote with local_payment_basepoint if it is a private key, otherwise
+            #           by deriving the key from the funding pubkeys
+            channel_type=cb.channel_type,
+            payment_basepoint=local_payment_basepoint,
             multisig_key=multisig_funding_keypair,
             # dummy values
+            static_remotekey=None,
             static_payment_key=None,
             dust_limit_sat=None,
             max_htlc_value_in_flight_msat=None,
@@ -656,6 +658,20 @@ class ChannelBackup(AbstractChannel):
             announcement_bitcoin_sig=b'',
         )
 
+    def can_sweep_their_ctx_to_remote(self) -> bool:
+        cb = self.cb
+        if not isinstance(cb, ImportedChannelBackupStorage):
+            return True  # on-chain backups only exist for deterministic wallets
+        if self.has_anchors():
+            return True  # has_anchors can only be determined with >=v3, which also has the secret for the to_remote sweep
+        if cb.local_payment_basepoint is None:
+            return True  # v0 backup, only had srk channels
+        to_remote_addr = make_commitment_output_to_remote_address(cb.local_payment_basepoint, has_anchors=False)
+        if self.lnworker.wallet.is_mine(to_remote_addr):
+            return True  # legacy static_remotekey: to_remote is a wallet address
+        # pre-v3: only sweepable if we still have the LN keys that created this backup
+        return cb.privkey == self.lnworker.node_keypair.privkey
+
     def can_be_deleted(self):
         return self.is_imported or self.is_redeemed()
 
@@ -678,8 +694,8 @@ class ChannelBackup(AbstractChannel):
         return sweep_their_ctx_to_remote_backup(chan=self, ctx=ctx, funding_tx=funding_tx)
 
     def create_sweeptxs_for_our_ctx(self, ctx):
-        if self.is_imported:
-            return sweep_our_ctx(chan=self, ctx=ctx)
+        if self.is_imported and self.config[LOCAL].payment_basepoint.pubkey is not None:
+            return sweep_our_ctx(chan=self, ctx=ctx)  # v0 backups miss payment_basepoint
         else:
             return {}
 
@@ -726,6 +742,8 @@ class ChannelBackup(AbstractChannel):
         return self.lnworker.wallet.get_new_sweep_address_for_channel()
 
     def has_anchors(self) -> Optional[bool]:
+        if isinstance(self.cb, ImportedChannelBackupStorage) and self.cb.channel_type is not None:
+            return bool(self.cb.channel_type & ChannelType.OPTION_ANCHORS)
         return None
 
     def is_zeroconf(self) -> bool:
@@ -745,18 +763,18 @@ class ChannelBackup(AbstractChannel):
 
     def get_close_options(self) -> Sequence[ChanCloseOption]:
         ret = []
-        if self.get_state() == ChannelState.FUNDED:
+        if self.get_state() == ChannelState.FUNDED and self.can_sweep_their_ctx_to_remote():
             ret.append(ChanCloseOption.REQUEST_REMOTE_FCLOSE)
         return ret
 
     def get_wallet_addresses_channel_might_want_reserved(self) -> Sequence[str]:
         if self.is_imported:
-            # For v1 imported cbs, we have the local_payment_pubkey, which is
+            # For v1+ imported cbs, we have the local_payment_basepoint, which is
             # directly used as p2wpkh() of static_remotekey channels.
-            # (for v0 imported cbs, the correct local_payment_pubkey is missing, and so
-            #  we might calculate a different address here, which might not be wallet.is_mine,
-            #  but that should be harmless)
+            # (for v0 imported cbs, it is missing, so we have no address to reserve)
             our_payment_pubkey = self.config[LOCAL].payment_basepoint.pubkey
+            if our_payment_pubkey is None:
+                return []
             to_remote_address = make_commitment_output_to_remote_address(our_payment_pubkey, has_anchors=self.has_anchors())
             return [to_remote_address]
         else:  # on-chain backup
