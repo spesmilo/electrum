@@ -1163,7 +1163,7 @@ class TestLNUtil(ElectrumTestCase):
         )
 
     async def test_payment_fee_budget(self):
-        config = SimpleConfig()
+        config = SimpleConfig({'electrum_path': self.electrum_path})
         # test value above cutoff
         invoice_amount_msat = 1_000_000 * 1000
         budget = PaymentFeeBudget.from_invoice_amount(
