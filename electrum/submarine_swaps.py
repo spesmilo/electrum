@@ -90,6 +90,7 @@ assert MIN_LOCKTIME_DELTA <= LOCKTIME_DELTA_REFUND <= MAX_LOCKTIME_DELTA
 assert MAX_LOCKTIME_DELTA + SPENDER_FINALITY_DELAY < lnutil.MIN_FINAL_CLTV_DELTA_ACCEPTED
 assert MAX_LOCKTIME_DELTA + SPENDER_FINALITY_DELAY < MIN_FINAL_CLTV_DELTA_FOR_CLIENT
 
+LOCKTIME_DELTA_REFUND_BUFFER = 10  # used for min ETA fee calculation
 
 # The script of the reverse swaps has one extra check in it to verify
 # that the length of the preimage is 32. This is required because in
