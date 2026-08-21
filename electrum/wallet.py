@@ -48,6 +48,7 @@ from aiorpcx import ignore_after, run_in_thread
 
 from . import util, keystore, transaction, bitcoin, coinchooser, bip32, descriptor
 from . import constants
+from . import crandom
 from . import crypto
 from .i18n import _
 from .bip32 import BIP32Node, convert_bip32_intpath_to_strpath, convert_bip32_strpath_to_intpath
@@ -555,7 +556,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             # bip39 seeds and imported zprv.
             # also, watching-only and hw wallets, if the user disables anchors.
             # todo: we should kill that branch, it is a footgun.
-            seed = os.urandom(32)
+            seed = crandom.get_rand_bytes(32)
             node = BIP32Node.from_rootseed(seed, xtype='standard')
             ln_xprv = node.to_xprv()
             self.db.put('lightning_privkey2', ln_xprv)

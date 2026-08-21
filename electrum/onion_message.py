@@ -45,6 +45,7 @@ from electrum.lnonion import (get_bolt04_onion_key, OnionPacket, process_onion_p
 from electrum.lnutil import (LnFeatures, MIN_FINAL_CLTV_DELTA_ACCEPTED, MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED,
                              MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE)
 from electrum.util import OldTaskGroup, log_exceptions, random_shuffled_copy
+from electrum import crandom
 
 
 def now() -> float:
@@ -268,7 +269,7 @@ def send_onion_message_to(
         session_key: bytes = None
 ) -> None:
     if session_key is None:
-        session_key = os.urandom(32)
+        session_key = crandom.get_rand_bytes(32)
 
     if len(node_id_or_blinded_path) > 33:  # assume blinded path
         with io.BytesIO(node_id_or_blinded_path) as blinded_path_fd:
@@ -447,7 +448,7 @@ def get_blinded_paths_to_me(
                     continue
                 payinfos.append(payinfo)
             blinded_path = create_blinded_path(
-                session_key=os.urandom(32),
+                session_key=crandom.get_rand_bytes(32),
                 path=[chan.node_id, mynodeid],
                 final_recipient_data=final_recipient_data,
                 hop_extras=hop_extras,
@@ -466,7 +467,7 @@ def get_blinded_paths_to_me(
                 raise NoOnionMessagePeers('no ONION_MESSAGE capable peers')
             rpeers = random_shuffled_copy(my_onionmsg_peers)
             for peer in rpeers[:max_paths]:
-                blinded_path = create_blinded_path(os.urandom(32), [peer.pubkey, mynodeid], final_recipient_data)
+                blinded_path = create_blinded_path(crandom.get_rand_bytes(32), [peer.pubkey, mynodeid], final_recipient_data)
                 result.append(blinded_path)
 
     assert result
@@ -683,7 +684,7 @@ class OnionMessageManager(Logger):
 
            :return: returns awaitable task"""
         if not key:
-            key = os.urandom(8)
+            key = crandom.get_rand_bytes(8)
         assert type(key) is bytes and len(key) >= 8
 
         self.logger.debug(f'submit_send {key=} {payload=} {node_id_or_blinded_paths=}')

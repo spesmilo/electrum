@@ -25,6 +25,7 @@ from .transaction import (
     Transaction, PartialTransaction, PartialTxInput, TxOutpoint, PartialTxOutput, opcodes, OPPushDataPubkey
 )
 from . import bitcoin, crypto, transaction, descriptor, segwit_addr
+from . import crandom
 from .bitcoin import redeem_script_to_address, address_to_script, construct_witness, \
     construct_script, NLOCKTIME_BLOCKHEIGHT_MAX
 from .i18n import _
@@ -1943,8 +1944,7 @@ def generate_keypair(node: BIP32Node, key_family: LnKeyFamily) -> Keypair:
 
 
 def generate_random_keypair() -> Keypair:
-    import secrets
-    k = secrets.token_bytes(32)
+    k = crandom.get_rand_bytes(32)
     cK = ecc.ECPrivkey(k).get_public_key_bytes()
     return Keypair(cK, k)
 

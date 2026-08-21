@@ -35,6 +35,7 @@ from .channel_db import UpdateStatus, ChannelDBNotLoaded, get_mychannel_info, ge
 
 from . import constants, util, lnutil
 from . import bitcoin
+from . import crandom
 from .util import (
     profiler, OldTaskGroup, ESocksProxy, NetworkRetryManager, JsonRPCClient, NotEnoughFunds, EventListener,
     event_listener, bfh, InvoiceError, resolve_dns_srv, is_ip_address, log_exceptions, ignore_exceptions,
@@ -664,7 +665,7 @@ class LNGossip(Logger):
 
     def __init__(self, config: 'SimpleConfig'):
         self.config = config
-        seed = os.urandom(32)
+        seed = crandom.get_rand_bytes(32)
         node = BIP32Node.from_rootseed(seed, xtype='standard')
         xprv = node.to_xprv()
         node_keypair = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.NODE_KEY)
@@ -1649,7 +1650,7 @@ class LNWallet(Logger):
             public=public,
             zeroconf=zeroconf,
             opening_fee=opening_fee,
-            temp_channel_id=os.urandom(32))
+            temp_channel_id=crandom.get_rand_bytes(32))
         chan, funding_tx = await util.wait_for2(coro, LN_P2P_NETWORK_TIMEOUT)
         util.trigger_callback('channels_updated', self.wallet)
         self.wallet.adb.add_transaction(funding_tx)  # save tx as local into the wallet
@@ -1706,7 +1707,7 @@ class LNWallet(Logger):
         channel_seed: bytes = None,
     ) -> LocalConfig:
         if channel_seed is None:
-            channel_seed = os.urandom(32)
+            channel_seed = crandom.get_rand_bytes(32)
         initial_msat = funding_sat * 1000 - push_msat if initiator == LOCAL else push_msat
 
         # sending empty bytes as the upfront_shutdown_script will give us the
@@ -2464,7 +2465,7 @@ class LNWallet(Logger):
                             budget=budget._replace(fee_msat=budget.fee_msat // len(per_trampoline_channel_amounts)),
                         )
                         # node_features is only used to determine is_tlv
-                        per_trampoline_secret = os.urandom(32)
+                        per_trampoline_secret = crandom.get_rand_bytes(32)
                         per_trampoline_fees = per_trampoline_amount_with_fees - per_trampoline_amount
                         self.logger.info(f'created route with trampoline fee level={paysession.trampoline_fee_level}')
                         self.logger.info(f'trampoline hops: {[hop.end_node.hex() for hop in trampoline_route]}')
@@ -2732,7 +2733,7 @@ class LNWallet(Logger):
     ) -> bytes:
         if amount_msat == 0:
             raise ValueError("amount_msat must not be 0. Use None instead.")
-        payment_preimage = os.urandom(32)
+        payment_preimage = crandom.get_rand_bytes(32)
         payment_hash = sha256(payment_preimage)
         min_final_cltv_delta = min_final_cltv_delta or MIN_FINAL_CLTV_DELTA_ACCEPTED
         invoice_features = self._prepare_invoice_features(self.features.for_bolt11_invoice(), amount_msat=amount_msat)
@@ -4110,7 +4111,7 @@ class LNWallet(Logger):
         payload = any_trampoline_onion.hop_data.payload
         payment_data = payload.get('payment_data')
         try:
-            payment_secret = payment_data['payment_secret'] if payment_data else os.urandom(32)
+            payment_secret = payment_data['payment_secret'] if payment_data else crandom.get_rand_bytes(32)
             outgoing_node_id = payload["outgoing_node_id"]["outgoing_node_id"]
             amt_to_forward = payload["amt_to_forward"]["amt_to_forward"]
             out_cltv_abs = payload["outgoing_cltv_value"]["outgoing_cltv_value"]
@@ -4273,7 +4274,7 @@ class LNWallet(Logger):
         for i in range(len(route)):
             self.logger.info(f"  {i}: edge={route[i].short_channel_id} hop_data={hops_data[i]!r}")
         assert final_cltv_abs <= cltv_abs, (final_cltv_abs, cltv_abs)
-        session_key = os.urandom(32) # session_key
+        session_key = crandom.get_rand_bytes(32)  # session_key
         # if we are forwarding a trampoline payment, add trampoline onion
         if trampoline_onion:
             self.logger.info(f'adding trampoline onion to final payload')
