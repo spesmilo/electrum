@@ -15,11 +15,29 @@ export PYTHONDONTWRITEBYTECODE=1  # don't create __pycache__/ folders with .pyc 
 . "$(dirname "$0")/../build_tools_util.sh"
 
 
+# Which CPU architecture to build for ("x86_64" or "arm64").
+# Official release binaries for *both* targets are built on an x86_64 host;
+# for the arm64 target we cross-compile. (see #7557)
+ELECTRUM_MACOS_ARCH="${ELECTRUM_MACOS_ARCH:-x86_64}"
+export ELECTRUM_MACOS_ARCH  # (also read by pyinstaller.spec)
+case "$ELECTRUM_MACOS_ARCH" in
+    x86_64)
+        ARCH_DMG_SUFFIX=""
+        ;;
+    arm64)
+        ARCH_DMG_SUFFIX="-arm64"
+        ;;
+    *)
+        fail "unsupported ELECTRUM_MACOS_ARCH: '$ELECTRUM_MACOS_ARCH'. supported values: x86_64, arm64."
+        ;;
+esac
+
+
 CONTRIB_OSX="$(dirname "$(realpath "$0")")"
 CONTRIB="$CONTRIB_OSX/.."
 PROJECT_ROOT="$CONTRIB/.."
 CACHEDIR="$CONTRIB_OSX/.cache"
-export DLL_TARGET_DIR="$CACHEDIR/dlls"
+export DLL_TARGET_DIR="$CACHEDIR/dlls-$ELECTRUM_MACOS_ARCH"
 PIP_CACHE_DIR="$CACHEDIR/pip_cache"
 
 mkdir -p "$CACHEDIR" "$DLL_TARGET_DIR" "$PIP_CACHE_DIR"
@@ -64,9 +82,26 @@ source "$VENV_DIR/bin/activate"
 #       see additional "strip" pass on built files later in the file.
 export CFLAGS="-g0"
 
-# Do not build universal binaries. The default on macos 11+ and xcode 12+ is "-arch arm64 -arch x86_64"
-# but with that e.g. "hid.cpython-310-darwin.so" is not reproducible as built by clang.
-export ARCHFLAGS="-arch x86_64"
+if [ "$ELECTRUM_MACOS_ARCH" = "arm64" ]; then
+    # When targeting arm64, C extensions and dylibs are compiled as universal2 ("fat")
+    # binaries, even though the app bundle will be arm64-only:
+    # - pyinstaller must be able to *import* the modules on the (x86_64) build host
+    #   during its Analysis step, so the host's slice is needed in the venv,
+    # - the bundled app needs the arm64 slice.
+    # pyinstaller thins all collected binaries to $ELECTRUM_MACOS_ARCH when
+    # assembling the .app (see "target_arch" in pyinstaller.spec).
+    export ARCHFLAGS="-arch x86_64 -arch arm64"
+    # DYLIB_ARCHFLAGS is appended to CFLAGS for the libsecp256k1/zbar/libusb builds.
+    DYLIB_ARCHFLAGS="-arch x86_64 -arch arm64"
+    # libsecp's x86_64 asm cannot be compiled into the arm64 slice of a fat binary:
+    LIBSECP_AUTOCONF_FLAGS="--with-asm=no"
+else
+    # Do not build universal binaries. The default on macos 11+ and xcode 12+ is "-arch arm64 -arch x86_64"
+    # but with that e.g. "hid.cpython-310-darwin.so" is not reproducible as built by clang.
+    export ARCHFLAGS="-arch x86_64"
+    DYLIB_ARCHFLAGS=""
+    LIBSECP_AUTOCONF_FLAGS=""
+fi
 
 info "Installing build dependencies"
 # note: re pip installing from PyPI,
@@ -92,7 +127,8 @@ PYINSTALLER_REPO="https://github.com/pyinstaller/pyinstaller.git"
 PYINSTALLER_COMMIT="306d4d92580fea7be7ff2c89ba112cdc6f73fac1"
 # ^ tag "v6.13.0"
 (
-    if [ -f "$CACHEDIR/pyinstaller/PyInstaller/bootloader/Darwin-64bit/runw" ]; then
+    if [ -f "$CACHEDIR/pyinstaller/PyInstaller/bootloader/Darwin-64bit/runw" ] \
+            && lipo "$CACHEDIR/pyinstaller/PyInstaller/bootloader/Darwin-64bit/runw" -verify_arch "$ELECTRUM_MACOS_ARCH" ; then
         info "pyinstaller already built, skipping"
         exit 0
     fi
@@ -117,6 +153,10 @@ PYINSTALLER_COMMIT="306d4d92580fea7be7ff2c89ba112cdc6f73fac1"
     popd
     # sanity check bootloader is there:
     [[ -e "PyInstaller/bootloader/Darwin-64bit/runw" ]] || fail "Could not find runw in target dir!"
+    # the bootloader is expected to be built as universal2 by default (see "--universal2"
+    # in pyinstaller's bootloader/wscript). sanity check it contains the target arch:
+    lipo "PyInstaller/bootloader/Darwin-64bit/runw" -verify_arch "$ELECTRUM_MACOS_ARCH" \
+        || fail "bootloader was not built for $ELECTRUM_MACOS_ARCH. (xcode too old to build universal2 binaries?)"
 )
 info "Installing PyInstaller."
 python3 -m pip install --no-build-isolation --no-dependencies \
@@ -151,13 +191,14 @@ if ls "$DLL_TARGET_DIR"/libsecp256k1.*.dylib 1> /dev/null 2>&1; then
     info "libsecp256k1 already built, skipping"
 else
     info "Building libsecp256k1 dylib..."
-    "$CONTRIB"/make_libsecp256k1.sh || fail "Could not build libsecp"
+    CFLAGS="$CFLAGS $DYLIB_ARCHFLAGS" AUTOCONF_FLAGS="$LIBSECP_AUTOCONF_FLAGS" \
+        "$CONTRIB"/make_libsecp256k1.sh || fail "Could not build libsecp"
 fi
 cp -f "$DLL_TARGET_DIR"/libsecp256k1.*.dylib "$PROJECT_ROOT/electrum" || fail "Could not copy libsecp256k1 dylib"
 
 if [ ! -f "$DLL_TARGET_DIR/libzbar.0.dylib" ]; then
     info "Building ZBar dylib..."
-    "$CONTRIB"/make_zbar.sh || fail "Could not build ZBar dylib"
+    CFLAGS="$CFLAGS $DYLIB_ARCHFLAGS" "$CONTRIB"/make_zbar.sh || fail "Could not build ZBar dylib"
 else
     info "Skipping ZBar build: reusing already built dylib."
 fi
@@ -165,7 +206,7 @@ cp -f "$DLL_TARGET_DIR/libzbar.0.dylib" "$PROJECT_ROOT/electrum/" || fail "Could
 
 if [ ! -f "$DLL_TARGET_DIR/libusb-1.0.dylib" ]; then
     info "Building libusb dylib..."
-    "$CONTRIB"/make_libusb.sh || fail "Could not build libusb dylib"
+    CFLAGS="$CFLAGS $DYLIB_ARCHFLAGS" "$CONTRIB"/make_libusb.sh || fail "Could not build libusb dylib"
 else
     info "Skipping libusb build: reusing already built dylib."
 fi
@@ -196,6 +237,18 @@ python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: 
     -Ir ./contrib/deterministic-build/requirements-binaries-mac.txt \
     || fail "Could not install dependencies specific to binaries"
 
+if [ "$ELECTRUM_MACOS_ARCH" = "arm64" ]; then
+    # PyQt6-Qt6 does not ship universal2 wheels, only thin x86_64 and arm64 ones,
+    # and pip installed the wheel matching the *build host*. Replace the Qt libs
+    # with a universal2 merge of both thin wheels. (see make_universal_qt.py)
+    info "Merging PyQt6-Qt6 x86_64+arm64 wheels into universal2 Qt libs..."
+    python3 "$CONTRIB_OSX/make_universal_qt.py" \
+        --requirements ./contrib/deterministic-build/requirements-binaries-mac.txt \
+        --site-packages "$VENV_DIR/lib/python$PY_VER_MAJOR/site-packages" \
+        --cache-dir "$CACHEDIR/qt_wheels" \
+        || fail "Could not create universal2 Qt libs"
+fi
+
 info "Building $PACKAGE..."
 python3 -m pip install --no-build-isolation --no-dependencies \
     --cache-dir "$PIP_CACHE_DIR" --no-warn-script-location . > /dev/null || fail "Could not build $PACKAGE"
@@ -217,11 +270,25 @@ VERSION=$(git describe --tags --always)
 info "Building binary"
 ELECTRUM_VERSION=$VERSION pyinstaller --noconfirm --clean contrib/osx/pyinstaller.spec || fail "Could not build binary"
 
+if [ "$ELECTRUM_MACOS_ARCH" = "arm64" ]; then
+    # We compiled the venv binaries as universal2 (see ARCHFLAGS above) and rely on
+    # pyinstaller to thin them. Sanity check every Mach-O file in the bundle is
+    # thin and matches the target arch:
+    info "Verifying architecture of Mach-O files in the app bundle..."
+    find "dist/${PACKAGE}.app" -type f | while IFS= read -r f; do
+        archs=$(lipo -archs "$f" 2>/dev/null) || continue  # not a Mach-O file
+        if [ "$archs" != "$ELECTRUM_MACOS_ARCH" ]; then
+            echo "unexpected architectures ('$archs') for file: $f"
+            exit 1
+        fi
+    done || fail "app bundle contains files with unexpected architectures"
+fi
+
 info "Finished building unsigned dist/${PACKAGE}.app. This hash should be reproducible:"
 find "dist/${PACKAGE}.app" -type f -print0 | sort -z | xargs -0 shasum -a 256 | shasum -a 256
 
 info "Creating unsigned .DMG"
-hdiutil create -fs HFS+ -volname $PACKAGE -srcfolder dist/$PACKAGE.app dist/electrum-$VERSION-unsigned.dmg || fail "Could not create .DMG"
+hdiutil create -fs HFS+ -volname $PACKAGE -srcfolder dist/$PACKAGE.app dist/electrum-${VERSION}${ARCH_DMG_SUFFIX}-unsigned.dmg || fail "Could not create .DMG"
 
 info "App was built successfully but was not code signed. Users may get security warnings from macOS."
 info "Now you also need to run sign_osx.sh to codesign/notarize the binary."
