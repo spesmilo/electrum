@@ -265,10 +265,10 @@ class TestOnionMessage(ElectrumTestCase):
 
 
 class MockNetwork:
-    def __init__(self):
+    def __init__(self, *, config: SimpleConfig):
         self.asyncio_loop = get_asyncio_loop()
         self.taskgroup = OldTaskGroup()
-        self.config = SimpleConfig()
+        self.config = config
         self.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS = True
 
 
@@ -300,6 +300,7 @@ class TestOnionMessageManager(ElectrumTestCase):
 
     def setUp(self):
         super().setUp()
+        self.config = SimpleConfig({'electrum_path': self.electrum_path})
 
         def keypair(privkey: ECPrivkey):
             priv = privkey.get_secret_bytes()
@@ -368,7 +369,7 @@ class TestOnionMessageManager(ElectrumTestCase):
         self.assertEqual(t6_result, ({'path_id': {'data': b'electrum' + rkey}}, {}))
 
     async def test_request_and_reply(self):
-        n = MockNetwork()
+        n = MockNetwork(config=self.config)
         lnw = self.create_mock_lnwallet(name='test_request_and_reply')
 
         # mock add_peer for direct connection fallback
@@ -426,7 +427,7 @@ class TestOnionMessageManager(ElectrumTestCase):
             await lnw.stop()
 
     async def test_forward(self):
-        n = MockNetwork()
+        n = MockNetwork(config=self.config)
         lnw = self.create_mock_lnwallet(name='alice')
         lnw.node_keypair = self.alice
 
@@ -463,7 +464,7 @@ class TestOnionMessageManager(ElectrumTestCase):
         self.assertTrue(self.was_sent)
 
     async def test_receive_unsolicited(self):
-        n = MockNetwork()
+        n = MockNetwork(config=self.config)
         lnw = self.create_mock_lnwallet(name='dave')
         lnw.node_keypair = self.dave
 
