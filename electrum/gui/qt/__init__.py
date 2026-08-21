@@ -79,6 +79,7 @@ from electrum.wizard import WizardViewState
 from electrum.keystore import load_keystore
 from electrum.bip32 import is_xprv
 from electrum import constants
+from electrum import crandom
 
 from electrum.gui.common_qt.i18n import ElectrumTranslator
 from electrum.gui.messages import TERMS_OF_USE_LATEST_VERSION
@@ -567,6 +568,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
             self.daemon.start_network()
 
     def main(self):
+        BaseElectrumGui.main(self)
         # setup Ctrl-C handling and tear-down code first, so that user can easily exit whenever
         self.app.setQuitOnLastWindowClosed(False)  # so _we_ can decide whether to quit
         self.app.lastWindowClosed.connect(self._maybe_quit_if_no_windows_open)
@@ -618,6 +620,16 @@ class ElectrumGui(BaseElectrumGui, Logger):
         # tooltip cannot be displayed immediately when called from a menu; wait 200ms
         QTimer.singleShot(200, lambda: QToolTip.showText(QCursor.pos(), message, None))
 
+    def rand_add_gui_static_env(self, feed) -> None:
+        for screen in self.app.screens():
+            feed(str(screen.serialNumber()))
+            feed(str(screen.manufacturer()))
+            feed(str(screen.model()))
+            feed(str(screen.name()))
+            feed(str(screen.size()))
+            feed(str(screen.availableSize()))
+            feed(str(screen.refreshRate()))
+            feed(str(screen.logicalDotsPerInch()))
 
 def standalone_exception_dialog(exception: Union[str, BaseException]) -> None:
     app = QApplication.instance()
