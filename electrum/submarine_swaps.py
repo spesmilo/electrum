@@ -38,7 +38,7 @@ from .util import (
     get_nostr_ann_pow_amount, make_aiohttp_proxy_connector, get_running_loop, get_asyncio_loop, wait_for2,
     run_sync_function_on_asyncio_thread, trigger_callback, NoDynamicFeeEstimates, UserFacingException, now
 )
-from .lnutil import hex_to_bytes, Keypair, SENT, RECEIVED, MIN_FINAL_CLTV_DELTA_ACCEPTED
+from .lnutil import hex_to_bytes, Keypair, SENT, RECEIVED, MIN_FINAL_CLTV_DELTA_ACCEPTED, PaymentFailure
 from .bolt11 import decode_bolt11_invoice
 from .stored_dict import StoredObject, stored_at
 from . import constants
@@ -346,17 +346,14 @@ class SwapManager(Logger):
 
     @log_exceptions
     async def main_loop(self):
-        tasks = [self.pay_pending_invoices()]
-        if self.is_server:
-            # nostr and http are not mutually exclusive
-            if self.config.SWAPSERVER_PORT:
-                tasks.append(self.http_server.run())
-            if self.config.NOSTR_RELAYS:
-                tasks.append(self.run_nostr_server())
-
+        # nostr and http are not mutually exclusive
         async with self.taskgroup as group:
-            for task in tasks:
-                await group.spawn(task)
+            if self.is_server:
+                if self.config.SWAPSERVER_PORT:
+                    await group.spawn(self.http_server.run())
+                if self.config.NOSTR_RELAYS:
+                    await group.spawn(self.run_nostr_server())
+            await group.spawn(asyncio.Event().wait())  # run until cancel
 
     async def stop(self):
         await self.taskgroup.cancel_remaining()
@@ -450,32 +447,6 @@ class SwapManager(Logger):
         )
         self.logger.debug(f"Found {pow_amount} bits of work for Nostr announcement.")
         self.config.SWAPSERVER_ANN_POW_NONCE = nonce
-
-    async def pay_invoice(self, key):
-        self.logger.info(f'trying to pay invoice {key}')
-        self.invoices_to_pay[key] = 1000000000000 # lock
-        try:
-            invoice = self.wallet.get_invoice(key)
-            success, log = await self.lnworker.pay_invoice(invoice)
-        except Exception as e:
-            self.logger.info(f'exception paying {key}, will not retry')
-            self.invoices_to_pay.pop(key, None)
-            return
-        if not success:
-            self.logger.info(f'failed to pay {key}, will retry in 10 minutes')
-            self.invoices_to_pay[key] = now() + 600
-        else:
-            self.logger.info(f'paid invoice {key}')
-            self.invoices_to_pay.pop(key, None)
-
-    async def pay_pending_invoices(self):
-        self.invoices_to_pay = {}
-        while True:
-            await asyncio.sleep(5)
-            for key, not_before in list(self.invoices_to_pay.items()):
-                if now() < not_before:
-                    continue
-                await self.taskgroup.spawn(self.pay_invoice(key))
 
     def cancel_normal_swap(self, swap: Optional[SwapData], *, reason: str = 'user cancelled') -> bool:
         """Fail/cancel the swap, unless its funding tx is already being broadcast. Safe to call from the GUI thread."""
@@ -969,7 +940,7 @@ class SwapManager(Logger):
         self.add_lnwatcher_callback(swap)
         return swap
 
-    def server_add_swap_invoice(self, request: dict) -> dict:
+    async def server_add_swap_invoice(self, request: dict) -> dict:
         """ server method.
         (client-forward-swap phase2)
         """
@@ -993,10 +964,7 @@ class SwapManager(Logger):
                 payment_hash=payment_hash, locktime=swap.locktime, refund_pubkey=their_pubkey, claim_pubkey=our_pubkey,
             )
             assert swap.redeem_script == redeem_script
-            assert key not in self.invoices_to_pay
-            self.invoices_to_pay[key] = 0
-            assert self.wallet.get_invoice(invoice.get_id()) is None
-            self.wallet.save_invoice(invoice)
+        await self.taskgroup.spawn(self.pay_invoice_safe(invoice))
         return {}
 
     async def normal_swap(
@@ -1740,6 +1708,16 @@ class SwapManager(Logger):
                 pending_swaps.append(swap)
         return pending_swaps
 
+    async def pay_invoice_safe(self, invoice: 'Invoice'):
+        try:
+            success, htlc_log = await self.lnworker.pay_invoice(invoice)  # prevents duplicate payment attempts
+            if not success:
+                raise PaymentFailure("\n".join(str(x.formatted_tuple()) for x in htlc_log))
+        except PaymentFailure as e:
+            self.logger.warning(f"failed to pay swap invoice {invoice.get_id()}: {e}")
+        except Exception:
+            self.logger.exception("exception while paying swap invoice")
+
 
 class SwapServerTransport(Logger):
 
@@ -2199,7 +2177,7 @@ class NostrTransport(SwapServerTransport):
                 method = request.pop('method')
                 self.logger.info(f'handle_request: id={event_id} {method} {request}')
                 if method == 'addswapinvoice':  # client-forward-swap phase2
-                    r = self.sm.server_add_swap_invoice(request)
+                    r = await self.sm.server_add_swap_invoice(request)
                 elif method == 'createswap':  # client-reverse-swap
                     r = self.sm.server_create_swap(request)
                 elif method == 'createnormalswap':  # client-forward-swap phase1
