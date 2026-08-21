@@ -220,11 +220,8 @@ class KeystoreWizardTestCase(WizardTestCase):
         myxpub = 'zpub6oLFCUpqxT8BUzy8g5miUuRofPZ46ZjjvZfcfH7qJanRM7aRYGpNX4uBGtcJRbgcKbi7dYkiiPw1GB2sc3SufyDcZskuQEWp5jBwbNcj1VL'
         d.update({
             'seed': myseed, 'seed_type': 'segwit', 'seed_extend': True, 'seed_variant': 'electrum',
+            'seed_extra_words': mypassphrase,
         })
-        self.assertFalse(w.is_last_view(v.view, d))
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('enter_ext', v.view)
-        d.update({'seed_extra_words': mypassphrase})
         self.assertTrue(w.is_last_view(v.view, d))
         w.resolve_next(v.view, d)
         ks, ishww = w._result
@@ -324,11 +321,9 @@ class KeystoreWizardTestCase(WizardTestCase):
         d.update({
             'seed': 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about',
             'seed_type': 'bip39', 'seed_extend': True, 'seed_variant': 'bip39',
+            'seed_extra_words': 'abc',
         })
         self.assertFalse(w.is_last_view(v.view, d))
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('enter_ext', v.view)
-        d.update({'seed_extra_words': 'abc'})
         v = w.resolve_next(v.view, d)
 
         self.assertEqual('script_and_derivation', v.view)
@@ -556,11 +551,8 @@ class WalletWizardTestCase(WizardTestCase):
 
         d.update({
             'seed': '9dk', 'seed_type': 'segwit', 'seed_extend': True, 'seed_variant': 'electrum',
+            'seed_extra_words': UNICODE_HORROR,
         })
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('create_ext', v.view)
-
-        d.update({'seed_extra_words': UNICODE_HORROR})
         v = w.resolve_next(v.view, d)
         self.assertEqual('confirm_seed', v.view)
 
@@ -622,15 +614,9 @@ class WalletWizardTestCase(WizardTestCase):
             'seed': 'powerful random nobody notice nothing important anyway look away hidden message over',
             'seed_type': 'old', 'seed_extend': True, 'seed_variant': 'electrum'})
         v = w.resolve_next(v.view, d)
-        # FIXME this diverges from the actual GUIs :(
-        #  the GUIs do validation using wizard.validate_seed() and don't go to 'have_ext' for next view.
-        #  the validation should be moved to the base impl!
-        self.assertEqual('have_ext', v.view)
-
-        d.update({'seed_extra_words': UNICODE_HORROR})
-        with self.assertRaises(Exception) as ctx:
-            v = w.resolve_next(v.view, d)
-        self.assertTrue("cannot have passphrase" in ctx.exception.args[0])
+        # GUI unchecks the box; even if seed_extend is still True, skip have_ext.
+        self.assertEqual('wallet_password', v.view)
+        self._set_password_and_check_address(v=v, w=w, recv_addr="1FJEEB8ihPMbzs2SkLmr37dHyRFzakqUmo")
 
     async def test_create_standard_wallet_haveseed_electrum(self):
         w = self._wizard_for(wallet_type='standard')
@@ -656,11 +642,8 @@ class WalletWizardTestCase(WizardTestCase):
         v = w.resolve_next(v.view, d)
         self.assertEqual('have_seed', v.view)
 
-        d.update({'seed': '9dk', 'seed_type': 'segwit', 'seed_extend': True, 'seed_variant': 'electrum'})
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('have_ext', v.view)
-
-        d.update({'seed_extra_words': UNICODE_HORROR})
+        d.update({'seed': '9dk', 'seed_type': 'segwit', 'seed_extend': True, 'seed_variant': 'electrum',
+                  'seed_extra_words': UNICODE_HORROR})
         v = w.resolve_next(v.view, d)
         self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qgvx24uzdv4mapfmtlu8azty5fxdcw9ghxu4pr4")
 
@@ -710,11 +693,8 @@ class WalletWizardTestCase(WizardTestCase):
         self.assertEqual('have_seed', v.view)
 
         d.update({'seed': 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about',
-                  'seed_type': 'bip39', 'seed_extend': True, 'seed_variant': 'bip39'})
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('have_ext', v.view)
-
-        d.update({'seed_extra_words': UNICODE_HORROR})
+                  'seed_type': 'bip39', 'seed_extend': True, 'seed_variant': 'bip39',
+                  'seed_extra_words': UNICODE_HORROR})
         v = w.resolve_next(v.view, d)
         self.assertEqual('script_and_derivation', v.view)
 
@@ -770,11 +750,8 @@ class WalletWizardTestCase(WizardTestCase):
         ]
         encrypted_seed = slip39.recover_ems(mnemonics)
 
-        d.update({'seed': encrypted_seed, 'seed_variant': 'slip39', 'seed_type': 'slip39', 'seed_extend': True})
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('have_ext', v.view)
-
-        d.update({'seed_extra_words': 'TREZOR'})
+        d.update({'seed': encrypted_seed, 'seed_variant': 'slip39', 'seed_type': 'slip39', 'seed_extend': True,
+                  'seed_extra_words': 'TREZOR'})
         v = w.resolve_next(v.view, d)
         self.assertEqual('script_and_derivation', v.view)
 
@@ -881,10 +858,8 @@ class WalletWizardTestCase(WizardTestCase):
         d.update({
             'seed': 'oblige basket safe educate whale bacon celery demand novel slice various awkward',
             'seed_type': '2fa', 'seed_extend': True, 'seed_variant': 'electrum',
+            'seed_extra_words': UNICODE_HORROR,
         })
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_have_ext', v.view)
-        d.update({'seed_extra_words': UNICODE_HORROR})
         v = w.resolve_next(v.view, d)
         self.assertEqual('trustedcoin_keep_disable', v.view)
         d.update({'trustedcoin_keepordisable': 'keep'})
@@ -1015,11 +990,7 @@ class WalletWizardTestCase(WizardTestCase):
 
         d.update({
             'seed': '9dk',
-            'seed_variant': 'electrum', 'seed_type': 'segwit', 'seed_extend': True})
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('have_ext', v.view)
-
-        d.update({
+            'seed_variant': 'electrum', 'seed_type': 'segwit', 'seed_extend': True,
             'seed_extra_words': UNICODE_HORROR,
             'multisig_master_pubkey': 'Zpub6zAYrXzLbLwWFCkahiB3fQz4KMUm68RsoGVHkM5aBjzHBGnQ9orvy7PKuFvMj4gyJXhFW5uFzHBgDDYFEPS75b3ADq3yvtuEJF86ZgLLyeL'})
         v = w.resolve_next(v.view, d)
@@ -1091,11 +1062,7 @@ class WalletWizardTestCase(WizardTestCase):
 
         d['multisig_cosigner_data']['5'].update({
             'seed': 'abandon bike',
-            'seed_variant': 'electrum', 'seed_type': 'segwit', 'seed_extend': True})
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('multisig_cosigner_have_ext', v.view)
-
-        d['multisig_cosigner_data']['5'].update({
+            'seed_variant': 'electrum', 'seed_type': 'segwit', 'seed_extend': True,
             'seed_extra_words': UNICODE_HORROR})
         v = w.resolve_next(v.view, d)
         self.assertEqual('multisig_cosigner_keystore', v.view)

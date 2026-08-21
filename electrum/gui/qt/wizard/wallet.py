@@ -461,6 +461,7 @@ class WCCreateSeed(WalletWizardComponent):
             self.wizard_data['seed'] = self.seed
             self.wizard_data['seed_type'] = self.seed_type
             self.wizard_data['seed_extend'] = self.seed_widget.is_ext
+            self.wizard_data['seed_extra_words'] = self.seed_widget.get_seed_extra_words()
             self.wizard_data['seed_variant'] = 'electrum'
 
     def create_seed(self):
@@ -513,13 +514,27 @@ class WCEnterExt(WalletWizardComponent, Logger):
     def __init__(self, parent, wizard):
         WalletWizardComponent.__init__(self, parent, wizard, title=_('Seed Extension'))
         Logger.__init__(self)
+        self.ext_edit = None
+        self.warn_label = None
 
-        message = '\n'.join([
-            _('You may extend your seed with custom words.'),
-            _('Your seed extension must be saved together with your seed.'),
-        ])
+    def on_ready(self):
+        wdata = self.wizard.current_cosigner(self.wizard_data)
+        is_bip39 = wdata.get('seed_variant') == 'bip39'
+        if is_bip39:
+            self.title = _('BIP39 Passphrase')
+            message = '\n'.join([
+                _('Enter an optional BIP39 passphrase.'),
+                _('Each passphrase derives a different wallet.'),
+                _('This is sometimes incorrectly called the "25th word".'),
+            ])
+        else:
+            self.title = _('Seed Extension')
+            message = '\n'.join([
+                _('You may extend your seed with a Passphrase (e.g. password manager generated passphrase, custom words, a combination of both...).'),
+                _("You will need to save both your seed and the extension Passphrase together."),
+            ])
         warning = '\n'.join([
-            _('Note that this is NOT your encryption password.'),
+            _('Note that this is NOT your wallet file encryption password.'),
             _('If you do not know what this is, leave this field empty.'),
         ])
 
@@ -530,8 +545,6 @@ class WCEnterExt(WalletWizardComponent, Logger):
         self.warn_label = IconLabel(reverse=True, hide_if_empty=True)
         self.warn_label.setIcon(read_QIcon('warning.png'))
         self.layout().addWidget(self.warn_label)
-
-    def on_ready(self):
         self.validate()
 
     def on_text_edited(self, text):
@@ -549,7 +562,7 @@ class WCEnterExt(WalletWizardComponent, Logger):
 
     def apply(self):
         cosigner_data = self.wizard.current_cosigner(self.wizard_data)
-        cosigner_data['seed_extra_words'] = self.ext_edit.text()
+        cosigner_data['seed_extra_words'] = self.ext_edit.text() if self.ext_edit else ''
 
 
 class WCConfirmExt(WalletWizardComponent):
@@ -560,6 +573,7 @@ class WCConfirmExt(WalletWizardComponent):
             _('Please type it here.'),
         ])
         self.ext_edit = SeedExtensionEdit(self, message=message)
+        self.ext_edit.line.setPlaceholderText(_('Enter your custom Passphrase'))
         self.ext_edit.textEdited.connect(self.on_text_edited)
         self.layout().addWidget(self.ext_edit)
         self.layout().addStretch(1)
@@ -659,6 +673,7 @@ class WCHaveSeed(WalletWizardComponent, Logger):
         else:
             cosigner_data['seed_type'] = self.seed_widget.seed_type
         cosigner_data['seed_extend'] = self.seed_widget.is_ext if self.can_passphrase else False
+        cosigner_data['seed_extra_words'] = self.seed_widget.get_seed_extra_words() if cosigner_data['seed_extend'] else ''
 
 
 class WCScriptAndDerivation(WalletWizardComponent, Logger):
