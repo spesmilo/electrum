@@ -52,6 +52,7 @@ class RNGState(Logger):
         self.lock = threading.RLock()
         self._state = os.urandom(32)  # secret!  access needs lock.
         self._last_strengthened = 0
+        self._last_dyn_refresh_slow = 0
         # gather ghetto-entropy:
         self.rand_add_refresh()  # clock
         crandom_env.rand_add_static_env(self.feed_entropy)
@@ -63,7 +64,13 @@ class RNGState(Logger):
 
         Never raises.
         """
-        crandom_env.rand_add_dynamic_env(self.feed_entropy)
+        with self.lock:
+            now = time.monotonic()
+            incl_slow = False
+            if now - self._last_dyn_refresh_slow > 60:  # been more than 1 minute
+                self._last_dyn_refresh_slow = now
+                incl_slow = True
+        crandom_env.rand_add_dynamic_env(self.feed_entropy, include_slow_sources=incl_slow)
 
     def feed_entropy(self, data: bytes | str | int) -> None:
         """Mix in some data into our internal RNG state, in hopes of increasing entropy.
