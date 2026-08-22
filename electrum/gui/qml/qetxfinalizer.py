@@ -24,6 +24,7 @@ from electrum.gui import messages
 from electrum.gui.common_qt.util import QtEventListener
 
 from .qewallet import QEWallet
+from .qeinvoice import QEInvoice
 from .qetypes import QEAmount
 
 if TYPE_CHECKING:
@@ -407,6 +408,7 @@ class QETxFinalizer(TxFeeSlider):
         self.f_accept = accept
 
         self._address = ''
+        self._invoice = None  # type: Optional[QEInvoice]
         self._amount = QEAmount()
         self._effectiveAmount = QEAmount()
         self._extraFee = QEAmount()
@@ -422,6 +424,19 @@ class QETxFinalizer(TxFeeSlider):
         if self._address != address:
             self._address = address
             self.addressChanged.emit()
+
+    invoiceChanged = pyqtSignal()
+    @pyqtProperty(QVariant, notify=invoiceChanged)
+    def invoice(self) -> Optional[QEInvoice]:
+        return self._invoice
+
+    @invoice.setter
+    def invoice(self, invoice: QEInvoice):
+        assert invoice is None or isinstance(invoice, QEInvoice)
+        if self._invoice != invoice:
+            self._invoice = invoice
+            self.update()
+            self.invoiceChanged.emit()
 
     amountChanged = pyqtSignal()
     @pyqtProperty(QVariant, notify=amountChanged)
@@ -474,7 +489,16 @@ class QETxFinalizer(TxFeeSlider):
         else:
             # default impl
             coins = self._wallet.wallet.get_spendable_coins(None)
-            outputs = [PartialTxOutput.from_address_and_value(self.address, amount)]
+            invoice = self._invoice.get_effective_invoice() if self._invoice else None
+            invoice_outputs = invoice.get_outputs() if invoice and not invoice.is_lightning() else []
+            if len(invoice_outputs) > 1:
+                # multi-output ("pay to many") invoice: pay all invoice outputs
+                outputs = invoice_outputs
+            else:
+                # single-output invoices use (address, amount), as amount may differ
+                # from the invoice output value (zero-amount invoices, and lightning
+                # invoices paid via their onchain fallback address)
+                outputs = [PartialTxOutput.from_address_and_value(self.address, amount)]
             tx = self._wallet.wallet.make_unsigned_transaction(
                 coins=coins,
                 outputs=outputs,

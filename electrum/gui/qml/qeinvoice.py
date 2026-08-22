@@ -18,7 +18,7 @@ from electrum.lnurl import LNURL6Data
 from electrum.lnchannel import PeerState, ChannelState
 from electrum.bitcoin import COIN, address_to_script
 from electrum.payment_identifier import PaymentIdentifier, PaymentIdentifierState, PaymentIdentifierType
-from electrum.util import event_listener, now, InvoiceError
+from electrum.util import event_listener, now, parse_max_spend, InvoiceError
 
 from electrum.gui.common_qt.util import QtEventListener
 
@@ -167,6 +167,19 @@ class QEInvoice(QObject, QtEventListener):
     def address(self):
         return self._effectiveInvoice.get_address() if self._effectiveInvoice else ''
 
+    @pyqtProperty('QVariantList', notify=invoiceChanged)
+    def outputs(self):
+        if not self._effectiveInvoice or self.invoiceType != QEInvoice.Type.OnchainInvoice:
+            return []
+        outputs = []
+        for o in self._effectiveInvoice.get_outputs():
+            outputs.append({
+                'address': o.get_ui_address_str(),
+                'value': o.value,
+                'is_max': bool(parse_max_spend(o.value))
+            })
+        return outputs
+
     @pyqtProperty(QEAmount, notify=invoiceChanged)
     def amount(self):
         if not self._effectiveInvoice:
@@ -291,6 +304,9 @@ class QEInvoice(QObject, QtEventListener):
         lnworker = self._wallet.wallet.lnworker
         return (lnworker.lnpeermgr.get_node_alias(node_id) if lnworker else None) or node_id.hex()
 
+    def get_effective_invoice(self) -> Optional[Invoice]:
+        return self._effectiveInvoice
+
     def set_effective_invoice(self, invoice: Invoice):
         self._paid_in_this_session = False
         self._effectiveInvoice = invoice
@@ -302,6 +318,9 @@ class QEInvoice(QObject, QtEventListener):
                 self.setInvoiceType(QEInvoice.Type.LightningInvoice)
             else:
                 self.setInvoiceType(QEInvoice.Type.OnchainInvoice)
+                if len(invoice.get_outputs()) > 1:
+                    # amount override does not apply to multi-output invoices
+                    self._amountOverride.clear()
             self._isSaved = self._wallet.wallet.get_invoice(invoice.get_id()) is not None
 
         self.set_lnprops()
@@ -340,6 +359,14 @@ class QEInvoice(QObject, QtEventListener):
 
         amount = self.amountOverride if not self.amountOverride.isEmpty else self.amount
 
+        is_multi_output = (self.invoiceType == QEInvoice.Type.OnchainInvoice
+                           and len(self._effectiveInvoice.get_outputs()) > 1)
+        if is_multi_output:
+            # the amount override does not apply to multi-output invoices: the pay
+            # path spends to the invoice outputs as-is. If their amount is
+            # unspecified (all zero-value outputs), the invoice cannot be paid.
+            amount = self.amount
+
         # Invalid and LNURLPayRequest have no _effectiveInvoice, so payability cannot be determined.
         is_directly_payable = self.invoiceType in [
             QEInvoice.Type.LightningInvoice, QEInvoice.Type.OnchainInvoice]
@@ -351,7 +378,8 @@ class QEInvoice(QObject, QtEventListener):
         userinfo_status = QEInvoice.UserinfoStatus.Info
         try:
             if self.amount.isEmpty:
-                userinfo = _('Enter the amount you want to send')
+                userinfo = (_('Invoice has no amount') if is_multi_output
+                            else _('Enter the amount you want to send'))
 
             status = self.status
 
@@ -436,6 +464,10 @@ class QEInvoice(QObject, QtEventListener):
             return
 
         assert self.invoiceType == QEInvoice.Type.OnchainInvoice
+
+        if len(self._effectiveInvoice.get_outputs()) > 1:
+            self._logger.debug('updateMaxAmount not supported for multi-output invoices')
+            return
 
         # only single address invoice supported
         invoice_address = self._effectiveInvoice.get_address()
