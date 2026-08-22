@@ -504,3 +504,64 @@ def get_ecdh(priv: bytes, pub: bytes) -> bytes:
 
 def privkey_to_pubkey(priv: bytes) -> bytes:
     return ecc.ECPrivkey(priv[:32]).get_public_key_bytes()
+
+
+########################################
+# Run-time sanity checks.
+# - If one of the important cryptographic primitives is broken, we better panic.
+# - For several primitives we support multiple backends. By now at runtime,
+#   we have already selected the backend: check if it really works and fail early if not.
+# - This whole section takes 5-10 msec.
+#
+# Hash functions. SHA2. single backend: hashlib
+assert sha256(b"satoshi_nakamoto").hex() == "5f94a8490efe9e06c590dd34e37b5ab8f482f1af7578c6a41542761938a42426"
+assert hashlib.sha512(b"satoshi_nakamoto").digest().hex() \
+        == "cae681a7f07bd26128f8536c59a38f10c9e648898426cd1dd94144c7d3ea0512186400edc5d38ac677d43e97ebb877bf76d69c44de1f6e074435adc79caf8f14"
+# Hash functions. ripemd. two supported backends: hashlib, ripemd.py
+assert ripemd(b"satoshi_nakamoto").hex() == "a9a1c16007c20fa031f97f712c5eabd6f2ec54c4"
+# AES-128: three supported backends: pycryptodomex, cryptography, pyaes
+assert aes_encrypt_with_iv(
+    key=b"satoshi_nakamoto",
+    iv=b"thetimes20090103",
+    data=b"The quick brown fox jumps over the lazy dog").hex() \
+       == "9128466a087892f5f945ca48fe8c4b1d34e126d19fb0c50ce7f127a19508146734152f38d65377cd0add2599042a55e2"
+assert aes_decrypt_with_iv(
+    key=b"satoshi_nakamoto",
+    iv=b"thetimes20090103",
+    data=bytes.fromhex("9128466a087892f5f945ca48fe8c4b1d34e126d19fb0c50ce7f127a19508146734152f38d65377cd0add2599042a55e2")) \
+       == b"The quick brown fox jumps over the lazy dog"
+# AES-256: three supported backends: pycryptodomex, cryptography, pyaes
+assert aes_encrypt_with_iv(
+    key=b"satoshi_nakamoto_wanted_32_bytes",
+    iv=b"thetimes20090103",
+    data=b"The quick brown fox jumps over the lazy dog").hex() \
+       == "65e532e8fb643e192d66cfebd3328ea6d52c9d43b18c8c8c7754b6a7c5927b7395201ff221315b51bfb1ad1c6184afce"
+assert aes_decrypt_with_iv(
+    key=b"satoshi_nakamoto_wanted_32_bytes",
+    iv=b"thetimes20090103",
+    data=bytes.fromhex("65e532e8fb643e192d66cfebd3328ea6d52c9d43b18c8c8c7754b6a7c5927b7395201ff221315b51bfb1ad1c6184afce")) \
+       == b"The quick brown fox jumps over the lazy dog"
+# chacha20: two supported backends: pycryptodomex, cryptography
+assert chacha20_encrypt(
+    key=b"satoshi_nakamoto_wanted_32_bytes",
+    nonce=b"thetimes2009",
+    data=b"The quick brown fox jumps over the lazy dog").hex() \
+       == "b34faa354952d09a5c052e490678866f0d1ad37e567b2ea9247438c0d91f5a00343dc8a681a60bb4b2973b"
+assert chacha20_decrypt(
+    key=b"satoshi_nakamoto_wanted_32_bytes",
+    nonce=b"thetimes2009",
+    data=bytes.fromhex("b34faa354952d09a5c052e490678866f0d1ad37e567b2ea9247438c0d91f5a00343dc8a681a60bb4b2973b")) \
+       == b"The quick brown fox jumps over the lazy dog"
+# chacha20-poly1305: two supported backends: pycryptodomex, cryptography
+assert chacha20_poly1305_encrypt(
+    key=b"satoshi_nakamoto_wanted_32_bytes",
+    nonce=b"thetimes2009",
+    associated_data=b"loremipsum",
+    data=b"The quick brown fox jumps over the lazy dog").hex() \
+       == "10861cab9d587356da776c6bca2320f39f6f0a5111a74929108ba27fda87e8777dcf6416a4ca9d443dba94b9891e48a1618a7347ac648970a38265"
+assert chacha20_poly1305_decrypt(
+    key=b"satoshi_nakamoto_wanted_32_bytes",
+    nonce=b"thetimes2009",
+    associated_data=b"loremipsum",
+    data=bytes.fromhex("10861cab9d587356da776c6bca2320f39f6f0a5111a74929108ba27fda87e8777dcf6416a4ca9d443dba94b9891e48a1618a7347ac648970a38265")) \
+       == b"The quick brown fox jumps over the lazy dog"
