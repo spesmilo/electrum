@@ -111,7 +111,7 @@ def rand_add_static_env(feed: 'CRANDOM_FEEDER_API') -> None:
     _safe_feed(lambda: feed(get_unix_password_database()))
 
 
-def rand_add_dynamic_env(feed: 'CRANDOM_FEEDER_API') -> None:
+def rand_add_dynamic_env(feed: 'CRANDOM_FEEDER_API', *, include_slow_sources: bool) -> None:
     """Gather non-cryptographic environment data that changes over time and feed it into feed().
 
     Never raises.
@@ -136,9 +136,12 @@ def rand_add_dynamic_env(feed: 'CRANDOM_FEEDER_API') -> None:
     _safe_feed(lambda: feed(sys.getunicodeinternedsize()))
     _safe_feed(lambda: feed(str(sys._current_frames())))
     _safe_feed(lambda: feed(str(sys._current_exceptions())))
-    _safe_feed(lambda: feed(str(sys.modules)))
     _safe_feed(lambda: feed(str(sys.path_importer_cache)))
     # gc
     feed(str(gc.get_stats()))
     feed(str(gc.get_count()))
     feed(str(gc.get_threshold()))
+    # --- end of fast sources ---
+    if not include_slow_sources:
+        return
+    _safe_feed(lambda: feed(str(sys.modules)))  # takes 1.5 msec
