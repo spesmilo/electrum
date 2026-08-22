@@ -136,6 +136,8 @@ def strip_PKCS7_padding(data: bytes) -> bytes:
 
 def aes_encrypt_with_iv(key: bytes, iv: bytes, data: bytes) -> bytes:
     assert_bytes(key, iv, data)
+    assert len(key) in (16, 32), f"unexpected key size: {len(key)} (expected: 16 or 32)"
+    assert len(iv) == 16, f"unexpected iv size: {len(iv)} (expected: 16)"
     data = append_PKCS7_padding(data)
     if HAS_CRYPTODOME:
         e = CD_AES.new(key, CD_AES.MODE_CBC, iv).encrypt(data)
@@ -154,6 +156,8 @@ def aes_encrypt_with_iv(key: bytes, iv: bytes, data: bytes) -> bytes:
 
 def aes_decrypt_with_iv(key: bytes, iv: bytes, data: bytes) -> bytes:
     assert_bytes(key, iv, data)
+    assert len(key) in (16, 32), f"unexpected key size: {len(key)} (expected: 16 or 32)"
+    assert len(iv) == 16, f"unexpected iv size: {len(iv)} (expected: 16)"
     if HAS_CRYPTODOME:
         cipher = CD_AES.new(key, CD_AES.MODE_CBC, iv)
         data = cipher.decrypt(data)
