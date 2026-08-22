@@ -92,6 +92,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.app.quit()
 
     def main(self):
+        BaseElectrumGui.main(self)
         if not self.app._valid:
             return
 

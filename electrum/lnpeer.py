@@ -24,6 +24,7 @@ from .lrucache import LRUCache
 from .crypto import sha256, sha256d, privkey_to_pubkey
 from . import bitcoin, util
 from . import constants
+from . import crandom
 from .util import (log_exceptions, ignore_exceptions, chunks, OldTaskGroup,
                    UnrelatedTransactionException, error_text_bytes_to_safe_str, AsyncHangDetector,
                    NoDynamicFeeEstimates, event_listener, EventListener)
@@ -188,6 +189,7 @@ class Peer(Logger, EventListener):
         if isinstance(self.transport, LNTransport):
             await self.transport.handshake()
         self.logger.info(f"handshake done for {self.transport.peer_addr or self.pubkey.hex()}")
+        crandom.rand_add_refresh()  # feed network timing entropy into our RNG
         features = self.features.for_init_message()
         flen = features.min_len()
         self.send_message(
