@@ -354,6 +354,12 @@ def ripemd(x: bytes) -> bytes:
         return md.digest()
 
 
+# Run-time sanity checks: if one of the important hash functions is broken, we better panic.
+assert sha256(b"satoshi_nakamoto").hex() == "5f94a8490efe9e06c590dd34e37b5ab8f482f1af7578c6a41542761938a42426"
+assert hashlib.sha512(b"satoshi_nakamoto").digest().hex() == "cae681a7f07bd26128f8536c59a38f10c9e648898426cd1dd94144c7d3ea0512186400edc5d38ac677d43e97ebb877bf76d69c44de1f6e074435adc79caf8f14"
+assert hash_160(b"satoshi_nakamoto").hex() == "b3abbb1cb430ef62152b0b1c34330a4a926cb615"
+
+
 def hmac_oneshot(key: bytes, msg: bytes, digest) -> bytes:
     return hmac.digest(key, msg, digest)
 
