@@ -20,6 +20,10 @@ try:
     import pwd
 except ImportError:  # only available on UNIX
     pwd = None
+try:
+    import resource
+except ImportError:  # only available on UNIX
+    resource = None
 
 from .logging import get_logger
 
@@ -35,6 +39,27 @@ def _safe_feed(do_feed: Callable[[], None]) -> None:
         do_feed()
     except Exception as e:
         _logger.debug(f"skipping an entropy source due to error: {e!r}", only_once=True)
+
+
+def add_path(feed: 'CRANDOM_FEEDER_API', path: str) -> None:
+    """stat a path"""
+    feed(path)
+    try:
+        stat = os.stat(path)
+    except OSError:
+        stat = ""
+    feed(str(stat))
+
+
+def add_file(feed: 'CRANDOM_FEEDER_API', path: str) -> None:
+    """read file at path"""
+    add_path(feed, path)
+    try:
+        with open(path, "rb") as f:
+            data = f.read(1024*1024)  # up to 1 MB
+    except OSError:
+        data = b""
+    feed(data)
 
 
 def rand_add_static_env(feed: 'CRANDOM_FEEDER_API') -> None:
@@ -112,6 +137,23 @@ def rand_add_static_env(feed: 'CRANDOM_FEEDER_API') -> None:
     # misc
     if pwd is not None:
         _safe_feed(lambda: feed(str(pwd.getpwall())))
+    if resource is not None:
+        _safe_feed(lambda: feed(resource.getpagesize()))
+    # filesystem-provided data
+    add_path(feed, "/")
+    add_path(feed, ".")
+    add_path(feed, "/tmp")
+    add_path(feed, "/home")
+    add_path(feed, "/proc")
+    add_file(feed, "/proc/cmdline")
+    add_file(feed, "/proc/cpuinfo")
+    add_file(feed, "/proc/version")
+    add_file(feed, "/etc/passwd")
+    add_file(feed, "/etc/group")
+    add_file(feed, "/etc/hosts")
+    add_file(feed, "/etc/resolv.conf")
+    add_file(feed, "/etc/timezone")
+    add_file(feed, "/etc/localtime")
 
 
 def rand_add_dynamic_env(feed: 'CRANDOM_FEEDER_API', *, include_slow_sources: bool) -> None:
@@ -144,7 +186,22 @@ def rand_add_dynamic_env(feed: 'CRANDOM_FEEDER_API', *, include_slow_sources: bo
     feed(str(gc.get_stats()))
     feed(str(gc.get_count()))
     feed(str(gc.get_threshold()))
+    # resource
+    if resource is not None:
+        _safe_feed(lambda: feed(str(resource.getrusage(resource.RUSAGE_SELF))))
+        _safe_feed(lambda: feed(str(resource.getrusage(resource.RUSAGE_CHILDREN))))
+        _safe_feed(lambda: feed(str(resource.getrusage(resource.RUSAGE_THREAD))))
+    # filesystem-provided data (whole section takes around 0.9 msec, but content changes fast)
+    add_file(feed, "/proc/diskstats")
+    add_file(feed, "/proc/vmstat")
+    add_file(feed, "/proc/schedstat")
+    add_file(feed, "/proc/zoneinfo")
+    add_file(feed, "/proc/meminfo")
+    add_file(feed, "/proc/softirqs")
+    add_file(feed, "/proc/stat")
+    add_file(feed, "/proc/self/schedstat")
+    add_file(feed, "/proc/self/status")
     # --- end of fast sources ---
     if not include_slow_sources:
         return
-    _safe_feed(lambda: feed(str(sys.modules)))  # takes 1.5 msec
+    _safe_feed(lambda: feed(str(sys.modules)))  # takes 1.5 msec, and content changes slowly
