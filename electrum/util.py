@@ -2470,7 +2470,7 @@ async def gen_nostr_ann_pow(nostr_pubk: bytes, target_bits: int) -> Tuple[int, i
 
 def get_nostr_ann_pow_amount(nostr_pubk: bytes, nonce: Optional[int]) -> int:
     """Return the amount of leading zero bits for a nostr announcement PoW."""
-    if not nonce or nonce < 0:
+    if nonce is None or nonce < 0:
         return 0
     hash_function = hashlib.sha256
     hash_len_bits = 256
