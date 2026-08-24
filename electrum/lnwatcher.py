@@ -34,7 +34,7 @@ class LNWatcher(Logger, EventListener):
         self.callbacks = {}  # type: Dict[str, Callable[[], Awaitable[None]]]  # address -> lambda function
         self.network = None
         self.register_callbacks()
-        self._pending_force_closes = set()
+        self._pending_force_closes = {}  # type: Dict['AbstractChannel', int]  # chan -> lowest remote htlc timeout height
         self.taskgroup = OldTaskGroup()
         self._last_callback_trigger_ts = 0
 
@@ -183,7 +183,7 @@ class LNWatcher(Logger, EventListener):
             closing_height=closing_height,
             keep_watching=keep_watching)
         if closing_height.conf > 0:
-            self._pending_force_closes.discard(chan)
+            self._pending_force_closes.pop(chan, None)
         await self.lnworker.handle_onchain_state(chan)
 
     async def sweep_commitment_transaction(self, funding_outpoint: str, closing_tx: Transaction) -> bool:
@@ -202,6 +202,7 @@ class LNWatcher(Logger, EventListener):
         if not chan:
             return False
         local_height = self.adb.get_local_height()
+        self._pending_force_closes.pop(chan, None)  # recomputed below
         # detect who closed and get information about how to claim outputs
         is_local_ctx, sweep_info_dict = chan.get_ctx_sweep_info(closing_tx)
         # note: we need to keep watching *at least* until the closing tx is deeply mined,
@@ -254,8 +255,8 @@ class LNWatcher(Logger, EventListener):
             )
         return keep_watching
 
-    def get_pending_force_closes(self):
-        return self._pending_force_closes
+    def get_pending_force_closes(self) -> Dict['AbstractChannel', int]:
+        return dict(self._pending_force_closes)
 
     def maybe_redeem(self, sweep_info: 'SweepInfo') -> bool:
         """ returns 'keep_watching' """
@@ -321,7 +322,7 @@ class LNWatcher(Logger, EventListener):
         is_local_ctx: bool,
         sweep_info: 'SweepInfo',
     ) -> None:
-        """Adds chan into set of ongoing force-closures if the user should keep the wallet open, waiting for it.
+        """Adds chan into dict of ongoing force-closures if the user should keep the wallet open, waiting for it.
         (we are waiting for ctx to be confirmed and there are received htlcs)
         """
         if is_local_ctx and sweep_info.name == 'received-htlc':
@@ -334,4 +335,7 @@ class LNWatcher(Logger, EventListener):
                 return
             tx_mined_status = self.adb.get_tx_height(spender_txid)
             if tx_mined_status.height() == TX_HEIGHT_LOCAL:
-                self._pending_force_closes.add(chan)
+                self._pending_force_closes[chan] = min(
+                    their_cltv,
+                    self._pending_force_closes.get(chan, their_cltv),  # collect lowest timeout (if multiple htlcs exist)
+                )

@@ -2732,7 +2732,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             warning = ''.join([
                 _("Are you sure you want to close Electrum?"),
                 '\n\n',
-                _("An ongoing operation requires you to stay online."),
+                _("An ongoing operation requires you to stay online:"),
                 '\n',
                 warning
             ])
@@ -2764,7 +2764,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.closing_warning_callbacks.append(warning_callback)
 
     def _check_ongoing_force_closures(self) -> Optional[str]:
-        from electrum.lnutil import MIN_FINAL_CLTV_DELTA_ACCEPTED
         if not self.wallet.has_lightning():
             return None
         if not self.network:
@@ -2772,8 +2771,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         force_closes = self.wallet.lnworker.lnwatcher.get_pending_force_closes()
         if not force_closes:
             return
-        # fixme: this is inaccurate, we need local_height - cltv_of_htlc
-        cltv_delta = MIN_FINAL_CLTV_DELTA_ACCEPTED
+        # the htlc that expires first determines how long we can stay offline
+        cltv = min(force_closes.values())
+        cltv_delta = max(cltv - self.wallet.adb.get_local_height(), 0)
         msg = '\n\n'.join([
             _("Pending channel force-close"),
             messages.MSG_FORCE_CLOSE_WARNING.format(cltv_delta),
