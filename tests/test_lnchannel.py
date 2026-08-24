@@ -694,6 +694,31 @@ class TestChannel(ElectrumTestCase):
         self.assertEqual(0, sweep_infos[0].our_cltv_abs)
         self.assertEqual(htlc.cltv_abs, sweep_infos[0].their_cltv_abs)
 
+        # while the htlc-success tx is not broadcast yet, the user must be warned to stay online
+        lnwatcher = bob_lnwallet.lnwatcher
+        with mock.patch.object(lnwatcher.adb, 'get_local_height', return_value=htlc.cltv_abs - 1):
+            lnwatcher.maybe_add_pending_forceclose(
+                chan=bob_channel,
+                spender_txid=None,
+                is_local_ctx=is_local_ctx,
+                sweep_info=sweep_infos[0],
+            )
+        self.assertEqual({bob_channel: htlc.cltv_abs}, lnwatcher.get_pending_force_closes())
+        # but not forever: once alice had plenty of time to time out the htlc, we stop warning
+        lnwatcher._pending_force_closes.clear()
+        with mock.patch.object(
+            lnwatcher.adb,
+            'get_local_height',
+            return_value=htlc.cltv_abs + lnutil.REDEEM_AFTER_DOUBLE_SPENT_DELAY + 1,
+        ):
+            lnwatcher.maybe_add_pending_forceclose(
+                chan=bob_channel,
+                spender_txid=None,
+                is_local_ctx=is_local_ctx,
+                sweep_info=sweep_infos[0],
+            )
+        self.assertEqual({}, lnwatcher.get_pending_force_closes())
+
 
 class TestChannelNoAnchors(TestChannel):
     assert TestChannel.TEST_ANCHOR_CHANNELS is True
