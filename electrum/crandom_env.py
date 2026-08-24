@@ -4,6 +4,9 @@
 #
 # This module is a companion to crandom.py and is only intended to be accessed from there.
 
+import ctypes
+import ctypes.util
+from ctypes import byref, create_string_buffer, c_size_t
 import gc
 import locale
 import os
@@ -13,7 +16,7 @@ import ssl
 import sys
 import threading
 import time
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Callable, Optional
 from uuid import getnode as get_mac_address
 
 try:
@@ -60,6 +63,54 @@ def add_file(feed: 'CRANDOM_FEEDER_API', path: str) -> None:
     except OSError:
         data = b""
     feed(data)
+
+
+_libc = None  # type: ctypes.CDLL | None | False  # False means failed to load libc
+def _load_libc():
+    global _libc
+    if _libc is not None:
+        return
+    try:
+        _libc_path = ctypes.util.find_library("c")  # can raise OSError
+        _libc = ctypes.CDLL(_libc_path, use_errno=True)
+    except Exception as e:
+        _logger.debug(f"failed to load libc: {e!r}", only_once=True)
+        _libc = False
+
+
+def sysctl_byname(name: bytes) -> Optional[bytes]:
+    """
+    ref https://man.freebsd.org/cgi/man.cgi?query=sysctlbyname
+    ref https://github.com/freebsd/freebsd-src/blob/edb230c4af499203d7a6894b3711fe6574b26040/sys/sys/sysctl.h#L961
+    from https://gist.github.com/pudquick/581a71425439f2cf8f09
+    """
+    _load_libc()
+    if not _libc:
+        return None
+    size = c_size_t(0)
+    # Find out how big our buffer will be
+    ret = _libc.sysctlbyname(name, None, byref(size), None, 0)
+    if ret != 0:
+        return None
+    # Make the buffer
+    buf = create_string_buffer(size.value)
+    # Re-run, but provide the buffer
+    ret = _libc.sysctlbyname(name, buf, byref(size), None, 0)
+    if ret != 0:
+        return None
+    return buf.raw
+
+
+def add_sysctl(feed: 'CRANDOM_FEEDER_API', name: bytes) -> None:
+    feed(name)
+    _safe_feed(lambda: feed(sysctl_byname(name) or b""))
+
+
+def supports_sysctl() -> bool:
+    _load_libc()
+    if not _libc:
+        return False
+    return hasattr(_libc, "sysctlbyname")
 
 
 def rand_add_static_env(feed: 'CRANDOM_FEEDER_API') -> None:
@@ -154,6 +205,39 @@ def rand_add_static_env(feed: 'CRANDOM_FEEDER_API') -> None:
     add_file(feed, "/etc/resolv.conf")
     add_file(feed, "/etc/timezone")
     add_file(feed, "/etc/localtime")
+    # sysctls (macOS and BSDs)
+    if supports_sysctl():
+        add_sysctl(feed, b"hw.machine")
+        add_sysctl(feed, b"hw.model")
+        add_sysctl(feed, b"hw.ncpu")
+        add_sysctl(feed, b"hw.physmem")
+        add_sysctl(feed, b"hw.usermem")
+        add_sysctl(feed, b"hw.memsize")
+        add_sysctl(feed, b"hw.machine.arch")
+        add_sysctl(feed, b"hw.realmem")
+        add_sysctl(feed, b"hw.cpu.freq")
+        add_sysctl(feed, b"hw.cpufrequency")
+        add_sysctl(feed, b"hw.bus.freq")
+        add_sysctl(feed, b"hw.busfrequency")
+        add_sysctl(feed, b"hw.cacheline")
+        add_sysctl(feed, b"hw.cachelinesize")
+        add_sysctl(feed, b"hw.cachesize")
+        add_sysctl(feed, b"kern.bootfile")
+        add_sysctl(feed, b"kern.boottime")
+        add_sysctl(feed, b"kern.clockrate")
+        add_sysctl(feed, b"kern.hostid")
+        add_sysctl(feed, b"kern.hostuuid")
+        add_sysctl(feed, b"kern.hostname")
+        add_sysctl(feed, b"kern.osreldate")
+        add_sysctl(feed, b"kern.osrelease")
+        add_sysctl(feed, b"kern.osrev")
+        add_sysctl(feed, b"kern.ostype")
+        add_sysctl(feed, b"kern.version")
+        add_sysctl(feed, b"kern.uuid")
+        add_sysctl(feed, b"kern.bootuuid")
+        add_sysctl(feed, b"kern.bootsessionuuid")
+        add_sysctl(feed, b"kern.kernelcacheuuid")
+        add_sysctl(feed, b"kern.filesetuuid")
 
 
 def rand_add_dynamic_env(feed: 'CRANDOM_FEEDER_API', *, include_slow_sources: bool) -> None:
@@ -201,6 +285,18 @@ def rand_add_dynamic_env(feed: 'CRANDOM_FEEDER_API', *, include_slow_sources: bo
     add_file(feed, "/proc/stat")
     add_file(feed, "/proc/self/schedstat")
     add_file(feed, "/proc/self/status")
+    # sysctls (macOS and BSDs)
+    if supports_sysctl():
+        add_sysctl(feed, b"kern.proc.all")  # takes around 0.9 msec, content changes fast
+        add_sysctl(feed, b"kern.memorystatus_level")
+        add_sysctl(feed, b"hw.diskstats")
+        add_sysctl(feed, b"vm.swapusage")
+        add_sysctl(feed, b"vm.loadavg")
+        add_sysctl(feed, b"vm.total")
+        add_sysctl(feed, b"vm.meter")
+        add_sysctl(feed, b"vm.page_free_count")
+        add_sysctl(feed, b"net.inet.tcp.pcbcount")
+        add_sysctl(feed, b"net.inet.udp.pcbcount")
     # --- end of fast sources ---
     if not include_slow_sources:
         return
