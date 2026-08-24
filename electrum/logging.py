@@ -5,6 +5,7 @@
 import logging
 import logging.handlers
 import datetime
+from functools import lru_cache
 import sys
 import pathlib
 import os
@@ -353,11 +354,16 @@ def describe_os_version() -> str:
         return platform.platform()
 
 
+@lru_cache  # result unlikely to change while running. though "-dirty" could technically change
 def get_git_version() -> Optional[str]:
     dir = os.path.dirname(os.path.realpath(__file__))
     try:
+        # note: this searches $PATH and perhaps $PWD for an executable named "git".  attack surface?
         version = subprocess.check_output(
-            ['git', 'describe', '--always', '--dirty'], cwd=dir)
+            ['git', 'describe', '--always', '--dirty'],
+            cwd=dir,
+            timeout=5,  # seconds
+        )
         version = str(version, "utf8").strip()
     except Exception:
         version = None
