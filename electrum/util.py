@@ -2420,10 +2420,10 @@ def nostr_pow_worker(nonce, nostr_pubk, target_bits, hash_function, hash_len_bit
             digest = hash_function(hash_preimage + nonce.to_bytes(32, 'big')).digest()
             if int.from_bytes(digest, 'big') < (1 << (hash_len_bits - target_bits)):
                 shutdown.set()
-                return hash, nonce
+                return nonce
             nonce += 1
         if shutdown.is_set():
-            return None, None
+            return None
 
 
 async def gen_nostr_ann_pow(nostr_pubk: bytes, target_bits: int) -> Tuple[int, int]:
@@ -2456,10 +2456,15 @@ async def gen_nostr_ann_pow(nostr_pubk: bytes, target_bits: int) -> Tuple[int, i
             if start_nonce > max_nonce:  # make sure we don't go over the max_nonce
                 start_nonce = random.randint(0, int(max_nonce * 0.75))
 
-        done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-        hash_res, nonce_res = done.pop().result()
+        # workers that observe the shutdown event return None; their results can be
+        # delivered before the winner's own result, so wait for all workers and
+        # collect the result that carries a nonce.
+        done, _pending = await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
+        nonce_res = next((n for n in (fut.result() for fut in done) if n is not None), None)
         executor.shutdown(wait=False, cancel_futures=True)
 
+    if nonce_res is None:
+        raise Exception("nostr announcement PoW mining failed: no worker returned a nonce")
     return nonce_res, get_nostr_ann_pow_amount(nostr_pubk, nonce_res)
 
 
