@@ -46,6 +46,7 @@ class SweepInfo(NamedTuple):
     can_be_batched: bool # todo: this could be more fine-grained
     dust_override: bool
     expiry_height: Optional[int] = None  # first height at which we will not start sweeping this utxo
+    their_cltv_abs: Optional[int] = None  # counterparties timeout spend height, at this height sweeping becomes a race
 
     def is_anchor(self):
         return self.name in ['local_anchor', 'remote_anchor']
@@ -411,6 +412,7 @@ def sweep_our_ctx(
             txs[prevout] = SweepInfo(
                 name=name,
                 our_cltv_abs=htlc_tx.locktime,
+                their_cltv_abs=htlc.cltv_abs if htlc_direction == RECEIVED else 0,
                 txin=htlc_tx.inputs()[0],
                 txout=htlc_tx.outputs()[0],
                 can_be_batched=False,  # both parties can spend
@@ -786,6 +788,7 @@ def sweep_their_ctx(
             txs[prevout] = SweepInfo(
                 name=f'their_ctx_htlc_{ctx_output_idx}{"_for_revoked_ctx" if is_revocation else ""}',
                 our_cltv_abs=cltv_abs,
+                their_cltv_abs=0 if is_received_htlc else htlc.cltv_abs,
                 txin=txin,
                 txout=None,
                 can_be_batched=False,   # both parties can spend

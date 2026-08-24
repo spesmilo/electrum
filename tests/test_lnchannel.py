@@ -685,6 +685,15 @@ class TestChannel(ElectrumTestCase):
         bob_channel.htlc_settle_time[bob_htlc_id] = int(time.time()) - 60
         self.assertTrue(bob_channel.should_be_closed_due_to_expiring_htlcs(local_height=expired_height))
 
+        # if bob force-closes, the sweep info for the received htlc must expose the correct cltv heights for both sides.
+        bob_lnwallet.save_preimage(htlc.payment_hash, preimage, mark_as_public=True)
+        is_local_ctx, sweep_info_dict = bob_channel.get_ctx_sweep_info(bob_channel.force_close_tx())
+        self.assertTrue(is_local_ctx)
+        sweep_infos = [si for si in sweep_info_dict.values() if si.name == 'received-htlc']
+        self.assertEqual(1, len(sweep_infos))
+        self.assertEqual(0, sweep_infos[0].our_cltv_abs)
+        self.assertEqual(htlc.cltv_abs, sweep_infos[0].their_cltv_abs)
+
 
 class TestChannelNoAnchors(TestChannel):
     assert TestChannel.TEST_ANCHOR_CHANNELS is True
