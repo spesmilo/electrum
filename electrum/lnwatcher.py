@@ -325,7 +325,7 @@ class LNWatcher(Logger, EventListener):
         (we are waiting for ctx to be confirmed and there are received htlcs)
         """
         if is_local_ctx and sweep_info.name == 'received-htlc':
-            cltv = sweep_info.cltv_abs
+            cltv = sweep_info.our_cltv_abs
             assert cltv is not None, f"missing cltv for {sweep_info}"
             if self.adb.get_local_height() > cltv + REDEEM_AFTER_DOUBLE_SPENT_DELAY:
                 # We had plenty of time to sweep. The remote also had time to time out the htlc.

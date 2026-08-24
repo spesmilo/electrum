@@ -83,7 +83,7 @@ txin._trusted_value_sats = SWAPDATA.onchain_amount
 txin, locktime = SwapManager.create_claim_txin(txin=txin, swap=SWAPDATA)
 SWAP_SWEEP_INFO = SweepInfo(
     txin=txin,
-    cltv_abs=locktime,
+    our_cltv_abs=locktime,
     txout=None,
     name='swap claim',
     can_be_batched=True,
@@ -106,7 +106,7 @@ chan_multisig_key = lnutil.Keypair(
 anchor_txin = sweep_ctx_anchor(ctx=anchor_chan_ctx, multisig_key=chan_multisig_key)
 ANCHOR_SWEEP_INFO = SweepInfo(
     name='local_anchor',
-    cltv_abs=None,
+    our_cltv_abs=None,
     txin=anchor_txin,
     txout=None,
     can_be_batched=True,
