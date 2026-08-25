@@ -4,10 +4,12 @@ from asyncio.exceptions import TimeoutError
 from typing import Optional
 import electrum_ecc as ecc
 
+from PyQt6 import sip
 from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QVariant
 
 from electrum.i18n import _
 from electrum.gui import messages
+from electrum.gui.common_qt.util import ignore_if_destroyed
 from electrum.util import bfh
 from electrum.lnutil import MIN_FUNDING_SAT
 from electrum.lntransport import extract_nodeid, ConnStringFormatError
@@ -230,6 +232,7 @@ class QEChannelOpener(QObject, AuthMixin):
         funding_sat = funding_tx.output_value_for_address(DummyAddress.CHANNEL)
         lnworker = self._wallet.wallet.lnworker
 
+        @ignore_if_destroyed(self)
         def open_thread():
             error = None
             try:
@@ -253,6 +256,8 @@ class QEChannelOpener(QObject, AuthMixin):
             except (CancelledError, TimeoutError):
                 error = _('Could not connect to channel peer')
             except Exception as e:
+                if isinstance(e, RuntimeError) and sip.isdeleted(self):
+                    return  # qt object already deleted
                 error = str(e)
                 if not error:
                     error = repr(e)
@@ -290,6 +295,7 @@ class QEChannelOpener(QObject, AuthMixin):
                 self._amount.satsInt = amount if amount else 0
             finally:
                 self._updating_max = False
-                self.validate()
+                with ignore_if_destroyed(self):
+                    self.validate()
 
         threading.Thread(target=calc_max, daemon=True).start()

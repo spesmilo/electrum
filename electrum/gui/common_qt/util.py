@@ -1,19 +1,38 @@
 import queue
 import sys
+from contextlib import contextmanager
 from functools import wraps
-from typing import Optional, NamedTuple, Callable
+from typing import Optional, NamedTuple, Callable, Iterator
 import os.path
 
-from PyQt6 import QtGui
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6 import QtGui, sip
+from PyQt6.QtCore import Qt, QThread, QObject, pyqtSignal
 from PyQt6.QtGui import QColor, QPen, QPaintDevice, QFontDatabase, QImage
 import qrcode
 
 from electrum.i18n import _
-from electrum.logging import Logger
+from electrum.logging import Logger, get_logger
 from electrum.util import EventListener, event_listener
 
+_logger = get_logger(__name__)
+
 _cached_font_ids: dict[str, int] = {}
+
+
+@contextmanager
+def ignore_if_destroyed(qobj: QObject) -> Iterator[None]:
+    """
+    Objects owned by qt (e.g. a child of a dialog) or by QML are destroyed as soon as the user
+    closes the dialog, while threads and tasks may still hold a reference to the python wrapper,
+    and writing a property or emitting a signal on it then raises RuntimeError.
+    Any other RuntimeError is re-raised.
+    """
+    try:
+        yield
+    except RuntimeError:
+        if not sip.isdeleted(qobj):
+            raise
+        _logger.debug(f'{type(qobj).__name__} has been destroyed, ignoring')
 
 
 def get_font_id(filename: str) -> int:
