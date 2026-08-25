@@ -2039,8 +2039,7 @@ class Peer(Logger, EventListener):
         return htlc
 
     def send_revoke_and_ack(self, chan: Channel) -> None:
-        if not chan.can_update_ctx(proposer=LOCAL):
-            return
+        assert chan.can_update_ctx(proposer=REMOTE)
         self.logger.info(f'send_revoke_and_ack. chan {chan.short_channel_id}. ctn: {chan.get_oldest_unrevoked_ctn(LOCAL)}')
         rev = chan.revoke_current_commitment()
         self.lnworker.save_channel(chan)
