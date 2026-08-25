@@ -650,7 +650,8 @@ class SwapManager(Logger):
         can_be_batched = True
         sweep_info = SweepInfo(
             txin=txin,
-            cltv_abs=locktime,
+            our_cltv_abs=locktime,
+            their_cltv_abs=swap.locktime if swap.is_reverse else 0,
             txout=None,
             name=name,
             can_be_batched=can_be_batched,

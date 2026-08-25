@@ -685,6 +685,40 @@ class TestChannel(ElectrumTestCase):
         bob_channel.htlc_settle_time[bob_htlc_id] = int(time.time()) - 60
         self.assertTrue(bob_channel.should_be_closed_due_to_expiring_htlcs(local_height=expired_height))
 
+        # if bob force-closes, the sweep info for the received htlc must expose the correct cltv heights for both sides.
+        bob_lnwallet.save_preimage(htlc.payment_hash, preimage, mark_as_public=True)
+        is_local_ctx, sweep_info_dict = bob_channel.get_ctx_sweep_info(bob_channel.force_close_tx())
+        self.assertTrue(is_local_ctx)
+        sweep_infos = [si for si in sweep_info_dict.values() if si.name == 'received-htlc']
+        self.assertEqual(1, len(sweep_infos))
+        self.assertEqual(0, sweep_infos[0].our_cltv_abs)
+        self.assertEqual(htlc.cltv_abs, sweep_infos[0].their_cltv_abs)
+
+        # while the htlc-success tx is not broadcast yet, the user must be warned to stay online
+        lnwatcher = bob_lnwallet.lnwatcher
+        with mock.patch.object(lnwatcher.adb, 'get_local_height', return_value=htlc.cltv_abs - 1):
+            lnwatcher.maybe_add_pending_forceclose(
+                chan=bob_channel,
+                spender_txid=None,
+                is_local_ctx=is_local_ctx,
+                sweep_info=sweep_infos[0],
+            )
+        self.assertEqual({bob_channel: htlc.cltv_abs}, lnwatcher.get_pending_force_closes())
+        # but not forever: once alice had plenty of time to time out the htlc, we stop warning
+        lnwatcher._pending_force_closes.clear()
+        with mock.patch.object(
+            lnwatcher.adb,
+            'get_local_height',
+            return_value=htlc.cltv_abs + lnutil.REDEEM_AFTER_DOUBLE_SPENT_DELAY + 1,
+        ):
+            lnwatcher.maybe_add_pending_forceclose(
+                chan=bob_channel,
+                spender_txid=None,
+                is_local_ctx=is_local_ctx,
+                sweep_info=sweep_infos[0],
+            )
+        self.assertEqual({}, lnwatcher.get_pending_force_closes())
+
 
 class TestChannelNoAnchors(TestChannel):
     assert TestChannel.TEST_ANCHOR_CHANNELS is True

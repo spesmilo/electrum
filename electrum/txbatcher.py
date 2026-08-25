@@ -174,7 +174,7 @@ class TxBatcher(Logger):
     async def _maybe_redeem_legacy_htlcs(self, sweep_info: 'SweepInfo') -> None:
         assert sweep_info.csv_delay == 0
         local_height = self.wallet.network.get_local_height()
-        wanted_height = sweep_info.cltv_abs
+        wanted_height = sweep_info.our_cltv_abs
         if wanted_height - local_height > 0:
             return
         outpoint = sweep_info.txin.prevout.to_str()
@@ -186,7 +186,7 @@ class TxBatcher(Logger):
             if tx_mined_status.height() not in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:
                 return
         self.logger.info(f'will broadcast standalone tx {sweep_info.name}')
-        tx = PartialTransaction.from_io([sweep_info.txin], [sweep_info.txout], locktime=sweep_info.cltv_abs, version=2)
+        tx = PartialTransaction.from_io([sweep_info.txin], [sweep_info.txout], locktime=sweep_info.our_cltv_abs, version=2)
         self.wallet.sign_transaction(tx, password=None, ignore_warnings=True)
         if await self.wallet.network.try_broadcasting(tx, sweep_info.name):
             self.wallet.adb.add_transaction(tx)
@@ -548,10 +548,10 @@ class TxBatch(Logger):
         locktime = base_tx.locktime if base_tx else None
         # sort inputs so that txin-txout pairs are first
         for sweep_info in sorted(to_sweep, key=lambda x: not bool(x.txout)):
-            if sweep_info.cltv_abs is not None:
-                if locktime is None or locktime < sweep_info.cltv_abs:  # FIXME height vs timestamp confusion
+            if sweep_info.our_cltv_abs is not None:
+                if locktime is None or locktime < sweep_info.our_cltv_abs:  # FIXME height vs timestamp confusion
                     # nLockTime must be greater than or equal to the stack operand.
-                    locktime = sweep_info.cltv_abs
+                    locktime = sweep_info.our_cltv_abs
             inputs.append(copy.deepcopy(sweep_info.txin))
             if sweep_info.txout:
                 outputs.append(sweep_info.txout)
@@ -619,8 +619,8 @@ class TxBatch(Logger):
         wanted_height_cltv = None
         wanted_height_csv = None
         local_height = self.wallet.network.get_local_height()
-        if sweep_info.cltv_abs:
-            wanted_height_cltv = sweep_info.cltv_abs
+        if sweep_info.our_cltv_abs:
+            wanted_height_cltv = sweep_info.our_cltv_abs
             if wanted_height_cltv - local_height > 0:
                 can_broadcast = False
         prev_height = self.wallet.adb.get_tx_height(prev_txid).height()

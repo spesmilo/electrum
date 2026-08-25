@@ -39,13 +39,14 @@ HTLCTX_INPUT_OUTPUT_INDEX = 0
 
 class SweepInfo(NamedTuple):
     name: str
-    cltv_abs: Optional[int] # set to None only if the script has no cltv
-    # TODO add asserts that cltv_abs is block-based (see NLOCKTIME_BLOCKHEIGHT_MAX)
+    our_cltv_abs: Optional[int] # set to None only if the script has no cltv
+    # TODO add asserts that our_cltv_abs is block-based (see NLOCKTIME_BLOCKHEIGHT_MAX)
     txin: PartialTxInput
     txout: Optional[PartialTxOutput]  # only for first-stage htlc tx
     can_be_batched: bool # todo: this could be more fine-grained
     dust_override: bool
     expiry_height: Optional[int] = None  # first height at which we will not start sweeping this utxo
+    their_cltv_abs: Optional[int] = None  # counterparties timeout spend height, at this height sweeping becomes a race
 
     def is_anchor(self):
         return self.name in ['local_anchor', 'remote_anchor']
@@ -274,7 +275,7 @@ def sweep_their_htlctx_justice(
             prevout = htlc_tx.txid() + f':{output_idx}'
             index_to_sweepinfo[prevout] = SweepInfo(
                 name=f'second-stage-htlc:{output_idx}',
-                cltv_abs=None,
+                our_cltv_abs=None,
                 txin=txin,
                 txout=None,
                 can_be_batched=False,
@@ -352,7 +353,7 @@ def sweep_our_ctx(
         if txin := sweep_ctx_anchor(ctx=ctx, multisig_key=our_conf.multisig_key):
             txs[txin.prevout.to_str()] = SweepInfo(
                 name='local_anchor',
-                cltv_abs=None,
+                our_cltv_abs=None,
                 txin=txin,
                 txout=None,
                 can_be_batched=True,
@@ -374,7 +375,7 @@ def sweep_our_ctx(
             prevout = ctx.txid() + ':%d'%output_idx
             txs[prevout] = SweepInfo(
                 name='our_ctx_to_local',
-                cltv_abs=None,
+                our_cltv_abs=None,
                 txin=txin,
                 txout=None,
                 can_be_batched=True,
@@ -410,7 +411,8 @@ def sweep_our_ctx(
             prevout = ctx.txid() + f':{ctx_output_idx}'
             txs[prevout] = SweepInfo(
                 name=name,
-                cltv_abs=htlc_tx.locktime,
+                our_cltv_abs=htlc_tx.locktime,
+                their_cltv_abs=htlc.cltv_abs if htlc_direction == RECEIVED else 0,
                 txin=htlc_tx.inputs()[0],
                 txout=htlc_tx.outputs()[0],
                 can_be_batched=False,  # both parties can spend
@@ -437,7 +439,7 @@ def sweep_our_ctx(
                     prevout = actual_htlc_tx.txid() + f':{output_idx}'
                     txs[prevout] = SweepInfo(
                         name=f'second-stage-htlc:{output_idx}',
-                        cltv_abs=0,
+                        our_cltv_abs=0,
                         txin=sweep_txin,
                         txout=None,
                         # this is safe to batch, we are the only ones who can spend
@@ -623,7 +625,7 @@ def sweep_their_ctx_to_remote_backup(
         if txin := sweep_ctx_anchor(ctx=ctx, multisig_key=our_ms_funding_keypair):
             txs[txin.prevout.to_str()] = SweepInfo(
                 name='remote_anchor',
-                cltv_abs=None,
+                our_cltv_abs=None,
                 txin=txin,
                 txout=None,
                 can_be_batched=True,
@@ -644,7 +646,7 @@ def sweep_their_ctx_to_remote_backup(
         ):
             txs[prevout] = SweepInfo(
                 name='their_ctx_to_remote_backup',
-                cltv_abs=None,
+                our_cltv_abs=None,
                 txin=txin,
                 txout=None,
                 can_be_batched=True,
@@ -702,7 +704,7 @@ def sweep_their_ctx(
         if txin := sweep_ctx_anchor(ctx=ctx, multisig_key=our_conf.multisig_key):
             txs[txin.prevout.to_str()] = SweepInfo(
                 name='remote_anchor',
-                cltv_abs=None,
+                our_cltv_abs=None,
                 txin=txin,
                 txout=None,
                 can_be_batched=True,
@@ -715,7 +717,7 @@ def sweep_their_ctx(
         if txin := sweep_their_ctx_justice(chan, ctx, per_commitment_secret):
             txs[txin.prevout.to_str()] = SweepInfo(
                 name='to_local_for_revoked_ctx',
-                cltv_abs=None,
+                our_cltv_abs=None,
                 txin=txin,
                 txout=None,
                 can_be_batched=False,
@@ -746,7 +748,7 @@ def sweep_their_ctx(
                 # todo: we might not want to sweep this at all, if we add it to the wallet addresses
                 txs[prevout] = SweepInfo(
                     name='their_ctx_to_remote',
-                    cltv_abs=None,
+                    our_cltv_abs=None,
                     txin=txin,
                     txout=None,
                     can_be_batched=True,
@@ -785,7 +787,8 @@ def sweep_their_ctx(
         ):
             txs[prevout] = SweepInfo(
                 name=f'their_ctx_htlc_{ctx_output_idx}{"_for_revoked_ctx" if is_revocation else ""}',
-                cltv_abs=cltv_abs,
+                our_cltv_abs=cltv_abs,
+                their_cltv_abs=0 if is_received_htlc else htlc.cltv_abs,
                 txin=txin,
                 txout=None,
                 can_be_batched=False,   # both parties can spend
