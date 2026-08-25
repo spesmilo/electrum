@@ -12,7 +12,7 @@ from electrum.storage import WalletStorage
 from electrum import SimpleConfig
 from electrum import util
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE
-from electrum.wallet import (sweep, Multisig_Wallet, Standard_Wallet, Imported_Wallet,
+from electrum.wallet import (sweep, sweep_preparations, Multisig_Wallet, Standard_Wallet, Imported_Wallet,
                              Abstract_Wallet, CannotBumpFee, BumpFeeStrategy,
                              TransactionPotentiallyDangerousException,
                              TransactionDangerousException,
@@ -2576,13 +2576,33 @@ class TestWalletSending(ElectrumTestCase):
         privkeys = ['p2wpkh:cV2BvgtpLNX328m4QrhqycBGA6EkZUFfHM9kKjVXjfyD53uNfC4q',]
         network = NetworkMock()
         dest_addr = 'tb1qhuy2e45lrdcp9s4ezeptx5kwxcnahzgpar9scc'
-        tx = await sweep(privkeys, network=network, to_address=dest_addr, fee_policy=FixedFeePolicy(500), locktime=2420010, tx_version=2)
 
-        tx_copy = tx_from_any(tx.serialize())
-        self.assertEqual('02000000000101e328aeb4f9dc1b85a2709ce59b0478a15ed9fb5e7f84fb62422f99b8cd6ad7010000000000fdffffff01087e010000000000160014bf08acd69f1b7012c2b91642b352ce3627db89010247304402204993099c4663d92ef4c9a28b3f45a40a6585754fe22ecfdc0a76c43fda7c9d04022006a75e0fd3ad1862d8e81015a71d2a1489ec7a9264e6e63b8fe6bb90c27e799b0121038ca94e7c715152fd89803c2a40a934c7c4035fb87b3cba981cd1e407369cfe312aed2400',
-                         str(tx_copy))
-        self.assertEqual('e02641928e5394332eec0a36c196f1e30e2b8645ebbeef89d6cc27bf237ae548', tx_copy.txid())
-        self.assertEqual('b062d2e19880c66b36e80b823c2d00a2769658d1e574ff854dab15efd8fd7da8', tx_copy.wtxid())
+        with self.subTest(msg="simple sweep"):
+            tx = await sweep(privkeys, network=network, to_address=dest_addr, fee_policy=FixedFeePolicy(500), locktime=2420010, tx_version=2)
+
+            tx_copy = tx_from_any(tx.serialize())
+            self.assertEqual('02000000000101e328aeb4f9dc1b85a2709ce59b0478a15ed9fb5e7f84fb62422f99b8cd6ad7010000000000fdffffff01087e010000000000160014bf08acd69f1b7012c2b91642b352ce3627db89010247304402204993099c4663d92ef4c9a28b3f45a40a6585754fe22ecfdc0a76c43fda7c9d04022006a75e0fd3ad1862d8e81015a71d2a1489ec7a9264e6e63b8fe6bb90c27e799b0121038ca94e7c715152fd89803c2a40a934c7c4035fb87b3cba981cd1e407369cfe312aed2400',
+                             str(tx_copy))
+            self.assertEqual('e02641928e5394332eec0a36c196f1e30e2b8645ebbeef89d6cc27bf237ae548', tx_copy.txid())
+            self.assertEqual('b062d2e19880c66b36e80b823c2d00a2769658d1e574ff854dab15efd8fd7da8', tx_copy.wtxid())
+
+        with self.subTest(msg="watch-only wallet self-sweep"):
+            # a watch only wallet with imported address must still be able to self-sweep the address (though kind of pointless)
+            # (see https://github.com/spesmilo/electrum/issues/10891)
+            swept_addr = 'tb1q6vu7lmtu6hfg6vvetjh3pwyh82dp83jkm6rf05'
+            wallet = WalletIntegrityHelper.create_imported_wallet(config=self.config, privkeys=False)
+            wallet.import_addresses([swept_addr])
+            self.assertTrue(wallet.is_mine(swept_addr))
+            self.assertIsNone(wallet.get_script_descriptor_for_address(swept_addr))
+            coins, keypairs = await sweep_preparations(privkeys, network=network)
+            tx = wallet.make_unsigned_transaction(
+                coins=coins,
+                outputs=[PartialTxOutput.from_address_and_value(dest_addr, value='!')],
+                fee_policy=FixedFeePolicy(500),
+                is_sweep=True,
+            )
+            tx.sign(keypairs)
+            self.assertTrue(tx.is_complete())
 
     async def test_coinjoin_between_two_p2wpkh_electrum_seeds(self):
         wallet1 = WalletIntegrityHelper.create_standard_wallet(
