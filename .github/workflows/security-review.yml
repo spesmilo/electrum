@@ -22,9 +22,12 @@ jobs:
     name: "security review: Claude Code"
     runs-on: ubuntu-24.04
 
-    # Auto-run only for maintainers (and their forks).
-    # External contributors trigger manually so we can first review if their PR modifies
-    # the Python script this task calls (they could attempt to exfiltrate the api key through the script).
+    # - Auto-run only for maintainers (and their forks), via "pull_request_target" trigger.
+    # - Re external contributor PRs: the "workflow_dispatch" trigger (web UI, "Actions" tab) can be used manually.
+    #   So we can first review if their PR modifies the Python script this task calls
+    #   (they could attempt to exfiltrate the api key through the script). (see #10801)
+    #   - FIXME vulnerable to a TOCTOU race: attacker could force-push just after maintainer button click
+    #     so the workflow git pulling the PR HEAD is not safe.
     if: |
       github.event_name == 'workflow_dispatch' ||
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association)
