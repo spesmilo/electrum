@@ -1958,7 +1958,9 @@ class Peer(Logger, EventListener):
 
     def maybe_send_commitment(self, chan: Channel) -> bool:
         assert util.get_running_loop() == util.get_asyncio_loop(), f"this must be run on the asyncio thread!"
-        if not chan.can_update_ctx(proposer=LOCAL):
+        # proposer=REMOTE, because commitment_signed only commits changes that were already proposed,
+        # so it must not be gated on chan._can_send_ctx_updates (see send_shutdown).
+        if not chan.can_update_ctx(proposer=REMOTE):
             return False
         # REMOTE should revoke first before we can sign a new ctx
         if chan.hm.is_revack_pending(REMOTE):
