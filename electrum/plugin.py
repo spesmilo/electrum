@@ -660,6 +660,20 @@ class Plugins(DaemonThread):
         secret = pbkdf2_hmac('sha256', pw.encode('utf-8'), salt, iterations=10**5)
         return ECPrivkey(secret)
 
+    def add_external_plugin_metadata(self, manifest: dict) -> None:
+        """Registers the metadata of a newly installed external plugin."""
+        name = manifest['name']
+        assert name not in self.external_plugin_metadata
+        self.external_plugin_metadata[name] = manifest
+        # the metadata now points at a different file, so whatever we still hold
+        # in memory under this name is stale, and was signed for the old one
+        self._drop_zip_bundle(name)
+
+    def remove_external_plugin_metadata(self, name: str) -> None:
+        """Unregisters an external plugin that did not end up being installed."""
+        self.external_plugin_metadata.pop(name, None)
+        self._drop_zip_bundle(name)
+
     def uninstall(self, name: str):
         self._drop_zip_bundle(name)
         if self.config.get(f'plugins.{name}'):
