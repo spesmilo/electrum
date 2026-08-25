@@ -312,10 +312,23 @@ class KeystoreWizard(AbstractWizard):
         run_hook('init_wallet_wizard', self)  # TODO: currently only used for hww, hook name might be confusing
         return plugin.wizard_entry_for_device(_info, new_wallet=new_wallet)
 
-    def validate_seed(self, seed: str, seed_variant: str, wallet_type: str) -> Tuple[bool, str, str, bool]:
+    def _warning_wrong_electrum_seed_type(self, seed_type: str) -> str:
+        if not seed_type:
+            return ''
+        wiztype_fullname = _('Wallet with two-factor authentication') if is_any_2fa_seed_type(seed_type) \
+            else _("Standard wallet")
+        msg = ' '.join([
+            _("Looks like you have entered a valid seed of type '{}' but this dialog does not support such seeds.").format(
+                seed_type),
+            _("If unsure, try restoring as '{}'.").format(wiztype_fullname),
+        ])
+        return msg
+
+    def validate_seed(self, seed: str, seed_variant: str, wallet_type: str) -> Tuple[bool, str, str, str, bool]:
         seed_type = ''
         seed_valid = False
         validation_message = ''
+        warning = ''
         can_passphrase = True
 
         if seed_variant == 'electrum':
@@ -345,14 +358,17 @@ class KeystoreWizard(AbstractWizard):
         # check if seed matches wallet type
         if wallet_type == '2fa' and not is_any_2fa_seed_type(seed_type):
             seed_valid = False
+            warning = self._warning_wrong_electrum_seed_type(seed_type)
         elif wallet_type == 'standard' and seed_type not in ['old', 'standard', 'segwit', 'bip39', 'slip39']:
             seed_valid = False
+            if seed_variant == 'electrum':
+                warning = self._warning_wrong_electrum_seed_type(seed_type)
         elif wallet_type == 'multisig' and seed_type not in ['standard', 'segwit', 'bip39', 'slip39']:
             seed_valid = False
 
         self._logger.debug(f'seed verified: {seed_valid}, type={seed_type!r}, validation_message={validation_message}')
 
-        return seed_valid, seed_type, validation_message, can_passphrase
+        return seed_valid, seed_type, validation_message, warning, can_passphrase
 
     def keystore_from_data(self, wallet_type: str, data: dict):
         if data['keystore_type'] in ['createseed', 'haveseed'] and 'seed' in data:
