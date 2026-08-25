@@ -2117,6 +2117,10 @@ class NostrTransport(SwapServerTransport):
                 # store the latest known relays to a file
                 self._store_last_swapserver_relays(latest_known_relays)
                 # update the relay manager
+                # note: the swapserver freely chooses these relays, and we will now connect to them.
+                #       The relay will learn our IP and see the DM events we send.
+                #       If the swapserver operator is also running one of these relays, they will learn the IP
+                #       of their swap counterparties.
                 await self.relay_manager.update_relays(self.relays)
 
     async def rebroadcast_event(self, event: Event, server_relays: Sequence[str]):
