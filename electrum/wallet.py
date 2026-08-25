@@ -4046,8 +4046,11 @@ class Imported_Wallet(Simple_Wallet):
         else:
             raise BitcoinException(str(bad_keys[0][1]))
 
-    def get_txin_type(self, address):
-        return self.db.get_imported_address(address).get('type', 'address')
+    def get_txin_type(self, address) -> str:
+        x = self.db.get_imported_address(address)
+        if x is None:
+            return 'unknown'
+        return x.get('type', 'address')
 
     @profiler
     def try_detecting_internal_addresses_corruption(self):

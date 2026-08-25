@@ -376,9 +376,13 @@ class TestCreateRestoreWallet(WalletTestCase):
         wallet = d['wallet']  # type: Imported_Wallet
         self.assertEqual('bc1q2ccr34wzep58d4239tl3x3734ttle92a8srmuw', wallet.get_receiving_addresses()[0])
         self.assertEqual(2, len(wallet.get_receiving_addresses()))
+        # we don't know the script type of an imported address
+        self.assertEqual('address', wallet.get_txin_type('bc1qnp78h78vp92pwdwq5xvh8eprlga5q8gu66960c'))
         # also test addr deletion
         wallet.delete_address('bc1qnp78h78vp92pwdwq5xvh8eprlga5q8gu66960c')
         self.assertEqual(1, len(wallet.get_receiving_addresses()))
+        # querying an address that is not is_mine
+        self.assertEqual('unknown', wallet.get_txin_type('bc1qnp78h78vp92pwdwq5xvh8eprlga5q8gu66960c'))
 
     async def test_restore_wallet_from_text_privkeys(self):
         text = 'p2wpkh:L4jkdiXszG26SUYvwwJhzGwg37H2nLhrbip7u6crmgNeJysv5FHL p2wpkh:L24GxnN7NNUAfCXA6hFzB1jt59fYAAiFZMcLaJ2ZSawGpM3uqhb1'
