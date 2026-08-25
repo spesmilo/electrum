@@ -12,7 +12,7 @@ from electrum.storage import WalletStorage
 from electrum import SimpleConfig
 from electrum import util
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE
-from electrum.wallet import (sweep, Multisig_Wallet, Standard_Wallet, Imported_Wallet,
+from electrum.wallet import (sweep, sweep_preparations, Multisig_Wallet, Standard_Wallet, Imported_Wallet,
                              Abstract_Wallet, CannotBumpFee, BumpFeeStrategy,
                              TransactionPotentiallyDangerousException,
                              TransactionDangerousException,
@@ -2583,6 +2583,23 @@ class TestWalletSending(ElectrumTestCase):
                          str(tx_copy))
         self.assertEqual('e02641928e5394332eec0a36c196f1e30e2b8645ebbeef89d6cc27bf237ae548', tx_copy.txid())
         self.assertEqual('b062d2e19880c66b36e80b823c2d00a2769658d1e574ff854dab15efd8fd7da8', tx_copy.wtxid())
+
+        # a watch only wallet with imported address must still be able to sweep the address
+        # (see https://github.com/spesmilo/electrum/issues/10891)
+        swept_addr = 'tb1q6vu7lmtu6hfg6vvetjh3pwyh82dp83jkm6rf05'
+        wallet = WalletIntegrityHelper.create_imported_wallet(config=self.config, privkeys=False)
+        wallet.import_addresses([swept_addr])
+        self.assertTrue(wallet.is_mine(swept_addr))
+        self.assertIsNone(wallet.get_script_descriptor_for_address(swept_addr))
+        coins, keypairs = await sweep_preparations(privkeys, network=network)
+        tx = wallet.make_unsigned_transaction(
+            coins=coins,
+            outputs=[PartialTxOutput.from_address_and_value(dest_addr, value='!')],
+            fee_policy=FixedFeePolicy(500),
+            is_sweep=True,
+        )
+        tx.sign(keypairs)
+        self.assertTrue(tx.is_complete())
 
     async def test_coinjoin_between_two_p2wpkh_electrum_seeds(self):
         wallet1 = WalletIntegrityHelper.create_standard_wallet(

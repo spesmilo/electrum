@@ -2698,7 +2698,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             is_mine = self._learn_derivation_path_for_address_from_txinout(txin, address)
         if not is_mine:
             return
-        txin.script_descriptor = self.get_script_descriptor_for_address(address)
+        if desc := self.get_script_descriptor_for_address(address):
+            txin.script_descriptor = desc
         txin.is_mine = True
         self._add_txinout_derivation_info(txin, address, only_der_suffix=only_der_suffix)
         txin.block_height = self.adb.get_tx_height(txin.prevout.txid.hex()).height()
