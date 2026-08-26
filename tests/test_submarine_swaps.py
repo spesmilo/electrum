@@ -5,12 +5,11 @@ from unittest import mock
 
 from electrum_ecc import ECPrivkey
 
-from electrum import util, bitcoin
+from electrum import bitcoin
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
 from electrum.bitcoin import COIN, DUST_LIMIT_P2WSH
-from electrum.util import bfh, now, wait_for2
+from electrum.util import bfh, now
 from electrum.crypto import sha256
-from electrum.interface import PaddedRSTransport
 from electrum.lnonion import OnionRoutingFailure
 from electrum.simple_config import SimpleConfig
 from electrum.submarine_swaps import (
@@ -19,11 +18,9 @@ from electrum.submarine_swaps import (
 from electrum.transaction import (
     PartialTransaction, PartialTxOutput, Transaction, TxOutput, TxOutpoint)
 from electrum.txbatcher import TxBatcher
-from electrum.wallet import Abstract_Wallet, Standard_Wallet, Wallet
+from electrum.wallet import Standard_Wallet, Wallet
 
-from . import ElectrumTestCase, restore_wallet_from_text__for_unittest
-from .toyserver.toynetwork import ToyNetwork
-from .toyserver.toyserver import ToyServer
+from .toyserver.testcase import ToyServerTestCase
 
 
 def random_address() -> str:
@@ -55,103 +52,29 @@ class SwapTestWalletFactory(Wallet):
         return SwapTestWallet
 
 
-class TestSwapClaim(ElectrumTestCase):
+class TestSwapClaim(ToyServerTestCase):
     """The counterparty ("the server") is simulated: we keep its privkey and the preimage in the
     test, and build its claim tx with the same code the server would use.
     """
-    REGTEST = True
-    TIME_STEP = 0.01
 
-    def setUp(self):
-        super().setUp()
-        self.config = SimpleConfig({'electrum_path': self.electrum_path})
-        self.config.NETWORK_SKIPMERKLECHECK = True
-        self.config.FEE_POLICY = 'feerate:5000'
-        self.config.FEE_POLICY_SWAPS = 'feerate:5000'
-        self._orig_wait_for_buffer_growth = PaddedRSTransport.WAIT_FOR_BUFFER_GROWTH_SECONDS
-        PaddedRSTransport.WAIT_FOR_BUFFER_GROWTH_SECONDS *= self.TIME_STEP
-
-    def tearDown(self):
-        PaddedRSTransport.WAIT_FOR_BUFFER_GROWTH_SECONDS = self._orig_wait_for_buffer_growth
-        super().tearDown()
+    def create_config(self, name: str = None) -> SimpleConfig:
+        config = super().create_config(name)
+        config.FEE_POLICY_SWAPS = 'feerate:5000'
+        return config
 
     async def asyncSetUp(self):
         await super().asyncSetUp()
-        self.server = ToyServer()
-        await self.server.start()
-        self.network = ToyNetwork(config=self.config)
-        for _ in range(10):
-            await self.server.mine_block()
-        await self.server.set_up_faucet(config=self.config)
-        await self.network.connect(self.server)
-        self.wallet = restore_wallet_from_text__for_unittest(
-            "9dk", passphrase="alice", path=None, config=self.config,
-            wallet_factory=SwapTestWalletFactory)['wallet']  # type: Abstract_Wallet
-        self.wallet.start_network(self.network)
+        self.alice = await self.create_instance("alice")
+        self.wallet = self.create_wallet("alice", instance=self.alice, wallet_factory=SwapTestWalletFactory)
         self.sm = self.wallet.lnworker.swap_manager
         self.adb = self.wallet.adb
-        self.wallet.txbatcher.SLEEP_INTERVAL *= self.TIME_STEP
         await self.pay_to_address(self.wallet.get_receiving_address(), 1 * COIN)
         await self.mine_blocks(1)
 
-    async def asyncTearDown(self):
-        await self.wallet.stop()
-        await self.network.stop()
-        await self.server.stop()
-        await super().asyncTearDown()
-
-    # --- chain and wallet helpers ---
-
-    async def wait_until(self, predicate, *, timeout: int = 10) -> None:
-        async with util.async_timeout(timeout):
-            while not predicate():
-                await asyncio.sleep(self.TIME_STEP)
-
-    async def sync(self) -> None:
-        """wait until the wallet has caught up with the server"""
-        def is_synced() -> bool:
-            return self.adb.get_local_height() == self.server.cur_height \
-                    and self.adb.is_up_to_date() \
-                    and self.wallet.is_up_to_date()
-        while True:
-            await self.wait_until(is_synced)
-            # the adb_set_up_to_date callback might unsync the wallet again when syncing new addresses
-            if self.wallet.synchronize() == 0:
-                return
-
-    async def broadcast(self, tx: Transaction) -> Transaction:
-        await self.network.broadcast_transaction(tx)
-        await self.wait_until(lambda: self.adb.get_transaction(tx.txid()) is not None)
-        await self.sync()
-        return tx
-
-    async def pay_to_address(self, address: str, value: int) -> Transaction:
-        """a third party (the faucet) sends coins to address, leaving the tx in the mempool"""
-        tx = await self.server.ask_faucet([TxOutput.from_address_and_value(address, value)])
-        await self.wait_until(lambda: self.adb.get_transaction(tx.txid()) is not None)
-        await self.sync()
-        return tx
-
-    async def mine_blocks(self, count: int, *, include_mempool: bool = True) -> None:
-        for _ in range(count):
-            await self.server.mine_block(include_mempool=include_mempool)
-        await self.sync()
+    # --- swap helpers ---
 
     async def mine_until_swap_expires(self, swap: SwapData) -> None:
-        await self.mine_blocks(swap.locktime - self.network.get_local_height())
-
-    async def reorg_replace_tip_tx(self, tx: Transaction, replacement: Transaction) -> None:
-        """The block at the tip is reorged out and mined again at the same height, but now
-        it contains replacement, which conflicts with tx. tx is evicted along the way.
-        """
-        self.assertEqual(self.server.cur_height, self.server.block_height_from_txid(tx.txid()))
-        await self.server.unmine_block()
-        await self.server.mempool_rm_tx(tx)
-        await self.server.mempool_add_tx(replacement)
-        await self.server.mine_block()
-        await self.wait_until(
-            lambda: self.adb.get_tx_height(replacement.txid()).conf > 0)
-        await self.sync()
+        await self.mine_blocks(swap.locktime - self.server.cur_height)
 
     async def restart_txbatcher(self) -> None:
         """Restart the txbatcher, the way a wallet restart would: TxBatcher.__init__ rebuilds
@@ -169,24 +92,6 @@ class TestSwapClaim(ElectrumTestCase):
     def utxos_at_lockup_address(self, swap: SwapData) -> Sequence[TxOutpoint]:
         return list(self.adb.get_addr_outputs(swap.lockup_address).keys())
 
-    def spender_of(self, prevout: TxOutpoint) -> Optional[str]:
-        """txid of the tx spending prevout, as seen by the server"""
-        return self.server.txo_to_spender_txid[prevout]
-
-    async def wait_for_spender_of(self, prevout: TxOutpoint) -> Transaction:
-        """wait for the txbatcher to broadcast a tx spending prevout"""
-        await self.wait_until(lambda: self.spender_of(prevout) is not None)
-        return Transaction(self.server.txs[self.spender_of(prevout)])
-
-    async def spender_of_within(self, prevout: TxOutpoint, *, timeout: float = 2) -> Optional[Transaction]:
-        """like wait_for_spender_of, but returns None if we did not broadcast anything"""
-        try:
-            return await wait_for2(self.wait_for_spender_of(prevout), timeout)
-        except asyncio.TimeoutError:
-            return None
-
-    # --- swap helpers ---
-
     def create_forward_swap(self, *, onchain_amount: int = 100_000) -> SwapData:
         """Client side of a forward swap: we send on-chain, we receive on lightning.
         Same as request_normal_swap() would create after an honest server response.
@@ -197,7 +102,7 @@ class TestSwapClaim(ElectrumTestCase):
         refund_privkey = os.urandom(32)
         refund_pubkey = ECPrivkey(refund_privkey).get_public_key_bytes(compressed=True)
         payment_hash = sha256(self.preimage)
-        locktime = self.network.get_local_height() + LOCKTIME_DELTA_REFUND
+        locktime = self.server.cur_height + LOCKTIME_DELTA_REFUND
         redeem_script = _construct_swap_scriptcode(
             payment_hash=payment_hash,
             locktime=locktime,
@@ -232,7 +137,7 @@ class TestSwapClaim(ElectrumTestCase):
         claim_privkey = os.urandom(32)
         claim_pubkey = ECPrivkey(claim_privkey).get_public_key_bytes(compressed=True)
         payment_hash = sha256(self.preimage)
-        locktime = self.network.get_local_height() + LOCKTIME_DELTA_REFUND
+        locktime = self.server.cur_height + LOCKTIME_DELTA_REFUND
         redeem_script = _construct_swap_scriptcode(
             payment_hash=payment_hash,
             locktime=locktime,
@@ -325,7 +230,7 @@ class TestSwapClaim(ElectrumTestCase):
         """The server saw our claim tx (and the preimage in it) in the mempool. Since the
         locktime has passed, its refund tx is final, so it can simply outbid our claim tx.
         """
-        self.assertLessEqual(swap.locktime, self.network.get_local_height())
+        self.assertLessEqual(swap.locktime, self.server.cur_height)
         self.assertEqual(self.preimage, SwapManager.extract_preimage(swap, claim_tx))
         claim_fee = self.server._get_fee_sat_paid_by_tx(claim_tx)
         refund_tx = self.server_refund_tx(swap, swap._funding_prevout, fee=claim_fee + 10_000)
@@ -536,7 +441,7 @@ class TestSwapClaim(ElectrumTestCase):
         swap = self.create_forward_swap(onchain_amount=100_000)
         payment_hash = swap.payment_hash
         tx = self.sm.create_funding_tx(swap, None, password=None)
-        transport = MockSwapServerTransport(config=self.config, sm=self.sm)
+        transport = MockSwapServerTransport(config=self.alice.config, sm=self.sm)
         # the hold invoice is created with a 300s expiry, so this is one second past it
         expired_clock = now() + 301
         with mock.patch('electrum.submarine_swaps.now', lambda: expired_clock):
@@ -561,7 +466,7 @@ class TestSwapClaim(ElectrumTestCase):
         swap = self.create_forward_swap(onchain_amount=100_000)
         payment_hash = swap.payment_hash
         tx = self.sm.create_funding_tx(swap, None, password=None)
-        transport = MockSwapServerTransport(config=self.config, sm=self.sm)
+        transport = MockSwapServerTransport(config=self.alice.config, sm=self.sm)
         fut = asyncio.create_task(self.sm.wait_for_htlcs_and_broadcast(
             transport=transport, swap=swap, invoice=self.invoice, tx=tx))
         # the callback is registered just before the invoice is sent to the server
@@ -587,7 +492,7 @@ class TestSwapClaim(ElectrumTestCase):
         swap = self.create_forward_swap(onchain_amount=100_000)
         payment_hash = swap.payment_hash
         tx = self.sm.create_funding_tx(swap, None, password=None)
-        transport = MockSwapServerTransport(config=self.config, sm=self.sm)
+        transport = MockSwapServerTransport(config=self.alice.config, sm=self.sm)
         fut = asyncio.create_task(self.sm.wait_for_htlcs_and_broadcast(
             transport=transport, swap=swap, invoice=self.invoice, tx=tx))
         await self.wait_until(lambda: bool(transport.requests))
@@ -628,11 +533,11 @@ class TestSwapClaim(ElectrumTestCase):
         """
         swap = self.create_reverse_swap(onchain_amount=100_000)
         # the server funds only once the tip is one block below the locktime
-        await self.mine_blocks(swap.locktime - 1 - self.network.get_local_height())
+        await self.mine_blocks(swap.locktime - 1 - self.server.cur_height)
         await self.pay_to_address(swap.lockup_address, swap.onchain_amount)
         await self.mine_blocks(1)
         # the funding tx got its first confirmation in the block at swap.locktime
-        self.assertEqual(swap.locktime, self.network.get_local_height())
+        self.assertEqual(swap.locktime, self.server.cur_height)
         await self.wait_until(lambda: swap.funding_txid is not None)
         self.assertEqual(swap.locktime, self.adb.get_tx_height(swap.funding_txid).height())
 
@@ -652,11 +557,11 @@ class TestSwapClaim(ElectrumTestCase):
         # the funding tx is unconfirmed, so nothing can be claimed yet
         self.assertIsNone(await self.spender_of_within(swap._funding_prevout, timeout=1))
         # blocks go by without the funding tx being mined
-        await self.mine_blocks(swap.locktime - self.network.get_local_height(), include_mempool=False)
+        await self.mine_blocks(swap.locktime - self.server.cur_height, include_mempool=False)
         await self.sm._claim_swap(swap)
         # now it confirms, and the server's refund tx is final from the next block on
         await self.mine_blocks(1)
-        self.assertLess(swap.locktime, self.network.get_local_height())
+        self.assertLess(swap.locktime, self.server.cur_height)
         self.assertEqual(1, self.adb.get_tx_height(swap.funding_txid).conf)
 
         claim_tx = await self.spender_of_within(swap._funding_prevout, timeout=2)
@@ -677,8 +582,8 @@ class TestSwapClaim(ElectrumTestCase):
 
         # the claim tx does not get mined, until we are past the expiry of the sweep
         expiry_height = swap.locktime - MIN_LOCKTIME_DELTA_FOR_CLAIM
-        await self.mine_blocks(expiry_height - self.network.get_local_height(), include_mempool=False)
-        self.assertEqual(expiry_height, self.network.get_local_height())
+        await self.mine_blocks(expiry_height - self.server.cur_height, include_mempool=False)
+        self.assertEqual(expiry_height, self.server.cur_height)
         self.assertEqual(claim_tx.txid(), self.spender_of(swap._funding_prevout))
 
         await self.restart_txbatcher()
@@ -687,7 +592,7 @@ class TestSwapClaim(ElectrumTestCase):
         self.assertIn(swap._funding_prevout, batch.batch_inputs)
 
         # with the sweep info back, the claim tx can still be replaced, e.g. to bump its fee
-        self.config.FEE_POLICY_SWAPS = 'feerate:20000'
+        self.alice.config.FEE_POLICY_SWAPS = 'feerate:20000'
         await self.wait_until(lambda: self.spender_of(swap._funding_prevout) != claim_tx.txid())
         replacement_tx = Transaction(self.server.txs[self.spender_of(swap._funding_prevout)])
         self.assertEqual(self.preimage, SwapManager.extract_preimage(swap, replacement_tx))
