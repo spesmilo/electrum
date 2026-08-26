@@ -75,6 +75,12 @@ class TestTypes(QETestCase):
         self.assertEqual(1500, c.msatsInt)
         self.assertTrue(c.hasMsatPrecision)
 
+        d = QEAmount(amount_msat=-1500)
+        self.assertFalse(d.isEmpty)
+        self.assertEqual(-1, d.satsInt)
+        self.assertEqual(-1500, d.msatsInt)
+        self.assertTrue(d.hasMsatPrecision)
+
         with self.assertRaises(AssertionError):
             QEAmount(amount_sat=2, amount_msat=1500)
 
