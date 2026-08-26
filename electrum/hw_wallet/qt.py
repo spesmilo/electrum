@@ -36,7 +36,7 @@ from electrum.logging import Logger
 from electrum.util import UserCancelled, UserFacingException, ChoiceItem
 from electrum.plugin import hook
 
-from electrum.gui.common_qt.util import TaskThread
+from electrum.gui.common_qt.util import TaskThread, ignore_if_destroyed
 from electrum.gui.qt.password_dialog import PasswordLayout, PW_PASSPHRASE
 from electrum.gui.qt.util import (
     read_QIcon, WWLabel, OkButton, WindowModalDialog, Buttons, CancelButton, char_width_in_lineedit, PasswordLineEdit,
@@ -181,10 +181,11 @@ class QtHandlerBase(HardwareHandlerBase, QObject, Logger):
         # window-modal dialog each time is slow and visibly janky on macOS
         # (the modal "sheet" animates closed/open between outputs). See #10718.
         if self.dialog is not None and self._dialog_on_cancel == on_cancel:
-            self._dialog_label.setText(msg)
-            if not self.dialog.isVisible():  # e.g. was hidden by a user "cancel"
-                self.dialog.show()
-            return
+            with ignore_if_destroyed(self.dialog):
+                self._dialog_label.setText(msg)
+                if not self.dialog.isVisible():  # e.g. was hidden by a user "cancel"
+                    self.dialog.show()
+                return  # dialog gets rebuild if a RuntimeError was raised and the return is skipped
         self.clear_dialog()
         title = self.MESSAGE_DIALOG_TITLE
         if title is None:
@@ -207,7 +208,8 @@ class QtHandlerBase(HardwareHandlerBase, QObject, Logger):
 
     def clear_dialog(self):
         if self.dialog:
-            self.dialog.accept()
+            with ignore_if_destroyed(self.dialog):
+                self.dialog.accept()
             self.dialog = None
             self._dialog_label = None
             self._dialog_on_cancel = None
