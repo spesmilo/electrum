@@ -11,7 +11,7 @@ from electrum.lnutil import LOCAL, REMOTE
 from electrum.lnchannel import ChanCloseOption, ChannelState, AbstractChannel, Channel, ChannelBackup
 from electrum.util import format_short_id, event_listener
 
-from electrum.gui.common_qt.util import QtEventListener
+from electrum.gui.common_qt.util import QtEventListener, ignore_if_destroyed
 
 from .auth import AuthMixin, auth_protect
 from .qewallet import QEWallet
@@ -285,17 +285,15 @@ class QEChannelDetails(AuthMixin, QObject, QtEventListener):
     def do_close_channel(self, closetype: str):
         channel_id = self._channel.channel_id
 
+        @ignore_if_destroyed(self)
         def handle_result(success: bool, msg: str = ''):
-            try:
-                if success:
-                    self.channelCloseSuccess.emit()
-                else:
-                    self.channelCloseFailed.emit(msg)
+            if success:
+                self.channelCloseSuccess.emit()
+            else:
+                self.channelCloseFailed.emit(msg)
 
-                self._is_closing = False
-                self.isClosingChanged.emit()
-            except RuntimeError:  # QEChannelDetails might be deleted at this point if the user closed the dialog.
-                pass
+            self._is_closing = False
+            self.isClosingChanged.emit()
 
         def do_close():
             try:
