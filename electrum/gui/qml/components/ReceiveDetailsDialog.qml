@@ -60,7 +60,7 @@ ElDialog {
                 id: amountBtc
                 fiatfield: amountFiat
                 Layout.fillWidth: true
-                msatPrecision: true
+                msatPrecision: Daemon.currentWallet.isLightning
             }
 
             Label {
