@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import TYPE_CHECKING, Sequence
 
 import PyQt6.QtGui as QtGui
@@ -43,7 +44,9 @@ class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin, QtEventListener):
         self.window = window
         self.wallet = window.wallet
         self.chan = chan
-        self.format_msat = lambda msat: window.format_amount_and_units(msat / 1000)
+        self.format_msat_always = lambda msat: window.format_amount_and_units(
+            Decimal(msat) / 1000, millisat_precision=True)
+        self.format_msat = lambda msat: window.format_amount_and_units(Decimal(msat) / 1000)
         self.format_sat = lambda sat: window.format_amount_and_units(sat)
         # register callbacks for updating
         self.register_callbacks()
@@ -83,9 +86,9 @@ class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin, QtEventListener):
 
     def make_htlc_item(self, i: UpdateAddHtlc, direction: Direction) -> HTLCItem:
         it = HTLCItem(_('Sent HTLC with ID {}' if Direction.SENT == direction else 'Received HTLC with ID {}').format(i.htlc_id))
-        it.appendRow([HTLCItem(_('Amount')),HTLCItem(self.format_msat(i.amount_msat))])
+        it.appendRow([HTLCItem(_('Amount')), HTLCItem(self.format_msat_always(i.amount_msat))])
         it.appendRow([HTLCItem(_('CLTV expiry')), HTLCItem(str(i.cltv_abs))])
-        it.appendRow([HTLCItem(_('Payment hash')),HTLCItem(i.payment_hash.hex())])
+        it.appendRow([HTLCItem(_('Payment hash')), HTLCItem(i.payment_hash.hex())])
         return it
 
     def make_model(self, htlcs: Sequence[HTLCWithStatus]) -> QtGui.QStandardItemModel:
