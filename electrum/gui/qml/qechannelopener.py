@@ -216,6 +216,7 @@ class QEChannelOpener(QObject, AuthMixin):
 
         self._finalizer = QETxFinalizer(self, make_tx=mktx, accept=acpt)
         self._finalizer.canRbf = False
+        self._finalizer.txOptions = QETxFinalizer.TxOptions.MULTIPLE_CHANGE | QETxFinalizer.TxOptions.OUTPUT_ROUNDING
         self._finalizer.amount = self._amount
         self._finalizer.wallet = self._wallet
         self.finalizerChanged.emit()
