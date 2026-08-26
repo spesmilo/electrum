@@ -729,8 +729,9 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
 
         assert lnworker is not None
 
-        label = QLabel(
-            _("This will send {} to the recipient").format(self.format_amount_and_units(invoice.get_amount_sat_msat_precision())))
+        label = QLabel(_("This will send {} to the recipient").format(
+            self.format_amount_and_units(invoice.get_amount_sat_msat_precision(), millisat_precision=True)
+        ))
 
         dialog = WindowModalDialog(self, _("Pay lightning invoice?"))
         dialog.setMinimumWidth(400)
@@ -906,17 +907,17 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             grid.addWidget(desc_text, row, 1, 1, 3)
             row += 1
 
-        min_amount = max(Decimal(lnurl_data.min_withdrawable_msat) / 1000, 1)
+        min_amount = max(Decimal(lnurl_data.min_withdrawable_msat) / 1000, Decimal('0.001'))
         max_amount = min(
             Decimal(lnurl_data.max_withdrawable_msat) / 1000,
             self.wallet.lnworker.num_sats_can_receive()
         )
-        min_text = self.format_amount_and_units(Decimal(lnurl_data.min_withdrawable_msat) / 1000)
+        min_text = self.format_amount_and_units(Decimal(lnurl_data.min_withdrawable_msat) / 1000, millisat_precision=True)
         if min_amount > self.wallet.lnworker.num_sats_can_receive():
             self.show_error("".join([
                 _("Too little incoming liquidity to satisfy this withdrawal request."), "\n\n",
                 _("Can receive: {}").format(
-                    self.format_amount_and_units(self.wallet.lnworker.num_sats_can_receive()),
+                    self.format_amount_and_units(self.wallet.lnworker.num_sats_can_receive(), millisat_precision=True),
                 ), "\n",
                 _("Minimum withdrawal amount: {}").format(min_text), "\n\n",
                 _("Do a submarine swap in the 'Channels' tab to get more incoming liquidity.")
@@ -930,7 +931,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             range_label_text = QLabel(_("Range") + ":")
             range_value = QLabel("{} - {}".format(
                 min_text,
-                self.format_amount_and_units(Decimal(lnurl_data.max_withdrawable_msat) / 1000)
+                self.format_amount_and_units(Decimal(lnurl_data.max_withdrawable_msat) / 1000, millisat_precision=True),
             ))
             grid.addWidget(range_label_text, row, 0)
             grid.addWidget(range_value, row, 1, 1, 2)
