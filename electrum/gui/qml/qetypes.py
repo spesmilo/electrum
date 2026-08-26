@@ -32,6 +32,9 @@ class QEAmount(QObject):
         super().__init__(parent)
 
         self._amount_msat = None
+        self._is_max = is_max
+
+        # constructor value combination constraints
         if amount_sat is not None:
             assert isinstance(amount_sat, int)
             self._amount_msat = self._sat_to_msat(amount_sat)
@@ -43,7 +46,6 @@ class QEAmount(QObject):
         if is_max:
             assert amount_sat is None and amount_msat is None
 
-        self._is_max = is_max
         if from_invoice:
             assert amount_sat is None and amount_msat is None, 'cannot combine from_invoice and amount_(m)sat'
             inv_amt = from_invoice.get_amount_msat()
@@ -52,21 +54,24 @@ class QEAmount(QObject):
             elif inv_amt is not None:
                 self._amount_msat = int(inv_amt)
 
-    def _sat_to_msat(self, amount_sat: int | None) -> int | None:
-        return amount_sat * 1000 if amount_sat is not None else None
+        # coerce None amount to 0
+        if self._amount_msat is None:
+            self._amount_msat = 0
 
-    def _msat_to_sat(self, amount_msat: int | None) -> int | None:
-        return int(Decimal(amount_msat) / 1000) if amount_msat is not None else None
+    def _sat_to_msat(self, amount_sat: int) -> int:
+        return amount_sat * 1000
+
+    def _msat_to_sat(self, amount_msat: int) -> int:
+        # truncates towards zero
+        return int(Decimal(amount_msat) / 1000)
 
     @pyqtProperty('qint64', notify=valueChanged)
     def satsInt(self) -> int:
-        if self._amount_msat is None:
-            return 0
         return self._msat_to_sat(self._amount_msat)
 
     @satsInt.setter
     def satsInt(self, sats: int):
-        assert sats is None or isinstance(sats, int), 'sats must be int or None'
+        assert sats is not None and isinstance(sats, int), 'sats must be int'
         msats = self._sat_to_msat(sats)
         if self._amount_msat != msats:
             self._amount_msat = msats
@@ -74,13 +79,11 @@ class QEAmount(QObject):
 
     @pyqtProperty('qint64', notify=valueChanged)
     def msatsInt(self) -> int:
-        if self._amount_msat is None:
-            return 0
         return self._amount_msat
 
     @msatsInt.setter
     def msatsInt(self, msats: int):
-        assert msats is None or isinstance(msats, int), 'msats must be int or None'
+        assert msats is not None and isinstance(msats, int), 'msats must be int'
         if self._amount_msat != msats:
             self._amount_msat = msats
             self.valueChanged.emit()
