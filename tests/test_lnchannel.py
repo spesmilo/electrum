@@ -887,20 +887,15 @@ class TestChanReserve(ElectrumTestCase):
         # even though the channel reserves are not met.
         force_state_transition(self.alice_channel, self.bob_channel)
 
-        aliceSelfBalance = self.alice_channel.balance(LOCAL)\
-                - lnchannel.htlcsum(self.alice_channel.hm.htlcs_by_direction(LOCAL, SENT).values())
-        bobBalance = self.bob_channel.balance(REMOTE)\
-                - lnchannel.htlcsum(self.alice_channel.hm.htlcs_by_direction(REMOTE, SENT).values())
-        self.assertEqual(aliceSelfBalance, one_bitcoin_in_msat*4.5)
-        self.assertEqual(bobBalance, one_bitcoin_in_msat*5)
+        self.check_bals(int(4.5 * one_bitcoin_in_msat), one_bitcoin_in_msat * 5)
         # Now let Bob try to add an HTLC. This should fail, since it will
         # decrease his balance, which is already below the channel reserve.
         #
         # Resulting balances:
         #	Alice:	4.5
         #	Bob:	5.0
+        htlc = dataclasses.replace(htlc, payment_hash=bitcoin.sha256(32 * b'\x02'))
         with self.assertRaises(lnutil.PaymentFailure):
-            htlc = dataclasses.replace(htlc, payment_hash=bitcoin.sha256(32 * b'\x02'))
             self.bob_channel.add_htlc(htlc)
         with self.assertRaises(lnutil.RemoteMisbehaving):
             self.alice_channel.receive_htlc(htlc)
