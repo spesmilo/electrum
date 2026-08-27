@@ -2209,6 +2209,13 @@ class Peer(Logger, EventListener):
 
         payment_hash = htlc.payment_hash
         if not processed_onion.are_we_final:
+            # check that forwarding is enabled in config.
+            fw_enabled = self.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS
+            if outer_onion_payment_secret:
+                fw_enabled = fw_enabled and self.config.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS
+            if not fw_enabled:
+                _log_fail_reason("forwarding is disabled")
+                raise OnionRoutingFailure(code=OnionFailureCode.PERMANENT_CHANNEL_FAILURE, data=b'')
             if outer_onion_payment_secret:
                 # this is a trampoline forwarding htlc, multiple incoming trampoline htlcs can be collected
                 payment_key = (payment_hash + outer_onion_payment_secret).hex()
