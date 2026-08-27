@@ -1,3 +1,14 @@
+# Copyright (C) 2021-2026 The Electrum developers
+# Distributed under the MIT software license, see the accompanying
+# file LICENCE or http://www.opensource.org/licenses/mit-license.php
+#
+# To understand the intricacies of inner/outer onions and what values they contain,
+# see t-bast's magnificent ASCII drawings:
+# - end-to-end trampoline payments (ref https://github.com/lightning/bolts/pull/829)
+#       https://github.com/lightning/bolts/blob/bc7a1a0bc97b2293e7f43dd8a06529e5fdcf7cd2/proposals/trampoline.md?plain=1#L609
+# - pay-to-legacy payments:
+#       https://github.com/ACINQ/eclair/blob/407b330f0405e8766fdc2dbcd701982f37e5c489/eclair-core/src/main/scala/fr/acinq/eclair/wire/Onion.scala#L88
+
 import io
 import os
 import random
