@@ -905,7 +905,7 @@ class TestChanReserve(ElectrumTestCase):
         with self.assertRaises(lnutil.RemoteMisbehaving):
             self.alice_channel.receive_htlc(htlc)
 
-    def part2(self):
+    def test_part2(self):
         paymentPreimage = b"\x01" * 32
         paymentHash = bitcoin.sha256(paymentPreimage)
         # Now we'll add HTLC of 3.5 BTC to Alice's commitment, this should put
@@ -913,11 +913,12 @@ class TestChanReserve(ElectrumTestCase):
         #
         # Resulting balances:
         #	Alice:	1.5
-        #	Bob:	9.5
+        #	Bob:	5.0
         htlc = UpdateAddHtlc(
             payment_hash=paymentHash,
             amount_msat=int(3.5 * one_bitcoin_in_msat),
             cltv_abs=5,
+            timestamp=0,
         )
         self.alice_channel.add_htlc(htlc)
         self.bob_channel.receive_htlc(htlc)
@@ -925,14 +926,18 @@ class TestChanReserve(ElectrumTestCase):
         # Alice's balance all the way down to her channel reserve, but since
         # she is the initiator the additional transaction fee makes her
         # balance dip below.
-        htlc = dataclasses.replace(htlc, amount_msat=one_bitcoin_in_msat)
+        htlc = dataclasses.replace(
+            htlc,
+            payment_hash=bitcoin.sha256(32 * b'\x02'),
+            amount_msat=one_bitcoin_in_msat,
+        )
         with self.assertRaises(lnutil.PaymentFailure):
             self.alice_channel.add_htlc(htlc)
         with self.assertRaises(lnutil.RemoteMisbehaving):
             self.bob_channel.receive_htlc(htlc)
 
-    def part3(self):
-        # Add a HTLC of 2 BTC to Alice, and the settle it.
+    async def test_part3(self):
+        # Add a HTLC of 2 BTC to Alice, and then settle it.
         # Resulting balances:
         #	Alice:	3.0
         #	Bob:	7.0
@@ -947,31 +952,37 @@ class TestChanReserve(ElectrumTestCase):
         alice_idx = self.alice_channel.add_htlc(htlc).htlc_id
         bob_idx = self.bob_channel.receive_htlc(htlc).htlc_id
         force_state_transition(self.alice_channel, self.bob_channel)
-        self.check_bals(one_bitcoin_in_msat * 3
-                        - self.alice_channel.get_next_fee(LOCAL),
-                        one_bitcoin_in_msat * 5)
+        self.check_bals(one_bitcoin_in_msat * 3, one_bitcoin_in_msat * 5)
+        # The HTLC is still in-flight, so Bob's balance is unchanged and still
+        # below his channel reserve: he cannot send anything.
+        self.assertEqual(0, self.bob_channel.available_to_spend(LOCAL))
         self.bob_channel.settle_htlc(paymentPreimage, bob_idx)
         self.alice_channel.receive_htlc_settle(paymentPreimage, alice_idx)
         force_state_transition(self.alice_channel, self.bob_channel)
-        self.check_bals(one_bitcoin_in_msat * 3
-                        - self.alice_channel.get_next_fee(LOCAL),
-                        one_bitcoin_in_msat * 7)
+        self.check_bals(one_bitcoin_in_msat * 3, one_bitcoin_in_msat * 7)
         # And now let Bob add an HTLC of 1 BTC. This will take Bob's balance
         # all the way down to his channel reserve, but since he is not paying
         # the fee this is okay.
-        htlc = dataclasses.replace(htlc, amount_msat=one_bitcoin_in_msat)
+        self.assertEqual(one_bitcoin_in_msat, self.bob_channel.available_to_spend(LOCAL))
+        htlc = dataclasses.replace(
+            htlc,
+            payment_hash=bitcoin.sha256(32 * b'\x02'),
+            amount_msat=one_bitcoin_in_msat,
+        )
         self.bob_channel.add_htlc(htlc)
         self.alice_channel.receive_htlc(htlc)
         force_state_transition(self.alice_channel, self.bob_channel)
-        self.check_bals(one_bitcoin_in_msat * 3 \
-                        - self.alice_channel.get_next_fee(LOCAL),
-                        one_bitcoin_in_msat * 6)
+        self.check_bals(one_bitcoin_in_msat * 3, one_bitcoin_in_msat * 6)
+        self.assertEqual(0, self.bob_channel.available_to_spend(LOCAL))
 
-    def check_bals(self, amt1, amt2):
-        self.assertEqual(self.alice_channel.available_to_spend(LOCAL), amt1)
-        self.assertEqual(self.bob_channel.available_to_spend(REMOTE), amt1)
-        self.assertEqual(self.alice_channel.available_to_spend(REMOTE), amt2)
-        self.assertEqual(self.bob_channel.available_to_spend(LOCAL), amt2)
+    def check_bals(self, amt1: int, amt2: int) -> None:
+        """Assert Alice's (amt1) and Bob's (amt2) balance in msat, as seen by
+        both channels. HTLCs that are still in-flight count towards neither.
+        """
+        self.assertEqual(amt1, self.alice_channel.balance_minus_outgoing_htlcs(LOCAL))
+        self.assertEqual(amt1, self.bob_channel.balance_minus_outgoing_htlcs(REMOTE))
+        self.assertEqual(amt2, self.alice_channel.balance_minus_outgoing_htlcs(REMOTE))
+        self.assertEqual(amt2, self.bob_channel.balance_minus_outgoing_htlcs(LOCAL))
 
 
 class TestChanReserveNoAnchors(TestChanReserve):
