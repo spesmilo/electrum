@@ -1058,7 +1058,6 @@ def make_htlc_tx_with_open_channel(
         commit: Transaction,
         ctx_output_idx: int,
         htlc: 'UpdateAddHtlc',
-        name: str = None
 ) -> Tuple[bytes, PartialTransaction]:
     amount_msat, cltv_abs, payment_hash = htlc.amount_msat, htlc.cltv_abs, htlc.payment_hash
     for_us = subject == LOCAL

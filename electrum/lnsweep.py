@@ -846,7 +846,7 @@ def tx_our_ctx_htlctx(
         commit=ctx,
         htlc=htlc,
         ctx_output_idx=ctx_output_idx,
-        name=f'our_ctx_{ctx_output_idx}_htlc_tx_{htlc.payment_hash.hex()}')
+    )
 
     # sign HTLC output
     remote_htlc_sig = chan.get_remote_htlc_sig_for_htlc(htlc_relative_idx=htlc_relative_idx)
