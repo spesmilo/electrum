@@ -33,7 +33,7 @@ class ToyNetwork:
         self.interface = None  # type: Interface | None
         self.relay_fee = None  # type: int | None  # sat/kbyte, set from the server on connect
 
-    async def connect(self, server: ToyServer, *, client_name: str = None) -> Interface:
+    async def connect(self, server: ToyServer, *, client_name: str | None = None) -> Interface:
         """connect to server, and wait until we have synced its headers"""
         assert self.interface is None, "already connected"
         interface = Interface(network=self, server=ServerAddr(host="127.0.0.1", port=server.server_port, protocol="t"))

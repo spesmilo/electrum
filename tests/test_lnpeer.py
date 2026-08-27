@@ -412,7 +412,7 @@ class TestPeerDirect(TestPeer):
             *,
             ctn_delta: int = 0,
             revnum_delta: int = 0,
-            last_rev_secret: bytes = None,
+            last_rev_secret: bytes | None = None,
         ) -> tuple[Channel, Channel]:
             alice_lnwallet, bob_lnwallet = self.prepare_lnwallets(self.GRAPH_DEFINITIONS['single_chan']).values()
             alice_channel, bob_channel = create_test_channels(alice_lnwallet=alice_lnwallet, bob_lnwallet=bob_lnwallet)

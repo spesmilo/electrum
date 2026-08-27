@@ -158,7 +158,7 @@ class Mnemonic(Logger):
     # Seed derivation does not follow BIP39
     # Mnemonic phrase uses a hash based checksum, instead of a wordlist-dependent checksum
 
-    def __init__(self, lang: str = None):
+    def __init__(self, lang: str | None = None):
         Logger.__init__(self)
         lang = lang or 'en'
         self.logger.info(f'language {lang}')
@@ -198,7 +198,7 @@ class Mnemonic(Logger):
             i = i*n + k
         return i
 
-    def make_seed(self, *, seed_type: str = None, num_bits: int = None) -> str:
+    def make_seed(self, *, seed_type: str | None = None, num_bits: int | None = None) -> str:
         from .keystore import bip39_is_checksum_valid
         if seed_type is None:
             seed_type = 'segwit'

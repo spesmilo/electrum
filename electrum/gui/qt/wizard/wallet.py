@@ -145,7 +145,7 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard, MessageBoxMixin):
         # not supported on desktop
         return False
 
-    def create_storage(self, single_password: str = None):
+    def create_storage(self, single_password: str | None = None):
         self._logger.info('Creating wallet from wizard data')
         data = self.get_wizard_data()
 
@@ -1019,7 +1019,7 @@ class WCWalletPassword(WalletWizardComponent):
 
 
 class SeedExtensionEdit(QWidget):
-    def __init__(self, parent, *, message: str = None, warning: str = None, warn_issue4566: bool = False):
+    def __init__(self, parent, *, message: str | None = None, warning: str | None = None, warn_issue4566: bool = False):
         super().__init__(parent)
 
         self.warn_issue4566 = warn_issue4566

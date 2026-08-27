@@ -268,7 +268,7 @@ class NotificationSession(RPCSession):
         assert max_size > 500_000, f"{max_size=} (< 500_000) is too small"
         return NewlineFramer(max_size=max_size)
 
-    async def close(self, *, force_after: int = None):
+    async def close(self, *, force_after: int | None = None):
         """Closes the connection and waits for it to be closed.
         We try to flush buffered data to the wire, which can take some time.
         """
@@ -498,7 +498,7 @@ class PaddedRSTransport(RSTransport):
 
 class ServerAddr:
 
-    def __init__(self, host: str, port: Union[int, str], *, protocol: str = None):
+    def __init__(self, host: str, port: Union[int, str], *, protocol: str | None = None):
         assert isinstance(host, str), repr(host)
         if protocol is None:
             protocol = 's'
@@ -1130,7 +1130,7 @@ class Interface(Logger):
             self.network.update_fee_estimates()
             await asyncio.sleep(60)
 
-    async def close(self, *, force_after: int = None):
+    async def close(self, *, force_after: int | None = None):
         """Closes the connection and waits for it to be closed.
         We try to flush buffered data to the wire, which can take some time.
         """

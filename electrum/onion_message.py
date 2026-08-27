@@ -265,7 +265,7 @@ def send_onion_message_to(
         lnwallet: 'LNWallet',
         node_id_or_blinded_path: bytes,
         destination_payload: dict,
-        session_key: bytes = None
+        session_key: bytes | None = None
 ) -> None:
     if session_key is None:
         session_key = os.urandom(32)

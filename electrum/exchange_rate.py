@@ -749,14 +749,14 @@ class FxThread(ThreadJob, EventListener, NetworkRetryManager[str]):
             return Decimal('NaN')
         return self.exchange.get_cached_spot_quote(self.ccy)
 
-    def format_amount(self, btc_balance, *, timestamp: int = None) -> str:
+    def format_amount(self, btc_balance, *, timestamp: int | None = None) -> str:
         if timestamp is None:
             rate = self.exchange_rate()
         else:
             rate = self.timestamp_rate(timestamp)
         return '' if rate.is_nan() else "%s" % self.value_str(btc_balance, rate)
 
-    def format_amount_and_units(self, btc_balance, *, timestamp: int = None) -> str:
+    def format_amount_and_units(self, btc_balance, *, timestamp: int | None = None) -> str:
         if timestamp is None:
             rate = self.exchange_rate()
         else:

@@ -87,7 +87,7 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
         self.last_qr_scan_ts: float = 0.0
         self.camera: QCamera = None
         self.media_capture_session: QMediaCaptureSession = None
-        self._error_message: str = None
+        self._error_message: str | None = None
         self._ok_done: bool = False
         self.camera_sc_conn = None
         self.resolution: QSize = None

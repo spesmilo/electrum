@@ -407,7 +407,7 @@ class HTLCManager:
 
     @with_lock
     def htlcs_by_direction(self, subject: HTLCOwner, direction: Direction,
-                           ctn: int = None) -> Dict[int, UpdateAddHtlc]:
+                           ctn: int | None = None) -> Dict[int, UpdateAddHtlc]:
         """Return the dict of received or sent (depending on direction) HTLCs
         in subject's ctx at ctn, keyed by htlc_id.
 
@@ -432,7 +432,7 @@ class HTLCManager:
         return d
 
     @with_lock
-    def htlcs(self, subject: HTLCOwner, ctn: int = None) -> Sequence[Tuple[Direction, UpdateAddHtlc]]:
+    def htlcs(self, subject: HTLCOwner, ctn: int | None = None) -> Sequence[Tuple[Direction, UpdateAddHtlc]]:
         """Return the list of HTLCs in subject's ctx at ctn."""
         assert type(subject) is HTLCOwner
         if ctn is None:
@@ -475,7 +475,7 @@ class HTLCManager:
 
     @with_lock
     def all_settled_htlcs_ever_by_direction(self, subject: HTLCOwner, direction: Direction,
-                                            ctn: int = None) -> Sequence[UpdateAddHtlc]:
+                                            ctn: int | None = None) -> Sequence[UpdateAddHtlc]:
         """Return the list of all HTLCs that have been ever settled in subject's
         ctx up to ctn, filtered to only "direction".
         """
@@ -492,7 +492,7 @@ class HTLCManager:
         return d
 
     @with_lock
-    def all_settled_htlcs_ever(self, subject: HTLCOwner, ctn: int = None) -> Sequence[Tuple[Direction, UpdateAddHtlc]]:
+    def all_settled_htlcs_ever(self, subject: HTLCOwner, ctn: int | None = None) -> Sequence[Tuple[Direction, UpdateAddHtlc]]:
         """Return the list of all HTLCs that have been ever settled in subject's
         ctx up to ctn.
         """
@@ -510,7 +510,7 @@ class HTLCManager:
         return sent + received
 
     @with_lock
-    def get_balance_msat(self, whose: HTLCOwner, *, ctx_owner=HTLCOwner.LOCAL, ctn: int = None,
+    def get_balance_msat(self, whose: HTLCOwner, *, ctx_owner=HTLCOwner.LOCAL, ctn: int | None = None,
                          initial_balance_msat: int) -> int:
         """Returns the balance of 'whose' in 'ctx' at 'ctn'.
         Only HTLCs that have been settled by that ctn are counted.

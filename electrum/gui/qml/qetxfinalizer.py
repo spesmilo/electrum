@@ -585,7 +585,7 @@ class QETxFinalizer(TxFeeSlider):
                 self._logger.error('Could not save tx')
         self.finished.emit(True, saved, tx.is_complete())
 
-    def on_sign_failed(self, msg: str = None):
+    def on_sign_failed(self, msg: str | None = None):
         self._logger.debug('on_sign_failed')
         self.signError.emit(msg)
 

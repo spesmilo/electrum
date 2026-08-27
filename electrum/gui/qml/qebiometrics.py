@@ -117,7 +117,7 @@ class QEBiometrics(AuthMixin, QObject):
 
     @pyqtSlot()
     @pyqtSlot(str)
-    def unlock(self, auth_message: str = None):
+    def unlock(self, auth_message: str | None = None):
         """
         Called when the user needs to authenticate.
         Makes the AndroidKeyStore decrypt our encrypted wrap key, we then use the decrypted wrap key
@@ -128,7 +128,7 @@ class QEBiometrics(AuthMixin, QObject):
         assert encrypted_wrap_key, "shouldn't unlock if biometric auth is disabled"
         self._start_activity(BiometricAction.DECRYPT, data=encrypted_wrap_key, auth_message=auth_message)
 
-    def _start_activity(self, action: BiometricAction, data: str, auth_message: str = None):
+    def _start_activity(self, action: BiometricAction, data: str, auth_message: str | None = None):
         assert self._current_action is None, f"don't run concurrent activities: {self._current_action=} {action=}"
         self._current_action = action
 

@@ -481,7 +481,7 @@ class MyTreeView(QTreeView):
                          self.place_text_on_clipboard(text, title=title))
         return cc
 
-    def place_text_on_clipboard(self, text: str, *, title: str = None) -> None:
+    def place_text_on_clipboard(self, text: str, *, title: str | None = None) -> None:
         self.main_window.do_copy(text, title=title)
 
     def showEvent(self, e: 'QShowEvent'):

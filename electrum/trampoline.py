@@ -195,9 +195,9 @@ PLACEHOLDER_FEE = None
 def _extend_trampoline_route(
         route: List[TrampolineEdge],
         *,
-        start_node: bytes = None,
+        start_node: bytes | None = None,
         end_node: bytes,
-        fee_info: tuple = None,
+        fee_info: tuple | None = None,
 ):
     """Extends the route and modifies it in place."""
     if start_node is None:

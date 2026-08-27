@@ -447,7 +447,7 @@ class LNPathFinder(Logger):
         self,
         short_channel_id: ShortChannelID,
         *,
-        now: int = None,
+        now: int | None = None,
         duration: int = 3600,  # seconds
     ) -> None:
         if now is None:

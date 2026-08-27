@@ -65,7 +65,7 @@ class QReceiveSignalObject(QObject):
 
     @pyqtSlot(QEWallet, str)
     @pyqtSlot(QEWallet, str, str)
-    def sendPsbt(self, wallet: 'QEWallet', tx: str, label: str = None):
+    def sendPsbt(self, wallet: 'QEWallet', tx: str, label: str | None = None):
         cosigner_wallet = self._plugin.cosigner_wallets.get(wallet.wallet)
         if not cosigner_wallet:
             return

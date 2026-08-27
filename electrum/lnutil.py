@@ -2052,7 +2052,7 @@ class ReceivedMPPStatus(NamedTuple):
     # payment key of the final mpp set (derived from inner trampoline onion payment secret)
     # to which the separate trampoline sets htlcs get added once they are complete.
     # https://github.com/lightning/bolts/pull/829/commits/bc7a1a0bc97b2293e7f43dd8a06529e5fdcf7cd2
-    parent_set_key: str = None
+    parent_set_key: str | None = None
 
     def get_first_htlc_timestamp(self) -> Optional[int]:
         return min([mpp_htlc.htlc.timestamp for mpp_htlc in self.htlcs], default=None)

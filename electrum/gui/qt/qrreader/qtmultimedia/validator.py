@@ -43,10 +43,10 @@ class QrReaderValidatorResult():
     def __init__(self):
         self.accepted: bool = False
 
-        self.message: str = None
-        self.message_color: QColor = None
+        self.message: str | None = None
+        self.message_color: QColor | None = None
 
-        self.simple_result : str = None
+        self.simple_result : str | None = None
 
         self.result_usable: Dict[QrCodeResult, bool] = {}
         self.result_colors: Dict[QrCodeResult, QColor] = {}

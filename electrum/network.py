@@ -185,7 +185,7 @@ class ProxySettings:
     def serialize_proxy_cfgstr(self):
         return ':'.join([self.mode, self.host, self.port])
 
-    def deserialize_proxy_cfgstr(self, s: Optional[str], user: str = None, password: str = None) -> None:
+    def deserialize_proxy_cfgstr(self, s: str | None, user: str | None = None, password: str | None = None) -> None:
         if s is None or (isinstance(s, str) and s.lower() == 'none'):
             self.set_defaults()
             self.user = user
@@ -1314,9 +1314,9 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
     @classmethod
     async def async_send_http_on_proxy(
             cls, method: str, url: str, *,
-            params: dict = None,
-            body: bytes = None,
-            json: dict = None,
+            params: dict | None = None,
+            body: bytes | None = None,
+            json: dict | None = None,
             headers=None,
             on_finish=None,
             timeout=None,
@@ -1366,7 +1366,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             method: str,
             params: Sequence,
             *,
-            timeout: int = None,
+            timeout: int | None = None,
     ):
         if timeout is None:
             timeout = self.get_network_timeout_seconds(NetworkTimeout.Urgent)

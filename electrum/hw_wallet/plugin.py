@@ -363,7 +363,7 @@ def trezor_validate_op_return_output_and_get_data(output: TxOutput) -> bytes:
     return script[2:]
 
 
-def validate_op_return_output(output: TxOutput, *, max_size: int = None) -> None:
+def validate_op_return_output(output: TxOutput, *, max_size: int | None = None) -> None:
     script = output.scriptpubkey
     if script[0] != opcodes.OP_RETURN:
         raise UserFacingException(_("Only OP_RETURN scripts are supported."))

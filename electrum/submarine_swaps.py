@@ -746,7 +746,7 @@ class SwapManager(Logger):
         output = self.create_funding_output(swap)
         self.wallet.txbatcher.add_payment_output('swaps', output)
 
-    def create_normal_swap(self, *, lightning_amount_sat: int, payment_hash: bytes, their_pubkey: bytes = None):
+    def create_normal_swap(self, *, lightning_amount_sat: int, payment_hash: bytes, their_pubkey: bytes | None = None):
         """ server method """
         assert lightning_amount_sat
         if payment_hash.hex() in self._swaps:

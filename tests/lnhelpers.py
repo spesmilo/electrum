@@ -351,11 +351,11 @@ def prepare_invoice(
         *,
         amount_msat=100_000_000,
         include_routing_hints=False,
-        payment_preimage: bytes = None,
-        payment_hash: bytes = None,
+        payment_preimage: bytes | None = None,
+        payment_hash: bytes | None = None,
         invoice_features: LnFeatures = None,
-        min_final_cltv_delta: int = None,
-        expiry: int = None,
+        min_final_cltv_delta: int | None = None,
+        expiry: int | None = None,
 ) -> Tuple[BOLT11Addr, Invoice]:
     amount_btc = amount_msat/Decimal(COIN*1000)
     if payment_preimage is None and not payment_hash:
