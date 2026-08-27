@@ -160,6 +160,7 @@ def _parse_lnurl6_response(lnurl_response: dict) -> LNURL6Data:
     try:
         max_sendable_msat = int(lnurl_response['maxSendable'])
         min_sendable_msat = int(lnurl_response['minSendable'])
+        assert min_sendable_msat > 0, f"Invalid min amount: {min_sendable_msat} msat"
         assert 0 < max_sendable_msat <= COIN * TOTAL_COIN_SUPPLY_LIMIT_IN_BTC * 1000, \
             f"Invalid max amount: {max_sendable_msat} msat"
         assert max_sendable_msat >= min_sendable_msat, f"Invalid amounts: max < min amount"
@@ -190,6 +191,7 @@ def _parse_lnurl3_response(lnurl_response: dict) -> LNURL3Data:
     try:
         min_withdrawable_msat = int(lnurl_response['minWithdrawable'] or 0)
         max_withdrawable_msat = int(lnurl_response['maxWithdrawable'])
+        assert min_withdrawable_msat >= 0, f"Invalid min amount: {min_withdrawable_msat} msat"
         assert 0 < max_withdrawable_msat <= COIN * TOTAL_COIN_SUPPLY_LIMIT_IN_BTC * 1000, \
             f"Invalid max amount: {max_withdrawable_msat} msat"
         assert max_withdrawable_msat >= min_withdrawable_msat, f"Invalid amounts: max < min amount"
