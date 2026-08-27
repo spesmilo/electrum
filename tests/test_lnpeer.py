@@ -83,6 +83,33 @@ def inject_chan_into_gossipdb(
     channel_db.add_channel_update(chan_upd2_dict, verify=False)
 
 
+@dataclasses.dataclass(kw_only=True)
+class SenderHtlcResolvedTracker:
+    resolved_event: asyncio.Event  # "single HTLC got fulfilled/failed"
+    num_success: int = 0
+    num_failed: int = 0
+
+    async def _on_sender_htlc_fulfilled(self, *args):
+        self.num_success += 1
+        self.resolved_event.set()
+        self.resolved_event.clear()
+
+    async def _on_sender_htlc_failed(self, *args):
+        self.num_failed += 1
+        self.resolved_event.set()
+        self.resolved_event.clear()
+
+    @classmethod
+    def register(cls) -> 'SenderHtlcResolvedTracker':
+        evt = asyncio.Event()
+        tracker = SenderHtlcResolvedTracker(resolved_event=evt)
+        # note: these callbacks only fire for the original sender of an HTLC
+        util.register_callback(tracker._on_sender_htlc_fulfilled, ["htlc_fulfilled"])
+        util.register_callback(tracker._on_sender_htlc_failed, ["htlc_failed"])
+        # ElectrumTestCase.tearDown() will clean up after us using callback_mgr.clear_all_callbacks()
+        return tracker
+
+
 class TestPeer(ElectrumTestCase):
     TESTNET = True
 
@@ -979,10 +1006,11 @@ class TestPeerDirect(TestPeer):
                 payment_secret=lnaddr1.payment_secret,
             )
 
-            while nhtlc_success + nhtlc_failed < 2:
-                await htlc_resolved.wait()
-            self.assertEqual(0, nhtlc_success)
-            self.assertEqual(2, nhtlc_failed)
+            async with util.async_timeout(5):
+                while htlc_tracker.num_success + htlc_tracker.num_failed < 2:
+                    await htlc_tracker.resolved_event.wait()
+            self.assertEqual(0, htlc_tracker.num_success)
+            self.assertEqual(2, htlc_tracker.num_failed)
             raise SuccessfulTest()
 
         w2.features |= LnFeatures.BASIC_MPP_OPT
@@ -1000,21 +1028,7 @@ class TestPeerDirect(TestPeer):
                 await asyncio.sleep(0.01)
                 await group.spawn(pay())
 
-        htlc_resolved = asyncio.Event()
-        nhtlc_success = 0
-        nhtlc_failed = 0
-        async def on_htlc_fulfilled(*args):
-            htlc_resolved.set()
-            htlc_resolved.clear()
-            nonlocal nhtlc_success
-            nhtlc_success += 1
-        async def on_htlc_failed(*args):
-            htlc_resolved.set()
-            htlc_resolved.clear()
-            nonlocal nhtlc_failed
-            nhtlc_failed += 1
-        util.register_callback(on_htlc_fulfilled, ["htlc_fulfilled"])
-        util.register_callback(on_htlc_failed, ["htlc_failed"])
+        htlc_tracker = SenderHtlcResolvedTracker.register()
 
         with self.assertRaises(SuccessfulTest):
             await f()
@@ -1054,10 +1068,11 @@ class TestPeerDirect(TestPeer):
                 payment_secret=lnaddr1.payment_secret,
             )
 
-            while nhtlc_success + nhtlc_failed < 2:
-                await htlc_resolved.wait()
-            self.assertEqual(0, nhtlc_success)
-            self.assertEqual(2, nhtlc_failed)
+            async with util.async_timeout(5):
+                while htlc_tracker.num_success + htlc_tracker.num_failed < 2:
+                    await htlc_tracker.resolved_event.wait()
+            self.assertEqual(0, htlc_tracker.num_success)
+            self.assertEqual(2, htlc_tracker.num_failed)
             raise SuccessfulTest()
 
         w2.features |= LnFeatures.BASIC_MPP_OPT
@@ -1073,21 +1088,7 @@ class TestPeerDirect(TestPeer):
                 await asyncio.sleep(0.01)
                 await group.spawn(pay())
 
-        htlc_resolved = asyncio.Event()
-        nhtlc_success = 0
-        nhtlc_failed = 0
-        async def on_htlc_fulfilled(*args):
-            htlc_resolved.set()
-            htlc_resolved.clear()
-            nonlocal nhtlc_success
-            nhtlc_success += 1
-        async def on_htlc_failed(*args):
-            htlc_resolved.set()
-            htlc_resolved.clear()
-            nonlocal nhtlc_failed
-            nhtlc_failed += 1
-        util.register_callback(on_htlc_fulfilled, ["htlc_fulfilled"])
-        util.register_callback(on_htlc_failed, ["htlc_failed"])
+        htlc_tracker = SenderHtlcResolvedTracker.register()
 
         with self.assertRaises(SuccessfulTest):
             await f()
@@ -1133,11 +1134,12 @@ class TestPeerDirect(TestPeer):
                 payment_secret=lnaddr1.payment_secret,
             )
 
-            while nhtlc_success + nhtlc_failed < 2:
-                await htlc_resolved.wait()
+            async with util.async_timeout(5):
+                while htlc_tracker.num_success + htlc_tracker.num_failed < 2:
+                    await htlc_tracker.resolved_event.wait()
             # both htlcs of the mpp set should get failed and w2 shouldn't release the preimage
-            self.assertEqual(0, nhtlc_success, f"{nhtlc_success=} | {nhtlc_failed=}")
-            self.assertEqual(2, nhtlc_failed,  f"{nhtlc_success=} | {nhtlc_failed=}")
+            self.assertEqual(0, htlc_tracker.num_success, f"{htlc_tracker.num_success=} | {htlc_tracker.num_failed=}")
+            self.assertEqual(2, htlc_tracker.num_failed,  f"{htlc_tracker.num_success=} | {htlc_tracker.num_failed=}")
             assert w1.get_preimage(lnaddr1.paymenthash) is None, "w1 shouldn't get the preimage"
             raise SuccessfulTest()
 
@@ -1150,28 +1152,10 @@ class TestPeerDirect(TestPeer):
                 await asyncio.sleep(0.01)
                 await group.spawn(pay())
 
-        htlc_resolved = asyncio.Event()
-        nhtlc_success = 0
-        nhtlc_failed = 0
-        async def on_htlc_fulfilled(*args):
-            htlc_resolved.set()
-            htlc_resolved.clear()
-            nonlocal nhtlc_success
-            nhtlc_success += 1
-        async def on_htlc_failed(*args):
-            htlc_resolved.set()
-            htlc_resolved.clear()
-            nonlocal nhtlc_failed
-            nhtlc_failed += 1
-        util.register_callback(on_htlc_fulfilled, ["htlc_fulfilled"])
-        util.register_callback(on_htlc_failed, ["htlc_failed"])
+        htlc_tracker = SenderHtlcResolvedTracker.register()
 
-        try:
-            with self.assertRaises(SuccessfulTest):
-                await f()
-        finally:
-            util.unregister_callback(on_htlc_fulfilled)
-            util.unregister_callback(on_htlc_failed)
+        with self.assertRaises(SuccessfulTest):
+            await f()
 
     async def test_mpp_cleanup_after_expiry(self):
         """
@@ -1227,10 +1211,10 @@ class TestPeerDirect(TestPeer):
                 assert len(bob_wallet.received_mpp_htlcs[bob_payment_key].htlcs) == 2
                 # now wait until bob expires the mpp (set)
                 async with util.async_timeout(bob_wallet.MPP_EXPIRY * 3):  # this can take some time, esp. on CI
-                    while nhtlc_success + nhtlc_failed < 2:
-                        await alice_htlc_resolved.wait()
+                    while htlc_tracker.num_success + htlc_tracker.num_failed < 2:
+                        await htlc_tracker.resolved_event.wait()
                 # check that bob failed the htlc
-                assert nhtlc_success == 0 and nhtlc_failed == 2
+                assert htlc_tracker.num_success == 0 and htlc_tracker.num_failed == 2
                 # check that bob deleted the mpp set as it should be expired and resolved now
                 assert bob_payment_key not in bob_wallet.received_mpp_htlcs
                 alice_wallet._paysessions.clear()
@@ -1251,28 +1235,10 @@ class TestPeerDirect(TestPeer):
                     await asyncio.sleep(0.01)
                     await group.spawn(_test())
 
-            alice_htlc_resolved = asyncio.Event()
-            nhtlc_success = 0
-            nhtlc_failed = 0
-            async def on_sender_htlc_fulfilled(*args):
-                alice_htlc_resolved.set()
-                alice_htlc_resolved.clear()
-                nonlocal nhtlc_success
-                nhtlc_success += 1
-            async def on_sender_htlc_failed(*args):
-                alice_htlc_resolved.set()
-                alice_htlc_resolved.clear()
-                nonlocal nhtlc_failed
-                nhtlc_failed += 1
-            util.register_callback(on_sender_htlc_fulfilled, ["htlc_fulfilled"])
-            util.register_callback(on_sender_htlc_failed, ["htlc_failed"])
+            htlc_tracker = SenderHtlcResolvedTracker.register()
 
-            try:
-                with self.assertRaises(SuccessfulTest):
-                    await f()
-            finally:
-                util.unregister_callback(on_sender_htlc_fulfilled)
-                util.unregister_callback(on_sender_htlc_failed)
+            with self.assertRaises(SuccessfulTest):
+                await f()
 
         for use_trampoline in [True, False]:
             self.logger.debug(f"test_mpp_cleanup_after_expiry: {use_trampoline=}")
