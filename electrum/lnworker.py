@@ -3954,10 +3954,13 @@ class LNWallet(Logger):
                 min_inc_cltv_abs = min(
                     mpp_htlc.htlc.cltv_abs
                     for mpp_htlc in processed_htlc_set.keys())  # take "min" to assume worst-case
+                total_msat = any_outer_onion.total_msat
+                sum_inc_amt_msat = sum(mpp_htlc.htlc.amount_msat for mpp_htlc in processed_htlc_set)
+                assert total_msat <= sum_inc_amt_msat, f"{total_msat=} should be <= {sum_inc_amt_msat=}"
                 await self._maybe_forward_trampoline(
                     payment_hash=any_mpp_htlc.htlc.payment_hash,
                     closest_inc_cltv_abs=min_inc_cltv_abs,
-                    total_msat=any_outer_onion.total_msat,
+                    total_msat=total_msat,
                     any_trampoline_onion=any_trampoline_onion,
                     fw_payment_key=payment_key,
                 )
@@ -4094,7 +4097,7 @@ class LNWallet(Logger):
             self, *,
             payment_hash: bytes,
             closest_inc_cltv_abs: int,
-            total_msat: int,  # total_msat of the outer onion
+            total_msat: int,  # total_msat of the outer onion. this is <= sum_inc_amt_msat
             any_trampoline_onion: ProcessedOnionPacket,  # any trampoline onion of the incoming htlc set, they should be similar
             fw_payment_key: str,
     ) -> None:
@@ -4134,6 +4137,7 @@ class LNWallet(Logger):
                 f"RHASH corresponds to payreq we created. {payment_hash.hex()=}")
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
 
+        assert total_msat >= amt_to_forward  # sanity check: money_in >= money_out
         # these are the fee/cltv paid by the sender
         # pay_to_node will raise if they are not sufficient
         budget = PaymentFeeBudget(
