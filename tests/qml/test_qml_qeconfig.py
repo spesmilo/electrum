@@ -101,6 +101,9 @@ class TestConfig(QETestCase):
         self.assertFalse(a.match('1.000000000').hasMatch())
         self.assertTrue(a.match('21000000').hasMatch())
         self.assertFalse(a.match('121000000').hasMatch())
+        self.assertFalse(a.match('21000001').hasMatch())
+        self.assertTrue(a.match('21000000.99999999').hasMatch())
+        self.assertTrue(a.match('20999999.00000001').hasMatch())
 
         self.assertTrue(b.match('1').hasMatch())
         self.assertTrue(b.match('1.').hasMatch())
@@ -109,6 +112,9 @@ class TestConfig(QETestCase):
         self.assertFalse(b.match('1.000000000000').hasMatch())
         self.assertTrue(b.match('21000000').hasMatch())
         self.assertFalse(b.match('121000000').hasMatch())
+        self.assertFalse(b.match('21000001').hasMatch())
+        self.assertTrue(b.match('21000000.99999999').hasMatch())
+        self.assertTrue(b.match('20999999.00000000001').hasMatch())
 
         self.q.config.BTC_AMOUNTS_DECIMAL_POINT = 5
 

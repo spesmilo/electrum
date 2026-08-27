@@ -102,7 +102,8 @@ class QEConfig(AuthMixin, QObject):
         max_digits_before_dp = (
             len(str(TOTAL_COIN_SUPPLY_LIMIT_IN_BTC))
             + (base_unit_name_to_decimal_point("BTC") - decimal_point))
-        exp = '^[0-9]{0,%d}' % max_digits_before_dp
+        # allow 21M BTC plus extra decimals, but not above that
+        exp = '^((210{0,%d})|((20|1?[0-9])?[0-9]{0,%d}))' % (max_digits_before_dp - 2, max_digits_before_dp - 2)
         decimal_point += extra_precision
         if decimal_point > 0:
             exp += '(\\.[0-9]{0,%d})?' % decimal_point
