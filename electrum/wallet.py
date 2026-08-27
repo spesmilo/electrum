@@ -511,7 +511,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if self.lnworker:
             channel_backups = new_db.get_dict('imported_channel_backups')
             for chan_id, chan in self.lnworker.channels.items():
-                channel_backups[chan_id.hex()] = self.lnworker.create_channel_backup(chan_id)
+                channel_backups[chan_id.hex()] = self.lnworker.create_channel_backup(chan_id).to_bytes().hex()
             new_db.put('channels', None)
         new_db.set_modified(True)
         new_db.write()

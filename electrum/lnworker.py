@@ -1054,6 +1054,9 @@ class LNWallet(Logger):
         for name in ["onchain_channel_backups", "imported_channel_backups"]:
             channel_backups = self.db.get_dict(name)
             for channel_id, storage in channel_backups.items():
+                if isinstance(storage, str):
+                    storage = ImportedChannelBackupStorage.from_bytes(bytes.fromhex(storage))
+                assert isinstance(storage, (OnchainChannelBackupStorage, ImportedChannelBackupStorage))
                 self._channel_backups[bfh(channel_id)] = cb = ChannelBackup(storage, lnworker=self)
                 self.wallet.set_reserved_addresses_for_chan(cb, reserved=True)
 
@@ -3788,13 +3791,14 @@ class LNWallet(Logger):
 
     def import_channel_backup(self, data):
         xpub = self.wallet.get_fingerprint()
-        cb_storage = ImportedChannelBackupStorage.from_encrypted_str(data, password=xpub)
+        cb_blob = ImportedChannelBackupStorage.decrypt_encrypted_str(data, password=xpub)
+        cb_storage = ImportedChannelBackupStorage.from_bytes(cb_blob)
         channel_id = cb_storage.channel_id()
         if channel_id.hex() in self.db.get_dict("channels"):
             raise Exception('Channel already in wallet')
         self.logger.info(f'importing channel backup: {channel_id.hex()}')
         d = self.db.get_dict("imported_channel_backups")
-        d[channel_id.hex()] = cb_storage
+        d[channel_id.hex()] = cb_blob.hex()
         with self.lock:
             cb = ChannelBackup(cb_storage, lnworker=self)
             self._channel_backups[channel_id] = cb

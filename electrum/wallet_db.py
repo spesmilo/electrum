@@ -35,9 +35,10 @@ import attr
 
 from . import bitcoin
 from . import constants
-from .util import profiler, WalletFileException, multisig_type, TxMinedInfo, MyEncoder
+from .util import profiler, WalletFileException, multisig_type, TxMinedInfo, MyEncoder, bfh
 from .keystore import bip44_derivation
-from .transaction import Transaction, TxOutpoint, tx_from_any, PartialTransaction, PartialTxOutput, BadHeaderMagic
+from .transaction import (Transaction, TxOutpoint, tx_from_any, PartialTransaction, PartialTxOutput, BadHeaderMagic,
+                          BCDataStream)
 from .logging import Logger
 
 from .lnutil import HTLCOwner, ChannelType, RecvMPPResolution
@@ -71,7 +72,7 @@ class WalletUnfinished(WalletFileException):
 # seed_version is now used for the version of the wallet file
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 71     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 72     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -260,6 +261,7 @@ class WalletDBUpgrader(Logger):
         self._convert_version_69()
         self._convert_version_70()
         self._convert_version_71()
+        self._convert_version_72()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
     def _convert_wallet_type(self):
@@ -1435,6 +1437,48 @@ class WalletDBUpgrader(Logger):
         # if so, save genesis hash
         self.data['genesis_blockhash'] = constants.net.GENESIS
         self.data['seed_version'] = 71
+
+    def _convert_version_72(self):
+        """Serialize imported channel backups into their internal binary blob format (hex), instead of json
+        StoredObjects."""
+        if not self._is_upgrade_method_needed(71, 71):
+            return
+
+        def _serialize_imported_channel_backup(cb: dict) -> str:
+            # this mirrors the wire format read by lnutil.ImportedChannelBackupStorage.from_bytes.
+            if cb['multisig_funding_privkey'] is not None:
+                version = 2
+            elif cb['local_payment_pubkey'] is not None:
+                version = 1
+            else:
+                version = 0
+            vds = BCDataStream()
+            vds.write_uint16(version)
+            vds.write_boolean(cb['is_initiator'])
+            vds.write_bytes(bfh(cb['privkey']), 32)
+            vds.write_bytes(bfh(cb['channel_seed']), 32)
+            vds.write_bytes(bfh(cb['node_id']), 33)
+            vds.write_bytes(bfh(cb['funding_txid']), 32)
+            # note: Electrum < 4.4.0 parsed the uint16 fields as int16 (see 5a4c39cb94), so
+            # imported backups may hold negative values (e.g. port 42069 stored as -23467): mask them
+            vds.write_uint16(cb['funding_index'] & 0xffff)
+            vds.write_string(cb['funding_address'])
+            vds.write_bytes(bfh(cb['remote_payment_pubkey']), 33)
+            vds.write_bytes(bfh(cb['remote_revocation_pubkey']), 33)
+            vds.write_uint16(cb['local_delay'] & 0xffff)
+            vds.write_uint16(cb['remote_delay'] & 0xffff)
+            vds.write_string(cb['host'])
+            vds.write_uint16(cb['port'] & 0xffff)
+            if version >= 1:
+                vds.write_bytes(bfh(cb['local_payment_pubkey']), 33)
+            if version >= 2:
+                vds.write_bytes(bfh(cb['multisig_funding_privkey']), 32)
+            return bytes(vds.input).hex()
+
+        channel_backups = self.data.get('imported_channel_backups', {})
+        for channel_id, storage in channel_backups.items():
+            channel_backups[channel_id] = _serialize_imported_channel_backup(storage)
+        self.data['seed_version'] = 72
 
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):

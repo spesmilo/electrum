@@ -10,12 +10,14 @@ from electrum.lnutil import (
     derive_privkey, derive_pubkey, make_htlc_tx, extract_ctn_from_tx, get_compressed_pubkey_from_bech32,
     ScriptHtlc, calc_fees_for_commitment_tx, UpdateAddHtlc, LnFeatures, ln_compare_features,
     IncompatibleLightningFeatures, ChannelType, offered_htlc_trim_threshold_sat, received_htlc_trim_threshold_sat,
-    ImportedChannelBackupStorage, list_enabled_ln_feature_bits, PaymentFeeBudget, LnFeatureContexts
+    ImportedChannelBackupStorage, OnchainChannelBackupStorage, list_enabled_ln_feature_bits, PaymentFeeBudget,
+    LnFeatureContexts
 )
 from electrum.util import bfh, MyEncoder
 from electrum.transaction import Transaction, PartialTransaction, Sighash
 from electrum.lnworker import LNWallet
 from electrum.wallet import Standard_Wallet
+from electrum.wallet_db import WalletDB, FINAL_SEED_VERSION
 from electrum.simple_config import SimpleConfig
 
 from . import ElectrumTestCase, as_testnet
@@ -1161,6 +1163,18 @@ class TestLNUtil(ElectrumTestCase):
             ),
             decoded_cb,
         )
+
+    def test_onchain_channel_backup_json_roundtrip(self):
+        cb = OnchainChannelBackupStorage(
+            funding_txid='97767fdefef3152319363b772914d71e5eb70e793b835c13dce20037d3ac13fe',
+            funding_index=1,
+            funding_address='tb1qfsxllwl2edccpar9jas9wsxd4vhcewlxqwmn0w27kurkme3jvkdqn4msdp',
+            is_initiator=True,
+            node_id_prefix=bfh('02bf82e22f99dcd7ac1de4aad5152ce4'),
+        )
+        data = {'seed_version': FINAL_SEED_VERSION, 'onchain_channel_backups': {cb.channel_id().hex(): cb}}
+        db = WalletDB(json.dumps(data, cls=MyEncoder), storage=None, upgrade=False)
+        self.assertEqual(cb, db.get_dict('onchain_channel_backups')[cb.channel_id().hex()])
 
     async def test_payment_fee_budget(self):
         config = SimpleConfig({'electrum_path': self.electrum_path})
