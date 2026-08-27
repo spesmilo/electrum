@@ -355,6 +355,7 @@ class QEConfig(AuthMixin, QObject):
     def formatSatsForEditing(self, satoshis):
         if isinstance(satoshis, QEAmount):
             satoshis = satoshis.satsInt
+
         return self.config.format_amount(
             satoshis,
             add_thousands_sep=False,
@@ -364,13 +365,15 @@ class QEConfig(AuthMixin, QObject):
     @pyqtSlot(QEAmount, result=str)
     def formatMilliSatsForEditing(self, msatoshis):
         if isinstance(msatoshis, QEAmount):
-            satoshis = Decimal(msatoshis.msatsInt) / 1000
+            sats = Decimal(msatoshis.msatsInt) / 1000
         elif isinstance(msatoshis, int):
-            satoshis = Decimal(msatoshis) / 1000
+            sats = Decimal(msatoshis) / 1000
+        else:
+            sats = None  # unknown types or None -> 'unknown'
 
         precision = 3  # config.amt_precision_post_satoshi is not exposed in preferences
         return self.config.format_amount(
-            satoshis,
+            sats,
             add_thousands_sep=False,
             precision=precision,
         )
@@ -382,6 +385,7 @@ class QEConfig(AuthMixin, QObject):
     def formatSats(self, satoshis, with_unit=False):
         if isinstance(satoshis, QEAmount):
             satoshis = satoshis.satsInt
+
         if with_unit:
             return self.config.format_amount_and_units(satoshis)
         else:
@@ -393,12 +397,12 @@ class QEConfig(AuthMixin, QObject):
     @pyqtSlot(QEAmount, bool, result=str)
     def formatMilliSats(self, amount, with_unit=False):
         if isinstance(amount, QEAmount):
-            msats = amount.msatsInt
+            sats = Decimal(amount.msatsInt) / 1000
         elif isinstance(amount, int):
-            msats = amount
+            sats = Decimal(amount) / 1000
         else:
-            raise Exception(f"Unknown amount type: {str(type(amount))}")
-        sats = Decimal(msats) / 1000
+            sats = None  # unknown types or None -> 'unknown'
+
         precision = 3  # config.amt_precision_post_satoshi is not exposed in preferences
         if with_unit:
             return self.config.format_amount_and_units(sats, precision=precision)
@@ -421,11 +425,13 @@ class QEConfig(AuthMixin, QObject):
     @pyqtSlot('quint64', result=str)
     @pyqtSlot(QEAmount, result=str)
     def amountToBaseunitStr(self, amount) -> str:
-        assert isinstance(amount, (QEAmount, int))
         if isinstance(amount, QEAmount):
-            satoshis = Decimal(amount.msatsInt) / 1000
+            sats = Decimal(amount.msatsInt) / 1000
         elif isinstance(amount, int):
-            satoshis = Decimal(amount)
+            sats = Decimal(amount)
+        else:
+            sats = None  # unknown types or None -> 'unknown'
+
         msat_max_precision = self.config.BTC_AMOUNTS_DECIMAL_POINT + 3
-        unit_str = self.config.format_amount(satoshis, precision=msat_max_precision, add_thousands_sep=False)
+        unit_str = self.config.format_amount(sats, precision=msat_max_precision, add_thousands_sep=False)
         return unit_str.rstrip('.')
