@@ -14,7 +14,7 @@ from .transaction import Transaction, TxOutpoint
 from .logging import Logger
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from .lnutil import REDEEM_AFTER_DOUBLE_SPENT_DELAY
-from .lnsweep import KeepWatchingTXO, SweepInfo
+from .lnsweep import KeepWatchingTXO, SweepInfo, MaybeSweepInfo
 
 if TYPE_CHECKING:
     from .network import Network
@@ -201,7 +201,6 @@ class LNWatcher(Logger, EventListener):
         chan = self.lnworker.channel_by_txo(funding_outpoint)
         if not chan:
             return False
-        local_height = self.adb.get_local_height()
         self._pending_force_closes.pop(chan, None)  # recomputed below
         # detect who closed and get information about how to claim outputs
         is_local_ctx, sweep_info_dict = chan.get_ctx_sweep_info(closing_tx)
@@ -209,50 +208,67 @@ class LNWatcher(Logger, EventListener):
         #       possibly longer if there are TXOs to sweep
         keep_watching = not self.adb.is_deeply_mined(closing_tx.txid())
         # create and broadcast transactions
-        for prevout, sweep_info in sweep_info_dict.items():  # FIXME isolate iterations (error-wise)
-            prev_txid, prev_index = prevout.split(':')
-            name = sweep_info.name + ' ' + chan.get_id_for_log()
-            self.lnworker.wallet.set_default_label(prevout, name)
-            if isinstance(sweep_info, KeepWatchingTXO):  # haven't yet decided if we want to sweep
-                keep_watching |= sweep_info.until_height > local_height
-                continue
-            assert isinstance(sweep_info, SweepInfo), sweep_info
-            if not self.adb.get_transaction(prev_txid):
-                # do not keep watching if prevout does not exist
-                self.logger.info(f'prevout does not exist for {name}: {prevout}')
-                continue
-            watch_sweep_info = self.maybe_redeem(sweep_info)
-            spender_txid = self.adb.get_spender(prevout)  # note: LOCAL spenders don't count
-            spender_tx = self.adb.get_transaction(spender_txid) if spender_txid else None
-            if spender_tx:
-                # the spender might be the remote, revoked or not
-                htlc_sweepinfo = chan.maybe_sweep_htlcs(closing_tx, spender_tx)
-                if htlc_sweepinfo:
-                    self.adb.subscribe_to_outputs(spender_txid)
-                for prevout2, htlc_sweep_info in htlc_sweepinfo.items():
-                    self.lnworker.wallet.set_default_label(prevout2, htlc_sweep_info.name)
-                    if isinstance(htlc_sweep_info, KeepWatchingTXO):  # haven't yet decided if we want to sweep
-                        keep_watching |= htlc_sweep_info.until_height > local_height
-                        continue
-                    assert isinstance(htlc_sweep_info, SweepInfo), htlc_sweep_info
-                    watch_htlc_sweep_info = self.maybe_redeem(htlc_sweep_info)
-                    htlc_tx_spender = self.adb.get_spender(prevout2)
-                    if htlc_tx_spender:
-                        keep_watching |= not self.adb.is_deeply_mined(htlc_tx_spender)
-                        self.maybe_add_accounting_address(htlc_tx_spender, htlc_sweep_info)
-                    else:
-                        keep_watching |= watch_htlc_sweep_info
-                keep_watching |= not self.adb.is_deeply_mined(spender_txid)
-                self.maybe_extract_preimage(chan, spender_tx, prevout)
-                self.maybe_add_accounting_address(spender_txid, sweep_info)
-            else:
-                keep_watching |= watch_sweep_info
-            self.maybe_add_pending_forceclose(
-                chan=chan,
-                spender_txid=spender_txid,
-                is_local_ctx=is_local_ctx,
-                sweep_info=sweep_info,
-            )
+        for prevout, sweep_info in sweep_info_dict.items():
+            try:
+                keep_watching |= self._sweep_ctx_output(prevout, sweep_info, chan, closing_tx, is_local_ctx)
+            except Exception as e:
+                # in case a single sweep crashes we keep sweeping the other outputs
+                self.logger.exception(f"failed to sweep {prevout=}")
+                keep_watching = True
+        return keep_watching
+
+    def _sweep_ctx_output(
+        self,
+        prevout: str,
+        sweep_info: MaybeSweepInfo,
+        chan: 'AbstractChannel',
+        closing_tx: Transaction,
+        is_local_ctx: bool,
+    ) -> bool:
+        keep_watching = False
+        local_height = self.adb.get_local_height()
+        prev_txid, prev_index = prevout.split(':')
+        name = sweep_info.name + ' ' + chan.get_id_for_log()
+        self.lnworker.wallet.set_default_label(prevout, name)
+        if isinstance(sweep_info, KeepWatchingTXO):  # haven't yet decided if we want to sweep
+            return sweep_info.until_height > local_height
+        assert isinstance(sweep_info, SweepInfo), sweep_info
+        if not self.adb.get_transaction(prev_txid):
+            # do not keep watching if prevout does not exist
+            self.logger.info(f'prevout does not exist for {name}: {prevout}')
+            return False
+        watch_sweep_info = self.maybe_redeem(sweep_info)
+        spender_txid = self.adb.get_spender(prevout)  # note: LOCAL spenders don't count
+        spender_tx = self.adb.get_transaction(spender_txid) if spender_txid else None
+        if spender_tx:
+            # the spender might be the remote, revoked or not
+            htlc_sweepinfo = chan.maybe_sweep_htlcs(closing_tx, spender_tx)
+            if htlc_sweepinfo:
+                self.adb.subscribe_to_outputs(spender_txid)
+            for prevout2, htlc_sweep_info in htlc_sweepinfo.items():
+                self.lnworker.wallet.set_default_label(prevout2, htlc_sweep_info.name)
+                if isinstance(htlc_sweep_info, KeepWatchingTXO):  # haven't yet decided if we want to sweep
+                    keep_watching |= htlc_sweep_info.until_height > local_height
+                    continue
+                assert isinstance(htlc_sweep_info, SweepInfo), htlc_sweep_info
+                watch_htlc_sweep_info = self.maybe_redeem(htlc_sweep_info)
+                htlc_tx_spender = self.adb.get_spender(prevout2)
+                if htlc_tx_spender:
+                    keep_watching |= not self.adb.is_deeply_mined(htlc_tx_spender)
+                    self.maybe_add_accounting_address(htlc_tx_spender, htlc_sweep_info)
+                else:
+                    keep_watching |= watch_htlc_sweep_info
+            keep_watching |= not self.adb.is_deeply_mined(spender_txid)
+            self.maybe_extract_preimage(chan, spender_tx, prevout)
+            self.maybe_add_accounting_address(spender_txid, sweep_info)
+        else:
+            keep_watching |= watch_sweep_info
+        self.maybe_add_pending_forceclose(
+            chan=chan,
+            spender_txid=spender_txid,
+            is_local_ctx=is_local_ctx,
+            sweep_info=sweep_info,
+        )
         return keep_watching
 
     def get_pending_force_closes(self) -> Dict['AbstractChannel', int]:
