@@ -82,14 +82,14 @@ function wait_until_channel_open()
     printf "\n"
 }
 
-function wait_until_channel_closed()
+function wait_until_channel_state()
 {
-    msg="wait until $1 sees channel closed"
+    msg="wait until $1 sees channel in state $2"
     cmd="./run_electrum --regtest -D /tmp/$1"
     declare -i timeout_sec=120
     declare -i elapsed_sec=0
 
-    while [[ $($cmd list_channels | jq '.[0].state' | tr -d '"') != "CLOSED" ]]; do
+    while [[ $($cmd list_channels | jq '.[0].state' | tr -d '"') != "$2" ]]; do
         if ((elapsed_sec > timeout_sec)); then
             printf "Timeout of %i s exceeded\n" "$elapsed_sec"
             exit 1
@@ -244,7 +244,7 @@ if [[ $1 == "breach" ]]; then
     echo "alice broadcasts old ctx"
     $bitcoin_cli sendrawtransaction $ctx
     new_blocks 1
-    wait_until_channel_closed bob
+    wait_until_channel_state bob CLOSED
     new_blocks 1
     wait_for_balance bob 1.14
     $bob getbalance
@@ -469,7 +469,7 @@ if [[ $1 == "lnwatcher_waits_until_fees_go_down" ]]; then
     wait_until_spent $chan_funding_txid $chan_funding_outidx
     $bob stop  # bob closes and then disappears. FIXME this is a hack to prevent Bob claiming the fake-hold-invoice-htlc onchain
     new_blocks 1
-    wait_until_channel_closed alice
+    wait_until_channel_state alice CLOSED
     ctx_id=$($alice list_channels | jq -r ".[0].closing_txid")
     if [ $TEST_SRK_CHANNELS != True ] ; then  # anchors
         htlc_output_index1=2
@@ -675,6 +675,10 @@ if [[ $1 == "breach_with_unspent_htlc" ]]; then
     $bitcoin_cli sendrawtransaction $ctx
     new_blocks 1
     wait_for_balance bob 1.14
+    # bob has now spent the htlc output with a justice tx. He must keep processing the
+    # outputs of the ctx after seeing it, else the channel never gets marked as redeemed.
+    new_blocks 25
+    wait_until_channel_state bob REDEEMED
 fi
 
 
