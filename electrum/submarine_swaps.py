@@ -510,6 +510,7 @@ class SwapManager(Logger):
             if not witness or len(witness) < 2:
                 # tx may be unsigned
                 continue
+            # <claimpubkey_sig> <preimage> <witness_script>
             preimage = witness[1]
             if sha256(preimage) == swap.payment_hash:
                 return preimage

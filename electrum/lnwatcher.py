@@ -209,7 +209,7 @@ class LNWatcher(Logger, EventListener):
         #       possibly longer if there are TXOs to sweep
         keep_watching = not self.adb.is_deeply_mined(closing_tx.txid())
         # create and broadcast transactions
-        for prevout, sweep_info in sweep_info_dict.items():
+        for prevout, sweep_info in sweep_info_dict.items():  # FIXME isolate iterations (error-wise)
             prev_txid, prev_index = prevout.split(':')
             name = sweep_info.name + ' ' + chan.get_id_for_log()
             self.lnworker.wallet.set_default_label(prevout, name)

@@ -1440,15 +1440,21 @@ class Channel(AbstractChannel):
         from .lnonion import OnionRoutingFailure, OnionFailureCode
         witness = txin.witness_elements()
         witness_script = witness[-1]
+        htlc_type = None  # type: Optional[Direction]  # dir compared to ctx
         script_ops = [x for x in script_GetOp(witness_script)]
         if match_script_against_template(witness_script, lnutil.WITNESS_TEMPLATE_OFFERED_HTLC, debug=False) \
            or match_script_against_template(witness_script, lnutil.WITNESS_TEMPLATE_OFFERED_HTLC_ANCHORS, debug=False):
             ripemd_payment_hash = script_ops[21][1]
+            htlc_type = SENT
         elif match_script_against_template(witness_script, lnutil.WITNESS_TEMPLATE_RECEIVED_HTLC, debug=False) \
            or match_script_against_template(witness_script, lnutil.WITNESS_TEMPLATE_RECEIVED_HTLC_ANCHORS, debug=False):
             ripemd_payment_hash = script_ops[14][1]
+            htlc_type = RECEIVED
         else:
             return
+        assert htlc_type is not None
+        # note: linear search of all active htlcs ultimately becomes quadratic as we get called for each htlc.
+        #       This is okay as we set max_accepted_htlcs=30, which is low. (e.g.) LND sets 483 => this would be slow.
         found = {}
         for direction, htlc in itertools.chain(
                 self.hm.get_htlcs_in_oldest_unrevoked_ctx(REMOTE),
@@ -1464,19 +1470,30 @@ class Channel(AbstractChannel):
                 found[htlc.htlc_id] = (htlc, is_sent)
         if not found:
             return
-        if len(witness) == 5:    # HTLC success tx
-            preimage = witness[3]
-        elif len(witness) == 3:  # spending offered HTLC directly from ctx
-            preimage = witness[1]
-        else:
-            preimage = None      # HTLC timeout tx
-        if preimage:
-            assert ripemd(sha256(preimage)) == ripemd_payment_hash
-            payment_hash = sha256(preimage)
-            if self.lnworker.get_preimage(payment_hash) is not None:
-                return
-            # ^ note: log message text grepped for in regtests
-            self.logger.info(f"found preimage in witness of length {len(witness)}, for {payment_hash.hex()}")
+        # local "success": presigned-2nd-stage: "HTLC-Success" tx
+        #     // received-htlc
+        #     0 <remotehtlcsig> <localhtlcsig> <payment_preimage> <witness_script>
+        # remote "success":
+        #     // offered-htlc
+        #     <remotehtlcsig> <payment_preimage> <witness_script>
+        # local can "timeout": presigned-2nd-stage: "HTLC-Timeout" tx
+        #     // offered-htlc
+        #     0 <remotehtlcsig> <localhtlcsig> <> <witness_script>
+        # remote can "timeout":
+        #     // received-htlc
+        #     <remotehtlcsig> <> <witness_script>
+        # local/remote "revocation":
+        #     // either offered-htlc OR received-htlc
+        #     <revocation_sig> <revocationpubkey> <witness_script>
+        preimage = None
+        if htlc_type == RECEIVED and len(witness) == 5:
+            # guess: received-htlc, local "success", presigned-2nd-stage
+            if (maybe_preimage := witness[3]) and len(maybe_preimage) == 32 and (ripemd(sha256(maybe_preimage)) == ripemd_payment_hash):
+                preimage = maybe_preimage
+        elif htlc_type == SENT and len(witness) == 3:
+            # guess: offered-htlc, remote "success"  (BUT could still be "revocation" at this point)
+            if (maybe_preimage := witness[1]) and len(maybe_preimage) == 32 and (ripemd(sha256(maybe_preimage)) == ripemd_payment_hash):
+                preimage = maybe_preimage
 
         # Mark the htlc as fulfilled or failed.
         # If we forwarded this, this ensures that the success/failure is propagated back on the incoming channel.
@@ -1486,18 +1503,24 @@ class Channel(AbstractChannel):
         #       small value htlcs: even a large htlc might not appear in the outgoing channel's ctx, e.g. maybe it was
         #       not committed yet - we should still make sure it gets removed on the incoming channel. (see #9631)
         if preimage:
-            self.lnworker.save_preimage(payment_hash, preimage, mark_as_public=True)
+            # preimage now extracted if there was one.  In case of htlc "timeout" or "revocation", preimage==None.
+            assert ripemd(sha256(preimage)) == ripemd_payment_hash
+            payment_hash = sha256(preimage)
+            if self.lnworker.get_preimage(payment_hash) is None:
+                self.logger.info(f"found preimage in witness of length {len(witness)}, for {payment_hash.hex()}")
+                self.lnworker.save_preimage(payment_hash, preimage, mark_as_public=True)
             for htlc, is_sent in found.values():
                 if is_sent:
                     self.lnworker.htlc_fulfilled(self, payment_hash, htlc.htlc_id)
         else:
-            # htlc timeout tx
+            # htlc timeout or revocation tx
             if not is_deeply_mined:
                 return
+            is_revocation = len(witness) == 3 and ecc.ECPubkey.is_pubkey_bytes(witness[1])
             failure = OnionRoutingFailure(code=OnionFailureCode.PERMANENT_CHANNEL_FAILURE, data=b'')
             for htlc, is_sent in found.values():
                 if is_sent:
-                    self.logger.info(f'htlc timeout tx: failing htlc {is_sent}')
+                    self.logger.info(f'htlc {"revocation" if is_revocation else "timeout"} tx: failing htlc')
                     self.lnworker.htlc_failed(
                         self,
                         payment_hash=htlc.payment_hash,

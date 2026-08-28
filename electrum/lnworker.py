@@ -3198,8 +3198,10 @@ class LNWallet(Logger):
                 paysession_active = False
             else:
                 key = payment_hash.hex()
-                self.set_invoice_status(key, PR_PAID)
-                util.trigger_callback('payment_succeeded', self.wallet, key)
+                info = self.get_payment_info(payment_hash, direction=SENT)
+                if info is not None and info.status != PR_PAID:
+                    self.set_invoice_status(key, PR_PAID)
+                    util.trigger_callback('payment_succeeded', self.wallet, key)
 
         if fw_key:
             fw_htlcs = self.active_forwardings[fw_key]
@@ -3277,7 +3279,11 @@ class LNWallet(Logger):
                 self.logger.info(f"received unknown htlc_failed, probably from previous session (phash={payment_hash.hex()})")
                 key = payment_hash.hex()
                 invoice = self.wallet.get_invoice(key)
-                if invoice and self.get_invoice_status(invoice) != PR_UNPAID:
+                if invoice and self.get_invoice_status(invoice) != PR_UNPAID \
+                        and (self.get_preimage(payment_hash) is None or self.wallet.get_request(key) is not None):
+                    # if we know the preimage don't consider the payment failed (unless we pay ourselves).
+                    # maybe another htlc of the same mpp got fulfilled, or we saw a htlc-success tx in the mempool
+                    # before claiming a revoked htlc with a justice tx which ultimately would make LNWatcher try to fail the htlc here
                     self.set_invoice_status(key, PR_UNPAID)
                     util.trigger_callback('payment_failed', self.wallet, key, '')
 
