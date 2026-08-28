@@ -1494,14 +1494,6 @@ class Channel(AbstractChannel):
             # guess: offered-htlc, remote "success"  (BUT could still be "revocation" at this point)
             if (maybe_preimage := witness[1]) and len(maybe_preimage) == 32 and (ripemd(sha256(maybe_preimage)) == ripemd_payment_hash):
                 preimage = maybe_preimage
-        # preimage now extracted if there was one.  In case of htlc "timeout" or "revocation", preimage==None.
-        if preimage:
-            assert ripemd(sha256(preimage)) == ripemd_payment_hash
-            payment_hash = sha256(preimage)
-            if self.lnworker.get_preimage(payment_hash) is not None:
-                return
-            # ^ note: log message text grepped for in regtests
-            self.logger.info(f"found preimage in witness of length {len(witness)}, for {payment_hash.hex()}")
 
         # Mark the htlc as fulfilled or failed.
         # If we forwarded this, this ensures that the success/failure is propagated back on the incoming channel.
@@ -1511,18 +1503,24 @@ class Channel(AbstractChannel):
         #       small value htlcs: even a large htlc might not appear in the outgoing channel's ctx, e.g. maybe it was
         #       not committed yet - we should still make sure it gets removed on the incoming channel. (see #9631)
         if preimage:
-            self.lnworker.save_preimage(payment_hash, preimage, mark_as_public=True)
+            # preimage now extracted if there was one.  In case of htlc "timeout" or "revocation", preimage==None.
+            assert ripemd(sha256(preimage)) == ripemd_payment_hash
+            payment_hash = sha256(preimage)
+            if self.lnworker.get_preimage(payment_hash) is None:
+                self.logger.info(f"found preimage in witness of length {len(witness)}, for {payment_hash.hex()}")
+                self.lnworker.save_preimage(payment_hash, preimage, mark_as_public=True)
             for htlc, is_sent in found.values():
                 if is_sent:
                     self.lnworker.htlc_fulfilled(self, payment_hash, htlc.htlc_id)
         else:
-            # htlc timeout tx -- or revocation?
+            # htlc timeout or revocation tx
             if not is_deeply_mined:
                 return
+            is_revocation = len(witness) == 3 and ecc.ECPubkey.is_pubkey_bytes(witness[1])
             failure = OnionRoutingFailure(code=OnionFailureCode.PERMANENT_CHANNEL_FAILURE, data=b'')
             for htlc, is_sent in found.values():
                 if is_sent:
-                    self.logger.info(f'htlc timeout tx: failing htlc {is_sent}')
+                    self.logger.info(f'htlc {"revocation" if is_revocation else "timeout"} tx: failing htlc')
                     self.lnworker.htlc_failed(
                         self,
                         payment_hash=htlc.payment_hash,
