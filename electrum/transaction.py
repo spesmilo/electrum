@@ -2059,7 +2059,7 @@ class PartialTxInput(TxInput, PSBTSection):
 
     def already_has_some_signatures(self) -> bool:
         """Returns whether progress has been made towards completing this input."""
-        return (self.sigs_ecdsa
+        return (bool(self.sigs_ecdsa)
                 or self.tap_key_sig is not None
                 or self.script_sig is not None
                 or self.witness is not None)
