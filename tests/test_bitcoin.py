@@ -411,6 +411,11 @@ class Test_bitcoin(ElectrumTestCase):
         self.assertEqual(var_int(0x100000000), bfh("ff0000000001000000"))
         self.assertEqual(var_int(0x0123456789abcdef), bfh("ffefcdab8967452301"))
 
+        with self.assertRaises(OverflowError):
+            var_int(-1)
+        with self.assertRaises(OverflowError):
+            var_int(2**64)
+
     def test_op_push(self):
         self.assertEqual(_op_push(0x00), bfh('00'))
         self.assertEqual(_op_push(0x12), bfh('12'))
