@@ -62,7 +62,7 @@ def topologically_sort_subgraph(
 @dataclass(kw_only=True, slots=True, frozen=True)
 class FakeBlock:
     header: bytes
-    txids: Sequence[str] = None  # FIXME needs OrderedSet with index-based lookup? >.<
+    txids: Sequence[str] | None = None  # FIXME needs OrderedSet with index-based lookup? >.<
 
     def __post_init__(self):
         if self.txids is None:

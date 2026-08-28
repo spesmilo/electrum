@@ -184,7 +184,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
         Exception_Hook.maybe_setup(config=self.config, wallet=self.wallet)
 
-        self.network = gui_object.daemon.network  # type: Network
+        self.network = gui_object.daemon.network  # type: Network | None
         self.fx = gui_object.daemon.fx  # type: FxThread
         self.contacts = wallet.contacts
         self.tray = gui_object.tray

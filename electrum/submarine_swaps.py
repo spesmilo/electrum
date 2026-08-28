@@ -253,11 +253,11 @@ class SwapManager(Logger):
 
     def __init__(self, *, wallet: 'Abstract_Wallet', lnworker: 'LNWallet'):
         Logger.__init__(self)
-        self.mining_fee = None
+        self.mining_fee = None  # type: int | None
         self.percentage = None  # type: Optional[Decimal]
-        self._min_amount = None
-        self._max_forward = None
-        self._max_reverse = None
+        self._min_amount = None  # type: int | None
+        self._max_forward = None  # type: int | None
+        self._max_reverse = None  # type: int | None
 
         self.wallet = wallet
         self.config = wallet.config

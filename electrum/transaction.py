@@ -907,8 +907,8 @@ class Transaction:
             self._cached_network_ser = raw.hex()
         else:
             raise Exception(f"cannot initialize transaction from {raw}")
-        self._inputs = None  # type: List[TxInput]
-        self._outputs = None  # type: List[TxOutput]
+        self._inputs = None  # type: List[TxInput] | None
+        self._outputs = None  # type: List[TxOutput] | None
         self._locktime = 0
         self._version = 2
 
@@ -2495,7 +2495,7 @@ class PartialTransaction(Transaction):
         txin_index: int,
         privkey_bytes: bytes,
         *,
-        sighash_cache: SighashCache = None,
+        sighash_cache: SighashCache | None = None,
     ) -> bytes:
         txin = self.inputs()[txin_index]
         txin.validate_data(for_signing=True)

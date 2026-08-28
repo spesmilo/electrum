@@ -2668,7 +2668,7 @@ class TestPeerForwarding(TestPeer):
         """
 
         # store a modified trampoline onion to be injected into lnworker.new_onion_packet later when sending the htlcs
-        modified_trampoline_onion = None
+        modified_trampoline_onion = None  # type: OnionPacket | None
         def modified_new_onion_packet_trampoline(payment_path_pubkeys, session_key, hops_data: List[OnionHopsDataSingle], **kwargs):
             nonlocal modified_trampoline_onion
             assert modified_trampoline_onion is None, "this mock should get called only once"

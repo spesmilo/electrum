@@ -941,7 +941,7 @@ class QETxCpfpFeeBumper(TxFeeSlider, TxMonMixin):
         self._parent_tx = None
         self._new_tx = None
         self._parent_tx_size = 0
-        self._parent_fee = 0
+        self._parent_fee = 0  # type: int | None
         self._max_fee = 0
         self._txid = ''
         self._rbf = True
