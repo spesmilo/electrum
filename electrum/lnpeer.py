@@ -2487,6 +2487,7 @@ class Peer(Logger, EventListener):
         # want to get kicked out of the mempool immediately if it grows
         fee_buffer = current_feerate_per_kw * 0.5 if chan.has_anchors() else 0
         update_feerate_per_kw = int(current_feerate_per_kw + fee_buffer)
+
         def does_chan_fee_need_update(chan_feerate: Union[float, int]) -> Optional[bool]:
             if chan.has_anchors():
                 # TODO: once package relay and electrum servers with submitpackage are more common,
@@ -2507,8 +2508,9 @@ class Peer(Logger, EventListener):
                 low_fee = min(low_fee, current_feerate_per_kw - FEERATE_PER_KW_MIN_RELAY_LIGHTNING)
                 assert low_fee < high_fee, (low_fee, high_fee)
                 return not (low_fee < chan_feerate < high_fee)
+
         if not chan.constraints.is_initiator:
-            if constants.net is not constants.BitcoinRegtest:
+            if constants.net is not constants.BitcoinRegtest and not chan.has_anchors():
                 chan_feerate = chan.get_latest_feerate(LOCAL)
                 ratio = chan_feerate / update_feerate_per_kw
                 if ratio < 0.5:
