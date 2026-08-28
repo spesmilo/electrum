@@ -1301,6 +1301,79 @@ class TestPeerDirect(TestPeer):
                 await f()
 
 
+    async def test_refuse_to_forward_htlc_that_corresponds_to_payreq_we_created(self):
+        """Alice holds an invoice created by Bob, hence she knows RHASH and Bob's payment_secret.
+        She sends Bob a dust htlc whose outer onion is addressed to Bob (using the invoice's
+        payment_secret, and claiming a tiny total_msat), but whose inner trampoline onion asks Bob
+        to *forward* the payment.
+        Bob must fail such htlcs, and he must not release the preimage.
+        """
+        graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
+        p1, p2 = graph.peers.values()
+        w1, w2 = graph.workers.values()
+        alice_channel = graph.channels[('alice', 'bob')][0]
+        w2.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS = True
+        w2.config.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS = True
+
+        # The forwarding callback is spawned as a task *after* the htlc set has been moved to
+        # SETTLING, and a SETTLING set is settled as soon as we have a preimage for its RHASH.
+        # Delay the callback, modelling another peer's htlc_switch iteration (the htlc sets are
+        # shared between peers) getting to the SETTLING set before the callback records its failure.
+        orig_maybe_forward_htlc_set = w2.maybe_forward_htlc_set
+        async def maybe_forward_htlc_set(*args, **kwargs):
+            await asyncio.sleep(0.15)
+            return await orig_maybe_forward_htlc_set(*args, **kwargs)
+        w2.maybe_forward_htlc_set = maybe_forward_htlc_set
+
+        payment_keys_used = []
+        orig_update_or_create_mpp = w2.update_or_create_mpp_with_received_htlc
+        def update_or_create_mpp(*, payment_key, **kwargs):
+            payment_keys_used.append(payment_key)
+            return orig_update_or_create_mpp(payment_key=payment_key, **kwargs)
+        w2.update_or_create_mpp_with_received_htlc = update_or_create_mpp
+
+        htlc_tracker = SenderHtlcResolvedTracker.register()
+        async def wait_for_htlc_resolved():
+            async with util.async_timeout(5):
+                while htlc_tracker.num_success + htlc_tracker.num_failed < 1:
+                    await htlc_tracker.resolved_event.wait()
+
+        async def attack():
+            await util.wait_for2(p1.initialized, 1)
+            await util.wait_for2(p2.initialized, 1)
+            lnaddr, _pay_req = self.prepare_invoice(w2, amount_msat=100_000_000)
+            payment_hash = lnaddr.paymenthash
+            self.assertIsNotNone(w2.get_preimage(payment_hash))
+            invoice_payment_key = (payment_hash + lnaddr.payment_secret).hex()
+            # note: the amounts of the two onions are consistent with each other, so that the htlc
+            #       is only stopped by the checks this test is about.
+            send_trampoline_htlc_to_forward(
+                p1=p1, w1=w1, w2=w2, chan=alice_channel,
+                payment_hash=payment_hash,
+                outer_payment_secret=lnaddr.payment_secret,
+                htlc_amount_msat=1000,
+                amt_to_forward=1000,
+            )
+            await wait_for_htlc_resolved()
+            self.assertEqual(0, htlc_tracker.num_success, "Bob settled a relay request htlc")
+            self.assertIsNone(w1.get_preimage(payment_hash), "Bob released the preimage")
+            self.assertEqual(PR_UNPAID, w2.get_payment_status(payment_hash, direction=RECEIVED))
+            self.assertNotIn(invoice_payment_key, payment_keys_used, "htlc was bucketed together with our invoice")
+            self.assertEqual([], payment_keys_used)
+            raise SuccessfulTest()
+
+        async def f():
+            async with OldTaskGroup() as group:
+                await group.spawn(p1._message_loop())
+                await group.spawn(p1.htlc_switch())
+                await group.spawn(p2._message_loop())
+                await group.spawn(p2.htlc_switch())
+                await asyncio.sleep(0.01)
+                await group.spawn(attack())
+
+        with self.assertRaises(SuccessfulTest):
+            await f()
+
     async def test_mpp_cleanup_after_expiry(self):
         """
         1. Alice sends two HTLCs to Bob, not reaching total_msat, and eventually they MPP_TIMEOUT
@@ -2110,57 +2183,6 @@ class TestPeerForwarding(TestPeer):
                 self.assertFalse(invoice_features.supports(LnFeatures.BASIC_MPP_OPT))
                 await group.spawn(pay(lnaddr, pay_req))
         with self.assertRaises(PaymentDone):
-            await f()
-
-    async def test_refuse_to_forward_htlc_that_corresponds_to_payreq_we_created(self):
-        # This test checks that the following attack does not work:
-        #   - Bob creates payment request with HASH1, for 1 BTC; and gives the payreq to Alice
-        #   - Alice sends htlc A->B->D, for 100k sat, with HASH1
-        #   - Bob must not release the preimage of HASH1
-        graph_def = self.GRAPH_DEFINITIONS['square_graph']
-        graph_def.pop('carol')
-        graph_def['alice']['channels'].pop('carol')
-        # now graph is linear: A <-> B <-> D
-        graph = self.prepare_chans_and_peers_in_graph(graph_def)
-        peers = graph.peers.values()
-        async def pay():
-            lnaddr1, pay_req1 = self.prepare_invoice(
-                graph.workers['bob'],
-                amount_msat=100_000_000_000,
-            )
-            lnaddr2, pay_req2 = self.prepare_invoice(
-                graph.workers['dave'],
-                amount_msat=100_000_000,
-                payment_hash=lnaddr1.paymenthash,  # Dave is cooperating with Alice, and he reuses Bob's hash
-                include_routing_hints=True,
-            )
-            with self.subTest(msg="try to make Bob forward in legacy (non-trampoline) mode"):
-                result, log = await graph.workers['alice'].pay_invoice(pay_req2, attempts=1)
-                self.assertFalse(result)
-                self.assertEqual(OnionFailureCode.TEMPORARY_NODE_FAILURE, log[0].failure_msg.code)
-                self.assertEqual(None, graph.workers['alice'].get_preimage(lnaddr1.paymenthash))
-            with self.subTest(msg="try to make Bob forward in trampoline mode"):
-                # declare Bob as trampoline forwarding node
-                electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
-                    graph.workers['bob'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['bob'].node_keypair.pubkey),
-                }
-                await self._activate_trampoline(graph.workers['alice'])
-                result, log = await graph.workers['alice'].pay_invoice(pay_req2, attempts=5)
-                self.assertFalse(result)
-                self.assertEqual(OnionFailureCode.TEMPORARY_NODE_FAILURE, log[0].failure_msg.code)
-                self.assertEqual(None, graph.workers['alice'].get_preimage(lnaddr1.paymenthash))
-            raise SuccessfulTest()
-
-        async def f():
-            async with OldTaskGroup() as group:
-                for peer in peers:
-                    await group.spawn(peer._message_loop())
-                    await group.spawn(peer.htlc_switch())
-                for peer in peers:
-                    await peer.initialized
-                await group.spawn(pay())
-
-        with self.assertRaises(SuccessfulTest):
             await f()
 
     async def test_payment_with_temp_channel_failure_and_liquidity_hints(self):

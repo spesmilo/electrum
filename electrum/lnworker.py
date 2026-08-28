@@ -4073,9 +4073,6 @@ class LNWallet(Logger):
         if htlc.amount_msat - next_amount_msat_htlc < forwarding_fees:
             data = next_amount_msat_htlc.to_bytes(8, byteorder="big") + outgoing_chan_upd_message
             raise OnionRoutingFailure(code=OnionFailureCode.FEE_INSUFFICIENT, data=data)
-        if self._maybe_refuse_to_forward_htlc_that_corresponds_to_payreq_we_created(htlc.payment_hash):
-            log_fail_reason(f"RHASH corresponds to payreq we created")
-            raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
         self.logger.info(
             f"maybe_forward_htlc. will forward HTLC: inc_chan={incoming_chan.short_channel_id}. inc_htlc={str(htlc)}. "
             f"next_chan={next_chan.get_id_for_log()}.")
@@ -4137,12 +4134,6 @@ class LNWallet(Logger):
         except Exception as e:
             self.logger.exception('')
             raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
-
-        if self._maybe_refuse_to_forward_htlc_that_corresponds_to_payreq_we_created(payment_hash):
-            self.logger.debug(
-                f"maybe_forward_trampoline. will FAIL HTLC(s). "
-                f"RHASH corresponds to payreq we created. {payment_hash.hex()=}")
-            raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
 
         # these are the fee/cltv paid by the sender
         # pay_to_node will raise if they are not sufficient
@@ -4240,7 +4231,7 @@ class LNWallet(Logger):
                 data = b''
             raise OnionRoutingFailure(code=OnionFailureCode.UNKNOWN_NEXT_PEER, data=data)
 
-    def _maybe_refuse_to_forward_htlc_that_corresponds_to_payreq_we_created(self, payment_hash: bytes) -> bool:
+    def maybe_refuse_to_forward_htlc_that_corresponds_to_payreq_we_created(self, payment_hash: bytes) -> bool:
         """Returns True if the HTLC should be failed.
         We must not forward HTLCs with a matching payment_hash to a payment request we created.
         Example attack:
