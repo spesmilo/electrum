@@ -648,22 +648,12 @@ class BCDataStream(object):
         except IndexError as e:
             raise SerializationError("attempt to read past end of buffer") from e
 
-    def write_compact_size(self, size):
-        if size < 0:
-            raise SerializationError("attempt to write size < 0")
-        elif size < 253:
-            self.write(bytes([size]))
-        elif size < 2**16:
-            self.write(b'\xfd')
-            self._write_num('<H', size)
-        elif size < 2**32:
-            self.write(b'\xfe')
-            self._write_num('<I', size)
-        elif size < 2**64:
-            self.write(b'\xff')
-            self._write_num('<Q', size)
-        else:
-            raise Exception(f"size {size} too large for compact_size")
+    def write_compact_size(self, size: int) -> None:
+        try:
+            compact_size = var_int(size)
+        except OverflowError as e:
+            raise SerializationError(f"size {size} outside valid range for compact_size") from e
+        self.write(compact_size)
 
     def _read_num(self, format):
         try:

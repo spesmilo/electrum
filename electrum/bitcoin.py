@@ -226,15 +226,17 @@ def var_int(i: int) -> bytes:
     # https://en.bitcoin.it/wiki/Protocol_specification#Variable_length_integer
     # https://github.com/bitcoin/bitcoin/blob/efe1ee0d8d7f82150789f1f6840f139289628a2b/src/serialize.h#L247
     # "CompactSize"
-    assert i >= 0, i
+    if i < 0:
+        raise OverflowError(f"int {i} must be non-negative for var_int")
     if i < 0xfd:
         return int.to_bytes(i, length=1, byteorder="little", signed=False)
     elif i <= 0xffff:
         return b"\xfd" + int.to_bytes(i, length=2, byteorder="little", signed=False)
     elif i <= 0xffffffff:
         return b"\xfe" + int.to_bytes(i, length=4, byteorder="little", signed=False)
-    else:
+    elif i <= 0xffff_ffff_ffff_ffff:
         return b"\xff" + int.to_bytes(i, length=8, byteorder="little", signed=False)
+    raise OverflowError(f"int {i} too large for var_int")
 
 
 def witness_push(item: bytes) -> bytes:

@@ -34,6 +34,8 @@ class TestBCDataStream(ElectrumTestCase):
 
         with self.assertRaises(transaction.SerializationError):
             s.write_compact_size(-1)
+        with self.assertRaises(transaction.SerializationError):
+            s.write_compact_size(2**64)
 
         self.assertEqual(s.input.hex(),
                           '0001fcfdfd00fdfffffe00000100feffffffffff0000000001000000ffffffffffffffffff')
