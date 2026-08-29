@@ -291,6 +291,9 @@ class LNTransportBase:
     def close(self):
         self.writer.close()
 
+    def is_closing(self) -> bool:
+        return self.writer.is_closing()
+
     def remote_pubkey(self) -> Optional[bytes]:
         raise NotImplementedError()
 
