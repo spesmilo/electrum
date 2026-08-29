@@ -216,6 +216,63 @@ class TestHTLCManager(ElectrumTestCase):
         self.assertEqual([(Direction.SENT, ah0)], A.get_htlcs_in_next_ctx(LOCAL))
         self.assertEqual([(Direction.RECEIVED, ah0)], A.get_htlcs_in_next_ctx(REMOTE))
 
+    def test_ctn_drift(self):
+        """local and remote ctns can drift significantly apart over time:
+        Bob refuses to send commitsig for a while, but is otherwise cooperating.
+        Meanwhile, Alice has lots of updates to send, and she keeps signing them whenever allowed.
+        """
+        A = HTLCManager(StoredDict({}, None))
+        B = HTLCManager(StoredDict({}, None))
+        A.channel_open_finished()
+        B.channel_open_finished()
+        ah0, ah1, ah2, ah3 = H('A', 0), H('A', 1), H('A', 2), H('A', 3)
+
+        # Alice sends some HTLCs
+        B.recv_htlc(A.send_htlc(ah0))
+        B.recv_htlc(A.send_htlc(ah1))
+        # Alice sends commitsig, Bob sends revack
+        A.send_ctx(); B.recv_ctx()
+        B.send_rev(); A.recv_rev()
+        # but Bob does NOT send commitsig...
+
+        # Alice sends some HTLCs
+        B.recv_htlc(A.send_htlc(ah2))
+        # Alice sends commitsig, Bob sends revack
+        A.send_ctx(); B.recv_ctx()
+        B.send_rev(); A.recv_rev()
+        # but Bob does NOT send commitsig...
+
+        # Alice sends some HTLCs
+        B.recv_htlc(A.send_htlc(ah3))
+        # Alice sends commitsig, Bob sends revack
+        A.send_ctx(); B.recv_ctx()
+        B.send_rev(); A.recv_rev()
+        # check ctns
+        assert A.ctn_latest(LOCAL)  == B.ctn_latest(REMOTE) == 0
+        assert A.ctn_latest(REMOTE) == B.ctn_latest(LOCAL) == 3
+
+        # finally... Bob sends commitsig!
+        B.send_ctx(); A.recv_ctx()
+        A.send_rev(); B.recv_rev()
+        # check ctns
+        assert A.ctn_latest(LOCAL)  == B.ctn_latest(REMOTE) == 1
+        assert A.ctn_latest(REMOTE) == B.ctn_latest(LOCAL) == 3
+
+        #                           htlc_id->ctx_owner->ctn
+        assert A.log[LOCAL]['locked_in'][0] == {LOCAL: 1, REMOTE: 1}
+        assert A.log[LOCAL]['locked_in'][1] == {LOCAL: 1, REMOTE: 1}
+        assert A.log[LOCAL]['locked_in'][2] == {LOCAL: 1, REMOTE: 2}
+        assert A.log[LOCAL]['locked_in'][3] == {LOCAL: 1, REMOTE: 3}
+        assert A.log[LOCAL]['settles'] == {}
+        assert A.log[LOCAL]['fails'] == {}
+
+        assert B.log[REMOTE]['locked_in'][0] == {REMOTE: 1, LOCAL: 1}
+        assert B.log[REMOTE]['locked_in'][1] == {REMOTE: 1, LOCAL: 1}
+        assert B.log[REMOTE]['locked_in'][2] == {REMOTE: 1, LOCAL: 2}
+        assert B.log[REMOTE]['locked_in'][3] == {REMOTE: 1, LOCAL: 3}
+        assert B.log[REMOTE]['settles'] == {}
+        assert B.log[REMOTE]['fails'] == {}
+
     def test_unacked_local_updates(self):
         A = HTLCManager(StoredDict({}, None))
         B = HTLCManager(StoredDict({}, None))
