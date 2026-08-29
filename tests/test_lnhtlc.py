@@ -273,6 +273,37 @@ class TestHTLCManager(ElectrumTestCase):
         assert B.log[REMOTE]['settles'] == {}
         assert B.log[REMOTE]['fails'] == {}
 
+    def test_valid_local_ctx_count_lower_bound_one(self):
+        """We must never revoke our 'last' remaining valid local commitment.
+        (At any time *we* should have either one or two valid commitments)
+        """
+        A = HTLCManager(StoredDict({}, None))
+        B = HTLCManager(StoredDict({}, None))
+        A.channel_open_finished()
+        B.channel_open_finished()
+
+        A.send_ctx(); B.recv_ctx()
+        B.send_rev(); A.recv_rev()
+        with self.assertRaises(AssertionError):
+            B.send_rev()
+        with self.assertRaises(AssertionError):
+            A.recv_rev()
+
+    def test_valid_remote_ctx_count_upper_bound_two(self):
+        """We must never sign another remote commitment if they already have two valid ctxs.
+        (At any time *they* should have either one or two valid commitments)
+        """
+        A = HTLCManager(StoredDict({}, None))
+        B = HTLCManager(StoredDict({}, None))
+        A.channel_open_finished()
+        B.channel_open_finished()
+
+        A.send_ctx(); B.recv_ctx()
+        with self.assertRaises(AssertionError):
+            A.send_ctx()
+        with self.assertRaises(AssertionError):
+            B.recv_ctx()
+
     def test_unacked_local_updates(self):
         A = HTLCManager(StoredDict({}, None))
         B = HTLCManager(StoredDict({}, None))

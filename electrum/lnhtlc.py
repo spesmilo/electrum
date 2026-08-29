@@ -165,6 +165,7 @@ class HTLCManager:
 
     @with_lock
     def send_rev(self) -> None:
+        assert self.ctn_latest(LOCAL) == self.ctn_oldest_unrevoked(LOCAL) + 1, (self.ctn_latest(LOCAL), self.ctn_oldest_unrevoked(LOCAL))
         self.log[LOCAL]['ctn'] += 1
         self._set_revack_pending(LOCAL, False)
         self.log[LOCAL]['was_revoke_last'] = True
@@ -187,6 +188,7 @@ class HTLCManager:
 
     @with_lock
     def recv_rev(self) -> None:
+        assert self.ctn_latest(REMOTE) == self.ctn_oldest_unrevoked(REMOTE) + 1, (self.ctn_latest(REMOTE), self.ctn_oldest_unrevoked(REMOTE))
         self.log[REMOTE]['ctn'] += 1
         self._set_revack_pending(REMOTE, False)
         # htlcs
