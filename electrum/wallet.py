@@ -84,6 +84,7 @@ from .lnutil import MIN_FUNDING_SAT, RECEIVED, SENT
 from .lntransport import extract_nodeid
 from .descriptor import Descriptor
 from .txbatcher import TxBatcher
+from .coinfilter import CoinFilter
 from .submarine_swaps import MIN_SWAP_AMOUNT_SAT
 
 if TYPE_CHECKING:
@@ -435,15 +436,14 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self.use_change            = db.get('use_change', True)
         self.multiple_change       = db.get('multiple_change', False)
         self._labels               = db.get_dict('labels')
-        self._frozen_addresses     = set(db.get('frozen_addresses', []))
-        self._frozen_coins         = db.get_dict('frozen_coins')  # type: Dict[str, bool]
         self.fiat_value            = db.get_dict('fiat_value')
         self._receive_requests     = db.get_dict('payment_requests')  # type: Dict[str, Request]
         self._invoices             = db.get_dict('invoices')  # type: Dict[str, Invoice]
         self._reserved_addresses   = set(db.get('reserved_addresses', []))
         self._num_parents          = db.get_dict('num_parents')
 
-        self._freeze_lock = threading.RLock()  # for mutating/iterating frozen_{addresses,coins}
+        # owns frozen state, the coin-control selection, and the spendable-coin query
+        self.coinfilter = CoinFilter(self)
 
         self.load_keystore()
         self.txbatcher = TxBatcher(self)
@@ -567,6 +567,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     async def stop(self):
         """Stop all networking and save DB to disk."""
         self.unregister_callbacks()
+        self.coinfilter.stop()
         try:
             async with ignore_after(5):
                 if self.lnworker:
@@ -674,6 +675,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def clear_history(self):
         self.adb.clear_history()
         self._paid_invoice_keys_cache.clear()
+        self.coinfilter.clear_selection()
         self.save_db()
 
     def start_network(self, network: 'Network'):
@@ -1127,9 +1129,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             domain: Optional[Iterable[str]] = None,
             **kwargs,
     ) -> Sequence[PartialTxInput]:
-        if domain is None:
-            domain = self.get_addresses()
-        return self.adb.get_utxos(domain=domain, **kwargs)
+        return self.coinfilter.get_utxos(domain, **kwargs)
 
     def get_spendable_coins(
             self,
@@ -1137,20 +1137,17 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             *,
             nonlocal_only: bool = False,
             confirmed_only: bool = None,
+            ignore_coin_control: bool = False,
     ) -> Sequence[PartialTxInput]:
-        with self._freeze_lock:
-            frozen_addresses = self._frozen_addresses.copy()
-        if confirmed_only is None:
-            confirmed_only = self.config.WALLET_SPEND_CONFIRMED_ONLY
-        utxos = self.get_utxos(
-            domain=domain,
-            excluded_addresses=frozen_addresses,
-            mature_only=True,
-            confirmed_funding_only=confirmed_only,
+        """Note: honours the user's coin-control selection by default.
+        Background/policy paths must pass ignore_coin_control=True.
+        """
+        return self.coinfilter.get_spendable_coins(
+            domain,
             nonlocal_only=nonlocal_only,
+            confirmed_only=confirmed_only,
+            ignore_coin_control=ignore_coin_control,
         )
-        utxos = [utxo for utxo in utxos if not self.is_frozen_coin(utxo)]
-        return utxos
 
     @abstractmethod
     def get_receiving_addresses(self, *, slice_start=None, slice_stop=None) -> Sequence[str]:
@@ -1165,20 +1162,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return self.get_receiving_addresses(slice_start=0, slice_stop=1)[0]
 
     def get_frozen_balance(self) -> tuple[int, int, int]:
-        with self._freeze_lock:
-            frozen_addresses = self._frozen_addresses.copy()
-        # note: for coins, use is_frozen_coin instead of _frozen_coins,
-        #       as latter only contains *manually* frozen ones
-        frozen_coins = {utxo.prevout.to_str() for utxo in self.get_utxos()
-                        if self.is_frozen_coin(utxo)}
-        if not frozen_coins:  # shortcut
-            return self.adb.get_balance(frozen_addresses)
-        c1, u1, x1 = self.get_balance()
-        c2, u2, x2 = self.get_balance(
-            excluded_addresses=frozen_addresses,
-            excluded_coins=frozen_coins,
-        )
-        return c1-c2, u1-u2, x1-x2
+        return self.coinfilter.get_frozen_balance()
 
     def get_balances_for_piechart(self) -> PiechartBalance:
         """Note: intended for display-purposes.
@@ -1945,7 +1929,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if not is_reserve_needed:
             return False
 
-        coins_in_wallet = self.get_spendable_coins(nonlocal_only=False, confirmed_only=False)
+        coins_in_wallet = self.get_spendable_coins(
+            nonlocal_only=False, confirmed_only=False, ignore_coin_control=True)
         prevout_coins_in_wallet = set(c.prevout for c in coins_in_wallet)
         amount_in_wallet = sum(c.value_sats() for c in coins_in_wallet)
 
@@ -1969,7 +1954,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             # tx has a reserve change output
             return reserve_output_amount
         if gui_spend_max:  # user tried to spend max amount
-            coins_in_wallet = self.get_spendable_coins(nonlocal_only=False, confirmed_only=False)
+            coins_in_wallet = self.get_spendable_coins(
+                nonlocal_only=False, confirmed_only=False, ignore_coin_control=True)
             amount_in_wallet = sum(c.value_sats() for c in coins_in_wallet)
             tx_spend_amount = tx.output_value() + tx.get_fee()
             if amount_in_wallet - tx_spend_amount == self.config.LN_UTXO_RESERVE:
@@ -2173,61 +2159,14 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         run_hook('make_unsigned_transaction', self, tx)
         return tx
 
+    # frozen state lives in CoinFilter. these are delegating shims kept so
+    # existing callers (gui, commands, bip329, plugins) work.
+
     def is_frozen_address(self, addr: str) -> bool:
-        return addr in self._frozen_addresses
+        return self.coinfilter.is_frozen_address(addr)
 
     def is_frozen_coin(self, utxo: PartialTxInput) -> bool:
-        prevout_str = utxo.prevout.to_str()
-        frozen = self._frozen_coins.get(prevout_str, None)
-        # note: there are three possible states for 'frozen':
-        #       True/False if the user explicitly set it,
-        #       None otherwise
-        if frozen is not None:  # user has explicitly set the state
-            return bool(frozen)
-        # State not set. We implicitly mark certain coins as frozen:
-        tx_mined_status = self.adb.get_tx_height(utxo.prevout.txid.hex())
-        if tx_mined_status.height() == TX_HEIGHT_FUTURE:
-            return True
-        if self._is_coin_small_and_unconfirmed(utxo):
-            return True
-        addr = utxo.address
-        assert addr is not None
-        if self.config.WALLET_FREEZE_REUSED_ADDRESS_UTXOS and self.adb.is_used_as_from_address(addr):
-            return True
-        return False
-
-    def _is_coin_small_and_unconfirmed(self, utxo: PartialTxInput) -> bool:
-        """If true, the coin should not be spent.
-        The idea here is that an attacker might send us a UTXO in a
-        large low-fee unconfirmed tx that will ~never confirm. If we
-        spend it as part of a tx ourselves, that too will not confirm
-        (unless we use a high fee, but that might not be worth it for
-        a small value UTXO).
-        In particular, this test triggers for large "dusting transactions"
-        that are used for advertising purposes by some entities.
-        see #6960
-        """
-        # confirmed UTXOs are fine; check this first for performance:
-        block_height = utxo.block_height
-        assert block_height is not None
-        if block_height > 0:
-            return False
-        # exempt large value UTXOs
-        value_sats = utxo.value_sats()
-        assert value_sats is not None
-        threshold = self.config.WALLET_UNCONF_UTXO_FREEZE_THRESHOLD_SAT
-        if value_sats >= threshold:
-            return False
-        # if funding tx has any is_mine input, then UTXO is fine
-        funding_tx = self.db.get_transaction(utxo.prevout.txid.hex())
-        if funding_tx is None:
-            # we should typically have the funding tx available;
-            # might not have it e.g. while not up_to_date
-            return True
-        if any(self.is_mine(self.adb.get_txin_address(txin))
-               for txin in funding_tx.inputs()):
-            return False
-        return True
+        return self.coinfilter.is_frozen_coin(utxo)
 
     def set_frozen_state_of_addresses(
         self,
@@ -2236,19 +2175,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         *,
         write_to_disk: bool = True,
     ) -> bool:
-        """Set frozen state of the addresses to FREEZE, True or False"""
-        if all(self.is_mine(addr) for addr in addrs):
-            with self._freeze_lock:
-                if freeze:
-                    self._frozen_addresses |= set(addrs)
-                else:
-                    self._frozen_addresses -= set(addrs)
-                self.db.put('frozen_addresses', list(self._frozen_addresses))
-            util.trigger_callback('status')
-            if write_to_disk:
-                self.save_db()
-            return True
-        return False
+        return self.coinfilter.set_frozen_state_of_addresses(
+            addrs, freeze, write_to_disk=write_to_disk)
 
     def set_frozen_state_of_coins(
         self,
@@ -2257,23 +2185,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         *,
         write_to_disk: bool = True,
     ) -> None:
-        """Set frozen state of the utxos to `freeze`, True or False (or None).
-        A value of True/False means the user explicitly set if the coin should be frozen.
-        In contrast, None is the default "unset" state. If unset, is_frozen_coin()
-        can decide whether a coin should be frozen.
-        """
-        # basic sanity check that input is not garbage: (see if raises)
-        [TxOutpoint.from_str(utxo) for utxo in utxos]
-        assert freeze in (None, False, True), f"{freeze=!r}"
-        with self._freeze_lock:
-            for utxo in utxos:
-                if freeze is None:
-                    self._frozen_coins.pop(utxo, None)
-                else:
-                    self._frozen_coins[utxo] = bool(freeze)
-        util.trigger_callback('status')
-        if write_to_disk:
-            self.save_db()
+        self.coinfilter.set_frozen_state_of_coins(
+            utxos, freeze, write_to_disk=write_to_disk)
 
     def is_address_reserved(self, addr: str) -> bool:
         # note: atm 'reserved' status is only taken into consideration for 'change addresses'
@@ -3691,8 +3604,18 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     ) -> str:
         """Generate 'Not enough funds' text.
         Include mention of frozen coins (and append optional hint), iff unfreezing would satisfy for_amount
+        Also mention coin control, if an active selection is what is holding us back.
         """
         text = _('Not enough funds')
+        if (cc := self.coinfilter.get_coin_control_status()).is_active:
+            unrestricted = self.get_spendable_balance_sat(ignore_coin_control=True)
+            needed = for_amount if isinstance(for_amount, int) else cc.value_sat + 1
+            if unrestricted > needed:
+                text += " " + _('(coin control is active: only {} of {} coins, {} can be used)').format(
+                    cc.num_usable, cc.num_total, self.config.format_amount_and_units(cc.value_sat))
+                if hint:
+                    text += '. ' + hint
+                return text
         if for_amount is not None:
             if frozen_bal := sum(self.get_frozen_balance()):
                 frozen_str = None

@@ -559,7 +559,7 @@ class TxBatch(Logger):
         outputs += to_pay
         inputs += self._create_inputs_from_tx_change(self._parent_tx) if self._parent_tx else []
         # create tx
-        coins = self.wallet.get_spendable_coins(nonlocal_only=True)
+        coins = self.wallet.get_spendable_coins(nonlocal_only=True, ignore_coin_control=True)
         tx = self.wallet.make_unsigned_transaction(
             coins=coins,
             fee_policy=self.fee_policy,
