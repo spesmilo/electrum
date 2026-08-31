@@ -73,7 +73,7 @@ MIN_MAJOR_VERSION = 5
 
 ENCRYPTION_PRIVKEY_KEY = 'encryptionprivkey'
 CHANNEL_ID_KEY = 'comserverchannelid'
-
+DEPRECATION_WARNING_SHOWN = False
 
 class DigitalBitbox_Client(HardwareClientBase):
     def __init__(self, plugin, hidDevice):
@@ -142,7 +142,9 @@ class DigitalBitbox_Client(HardwareClientBase):
             "You should move your coins and migrate to a modern hardware device.")
         _logger.warning(deprecation_warning.replace("\n", " "))
 
-        if self.handler:
+        global DEPRECATION_WARNING_SHOWN
+        if self.handler and not DEPRECATION_WARNING_SHOWN:
+            DEPRECATION_WARNING_SHOWN = True
             self.handler.show_warning(deprecation_warning, blocking=True)
 
         return xpub

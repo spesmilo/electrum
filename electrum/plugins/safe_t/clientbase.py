@@ -13,6 +13,9 @@ from electrum.plugin import runs_in_hwd_thread
 from electrum.hw_wallet.plugin import HardwareClientBase, HardwareHandlerBase
 
 
+DEPRECATION_WARNING_SHOWN = False
+
+
 class GuiMixin(object):
     # Requires: self.proto, self.device
     handler: Optional[HardwareHandlerBase]
@@ -182,7 +185,9 @@ class SafeTClientBase(HardwareClientBase, GuiMixin, Logger):
             "You should move your coins and migrate to a modern hardware device.")
         self.logger.warning(deprecation_warning.replace("\n", " "))
 
-        if self.handler:
+        global DEPRECATION_WARNING_SHOWN
+        if self.handler and not DEPRECATION_WARNING_SHOWN:
+            DEPRECATION_WARNING_SHOWN = True
             self.handler.show_warning(deprecation_warning, blocking=True)
 
         return BIP32Node(xtype=xtype,
