@@ -313,6 +313,9 @@ class MockTransport:
     def name(self):
         return self._name
 
+    def is_closing(self) -> bool:
+        return False
+
     async def read_messages(self):
         while True:
             data = await self.queue.get()
