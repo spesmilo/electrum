@@ -703,12 +703,14 @@ ApplicationWindow
         function onWalletRequiresPassword(name, path) {
             console.log('wallet requires password')
             if (Biometrics.isAvailable && Biometrics.isEnabled && !app._loadingWalletContext) {
-                app._pendingBiometricAuth = {
-                    action: 'load_wallet',
-                    name: name,
-                    path: path
+                if (!app._pendingBiometricAuth) {
+                    app._pendingBiometricAuth = {
+                        action: 'load_wallet',
+                        name: name,
+                        path: path
+                    }
+                    Biometrics.unlock()
                 }
-                Biometrics.unlock()
             } else {
                 showOpenWalletDialog(name, path)
             }
@@ -838,12 +840,14 @@ ApplicationWindow
 
         if (method !== 'wallet_password_only') {
             if (Biometrics.isAvailable && Biometrics.isEnabled) {
-                app._pendingBiometricAuth = {
-                    qtobject: qtobject,
-                    method: method,
-                    authMessage: authMessage
+                if (!app._pendingBiometricAuth) {
+                    app._pendingBiometricAuth = {
+                        qtobject: qtobject,
+                        method: method,
+                        authMessage: authMessage
+                    }
+                    Biometrics.unlock(authMessage)
                 }
-                Biometrics.unlock(authMessage)
                 return
             }
         }
