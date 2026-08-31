@@ -3649,6 +3649,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         name = sweep_info.name
         # outputs = [] will send coins to a change address
         tx = self.make_unsigned_transaction(
+            coins=self.get_spendable_coins(ignore_coin_control=True),
             inputs=[txin],
             outputs=[],
             fee_policy=FixedFeePolicy(0),
