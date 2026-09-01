@@ -16,6 +16,10 @@ from electrum.bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
 
 _NOT_GIVEN = object()  # sentinel value
 
+MAX_FEERATE = 100_000
+MAX_FIAT_AMOUNT = pow(10, 15)
+MAX_GENERIC_AMOUNT = pow(10, 20)
+
 
 class FreezableLineEdit(QLineEdit):
     frozen = pyqtSignal()
@@ -45,7 +49,9 @@ class SizedFreezableLineEdit(FreezableLineEdit):
 class AmountEdit(SizedFreezableLineEdit):
     shortcut = pyqtSignal()
 
-    def __init__(self, parent=None, *, base_unit=None, is_int=False, max_amount=None, extra_precision=None):
+    def __init__(self, parent=None, *, base_unit=None, is_int=False, max_amount=_NOT_GIVEN, extra_precision=None):
+        if max_amount is _NOT_GIVEN:
+            max_amount = MAX_GENERIC_AMOUNT
         # This seems sufficient for hundred-BTC amounts with 8 decimals
         width = 16 * char_width_in_lineedit()
         super().__init__(width=width, parent=parent)
@@ -186,7 +192,9 @@ class BTCAmountEdit(AmountEdit):
 
 
 class FeerateEdit(AmountEdit):
-    def __init__(self, parent=None, *, max_amount=None):
+    def __init__(self, parent=None, *, max_amount=_NOT_GIVEN):
+        if max_amount is _NOT_GIVEN:
+            max_amount = MAX_FEERATE
         super().__init__(parent, base_unit=lambda: self._base_unit(), max_amount=max_amount)
         self.extra_precision = lambda: FEERATE_PRECISION
         self.decimal_point = lambda: 0
@@ -205,7 +213,9 @@ class FeerateEdit(AmountEdit):
 
 
 class FiatAmountEdit(AmountEdit):
-    def __init__(self, fx=None, parent=None, *, max_amount=None):
+    def __init__(self, fx=None, parent=None, *, max_amount=_NOT_GIVEN):
+        if max_amount is _NOT_GIVEN:
+            max_amount = MAX_FIAT_AMOUNT
         super().__init__(parent, base_unit=self._baseunit, max_amount=max_amount, extra_precision=self._extraprecision)
         self.fx = fx
 
