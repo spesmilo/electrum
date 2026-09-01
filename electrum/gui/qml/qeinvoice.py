@@ -305,9 +305,13 @@ class QEInvoice(QObject, QtEventListener):
                 self.setInvoiceType(QEInvoice.Type.OnchainInvoice)
             self._isSaved = self._wallet.wallet.get_invoice(invoice.get_id()) is not None
 
-        self.set_lnprops()
+        if not self.amountOverride.isEmpty:
+            # clear override, implicitly calls self.update_status()
+            self.amountOverride = QEAmount()
+        else:
+            self.update_status()
 
-        self.update_status()
+        self.set_lnprops()
 
         self.invoiceChanged.emit()
         self.statusChanged.emit()
