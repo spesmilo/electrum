@@ -28,6 +28,13 @@ ElDialog {
             && amountBtc.textAsSats.lte(invoiceParser.wallet.lightningCanSend)
     }
 
+    Connections {
+        target: invoiceParser.wallet
+        function onLightningCanSendChanged() {
+            dialog.amountValid = isValidAmount()
+        }
+    }
+
     ColumnLayout {
         width: parent.width
 
