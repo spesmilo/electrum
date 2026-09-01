@@ -331,6 +331,16 @@ class TestStorageUpgrade(WalletTestCase):
         wallet_str = self._get_wallet_str()
         await self._upgrade_storage(wallet_str)
 
+    @as_testnet
+    async def test_upgrade_from_client_4_8_1_9dk_with_ln_chan_backups(self):
+        # Has LN "imported_channel_backups" and "onchain_channel_backups".
+        # This tests imported chan backup conversion (db version 71->72).
+        wallet_str = self._get_wallet_str()
+        db = await self._upgrade_storage(wallet_str)
+        assert db.get("imported_channel_backups").get("ddb06b023f24a587d96a9f113c02d266549d010a57d7b151c1f5332a9bbaafd5") \
+            == "0200017e634853dc47f0bc2f2e0d1054b302fcb414371ddbd889f29ba8aa4e8b62c7725d472c7b642b14176f275d6dca60c8d1ec5cfbf935169f1fe873e6bd0ad155da038863cf8ab91046230f561cd5b386cbff8309fa02e3f0c3ed161a3aeb64a643b9d5afba9b2a33f5c151b1d7570a019d5466d2023c119f6ad987a5243f026bb0dd00003e74623171357a64726430703772366d68353961726e636179763030326e727530347030706636653264756b6479326833707672726e67747336687473616a02f2fa10e1317153b9cca5c0af211bcdd48aac4cf67a6f4d1cb7de71857261a1190303a53b5175b7ad2de558fc1f140d129fc5dd0949f1fbfac28ce2c33b236fbc6ef00390000e3230332e3133322e39342e313936072602a1ceaaae7b1da9d2e679977615988c62903e93a2e5d972aff6f0441face4be10c87b61e091f3f786ca44dc25283557214686d5ddb138eeb9df484145b991356b"
+
+
 ##########
 
     plugins: 'electrum.plugin.Plugins'

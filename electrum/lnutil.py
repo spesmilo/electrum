@@ -304,12 +304,12 @@ KNOWN_CHANNEL_BACKUP_VERSIONS = (0, 1, 2, )
 assert CHANNEL_BACKUP_VERSION_LATEST in KNOWN_CHANNEL_BACKUP_VERSIONS
 
 
-@attr.s
-class ChannelBackupStorage(StoredObject):
-    funding_txid = attr.ib(type=str)
-    funding_index = attr.ib(type=int, converter=int)
-    funding_address = attr.ib(type=str)
-    is_initiator = attr.ib(type=bool)
+@dataclasses.dataclass(frozen=True)
+class ChannelBackupStorage:
+    funding_txid: str
+    funding_index: int
+    funding_address: str
+    is_initiator: bool
 
     def funding_outpoint(self):
         return Outpoint(self.funding_txid, self.funding_index)
@@ -319,26 +319,33 @@ class ChannelBackupStorage(StoredObject):
         return chan_id
 
 
-@stored_at('/onchain_channel_backups/*')
-@attr.s
+@dataclasses.dataclass(frozen=True)
 class OnchainChannelBackupStorage(ChannelBackupStorage):
-    node_id_prefix = attr.ib(type=bytes, converter=hex_to_bytes)  # remote node pubkey
+    node_id_prefix: bytes  # remote node pubkey (prefix)
+
+    def to_json(self) -> dict:
+        return dataclasses.asdict(self)
+
+    @staticmethod
+    @stored_at('/onchain_channel_backups/*')
+    def from_json_dict(**kwargs) -> 'OnchainChannelBackupStorage':
+        kwargs['node_id_prefix'] = bytes.fromhex(kwargs['node_id_prefix'])
+        return OnchainChannelBackupStorage(**kwargs)
 
 
-@stored_at('/imported_channel_backups/*')
-@attr.s
+@dataclasses.dataclass(frozen=True)
 class ImportedChannelBackupStorage(ChannelBackupStorage):
-    node_id = attr.ib(type=bytes, converter=hex_to_bytes)  # remote node pubkey
-    privkey = attr.ib(type=bytes, converter=hex_to_bytes)  # local node privkey
-    host = attr.ib(type=str)
-    port = attr.ib(type=int, converter=int)
-    channel_seed = attr.ib(type=bytes, converter=hex_to_bytes)
-    local_delay = attr.ib(type=int, converter=int)
-    remote_delay = attr.ib(type=int, converter=int)
-    remote_payment_pubkey = attr.ib(type=bytes, converter=hex_to_bytes)
-    remote_revocation_pubkey = attr.ib(type=bytes, converter=hex_to_bytes)
-    local_payment_pubkey = attr.ib(type=bytes, converter=hex_to_bytes)  # type: Optional[bytes]
-    multisig_funding_privkey = attr.ib(type=bytes, converter=hex_to_bytes)  # type: Optional[bytes]
+    node_id: bytes  # remote node pubkey
+    privkey: bytes  # local node privkey
+    host: str
+    port: int
+    channel_seed: bytes
+    local_delay: int
+    remote_delay: int
+    remote_payment_pubkey: bytes
+    remote_revocation_pubkey: bytes
+    local_payment_pubkey: Optional[bytes]
+    multisig_funding_privkey: Optional[bytes]
 
     def to_bytes(self) -> bytes:
         vds = BCDataStream()
@@ -407,11 +414,15 @@ class ImportedChannelBackupStorage(ChannelBackupStorage):
         )
 
     @staticmethod
-    def from_encrypted_str(data: str, *, password: str) -> 'ImportedChannelBackupStorage':
+    def decrypt_encrypted_str(data: str, *, password: str) -> bytes:
         if not data.startswith('channel_backup:'):
             raise ValueError("missing or invalid magic bytes")
         encrypted = data[15:]
-        decrypted = pw_decode_with_version_and_mac(encrypted, password)
+        return pw_decode_with_version_and_mac(encrypted, password)
+
+    @staticmethod
+    def from_encrypted_str(data: str, *, password: str) -> 'ImportedChannelBackupStorage':
+        decrypted = ImportedChannelBackupStorage.decrypt_encrypted_str(data, password=password)
         return ImportedChannelBackupStorage.from_bytes(decrypted)
 
 
