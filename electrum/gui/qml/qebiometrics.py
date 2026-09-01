@@ -88,6 +88,7 @@ class QEBiometrics(AuthMixin, QObject):
             data=unified_wallet_password.encode('utf-8'),
         )
         encrypted_password_bundle = f"{iv.hex()}:{wrapped_wallet_password.hex()}"
+        assert self._current_action is None, "not overriding biometric auth pw during pending activity result"
         self.config.WALLET_ANDROID_BIOMETRIC_AUTH_WRAPPED_WALLET_PASSWORD = encrypted_password_bundle
         self._start_activity(BiometricAction.ENCRYPT, data=wrap_key.hex())
 
@@ -128,6 +129,7 @@ class QEBiometrics(AuthMixin, QObject):
         self._start_activity(BiometricAction.DECRYPT, data=encrypted_wrap_key, auth_message=auth_message)
 
     def _start_activity(self, action: BiometricAction, data: str, auth_message: str = None):
+        assert self._current_action is None, f"don't run concurrent activities: {self._current_action=} {action=}"
         self._current_action = action
 
         _logger.debug(f"_start_activity: {action.value}, {len(data)=}")
@@ -164,6 +166,7 @@ class QEBiometrics(AuthMixin, QObject):
 
         try:
             self.unbind()
+            assert action is not None, f"received activity {resultCode=} for {requestCode=} without pending action"
             if resultCode == -1: # RESULT_OK
                 data = intent.getStringExtra(jString("data"))
                 if action == BiometricAction.ENCRYPT:
