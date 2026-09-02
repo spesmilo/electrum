@@ -723,7 +723,7 @@ class ChannelBackup(AbstractChannel):
         return False
 
     def get_sweep_address(self) -> str:
-        return self.lnworker.wallet.get_new_sweep_address_for_channel()
+        return self.lnworker.wallet.get_new_sweep_address()
 
     def has_anchors(self) -> Optional[bool]:
         return None
@@ -1017,7 +1017,7 @@ class Channel(AbstractChannel):
     def get_sweep_address(self) -> str:
         # TODO: in case of unilateral close with pending HTLCs, this address will be reused
         if self.has_anchors():
-            addr = self.lnworker.wallet.get_new_sweep_address_for_channel()
+            addr = self.lnworker.wallet.get_new_sweep_address()
         elif self.is_static_remotekey_enabled():
             our_payment_pubkey = self.config[LOCAL].payment_basepoint.pubkey
             addr = make_commitment_output_to_remote_address(our_payment_pubkey, has_anchors=self.has_anchors())
