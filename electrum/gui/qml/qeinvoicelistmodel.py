@@ -119,6 +119,9 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
         self._logger.debug(f'updating invoice for {key} to {status}')
         for i, item in enumerate(self._invoices):
             if item['key'] == key:
+                if status == PR_PAID:
+                    self.delete_invoice(key)
+                    return
                 invoice = self.get_invoice_for_key(key)
                 item['status'] = status
                 item['status_str'] = invoice.get_status_str(status)
@@ -228,7 +231,7 @@ class QERequestListModel(QEAbstractInvoiceListModel, QtEventListener):
     def on_event_request_status(self, wallet, key, status):
         if wallet == self.wallet:
             self._logger.debug(f'request status update for key {key} to {status}')
-            self.updateRequest(key, status)
+            self.updateInvoice(key, status)
 
     def invoice_to_model(self, invoice: BaseInvoice):
         item = super().invoice_to_model(invoice)
@@ -246,10 +249,3 @@ class QERequestListModel(QEAbstractInvoiceListModel, QtEventListener):
 
     def get_invoice_as_dict(self, invoice: Request):
         return self.wallet.export_request(invoice)
-
-    @pyqtSlot(str, int)
-    def updateRequest(self, key, status):
-        if status == PR_PAID:
-            self.delete_invoice(key)
-        else:
-            self.updateInvoice(key, status)
