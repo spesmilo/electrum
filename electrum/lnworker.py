@@ -1067,7 +1067,7 @@ class LNWallet(Logger):
 
         # detect inflight payments
         self.inflight_payments = set()  # type: set[str]  # (not persisted) keys of invoices that are in PR_INFLIGHT state
-        for payment_hash in self.get_payments(status='inflight').keys():
+        for payment_hash in self.get_payments(status='inflight', direction=SENT).keys():
             self.set_invoice_status(payment_hash.hex(), PR_INFLIGHT)
 
         # payment forwarding
@@ -1264,10 +1264,14 @@ class LNWallet(Logger):
                 for peer in self.lnpeermgr.peers.values():
                     await group.spawn(peer.received_htlc_removed_event.wait())
 
-    def get_payments(self, *, status=None) -> Mapping[bytes, List[HTLCWithStatus]]:
+    def get_payments(
+        self, *,
+        status: Optional[str] = None,
+        direction: Optional[lnutil.Direction] = None,
+    ) -> Mapping[bytes, List[HTLCWithStatus]]:
         out = defaultdict(list)
         for chan in self.channels.values():
-            d = chan.get_payments(status=status)
+            d = chan.get_payments(status=status, direction=direction)
             for payment_hash, plist in d.items():
                 out[payment_hash] += plist
         return out

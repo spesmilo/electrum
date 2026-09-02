@@ -723,6 +723,13 @@ class TestChannel(ElectrumTestCase):
             )
         self.assertEqual({}, lnwatcher.get_pending_force_closes())
 
+    def test_get_payments(self):
+        phash = self.htlc.payment_hash
+        self.assertIn(phash, self.alice_channel.get_payments(status='inflight', direction=SENT))
+        self.assertEqual({}, self.alice_channel.get_payments(status='inflight', direction=RECEIVED))
+        self.assertIn(phash, self.bob_channel.get_payments(status='inflight', direction=RECEIVED))
+        self.assertEqual({}, self.bob_channel.get_payments(status='inflight', direction=SENT))
+
 
 class TestChannelNoAnchors(TestChannel):
     assert TestChannel.TEST_ANCHOR_CHANNELS is True

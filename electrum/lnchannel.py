@@ -1047,10 +1047,16 @@ class Channel(AbstractChannel):
     def get_next_feerate(self, subject: HTLCOwner) -> int:
         return self.hm.get_feerate_in_next_ctx(subject)
 
-    def get_payments(self, status=None) -> Mapping[bytes, List[HTLCWithStatus]]:
+    def get_payments(
+        self, *,
+        status: Optional[str] = None,
+        direction: Optional[lnutil.Direction] = None,
+    ) -> Mapping[bytes, List[HTLCWithStatus]]:
         out = defaultdict(list)
-        for direction, htlc in self.hm.all_htlcs_ever():
-            htlc_proposer = LOCAL if direction is SENT else REMOTE
+        for htlc_direction, htlc in self.hm.all_htlcs_ever():
+            if direction is not None and htlc_direction != direction:
+                continue
+            htlc_proposer = LOCAL if htlc_direction is SENT else REMOTE
             if self.hm.was_htlc_failed(htlc_id=htlc.htlc_id, htlc_proposer=htlc_proposer):
                 _status = 'failed'
             elif self.hm.was_htlc_preimage_released(htlc_id=htlc.htlc_id, htlc_proposer=htlc_proposer):
@@ -1060,7 +1066,7 @@ class Channel(AbstractChannel):
             if status and status != _status:
                 continue
             htlc_with_status = HTLCWithStatus(
-                channel_id=self.channel_id, htlc=htlc, direction=direction, status=_status)
+                channel_id=self.channel_id, htlc=htlc, direction=htlc_direction, status=_status)
             out[htlc.payment_hash].append(htlc_with_status)
         return out
 
