@@ -32,7 +32,7 @@ from .version import ELECTRUM_VERSION
 from . import constants
 from .i18n import _
 from .util import make_aiohttp_session, error_text_str_to_safe_str
-from .logging import describe_os_version, Logger, get_git_version
+from .logging import describe_os_version, Logger, get_logger, get_git_version
 from .crypto import sha256
 
 if TYPE_CHECKING:
@@ -221,7 +221,8 @@ class EarlyExceptionsQueue:
     """
 
     _is_exc_hook_ready = False
-    _exc_queue = queue.Queue()
+    _exc_queue = queue.Queue(maxsize=100)
+    _logger = get_logger(__name__)
 
     @classmethod
     def set_hook_as_ready(cls):
@@ -238,7 +239,12 @@ class EarlyExceptionsQueue:
         if cls._is_exc_hook_ready:
             cls._send_exception_to_crash_reporter(e)
         else:
-            cls._exc_queue.put(e)
+            # The exc hook might never become ready (e.g. daemon), so log now.
+            cls._logger.error("exception passed to crash reporter (exc hook not ready):", exc_info=e)
+            try:
+                cls._exc_queue.put_nowait(e)
+            except queue.Full:
+                pass
 
     @staticmethod
     def _send_exception_to_crash_reporter(e: BaseException):
