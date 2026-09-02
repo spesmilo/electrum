@@ -76,7 +76,7 @@ from .address_synchronizer import (
     AddressSynchronizer, TX_HEIGHT_LOCAL, TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_FUTURE,
     TX_TIMESTAMP_INF
 )
-from .invoices import BaseInvoice, Invoice, Request, PR_PAID, PR_UNPAID, PR_EXPIRED, PR_UNCONFIRMED
+from .invoices import BaseInvoice, Invoice, Request, PR_PAID, PR_UNPAID, PR_EXPIRED, PR_UNCONFIRMED, PR_INFLIGHT
 from .contacts import Contacts
 from .mnemonic import Mnemonic
 from .lnworker import LNWallet
@@ -3098,7 +3098,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self._receive_requests.pop(request_id, None)
         if addr := req.get_address():
             self._requests_addr_to_key[addr].discard(request_id)
-        if req.is_lightning() and self.lnworker:
+        if req.is_lightning() and self.lnworker \
+                and self.lnworker.get_invoice_status(req) != PR_PAID:
             self.lnworker.delete_payment_info(req.rhash, direction=RECEIVED)
         if write_to_disk:
             self.save_db()
@@ -3109,7 +3110,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if inv is None:
             return
         self._paid_invoice_keys_cache.discard(invoice_id)
-        if inv.is_lightning() and self.lnworker:
+        if inv.is_lightning() and self.lnworker \
+                and self.lnworker.get_invoice_status(inv) not in (PR_PAID, PR_INFLIGHT):
+            # if an invoice was paid we need the PaymentInfo for the history and don't delete it.
+            # if it is still inflight and the payment fails later on we leak it and never delete it.
             self.lnworker.delete_payment_info(inv.rhash, direction=SENT)
         if write_to_disk:
             self.save_db()
