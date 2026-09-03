@@ -962,28 +962,38 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         whitespaces=False,
         *,
         add_thousands_sep: bool = None,
+        millisat_precision: bool = None  # tri-state, None = preference, True/False = force
     ) -> str:
         """Formats amount as string, converting to desired unit.
         E.g. 500_000 -> '0.005'
         """
+        precision = None if millisat_precision is None else int(millisat_precision) * 3
         return self.config.format_amount(
             amount_sat,
             is_diff=is_diff,
             whitespaces=whitespaces,
             add_thousands_sep=add_thousands_sep,
+            precision=precision
         )
 
-    def format_amount_and_units(self, amount_sat, *, timestamp: int = None) -> str:
+    def format_amount_and_units(
+        self,
+        amount_sat: int | Decimal | None,
+        *,
+        timestamp: int = None,
+        millisat_precision: bool = None  # tri-state, None = preference, True/False = force
+    ) -> str:
         """Returns string with both bitcoin and fiat amounts, in desired units.
         E.g. 500_000 -> '0.005 BTC (191.42 EUR)'
         """
-        text = self.config.format_amount_and_units(amount_sat)
+        precision = None if millisat_precision is None else int(millisat_precision) * 3
+        text = self.config.format_amount_and_units(amount_sat, precision=precision)
         fiat = self.fx.format_amount_and_units(amount_sat, timestamp=timestamp) if self.fx else None
         if text and fiat:
             text += f' ({fiat})'
         return text
 
-    def format_fiat_and_units(self, amount_sat) -> str:
+    def format_fiat_and_units(self, amount_sat: int | Decimal | None) -> str:
         """Returns string of FX fiat amount, in desired units.
         E.g. 500_000 -> '191.42 EUR'
         """
@@ -1076,7 +1086,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                     warning = self.wallet.is_low_reserve(),
                 )
                 balance = p_bal.total()
-                balance_text =  _("Balance") + ": %s "%(self.format_amount_and_units(balance))
+                balance_text = _("Balance") + ": %s " % (self.format_amount_and_units(
+                    balance, millisat_precision=(self.config.BTC_AMOUNTS_PREC_POST_SAT > 0)))
                 # append fiat balance and price
                 if self.fx.is_enabled():
                     balance_text += self.fx.get_fiat_status_text(balance,
@@ -1373,7 +1384,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         if status == PR_PAID:
             # FIXME notification should only be shown if request was not PAID before
             msg = _('Payment received')
-            amount = req.get_amount_sat()
+            amount = req.get_amount_sat_msat_precision()
             if amount:
                 msg += ': ' + self.format_amount_and_units(amount)
             msg += '\n' + req.get_message()
@@ -1688,7 +1699,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         grid.addWidget(QLabel(_("Public Key") + ':'), 0, 0)
         grid.addWidget(pubkey_e, 0, 1)
         grid.addWidget(QLabel(_("Amount") + ':'), 1, 0)
-        amount_str = self.format_amount(invoice.get_amount_sat()) + ' ' + self.base_unit()
+        amount_sat = invoice.get_amount_sat_msat_precision()
+        amount_str = self.format_amount(amount_sat, millisat_precision=True) + ' ' + self.base_unit()
         grid.addWidget(QLabel(amount_str), 1, 1)
         grid.addWidget(QLabel(_("Description") + ':'), 2, 0)
         grid.addWidget(QLabel(invoice.message), 2, 1)

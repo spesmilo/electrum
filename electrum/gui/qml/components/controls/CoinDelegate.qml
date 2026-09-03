@@ -69,14 +69,14 @@ ItemDelegate {
                     horizontalAlignment: Text.AlignRight
                     font.family: FixedFont
                     text: Config.formatSats(model.amount, false)
-                    visible: model.amount.satsInt != 0
+                    visible: !model.amount.isEmpty
                 }
                 Label {
                     Layout.minimumWidth: implicitWidth
                     Layout.preferredWidth: implicitWidth
                     color: Material.accentColor
                     text: Config.baseUnit
-                    visible: model.amount.satsInt != 0
+                    visible: !model.amount.isEmpty
                 }
             }
 

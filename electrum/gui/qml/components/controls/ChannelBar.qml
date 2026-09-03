@@ -22,24 +22,24 @@ Item {
     }
 
     function do_update() {
-        var cap = capacity.satsInt * 1000
+        var cap = capacity.satsInt
         var twocap = cap * 2
-        l1.width = width * (cap - localCapacity.msatsInt) / twocap
+        l1.width = width * (cap - localCapacity.satsInt) / twocap
         if (frozenForSending) {
-            l2.width = width * localCapacity.msatsInt / twocap
+            l2.width = width * localCapacity.satsInt / twocap
             l3.width = 0
         } else {
-            l2.width = width * (localCapacity.msatsInt - canSend.msatsInt) / twocap
-            l3.width = width * canSend.msatsInt / twocap
+            l2.width = width * (localCapacity.satsInt - canSend.satsInt) / twocap
+            l3.width = width * canSend.satsInt / twocap
         }
         if (frozenForReceiving) {
             r3.width = 0
-            r2.width = width * remoteCapacity.msatsInt / twocap
+            r2.width = width * remoteCapacity.satsInt / twocap
         } else {
-            r3.width = width * canReceive.msatsInt / twocap
-            r2.width = width * (remoteCapacity.msatsInt - canReceive.msatsInt) / twocap
+            r3.width = width * canReceive.satsInt / twocap
+            r2.width = width * (remoteCapacity.satsInt - canReceive.satsInt) / twocap
         }
-        r1.width = width * (cap - remoteCapacity.msatsInt) / twocap
+        r1.width = width * (cap - remoteCapacity.satsInt) / twocap
     }
 
     onWidthChanged: update()
@@ -48,22 +48,22 @@ Item {
 
     Connections {
         target: localCapacity
-        function onMsatsIntChanged() { update() }
+        function onValueChanged() { update() }
     }
 
     Connections {
         target: remoteCapacity
-        function onMsatsIntChanged() { update() }
+        function onValueChanged() { update() }
     }
 
     Connections {
         target: canSend
-        function onMsatsIntChanged() { update() }
+        function onValueChanged() { update() }
     }
 
     Connections {
         target: canReceive
-        function onMsatsIntChanged() { update() }
+        function onValueChanged() { update() }
     }
 
     Rectangle {
