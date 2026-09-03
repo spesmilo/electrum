@@ -319,3 +319,11 @@ class QEAddressCoinListModel(QAbstractListModel, QtEventListener):
                 self.wallet.coinfilter.deselect_coins(coins2)
             for coin in coins:
                 self.updateCoin(coin)
+
+    @pyqtSlot()
+    def resetCoinControl(self):
+        prevsel = self.wallet.coinfilter.get_selection()
+        self.wallet.coinfilter.clear_selection()
+        for coin in prevsel:
+            self.updateCoin(coin)
+

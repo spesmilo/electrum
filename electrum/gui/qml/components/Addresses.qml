@@ -99,6 +99,30 @@ Pane {
                             sourceSize.height: constants.iconSizeMedium
                         }
                     }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.columnSpan: 3
+
+                        Image {
+                            visible: Daemon.currentWallet.coinsInCoinControl
+                            source: Qt.resolvedUrl('../../icons/warning.png')
+                            sourceSize.width: constants.iconSizeSmall
+                            sourceSize.height: constants.iconSizeSmall
+                        }
+
+                        Label {
+                            Layout.fillWidth: true
+                            Layout.alignment: Qt.AlignLeft
+                            visible: Daemon.currentWallet.coinsInCoinControl
+                            text: qsTr('Coin control is active') + ' <a href="#">(' + qsTr('reset') + ')</a>'
+                            color: constants.colorWarning
+                            onLinkActivated: {
+                                console.log('resetting coin control')
+                                listview.backingModel.resetCoinControl()
+                            }
+                        }
+                    }
                 }
             }
 
