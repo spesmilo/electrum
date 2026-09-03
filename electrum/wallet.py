@@ -3649,6 +3649,30 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     text += '. ' + hint
         return text
 
+    def get_text_not_enough_funds_mentioning_coincontrol(
+            self,
+            *,
+            for_amount: Optional[Union[int, str]] = None,
+            hint: Optional[str] = None
+    ) -> str:
+        """Generate 'Not enough funds' text.
+        Include mention of coincontrol coins (and append optional hint), iff expanding cc would satisfy for_amount
+        """
+        text = _('Not enough funds')
+        if for_amount is not None:
+            if ccc := self.coinfilter.get_coins_for_outpoints(self.coinfilter.get_selection()):
+                cc_bal = sum([coin.value_sats() for coin in ccc])
+                cc_str = self.config.format_amount_and_units(cc_bal)
+                if isinstance(for_amount, int):
+                    if self.get_spendable_balance_sat() > for_amount:
+                        text += _('({} in coin control)').format(cc_str)
+                elif for_amount == '!':
+                    text += _('({} in coin control)').format(cc_str)
+
+                if hint:
+                    text += '. ' + hint
+        return text
+
     def get_frozen_balance_str(self) -> Optional[str]:
         frozen_bal = sum(self.get_frozen_balance())
         if not frozen_bal:
