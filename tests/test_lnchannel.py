@@ -615,19 +615,20 @@ class TestChannel(ElectrumTestCase):
         # the funding tx gets mined deep enough
         funding_txid = chan.funding_outpoint.txid
         funding_timestamp = chan.storage['init_timestamp']
+        self.current_height += chan.funding_txn_minimum_depth()
+        funding_confirmed_height = self.current_height
         chan.update_onchain_state(
             funding_txid=funding_txid,
-            funding_height=TxMinedInfo(_height=self.current_height, conf=chan.funding_txn_minimum_depth(), timestamp=funding_timestamp, txpos=1),
+            funding_height=TxMinedInfo(_height=funding_confirmed_height, conf=chan.funding_txn_minimum_depth(), timestamp=funding_timestamp, txpos=1),
             closing_txid=None,
             closing_height=TxMinedInfo(_height=TX_HEIGHT_LOCAL, conf=0),
             keep_watching=True,
         )
         self.assertTrue(chan.is_funded())
         self.assertFalse(chan.can_be_deleted())
-        self.assertEqual((funding_txid, self.current_height, funding_timestamp), chan.get_funding_height())
+        self.assertEqual((funding_txid, funding_confirmed_height, funding_timestamp), chan.get_funding_height())
 
         # the channel is now older than the funding timeout
-        funding_confirmed_height = self.current_height
         self.current_height += lnutil.CHANNEL_OPENING_TIMEOUT_BLOCKS + 1
         chan.storage['init_timestamp'] -= CHANNEL_OPENING_TIMEOUT_SEC + 1
 
@@ -642,6 +643,7 @@ class TestChannel(ElectrumTestCase):
 
         # the saved funding height must not be overwritten, and the channel must not be removed
         self.assertEqual((funding_txid, funding_confirmed_height, funding_timestamp), chan.get_funding_height())
+        self.assertTrue(chan.is_funded())
         self.assertFalse(chan.has_funding_timed_out())
         self.assertFalse(chan.can_be_deleted())
         mock_lnworker.remove_channel.assert_not_called()
@@ -657,10 +659,86 @@ class TestChannel(ElectrumTestCase):
 
         # the saved height must have survived, and the channel must not be removed
         self.assertEqual((funding_txid, funding_confirmed_height, funding_timestamp), chan.get_funding_height())
+        self.assertTrue(chan.is_funded())
         self.assertFalse(chan.has_funding_timed_out())
         self.assertFalse(chan.can_be_deleted())
         mock_lnworker.remove_channel.assert_not_called()
 
+    def test_incoming_funded_channel_can_timeout_even_if_it_was_mined_at_some_point_but_not_deeply(self):
+        """The funding tx gets 1 conf (but fewer than funding_txn_minimum_depth)
+        and then gets reorged out and never mined again.
+        If we are not the funder, after sufficient time we should be able to delete the chan.
+        """
+        self.current_height = 800_000
+        chan = self.bob_channel  # non-initiator, so it can time out
+        chan.storage['init_height'] = self.current_height
+        chan.storage['init_timestamp'] = int(time.time())
+
+        mock_lnworker = mock.Mock()
+        mock_blockchain = mock.Mock()
+        mock_lnworker.wallet = mock.Mock()
+        mock_lnworker.wallet.is_up_to_date = lambda: True
+        mock_blockchain.is_tip_stale = lambda: False
+        mock_lnworker.network.blockchain = lambda: mock_blockchain
+        mock_lnworker.network.get_local_height = lambda: self.current_height
+        chan.lnworker = mock_lnworker
+        chan.is_funding_tx_mined = lambda funding_height: (
+            funding_height.conf >= chan.funding_txn_minimum_depth())
+
+        # we start in the OPENING state
+        chan.set_state(ChannelState.OPENING, force=True)
+        self.assertFalse(chan.is_initiator())
+        self.assertFalse(chan.can_be_deleted())
+        self.assertFalse(chan.is_funded())
+
+        # the funding tx gets mined but only 1 conf
+        funding_txid = chan.funding_outpoint.txid
+        funding_timestamp = chan.storage['init_timestamp']
+        self.current_height += 1
+        assert 1 < chan.funding_txn_minimum_depth()
+        funding_confirmed_height = self.current_height
+        chan.update_onchain_state(
+            funding_txid=funding_txid,
+            funding_height=TxMinedInfo(_height=funding_confirmed_height, conf=1, timestamp=funding_timestamp, txpos=1),
+            closing_txid=None,
+            closing_height=TxMinedInfo(_height=TX_HEIGHT_LOCAL, conf=0),
+            keep_watching=True,
+        )
+        self.assertFalse(chan.is_funded())
+        self.assertFalse(chan.can_be_deleted())
+        self.assertEqual((funding_txid, funding_confirmed_height, funding_timestamp), chan.get_funding_height())
+
+        # the server claims the funding tx is unconfirmed again. Either it got reorged, or the server is lying.
+        chan.update_onchain_state(
+            funding_txid=funding_txid,
+            funding_height=TxMinedInfo(_height=0, conf=0),
+            closing_txid=None,
+            closing_height=TxMinedInfo(_height=TX_HEIGHT_LOCAL, conf=0),
+            keep_watching=True,
+        )
+        self.assertFalse(chan.can_be_deleted())  # still, it cannot be deleted yet
+        mock_lnworker.remove_channel.assert_not_called()
+
+        # the channel is now older than the funding timeout
+        self.current_height += lnutil.CHANNEL_OPENING_TIMEOUT_BLOCKS + 1
+        chan.storage['init_timestamp'] -= CHANNEL_OPENING_TIMEOUT_SEC + 1
+
+        # As we *never* saw the incoming channel reach the required number confs, chan can now be deleted.
+        self.assertFalse(chan.is_funded())
+        self.assertTrue(chan.has_funding_timed_out())
+        self.assertTrue(chan.can_be_deleted())
+        mock_lnworker.remove_channel.assert_not_called()
+
+        # New tick: no change to onchain state.
+        chan.update_onchain_state(
+            funding_txid=funding_txid,
+            funding_height=TxMinedInfo(_height=0, conf=0),
+            closing_txid=None,
+            closing_height=TxMinedInfo(_height=TX_HEIGHT_LOCAL, conf=0),
+            keep_watching=True,
+        )
+        mock_lnworker.remove_channel.assert_called()  # chan now auto-deleted.
+        self.assertIsNone(self.bob_lnwallet.get_channel_by_id(chan.channel_id))
 
     async def test_update_unfunded_zeroconf_channel(self):
         """Cover the zeroconf branch of update_unfunded_state"""

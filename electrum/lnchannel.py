@@ -373,7 +373,7 @@ class AbstractChannel(Logger, ABC):
                             self.set_state(ChannelState.REDEEMED)
                             break
             elif self.has_funding_timed_out():
-                self.logger.warning(f"dropping incoming channel, funding tx not found in mempool")
+                self.logger.warning(f"dropping incoming channel, funding tx taking too long to reach req num conf")
                 self.lnworker.remove_channel(self.channel_id)
         elif self.is_zeroconf() and state in [ChannelState.OPEN, ChannelState.CLOSING, ChannelState.FORCE_CLOSING]:
             # handling zeroconf channels with no funding tx, can happen if broadcasting fails on LSP side
@@ -851,8 +851,10 @@ class Channel(AbstractChannel):
         return self.is_redeemed()
 
     def has_funding_timed_out(self):
-        funding_height = self.get_funding_height()
-        if self.is_initiator() or funding_height and funding_height[1] > TX_HEIGHT_UNCONFIRMED:
+        if self.is_initiator():
+            return False
+        # remote is the initiator/funder.
+        if self.is_funded() and not self.is_zeroconf():
             return False
         if self.lnworker.network.blockchain().is_tip_stale() or not self.lnworker.wallet.is_up_to_date():
             return False
