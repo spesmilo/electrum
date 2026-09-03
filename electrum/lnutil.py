@@ -254,11 +254,10 @@ class LocalConfig(ChannelConfig):
         kwargs['htlc_basepoint'] = keypair_generator(LnKeyFamily.HTLC_BASE)
         kwargs['delayed_basepoint'] = keypair_generator(LnKeyFamily.DELAY_BASE)
         kwargs['revocation_basepoint'] = keypair_generator(LnKeyFamily.REVOCATION_BASE)
-        static_remotekey = kwargs.pop('static_remotekey')
         static_payment_key = kwargs.pop('static_payment_key')
         channel_type = kwargs.pop('channel_type')
-        payment_basepoint = kwargs.pop('payment_basepoint', None)
-        assert bool(static_remotekey) + bool(static_payment_key) + bool(payment_basepoint) <= 1
+        payment_basepoint = kwargs.pop('payment_basepoint', None)  # type: bytes | None
+        assert bool(static_payment_key) + bool(payment_basepoint) <= 1
         if static_payment_key:
             # We derive the payment_basepoint from a static secret (derived from
             # the wallet seed) and a public nonce that is revealed
@@ -268,9 +267,7 @@ class LocalConfig(ChannelConfig):
                 static_payment_secret=static_payment_key.privkey,
                 funding_pubkey=kwargs['multisig_key'].pubkey
             )
-        elif static_remotekey:  # we automatically sweep to a wallet address
-            kwargs['payment_basepoint'] = OnlyPubkeyKeypair(static_remotekey)
-        elif payment_basepoint:  # channel backup
+        elif payment_basepoint:  # channel backup (or new SRK chan in unit tests)
             if len(payment_basepoint) == 32:  # privkey
                 assert channel_type & ChannelType.OPTION_ANCHORS
                 privkey = ecc.ECPrivkey(payment_basepoint)

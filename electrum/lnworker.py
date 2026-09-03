@@ -1720,7 +1720,7 @@ class LNWallet(Logger):
         channel_type.check_combinations()  # test if raises
         if channel_type & ChannelType.OPTION_ANCHORS:  # anchors
             static_payment_key = self.static_payment_key
-            static_remotekey = None
+            payment_basepoint = None
         else:  # static_remotekey
             assert channel_type & channel_type.OPTION_STATIC_REMOTEKEY
             assert self.config.TEST_LN_OPEN_SRK_CHANNELS
@@ -1728,7 +1728,7 @@ class LNWallet(Logger):
             assert wallet.txin_type == 'p2wpkh'
             addr = wallet.get_new_sweep_address_for_channel()
             static_payment_key = None
-            static_remotekey = bytes.fromhex(wallet.get_public_key(addr))
+            payment_basepoint = bytes.fromhex(wallet.get_public_key(addr))
 
         if multisig_funding_keypair:
             for chan in self.channels.values():  # check against all chans of lnworker, for sanity
@@ -1748,7 +1748,7 @@ class LNWallet(Logger):
         local_config = LocalConfig.from_seed(
             channel_seed=channel_seed,
             channel_type=channel_type,
-            static_remotekey=static_remotekey,
+            payment_basepoint=payment_basepoint,
             static_payment_key=static_payment_key,
             multisig_key=multisig_funding_keypair,
             upfront_shutdown_script=upfront_shutdown_script,

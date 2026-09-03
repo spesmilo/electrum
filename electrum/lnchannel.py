@@ -620,7 +620,6 @@ class ChannelBackup(AbstractChannel):
             payment_basepoint=local_payment_basepoint,
             multisig_key=multisig_funding_keypair,
             # dummy values
-            static_remotekey=None,
             static_payment_key=None,
             dust_limit_sat=None,
             max_htlc_value_in_flight_msat=None,
