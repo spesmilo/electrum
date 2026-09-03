@@ -5,7 +5,7 @@ from enum import IntFlag, IntEnum
 import enum
 from typing import (
     NamedTuple, List, Tuple, Mapping, Optional, TYPE_CHECKING, Union, Dict, Set, Sequence, FrozenSet,
-    TypedDict,
+    TypedDict, Literal
 )
 import sys
 import time
@@ -78,6 +78,15 @@ def hex_to_bytes(arg: Optional[Union[bytes, str]]) -> Optional[bytes]:
 
 def bytes_to_hex(arg: Optional[bytes]) -> Optional[str]:
     return repr(arg.hex()) if arg is not None else None
+
+
+def int_min_byte_len(n: int) -> int:
+    """Returns the smallest number of bytes that can represent n (zero -> 0 bytes)."""
+    return (n.bit_length() + 7) // 8
+
+
+def int_to_bytes_minimal(n: int, byteorder: Literal['big', 'little'] = 'big') -> bytes:
+    return int.to_bytes(n, length=int_min_byte_len(n), byteorder=byteorder)
 
 
 def json_to_keypair(arg: Union['OnlyPubkeyKeypair', dict]) -> Union['OnlyPubkeyKeypair', 'Keypair']:
@@ -1628,10 +1637,6 @@ class LnFeatures(IntFlag):
                 features |= (1 << flag)
         return features
 
-    def min_len(self) -> int:
-        b = int.bit_length(self)
-        return b // 8 + int(bool(b % 8))
-
     def supports(self, feature: 'LnFeatures') -> bool:
         """Returns whether given feature is enabled.
 
@@ -1718,12 +1723,6 @@ class ChannelType(IntFlag):
             if not peer_features.supports(feature):
                 return False
         return True
-
-    def to_bytes_minimal(self):
-        # MUST use the smallest bitmap possible to represent the channel type.
-        bit_length = self.value.bit_length()
-        byte_length = bit_length // 8 + int(bool(bit_length % 8))
-        return self.to_bytes(byte_length, byteorder='big')
 
     @property
     def name_minimal(self):
