@@ -1896,7 +1896,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             return addrs[0]
         return None
 
-    def get_new_sweep_address_for_channel(self) -> str:
+    def get_new_sweep_address(self) -> str:
+        """Returns an ismine address to sweep funds to.
+        NOTE: this ignores the 'use_change' setting, as the funds we are sweeping are not
+              in the wallet yet, so there is no "sending address" we could send them back to.
+        """
         addrs = self._get_change_addresses_we_can_use_now(allow_reuse=True)
         if addrs:
             return addrs[0]
@@ -2071,6 +2075,13 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 # even if the option use multiple change outputs is enabled there should be only
                 # one change address if there are 0 txos as this is a sweep tx, or if we want to swap change to ln
                 change_addrs = change_addrs[0:1]
+            if not change_addrs:
+                # We have no change address, e.g. because 'use_change' is disabled. The coin chooser
+                # then sends the change back to the address of the first input, which is only sane if
+                # all inputs are ismine. That is not the case when sweeping (e.g. a lightning ctx
+                # output or a swap claim output), and not guaranteed when batching sweeps with payments.
+                if len(txo) == 0 or not all(self.is_mine(self.adb.get_txin_address(txin)) for txin in txi):
+                    change_addrs = [self.get_new_sweep_address()]
             tx = coin_chooser.make_tx(
                 coins=coins,
                 inputs=txi,

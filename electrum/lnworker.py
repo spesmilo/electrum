@@ -1726,7 +1726,7 @@ class LNWallet(Logger):
             assert self.config.TEST_LN_OPEN_SRK_CHANNELS
             wallet = self.wallet
             assert wallet.txin_type == 'p2wpkh'
-            addr = wallet.get_new_sweep_address_for_channel()
+            addr = wallet.get_new_sweep_address()
             static_payment_key = None
             static_remotekey = bytes.fromhex(wallet.get_public_key(addr))
 
