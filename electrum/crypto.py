@@ -362,7 +362,7 @@ def chacha20_poly1305_encrypt(
         *,
         key: bytes,
         nonce: bytes,
-        associated_data: bytes = None,
+        associated_data: bytes | None = None,
         data: bytes
 ) -> bytes:
     assert isinstance(key, (bytes, bytearray))
@@ -387,7 +387,7 @@ def chacha20_poly1305_decrypt(
         *,
         key: bytes,
         nonce: bytes,
-        associated_data: bytes = None,
+        associated_data: bytes | None = None,
         data: bytes
 ) -> bytes:
     assert isinstance(key, (bytes, bytearray))

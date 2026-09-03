@@ -412,7 +412,7 @@ class TestPeerDirect(TestPeer):
             *,
             ctn_delta: int = 0,
             revnum_delta: int = 0,
-            last_rev_secret: bytes = None,
+            last_rev_secret: bytes | None = None,
         ) -> tuple[Channel, Channel]:
             alice_lnwallet, bob_lnwallet = self.prepare_lnwallets(self.GRAPH_DEFINITIONS['single_chan']).values()
             alice_channel, bob_channel = create_test_channels(alice_lnwallet=alice_lnwallet, bob_lnwallet=bob_lnwallet)
@@ -2668,7 +2668,7 @@ class TestPeerForwarding(TestPeer):
         """
 
         # store a modified trampoline onion to be injected into lnworker.new_onion_packet later when sending the htlcs
-        modified_trampoline_onion = None
+        modified_trampoline_onion = None  # type: OnionPacket | None
         def modified_new_onion_packet_trampoline(payment_path_pubkeys, session_key, hops_data: List[OnionHopsDataSingle], **kwargs):
             nonlocal modified_trampoline_onion
             assert modified_trampoline_onion is None, "this mock should get called only once"

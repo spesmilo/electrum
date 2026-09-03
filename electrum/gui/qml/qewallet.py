@@ -596,7 +596,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self.broadcast(tx)
 
     # this assumes a 2fa wallet, but there are no other tc_sign_wrapper hooks, so that's ok
-    def on_sign_failed(self, cb: Callable[[], None] = None, error: str = None):
+    def on_sign_failed(self, cb: Callable[[], None] | None = None, error: str | None = None):
         self.otpFailed.emit('error', error)
         if cb:
             cb()
@@ -658,7 +658,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         self.paymentAuthRejected.emit()
 
     @auth_protect(message=_('Pay lightning invoice?'), reject='ln_auth_rejected')
-    def pay_lightning_invoice(self, invoice: 'Invoice', amount_msat: int = None):
+    def pay_lightning_invoice(self, invoice: 'Invoice', amount_msat: int | None = None):
         # at this point, the user confirmed the payment, potentially with an override amount.
         # we save the invoice with the override amount if there was no amount defined in the invoice.
         # (this is similar to what the desktop client does)

@@ -82,7 +82,7 @@ class AddressSynchronizer(Logger, EventListener):
     synchronizer: Optional['Synchronizer']
     verifier: Optional['SPV']
 
-    def __init__(self, db: 'WalletDB', config: 'SimpleConfig', *, name: str = None):
+    def __init__(self, db: 'WalletDB', config: 'SimpleConfig', *, name: str | None = None):
         self.db = db
         self.config = config
         self.name = name
@@ -172,7 +172,7 @@ class AddressSynchronizer(Logger, EventListener):
         return None
 
     @with_lock
-    def get_txin_value(self, txin: TxInput, *, address: str = None) -> Optional[int]:
+    def get_txin_value(self, txin: TxInput, *, address: str | None = None) -> Optional[int]:
         if txin.value_sats() is not None:
             return txin.value_sats()
         prevout_hash = txin.prevout.txid.hex()
@@ -524,7 +524,7 @@ class AddressSynchronizer(Logger, EventListener):
         return height, txpos
 
     @classmethod
-    def tx_height_to_sort_height(cls, height: int = None):
+    def tx_height_to_sort_height(cls, height: int | None = None):
         """Return a height-like value to be used for sorting txs."""
         if height is not None:
             if height > 0:
@@ -970,7 +970,7 @@ class AddressSynchronizer(Logger, EventListener):
             confirmed_funding_only: bool = False,
             confirmed_spending_only: bool = False,
             nonlocal_only: bool = False,
-            block_height: int = None,
+            block_height: int | None = None,
     ) -> Sequence[PartialTxInput]:
         if block_height is not None:
             # caller wants the UTXOs we had at a given height; check other parameters

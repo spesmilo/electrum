@@ -118,7 +118,7 @@ def tagged8(char: str, data8: Sequence[int]) -> Sequence[int]:
     return tagged5(char, convertbits(data8, 8, 5))
 
 
-def int_to_data5(val: int, *, bit_len: int = None) -> Sequence[int]:
+def int_to_data5(val: int, *, bit_len: int | None = None) -> Sequence[int]:
     """Represent big-endian number with as many 0-31 values as it takes.
     If `bit_len` is set, use exactly bit_len//5 values (left-padded with zeroes).
     """

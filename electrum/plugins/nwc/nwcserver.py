@@ -380,7 +380,7 @@ class NWCServer(Logger, EventListener):
         if task:
             await self.taskgroup.spawn(self.run_request_task(task, request_event=event, request_method=method))
 
-    async def run_request_task(self, task: Awaitable, *, request_event: nEvent, request_method: str = None) -> None:
+    async def run_request_task(self, task: Awaitable, *, request_event: nEvent, request_method: str | None = None) -> None:
         """Catches request handling exceptions and send an error response"""
         try:
             await task
@@ -397,7 +397,7 @@ class NWCServer(Logger, EventListener):
         error_type: str,
         error_msg: str = "",
         *,
-        error_restype: str = None,
+        error_restype: str | None = None,
     ) -> None:
         """Sends an error as response to the passed nEvent, containing the error type and message"""
         to_pubkey_hex = causing_event.pubkey

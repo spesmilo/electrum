@@ -120,7 +120,7 @@ class QEAmount(QObject):
 
 
 class QEBytes(QObject):
-    def __init__(self, data: bytes = None, *, parent=None):
+    def __init__(self, data: bytes | None = None, *, parent=None):
         super().__init__(parent)
         self.data = data
 

@@ -1706,7 +1706,7 @@ class LNWallet(Logger):
         channel_type: ChannelType,
         multisig_funding_keypair: Optional[Keypair],  # if None, will get derived from channel_seed
         peer_features: LnFeatures,
-        channel_seed: bytes = None,
+        channel_seed: bytes | None = None,
     ) -> LocalConfig:
         if channel_seed is None:
             channel_seed = os.urandom(32)
@@ -1840,7 +1840,7 @@ class LNWallet(Logger):
             funding_sat: int,
             push_amt_sat: int,
             public: bool = False,
-            password: str = None,
+            password: str | None = None,
     ) -> Tuple[Channel, PartialTransaction]:
 
         fut = asyncio.run_coroutine_threadsafe(self.lnpeermgr.add_peer(connect_str), get_asyncio_loop())
@@ -1887,8 +1887,8 @@ class LNWallet(Logger):
     @log_exceptions
     async def pay_invoice(
             self, invoice: Invoice, *,
-            amount_msat: int = None,  # to overwrite amt in invoice
-            attempts: int = None,  # used only in unit tests
+            amount_msat: int | None = None,  # to overwrite amt in invoice
+            attempts: int | None = None,  # used only in unit tests
             full_path: LNPaymentPath = None,
             channels: Optional[Sequence[Channel]] = None,  # my own direct channels
             budget: Optional[PaymentFeeBudget] = None,  # to limit max fee
@@ -1974,12 +1974,12 @@ class LNWallet(Logger):
             min_final_cltv_delta: int,
             r_tags,
             invoice_features: int,
-            attempts: int = None,
+            attempts: int | None = None,
             full_path: LNPaymentPath = None,
             fwd_trampoline_onion: OnionPacket = None,
             budget: PaymentFeeBudget,
             channels: Optional[Sequence[Channel]] = None,
-            fw_payment_key: str = None,  # for forwarding
+            fw_payment_key: str | None = None,  # for forwarding
     ) -> None:
         """
         Can raise PaymentFailure, ChannelDBNotLoaded,
@@ -2132,7 +2132,7 @@ class LNWallet(Logger):
             sent_htlc_info: SentHtlcInfo,
             min_final_cltv_delta: int,
             trampoline_onion: Optional[OnionPacket] = None,
-            fw_payment_key: str = None,
+            fw_payment_key: str | None = None,
     ) -> None:
         """Sends a single HTLC."""
         shi = sent_htlc_info
@@ -2300,7 +2300,7 @@ class LNWallet(Logger):
             except Exception:
                 return None
 
-    def _check_bolt11_invoice(self, bolt11_invoice: str, *, amount_msat: int = None, max_min_final_cltv_delta=NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE) -> BOLT11Addr:
+    def _check_bolt11_invoice(self, bolt11_invoice: str, *, amount_msat: int | None = None, max_min_final_cltv_delta=NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE) -> BOLT11Addr:
         """Parses and validates a bolt11 invoice str into a BOLT11Addr.
         Includes pre-payment checks external to the parser.
         """

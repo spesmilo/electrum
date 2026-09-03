@@ -146,7 +146,7 @@ class Spinner(QLabel):
 
 
 class HelpMixin:
-    def __init__(self, help_text: str, *, help_title: str = None):
+    def __init__(self, help_text: str, *, help_title: str | None = None):
         assert isinstance(self, QWidget), "HelpMixin must be a QWidget instance!"
         self.help_text = help_text
         self._help_title = help_title or _('Help')
@@ -641,7 +641,7 @@ class VLine(QFrame):
         self.setLineWidth(1)
 
 
-def address_field(addresses, *, btn_text: str = None):
+def address_field(addresses, *, btn_text: str | None = None):
     if btn_text is None:
         btn_text = _('Get wallet address')
     hbox = QHBoxLayout()
@@ -1253,8 +1253,8 @@ def getSaveFileName(
         title,
         filename,
         filter="",
-        default_extension: str = None,
-        default_filter: str = None,
+        default_extension: str | None = None,
+        default_filter: str | None = None,
         config: 'SimpleConfig',
 ) -> Optional[str]:
     """Custom wrapper for getSaveFileName that remembers the path selected by the user."""

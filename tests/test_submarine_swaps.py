@@ -57,7 +57,7 @@ class TestSwapClaim(ToyServerTestCase):
     test, and build its claim tx with the same code the server would use.
     """
 
-    def create_config(self, name: str = None) -> SimpleConfig:
+    def create_config(self, name: str | None = None) -> SimpleConfig:
         config = super().create_config(name)
         config.FEE_POLICY_SWAPS = 'feerate:5000'
         return config

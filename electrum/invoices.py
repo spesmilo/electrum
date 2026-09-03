@@ -257,7 +257,7 @@ class BaseInvoice(StoredObject):
 @attr.s
 class Invoice(BaseInvoice):
     lightning_invoice = attr.ib(type=str, kw_only=True)  # type: Optional[str]
-    __lnaddr = None
+    __lnaddr = None  # type: BOLT11Addr | None
     _broadcasting_status = None # can be None or PR_BROADCASTING or PR_BROADCAST
 
     def is_lightning(self):

@@ -330,7 +330,7 @@ class Peer(Logger, EventListener):
             return
         raise GracefulDisconnect
 
-    def send_warning(self, channel_id: bytes, message: str = None, *, close_connection=False):
+    def send_warning(self, channel_id: bytes, message: str | None = None, *, close_connection=False):
         """Sends a warning and disconnects if close_connection.
 
         Note:
@@ -349,7 +349,7 @@ class Peer(Logger, EventListener):
         if close_connection:
             raise GracefulDisconnect
 
-    def send_error(self, channel_id: bytes, message: str = None, *, force_close_channel=False):
+    def send_error(self, channel_id: bytes, message: str | None = None, *, force_close_channel=False):
         """Sends an error message and force closes the channel.
 
         Note:
@@ -993,7 +993,7 @@ class Peer(Logger, EventListener):
             public: bool,
             zeroconf: bool = False,
             temp_channel_id: bytes,
-            opening_fee: int = None,
+            opening_fee: int | None = None,
     ) -> Tuple[Channel, 'PartialTransaction']:
         """Implements the channel opening flow.
 
@@ -2200,7 +2200,7 @@ class Peer(Logger, EventListener):
         chan: Channel,
         htlc: UpdateAddHtlc,
         processed_onion: ProcessedOnionPacket,
-        outer_onion_payment_secret: bytes = None,  # used to group trampoline htlcs for forwarding
+        outer_onion_payment_secret: bytes | None = None,  # used to group trampoline htlcs for forwarding
     ) -> str:
         """
         Does additional checks on the incoming htlc and return the payment key if the tests pass,

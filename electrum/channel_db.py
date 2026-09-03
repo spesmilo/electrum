@@ -495,7 +495,7 @@ class ChannelDB(SqlDB):
 
         self.update_counts()
 
-    def add_verified_channel_info(self, msg: dict, *, capacity_sat: int = None) -> None:
+    def add_verified_channel_info(self, msg: dict, *, capacity_sat: int | None = None) -> None:
         try:
             channel_info = ChannelInfo.from_msg(msg)
         except IncompatibleOrInsaneFeatures:
@@ -664,7 +664,7 @@ class ChannelDB(SqlDB):
                 c.execute("INSERT INTO address (node_id, host, port, timestamp) VALUES (?,?,?,?)", (addr.pubkey, addr.host, addr.port, 0))
 
     @classmethod
-    def verify_channel_update(cls, payload, *, start_node: bytes = None) -> None:
+    def verify_channel_update(cls, payload, *, start_node: bytes | None = None) -> None:
         short_channel_id = payload['short_channel_id']
         short_channel_id = ShortChannelID(short_channel_id)
         if constants.net.rev_genesis_bytes() != payload['chain_hash']:
@@ -760,7 +760,7 @@ class ChannelDB(SqlDB):
         start_node_id: bytes,
         short_channel_id: ShortChannelID,
         *,
-        now: int = None,  # unix ts
+        now: int | None = None,  # unix ts
     ) -> Optional[dict]:
         if now is None:
             now = int(time.time())
@@ -776,7 +776,7 @@ class ChannelDB(SqlDB):
         msg_payload: dict,
         start_node_id: bytes,
         *,
-        cache_ttl: int = None,  # seconds
+        cache_ttl: int | None = None,  # seconds
     ) -> bool:
         """Returns True iff the channel update was successfully added and it was different than
         what we had before (if any).
@@ -931,7 +931,7 @@ class ChannelDB(SqlDB):
             *,
             my_channels: Dict[ShortChannelID, 'Channel'] = None,
             private_route_edges: Dict[ShortChannelID, 'RouteEdge'] = None,
-            now: int = None,  # unix ts
+            now: int | None = None,  # unix ts
     ) -> Optional['Policy']:
         channel_info = self.get_channel_info(short_channel_id)
         if channel_info is not None:  # publicly announced channel

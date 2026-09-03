@@ -748,7 +748,7 @@ class TestCommandsTestnet(ElectrumTestCase):
         mock_peer = mock.Mock()
         mock_peer.initialized = asyncio.Future()
         connection_string = "test_node_id@127.0.0.1:9735"
-        called = False
+        called = 0
         async def lnpeermgr_add_peer(*args, **kwargs):
             assert args[0] == connection_string
             nonlocal called

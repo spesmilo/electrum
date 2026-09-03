@@ -522,7 +522,7 @@ class MasterPublicKeyMixin(ABC):
 
 class Xpub(MasterPublicKeyMixin):
 
-    def __init__(self, *, derivation_prefix: str = None, root_fingerprint: str = None):
+    def __init__(self, *, derivation_prefix: str | None = None, root_fingerprint: str | None = None):
         MasterPublicKeyMixin.__init__(self)
         self.xpub = None
         self.xpub_receive = None
@@ -616,7 +616,7 @@ class Xpub(MasterPublicKeyMixin):
         self.add_key_origin(derivation_prefix=derivation_prefix,
                             root_fingerprint=root_node.calc_fingerprint_of_this_node().hex().lower())
 
-    def add_key_origin(self, *, derivation_prefix: str = None, root_fingerprint: str = None) -> None:
+    def add_key_origin(self, *, derivation_prefix: str | None = None, root_fingerprint: str | None = None) -> None:
         assert self.xpub
         if not (root_fingerprint is None or (is_hex_str(root_fingerprint) and len(root_fingerprint) == 8)):
             raise Exception("root fp must be 8 hex characters")
@@ -851,7 +851,7 @@ class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
         pk = self._get_private_key_from_stretched_exponent(for_change, n, secexp)
         return pk, False
 
-    def _check_seed(self, hex_seed: str, *, secexp: int = None) -> None:
+    def _check_seed(self, hex_seed: str, *, secexp: int | None = None) -> None:
         if secexp is None:
             secexp = self.stretch_key(hex_seed)
         master_private_key = ecc.ECPrivkey.from_secret_scalar(secexp)

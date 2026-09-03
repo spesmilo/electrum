@@ -389,7 +389,7 @@ class ProcessedOnionPacket(NamedTuple):
     are_we_final: bool
     hop_data: OnionHopsDataSingle
     next_packet: OnionPacket
-    trampoline_onion_packet: OnionPacket
+    trampoline_onion_packet: OnionPacket | None
 
     @property
     def amt_to_forward(self) -> Optional[int]:

@@ -350,7 +350,7 @@ class AddressList(MyTreeView):
         run_hook('receive_menu', menu, addrs, self.wallet)
         self.open_menu(menu, position)
 
-    def place_text_on_clipboard(self, text: str, *, title: str = None) -> None:
+    def place_text_on_clipboard(self, text: str, *, title: str | None = None) -> None:
         if is_address(text):
             try:
                 self.wallet.check_address_for_corruption(text)

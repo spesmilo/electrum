@@ -500,7 +500,7 @@ class AbstractChannel(Logger, ABC):
         pass
 
     @abstractmethod
-    def included_htlcs(self, subject: HTLCOwner, direction: Direction, ctn: int = None) -> Sequence[UpdateAddHtlc]:
+    def included_htlcs(self, subject: HTLCOwner, direction: Direction, ctn: int | None = None) -> Sequence[UpdateAddHtlc]:
         pass
 
     @abstractmethod
@@ -508,7 +508,7 @@ class AbstractChannel(Logger, ABC):
         pass
 
     @abstractmethod
-    def balance(self, whose: HTLCOwner, *, ctx_owner=HTLCOwner.LOCAL, ctn: int = None) -> int:
+    def balance(self, whose: HTLCOwner, *, ctx_owner=HTLCOwner.LOCAL, ctn: int | None = None) -> int:
         """This balance (in msat) only considers HTLCs that have been settled by ctn.
         It disregards reserve, fees, and pending HTLCs (in both directions).
         """
@@ -517,7 +517,7 @@ class AbstractChannel(Logger, ABC):
     @abstractmethod
     def balance_minus_outgoing_htlcs(self, whose: HTLCOwner, *,
                                      ctx_owner: HTLCOwner = HTLCOwner.LOCAL,
-                                     ctn: int = None) -> int:
+                                     ctn: int | None = None) -> int:
         """This balance (in msat), which includes the value of
         pending outgoing HTLCs, is used in the UI.
         """
@@ -710,10 +710,10 @@ class ChannelBackup(AbstractChannel):
     def is_funding_tx_mined(self, funding_height):
         return funding_height.conf > 1
 
-    def balance_minus_outgoing_htlcs(self, whose: HTLCOwner, *, ctx_owner: HTLCOwner = HTLCOwner.LOCAL, ctn: int = None):
+    def balance_minus_outgoing_htlcs(self, whose: HTLCOwner, *, ctx_owner: HTLCOwner = HTLCOwner.LOCAL, ctn: int | None = None):
         return 0
 
-    def balance(self, whose: HTLCOwner, *, ctx_owner=HTLCOwner.LOCAL, ctn: int = None) -> int:
+    def balance(self, whose: HTLCOwner, *, ctx_owner=HTLCOwner.LOCAL, ctn: int | None = None) -> int:
         return 0
 
     def is_frozen_for_sending(self) -> bool:
@@ -1240,7 +1240,7 @@ class Channel(AbstractChannel):
         self.logger.info("add_htlc")
         return htlc
 
-    def receive_htlc(self, htlc: UpdateAddHtlc, onion_packet:bytes = None) -> UpdateAddHtlc:
+    def receive_htlc(self, htlc: UpdateAddHtlc, onion_packet: bytes | None = None) -> UpdateAddHtlc:
         """Adds a new REMOTE HTLC to the channel.
         Action must be initiated by REMOTE.
         """
@@ -1528,7 +1528,7 @@ class Channel(AbstractChannel):
                         error_bytes=None,
                         failure_message=failure)
 
-    def balance(self, whose: HTLCOwner, *, ctx_owner=HTLCOwner.LOCAL, ctn: int = None) -> int:
+    def balance(self, whose: HTLCOwner, *, ctx_owner=HTLCOwner.LOCAL, ctn: int | None = None) -> int:
         assert type(whose) is HTLCOwner
         initial = self.config[whose].initial_msat
         return self.hm.get_balance_msat(whose=whose,
@@ -1537,7 +1537,7 @@ class Channel(AbstractChannel):
                                         initial_balance_msat=initial)
 
     def balance_minus_outgoing_htlcs(self, whose: HTLCOwner, *, ctx_owner: HTLCOwner = HTLCOwner.LOCAL,
-                                     ctn: int = None) -> int:
+                                     ctn: int | None = None) -> int:
         assert type(whose) is HTLCOwner
         if ctn is None:
             ctn = self.get_next_ctn(ctx_owner)
@@ -1546,7 +1546,7 @@ class Channel(AbstractChannel):
         balance_in_htlcs = self.balance_tied_up_in_htlcs_by_direction(ctx_owner, ctn=ctn, direction=direction)
         return committed_balance - balance_in_htlcs
 
-    def balance_tied_up_in_htlcs_by_direction(self, ctx_owner: HTLCOwner = LOCAL, *, ctn: int = None,
+    def balance_tied_up_in_htlcs_by_direction(self, ctx_owner: HTLCOwner = LOCAL, *, ctn: int | None = None,
                                               direction: Direction):
         # in msat
         if ctn is None:
@@ -1641,8 +1641,8 @@ class Channel(AbstractChannel):
         return max_send_msat
 
 
-    def included_htlcs(self, subject: HTLCOwner, direction: Direction, ctn: int = None, *,
-                       feerate: int = None) -> List[UpdateAddHtlc]:
+    def included_htlcs(self, subject: HTLCOwner, direction: Direction, ctn: int | None = None, *,
+                       feerate: int | None = None) -> List[UpdateAddHtlc]:
         """Returns list of non-dust HTLCs for subject's commitment tx at ctn,
         filtered by direction (of HTLCs).
         """

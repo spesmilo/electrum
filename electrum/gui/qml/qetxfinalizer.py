@@ -585,7 +585,7 @@ class QETxFinalizer(TxFeeSlider):
                 self._logger.error('Could not save tx')
         self.finished.emit(True, saved, tx.is_complete())
 
-    def on_sign_failed(self, msg: str = None):
+    def on_sign_failed(self, msg: str | None = None):
         self._logger.debug('on_sign_failed')
         self.signError.emit(msg)
 
@@ -941,7 +941,7 @@ class QETxCpfpFeeBumper(TxFeeSlider, TxMonMixin):
         self._parent_tx = None
         self._new_tx = None
         self._parent_tx_size = 0
-        self._parent_fee = 0
+        self._parent_fee = 0  # type: int | None
         self._max_fee = 0
         self._txid = ''
         self._rbf = True

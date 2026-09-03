@@ -846,7 +846,7 @@ def tx_our_ctx_htlctx(
         commit=ctx,
         htlc=htlc,
         ctx_output_idx=ctx_output_idx,
-        name=f'our_ctx_{ctx_output_idx}_htlc_tx_{htlc.payment_hash.hex()}')
+    )
 
     # sign HTLC output
     remote_htlc_sig = chan.get_remote_htlc_sig_for_htlc(htlc_relative_idx=htlc_relative_idx)
@@ -934,7 +934,7 @@ def sweep_ctx_anchor(*, ctx: Transaction, multisig_key: Keypair) -> Optional[Par
 def sweep_ctx_to_local(
         *, ctx: Transaction, output_idx: int, witness_script: bytes,
         privkey: bytes, is_revocation: bool,
-        to_self_delay: int = None) -> Optional[PartialTxInput]:
+        to_self_delay: int | None = None) -> Optional[PartialTxInput]:
     """Create a txin that sweeps the 'to_local' output of a commitment
     transaction into our wallet.
 
@@ -963,7 +963,7 @@ def sweep_htlctx_output(
         htlctx_witness_script: bytes,
         privkey: bytes,
         is_revocation: bool,
-        to_self_delay: int = None,
+        to_self_delay: int | None = None,
 ) -> Optional[PartialTxInput]:
     """Create a txn that sweeps the output of a first stage htlc tx
     (i.e. sweeps from an HTLC-Timeout or an HTLC-Success tx).

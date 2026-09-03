@@ -370,7 +370,7 @@ class PaymentIdentifier(Logger):
         self,
         *,
         amount_sat: int = 0,
-        comment: str = None,
+        comment: str | None = None,
         on_finished: Callable[['PaymentIdentifier'], None] = None,
     ):
         assert self._state == PaymentIdentifierState.LNURLP_FINALIZE
@@ -381,9 +381,9 @@ class PaymentIdentifier(Logger):
     async def _do_finalize(
         self,
         *,
-        amount_sat: int = None,
-        comment: str = None,
-        on_finished: Callable[['PaymentIdentifier'], None] = None,
+        amount_sat: int | None = None,
+        comment: str | None = None,
+        on_finished: Callable[['PaymentIdentifier'], None] | None = None,
     ):
         from .invoices import Invoice
         try:
@@ -617,7 +617,7 @@ def invoice_from_payment_identifier(
     pi: 'PaymentIdentifier',
     wallet: 'Abstract_Wallet',
     amount_sat: Union[int, str],
-    message: str = None
+    message: str | None = None
 ) -> Optional[Invoice]:
     assert pi.state in [PaymentIdentifierState.AVAILABLE,]
     assert pi.is_onchain() if amount_sat == '!' else True  # MAX should only be allowed if pi has onchain destination

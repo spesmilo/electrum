@@ -273,8 +273,8 @@ class TxSighashDanger:
         self,
         *,
         risk_level: TxSighashRiskLevel = TxSighashRiskLevel.SAFE,
-        short_message: str = None,
-        messages: List[str] = None,
+        short_message: str | None = None,
+        messages: List[str] | None = None,
     ):
         self.risk_level = risk_level
         self.short_message = short_message
@@ -748,7 +748,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             else:
                 self._labels[key] = value
 
-    def set_label(self, name: str, text: str = None) -> bool:
+    def set_label(self, name: str, text: str | None = None) -> bool:
         if not name:
             return False
         changed = False
@@ -1984,7 +1984,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             outputs: List[PartialTxOutput],
             inputs: Optional[List[PartialTxInput]] = None,
             fee_policy: FeePolicy,
-            change_addr: str = None,
+            change_addr: str | None = None,
             is_sweep: bool = False,  # used by Wallet_2fa subclass
             rbf: bool = True,
             BIP69_sort: Optional[bool] = True,
@@ -2654,7 +2654,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             self,
             txin: PartialTxInput,
             *,
-            address: str = None,
+            address: str | None = None,
     ) -> None:
         # - We prefer to include UTXO (full tx), even for segwit inputs (see #6198).
         # - For witness v0 inputs, we include *both* UTXO and WITNESS_UTXO. UTXO is a strict superset,

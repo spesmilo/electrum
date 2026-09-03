@@ -78,7 +78,7 @@ class Plugins(DaemonThread):
     keyfile_windows = r'HKEY_LOCAL_MACHINE\SOFTWARE\Electrum\PluginsKey'
 
     @profiler
-    def __init__(self, config: SimpleConfig, gui_name: str = None, cmd_only: bool = False):
+    def __init__(self, config: SimpleConfig, gui_name: str | None = None, cmd_only: bool = False):
         self.config = config
         self.cmd_only = cmd_only  # type: bool
         self.internal_plugin_metadata = {}

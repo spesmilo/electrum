@@ -254,7 +254,7 @@ class CosignerWallet(Logger):  # children have to inherit EventListener and regi
         self.known_events[event_id] = now()
         run_sync_function_on_asyncio_thread(self.pending.set, block=False)
 
-    def prepare_messages(self, tx: Union[Transaction, PartialTransaction], label: str = None) -> List[Tuple[str, dict]]:
+    def prepare_messages(self, tx: Union[Transaction, PartialTransaction], label: str | None = None) -> List[Tuple[str, dict]]:
         messages = []
         for xpub, pubkey in self.cosigner_list:
             if not self.cosigner_can_sign(tx, xpub):
@@ -265,7 +265,7 @@ class CosignerWallet(Logger):  # children have to inherit EventListener and regi
             messages.append((pubkey, payload))
         return messages
 
-    def send_psbt(self, tx: Union[Transaction, PartialTransaction], label: str):
+    def send_psbt(self, tx: Union[Transaction, PartialTransaction], label: str | None):
         self.do_send(self.prepare_messages(tx, label), tx.txid())
 
     def do_send(self, messages: List[Tuple[str, dict]], txid: Optional[str] = None):
@@ -278,9 +278,9 @@ class CosignerWallet(Logger):  # children have to inherit EventListener and regi
         self,
         tx: Union['Transaction', 'PartialTransaction'],
         *,
-        label: str = None,
-        on_failure: Callable[[str], None] = None,
-        on_success: Callable[[], None] = None
+        label: str | None = None,
+        on_failure: Callable[[str], None] | None = None,
+        on_success: Callable[[], None] | None = None
     ) -> None:
         assert tx.txid(), "Shouldn't allow to save tx without txid"
         try:

@@ -261,7 +261,7 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
 class WizardComponent(AbstractQWidget):
     updated = pyqtSignal(object)
 
-    def __init__(self, parent: QWidget, wizard: QEAbstractWizard, *, title: str = None, layout: QLayout = None):
+    def __init__(self, parent: QWidget, wizard: QEAbstractWizard, *, title: str | None = None, layout: QLayout | None = None):
         super().__init__(parent)
         self.setLayout(layout if layout else QVBoxLayout(self))
         self.wizard_data = {}

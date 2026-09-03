@@ -152,7 +152,7 @@ class WatchTower(Logger, EventListener):
         if not keep_watching:
             await self.unwatch_channel(address, funding_outpoint)
 
-    def inspect_tx_candidate(self, outpoint, n: int) -> Dict[str, str]:
+    def inspect_tx_candidate(self, outpoint: str, n: int) -> Dict[str, str | None]:
         """
         returns a dict of spenders for a transaction of interest.
         subscribes to addresses as a side effect.
