@@ -571,6 +571,26 @@ class AbstractChannel(Logger, ABC):
 
 class ChannelBackup(AbstractChannel):
     """
+    * v0: added in first LN release, 4.0
+      - can be either for a pre-SRK (legacy) channel or an SRK channel
+    * v1: added in 4.4.6 (#8536), to fix sweeping local fclose
+      - implies SRK channel
+    * v2: added together with anchor chans, in 4.6
+      - can be either for an SRK or an anchors chan
+    * v3: added in 4.8.2 (#10852), to fix anchor chan to_remote sweep
+      - can be either for an SRK or an anchor chan
+
+    Channel types:
+    * legacy (pre-SRK):
+      - pre-SRK channels could only be opened strictly before first LN release
+      - pre-SRK support was removed in 4.3.1
+      - payment_basepoint was derived from backup (removed in #10852)
+    * static_remotekey:
+      - to_remote sweep not necessary due to wallet address
+    * anchors:
+      - sweep to_remote with local_payment_basepoint if it is a private key,
+        otherwise by deriving the key from the funding pubkeys (requires deterministic lightning)
+
     current capabilities:
       - detect force close
       - request force close
@@ -612,11 +632,6 @@ class ChannelBackup(AbstractChannel):
             channel_seed=cb.channel_seed,
             to_self_delay=cb.local_delay,
             channel_type=cb.channel_type,
-            # there are three cases of backups:
-            # 1. legacy: deprecated, it cannot be recovered
-            # 2. static_remotekey: to_remote sweep not necessary due to wallet address
-            # 3. anchor outputs: sweep to_remote with local_payment_basepoint if it is a private key, otherwise
-            #           by deriving the key from the funding pubkeys
             payment_basepoint=local_payment_basepoint,
             multisig_key=multisig_funding_keypair,
             # dummy values
