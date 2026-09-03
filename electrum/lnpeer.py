@@ -3077,32 +3077,37 @@ class Peer(Logger, EventListener):
 
         amount_msat: int = 0  # sum(amount_msat of each htlc)
         total_msat = None  # type: Optional[int]
+        total_msat_inner_onion = None  # type: Optional[int]
+        total_msat_outer_onion = None  # type: Optional[int]
+        payment_secrets = set()
         payment_hash = mpp_set.get_payment_hash()
         closest_cltv_abs = mpp_set.get_closest_cltv_abs()
         first_htlc_timestamp = mpp_set.get_first_htlc_timestamp()
         processed_onions = {}  # type: dict[ReceivedMPPHtlc, Tuple[ProcessedOnionPacket, Optional[ProcessedOnionPacket]]]
         for mpp_htlc in mpp_set.htlcs:
-            processed_onion = self._process_incoming_onion_packet(
+            outer_onion = self._process_incoming_onion_packet(
                 onion_packet=self._parse_onion_packet(mpp_htlc.unprocessed_onion),
                 payment_hash=payment_hash,
                 is_trampoline=False,  # this is always the outer onion
             )
             inner_onion = self._process_incoming_onion_packet(
-                onion_packet=processed_onion.trampoline_onion_packet,
+                onion_packet=outer_onion.trampoline_onion_packet,
                 payment_hash=payment_hash,
                 is_trampoline=True,
-            ) if processed_onion.trampoline_onion_packet else None
-            processed_onions[mpp_htlc] = (processed_onion, inner_onion)
-
-            total_msat_outer_onion = processed_onion.total_msat
+            ) if outer_onion.trampoline_onion_packet else None
+            processed_onions[mpp_htlc] = (outer_onion, inner_onion)
+            payment_secrets.add(outer_onion.payment_secret)
+            # check total_msat is equal for all htlcs of the set
+            if total_msat_outer_onion is None:
+                total_msat_outer_onion = outer_onion.total_msat
+            elif total_msat_outer_onion != outer_onion.total_msat:
+                if len(payment_secrets) == 1:
+                    _log_fail_reason(f"total_msat is inconsistent across outer_onions: {total_msat_outer_onion=} {outer_onion.total_msat=}")
+                    return OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, None, None
+            # total_msat of inner onions will be compared below (compare_trampoline_onions)
             total_msat_inner_onion = inner_onion.total_msat if inner_onion else None
             if total_msat is None:
                 total_msat = total_msat_inner_onion or total_msat_outer_onion
-
-            # check total_msat is equal for all htlcs of the set
-            if total_msat != (total_msat_inner_onion or total_msat_outer_onion):
-                _log_fail_reason(f"total_msat is not uniform: {total_msat=} != {processed_onion.total_msat=}")
-                return OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, None, None
 
             amount_msat += mpp_htlc.htlc.amount_msat
 
@@ -3112,8 +3117,7 @@ class Peer(Logger, EventListener):
         # In this case the amt_to_forward cannot be compared as it may differ between the trampoline parts.
         # However, amt_to_forward should be similar for all onions of a single trampoline part and gets
         # compared in the first stage where the htlc set represents a single trampoline part.
-        outer_onions = [onions[0] for onions in processed_onions.values()]
-        can_have_different_amt_to_fwd = not all(o.payment_secret == outer_onions[0].payment_secret for o in outer_onions)
+        can_have_different_amt_to_fwd = len(payment_secrets) > 1
         trampoline_onions = iter(onions[1] for onions in processed_onions.values())
         if not lnonion.compare_trampoline_onions(trampoline_onions, exclude_amt_to_fwd=can_have_different_amt_to_fwd):
             _log_fail_reason(f"got inconsistent {trampoline_onions=}")
