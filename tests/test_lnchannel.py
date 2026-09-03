@@ -614,16 +614,17 @@ class TestChannel(ElectrumTestCase):
 
         # the funding tx gets mined deep enough
         funding_txid = chan.funding_outpoint.txid
+        funding_timestamp = chan.storage['init_timestamp']
         chan.update_onchain_state(
             funding_txid=funding_txid,
-            funding_height=TxMinedInfo(_height=self.current_height, conf=chan.funding_txn_minimum_depth(), timestamp=1600000000, txpos=1),
+            funding_height=TxMinedInfo(_height=self.current_height, conf=chan.funding_txn_minimum_depth(), timestamp=funding_timestamp, txpos=1),
             closing_txid=None,
             closing_height=TxMinedInfo(_height=TX_HEIGHT_LOCAL, conf=0),
             keep_watching=True,
         )
         self.assertTrue(chan.is_funded())
         self.assertFalse(chan.can_be_deleted())
-        self.assertEqual((funding_txid, self.current_height, 1600000000), chan.get_funding_height())
+        self.assertEqual((funding_txid, self.current_height, funding_timestamp), chan.get_funding_height())
 
         # the channel is now older than the funding timeout
         funding_confirmed_height = self.current_height
@@ -640,13 +641,12 @@ class TestChannel(ElectrumTestCase):
         )
 
         # the saved funding height must not be overwritten, and the channel must not be removed
-        self.assertEqual((funding_txid, funding_confirmed_height, 1600000000), chan.get_funding_height())
+        self.assertEqual((funding_txid, funding_confirmed_height, funding_timestamp), chan.get_funding_height())
         self.assertFalse(chan.has_funding_timed_out())
         self.assertFalse(chan.can_be_deleted())
         mock_lnworker.remove_channel.assert_not_called()
 
-        # the server now omits the funding tx entirely, so that we forget the saved height,
-        # and then claims the funding tx is in the mempool again
+        # the server now omits the funding tx entirely, so that we forget the saved height
         chan.update_onchain_state(
             funding_txid=None,
             funding_height=TxMinedInfo(_height=TX_HEIGHT_LOCAL, conf=0),
@@ -656,7 +656,7 @@ class TestChannel(ElectrumTestCase):
         )
 
         # the saved height must have survived, and the channel must not be removed
-        self.assertEqual((funding_txid, funding_confirmed_height, 1600000000), chan.get_funding_height())
+        self.assertEqual((funding_txid, funding_confirmed_height, funding_timestamp), chan.get_funding_height())
         self.assertFalse(chan.has_funding_timed_out())
         self.assertFalse(chan.can_be_deleted())
         mock_lnworker.remove_channel.assert_not_called()
