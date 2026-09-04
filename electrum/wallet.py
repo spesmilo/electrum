@@ -361,6 +361,27 @@ class TxWalletDelta(NamedTuple):
     fee: Optional[int]
 
 
+class WatchedItemType(str, enum.Enum):
+    """What a WatchedItem is being watched for. str-mixed so members serialize
+    to their string value (e.g. in JSON) and compare equal to that string."""
+    REQUEST = 'request'      # a payment-request receive address
+    SWAP = 'swap'            # a submarine-swap funding/claim script
+    LIGHTNING = 'lightning'  # a lightning channel outpoint
+
+    def __str__(self):
+        return self.value
+
+
+class WatchedItem(NamedTuple):
+    # 'outpoint' and 'address' are an either/or: exactly one is set, the other is
+    # None. An item watches either a specific outpoint (for a spend) or an address
+    # (scripthash subscription), not both.
+    depth: int                              # min confirmations to trigger (0 = mempool/seen)
+    type: Optional[WatchedItemType] = None  # what kind of item this is
+    outpoint: Optional[str] = None          # "txid:idx"
+    address: Optional[str] = None           # scriptpubkey address
+
+
 class TxWalletDetails(NamedTuple):
     txid: Optional[str]
     status: str
@@ -1130,6 +1151,144 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if domain is None:
             domain = self.get_addresses()
         return self.adb.get_utxos(domain=domain, **kwargs)
+
+    def get_watched_addresses_and_outpoints(self) -> List['WatchedItem']:
+        """Enumerate the outpoints/addresses this wallet is interested in watching on-chain.
+
+        Only used on android, this feeds the background chain-watch service.
+
+        Returns a list of WatchedItem, one per watched item. 'outpoint' and
+        'address' are an either/or: exactly one of them is set per item (the other
+        is None). An item watches either a specific outpoint (for a spend) or an
+        address (scripthash subscription), not both.
+        """
+        result = []  # type: List[WatchedItem]
+
+        for req in self.get_unpaid_requests():
+            if self.get_invoice_status(req) == PR_EXPIRED:
+                continue
+            address = req.get_address()
+            if not address:
+                continue
+            result.append(WatchedItem(
+                depth=0,  # notify as soon as a payment is seen (even in mempool)
+                type=WatchedItemType.REQUEST,
+                address=address,
+            ))
+
+        if self.has_lightning():
+            result.extend(self._get_lightning_forceclose_watched_items())
+            result.extend(self._get_lightning_breach_watched_items())
+            result.extend(self._get_reverse_swap_watched_items())
+            result.extend(self._get_forward_swap_watched_items())
+
+        return result
+
+    def _get_forward_swap_watched_items(self) -> List['WatchedItem']:
+        """WatchedItems that alert when a forward swap's funding is claimed.
+        """
+        sm = self.lnworker.swap_manager
+        with sm.swaps_lock:
+            swaps = list(sm._swaps.values())
+        result = []  # type: List[WatchedItem]
+        for swap in swaps:
+            # forward swaps we have funded but not yet resolved (claimed/refunded)
+            if swap.is_reverse or swap.is_redeemed or swap.preimage or swap.spending_txid:
+                continue
+            if not swap.funding_txid:
+                continue
+            funding_tx = self.adb.get_transaction(swap.funding_txid)
+            if not funding_tx:
+                continue
+            idxs = funding_tx.get_output_idxs_from_address(swap.lockup_address)
+            if not idxs:
+                continue
+            outpoint = f"{swap.funding_txid}:{min(idxs)}"
+            result.append(WatchedItem(
+                depth=0,  # react the instant the server's claim (preimage reveal) is seen
+                type=WatchedItemType.SWAP,
+                outpoint=outpoint,
+            ))
+        return result
+
+    def _get_reverse_swap_watched_items(self) -> List['WatchedItem']:
+        """WatchedItems for reverse swaps awaiting the confirmation we claim on.
+        """
+        sm = self.lnworker.swap_manager
+        with sm.swaps_lock:
+            swaps = list(sm._swaps.values())
+        result = []  # type: List[WatchedItem]
+        for swap in swaps:
+            # reverse swaps we have not yet claimed (spending_txid) or wound down
+            if not swap.is_reverse or swap.is_redeemed or swap.spending_txid:
+                continue
+            result.append(WatchedItem(
+                depth=1,  # claimable once the funding tx has 1 confirmation
+                type=WatchedItemType.SWAP,
+                address=swap.lockup_address,
+            ))
+        return result
+
+    def _get_lightning_breach_watched_items(self) -> List['WatchedItem']:
+        """WatchedItems that alert the instant a live channel is force-closed."""
+        result = []  # type: List[WatchedItem]
+        for chan in self.lnworker.channels.values():
+            try:
+                if not chan.is_funded() or chan.is_closed_or_closing():
+                    continue
+                funding_outpoint = chan.funding_outpoint.to_str()
+                if self.adb.get_spender(funding_outpoint):
+                    continue  # already spent on-chain; nothing left to race
+                result.append(WatchedItem(
+                    depth=0,  # alert the instant the force-close is seen (even in mempool)
+                    type=WatchedItemType.LIGHTNING,
+                    outpoint=funding_outpoint,
+                ))
+            except Exception:
+                self.logger.exception(f"failed to build breach watched item for {chan.get_id_for_log()}")
+        return result
+
+    def _get_lightning_forceclose_watched_items(self) -> List['WatchedItem']:
+        """WatchedItems for force-closed channels' time-locked outputs."""
+        from .lnsweep import SweepInfo
+        result = []  # type: List[WatchedItem]
+        for chan in self.lnworker.get_channel_objects().values():
+            try:
+                if chan.is_redeemed():
+                    continue  # fully swept long ago; nothing left to claim
+                funding_outpoint = chan.funding_outpoint.to_str()
+                closing_txid = self.adb.get_spender(funding_outpoint)
+                if not closing_txid:
+                    continue  # not closed (or closing tx still local/unconfirmed)
+                closing_tx = self.adb.get_transaction(closing_txid)
+                if not closing_tx:
+                    continue
+                _is_local_ctx, sweep_info_dict = chan.get_ctx_sweep_info(closing_tx)
+                for prevout, sweep_info in sweep_info_dict.items():
+                    # only CSV-delayed outputs we sweep ourselves (the to_local
+                    # output); skip anchors, and htlc/cltv outputs whose maturity
+                    # is an absolute height rather than a confirmation depth.
+                    if not isinstance(sweep_info, SweepInfo) or sweep_info.is_anchor():
+                        continue
+                    csv_delay = sweep_info.csv_delay
+                    if not csv_delay:
+                        continue
+                    if self.adb.get_spender(prevout):
+                        continue  # output already swept; no longer claimable
+                    prev_txid, prev_idx = prevout.split(':')
+                    if prev_txid != closing_txid:
+                        continue  # can only resolve an address for ctx outputs
+                    address = closing_tx.outputs()[int(prev_idx)].address
+                    if not address:
+                        continue
+                    result.append(WatchedItem(
+                        depth=csv_delay,  # claimable once the ctx is this deep
+                        type=WatchedItemType.LIGHTNING,
+                        address=address,
+                    ))
+            except Exception:
+                self.logger.exception(f"failed to build forceclose watched item for {chan.get_id_for_log()}")
+        return result
 
     def get_spendable_coins(
             self,
@@ -3099,6 +3258,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             self._requests_addr_to_key[addr].add(request_id)
         if write_to_disk:
             self.save_db()
+        util.trigger_callback('request_status', self, request_id, self.get_invoice_status(req))
         return request_id
 
     def delete_request(self, request_id, *, write_to_disk: bool = True):
