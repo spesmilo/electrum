@@ -24,9 +24,9 @@
 # SOFTWARE.
 
 import time
-from typing import List, Optional
+from typing import List, Optional, Sequence
 
-from PyQt6.QtMultimedia import QMediaDevices, QCamera, QMediaCaptureSession, QCameraDevice
+from PyQt6.QtMultimedia import QMediaDevices, QCamera, QMediaCaptureSession, QCameraDevice, QCameraFormat
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QCheckBox, QPushButton, QLabel, QWidget
 from PyQt6.QtGui import QImage, QPixmap
 from PyQt6.QtCore import QSize, QRect, Qt, pyqtSignal
@@ -159,6 +159,22 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
         scan_pos_y = (resolution.height() - scan_size) // 2
         return QRect(scan_pos_x, scan_pos_y, scan_size, scan_size)
 
+    @staticmethod
+    def _pick_camera_format(formats: Sequence[QCameraFormat], min_size: int) -> Optional[QCameraFormat]:
+        """
+        Picks the format with the lowest resolution that is at least min_size in both dimensions,
+        or the largest one if there is none.
+        Note: by default, Qt picks the largest resolution with ~30 fps, which is a bit overkill for QR scanning.
+        https://github.com/qt/qtmultimedia/blob/269bbd9904624b15f42efd5440374653abda065f/src/multimedia/platform/qplatformcamera.cpp#L22
+        """
+        def num_pixels(fmt: QCameraFormat) -> int:
+            return fmt.resolution().width() * fmt.resolution().height()
+        large_enough = [fmt for fmt in formats
+                        if fmt.resolution().width() >= min_size and fmt.resolution().height() >= min_size]
+        if large_enough:
+            return min(large_enough, key=num_pixels)
+        return max(formats, key=num_pixels) if formats else None
+
     def start_scan(self, device: str = ''):
         """
         Scans a QR code from the given camera device.
@@ -197,6 +213,12 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
         self.media_capture_session = QMediaCaptureSession()
         self.media_capture_session.setCamera(self.camera)
         self.media_capture_session.setVideoSink(self.video_surface)
+
+        camera_format = self._pick_camera_format(device_info.videoFormats(), self.SCAN_SIZE)
+        if camera_format is not None:
+            res = camera_format.resolution()
+            self.logger.info(f"chosen camera format: {res.width()}x{res.height()}")
+            self.camera.setCameraFormat(camera_format)
 
         self.camera.start()
 
