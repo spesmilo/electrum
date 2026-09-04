@@ -331,6 +331,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.build_tray_menu()
         w.warn_if_testnet()
         w.warn_if_watching_only()
+        w.show_startup_warnings()
         return w
 
     def count_wizards_in_progress(func):

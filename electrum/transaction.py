@@ -589,7 +589,7 @@ class BCDataStream(object):
 
         return self.read_bytes(length).decode(encoding)
 
-    def write_string(self, string, encoding='ascii'):
+    def write_string(self, string: str | bytes | bytearray, encoding='ascii'):
         string = to_bytes(string, encoding)
         # Length-encoded as with read-string
         self.write_compact_size(len(string))

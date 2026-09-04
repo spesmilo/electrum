@@ -189,7 +189,7 @@ class Peer(Logger, EventListener):
             await self.transport.handshake()
         self.logger.info(f"handshake done for {self.transport.peer_addr or self.pubkey.hex()}")
         features = self.features.for_init_message()
-        flen = features.min_len()
+        flen = lnutil.int_min_byte_len(features)
         self.send_message(
             "init", gflen=0, flen=flen,
             features=features,
@@ -1041,7 +1041,7 @@ class Peer(Logger, EventListener):
         # if option_channel_type is negotiated: MUST set channel_type
         # if it includes channel_type: MUST set it to a defined type representing the type it wants.
         open_channel_tlvs['channel_type'] = {
-            'type': our_channel_type.to_bytes_minimal()
+            'type': lnutil.int_to_bytes_minimal(our_channel_type)
         }
 
         if our_channel_type & ChannelType.OPTION_ANCHORS:
@@ -1398,7 +1398,7 @@ class Peer(Logger, EventListener):
                 'shutdown_scriptpubkey': local_config.upfront_shutdown_script
             },
             'channel_type': {
-                'type': channel_type.to_bytes_minimal(),
+                'type': lnutil.int_to_bytes_minimal(channel_type),
             },
         }
 
@@ -1851,7 +1851,7 @@ class Peer(Logger, EventListener):
         timestamp = int(time.time())
         node_id = privkey_to_pubkey(self.privkey)
         features = self.features.for_node_announcement()
-        flen = features.min_len()
+        flen = lnutil.int_min_byte_len(features)
         rgb_color = bytes.fromhex(color_hex)
         alias = bytes(alias, 'utf8')
         alias += bytes(32 - len(alias))

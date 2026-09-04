@@ -4,13 +4,19 @@ import asyncio
 import time
 from unittest import mock
 from decimal import Decimal
-from typing import Optional, Sequence
+from typing import Callable, Optional, Sequence
+
+import electrum_ecc as ecc
 
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
-from electrum import bitcoin
+from electrum import bitcoin, keystore
+from electrum.bitcoin import COIN
 import electrum.trampoline
 from electrum.channel_db import UpdateStatus
-from electrum.lnutil import RECEIVED, SENT, MIN_FINAL_CLTV_DELTA_ACCEPTED, serialize_htlc_key, LnFeatures, HTLCOwner, PaymentFailure
+from electrum.lnutil import (
+    RECEIVED, SENT, MIN_FINAL_CLTV_DELTA_ACCEPTED, serialize_htlc_key, LnFeatures, HTLCOwner, PaymentFailure,
+    LOCAL, REMOTE, ImportedChannelBackupStorage, make_commitment_output_to_anchor_address,
+)
 from electrum.logging import console_stderr_handler
 from electrum.lnmsg import decode_msg
 from electrum.lnrouter import RouteEdge
@@ -18,14 +24,20 @@ from electrum.bolt11 import encode_bolt11_invoice, BOLT11Addr
 from electrum.lntransport import LNPeerAddr
 from electrum.invoices import LN_EXPIRY_NEVER, PR_UNPAID, PR_INFLIGHT, Invoice
 from electrum.lnpeer import Peer
-from electrum.lnchannel import Channel, ChannelState
+from electrum.lnchannel import Channel, ChannelBackup, ChannelState
 from electrum.lnonion import OnionPacket, OnionRoutingFailure, OnionFailureCode
 from electrum.mpp_split import SplitConfig, SplitConfigRating
-from electrum.crypto import sha256
+from electrum.crypto import sha256, pw_encode_with_version_and_mac
 from electrum.simple_config import SimpleConfig
+from electrum.transaction import Transaction, TxOutpoint, BCDataStream
+from electrum.util import bfh, UserFacingException
+from electrum.storage import WalletStorage
+from electrum.wallet import Abstract_Wallet
+from electrum.wallet_db import WalletDB
 
 from . import ElectrumTestCase, lnhelpers
-from .lnhelpers import create_test_channels
+from .lnhelpers import create_test_channels, find_free_port
+from .toyserver.testcase import SEED, ToyInstance, ToyServerTestCase
 
 
 class TestLNWallet(ElectrumTestCase):
@@ -618,3 +630,343 @@ class TestLNWallet(ElectrumTestCase):
         pubkey_b = graph.workers['bob'].node_keypair.pubkey
         pubkey_d = graph.workers['dave'].node_keypair.pubkey
         self.assertEqual(amount_msat, hint_bd.cannot_send(pubkey_b < pubkey_d))
+
+
+class TestChannelBackup(ToyServerTestCase):
+    """Alice and Bob are two LNWallets sharing a ToyServer and talking to each other over a real BOLT-08 transport."""
+    FUNDING_SAT = 5_000_000
+
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        self.alice_instance = await self.create_instance("alice")
+        self.bob_instance = await self.create_instance("bob")
+        self.bob_instance.config.LIGHTNING_LISTEN = f"127.0.0.1:{find_free_port()}"
+        self.bob = self.create_wallet("bob", instance=self.bob_instance)
+        await self.wait_until(lambda: self.bob.lnworker.lnpeermgr.listen_server is not None)
+
+    def create_wallet(self, name: str, **kwargs) -> Abstract_Wallet:
+        # increase gap limit for lightning
+        return super().create_wallet(name, gap_limit=10, gap_limit_for_change=10, **kwargs)
+
+    def create_deterministic_wallet(self, instance: ToyInstance) -> Abstract_Wallet:
+        return self.create_wallet(instance.name, instance=instance)
+
+    def create_non_deterministic_xprv_wallet(self, instance: ToyInstance) -> Abstract_Wallet:
+        xprv = keystore.from_seed(SEED, passphrase=instance.name).get_master_private_key(None)
+        wallet = self.create_wallet(instance.name, text=xprv, instance=instance)
+        wallet.init_lightning(password=None)
+        self.assertFalse(wallet.lnworker.has_deterministic_node_id())
+        return wallet
+
+    def create_config(self, name: Optional[str] = None) -> SimpleConfig:
+        config = super().create_config(name)
+        config.LIGHTNING_USE_RECOVERABLE_CHANNELS = False  # onchain backup tests opt in explicitly
+        return config
+
+    async def open_channel(self, from_wallet: Abstract_Wallet, to_wallet: Abstract_Wallet) -> Channel:
+        to_nodeid = to_wallet.lnworker.node_keypair.pubkey
+        peer = await from_wallet.lnworker.lnpeermgr.add_peer(f"{to_nodeid.hex()}@{to_wallet.config.LIGHTNING_LISTEN}")
+        chan, funding_tx = await from_wallet.lnworker.open_channel_with_peer(peer, self.FUNDING_SAT, password=None)
+        await self.mine_blocks(chan.funding_txn_minimum_depth() + 1)
+        await self.wait_until(lambda: chan.is_open())
+        chan_bob = to_wallet.lnworker.get_channel_by_id(chan.channel_id)
+        await self.wait_until(lambda: chan_bob.is_open())
+        return chan
+
+    async def fund_and_open_channel(self, alice: Abstract_Wallet, *, anchors: bool) -> Channel:
+        """Fund alice from the faucet, and open a channel from her to bob."""
+        if not anchors:  # both peers have to agree on the channel type
+            self.alice_instance.config.TEST_LN_OPEN_SRK_CHANNELS = True
+            self.bob_instance.config.TEST_LN_OPEN_SRK_CHANNELS = True
+        await self.pay_to_address(alice.get_receiving_address(), 1 * COIN)
+        await self.mine_blocks(1)
+        chan = await self.open_channel(alice, self.bob)
+        self.assertEqual(anchors, chan.has_anchors())
+        return chan
+
+    async def claim_to_remote_from_their_ctx(self, alice: Abstract_Wallet, chan: Channel) -> Transaction:
+        """Wait for bob to force-close with his own ctx, and for alice to get hold of what is hers in it.
+        chan is alice's channel from before she lost her wallet db, we only read from it here."""
+        ctx = await self.wait_for_spender_of(TxOutpoint.from_str(chan.funding_outpoint.to_str()))
+        chan_bob = self.bob.lnworker.get_channel_by_id(chan.channel_id)
+        if chan.has_anchors():
+            # anchor spend needs to be checked before ctx confirms, otherwise TxBatcher will drop it.
+            anchor_address = make_commitment_output_to_anchor_address(chan.config[LOCAL].multisig_key.pubkey)
+            anchor_idx = ctx.get_output_idxs_from_address(anchor_address).pop()
+            await self.wait_for_spender_of(TxOutpoint.from_str(f"{ctx.txid()}:{anchor_idx}"))
+        await self.mine_blocks(1)  # mine to_remote csv delay
+        await self.wait_until(lambda: chan_bob.get_state() == ChannelState.CLOSED)
+        self.assertEqual(ctx.txid(), chan_bob.get_closing_height()[0])
+        to_remote_idx = max(range(len(ctx.outputs())), key=lambda i: ctx.outputs()[i].value)
+        if not chan.has_anchors():  # to_remote is one of alice's wallet addresses, nothing to sweep
+            self.assertTrue(alice.is_mine(ctx.outputs()[to_remote_idx].address))
+            return ctx
+        await self.wait_for_spender_of(TxOutpoint.from_str(f"{ctx.txid()}:{to_remote_idx}"))
+        return ctx
+
+    async def assert_balance_recovered(
+        self,
+        alice: Abstract_Wallet,
+        cb: ChannelBackup, *,
+        balance_before: int,  # onchain balance before closing chan
+        chan_balance_sat: int,
+    ) -> None:
+        """Alice got (most of) her channel balance back on-chain, and the backup is settled."""
+        await self.mine_blocks(1)
+        confirmed_balance, unconfirmed_balance, _ = alice.get_balance()
+        self.assertEqual(0, unconfirmed_balance)
+        self.assertGreater(confirmed_balance, balance_before + chan_balance_sat * 0.9)
+        self.assertTrue(cb.is_closed())
+
+    async def _test_request_fclose_from_chan_backup(
+        self, *,
+        create_alice_cb: Callable[[ToyInstance], Abstract_Wallet],
+        anchors: bool,
+    ) -> None:
+        """Alice exports a channel backup, then loses her wallet db. She restores her wallet, imports
+        the backup, and asks bob to force-close, so that she can claim her to_remote output."""
+        alice = create_alice_cb(self.alice_instance)
+        chan = await self.fund_and_open_channel(alice, anchors=anchors)
+        chan_id = chan.channel_id
+        alice_balance_sat = chan.balance(LOCAL) // 1000
+        self.assertGreater(alice_balance_sat, self.FUNDING_SAT * 0.9)
+        backup = alice.lnworker.export_channel_backup(chan_id)
+        self.assertIsInstance(backup, str)
+        self.assertTrue(backup.startswith('channel_backup:'))
+
+        # alice loses her wallet db, and restores the wallet from her seed
+        await self.stop_wallet(alice)
+        alice = create_alice_cb(self.alice_instance)
+        await self.sync()
+        self.assertEqual({}, dict(alice.lnworker.channels))
+        self.assertEqual({}, dict(alice.lnworker.channel_backups))
+        onchain_balance_before = sum(alice.get_balance())
+
+        # alice imports the channel backup, and asks bob to force-close
+        alice.lnworker.import_channel_backup(backup)
+        cb = alice.lnworker.channel_backups[chan_id]
+        self.assertEqual(anchors, cb.has_anchors())
+        self.assertEqual(alice.lnworker.has_deterministic_node_id(), alice.lnworker.node_keypair.privkey == cb.cb.privkey)
+        await self.wait_until(lambda: cb.get_state() == ChannelState.FUNDED)
+        await alice.lnworker.request_force_close(chan_id)
+
+        # bob force-closes with his own ctx, and alice claims her balance out of it
+        await self.claim_to_remote_from_their_ctx(alice, chan)
+        await self.assert_balance_recovered(alice, cb, balance_before=onchain_balance_before, chan_balance_sat=alice_balance_sat)
+
+    async def test_request_fclose_from_anchor_chan_backup_deterministic_lightning(self):
+        await self._test_request_fclose_from_chan_backup(create_alice_cb=self.create_deterministic_wallet, anchors=True)
+
+    async def test_request_fclose_from_anchor_chan_backup_non_deterministic_lightning(self):
+        await self._test_request_fclose_from_chan_backup(create_alice_cb=self.create_non_deterministic_xprv_wallet, anchors=True)
+
+    async def test_request_fclose_from_srk_chan_backup_deterministic_lightning(self):
+        await self._test_request_fclose_from_chan_backup(create_alice_cb=self.create_deterministic_wallet, anchors=False)
+
+    async def test_request_fclose_from_srk_chan_backup_non_deterministic_lightning(self):
+        await self._test_request_fclose_from_chan_backup(create_alice_cb=self.create_non_deterministic_xprv_wallet, anchors=False)
+
+    async def test_save_backup_includes_channel_backups(self):
+        """Wallet backup files contain a channel backup blob for each open channel."""
+        alice = self.create_deterministic_wallet(self.alice_instance)
+        chan = await self.fund_and_open_channel(alice, anchors=True)
+        chan_id = chan.channel_id
+        alice.storage = WalletStorage(os.path.join(alice.config.get_datadir_wallet_path(), 'alice_wallet'))
+        backup_path = alice.save_backup(self.electrum_path)
+        with open(backup_path) as f:
+            backup_db = WalletDB(f.read(), storage=None, upgrade=False)
+        cb_blob = backup_db.get_dict('imported_channel_backups')[chan_id.hex()]
+        self.assertEqual(
+            alice.lnworker.create_channel_backup(chan_id),
+            ImportedChannelBackupStorage.from_bytes(bfh(cb_blob)),
+        )
+        # check full channels are removed from file backups:
+        self.assertEqual(1, len(alice.db.get_dict('channels')))
+        self.assertEqual(0, len(backup_db.get_dict('channels')))
+
+    @staticmethod
+    def serialize_v2_channel_backup(cb: ImportedChannelBackupStorage) -> bytes:
+        vds = BCDataStream()
+        vds.write_uint16(2)  # version
+        vds.write_boolean(cb.is_initiator)
+        vds.write_bytes(cb.privkey, 32)
+        vds.write_bytes(cb.channel_seed, 32)
+        vds.write_bytes(cb.node_id, 33)
+        vds.write_bytes(bfh(cb.funding_txid), 32)
+        vds.write_uint16(cb.funding_index)
+        vds.write_string(cb.funding_address)
+        vds.write_bytes(cb.remote_payment_pubkey, 33)
+        vds.write_bytes(cb.remote_revocation_pubkey, 33)
+        vds.write_uint16(cb.local_delay)
+        vds.write_uint16(cb.remote_delay)
+        vds.write_string(cb.host)
+        vds.write_uint16(cb.port)
+        # v2 stores the payment pubkey (v3 stores the privkey for anchor chans)
+        vds.write_bytes(ecc.ECPrivkey(cb.local_payment_basepoint).get_public_key_bytes(), 33)
+        vds.write_bytes(cb.multisig_funding_privkey, 32)
+        return bytes(vds.input)
+
+    async def test_request_fclose_from_v2_anchor_chan_backup_deterministic_wallet(self):
+        """Test recovery with a v2 channel backup (payment pubkey only) on a deterministic lnwallet with anchor channel"""
+        alice = self.create_deterministic_wallet(self.alice_instance)
+        chan = await self.fund_and_open_channel(alice, anchors=True)
+        chan_id = chan.channel_id
+        alice_balance_sat = chan.balance(LOCAL) // 1000
+        backup = alice.lnworker.export_channel_backup(chan_id)
+
+        # alice loses her wallet db, and restores the wallet from her seed
+        await self.stop_wallet(alice)
+        alice = self.create_deterministic_wallet(self.alice_instance)
+        await self.sync()
+        onchain_balance_before = sum(alice.get_balance())
+
+        # downgrade the backup to v2: no channel_type, payment pubkey instead of privkey
+        cb_storage = ImportedChannelBackupStorage.from_encrypted_str(backup, password=alice.get_fingerprint())
+        v2_blob = self.serialize_v2_channel_backup(cb_storage)
+        backup_v2 = 'channel_backup:' + pw_encode_with_version_and_mac(v2_blob, alice.get_fingerprint())
+        alice.lnworker.import_channel_backup(backup_v2)
+        self.assertEqual(v2_blob.hex(), alice.lnworker.db.get_dict("imported_channel_backups")[chan_id.hex()])
+        cb = alice.lnworker.channel_backups[chan_id]
+        self.assertEqual(2, cb.cb.backup_version)
+        self.assertTrue(cb.has_anchors())  # inferred from the multisig key
+        self.assertTrue(cb.can_sweep_their_ctx_to_remote())
+
+        await self.wait_until(lambda: cb.get_state() == ChannelState.FUNDED)
+        await alice.lnworker.request_force_close(chan_id)
+
+        # bob force-closes with his own ctx, and alice sweeps to_remote and her anchor
+        await self.claim_to_remote_from_their_ctx(alice, chan)
+        await self.assert_balance_recovered(alice, cb, balance_before=onchain_balance_before, chan_balance_sat=alice_balance_sat)
+
+    async def _test_local_fclose_then_sweep_to_local_from_chan_backup(
+        self, *,
+        create_alice_cb: Callable[[ToyInstance], Abstract_Wallet],
+        anchors: bool,
+    ) -> None:
+        """Alice force-closes with her own ctx, then loses her wallet db. She restores her wallet,
+        imports the channel backup, and sweeps her to_local output once the CSV delay expired."""
+        csv_delay = 5  # demanded of alice by bob, hence set on bob's config
+        self.bob_instance.config.LIGHTNING_TO_SELF_DELAY_CSV = csv_delay
+        alice = create_alice_cb(self.alice_instance)
+        chan = await self.fund_and_open_channel(alice, anchors=anchors)
+        self.assertEqual(csv_delay, chan.config[REMOTE].to_self_delay)
+        chan_id = chan.channel_id
+        funding_outpoint = TxOutpoint.from_str(chan.funding_outpoint.to_str())
+        alice_balance_sat = chan.balance(LOCAL) // 1000
+        backup = alice.lnworker.export_channel_backup(chan_id)
+
+        # alice force-closes with her own ctx, and loses her wallet db before she can sweep it
+        ctx_txid = await alice.lnworker.force_close_channel(chan_id)
+        await self.stop_wallet(alice)
+        await self.mine_blocks(1)
+        ctx = await self.wait_for_spender_of(funding_outpoint)
+        self.assertEqual(ctx_txid, ctx.txid())
+
+        # alice restores her wallet and imports the channel backup
+        alice = create_alice_cb(self.alice_instance)
+        await self.sync()
+        self.assertEqual({}, dict(alice.lnworker.channels))
+        onchain_balance_before = sum(alice.get_balance())
+        alice.lnworker.import_channel_backup(backup)
+        cb = alice.lnworker.channel_backups[chan_id]
+        self.assertEqual(anchors, cb.has_anchors())
+
+        # once the CSV delay expired, alice claims her balance out of her old ctx
+        await self.mine_blocks(csv_delay)
+        to_local_idx = max(range(len(ctx.outputs())), key=lambda i: ctx.outputs()[i].value)
+        await self.wait_for_spender_of(TxOutpoint.from_str(f"{ctx.txid()}:{to_local_idx}"))
+        await self.assert_balance_recovered(alice, cb, balance_before=onchain_balance_before, chan_balance_sat=alice_balance_sat)
+
+    async def test_local_fclose_from_anchor_chan_backup_deterministic_lightning(self):
+        await self._test_local_fclose_then_sweep_to_local_from_chan_backup(
+            create_alice_cb=self.create_deterministic_wallet,
+            anchors=True,
+        )
+
+    async def test_local_fclose_from_anchor_chan_backup_non_deterministic_lightning(self):
+        await self._test_local_fclose_then_sweep_to_local_from_chan_backup(
+            create_alice_cb=self.create_non_deterministic_xprv_wallet,
+            anchors=True,
+        )
+
+    async def test_local_fclose_from_srk_chan_backup_deterministic_lightning(self):
+        await self._test_local_fclose_then_sweep_to_local_from_chan_backup(
+            create_alice_cb=self.create_deterministic_wallet,
+            anchors=False,
+        )
+
+    async def test_local_fclose_from_srk_chan_backup_non_deterministic_lightning(self):
+        await self._test_local_fclose_then_sweep_to_local_from_chan_backup(
+            create_alice_cb=self.create_non_deterministic_xprv_wallet,
+            anchors=False,
+        )
+
+    async def _test_request_fclose_from_onchain_chan_backup(self, *, anchors: bool) -> None:
+        """Alice has a deterministic LNWallet, and her funding txs contain an OP_RETURN onchain backup.
+        She loses her wallet db, restores from her seed, discovers the backup in the funding tx,
+        and recovers her balance by asking bob to force-close."""
+        self.alice_instance.config.LIGHTNING_USE_RECOVERABLE_CHANNELS = True
+        alice = self.create_deterministic_wallet(self.alice_instance)
+        self.assertTrue(alice.lnworker.has_recoverable_channels())
+        chan = await self.fund_and_open_channel(alice, anchors=anchors)
+        chan_id = chan.channel_id
+        alice_balance_sat = chan.balance(LOCAL) // 1000
+
+        # alice loses her wallet db, restores from seed, and finds the backup in the funding tx
+        await self.stop_wallet(alice)
+        alice = self.create_deterministic_wallet(self.alice_instance)
+        await self.sync()
+        self.assertEqual({}, dict(alice.lnworker.channels))
+        onchain_balance_before = sum(alice.get_balance())
+        await self.wait_until(lambda: chan_id in alice.lnworker.channel_backups)
+        cb = alice.lnworker.channel_backups[chan_id]
+        self.assertFalse(cb.is_imported)
+        await self.wait_until(lambda: cb.get_state() == ChannelState.FUNDED)
+
+        # the onchain backup only contains a node id prefix: bob must be findable as a hardcoded node
+        bob_host, bob_port = self.bob_instance.config.LIGHTNING_LISTEN.rsplit(':', 1)
+        electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
+            'bob': LNPeerAddr(host=bob_host, port=int(bob_port), pubkey=self.bob.lnworker.node_keypair.pubkey),
+        }
+        self.addCleanup(lambda: electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS.clear())
+        await alice.lnworker.request_force_close(chan_id)
+
+        # bob force-closes with his own ctx, and alice claims her balance out of it
+        await self.claim_to_remote_from_their_ctx(alice, chan)
+        await self.assert_balance_recovered(alice, cb, balance_before=onchain_balance_before, chan_balance_sat=alice_balance_sat)
+
+    async def test_request_fclose_from_anchor_onchain_chan_backup(self):
+        await self._test_request_fclose_from_onchain_chan_backup(anchors=True)
+
+    async def test_request_fclose_from_srk_onchain_chan_backup(self):
+        await self._test_request_fclose_from_onchain_chan_backup(anchors=False)
+
+    async def test_imported_channel_backup_upgrade(self):
+        """Alice has a v2 backup in her wallet, she then imports a v3 backup for the same channel."""
+        alice = self.create_deterministic_wallet(self.alice_instance)
+        chan = await self.fund_and_open_channel(alice, anchors=True)
+        chan_id = chan.channel_id
+        backup = alice.lnworker.export_channel_backup(chan_id)
+
+        # alice loses her wallet db, and restores the wallet from her seed
+        await self.stop_wallet(alice)
+        alice = self.create_deterministic_wallet(self.alice_instance)
+
+        # downgrade the backup to v2
+        cb_storage = ImportedChannelBackupStorage.from_encrypted_str(backup, password=alice.get_fingerprint())
+        v2_blob = self.serialize_v2_channel_backup(cb_storage)
+        backup_v2 = 'channel_backup:' + pw_encode_with_version_and_mac(v2_blob, alice.get_fingerprint())
+        alice.lnworker.import_channel_backup(backup_v2)
+        self.assertEqual(v2_blob.hex(), alice.lnworker.db.get_dict("imported_channel_backups")[chan_id.hex()])
+        cb = alice.lnworker.channel_backups[chan_id]
+        self.assertEqual(2, cb.cb.backup_version)
+
+        # now import the newer backup
+        alice.lnworker.import_channel_backup(backup)
+        self.assertEqual(cb_storage.to_bytes().hex(), alice.lnworker.db.get_dict("imported_channel_backups")[chan_id.hex()])
+        cb = alice.lnworker.channel_backups[chan_id]
+        self.assertGreater(cb.cb.backup_version, 2)
+
+        # now try importing an older version again, this should not work
+        with self.assertRaises(UserFacingException):
+            alice.lnworker.import_channel_backup(backup_v2)

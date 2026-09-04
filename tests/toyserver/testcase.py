@@ -58,7 +58,7 @@ class ToyServerTestCase(ElectrumTestCase):
 
     async def asyncTearDown(self):
         for wallet in self.wallets:
-            await wallet.stop()
+            await self.stop_wallet(wallet)
         for instance in self.instances.values():
             await instance.network.stop()
         await self.server.stop()
@@ -90,12 +90,12 @@ class ToyServerTestCase(ElectrumTestCase):
         await network.connect(self.server, client_name=name)
         return instance
 
-    def create_wallet(self, name: str, *, instance: ToyInstance, **kwargs) -> Abstract_Wallet:
+    def create_wallet(self, name: str, *, instance: ToyInstance, text: str = SEED, **kwargs) -> Abstract_Wallet:
         """Add an in-memory wallet to given instance and put it online. Calling it twice with the same name returns
         the same wallet but without the previous wallets data (simulating data loss)."""
         with mock.patch.object(Abstract_Wallet, 'basename', lambda w: name):  # mock basename so name is shown in logs
             wallet = restore_wallet_from_text__for_unittest(
-                SEED,
+                text,
                 passphrase=name,
                 path=None,
                 config=instance.config,
@@ -106,6 +106,12 @@ class ToyServerTestCase(ElectrumTestCase):
         wallet.txbatcher.SLEEP_INTERVAL *= self.TIME_STEP
         instance.wallets.append(wallet)
         return wallet
+
+    async def stop_wallet(self, wallet: Abstract_Wallet) -> None:
+        owners = [instance for instance in self.instances.values() if wallet in instance.wallets]
+        assert len(owners) == 1, f"wallet {wallet.basename()} is owned by {len(owners)} instances"
+        owners[0].wallets.remove(wallet)
+        await wallet.stop()
 
     # --- chain and wallet helpers ---
 

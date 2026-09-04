@@ -5,7 +5,7 @@ from enum import IntFlag, IntEnum
 import enum
 from typing import (
     NamedTuple, List, Tuple, Mapping, Optional, TYPE_CHECKING, Union, Dict, Set, Sequence, FrozenSet,
-    TypedDict,
+    TypedDict, Literal
 )
 import sys
 import time
@@ -78,6 +78,15 @@ def hex_to_bytes(arg: Optional[Union[bytes, str]]) -> Optional[bytes]:
 
 def bytes_to_hex(arg: Optional[bytes]) -> Optional[str]:
     return repr(arg.hex()) if arg is not None else None
+
+
+def int_min_byte_len(n: int) -> int:
+    """Returns the smallest number of bytes that can represent n (zero -> 0 bytes)."""
+    return (n.bit_length() + 7) // 8
+
+
+def int_to_bytes_minimal(n: int, byteorder: Literal['big', 'little'] = 'big') -> bytes:
+    return int.to_bytes(n, length=int_min_byte_len(n), byteorder=byteorder)
 
 
 def json_to_keypair(arg: Union['OnlyPubkeyKeypair', dict]) -> Union['OnlyPubkeyKeypair', 'Keypair']:
@@ -245,8 +254,10 @@ class LocalConfig(ChannelConfig):
         kwargs['htlc_basepoint'] = keypair_generator(LnKeyFamily.HTLC_BASE)
         kwargs['delayed_basepoint'] = keypair_generator(LnKeyFamily.DELAY_BASE)
         kwargs['revocation_basepoint'] = keypair_generator(LnKeyFamily.REVOCATION_BASE)
-        static_remotekey = kwargs.pop('static_remotekey')
         static_payment_key = kwargs.pop('static_payment_key')
+        channel_type = kwargs.pop('channel_type')
+        payment_basepoint = kwargs.pop('payment_basepoint', None)  # type: bytes | None
+        assert bool(static_payment_key) + bool(payment_basepoint) <= 1
         if static_payment_key:
             # We derive the payment_basepoint from a static secret (derived from
             # the wallet seed) and a public nonce that is revealed
@@ -256,12 +267,20 @@ class LocalConfig(ChannelConfig):
                 static_payment_secret=static_payment_key.privkey,
                 funding_pubkey=kwargs['multisig_key'].pubkey
             )
-        elif static_remotekey:  # we automatically sweep to a wallet address
-            kwargs['payment_basepoint'] = OnlyPubkeyKeypair(static_remotekey)
+        elif payment_basepoint:  # channel backup (or new SRK chan in unit tests)
+            if len(payment_basepoint) == 32:  # privkey
+                assert channel_type & ChannelType.OPTION_ANCHORS
+                privkey = ecc.ECPrivkey(payment_basepoint)
+                kwargs['payment_basepoint'] = Keypair(privkey=privkey.get_secret_bytes(), pubkey=privkey.get_public_key_bytes())
+            else:
+                assert len(payment_basepoint) == 33  # pubkey
+                kwargs['payment_basepoint'] = OnlyPubkeyKeypair(payment_basepoint)
         else:
-            # we expect all our channels to use option_static_remotekey, so ending up here likely indicates an issue...
-            kwargs['payment_basepoint'] = keypair_generator(LnKeyFamily.PAYMENT_BASE)
+            # v0 channel backup for srk channel: the real basepoint is a wallet pubkey that is
+            # not part of the backup and cannot be derived, see: https://github.com/spesmilo/electrum/pull/8536
+            kwargs['payment_basepoint'] = OnlyPubkeyKeypair(None)
 
+        assert ecc.ECPubkey.is_pubkey_bytes(kwargs['payment_basepoint'].pubkey)
         return LocalConfig(**kwargs)
 
     def validate_params(self, *, funding_sat: int, config: 'SimpleConfig', peer_features: 'LnFeatures') -> None:
@@ -299,8 +318,8 @@ class ChannelConstraints(StoredObject):
     funding_txn_minimum_depth = attr.ib(type=int)
 
 
-CHANNEL_BACKUP_VERSION_LATEST = 2
-KNOWN_CHANNEL_BACKUP_VERSIONS = (0, 1, 2, )
+CHANNEL_BACKUP_VERSION_LATEST = 3
+KNOWN_CHANNEL_BACKUP_VERSIONS = (0, 1, 2, 3, )
 assert CHANNEL_BACKUP_VERSION_LATEST in KNOWN_CHANNEL_BACKUP_VERSIONS
 
 
@@ -333,26 +352,37 @@ class OnchainChannelBackupStorage(ChannelBackupStorage):
         return OnchainChannelBackupStorage(**kwargs)
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, kw_only=True)
 class ImportedChannelBackupStorage(ChannelBackupStorage):
+    backup_version: int = CHANNEL_BACKUP_VERSION_LATEST
     node_id: bytes  # remote node pubkey
     privkey: bytes  # local node privkey
     host: str
     port: int
     channel_seed: bytes
+    channel_type: int
     local_delay: int
     remote_delay: int
     remote_payment_pubkey: bytes
     remote_revocation_pubkey: bytes
-    local_payment_pubkey: Optional[bytes]
+    # can either be a pubkey or a privkey (for anchor channels)
+    local_payment_basepoint: Optional[bytes]
     multisig_funding_privkey: Optional[bytes]
 
+    def __post_init__(self):
+        # strip the variation flags, they are irrelevant for the backup
+        channel_type = int(self.channel_type) & ~(ChannelType.OPTION_SCID_ALIAS | ChannelType.OPTION_ZEROCONF)
+        object.__setattr__(self, 'channel_type', channel_type)
+
     def to_bytes(self) -> bytes:
+        if self.backup_version != CHANNEL_BACKUP_VERSION_LATEST:
+            raise Exception("cannot re-serialize old-version channel backup")
         vds = BCDataStream()
         vds.write_uint16(CHANNEL_BACKUP_VERSION_LATEST)
         vds.write_boolean(self.is_initiator)
         vds.write_bytes(self.privkey, 32)
         vds.write_bytes(self.channel_seed, 32)
+        vds.write_string(int_to_bytes_minimal(self.channel_type))
         vds.write_bytes(self.node_id, 33)
         vds.write_bytes(bfh(self.funding_txid), 32)
         vds.write_uint16(self.funding_index)
@@ -363,7 +393,13 @@ class ImportedChannelBackupStorage(ChannelBackupStorage):
         vds.write_uint16(self.remote_delay)
         vds.write_string(self.host)
         vds.write_uint16(self.port)
-        vds.write_bytes(self.local_payment_pubkey, 33)
+        if len(self.local_payment_basepoint) == 32:  # private key
+            assert self.channel_type == ChannelType.OPTION_STATIC_REMOTEKEY | ChannelType.OPTION_ANCHORS
+            vds.write_bytes(b"\x00" + self.local_payment_basepoint, 33)
+        else:
+            assert len(self.local_payment_basepoint) == 33  # pubkey
+            assert self.channel_type == ChannelType.OPTION_STATIC_REMOTEKEY
+            vds.write_bytes(self.local_payment_basepoint, 33)
         vds.write_bytes(self.multisig_funding_privkey, 32)
         return bytes(vds.input)
 
@@ -377,6 +413,10 @@ class ImportedChannelBackupStorage(ChannelBackupStorage):
         is_initiator = vds.read_boolean()
         privkey = vds.read_bytes(32)
         channel_seed = vds.read_bytes(32)
+        channel_type = None
+        if version >= 3:
+            channel_type_length = vds.read_compact_size()
+            channel_type = ChannelType.from_bytes(vds.read_bytes(channel_type_length), byteorder='big')
         node_id = vds.read_bytes(33)
         funding_txid = vds.read_bytes(32).hex()
         funding_index = vds.read_uint16()
@@ -387,18 +427,42 @@ class ImportedChannelBackupStorage(ChannelBackupStorage):
         remote_delay = vds.read_uint16()
         host = vds.read_string()
         port = vds.read_uint16()
+        local_payment_basepoint = None  # type: Optional[bytes]
         if version >= 1:
-            local_payment_pubkey = vds.read_bytes(33)
-        else:
-            local_payment_pubkey = None
+            local_payment_basepoint = vds.read_bytes(33)
+            if local_payment_basepoint[0] == 0:  # private key
+                local_payment_basepoint = local_payment_basepoint[1:]
         if version >= 2:
             multisig_funding_privkey = vds.read_bytes(32)
         else:
             multisig_funding_privkey = None
+
+        # guess channel_type for version<3:
+        if channel_type is None:
+            if version == 0:
+                # Could technically be either SRK or pre-SRK, but pre-SRK channels
+                # could never be opened in a released version, so we ignore that case.
+                channel_type = int(ChannelType.OPTION_STATIC_REMOTEKEY)
+            elif version == 1:  # can only be SRK
+                channel_type = int(ChannelType.OPTION_STATIC_REMOTEKEY)
+            else:
+                assert version == 2, version
+                # can be either SRK or anchors
+                assert multisig_funding_privkey is not None
+                node = BIP32Node.from_rootseed(channel_seed, xtype='standard')
+                srk_multisig_key = generate_keypair(node, LnKeyFamily.MULTISIG)
+                if multisig_funding_privkey == srk_multisig_key.privkey:
+                    channel_type = int(ChannelType.OPTION_STATIC_REMOTEKEY)  # SRK
+                else:
+                    channel_type = int(ChannelType.OPTION_STATIC_REMOTEKEY | ChannelType.OPTION_ANCHORS)  # anchors
+        assert channel_type is not None
+
         return ImportedChannelBackupStorage(
+            backup_version=version,
             is_initiator=is_initiator,
             privkey=privkey,
             channel_seed=channel_seed,
+            channel_type=channel_type,
             node_id=node_id,
             funding_txid=funding_txid,
             funding_index=funding_index,
@@ -409,7 +473,7 @@ class ImportedChannelBackupStorage(ChannelBackupStorage):
             remote_delay=remote_delay,
             host=host,
             port=port,
-            local_payment_pubkey=local_payment_pubkey,
+            local_payment_basepoint=local_payment_basepoint,
             multisig_funding_privkey=multisig_funding_privkey,
         )
 
@@ -1627,10 +1691,6 @@ class LnFeatures(IntFlag):
                 features |= (1 << flag)
         return features
 
-    def min_len(self) -> int:
-        b = int.bit_length(self)
-        return b // 8 + int(bool(b % 8))
-
     def supports(self, feature: 'LnFeatures') -> bool:
         """Returns whether given feature is enabled.
 
@@ -1717,12 +1777,6 @@ class ChannelType(IntFlag):
             if not peer_features.supports(feature):
                 return False
         return True
-
-    def to_bytes_minimal(self):
-        # MUST use the smallest bitmap possible to represent the channel type.
-        bit_length = self.value.bit_length()
-        byte_length = bit_length // 8 + int(bool(bit_length % 8))
-        return self.to_bytes(byte_length, byteorder='big')
 
     @property
     def name_minimal(self):
