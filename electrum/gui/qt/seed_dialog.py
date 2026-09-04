@@ -32,7 +32,7 @@ from PyQt6.QtWidgets import (QVBoxLayout, QCheckBox, QHBoxLayout, QLineEdit,
                              QWidget, QPushButton)
 
 from electrum.i18n import _
-from electrum.mnemonic import Mnemonic, calc_seed_type, is_any_2fa_seed_type
+from electrum.mnemonic import Mnemonic, calc_seed_type, is_any_2fa_seed_type, can_seed_have_passphrase
 from electrum import old_mnemonic
 from electrum import slip39
 from electrum.util import ChoiceItem
@@ -56,10 +56,15 @@ MSG_PASSPHRASE_WARN_ISSUE4566 = _("Warning") + ": "\
                                   "same wallet as newer versions or other software.")
 
 
-def seed_warning_msg(seed):
+def seed_warning_msg(seed, passphrase: str = ''):
+    n = len(seed.split())
+    if passphrase:
+        save_line = _("Please save these {0} words on paper and your seed extension Passphrase (order is important). ").format(n)
+    else:
+        save_line = _("Please save these {0} words on paper (order is important). ").format(n)
     return ''.join([
         "<p>",
-        _("Please save these {0} words on paper (order is important). "),
+        save_line,
         _("This seed will allow you to recover your wallet in case "
           "of computer failure."),
         "</p>",
@@ -69,7 +74,7 @@ def seed_warning_msg(seed):
         "<li>" + _("Never type it on a website.") + "</li>",
         "<li>" + _("Do not store it electronically.") + "</li>",
         "</ul>"
-    ]).format(len(seed.split()))
+    ])
 
 
 class SeedWidget(QWidget):
@@ -149,10 +154,48 @@ class SeedWidget(QWidget):
 
         # options
         self.is_ext = False
+        self.cb_ext = None
+        self.ext_reason_label = None
+        self.ext_box = None
+        self.ext_edit = None
+        self.ext_help = None
+        self.ext_issue4566 = None
+        self.ext_save_hint = None
         if options:
-            opt_button = EnterButton(_('Options'), self.seed_options)
-            hbox.addWidget(opt_button)
+            # Options is only for BIP39/SLIP39; extra-word lives on this page
+            if 'bip39' in options or 'slip39' in options:
+                opt_button = EnterButton(_('Options'), self.seed_options)
+                hbox.addWidget(opt_button)
             vbox.addLayout(hbox)
+            if 'ext' in options:
+                self.cb_ext = QCheckBox(_('Extend this seed with a Passphrase'))
+                self.cb_ext.setEnabled(False)
+                self.cb_ext.toggled.connect(self._on_ext_toggled)
+                vbox.addWidget(self.cb_ext)
+                self.ext_reason_label = WWLabel('')
+                vbox.addWidget(self.ext_reason_label)
+                self.ext_box = QWidget()
+                ext_vbox = QVBoxLayout(self.ext_box)
+                ext_vbox.setContentsMargins(0, 0, 0, 0)
+                self.ext_help = WWLabel('')
+                self.ext_edit = QLineEdit()
+                self.ext_edit.textChanged.connect(self._on_ext_text)
+                ext_warn = WWLabel('\n'.join([
+                    _('Note that this is NOT your wallet file encryption password.'),
+                    _('If you do not know what this is, leave this field empty.'),
+                ]))
+                self.ext_issue4566 = WWLabel(MSG_PASSPHRASE_WARN_ISSUE4566)
+                self.ext_issue4566.setVisible(False)
+                ext_vbox.addWidget(self.ext_help)
+                ext_vbox.addWidget(self.ext_edit)
+                ext_vbox.addWidget(ext_warn)
+                ext_vbox.addWidget(self.ext_issue4566)
+                self.ext_box.setVisible(False)
+                vbox.addWidget(self.ext_box)
+                vbox.addSpacing(font_height() // 2)
+                self.ext_save_hint = WWLabel('')
+                vbox.addWidget(self.ext_save_hint)
+                self._update_ext_controls()
         if passphrase:
             hbox = QHBoxLayout()
             passphrase_e = QLineEdit()
@@ -182,8 +225,10 @@ class SeedWidget(QWidget):
         self.seed_status = WWLabel('')
         vbox.addWidget(self.seed_status)
         self.seed_warning = WWLabel('')
-        if msg:
-            self.seed_warning.setText(seed_warning_msg(seed))
+        if msg and self.ext_save_hint is not None:
+            pass  # create-seed wizard: backup warning is the local text under the passphrase box
+        elif msg:
+            self.seed_warning.setText(seed_warning_msg(seed, passphrase or ''))
         else:
             self.update_seed_warning()
 
@@ -194,10 +239,13 @@ class SeedWidget(QWidget):
         dialog.setWindowTitle(_("Seed Options"))
         vbox = QVBoxLayout(dialog)
 
-        if 'ext' in self.options:
-            cb_ext = QCheckBox(_('Extend this seed with custom words'))
-            cb_ext.setChecked(self.is_ext)
-            vbox.addWidget(cb_ext)
+        def _sync_variant_enabled():
+            if self._electrum_version_detected():
+                seed_type_choice.set_item_enabled('bip39', False)
+                seed_type_choice.set_item_enabled('slip39', False)
+            else:
+                seed_type_choice.set_item_enabled('bip39', True)
+                seed_type_choice.set_item_enabled('slip39', True)
 
         def on_selected(idx):
             self.seed_type = seed_type_choice.selected_key
@@ -207,19 +255,19 @@ class SeedWidget(QWidget):
             self.on_edit()
             self.update_share_buttons()
             self.initialize_completer()
+            _sync_variant_enabled()
 
         if len(self.seed_types) > 1:
             seed_type_choice = ChoiceWidget(message=_('Seed type'), choices=self.seed_types, default_key=self.seed_type)
             seed_type_choice.itemSelected.connect(on_selected)
             vbox.addWidget(seed_type_choice)
+            _sync_variant_enabled()
 
         vbox.addLayout(Buttons(OkButton(dialog)))
 
         if not dialog.exec():
             return None
 
-        if 'ext' in self.options:
-            self.is_ext = cb_ext.isChecked()
         if len(self.seed_types) > 1:
             self.seed_type = seed_type_choice.selected_key
 
@@ -333,6 +381,7 @@ class SeedWidget(QWidget):
                 self.seed_warning.setText("")
 
         self.seed_type_label.setText(label)
+        self._update_ext_controls()
         self.validChanged.emit(valid)
 
         # disable suggestions if user already typed an unknown word
@@ -341,6 +390,121 @@ class SeedWidget(QWidget):
                 self.seed_e.disable_suggestions()
                 return
         self.seed_e.enable_suggestions()
+
+    def _on_ext_toggled(self, checked):
+        self.is_ext = checked
+        if self.ext_box:
+            self.ext_box.setVisible(bool(checked) and self.cb_ext.isEnabled())
+        self._update_ext_save_hint()
+        self.updated.emit()
+
+    def _on_ext_text(self, text: str):
+        if self.ext_issue4566 and self.seed_type == 'bip39':
+            self.ext_issue4566.setVisible(text != ' '.join(text.split()))
+        elif self.ext_issue4566:
+            self.ext_issue4566.setVisible(False)
+        self.updated.emit()
+
+    def get_seed_extra_words(self) -> str:
+        if not self.is_ext or not self.ext_edit:
+            return ''
+        return self.ext_edit.text()
+
+    def _electrum_version_detected(self) -> bool:
+        if self.seed_type != 'electrum':
+            return False
+        stype = calc_seed_type(self.get_seed())
+        return bool(stype) and stype != 'old'
+
+    def _set_ext_checked(self, checked: bool):
+        if self.cb_ext is None:
+            self.is_ext = checked
+            return
+        self.cb_ext.blockSignals(True)
+        self.cb_ext.setChecked(checked)
+        self.cb_ext.blockSignals(False)
+        self.is_ext = checked
+
+    def _update_ext_save_hint(self):
+        if not self.ext_save_hint:
+            return
+        if not self.msg:
+            self.ext_save_hint.setText('')
+            return
+        n = len(self.seed_e.text().split())
+        if self.is_ext:
+            save_line = _("Please save these {0} words and your custom Passphrase on paper (order is important). ").format(n)
+        else:
+            save_line = _("Please save these {0} words on paper (order is important). ").format(n)
+        self.ext_save_hint.setText(''.join([
+            "<p>",
+            save_line,
+            _("This seed will allow you to recover your wallet in case of computer failure."),
+            "</p>",
+            "<b>" + _("WARNING") + ":</b>",
+            "<ul>",
+            "<li>" + _("Never disclose your seed.") + "</li>",
+            "<li>" + _("Never type it on a website.") + "</li>",
+            "<li>" + _("Do not store it electronically.") + "</li>",
+            "</ul>",
+        ]))
+
+    def _sync_ext_box(self):
+        if self.ext_box:
+            self.ext_box.setVisible(bool(self.is_ext) and self.cb_ext.isEnabled())
+        self._update_ext_save_hint()
+
+    def _update_ext_controls(self):
+        if self.cb_ext is None:
+            return
+        seed_text = self.seed_e.text().strip()
+        if self.seed_type == 'bip39':
+            self.cb_ext.setText(_('Use a BIP39 passphrase'))
+            if self.ext_help:
+                self.ext_help.setText('\n'.join([
+                    _('Enter an optional BIP39 passphrase.'),
+                    _('Each passphrase derives a different wallet.'),
+                    _('This is sometimes incorrectly called the "25th word".'),
+                ]))
+            if self.ext_edit:
+                self.ext_edit.setPlaceholderText(_('Enter your BIP39 Passphrase'))
+        else:
+            self.cb_ext.setText(_('Extend this seed with a Passphrase'))
+            if self.ext_help:
+                self.ext_help.setText('\n'.join([
+                    _('You may extend your seed with a Passphrase (e.g. password manager generated passphrase, custom words, a combination of both...).'),
+                    _("You will need to save both your seed and the extension Passphrase together."),
+                ]))
+            if self.ext_edit:
+                self.ext_edit.setPlaceholderText(_('Enter your custom Passphrase'))
+        if self.seed_type in ('bip39', 'slip39'):
+            self.ext_reason_label.setText('')
+            if not seed_text:
+                self._set_ext_checked(False)
+                self.cb_ext.setEnabled(False)
+            else:
+                self.cb_ext.setEnabled(True)
+            self._sync_ext_box()
+            return
+        stype = calc_seed_type(self.get_seed())
+        if not stype:
+            self._set_ext_checked(False)
+            self.cb_ext.setEnabled(False)
+            self.ext_reason_label.setText('')
+            self._sync_ext_box()
+            return
+        if not can_seed_have_passphrase(self.get_seed()):
+            self._set_ext_checked(False)
+            self.cb_ext.setEnabled(False)
+            if stype == 'old':
+                self.ext_reason_label.setText(_('Old Electrum seeds have no extra word.'))
+            else:
+                self.ext_reason_label.setText(_('This seed cannot be extended with an extra word.'))
+            self._sync_ext_box()
+            return
+        self.cb_ext.setEnabled(True)
+        self.ext_reason_label.setText('')
+        self._sync_ext_box()
 
     def update_share_buttons(self):
         if self.seed_type != 'slip39':
