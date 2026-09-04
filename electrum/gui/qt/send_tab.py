@@ -16,7 +16,7 @@ from electrum.bitcoin import DummyAddress
 from electrum.plugin import run_hook
 from electrum.util import (
     NotEnoughFunds, NoDynamicFeeEstimates, parse_max_spend, UserCancelled, ChoiceItem,
-    UserFacingException,
+    UserFacingException, InvoiceError,
 )
 from electrum.lnutil import RECEIVED
 from electrum.invoices import PR_PAID, Invoice, PR_BROADCASTING, PR_BROADCAST
@@ -24,7 +24,7 @@ from electrum.transaction import Transaction, PartialTxInput, PartialTxOutput
 from electrum.network import TxBroadcastError, BestEffortRequestFailed
 from electrum.payment_identifier import (PaymentIdentifierType, PaymentIdentifier,
                                          invoice_from_payment_identifier,
-                                         PaymentIdentifierState)
+                                         PaymentIdentifierState, outputs_to_multiline_csv)
 from electrum.submarine_swaps import SwapServerError
 from electrum.fee_policy import FeePolicy, FixedFeePolicy
 from electrum.lnurl import LNURL3Data, request_lnurl_withdraw_callback, LNURLError
@@ -416,7 +416,11 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         if pi.is_multiline():
             self.lock_fields(lock_recipient=False, lock_amount=True, lock_max=True, lock_description=False)
             self.set_field_validated(self.payto_e, validated=pi.is_valid())  # TODO: validated used differently here than openalias
-            self.save_button.setEnabled(pi.is_valid())
+            # disable save if multiline needs editing, but we can't reconstruct the multiline
+            # (mostly because we can't reverse script string from outputs[].scriptpubkey)
+            can_save = any(o.value != 0 for o in pi.multiline_outputs) or all(o.address is not None for o in pi.multiline_outputs)
+            can_save = can_save and pi.is_valid()
+            self.save_button.setEnabled(can_save)
             self.send_button.setEnabled(pi.is_valid())
             self.payto_e.setToolTip(pi.get_error() if not pi.is_valid() else '')
             if pi.is_valid():
@@ -592,6 +596,15 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
     def do_edit_invoice(self, invoice: 'Invoice'):  # FIXME broken
         assert not bool(invoice.get_amount_sat())
         text = invoice.lightning_invoice if invoice.is_lightning() else invoice.get_address()
+        if len(invoice.get_outputs()) > 1 or text is None:
+            # invoice is not standard single-address-out, it's one of
+            # - multiple outputs (invoice.get_address() only returns output[0])
+            # - single output is script, not address
+            try:
+                text = outputs_to_multiline_csv(invoice.get_outputs(), self.config)
+            except InvoiceError as e:
+                self.show_error(str(e))
+                return
         self.set_payment_identifier(text)
         self.amount_e.setFocus()
         # disable save button, because it would create a new invoice

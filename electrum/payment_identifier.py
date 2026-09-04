@@ -11,7 +11,7 @@ from .contacts import AliasNotFoundException
 from .i18n import _
 from .invoices import Invoice
 from .logging import Logger
-from .util import parse_max_spend, InvoiceError
+from .util import parse_max_spend, InvoiceError, format_satoshis_plain
 from .util import get_asyncio_loop, log_exceptions
 from .transaction import PartialTxOutput
 from .lnurl import (decode_lnurl, request_lnurl, callback_lnurl, LNURLError,
@@ -26,6 +26,7 @@ from .segwit_addr import bech32_decode
 if TYPE_CHECKING:
     from .wallet import Abstract_Wallet
     from .transaction import Transaction
+    from . import SimpleConfig
 
 
 def maybe_extract_bech32_lightning_payment_identifier(data: str) -> Optional[str]:
@@ -437,7 +438,7 @@ class PaymentIdentifier(Logger):
         else:
             raise Exception('not onchain')
 
-    def _parse_as_multiline(self, text: str):
+    def _parse_as_multiline(self, text: str) -> List[PartialTxOutput]:
         # filter out empty lines
         lines = text.split('\n')
         lines = [i for i in lines if i]
@@ -638,3 +639,12 @@ def invoice_from_payment_identifier(
             URI=pi.bip21,
         )
 
+
+def outputs_to_multiline_csv(outputs: List[PartialTxOutput], config: 'SimpleConfig') -> str:
+    out = ''
+    for output in outputs:
+        if not output.address:
+            raise InvoiceError(_('cannot serialize script output to multiline csv'))
+        amount = format_satoshis_plain(output.value, decimal_point=config.BTC_AMOUNTS_DECIMAL_POINT)
+        out += f'{output.address},{amount}\n'
+    return out
