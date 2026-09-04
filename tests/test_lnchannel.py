@@ -838,7 +838,7 @@ class TestAvailableToSpend(ElectrumTestCase):
         self.assertEqual(1000000000, alice_channel.available_to_spend(REMOTE))
 
         self.assertEqual(1000000000, bob_channel.available_to_spend(LOCAL))
-        self.assertEqual(1000000000, alice_channel.available_to_spend(REMOTE))
+        self.assertEqual(1000000000, bob_channel.available_to_spend(REMOTE))
 
 
 class TestAvailableToSpendNoAnchors(TestAvailableToSpend):
