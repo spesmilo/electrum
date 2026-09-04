@@ -111,6 +111,9 @@ class Peer(Logger, EventListener):
             # don't signal zeroconf support if we are client (a trusted node is configured),
             # and Peer is not our trusted node
             self.features &= ~LnFeatures.OPTION_ZEROCONF_OPT
+        if self.config.ZEROCONF_TRUSTED_NODE and self.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS:
+            # if forwarding is enabled, do not accept zeroconf channels as client
+            self.features &= ~LnFeatures.OPTION_ZEROCONF_OPT
         self.their_features = LnFeatures(0)  # type: LnFeatures
         self.node_ids = [self.pubkey, privkey_to_pubkey(self.privkey)]
         assert self.node_ids[0] != self.node_ids[1]
@@ -3057,6 +3060,13 @@ class Peer(Logger, EventListener):
         Optional[Callable[[], Coroutine[Any, Any, None]]],  # callback
     ]:
         """
+        There are 5 types of htlc sets:
+            * non-trampoline, final
+            * non-trampoline, to be forwarded (cannot be MPP)
+            * trampoline, final, first stage
+            * trampoline, final, second stage
+            * trampoline, to be forwarded
+
         Returns what to do next with the given set of htlcs:
             * Fail whole set -> returns error code
             * Settle whole set -> Returns preimage
@@ -3076,37 +3086,35 @@ class Peer(Logger, EventListener):
             return OnionFailureCode.TEMPORARY_NODE_FAILURE, None, None
 
         amount_msat: int = 0  # sum(amount_msat of each htlc)
-        total_msat = None  # type: Optional[int]
+        total_msat_inner_onion = None  # type: Optional[int]
+        total_msat_outer_onion = None  # type: Optional[int]
+        payment_secrets = set()
         payment_hash = mpp_set.get_payment_hash()
         closest_cltv_abs = mpp_set.get_closest_cltv_abs()
         first_htlc_timestamp = mpp_set.get_first_htlc_timestamp()
         processed_onions = {}  # type: dict[ReceivedMPPHtlc, Tuple[ProcessedOnionPacket, Optional[ProcessedOnionPacket]]]
         for mpp_htlc in mpp_set.htlcs:
-            processed_onion = self._process_incoming_onion_packet(
+            outer_onion = self._process_incoming_onion_packet(
                 onion_packet=self._parse_onion_packet(mpp_htlc.unprocessed_onion),
                 payment_hash=payment_hash,
                 is_trampoline=False,  # this is always the outer onion
             )
-            processed_onions[mpp_htlc] = (processed_onion, None)
-            inner_onion = None
-            if processed_onion.trampoline_onion_packet:
-                inner_onion = self._process_incoming_onion_packet(
-                    onion_packet=processed_onion.trampoline_onion_packet,
-                    payment_hash=payment_hash,
-                    is_trampoline=True,
-                )
-                processed_onions[mpp_htlc] = (processed_onion, inner_onion)
-
-            total_msat_outer_onion = processed_onion.total_msat
-            total_msat_inner_onion = inner_onion.total_msat if inner_onion else None
-            if total_msat is None:
-                total_msat = total_msat_inner_onion or total_msat_outer_onion
-
+            inner_onion = self._process_incoming_onion_packet(
+                onion_packet=outer_onion.trampoline_onion_packet,
+                payment_hash=payment_hash,
+                is_trampoline=True,
+            ) if outer_onion.trampoline_onion_packet else None
+            processed_onions[mpp_htlc] = (outer_onion, inner_onion)
+            payment_secrets.add(outer_onion.payment_secret)
             # check total_msat is equal for all htlcs of the set
-            if total_msat != (total_msat_inner_onion or total_msat_outer_onion):
-                _log_fail_reason(f"total_msat is not uniform: {total_msat=} != {processed_onion.total_msat=}")
-                return OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, None, None
-
+            if total_msat_outer_onion is None:
+                total_msat_outer_onion = outer_onion.total_msat
+            elif total_msat_outer_onion != outer_onion.total_msat:
+                if len(payment_secrets) == 1:
+                    _log_fail_reason(f"total_msat is inconsistent across outer_onions: {total_msat_outer_onion=} {outer_onion.total_msat=}")
+                    return OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, None, None
+            # total_msat of inner onions will be compared below (compare_trampoline_onions)
+            total_msat_inner_onion = inner_onion.total_msat if inner_onion else None
             amount_msat += mpp_htlc.htlc.amount_msat
 
         # If the set contains outer onions with different payment secrets, the set's payment_key is
@@ -3115,8 +3123,7 @@ class Peer(Logger, EventListener):
         # In this case the amt_to_forward cannot be compared as it may differ between the trampoline parts.
         # However, amt_to_forward should be similar for all onions of a single trampoline part and gets
         # compared in the first stage where the htlc set represents a single trampoline part.
-        outer_onions = [onions[0] for onions in processed_onions.values()]
-        can_have_different_amt_to_fwd = not all(o.payment_secret == outer_onions[0].payment_secret for o in outer_onions)
+        can_have_different_amt_to_fwd = len(payment_secrets) > 1
         trampoline_onions = iter(onions[1] for onions in processed_onions.values())
         if not lnonion.compare_trampoline_onions(trampoline_onions, exclude_amt_to_fwd=can_have_different_amt_to_fwd):
             _log_fail_reason(f"got inconsistent {trampoline_onions=}")
@@ -3134,7 +3141,7 @@ class Peer(Logger, EventListener):
                 fwd_cb = lambda: self.lnworker.maybe_forward_htlc_set(payment_key, processed_htlc_set=processed_onions)
                 return None, None, fwd_cb
 
-        assert payment_hash is not None and total_msat is not None
+        assert payment_hash is not None and total_msat_outer_onion is not None
         # check for expiry over time and potentially fail the whole set if any
         # htlc's cltv becomes too close
         blocks_to_expiry = max(0, closest_cltv_abs - local_height)
@@ -3189,12 +3196,27 @@ class Peer(Logger, EventListener):
                     self.lnworker.received_mpp_htlcs[payment_key] = mpp_set._replace(
                         parent_set_key=trampoline_payment_key,
                     )
-            elif amount_msat >= (total_msat - jit_opening_fees_msat):  # regular mpp or 2nd stage trampoline
-                # set mpp_set as completed as we have received the full total_msat
-                mpp_set = self.lnworker.set_mpp_resolution(
-                    payment_key=payment_key,
-                    new_resolution=RecvMPPResolution.COMPLETE,
-                )
+            else:
+                if not any_trampoline_onion:
+                    # regular mpp
+                    total_msat = total_msat_outer_onion
+                elif not any_trampoline_onion.are_we_final:
+                    # trampoline forwarding
+                    if jit_opening_fees_msat != 0:
+                        # if forwarding is enabled, we do not accept zeroconf as client
+                        return OnionFailureCode.TEMPORARY_NODE_FAILURE, None, None
+                    total_msat = total_msat_outer_onion
+                else:
+                    # 2nd stage trampoline
+                    assert trampoline_payment_key == payment_key
+                    total_msat = total_msat_inner_onion
+
+                if amount_msat >= (total_msat - jit_opening_fees_msat):
+                    # set mpp_set as completed as we have received the full total_msat
+                    mpp_set = self.lnworker.set_mpp_resolution(
+                        payment_key=payment_key,
+                        new_resolution=RecvMPPResolution.COMPLETE,
+                    )
 
         # check if this set is a trampoline forwarding and potentially return forwarding callback
         # note: all inner trampoline onions are equal (enforced above)

@@ -2728,6 +2728,33 @@ class TestPeerForwarding(TestPeer):
         assert len(bob_hm.all_htlcs_ever()) == 2
         assert all(bob_hm.was_htlc_failed(htlc_id=htlc.htlc_id, htlc_proposer=HTLCOwner.REMOTE) for (_, htlc) in bob_hm.all_htlcs_ever())
 
+    async def test_trampoline_forwarder_waits_for_outer_onion_total_msat(self):
+        """
+        A trampoline forwarder must only forward once the htlcs it received sum up to the total_msat
+        of the outer onion.
+        Alice claims in the outer onion that twice the htlc amount will arrive, but only sends one htlc.
+        Bob must not forward the incomplete set and has to fail it with MPP_TIMEOUT.
+        """
+        def modified_new_onion_packet_lnworker(payment_path_pubkeys, session_key, hops_data: List[OnionHopsDataSingle], **kwargs):
+            hops_data = copy.copy(hops_data)
+            payload = dict(hops_data[-1].payload)
+            if 'trampoline_onion_packet' in payload:  # payload is alice's outer onion for bob
+                payment_data = dict(payload['payment_data'])
+                payment_data['total_msat'] *= 2  # bob should expect double the amount she actually receives
+                payload['payment_data'] = payment_data
+                hops_data[-1] = dataclasses.replace(hops_data[-1], payload=payload)
+            return electrum.lnonion.new_onion_packet(payment_path_pubkeys, session_key, hops_data, **kwargs)
+
+        graph = self.create_square_graph(direct=False, is_legacy=True)
+        alice = graph.workers['alice']
+        alice.config.INITIAL_TRAMPOLINE_FEE_LEVEL = 6  # set high so the payment would succeed if bob forwarded
+        with self.assertLogs('electrum', level='INFO') as logs, self.assertRaises(NoPathFound):
+            with mock.patch('electrum.lnworker.new_onion_packet', side_effect=modified_new_onion_packet_lnworker):
+                await self._run_trampoline_payment(graph, attempts=1)
+        self.assertTrue(any('MPP TIMEOUT' in record.getMessage() for record in logs.records))
+        bob_carol_channel = graph.channels[('bob', 'carol')][0]
+        self.assertEqual(0, len(bob_carol_channel.hm.all_htlcs_ever()))
+
     async def test_payment_with_malformed_onion(self):
         """
         Alice -> Bob -> Carol. Carol fails htlc with update_fail_malformed_htlc because she is unable
