@@ -259,7 +259,9 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
 
         self.frame_id += 1
 
-        self._set_resolution(frame.size())
+        if self.resolution is None or frame.size() != self.resolution:
+            self.logger.info(f"video frame size: {frame.width()}x{frame.height()}")
+            self._set_resolution(frame.size())
 
         flip_x = self.flip_x.isChecked()
 
