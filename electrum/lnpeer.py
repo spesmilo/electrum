@@ -111,6 +111,9 @@ class Peer(Logger, EventListener):
             # don't signal zeroconf support if we are client (a trusted node is configured),
             # and Peer is not our trusted node
             self.features &= ~LnFeatures.OPTION_ZEROCONF_OPT
+        if self.config.ZEROCONF_TRUSTED_NODE and self.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS:
+            # if forwarding is enabled, do not accept zeroconf channels as client
+            self.features &= ~LnFeatures.OPTION_ZEROCONF_OPT
         self.their_features = LnFeatures(0)  # type: LnFeatures
         self.node_ids = [self.pubkey, privkey_to_pubkey(self.privkey)]
         assert self.node_ids[0] != self.node_ids[1]
@@ -3199,6 +3202,9 @@ class Peer(Logger, EventListener):
                     total_msat = total_msat_outer_onion
                 elif not any_trampoline_onion.are_we_final:
                     # trampoline forwarding
+                    if jit_opening_fees_msat != 0:
+                        # if forwarding is enabled, we do not accept zeroconf as client
+                        return OnionFailureCode.TEMPORARY_NODE_FAILURE, None, None
                     total_msat = total_msat_outer_onion
                 else:
                     # 2nd stage trampoline
