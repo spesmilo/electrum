@@ -450,10 +450,12 @@ class PaymentIdentifier(Logger):
         for i, line in enumerate(lines):
             try:
                 output = self.parse_address_and_amount(line)
+                is_multiline = True  # we parsed a <script>/<address>,<amount> line
                 outputs.append(output)
                 if parse_max_spend(output.value):
                     self._is_max = True
                 else:
+                    assert output.value >= 0, 'no negative amounts allowed'
                     total += output.value
             except Exception as e:
                 errors = f'{errors}line #{i}: {str(e)}\n'
