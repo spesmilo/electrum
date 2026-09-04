@@ -106,11 +106,13 @@ class Peer(Logger, EventListener):
         self.pubkey = pubkey  # remote pubkey
         self.privkey = self.transport.privkey  # local privkey
         self.features = self.lnworker.features  # type: LnFeatures
-        if lnworker == lnworker.network.lngossip or \
-            self.config.ZEROCONF_TRUSTED_NODE and pubkey != lnworker.trusted_zeroconf_node_id:
-            # don't signal zeroconf support if we are client (a trusted node is configured),
-            # and Peer is not our trusted node
-            self.features &= ~LnFeatures.OPTION_ZEROCONF_OPT
+        forwarding = self.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS or self.config.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS
+        if lnworker == lnworker.network.lngossip \
+                or self.config.ZEROCONF_TRUSTED_NODE \
+                and pubkey != lnworker.trusted_zeroconf_node_id \
+                and not forwarding:
+            # clients signal to their trusted provider only, forwarding wallets also need to signal to peers they might fund
+            self.features &= ~(LnFeatures.OPTION_ZEROCONF_OPT | LnFeatures.OPTION_ZEROCONF_REQ)
         self.their_features = LnFeatures(0)  # type: LnFeatures
         self.node_ids = [self.pubkey, privkey_to_pubkey(self.privkey)]
         assert self.node_ids[0] != self.node_ids[1]
@@ -1301,8 +1303,11 @@ class Peer(Logger, EventListener):
                 raise Exception("refusing to open new static_remotekey channel")
 
         is_zeroconf = bool(channel_type & ChannelType.OPTION_ZEROCONF)
-        if is_zeroconf and not self.config.ZEROCONF_TRUSTED_NODE.startswith(self.pubkey.hex()):
-            raise Exception(f"not accepting zeroconf from node {self.pubkey}")
+        if is_zeroconf:
+            if self.pubkey != self.lnworker.trusted_zeroconf_node_id:
+                raise Exception(f"not accepting zeroconf from node {self.pubkey}")
+            if self.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS or self.config.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS:
+                raise Exception(f"not accepting zeroconf as a forwarding node")
 
         if self.lnworker.has_recoverable_channels() and not is_zeroconf:
             # FIXME: we might want to keep the connection open
@@ -3202,6 +3207,9 @@ class Peer(Logger, EventListener):
                     total_msat = total_msat_outer_onion
                 elif not any_trampoline_onion.are_we_final:
                     # trampoline forwarding
+                    if jit_opening_fees_msat != 0:
+                        _log_fail_reason("not accepting zeroconf channels if forwarding is enabled")
+                        return OnionFailureCode.TEMPORARY_NODE_FAILURE, None, None
                     total_msat = total_msat_outer_onion
                 else:
                     # 2nd stage trampoline

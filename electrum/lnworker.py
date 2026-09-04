@@ -3532,6 +3532,8 @@ class LNWallet(Logger):
     def can_get_zeroconf_channel(self) -> bool:
         if not self.config.OPEN_ZEROCONF_CHANNELS:
             return False
+        if self.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS or self.config.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS:
+            return False
         node_id = self.trusted_zeroconf_node_id
         if not node_id:
             return False
