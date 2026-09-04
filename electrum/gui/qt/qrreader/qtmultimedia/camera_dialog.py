@@ -24,19 +24,16 @@
 # SOFTWARE.
 
 import time
-import math
-import sys
-import os
 from typing import List, Optional
 
 from PyQt6.QtMultimedia import QMediaDevices, QCamera, QMediaCaptureSession, QCameraDevice
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QCheckBox, QPushButton, QLabel, QWidget
 from PyQt6.QtGui import QImage, QPixmap
-from PyQt6.QtCore import QSize, QRect, Qt, pyqtSignal, PYQT_VERSION
+from PyQt6.QtCore import QSize, QRect, Qt, pyqtSignal
 
 from electrum.simple_config import SimpleConfig
 from electrum.i18n import _
-from electrum.qrreader import get_qr_reader, QrCodeResult, MissingQrDetectionLib
+from electrum.qrreader import get_qr_reader, QrCodeResult
 from electrum.logging import Logger
 
 from electrum.gui.qt.util import MessageBoxMixin, FixedAspectRatioLayout, ImageGraphicsEffect
@@ -89,7 +86,6 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
         self.media_capture_session: QMediaCaptureSession = None
         self._error_message: str | None = None
         self._ok_done: bool = False
-        self.camera_sc_conn = None
         self.resolution: QSize = None
 
         self.config = config
