@@ -3847,6 +3847,9 @@ class LNWallet(Logger):
         channel_id = cb_storage.channel_id()
         if channel_id.hex() in self.db.get_dict("channels"):
             raise Exception('Channel already in wallet')
+        if existing_backup := self._channel_backups.get(channel_id):
+            if existing_backup.is_imported and existing_backup.cb.backup_version > cb_storage.backup_version:
+                raise util.UserFacingException(_("You already have a newer version of this backup in your wallet."))
         self.logger.info(f'importing channel backup: {channel_id.hex()}')
         d = self.db.get_dict("imported_channel_backups")
         d[channel_id.hex()] = cb_blob.hex()
