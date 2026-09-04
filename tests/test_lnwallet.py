@@ -30,7 +30,7 @@ from electrum.mpp_split import SplitConfig, SplitConfigRating
 from electrum.crypto import sha256, pw_encode_with_version_and_mac
 from electrum.simple_config import SimpleConfig
 from electrum.transaction import Transaction, TxOutpoint, BCDataStream
-from electrum.util import bfh
+from electrum.util import bfh, UserFacingException
 from electrum.storage import WalletStorage
 from electrum.wallet import Abstract_Wallet
 from electrum.wallet_db import WalletDB
@@ -940,3 +940,33 @@ class TestChannelBackup(ToyServerTestCase):
 
     async def test_request_fclose_from_srk_onchain_chan_backup(self):
         await self._test_request_fclose_from_onchain_chan_backup(anchors=False)
+
+    async def test_imported_channel_backup_upgrade(self):
+        """Alice has a v2 backup in her wallet, she then imports a v3 backup for the same channel."""
+        alice = self.create_deterministic_wallet(self.alice_instance)
+        chan = await self.fund_and_open_channel(alice, anchors=True)
+        chan_id = chan.channel_id
+        backup = alice.lnworker.export_channel_backup(chan_id)
+
+        # alice loses her wallet db, and restores the wallet from her seed
+        await self.stop_wallet(alice)
+        alice = self.create_deterministic_wallet(self.alice_instance)
+
+        # downgrade the backup to v2
+        cb_storage = ImportedChannelBackupStorage.from_encrypted_str(backup, password=alice.get_fingerprint())
+        v2_blob = self.serialize_v2_channel_backup(cb_storage)
+        backup_v2 = 'channel_backup:' + pw_encode_with_version_and_mac(v2_blob, alice.get_fingerprint())
+        alice.lnworker.import_channel_backup(backup_v2)
+        self.assertEqual(v2_blob.hex(), alice.lnworker.db.get_dict("imported_channel_backups")[chan_id.hex()])
+        cb = alice.lnworker.channel_backups[chan_id]
+        self.assertEqual(2, cb.cb.backup_version)
+
+        # now import the newer backup
+        alice.lnworker.import_channel_backup(backup)
+        self.assertEqual(cb_storage.to_bytes().hex(), alice.lnworker.db.get_dict("imported_channel_backups")[chan_id.hex()])
+        cb = alice.lnworker.channel_backups[chan_id]
+        self.assertGreater(cb.cb.backup_version, 2)
+
+        # now try importing an older version again, this should not work
+        with self.assertRaises(UserFacingException):
+            alice.lnworker.import_channel_backup(backup_v2)
