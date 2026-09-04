@@ -3057,6 +3057,13 @@ class Peer(Logger, EventListener):
         Optional[Callable[[], Coroutine[Any, Any, None]]],  # callback
     ]:
         """
+        There are 5 types of htlc sets:
+            * non-trampoline, final
+            * non-trampoline, to be forwarded (cannot be MPP)
+            * trampoline, final, first stage
+            * trampoline, final, second stage
+            * trampoline, to be forwarded
+
         Returns what to do next with the given set of htlcs:
             * Fail whole set -> returns error code
             * Settle whole set -> Returns preimage
@@ -3076,7 +3083,6 @@ class Peer(Logger, EventListener):
             return OnionFailureCode.TEMPORARY_NODE_FAILURE, None, None
 
         amount_msat: int = 0  # sum(amount_msat of each htlc)
-        total_msat = None  # type: Optional[int]
         total_msat_inner_onion = None  # type: Optional[int]
         total_msat_outer_onion = None  # type: Optional[int]
         payment_secrets = set()
@@ -3106,9 +3112,6 @@ class Peer(Logger, EventListener):
                     return OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, None, None
             # total_msat of inner onions will be compared below (compare_trampoline_onions)
             total_msat_inner_onion = inner_onion.total_msat if inner_onion else None
-            if total_msat is None:
-                total_msat = total_msat_inner_onion or total_msat_outer_onion
-
             amount_msat += mpp_htlc.htlc.amount_msat
 
         # If the set contains outer onions with different payment secrets, the set's payment_key is
@@ -3135,7 +3138,7 @@ class Peer(Logger, EventListener):
                 fwd_cb = lambda: self.lnworker.maybe_forward_htlc_set(payment_key, processed_htlc_set=processed_onions)
                 return None, None, fwd_cb
 
-        assert payment_hash is not None and total_msat is not None
+        assert payment_hash is not None and total_msat_outer_onion is not None
         # check for expiry over time and potentially fail the whole set if any
         # htlc's cltv becomes too close
         blocks_to_expiry = max(0, closest_cltv_abs - local_height)
@@ -3190,12 +3193,24 @@ class Peer(Logger, EventListener):
                     self.lnworker.received_mpp_htlcs[payment_key] = mpp_set._replace(
                         parent_set_key=trampoline_payment_key,
                     )
-            elif amount_msat >= (total_msat - jit_opening_fees_msat):  # regular mpp or 2nd stage trampoline
-                # set mpp_set as completed as we have received the full total_msat
-                mpp_set = self.lnworker.set_mpp_resolution(
-                    payment_key=payment_key,
-                    new_resolution=RecvMPPResolution.COMPLETE,
-                )
+            else:
+                if not any_trampoline_onion:
+                    # regular mpp
+                    total_msat = total_msat_outer_onion
+                elif not any_trampoline_onion.are_we_final:
+                    # trampoline forwarding
+                    total_msat = total_msat_outer_onion
+                else:
+                    # 2nd stage trampoline
+                    assert trampoline_payment_key == payment_key
+                    total_msat = total_msat_inner_onion
+
+                if amount_msat >= (total_msat - jit_opening_fees_msat):
+                    # set mpp_set as completed as we have received the full total_msat
+                    mpp_set = self.lnworker.set_mpp_resolution(
+                        payment_key=payment_key,
+                        new_resolution=RecvMPPResolution.COMPLETE,
+                    )
 
         # check if this set is a trampoline forwarding and potentially return forwarding callback
         # note: all inner trampoline onions are equal (enforced above)
