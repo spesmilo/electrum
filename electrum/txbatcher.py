@@ -184,6 +184,7 @@ class TxBatcher(Logger):
             if tx_mined_status.height() > 0:
                 return
             if tx_mined_status.height() not in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:
+                # prevout spent (or spender in mempool), nothing left to do. see also _to_sweep_after() comment.
                 return
         self.logger.info(f'will broadcast standalone tx {sweep_info.name}')
         tx = PartialTransaction.from_io([sweep_info.txin], [sweep_info.txout], locktime=sweep_info.our_cltv_abs, version=2)
@@ -367,6 +368,12 @@ class TxBatch(Logger):
             if spender_txid := self.wallet.adb.db.get_spent_outpoint(prev_txid, int(index)):
                 tx_mined_status = self.wallet.adb.get_tx_height(spender_txid)
                 if tx_mined_status.height() not in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:
+                    # spent by a tx that is not our base_tx (mempool or mined).
+                    # do not compete with it, even if it is unconfirmed:
+                    #  - it might be ours (e.g. another device with the same seed)
+                    #  - for timelocked outputs (e.g. in lightning), by the time the counterparty can spend,
+                    #    our exclusive window has passed already. we don't engage in rbf race.
+                    # FIXME electrum server could lie and inject unconfirmed spends
                     continue
             result.append((prevout, sweep_info))
         return dict(result)
