@@ -14,7 +14,7 @@ class TestContacts(ElectrumTestCase):
     def setUp(self):
         super().setUp()
         self.config = SimpleConfig({'electrum_path': self.electrum_path})
-        self.wallet_path = os.path.join(self.electrum_path, "somewallet1")
+        self.wallet_path = os.path.join(self.config.get_datadir_wallet_path(), "somewallet1")
 
     async def test_saving_contacts(self):
         text = 'cross end slow expose giraffe fuel track awake turtle capital ranch pulp'
