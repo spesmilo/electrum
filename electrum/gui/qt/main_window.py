@@ -579,6 +579,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def on_event_recently_opened_wallets_update(self, *args):
         self.update_recently_opened_menu()
 
+    @qt_event_listener
+    def on_event_coin_control_changed(self, wallet, *args):
+        if wallet == self.wallet:
+            self.update_coincontrol_bar()
+
+    @qt_event_listener
+    def on_event_frozen_state_changed(self, wallet, *args):
+        if wallet == self.wallet:
+            self.update_status()  # updates frozen balance in piechart and coincontrol bar
+
     def close_wallet(self):
         if self.wallet:
             self.logger.info(f'close_wallet {self.wallet.storage.get_path()}')
@@ -1112,6 +1122,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.tasks_label.setText(name)
         self.tasks_label.setVisible(num_tasks > 0)
 
+        self.update_coincontrol_bar()
+
     def num_tasks(self):
         # For the moment, all the coroutines in this set are outgoing LN payments,
         # so we can use this to disable buttons for rebalance/swap suggestions
@@ -1410,18 +1422,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.notify(_('Payment failed') + '\n\n' + description + '\n\n' + reason)
 
     def get_coins(self, **kwargs) -> Sequence[PartialTxInput]:
-        coins = self.get_manually_selected_coins()
-        if coins is not None:
-            return coins
-        else:
-            return self.wallet.get_spendable_coins(None, **kwargs)
-
-    def get_manually_selected_coins(self) -> Optional[Sequence[PartialTxInput]]:
-        """Return a list of selected coins or None.
-        Note: None means selection is not being used,
-              while an empty sequence means the user specifically selected that.
-        """
-        return self.utxo_list.get_spend_list()
+        return self.wallet.get_spendable_coins(None, **kwargs)
 
     def broadcast_or_show(self, tx: Transaction, *, invoice: 'Invoice' = None):
         if not tx.is_complete():
@@ -1568,18 +1569,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         else:
             if pi.error:
                 self.show_error(str(pi.error))
-
-    def set_frozen_state_of_addresses(self, addrs, freeze: bool):
-        self.wallet.set_frozen_state_of_addresses(addrs, freeze)
-        self.address_list.refresh_all()
-        self.utxo_list.refresh_all()
-        self.address_list.selectionModel().clearSelection()
-
-    def set_frozen_state_of_coins(self, utxos: Sequence[PartialTxInput], freeze: bool):
-        utxos_str = {utxo.prevout.to_str() for utxo in utxos}
-        self.wallet.set_frozen_state_of_coins(utxos_str, freeze)
-        self.utxo_list.refresh_all()
-        self.utxo_list.selectionModel().clearSelection()
 
     def create_list_tab(self, l):
         w = QWidget()
@@ -1875,12 +1864,24 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.coincontrol_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         sb.addWidget(self.coincontrol_label)
 
-        clear_cc_button = EnterButton(_('Reset'), lambda: self.utxo_list.clear_coincontrol())
+        clear_cc_button = EnterButton(_('Reset'), lambda: self.wallet.coinfilter.clear_selection())
         clear_cc_button.setStyleSheet("margin-right: 5px;")
         sb.addPermanentWidget(clear_cc_button)
 
         sb.setVisible(False)
         return sb
+
+    def update_coincontrol_bar(self):
+        # get_coin_control_status walks all utxos, so shortcut the inactive case.
+        coinfilter = self.wallet.coinfilter
+        status = coinfilter.get_coin_control_status() if coinfilter.is_coin_control_active() else None
+        if status and status.is_active:
+            amount_str = self.format_amount_and_units(status.value_sat)
+            num_outputs_str = _("{} outputs available ({} total)").format(
+                status.num_usable, status.num_total)
+            self.set_coincontrol_msg(_("Coin control active") + f': {num_outputs_str}, {amount_str}')
+        else:
+            self.set_coincontrol_msg(None)
 
     def set_coincontrol_msg(self, msg: Optional[str]) -> None:
         if not msg:

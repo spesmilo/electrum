@@ -1523,6 +1523,7 @@ class LNWallet(Logger):
                 public=False,
                 opening_base_fee_msat=channel_opening_base_fee_msat,
                 password=password,
+                get_coins=partial(self.wallet.get_spendable_coins, ignore_coin_control=True)
             )
             async def wait_for_channel():
                 while not next_chan.is_open():
@@ -1603,9 +1604,11 @@ class LNWallet(Logger):
             public: bool = False,
             zeroconf: bool = False,
             opening_base_fee_msat: Optional[int] = None,
-            password=None):
+            password=None,
+            get_coins: Callable[..., Sequence[PartialTxInput]] = None,
+    ):
         self.wallet.unlock(password)
-        coins = self.wallet.get_spendable_coins(None)
+        coins = get_coins() if get_coins else self.wallet.get_spendable_coins()
         node_id = peer.pubkey
         fee_policy = FeePolicy(self.config.FEE_POLICY)
         funding_tx = self.mktx_for_open_channel(

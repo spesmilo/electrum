@@ -252,9 +252,9 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         outputs = pi.get_onchain_outputs('!')
         if not outputs:
             return
-        make_tx = lambda fee_policy, *, confirmed_only=False: self.wallet.make_unsigned_transaction(
+        make_tx = lambda fee_policy, *, confirmed_only=None: self.wallet.make_unsigned_transaction(
             fee_policy=fee_policy,
-            coins=self.window.get_coins(),
+            coins=self.window.get_coins(confirmed_only=confirmed_only),
             outputs=outputs,
             is_sweep=False)
         try:

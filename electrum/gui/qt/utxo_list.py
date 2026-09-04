@@ -23,9 +23,8 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from typing import Optional, List, Dict, Sequence, Set, TYPE_CHECKING
+from typing import List, Dict, Sequence, TYPE_CHECKING
 import enum
-import copy
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QStandardItemModel, QStandardItem, QFont
@@ -38,6 +37,8 @@ from electrum.lnutil import MIN_FUNDING_SAT
 from electrum.util import profiler
 from electrum.plugin import run_hook
 
+from electrum.gui.common_qt.util import QtEventListener, qt_event_listener
+
 from .util import ColorScheme, MONOSPACE_FONT
 from .my_treeview import MyTreeView, MySortModel
 from .new_channel_dialog import NewChannelDialog
@@ -47,8 +48,7 @@ if TYPE_CHECKING:
     from .main_window import ElectrumWindow
 
 
-class UTXOList(MyTreeView):
-    _spend_set: Set[str]  # coins selected by the user to spend from
+class UTXOList(MyTreeView, QtEventListener):
     _utxo_dict: Dict[str, PartialTxInput]  # coin name -> coin
 
     class Columns(MyTreeView.BaseColumnsEnum):
@@ -77,7 +77,6 @@ class UTXOList(MyTreeView):
             main_window=main_window,
             stretch_column=self.stretch_column,
         )
-        self._spend_set = set()
         self._utxo_dict = {}
         self.wallet = self.main_window.wallet
         self.std_model = QStandardItemModel(self)
@@ -86,6 +85,27 @@ class UTXOList(MyTreeView):
         self.setModel(self.proxy)
         self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.setSortingEnabled(True)
+        self.register_callbacks()
+        self.destroyed.connect(lambda: self.unregister_callbacks())
+
+    @qt_event_listener
+    def on_event_coin_control_changed(self, wallet, *args):
+        if wallet == self.wallet:
+            self.refresh_all()
+
+    @qt_event_listener
+    def on_event_frozen_state_changed(self, wallet, *args):
+        if wallet == self.wallet:
+            self.refresh_all()
+
+    def set_frozen_state_of_coins(self, utxos: Sequence[PartialTxInput], freeze: bool) -> None:
+        utxos_str = {utxo.prevout.to_str() for utxo in utxos}
+        self.wallet.set_frozen_state_of_coins(utxos_str, freeze)
+        self.selectionModel().clearSelection()
+
+    def set_frozen_state_of_addresses(self, addrs: Sequence[str], freeze: bool) -> None:
+        self.wallet.set_frozen_state_of_addresses(addrs, freeze)
+        self.selectionModel().clearSelection()
 
     def create_toolbar(self, config):
         toolbar, menu = self.create_toolbar_with_menu('')
@@ -100,10 +120,11 @@ class UTXOList(MyTreeView):
 
     @profiler(min_threshold=0.05)
     def update(self):
-        # not calling maybe_defer_update() as it interferes with coincontrol status bar
+        if self.maybe_defer_update():
+            return
         self.proxy.setDynamicSortFilter(False)  # temp. disable re-sorting after every change
         utxos = self.wallet.get_utxos()
-        self._maybe_reset_coincontrol(utxos)
+        self._maybe_close_stale_menu(utxos)
         self._utxo_dict = dict([(utxo.prevout.to_str(), utxo) for utxo in utxos])
         self.std_model.clear()
         self.update_headers(self.__class__.headers)
@@ -130,20 +151,7 @@ class UTXOList(MyTreeView):
         self.filter()
         self.proxy.setDynamicSortFilter(True)
         self.sortByColumn(self.Columns.OUTPOINT, Qt.SortOrder.DescendingOrder)
-        self.update_coincontrol_bar()
         self.num_coins_label.setText(_('{} unspent transaction outputs').format(len(utxos)))
-
-    def update_coincontrol_bar(self):
-        # update coincontrol status bar
-        if bool(self._spend_set):
-            coins = [self._utxo_dict[x] for x in self._spend_set]
-            coins = self._filter_frozen_coins(coins)
-            amount = sum(x.value_sats() for x in coins)
-            amount_str = self.main_window.format_amount_and_units(amount)
-            num_outputs_str = _("{} outputs available ({} total)").format(len(coins), len(self._utxo_dict))
-            self.main_window.set_coincontrol_msg(_("Coin control active") + f': {num_outputs_str}, {amount_str}')
-        else:
-            self.main_window.set_coincontrol_msg(None)
 
     def refresh_row(self, key, row):
         assert row is not None
@@ -160,7 +168,7 @@ class UTXOList(MyTreeView):
         )
         utxo_item[self.Columns.OUTPOINT].setData(sort_key, self.ROLE_SORT_ORDER)
         SELECTED_TO_SPEND_TOOLTIP = _('Coin selected to be spent')
-        if key in self._spend_set:
+        if self.wallet.coinfilter.is_selected(key):
             tooltip = key + "\n" + SELECTED_TO_SPEND_TOOLTIP
             color = ColorScheme.GREEN.as_color(True)
         else:
@@ -182,65 +190,43 @@ class UTXOList(MyTreeView):
         items = self.selected_in_column(self.Columns.OUTPOINT)
         return [x.data(self.ROLE_PREVOUT_STR) for x in items]
 
-    def _filter_frozen_coins(self, coins: List[PartialTxInput]) -> List[PartialTxInput]:
-        coins = [utxo for utxo in coins
-                 if (not self.wallet.is_frozen_address(utxo.address) and
-                     not self.wallet.is_frozen_coin(utxo))]
-        return coins
-
     def are_in_coincontrol(self, coins: List[PartialTxInput]) -> bool:
-        return all([utxo.prevout.to_str() in self._spend_set for utxo in coins])
+        coinfilter = self.wallet.coinfilter
+        return all(coinfilter.is_selected(utxo) for utxo in coins)
 
     def add_to_coincontrol(self, coins: List[PartialTxInput]):
-        assert all(utxo.prevout.to_str() in self._utxo_dict for utxo in coins) # see issue 10206
-        coins = self._filter_frozen_coins(coins)
-        for utxo in coins:
-            self._spend_set.add(utxo.prevout.to_str())
-        self._refresh_coincontrol()
+        # NOTE: select_coins() silently skips coins that are unknown/spent/frozen,
+        # which is what we want here (see issue 10206).
+        self.wallet.coinfilter.select_coins(coins)
+        self._clear_row_selection()
 
     def remove_from_coincontrol(self, coins: List[PartialTxInput]):
-        for utxo in coins:
-            self._spend_set.remove(utxo.prevout.to_str())
-        self._refresh_coincontrol()
+        self.wallet.coinfilter.deselect_coins(coins)
+        self._clear_row_selection()
 
     def clear_coincontrol(self):
-        self._spend_set.clear()
-        self._refresh_coincontrol()
+        self.wallet.coinfilter.clear_selection()
+        self._clear_row_selection()
 
     def add_selection_to_coincontrol(self):
-        if bool(self._spend_set):
-            self.clear_coincontrol()
-            return
+        coinfilter = self.wallet.coinfilter
         selected = self.get_selected_outpoints()
-        coins = [self._utxo_dict[name] for name in selected]
-        if not coins:
+        if not coinfilter.is_coin_control_active() and not selected:
             self.main_window.show_error(_('You need to select coins from the list first.\nUse ctrl+left mouse button to select multiple items'))
             return
-        self.add_to_coincontrol(coins)
+        coinfilter.toggle_selection(selected)
+        self._clear_row_selection()
 
-    def _refresh_coincontrol(self):
-        self.refresh_all()
-        self.update_coincontrol_bar()
+    def _clear_row_selection(self):
         self.selectionModel().clearSelection()
 
-    def get_spend_list(self) -> Optional[Sequence[PartialTxInput]]:
-        if not bool(self._spend_set):
-            return None
-        utxos = [self._utxo_dict[x] for x in self._spend_set]
-        return copy.deepcopy(utxos)  # copy so that side-effects don't affect utxo_dict
-
-    def _maybe_reset_coincontrol(self, current_wallet_utxos: Sequence[PartialTxInput]) -> None:
-        if not self._spend_set and not self._currently_open_menu:
+    def _maybe_close_stale_menu(self, current_wallet_utxos: Sequence[PartialTxInput]) -> None:
+        # if we spent one of the qt-highlighted UTXOs, close context-menu.
+        if not self._currently_open_menu:
             return
         utxo_set = {utxo.prevout.to_str() for utxo in current_wallet_utxos}
-        if self._currently_open_menu:
-            # if we spent one of the qt-highlighted UTXOs, close context-menu
-            if not all(prevout_str in utxo_set for prevout_str in self.get_selected_outpoints()):
-                self.close_menu()
-        if self._spend_set:
-            # if we spent one of the green-marked UTXOs, just reset selection
-            if not all([prevout_str in utxo_set for prevout_str in self._spend_set]):
-                self._spend_set.clear()
+        if not all(prevout_str in utxo_set for prevout_str in self.get_selected_outpoints()):
+            self.close_menu()
 
     def can_swap_coins(self, coins):
         # fixme: min and max_amounts are known only after first request
@@ -306,7 +292,7 @@ class UTXOList(MyTreeView):
         if not coins:
             return
 
-        unfrozen_coins = self._filter_frozen_coins(coins)
+        unfrozen_coins = self.wallet.coinfilter.filter_frozen(coins)
         menu = QMenu()
         menu.setSeparatorsCollapsible(True)  # consecutive separators are merged together
 
@@ -345,14 +331,14 @@ class UTXOList(MyTreeView):
             menu_freeze = menu.addMenu(_("Freeze"))
             menu_freeze.setToolTipsVisible(True)
             if not self.wallet.is_frozen_coin(utxo):
-                act = menu_freeze.addAction(_("Freeze Coin"), lambda: self.main_window.set_frozen_state_of_coins([utxo], True))
+                act = menu_freeze.addAction(_("Freeze Coin"), lambda: self.set_frozen_state_of_coins([utxo], True))
             else:
-                act = menu_freeze.addAction(_("Unfreeze Coin"), lambda: self.main_window.set_frozen_state_of_coins([utxo], False))
+                act = menu_freeze.addAction(_("Unfreeze Coin"), lambda: self.set_frozen_state_of_coins([utxo], False))
             act.setToolTip(MSG_FREEZE_COIN)
             if not self.wallet.is_frozen_address(addr):
-                act = menu_freeze.addAction(_("Freeze Address"), lambda: self.main_window.set_frozen_state_of_addresses([addr], True))
+                act = menu_freeze.addAction(_("Freeze Address"), lambda: self.set_frozen_state_of_addresses([addr], True))
             else:
-                act = menu_freeze.addAction(_("Unfreeze Address"), lambda: self.main_window.set_frozen_state_of_addresses([addr], False))
+                act = menu_freeze.addAction(_("Unfreeze Address"), lambda: self.set_frozen_state_of_addresses([addr], False))
             act.setToolTip(MSG_FREEZE_ADDRESS)
         elif len(coins) > 1:  # multiple items selected
             menu.addSeparator()
@@ -362,16 +348,16 @@ class UTXOList(MyTreeView):
             menu_freeze = menu.addMenu(_("Freeze"))
             menu_freeze.setToolTipsVisible(True)
             if not all(is_coin_frozen):
-                act = menu_freeze.addAction(_("Freeze Coins"), lambda: self.main_window.set_frozen_state_of_coins(coins, True))
+                act = menu_freeze.addAction(_("Freeze Coins"), lambda: self.set_frozen_state_of_coins(coins, True))
                 act.setToolTip(MSG_FREEZE_COIN)
             if any(is_coin_frozen):
-                act = menu_freeze.addAction(_("Unfreeze Coins"), lambda: self.main_window.set_frozen_state_of_coins(coins, False))
+                act = menu_freeze.addAction(_("Unfreeze Coins"), lambda: self.set_frozen_state_of_coins(coins, False))
                 act.setToolTip(MSG_FREEZE_COIN)
             if not all(is_addr_frozen):
-                act = menu_freeze.addAction(_("Freeze Addresses"), lambda: self.main_window.set_frozen_state_of_addresses(addrs, True))
+                act = menu_freeze.addAction(_("Freeze Addresses"), lambda: self.set_frozen_state_of_addresses(addrs, True))
                 act.setToolTip(MSG_FREEZE_ADDRESS)
             if any(is_addr_frozen):
-                act = menu_freeze.addAction(_("Unfreeze Addresses"), lambda: self.main_window.set_frozen_state_of_addresses(addrs, False))
+                act = menu_freeze.addAction(_("Unfreeze Addresses"), lambda: self.set_frozen_state_of_addresses(addrs, False))
                 act.setToolTip(MSG_FREEZE_ADDRESS)
 
         run_hook('qt_utxo_menu', menu, coins, self.wallet)

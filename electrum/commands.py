@@ -492,11 +492,14 @@ class Commands(Logger):
     async def listunspent(self, wallet: Abstract_Wallet = None):
         """List unspent outputs. Returns the list of unspent transaction
         outputs in your wallet."""
+        coinfilter = wallet.coinfilter
         coins = []
         for txin in wallet.get_utxos():
             d = txin.to_json()
             v = d.pop("value_sats")
             d["value"] = format_satoshis(v)
+            d["frozen"] = coinfilter.is_frozen_coin(txin) or coinfilter.is_frozen_address(txin.address)
+            d["selected"] = coinfilter.is_selected(txin)
             coins.append(d)
         return coins
 
@@ -680,6 +683,44 @@ class Commands(Logger):
         """
         wallet.set_frozen_state_of_coins([coin], False)
         return True
+
+    @command('w')
+    async def select_utxo(self, coins, wallet: Abstract_Wallet = None):
+        """
+        Add UTXOs to the coin control selection. While the selection is non-empty,
+        only the selected coins are used to fund new transactions.
+
+        arg:json:coins:list of outpoints, each in the <txid:index> format
+        """
+        added = wallet.coinfilter.select_coins(coins, strict=True)
+        return sorted(added)
+
+    @command('w')
+    async def unselect_utxo(self, coins=None, wallet: Abstract_Wallet = None):
+        """
+        Remove UTXOs from the coin control selection. Without arguments, clears
+        the whole selection and thus turns coin control off.
+
+        arg:json:coins:list of outpoints; omit to clear the entire selection
+        """
+        coinfilter = wallet.coinfilter
+        if coins is None:
+            coinfilter.clear_selection()
+            return True
+        return sorted(coinfilter.deselect_coins(coins))
+
+    @command('w')
+    async def list_selected_utxos(self, wallet: Abstract_Wallet = None):
+        """List the coin control selection, and whether it is currently active."""
+        coinfilter = wallet.coinfilter
+        status = coinfilter.get_coin_control_status()
+        return {
+            'active': status.is_active,
+            'selected': sorted(coinfilter.get_selection()),
+            'num_usable': status.num_usable,
+            'num_total': status.num_total,
+            'value': format_satoshis(status.value_sat),
+        }
 
     @command('wp')
     async def getprivatekeys(self, address, password=None, wallet: Abstract_Wallet = None):
@@ -1023,9 +1064,11 @@ class Commands(Logger):
             address = await self._resolver(address, wallet)
             amount_sat = satoshis_or_max(amount)
             final_outputs.append(PartialTxOutput.from_address_and_value(address, amount_sat))
-        coins = wallet.get_spendable_coins(domain_addr)
         if domain_coins is not None:
-            coins = [coin for coin in coins if (coin.prevout.to_str() in domain_coins)]
+            coins = wallet.coinfilter.get_coins_for_outpoints(
+                domain_coins, domain=domain_addr)
+        else:
+            coins = wallet.get_spendable_coins(domain_addr)
         tx = wallet.make_unsigned_transaction(
             outputs=final_outputs,
             fee_policy=fee_policy,
@@ -1086,9 +1129,10 @@ class Commands(Logger):
             except transaction.SerializationError as e:
                 raise UserFacingException(f"Failed to deserialize transaction: {e}") from e
         domain_coins = from_coins.split(',') if from_coins else None
-        coins = wallet.get_spendable_coins(None)
         if domain_coins is not None:
-            coins = [coin for coin in coins if (coin.prevout.to_str() in domain_coins)]
+            coins = wallet.coinfilter.get_coins_for_outpoints(domain_coins)
+        else:
+            coins = wallet.get_spendable_coins(None)
         tx.add_info_from_wallet(wallet)
         await tx.add_info_from_network(self.network)
         new_tx = wallet.bump_fee(
