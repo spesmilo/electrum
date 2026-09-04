@@ -196,12 +196,13 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
             self.logger.info("Warning: start_scan already called for this instance.")
 
         self.camera = QCamera(device_info)
-        self.camera.start()
         self.camera.errorOccurred.connect(self._on_camera_error)  # log the errors we get, if any, for debugging
 
         self.media_capture_session = QMediaCaptureSession()
         self.media_capture_session.setCamera(self.camera)
         self.media_capture_session.setVideoSink(self.video_surface)
+
+        self.camera.start()
 
         self.open()
 
