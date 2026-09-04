@@ -17,7 +17,6 @@ CP=gcp
 
 UNSIGNED="$1"
 SIGNATURE="$2"
-ARCH=x86_64
 OUTDIR="/tmp/electrum_compare_dmg/signed_app"
 
 if [ -z "$UNSIGNED" ]; then
@@ -38,10 +37,18 @@ find ${OUTDIR} -name "*.sign" | while read i; do
     SIZE=$(gstat -c %s "${i}")
     TARGET_FILE="$(echo "${i}" | sed 's/\.sign$//')"
 
+    ARCH=$(lipo -archs "${TARGET_FILE}")
+    case "${ARCH}" in
+        *" "*)
+            echo "Unexpected fat (multi-arch) binary: ${TARGET_FILE} (archs: ${ARCH})"
+            exit 1
+            ;;
+    esac
+
     if [ -z ${QUIET} ]; then
-        echo "Allocating space for the signature of size ${SIZE} in ${TARGET_FILE}"
+        echo "Allocating space for the signature of size ${SIZE} in ${TARGET_FILE} (arch: ${ARCH})"
     fi
-    codesign_allocate -i "${TARGET_FILE}" -a ${ARCH} ${SIZE} -o "${i}.tmp"
+    codesign_allocate -i "${TARGET_FILE}" -a "${ARCH}" ${SIZE} -o "${i}.tmp"
 
     OFFSET=$(pagestuff "${i}.tmp" -p | tail -2 | grep offset | sed 's/[^0-9]*//g')
     if [ -z ${QUIET} ]; then
