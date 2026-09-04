@@ -46,6 +46,7 @@ class QrReaderVideoSurface(QVideoSink):
     def __init__(self, parent: QObject = None):
         super().__init__(parent)
         self._pending_frame: Optional[QVideoFrame] = None
+        self._stopped = False
         self._process_timer = QTimer(self)
         self._process_timer.setSingleShot(True)
         self._process_timer.setInterval(0)
@@ -54,6 +55,11 @@ class QrReaderVideoSurface(QVideoSink):
 
     def _on_new_frame(self, frame: QVideoFrame) -> None:
         if not frame.isValid():
+            return
+        if self._stopped:
+            # This frame was already queued for delivery when we got stopped. The sink keeps
+            # the last delivered frame (a camera buffer) alive: release it again.
+            self.setVideoFrame(QVideoFrame())
             return
         # only keep the newest frame
         self._pending_frame = QVideoFrame(frame)  # keep our own reference (the received frame is owned by Qt)
@@ -75,3 +81,8 @@ class QrReaderVideoSurface(QVideoSink):
             _logger.warning(f"failed to convert video frame to image. pixel format: {frame.pixelFormat()}", only_once=True)
             return
         self.frame_available.emit(img)
+
+    def stop(self) -> None:
+        self._stopped = True
+        self._process_timer.stop()
+        self._pending_frame = None

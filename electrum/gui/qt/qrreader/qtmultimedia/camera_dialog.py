@@ -29,7 +29,7 @@ import sys
 import os
 from typing import List, Optional
 
-from PyQt6.QtMultimedia import QMediaDevices, QCamera, QMediaCaptureSession, QCameraDevice
+from PyQt6.QtMultimedia import QMediaDevices, QCamera, QMediaCaptureSession, QCameraDevice, QVideoFrame
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QCheckBox, QPushButton, QLabel, QWidget
 from PyQt6.QtGui import QImage, QPixmap
 from PyQt6.QtCore import QSize, QRect, Qt, pyqtSignal, PYQT_VERSION
@@ -89,7 +89,6 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
         self.media_capture_session: QMediaCaptureSession = None
         self._error_message: str | None = None
         self._ok_done: bool = False
-        self.camera_sc_conn = None
         self.resolution: QSize = None
 
         self.config = config
@@ -237,9 +236,16 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
             self.close()
 
     def _close_camera(self):
+        self.video_surface.stop()
+        if self.media_capture_session:
+            self.media_capture_session.setCamera(None)
+            self.media_capture_session.setVideoSink(None)
+            self.media_capture_session = None
         if self.camera:
             self.camera.stop()
             self.camera = None
+        # The sink keeps the last delivered frame (and hence a camera buffer) alive until it is destroyed.
+        self.video_surface.setVideoFrame(QVideoFrame())
 
     def _on_finished(self, code):
         res = ( (code == QDialog.DialogCode.Accepted
