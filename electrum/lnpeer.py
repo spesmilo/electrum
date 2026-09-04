@@ -3087,15 +3087,12 @@ class Peer(Logger, EventListener):
                 payment_hash=payment_hash,
                 is_trampoline=False,  # this is always the outer onion
             )
-            processed_onions[mpp_htlc] = (processed_onion, None)
-            inner_onion = None
-            if processed_onion.trampoline_onion_packet:
-                inner_onion = self._process_incoming_onion_packet(
-                    onion_packet=processed_onion.trampoline_onion_packet,
-                    payment_hash=payment_hash,
-                    is_trampoline=True,
-                )
-                processed_onions[mpp_htlc] = (processed_onion, inner_onion)
+            inner_onion = self._process_incoming_onion_packet(
+                onion_packet=processed_onion.trampoline_onion_packet,
+                payment_hash=payment_hash,
+                is_trampoline=True,
+            ) if processed_onion.trampoline_onion_packet else None
+            processed_onions[mpp_htlc] = (processed_onion, inner_onion)
 
             total_msat_outer_onion = processed_onion.total_msat
             total_msat_inner_onion = inner_onion.total_msat if inner_onion else None
