@@ -24,7 +24,7 @@ from electrum.transaction import Transaction, PartialTxInput, PartialTxOutput
 from electrum.network import TxBroadcastError, BestEffortRequestFailed
 from electrum.payment_identifier import (PaymentIdentifierType, PaymentIdentifier,
                                          invoice_from_payment_identifier,
-                                         PaymentIdentifierState)
+                                         PaymentIdentifierState, outputs_to_multiline_csv)
 from electrum.submarine_swaps import SwapServerError
 from electrum.fee_policy import FeePolicy, FixedFeePolicy
 from electrum.lnurl import LNURL3Data, request_lnurl_withdraw_callback, LNURLError
@@ -592,6 +592,11 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
     def do_edit_invoice(self, invoice: 'Invoice'):  # FIXME broken
         assert not bool(invoice.get_amount_sat())
         text = invoice.lightning_invoice if invoice.is_lightning() else invoice.get_address()
+        if len(invoice.get_outputs()) > 1 or text is None:
+            # invoice is not standard single-address-out, it's one of
+            # - multiple outputs (invoice.get_address() only returns output[0])
+            # - single output is script, not address
+            text = outputs_to_multiline_csv(invoice.get_outputs(), self.config)
         self.set_payment_identifier(text)
         self.amount_e.setFocus()
         # disable save button, because it would create a new invoice

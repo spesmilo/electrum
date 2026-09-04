@@ -11,9 +11,9 @@ from .contacts import AliasNotFoundException
 from .i18n import _
 from .invoices import Invoice
 from .logging import Logger
-from .util import parse_max_spend, InvoiceError
+from .util import parse_max_spend, InvoiceError, format_satoshis_plain
 from .util import get_asyncio_loop, log_exceptions
-from .transaction import PartialTxOutput
+from .transaction import PartialTxOutput, script_GetOp
 from .lnurl import (decode_lnurl, request_lnurl, callback_lnurl, LNURLError,
                     lightning_address_to_url, try_resolve_lnurlpay, LNURL6Data,
                     LNURL3Data, LNURLData, SUPPORTED_LNURL_SCHEMES)
@@ -26,6 +26,7 @@ from .segwit_addr import bech32_decode
 if TYPE_CHECKING:
     from .wallet import Abstract_Wallet
     from .transaction import Transaction
+    from .simple_config import SimpleConfig
 
 
 def maybe_extract_bech32_lightning_payment_identifier(data: str) -> Optional[str]:
@@ -437,7 +438,7 @@ class PaymentIdentifier(Logger):
         else:
             raise Exception('not onchain')
 
-    def _parse_as_multiline(self, text: str):
+    def _parse_as_multiline(self, text: str) -> List[PartialTxOutput]:
         # filter out empty lines
         lines = text.split('\n')
         lines = [i for i in lines if i]
@@ -638,3 +639,27 @@ def invoice_from_payment_identifier(
             URI=pi.bip21,
         )
 
+
+def script_to_string(script: bytes) -> str:
+    """Convert script bytes to human-readable string for PI"""
+    words = []
+    for opcode, data, _pos in script_GetOp(script):
+        if data is None:  # not a push opcode
+            words.append(opcodes(opcode).name)
+        elif data:
+            words.append(data.hex())
+        else:  # empty push
+            words.append(opcodes.OP_0.name)
+    return ' '.join(words)
+
+
+def outputs_to_multiline_csv(outputs: List[PartialTxOutput], config: 'SimpleConfig') -> str:
+    lines = []
+    for output in outputs:
+        recipient = output.address or f'script({script_to_string(output.scriptpubkey)})'
+        if parse_max_spend(output.value):
+            amount = output.value
+        else:
+            amount = format_satoshis_plain(output.value, decimal_point=config.BTC_AMOUNTS_DECIMAL_POINT)
+        lines.append(f'{recipient},{amount}')
+    return '\n'.join(lines)

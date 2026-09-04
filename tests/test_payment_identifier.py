@@ -6,7 +6,7 @@ from electrum import SimpleConfig
 from electrum.invoices import Invoice
 from electrum.payment_identifier import (
     maybe_extract_bech32_lightning_payment_identifier, PaymentIdentifier, PaymentIdentifierType,
-    PaymentIdentifierState, invoice_from_payment_identifier, remove_uri_prefix,
+    PaymentIdentifierState, invoice_from_payment_identifier, remove_uri_prefix, outputs_to_multiline_csv,
 )
 from electrum.lnurl import LNURL6Data, LNURL3Data, LNURLError
 from electrum.transaction import PartialTxOutput
@@ -299,6 +299,7 @@ class TestPaymentIdentifier(ElectrumTestCase):
         self.assertTrue(all(lambda x: isinstance(x, PartialTxOutput) for x in pi.multiline_outputs))
         self.assertEqual(1000, pi.multiline_outputs[0].value)
         self.assertEqual(1000, pi.multiline_outputs[1].value)
+        self.assertEqual(pi_str, outputs_to_multiline_csv(pi.multiline_outputs, self.config))
 
         pi_str = '\n'.join([
             'bc1qj3zx2zc4rpv3npzmznxhdxzn0wm7pzqp8p2293,0.01',
@@ -315,6 +316,7 @@ class TestPaymentIdentifier(ElectrumTestCase):
         self.assertEqual(1000, pi.multiline_outputs[0].value)
         self.assertEqual(1000, pi.multiline_outputs[1].value)
         self.assertEqual('!', pi.multiline_outputs[2].value)
+        self.assertEqual(pi_str, outputs_to_multiline_csv(pi.multiline_outputs, self.config))
 
         pi_str = '\n'.join([
             'bc1qj3zx2zc4rpv3npzmznxhdxzn0wm7pzqp8p2293,0.01',
@@ -334,16 +336,19 @@ class TestPaymentIdentifier(ElectrumTestCase):
 
         pi_str = '\n'.join([
             'bc1qj3zx2zc4rpv3npzmznxhdxzn0wm7pzqp8p2293,0.01',
-            'script(OP_RETURN baddc0ffee),0'
+            'script(OP_RETURN baddc0ffee),0',
+            'script(OP_0 OP_1NEGATE OP_16 ' + 'aa' * 80 + ' ' + 'bb' * 300 + '),0',  # every push encoding
         ])
         pi = PaymentIdentifier(self.wallet, pi_str)
         self.assertTrue(pi.is_valid())
         self.assertTrue(pi.is_multiline())
         self.assertIsNotNone(pi.multiline_outputs)
-        self.assertEqual(2, len(pi.multiline_outputs))
+        self.assertEqual(3, len(pi.multiline_outputs))
         self.assertTrue(all(lambda x: isinstance(x, PartialTxOutput) for x in pi.multiline_outputs))
         self.assertEqual(1000, pi.multiline_outputs[0].value)
         self.assertEqual(0, pi.multiline_outputs[1].value)
+        self.assertEqual(0, pi.multiline_outputs[2].value)
+        self.assertEqual(pi_str, outputs_to_multiline_csv(pi.multiline_outputs, self.config))
 
     def test_spk(self):
         address = 'bc1qj3zx2zc4rpv3npzmznxhdxzn0wm7pzqp8p2293'
