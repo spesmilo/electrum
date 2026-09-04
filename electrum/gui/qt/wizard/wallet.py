@@ -634,7 +634,7 @@ class WCHaveSeed(WalletWizardComponent, Logger):
         seed = self.seed_widget.get_seed()
         seed_variant = self.seed_widget.seed_type
         wallet_type = self.wizard_data['wallet_type']
-        seed_valid, seed_type, validation_message, self.can_passphrase = self.wizard.validate_seed(seed, seed_variant, wallet_type)
+        seed_valid, seed_type, validation_message, warning, self.can_passphrase = self.wizard.validate_seed(seed, seed_variant, wallet_type)
 
         is_cosigner = self.wizard_data['wallet_type'] == 'multisig' and 'multisig_current_cosigner' in self.wizard_data
 
