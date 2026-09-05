@@ -179,6 +179,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
 
 
     def main(self):
+        BaseElectrumGui.main(self)
         self.daemon.start_network()
         while self.done == 0:
             self.main_command()

@@ -79,6 +79,7 @@ from . import GuiImportError
 from . import crypto
 from . import constants
 from . import descriptor
+from . import crandom
 
 if TYPE_CHECKING:
     from .network import Network
@@ -2329,7 +2330,7 @@ class Commands(Logger):
         assert peer, 'node_id not a peer'
 
         path = [pubkey, wallet.lnworker.node_keypair.pubkey]
-        session_key = os.urandom(32)
+        session_key = crandom.get_rand_bytes(32)
         blinded_path = create_blinded_path(session_key, path=path, final_recipient_data={}, dummy_hops=dummy_hops)
 
         with io.BytesIO() as blinded_path_fd:

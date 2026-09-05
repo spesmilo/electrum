@@ -58,6 +58,7 @@ from .version import PROTOCOL_VERSION_MIN
 from .i18n import _
 from .logging import get_logger, Logger
 from .fee_policy import FeeHistogram, FeeTimeEstimates, FEE_ETA_TARGETS
+from . import crandom
 
 
 if TYPE_CHECKING:
@@ -997,6 +998,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                 self.interfaces[server] = interface
         finally:
             self._connecting_ifaces.discard(server)
+            crandom.rand_add_refresh()  # feed network timing entropy into our RNG
 
         if server == self.default_server:
             await self.switch_to_interface(server)

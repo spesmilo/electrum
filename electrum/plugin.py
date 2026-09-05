@@ -50,6 +50,7 @@ from .util import (profiler, DaemonThread, UserCancelled, ThreadJob, UserFacingE
                    make_dir, make_aiohttp_session)
 from . import bip32
 from . import plugins
+from . import crandom
 from .simple_config import SimpleConfig
 from .logging import get_logger, Logger
 from .crypto import sha256
@@ -440,7 +441,7 @@ class Plugins(DaemonThread):
             pass
 
     def create_new_key(self, password:str) -> str:
-        salt = os.urandom(32)
+        salt = crandom.get_rand_bytes(32)
         privkey = self.derive_privkey(password, salt)
         pubkey = privkey.get_public_key_bytes()
         key = bytes([PLUGIN_PASSWORD_VERSION]) + salt + pubkey
