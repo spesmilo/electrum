@@ -2005,16 +2005,6 @@ async def resolve_dns_srv(host: str):
     return [dict_from_srv_record(srv) for srv in srv_records]
 
 
-def randrange(bound: int) -> int:
-    """Return a random integer k such that 1 <= k < bound, uniformly
-    distributed across that range.
-    This is guaranteed to be cryptographically strong.
-    """
-    # crandom.get_rand_below(bound) returns a random int: 0 <= r < bound,
-    # hence transformations:
-    return crandom.get_rand_below(bound - 1) + 1
-
-
 class CallbackManager(Logger):
     # callbacks set by the GUI or any thread
     # guarantee: the callbacks will always get triggered from the asyncio thread.
