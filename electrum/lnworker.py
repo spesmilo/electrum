@@ -1315,6 +1315,12 @@ class LNWallet(Logger):
                 out[payment_hash] += plist
         return out
 
+    def has_unresolved_sent_htlcs(self, payment_hash: bytes) -> bool:
+        """Returns whether there are htlcs we sent for this payment that have neither
+        been failed nor fulfilled yet, i.e. the receiver might still take the money.
+        """
+        return payment_hash in self.get_payments(status='inflight', direction=SENT)
+
     def get_payment_value(
             self, sent_info: Optional['PaymentInfo'],
             plist: List[HTLCWithStatus]
@@ -1959,7 +1965,7 @@ class LNWallet(Logger):
             raise PaymentFailure(_("This invoice has been paid already"))
         if status == PR_INFLIGHT:
             raise PaymentFailure(_("A payment was already initiated for this invoice"))
-        if payment_hash in self.get_payments(status='inflight'):
+        if self.has_unresolved_sent_htlcs(payment_hash):
             raise PaymentFailure(_("A previous attempt to pay this invoice did not clear"))
         info = PaymentInfo(
             payment_hash=payment_hash,
@@ -2002,8 +2008,11 @@ class LNWallet(Logger):
             if success:
                 self.set_invoice_status(key, PR_PAID)
                 util.trigger_callback('payment_succeeded', self.wallet, key)
+            elif self.has_unresolved_sent_htlcs(payment_hash):
+                # The invoice stays PR_INFLIGHT until the htlcs resolve.
+                self.logger.info(f"pay_invoice: htlcs are still unresolved. ")
             else:
-                self.set_invoice_status(key, PR_UNPAID)  # allows retries (unless there are still unresolved htlcs)
+                self.set_invoice_status(key, PR_UNPAID)  # allows retries
                 util.trigger_callback('payment_failed', self.wallet, key, reason)
         log = self.logs[key]
         return success, log
