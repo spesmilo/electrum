@@ -46,7 +46,7 @@ from electrum import lnmsg
 from electrum.logging import console_stderr_handler, Logger
 from electrum.lnonion import OnionFailureCode, OnionRoutingFailure, OnionHopsDataSingle, OnionPacket
 from electrum.lnutil import LOCAL, REMOTE, UpdateAddHtlc, RecvMPPResolution, RevocationStore
-from electrum.invoices import PR_PAID, PR_UNPAID, Invoice
+from electrum.invoices import PR_PAID, PR_UNPAID, PR_INFLIGHT, Invoice
 from electrum.interface import GracefulDisconnect
 from electrum.fee_policy import FeeTimeEstimates, FEE_ETA_TARGETS
 from electrum.mpp_split import split_amount_normal
@@ -914,6 +914,58 @@ class TestPeerDirect(TestPeer):
 
         for _test_trampoline in [False, True]:
             await run_test(_test_trampoline)
+
+    async def test_invoice_stays_inflight_while_htlcs_unresolved(self):
+        """Tests that we don't mark an invoice as failed while htlcs we sent for it are still
+        unresolved. The receiver can still fulfill those htlcs, so telling the user the payment
+        failed would trick them into paying twice, e.g. using a fresh invoice, which the
+        "did not clear" check in pay_invoice cannot detect as a retry.
+        """
+        graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
+        p1, p2 = graph.peers.values()
+        w1, w2 = graph.workers.values()
+        w2.enable_htlc_settle = False  # bob holds the htlc: he neither settles nor fails it
+        lnaddr, pay_req = self.prepare_invoice(w2)
+        payment_hash = lnaddr.paymenthash
+
+        # simulate pay_to_node giving up (e.g. out of attempts) while an htlc is still unresolved
+        orig_pay_to_node = w1.pay_to_node
+
+        async def pay_to_node_that_gives_up(**kwargs):
+            task = asyncio.ensure_future(orig_pay_to_node(**kwargs))
+            await p2.received_commitsig_event.wait()
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+            raise PaymentFailure('giving up while htlcs are unresolved')
+
+        w1.pay_to_node = pay_to_node_that_gives_up
+
+        async def pay():
+            result, log = await w1.pay_invoice(pay_req)
+            self.assertFalse(result)
+            self.assertTrue(w1.has_unresolved_sent_htlcs(payment_hash))
+            # the money is still at risk, so the invoice must not look failed/unpaid
+            self.assertEqual(PR_INFLIGHT, w1.get_invoice_status(pay_req))
+            with self.assertRaises(PaymentFailure):
+                await w1.pay_invoice(pay_req)
+            # now let bob fulfill the htlc. nobody is waiting for the payment anymore,
+            # but the invoice must still end up as paid.
+            w2.enable_htlc_settle = True
+            while w1.get_invoice_status(pay_req) != PR_PAID:
+                await asyncio.sleep(0.01)
+            raise SuccessfulTest()
+
+        async def f():
+            async with OldTaskGroup() as group:
+                await group.spawn(p1._message_loop())
+                await group.spawn(p1.htlc_switch())
+                await group.spawn(p2._message_loop())
+                await group.spawn(p2.htlc_switch())
+                await asyncio.sleep(0.01)
+                await group.spawn(pay())
+
+        with self.assertRaises(SuccessfulTest):
+            await f()
 
     async def test_payment_race(self):
         """Alice and Bob pay each other simultaneously.
