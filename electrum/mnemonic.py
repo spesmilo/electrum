@@ -30,7 +30,8 @@ import string
 from typing import Sequence, Dict, Iterator, Optional
 from types import MappingProxyType
 
-from .util import resource_path, bfh, randrange
+from . import crandom
+from .util import resource_path, bfh
 from .crypto import hmac_oneshot
 from . import version
 from .logging import Logger
@@ -212,7 +213,7 @@ class Mnemonic(Logger):
         # generate random
         entropy = 1
         while entropy < pow(2, num_bits - bpw):  # try again if seed would not contain enough words
-            entropy = randrange(pow(2, num_bits))
+            entropy = crandom.get_rand_below(pow(2, num_bits))
         # brute-force seed that has correct "version number"
         nonce = 0
         while True:
