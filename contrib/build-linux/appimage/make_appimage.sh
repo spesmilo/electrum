@@ -24,8 +24,10 @@ PYTHON_VERSION=3.12.13
 PY_VER_MAJOR="3.12"  # as it appears in fs paths
 PKG2APPIMAGE_COMMIT="a9c85b7e61a3a883f4a35c41c5decb5af88b6b5d"
 
-VERSION=$(git describe --tags --dirty --always)
-APPIMAGE="$DISTDIR/electrum-$VERSION-x86_64.AppImage"
+VERSIONB=$("$CONTRIB"/print_electrum_version.py)
+VERSIONC=$("$CONTRIB"/print_electrum_version.py --with-commit)
+
+APPIMAGE="$DISTDIR/electrum-$VERSIONC-x86_64.AppImage"
 
 rm -rf "$BUILDDIR"
 mkdir -p "$APPDIR" "$CACHEDIR" "$PIP_CACHE_DIR" "$DISTDIR" "$DLL_TARGET_DIR"
@@ -271,7 +273,7 @@ args=\$(echo "\$@" | sed -e 's/-mkfs-time 0//')
 "$BUILDDIR/squashfs-root/usr/bin/mksquashfs_orig" \$args
 EOF
     chmod +x "$BUILDDIR/squashfs-root/usr/bin/mksquashfs"
-    env VERSION="$VERSION" ARCH=x86_64 ./squashfs-root/AppRun --runtime-file "$TYPE2_RUNTIME_REPO_DIR/runtime-x86_64" --no-appstream --verbose "$APPDIR" "$APPIMAGE"
+    env VERSION="$VERSIONB" ARCH=x86_64 ./squashfs-root/AppRun --runtime-file "$TYPE2_RUNTIME_REPO_DIR/runtime-x86_64" --no-appstream --verbose "$APPDIR" "$APPIMAGE"
 )
 
 
