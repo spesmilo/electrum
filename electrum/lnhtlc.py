@@ -128,6 +128,17 @@ class HTLCManager:
         self.log[LOCAL]['fails'][htlc_id] = {LOCAL: next_ctn, REMOTE: None}
 
     @with_lock
+    def mark_htlc_resolved_onchain(self, *, htlc_proposer: HTLCOwner, htlc_id: int, success: bool) -> None:
+        # simulate the removal of the htlc
+        # so that lnworker.has_unresolved_sent_htlcs() does not return True
+        if self.was_htlc_failed(htlc_id=htlc_id, htlc_proposer=htlc_proposer):
+            return
+        if self.was_htlc_preimage_released(htlc_id=htlc_id, htlc_proposer=htlc_proposer):
+            return
+        MAX_CTN = 2 ** 48 + 1  # means that it was settled offchain
+        self.log[htlc_proposer]['settles' if success else 'fails'][htlc_id] = {htlc_proposer: MAX_CTN, htlc_proposer.inverted(): None}
+
+    @with_lock
     def send_update_fee(self, feerate: int) -> None:
         fee_update = FeeUpdate(rate=feerate,
                                ctn_local=None, ctn_remote=self.ctn_latest(REMOTE) + 1)

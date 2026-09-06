@@ -1470,6 +1470,10 @@ class Channel(AbstractChannel):
             self.lnworker.htlc_failed(self, htlc.payment_hash, htlc.htlc_id, error_bytes, failure_message)
 
     def extract_preimage_from_htlc_txin(self, txin: TxInput, *, is_deeply_mined: bool) -> None:
+        # FIXME: LNWatcher should pass the corresponding htlc_id to this method.
+        # This would fix the quadratic search, and we would also be able to call
+        # 'mark_htlc_resolved_onchain', 'htlc_failed' and 'htlc_fulfilled' for the
+        # corresponding htlc, instead of for all 'found' values
         from . import lnutil
         from .crypto import ripemd
         from .transaction import match_script_against_template, script_GetOp
@@ -1547,6 +1551,9 @@ class Channel(AbstractChannel):
                 self.lnworker.save_preimage(payment_hash, preimage, mark_as_public=True)
             for htlc, is_sent in found.values():
                 if is_sent:
+                    # if chan is redeemed, we can safely mark all htlcs as resolved
+                    if self.is_redeemed():
+                        self.hm.mark_htlc_resolved_onchain(htlc_proposer=LOCAL, htlc_id=htlc.htlc_id, success=True)
                     self.lnworker.htlc_fulfilled(self, payment_hash, htlc.htlc_id)
         else:
             # htlc timeout or revocation tx
@@ -1557,6 +1564,9 @@ class Channel(AbstractChannel):
             for htlc, is_sent in found.values():
                 if is_sent:
                     self.logger.info(f'htlc {"revocation" if is_revocation else "timeout"} tx: failing htlc')
+                    # if chan is redeemed, we can safely mark all htlcs as resolved
+                    if self.is_redeemed():
+                        self.hm.mark_htlc_resolved_onchain(htlc_proposer=LOCAL, htlc_id=htlc.htlc_id, success=False)
                     self.lnworker.htlc_failed(
                         self,
                         payment_hash=htlc.payment_hash,
