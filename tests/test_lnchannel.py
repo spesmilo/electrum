@@ -52,6 +52,7 @@ from .lnhelpers import create_test_channels
 
 
 one_bitcoin_in_msat = bitcoin.COIN * 1000
+one_mbtc_in_msat = one_bitcoin_in_msat // 1000
 
 
 class TestFee(ElectrumTestCase):
@@ -969,33 +970,33 @@ class TestAvailableToSpend(ElectrumTestCase):
             alice_channel.add_htlc(htlc)
         # Now do a state transition, which will ACK the FailHTLC, making Alice
         # able to add the new HTLC.
-        force_state_transition(alice_channel, bob_channel)
+        force_state_transition(bob_channel, alice_channel)
         self.assertEqual(499986152000 if not alice_channel.has_anchors() else 499980692000, alice_channel.available_to_spend(LOCAL))
         self.assertEqual(500000000000, bob_channel.available_to_spend(LOCAL))
         alice_channel.add_htlc(htlc)
 
     async def test_single_payment(self):
         alice_channel, bob_channel = create_test_channels(
-            local_msat=4000000000,
-            remote_msat=4000000000,
-            local_max_inflight=1000000000,
-            remote_max_inflight=2000000000,
+            local_msat=40 * one_mbtc_in_msat,
+            remote_msat=40 * one_mbtc_in_msat,
+            local_max_inflight=10 * one_mbtc_in_msat,
+            remote_max_inflight=20 * one_mbtc_in_msat,
             alice_lnwallet=self.alice_lnwallet,
             bob_lnwallet=self.bob_lnwallet,
         )
 
         # alice can send 20 but bob can only receive 10, because of stricter receiving rules
-        self.assertEqual(2000000000, alice_channel.available_to_spend(LOCAL))
-        self.assertEqual(1000000000, bob_channel.available_to_spend(REMOTE))
+        self.assertEqual(20 * one_mbtc_in_msat, alice_channel.available_to_spend(LOCAL))
+        self.assertEqual(10 * one_mbtc_in_msat, bob_channel.available_to_spend(REMOTE))
 
         # bob can send 10, alice can receive 10
-        self.assertEqual(1000000000, bob_channel.available_to_spend(LOCAL))
-        self.assertEqual(1000000000, alice_channel.available_to_spend(REMOTE))
+        self.assertEqual(10 * one_mbtc_in_msat, bob_channel.available_to_spend(LOCAL))
+        self.assertEqual(10 * one_mbtc_in_msat, alice_channel.available_to_spend(REMOTE))
 
         paymentPreimage1 = b"\x01" * 32
         htlc = UpdateAddHtlc(
             payment_hash=bitcoin.sha256(paymentPreimage1),
-            amount_msat=1000000000,
+            amount_msat=10 * one_mbtc_in_msat,
             cltv_abs=5,
             timestamp=0,
         )
@@ -1004,16 +1005,16 @@ class TestAvailableToSpend(ElectrumTestCase):
         bob_idx1 = bob_channel.receive_htlc(htlc).htlc_id
         force_state_transition(alice_channel, bob_channel)
 
-        self.assertEqual(1000000000, alice_channel.available_to_spend(LOCAL))
+        self.assertEqual(10 * one_mbtc_in_msat, alice_channel.available_to_spend(LOCAL))
         self.assertEqual(0, bob_channel.available_to_spend(REMOTE))
 
-        self.assertEqual(1000000000, bob_channel.available_to_spend(LOCAL))
-        self.assertEqual(1000000000, alice_channel.available_to_spend(REMOTE))
+        self.assertEqual(10 * one_mbtc_in_msat, bob_channel.available_to_spend(LOCAL))
+        self.assertEqual(10 * one_mbtc_in_msat, alice_channel.available_to_spend(REMOTE))
 
         paymentPreimage2 = b"\x02" * 32
         htlc2 = UpdateAddHtlc(
             payment_hash=bitcoin.sha256(paymentPreimage2),
-            amount_msat=1500000000,
+            amount_msat=15 * one_mbtc_in_msat,
             cltv_abs=5,
             timestamp=0,
         )
@@ -1024,13 +1025,13 @@ class TestAvailableToSpend(ElectrumTestCase):
         # settle htlc 1 to clear inflight
         bob_channel.settle_htlc(paymentPreimage1, bob_idx1)
         alice_channel.receive_htlc_settle(paymentPreimage1, alice_idx1)
-        force_state_transition(alice_channel, bob_channel)
+        force_state_transition(bob_channel, alice_channel)
 
-        self.assertEqual(2000000000, alice_channel.available_to_spend(LOCAL))
-        self.assertEqual(1000000000, alice_channel.available_to_spend(REMOTE))
+        self.assertEqual(20 * one_mbtc_in_msat, alice_channel.available_to_spend(LOCAL))
+        self.assertEqual(10 * one_mbtc_in_msat, alice_channel.available_to_spend(REMOTE))
 
-        self.assertEqual(1000000000, bob_channel.available_to_spend(LOCAL))
-        self.assertEqual(1000000000, alice_channel.available_to_spend(REMOTE))
+        self.assertEqual(10 * one_mbtc_in_msat, bob_channel.available_to_spend(LOCAL))
+        self.assertEqual(10 * one_mbtc_in_msat, bob_channel.available_to_spend(REMOTE))
 
 
 class TestAvailableToSpendNoAnchors(TestAvailableToSpend):
@@ -1149,7 +1150,7 @@ class TestChanReserve(ElectrumTestCase):
         self.assertEqual(0, self.bob_channel.available_to_spend(LOCAL))
         self.bob_channel.settle_htlc(paymentPreimage, bob_idx)
         self.alice_channel.receive_htlc_settle(paymentPreimage, alice_idx)
-        force_state_transition(self.alice_channel, self.bob_channel)
+        force_state_transition(self.bob_channel, self.alice_channel)
         self.check_bals(one_bitcoin_in_msat * 3, one_bitcoin_in_msat * 7)
         # And now let Bob add an HTLC of 1 BTC. This will take Bob's balance
         # all the way down to his channel reserve, but since he is not paying
@@ -1162,7 +1163,7 @@ class TestChanReserve(ElectrumTestCase):
         )
         self.bob_channel.add_htlc(htlc)
         self.alice_channel.receive_htlc(htlc)
-        force_state_transition(self.alice_channel, self.bob_channel)
+        force_state_transition(self.bob_channel, self.alice_channel)
         self.check_bals(one_bitcoin_in_msat * 3, one_bitcoin_in_msat * 6)
         self.assertEqual(0, self.bob_channel.available_to_spend(LOCAL))
 
@@ -1399,6 +1400,14 @@ class TestHtlcSpendWitnessesSRK(TestHtlcSpendWitnesses):
 
 
 def force_state_transition(chanA: Channel, chanB: Channel) -> None:
+    # note: chanA signs first, chanB signs second, argument order matters.
+    #       All new updates originating from *A* will be irrevocably committed to in both ctxs after we return.
+    #       New updates originating from *B* will be irrevocably committed to A's ctx, but not to B's ctx yet.
+    # Alice           Bob
+    #   ---commitsig-->
+    #   <---revack-----
+    #   <--commitsig---
+    #   ----revack---->
     chanB.receive_new_commitment(*chanA.sign_next_commitment())
     rev = chanB.revoke_current_commitment()
     bob_sig, bob_htlc_sigs = chanB.sign_next_commitment()
