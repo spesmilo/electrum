@@ -2231,6 +2231,9 @@ class Peer(Logger, EventListener):
             if self.lnworker.maybe_refuse_to_forward_htlc_that_corresponds_to_payreq_we_created(payment_hash):
                 _log_fail_reason(f"RHASH corresponds to payreq we created")
                 raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
+            if processed_onion.trampoline_onion_packet is not None:
+                _log_fail_reason(f"found trampoline onion in non-final onion")
+                raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'')
             if outer_onion_payment_secret:
                 # this is a trampoline forwarding htlc, multiple incoming trampoline htlcs can be collected
                 payment_key = (payment_hash + outer_onion_payment_secret).hex()
