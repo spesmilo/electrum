@@ -40,11 +40,12 @@ import aiohttp
 from aiohttp import web, client_exceptions
 from aiorpcx import ignore_after
 
+from . import crandom
 from . import util
 from .network import Network
 from .util import (
     json_decode, to_bytes, to_string, profiler, standardize_path, constant_time_compare, InvalidPassword,
-    log_exceptions, randrange, OldTaskGroup, UserFacingException, JsonRPCError, os_chmod
+    log_exceptions, OldTaskGroup, UserFacingException, JsonRPCError, os_chmod
 )
 from .wallet import Wallet, Abstract_Wallet
 from .storage import WalletStorage
@@ -186,7 +187,7 @@ def get_rpc_credentials(config: SimpleConfig) -> Tuple[str, str]:
         rpc_user = 'user'
         bits = 128
         nbytes = bits // 8 + (bits % 8 > 0)
-        pw_int = randrange(pow(2, bits))
+        pw_int = crandom.get_rand_below(pow(2, bits))
         pw_b64 = b64encode(
             pw_int.to_bytes(nbytes, 'big'), b'-_')
         rpc_password = to_string(pw_b64, 'ascii')

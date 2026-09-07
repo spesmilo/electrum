@@ -4,6 +4,7 @@ import json
 from typing import Optional, TYPE_CHECKING
 
 from electrum import bip32, constants
+from electrum import crandom
 from electrum.crypto import sha256
 from electrum.i18n import _
 from electrum.keystore import Hardware_KeyStore
@@ -124,7 +125,7 @@ class Jade_Client(HardwareClientBase):
         self.jade.connect()
 
         # Push some host entropy into jade
-        self.jade.add_entropy(os.urandom(32))
+        self.jade.add_entropy(crandom.get_rand_bytes(32))
 
     @runs_in_hwd_thread
     def authenticate(self):

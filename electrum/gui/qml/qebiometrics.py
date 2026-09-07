@@ -1,10 +1,10 @@
 import os
-import secrets
 from enum import Enum
 from typing import Optional, TYPE_CHECKING
 
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot, pyqtProperty, QMetaObject, Qt
 
+from electrum import crandom
 from electrum.i18n import _
 from electrum.logging import get_logger
 from electrum.base_crash_reporter import send_exception_to_crash_reporter
@@ -81,7 +81,7 @@ class QEBiometrics(AuthMixin, QObject):
         The encryption key for the wrap_key is stored in the AndroidKeyStore.
         This way the wallet password doesn't have to leave the process.
         """
-        wrap_key, iv = secrets.token_bytes(32), secrets.token_bytes(16)
+        wrap_key, iv = crandom.get_rand_bytes(32), crandom.get_rand_bytes(16)
         wrapped_wallet_password = aes_encrypt_with_iv(
             key=wrap_key,
             iv=iv,

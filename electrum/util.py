@@ -52,7 +52,6 @@ import ssl
 import ipaddress
 from ipaddress import IPv4Address, IPv6Address
 import random
-import secrets
 import functools
 from functools import partial
 from abc import abstractmethod, ABC
@@ -72,6 +71,7 @@ import dns.asyncresolver
 
 from .i18n import _
 from .logging import get_logger, Logger
+from . import crandom
 
 if TYPE_CHECKING:
     from .network import Network, ProxySettings
@@ -2003,16 +2003,6 @@ async def resolve_dns_srv(host: str):
             'port': srv.port,
         }
     return [dict_from_srv_record(srv) for srv in srv_records]
-
-
-def randrange(bound: int) -> int:
-    """Return a random integer k such that 1 <= k < bound, uniformly
-    distributed across that range.
-    This is guaranteed to be cryptographically strong.
-    """
-    # secrets.randbelow(bound) returns a random int: 0 <= r < bound,
-    # hence transformations:
-    return secrets.randbelow(bound - 1) + 1
 
 
 class CallbackManager(Logger):
