@@ -50,6 +50,15 @@ Dialog {
         ? Popup.CloseOnEscape | Popup.CloseOnPressOutside
         : Popup.NoAutoClose
 
+    TapHandler {  // close keyboard when tapping on the empty background
+        parent: abstractdialog.background
+        onTapped: {
+            // Release input focus so tapping the same field opens the keyboard again.
+            abstractdialog.contentItem.forceActiveFocus(Qt.MouseFocusReason)
+            Qt.inputMethod.hide()
+        }
+    }
+
     onOpenedChanged: {
         if (opened) {
             app.activeDialogs.push(abstractdialog)
