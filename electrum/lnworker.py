@@ -4252,11 +4252,10 @@ class LNWallet(Logger):
                     next_onion=next_onion)
                 return
 
-        if not direct_channels:
-            if budget.fee_msat < 1000:
-                raise OnionRoutingFailure(code=OnionFailureCode.TRAMPOLINE_FEE_INSUFFICIENT, data=b'')
-            if budget.cltv < 576:
-                raise OnionRoutingFailure(code=OnionFailureCode.TRAMPOLINE_EXPIRY_TOO_SOON, data=b'')
+        if budget.fee_msat < (1000 if not direct_channels else 0):
+            raise OnionRoutingFailure(code=OnionFailureCode.TRAMPOLINE_FEE_INSUFFICIENT, data=b'')
+        if budget.cltv < (576 if not direct_channels else 0):
+            raise OnionRoutingFailure(code=OnionFailureCode.TRAMPOLINE_EXPIRY_TOO_SOON, data=b'')
 
         try:
             await self.pay_to_node(
