@@ -3028,7 +3028,7 @@ class LNWallet(Logger):
         if mpp_status.resolution > RecvMPPResolution.WAITING:
             # we are getting a htlc for a set that is not in WAITING state, it cannot be safely added
             self.logger.info(f"htlc set cannot accept htlc, failing htlc: {channel_id=} {htlc.htlc_id=}")
-            if mpp_status == RecvMPPResolution.EXPIRED:
+            if mpp_status.resolution == RecvMPPResolution.EXPIRED:
                 raise OnionRoutingFailure(code=OnionFailureCode.MPP_TIMEOUT, data=b'')
             raise OnionRoutingFailure(
                 code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS,
