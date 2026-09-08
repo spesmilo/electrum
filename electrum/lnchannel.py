@@ -2019,7 +2019,9 @@ class Channel(AbstractChannel):
                               (REMOTE, SENT, self.get_oldest_unrevoked_ctn(REMOTE)),
                               (REMOTE, SENT, self.get_latest_ctn(REMOTE)),):
             for htlc_id, htlc in self.hm.htlcs_by_direction(subject=sub, direction=dir, ctn=ctn).items():
-                if not self.hm.was_htlc_settled(htlc_id=htlc_id, htlc_proposer=REMOTE):
+                if not self.lnworker.is_preimage_public(htlc.payment_hash):
+                    # If we haven't released this specific preimage for ANY htlc_id on ANY channel,
+                    # (via any means: ln/onchain/etc...), then it's still safe.
                     continue
                 if htlc.cltv_abs - recv_htlc_deadline_delta > local_height:
                     continue

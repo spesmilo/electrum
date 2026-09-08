@@ -865,7 +865,7 @@ class TestChannel(ElectrumTestCase):
         # preimage wasn't released
         self.assertFalse(bob_channel.should_be_closed_due_to_expiring_htlcs(local_height=expired_height))
 
-        # now the preimage is released
+        # now the preimage is released (via any means, could be on different channel to different peer)
         bob_channel.settle_htlc(preimage, bob_htlc_id)
 
         # still in 30s grace period waiting for peers revack
