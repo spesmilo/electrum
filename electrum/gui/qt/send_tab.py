@@ -213,11 +213,10 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         if not pi:
             self.send_button.setEnabled(False)
             return
-        pi_error = pi.is_error() if pi.is_valid() else False
         is_spk_script = pi.type == PaymentIdentifierType.SPK and not pi.spk_is_address
         valid_amount = is_spk_script or bool(self.amount_e.get_amount())
         ready_to_finalize = not pi.need_resolve()
-        self.send_button.setEnabled(pi.is_valid() and not pi_error and valid_amount and ready_to_finalize)
+        self.send_button.setEnabled(self._is_pi_usable(pi) and valid_amount and ready_to_finalize)
 
     def do_paste(self):
         self.logger.debug('do_paste')
@@ -468,16 +467,18 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         elif lock_max and self.amount_e.text() == '!':
             self.amount_e.clear()
 
-        pi_unusable = pi.is_error() or (not self.wallet.has_lightning() and not pi.is_onchain())
+        pi_usable = self._is_pi_usable(pi)
         is_spk_script = pi.type == PaymentIdentifierType.SPK and not pi.spk_is_address
-
         amount_valid = is_spk_script or bool(self.amount_e.get_amount())
 
-        self.send_button.setEnabled(not pi_unusable and amount_valid and not pi.has_expired())
-        self.save_button.setEnabled(not pi_unusable and not is_spk_script and not pi.has_expired() and \
+        self.send_button.setEnabled(pi_usable and amount_valid and not pi.has_expired())
+        self.save_button.setEnabled(pi_usable and not is_spk_script and not pi.has_expired() and \
                                     pi.type not in [PaymentIdentifierType.LNURLP, PaymentIdentifierType.LNADDR])
 
         self.invoice_error.setText(_('Expired') if pi.has_expired() else '')
+
+    def _is_pi_usable(self, pi: 'PaymentIdentifier') -> bool:
+        return pi.is_valid() and not pi.is_error() and (self.wallet.has_lightning() or pi.is_onchain())
 
     def _handle_payment_identifier(self):
         self.update_fields()
