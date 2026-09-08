@@ -24,19 +24,16 @@
 # SOFTWARE.
 
 import time
-import math
-import sys
-import os
-from typing import List, Optional
+from typing import List, Optional, Sequence
 
-from PyQt6.QtMultimedia import QMediaDevices, QCamera, QMediaCaptureSession, QCameraDevice
+from PyQt6.QtMultimedia import QMediaDevices, QCamera, QMediaCaptureSession, QCameraDevice, QCameraFormat
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QCheckBox, QPushButton, QLabel, QWidget
 from PyQt6.QtGui import QImage, QPixmap
-from PyQt6.QtCore import QSize, QRect, Qt, pyqtSignal, PYQT_VERSION
+from PyQt6.QtCore import QSize, QRect, Qt, pyqtSignal
 
 from electrum.simple_config import SimpleConfig
 from electrum.i18n import _
-from electrum.qrreader import get_qr_reader, QrCodeResult, MissingQrDetectionLib
+from electrum.qrreader import get_qr_reader, QrCodeResult
 from electrum.logging import Logger
 
 from electrum.gui.qt.util import MessageBoxMixin, FixedAspectRatioLayout, ImageGraphicsEffect
@@ -89,7 +86,6 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
         self.media_capture_session: QMediaCaptureSession = None
         self._error_message: str | None = None
         self._ok_done: bool = False
-        self.camera_sc_conn = None
         self.resolution: QSize = None
 
         self.config = config
@@ -163,6 +159,22 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
         scan_pos_y = (resolution.height() - scan_size) // 2
         return QRect(scan_pos_x, scan_pos_y, scan_size, scan_size)
 
+    @staticmethod
+    def _pick_camera_format(formats: Sequence[QCameraFormat], min_size: int) -> Optional[QCameraFormat]:
+        """
+        Picks the format with the lowest resolution that is at least min_size in both dimensions,
+        or the largest one if there is none.
+        Note: by default, Qt picks the largest resolution with ~30 fps, which is a bit overkill for QR scanning.
+        https://github.com/qt/qtmultimedia/blob/269bbd9904624b15f42efd5440374653abda065f/src/multimedia/platform/qplatformcamera.cpp#L22
+        """
+        def num_pixels(fmt: QCameraFormat) -> int:
+            return fmt.resolution().width() * fmt.resolution().height()
+        large_enough = [fmt for fmt in formats
+                        if fmt.resolution().width() >= min_size and fmt.resolution().height() >= min_size]
+        if large_enough:
+            return min(large_enough, key=num_pixels)
+        return max(formats, key=num_pixels) if formats else None
+
     def start_scan(self, device: str = ''):
         """
         Scans a QR code from the given camera device.
@@ -196,12 +208,19 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
             self.logger.info("Warning: start_scan already called for this instance.")
 
         self.camera = QCamera(device_info)
-        self.camera.start()
         self.camera.errorOccurred.connect(self._on_camera_error)  # log the errors we get, if any, for debugging
 
         self.media_capture_session = QMediaCaptureSession()
         self.media_capture_session.setCamera(self.camera)
         self.media_capture_session.setVideoSink(self.video_surface)
+
+        camera_format = self._pick_camera_format(device_info.videoFormats(), self.SCAN_SIZE)
+        if camera_format is not None:
+            res = camera_format.resolution()
+            self.logger.info(f"chosen camera format: {res.width()}x{res.height()}")
+            self.camera.setCameraFormat(camera_format)
+
+        self.camera.start()
 
         self.open()
 
@@ -258,7 +277,9 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
 
         self.frame_id += 1
 
-        self._set_resolution(frame.size())
+        if self.resolution is None or frame.size() != self.resolution:
+            self.logger.info(f"video frame size: {frame.width()}x{frame.height()}")
+            self._set_resolution(frame.size())
 
         flip_x = self.flip_x.isChecked()
 
