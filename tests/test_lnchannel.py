@@ -857,7 +857,7 @@ class TestChannel(ElectrumTestCase):
 
         preimage = os.urandom(32)
         htlc = UpdateAddHtlc(payment_hash=sha256(preimage), amount_msat=one_bitcoin_in_msat, cltv_abs=100)
-        expired_height = 100 + lnutil.NBLOCK_DEADLINE_DELTA_BEFORE_EXPIRY_FOR_RECEIVED_HTLCS + 5
+        expired_height = 100 - lnutil.NBLOCK_DEADLINE_DELTA_BEFORE_EXPIRY_FOR_RECEIVED_HTLCS + 5
         alice_channel.add_htlc(htlc)
         bob_htlc_id =  bob_channel.receive_htlc(htlc).htlc_id
         force_state_transition(alice_channel, bob_channel)
