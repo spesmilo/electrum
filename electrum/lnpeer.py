@@ -2988,6 +2988,10 @@ class Peer(Logger, EventListener):
             if preimage:
                 if self.lnworker.enable_htlc_settle:
                     self.lnworker.set_request_status(htlc_set.get_payment_hash(), PR_PAID)
+                    # FIXME maybe race here: if the peer *now* goes offline, and we are the ultimate receiver of this payment,
+                    #       and then they come back online *after* fulfillment deadline (even after cltv_expiry!),
+                    #       we might still send update_fulfill_htlc.
+                    #       Maybe we should only do that if `lnworker.is_preimage_public(payment_hash)`?
                     self._fulfill_htlc_set(payment_key, preimage)
             if callback:
                 task = asyncio.create_task(callback())
