@@ -259,6 +259,53 @@ class TestDescriptor(ElectrumTestCase):
             parse_descriptor("tr(a34b99f22c790c4e36b2b3c2c35a36db06226e41c692fc82b8b56ac1c540c5bd,pk(669b8afcec803a0d323e9a17f3ea8e68e8abe5a278020a929adbec52421adbd0))").expand().output_script.hex())
 
     @as_testnet
+    def test_reject_invalid_raw_pubkey(self):
+        valid_compressed = "02c97dc3f4420402e01a113984311bf4a1b8de376cac0bdcfaf1b3ac81f13433c7"
+        valid_xonly = "a34b99f22c790c4e36b2b3c2c35a36db06226e41c692fc82b8b56ac1c540c5bd"
+        # valid keys still parse in their proper context
+        self.assertIsInstance(parse_descriptor(f"pkh({valid_compressed})"), PKHDescriptor)
+        self.assertIsInstance(parse_descriptor(f"wpkh({valid_compressed})"), WPKHDescriptor)
+        self.assertIsInstance(parse_descriptor(f"tr({valid_xonly})"), TRDescriptor)
+        self.assertIsInstance(
+            parse_descriptor(f"tr({valid_xonly},pk({valid_xonly}))"), TRDescriptor)
+        # off-curve, wrong-length and bad-prefix keys are rejected outside tr()
+        off_curve = "02" + "ff" * 32
+        wrong_length = valid_compressed + "ab"
+        bad_prefix = "05" + valid_compressed[2:]
+        for bad in (off_curve, wrong_length, bad_prefix):
+            with self.assertRaises(ValueError):
+                parse_descriptor(f"pkh({bad})")
+            with self.assertRaises(ValueError):
+                parse_descriptor(f"wpkh({bad})")
+        # off-curve x-only key rejected inside tr(), both as internal key and leaf key
+        off_curve_xonly = "ff" * 32
+        with self.assertRaises(ValueError):
+            parse_descriptor(f"tr({off_curve_xonly})")
+        with self.assertRaises(ValueError):
+            parse_descriptor(f"tr({valid_xonly},pk({off_curve_xonly}))")
+        # a wrong-length key is rejected inside tr() too
+        with self.assertRaises(ValueError):
+            parse_descriptor(f"tr({wrong_length})")
+        # a 32-byte x-only key is not a valid full key outside tr()
+        with self.assertRaises(ValueError):
+            parse_descriptor(f"pkh({valid_xonly})")
+        # inside tr() a valid 33-byte compressed key is accepted (later reduced
+        # to x-only), matching Bitcoin Core, as internal key and as leaf key
+        self.assertIsInstance(parse_descriptor(f"tr({valid_compressed})"), TRDescriptor)
+        self.assertIsInstance(
+            parse_descriptor(f"tr({valid_xonly},pk({valid_compressed}))"), TRDescriptor)
+        # a 65-byte uncompressed key is not allowed inside tr()
+        valid_uncompressed = (
+            "04a0507c8bb3d96dfd7731bafb0ae30e6ed10bbadd6a9f9f88eaf0602b9cc99adc"
+            "3ccfc29410b8f23c15d88413a6b88c8cd44b016a7f1dd91a8d64c3107c6bce1a")
+        with self.assertRaises(ValueError):
+            parse_descriptor(f"tr({valid_uncompressed})")
+        # a hybrid-encoded key (a valid point, non-canonical prefix) is rejected
+        hybrid = "06" + valid_uncompressed[2:]
+        with self.assertRaises(ValueError):
+            parse_descriptor(f"pkh({hybrid})")
+
+    @as_testnet
     def test_parse_descriptor_with_range(self):
         d = "wpkh([00000001/84h/1h/0h]tpubD6NzVbkrYhZ4WaWSyoBvQwbpLkojyoTZPRsgXELWz3Popb3qkjcJyJUGLnL4qHHoQvao8ESaAstxYSnhyswJ76uZPStJRJCTKvosUCJZL5B/0/*)"
         desc = parse_descriptor(d)
