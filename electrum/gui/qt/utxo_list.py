@@ -263,7 +263,7 @@ class UTXOList(MyTreeView):
         self.main_window.run_swap_dialog(is_reverse=False, recv_amount_sat_or_max='!', get_coins=lambda *args, **kwargs: coins)
 
     def can_open_channel(self, coins):
-        if self.wallet.lnworker is None:
+        if self.wallet.lnworker is None or not self.wallet.can_have_lightning():
             return False
         value = sum(x.value_sats() for x in coins)
         return value >= MIN_FUNDING_SAT and value <= self.config.LIGHTNING_MAX_FUNDING_SAT

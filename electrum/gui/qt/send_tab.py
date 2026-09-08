@@ -677,7 +677,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             can_pay_with_swap = False
             can_rebalance = False
             if lnworker:
-                can_pay_with_new_channel = lnworker.suggest_funding_amount(amount_sat, coins=coins)
+                if self.wallet.can_have_lightning():  # old wallets cannot open new channels
+                    can_pay_with_new_channel = lnworker.suggest_funding_amount(amount_sat, coins=coins)
                 can_pay_with_swap = lnworker.suggest_swap_to_send(amount_sat, coins=coins)
                 rebalance_suggestion = lnworker.suggest_rebalance_to_send(amount_sat)
                 can_rebalance = bool(rebalance_suggestion) and self.window.num_tasks() == 0
