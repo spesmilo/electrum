@@ -1089,7 +1089,7 @@ class Channel(AbstractChannel):
             htlc_proposer = LOCAL if htlc_direction is SENT else REMOTE
             if self.hm.was_htlc_failed(htlc_id=htlc.htlc_id, htlc_proposer=htlc_proposer):
                 _status = 'failed'
-            elif self.hm.was_htlc_preimage_released(htlc_id=htlc.htlc_id, htlc_proposer=htlc_proposer):
+            elif self.hm.was_htlc_settled(htlc_id=htlc.htlc_id, htlc_proposer=htlc_proposer):
                 _status = 'settled'
             else:
                 _status = 'inflight'
@@ -2019,7 +2019,7 @@ class Channel(AbstractChannel):
                               (REMOTE, SENT, self.get_oldest_unrevoked_ctn(REMOTE)),
                               (REMOTE, SENT, self.get_latest_ctn(REMOTE)),):
             for htlc_id, htlc in self.hm.htlcs_by_direction(subject=sub, direction=dir, ctn=ctn).items():
-                if not self.hm.was_htlc_preimage_released(htlc_id=htlc_id, htlc_proposer=REMOTE):
+                if not self.hm.was_htlc_settled(htlc_id=htlc_id, htlc_proposer=REMOTE):
                     continue
                 if htlc.cltv_abs - recv_htlc_deadline_delta > local_height:
                     continue

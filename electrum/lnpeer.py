@@ -2358,7 +2358,7 @@ class Peer(Logger, EventListener):
             if not chan.can_send_ctx_updates():
                 continue
             self.logger.info(f"fulfill htlc: {chan.short_channel_id}. {htlc_id=}. {payment_hash.hex()=}")
-            if chan.hm.was_htlc_preimage_released(htlc_id=htlc_id, htlc_proposer=REMOTE):
+            if chan.hm.was_htlc_settled(htlc_id=htlc_id, htlc_proposer=REMOTE):
                 # this check is intended to gracefully handle stale htlcs in the set, e.g. after a crash
                 self.logger.debug(f"{mpp_htlc=} was already settled before, dropping it.")
                 htlc_set = htlc_set._replace(htlcs=htlc_set.htlcs - {mpp_htlc})

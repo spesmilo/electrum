@@ -460,7 +460,8 @@ class HTLCManager:
         ctn = self.ctn_latest(subject) + 1
         return self.htlcs(subject, ctn)
 
-    def was_htlc_preimage_released(self, *, htlc_id: int, htlc_proposer: HTLCOwner) -> bool:
+    def was_htlc_settled(self, *, htlc_id: int, htlc_proposer: HTLCOwner) -> bool:
+        """Returns whether an HTLC has been (or will be if we already know) settled."""
         settles = self.log[htlc_proposer]['settles']
         if htlc_id not in settles:
             return False
