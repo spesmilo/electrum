@@ -841,7 +841,6 @@ class Channel(AbstractChannel):
         self.unconfirmed_closing_txid = None # not a state, only for GUI
         self.sent_channel_ready = False # no need to persist this, because channel_ready is re-sent in channel_reestablish
         self.sent_announcement_signatures = False
-        self.htlc_settle_time = {}
 
     def get_local_scid_alias(self, *, create_new_if_needed: bool = False) -> Optional[bytes]:
         """Get scid_alias to be used for *outgoing* HTLCs.
@@ -1785,7 +1784,6 @@ class Channel(AbstractChannel):
             raise Exception("incorrect preimage for HTLC")
         assert htlc_id not in self.hm.log[REMOTE]['settles']
         self.hm.send_settle(htlc_id)
-        self.htlc_settle_time[htlc_id] = now()
         self.lnworker.save_preimage(htlc.payment_hash, preimage, mark_as_public=True)
 
     def get_payment_hash(self, htlc_id: int) -> bytes:
@@ -2010,6 +2008,7 @@ class Channel(AbstractChannel):
         return not (next_htlcs == latest_htlcs and self.get_next_feerate(subject) == self.get_latest_feerate(subject))
 
     def should_be_closed_due_to_expiring_htlcs(self, local_height: int) -> bool:
+        time_since_startup = now() - self.lnworker.instantiation_timestamp
         htlcs_we_could_reclaim = {}  # type: Dict[Tuple[Direction, int], UpdateAddHtlc]
         # If there is a received HTLC for which we already released the preimage
         # but the remote did not revoke yet, and the CLTV of this HTLC is dangerously close
@@ -2025,21 +2024,21 @@ class Channel(AbstractChannel):
                     continue
                 if htlc.cltv_abs - recv_htlc_deadline_delta > local_height:
                     continue
-                # Do not force-close if we just sent fulfill_htlc and have not received revack yet
-                if htlc_id in self.htlc_settle_time and now() - self.htlc_settle_time[htlc_id] < 30:
+                if time_since_startup < lnutil.GRACE_TIME_FOR_REMOVING_HTLCS_OFFCHAIN_ON_RESTART:
+                    # Give us some time to send update_fulfill_htlc to peer, send commitsig,
+                    # and then receive revack.
                     continue
                 htlcs_we_could_reclaim[(RECEIVED, htlc_id)] = htlc
         # If there is an offered HTLC which has already expired (+ some grace period after), we
         # will unilaterally close the channel and time out the HTLC
         offered_htlc_deadline_delta = lnutil.NBLOCK_DEADLINE_DELTA_AFTER_EXPIRY_FOR_OFFERED_HTLCS
-        time_since_startup = now() - self.lnworker.instantiation_timestamp
         for sub, dir, ctn in ((LOCAL, SENT, self.get_latest_ctn(LOCAL)),
                               (REMOTE, RECEIVED, self.get_oldest_unrevoked_ctn(REMOTE)),
                               (REMOTE, RECEIVED, self.get_latest_ctn(REMOTE)),):
             for htlc_id, htlc in self.hm.htlcs_by_direction(subject=sub, direction=dir, ctn=ctn).items():
                 if htlc.cltv_abs + offered_htlc_deadline_delta > local_height:
                     continue
-                if time_since_startup < lnutil.TIME_FOR_OFFERED_HTLCS_TO_GET_FAILED_OFFCHAIN_ON_RESTART:
+                if time_since_startup < lnutil.GRACE_TIME_FOR_REMOVING_HTLCS_OFFCHAIN_ON_RESTART:
                     continue  # give the peer some time to fail the htlc offchain
                 htlcs_we_could_reclaim[(SENT, htlc_id)] = htlc
         # Note: previously we used a threshold concept, "min_value_worth_closing_channel_over_sat", and

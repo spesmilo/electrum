@@ -847,7 +847,7 @@ class TestChannel(ElectrumTestCase):
         self.assertFalse(alice_channel.should_be_closed_due_to_expiring_htlcs(expired_local_height))
 
         # expired offered htlc, past startup grace period
-        alice_lnwallet.instantiation_timestamp -= (lnutil.TIME_FOR_OFFERED_HTLCS_TO_GET_FAILED_OFFCHAIN_ON_RESTART + 10)
+        alice_lnwallet.instantiation_timestamp -= (lnutil.GRACE_TIME_FOR_REMOVING_HTLCS_OFFCHAIN_ON_RESTART + 10)
         self.assertTrue(alice_channel.should_be_closed_due_to_expiring_htlcs(expired_local_height))
 
     async def test_should_be_closed_due_to_expiring_htlcs_received_htlcs(self):
@@ -872,7 +872,7 @@ class TestChannel(ElectrumTestCase):
         self.assertFalse(bob_channel.should_be_closed_due_to_expiring_htlcs(local_height=expired_height))
 
         # now the settled htlc is past the grace period
-        bob_channel.htlc_settle_time[bob_htlc_id] = int(time.time()) - 60
+        bob_lnwallet.instantiation_timestamp -= (lnutil.GRACE_TIME_FOR_REMOVING_HTLCS_OFFCHAIN_ON_RESTART + 10)
         self.assertTrue(bob_channel.should_be_closed_due_to_expiring_htlcs(local_height=expired_height))
 
         # if bob force-closes, the sweep info for the received htlc must expose the correct cltv heights for both sides.

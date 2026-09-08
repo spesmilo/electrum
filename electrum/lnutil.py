@@ -615,7 +615,13 @@ MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED = 2016
 # timeout after which we consider a zeroconf channel without funding tx to be failed
 ZEROCONF_TIMEOUT = 60 * 10
 
-TIME_FOR_OFFERED_HTLCS_TO_GET_FAILED_OFFCHAIN_ON_RESTART = 30
+# Just after startup, we give some time to remove HTLCs offchain, before force-closing channels.
+# - Time window cannot be too short: takes some time to reestablish channels,
+#   (disk reads, cpu, several network RTTs), and we might have many channels.
+# - but window cannot be long either: the logic is too naive, and we start the grace period
+#   on every startup. If we wait too long, a mobile user might likely close the app before
+#   we start force-closing chans on uncooperative peers.
+GRACE_TIME_FOR_REMOVING_HTLCS_OFFCHAIN_ON_RESTART = 30  # seconds
 
 
 class RevStoreStorage(TypedDict):
