@@ -588,7 +588,7 @@ MIN_FUNDING_SAT = 200_000
 
 
 ##### CLTV-expiry-delta-related values
-# see https://github.com/lightningnetwork/lightning-rfc/blob/master/02-peer-protocol.md#cltv_expiry_delta-selection
+# see https://github.com/lightning/bolts/blob/152897261850d93c4f4597f39cf22d7d22d6ede6/02-peer-protocol.md#cltv_expiry_delta-selection
 
 # the minimum cltv_expiry accepted for newly received HTLCs
 # note: when changing, consider Blockchain.is_tip_stale()
@@ -598,12 +598,14 @@ MIN_FINAL_CLTV_DELTA_ACCEPTED = 144
 # of incoming payment htlcs reliable even if some blocks have been mined during forwarding
 MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE = 3
 
-# the deadline for offered HTLCs:
-# the deadline after which the channel has to be failed and timed out on-chain
+# "the deadline for offered HTLCs": (BOLT-02)
+# "the deadline after which the channel has to be failed and timed out on-chain"
+# ("This is G blocks after the HTLC's cltv_expiry")
 NBLOCK_DEADLINE_DELTA_AFTER_EXPIRY_FOR_OFFERED_HTLCS = 1
 
-# the deadline for received HTLCs this node has fulfilled:
-# the deadline after which the channel has to be failed and the HTLC fulfilled on-chain before its cltv_expiry
+# "the deadline for received HTLCs this node has fulfilled": (BOLT-02)
+# "the deadline after which the channel has to be failed and the HTLC fulfilled on-chain before its cltv_expiry"
+# ("a deadline of 2R+G+S blocks before cltv_expiry")
 NBLOCK_DEADLINE_DELTA_BEFORE_EXPIRY_FOR_RECEIVED_HTLCS = 72
 
 NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE = 28 * 144
