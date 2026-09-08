@@ -363,9 +363,13 @@ class TxInput:
             return self.nsequence & 0xffff
         return None
 
+    def has_short_id(self) -> bool:
+        return (self.block_height is not None and self.block_height > 0
+                and self.block_txpos is not None and self.block_txpos >= 0)
+
     @property
     def short_id(self):
-        if self.block_txpos is not None and self.block_txpos >= 0:
+        if self.has_short_id():
             return ShortID.from_components(self.block_height, self.block_txpos, self.prevout.out_idx)
         else:
             return self.prevout.short_name()

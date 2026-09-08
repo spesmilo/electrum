@@ -639,8 +639,10 @@ class AddressSynchronizer(Logger, EventListener):
                     self.verifier.remove_spv_proof_for_tx(tx_hash)
         else:
             if tx_height > 0:
+                self.unconfirmed_tx.pop(tx_hash, None)
                 self.unverified_tx[tx_hash] = tx_height
             else:
+                self.unverified_tx.pop(tx_hash, None)
                 self.unconfirmed_tx[tx_hash] = tx_height
 
     @with_lock
