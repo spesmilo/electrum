@@ -457,6 +457,7 @@ class AddressSynchronizer(Logger, EventListener):
                 self.unverified_tx.pop(tx_hash, None)
                 self.unconfirmed_tx.pop(tx_hash, None)
                 self.db.remove_verified_tx(tx_hash)
+                self.invalidate_cache()
                 if self.verifier:
                     self.verifier.remove_spv_proof_for_tx(tx_hash)
         self.db.set_addr_history(addr, hist)
@@ -635,6 +636,7 @@ class AddressSynchronizer(Logger, EventListener):
                 # tx was previously SPV-verified but now in mempool (probably reorg)
                 self.db.remove_verified_tx(tx_hash)
                 self.unconfirmed_tx[tx_hash] = tx_height
+                self.invalidate_cache()
                 if self.verifier:
                     self.verifier.remove_spv_proof_for_tx(tx_hash)
         else:
@@ -644,12 +646,14 @@ class AddressSynchronizer(Logger, EventListener):
             else:
                 self.unverified_tx.pop(tx_hash, None)
                 self.unconfirmed_tx[tx_hash] = tx_height
+            self.invalidate_cache()
 
     @with_lock
     def remove_unverified_tx(self, tx_hash: str, tx_height: int) -> None:
         new_height = self.unverified_tx.get(tx_hash)
         if new_height == tx_height:
             self.unverified_tx.pop(tx_hash, None)
+            self.invalidate_cache()
 
     def add_verified_tx(self, tx_hash: str, info: TxMinedInfo):
         # Remove from the unverified map and add to the verified map
@@ -686,6 +690,8 @@ class AddressSynchronizer(Logger, EventListener):
                         # a status update, that will overwrite it.
                         self.unverified_tx[tx_hash] = tx_height
                         txs.add(tx_hash)
+            if txs:
+                self.invalidate_cache()
 
         for tx_hash in txs:
             util.trigger_callback('adb_removed_verified_tx', self, tx_hash)
