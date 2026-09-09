@@ -17,8 +17,10 @@ class PyjniusRecipePinned(util.InheritedRecipeMixin, PyjniusRecipe):
                              hashes=['sha256:062d34222ad13e0cc312a4c02d73f059e86a4acbfbdea8f8f76b28c99f306922']),
         HashPinnedDependency(package="wheel==0.45.1",
                              hashes=['sha256:708e7481cc80179af0e556bbf0cc00b8444c7321e2700b8d8580231d13017248']),
+        # note: cython ships no pure-python wheel, so this hash is specific to
+        #       the cpython version hostpython3 is pinned to. Update on bumps.
         HashPinnedDependency(package="Cython==3.1.8",
-                             hashes=['sha256:282b3c8e6abc3fea421919e862e898ffdd86fc0796009bdb5ffdf8211413219f'])
+                             hashes=['sha256:0bc71b05497608c1f8dc99340055c0456f712ce8a1cf35391c9134bbd037f7c6'])
     ]
 
     sha512sum = "a192c30ef87ca9601455976feb49f03dfdb8e1bf2545744a7b771a6d0930a56b334c7a2a39d30fb8855c070f16e4673dc5ff6920b04a6155ab5f9247b271df76"
