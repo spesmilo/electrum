@@ -13,23 +13,18 @@ assert HostPython3Recipe.patches == []
 
 class HostPython3RecipePinned(util.InheritedRecipeMixin, HostPython3Recipe):
     # PYTHON_VERSION=    # < line here so that I can grep the codebase and teleport here
-    version = "3.11.15"
-    sha512sum = "d4b4d9c51412dca47f0259ad351d4630d4d26fccbbe1457cc8e2168a7b2cbbd43113c1b5a64efe62d0e81f81c31c6f28109696e8633bc0943ad4cb9eb9340bbb"
+    version = "3.14.7"
+    sha512sum = "15254e8280a0188ad66df9b79f470784d505a08d415db8f8060e86a83ba3355f95618c550d01ce063b7b107dba9a860bf144fc80b4ed74f75b558cd08a08bb60"
 
     # use official releases from python.org that have sigs, instead of auto-generated archives from github
     url = 'https://www.python.org/ftp/python/{version}/Python-{version}.tgz'
-
-    # TODO: remove patch once CPython >= 3.12 is used (no more bundled setuptools)
-    patches = [
-        os.path.join(os.path.dirname(__file__), "patches", "cpython-311-ensurepip-no-setuptools.patch"),
-    ]
 
     # this property overrides the default hostpython dependencies for PyProjectRecipe recipies
     pyproject_base_dependencies = [
         HashPinnedDependency(package="build==1.4.0",
                              hashes=['sha256:6a07c1b8eb6f2b311b96fcbdbce5dab5fe637ffda0fd83c9cac622e927501596']),
-        HashPinnedDependency(package="pip==24.0",
-                             hashes=['sha256:ba0d021a166865d2265246961bec0152ff124de910c5cc39f1156ce3fa7c69dc']),
+        HashPinnedDependency(package="pip==26.2.1",  # note: same version cpython 3.14.7 bundles
+                             hashes=['sha256:71138adf1f4ca900cdb7d289c21b7494329f2332b6d85f0e1c42108c0384ed3e']),
         HashPinnedDependency(package="setuptools==80.9.0",
                              hashes=['sha256:062d34222ad13e0cc312a4c02d73f059e86a4acbfbdea8f8f76b28c99f306922']),
 
