@@ -491,7 +491,8 @@ class PaymentIdentifier(Logger):
 
         return None, False
 
-    def parse_script(self, x: str) -> bytes:
+    @staticmethod
+    def parse_script(x: str) -> bytes:
         script = bytearray()
         for word in x.split():
             if word[0:3] == 'OP_':
@@ -652,7 +653,9 @@ def script_to_string(script: bytes) -> str:
             words.append(data.hex())
         else:  # empty push
             words.append(opcodes.OP_0.name)
-    return ' '.join(words)
+    s = ' '.join(words)
+    assert PaymentIdentifier.parse_script(s) == script, f"{s} != {script.hex()}"
+    return s
 
 
 def outputs_to_multiline_csv(outputs: List[PartialTxOutput], config: 'SimpleConfig') -> str:
