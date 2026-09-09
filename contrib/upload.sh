@@ -16,8 +16,8 @@ fi
 
 cd "$PROJECT_ROOT"
 
-VERSION=$("$CONTRIB"/print_electrum_version.py)
-echo "$VERSION"
+VERSIONB=$("$CONTRIB"/print_electrum_version.py)
+echo "$VERSIONB"
 
 if [ -z "$ELECBUILD_UPLOADFROM" ]; then
     cd "$PROJECT_ROOT/dist"
@@ -31,12 +31,12 @@ fi
 
 sftp -oBatchMode=no -b - "$SSHUSER@uploadserver" << !
    cd electrum-downloads-airlock
-   -mkdir "$VERSION"
-   -chmod 777 "$VERSION"
-   cd "$VERSION"
+   -mkdir "$VERSIONB"
+   -chmod 777 "$VERSIONB"
+   cd "$VERSIONB"
    -mput *
    -chmod 444 *  # this prevents future re-uploads of same file
    bye
 !
 
-"$CONTRIB/trigger_deploy.sh" "$SSHUSER" "$VERSION"
+"$CONTRIB/trigger_deploy.sh" "$SSHUSER" "$VERSIONB"
