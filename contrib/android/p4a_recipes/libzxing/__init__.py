@@ -8,7 +8,8 @@ from pythonforandroid.recipe import Recipe
 
 
 class LibZXingRecipe(Recipe):
-    # zxing-cpp v3.1.1.
+    # zxing-cpp v3.1.1. Keep in sync with contrib/make_zxing.sh.
+    # A major version bump also needs ZXING_MAJOR_VERSION in electrum/qrreader/zxing.py.
     version = "287c85df6f961c8efbfb5ffd736cd9457b8b890e"
     url = "https://github.com/zxing-cpp/zxing-cpp/archive/{version}.tar.gz"
     sha512sum = "6bac11726d616461ee0caeade81f824c01ac09ab284fe13c852fda7b0761a3e84887fa9ec042c793aebbfc2138119dd5be908cc9b14b349066d7ae303760127b"
