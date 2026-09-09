@@ -451,12 +451,10 @@ ApplicationWindow
         }
     }
 
-    property Component scanDialog  // set in Component.onCompleted
+    property alias scanDialog: _scanDialog
     Component {
         id: _scanDialog
-        QRScanner {
-            onFinished: destroy()
-        }
+        ScanDialog {}
     }
 
     Component {
@@ -531,13 +529,6 @@ ApplicationWindow
 
     Component.onCompleted: {
         coverTimer.start()
-
-        if (AppController.isAndroid()) {
-            app.scanDialog = _scanDialog
-        } else {
-            // for running on Desktop. uses QtMultimedia.
-            app.scanDialog = Qt.createComponent('ScanDialog.qml')
-        }
 
         function continueWithServerConnection() {
             if (!Network.autoConnectDefined) {

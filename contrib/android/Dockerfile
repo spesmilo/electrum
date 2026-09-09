@@ -80,8 +80,6 @@ RUN mkdir --parents "${ANDROID_SDK_HOME}/.android/" \
 # download Java-17 (debian 13 only packages Java-21 and Java-25)
 # - we download the amd64 binaries from debian 12 repos
 # - we should try to upgrade to Java-21...
-#   - the main blocker seems to be having to update Gradle (to a version compatible with Java-21)
-#     - make_barcode_scanner.sh: markusfisch/{zxing-cpp, ...} pins old Gradle
 ENV JAVA_JRE_DL_URL="https://snapshot.debian.org/archive/debian/20260130T143028Z/pool/main/o/openjdk-17/openjdk-17-jre-headless_17.0.18+8-1~deb12u1_amd64.deb"
 ENV JAVA_JRE_ARCHIVE="openjdk-17-jre-headless.deb"
 ENV JAVA_JRE_HASH="5bc36cbb4e383dbea4168d57b5fd9b42375ec8837dd62a1d56677632c3c960e0"

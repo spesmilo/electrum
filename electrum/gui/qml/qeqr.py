@@ -11,9 +11,8 @@ from PyQt6.QtQuick import QQuickImageProvider
 try:
     from PyQt6.QtMultimedia import QVideoSink
 except ImportError:
-    # stub QVideoSink when not found, as it's not essential on android
-    # and requires many dependencies when unit testing.
-    # Note: missing QtMultimedia will lead to errors when using QR scanner on desktop
+    # Stub QVideoSink for unit tests without the multimedia dependencies.
+    # QR scanning requires QtMultimedia on all platforms.
     from PyQt6.QtCore import QObject as QVideoSink
 
 from electrum.logging import get_logger
@@ -36,6 +35,7 @@ class QEQRParser(QObject):
 
         self._busy = False
         self._data = None
+        self._size = 0
         self._video_sink = None
 
         self._text = text
@@ -50,23 +50,34 @@ class QEQRParser(QObject):
     @videoSink.setter
     def videoSink(self, sink: QVideoSink):
         if self._video_sink != sink:
+            if self._video_sink is not None:
+                self._video_sink.videoFrameChanged.disconnect(self.onVideoFrame)
             self._video_sink = sink
-            self._video_sink.videoFrameChanged.connect(self.onVideoFrame)
+            if self._video_sink is not None:
+                self._video_sink.videoFrameChanged.connect(self.onVideoFrame)
+            self.videoSinkChanged.emit()
 
     def onVideoFrame(self, videoframe):
         if self._busy or self._data:
             return
 
-        self._busy = True
-        self.busyChanged.emit()
-
         if not videoframe.isValid():
             self._logger.debug('invalid frame')
             return
 
+        self._busy = True
+        self.busyChanged.emit()
+
         async def co_parse_qr(frame):
-            image = frame.toImage()
-            self._parseQR(image)
+            try:
+                image = frame.toImage()
+                if not image.isNull():
+                    self._parseQR(image)
+            except Exception:
+                self._logger.exception('Error parsing QR frame')
+            finally:
+                self._busy = False
+                self.busyChanged.emit()
 
         asyncio.run_coroutine_threadsafe(co_parse_qr(videoframe), get_asyncio_loop())
 
@@ -93,9 +104,6 @@ class QEQRParser(QObject):
             result = self.qrreader_res[0]
             self._data = result
             self.dataChanged.emit()
-
-        self._busy = False
-        self.busyChanged.emit()
 
     def _get_crop(self, image: QImage, scan_size: int) -> QRect:
         """Returns a QRect that is scan_size x scan_size in the middle of the resolution"""

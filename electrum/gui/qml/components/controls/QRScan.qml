@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtMultimedia
 import QtQml
+import QtCore
 
 import org.electrum 1.0
 
@@ -22,12 +23,19 @@ Item {
 
     function start() {
         console.log('qrscan.start')
+        if (cameraPermission.status === Qt.PermissionStatus.Undetermined)
+            cameraPermission.request()
         loader.item.startTimer.start()
     }
 
     function stop() {
         console.log('qrscan.stop')
+        loader.item.startTimer.stop()
         scanner.active = false
+    }
+
+    CameraPermission {
+        id: cameraPermission
     }
 
     Item {
@@ -40,6 +48,7 @@ Item {
         id: loader
         anchors.fill: parent
         sourceComponent: scancomp
+        onLoaded: scanner.start()
         onStatusChanged: {
             if (loader.status == Loader.Ready) {
                 console.log('camera loaded')
@@ -89,10 +98,6 @@ Item {
                     }
                     text: scanner.hint
                 }
-
-                Component.onCompleted: {
-                    startTimer.start()
-                }
             }
 
             ImageCapture {
@@ -108,6 +113,8 @@ Item {
                 id: camera
                 cameraDevice: mediaDevices.defaultVideoInput
                 active: scanner.active
+                    && cameraPermission.status === Qt.PermissionStatus.Granted
+                    && Qt.application.state === Qt.ApplicationActive
                 focusMode: Camera.FocusModeAutoNear
                 customFocusPoint: Qt.point(0.5, 0.5)
 
@@ -149,7 +156,8 @@ Item {
     Connections {
         target: qr
         function onDataChanged() {
-            console.log('QR DATA: ' + qr.data)
+            if (!qr.data)
+                return
             scanner.active = false
             scanner.foundText(qr.data)
         }
