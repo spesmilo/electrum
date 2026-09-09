@@ -85,7 +85,9 @@ python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: 
     || fail "Could not install build dependencies (mac)"
 
 info "Installing some build-time deps for compilation..."
-brew install autoconf automake libtool gettext coreutils pkgconfig
+# cmake, wget and gcc@14 are required for zxing-cpp.
+# gcc can be removed with a C++ 20 compatible compiler becoming available (newer MacOS version)
+brew install autoconf automake libtool gettext coreutils pkgconfig cmake wget gcc@14
 
 info "Building PyInstaller."
 PYINSTALLER_REPO="https://github.com/pyinstaller/pyinstaller.git"
@@ -155,13 +157,17 @@ else
 fi
 cp -f "$DLL_TARGET_DIR"/libsecp256k1.*.dylib "$PROJECT_ROOT/electrum" || fail "Could not copy libsecp256k1 dylib"
 
-if [ ! -f "$DLL_TARGET_DIR/libzbar.0.dylib" ]; then
-    info "Building ZBar dylib..."
-    "$CONTRIB"/make_zbar.sh || fail "Could not build ZBar dylib"
+if [ ! -f "$DLL_TARGET_DIR/libZXing.dylib" ]; then
+    info "Building zxing-cpp dylib..."
+    # Build zxing with the installed gcc 14 for C++20 support and statically link the runtimes into the library.
+    CC="$(brew --prefix gcc@14)/bin/gcc-14" \
+    CXX="$(brew --prefix gcc@14)/bin/g++-14" \
+    LDFLAGS="-static-libgcc -static-libstdc++ -Wl,-S" \
+        "$CONTRIB"/make_zxing.sh || fail "Could not build zxing-cpp dylib"
 else
-    info "Skipping ZBar build: reusing already built dylib."
+    info "Skipping zxing-cpp build: reusing already built dylib."
 fi
-cp -f "$DLL_TARGET_DIR/libzbar.0.dylib" "$PROJECT_ROOT/electrum/" || fail "Could not copy ZBar dylib"
+cp -f "$DLL_TARGET_DIR/libZXing.dylib" "$PROJECT_ROOT/electrum/" || fail "Could not copy zxing-cpp dylib"
 
 if [ ! -f "$DLL_TARGET_DIR/libusb-1.0.dylib" ]; then
     info "Building libusb dylib..."
