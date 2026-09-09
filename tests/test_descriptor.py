@@ -406,3 +406,19 @@ class TestDescriptor(ElectrumTestCase):
         # invalid:
         with self.assertRaises(ValueError):
             pp = PubkeyProvider(origin=None, pubkey=pubkey_hex, deriv_path="/1/7")
+
+    def test_wpkh_rejects_multiple_pubkeys(self):
+        pubkey1 = "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+        pubkey2 = "02c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5"
+        with self.assertRaisesRegex(ValueError, "More than one pubkey in wpkh descriptor"):
+            parse_descriptor(f"wpkh({pubkey1},{pubkey2})")
+
+    def test_bare_multisig_too_many_pubkeys_reports_count(self):
+        pubkeys = [
+            "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+            "02c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
+            "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+            "02e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13",
+        ]
+        with self.assertRaisesRegex(ValueError, r"Cannot have 4 pubkeys in bare multisig: only at most 3 pubkeys"):
+            parse_descriptor("multi(1,{})".format(",".join(pubkeys)))
