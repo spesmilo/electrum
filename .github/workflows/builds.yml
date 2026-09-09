@@ -46,11 +46,11 @@ jobs:
           path: contrib/build-wine/.cache/win*/wine_pip_cache
           key: wine-pip-${{ hashFiles('contrib/deterministic-build/*.txt', 'contrib/build-wine/**') }}
 
-      - name: Cache Wine native lib builds (libsecp256k1, libusb, libzbar)
+      - name: Cache Wine native lib builds (libsecp256k1, libusb, zxing-cpp)
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
         with:
           path: contrib/build-wine/.cache/win*/build
-          key: wine-build-${{ hashFiles('contrib/make_libsecp256k1.sh', 'contrib/make_libusb.sh', 'contrib/make_zbar.sh', 'contrib/build-wine/**') }}
+          key: wine-build-${{ hashFiles('contrib/make_libsecp256k1.sh', 'contrib/make_libusb.sh', 'contrib/make_zxing.sh', 'contrib/build-wine/**') }}
 
       - name: Build Windows binaries
         run: ./contrib/build-wine/build.sh
@@ -147,7 +147,7 @@ jobs:
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
         with:
           path: contrib/build-linux/appimage/.cache/appimage
-          key: appimage-build-${{ hashFiles('contrib/make_libsecp256k1.sh', 'contrib/make_zbar.sh', 'contrib/build-linux/appimage/**') }}
+          key: appimage-build-${{ hashFiles('contrib/make_libsecp256k1.sh', 'contrib/make_zxing.sh', 'contrib/build-linux/appimage/**') }}
 
       - name: Build AppImage
         run: ./contrib/build-linux/appimage/build.sh

@@ -55,7 +55,7 @@ source.exclude_dirs =
 
 # (list) List of exclusions using pattern matching
 source.exclude_patterns = Makefile,setup*,
-    # native library built for desktop wrapper tests; Android uses the p4a library:
+    # native library built for desktop; Android uses the p4a library:
     electrum/libZXing.*,
     # not reproducible:
     packages/aiohttp-*.dist-info/*,
