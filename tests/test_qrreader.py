@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 
 import qrcode
 
-from electrum.qrreader import get_qr_reader, MissingQrDetectionLib
+from electrum.qrreader import get_qr_reader, version_info, MissingQrDetectionLib
 from electrum.qrreader import zxing
 
 
@@ -15,20 +15,23 @@ class TestQrReaderSelection(unittest.TestCase):
                 patch.object(zxing, 'ZXingQrCodeReader') as reader:
             self.assertIs(get_qr_reader(), reader.return_value)
 
-    def test_desktop_uses_zbar(self):
+    def test_desktop_uses_zxing(self):
         with patch.dict(os.environ):
             os.environ.pop('ANDROID_DATA', None)
-            with patch('electrum.qrreader.zbar.ZbarQrCodeReader') as reader, \
-                    patch.object(zxing, 'ZXingQrCodeReader') as android_reader:
+            with patch.object(zxing, 'ZXingQrCodeReader') as reader:
                 self.assertIs(get_qr_reader(), reader.return_value)
-                android_reader.assert_not_called()
 
-    def test_missing_android_library(self):
-        with patch.dict(os.environ, {'ANDROID_DATA': '/data'}), \
-                patch.object(zxing, 'LIBZXING', None), \
+    def test_missing_library(self):
+        with patch.object(zxing, 'LIBZXING', None), \
                 self.assertLogs('electrum.qrreader', level='ERROR'), \
                 self.assertRaises(MissingQrDetectionLib):
             get_qr_reader()
+
+    def test_library_diagnostics(self):
+        with patch.object(zxing, 'LIBZXING', Mock(_name='/path/to/libZXing.so')):
+            self.assertEqual(version_info(), {'libZXing.path': '/path/to/libZXing.so'})
+        with patch.object(zxing, 'LIBZXING', None):
+            self.assertEqual(version_info(), {'libZXing.path': None})
 
 
 @unittest.skipIf(zxing.LIBZXING is None, 'Build libZXing with contrib/make_zxing.sh')

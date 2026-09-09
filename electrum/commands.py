@@ -806,8 +806,8 @@ class Commands(Logger):
         # instead of using pip, hence it is useful to list them for debugging.
         from electrum_ecc import ecc_fast
         ret.update(ecc_fast.version_info())
-        from . import qrscanner
-        ret.update(qrscanner.version_info())
+        from . import qrreader
+        ret.update(qrreader.version_info())
         ret.update(DeviceMgr.version_info())
         ret.update(crypto.version_info())
         # add some special cases

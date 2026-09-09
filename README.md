@@ -35,6 +35,20 @@ If you want to use the Qt interface, install the Qt dependencies:
 $ sudo apt-get install python3-pyqt6
 ```
 
+#### QR code scanning
+
+QR code decoding uses zxing-cpp, built with its C API enabled. To build the
+pinned library from a source checkout, install CMake and a C++20 compiler and run:
+```
+$ ./contrib/make_zxing.sh
+```
+
+Camera scanning also requires Qt Multimedia. It is included in the PyQt6 pip
+package; when using Debian/Ubuntu packages, install it separately:
+```
+$ sudo apt-get install python3-pyqt6.qtmultimedia
+```
+
 #### libsecp256k1
 
 For elliptic curve operations,

@@ -901,7 +901,7 @@ Warning: setting this to too low will result in lots of payment failures."""),
         'video_device', default='default', type_=str,
         short_desc=lambda: _('Video Device'),
         long_desc=lambda: (_("For scanning QR codes.") + "\n" +
-                           _("Install the zbar package to enable this.")),
+                           _("QR scanning requires Qt Multimedia and zxing-cpp.")),
     )
     OPENALIAS_ID = ConfigVar(
         'alias', default="", type_=str,
