@@ -306,6 +306,9 @@ class UTXOList(MyTreeView):
         if not coins:
             return
 
+        # use copies, avoid mutating
+        coins = copy.deepcopy(coins)
+
         unfrozen_coins = self._filter_frozen_coins(coins)
         menu = QMenu()
         menu.setSeparatorsCollapsible(True)  # consecutive separators are merged together
