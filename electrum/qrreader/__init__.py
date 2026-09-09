@@ -25,7 +25,7 @@
 #
 # A module, that, given an image (buffer), finds and decodes a QR code in it.
 
-from typing import Optional
+import os
 
 from ..logging import get_logger
 
@@ -47,6 +47,9 @@ def get_qr_reader() -> AbstractQrCodeReader:
     """
     excs = []
     try:
+        if 'ANDROID_DATA' in os.environ:
+            from .zxing import ZXingQrCodeReader
+            return ZXingQrCodeReader()
         from .zbar import ZbarQrCodeReader
         return ZbarQrCodeReader()
         """
