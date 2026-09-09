@@ -55,6 +55,8 @@ source.exclude_dirs =
 
 # (list) List of exclusions using pattern matching
 source.exclude_patterns = Makefile,setup*,
+    # native library built for desktop wrapper tests; Android uses the p4a library:
+    electrum/libZXing.*,
     # not reproducible:
     packages/aiohttp-*.dist-info/*,
     packages/frozenlist-*.dist-info/*
@@ -79,7 +81,7 @@ requirements =
     pycryptodomex,
     pyqt6sip,
     pyqt6,
-    libzbar
+    libzxing
 
 # (str) Presplash of the application
 presplash.filename = %(source.dir)s/electrum/gui/icons/electrum_presplash.png
