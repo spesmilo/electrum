@@ -67,6 +67,9 @@ class CmdLineHandler(HardwareHandlerBase):
     def show_message(self, msg, on_cancel=None):
         print_stderr(msg)
 
+    def show_warning(self, msg, blocking=False):
+        print_stderr(msg)
+
     def show_error(self, msg, blocking=False):
         print_stderr(msg)
 

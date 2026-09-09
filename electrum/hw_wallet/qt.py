@@ -62,6 +62,7 @@ class QtHandlerBase(HardwareHandlerBase, QObject, Logger):
 
     passphrase_signal = pyqtSignal(object, object)
     message_signal = pyqtSignal(object, object)
+    warning_signal = pyqtSignal(object, object)
     error_signal = pyqtSignal(object, object)
     word_signal = pyqtSignal(object)
     clear_signal = pyqtSignal()
@@ -75,6 +76,7 @@ class QtHandlerBase(HardwareHandlerBase, QObject, Logger):
         assert win.gui_thread == threading.current_thread(), 'must be called from GUI thread'
         self.clear_signal.connect(self.clear_dialog)
         self.error_signal.connect(self.error_dialog)
+        self.warning_signal.connect(self.warning_dialog)
         self.message_signal.connect(self.message_dialog)
         self.passphrase_signal.connect(self.passphrase_dialog)
         self.word_signal.connect(self.word_dialog)
@@ -115,6 +117,12 @@ class QtHandlerBase(HardwareHandlerBase, QObject, Logger):
 
     def show_message(self, msg, on_cancel=None):
         self.message_signal.emit(msg, on_cancel)
+
+    def show_warning(self, msg, blocking=False):
+        self.done.clear()
+        self.warning_signal.emit(msg, blocking)
+        if blocking:
+            self.done.wait()
 
     def show_error(self, msg, blocking=False):
         self.done.clear()
@@ -200,6 +208,11 @@ class QtHandlerBase(HardwareHandlerBase, QObject, Logger):
             dialog.rejected.connect(on_cancel)
             vbox.addLayout(Buttons(CancelButton(dialog)))
         dialog.show()
+
+    def warning_dialog(self, msg, blocking):
+        self.win.show_warning(msg, parent=self.top_level_window())
+        if blocking:
+            self.done.set()
 
     def error_dialog(self, msg, blocking):
         self.win.show_error(msg, parent=self.top_level_window())
