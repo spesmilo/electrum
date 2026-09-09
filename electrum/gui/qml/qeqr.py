@@ -18,7 +18,6 @@ except ImportError:
 
 from electrum.logging import get_logger
 from electrum.qrreader import get_qr_reader
-from electrum.i18n import _
 from electrum.util import profiler
 from electrum.gui.common_qt.util import draw_qr
 
@@ -38,8 +37,6 @@ class QEQRParser(QObject):
 
         self._text = text
         self.qrreader = get_qr_reader()
-        if not self.qrreader:
-            raise Exception(_("The platform QR detection library is not available."))
 
         self._decoder = ThreadPoolExecutor(max_workers=1, thread_name_prefix='QEQRParser')
         decoder = self._decoder
