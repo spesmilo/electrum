@@ -1667,9 +1667,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         grid.addWidget(QLabel(amount_str), 1, 1)
         if len(invoice.outputs) == 1:
             grid.addWidget(QLabel(_("Address") + ':'), 2, 0)
-            grid.addWidget(QLabel(invoice.get_address()), 2, 1)
+            grid.addWidget(QLabel(invoice.outputs[0].get_ui_address_str()), 2, 1)
         else:
-            outputs_str = '\n'.join(map(lambda x: x.address + ' : ' + self.format_amount(x.value)+ self.base_unit(), invoice.outputs))
+            outputs_str = '\n'.join(map(lambda x: x.get_ui_address_str() + ' : ' + self.format_amount(x.value) + self.base_unit(), invoice.outputs))
             grid.addWidget(QLabel(_("Outputs") + ':'), 2, 0)
             grid.addWidget(QLabel(outputs_str), 2, 1)
         grid.addWidget(QLabel(_("Description") + ':'), 3, 0)
