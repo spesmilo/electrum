@@ -177,10 +177,8 @@ class QEAddressCoinListModel(QAbstractListModel, QtEventListener):
 
     def coin_to_model(self, addrtype: str, coin: 'PartialTxInput'):
         txid = coin.prevout.txid.hex()
-        short_id = ''
-        # check below duplicated from TxInput as we cannot get short_id unambiguously
-        if coin.block_txpos is not None and coin.block_txpos >= 0:
-            short_id = str(coin.short_id)
+        # short_id falls back to the outpoint if the coin is not mined, hence the check
+        short_id = str(coin.short_id) if coin.has_short_id() else ''
         item = {
             'type': addrtype,
             'amount': QEAmount(amount_sat=coin.value_sats()),

@@ -159,6 +159,28 @@ class TestTransaction(ElectrumTestCase):
         self.assertEqual(estimated_output_size('bc1q3g5tmkmlvxryhh843v4dz026avatc0zzr6h3af'), 31)
         self.assertEqual(estimated_output_size('bc1qnvks7gfdu72de8qv6q6rhkkzu70fqz4wpjzuxjf6aydsx7wxfwcqnlxuv3'), 43)
 
+    def test_txin_short_id(self):
+        prevout = TxOutpoint.from_str(
+            'db949963c3787c90a40fb689ffdc3146c27a9874a970d1fd20921afbe79a7aa9:0')
+        outpoint_str = 'db949963c3:0'
+
+        def short_id_for(*, block_height, block_txpos):
+            txin = PartialTxInput(prevout=prevout)
+            txin.block_height = block_height
+            txin.block_txpos = block_txpos
+            return str(txin.short_id)
+
+        # mined and SPV-ed:
+        self.assertEqual('600000x7x0', short_id_for(block_height=600000, block_txpos=7))
+        self.assertEqual('600000x0x0', short_id_for(block_height=600000, block_txpos=0))
+        # position in block unknown:
+        self.assertEqual(outpoint_str, short_id_for(block_height=600000, block_txpos=None))
+        self.assertEqual(outpoint_str, short_id_for(block_height=600000, block_txpos=-1))
+        # not mined (or not known to be mined).
+        for height in (0, -1, -2, -3, None):
+            self.assertEqual(outpoint_str, short_id_for(block_height=height, block_txpos=7))
+            self.assertEqual(outpoint_str, short_id_for(block_height=height, block_txpos=None))
+
     # TODO other tests for segwit tx
     def test_tx_signed_segwit(self):
         tx = transaction.Transaction(signed_segwit_blob)

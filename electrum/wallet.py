@@ -2737,7 +2737,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             txin.script_descriptor = desc
         txin.is_mine = True
         self._add_txinout_derivation_info(txin, address, only_der_suffix=only_der_suffix)
-        txin.block_height = self.adb.get_tx_height(txin.prevout.txid.hex()).height()
+        txin.set_mined_info(self.adb.get_tx_height(txin.prevout.txid.hex()))
 
     def has_support_for_slip_19_ownership_proofs(self) -> bool:
         return False
