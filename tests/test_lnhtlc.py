@@ -11,6 +11,8 @@ from . import ElectrumTestCase
 class H(NamedTuple):
     owner : str
     htlc_id : int
+    amount_msat = 1
+
 
 class TestHTLCManager(ElectrumTestCase):
     def test_adding_htlcs_race(self):
@@ -169,6 +171,68 @@ class TestHTLCManager(ElectrumTestCase):
 
         htlc_lifecycle(htlc_success=True)
         htlc_lifecycle(htlc_success=False)
+
+    def test_get_all_not_irrevocably_removed_htlcs(self):
+        A = HTLCManager(StoredDict({}, None))
+        B = HTLCManager(StoredDict({}, None))
+        A.channel_open_finished()
+        B.channel_open_finished()
+        ah0 = H('A', 0)
+        ah1 = H('A', 1)
+        assert A.get_all_not_irrevocably_removed_htlcs(htlc_proposer=LOCAL) == []
+        assert A.get_all_not_irrevocably_removed_htlcs(htlc_proposer=REMOTE) == []
+        assert B.get_all_not_irrevocably_removed_htlcs(htlc_proposer=LOCAL) == []
+        assert B.get_all_not_irrevocably_removed_htlcs(htlc_proposer=REMOTE) == []
+        # Alice sends htlc 0
+        B.recv_htlc(A.send_htlc(ah0))
+        assert A.get_all_not_irrevocably_removed_htlcs(htlc_proposer=LOCAL) == [ah0]
+        assert A.get_all_not_irrevocably_removed_htlcs(htlc_proposer=REMOTE) == []
+        assert B.get_all_not_irrevocably_removed_htlcs(htlc_proposer=LOCAL) == []
+        assert B.get_all_not_irrevocably_removed_htlcs(htlc_proposer=REMOTE) == [ah0]
+        A.send_ctx(); B.recv_ctx()  # Alice commits to ah0-add
+        # Alice eagerly sends htlc 1, but she won't be able to commit to it yet as Bob needs to revoke first
+        B.recv_htlc(A.send_htlc(ah1))
+        assert A.get_all_not_irrevocably_removed_htlcs(htlc_proposer=LOCAL) == [ah0, ah1]
+        assert A.get_all_not_irrevocably_removed_htlcs(htlc_proposer=REMOTE) == []
+        assert B.get_all_not_irrevocably_removed_htlcs(htlc_proposer=LOCAL) == []
+        assert B.get_all_not_irrevocably_removed_htlcs(htlc_proposer=REMOTE) == [ah0, ah1]
+        B.send_rev(); A.recv_rev()
+        A.send_ctx(); B.recv_ctx()  # Alice commits to ah1-add
+        B.send_rev(); A.recv_rev()
+        B.send_ctx(); A.recv_ctx()  # Bob commits to ah0-add, ah1-add
+        A.send_rev(); B.recv_rev()
+        B.send_settle(1); A.recv_settle(1)
+        assert A.get_all_not_irrevocably_removed_htlcs(htlc_proposer=LOCAL) == [ah0, ah1]
+        assert A.get_all_not_irrevocably_removed_htlcs(htlc_proposer=REMOTE) == []
+        assert B.get_all_not_irrevocably_removed_htlcs(htlc_proposer=LOCAL) == []
+        assert B.get_all_not_irrevocably_removed_htlcs(htlc_proposer=REMOTE) == [ah0, ah1]
+        B.send_ctx(); A.recv_ctx()  # Bob commits to ah1-remove
+        B.send_fail(0); A.recv_fail(0)
+        A.send_rev(); B.recv_rev()
+        B.send_ctx(); A.recv_ctx()  # Bob commits to ah0-remove
+        A.send_ctx(); B.recv_ctx()  # Alice commits to ah1-remove
+        assert A.get_all_not_irrevocably_removed_htlcs(htlc_proposer=LOCAL) == [ah0, ah1]
+        assert A.get_all_not_irrevocably_removed_htlcs(htlc_proposer=REMOTE) == []
+        assert B.get_all_not_irrevocably_removed_htlcs(htlc_proposer=LOCAL) == []
+        assert B.get_all_not_irrevocably_removed_htlcs(htlc_proposer=REMOTE) == [ah0, ah1]
+        # finally, ah1 will become irrevocably removed from both parties' all valid ctxs
+        B.send_rev(); A.recv_rev()
+        assert A.get_all_not_irrevocably_removed_htlcs(htlc_proposer=LOCAL) == [ah0]
+        assert A.get_all_not_irrevocably_removed_htlcs(htlc_proposer=REMOTE) == []
+        assert B.get_all_not_irrevocably_removed_htlcs(htlc_proposer=LOCAL) == []
+        assert B.get_all_not_irrevocably_removed_htlcs(htlc_proposer=REMOTE) == [ah0]
+        A.send_rev(); B.recv_rev()
+        A.send_ctx(); B.recv_ctx()  # Alice commits to ah0-remove
+        assert A.get_all_not_irrevocably_removed_htlcs(htlc_proposer=LOCAL) == [ah0]
+        assert A.get_all_not_irrevocably_removed_htlcs(htlc_proposer=REMOTE) == []
+        assert B.get_all_not_irrevocably_removed_htlcs(htlc_proposer=LOCAL) == []
+        assert B.get_all_not_irrevocably_removed_htlcs(htlc_proposer=REMOTE) == [ah0]
+        # finally, ah0 will become irrevocably removed from both parties' all valid ctxs
+        B.send_rev(); A.recv_rev()
+        assert A.get_all_not_irrevocably_removed_htlcs(htlc_proposer=LOCAL) == []
+        assert A.get_all_not_irrevocably_removed_htlcs(htlc_proposer=REMOTE) == []
+        assert B.get_all_not_irrevocably_removed_htlcs(htlc_proposer=LOCAL) == []
+        assert B.get_all_not_irrevocably_removed_htlcs(htlc_proposer=REMOTE) == []
 
     def test_adding_htlc_between_send_ctx_and_recv_rev(self):
         A = HTLCManager(StoredDict({}, None))
