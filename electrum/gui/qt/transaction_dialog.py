@@ -47,7 +47,7 @@ from electrum.i18n import _
 from electrum.plugin import run_hook
 from electrum.transaction import SerializationError, Transaction, PartialTransaction, TxOutpoint, TxinDataFetchProgress
 from electrum.logging import get_logger
-from electrum.util import (ShortID, get_asyncio_loop, UI_UNIT_NAME_TXSIZE_VBYTES, delta_time_str,
+from electrum.util import (get_asyncio_loop, UI_UNIT_NAME_TXSIZE_VBYTES, delta_time_str,
                            UserCancelled)
 from electrum.network import Network
 from electrum.wallet import TxSighashRiskLevel, TxSighashDanger
@@ -278,16 +278,12 @@ class TxInOutWidget(QWidget):
         o_text.clear()
         o_text.setFont(QFont(MONOSPACE_FONT))
         o_text.setReadOnly(True)
-        tx_height, tx_pos = None, None
         tx_hash = self.tx.txid()
-        if tx_hash:
-            tx_mined_info = self.wallet.adb.get_tx_height(tx_hash)
-            tx_height = tx_mined_info.height()
-            tx_pos = tx_mined_info.txpos
+        tx_mined_info = self.wallet.adb.get_tx_height(tx_hash) if tx_hash else None
         cursor = o_text.textCursor()
         for txout_idx, o in enumerate(self.tx.outputs()):
-            if tx_height is not None and tx_pos is not None and tx_pos >= 0:
-                short_id = ShortID.from_components(tx_height, tx_pos, txout_idx)
+            if tx_mined_info and tx_mined_info.short_id():
+                short_id = f"{tx_mined_info.short_id()}x{txout_idx}"
             elif tx_hash:
                 short_id = TxOutpoint(bytes.fromhex(tx_hash), txout_idx).short_name()
             else:
