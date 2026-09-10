@@ -647,9 +647,11 @@ def is_android_debug_apk() -> bool:
     if not platform.is_android():
         return False
     from jnius import autoclass
-    pkgname = get_android_package_name()
-    build_config = autoclass(f"{pkgname}.BuildConfig")
-    return bool(build_config.DEBUG)
+    from android.config import ACTIVITY_CLASS_NAME
+    activity = autoclass(ACTIVITY_CLASS_NAME).mActivity
+    ApplicationInfo = autoclass('android.content.pm.ApplicationInfo')
+    app_flags = activity.getApplicationInfo().flags
+    return bool(app_flags & ApplicationInfo.FLAG_DEBUGGABLE)
 
 
 def get_android_package_name() -> str:
