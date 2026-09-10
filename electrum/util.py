@@ -625,8 +625,10 @@ def is_android_debug_apk() -> bool:
     if not is_android:
         return False
     from jnius import autoclass
-    pkgname = get_android_package_name()
-    build_config = autoclass(f"{pkgname}.BuildConfig")
+    # note: AGP 9 generates BuildConfig into the gradle "namespace" package, which p4a
+    #       keeps fixed, unlike the application id (which APP_PACKAGE_DOMAIN varies).
+    #       This is the package our java sources import R from.
+    build_config = autoclass("org.electrum.electrum.res.BuildConfig")
     return bool(build_config.DEBUG)
 
 
