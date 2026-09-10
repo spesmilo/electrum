@@ -1320,7 +1320,22 @@ class LNWallet(Logger):
         """Returns whether there are htlcs we sent for this payment that have neither
         been failed nor fulfilled yet, i.e. the receiver might still take the money.
         """
-        return payment_hash in self.get_payments(status='inflight', direction=SENT)
+        for chan in self.channels.values():
+            for direction, htlc in itertools.chain(
+                chan.hm.get_htlcs_in_oldest_unrevoked_ctx(REMOTE),
+                chan.hm.get_htlcs_in_latest_ctx(REMOTE),
+                chan.hm.get_htlcs_in_next_ctx(REMOTE)
+            ):
+                if htlc.payment_hash != payment_hash:
+                    continue
+                if direction != RECEIVED:
+                    continue
+                if chan.hm.was_htlc_failed(htlc_id=htlc.htlc_id, htlc_proposer=LOCAL):
+                    continue
+                if chan.hm.was_htlc_preimage_released(htlc_id=htlc.htlc_id, htlc_proposer=LOCAL):
+                    continue
+                return True
+        return False
 
     def get_payment_value(
             self, sent_info: Optional['PaymentInfo'],
