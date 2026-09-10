@@ -275,9 +275,7 @@ class AddressSynchronizer(Logger, EventListener):
         if tx:
             tx.deserialize()
             for txin in tx._inputs:
-                tx_mined_info = self.get_tx_height(txin.prevout.txid.hex())
-                txin.block_height = tx_mined_info.height()
-                txin.block_txpos = tx_mined_info.txpos
+                txin.set_mined_info(self.get_tx_height(txin.prevout.txid.hex()))
         return tx
 
     def add_transaction(self, tx: Transaction, *, allow_unrelated=False, is_new=True) -> bool:

@@ -51,7 +51,7 @@ from .bitcoin import (
 )
 from .crypto import sha256d, sha256
 from .logging import get_logger
-from .util import ShortID, OldTaskGroup
+from .util import ShortID, OldTaskGroup, TxMinedInfo
 from .descriptor import Descriptor, MissingSolutionPiece, create_dummy_descriptor_from_address, DUMMY_DER_SIG
 
 if TYPE_CHECKING:
@@ -362,6 +362,10 @@ class TxInput:
         if not self.nsequence & (1<<22):  # in blocks
             return self.nsequence & 0xffff
         return None
+
+    def set_mined_info(self, info: TxMinedInfo) -> None:
+        self.block_height = info.height()
+        self.block_txpos = info.txpos
 
     def has_short_id(self) -> bool:
         return (self.block_height is not None and self.block_height > 0
