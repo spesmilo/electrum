@@ -22,6 +22,8 @@ from .bitcoin import COIN
 if TYPE_CHECKING:
     from .lnutil import LnFeatures
 
+TIMESTAMP_SANE_MAX = 2**35
+
 
 class BOLT11InvoiceException(Exception): pass
 class BOLT11DecodeException(BOLT11InvoiceException): pass
@@ -269,10 +271,10 @@ class BOLT11Addr:
     def __init__(
         self, *,
         paymenthash: bytes = None,
-        amount: Optional[Decimal] = None,
+        amount: Optional[int | Decimal] = None,
         net: Type[AbstractNet] = None,
         tags: Optional[List[Tuple[str, Any]]] = None,
-        date: Optional[int] = None,
+        date: Optional[int | float] = None,
         payment_secret: bytes = None
     ):
         self.date = int(time.time()) if not date else int(date)
@@ -283,19 +285,21 @@ class BOLT11Addr:
         self.signature = None
         self.pubkey = None
         self.net = constants.net if net is None else net  # type: Type[AbstractNet]
-        self._amount = amount  # type: Optional[Decimal]  # in bitcoins
+        self.amount = amount  # type: Optional[int | Decimal]  # in bitcoins
 
     @property
     def amount(self) -> Optional[Decimal]:
         return self._amount
 
     @amount.setter
-    def amount(self, value):
-        if not (isinstance(value, Decimal) or value is None):
-            raise BOLT11InvoiceException(f"amount must be Decimal or None, not {value!r}")
+    def amount(self, value: Optional[int | Decimal]):
+        if not (isinstance(value, (int, Decimal)) or value is None):
+            raise BOLT11InvoiceException(f"amount must be Decimal, int or None, not {value!r}")
         if value is None:
             self._amount = None
             return
+        if isinstance(value, int):
+            value = Decimal(value)
         assert isinstance(value, Decimal)
         if value.is_nan() or not (0 <= value <= TOTAL_COIN_SUPPLY_LIMIT_IN_BTC):
             raise BOLT11InvoiceException(f"amount is out-of-bounds: {value!r} BTC")
@@ -303,6 +307,21 @@ class BOLT11Addr:
             # max resolution is millisatoshi
             raise BOLT11InvoiceException(f"Cannot encode {value!r}: too many decimal places")
         self._amount = value
+
+    @property
+    def date(self) -> int:
+        return self._date
+
+    @date.setter
+    def date(self, value: int | float):
+        if value is None or not isinstance(value, (int, float)):
+            raise BOLT11InvoiceException(f"date must be int or float, not {value!r}")
+        if isinstance(value, float):
+            # e.g. from time.time()
+            value = int(value)
+        if value > TIMESTAMP_SANE_MAX:
+            raise BOLT11InvoiceException(f"date must be sane, not above {TIMESTAMP_SANE_MAX!r}")
+        self._date = value
 
     def get_amount_sat(self) -> Optional[Decimal]:
         # note that this has msat resolution potentially
@@ -477,11 +496,15 @@ def decode_bolt11_invoice(invoice: str, *, verbose=False, net=None) -> BOLT11Add
     # A reader SHOULD indicate if amount is unspecified, otherwise it MUST
     # multiply `amount` by the `multiplier` value (if any) to derive the
     # amount required for payment.
-    if amountstr != '':
-        addr.amount = unshorten_amount(amountstr)
+    try:
+        if amountstr != '':
+            addr.amount = unshorten_amount(amountstr)
 
-    addr.date = int_from_data5(data5_remaining[:7])
-    data5_remaining = data5_remaining[7:]
+        addr.date = int_from_data5(data5_remaining[:7])
+        data5_remaining = data5_remaining[7:]
+    except BOLT11InvoiceException as e:
+        # raise as decode exception, as amount/date comes from the encoded invoice
+        raise BOLT11DecodeException(f"Failed to decode invoice: {e}") from e
 
     while data5_remaining:
         try:
