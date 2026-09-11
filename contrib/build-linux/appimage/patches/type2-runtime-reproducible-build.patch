@@ -15,12 +15,14 @@ attempts to make the docker build more reproducible by:
 * replace absolute paths in all compiler output with relative paths
   (-ffile-prefix-map=$(PWD)=.)
 * stop adding gnu-debuglink to runtime binary
+* respect ELECBUILD_NOCACHE when building the docker image
 ---
- scripts/build-runtime.sh               | 18 +++++++++++----
- scripts/common/install-dependencies.sh |  2 +-
- scripts/docker/Dockerfile              | 32 ++++++++++++++++++++++----
- src/runtime/Makefile                   |  2 +-
- 4 files changed, 42 insertions(+), 12 deletions(-)
+ scripts/build-runtime.sh                 | 18 +++++++++++++-----
+ scripts/common/install-dependencies.sh   |  2 +-
+ scripts/docker/Dockerfile                | 32 +++++++++++++++++++++++++++-----
+ scripts/docker/create-build-container.sh |  6 +++++-
+ src/runtime/Makefile                     |  2 +-
+ 5 files changed, 47 insertions(+), 13 deletions(-)
 
 diff --git a/scripts/build-runtime.sh b/scripts/build-runtime.sh
 index 3ce3b91..e11f082 100755
@@ -133,6 +135,24 @@ index 07b6533..fba9c6e 100644
 -RUN bash scripts/common/install-dependencies.sh
 +RUN bash scripts/common/install-dependencies.sh
 \ No newline at end of file
+diff --git a/scripts/docker/create-build-container.sh b/scripts/docker/create-build-container.sh
+index 8991688..592c62a 100755
+--- a/scripts/docker/create-build-container.sh
++++ b/scripts/docker/create-build-container.sh
+@@ -33,8 +33,12 @@ image_name=type2-runtime-build
+
+ # first, we need to build the image
+ # if nothing has changed, it'll run over this within a few seconds
++docker_build_args=()
++if [[ -n "${ELECBUILD_NOCACHE:-}" ]]; then
++    docker_build_args+=(--pull --no-cache)
++fi
+ repo_root_dir="$(readlink -f "$(dirname "${BASH_SOURCE[0]}")")"/../../
+-docker build --platform "$docker_platform" -t "$image_name" -f "$repo_root_dir"/scripts/docker/Dockerfile "$repo_root_dir"
++docker build "${docker_build_args[@]}" --platform "$docker_platform" -t "$image_name" -f "$repo_root_dir"/scripts/docker/Dockerfile "$repo_root_dir"
+
+ docker_run_args=()
+ [[ -t 0 ]] && docker_run_args+=("-t")
 diff --git a/src/runtime/Makefile b/src/runtime/Makefile
 index 9fd4165..3a3cbaa 100644
 --- a/src/runtime/Makefile
