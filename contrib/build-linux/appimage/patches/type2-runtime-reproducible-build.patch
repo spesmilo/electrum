@@ -4,7 +4,7 @@ Date: Thu, 10 Jul 2025 17:45:20 +0200
 Subject: [PATCH] make docker build reproducible
 
 attempts to make the docker build more reproducible by:
-* pinning the docker image (alpine:3.21) to a hash
+* pinning the docker image (alpine:3.24) to a hash
 * version pinning the apk packages in the dockerfile
 * setting TZ, LC_ALL and SOURCE_DATE_EPOCH in the container
 * only building single threaded (make -j1)
@@ -15,12 +15,14 @@ attempts to make the docker build more reproducible by:
 * replace absolute paths in all compiler output with relative paths
   (-ffile-prefix-map=$(PWD)=.)
 * stop adding gnu-debuglink to runtime binary
+* respect ELECBUILD_NOCACHE when building the docker image
 ---
- scripts/build-runtime.sh               | 18 +++++++++++----
- scripts/common/install-dependencies.sh |  2 +-
- scripts/docker/Dockerfile              | 32 ++++++++++++++++++++++----
- src/runtime/Makefile                   |  2 +-
- 4 files changed, 42 insertions(+), 12 deletions(-)
+ scripts/build-runtime.sh                 | 18 +++++++++++++-----
+ scripts/common/install-dependencies.sh   |  2 +-
+ scripts/docker/Dockerfile                | 32 +++++++++++++++++++++++++++-----
+ scripts/docker/create-build-container.sh |  6 +++++-
+ src/runtime/Makefile                     |  2 +-
+ 5 files changed, 47 insertions(+), 13 deletions(-)
 
 diff --git a/scripts/build-runtime.sh b/scripts/build-runtime.sh
 index 3ce3b91..e11f082 100755
@@ -88,38 +90,38 @@ index 0e21cdb..5237079 100755
  /usr/bin/install -c -m 644 ./*.h '/usr/local/include/squashfuse'
  popd
 diff --git a/scripts/docker/Dockerfile b/scripts/docker/Dockerfile
-index 07b6533..fba9c6e 100644
+index 07b6533..b35cc85 100644
 --- a/scripts/docker/Dockerfile
 +++ b/scripts/docker/Dockerfile
 @@ -1,13 +1,35 @@
 -FROM alpine:3.21
-+FROM alpine:3.21@sha256:a8560b36e8b8210634f77d9f7f9efd7ffa463e380b75e2e74aff4511df3ef88c
++FROM alpine:3.24@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
 
  # includes dependencies from https://git.alpinelinux.org/aports/tree/main/fuse3/APKBUILD
  RUN apk add --no-cache \
 -    bash alpine-sdk util-linux strace file autoconf automake libtool xz \
 -    eudev-dev gettext-dev linux-headers meson \
 -    zstd-dev zstd-static zlib-dev zlib-static clang musl-dev mimalloc-dev
-+    bash=5.2.37-r0 \
-+    alpine-sdk=1.1-r0 \
-+    util-linux=2.40.4-r1 \
-+    strace=6.12-r0 \
-+    file=5.46-r2 \
-+    autoconf=2.72-r0 \
-+    automake=1.17-r0 \
-+    libtool=2.4.7-r3 \
-+    xz=5.8.3-r0 \
-+    eudev-dev=3.2.14-r5 \
-+    gettext-dev=0.22.5-r0 \
-+    linux-headers=6.6-r1 \
-+    meson=1.6.1-r0 \
-+    zstd-dev=1.5.6-r2 \
-+    zstd-static=1.5.6-r2 \
++    bash=5.3.9-r1 \
++    alpine-sdk=1.1-r1 \
++    util-linux=2.42.3-r1 \
++    strace=6.19-r1 \
++    file=5.47-r2 \
++    autoconf=2.73-r0 \
++    automake=1.18.1-r1 \
++    libtool=2.6.0-r1 \
++    xz=5.8.4-r0 \
++    eudev-dev=3.2.14-r6 \
++    gettext-dev=1.0-r0 \
++    linux-headers=7.0.0-r1 \
++    meson=1.11.1-r0 \
++    zstd-dev=1.5.7-r2 \
++    zstd-static=1.5.7-r2 \
 +    zlib-dev=1.3.2-r0 \
 +    zlib-static=1.3.2-r0 \
-+    clang19=19.1.4-r0 \
-+    musl-dev=1.2.5-r11 \
-+    mimalloc2-dev=2.1.7-r0
++    clang22=22.1.3-r2 \
++    musl-dev=1.2.6-r2 \
++    mimalloc2-dev=2.2.7-r0
 
  COPY scripts/common/install-dependencies.sh /tmp/scripts/common/install-dependencies.sh
  COPY patches/ /tmp/patches/
@@ -133,6 +135,24 @@ index 07b6533..fba9c6e 100644
 -RUN bash scripts/common/install-dependencies.sh
 +RUN bash scripts/common/install-dependencies.sh
 \ No newline at end of file
+diff --git a/scripts/docker/create-build-container.sh b/scripts/docker/create-build-container.sh
+index 8991688..592c62a 100755
+--- a/scripts/docker/create-build-container.sh
++++ b/scripts/docker/create-build-container.sh
+@@ -33,8 +33,12 @@ image_name=type2-runtime-build
+
+ # first, we need to build the image
+ # if nothing has changed, it'll run over this within a few seconds
++docker_build_args=()
++if [[ -n "${ELECBUILD_NOCACHE:-}" ]]; then
++    docker_build_args+=(--pull --no-cache)
++fi
+ repo_root_dir="$(readlink -f "$(dirname "${BASH_SOURCE[0]}")")"/../../
+-docker build --platform "$docker_platform" -t "$image_name" -f "$repo_root_dir"/scripts/docker/Dockerfile "$repo_root_dir"
++docker build "${docker_build_args[@]}" --platform "$docker_platform" -t "$image_name" -f "$repo_root_dir"/scripts/docker/Dockerfile "$repo_root_dir"
+
+ docker_run_args=()
+ [[ -t 0 ]] && docker_run_args+=("-t")
 diff --git a/src/runtime/Makefile b/src/runtime/Makefile
 index 9fd4165..3a3cbaa 100644
 --- a/src/runtime/Makefile

@@ -1,4 +1,7 @@
 #!/bin/bash
+#
+# env vars:
+# - ELECBUILD_NOCACHE: if set, forces rebuild of docker image and runtime binary
 
 set -e
 
@@ -14,7 +17,7 @@ TYPE2_RUNTIME_REPO="https://github.com/AppImage/type2-runtime.git"
 
 
 TYPE2_RUNTIME_REPO_DIR="$PROJECT_ROOT/contrib/build-linux/appimage/.cache/appimage/type2-runtime"
-if [ -f "$TYPE2_RUNTIME_REPO_DIR/runtime-x86_64" ]; then
+if [ -f "$TYPE2_RUNTIME_REPO_DIR/runtime-x86_64" ] && [ -z "$ELECBUILD_NOCACHE" ]; then
     info "type2-runtime already built, skipping"
     exit 0
 fi
