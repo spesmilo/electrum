@@ -1068,8 +1068,9 @@ class LNWallet(Logger):
 
         # detect inflight payments
         self.inflight_payments = set()  # type: set[str]  # (not persisted) keys of invoices that are in PR_INFLIGHT state
-        for payment_hash in self.get_payments(status='inflight', direction=SENT).keys():
-            self.set_invoice_status(payment_hash.hex(), PR_INFLIGHT)
+        for payment_hash in self.get_payments(direction=SENT).keys():  # note: intentionally broader than status='inflight'
+            if self.has_unresolved_sent_htlcs(payment_hash):
+                self.set_invoice_status(payment_hash.hex(), PR_INFLIGHT)
 
         # payment forwarding
         self.active_forwardings = self.db.get_dict('active_forwardings')    # type: Dict[str, List[str]]        # Dict: payment_key -> list of htlc_keys
