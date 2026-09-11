@@ -1132,7 +1132,12 @@ class DeviceMgr(ThreadJob):
             if fut := self._ongoing_timeout_checks.pop(id_, None):
                 fut.cancel()
         if client:
-            client.close()
+            try:
+                client.close()
+            except Exception as e:
+                # closing is best-effort: it does device I/O, which can fail,
+                # e.g. if the device was unplugged
+                self.logger.info(f"failed to close hardware client cleanly: {e!r}")
 
     def _client_by_id(self, id_) -> Optional['HardwareClientBase']:
         with self.lock:
