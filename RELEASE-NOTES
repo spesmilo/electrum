@@ -1,3 +1,66 @@
+# Release 4.8.2 (September 11, 2026)
+ * General:
+   - new: miscellaneous security hardening across the codebase (e.g. #10885)
+   - fix: channel backups (#10851, #10852)
+       > Existing Lightning channel backups and full wallet backups,
+         (1) exported from wallets with non-deterministic lightning keys, AND
+         (2) specifically for anchor channels, were missing a critical key needed to sweep the coins onchain
+         after requesting a remote-force-close.
+         Affected wallets warn on startup: Users must export new backups for these channels: older backups
+         can't request a force close anymore as they miss information required to claim funds.
+         - Context for (1): Lightning keys are deterministic for Electrum seed based wallets where the wallet file
+           was created in version 4.1 (2021 March) or later (but not in 4.0.x).
+           bip39 seed- or imported xprv-based LN wallets always have non-deterministic keys.
+           In Qt (Desktop), the "wallet information" dialog shows "Lightning: Enabled, non-recoverable channels",
+           in qml (Android), the "Open Lightning Channel" dialog shows "Your channel cannot be recovered from seed [...]",
+           if your wallet has non-deterministic LN keys.
+ * Onchain / Wallet:
+   - fix: ensure a change address exists for automated sweeps when 'use_change' is disabled (#10922)
+   - fix: sweeping a privkey whose address is in an imported-address wallet (#10893)
+   - fix: add missing cache invalidation to fix stale balance and utxo caches after reorgs (#10945)
+   - fix: bip32: reject malformed xprv/xpub that were previously silently accepted (#10880, #10881)
+   - fix: descriptor: wrong error message when rejecting too many pubkeys (#10947)
+ * Qt GUI (desktop):
+   - fix: editing and viewing saved multiline payment identifiers (#10930)
+   - fix: send tab: Send button could get enabled for LN invoices in non-lightning wallets (#10944)
+   - fix: don't offer to open a new channel in wallets that cannot open channels (#10943)
+   - fix: qr code reader: fix slow or freezing camera (#10932)
+   - fix: fix 'stay online' warning popup during a pending force-close (#10890)
+ * QML GUI & Android:
+   - changed: wizard: hide the passphrase input field unless the checkbox is enabled (#10845)
+   - changed: protect the QR scanner view from screenshots (#10815)
+   - fix: automatically remove paid invoices from the invoice list, as in qt gui (#10919)
+   - fix: biometrics: prevent concurrent authentication requests (#10917)
+ * GUIs:
+   - fix: qt/qml: handle seemingly random crashes occurring through access of deleted objects (#10894)
+ * Lightning:
+   - changed: don't request or accept zeroconf channels if LN forwarding is enabled (#10929)
+   - changed: fail htlcs that need forwarding right away if forwarding is disabled (b952a6d)
+   - changed: disconnect on illegal update_*/commitsig/revack messages (#10897)
+   - changed: drop support for legacy closing fee negotiation, without fee_range (#10861)
+   - fix: stricter validation of incoming htlcs (#10899, #10929, #10938, #10939, e966470)
+   - fix: htlcs joining an expired mpp set were not failed with MPP_TIMEOUT (#10929)
+   - fix: fix wedged peer connections after system suspend / app backgrounding (#10909)
+   - fix: don't drop an incoming channel once its funding tx reached min depth (#10888)
+   - fix: fix crash during onchain sweeping of htlcs (#10906)
+   - fix: do not fail invoice until all htlcs are irrevocably resolved (#10962)
+ * Submarine swaps:
+   - fix: swapserver: nostr announcement PoW mining could discard freshly mined work (#10859)
+   - fix: swapserver: simplified lightning invoice payment logic, fixing db leak (#10877)
+   - fix: don't show the counterparties refund tx of a failed submarine payment in history (#10862)
+ * Electrum protocol:
+   - new: interface: validate response shape of server.peers.subscribe (#10834)
+   - fix: synchronizer: race during concurrent status updates caused disconnects (#10870)
+ * CLI/RPC:
+   - changed: stop quantizing transaction fee rates passed to tx construction (#10912)
+   - fix: swaps: fail early with a clear error if fees changed since the dryrun (#10840)
+   - fix: reverse_swap: don't include claim fee in onchain_amount for consistency with dryrun (#10840)
+ * Hardware wallets:
+   - new: bitbox01, safe-t: show a deprecation warning when creating or pairing a wallet (#10871)
+   - fix: trezor: fix handling of devices with passphrase_always_on_device option enabled (#10872)
+   - fix: trezor: settings dialog: fix crash after disabling passphrase protection (#10872)
+
+
 # Release 4.8.1 (August 10, 2026)
  * Security fixes and disclosures:
    - This release contains important security fixes. Details will be disclosed later.
