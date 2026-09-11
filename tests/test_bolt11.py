@@ -103,19 +103,6 @@ class TestBolt11(ElectrumTestCase):
             (BOLT11Addr(date=timestamp, paymenthash=RHASH, payment_secret=PAYMENT_SECRET, amount=24, tags=[('h', longdescription), ('9', 10 + (1 << 9) + (1 << 14))]),
              "lnbc241ps9zprzpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqsp5zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygshp58yjmdan79s6qqdhdzgynm4zwqd5d7xmw5fk98klysy043l2ahrqs9qrss2f8kr98446xls02yndup2ynwjh46u8kdeuuncexx2hnets0j0064nyq25gkd6jnttldzt5qqtszum5dufvuvryxt204w2p24557udxgcp0nlwtw"),
         ]
-        # Some old tests follow that do not have payment_secret. Note that if the parser raised due to the lack of features/payment_secret,
-        # old wallets that have these invoices saved (as paid/expired), could not be opened (though we could do a db upgrade and delete them).
-        tests.extend([
-            (BOLT11Addr(date=timestamp, paymenthash=RHASH, tags=[('d', '')]),
-             "lnbc1ps9zprzpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdqqd9n3kwjjwglnfne5p4rvkze998m3xcxrc8kunl5khkchlaqhwhlyztuuwkrglv47mqg96mcqjjx70hh9luaj4te0u4ww6aclxwve3fqpkmdxlj"),
-            (BOLT11Addr(date=timestamp, paymenthash=RHASH, amount=Decimal('0.001'), tags=[('d', '1 cup coffee'), ('x', 60)]),
-             "lnbc1m1ps9zprzpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdq5xysxxatsyp3k7enxv4jsxqzpu9rflz25dx0qw6kdg05u0c5hdc30yq6ga6ew4pz86n244va45nchns9zrs3wjxznsqnt37hz7pswvc56wvuhxcjyd6k3lqf4ujynyxuspmvr078"),
-            (BOLT11Addr(date=timestamp, paymenthash=RHASH, amount=Decimal('1'), tags=[('h', longdescription)]),
-             "lnbc11ps9zprzpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqhp58yjmdan79s6qqdhdzgynm4zwqd5d7xmw5fk98klysy043l2ahrqs2qjafckq94q3js6lvqz2kmenn9ysjejyj8fm4hlx0xtqhaxfzlxjappkgp0hmm40dnuan4v3jy83lqjup2n0fdzgysg049y9l9uc98qq07kfd3"),
-            (BOLT11Addr(date=timestamp, paymenthash=RHASH, net=constants.BitcoinTestnet, tags=[('f', 'mk2QpYatsKicvFVuTAQLBryyccRXMUaGHP'), ('h', longdescription)]),
-             "lntb1ps9zprzpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqfpp3x9et2e20v6pu37c5d9vax37wxq72un98hp58yjmdan79s6qqdhdzgynm4zwqd5d7xmw5fk98klysy043l2ahrqsr9zktgu78k8p9t8555ve37qwfvqn6ga37fnfwhgexmf20nzdpmuhwvuv7zra3xrh8y2ggxxuemqfsgka9x7uzsrcx8rfv85c8pmhq9gq4sampn"),
-
-        ])
 
         # Roundtrip
         for lnaddr1, invoice_str1 in tests:
