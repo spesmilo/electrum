@@ -8,8 +8,8 @@ import electrum_ecc as ecc
 
 from electrum.bolt11 import (shorten_amount, unshorten_amount, BOLT11Addr, encode_bolt11_invoice,
                              decode_bolt11_invoice, parse_fallback_addr, int_to_data5, tagged5, tagged8,
-                             BOLT11DecodeException)
-from electrum.segwit_addr import bech32_encode, bech32_decode, convertbits
+                             BOLT11DecodeException, BOLT11InvoiceException, TIMESTAMP_SANE_MAX)
+from electrum.segwit_addr import bech32_encode, bech32_decode, convertbits, CHARSET_INVERSE
 from electrum import segwit_addr
 from electrum.lnutil import UnknownEvenFeatureBits, LnFeatures, IncompatibleLightningFeatures
 from electrum import constants
@@ -130,24 +130,32 @@ class TestBolt11(ElectrumTestCase):
         self.assertEqual(lnaddr.pubkey.serialize(), PUBKEY)
 
     @staticmethod
-    def _encode_invoice_with_raw_tag(tag, tagdata5, *, net=None, date=1615922274, expiry=None) -> str:
-        """Builds a correctly signed invoice with one arbitrary (possibly malformed) tagged field."""
+    def _encode_invoice_with_raw_tags(tags5, *, net=None, date=1615922274, amountstr='') -> str:
+        """Builds a correctly signed invoice containing exactly the given (tag, data5) fields."""
         net = net or constants.BitcoinMainnet
-        hrp = 'ln' + net.BOLT11_HRP
+        hrp = 'ln' + net.BOLT11_HRP + amountstr
         data5 = list(int_to_data5(date, bit_len=35))
-        if tag != 'p':
-            data5 += list(tagged8('p', RHASH))
-        if tag != 's':
-            data5 += list(tagged8('s', PAYMENT_SECRET))
-        if tag not in ('d', 'h'):  # exactly one of 'd'/'h' must be present
-            data5 += list(tagged8('d', b'test'))
-        if expiry is not None:
-            data5 += list(tagged5('x', int_to_data5(expiry)))
-        data5 += list(tagged5(tag, list(tagdata5)))
+        for tag, tagdata5 in tags5:
+            data5 += list(tagged5(tag, list(tagdata5)))
         msg32 = sha256(hrp.encode('ascii') + bytes(convertbits(data5, 5, 8))).digest()
         sig = ecc.ECPrivkey(PRIVKEY).ecdsa_sign_recoverable(msg32, is_compressed=False)
         sig = bytes(sig[1:]) + bytes([sig[0] - 27])
         return bech32_encode(segwit_addr.Encoding.BECH32, hrp, data5 + list(convertbits(sig, 8, 5, False)))
+
+    @staticmethod
+    def _encode_invoice_with_raw_tag(tag, tagdata5, *, net=None, date=1615922274, expiry=None) -> str:
+        """Builds a correctly signed invoice with one arbitrary (possibly malformed) tagged field."""
+        tags5 = []
+        if tag != 'p':
+            tags5.append(('p', convertbits(RHASH, 8, 5)))
+        if tag != 's':
+            tags5.append(('s', convertbits(PAYMENT_SECRET, 8, 5)))
+        if tag not in ('d', 'h'):  # exactly one of 'd'/'h' must be present
+            tags5.append(('d', convertbits(b'test', 8, 5)))
+        if expiry is not None:
+            tags5.append(('x', int_to_data5(expiry)))
+        tags5.append((tag, tagdata5))
+        return TestBolt11._encode_invoice_with_raw_tags(tags5, net=net, date=date)
 
     @staticmethod
     def _encode_invoice_with_raw_sig(sig65, *, net=None) -> str:
@@ -291,6 +299,173 @@ class TestBolt11(ElectrumTestCase):
         # an 'n' field that is not a valid curve point (this path uses ecdsa_verify, not recovery)
         with self.assertRaises(BOLT11DecodeException):
             decode_bolt11_invoice(self._encode_invoice_with_raw_tag('n', list(convertbits(bytes(33), 8, 5))))
+
+    def test_mandatory_tags(self):
+        # BOLT #11: a reader MUST fail the payment if a 'p' or 's' field is missing, and MUST
+        # fail if neither a 'd' nor an 'h' field is present, or if both are present.
+        p5 = convertbits(RHASH, 8, 5)
+        s5 = convertbits(PAYMENT_SECRET, 8, 5)
+        d5 = convertbits(b'test', 8, 5)
+        h5 = convertbits(sha256(b'test').digest(), 8, 5)
+        # control: 'd' and 'h' are each enough on their own
+        lnaddr = decode_bolt11_invoice(self._encode_invoice_with_raw_tags([('p', p5), ('s', s5), ('d', d5)]))
+        self.assertEqual('test', lnaddr.get_description())
+        self.assertEqual(RHASH, lnaddr.paymenthash)
+        self.assertEqual(PAYMENT_SECRET, lnaddr.payment_secret)
+        decode_bolt11_invoice(self._encode_invoice_with_raw_tags([('p', p5), ('s', s5), ('h', h5)]))
+
+        for label, tags5 in (("no 'p' field", [('s', s5), ('d', d5)]),
+                             ("no 's' field", [('p', p5), ('d', d5)]),
+                             ("neither 'd' nor 'h'", [('p', p5), ('s', s5)]),
+                             ("both 'd' and 'h'", [('p', p5), ('s', s5), ('d', d5), ('h', h5)]),
+                             ("no tagged fields at all", [])):
+            with self.subTest(label):
+                with self.assertRaises(BOLT11DecodeException):
+                    decode_bolt11_invoice(self._encode_invoice_with_raw_tags(tags5))
+
+    def test_duplicate_tags(self):
+        p5 = convertbits(RHASH, 8, 5)
+        s5 = convertbits(PAYMENT_SECRET, 8, 5)
+        d5 = convertbits(b'test', 8, 5)
+        h5 = convertbits(sha256(b'test').digest(), 8, 5)
+        # a second copy of a field we only keep one value for is rejected
+        for tag, tags5 in (('p', [('p', p5), ('p', p5), ('s', s5), ('d', d5)]),
+                           ('s', [('p', p5), ('s', s5), ('s', s5), ('d', d5)]),
+                           ('d', [('p', p5), ('s', s5), ('d', d5), ('d', d5)]),
+                           ('h', [('p', p5), ('s', s5), ('h', h5), ('h', h5)])):
+            with self.subTest(tag=tag):
+                with self.assertRaises(BOLT11DecodeException):
+                    decode_bolt11_invoice(self._encode_invoice_with_raw_tags(tags5))
+
+        # 'n' is the exception: BOLT #11 has writers put the most-preferred field first, so the
+        # first one is kept and the rest ignored. Note the invoice is signed by PUBKEY, so if
+        # the second 'n' were the one kept, signature validation against it would fail.
+        other_pubkey = ecc.ECPrivkey(bytes(31) + b'\x02').get_public_key_bytes(compressed=True)
+        self.assertNotEqual(PUBKEY, other_pubkey)
+        lnaddr = decode_bolt11_invoice(self._encode_invoice_with_raw_tags(
+            [('p', p5), ('s', s5), ('d', d5),
+             ('n', convertbits(PUBKEY, 8, 5)), ('n', convertbits(other_pubkey, 8, 5))]))
+        self.assertEqual(PUBKEY, lnaddr.pubkey.serialize())
+
+    def test_invalid_utf8_description(self):
+        # the 'd' field is UTF-8: an invalid encoding must be rejected, not crash the parser
+        with self.assertRaises(BOLT11DecodeException):
+            decode_bolt11_invoice(self._encode_invoice_with_raw_tag('d', convertbits(b'\xff\xfe', 8, 5)))
+        # control: non-ASCII UTF-8 decodes fine
+        description = 'ナンセンス 1杯'
+        lnaddr = decode_bolt11_invoice(
+            self._encode_invoice_with_raw_tag('d', convertbits(description.encode('utf-8'), 8, 5)))
+        self.assertEqual(description, lnaddr.get_description())
+
+    def test_corrupt_tag_data(self):
+        # A tagged field whose data_length runs past the end of the data part must be rejected.
+        # Note the signature is split off the end first, so what is left for the tag loop is
+        # attacker-controlled in length as well as content.
+        hrp = 'ln' + constants.BitcoinMainnet.BOLT11_HRP
+        body = list(int_to_data5(1615922274, bit_len=35))
+        body += list(tagged8('p', RHASH)) + list(tagged8('s', PAYMENT_SECRET)) + list(tagged8('d', b'test'))
+        sig5 = [0] * (65 * 8 // 5)
+
+        def encode(data5):
+            return bech32_encode(segwit_addr.Encoding.BECH32, hrp, data5)
+
+        for label, trailer in (("data_length past end of data", [CHARSET_INVERSE['x'], 0, 20]),
+                               ("1 stray data element", [CHARSET_INVERSE['x']]),
+                               ("2 stray data elements", [CHARSET_INVERSE['x'], 0])):
+            with self.subTest(label):
+                with self.assertRaises(BOLT11DecodeException):
+                    decode_bolt11_invoice(encode(body + trailer + sig5))
+        # an invoice that is all tags and no signature: the last 65 bytes are taken to be the
+        # signature regardless, which leaves a truncated tag behind
+        with self.assertRaises(BOLT11DecodeException):
+            decode_bolt11_invoice(encode(body))
+        # ... and one shorter than a signature is rejected outright
+        with self.assertRaises(BOLT11DecodeException):
+            decode_bolt11_invoice(encode(list(int_to_data5(1615922274, bit_len=35))))
+        # control: the same body followed by a signature-sized (if bogus) trailer gets all the
+        # way past the tag loop, and fails on the signature instead
+        with self.assertRaisesRegex(BOLT11DecodeException, 'signature'):
+            decode_bolt11_invoice(encode(body + sig5))
+
+    def test_bech32_errors(self):
+        invoice = self._encode_invoice_with_raw_tag('x', int_to_data5(60))
+        self.assertEqual(60, decode_bolt11_invoice(invoice).get_expiry())  # control
+
+        for label, bad_invoice in (("corrupt checksum", invoice[:-1] + ('q' if invoice[-1] != 'q' else 'p')),
+                                   ("mixed case", invoice[:8].upper() + invoice[8:]),
+                                   ("empty string", ''),
+                                   ("no separator", 'lnbc'),
+                                   ("not an invoice", 'not an invoice')):
+            with self.subTest(label):
+                with self.assertRaises(BOLT11DecodeException):
+                    decode_bolt11_invoice(bad_invoice)
+
+        decoded = bech32_decode(invoice, ignore_long_length=True)
+        # bolt11 uses vanilla bech32; the same data encoded as bech32m must be rejected
+        with self.assertRaises(BOLT11DecodeException):
+            decode_bolt11_invoice(bech32_encode(segwit_addr.Encoding.BECH32M, decoded.hrp, decoded.data))
+        # hrp of another network, and one that is not a lightning invoice at all
+        with self.assertRaises(BOLT11DecodeException):
+            decode_bolt11_invoice(invoice, net=constants.BitcoinTestnet)
+        with self.assertRaises(BOLT11DecodeException):
+            decode_bolt11_invoice(bech32_encode(segwit_addr.Encoding.BECH32, 'bc', decoded.data))
+
+    def test_invalid_amount(self):
+        # the amount is part of the hrp; amounts the BOLT11Addr.amount setter rejects must
+        # surface as BOLT11DecodeException, not as a bare BOLT11InvoiceException
+        tags5 = [('p', convertbits(RHASH, 8, 5)),
+                 ('s', convertbits(PAYMENT_SECRET, 8, 5)),
+                 ('d', convertbits(b'test', 8, 5))]
+        self.assertEqual(  # control
+            Decimal('0.0025'),
+            decode_bolt11_invoice(self._encode_invoice_with_raw_tags(tags5, amountstr='2500u')).amount)
+        for amountstr in ('21000001',  # more than the total coin supply
+                          '1p',        # sub-millisatoshi precision
+                          '25y',       # invalid multiplier
+                          '-1',
+                          'nan',
+                          '1e3'):
+            with self.subTest(amountstr=amountstr):
+                with self.assertRaises(BOLT11DecodeException):
+                    decode_bolt11_invoice(self._encode_invoice_with_raw_tags(tags5, amountstr=amountstr))
+
+    def test_amount_validation(self):
+        addr = BOLT11Addr(paymenthash=RHASH, payment_secret=PAYMENT_SECRET, tags=[('d', '')])
+        for label, value in (("str", '1'),
+                             ("float", 1.5),
+                             ("bytes", b'1'),
+                             ("NaN", Decimal('nan')),
+                             ("negative", Decimal(-1)),
+                             ("more than the coin supply", Decimal(21_000_001)),
+                             ("sub-millisatoshi", Decimal('0.0000000000001'))):
+            with self.subTest(label):
+                with self.assertRaises(BOLT11InvoiceException):
+                    addr.amount = value
+        addr.amount = 1  # an int is accepted and converted
+        self.assertEqual(Decimal(1), addr.amount)
+        addr.amount = Decimal('0.00000000001')  # 1 msat, the smallest encodable amount
+        self.assertEqual(Decimal('0.00000000001'), addr.amount)
+        addr.amount = None
+        self.assertIsNone(addr.amount)
+
+    def test_date_validation(self):
+        addr = BOLT11Addr(paymenthash=RHASH, payment_secret=PAYMENT_SECRET, tags=[('d', '')])
+        for label, value in (("str", '123'),
+                             ("bytes", b'123'),
+                             ("None", None),
+                             ("above TIMESTAMP_SANE_MAX", TIMESTAMP_SANE_MAX + 1)):
+            with self.subTest(label):
+                with self.assertRaises(BOLT11InvoiceException):
+                    addr.date = value
+        with self.assertRaises(BOLT11InvoiceException):
+            BOLT11Addr(date=TIMESTAMP_SANE_MAX + 1)
+        # a float (e.g. straight from time.time()) is truncated to an int
+        addr.date = 1615922274.9
+        self.assertEqual(1615922274, addr.date)
+        # the largest timestamp the 35-bit bolt11 field can hold is still accepted
+        addr.date = 2 ** 35 - 1
+        self.assertEqual(2 ** 35 - 1, addr.date)
+        self.assertLessEqual(2 ** 35 - 1, TIMESTAMP_SANE_MAX)
 
     def test_min_final_cltv_expiry_decoding(self):
         lnaddr = decode_bolt11_invoice("lnsb500u1pdsgyf3pp5nmrqejdsdgs4n9ukgxcp2kcq265yhrxd4k5dyue58rxtp5y83s3qsp5qyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqsdqqcqzys9qypqsqp2h6a5xeytuc3fad2ed4gxvhd593lwjdna3dxsyeem0qkzjx6guk44jend0xq4zzvp6f3fy07wnmxezazzsxgmvqee8shxjuqu2eu0qpnvc95x",
