@@ -2358,7 +2358,7 @@ class Peer(Logger, EventListener):
             if not chan.can_send_ctx_updates():
                 continue
             self.logger.info(f"fulfill htlc: {chan.short_channel_id}. {htlc_id=}. {payment_hash.hex()=}")
-            if chan.hm.was_htlc_preimage_released(htlc_id=htlc_id, htlc_proposer=REMOTE):
+            if chan.hm.was_htlc_settled(htlc_id=htlc_id, htlc_proposer=REMOTE):
                 # this check is intended to gracefully handle stale htlcs in the set, e.g. after a crash
                 self.logger.debug(f"{mpp_htlc=} was already settled before, dropping it.")
                 htlc_set = htlc_set._replace(htlcs=htlc_set.htlcs - {mpp_htlc})
@@ -2988,6 +2988,10 @@ class Peer(Logger, EventListener):
             if preimage:
                 if self.lnworker.enable_htlc_settle:
                     self.lnworker.set_request_status(htlc_set.get_payment_hash(), PR_PAID)
+                    # FIXME maybe race here: if the peer *now* goes offline, and we are the ultimate receiver of this payment,
+                    #       and then they come back online *after* fulfillment deadline (even after cltv_expiry!),
+                    #       we might still send update_fulfill_htlc.
+                    #       Maybe we should only do that if `lnworker.is_preimage_public(payment_hash)`?
                     self._fulfill_htlc_set(payment_key, preimage)
             if callback:
                 task = asyncio.create_task(callback())

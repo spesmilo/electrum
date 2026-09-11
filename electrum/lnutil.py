@@ -590,7 +590,7 @@ MIN_FUNDING_SAT = 200_000
 
 
 ##### CLTV-expiry-delta-related values
-# see https://github.com/lightningnetwork/lightning-rfc/blob/master/02-peer-protocol.md#cltv_expiry_delta-selection
+# see https://github.com/lightning/bolts/blob/152897261850d93c4f4597f39cf22d7d22d6ede6/02-peer-protocol.md#cltv_expiry_delta-selection
 
 # the minimum cltv_expiry accepted for newly received HTLCs
 # note: when changing, consider Blockchain.is_tip_stale()
@@ -600,12 +600,14 @@ MIN_FINAL_CLTV_DELTA_ACCEPTED = 144
 # of incoming payment htlcs reliable even if some blocks have been mined during forwarding
 MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE = 3
 
-# the deadline for offered HTLCs:
-# the deadline after which the channel has to be failed and timed out on-chain
+# "the deadline for offered HTLCs": (BOLT-02)
+# "the deadline after which the channel has to be failed and timed out on-chain"
+# ("This is G blocks after the HTLC's cltv_expiry")
 NBLOCK_DEADLINE_DELTA_AFTER_EXPIRY_FOR_OFFERED_HTLCS = 1
 
-# the deadline for received HTLCs this node has fulfilled:
-# the deadline after which the channel has to be failed and the HTLC fulfilled on-chain before its cltv_expiry
+# "the deadline for received HTLCs this node has fulfilled": (BOLT-02)
+# "the deadline after which the channel has to be failed and the HTLC fulfilled on-chain before its cltv_expiry"
+# ("a deadline of 2R+G+S blocks before cltv_expiry")
 NBLOCK_DEADLINE_DELTA_BEFORE_EXPIRY_FOR_RECEIVED_HTLCS = 72
 
 NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE = 28 * 144
@@ -615,7 +617,13 @@ MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED = 2016
 # timeout after which we consider a zeroconf channel without funding tx to be failed
 ZEROCONF_TIMEOUT = 60 * 10
 
-TIME_FOR_OFFERED_HTLCS_TO_GET_FAILED_OFFCHAIN_ON_RESTART = 30
+# Just after startup, we give some time to remove HTLCs offchain, before force-closing channels.
+# - Time window cannot be too short: takes some time to reestablish channels,
+#   (disk reads, cpu, several network RTTs), and we might have many channels.
+# - but window cannot be long either: the logic is too naive, and we start the grace period
+#   on every startup. If we wait too long, a mobile user might likely close the app before
+#   we start force-closing chans on uncooperative peers.
+GRACE_TIME_FOR_REMOVING_HTLCS_OFFCHAIN_ON_RESTART = 30  # seconds
 
 
 class RevStoreStorage(TypedDict):

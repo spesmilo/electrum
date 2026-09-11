@@ -847,7 +847,7 @@ class TestChannel(ElectrumTestCase):
         self.assertFalse(alice_channel.should_be_closed_due_to_expiring_htlcs(expired_local_height))
 
         # expired offered htlc, past startup grace period
-        alice_lnwallet.instantiation_timestamp -= (lnutil.TIME_FOR_OFFERED_HTLCS_TO_GET_FAILED_OFFCHAIN_ON_RESTART + 10)
+        alice_lnwallet.instantiation_timestamp -= (lnutil.GRACE_TIME_FOR_REMOVING_HTLCS_OFFCHAIN_ON_RESTART + 10)
         self.assertTrue(alice_channel.should_be_closed_due_to_expiring_htlcs(expired_local_height))
 
     async def test_should_be_closed_due_to_expiring_htlcs_received_htlcs(self):
@@ -857,7 +857,7 @@ class TestChannel(ElectrumTestCase):
 
         preimage = os.urandom(32)
         htlc = UpdateAddHtlc(payment_hash=sha256(preimage), amount_msat=one_bitcoin_in_msat, cltv_abs=100)
-        expired_height = 100 + lnutil.NBLOCK_DEADLINE_DELTA_BEFORE_EXPIRY_FOR_RECEIVED_HTLCS + 5
+        expired_height = 100 - lnutil.NBLOCK_DEADLINE_DELTA_BEFORE_EXPIRY_FOR_RECEIVED_HTLCS + 5
         alice_channel.add_htlc(htlc)
         bob_htlc_id =  bob_channel.receive_htlc(htlc).htlc_id
         force_state_transition(alice_channel, bob_channel)
@@ -865,14 +865,14 @@ class TestChannel(ElectrumTestCase):
         # preimage wasn't released
         self.assertFalse(bob_channel.should_be_closed_due_to_expiring_htlcs(local_height=expired_height))
 
-        # now the preimage is released
+        # now the preimage is released (via any means, could be on different channel to different peer)
         bob_channel.settle_htlc(preimage, bob_htlc_id)
 
         # still in 30s grace period waiting for peers revack
         self.assertFalse(bob_channel.should_be_closed_due_to_expiring_htlcs(local_height=expired_height))
 
         # now the settled htlc is past the grace period
-        bob_channel.htlc_settle_time[bob_htlc_id] = int(time.time()) - 60
+        bob_lnwallet.instantiation_timestamp -= (lnutil.GRACE_TIME_FOR_REMOVING_HTLCS_OFFCHAIN_ON_RESTART + 10)
         self.assertTrue(bob_channel.should_be_closed_due_to_expiring_htlcs(local_height=expired_height))
 
         # if bob force-closes, the sweep info for the received htlc must expose the correct cltv heights for both sides.
