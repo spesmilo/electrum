@@ -79,17 +79,24 @@ class NWCServerPlugin(BasePlugin):
         self.initialized = True
 
     @hook
-    def close_wallet(self, *args, **kwargs):
+    def close_wallet(self, wallet: 'Abstract_Wallet', *args, **kwargs):
+        if self.nwc_server is None or self.nwc_server.wallet is not wallet:
+            return
+        nwc_server, self.nwc_server = self.nwc_server, None
+        self.connections = None
+        self.initialized = False
+        nwc_server.unregister_callbacks()
+
         async def close():
-            if self.nwc_server and self.nwc_server.manager:
-                self.nwc_server.do_stop = True
-                await self.nwc_server.manager.close()
-            await self.taskgroup.cancel_remaining()
-        asyncio.run_coroutine_threadsafe(
-            close(),
-            get_asyncio_loop()
-        )
-        self.logger.debug(f"NWCServerPlugin closed, stopping taskgroup")
+            try:
+                await self.taskgroup.cancel_remaining()
+                if nwc_server.manager:
+                    await nwc_server.manager.close()
+            except Exception as e:
+                self.logger.exception(f"error stopping NWCServer: {e}")
+
+        asyncio.run_coroutine_threadsafe(close(), get_asyncio_loop())
+        self.logger.debug("NWCServerPlugin closed, stopping taskgroup")
 
     def delete_expired_connections(self):
         if self.connections is None:
@@ -197,7 +204,6 @@ class NWCServer(Logger, EventListener):
         self.wallet = wallet  # type: 'Abstract_Wallet'
         self.connections = connection_storage  # type: dict[str, dict]  # client hex pubkey -> connection data
         self.relays = config.NOSTR_RELAYS.split(",") or []  # type: List[str]
-        self.do_stop = False
         self.taskgroup = None  # type: Optional[OldTaskGroup]
         self.ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_path)
         self.manager = None  # type: Optional[aionostr.Manager]
@@ -241,10 +247,6 @@ class NWCServer(Logger, EventListener):
                     self.taskgroup = tg
                     await tg.spawn(self.publish_info_event_loop())
                     await tg.spawn(self.handle_requests())
-            except asyncio.CancelledError:
-                if self.do_stop:
-                    return
-                self.logger.debug("Restarting nwc event handler")
             except Exception as e:
                 self.logger.exception(f"Restarting nwc event handler after exception: {e}")
                 if self.manager:  # close the manager so refresh_manager() will recreate it
@@ -253,6 +255,7 @@ class NWCServer(Logger, EventListener):
                 await asyncio.sleep(60)
             finally:
                 self.taskgroup = None
+                self.logger.debug("nwc taskgroup exited")
 
     async def refresh_manager(self) -> bool:
         """Checks if manager is still connected to relays, if not recreates it and reconnects"""
