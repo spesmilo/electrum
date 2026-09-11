@@ -1068,9 +1068,8 @@ class LNWallet(Logger):
 
         # detect inflight payments
         self.inflight_payments = set()  # type: set[str]  # (not persisted) keys of invoices that are in PR_INFLIGHT state
-        for payment_hash in self.get_payments(direction=SENT).keys():  # note: intentionally broader than status='inflight'
-            if self.has_unresolved_sent_htlcs(payment_hash):
-                self.set_invoice_status(payment_hash.hex(), PR_INFLIGHT)
+        for payment_hash in self.get_payments_with_unresolved_sent_htlcs():
+            self.set_invoice_status(payment_hash.hex(), PR_INFLIGHT)
 
         # payment forwarding
         self.active_forwardings = self.db.get_dict('active_forwardings')    # type: Dict[str, List[str]]        # Dict: payment_key -> list of htlc_keys
@@ -1321,14 +1320,17 @@ class LNWallet(Logger):
         """Returns whether there are htlcs we sent for this payment that have neither
         been failed nor fulfilled yet, i.e. the receiver might still take the money.
         """
+        return payment_hash in self.get_payments_with_unresolved_sent_htlcs()
+
+    def get_payments_with_unresolved_sent_htlcs(self) -> Set[bytes]:
+        # set of payment hashes
+        out = set()
         for chan in self.channels.values():
             if chan.is_redeemed():
                 continue  # skip channel
             for htlc in chan.hm.get_all_not_irrevocably_removed_htlcs(htlc_proposer=LOCAL):
-                if htlc.payment_hash != payment_hash:
-                    continue  # skip htlc
-                return True
-        return False
+                out.add(htlc.payment_hash)
+        return out
 
     def get_payment_value(
             self, sent_info: Optional['PaymentInfo'],
