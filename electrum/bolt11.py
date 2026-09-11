@@ -459,6 +459,11 @@ def decode_bolt11_invoice(invoice: str, *, verbose=False, net=None) -> BOLT11Add
             raise BOLT11DecodeException(f"Failed to decode tag '{tag}'")
         return intseq
 
+    def _check_minimal_data5(tag: str, data5: Sequence[int]) -> None:
+        """ a field is 'minimal' if len>0 and the first int is non-zero"""
+        if len(data5) > 0 and data5[0] == 0:
+            raise BOLT11DecodeException(f"Non-minimal data_length for tag '{tag}'")
+
     if net is None:
         net = constants.net
     decoded_bech32 = bech32_decode(invoice, ignore_long_length=True)
@@ -589,6 +594,8 @@ def decode_bolt11_invoice(invoice: str, *, verbose=False, net=None) -> BOLT11Add
                 ('h', bytes(_convertbits_tag(tag, tagdata, 5, 8, False, length_range=(52, 52))))
             )
         elif tag == 'x':
+            # MUST use the minimum data_length possible
+            _check_minimal_data5(tag, tagdata)
             addr.tags.append(('x', int_from_data5(tagdata)))
         elif tag == 'p':
             # MUST include exactly one 'p' field
@@ -609,8 +616,13 @@ def decode_bolt11_invoice(invoice: str, *, verbose=False, net=None) -> BOLT11Add
             pubkeybytes = bytes(_convertbits_tag(tag, tagdata, 5, 8, False, length_range=(53, 53)))
             addr.pubkey = pubkeybytes
         elif tag == 'c':
+            # MUST use the minimum data_length possible
+            _check_minimal_data5(tag, tagdata)
             addr.tags.append(('c', int_from_data5(tagdata)))
         elif tag == '9':
+            # MUST use the minimum data_length possible to encode the non-zero bits,
+            # with no 0 field-elements at the start
+            _check_minimal_data5(tag, tagdata)
             features = int_from_data5(tagdata)
             addr.tags.append(('9', features))
             # note: The features are not validated here in the parser,

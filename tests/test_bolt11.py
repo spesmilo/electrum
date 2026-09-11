@@ -357,6 +357,44 @@ class TestBolt11(ElectrumTestCase):
             self._encode_invoice_with_raw_tag('d', convertbits(description.encode('utf-8'), 8, 5)))
         self.assertEqual(description, lnaddr.get_description())
 
+    def test_non_minimal_data_length(self):
+        # BOLT #11: a 'c', 'x' or '9' field "MUST use the minimum `data_length` possible, i.e.
+        # no leading 0 field-elements"; a reader SHOULD treat a non-minimal one as invalid.
+        for tag in ('x', 'c', '9'):
+            for tagdata5 in ([0],               # zero, which is minimally encoded as an empty field
+                             [0, 1, 28],        # 60, left-padded with one 0 element
+                             [0] * 50 + [1]):   # 1, left-padded all the way
+                with self.subTest(tag=tag, tagdata5=tagdata5):
+                    with self.assertRaises(BOLT11DecodeException):
+                        decode_bolt11_invoice(self._encode_invoice_with_raw_tag(tag, tagdata5))
+            # control: minimally encoded values, zero (i.e. an empty field) included
+            for tagdata5, value in (([], 0), ([31], 31), ([1, 28], 60)):
+                with self.subTest(tag=tag, tagdata5=tagdata5):
+                    lnaddr = decode_bolt11_invoice(self._encode_invoice_with_raw_tag(tag, tagdata5))
+                    self.assertEqual(value, lnaddr.get_tag(tag))
+
+        # the accessors see the decoded values
+        self.assertEqual(60, decode_bolt11_invoice(
+            self._encode_invoice_with_raw_tag('x', [1, 28])).get_expiry())
+        self.assertEqual(31, decode_bolt11_invoice(
+            self._encode_invoice_with_raw_tag('c', [31])).get_min_final_cltv_delta())
+
+        # ... and whatever our own encoder emits is minimal, so it still roundtrips
+        for tag in ('x', 'c', '9'):
+            for value in (1, 31, 32, 60, 3600, 2 ** 40):
+                with self.subTest(tag=tag, value=value):
+                    addr = BOLT11Addr(date=1615922274, paymenthash=RHASH, payment_secret=PAYMENT_SECRET,
+                                      tags=[('d', ''), (tag, value)])
+                    lnaddr = decode_bolt11_invoice(encode_bolt11_invoice(addr, PRIVKEY))
+                    self.assertEqual(value, lnaddr.get_tag(tag))
+        # zero: 'x' and 'c' are written as an empty (still minimal) field, '9' is omitted entirely
+        for tag, expected in (('x', 0), ('c', 0), ('9', None)):
+            with self.subTest(tag=tag, value=0):
+                addr = BOLT11Addr(date=1615922274, paymenthash=RHASH, payment_secret=PAYMENT_SECRET,
+                                  tags=[('d', ''), (tag, 0)])
+                lnaddr = decode_bolt11_invoice(encode_bolt11_invoice(addr, PRIVKEY))
+                self.assertEqual(expected, lnaddr.get_tag(tag))
+
     def test_corrupt_tag_data(self):
         # A tagged field whose data_length runs past the end of the data part must be rejected.
         # Note the signature is split off the end first, so what is left for the tag loop is
