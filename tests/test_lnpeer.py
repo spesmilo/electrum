@@ -719,7 +719,7 @@ class TestPeerDirect(TestPeer):
             with self.assertRaises(lnutil.UnknownEvenFeatureBits):
                 result, log = await w1.pay_invoice(pay_req)
             # feature bits: not all transitive dependencies are set
-            invoice_features = LnFeatures((1 << 8) + (1 << 17))
+            invoice_features = LnFeatures((1 << 14) + (1 << 17))
             lnaddr, pay_req = self.prepare_invoice(w2, invoice_features=invoice_features)
             with self.assertRaises(lnutil.IncompatibleOrInsaneFeatures):
                 result, log = await w1.pay_invoice(pay_req)
