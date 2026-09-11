@@ -4,8 +4,12 @@ from binascii import unhexlify, hexlify
 import pprint
 import unittest
 
-from electrum.bolt11 import shorten_amount, unshorten_amount, BOLT11Addr, encode_bolt11_invoice, decode_bolt11_invoice
-from electrum.segwit_addr import bech32_encode, bech32_decode
+import electrum_ecc as ecc
+
+from electrum.bolt11 import (shorten_amount, unshorten_amount, BOLT11Addr, encode_bolt11_invoice,
+                             decode_bolt11_invoice, parse_fallback_addr, int_to_data5, tagged5, tagged8,
+                             BOLT11DecodeException)
+from electrum.segwit_addr import bech32_encode, bech32_decode, convertbits
 from electrum import segwit_addr
 from electrum.lnutil import UnknownEvenFeatureBits, LnFeatures, IncompatibleLightningFeatures
 from electrum import constants
@@ -137,6 +141,169 @@ class TestBolt11(ElectrumTestCase):
         data[-1] ^= 1
         lnaddr = decode_bolt11_invoice(bech32_encode(segwit_addr.Encoding.BECH32, hrp, data), verbose=True)
         self.assertEqual(lnaddr.pubkey.serialize(), PUBKEY)
+
+    @staticmethod
+    def _encode_invoice_with_raw_tag(tag, tagdata5, *, net=None, date=1615922274, expiry=None) -> str:
+        """Builds a correctly signed invoice with one arbitrary (possibly malformed) tagged field."""
+        net = net or constants.BitcoinMainnet
+        hrp = 'ln' + net.BOLT11_HRP
+        data5 = list(int_to_data5(date, bit_len=35))
+        if tag != 'p':
+            data5 += list(tagged8('p', RHASH))
+        if tag != 's':
+            data5 += list(tagged8('s', PAYMENT_SECRET))
+        if tag not in ('d', 'h'):  # exactly one of 'd'/'h' must be present
+            data5 += list(tagged8('d', b'test'))
+        if expiry is not None:
+            data5 += list(tagged5('x', int_to_data5(expiry)))
+        data5 += list(tagged5(tag, list(tagdata5)))
+        msg32 = sha256(hrp.encode('ascii') + bytes(convertbits(data5, 5, 8))).digest()
+        sig = ecc.ECPrivkey(PRIVKEY).ecdsa_sign_recoverable(msg32, is_compressed=False)
+        sig = bytes(sig[1:]) + bytes([sig[0] - 27])
+        return bech32_encode(segwit_addr.Encoding.BECH32, hrp, data5 + list(convertbits(sig, 8, 5, False)))
+
+    @staticmethod
+    def _encode_invoice_with_raw_sig(sig65, *, net=None) -> str:
+        """Builds an invoice with an arbitrary (possibly invalid) 65-byte signature.
+        Note: no 'n' field, so decoding goes through pubkey recovery."""
+        net = net or constants.BitcoinMainnet
+        hrp = 'ln' + net.BOLT11_HRP
+        data5 = list(int_to_data5(1615922274, bit_len=35))
+        data5 += list(tagged8('p', RHASH))
+        data5 += list(tagged8('d', b'test'))
+        return bech32_encode(segwit_addr.Encoding.BECH32, hrp, data5 + list(convertbits(sig65, 8, 5, False)))
+
+    def test_parse_fallback_addr(self):
+        net = constants.BitcoinMainnet
+
+        def parse(wver, data8):
+            return parse_fallback_addr([wver] + list(convertbits(data8, 8, 5)), net)
+
+        # p2pkh/p2sh: the payload must be a hash160
+        self.assertEqual('1111111111111111111114oLvT2', parse(17, bytes(20)))
+        self.assertEqual('31h1vYVSYuKP6AhS86fbRdMw9XHieotbST', parse(18, bytes(20)))
+        for nbytes in (0, 1, 19, 21, 32, 40):
+            self.assertIsNone(parse(17, bytes(nbytes)))
+            self.assertIsNone(parse(18, bytes(nbytes)))
+        # segwit v0: the witness program must be 20 or 32 bytes
+        self.assertEqual('bc1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq9e75rs', parse(0, bytes(20)))
+        self.assertEqual('bc1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqthqst8', parse(0, bytes(32)))
+        for nbytes in (0, 1, 19, 21, 40, 41):
+            self.assertIsNone(parse(0, bytes(nbytes)))
+        # segwit v1-v16: the witness program must be 2-40 bytes
+        for wver in (1, 16):
+            self.assertIsNotNone(parse(wver, bytes(2)))
+            self.assertIsNotNone(parse(wver, bytes(40)))
+            for nbytes in (0, 1, 41):
+                self.assertIsNone(parse(wver, bytes(nbytes)))
+        # unknown witness versions
+        self.assertIsNone(parse(19, bytes(20)))
+        self.assertIsNone(parse(31, bytes(20)))
+        # truncated/malformed frames
+        self.assertIsNone(parse_fallback_addr([], net))
+        self.assertIsNone(parse_fallback_addr(bytearray(), net))
+        self.assertIsNone(parse_fallback_addr([16, 1], net))  # non-zero padding bits
+        self.assertIsNone(parse_fallback_addr([17, 1], net))
+
+    def test_malformed_fallback_addr_is_skipped(self):
+        # BOLT #11: "A reader MUST skip over [...] an `f` field with unknown `version`".
+        # A malformed 'f' field must not abort decoding of the whole invoice.
+        for tagdata5 in ([],                # empty payload
+                         [16, 1],           # non-zero padding bits
+                         [17] + [0] * 4,    # p2pkh with a too-short hash160
+                         [0] + [0] * 4,     # p2wpkh with a too-short witness program
+                         [19, 0, 0]):       # unknown witness version
+            lnaddr = decode_bolt11_invoice(self._encode_invoice_with_raw_tag('f', tagdata5))
+            self.assertIsNone(lnaddr.get_tag('f'))
+            self.assertEqual('', lnaddr.get_fallback_address())
+            self.assertEqual(['f'], [tag for tag, _ in lnaddr.unknown_tags])
+        # sanity: a well-formed 'f' field is still parsed
+        lnaddr = decode_bolt11_invoice(
+            self._encode_invoice_with_raw_tag('f', [17] + list(convertbits(bytes(20), 8, 5))))
+        self.assertEqual('1111111111111111111114oLvT2', lnaddr.get_fallback_address())
+        self.assertEqual([], lnaddr.unknown_tags)
+
+    def test_tag_padding_errors(self):
+        # A tag whose 5->8 bit conversion has non-zero padding bits (or a length that cannot
+        # be converted at all) is malformed: it must be rejected, not crash the parser.
+        for tag, tagdata5 in (('d', [1]),               # 5 bits left over: no valid conversion
+                              ('d', [0, 1]),            # non-zero padding bits
+                              ('h', [0] * 51 + [1]),    # data_length 52, non-zero padding bits
+                              ('p', [0] * 51 + [1]),
+                              ('s', [0] * 51 + [1]),
+                              ('n', [0] * 52 + [1]),    # data_length 53, non-zero padding bit
+                              ('r', [1]),
+                              ('r', [0, 1]),
+                              ('t', [1]),
+                              ('t', [0, 1])):
+            with self.subTest(tag=tag, tagdata5=tagdata5):
+                with self.assertRaises(BOLT11DecodeException):
+                    decode_bolt11_invoice(self._encode_invoice_with_raw_tag(tag, tagdata5))
+
+        # control: the same lengths with zero padding bits decode fine
+        for tag, tagdata5 in (('d', [0, 0]),
+                              ('h', [0] * 51 + [16]),
+                              ('p', [0] * 51 + [16]),
+                              ('s', [0] * 51 + [16]),
+                              ('n', list(convertbits(PUBKEY, 8, 5))),
+                              ('r', [0] * 8),
+                              ('t', [0] * 8)):
+            with self.subTest(tag=tag):
+                decode_bolt11_invoice(self._encode_invoice_with_raw_tag(tag, tagdata5))
+
+        # 'h', 'p', 's' and 'n' have a fixed data_length: a wrong length rejects the invoice
+        for tag, data_length in (('h', 52), ('p', 52), ('s', 52), ('n', 53)):
+            for wrong_length in (data_length - 1, data_length + 1):
+                with self.subTest(tag=tag, data_length=wrong_length):
+                    with self.assertRaises(BOLT11DecodeException):
+                        decode_bolt11_invoice(
+                            self._encode_invoice_with_raw_tag(tag, [0] * wrong_length))
+
+        # 'r' and 't': an empty payload converts to b'' instead of failing, so it is skipped
+        for tag in ('r', 't'):
+            with self.subTest(tag=tag, tagdata5=[]):
+                lnaddr = decode_bolt11_invoice(self._encode_invoice_with_raw_tag(tag, []))
+                self.assertIsNone(lnaddr.get_tag(tag))
+                self.assertEqual([], lnaddr.unknown_tags)
+
+        # control: a well-formed hop is parsed
+        r_hop = bytes(33) + bytes(8) + (1).to_bytes(4, 'big') + (2).to_bytes(4, 'big') + (3).to_bytes(2, 'big')
+        t_hop = bytes(33) + (1).to_bytes(4, 'big') + (2).to_bytes(4, 'big') + (3).to_bytes(2, 'big')
+        for tag, hop in (('r', r_hop), ('t', t_hop)):
+            with self.subTest(tag=tag):
+                invoice = self._encode_invoice_with_raw_tag(tag, list(convertbits(hop, 8, 5)))
+                self.assertEqual(1, len(decode_bolt11_invoice(invoice).get_routing_info(tag)))
+
+    def test_invalid_signature(self):
+        # The trailing 65 bytes of an invoice are attacker-controlled: every way the ecc lib
+        # can reject them must surface as BOLT11DecodeException, not leak out of the parser.
+        r_ok = (1).to_bytes(32, 'big')
+        s_ok = (1).to_bytes(32, 'big')
+
+        # the recovery id (the last byte) must be 0-3
+        for recid in (4, 27, 255):
+            with self.subTest(recid=recid):
+                with self.assertRaises(BOLT11DecodeException):
+                    decode_bolt11_invoice(self._encode_invoice_with_raw_sig(r_ok + s_ok + bytes([recid])))
+
+        # r and s must be below the curve order
+        for label, sig64 in (('r == n', ecc.CURVE_ORDER.to_bytes(32, 'big') + s_ok),
+                             ('r == n+1', (ecc.CURVE_ORDER + 1).to_bytes(32, 'big') + s_ok),
+                             ('r == 2**256-1', b'\xff' * 32 + s_ok),
+                             ('s == n', r_ok + ecc.CURVE_ORDER.to_bytes(32, 'big')),
+                             ('s == n+1', r_ok + (ecc.CURVE_ORDER + 1).to_bytes(32, 'big')),
+                             ('s == 2**256-1', r_ok + b'\xff' * 32)):
+            with self.subTest(sig=label):
+                with self.assertRaises(BOLT11DecodeException):
+                    decode_bolt11_invoice(self._encode_invoice_with_raw_sig(sig64 + b'\x00'))
+
+        # in-range but unrecoverable signature
+        with self.assertRaises(BOLT11DecodeException):
+            decode_bolt11_invoice(self._encode_invoice_with_raw_sig(r_ok + s_ok + b'\x03'))
+
+        # an 'n' field that is not a valid curve point (this path uses ecdsa_verify, not recovery)
+        with self.assertRaises(BOLT11DecodeException):
+            decode_bolt11_invoice(self._encode_invoice_with_raw_tag('n', list(convertbits(bytes(33), 8, 5))))
 
     def test_min_final_cltv_expiry_decoding(self):
         lnaddr = decode_bolt11_invoice("lnsb500u1pdsgyf3pp5nmrqejdsdgs4n9ukgxcp2kcq265yhrxd4k5dyue58rxtp5y83s3qsp5qyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqsdqqcqzys9qypqsqp2h6a5xeytuc3fad2ed4gxvhd593lwjdna3dxsyeem0qkzjx6guk44jend0xq4zzvp6f3fy07wnmxezazzsxgmvqee8shxjuqu2eu0qpnvc95x",
