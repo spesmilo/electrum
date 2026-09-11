@@ -1087,6 +1087,11 @@ class Channel(AbstractChannel):
             if direction is not None and htlc_direction != direction:
                 continue
             htlc_proposer = LOCAL if htlc_direction is SENT else REMOTE
+            # TODO maybe we should consider hm.is_htlc_irrevocably_removed_yet(),
+            #      before we set status to failed/settled. Maybe not needed for settled,
+            #      but definitely would be useful for "failed":
+            #      after sending update_fail_htlc offchain, the htlc could still
+            #      be claimed onchain using the preimage until it is also irrevocably removed.
             if self.hm.was_htlc_failed(htlc_id=htlc.htlc_id, htlc_proposer=htlc_proposer):
                 _status = 'failed'
             elif self.hm.was_htlc_preimage_released(htlc_id=htlc.htlc_id, htlc_proposer=htlc_proposer):
