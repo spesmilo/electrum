@@ -1,25 +1,30 @@
 import asyncio
 import os
+import socket
 from typing import Optional, Sequence
 from unittest import mock
 
 from electrum_ecc import ECPrivkey
 
-from electrum import bitcoin
+from electrum import bitcoin, util
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
 from electrum.bitcoin import COIN, DUST_LIMIT_P2WSH
 from electrum.util import bfh, now
 from electrum.crypto import sha256
 from electrum.lnonion import OnionRoutingFailure
+from electrum.lnutil import generate_random_keypair
+from electrum.plugins.swapserver.server import HttpSwapServer
+from electrum.plugins.swapserver.swapserver import SwapServerPlugin
 from electrum.simple_config import SimpleConfig
 from electrum.submarine_swaps import (
-    SwapManager, SwapData, SwapServerTransport, LOCKTIME_DELTA_REFUND,
+    SwapManager, SwapData, NostrTransport, SwapServerTransport, LOCKTIME_DELTA_REFUND,
     MIN_LOCKTIME_DELTA_FOR_CLAIM, SPENDER_FINALITY_DELAY, _construct_swap_scriptcode)
 from electrum.transaction import (
     PartialTransaction, PartialTxOutput, Transaction, TxOutput, TxOutpoint)
 from electrum.txbatcher import TxBatcher
-from electrum.wallet import Standard_Wallet, Wallet
+from electrum.wallet import Standard_Wallet, Wallet, Abstract_Wallet
 
+from . import ElectrumTestCase
 from .toyserver.testcase import ToyServerTestCase
 
 
@@ -634,3 +639,248 @@ class TestSwapClaim(ToyServerTestCase):
         self.assertEqual(1, len(claim_tx.outputs()))
         self.assertEqual(payee_address, claim_tx.outputs()[0].address)
         self.assertEqual(99_000, claim_tx.outputs()[0].value)
+
+
+class TestSwapServerShutdown(ElectrumTestCase):
+    """The swapserver plugin can be enabled and disabled at runtime, so being a server has to
+    be something we can actually stop again.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.config = SimpleConfig({'electrum_path': self.electrum_path})
+
+    def make_swap_manager(self) -> SwapManager:
+        """a SwapManager with no swaps in its db, and no network (unless the test sets one)"""
+        wallet = mock.MagicMock()
+        wallet.config = self.config
+        wallet.db.get_dict.return_value = {}
+        return SwapManager(wallet=wallet, lnworker=mock.MagicMock())
+
+    def make_http_swap_server(self) -> 'HttpSwapServer':
+        wallet = mock.MagicMock()
+        wallet.has_password.return_value = False
+        return HttpSwapServer(self.config, wallet)
+
+    @staticmethod
+    def get_free_port() -> int:
+        with socket.socket() as s:
+            s.bind(('localhost', 0))
+            return s.getsockname()[1]
+
+    async def test_stop_server_survives_a_server_task_erroring_on_cancellation(self):
+        """The server tasks share a taskgroup with the swap invoice payments, and OldTaskGroup
+        cancels the whole group as soon as one task raises. So a server task that errors while
+        being cancelled must not take the invoices we still owe our clients down with it.
+        """
+        sm = self.make_swap_manager()
+        sm.network = mock.Mock(asyncio_loop=util.get_asyncio_loop(), proxy=None)
+        sm.wallet.has_password.return_value = False
+        sm.lnworker.nostr_keypair = generate_random_keypair()
+        self.config.SWAPSERVER_POW_TARGET = 0  # so that we don't grind out a nonce
+        sm.is_server = True
+        invoice_payment_cancelled = asyncio.Event()
+
+        async def pay_invoice_safe():
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                invoice_payment_cancelled.set()
+                raise
+
+        async def aexit_that_raises(_self, *args):
+            # __aexit__ waits for the transport to stop with a 5 sec timeout, and stopping it
+            # has to close the relay connections. Both of those can raise while we are cancelled.
+            raise asyncio.TimeoutError("relays did not close in time")
+
+        with (mock.patch.object(NostrTransport, 'main_loop', new=mock.AsyncMock()),
+              mock.patch.object(NostrTransport, '__aexit__', new=aexit_that_raises)):
+            asyncio.create_task(sm.main_loop())
+            await self.wait_until(lambda: len(sm._server_tasks) == 1)
+            # an invoice we still owe a client, as server_add_swap_invoice would have spawned it
+            await sm.taskgroup.spawn(pay_invoice_safe())
+
+            sm.stop_server()
+
+            await asyncio.sleep(0.1)
+            self.assertFalse(invoice_payment_cancelled.is_set())
+            self.assertFalse(sm.taskgroup.joined)  # or nothing can be spawned into it anymore
+
+    async def test_stop_server_cancels_the_server_tasks(self):
+        sm = self.make_swap_manager()
+        sm.network = mock.Mock(asyncio_loop=util.get_asyncio_loop())
+        http_server = mock.AsyncMock()
+        sm.is_server = True
+        sm.http_server = http_server
+        server_task = asyncio.create_task(asyncio.Event().wait())
+        sm._server_tasks.append(server_task)
+
+        sm.stop_server()
+
+        with self.assertRaises(asyncio.CancelledError):
+            await server_task
+        # is_server is the last thing to be cleared, so it tells us the shutdown is done
+        await self.wait_until(lambda: not sm.is_server)
+        # cancelling the task is not enough to stop the http server, see HttpSwapServer.stop
+        http_server.stop.assert_awaited_once()
+        self.assertEqual([], sm._server_tasks)
+        self.assertIsNone(sm.http_server)
+
+    async def test_stop_server_stays_a_server_until_the_shutdown_finished(self):
+        """The transports consult is_server while they are shutting down, to route incoming
+        messages and to publish offers, so it must not be cleared while we still serve.
+        """
+        sm = self.make_swap_manager()
+        sm.network = mock.Mock(asyncio_loop=util.get_asyncio_loop())
+        sm.is_server = True
+        sm.http_server = mock.AsyncMock()
+        unwinding = asyncio.Event()
+        may_finish = asyncio.Event()
+
+        async def server_task():
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                unwinding.set()
+                await may_finish.wait()  # a transport that takes a while to shut down
+                raise
+
+        sm._server_tasks.append(asyncio.create_task(server_task()))
+
+        sm.stop_server()
+
+        await unwinding.wait()
+        self.assertTrue(sm.is_server)
+        sm.http_server.stop.assert_not_awaited()
+
+        may_finish.set()
+
+        await self.wait_until(lambda: not sm.is_server)
+
+    def test_stop_server_when_nothing_was_started(self):
+        sm = self.make_swap_manager()
+        sm.is_server = True
+        sm.http_server = mock.AsyncMock()
+        self.assertIsNone(sm.network)
+
+        sm.stop_server()
+
+        self.assertFalse(sm.is_server)
+        self.assertIsNone(sm.http_server)
+
+    async def test_stop_server_stops_the_http_server_only_after_the_tasks_unwound(self):
+        """cancel() only requests cancellation, so we must not tear the http server down while
+        a task that is still running might be in the middle of starting it.
+        """
+        sm = self.make_swap_manager()
+        sm.network = mock.Mock(asyncio_loop=util.get_asyncio_loop())
+        sm.is_server = True
+        # a task that is still suspended when we stop the server, like HttpSwapServer.run
+        # waiting for the wallet to be unlocked
+        server_task = asyncio.create_task(asyncio.Event().wait())
+        sm._server_tasks.append(server_task)
+        tasks_done_when_stopped = None
+
+        async def stop():
+            nonlocal tasks_done_when_stopped
+            tasks_done_when_stopped = server_task.done()
+        sm.http_server = mock.Mock(stop=stop)
+
+        sm.stop_server()
+
+        await self.wait_until(lambda: tasks_done_when_stopped is not None)
+        self.assertTrue(tasks_done_when_stopped)
+
+    async def test_stop_server_cancels_tasks_spawned_while_it_was_stopping(self):
+        """main_loop spawns the server tasks one by one, so it can append another one after we
+        already took them to cancel them. Those must not be left running.
+        """
+        sm = self.make_swap_manager()
+        sm.network = mock.Mock(asyncio_loop=util.get_asyncio_loop())
+        sm.is_server = True
+        sm.http_server = mock.AsyncMock()
+        late_task = None
+
+        async def server_task():
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                # as main_loop would, getting to spawn the next server task only now
+                nonlocal late_task
+                late_task = asyncio.create_task(asyncio.Event().wait())
+                sm._server_tasks.append(late_task)
+                raise
+
+        sm._server_tasks.append(asyncio.create_task(server_task()))
+
+        sm.stop_server()
+
+        await self.wait_until(lambda: not sm.is_server)
+        self.assertTrue(late_task.cancelled(), msg="the late task was left running")
+
+    async def test_http_server_stop_releases_the_port(self):
+        self.config.SWAPSERVER_PORT = port = self.get_free_port()
+        http_server = self.make_http_swap_server()
+        await http_server.run()
+        # note: run() returns as soon as the site is up, so we can connect right away
+        _reader, writer = await asyncio.open_connection('localhost', port)
+        writer.close()
+
+        await http_server.stop()
+
+        # note: OSError, not ConnectionRefusedError: localhost can resolve to several addresses,
+        # and asyncio wraps the per-address refusals when all of them fail.
+        with self.assertRaises(OSError):
+            await asyncio.open_connection('localhost', port)
+
+
+class TestSwapServerPlugin(ElectrumTestCase):
+    """The plugin serves swaps with the first wallet the daemon loads."""
+
+    def setUp(self):
+        super().setUp()
+        self.config = SimpleConfig({'electrum_path': self.electrum_path})
+        self.plugin = SwapServerPlugin(mock.Mock(), self.config, 'swapserver')
+        self.addCleanup(self.plugin.close)  # unregisters the hooks again
+
+    def make_wallet(self, *, has_lightning: bool = True) -> Abstract_Wallet:
+        wallet = mock.MagicMock()
+        wallet.config = self.config
+        wallet.db.get_dict.return_value = {}
+        if not has_lightning:
+            wallet.lnworker = None
+            return wallet
+        wallet.lnworker.swap_manager = SwapManager(wallet=wallet, lnworker=wallet.lnworker)
+        return wallet
+
+    def load_wallet(self, wallet) -> None:
+        self.plugin.daemon_wallet_loaded(mock.Mock(), wallet)
+
+    def test_only_the_first_wallet_serves_swaps(self):
+        wallet1, wallet2 = self.make_wallet(), self.make_wallet()
+
+        self.load_wallet(wallet1)
+        self.load_wallet(wallet2)
+
+        # otherwise we would run a second server, on the same port and nostr identity
+        self.assertTrue(wallet1.lnworker.swap_manager.is_server)
+        self.assertFalse(wallet2.lnworker.swap_manager.is_server)
+
+    def test_wallet_without_lightning_is_skipped(self):
+        wallet1, wallet2 = self.make_wallet(has_lightning=False), self.make_wallet()
+
+        self.load_wallet(wallet1)
+        self.load_wallet(wallet2)
+
+        self.assertTrue(wallet2.lnworker.swap_manager.is_server)
+
+    def test_disabling_the_plugin_stops_the_server(self):
+        wallet = self.make_wallet()
+        self.load_wallet(wallet)
+        sm = wallet.lnworker.swap_manager
+        self.assertTrue(sm.is_server)
+
+        self.plugin.on_close()
+
+        self.assertFalse(sm.is_server)
+        self.assertIsNone(sm.http_server)

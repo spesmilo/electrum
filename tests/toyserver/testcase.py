@@ -5,7 +5,7 @@
 import asyncio
 import os
 from dataclasses import dataclass, field
-from typing import Callable, Optional
+from typing import Optional
 from unittest import mock
 
 from electrum import util
@@ -38,7 +38,6 @@ class ToyServerTestCase(ElectrumTestCase):
     and wallets that sync from it.
     """
     REGTEST = True
-    TIME_STEP = 0.01
 
     def setUp(self):
         super().setUp()
@@ -114,11 +113,6 @@ class ToyServerTestCase(ElectrumTestCase):
         await wallet.stop()
 
     # --- chain and wallet helpers ---
-
-    async def wait_until(self, predicate: Callable[[], bool], *, timeout: int = 20) -> None:
-        async with util.async_timeout(timeout):
-            while not predicate():
-                await asyncio.sleep(self.TIME_STEP)
 
     async def sync(self) -> None:
         """wait until all wallets have caught up with the server"""

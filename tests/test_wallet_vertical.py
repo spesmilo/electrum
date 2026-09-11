@@ -4734,6 +4734,87 @@ class TestWalletHistory_HelperFns(ElectrumTestCase):
                          wallet1.get_tx_status(tx.txid(), TxMinedInfo(_height=TX_HEIGHT_LOCAL, conf=0)))
 
 
+class TestWalletHistory_CacheInvalidation(ElectrumTestCase):
+    TESTNET = True
+    # funds tb1qwllx6238azrqcfudf5kdjzadw94mj5s653v5e7 (of the seed below) with 1_999_890 sat:
+    FUNDING_TX = "0200000000010132515e6aade1b79ec7dd3bac0896d8b32c56195d23d07d48e21659cef24301560100000000fdffffff0112841e000000000016001477fe6d2a27e8860c278d4d2cd90bad716bb9521a02473044022041ed68ef7ef122813ac6a5e996b8284f645c53fbe6823b8e430604a8915a867802203233f5f4d347a687eb19b2aa570829ab12aeeb29a24cc6d6d20b8b3d79e971ae012102bee0ee043817e50ac1bb31132770f7c41e35946ccdcb771750fb9696bdd1b307ad951d00"
+    FUNDING_TXID = "db949963c3787c90a40fb689ffdc3146c27a9874a970d1fd20921afbe79a7aa9"
+
+    def setUp(self):
+        super().setUp()
+        self.config = SimpleConfig({'electrum_path': self.electrum_path})
+
+    def create_wallet(self, *, tx_height: int) -> Abstract_Wallet:
+        w = restore_wallet_from_text__for_unittest(
+            "cross end slow expose giraffe fuel track awake turtle capital ranch pulp",
+            path=None, gap_limit=5, config=self.config)['wallet']
+        w.db.put('stored_height', 1010)
+        w.adb.receive_tx_callback(Transaction(self.FUNDING_TX), tx_height=tx_height)
+        return w
+
+    def create_wallet_with_mined_funding_tx(self) -> Abstract_Wallet:
+        w = self.create_wallet(tx_height=TX_HEIGHT_UNCONFIRMED)
+        w.adb.add_verified_tx(
+            self.FUNDING_TXID,
+            TxMinedInfo(_height=1001, timestamp=1700000001, txpos=7, header_hash="01"*32))
+        return w
+
+    async def test_caches_are_invalidated_when_mined_tx_goes_back_to_mempool(self):
+        w = self.create_wallet_with_mined_funding_tx()
+        self.assertEqual((1999890, 0, 0), w.get_balance())
+        self.assertEqual('1001x7x0', str(w.get_utxos()[0].short_id))
+        # the server tells us the tx is in the mempool again (e.g. after a reorg)
+        w.adb.add_unverified_or_unconfirmed_tx(self.FUNDING_TXID, TX_HEIGHT_UNCONF_PARENT)
+        self.assertEqual((0, 1999890, 0), w.get_balance())
+        utxo = w.get_utxos()[0]
+        self.assertEqual(TX_HEIGHT_UNCONF_PARENT, utxo.block_height)
+        self.assertFalse(utxo.has_short_id())
+
+    async def test_caches_are_invalidated_by_undo_verifications(self):
+        w = self.create_wallet_with_mined_funding_tx()
+        self.assertEqual((1999890, 0, 0), w.get_balance())
+        # reorg: the block that mined the tx is gone
+        blockchain = mock.Mock()
+        blockchain.read_header.return_value = None
+        self.assertEqual({self.FUNDING_TXID}, w.adb.undo_verifications(blockchain, above_height=1000))
+        self.assertEqual((0, 1999890, 0), w.get_balance())
+        utxo = w.get_utxos()[0]
+        self.assertEqual(0, utxo.block_height)  # unverified, so treated as unconfirmed
+        self.assertFalse(utxo.has_short_id())
+
+    async def test_caches_are_invalidated_when_unverified_tx_becomes_local(self):
+        w = self.create_wallet(tx_height=1001)  # mined, but not SPV-ed yet
+        self.assertEqual((0, 1999890, 0), w.get_balance())
+        self.assertEqual(0, w.get_utxos()[0].block_height)
+        w.adb.remove_unverified_tx(self.FUNDING_TXID, 1001)
+        self.assertEqual(TX_HEIGHT_LOCAL, w.get_utxos()[0].block_height)
+
+    async def test_caches_are_invalidated_when_mined_tx_disappears_from_server_history(self):
+        w = self.create_wallet_with_mined_funding_tx()
+        self.assertEqual((1999890, 0, 0), w.get_balance())
+        utxo = w.get_utxos()[0]
+        self.assertEqual(1001, utxo.block_height)
+        # the server no longer knows the tx at all (e.g. reorged out and evicted from the mempool)
+        w.adb.receive_history_callback(utxo.address, [], {})
+        self.assertEqual(TX_HEIGHT_LOCAL, w.adb.get_tx_height(self.FUNDING_TXID).height())
+        self.assertEqual((0, 1999890, 0), w.get_balance())
+        self.assertEqual(TX_HEIGHT_LOCAL, w.get_utxos()[0].block_height)
+
+    async def test_short_id_of_txin_of_tx_that_went_back_to_mempool(self):
+        # the coin is cached while its funding tx is mined, but by the time the
+        # tx is built, the funding tx is back in the mempool.
+        w = self.create_wallet_with_mined_funding_tx()
+        coins = w.get_spendable_coins(None)  # fills the utxo cache
+        w.adb.add_unverified_or_unconfirmed_tx(self.FUNDING_TXID, TX_HEIGHT_UNCONF_PARENT)
+        outputs = [PartialTxOutput.from_address_and_value("tb1qgh5c088he4d559wl0hw27hrdeg8p2z96pefn4q", 100_000)]
+        tx = w.make_unsigned_transaction(outputs=outputs, coins=coins, fee_policy=FixedFeePolicy(5000))
+        txin = tx.inputs()[0]
+        self.assertEqual(TX_HEIGHT_UNCONF_PARENT, txin.block_height)
+        self.assertIsNone(txin.block_txpos)
+        self.assertFalse(txin.has_short_id())
+        self.assertEqual("db949963c3:0", str(txin.short_id))
+
+
 class TestImportedWallet(ElectrumTestCase):
     TESTNET = True
     transactions = {

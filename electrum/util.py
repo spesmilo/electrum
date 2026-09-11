@@ -1283,8 +1283,8 @@ class TxMinedInfo:
             return h
 
     def short_id(self) -> Optional[str]:
-        if self.txpos is not None and self.txpos >= 0:
-            assert self.height() > 0
+        """'<height>x<txpos>' if mined and SPV-verified, else None."""
+        if self.height() > 0 and self.txpos is not None and self.txpos >= 0:
             return f"{self.height()}x{self.txpos}"
         return None
 

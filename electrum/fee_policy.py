@@ -265,7 +265,9 @@ class FeePolicy(Logger):
             else:
                 raise NoDynamicFeeEstimates()
 
-        return self.estimate_fee_for_feerate(fee_per_kb=fee_per_kb, size=size)
+        # a feerate explicitly set by the user is honored at its full precision
+        quantize = self.method != FeeMethod.FEERATE
+        return self.estimate_fee_for_feerate(fee_per_kb=fee_per_kb, size=size, quantize=quantize)
 
     @classmethod
     def estimate_fee_for_feerate(
@@ -273,14 +275,16 @@ class FeePolicy(Logger):
         *,
         fee_per_kb: Union[int, float, Decimal],
         size: Union[int, float, Decimal],
+        quantize: bool = True,
     ) -> int:
         # note: 'size' is in vbytes
         size = Decimal(size)
         fee_per_kb = Decimal(fee_per_kb)
         fee_per_byte = fee_per_kb / 1000
-        # to be consistent with what is displayed in the GUI,
-        # the calculation needs to use the same precision:
-        fee_per_byte = quantize_feerate(fee_per_byte)
+        if quantize:
+            # to be consistent with what is displayed in the GUI,
+            # the calculation needs to use the same precision:
+            fee_per_byte = quantize_feerate(fee_per_byte)
         return math.ceil(fee_per_byte * size)
 
 
