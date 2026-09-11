@@ -6,7 +6,7 @@ import tempfile
 import shutil
 import functools
 import inspect
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, Callable, List
 
 import electrum
 import electrum.logging
@@ -38,6 +38,7 @@ class ElectrumTestCase(unittest.IsolatedAsyncioTestCase, Logger):
     TESTNET = False  # there is also an @as_testnet decorator to run single tests in testnet mode
     REGTEST = False
     TEST_ANCHOR_CHANNELS = True
+    TIME_STEP = 0.01
     WALLET_FILES_DIR = os.path.join(os.path.dirname(__file__), "test_storage_upgrade")
     # maxDiff = None  # for debugging
 
@@ -98,6 +99,11 @@ class ElectrumTestCase(unittest.IsolatedAsyncioTestCase, Logger):
         super().tearDown()
         util._asyncio_event_loop = None  # cleared here, at the ~last possible moment. asyncTearDown is too early.
         self._test_lock.release()
+
+    async def wait_until(self, predicate: Callable[[], bool], *, timeout: int = 20) -> None:
+        async with util.async_timeout(timeout):
+            while not predicate():
+                await asyncio.sleep(self.TIME_STEP)
 
     def create_mock_lnwallet(
         self,
