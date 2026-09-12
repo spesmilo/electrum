@@ -1,4 +1,10 @@
 # Release 4.8.2 (September 11, 2026) (security update)
+ * Security fixes for reports received from:
+   - l0rinc
+   - "Bitcoin Red Team"
+   - calle
+   - haoxucu
+   - m0wer
  * General:
    - new: miscellaneous security hardening across the codebase (e.g. #10885)
    - fix: channel backups (#10851, #10852)
@@ -62,8 +68,12 @@
 
 
 # Release 4.8.1 (August 10, 2026) (security update)
- * Security fixes and disclosures:
-   - This release contains important security fixes. Details will be disclosed later.
+ * Security fixes for reports received from:
+   - l0rinc
+   - "Bitcoin Red Team"
+   - rdymac
+   - svanstaa
+   - m0wer
  * Qt GUI (desktop):
    - changed: rename color themes for clarity (#10768)
  * QML GUI & Android:
@@ -124,6 +134,9 @@
 
 
 # Release 4.8.0 - Artisanal Handwritten Code (July 8, 2026) (security update)
+ * Security fixes for reports received from:
+    - Evelynkaz
+    - ch1nhpd
  * Security fixes and disclosures:
     - (sev-low) SPV verification: fix CVE-2012-2459: reject left-sibling duplicates (#10568)
  * General:
