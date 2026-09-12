@@ -29,6 +29,7 @@ from .transaction import Transaction
 from .plugin import BasePlugin
 from .commands import Commands, known_commands
 from .logging import get_logger
+from . import crandom  # this initializes our RNG state and checks os.urandom is not trivially broken
 
 
 __version__ = ELECTRUM_VERSION
@@ -45,11 +46,3 @@ except AssertionError:
     pass
 else:
     raise ImportError("Running with asserts disabled. Refusing to continue. Exiting...")
-
-
-# Check that os.urandom works
-import zlib
-length = len(zlib.compress(os.urandom(1000)))
-if length <= 900:
-    raise ImportError("Broken PRNG. Refusing to continue. Exiting...")
-

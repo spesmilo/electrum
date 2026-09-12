@@ -533,6 +533,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         pass
 
     def main(self):
+        BaseElectrumGui.main(self)
         self.daemon.start_network()
         tty.setraw(sys.stdin)
         try:
