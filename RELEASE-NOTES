@@ -1,11 +1,11 @@
-# Release 4.8.2 (September 11, 2026)
+# Release 4.8.2 (September 11, 2026) (security update)
  * General:
    - new: miscellaneous security hardening across the codebase (e.g. #10885)
    - fix: channel backups (#10851, #10852)
        > Existing Lightning channel backups and full wallet backups,
-         (1) exported from wallets with non-deterministic lightning keys, AND
-         (2) specifically for anchor channels, were missing a critical key needed to sweep the coins onchain
-         after requesting a remote-force-close.
+         (1) exported from wallets with non-deterministic lightning keys, AND (&&)
+         (2) specifically for anchor channels,
+         were missing a critical key needed to sweep the coins onchain after requesting a remote-force-close.
          Affected wallets warn on startup: Users must export new backups for these channels: older backups
          can't request a force close anymore as they miss information required to claim funds.
          - Context for (1): Lightning keys are deterministic for Electrum seed based wallets where the wallet file
@@ -61,7 +61,7 @@
    - fix: trezor: settings dialog: fix crash after disabling passphrase protection (#10872)
 
 
-# Release 4.8.1 (August 10, 2026)
+# Release 4.8.1 (August 10, 2026) (security update)
  * Security fixes and disclosures:
    - This release contains important security fixes. Details will be disclosed later.
  * Qt GUI (desktop):
@@ -123,7 +123,7 @@
      - it is now only needed for hw wallet support (bitbox02, keepkey)
 
 
-# Release 4.8.0 - Artisanal Handwritten Code (July 8, 2026)
+# Release 4.8.0 - Artisanal Handwritten Code (July 8, 2026) (security update)
  * Security fixes and disclosures:
     - (sev-low) SPV verification: fix CVE-2012-2459: reject left-sibling duplicates (#10568)
  * General:
@@ -200,7 +200,7 @@
     - new: implement a minimal Electrum server for more advanced unittests (#10629)
 
 
-# Release 4.7.2 (April 1, 2026)
+# Release 4.7.2 (April 1, 2026) (security update)
  * security fixes and disclosures:
    - (sev-medium) External Plugin authorization bypass: local code execution
      - see https://github.com/spesmilo/electrum/security/advisories/GHSA-vw94-r84p-66qf
@@ -237,7 +237,7 @@
      - fix: checksum calculation to follow corresponding BIP-0128 (#10524)
 
 
-# Release 4.7.1 (Feb 26, 2026)
+# Release 4.7.1 (Feb 26, 2026) (security update)
  * Qt GUI (desktop):
    - new: changelog website accessible from "Help" toolbar menu (#10433)
    - new: show translation completion percentage in language names (#10479)
@@ -292,7 +292,7 @@
     -- just prove being a human and being well-intentioned).
     (see https://github.com/spesmilo/electrum-locale/issues/47#issuecomment-3914866337)
 
-# Release 4.7.0 (Jan 22, 2026)
+# Release 4.7.0 (Jan 22, 2026) (security update)
  * Qt GUI (desktop):
    - new: "Submarine Payments": support reverse swaps to external address (#10303)
           Allows doing onchain payments from the wallet's lightning balance.
@@ -369,7 +369,7 @@
      - changed: migrate AppImage build to use modern/maintained appimagetool (#10019)
 
 
-# Release 4.6.2 (Aug 25, 2025)
+# Release 4.6.2 (Aug 25, 2025) (security update)
  * General:
    - changed: minrelayfee clamps from [1, 50] to [0.1, 50] sat/vbyte (#10096)
    - new: add support for "mutinynet" signet test network (#10134)
