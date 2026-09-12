@@ -6,7 +6,7 @@ wheel
 # fixme: ugly to have to duplicate this here from upstream
 macholib>=1.8
 altgraph
-pyinstaller-hooks-contrib>=2025.2
+pyinstaller-hooks-contrib>=2025.4
 packaging>=22.0
 
 # Note: hidapi requires Cython at build-time (not needed at runtime).
