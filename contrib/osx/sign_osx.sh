@@ -73,7 +73,14 @@ if [ ! -z "$CODESIGN_CERT" ]; then
     fi
 fi
 
-info "Creating .DMG"
-hdiutil create -fs HFS+ -volname $PACKAGE -srcfolder dist/$PACKAGE.app dist/electrum-$VERSION.dmg || fail "Could not create .DMG"
+APP_ARCHS=$(lipo -archs "dist/${PACKAGE}.app/Contents/MacOS/run_electrum")
+case "$APP_ARCHS" in
+    "x86_64") ARCH_DMG_SUFFIX="" ;;
+    "arm64")  ARCH_DMG_SUFFIX="-arm64" ;;
+    *) fail "unexpected architectures in app binary: '$APP_ARCHS'" ;;
+esac
 
-DoCodeSignMaybe ".DMG" "dist/electrum-${VERSION}.dmg"
+info "Creating .DMG"
+hdiutil create -fs HFS+ -volname $PACKAGE -srcfolder dist/$PACKAGE.app dist/electrum-${VERSION}${ARCH_DMG_SUFFIX}.dmg || fail "Could not create .DMG"
+
+DoCodeSignMaybe ".DMG" "dist/electrum-${VERSION}${ARCH_DMG_SUFFIX}.dmg"
