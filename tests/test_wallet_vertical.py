@@ -3315,22 +3315,22 @@ class TestWalletSending(ElectrumTestCase):
 
         # test freezing a utxo
         with self.subTest(msg="freeze_coin"):
-            self.assertTrue(utxo1 not in wallet._frozen_coins)
+            self.assertTrue(utxo1 not in wallet.coinfilter._frozen_coins)
 
             wallet.set_frozen_state_of_coins([utxo1], freeze=True)
-            self.assertEqual(wallet._frozen_coins.get(utxo1), True)
+            self.assertEqual(wallet.coinfilter._frozen_coins.get(utxo1), True)
             self.assertEqual(
                 {utxo2},
                 {txi.prevout.to_str() for txi in wallet.get_spendable_coins()})
 
             wallet.set_frozen_state_of_coins([utxo1], freeze=False)
-            self.assertEqual(wallet._frozen_coins.get(utxo1), False)
+            self.assertEqual(wallet.coinfilter._frozen_coins.get(utxo1), False)
             self.assertEqual(
                 {utxo1, utxo2},
                 {txi.prevout.to_str() for txi in wallet.get_spendable_coins()})
 
             wallet.set_frozen_state_of_coins([utxo1], freeze=None)
-            self.assertTrue(utxo1 not in wallet._frozen_coins)
+            self.assertTrue(utxo1 not in wallet.coinfilter._frozen_coins)
 
     async def test_export_psbt_with_xpubs__multisig(self):
         """When exporting a PSBT to be signed by a hw device, test that we populate

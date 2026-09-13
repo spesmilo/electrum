@@ -25,7 +25,7 @@
 
 import enum
 from enum import IntEnum
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Sequence
 
 from PyQt6.QtCore import Qt, QPersistentModelIndex, QModelIndex
 from PyQt6.QtGui import QStandardItemModel, QStandardItem, QFont
@@ -37,6 +37,8 @@ from electrum.plugin import run_hook
 from electrum.bitcoin import is_address
 from electrum.wallet import InternalAddressCorruption
 from electrum.simple_config import SimpleConfig
+
+from electrum.gui.common_qt.util import QtEventListener, qt_event_listener
 
 from .util import MONOSPACE_FONT, ColorScheme, webopen
 from .my_treeview import MyTreeView, MySortModel
@@ -77,7 +79,7 @@ class AddressTypeFilter(IntEnum):
         }[self]
 
 
-class AddressList(MyTreeView):
+class AddressList(MyTreeView, QtEventListener):
 
     class Columns(MyTreeView.BaseColumnsEnum):
         TYPE = enum.auto()
@@ -121,6 +123,18 @@ class AddressList(MyTreeView):
         self.sortByColumn(self.Columns.TYPE, Qt.SortOrder.AscendingOrder)
         if self.config:
             self.configvar_show_toolbar = self.config.cv.GUI_QT_ADDRESSES_TAB_SHOW_TOOLBAR
+        self.register_callbacks()
+        self.destroyed.connect(lambda: self.unregister_callbacks())
+
+    @qt_event_listener
+    def on_event_frozen_state_changed(self, wallet, addresses, outpoints):
+        if wallet != self.wallet:
+            return
+        self.refresh_all()  # frozen addresses are painted blue
+
+    def set_frozen_state_of_addresses(self, addrs: Sequence[str], freeze: bool) -> None:
+        self.wallet.set_frozen_state_of_addresses(addrs, freeze)
+        self.selectionModel().clearSelection()
 
     def on_double_click(self, idx):
         addr = self.get_role_data_for_current_item(col=0, role=self.ROLE_ADDRESS_STR)
@@ -328,24 +342,27 @@ class AddressList(MyTreeView):
                 menu.addAction(_("View on block explorer"), lambda: webopen(addr_URL))
 
             if not self.wallet.is_frozen_address(addr):
-                act = menu.addAction(_("Freeze"), lambda: self.main_window.set_frozen_state_of_addresses([addr], True))
+                act = menu.addAction(_("Freeze"), lambda: self.set_frozen_state_of_addresses([addr], True))
             else:
-                act = menu.addAction(_("Unfreeze"), lambda: self.main_window.set_frozen_state_of_addresses([addr], False))
+                act = menu.addAction(_("Unfreeze"), lambda: self.set_frozen_state_of_addresses([addr], False))
             act.setToolTip(MSG_FREEZE_ADDRESS)
 
         else:
             # multiple items selected
-            act = menu.addAction(_("Freeze"), lambda: self.main_window.set_frozen_state_of_addresses(addrs, True))
+            act = menu.addAction(_("Freeze"), lambda: self.set_frozen_state_of_addresses(addrs, True))
             act.setToolTip(MSG_FREEZE_ADDRESS)
-            act = menu.addAction(_("Unfreeze"), lambda: self.main_window.set_frozen_state_of_addresses(addrs, False))
+            act = menu.addAction(_("Unfreeze"), lambda: self.set_frozen_state_of_addresses(addrs, False))
             act.setToolTip(MSG_FREEZE_ADDRESS)
 
-        coins = self.wallet.get_spendable_coins(addrs)
+        coinfilter = self.wallet.coinfilter
+        # ignore coin_control, we want to know which coins *could* be added,
+        # independently of what is selected right now.
+        coins = coinfilter.get_spendable_coins(addrs, ignore_coin_control=True)
         if coins:
-            if self.main_window.utxo_list.are_in_coincontrol(coins):
-                menu.addAction(_("Remove from coin control"), lambda: self.main_window.utxo_list.remove_from_coincontrol(coins))
+            if all(coinfilter.is_selected(utxo) for utxo in coins):
+                menu.addAction(_("Remove from coin control"), lambda: coinfilter.deselect_addresses(addrs))
             else:
-                menu.addAction(_("Add to coin control"), lambda: self.main_window.utxo_list.add_to_coincontrol(coins))
+                menu.addAction(_("Add to coin control"), lambda: coinfilter.select_addresses(addrs))
 
         run_hook('receive_menu', menu, addrs, self.wallet)
         self.open_menu(menu, position)
