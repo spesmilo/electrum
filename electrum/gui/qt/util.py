@@ -575,6 +575,12 @@ class ChoiceWidget(QWidget):
             if key == c.key:
                 self.group.button(i).click()
 
+    def set_item_enabled(self, key, enabled: bool):
+        for i, c in enumerate(self.choices):
+            if c.key == key:
+                self.group.button(i).setEnabled(enabled)
+                return
+
 
 class ResizableStackedWidget(QWidget):
     """Simple alternative to QStackedWidget, as QStackedWidget always resizes to the largest

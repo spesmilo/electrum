@@ -598,7 +598,7 @@ class TrustedCoinPlugin(BasePlugin):
                         else 'trustedcoin_have_seed'
             },
             'trustedcoin_create_seed': {
-                'next': lambda d: 'trustedcoin_create_ext' if wizard.wants_ext(d) else 'trustedcoin_confirm_seed',
+                'next': 'trustedcoin_confirm_seed',
             },
             'trustedcoin_create_ext': {
                 'next': 'trustedcoin_confirm_seed',
@@ -610,7 +610,7 @@ class TrustedCoinPlugin(BasePlugin):
                 'next': 'trustedcoin_tos',
             },
             'trustedcoin_have_seed': {
-                'next': lambda d: 'trustedcoin_have_ext' if wizard.wants_ext(d) else 'trustedcoin_keep_disable',
+                'next': 'trustedcoin_keep_disable',
             },
             'trustedcoin_have_ext': {
                 'next': 'trustedcoin_keep_disable',

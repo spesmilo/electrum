@@ -49,14 +49,14 @@ WizardComponent {
             Label {
                 Layout.fillWidth: true
                 wrapMode: Text.Wrap
-                text: qsTr('Please enter your custom word(s) a second time:')
+                text: qsTr('Please enter your custom Passphrase a second time:')
             }
 
             TextField {
                 id: customwordstext
                 Layout.fillWidth: true
                 Layout.columnSpan: 2
-                placeholderText: qsTr('Enter your custom word(s) here')
+                placeholderText: qsTr('Enter your custom Passphrase')
                 inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
                 onTextChanged: checkValid()
             }

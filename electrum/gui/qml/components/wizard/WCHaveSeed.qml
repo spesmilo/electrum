@@ -28,12 +28,14 @@ WizardComponent {
             wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed'] = seedtext.text
             wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_variant'] = seed_variant_cb.currentValue
             wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_type'] = _seedType
-            wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_extend'] = _canPassphrase
+            wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_extend'] = extendcb.checked
+            wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_extra_words'] = extendcb.checked ? customwordstext.text : ''
         } else {
             wizard_data['seed'] = seedtext.text
             wizard_data['seed_variant'] = seed_variant_cb.currentValue
             wizard_data['seed_type'] = _seedType
-            wizard_data['seed_extend'] = _canPassphrase
+            wizard_data['seed_extend'] = extendcb.checked
+            wizard_data['seed_extra_words'] = extendcb.checked ? customwordstext.text : ''
 
             // determine script type from electrum seed type
             // (used to limit script type options for bip39 cosigners)
@@ -74,6 +76,7 @@ WizardComponent {
         _validationMessage = verifyResult.message
         _seedType = verifyResult.type
         _canPassphrase = verifyResult.can_passphrase
+        syncExtControls()
 
         if (!cosigner || !verifyResult.valid) {
             _seedValid = verifyResult.valid
@@ -96,6 +99,39 @@ WizardComponent {
         }
 
         valid = _seedValid
+    }
+
+    function syncExtControls() {
+        var variant = seed_variant_cb.currentValue
+        if (variant == 'bip39') {
+            extendcb.text = qsTr('Use a BIP39 passphrase')
+            extreason.text = ''
+            if (!seedtext.text.trim()) {
+                extendcb.checked = false
+                extendcb.enabled = false
+            } else {
+                extendcb.enabled = true
+            }
+            return
+        }
+        extendcb.text = qsTr('Extend this seed with a Passphrase')
+        if (!_seedType) {
+            extendcb.checked = false
+            extendcb.enabled = false
+            extreason.text = ''
+            return
+        }
+        if (!_canPassphrase) {
+            extendcb.checked = false
+            extendcb.enabled = false
+            if (_seedType == 'old')
+                extreason.text = qsTr('Old Electrum seeds have no extra word.')
+            else
+                extreason.text = qsTr('This seed cannot be extended with an extra word.')
+            return
+        }
+        extendcb.enabled = true
+        extreason.text = ''
     }
 
     Flickable {
@@ -183,6 +219,15 @@ WizardComponent {
                     checkIsLast()
                     checkValid()
                 }
+                delegate: ItemDelegate {
+                    width: seed_variant_cb.width
+                    text: modelData.text
+                    // grey BIP39 only after an Electrum version actually decodes
+                    enabled: !(modelData.value == 'bip39'
+                               && seed_variant_cb.currentValue == 'electrum'
+                               && root._seedType
+                               && root._seedType != 'old')
+                }
             }
 
             InfoTextArea {
@@ -214,6 +259,56 @@ WizardComponent {
                     startValidationTimer()
                 }
             }
+
+            ElCheckBox {
+                id: extendcb
+                Layout.columnSpan: 2
+                Layout.fillWidth: true
+                enabled: false
+                text: qsTr('Extend this seed with a Passphrase')
+                onCheckedChanged: checkIsLast()
+            }
+
+            Label {
+                id: extreason
+                Layout.columnSpan: 2
+                Layout.fillWidth: true
+                wrapMode: Text.Wrap
+                visible: text
+            }
+
+            Label {
+                Layout.columnSpan: 2
+                Layout.fillWidth: true
+                wrapMode: Text.Wrap
+                visible: extendcb.checked && extendcb.enabled
+                text: seed_variant_cb.currentValue == 'bip39'
+                    ? [
+                        qsTr('Enter an optional BIP39 passphrase.'),
+                        qsTr('Each passphrase derives a different wallet.'),
+                        qsTr('This is sometimes incorrectly called the "25th word".'),
+                        qsTr('Note that this is NOT your encryption password.'),
+                        qsTr('If you do not know what this is, leave this field empty.'),
+                    ].join(' ')
+                    : [
+                        qsTr('You may extend your seed with a Passphrase (e.g. password manager generated passphrase, custom words, a combination of both...).'),
+                        qsTr("You will need to save both your seed and the extension Passphrase together."),
+                        qsTr('Note that this is NOT your wallet file encryption password.'),
+                        qsTr('If you do not know what this is, leave this field empty.'),
+                    ].join(' ')
+            }
+
+            TextField {
+                id: customwordstext
+                Layout.columnSpan: 2
+                Layout.fillWidth: true
+                visible: extendcb.checked && extendcb.enabled
+                placeholderText: seed_variant_cb.currentValue == 'bip39'
+                    ? qsTr('Enter your BIP39 Passphrase')
+                    : qsTr('Enter your custom Passphrase')
+                inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
+                onTextChanged: checkIsLast()
+            }
         }
     }
 
@@ -221,6 +316,7 @@ WizardComponent {
         valid = false
         root._seedType = ''
         root._validationMessage = ''
+        syncExtControls()
         validationTimer.restart()
     }
 
@@ -230,7 +326,7 @@ WizardComponent {
         repeat: false
         onTriggered: {
             checkValid()
-            // checkIsLast depends on 'seed_extend'(_canPassphrase) getting set in apply()
+            // checkIsLast depends on seed_extend from the on-page checkbox
             checkIsLast()
         }
     }
