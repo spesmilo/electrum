@@ -72,6 +72,16 @@ ElDialog {
                     backgroundColor: constants.darkerDialogBackground
                 }
 
+                InfoTextArea {
+                    Layout.columnSpan: 2
+                    Layout.fillWidth: true
+                    Layout.bottomMargin: constants.paddingLarge
+                    visible: invoice.invoiceType == Invoice.OnchainInvoice && Daemon.currentWallet.coinsInCoinControl
+                    iconStyle: InfoTextArea.IconStyle.Warn
+                    text: qsTr('Coin control is active. Only the selected coins will be used to fund this payment.')
+                    backgroundColor: constants.darkerDialogBackground
+                }
+
                 Label {
                     Layout.columnSpan: 2
                     Layout.topMargin: constants.paddingSmall

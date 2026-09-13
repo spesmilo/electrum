@@ -148,12 +148,30 @@ ElDialog {
                     }
                 }
 
-                ToggleLabel {
-                    id: optionstoggle
+                RowLayout {
+                    Layout.fillWidth: true
                     Layout.columnSpan: 2
-                    labelText: qsTr('Options')
-                    color: Material.accentColor
-                    visible: showOptions
+                    ToggleLabel {
+                        id: optionstoggle
+                        Layout.fillWidth: true
+                        labelText: qsTr('Options')
+                        color: Material.accentColor
+                        visible: showOptions
+                    }
+
+                    Image {
+                        Layout.preferredWidth: constants.iconSizeSmall
+                        Layout.preferredHeight: constants.iconSizeSmall
+                        visible: Daemon.currentWallet.coinsInCoinControl
+                        source: '../../icons/warning.png'
+                    }
+
+                    Label {
+                        text: Daemon.currentWallet.coinsInCoinControl
+                            ? qsTr('Coin Control is active')
+                            : ''
+                        color: constants.colorWarning
+                    }
                 }
 
                 DialogHighlightPane {
