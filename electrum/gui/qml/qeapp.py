@@ -81,6 +81,7 @@ class QEAppController(BaseCrashReporter, QObject):
     wantCloseChanged = pyqtSignal()
     pluginLoaded = pyqtSignal(str)
     startupFinished = pyqtSignal()
+    loadWalletRequested = pyqtSignal(str, arguments=['wallet_name'])
 
     def __init__(self, qeapp: 'ElectrumQmlApplication', plugins: 'Plugins'):
         BaseCrashReporter.__init__(self, None, None, None)
@@ -94,6 +95,8 @@ class QEAppController(BaseCrashReporter, QObject):
         self._app_started = False
         self._intent = ''
         self._secureWindow = False
+
+        self._intent_requested_wallet = ''
 
         # map of permissions and grant status _after_ asking user
         self._permissions = {}  # type: dict[str, bool]
@@ -228,9 +231,49 @@ class QEAppController(BaseCrashReporter, QObject):
         if permission_result_cb:
             permission_result_cb(grant_result)
 
+    @pyqtSlot(result=bool)
+    def hasBatteryOptimizationExemption(self) -> bool:
+        # Whether the app is on the battery-optimization allowlist, which is
+        # required to start ChainwatchService from the background (Android 12+
+        # FGS-start rule). NOTE: this is not a runtime permission -
+        # checkSelfPermission(REQUEST_IGNORE_BATTERY_OPTIMIZATIONS) is always
+        # granted; only PowerManager reflects the real allowlist state.
+        if not self.isAndroid():
+            return True
+        Context = autoclass('android.content.Context')
+        pm = cast('android.os.PowerManager',
+                  jpythonActivity.getSystemService(Context.POWER_SERVICE))
+        return pm.isIgnoringBatteryOptimizations(jpythonActivity.getPackageName())
+
+    @pyqtSlot()
+    def requestIgnoreBatteryOptimizations(self):
+        # Prompt the user (one-tap system dialog) to allowlist the app. No-op if
+        # already allowlisted. Requires the REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+        # permission. This is a Settings action, not a requestPermissions() flow.
+        if not self.isAndroid():
+            return
+        if self.hasBatteryOptimizationExemption():
+            return
+        Settings = autoclass('android.provider.Settings')
+        Uri = autoclass('android.net.Uri')
+        intent = jIntent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+        intent.setData(Uri.parse("package:" + jpythonActivity.getPackageName()))
+        jpythonActivity.startActivity(intent)
+
     def on_new_intent(self, intent):
+        intent_requested_wallets = self._chainwatch_wallets_from_intent(intent)
         if not self._app_started:
-            self._intent = intent
+            # store requested wallet name on cold start
+            if intent_requested_wallets:
+                self._intent_requested_wallet = intent_requested_wallets[0]
+            else:
+                self._intent = intent
+                self.logger.info(f'new intent stashed for later')
+            return
+
+        if intent_requested_wallets:
+            self._intent_requested_wallet = intent_requested_wallets[0]
+            self.loadWalletRequested.emit(self._intent_requested_wallet)
             return
 
         data = str(intent.getDataString())
@@ -241,7 +284,26 @@ class QEAppController(BaseCrashReporter, QObject):
                 or scheme in SUPPORTED_LNURL_SCHEMES:
             self.uriReceived.emit(data)
 
+    def _chainwatch_wallets_from_intent(self, intent) -> List[str]:
+        """Read the `chainwatch_wallets` string-array extra as a python list.
+        """
+        try:
+            jlist = intent.getStringArrayListExtra(jString("chainwatch_wallets"))
+            wallets = [str(jlist.get(i)) for i in range(jlist.size())] if jlist else []
+            if any([wallet != os.path.basename(wallet) for wallet in wallets]):
+                # avoid confused-deputy, ignore if any wallet is passed as (abs/rel) path instead of wallet name
+                wallets = []
+            return wallets
+        except Exception as e:
+            self.logger.error(f'could not read chainwatch_wallets extra: {repr(e)}')
+            return []
+
+    @pyqtSlot(result=str)
+    def getIntentRequestedWallet(self) -> str:
+        return self._intent_requested_wallet
+
     def startup_finished(self):
+        self.logger.info('GUI startup finished')
         self._app_started = True
         self.startupFinished.emit()
         for plugin_name in self._plugins.plugins.keys():

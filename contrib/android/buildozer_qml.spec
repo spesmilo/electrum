@@ -101,7 +101,7 @@ fullscreen = False
 #
 
 # (list) Permissions
-android.permissions = INTERNET, CAMERA, WRITE_EXTERNAL_STORAGE, POST_NOTIFICATIONS, USE_BIOMETRIC
+android.permissions = INTERNET, CAMERA, WRITE_EXTERNAL_STORAGE, POST_NOTIFICATIONS, USE_BIOMETRIC, FOREGROUND_SERVICE, REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
 
 # (int) Android API to use  (compileSdkVersion)
 # note: when changing, Dockerfile also needs to be changed to install corresponding build tools
@@ -162,13 +162,19 @@ android.add_aars =
     contrib/android/.cache/aars/zxing-cpp.aar
 
 
+# (list) p4a services (NAME:entrypoint.py[:foreground][:sticky]).
+# Started hourly by org.electrum.worker.ElectrumWorker via WorkManager.
+services = Chainwatch:electrum/gui/qml/service/chainwatch_service.py:foreground
+
 # (list) List of Java files to add to the android project (can be java or a
 # directory containing the files)
 android.add_src = electrum/gui/qml/java_classes/
 
 # kotlin-stdlib is required for zxing-cpp (BarcodeScannerView)
+# work-runtime provides WorkManager (periodic scheduling for Chainwatch)
 android.gradle_dependencies =
     androidx.core:core:1.16.0,
+    androidx.work:work-runtime:2.9.1,
     org.jetbrains.kotlin:kotlin-stdlib:1.8.22
 
 android.add_activities = org.electrum.qr.SimpleScannerActivity, org.electrum.biometry.BiometricActivity
@@ -183,7 +189,7 @@ android.add_activities = org.electrum.qr.SimpleScannerActivity, org.electrum.bio
 # 3) A directory, here 'legal_resources' must contain one or more directories,
 # each of a resource kind:  drawable, xml, etc...
 # android.add_resources = legal_resources
-android.add_resources = electrum/gui/qml/android_res/layout:layout
+android.add_resources = electrum/gui/qml/android_res/layout:layout, electrum/gui/icons/electrum_light_icon.png:drawable
 
 # (str) python-for-android branch to use, if not master, useful to try
 # not yet merged features.
