@@ -117,8 +117,7 @@ class PluginDialog(WindowModalDialog):
         privkey = self.window.get_plugins_privkey()
         if not privkey:
             return
-        filename = self.plugins.zip_plugin_path(self.name)
-        self.window.plugins.authorize_plugin(self.name, filename, privkey)
+        self.window.plugins.authorize_plugin(self.name, privkey)
         self.window.plugins.enable(self.name)
         d = self.plugins.get_metadata(self.name)
         if details := d.get('registers_keystore'):
@@ -317,10 +316,13 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
     def add_external_plugin(self, path):
         manifest = self.plugins.read_manifest(path)
         name = manifest['name']
-        self.plugins.external_plugin_metadata[name] = manifest
+        if self.plugins.is_installed(name):
+            self.show_warning(_("Plugin {} already installed.").format(name))
+            return False
+        self.plugins.add_external_plugin_metadata(manifest)
         d = PluginDialog(name, manifest, None, self)
         if not d.exec():
-            self.plugins.external_plugin_metadata.pop(name)
+            self.plugins.remove_external_plugin_metadata(name)
             return False
         if self.gui_object:
             self.gui_object.reload_windows()
