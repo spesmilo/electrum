@@ -143,7 +143,7 @@ class RequestList(MyTreeView):
             status = self.wallet.get_invoice_status(req)
             status_str = req.get_status_str(status)
             timestamp = req.get_time()
-            amount = req.get_amount_sat()
+            amount = req.get_amount_sat_msat_precision()
             message = req.get_message()
             date = format_time(timestamp)
             amount_str = self.main_window.format_amount(amount) if amount else ""

@@ -214,7 +214,7 @@ Pane {
                 Layout.preferredWidth: 1
                 text: qsTr('Lightning swap');
                 visible: Daemon.currentWallet.isLightning
-                enabled: Daemon.currentWallet.lightningCanSend.satsInt > 0 || Daemon.currentWallet.lightningCanReceive.satsInt > 0
+                enabled: !Daemon.currentWallet.lightningCanSend.isEmpty || !Daemon.currentWallet.lightningCanReceive.isEmpty
                 icon.source: Qt.resolvedUrl('../../icons/update.png')
                 onClicked: app.startSwap()
             }
@@ -224,7 +224,7 @@ Pane {
                 Layout.preferredWidth: 1
                 text: qsTr('Open Channel')
                 visible: Daemon.currentWallet.isLightning
-                enabled: Daemon.currentWallet.confirmedBalance.satsInt > 0
+                enabled: !Daemon.currentWallet.confirmedBalance.isEmpty
                 onClicked: {
                     var dialog = openChannelDialog.createObject(rootItem)
                     dialog.open()
