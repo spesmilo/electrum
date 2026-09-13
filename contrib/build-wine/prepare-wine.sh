@@ -53,7 +53,8 @@ $WINE_PYTHON -m pip install --no-build-isolation --no-dependencies --no-binary :
 
 
 # copy already built DLLs
-cp "$DLL_TARGET_DIR"/*.dll "$WINEPREFIX/drive_c/electrum/electrum/" || fail "Could not copy DLLs to destination"
+cp "$DLL_TARGET_DIR"/libsecp256k1-*.dll "$DLL_TARGET_DIR/libusb-1.0.dll" "$DLL_TARGET_DIR/ZXing.dll" \
+    "$WINEPREFIX/drive_c/electrum/electrum/" || fail "Could not copy DLLs to destination"
 
 
 info "Building PyInstaller."

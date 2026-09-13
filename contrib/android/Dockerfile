@@ -80,8 +80,6 @@ RUN mkdir --parents "${ANDROID_SDK_HOME}/.android/" \
 # download Java-17 (debian 13 only packages Java-21 and Java-25)
 # - we download the amd64 binaries from debian 12 repos
 # - we should try to upgrade to Java-21...
-#   - the main blocker seems to be having to update Gradle (to a version compatible with Java-21)
-#     - make_barcode_scanner.sh: markusfisch/{zxing-cpp, ...} pins old Gradle
 ENV JAVA_JRE_DL_URL="https://snapshot.debian.org/archive/debian/20260130T143028Z/pool/main/o/openjdk-17/openjdk-17-jre-headless_17.0.18+8-1~deb12u1_amd64.deb"
 ENV JAVA_JRE_ARCHIVE="openjdk-17-jre-headless.deb"
 ENV JAVA_JRE_HASH="5bc36cbb4e383dbea4168d57b5fd9b42375ec8837dd62a1d56677632c3c960e0"
@@ -235,10 +233,10 @@ RUN cd /opt \
     && /opt/venv/bin/python3 -m pip install --no-build-isolation --no-dependencies -e .
 
 # install python-for-android
-ENV P4A_CHECKOUT_COMMIT="315bb8adf8022972f0ee87a45896d05c38134e1c"
-# ^ from branch electrum_202602 (note: careful with force-pushing! see #8162)
+ENV P4A_CHECKOUT_COMMIT="a9602faed875c9689a4d0635f0de0b2ab15dfdd9"
+# ^ from branch electrum_202602_qtmultimedia (note: careful with force-pushing! see #8162)
 RUN cd /opt \
-    && git clone https://github.com/spesmilo/python-for-android \
+    && git clone https://github.com/f321x/spesmilo-python-for-android-fork-fork python-for-android \
     && cd python-for-android \
     && git checkout "${P4A_CHECKOUT_COMMIT}^{commit}" \
     && /opt/venv/bin/python3 -m pip install --no-build-isolation --no-dependencies -e .

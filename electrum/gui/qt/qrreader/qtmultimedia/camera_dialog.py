@@ -70,6 +70,8 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
     def __init__(self, parent: Optional[QWidget], *, config: SimpleConfig):
         ''' Note: make sure parent is a "top_level_window()" as per
         MessageBoxMixin API else bad things can happen on macOS. '''
+        # Check the decoder before creating a parent-owned dialog.
+        qrreader = get_qr_reader()
         QDialog.__init__(self, parent=parent)
         Logger.__init__(self)
 
@@ -90,8 +92,7 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
 
         self.config = config
 
-        # Try to get the QR reader for this system
-        self.qrreader = get_qr_reader()
+        self.qrreader = qrreader
 
         # Set up the window, add the maximize button
         flags = self.windowFlags()
@@ -220,9 +221,8 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
             self.logger.info(f"chosen camera format: {res.width()}x{res.height()}")
             self.camera.setCameraFormat(camera_format)
 
-        self.camera.start()
-
         self.open()
+        self.camera.start()
 
     def _set_resolution(self, resolution: QSize):
         self.resolution = resolution
@@ -239,7 +239,11 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
         self.crop_blur_effect.setCrop(self.qr_crop)
 
     def _on_camera_error(self, error: QCamera.Error, error_str: str):
+        if error == QCamera.Error.NoError or self._ok_done:
+            return
         self.logger.info(f"QCamera error: {error}. {error_str}")
+        self._error_message = error_str
+        self.reject()
 
     def accept(self):
         self._ok_done = True  # immediately blocks further processing
@@ -258,6 +262,10 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
         if self.camera:
             self.camera.stop()
             self.camera = None
+        if self.media_capture_session:
+            self.media_capture_session.setVideoSink(None)
+            self.media_capture_session.setCamera(None)
+            self.media_capture_session = None
 
     def _on_finished(self, code):
         res = ( (code == QDialog.DialogCode.Accepted
@@ -295,14 +303,18 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
             frame_y800 = frame_cropped.convertToFormat(QImage.Format.Format_Grayscale8)
 
             # Read the QR codes from the frame
-            self.qrreader_res = self.qrreader.read_qr_code(
-                frame_y800.constBits().__int__(),
-                frame_y800.sizeInBytes(),
-                frame_y800.bytesPerLine(),
-                frame_y800.width(),
-                frame_y800.height(),
-                self.frame_id,
+            try:
+                self.qrreader_res = self.qrreader.read_qr_code(
+                    frame_y800.constBits().__int__(),
+                    frame_y800.sizeInBytes(),
+                    frame_y800.bytesPerLine(),
+                    frame_y800.width(),
+                    frame_y800.height(),
+                    self.frame_id,
                 )
+            except Exception:
+                self.logger.exception('Failed to decode QR frame')
+                self.qrreader_res = []
 
             # Call the validator to see if the scanned results are acceptable
             self.validator_res = self.validator.validate_results(self.qrreader_res)

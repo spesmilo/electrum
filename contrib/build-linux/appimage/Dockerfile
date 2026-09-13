@@ -29,6 +29,8 @@ RUN apt-get update -q && \
         wget \
         python3 \
         make \
+        cmake \
+        clang-16 \
         autotools-dev \
         autoconf \
         libtool \
@@ -72,9 +74,11 @@ RUN apt-get update -q && \
         libc6-dev \
         libc6 \
         libc-dev-bin \
-        libv4l-dev \
-        libjpeg62-turbo-dev \
         libx11-dev \
+        libegl1 \
+        libgl1 \
+        libpulse0 \
+        libxrandr2 \
         desktop-file-utils \
         && \
     rm -rf /var/lib/apt/lists/* && \

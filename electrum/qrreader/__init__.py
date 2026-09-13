@@ -25,7 +25,7 @@
 #
 # A module, that, given an image (buffer), finds and decodes a QR code in it.
 
-from typing import Optional
+from typing import Mapping, Optional
 
 from ..logging import get_logger
 
@@ -36,34 +36,27 @@ _logger = get_logger(__name__)
 
 
 class MissingQrDetectionLib(RuntimeError):
-    ''' Raised if we can't find zbar or whatever other platform lib
-    we require to detect QR in image frames. '''
+    ''' Raised if the library required to detect QR codes is unavailable. '''
 
 
 def get_qr_reader() -> AbstractQrCodeReader:
     """
-    Get the Qr code reader for the current platform.
+    Get the QR code reader.
     Might raise exception: MissingQrDetectionLib.
     """
-    excs = []
     try:
-        from .zbar import ZbarQrCodeReader
-        return ZbarQrCodeReader()
-        """
-        # DEBUG CODE BELOW
-        # If you want to test this code on a platform that doesn't yet work or have
-        # zbar, use the below...
-        class Fake(AbstractQrCodeReader):
-            def read_qr_code(self, buffer, buffer_size, dummy, width, height, frame_id = -1):
-                ''' fake noop to test '''
-                return []
-        return Fake()
-        """
+        from .zxing import ZXingQrCodeReader
+        return ZXingQrCodeReader()
     except MissingLib as e:
         _logger.exception("")
-        excs.append(e)
+        raise MissingQrDetectionLib(f"The QR detection library is not available.\n{e}") from e
 
-    raise MissingQrDetectionLib(f"The platform QR detection library is not available.\nerrors: {excs!r}")
+
+def version_info() -> Mapping[str, Optional[str]]:
+    from .zxing import LIBZXING
+    return {
+        "libZXing.path": LIBZXING._name if LIBZXING else None,
+    }
 
 
 # --- Internals below (not part of external API)

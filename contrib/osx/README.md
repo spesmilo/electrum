@@ -76,6 +76,11 @@ We currently build the release binaries on macOS 11.7.10, and these seem to run 
 - Installing extraneous brew packages can result in build differences.
   For example, pyinstaller seems to pick up and bundle brew-installed `libffi`.
   So having a dedicated "electrum binary builder macOS VM" is recommended.
+- zxing-cpp requires C++20 library support beyond Xcode 13. The build script
+  installs Homebrew `gcc@14`, CMake, and wget, and uses GCC only for zxing-cpp.
+  Its C++ and GCC runtimes are linked statically into the decoder dylib so the
+  application does not require a Homebrew installation at runtime. Builders
+  must use the same `gcc@14` formula version for reproducibility.
 - Make sure that you are building from a fresh clone of electrum
   (or run e.g. `git clean -ffxd` to rm all local changes).
 

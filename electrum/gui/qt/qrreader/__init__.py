@@ -2,39 +2,22 @@
 # Distributed under the MIT software license, see the accompanying
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
 #
-# We have two toolchains to scan qr codes:
-# 1. access camera via QtMultimedia, take picture, feed picture to zbar
-# 2. let zbar handle whole flow (including accessing the camera)
+# Camera capture uses QtMultimedia on all desktop platforms; image decoding
+# uses zxing-cpp. QtMultimedia is imported lazily as some distributions package
+# it separately from PyQt6 (e.g. python3-pyqt6.qtmultimedia on Debian).
 #
-# notes:
-# - zbar needs to be compiled with platform-dependent extra config options to be able
-#   to access the camera
-# - zbar fails to access the camera on macOS
-# - qtmultimedia seems to support more cameras on Windows than zbar
-# - qtmultimedia is often not packaged with PyQt
-#   in particular, on debian, you need both "python3-pyqt6" and "python3-pyqt6.qtmultimedia"
-# - older versions of qtmultimedia don't seem to work reliably
-#
-# Considering the above, we use QtMultimedia for Windows and macOS, as there
-# most users run our binaries where we can make sure the packaged versions work well.
-# On Linux where many people run from source, we use zbar.
-#
-# Note: this module is safe to import on all platforms.
+# Note: this module does not require QtMultimedia to import.
 
-import sys
 from typing import Callable, Optional, TYPE_CHECKING, Mapping, Sequence
 
-from PyQt6.QtWidgets import QMessageBox, QWidget
-from PyQt6.QtGui import QImage, QPainter, QColor
-from PyQt6.QtCore import QRect, QCoreApplication
+from PyQt6.QtWidgets import QWidget
+from PyQt6.QtGui import QImage
+from PyQt6.QtCore import QCoreApplication
 from PyQt6 import QtCore
 
 from electrum.i18n import _
-from electrum.util import UserFacingException
 from electrum.logging import get_logger
 from electrum.qrreader import get_qr_reader, QrCodeResult, MissingQrDetectionLib
-
-from electrum.gui.qt.util import MessageBoxMixin, custom_message_box
 
 
 if TYPE_CHECKING:
@@ -66,78 +49,30 @@ def scan_qrcode_from_camera(
 
 def scan_qr_from_image(image: QImage) -> Sequence[QrCodeResult]:
     """Might raise exception: MissingQrDetectionLib."""
+    if image.isNull():
+        return []
     qr_reader = get_qr_reader()
+    image_y800 = image.convertToFormat(QImage.Format.Format_Grayscale8)
+    return qr_reader.read_qr_code(
+        image_y800.constBits().__int__(),
+        image_y800.sizeInBytes(),
+        image_y800.bytesPerLine(),
+        image_y800.width(),
+        image_y800.height(),
+    )
 
-    for attempt in range(4):
-        image_y800 = image.convertToFormat(QImage.Format.Format_Grayscale8)
-        res = qr_reader.read_qr_code(
-            image_y800.constBits().__int__(),
-            image_y800.sizeInBytes(),
-            image_y800.bytesPerLine(),
-            image_y800.width(),
-            image_y800.height(),
-        )
-        if res:
-            break
-        # zbar doesn't like qr codes that are too large in relation to the whole image
-        image = _reduce_qr_code_density(image)
-    return res
-
-def _reduce_qr_code_density(image: QImage) -> QImage:
-    """ Reduces the size of the qr code relative to the whole image. """
-    new_image = QImage(image.width(), image.height(), QImage.Format.Format_RGB32)
-    new_image.fill(QColor(255, 255, 255))  # Fill white
-
-    painter = QPainter(new_image)
-    source_rect = QRect(0, 0, image.width(), image.height())
-    target_rect = QRect(0, 0, int(image.width() * 0.75), int(image.height() * 0.75))
-    painter.drawImage(target_rect, image, source_rect)
-    painter.end()
-
-    return new_image
 
 def find_system_cameras() -> Mapping[str, str]:
     """Returns a camera_description -> camera_path map."""
-    if sys.platform == 'darwin' or sys.platform in ('windows', 'win32'):
-        try:
-            from .qtmultimedia import find_system_cameras
-        except (ImportError, RuntimeError) as e:
-            _logger.exception('error importing .qtmultimedia')
-            return {}
-        else:
-            return find_system_cameras()
-    else:  # desktop Linux and similar
-        from electrum import qrscanner
-        return qrscanner.find_system_cameras()
+    try:
+        from .qtmultimedia import find_system_cameras
+    except (ImportError, RuntimeError):
+        _logger.exception('error importing .qtmultimedia')
+        return {}
+    return find_system_cameras()
 
 
 # --- Internals below (not part of external API)
-
-def _scan_qrcode_using_zbar(
-        *,
-        parent: Optional[QWidget],
-        config: 'SimpleConfig',
-        callback: Callable[[bool, str, Optional[str]], None],
-) -> None:
-    from electrum import qrscanner
-    data = None
-    try:
-        data = qrscanner.scan_barcode(config.get_video_device())
-    except UserFacingException as e:
-        success = False
-        error = str(e)
-    except BaseException as e:
-        _logger.exception('camera error')
-        success = False
-        error = repr(e)
-    else:
-        success = True
-        error = ""
-    if data is None:
-        # probably user cancelled
-        success = False
-    callback(success, error, data)
-
 
 # Use a global to prevent multiple QR dialogs created simultaneously
 _qr_dialog = None
@@ -152,15 +87,9 @@ def _scan_qrcode_using_qtmultimedia(
     try:
         from .qtmultimedia import QrReaderCameraDialog, CameraError
     except (ImportError, RuntimeError) as e:
-        icon = QMessageBox.Icon.Warning
-        title = _("QR Reader Error")
-        message = _("QR reader failed to load. This may happen if "
-                    "you are using an older version of PyQt.") + "\n\n" + str(e)
+        message = _("QR reader failed to load. Please install PyQt6 Qt Multimedia.") + "\n\n" + str(e)
         _logger.exception(message)
-        if isinstance(parent, MessageBoxMixin):
-            parent.msg_box(title=title, text=message, icon=icon, parent=None)
-        else:
-            custom_message_box(title=title, text=message, icon=icon, parent=parent)
+        callback(False, message, None)
         return
 
     global _qr_dialog
@@ -181,12 +110,19 @@ def _scan_qrcode_using_qtmultimedia(
         _qr_dialog.qr_finished.connect(_on_qr_reader_finished)
         _qr_dialog.start_scan(config.get_video_device())
     except (MissingQrDetectionLib, CameraError) as e:
-        _qr_dialog = None
-        callback(False, str(e), None)
+        error = str(e)
     except Exception as e:
         _logger.exception('camera error')
+        error = repr(e)
+    else:
+        return
+
+    if _qr_dialog:
+        _qr_dialog.qr_finished.disconnect(_on_qr_reader_finished)
+        _qr_dialog._boilerplate_cleanup()
+        _qr_dialog.deleteLater()
         _qr_dialog = None
-        callback(False, repr(e), None)
+    callback(False, error, None)
 
 
 def _scan_qrcode_from_camera(
@@ -200,10 +136,7 @@ def _scan_qrcode_from_camera(
     if not _has_camera_permission():
         callback(False, _("Missing camera permission."), None)
         return
-    if sys.platform == 'darwin' or sys.platform in ('windows', 'win32'):
-        _scan_qrcode_using_qtmultimedia(parent=parent, config=config, callback=callback)
-    else:  # desktop Linux and similar
-        _scan_qrcode_using_zbar(parent=parent, config=config, callback=callback)
+    _scan_qrcode_using_qtmultimedia(parent=parent, config=config, callback=callback)
 
 
 def _has_camera_permission() -> bool:
@@ -213,4 +146,3 @@ def _has_camera_permission() -> bool:
     app = QCoreApplication.instance()
     permission_status = app.checkPermission(QtCore.QCameraPermission())
     return permission_status == QtCore.Qt.PermissionStatus.Granted
-
