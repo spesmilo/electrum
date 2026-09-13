@@ -1,3 +1,4 @@
+import locale
 import threading
 import traceback
 import unittest
@@ -37,6 +38,13 @@ class QETestCase(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
+        # Constructing the QCoreApplication below makes Qt set the process locale from
+        # the environment, and nothing sets it back, so tests running afterwards format
+        # dates and numbers in that locale. addCleanup() restores it after tearDown(),
+        # i.e. once the Qt thread has exited, and a failure to restore is then reported
+        # beside the test's own outcome rather than in place of it.
+        saved_locale = locale.setlocale(locale.LC_ALL)
+        self.addCleanup(locale.setlocale, locale.LC_ALL, saved_locale)
         self.app = None
         self._e = None
         self._testcase_event = threading.Event()
