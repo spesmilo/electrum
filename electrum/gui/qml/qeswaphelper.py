@@ -4,7 +4,7 @@ from enum import IntEnum
 from typing import Union, Optional, TYPE_CHECKING, Sequence
 
 from PyQt6.QtCore import (pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer, pyqtEnum, QAbstractListModel, Qt,
-                          QModelIndex, QVariant)
+                          QModelIndex, QVariant, QMetaObject)
 from PyQt6.QtGui import QColor
 
 from electrum.i18n import _
@@ -154,7 +154,6 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
     error = pyqtSignal([str], arguments=['message'])
     undefinedNPub = pyqtSignal()
     offersUpdated = pyqtSignal()
-    requestTxUpdate = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -192,7 +191,6 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         self._fwd_swap_updatetx_timer = QTimer(self)
         self._fwd_swap_updatetx_timer.setSingleShot(True)
         self._fwd_swap_updatetx_timer.timeout.connect(self.fwd_swap_updatetx)
-        self.requestTxUpdate.connect(self.tx_update_pushback_timer)
 
         self.offersUpdated.connect(self.on_offers_updated)
         self.transport_task: Optional[asyncio.Task] = None
@@ -606,10 +604,14 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         else:
             # update tx only if slider isn't moved for a while
             self.valid = False
-            # trigger tx_update_pushback_timer through signal, as this might be called from other thread
-            self.requestTxUpdate.emit()
+            self.requestTxUpdate()
 
-    def tx_update_pushback_timer(self):
+    def requestTxUpdate(self):
+        # trigger _tx_update_pushback_timer from qt thread, as this might be called from other thread
+        QMetaObject.invokeMethod(self, '_tx_update_pushback_timer', Qt.ConnectionType.QueuedConnection)
+
+    @pyqtSlot()
+    def _tx_update_pushback_timer(self):
         self._fwd_swap_updatetx_timer.start(250)
 
     def check_valid(self, send_amount, receive_amount):
