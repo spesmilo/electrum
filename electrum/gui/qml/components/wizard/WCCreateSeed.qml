@@ -49,6 +49,7 @@ WizardComponent {
                 Layout.fillWidth: true
                 backgroundColor: constants.darkerDialogBackground
                 iconStyle: InfoTextArea.IconStyle.Warn
+                textFormat: Text.RichText
             }
 
             Label {

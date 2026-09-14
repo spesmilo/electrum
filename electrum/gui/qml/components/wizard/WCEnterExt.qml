@@ -76,6 +76,7 @@ WizardComponent {
                     '<br/>',
                     qsTr('Do not enable it unless you know what it does!'),
                 ].join(' ')
+                textFormat: Text.RichText
             }
 
             ElCheckBox {

@@ -43,6 +43,7 @@ TextHighlightPane {
                     : '&lt;' + qsTr('unknown amount') + '&gt;'
                 font.pixelSize: constants.fontSizeMedium
                 font.family: FixedFont
+                textFormat: Text.RichText
             }
             Label {
                 text: Config.baseUnit
