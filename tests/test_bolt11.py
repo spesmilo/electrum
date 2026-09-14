@@ -109,6 +109,7 @@ class TestBolt11(ElectrumTestCase):
             invoice_str2 = encode_bolt11_invoice(lnaddr1, PRIVKEY)
             self.assertEqual(invoice_str1, invoice_str2)
             lnaddr2 = decode_bolt11_invoice(invoice_str2, net=lnaddr1.net)
+            self.assertEqual(invoice_str1, encode_bolt11_invoice(lnaddr2, PRIVKEY))
             self.compare(lnaddr1, lnaddr2)
 
     def test_int_to_data5_padding(self):

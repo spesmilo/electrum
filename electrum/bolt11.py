@@ -228,7 +228,10 @@ def encode_bolt11_invoice(addr: 'BOLT11Addr', privkey) -> str:
             expirybits = int_to_data5(v)
             data5 += tagged5('x', expirybits)
         elif k == 'h':
-            data5 += tagged8('h', sha256(v.encode('utf-8')).digest())
+            deschash = v if isinstance(v, bytes) else sha256(v.encode('utf-8')).digest()
+            if len(deschash) != 32:
+                raise BOLT11EncodeException(f"'h' tag must be a description or its sha256, not {v!r}")
+            data5 += tagged8('h', deschash)
         elif k == 'n':
             data5 += tagged8('n', v)
         elif k == 'c':
