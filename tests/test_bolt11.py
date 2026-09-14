@@ -137,6 +137,14 @@ class TestBolt11(ElectrumTestCase):
         lnaddr = decode_bolt11_invoice(bech32_encode(segwit_addr.Encoding.BECH32, hrp, data), verbose=True)
         self.assertEqual(lnaddr.pubkey.serialize(), PUBKEY)
 
+        # the 'n' field is kept as a tag, so that re-encoding does not silently drop it
+        invoice = encode_bolt11_invoice(
+            BOLT11Addr(date=1615922274, paymenthash=RHASH, payment_secret=PAYMENT_SECRET, amount=24,
+                       tags=[('d', ''), ('n', PUBKEY), ('9', 33282)]), PRIVKEY)
+        lnaddr = decode_bolt11_invoice(invoice)
+        self.assertEqual(PUBKEY, lnaddr.get_tag('n'))
+        self.assertEqual(invoice, encode_bolt11_invoice(lnaddr, PRIVKEY))
+
     @staticmethod
     def _encode_invoice_with_raw_tags(tags5, *, net=None, date=1615922274, amountstr='') -> str:
         """Builds a correctly signed invoice containing exactly the given (tag, data5) fields."""

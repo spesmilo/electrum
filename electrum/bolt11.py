@@ -613,6 +613,7 @@ def decode_bolt11_invoice(invoice: str, *, verbose=False, net=None) -> BOLT11Add
                 raise BOLT11DecodeException("Unexpected 'n' tag")
             pubkeybytes = bytes(_convertbits_tag(tag, tagdata, 5, 8, False, length_range=(53, 53)))
             addr.pubkey = pubkeybytes
+            addr.tags.append(('n', pubkeybytes))
         elif tag == 'c':
             # MUST use the minimum data_length possible
             _check_minimal_data5(tag, tagdata)
