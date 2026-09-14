@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 
 import org.electrum 1.0
+import "."
 
 TextField {
     id: amount

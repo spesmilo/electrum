@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import QtQuick.Controls
 
 import "wizard"
+import "controls"
 
 Wizard {
     id: termsofusewizard

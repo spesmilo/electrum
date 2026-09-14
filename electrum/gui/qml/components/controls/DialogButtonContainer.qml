@@ -1,6 +1,8 @@
 import QtQuick
 import QtQuick.Layouts
 
+import "."
+
 ButtonContainer {
     id: root
     separatorColor: constants.darkerDialogBackground

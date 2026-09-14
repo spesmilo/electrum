@@ -4,6 +4,7 @@ import QtQuick.Controls
 import QtQuick.Controls.Material
 
 import org.electrum 1.0
+import "."
 
 // this component adds (auto)scrolling to the bare TextArea, to make it
 // workable if text overflows the available space.

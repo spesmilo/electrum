@@ -4,6 +4,7 @@ import QtQuick.Controls
 import QtQuick.Controls.Material
 
 import ".."
+import "."
 
 Item {
     id: toaster

@@ -5,6 +5,7 @@ import QtQuick.Controls
 import org.electrum 1.0
 
 import "wizard"
+import "controls"
 
 Wizard {
     id: walletwizard

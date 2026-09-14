@@ -1,6 +1,8 @@
 import QtQuick
 import QtQuick.Controls.Material
 
+import "."
+
 Rectangle {
     property color baseColor: Material.background
     property bool vertical: true
