@@ -1,3 +1,4 @@
+import locale
 import threading
 import traceback
 import unittest
@@ -37,6 +38,9 @@ class QETestCase(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
+        # restore process locale changed through construction of QCoreApplication
+        saved_locale = locale.setlocale(locale.LC_ALL)
+        self.addCleanup(locale.setlocale, locale.LC_ALL, saved_locale)
         self.app = None
         self._e = None
         self._testcase_event = threading.Event()
