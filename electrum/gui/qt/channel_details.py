@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Sequence
 import PyQt6.QtGui as QtGui
 import PyQt6.QtWidgets as QtWidgets
 import PyQt6.QtCore as QtCore
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QLabel, QHBoxLayout
 
 from electrum.util import ShortID
@@ -33,6 +34,7 @@ class LinkedLabel(QtWidgets.QLabel):
     def __init__(self, text, on_clicked):
         super().__init__(text)
         self.linkActivated.connect(on_clicked)
+        self.setTextFormat(Qt.TextFormat.RichText)
 
 
 class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin, QtEventListener):

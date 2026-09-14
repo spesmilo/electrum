@@ -364,7 +364,9 @@ class Plugin(RevealerPlugin):
         self.custom_secret_maximum_characters_warning_label = QLabel("<font color='red'>"
                                                        + _("This version supports a maximum of {} characters.").format(self.MAX_PLAINTEXT_LEN)
                                                        +"</font>")
+        self.custom_secret_maximum_characters_warning_label.setTextFormat(Qt.TextFormat.RichText)
         one_time_pad_warning_label = QLabel("<b>" + _("Warning ") + "</b>: " + _("each Revealer is a one-time-pad, use it for a single secret."))
+        one_time_pad_warning_label.setTextFormat(Qt.TextFormat.RichText)
 
         # Allow users to select text in the labels.
         ready_to_encrypt_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
@@ -853,9 +855,10 @@ class Plugin(RevealerPlugin):
         d.setMinimumSize(100, 200)
 
         vbox = QVBoxLayout(d)
-        vbox.addWidget(QLabel(''.join(["<br/>", _("If you have an old printer, or want optimal precision"),"<br/>",
-                                       _("print the calibration pdf and follow the instructions "), "<br/>","<br/>",
-                                    ])))
+        vbox.addWidget(QLabel("".join([
+            _("If you have an old printer, or want optimal precision"), "\n",
+            _("print the calibration pdf and follow the instructions "), "\n\n",
+        ])))
         self.calibration_h = self.config.get('calibration_h')
         self.calibration_v = self.config.get('calibration_v')
         cprint = QPushButton(_("Open calibration pdf"))

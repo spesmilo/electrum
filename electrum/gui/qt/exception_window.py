@@ -60,6 +60,7 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
         main_box = QVBoxLayout()
 
         heading = QLabel('<h2>' + BaseCrashReporter.CRASH_TITLE + '</h2>')
+        heading.setTextFormat(Qt.TextFormat.RichText)
         main_box.addWidget(heading)
         main_box.addWidget(QLabel(BaseCrashReporter.CRASH_MESSAGE))
 
@@ -210,7 +211,7 @@ class ReportContentsDialog(QDialog):
 
         report_text = QLabel(text)
         report_text.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        report_text.setTextFormat(Qt.TextFormat.AutoText)  # likely rich text
+        report_text.setTextFormat(Qt.TextFormat.RichText)
 
         scroll_area.setWidget(report_text)
         vbox.addWidget(scroll_area)

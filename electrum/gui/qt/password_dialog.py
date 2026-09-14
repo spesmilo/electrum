@@ -121,6 +121,7 @@ class PasswordLayout(object):
         # Password Strength Label
         if kind != PW_PASSPHRASE:
             self.pw_strength = QLabel()
+            self.pw_strength.setTextFormat(Qt.TextFormat.RichText)
             grid.addWidget(self.pw_strength, 3, 0, 1, 2)
             self.new_pw.textChanged.connect(self.pw_changed)
 
@@ -294,6 +295,7 @@ class PasswordDialog(WindowModalDialog):
         WindowModalDialog.__init__(self, parent, _("Enter Password"))
         self.pw = pw = PasswordLineEdit()
         label = QLabel(msg)
+        label.setTextFormat(Qt.TextFormat.RichText)
         label.setWordWrap(True)
         vbox = QVBoxLayout()
         vbox.addWidget(label)
