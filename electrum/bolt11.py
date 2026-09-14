@@ -144,7 +144,7 @@ def int_to_data5(val: int, *, bit_len: int | None = None) -> Sequence[int]:
         ret.append(val % 32)
         val //= 32
     if bit_len is not None:
-        ret.extend([0] * (len(ret) - bit_len // 5))
+        ret.extend([0] * (bit_len // 5 - len(ret)))
     ret.reverse()
     return ret
 

@@ -111,6 +111,14 @@ class TestBolt11(ElectrumTestCase):
             lnaddr2 = decode_bolt11_invoice(invoice_str2, net=lnaddr1.net)
             self.compare(lnaddr1, lnaddr2)
 
+    def test_int_to_data5_padding(self):
+        # if bit_len is given, the result is left-padded with zeroes to exactly bit_len//5 values
+        self.assertEqual([0, 0, 0, 0, 0, 1, 8], list(int_to_data5(40, bit_len=35)))
+        self.assertEqual([1, 16, 5, 2, 1, 3, 2], list(int_to_data5(1615922274, bit_len=35)))
+        # ... so the fixed-width timestamp field stays 7 values wide and a small date roundtrips
+        lnaddr = BOLT11Addr(date=1000, paymenthash=RHASH, payment_secret=PAYMENT_SECRET, tags=[('d', '')])
+        self.assertEqual(1000, decode_bolt11_invoice(encode_bolt11_invoice(lnaddr, PRIVKEY)).date)
+
     def test_n_decoding(self):
         # We flip the signature recovery bit, which would normally give a different
         # pubkey.
