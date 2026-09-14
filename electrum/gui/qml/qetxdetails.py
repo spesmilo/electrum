@@ -334,15 +334,11 @@ class QETxDetails(QObject, QtEventListener):
 
         self._logger.debug(repr(txinfo))
 
-        # can be None if outputs unrelated to wallet seed,
+        # txinfo.amount can be None if outputs unrelated to wallet seed,
         # e.g. to_local local_force_close commitment CSV-locked p2wsh script
-        if txinfo.amount is None:
-            self._amount.satsInt = 0
-        else:
-            self._amount.satsInt = txinfo.amount
-
+        self._amount.satsInt = txinfo.amount or 0
         self._status = txinfo.status
-        self._fee.satsInt = txinfo.fee
+        self._fee.satsInt = txinfo.fee or 0
 
         self._feerate_str = ""
         if txinfo.fee is not None:

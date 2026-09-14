@@ -4,10 +4,12 @@ import QtQuick.Controls
 import org.electrum 1.0
 
 TextField {
-    id: amount
+    id: root
 
     required property TextField fiatfield
     property bool msatPrecision: false
+
+    signal valueChanged
 
     font.family: FixedFont
     placeholderText: qsTr('Amount')
@@ -16,22 +18,26 @@ TextField {
         regularExpression: msatPrecision ? Config.btcAmountRegexMsat : Config.btcAmountRegex
     }
 
-    property var textAsSats
+    property var textAsSats: Amount {
+        // propagate on parent
+        onValueChanged: root.valueChanged()
+    }
+
     onTextChanged: {
-        textAsSats = Config.unitsToSats(amount.text)
+        textAsSats.copyFrom(Config.baseunitStrToAmount(root.text))
         if (fiatfield.activeFocus)
             return
-        fiatfield.text = text == '' ? '' : Daemon.fx.fiatValue(amount.textAsSats)
+        fiatfield.text = text == '' ? '' : Daemon.fx.fiatValue(root.textAsSats)
     }
 
     Connections {
         target: Config
         function onBaseUnitChanged() {
-            amount.text = amount.textAsSats.satsInt != 0
-                ? Config.satsToUnits(amount.textAsSats)
+            root.text = !root.textAsSats.isEmpty
+                ? Config.amountToBaseunitStr(root.textAsSats)
                 : ''
         }
     }
 
-    Component.onCompleted: amount.textChanged()
+    Component.onCompleted: root.textChanged()
 }

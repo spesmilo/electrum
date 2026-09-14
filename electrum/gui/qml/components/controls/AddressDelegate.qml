@@ -46,7 +46,7 @@ ItemDelegate {
                 color: model.held
                         ? constants.colorAddressFrozen
                         : model.numtx > 0
-                            ? model.balance.satsInt == 0
+                            ? model.balance.isEmpty
                                 ? constants.colorAddressUsed
                                 : constants.colorAddressUsedWithBalance
                             : model.type == 'change'
@@ -68,12 +68,12 @@ ItemDelegate {
                 Label {
                     font.family: FixedFont
                     text: Config.formatSats(model.balance, false)
-                    visible: model.balance.satsInt != 0
+                    visible: !model.balance.isEmpty
                 }
                 Label {
                     color: Material.accentColor
                     text: Config.baseUnit + ','
-                    visible: model.balance.satsInt != 0
+                    visible: !model.balance.isEmpty
                 }
                 Label {
                     text: model.numtx

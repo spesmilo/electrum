@@ -174,7 +174,6 @@ class TestCommands(ElectrumTestCase):
         # input type is highly polymorphic:
         self.assertEqual(format_satoshis(None), None)
         self.assertEqual(format_satoshis(1), "0.00000001")
-        self.assertEqual(format_satoshis(1.0), "0.00000001")
         self.assertEqual(format_satoshis(Decimal(1)), "0.00000001")
         # trailing zeroes are cut
         self.assertEqual(format_satoshis(51000), "0.00051")
@@ -183,7 +182,9 @@ class TestCommands(ElectrumTestCase):
         self.assertEqual(format_satoshis(Decimal(123.456)), "0.00000123")
         self.assertEqual(format_satoshis(Decimal(123.5)), "0.00000124")
         self.assertEqual(format_satoshis(Decimal(123.789)), "0.00000124")
-        self.assertEqual(format_satoshis(41754.681), "0.00041755")
+
+        with self.assertRaises(AssertionError):
+            format_satoshis(41754.681)
 
 
 class TestCommandsTestnet(ElectrumTestCase):
