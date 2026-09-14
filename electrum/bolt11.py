@@ -22,7 +22,7 @@ from .bitcoin import COIN
 if TYPE_CHECKING:
     from .lnutil import LnFeatures
 
-TIMESTAMP_SANE_MAX = 2**35
+TIMESTAMP_SANE_MAX = 2**35 - 1
 
 
 class BOLT11InvoiceException(Exception): pass
@@ -319,8 +319,8 @@ class BOLT11Addr:
         if isinstance(value, float):
             # e.g. from time.time()
             value = int(value)
-        if value > TIMESTAMP_SANE_MAX:
-            raise BOLT11InvoiceException(f"date must be sane, not above {TIMESTAMP_SANE_MAX!r}")
+        if not 0 <= value <= TIMESTAMP_SANE_MAX:
+            raise BOLT11InvoiceException(f"date must be in [0; {TIMESTAMP_SANE_MAX!r}]: {value}")
         self._date = value
 
     def get_amount_sat(self) -> Optional[Decimal]:
@@ -608,11 +608,9 @@ def decode_bolt11_invoice(invoice: str, *, verbose=False, net=None) -> BOLT11Add
                 raise BOLT11DecodeException("Unexpected 's' tag")
             addr.payment_secret = bytes(_convertbits_tag(tag, tagdata, 5, 8, False, length_range=(52, 52)))
         elif tag == 'n':
-            # if a writer offers more than one of any field type, it:
-            #     MUST specify the most-preferred field first, followed by less-preferred fields, in order.
-            # as we store a single pubkey, we only store the first
+            # MAY include one n field
             if addr.pubkey is not None:
-                continue
+                raise BOLT11DecodeException("Unexpected 'n' tag")
             pubkeybytes = bytes(_convertbits_tag(tag, tagdata, 5, 8, False, length_range=(53, 53)))
             addr.pubkey = pubkeybytes
         elif tag == 'c':

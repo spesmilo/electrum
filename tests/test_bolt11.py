@@ -165,6 +165,7 @@ class TestBolt11(ElectrumTestCase):
         hrp = 'ln' + net.BOLT11_HRP
         data5 = list(int_to_data5(1615922274, bit_len=35))
         data5 += list(tagged8('p', RHASH))
+        data5 += list(tagged8('s', PAYMENT_SECRET))
         data5 += list(tagged8('d', b'test'))
         return bech32_encode(segwit_addr.Encoding.BECH32, hrp, data5 + list(convertbits(sig65, 8, 5, False)))
 
@@ -278,7 +279,7 @@ class TestBolt11(ElectrumTestCase):
         # the recovery id (the last byte) must be 0-3
         for recid in (4, 27, 255):
             with self.subTest(recid=recid):
-                with self.assertRaises(BOLT11DecodeException):
+                with self.assertRaisesRegex(BOLT11DecodeException, r"^Invalid signature:"):
                     decode_bolt11_invoice(self._encode_invoice_with_raw_sig(r_ok + s_ok + bytes([recid])))
 
         # r and s must be below the curve order
@@ -289,15 +290,15 @@ class TestBolt11(ElectrumTestCase):
                              ('s == n+1', r_ok + (ecc.CURVE_ORDER + 1).to_bytes(32, 'big')),
                              ('s == 2**256-1', r_ok + b'\xff' * 32)):
             with self.subTest(sig=label):
-                with self.assertRaises(BOLT11DecodeException):
+                with self.assertRaisesRegex(BOLT11DecodeException, r"^Invalid signature:"):
                     decode_bolt11_invoice(self._encode_invoice_with_raw_sig(sig64 + b'\x00'))
 
         # in-range but unrecoverable signature
-        with self.assertRaises(BOLT11DecodeException):
+        with self.assertRaisesRegex(BOLT11DecodeException, r"^Invalid signature:"):
             decode_bolt11_invoice(self._encode_invoice_with_raw_sig(r_ok + s_ok + b'\x03'))
 
         # an 'n' field that is not a valid curve point (this path uses ecdsa_verify, not recovery)
-        with self.assertRaises(BOLT11DecodeException):
+        with self.assertRaisesRegex(BOLT11DecodeException, r"^Invalid signature:"):
             decode_bolt11_invoice(self._encode_invoice_with_raw_tag('n', list(convertbits(bytes(33), 8, 5))))
 
     def test_mandatory_tags(self):
@@ -328,24 +329,16 @@ class TestBolt11(ElectrumTestCase):
         s5 = convertbits(PAYMENT_SECRET, 8, 5)
         d5 = convertbits(b'test', 8, 5)
         h5 = convertbits(sha256(b'test').digest(), 8, 5)
+        n5 = convertbits(PUBKEY, 8, 5)
         # a second copy of a field we only keep one value for is rejected
         for tag, tags5 in (('p', [('p', p5), ('p', p5), ('s', s5), ('d', d5)]),
                            ('s', [('p', p5), ('s', s5), ('s', s5), ('d', d5)]),
                            ('d', [('p', p5), ('s', s5), ('d', d5), ('d', d5)]),
-                           ('h', [('p', p5), ('s', s5), ('h', h5), ('h', h5)])):
+                           ('h', [('p', p5), ('s', s5), ('h', h5), ('h', h5)]),
+                           ('n', [('p', p5), ('s', s5), ('d', d5), ('n', n5), ('n', n5)])):
             with self.subTest(tag=tag):
-                with self.assertRaises(BOLT11DecodeException):
+                with self.assertRaisesRegex(BOLT11DecodeException, f"^Unexpected (multiple )?'{tag}' tags?$"):
                     decode_bolt11_invoice(self._encode_invoice_with_raw_tags(tags5))
-
-        # 'n' is the exception: BOLT #11 has writers put the most-preferred field first, so the
-        # first one is kept and the rest ignored. Note the invoice is signed by PUBKEY, so if
-        # the second 'n' were the one kept, signature validation against it would fail.
-        other_pubkey = ecc.ECPrivkey(bytes(31) + b'\x02').get_public_key_bytes(compressed=True)
-        self.assertNotEqual(PUBKEY, other_pubkey)
-        lnaddr = decode_bolt11_invoice(self._encode_invoice_with_raw_tags(
-            [('p', p5), ('s', s5), ('d', d5),
-             ('n', convertbits(PUBKEY, 8, 5)), ('n', convertbits(other_pubkey, 8, 5))]))
-        self.assertEqual(PUBKEY, lnaddr.pubkey.serialize())
 
     def test_invalid_utf8_description(self):
         # the 'd' field is UTF-8: an invalid encoding must be rejected, not crash the parser
