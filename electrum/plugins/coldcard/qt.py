@@ -193,6 +193,7 @@ class CKCCSettingsDialog(WindowModalDialog):
         for row_num, (member_name, label) in enumerate(rows):
             # XXX we know xfp already, even if not connected
             widget = QLabel('<tt>000000000000')
+            widget.setTextFormat(Qt.TextFormat.RichText)
             widget.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard)
 
             grid.addWidget(QLabel(label), y, 0, 1, 1, Qt.AlignmentFlag.AlignRight)

@@ -187,6 +187,7 @@ class Plugin(TrustedCoinPlugin):
               + _("For more information, visit") + " <a href=\"https://api.trustedcoin.com/#/electrum-help\">https://api.trustedcoin.com/#/electrum-help</a>"
         label = QLabel(msg)
         label.setOpenExternalLinks(True)
+        label.setTextFormat(Qt.TextFormat.RichText)
 
         hbox.addStretch(10)
         hbox.addWidget(logo)
@@ -197,7 +198,9 @@ class Plugin(TrustedCoinPlugin):
         vbox.addLayout(hbox)
         vbox.addStretch(10)
 
-        msg = _('TrustedCoin charges a small fee to co-sign transactions. The fee depends on how many prepaid transactions you buy. An extra output is added to your transaction every time you run out of prepaid transactions.') + '<br/>'
+        msg = _('TrustedCoin charges a small fee to co-sign transactions. '
+                'The fee depends on how many prepaid transactions you buy. '
+                'An extra output is added to your transaction every time you run out of prepaid transactions.')
         label = QLabel(msg)
         label.setWordWrap(True)
         vbox.addWidget(label)

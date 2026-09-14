@@ -120,6 +120,7 @@ class RichLabel(WWLabel):
         WWLabel.__init__(self, text, parent)
         self.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         self.setOpenExternalLinks(True)
+        self.setTextFormat(Qt.TextFormat.RichText)
 
 
 class AmountLabel(QLabel):
