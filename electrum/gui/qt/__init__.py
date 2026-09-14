@@ -81,6 +81,7 @@ from electrum.bip32 import is_xprv
 from electrum import constants
 
 from electrum.gui.common_qt.i18n import ElectrumTranslator
+from electrum.gui.common_qt.util import break_qt_network
 from electrum.gui.messages import TERMS_OF_USE_LATEST_VERSION
 
 from .util import (read_QIcon, ColorScheme, custom_message_box, MessageBoxMixin, WWLabel,
@@ -167,6 +168,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.app.setWindowIcon(read_QIcon("electrum.png"))
         self.translator = ElectrumTranslator()
         self.app.installTranslator(self.translator)
+        break_qt_network()
         self._cleaned_up = False
         self.network_dialog = None
         self.lightning_dialog = None
