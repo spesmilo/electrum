@@ -39,8 +39,8 @@ except Exception as e:
         "you may try 'sudo apt-get install python3-pyqt6'") from e
 
 from PyQt6.QtGui import QGuiApplication, QCursor
-from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QWidget, QMenu, QMessageBox, QDialog, QToolTip
-from PyQt6.QtCore import QObject, pyqtSignal, QTimer, Qt
+from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QWidget, QMenu, QMessageBox, QDialog, QToolTip, QLabel
+from PyQt6.QtCore import QObject, pyqtSignal, QTimer, Qt, QEvent
 
 import PyQt6.QtCore as QtCore
 
@@ -112,9 +112,6 @@ class OpenFileEventFilter(QObject):
 
 
 class ScreenshotProtectionEventFilter(QObject):
-    def __init__(self):
-        super().__init__()
-
     def eventFilter(self, obj, event):
         if (
             event.type() == QtCore.QEvent.Type.Show
@@ -122,6 +119,26 @@ class ScreenshotProtectionEventFilter(QObject):
             and obj.isWindow()
         ):
             set_windows_os_screenshot_protection_drm_flag(obj)
+        return False
+
+
+class InjectNoRichTextEventFilter(QObject):
+    """Set the default textFormat of all QLabels to PlainText.
+
+    note: this also affects e.g. QMessageBox as it uses a QLabel internally.
+    """
+    def eventFilter(self, obj: QObject, event: QEvent) -> bool:
+        if event.type() != QEvent.Type.Polish:
+            # see https://doc.qt.io/qt-6/qstyle.html#polish :
+            # > This function [QStyle.polish()] is called for every widget at some point after
+            # > it has been fully created but just before it is shown for the very first time.
+            return False
+        if not isinstance(obj, QLabel):
+            return False
+        if obj.textFormat() != Qt.TextFormat.AutoText:
+            # non-default textFormat => we leave it alone
+            return False
+        obj.setTextFormat(Qt.TextFormat.PlainText)
         return False
 
 
@@ -162,6 +179,8 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.screenshot_protection_efilter = ScreenshotProtectionEventFilter()
         if sys.platform in ['win32', 'windows'] and self.config.GUI_QT_SCREENSHOT_PROTECTION:
             self.app.installEventFilter(self.screenshot_protection_efilter)
+        self.efilter_no_rich_text = InjectNoRichTextEventFilter()
+        self.app.installEventFilter(self.efilter_no_rich_text)
         # explicitly set 'AA_DontShowIconsInMenus' False so menu icons are shown on MacOS
         self.app.setAttribute(Qt.ApplicationAttribute.AA_DontShowIconsInMenus, on=False)
         self.app.setWindowIcon(read_QIcon("electrum.png"))
