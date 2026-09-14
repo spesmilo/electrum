@@ -459,9 +459,15 @@ class TestBolt11(ElectrumTestCase):
         self.assertEqual(  # control
             Decimal('0.0025'),
             decode_bolt11_invoice(self._encode_invoice_with_raw_tags(tags5, amountstr='2500u')).amount)
+        self.assertEqual(  # control: 'p' is allowed as long as the amount is a whole msat
+            Decimal('0.00000000001'),
+            decode_bolt11_invoice(self._encode_invoice_with_raw_tags(tags5, amountstr='10p')).amount)
         for amountstr in ('21000001',  # more than the total coin supply
                           '1p',        # sub-millisatoshi precision
                           '25y',       # invalid multiplier
+                          '0',         # must be positive; an absent amount means "any amount"
+                          '0u',
+                          '025u',      # no leading zeroes
                           '-1',
                           'nan',
                           '1e3'):
@@ -476,6 +482,7 @@ class TestBolt11(ElectrumTestCase):
                              ("bytes", b'1'),
                              ("NaN", Decimal('nan')),
                              ("negative", Decimal(-1)),
+                             ("zero", Decimal(0)),
                              ("more than the coin supply", Decimal(21_000_001)),
                              ("sub-millisatoshi", Decimal('0.0000000000001'))):
             with self.subTest(label):

@@ -49,7 +49,7 @@ def shorten_amount(amount):
         unit = ''
     return str(amount) + unit
 
-def unshorten_amount(amount) -> Decimal:
+def unshorten_amount(amount: str) -> Decimal:
     """ Given a shortened amount, convert it into a decimal
     """
     # BOLT #11:
@@ -65,14 +65,18 @@ def unshorten_amount(amount) -> Decimal:
         'u': 10**6,
         'm': 10**3,
     }
-    unit = str(amount)[-1]
+
     # BOLT #11:
     # A reader SHOULD fail if `amount` contains a non-digit, or is followed by
     # anything except a `multiplier` in the table above.
-    if not re.fullmatch("\\d+[pnum]?", str(amount)):
+    if not re.fullmatch(f"[1-9][0-9]*[{''.join(units)}]?", amount):
         raise BOLT11DecodeException("Invalid amount '{}'".format(amount))
 
+    unit = amount[-1]
     if unit in units.keys():
+        # if multiplier is `p` and the last decimal of `amount` is not 0: MUST fail the payment.
+        if unit == 'p' and amount[-2] != '0':
+            raise BOLT11DecodeException("Sub-millisatoshi amount '{}'".format(amount))
         return Decimal(amount[:-1]) / units[unit]
     else:
         return Decimal(amount)
@@ -170,7 +174,7 @@ def pull_tagged(data5: bytearray) -> Tuple[str, Sequence[int]]:
 
 
 def encode_bolt11_invoice(addr: 'BOLT11Addr', privkey) -> str:
-    if addr.amount:
+    if addr.amount is not None:
         amount = addr.net.BOLT11_HRP + shorten_amount(addr.amount)
     else:
         amount = addr.net.BOLT11_HRP if addr.net else ''
@@ -296,7 +300,7 @@ class BOLT11Addr:
         if isinstance(value, int):
             value = Decimal(value)
         assert isinstance(value, Decimal)
-        if value.is_nan() or not (0 <= value <= TOTAL_COIN_SUPPLY_LIMIT_IN_BTC):
+        if value.is_nan() or not (0 < value <= TOTAL_COIN_SUPPLY_LIMIT_IN_BTC):
             raise BOLT11InvoiceException(f"amount is out-of-bounds: {value!r} BTC")
         if value * 10**12 % 10:
             # max resolution is millisatoshi
