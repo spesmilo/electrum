@@ -682,6 +682,13 @@ class TxEditor(WindowModalDialog, SubmarineSwapMixin, Logger):
         # warn if spending unconf
         if any((txin.block_height is not None and txin.block_height<=0) for txin in self.tx.inputs()):
             messages.append(_('This transaction will spend unconfirmed coins.'))
+            ancestors_info = self.wallet.get_unconf_ancestors_info(self.tx)
+            effective_feerate = quantize_feerate(ancestors_info.effective_feerate(tx_fee=fee, tx_size=tx_size))
+            if effective_feerate < quantize_feerate(fee / tx_size):
+                feerate_str = self.main_window.format_fee_rate(effective_feerate * 1000)
+                messages.append(_('Effective feerate including unconfirmed parents: {}.').format(feerate_str))
+            if not ancestors_info.all_ancestors_included:
+                messages.append(_('Not all unconfirmed parents are taken into account; the effective feerate could be lower.'))
         # warn if a reserve utxo was added
         if reserve_sats := self.wallet.tx_keeps_ln_utxo_reserve(self.tx, gui_spend_max=bool(self.output_value == '!')):
             reserve_str = self.main_window.config.format_amount_and_units(reserve_sats)
