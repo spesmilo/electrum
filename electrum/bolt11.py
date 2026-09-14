@@ -222,8 +222,8 @@ def encode_bolt11_invoice(addr: 'BOLT11Addr', privkey) -> str:
             if v is not None:
                 data5 += encode_fallback_addr(v, addr.net)
         elif k == 'd':
-            # truncate to max length: 1024*5 bits = 639 bytes
-            data5 += tagged8('d', v.encode()[0:639])
+            # truncate to max length: 1024*5 bits = 639 bytes, drop trailing, sliced utf-8 char
+            data5 += tagged8('d', v.encode()[0:639].decode('utf-8', errors='ignore').encode())
         elif k == 'x':
             expirybits = int_to_data5(v)
             data5 += tagged5('x', expirybits)
