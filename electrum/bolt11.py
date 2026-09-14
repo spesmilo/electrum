@@ -277,7 +277,7 @@ class BOLT11Addr:
         date: Optional[int | float] = None,
         payment_secret: bytes = None
     ):
-        self.date = int(time.time()) if not date else int(date)
+        self.date = int(time.time()) if date is None else int(date)
         self.tags = [] if not tags else tags
         self.unknown_tags = []
         self.paymenthash = paymenthash
