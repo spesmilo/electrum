@@ -35,6 +35,7 @@ import attr
 
 from . import bitcoin
 from . import constants
+from .bolt11 import BOLT11InvoiceException
 from .util import profiler, WalletFileException, multisig_type, TxMinedInfo, MyEncoder, bfh
 from .keystore import bip44_derivation
 from .transaction import (Transaction, TxOutpoint, tx_from_any, PartialTransaction, PartialTxOutput, BadHeaderMagic,
@@ -72,7 +73,7 @@ class WalletUnfinished(WalletFileException):
 # seed_version is now used for the version of the wallet file
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 72     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 73     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -262,6 +263,7 @@ class WalletDBUpgrader(Logger):
         self._convert_version_70()
         self._convert_version_71()
         self._convert_version_72()
+        self._convert_version_73()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
     def _convert_wallet_type(self):
@@ -930,13 +932,18 @@ class WalletDBUpgrader(Logger):
         # the new key for all requests is a wallet address, not done here
         for name in ['invoices', 'payment_requests']:
             invoices = self.data.get(name, {})
-            for key, item in invoices.items():
+            for key, item in list(invoices.items()):
                 is_lightning = item['type'] == 2
                 lightning_invoice = item['invoice'] if is_lightning else None
                 outputs = item['outputs'] if not is_lightning else None
                 bip70 = item['bip70'] if not is_lightning else None
                 if is_lightning:
-                    lnaddr = decode_bolt11_invoice(item['invoice'])
+                    try:
+                        lnaddr = decode_bolt11_invoice(item['invoice'])
+                    except BOLT11InvoiceException as e:
+                        self.logger.warning(f"removing {name} item {key} that fails bolt11 decode: {e}")
+                        del invoices[key]
+                        continue
                     amount_msat = lnaddr.get_amount_msat()
                     timestamp = lnaddr.date
                     exp_delay = lnaddr.get_expiry()
@@ -997,7 +1004,12 @@ class WalletDBUpgrader(Logger):
         for key, item in list(requests.items()):
             lnaddr = item.get('lightning_invoice')
             if lnaddr:
-                lnaddr = decode_bolt11_invoice(lnaddr)
+                try:
+                    lnaddr = decode_bolt11_invoice(lnaddr)
+                except BOLT11InvoiceException as e:
+                    self.logger.warning(f"removing request {key} that fails bolt11 decode: {e}")
+                    del requests[key]
+                    continue
                 rhash = lnaddr.paymenthash.hex()
                 if key != rhash:
                     requests[rhash] = item
@@ -1047,7 +1059,12 @@ class WalletDBUpgrader(Logger):
             if lightning_invoice is None:
                 payment_hash = None
             else:
-                lnaddr = decode_bolt11_invoice(lightning_invoice)
+                try:
+                    lnaddr = decode_bolt11_invoice(lightning_invoice)
+                except BOLT11InvoiceException as e:
+                    self.logger.warning(f"removing request {key} that fails bolt11 decode: {e}")
+                    del requests[key]
+                    continue
                 payment_hash = lnaddr.paymenthash.hex()
             item['payment_hash'] = payment_hash
         self.data['seed_version'] = 51
@@ -1479,6 +1496,22 @@ class WalletDBUpgrader(Logger):
         for channel_id, storage in channel_backups.items():
             channel_backups[channel_id] = _serialize_imported_channel_backup(storage)
         self.data['seed_version'] = 72
+
+    def _convert_version_73(self):
+        from .bolt11 import decode_bolt11_invoice
+        if not self._is_upgrade_method_needed(72, 72):
+            return
+        # remove invoices not passing stricter bolt11 invoice parsing (https://github.com/spesmilo/electrum/pull/10940)
+        invoices = self.data.get('invoices', {})
+        for key, item in list(invoices.items()):
+            lnaddr = item.get('lightning_invoice')
+            if lnaddr:
+                try:
+                    decode_bolt11_invoice(lnaddr)
+                except BOLT11InvoiceException as e:
+                    self.logger.warning(f"removing invoice {key} that fails bolt11 decode: {e}")
+                    del invoices[key]
+        self.data['seed_version'] = 73
 
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):

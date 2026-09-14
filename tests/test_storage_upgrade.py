@@ -8,6 +8,7 @@ import inspect
 
 import electrum
 from electrum.wallet_db import WalletDBUpgrader, WalletDB, WalletRequiresUpgrade, WalletRequiresSplit
+from electrum.bolt11 import BOLT11DecodeException
 from electrum.wallet import Wallet
 from electrum import constants
 from electrum import util
@@ -339,6 +340,95 @@ class TestStorageUpgrade(WalletTestCase):
         db = await self._upgrade_storage(wallet_str)
         assert db.get("imported_channel_backups").get("ddb06b023f24a587d96a9f113c02d266549d010a57d7b151c1f5332a9bbaafd5") \
             == "0200017e634853dc47f0bc2f2e0d1054b302fcb414371ddbd889f29ba8aa4e8b62c7725d472c7b642b14176f275d6dca60c8d1ec5cfbf935169f1fe873e6bd0ad155da038863cf8ab91046230f561cd5b386cbff8309fa02e3f0c3ed161a3aeb64a643b9d5afba9b2a33f5c151b1d7570a019d5466d2023c119f6ad987a5243f026bb0dd00003e74623171357a64726430703772366d68353961726e636179763030326e727530347030706636653264756b6479326833707672726e67747336687473616a02f2fa10e1317153b9cca5c0af211bcdd48aac4cf67a6f4d1cb7de71857261a1190303a53b5175b7ad2de558fc1f140d129fc5dd0949f1fbfac28ce2c33b236fbc6ef00390000e3230332e3133322e39342e313936072602a1ceaaae7b1da9d2e679977615988c62903e93a2e5d972aff6f0441face4be10c87b61e091f3f786ca44dc25283557214686d5ddb138eeb9df484145b991356b"
+
+    @as_testnet
+    async def test_upgrade_removes_invoice_with_malformed_route_tag(self):
+        # Db conversion 72->73 drops stored invoices that fail bolt11 decoding.
+        # Older versions decoded a malformed 'r'/'t' tag by silently skipping it, so such an
+        # invoice can be sitting in a wallet file; without this conversion it would now abort
+        # the load in Invoice._validate_invoice_str, leaving the file unopenable.
+        # The older conversions that decode invoices themselves (45, 47, 51) drop such items
+        # the same way, so a file from before those versions upgrades too.
+        # The malformed invoices below are correctly signed, but their 'r'/'t' payload has
+        # non-zero padding bits; see TestBolt11._encode_invoice_with_raw_tag.
+        bad_r = ('lntb1ps9zprzpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdq8w3jhxaqrqzq'
+                 'pxhlj48td8uen6qqvke0kwsx0uf3g9pqfg3sdetumr2lla597ahcjcqcn5v7yycysc39ua9r2l8qx527'
+                 'uthxfdgmhp47exeh98pv7facqmjed87')
+        bad_t = ('lntb1ps9zprzpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdq8w3jhxaqtqzq'
+                 'pg3tvdu05w4rd9ccwjq80f5ujz89c5ltq5fhp8dqxg7aan38gs24z0pgx8xj4vvzt2su5fqpr35tz692'
+                 'czrwt6e56twh3v8l0t8hfkxsq5xtyfu')
+        good = ('lntb15u1p0m6lzupp5zqjthgvaad9mewmdjuehwddyze9d8zyxcc43zhaddeegt37sndgsdq4xysyymr0vd'
+                '4kzcmrd9hx7cqp7xqrrss9qy9qsqsp5vlhcs24hwm747w8f3uau2tlrdkvjaglffnsstwyamj84cxuhrn2'
+                's8tut3jqumepu42azyyjpgqa4w9w03204zp9h4clk499y2umstl6s29hqyj8vv4as6zt5567ux7l3f66m8'
+                'pjhk65zjaq2esezk7ll2kcpljewkg')
+
+        def invoice_json(lightning_invoice):
+            return {'amount_msat': None, 'message': 'mymsg', 'time': 1615922274, 'exp': 0,
+                    'outputs': None, 'height': 0, 'bip70': None,
+                    'lightning_invoice': lightning_invoice}
+
+        data = {
+            'seed_version': 72,
+            'wallet_type': 'imported',
+            'addresses': {'tb1qmjzmg8nd4z56ar4fpngzsr6euktrhnjg9td385': {}},
+            'invoices': {'bad_r': invoice_json(bad_r),
+                         'bad_t': invoice_json(bad_t),
+                         'good': invoice_json(good)},
+        }
+        db = self._load_db_from_json_string(wallet_json=json.dumps(data), upgrade=True)
+        self.assertEqual(73, db.get('seed_version'))
+        self.assertEqual(['good'], list(db.get_dict('invoices').keys()))
+
+        # sanity: without the conversion (i.e. already at seed_version 73) the same file
+        # would not load at all
+        data['seed_version'] = 73
+        with self.assertRaises(BOLT11DecodeException):
+            self._load_db_from_json_string(wallet_json=json.dumps(data), upgrade=True)
+
+        # a pre-45 file: conversion 45 decodes the invoices itself and drops the bad ones
+        data['seed_version'] = 44
+        data['invoices'] = {key: {'type': 2, 'invoice': invoice_str}
+                            for key, invoice_str in (('bad_r', bad_r), ('bad_t', bad_t), ('good', good))}
+        db = self._load_db_from_json_string(wallet_json=json.dumps(data), upgrade=True)
+        self.assertEqual(73, db.get('seed_version'))
+        self.assertEqual(['good'], list(db.get_dict('invoices').keys()))
+
+    @as_testnet
+    async def test_upgrade_removes_request_with_malformed_route_tag(self):
+        # Same as the above, for the receive side: conversions 45, 47 and 51 each decode the
+        # bolt11 str of stored payment_requests, and drop the ones that no longer decode.
+        # (73 does not have to: a modern Request only stores the payment_hash.)
+        bad_r = ('lntb1ps9zprzpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdq8w3jhxaqrqzq'
+                 'pxhlj48td8uen6qqvke0kwsx0uf3g9pqfg3sdetumr2lla597ahcjcqcn5v7yycysc39ua9r2l8qx527'
+                 'uthxfdgmhp47exeh98pv7facqmjed87')
+        good = ('lntb15u1p0m6lzupp5zqjthgvaad9mewmdjuehwddyze9d8zyxcc43zhaddeegt37sndgsdq4xysyymr0vd'
+                '4kzcmrd9hx7cqp7xqrrss9qy9qsqsp5vlhcs24hwm747w8f3uau2tlrdkvjaglffnsstwyamj84cxuhrn2'
+                's8tut3jqumepu42azyyjpgqa4w9w03204zp9h4clk499y2umstl6s29hqyj8vv4as6zt5567ux7l3f66m8'
+                'pjhk65zjaq2esezk7ll2kcpljewkg')
+        good_rhash = '1024bba19deb4bbcbb6d97337735a4164ad38886c62b115fad6e7285c7d09b51'
+
+        def request_json(seed_version, lightning_invoice):
+            """A payment_requests item holding a bolt11 str, in that seed_version's shape."""
+            if seed_version < 45:
+                return {'type': 2, 'invoice': lightning_invoice}
+            # note: amount_msat must match the invoice and be an int, else conversion 54 drops it
+            return {'amount_msat': 1_500_000, 'message': 'mymsg', 'time': 1615922274, 'exp': 0,
+                    'outputs': None, 'height': 0, 'bip70': None,
+                    'lightning_invoice': lightning_invoice}
+
+        # 44 -> conversion 45 drops it, 46 -> conversion 47 does, 50 -> conversion 51 does
+        for seed_version in (44, 46, 50):
+            with self.subTest(seed_version=seed_version):
+                data = {
+                    'seed_version': seed_version,
+                    'wallet_type': 'imported',
+                    'addresses': {'tb1qmjzmg8nd4z56ar4fpngzsr6euktrhnjg9td385': {}},
+                    'payment_requests': {'bad_r': request_json(seed_version, bad_r),
+                                         good_rhash: request_json(seed_version, good)},
+                }
+                db = self._load_db_from_json_string(wallet_json=json.dumps(data), upgrade=True)
+                self.assertEqual(73, db.get('seed_version'))
+                self.assertEqual([good_rhash], list(db.get_dict('payment_requests').keys()))
 
 
 ##########
