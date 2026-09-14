@@ -46,6 +46,7 @@ ElDialog {
                 text: Daemon.singlePasswordEnabled || isStartup
                     ? qsTr('Please enter password')
                     : qsTr('Wallet <b>%1</b> requires password to unlock').arg(name)
+                textFormat: Text.RichText
                 compact: true
                 iconStyle: InfoTextArea.IconStyle.Info
                 backgroundColor: constants.darkerDialogBackground
