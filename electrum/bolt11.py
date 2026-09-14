@@ -210,14 +210,6 @@ def encode_bolt11_invoice(addr: 'BOLT11Addr', privkey) -> str:
                 route += int.to_bytes(feerate, length=4, byteorder="big", signed=False)
                 route += int.to_bytes(cltv, length=2, byteorder="big", signed=False)
             data5 += tagged8('r', route)
-        elif k == 't':
-            pubkey, feebase, feerate, cltv = v
-            route = bytearray()
-            route += pubkey
-            route += int.to_bytes(feebase, length=4, byteorder="big", signed=False)
-            route += int.to_bytes(feerate, length=4, byteorder="big", signed=False)
-            route += int.to_bytes(cltv, length=2, byteorder="big", signed=False)
-            data5 += tagged8('t', route)
         elif k == 'f':
             if v is not None:
                 data5 += encode_fallback_addr(v, addr.net)
@@ -333,7 +325,6 @@ class BOLT11Addr:
         return self.amount * COIN
 
     def get_routing_info(self, tag):
-        # note: tag will be 't' for trampoline
         r_tags = list(filter(lambda x: x[0] == tag, self.tags))
         # strip the tag type, it's implicitly 'r' now
         r_tags = list(map(lambda x: x[1], r_tags))
@@ -559,22 +550,6 @@ def decode_bolt11_invoice(invoice: str, *, verbose=False, net=None) -> BOLT11Add
                     route.append((pubkey, scid, feebase, feerate, cltv))
             if route:
                 addr.tags.append(('r',route))
-        elif tag == 't':
-            tagdata = _convertbits_tag(tag, tagdata, 5, 8, False)
-            if not tagdata:
-                continue
-            route = []
-            with io.BytesIO(bytes(tagdata)) as s:
-                pubkey = s.read(33)
-                feebase = s.read(4)
-                feerate = s.read(4)
-                cltv = s.read(2)
-                if len(cltv) == 2:  # no EOF
-                    feebase = int.from_bytes(feebase, byteorder="big")
-                    feerate = int.from_bytes(feerate, byteorder="big")
-                    cltv = int.from_bytes(cltv, byteorder="big")
-                    route.append((pubkey, feebase, feerate, cltv))
-            addr.tags.append(('t', route))
         elif tag == 'f':
             fallback = parse_fallback_addr(tagdata, addr.net)
             if fallback:

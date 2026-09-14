@@ -246,9 +246,7 @@ class TestBolt11(ElectrumTestCase):
                               ('s', [0] * 51 + [1]),
                               ('n', [0] * 52 + [1]),    # data_length 53, non-zero padding bit
                               ('r', [1]),
-                              ('r', [0, 1]),
-                              ('t', [1]),
-                              ('t', [0, 1])):
+                              ('r', [0, 1])):
             with self.subTest(tag=tag, tagdata5=tagdata5):
                 with self.assertRaises(BOLT11DecodeException):
                     decode_bolt11_invoice(self._encode_invoice_with_raw_tag(tag, tagdata5))
@@ -259,8 +257,7 @@ class TestBolt11(ElectrumTestCase):
                               ('p', [0] * 51 + [16]),
                               ('s', [0] * 51 + [16]),
                               ('n', list(convertbits(PUBKEY, 8, 5))),
-                              ('r', [0] * 8),
-                              ('t', [0] * 8)):
+                              ('r', [0] * 8)):
             with self.subTest(tag=tag):
                 decode_bolt11_invoice(self._encode_invoice_with_raw_tag(tag, tagdata5))
 
@@ -272,20 +269,15 @@ class TestBolt11(ElectrumTestCase):
                         decode_bolt11_invoice(
                             self._encode_invoice_with_raw_tag(tag, [0] * wrong_length))
 
-        # 'r' and 't': an empty payload converts to b'' instead of failing, so it is skipped
-        for tag in ('r', 't'):
-            with self.subTest(tag=tag, tagdata5=[]):
-                lnaddr = decode_bolt11_invoice(self._encode_invoice_with_raw_tag(tag, []))
-                self.assertIsNone(lnaddr.get_tag(tag))
-                self.assertEqual([], lnaddr.unknown_tags)
+        # 'r': an empty payload converts to b'' instead of failing, so it is skipped
+        lnaddr = decode_bolt11_invoice(self._encode_invoice_with_raw_tag('r', []))
+        self.assertIsNone(lnaddr.get_tag('r'))
+        self.assertEqual([], lnaddr.unknown_tags)
 
         # control: a well-formed hop is parsed
         r_hop = bytes(33) + bytes(8) + (1).to_bytes(4, 'big') + (2).to_bytes(4, 'big') + (3).to_bytes(2, 'big')
-        t_hop = bytes(33) + (1).to_bytes(4, 'big') + (2).to_bytes(4, 'big') + (3).to_bytes(2, 'big')
-        for tag, hop in (('r', r_hop), ('t', t_hop)):
-            with self.subTest(tag=tag):
-                invoice = self._encode_invoice_with_raw_tag(tag, list(convertbits(hop, 8, 5)))
-                self.assertEqual(1, len(decode_bolt11_invoice(invoice).get_routing_info(tag)))
+        invoice = self._encode_invoice_with_raw_tag('r', list(convertbits(r_hop, 8, 5)))
+        self.assertEqual(1, len(decode_bolt11_invoice(invoice).get_routing_info('r')))
 
     def test_invalid_signature(self):
         # The trailing 65 bytes of an invoice are attacker-controlled: every way the ecc lib
