@@ -180,7 +180,7 @@ class AbstractWizard:
             # multisig:
             "multisig_participants", "multisig_signatures", "multisig_current_cosigner", "cosigner_keystore_type",
             # trustedcoin:
-            "trustedcoin_keepordisable", "trustedcoin_go_online",
+            "trustedcoin_keepordisable",
         ]
 
         def sanitize(_dict):
@@ -693,7 +693,9 @@ class NewWalletWizard(KeystoreWizard):
 
         # TODO: refactor using self.keystore_from_data
         k = None
-        if 'keystore_type' not in data:
+        if data['wallet_type'] == '2fa':
+            pass  # keystores were created by the trustedcoin plugin, see below
+        elif 'keystore_type' not in data:
             assert data['wallet_type'] == 'imported'
             addresses = {}
             if 'private_key_list' in data:
@@ -734,9 +736,6 @@ class NewWalletWizard(KeystoreWizard):
                 else:
                     script = data['script_type'] if data['script_type'] != 'p2pkh' else 'standard'
                 k = keystore.from_bip43_rootseed(root_seed, derivation=derivation, xtype=script)
-            elif is_any_2fa_seed_type(data['seed_type']):
-                self._logger.debug('creating keystore from 2fa seed')
-                k = keystore.from_xprv(data['x1']['xprv'])
             else:
                 raise NotImplementedError('unsupported/unknown seed_type %s' % data['seed_type'])
         elif data['keystore_type'] == 'masterkey':
@@ -788,17 +787,11 @@ class NewWalletWizard(KeystoreWizard):
         if data['wallet_type'] == 'standard':
             db.put('keystore', k.dump())
         elif data['wallet_type'] == '2fa':
-            db.put('x1', k.dump())
-            if 'trustedcoin_keepordisable' in data and data['trustedcoin_keepordisable'] == 'disable':
-                k2 = keystore.from_xprv(data['x2']['xprv'])
-                if data['encrypt'] and k2.may_have_password():
-                    k2.update_password(None, data['password'])
-                db.put('x2', k2.dump())
-            else:
-                db.put('x2', data['x2'])
-            if 'x3' in data:
-                db.put('x3', data['x3'])
-            db.put('use_trustedcoin', True)
+            for name in ['x1', 'x2', 'x3']:
+                k2fa = keystore.from_master_key(data[name])
+                if data['password'] and k2fa.may_have_password():
+                    k2fa.update_password(None, data['password'])
+                db.put(name, k2fa.dump())
         elif data['wallet_type'] == 'multisig':
             if not isinstance(k, keystore.Xpub):
                 raise TypeError(f'unexpected keystore(main) type={type(k)} in multisig. not bip32.')

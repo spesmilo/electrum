@@ -2599,7 +2599,6 @@ class TestWalletSending(ElectrumTestCase):
                 coins=coins,
                 outputs=[PartialTxOutput.from_address_and_value(dest_addr, value='!')],
                 fee_policy=FixedFeePolicy(500),
-                is_sweep=True,
             )
             tx.sign(keypairs)
             self.assertTrue(tx.is_complete())

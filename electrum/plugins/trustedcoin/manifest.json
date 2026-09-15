@@ -1,7 +1,7 @@
 {
   "name": "trustedcoin",
   "fullname": "Two Factor Authentication",
-  "description": "This plugin adds two-factor authentication to your wallet.<br/>For more information, visit <a href=\"https://api.trustedcoin.com/#/electrum-help\">https://api.trustedcoin.com/#/electrum-help</a>",
+  "description": "This plugin adds two-factor authentication to your wallet, with the Electrum app on your phone as cosigner. It replaces the discontinued TrustedCoin cosigning service.",
   "requires_wallet_type": ["2fa"],
   "registers_wallet_type": "2fa",
   "icon":"trustedcoin-status.png",

@@ -479,11 +479,6 @@ Item {
             })
             dialog.open()
         }
-        function onOtpRequested() {
-            console.log('OTP requested')
-            var dialog = otpDialog.createObject(mainView)
-            dialog.open()
-        }
         function onBroadcastFailed(txid, code, message) {
             var dialog = app.messageDialog.createObject(app, {
                 title: qsTr('Error'),
@@ -742,16 +737,6 @@ Item {
         id: lnurlWithdrawDialog
         LnurlWithdrawRequestDialog {
             width: parent.width * 0.9
-            anchors.centerIn: parent
-
-            onClosed: destroy()
-        }
-    }
-
-    Component {
-        id: otpDialog
-        OtpDialog {
-            width: parent.width * 2/3
             anchors.centerIn: parent
 
             onClosed: destroy()

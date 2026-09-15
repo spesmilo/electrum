@@ -246,16 +246,13 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         if pi.type == PaymentIdentifierType.BIP21:
             assert 'amount' not in pi.bip21
 
-        if run_hook('abort_send', self):
-            return
         outputs = pi.get_onchain_outputs('!')
         if not outputs:
             return
         make_tx = lambda fee_policy, *, confirmed_only=False: self.wallet.make_unsigned_transaction(
             fee_policy=fee_policy,
             coins=self.window.get_coins(),
-            outputs=outputs,
-            is_sweep=False)
+            outputs=outputs)
         try:
             try:
                 tx = make_tx(FeePolicy(self.config.FEE_POLICY))
@@ -271,16 +268,11 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
 
         self.max_button.setChecked(True)
         amount = tx.output_value()
-        __, x_fee_amount = run_hook('get_tx_extra_fee', self.wallet, tx) or (None, 0)
-        amount_after_all_fees = amount - x_fee_amount
-        self.amount_e.setAmount(amount_after_all_fees)
+        self.amount_e.setAmount(amount)
         # show tooltip explaining max amount
         mining_fee = tx.get_fee()
         mining_fee_str = self.format_amount_and_units(mining_fee)
         msg = _("Mining fee: {} (can be adjusted on next screen)").format(mining_fee_str)
-        if x_fee_amount:
-            twofactor_fee_str = self.format_amount_and_units(x_fee_amount)
-            msg += "\n" + _("2fa fee: {} (for the next batch of transactions)").format(twofactor_fee_str)
         frozen_bal = self.wallet.get_frozen_balance_str()
         if frozen_bal:
             msg += "\n" + _("Some coins are frozen: {} (can be unfrozen in the Addresses or in the Coins tab)").format(frozen_bal)
@@ -298,11 +290,6 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             get_coins: Callable[..., Sequence[PartialTxInput]] = None,
             invoice: Optional[Invoice] = None
     ) -> None:
-        # trustedcoin requires this
-        if run_hook('abort_send', self):
-            return
-
-        is_sweep = bool(external_keypairs)
         # we call get_coins inside make_tx, so that inputs can be changed dynamically
         if get_coins is None:
             get_coins = self.window.get_coins
@@ -314,7 +301,6 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                 coins=coins,
                 outputs=outputs,
                 base_tx=base_tx,
-                is_sweep=is_sweep,
                 send_change_to_lightning=self.config.WALLET_SEND_CHANGE_TO_LIGHTNING,
                 merge_duplicate_outputs=self.config.WALLET_MERGE_DUPLICATE_OUTPUTS,
             )
@@ -347,8 +333,6 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                 tx,
                 external_keypairs=external_keypairs,
                 invoice=invoice,
-                show_sign_button=self.wallet.wallet_type != '2fa',
-                show_broadcast_button=self.wallet.wallet_type != '2fa',
             )
             return
         self.save_pending_invoice()

@@ -70,8 +70,7 @@ Item {
     property color colorAddressUsed: Qt.rgba(0.5,0.5,0.5,1)
     property color colorAddressUsedWithBalance: Qt.rgba(0.75,0.75,0.75,1)
     property color colorAddressFrozen: Qt.rgba(0.5,0.5,1,1)
-    property color colorAddressBilling: "#8cb3f2"
-    property color colorAddressSwap: colorAddressBilling
+    property color colorAddressSwap: "#8cb3f2"
     property color colorAddressAccounting: "#ff9b45"
 
     function colorAlpha(baseColor, alpha) {

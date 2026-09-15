@@ -36,7 +36,6 @@ from PyQt6.QtWidgets import (QHBoxLayout, QVBoxLayout, QLabel, QGridLayout, QPus
 from electrum.i18n import _
 from electrum.util import (UserCancelled, quantize_feerate, profiler, NotEnoughFunds, NoDynamicFeeEstimates,
                            UserFacingException)
-from electrum.plugin import run_hook
 from electrum.transaction import PartialTransaction, PartialTxOutput, Transaction
 from electrum.wallet import InternalAddressCorruption
 from electrum.bitcoin import DummyAddress
@@ -652,7 +651,6 @@ class TxEditor(WindowModalDialog, SubmarineSwapMixin, Logger):
                 self.locktime_e.set_locktime(self.tx.locktime)
             self.io_widget.update(self.tx)
             self.fee_label.setText(self.main_window.config.format_amount_and_units(self.tx.get_fee()))
-            self._update_extra_fees()
 
         if self.send_change_to_lightning_available():
             self.change_to_ln_swap_providers_button.setVisible(True)
@@ -720,9 +718,6 @@ class TxEditor(WindowModalDialog, SubmarineSwapMixin, Logger):
             self.tx.locktime = locktime
 
     def _update_amount_label(self):
-        pass
-
-    def _update_extra_fees(self):
         pass
 
     def _update_message(self):
@@ -1109,25 +1104,8 @@ class ConfirmTxDialog(TxEditor):
 
         grid.setColumnStretch(4, 1)
 
-        # extra fee
-        self.extra_fee_label = QLabel(_("Additional fees") + ": ")
-        self.extra_fee_label.setVisible(False)
-        self.extra_fee_value = QLabel('')
-        self.extra_fee_value.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        self.extra_fee_value.setVisible(False)
-        grid.addWidget(self.extra_fee_label, 5, 0)
-        grid.addWidget(self.extra_fee_value, 5, 1)
-
         # locktime editor
         grid.addWidget(self.locktime_label, 6, 0)
         grid.addWidget(self.locktime_e, 6, 1, 1, 2)
 
         return grid
-
-    def _update_extra_fees(self):
-        x_fee = run_hook('get_tx_extra_fee', self.wallet, self.tx)
-        if x_fee:
-            x_fee_address, x_fee_amount = x_fee
-            self.extra_fee_label.setVisible(True)
-            self.extra_fee_value.setVisible(True)
-            self.extra_fee_value.setText(self.main_window.format_amount_and_units(x_fee_amount))
