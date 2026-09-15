@@ -386,7 +386,7 @@ class ServerWidget(QWidget, QtEventListener):
             </ul>
             """
         )
-        grid.addWidget(HelpButton(msg), 0, 4)
+        grid.addWidget(HelpButton(msg, rich_text=True), 0, 4)
         grid.addWidget(self.connect_combo, 0, 1, 1, 3)
 
         self.server_e = QLineEdit()
