@@ -676,8 +676,10 @@ class TxEditor(WindowModalDialog, SubmarineSwapMixin, Logger):
             self.error = _('Fee estimates not available. Please set a fixed fee or feerate.')
         if self.config.WALLET_SEND_CHANGE_TO_LIGHTNING:
             if not self.swap_manager:
-                messages.append(_("Lightning is not enabled."))
-            elif swap_msg := self.swap_manager.get_message_for_swap_change(self.swap_transport, self.tx):
+                swap_msg = _("Change stays on-chain (Lightning not enabled).") if self.tx.has_change() else ""
+            else:
+                swap_msg = self.swap_manager.get_message_for_swap_change(self.swap_transport, self.tx)
+            if swap_msg:
                 messages.append(swap_msg)
         # warn if spending unconf
         if any((txin.block_height is not None and txin.block_height<=0) for txin in self.tx.inputs()):

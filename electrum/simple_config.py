@@ -703,7 +703,8 @@ class SimpleConfig(Logger):
     WALLET_SEND_CHANGE_TO_LIGHTNING = ConfigVar(
         'send_change_to_lightning', default=False, type_=bool,
         short_desc=lambda: _('Send change to Lightning'),
-        long_desc=lambda: _('If possible, send the change of this transaction to your channels, with a submarine swap'),
+        long_desc=lambda: _('When possible, send transaction change to your Lightning balance using a swap. '
+                            'Swap fees apply. Otherwise, change stays on-chain.'),
     )
     WALLET_ENABLE_SUBMARINE_PAYMENTS = ConfigVar(
         'enable_submarine_payments', default=False, type_=bool,
