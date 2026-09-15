@@ -550,9 +550,8 @@ class TxEditor(WindowModalDialog, SubmarineSwapMixin, Logger):
                 _('This may result in higher transactions fees.')
             ]))
         self.use_multi_change_menu.setEnabled(self.wallet.use_change)
-        # fixme: WALLET_MERGE_DUPLICATE_OUTPUTS only makes sense when we create a new tx,
-        # and should not be visible/enabled in rbf dialog
-        self.pref_menu.addConfig(self.config.cv.WALLET_MERGE_DUPLICATE_OUTPUTS, callback=self.trigger_update)
+        if self.context == TxEditorContext.PAYMENT:
+            self.pref_menu.addConfig(self.config.cv.WALLET_MERGE_DUPLICATE_OUTPUTS, callback=self.trigger_update)
         self.pref_menu.addConfig(self.config.cv.WALLET_SPEND_CONFIRMED_ONLY, callback=self.trigger_update)
         self.pref_menu.addConfig(self.config.cv.WALLET_COIN_CHOOSER_OUTPUT_ROUNDING, callback=self.trigger_update)
         self.pref_button = QToolButton()
