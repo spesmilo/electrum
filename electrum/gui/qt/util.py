@@ -384,11 +384,7 @@ def custom_message_box(
     d.setDefaultButton(defaultButton)
     if rich_text:
         d.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.LinksAccessibleByMouse)
-        # set AutoText instead of RichText
-        # AutoText lets Qt figure out whether to render as rich text.
-        # e.g. if text is actually plain text and uses "\n" newlines;
-        #      and we set RichText here, newlines would be swallowed
-        d.setTextFormat(Qt.TextFormat.AutoText)
+        d.setTextFormat(Qt.TextFormat.RichText)
     else:
         d.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         d.setTextFormat(Qt.TextFormat.PlainText)
