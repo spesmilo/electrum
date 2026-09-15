@@ -147,9 +147,10 @@ class Spinner(QLabel):
 
 
 class HelpMixin:
-    def __init__(self, help_text: str, *, help_title: str | None = None):
+    def __init__(self, help_text: str, *, help_title: str | None = None, rich_text: bool = False):
         assert isinstance(self, QWidget), "HelpMixin must be a QWidget instance!"
         self.help_text = help_text
+        self.rich_text = rich_text
         self._help_title = help_title or _('Help')
         if isinstance(self, QLabel):
             self.setTextInteractionFlags(
@@ -162,15 +163,15 @@ class HelpMixin:
             parent=self,
             title=self._help_title,
             text=self.help_text,
-            rich_text=True,
+            rich_text=self.rich_text,
         )
 
 
 class HelpLabel(HelpMixin, QLabel):
 
-    def __init__(self, text: str, help_text: str):
+    def __init__(self, text: str, help_text: str, *, rich_text: bool = False):
         QLabel.__init__(self, text)
-        HelpMixin.__init__(self, help_text)
+        HelpMixin.__init__(self, help_text, rich_text=rich_text)
         self.app = QCoreApplication.instance()
         self.font = self.font()
 
@@ -195,9 +196,9 @@ class HelpLabel(HelpMixin, QLabel):
 
 
 class HelpButton(HelpMixin, QToolButton):
-    def __init__(self, text: str):
+    def __init__(self, text: str, *, rich_text: bool = False):
         QToolButton.__init__(self)
-        HelpMixin.__init__(self, text)
+        HelpMixin.__init__(self, text, rich_text=rich_text)
         self.setText('?')
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.setFixedWidth(round(2.2 * char_width_in_lineedit()))
@@ -205,9 +206,9 @@ class HelpButton(HelpMixin, QToolButton):
 
 
 class InfoButton(HelpMixin, QPushButton):
-    def __init__(self, text: str):
+    def __init__(self, text: str, *, rich_text: bool = False):
         QPushButton.__init__(self, _('Info'))
-        HelpMixin.__init__(self, text, help_title=_('Info'))
+        HelpMixin.__init__(self, text, help_title=_('Info'), rich_text=rich_text)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.setFixedWidth(6 * char_width_in_lineedit())
         self.clicked.connect(self.show_help)
