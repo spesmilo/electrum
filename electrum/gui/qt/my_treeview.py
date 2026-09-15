@@ -86,7 +86,7 @@ class QMenuWithConfig(QMenu):
             checked = bool(configvar.get())
         tooltip = None
         if (long_desc := configvar.get_long_desc()) is not None:
-            tooltip = messages.to_rtf(long_desc)
+            tooltip = messages.wrap_multi_paragraph_text(long_desc)
         return self.addToggle(
             short_desc,
             lambda: self._do_toggle_config(configvar, callback=callback),
