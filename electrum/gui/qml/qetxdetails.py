@@ -325,7 +325,6 @@ class QETxDetails(QObject, QtEventListener):
             'short_id': '',  # TODO
             'is_mine': self._wallet.wallet.is_mine(x.get_ui_address_str()),
             'is_change': self._wallet.wallet.is_change(x.get_ui_address_str()),
-            'is_billing': self._wallet.wallet.is_billing_address(x.get_ui_address_str()),
             'is_swap': False if not sm else sm.is_lockup_address_for_a_swap(x.get_ui_address_str()) or x.get_ui_address_str() == DummyAddress.SWAP,
             'is_accounting': self._wallet.wallet.is_accounting_address(x.get_ui_address_str())
         }, self._tx.outputs()))

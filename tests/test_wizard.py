@@ -7,7 +7,13 @@ from electrum.network import NetworkParameters, ProxySettings
 from electrum.plugin import Plugins, DeviceInfo, Device
 from electrum.wizard import ServerConnectWizard, NewWalletWizard, WizardViewState, KeystoreWizard
 from electrum.daemon import Daemon
-from electrum.wallet import Abstract_Wallet, Deterministic_Wallet
+from electrum.wallet import Abstract_Wallet, Deterministic_Wallet, Wallet
+from electrum.wallet_db import WalletDB
+from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
+from electrum.bitcoin import address_to_script
+from electrum.fee_policy import FixedFeePolicy
+from electrum.transaction import Transaction, PartialTxOutput, tx_from_any
+from electrum.plugins.trustedcoin import trustedcoin
 from electrum import util
 from electrum import slip39
 from electrum.bip32 import KeyOriginInfo
@@ -784,29 +790,48 @@ class WalletWizardTestCase(WizardTestCase):
         v = w.resolve_next(v.view, d)
         self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qs2svwhfz47qv9qju2waa6prxzv5f522fc4p06t")
 
-    async def test_2fa_createseed(self):
+    def _wizard_for_2fa_haveseed(
+        self,
+        *,
+        name: str = "mywallet",
+        keepordisable: str,
+        seed_extra_words: str | None = None,
+    ) -> tuple[NewWalletWizard, WizardViewState]:
+        """Restores a 2fa wallet from seed, up to the 'wallet_password' view."""
         self.assertTrue(self.config.get('enable_plugin_trustedcoin'))
-        w = self._wizard_for(wallet_type='2fa')
+        w = self._wizard_for(name=name, wallet_type='2fa')
         v = w._current
         d = v.wizard_data
         self.assertEqual('trustedcoin_start', v.view)
+
         v = w.resolve_next(v.view, d)
         self.assertEqual('trustedcoin_choose_seed', v.view)
-        d.update({'keystore_type': 'createseed'})
+        d.update({'keystore_type': 'haveseed'})
         v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_create_seed', v.view)
+        self.assertEqual('trustedcoin_have_seed', v.view)
         d.update({
             'seed': 'oblige basket safe educate whale bacon celery demand novel slice various awkward',
-            'seed_type': '2fa', 'seed_extend': False, 'seed_variant': 'electrum',
+            'seed_type': '2fa', 'seed_extend': seed_extra_words is not None, 'seed_variant': 'electrum',
         })
         v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_confirm_seed', v.view)
+        if seed_extra_words is not None:
+            self.assertEqual('trustedcoin_have_ext', v.view)
+            d.update({'seed_extra_words': seed_extra_words})
+            v = w.resolve_next(v.view, d)
+        self.assertEqual('trustedcoin_keep_disable', v.view)
+        d.update({'trustedcoin_keepordisable': keepordisable})
         v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_tos', v.view)
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_show_confirm_otp', v.view)
-        v = w.resolve_next(v.view, d)
+        if keepordisable == 'keep':
+            self.assertEqual('trustedcoin_show_cosigner_qr', v.view)
+            v = w.resolve_next(v.view, d)
+        return w, v
+
+    async def test_2fa_haveseed_keep2FAenabled(self):
+        w, v = self._wizard_for_2fa_haveseed(keepordisable='keep')
         wallet = self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qnf5qafvpx0afk47433j3tt30pqkxp5wa263m77wt0pvyqq67rmfs522m94")
+        self.assertFalse(wallet.keystores['x1'].is_watching_only())
+        self.assertTrue(wallet.keystores['x2'].is_watching_only())
+        self.assertFalse(wallet.can_sign_without_cosigner())
 
         with self.subTest(msg="2fa wallet cannot enable/disable keystore"):
             for ks in wallet.get_keystores():
@@ -818,82 +843,86 @@ class WalletWizardTestCase(WizardTestCase):
                     wallet.enable_keystore(ks, False, None)
                 self.assertTrue("2fa wallet cannot" in ctx.exception.args[0])
 
-    async def test_2fa_haveseed_keep2FAenabled(self):
-        self.assertTrue(self.config.get('enable_plugin_trustedcoin'))
-        w = self._wizard_for(wallet_type='2fa')
-        v = w._current
-        d = v.wizard_data
-        self.assertEqual('trustedcoin_start', v.view)
-
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_choose_seed', v.view)
-        d.update({'keystore_type': 'haveseed'})
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_have_seed', v.view)
-        d.update({
-            'seed': 'oblige basket safe educate whale bacon celery demand novel slice various awkward',
-            'seed_type': '2fa', 'seed_extend': False, 'seed_variant': 'electrum',
-        })
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_keep_disable', v.view)
-        d.update({'trustedcoin_keepordisable': 'keep'})
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_tos', v.view)
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_show_confirm_otp', v.view)
-        v = w.resolve_next(v.view, d)
-        self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qnf5qafvpx0afk47433j3tt30pqkxp5wa263m77wt0pvyqq67rmfs522m94")
-
     async def test_2fa_haveseed_disable2FA(self):
-        self.assertTrue(self.config.get('enable_plugin_trustedcoin'))
-        w = self._wizard_for(wallet_type='2fa')
-        v = w._current
-        d = v.wizard_data
-        self.assertEqual('trustedcoin_start', v.view)
-
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_choose_seed', v.view)
-        d.update({'keystore_type': 'haveseed'})
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_have_seed', v.view)
-        d.update({
-            'seed': 'oblige basket safe educate whale bacon celery demand novel slice various awkward',
-            'seed_type': '2fa', 'seed_extend': False, 'seed_variant': 'electrum',
-        })
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_keep_disable', v.view)
-        d.update({'trustedcoin_keepordisable': 'disable'})
-        v = w.resolve_next(v.view, d)
-        self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qnf5qafvpx0afk47433j3tt30pqkxp5wa263m77wt0pvyqq67rmfs522m94")
+        w, v = self._wizard_for_2fa_haveseed(keepordisable='disable')
+        wallet = self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qnf5qafvpx0afk47433j3tt30pqkxp5wa263m77wt0pvyqq67rmfs522m94")
+        self.assertTrue(wallet.can_sign_without_cosigner())
 
     async def test_2fa_haveseed_passphrase(self):
-        self.assertTrue(self.config.get('enable_plugin_trustedcoin'))
-        w = self._wizard_for(wallet_type='2fa')
+        w, v = self._wizard_for_2fa_haveseed(keepordisable='keep', seed_extra_words=UNICODE_HORROR)
+        self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qcnu9ay4v3w0tawuxe6wlh6mh33rrpauqnufdgkxx7we8vpx3e6wqa25qud")
+
+    async def test_2fa_mobile_cosigner(self):
+        recv_addr = "bc1qnf5qafvpx0afk47433j3tt30pqkxp5wa263m77wt0pvyqq67rmfs522m94"
+        # desktop: restore the 2fa seed, and display the cosigner QR code
+        w, v = self._wizard_for_2fa_haveseed(name='desktop', keepordisable='keep')
+        xprv1, xpub1, xprv2, xpub2, xpub3 = w.plugins.get_plugin('trustedcoin').create_keys(v.wizard_data)
+        cosigner_qr = trustedcoin.make_cosigner_qr_data(xprv2, xpub1, xpub3)
+        self.assertEqual(
+            '2fa_cosigner:'
+            'ZprvAkSth4YNtt4491XR5QabACZmFzdDV7XPN2KiYEaJsbMBtKJDEsji7cNDMEEusUbvqYtze57R9UvKsBn2g5LLAjhQaVSNTMKagZfQKSe8KBA:'
+            'Zpub6ySF6a5GjFcMJW1bx83wzKoke47zD6ouqGZ9zfBBne6htiwJtqPpvxfcWn9HsJF8wsKVzzMCunJA1Ux7Cm9AAtKY658yzheEV7usDVXa9E7:'
+            'Zpub6vZyhw1ShkEwNuzEqzZx6oLjntiSVTtdNZwVuKFPkYTN8o1nq2UK4e6HnucfhgLm3UVJ1ZWrnfmN8swnT7bYJ5e7sGUqHsTghP8Wc7MJ5ji',
+            cosigner_qr)
+        desktop_wallet = self._set_password_and_check_address(v=v, w=w, recv_addr=recv_addr, password='desktop')
+
+        # mobile: scan the cosigner QR code
+        w = self._wizard_for(name='mobile', wallet_type='2fa')
         v = w._current
         d = v.wizard_data
         self.assertEqual('trustedcoin_start', v.view)
-
         v = w.resolve_next(v.view, d)
         self.assertEqual('trustedcoin_choose_seed', v.view)
-        d.update({'keystore_type': 'haveseed'})
+        d.update({'keystore_type': 'cosigner_qr'})
         v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_have_seed', v.view)
-        d.update({
-            'seed': 'oblige basket safe educate whale bacon celery demand novel slice various awkward',
-            'seed_type': '2fa', 'seed_extend': True, 'seed_variant': 'electrum',
-        })
+        self.assertEqual('trustedcoin_scan_cosigner_qr', v.view)
+        d.update({'trustedcoin_cosigner_qr': cosigner_qr})
         v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_have_ext', v.view)
-        d.update({'seed_extra_words': UNICODE_HORROR})
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_keep_disable', v.view)
-        d.update({'trustedcoin_keepordisable': 'keep'})
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_tos', v.view)
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_show_confirm_otp', v.view)
-        v = w.resolve_next(v.view, d)
-        self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qcnu9ay4v3w0tawuxe6wlh6mh33rrpauqnufdgkxx7we8vpx3e6wqa25qud")
+        mobile_wallet = self._set_password_and_check_address(v=v, w=w, recv_addr=recv_addr, password='mobile')
+
+        self.assertTrue(isinstance(mobile_wallet, trustedcoin.Wallet_2fa))
+        self.assertTrue(mobile_wallet.keystores['x1'].is_watching_only())
+        self.assertFalse(mobile_wallet.keystores['x2'].is_watching_only())
+        self.assertFalse(mobile_wallet.can_sign_without_cosigner())
+
+        with self.subTest(msg="desktop signs, mobile cosigns"):
+            spk = address_to_script(recv_addr)
+            funding_tx = Transaction(
+                '0200000001' + 32 * '11' + '0000000000ffffffff01'
+                + (100_000).to_bytes(8, 'little').hex() + bytes([len(spk)]).hex() + spk.hex() + '00000000')
+            for wallet in (desktop_wallet, mobile_wallet):
+                wallet.adb.receive_tx_callback(funding_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+            outputs = [PartialTxOutput.from_address_and_value('bc1qs2svwhfz47qv9qju2waa6prxzv5f522fc4p06t', 50_000)]
+            tx = desktop_wallet.make_unsigned_transaction(outputs=outputs, fee_policy=FixedFeePolicy(1000))
+            desktop_wallet.sign_transaction(tx, password='desktop')
+            self.assertFalse(tx.is_complete())
+            qr_data, __ = tx.to_qr_data()
+            tx = tx_from_any(qr_data)  # scanned by the mobile app
+            mobile_wallet.sign_transaction(tx, password='mobile')
+            self.assertTrue(tx.is_complete())
+
+        with self.subTest(msg="invalid cosigner QR codes"):
+            for data in [
+                xprv2,
+                trustedcoin.make_cosigner_qr_data(xpub2, xpub1, xpub3),
+                cosigner_qr + ':' + xpub3,
+            ]:
+                with self.assertRaises(ValueError):
+                    trustedcoin.parse_cosigner_qr_data(data)
+
+    async def test_2fa_wallet_without_x3(self):
+        # created offline, and never completed online with the TrustedCoin server
+        recv_addr = "bc1qnf5qafvpx0afk47433j3tt30pqkxp5wa263m77wt0pvyqq67rmfs522m94"
+        w, v = self._wizard_for_2fa_haveseed(keepordisable='keep')
+        wallet = self._set_password_and_check_address(v=v, w=w, recv_addr=recv_addr)
+        xpub3 = wallet.keystores['x3'].get_master_public_key()
+
+        storage = WalletStorage(wallet.storage.path)
+        db = WalletDB(storage.read(), storage=storage, upgrade=True)
+        db.put('x3', None)
+        wallet = Wallet(db, config=self.config)
+        self.assertEqual(xpub3, wallet.keystores['x3'].get_master_public_key())
+        self.assertEqual(recv_addr, wallet.get_receiving_addresses()[0])
 
     async def test_create_standard_wallet_trezor(self):
         # bip39 seed for trezor: "history six okay anchor sheriff flock atom tomorrow foster aerobic eternal foam"
