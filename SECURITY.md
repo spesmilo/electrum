@@ -15,3 +15,5 @@ If using email, please send any report to *all* emails listed here.
 
 These GPG public keys can be found in the Electrum git repository,
 in the top-level `pubkeys` folder.
+
+Please also include what name we should use for you when giving credit for the report.
