@@ -3,11 +3,12 @@ import QtQuick.Layouts 1.0
 import QtQuick.Controls 2.1
 
 import "../../../gui/qml/components/wizard"
+import "../../../gui/qml/components/controls"
 
 WizardComponent {
     valid: keystoregroup.checkedButton !== null
 
-    onAccept: {
+    function apply() {
         wizard_data['keystore_type'] = keystoregroup.checkedButton.keystoretype
     }
 
@@ -18,21 +19,22 @@ WizardComponent {
     ColumnLayout {
         width: parent.width
         Label {
-            text: qsTr('Do you want to create a new seed, or restore a wallet using an existing seed?')
+            text: qsTr('How do you want to set up your 2FA wallet?')
             Layout.preferredWidth: parent.width
             wrapMode: Text.Wrap
         }
-        RadioButton {
+        ElRadioButton {
+            Layout.fillWidth: true
             ButtonGroup.group: keystoregroup
-            property string keystoretype: 'createseed'
+            property string keystoretype: 'cosigner_qr'
             checked: true
-            text: qsTr('Create a new seed')
+            text: qsTr('Scan the cosigner QR code displayed by Electrum desktop')
         }
-        RadioButton {
+        ElRadioButton {
+            Layout.fillWidth: true
             ButtonGroup.group: keystoregroup
             property string keystoretype: 'haveseed'
-            text: qsTr('I already have a seed')
+            text: qsTr('Restore from my 2FA seed, with two-factor authentication disabled')
         }
     }
 }
-

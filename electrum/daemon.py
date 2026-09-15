@@ -49,7 +49,7 @@ from .util import (
 )
 from .wallet import Wallet, Abstract_Wallet
 from .storage import WalletStorage
-from .wallet_db import WalletDB, WalletUnfinished
+from .wallet_db import WalletDB
 from .commands import known_commands, Commands
 from .simple_config import SimpleConfig
 from .exchange_rate import FxThread
@@ -554,8 +554,6 @@ class Daemon(Logger):
             storage.decrypt(password)
         # read data, pass it to db
         db = WalletDB(storage.read(), storage=storage, upgrade=upgrade)
-        if db.get_action():
-            raise WalletUnfinished(db)
         wallet = Wallet(db, config=config)
         if force_check_password:
             wallet.check_password(password)

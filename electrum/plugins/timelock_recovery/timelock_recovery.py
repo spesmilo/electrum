@@ -91,7 +91,6 @@ class TimelockRecoveryContext:
             coins=self.wallet.get_spendable_coins(confirmed_only=False),
             outputs=alert_tx_outputs,
             fee_policy=fee_policy,
-            is_sweep=False,
             locktime=self.alert_tx.locktime if self.alert_tx else None,
         )
 
@@ -125,7 +124,6 @@ class TimelockRecoveryContext:
             coins=[recovery_tx_input],
             outputs=[output for output in self.outputs if output.value != 0],
             fee_policy=fee_policy,
-            is_sweep=False,
             locktime=self.recovery_tx.locktime if self.recovery_tx else None,
         )
 
@@ -150,7 +148,6 @@ class TimelockRecoveryContext:
                 PartialTxOutput(scriptpubkey=address_to_script(self.get_cancellation_address()), value='!'),
             ],
             fee_policy=fee_policy,
-            is_sweep=False,
             locktime=self.cancellation_tx.locktime if self.cancellation_tx else None,
         )
 

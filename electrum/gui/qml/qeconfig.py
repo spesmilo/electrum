@@ -226,17 +226,6 @@ class QEConfig(AuthMixin, QObject):
         self.config.LIGHTNING_USE_RECOVERABLE_CHANNELS = useRecoverableChannels
         self.useRecoverableChannelsChanged.emit()
 
-    trustedcoinPrepayChanged = pyqtSignal()
-    @pyqtProperty(int, notify=trustedcoinPrepayChanged)
-    def trustedcoinPrepay(self):
-        return self.config.PLUGIN_TRUSTEDCOIN_NUM_PREPAY
-
-    @trustedcoinPrepay.setter
-    def trustedcoinPrepay(self, num_prepay):
-        if num_prepay != self.config.PLUGIN_TRUSTEDCOIN_NUM_PREPAY:
-            self.config.PLUGIN_TRUSTEDCOIN_NUM_PREPAY = num_prepay
-            self.trustedcoinPrepayChanged.emit()
-
     preferredRequestTypeChanged = pyqtSignal()
     @pyqtProperty(str, notify=preferredRequestTypeChanged)
     def preferredRequestType(self):
