@@ -24,7 +24,7 @@
 # SOFTWARE.
 
 import ctypes
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 from abc import ABC, abstractmethod
 
 QrCodePoint = Tuple[int, int]
@@ -70,8 +70,11 @@ class AbstractQrCodeReader(ABC):
     def read_qr_code(self, buffer: ctypes.c_void_p,
                      buffer_size: int,  # overall image size in bytes
                      rowlen_bytes: int, # the scan line length in bytes. (many libs, such as OSX, expect this value to properly grok image data)
-                     width: int, height: int, frame_id: int = -1) -> List[QrCodeResult]:
+                     width: int, height: int, frame_id: int = -1,
+                     *, crop: Optional[Tuple[int, int, int, int]] = None) -> List[QrCodeResult]:
         """
         Reads a QR code from an image buffer in Y800 / GREY format.
+        crop = (left, top, width, height) restricts the scan to that part of the image;
+        the positions of the results are then relative to it.
         Returns a list of detected QR codes which includes their data and positions.
         """

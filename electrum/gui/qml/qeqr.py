@@ -2,24 +2,65 @@ import qrcode
 from qrcode.exceptions import DataOverflowError
 
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 import math
 import urllib
 
 from PyQt6 import sip
-from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QRect
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from PyQt6.QtGui import QImage, QColor
 from PyQt6.QtQuick import QQuickImageProvider
 try:
-    from PyQt6.QtMultimedia import QVideoFrame, QVideoSink
+    from PyQt6.QtMultimedia import QVideoFrame, QVideoFrameFormat, QVideoSink
+    # Pixel formats whose first plane is an 8-bit luma image, which the QR reader can decode as is.
+    _PF = QVideoFrameFormat.PixelFormat
+    _LUMA_PLANE_FORMATS = frozenset({
+        _PF.Format_Y8,
+        _PF.Format_NV12, _PF.Format_NV21,
+        _PF.Format_YUV420P, _PF.Format_YV12, _PF.Format_YUV422P,
+        _PF.Format_IMC1, _PF.Format_IMC2, _PF.Format_IMC3, _PF.Format_IMC4,
+    })
 except ImportError:
     # Stub QVideoSink for unit tests without the multimedia dependencies.
     # QR scanning requires QtMultimedia on all platforms.
     from PyQt6.QtCore import QObject as QVideoSink
+    _LUMA_PLANE_FORMATS = frozenset()
 
 from electrum.logging import get_logger
 from electrum.qrreader import get_qr_reader
 from electrum.util import profiler
 from electrum.gui.common_qt.util import draw_qr
+
+
+_logger = get_logger(__name__)
+
+
+@contextmanager
+def _luma_image(frame: 'QVideoFrame'):
+    """Yields the frame as an 8-bit luma image: (buffer, buffer_size, stride, width, height).
+
+    Camera frames are usually planar or semi-planar YUV, whose first plane already is such
+    an image, so it is yielded straight from the mapped frame, without any pixel conversion
+    or copy. Frames in other pixel formats are converted via QImage.
+    """
+    if frame.pixelFormat() in _LUMA_PLANE_FORMATS and frame.map(QVideoFrame.MapMode.ReadOnly):
+        try:
+            width, stride = frame.width(), frame.bytesPerLine(0)
+            if 0 < width <= stride:
+                # Android reports a YUV_420_888 plane as ending with the last row's pixels
+                # rather than its padding. Drop that row then, so the view fits the buffer.
+                height = min(frame.height(), frame.mappedBytes(0) // stride)
+                if height > 0:
+                    _logger.debug("decoding luma plane of camera frame in-place", only_once=True)
+                    yield frame.bits(0).__int__(), height * stride, stride, width, height
+                    return
+        finally:
+            frame.unmap()
+    _logger.debug("converting camera frame to grayscale via QImage", only_once=True)
+    image = frame.toImage().convertToFormat(QImage.Format.Format_Grayscale8)
+    if image.isNull():
+        raise ValueError(f'cannot convert video frame to an image. pixel format: {frame.pixelFormat()}')
+    yield image.constBits().__int__(), image.sizeInBytes(), image.bytesPerLine(), image.width(), image.height()
 
 
 class QEQRParser(QObject):
@@ -73,44 +114,22 @@ class QEQRParser(QObject):
     def _decode_frame(self, frame: 'QVideoFrame'):
         # Runs on the worker thread. Signals emitted here are queued to the GUI thread.
         try:
-            image = frame.toImage()
-            if not image.isNull():
-                self._parseQR(image)
+            with _luma_image(frame) as (buffer, buffer_size, stride, width, height):
+                # only the centre square of the image is scanned
+                size = min(width, height)
+                results = self.qrreader.read_qr_code(
+                    buffer, buffer_size, stride, width, height,
+                    crop=((width - size) // 2, (height - size) // 2, size, size),
+                )
+            if results:
+                self._data = results[0]
+                self.dataChanged.emit()
         except Exception as e:
             if isinstance(e, RuntimeError) and sip.isdeleted(self):
                 return  # the parser was destroyed while decoding
             self._logger.exception('Error parsing QR frame')
         finally:
             self._busy = False
-
-    def _parseQR(self, image: QImage):
-        size = min(image.width(), image.height())
-        img_crop_rect = self._get_crop(image, size)
-        frame_cropped = image.copy(img_crop_rect)
-
-        # Convert to Y800 / GREY FourCC (single 8-bit channel)
-        frame_y800 = frame_cropped.convertToFormat(QImage.Format.Format_Grayscale8)
-        self.frame_id = 0
-        # Read the QR codes from the frame
-        self.qrreader_res = self.qrreader.read_qr_code(
-            frame_y800.constBits().__int__(),
-            frame_y800.sizeInBytes(),
-            frame_y800.bytesPerLine(),
-            frame_y800.width(),
-            frame_y800.height(),
-            self.frame_id
-            )
-
-        if len(self.qrreader_res) > 0:
-            result = self.qrreader_res[0]
-            self._data = result
-            self.dataChanged.emit()
-
-    def _get_crop(self, image: QImage, scan_size: int) -> QRect:
-        """Returns a QRect that is scan_size x scan_size in the middle of the resolution"""
-        scan_pos_x = (image.width() - scan_size) // 2
-        scan_pos_y = (image.height() - scan_size) // 2
-        return QRect(scan_pos_x, scan_pos_y, scan_size, scan_size)
 
     @pyqtProperty(str, notify=dataChanged)
     def data(self):
