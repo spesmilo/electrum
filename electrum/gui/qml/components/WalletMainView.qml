@@ -49,7 +49,9 @@ Item {
         })
         scanner.onFoundText.connect(function(data) {
             data = data.trim()
-            if (bitcoin.isRawTx(data)) {
+            if (app.cosignerHandler.handleScannedData(data)) {
+                // a key for this device to sign with, or a transaction to sign
+            } else if (bitcoin.isRawTx(data)) {
                 app.stack.push(Qt.resolvedUrl('TxDetails.qml'), { rawtx: data })
             } else if (Daemon.currentWallet.isValidChannelBackup(data)) {
                 var dialog = app.messageDialog.createObject(app, {

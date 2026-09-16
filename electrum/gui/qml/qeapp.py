@@ -26,6 +26,7 @@ from electrum.util import profiler
 from electrum.lnurl import SUPPORTED_LNURL_SCHEMES
 
 from .qeconfig import QEConfig
+from .qecosigner import QECosigner
 from .qedaemon import QEDaemon
 from .qenetwork import QENetwork
 from .qewallet import QEWallet
@@ -540,6 +541,7 @@ class ElectrumQmlApplication(QGuiApplication):
         self.config = QEConfig(config)
         self.network = QENetwork(daemon.network)
         self.daemon = QEDaemon(daemon, self.plugins)
+        self.cosigner = QECosigner(config, parent=self)
         self.appController = QEAppController(self, self.plugins)
         self.maxAmount = QEAmount(is_max=True)
         self.biometrics = QEBiometrics(config=config, parent=self)
@@ -547,6 +549,7 @@ class ElectrumQmlApplication(QGuiApplication):
         self.context.setContextProperty('Config', self.config)
         self.context.setContextProperty('Network', self.network)
         self.context.setContextProperty('Daemon', self.daemon)
+        self.context.setContextProperty('Cosigner', self.cosigner)
         self.context.setContextProperty('FixedFont', self.fixedFont)
         self.context.setContextProperty('MAX', self.maxAmount)
         self.context.setContextProperty('QRIP', self.qr_ip_h)

@@ -1,0 +1,200 @@
+import threading
+from typing import Optional, TYPE_CHECKING
+
+from PyQt6.QtCore import pyqtSignal, pyqtSlot, QModelIndex, QObject
+
+from electrum.cosigner import (Cosigner, add_cosigner, check_cosigners_password, find_cosigner_for_tx,
+                               find_cosigner_id_for_tx, get_cosigner_ids)
+from electrum.i18n import _
+from electrum.logging import get_logger
+from electrum.network import Network, TxBroadcastError, BestEffortRequestFailed
+from electrum.transaction import PartialTransaction, tx_from_any
+from electrum.util import InvalidPassword
+
+from .auth import AuthMixin, auth_protect
+from .qedaemon import QEDaemon
+
+if TYPE_CHECKING:
+    from electrum.simple_config import SimpleConfig
+
+
+class QECosigner(AuthMixin, QObject):
+    """Signs for the wallets of the 'keystores' file, which this device does not have."""
+
+    _logger = get_logger(__name__)
+
+    cosignerAdded = pyqtSignal()
+    setupFailed = pyqtSignal([str], arguments=['message'])
+    signFailed = pyqtSignal([str], arguments=['message'])
+    signSuccess = pyqtSignal([str], arguments=['txid'])
+
+    def __init__(self, config: 'SimpleConfig', parent=None):
+        super().__init__(parent)
+        self._config = config
+
+    @pyqtSlot(str, result=bool)
+    def isCosignerQr(self, data: str) -> bool:
+        """Whether that QR code holds a key for this device to sign with."""
+        try:
+            Cosigner.from_qr_data(data)
+        except ValueError:
+            return False
+        return True
+
+    @pyqtSlot(str, result=bool)
+    def canCosign(self, data: str) -> bool:
+        """Whether that QR code holds a transaction this device signs for. The keys are
+        indexed by the fingerprint they use in transactions, so this needs no password."""
+        tx = self._parse_tx(data)
+        return tx is not None and find_cosigner_id_for_tx(self._config, tx) is not None
+
+    @pyqtSlot(result=bool)
+    def canUseAppPassword(self) -> bool:
+        """Whether the password of this device is known, and can encrypt the key."""
+        qedaemon = QEDaemon.instance
+        return bool(qedaemon.singlePasswordEnabled and qedaemon.singlePassword)
+
+    @pyqtSlot(result=bool)
+    def hasWallets(self) -> bool:
+        return bool(QEDaemon.instance.availableWallets.rowCount(QModelIndex()))
+
+    @pyqtSlot(result=bool)
+    def hasCosigners(self) -> bool:
+        """Whether this device already holds keys, which use the password of the app."""
+        return bool(get_cosigner_ids(self._config))
+
+    @pyqtSlot(str, result=bool)
+    def verifyPassword(self, password: str) -> bool:
+        """Whether that password is the one of this device. The gui authenticates against
+        us when no wallet is open, as the keys of a cosigner can be here without any wallet.
+        """
+        if single_password := QEDaemon.instance.singlePassword:
+            return password == single_password
+        try:
+            check_cosigners_password(self._config, password)
+        except InvalidPassword:
+            return False
+        return True
+
+    @pyqtSlot(str, str)
+    def setupCosigner(self, data: str, password: str):
+        """Stores the key displayed by the QR code of the other device."""
+        qedaemon = QEDaemon.instance
+        try:
+            cosigner = Cosigner.from_qr_data(data)
+        except ValueError as e:
+            self._logger.info(f'invalid cosigner QR code: {e}')
+            self.setupFailed.emit(_('This is not a cosigner QR code.'))
+            return
+        if self.canUseAppPassword():
+            password = qedaemon.singlePassword
+        elif self.hasWallets():
+            self.setupFailed.emit(' '.join([
+                _('Electrum needs the password of this device in order to encrypt the cosigner key.'),
+                _('Please open one of your wallets first. If your wallets use different passwords, '
+                  'change them so that they all use the same password.'),
+            ]))
+            return
+        elif not password:
+            self.setupFailed.emit(_('A password is required.'))
+            return
+        else:
+            # there is no wallet on this device. If it already holds keys, they use the
+            # password of the app, and the user has to type that one: a second password
+            # would leave the daemon unable to re-encrypt them all when it changes.
+            try:
+                check_cosigners_password(self._config, password)
+            except InvalidPassword:
+                self.setupFailed.emit(_('Invalid password'))
+                return
+        self._add_cosigner(cosigner, password)
+
+    @auth_protect(method='wallet', message=_('Set up this device as cosigner?'))
+    def _add_cosigner(self, cosigner: Cosigner, password: str) -> None:
+        if not self.hasWallets():
+            # there is no wallet on this device yet: this password becomes the password of the app
+            QEDaemon.instance.setSinglePassword(password)
+        add_cosigner(self._config, cosigner, password)
+        self.cosignerAdded.emit()
+
+    @pyqtSlot(str, str, result='QVariantMap')
+    def loadPsbt(self, data: str, password: str) -> dict:
+        """Describes the transaction to be signed, for the confirmation dialog."""
+        config = self._config
+        tx = self._parse_tx(data)
+        if tx is None:
+            return {'error': _('This is not a transaction QR code.')}
+        try:
+            cosigner = find_cosigner_for_tx(config, tx, password or QEDaemon.instance.singlePassword)
+        except InvalidPassword:
+            return {'error': _('Invalid password')}
+        if cosigner is None:
+            return {'error': _('This transaction belongs to no wallet that this device signs for.')}
+        outputs = []
+        amount = 0
+        warning = ''
+        for txout in tx.outputs():
+            is_change = cosigner.is_wallet_output(txout)
+            if not is_change:
+                amount += txout.value
+                if cosigner.claims_our_key(txout):
+                    warning = _('An output of this transaction falsely claims to belong to your wallet.')
+            outputs.append({
+                'address': txout.get_ui_address_str(),
+                'value': config.format_amount_and_units(txout.value),
+                'is_change': is_change,
+            })
+        fee = tx.get_fee()
+        return {
+            'outputs': outputs,
+            'amount': config.format_amount_and_units(amount),
+            'fee': config.format_amount_and_units(fee) if fee is not None else _('unknown'),
+            'warning': warning,
+        }
+
+    @pyqtSlot(str, str)
+    def signAndBroadcast(self, data: str, password: str):
+        self._sign_and_broadcast(data, password)
+
+    @auth_protect(method='wallet', message=_('Sign and broadcast this transaction?'))
+    def _sign_and_broadcast(self, data: str, password: str) -> None:
+        def sign_task():
+            try:
+                tx = self._parse_tx(data)
+                cosigner = find_cosigner_for_tx(
+                    self._config, tx, password or QEDaemon.instance.singlePassword)
+                cosigner.sign_transaction(tx)
+            except InvalidPassword:
+                self.signFailed.emit(_('Invalid password'))
+                return
+            except Exception as e:
+                self._logger.exception('could not sign transaction')
+                self.signFailed.emit(repr(e))
+                return
+            if not tx.is_complete():
+                self.signFailed.emit(_('Could not sign transaction'))
+                return
+            self._broadcast(tx)
+
+        threading.Thread(target=sign_task, daemon=True).start()
+
+    def _parse_tx(self, data: str) -> Optional[PartialTransaction]:
+        try:
+            tx = tx_from_any(data)
+        except Exception:
+            return None
+        return tx if isinstance(tx, PartialTransaction) else None
+
+    def _broadcast(self, tx: PartialTransaction) -> None:
+        network = Network.get_instance()
+        if not network:
+            self.signFailed.emit(_('You are offline.'))
+            return
+        try:
+            Network.run_from_another_thread(network.broadcast_transaction(tx))
+        except TxBroadcastError as e:
+            self.signFailed.emit(e.get_message_for_gui())
+        except BestEffortRequestFailed as e:
+            self.signFailed.emit(repr(e))
+        else:
+            self.signSuccess.emit(tx.txid())

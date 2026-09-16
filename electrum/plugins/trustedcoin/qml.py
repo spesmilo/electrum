@@ -1,14 +1,13 @@
-from functools import partial
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import pyqtSignal, pyqtProperty, pyqtSlot
+from PyQt6.QtCore import pyqtProperty
 
 from electrum.plugin import hook
 
 from electrum.gui.common_qt.plugins import PluginQObject
 from electrum.gui.qml.qedaemon import QEDaemon
 
-from .trustedcoin import TrustedCoinPlugin, MOBILE_DISCLAIMER, parse_cosigner_qr_data
+from .trustedcoin import TrustedCoinPlugin, MOBILE_DISCLAIMER
 
 if TYPE_CHECKING:
     from electrum.gui.qml import ElectrumQmlApplication
@@ -16,23 +15,10 @@ if TYPE_CHECKING:
 
 
 class TrustedcoinPluginQObject(PluginQObject):
-    cosignerWalletCreated = pyqtSignal()
-
-    @pyqtProperty(str)
-    def loader(self):
-        return 'main.qml'
 
     @pyqtProperty(str, constant=True)
     def disclaimer(self):
         return '\n\n'.join(MOBILE_DISCLAIMER)
-
-    @pyqtSlot(str, result=bool)
-    def isCosignerQr(self, data: str) -> bool:
-        try:
-            parse_cosigner_qr_data(data)
-        except ValueError:
-            return False
-        return True
 
 
 class Plugin(TrustedCoinPlugin):
@@ -43,24 +29,16 @@ class Plugin(TrustedCoinPlugin):
     @hook
     def init_qml(self, app: 'ElectrumQmlApplication'):
         self.logger.debug(f'init_qml hook called, gui={str(type(app))}')
-        wizard = QEDaemon.instance.newWalletWizard
         # important: TrustedcoinPluginQObject needs to be parented, as keeping a ref
         # in the plugin is not enough to avoid gc
         self.so = TrustedcoinPluginQObject(self, app)
-        self.extend_wizard(wizard)
-        wizard.createSuccess.connect(partial(self.on_wallet_created, wizard))
+        self.extend_wizard(QEDaemon.instance.newWalletWizard)
 
     def extend_wizard(self, wizard: 'QENewWalletWizard'):
         super().extend_wizard(wizard)
         views = {
             'trustedcoin_start': {
                 'gui': '../../../../plugins/trustedcoin/qml/Disclaimer',
-            },
-            'trustedcoin_choose_seed': {
-                'gui': '../../../../plugins/trustedcoin/qml/ChooseSeed',
-            },
-            'trustedcoin_scan_cosigner_qr': {
-                'gui': '../../../../plugins/trustedcoin/qml/ScanCosignerQR',
             },
             # on mobile, restoring from seed disables two-factor authentication
             'trustedcoin_have_seed': {
@@ -77,8 +55,3 @@ class Plugin(TrustedCoinPlugin):
             },
         }
         wizard.navmap_merge(views)
-
-    def on_wallet_created(self, wizard: 'QENewWalletWizard'):
-        wizard_data = wizard.get_wizard_data()
-        if 'trustedcoin_cosigner_qr' in wizard_data:
-            self.so.cosignerWalletCreated.emit()

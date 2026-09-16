@@ -10,11 +10,18 @@ from electrum.simple_config import SimpleConfig
 from electrum.wallet import Abstract_Wallet
 from electrum.lnworker import LNWallet, LNPeerManager
 from electrum.lnwatcher import LNWatcher
-from electrum import util
+from electrum import util, cosigner
+from electrum.cosigner import Cosigner
+from electrum.util import InvalidPassword
 from electrum.utils.memory_leak import count_objects_in_memory
 from electrum import constants
 
 from . import ElectrumTestCase, as_testnet, restore_wallet_from_text__for_unittest
+
+
+# a key this device could sign with, and the fingerprint it uses in transactions
+COSIGNER_XPRV = "xprv9s21ZrQH143K3feHz3D5uMWDq118ZefvHNXxqg1Lsc222kCPNxix2skuH7TTnecemDdogJvkSqHDa3qqo8vkdxPQJwocYmg13X4FPnY5Y51"
+COSIGNER_ID = "f95ca6f8"
 
 
 class DaemonTestCase(ElectrumTestCase):
@@ -195,6 +202,39 @@ class TestUnifiedPassword(DaemonTestCase):
         is_unified = self.daemon.update_password_for_directory(old_password="123456", new_password="123456")
         self.assertTrue(is_unified)
         self._run_post_unif_sanity_checks(paths, password="123456")
+
+    # cosigner keys --->
+
+    async def test_cosigner_keys_follow_the_directory_password(self):
+        # the keys of the wallets this device signs for are encrypted with that password
+        path = self._restore_wallet_from_text("9dk", password="123456", encrypt_file=True)
+        cosigner.add_cosigner(self.config, Cosigner(xprv=COSIGNER_XPRV), "123456")
+        is_unified = self.daemon.update_password_for_directory(old_password="123456", new_password="asdasd")
+        self.assertTrue(is_unified)
+        self._run_post_unif_sanity_checks([path], password="asdasd")
+        self.assertEqual(
+            COSIGNER_XPRV, cosigner.get_cosigner(self.config, COSIGNER_ID, "asdasd").xprv)
+        with self.assertRaises(InvalidPassword):
+            cosigner.get_cosigner(self.config, COSIGNER_ID, "123456")
+
+    async def test_cosigner_keys_that_use_another_password_leave_the_wallets_alone(self):
+        # e.g. the keystores file was restored from a backup; the user must still be able
+        # to open their wallets, so nothing may be half-updated
+        path = self._restore_wallet_from_text("9dk", password="123456", encrypt_file=True)
+        with open(path, "rb") as f:
+            raw_before = f.read()
+        cosigner.add_cosigner(self.config, Cosigner(xprv=COSIGNER_XPRV), "999999")
+        with self.assertRaises(InvalidPassword):
+            self.daemon.update_password_for_directory(old_password="123456", new_password="asdasd")
+        with open(path, "rb") as f:
+            self.assertEqual(raw_before, f.read())
+        self.assertEqual(
+            COSIGNER_XPRV, cosigner.get_cosigner(self.config, COSIGNER_ID, "999999").xprv)
+
+    async def test_no_cosigner_key_is_written_for_a_device_that_cosigns_for_nothing(self):
+        self._restore_wallet_from_text("9dk", password="123456", encrypt_file=True)
+        self.daemon.update_password_for_directory(old_password="123456", new_password="asdasd")
+        self.assertFalse(os.path.exists(os.path.join(self.electrum_path, "keystores")))
 
     # misc --->
 
