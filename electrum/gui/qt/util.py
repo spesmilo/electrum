@@ -345,10 +345,18 @@ class MessageBoxMixin(object):
             return None
         return choice_widget.selected_key
 
-    def password_dialog(self, msg=None, parent=None):
+    def password_dialog(
+        self,
+        *,
+        msg: str | None = None,
+        parent: QWidget | None = None,
+        rich_text: bool = False,
+    ):
         from .password_dialog import PasswordDialog
         parent = parent or self
-        d = PasswordDialog(parent, msg)
+        d = PasswordDialog(parent=parent, msg=msg)
+        if rich_text:
+            d.label.setTextFormat(Qt.TextFormat.RichText)
         return d.run()
 
 
