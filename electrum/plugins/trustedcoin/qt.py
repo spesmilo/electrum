@@ -77,7 +77,7 @@ class Plugin(TrustedCoinPlugin):
         if not isinstance(window.wallet, self.wallet_class):
             return False
         help_text = ' '.join([
-            _('Scan this QR code with the Electrum app on your phone, then sign and broadcast the transaction there.'),
+            _('Scan this QR code with the Electrum app on your phone, in order to sign and broadcast the transaction.'),
             _('If your phone is not set up as cosigner yet, click on the two-factor authentication icon in the status bar.'),
         ])
         try:
@@ -96,7 +96,7 @@ class Plugin(TrustedCoinPlugin):
             _('This wallet is protected by two-factor authentication.'),
             ' '.join([
                 _('The TrustedCoin service has been discontinued: transactions are now co-signed by the Electrum app on your phone.'),
-                _('After you sign a transaction, scan the QR code displayed by Electrum with your phone, then sign and broadcast it there.'),
+                _('After you sign a transaction, scan the QR code displayed by Electrum with your phone, in order to broadcast it.'),
             ]),
             _('Do you want to set up your phone as cosigner of this wallet? You will need your 2FA seed.'),
         ])
@@ -150,7 +150,6 @@ class Plugin(TrustedCoinPlugin):
             'trustedcoin_start': {
                 'gui': WCDisclaimer,
                 'params': params,
-                'next': 'trustedcoin_have_seed',
             },
             'trustedcoin_have_seed': {
                 'gui': WCHaveSeed,
@@ -234,8 +233,8 @@ class WCShowCosignerQR(WalletWizardComponent):
         WalletWizardComponent.__init__(self, parent, wizard, title=_('Mobile cosigner'))
 
         self.layout().addWidget(WWLabel(' '.join([
-            _('On your phone, open Electrum and create a new wallet.'),
-            _("Choose 'Wallet with two-factor authentication', then 'Scan cosigner QR code', and scan this QR code:"),
+            _('On your phone, open Electrum and scan this QR code.'),
+            _("If there is no wallet on your phone yet, use the 'Scan QR code' button of its wizard."),
         ])))
         self.qr = QRCodeWidget('')
         self.layout().addWidget(self.qr)

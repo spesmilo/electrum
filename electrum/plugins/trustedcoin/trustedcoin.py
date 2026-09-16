@@ -28,8 +28,8 @@ from typing import Tuple, TYPE_CHECKING
 
 import electrum_ecc as ecc
 
-from electrum import constants, keystore, bip32
-from electrum.bip32 import BIP32Node, xpub_type, is_xprv, is_xpub
+from electrum import constants, cosigner, keystore, bip32
+from electrum.bip32 import BIP32Node, xpub_type
 from electrum.crypto import sha256
 from electrum.mnemonic import Mnemonic, calc_seed_type, is_any_2fa_seed_type
 from electrum.wallet import Multisig_Wallet, Deterministic_Wallet
@@ -73,26 +73,11 @@ MOBILE_DISCLAIMER = [
 ]
 
 
-# The desktop wizard displays the second master private key in a QR code,
-# along with the two other master public keys, for the mobile app to scan.
-COSIGNER_QR_PREFIX = '2fa_cosigner:'
-
-
 def make_cosigner_qr_data(xprv2: str, xpub1: str, xpub3: str) -> str:
-    return COSIGNER_QR_PREFIX + ':'.join([xprv2, xpub1, xpub3])
-
-
-def parse_cosigner_qr_data(data: str) -> Tuple[str, str, str]:
-    """Returns (xprv2, xpub1, xpub3). Raises ValueError."""
-    if not data.startswith(COSIGNER_QR_PREFIX):
-        raise ValueError('not a 2fa cosigner QR code')
-    keys = data[len(COSIGNER_QR_PREFIX):].split(':')
-    if len(keys) != 3:
-        raise ValueError('unexpected number of keys in 2fa cosigner QR code')
-    xprv2, xpub1, xpub3 = keys
-    if not (is_xprv(xprv2) and is_xpub(xpub1) and is_xpub(xpub3)):
-        raise ValueError('invalid keys in 2fa cosigner QR code')
-    return xprv2, xpub1, xpub3
+    """The QR code that the desktop wizard displays for the mobile app to scan, which
+    sets it up as cosigner: the second master private key, and the two other public ones.
+    """
+    return cosigner.Cosigner(xprv=xprv2, xpubs=[xpub1, xpub3], m=2).to_qr_data()
 
 
 class Wallet_2fa(Multisig_Wallet):
@@ -206,11 +191,7 @@ class TrustedCoinPlugin(BasePlugin):
     def extend_wizard(self, wizard: 'NewWalletWizard'):
         views = {
             'trustedcoin_start': {
-                'next': 'trustedcoin_choose_seed',
-            },
-            'trustedcoin_choose_seed': {
-                'next': lambda d: 'trustedcoin_have_seed' if d['keystore_type'] == 'haveseed'
-                        else 'trustedcoin_scan_cosigner_qr',
+                'next': 'trustedcoin_have_seed',
             },
             'trustedcoin_have_seed': {
                 'next': lambda d: 'trustedcoin_have_ext' if wizard.wants_ext(d) else 'trustedcoin_keep_disable',
@@ -224,15 +205,9 @@ class TrustedCoinPlugin(BasePlugin):
                 'accept': lambda d: self.recovery_disable(d) if d['trustedcoin_keepordisable'] == 'disable' else None,
                 'last': lambda d: wizard.is_single_password() and d['trustedcoin_keepordisable'] == 'disable'
             },
-            # desktop: show xprv2 to the mobile cosigner, keep xprv1
+            # show xprv2 to the mobile cosigner, keep xprv1
             'trustedcoin_show_cosigner_qr': {
                 'accept': self.on_accept_cosigner_qr,
-                'next': 'wallet_password',
-                'last': lambda d: wizard.is_single_password()
-            },
-            # mobile: scan xprv2 from the desktop wizard
-            'trustedcoin_scan_cosigner_qr': {
-                'accept': self.on_scan_cosigner_qr,
                 'next': 'wallet_password',
                 'last': lambda d: wizard.is_single_password()
             },
@@ -248,11 +223,6 @@ class TrustedCoinPlugin(BasePlugin):
         self.logger.debug('mobile cosigner confirmed, creating keystores')
         xprv1, xpub1, xprv2, xpub2, xpub3 = self.create_keys(wizard_data)
         wizard_data.update({'x1': xprv1, 'x2': xpub2, 'x3': xpub3})
-
-    def on_scan_cosigner_qr(self, wizard_data):
-        self.logger.debug('cosigner QR code scanned, creating keystores')
-        xprv2, xpub1, xpub3 = parse_cosigner_qr_data(wizard_data['trustedcoin_cosigner_qr'])
-        wizard_data.update({'x1': xpub1, 'x2': xprv2, 'x3': xpub3})
 
     def recovery_disable(self, wizard_data):
         self.logger.debug('2fa disabled, creating keystores')

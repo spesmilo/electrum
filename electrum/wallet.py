@@ -411,6 +411,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     txin_type: str
     wallet_type: str
+    m = None  # type: Optional[int]  # number of signatures a multisig wallet requires
     lnworker: Optional['LNWallet']
     network: Optional['Network']
 
@@ -2753,27 +2754,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         pubkeys = [ks.get_pubkey_provider(addr_index) for ks in self.get_keystores()]
         if not pubkeys:
             return None
-        if script_type == 'p2pk':
-            return descriptor.PKDescriptor(pubkey=pubkeys[0])
-        elif script_type == 'p2pkh':
-            return descriptor.PKHDescriptor(pubkey=pubkeys[0])
-        elif script_type == 'p2wpkh':
-            return descriptor.WPKHDescriptor(pubkey=pubkeys[0])
-        elif script_type == 'p2wpkh-p2sh':
-            wpkh = descriptor.WPKHDescriptor(pubkey=pubkeys[0])
-            return descriptor.SHDescriptor(subdescriptor=wpkh)
-        elif script_type == 'p2sh':
-            multi = descriptor.MultisigDescriptor(pubkeys=pubkeys, thresh=self.m, is_sorted=True)
-            return descriptor.SHDescriptor(subdescriptor=multi)
-        elif script_type == 'p2wsh':
-            multi = descriptor.MultisigDescriptor(pubkeys=pubkeys, thresh=self.m, is_sorted=True)
-            return descriptor.WSHDescriptor(subdescriptor=multi)
-        elif script_type == 'p2wsh-p2sh':
-            multi = descriptor.MultisigDescriptor(pubkeys=pubkeys, thresh=self.m, is_sorted=True)
-            wsh = descriptor.WSHDescriptor(subdescriptor=multi)
-            return descriptor.SHDescriptor(subdescriptor=wsh)
-        else:
-            raise NotImplementedError(f"unexpected {script_type=}")
+        return descriptor.from_legacy_electrum_script_type(script_type, pubkeys=pubkeys, m=self.m)
 
     def can_sign(self, tx: Transaction) -> bool:
         if not isinstance(tx, PartialTransaction):
