@@ -1,0 +1,35 @@
+Resolve CameraView and zxing-cpp from a local maven repo instead of jitpack.io.
+
+exclusiveContent is used, com.github.markusfisch can only ever resolve from the
+local repo, so nobody publishing under that group on a remote repository can
+shadow what we built, and the local repo can only ever serve that group.
+
+diff --git a/build.gradle b/build.gradle
+index 9be7983..d615fb9 100644
+--- a/build.gradle
++++ b/build.gradle
+@@ -16,9 +16,23 @@ buildscript {
+
+ allprojects {
+ 	repositories {
++		// our own builds of CameraView and zxing-cpp, populated by
++		// contrib/android/make_barcode_scanner.sh.
++		// exclusiveContent makes this structural instead of order dependent: this
++		// group can only ever resolve from the local repo, and the local repo can
++		// only ever serve this group.
++		exclusiveContent {
++			forRepository {
++				maven {
++					def m2 = System.getenv('ELEC_LOCAL_M2')
++					if (!m2) throw new GradleException('ELEC_LOCAL_M2 is not set')
++					url m2
++				}
++			}
++			filter { includeGroup 'com.github.markusfisch' }
++		}
+ 		google()
+ 		mavenCentral()
+-		maven { url 'https://jitpack.io' }
+ 	}
+
+ 	gradle.projectsEvaluated {
