@@ -5,7 +5,7 @@
 import ctypes
 import os
 import sys
-from typing import List
+from typing import List, Optional, Tuple
 
 from . import MissingLib
 from .abstract_base import AbstractQrCodeReader, QrCodeResult
@@ -57,6 +57,7 @@ try:
     # pointers (not c_char_p, which copies strings and loses the allocation).
     signatures = {
         'ZXing_ImageView_new_checked': (ctypes.c_void_p, [ctypes.c_void_p] + [ctypes.c_int] * 6),
+        'ZXing_ImageView_crop': (None, [ctypes.c_void_p] + [ctypes.c_int] * 4),
         'ZXing_ImageView_delete': (None, [ctypes.c_void_p]),
         'ZXing_ReaderOptions_new': (ctypes.c_void_p, []),
         'ZXing_ReaderOptions_delete': (None, [ctypes.c_void_p]),
@@ -116,12 +117,19 @@ class ZXingQrCodeReader(AbstractQrCodeReader):
         width: int,
         height: int,
         frame_id: int = -1,
+        *,
+        crop: Optional[Tuple[int, int, int, int]] = None,
     ) -> List[QrCodeResult]:
         # Reject invalid geometry before Python integers are narrowed to C ints.
         if not buffer or any(n <= 0 or n > 0x7fffffff for n in (buffer_size, rowlen_bytes, width, height)):
             raise ValueError('Invalid QR image buffer or dimensions')
         if rowlen_bytes < width or height * rowlen_bytes > buffer_size:
             raise ValueError('QR image buffer is too small for its dimensions and stride')
+        if crop is not None:
+            left, top, crop_width, crop_height = crop
+            if not (0 <= left < width and 0 <= top < height
+                    and 0 < crop_width <= width - left and 0 < crop_height <= height - top):
+                raise ValueError('QR crop rectangle is not inside the image')
 
         image = self._lib.ZXing_ImageView_new_checked(
             buffer,
@@ -137,6 +145,8 @@ class ZXingQrCodeReader(AbstractQrCodeReader):
             raise self._error()
         barcodes = None
         try:
+            if crop is not None:
+                self._lib.ZXing_ImageView_crop(image, left, top, crop_width, crop_height)
             barcodes = self._lib.ZXing_ReadBarcodes(image, self._options)
             if not barcodes:
                 raise self._error()
