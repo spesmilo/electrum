@@ -24,20 +24,22 @@
 # SOFTWARE.
 
 import hashlib
-from typing import Tuple, TYPE_CHECKING
+from typing import Optional, Sequence, Tuple, Union, TYPE_CHECKING
 
 import electrum_ecc as ecc
 
-from electrum import constants, keystore, bip32
+from electrum import constants, cosigner, descriptor, keystore, bip32
 from electrum.bip32 import BIP32Node, xpub_type, is_xprv, is_xpub
 from electrum.crypto import sha256
 from electrum.mnemonic import Mnemonic, calc_seed_type, is_any_2fa_seed_type
+from electrum.transaction import PartialTransaction, PartialTxInput, PartialTxOutput, tx_from_any
 from electrum.wallet import Multisig_Wallet, Deterministic_Wallet
 from electrum.i18n import _
 from electrum.plugin import BasePlugin
 from electrum.keystore import KeyStore
 
 if TYPE_CHECKING:
+    from electrum.simple_config import SimpleConfig
     from electrum.wizard import NewWalletWizard
 
 
@@ -93,6 +95,108 @@ def parse_cosigner_qr_data(data: str) -> Tuple[str, str, str]:
     if not (is_xprv(xprv2) and is_xpub(xpub1) and is_xpub(xpub3)):
         raise ValueError('invalid keys in 2fa cosigner QR code')
     return xprv2, xpub1, xpub3
+
+
+# The mobile app does not need a wallet in order to cosign: it stores the keys
+# of the wallets it cosigns for in its config file. Transactions to be cosigned
+# are prefixed, so that the mobile app knows to look them up there.
+PSBT_QR_PREFIX = '2fa:'
+
+
+def make_psbt_qr_data(tx: PartialTransaction) -> str:
+    qr_data, __ = tx.to_qr_data()
+    return PSBT_QR_PREFIX + qr_data
+
+
+def parse_psbt_qr_data(data: str) -> PartialTransaction:
+    """Returns the transaction to be cosigned. Raises ValueError."""
+    if not data.startswith(PSBT_QR_PREFIX):
+        raise ValueError('not a 2fa transaction QR code')
+    try:
+        tx = tx_from_any(data[len(PSBT_QR_PREFIX):])
+    except Exception as e:
+        raise ValueError(f'could not parse transaction: {e}') from e
+    if not isinstance(tx, PartialTransaction):
+        raise ValueError('not a partially signed transaction')
+    return tx
+
+
+def get_cosigner_id(xpub2: str) -> str:
+    """A cosigner is indexed by the fingerprint its key uses in transactions."""
+    return keystore.from_xpub(xpub2).get_root_fingerprint()
+
+
+def add_cosigner(config: 'SimpleConfig', *, xprv2: str, xpub1: str, xpub3: str, password: str) -> None:
+    """Stores the keys of a 2fa wallet."""
+    xpub2 = keystore.from_xprv(xprv2).get_master_public_key()
+    cosigner.add_cosigner(
+        config, get_cosigner_id(xpub2),
+        {'xpub1': xpub1, 'xpub2': xpub2, 'xpub3': xpub3, 'xprv2': xprv2},
+        password)
+
+
+def find_cosigner_for_tx(config: 'SimpleConfig', tx: PartialTransaction, password: str) -> Optional[dict]:
+    """Returns the keys of the 2fa wallet that transaction needs, None if this device
+    does not cosign for it. Raises InvalidPassword.
+    """
+    fingerprints = {fp.hex() for txin in tx.inputs() for fp, __ in txin.bip32_paths.values()}
+    for cosigner_id in cosigner.get_cosigner_ids(config):
+        if cosigner_id not in fingerprints:
+            continue
+        keys = cosigner.get_cosigner(config, cosigner_id, password)
+        if get_cosigner_id(keys['xpub2']) != cosigner_id:
+            raise ValueError(f'cosigner {cosigner_id} does not match its keys')
+        return keys
+    return None
+
+
+def _get_script_descriptor(keys: dict, der_suffix: Sequence[int]) -> descriptor.Descriptor:
+    keystores = [keystore.from_xpub(keys[name]) for name in ['xpub1', 'xpub2', 'xpub3']]
+    pubkeys = [ks.get_pubkey_provider(der_suffix) for ks in keystores]
+    multi = descriptor.MultisigDescriptor(pubkeys=pubkeys, thresh=2, is_sorted=True)
+    if xpub_type(keys['xpub1']) == 'standard':
+        return descriptor.SHDescriptor(subdescriptor=multi)
+    return descriptor.WSHDescriptor(subdescriptor=multi)
+
+
+def claims_wallet_key(keys: dict, txinout: Union[PartialTxInput, PartialTxOutput]) -> bool:
+    """Whether the transaction says that input or output uses a key of the 2fa wallet."""
+    ks = keystore.from_xpub(keys['xpub2'])
+    return ks.find_my_pubkey_in_txinout(txinout)[0] is not None
+
+
+def _get_wallet_script(
+        keys: dict,
+        txinout: Union[PartialTxInput, PartialTxOutput],
+) -> Optional[descriptor.Descriptor]:
+    """The script of the 2fa wallet for that input or output, None if it does not belong to it.
+    The derivation found in the transaction is only a hint: whoever created the transaction can
+    claim one of our keys for a script they own, so the script is recomputed from the xpubs.
+    """
+    ks = keystore.from_xpub(keys['xpub2'])
+    __, der_suffix = ks.find_my_pubkey_in_txinout(txinout, only_der_suffix=True)
+    if der_suffix is None:
+        return None
+    desc = _get_script_descriptor(keys, der_suffix)
+    return desc if txinout.scriptpubkey == desc.expand().output_script else None
+
+
+def is_wallet_output(keys: dict, txout: PartialTxOutput) -> bool:
+    """Whether that output pays back to the 2fa wallet."""
+    return _get_wallet_script(keys, txout) is not None
+
+
+def sign_tx(tx: PartialTransaction, keys: dict) -> None:
+    """Signs the transaction with the key of the cosigner."""
+    # add the scripts of the 2fa wallet, which a signer would otherwise get from its wallet
+    for txin in tx.inputs():
+        if not claims_wallet_key(keys, txin):
+            continue
+        desc = _get_wallet_script(keys, txin)
+        if desc is None:
+            raise ValueError('input does not spend from this 2fa wallet')
+        txin.script_descriptor = desc
+    keystore.from_xprv(keys['xprv2']).sign_transaction(tx, None)
 
 
 class Wallet_2fa(Multisig_Wallet):
@@ -206,11 +310,7 @@ class TrustedCoinPlugin(BasePlugin):
     def extend_wizard(self, wizard: 'NewWalletWizard'):
         views = {
             'trustedcoin_start': {
-                'next': 'trustedcoin_choose_seed',
-            },
-            'trustedcoin_choose_seed': {
-                'next': lambda d: 'trustedcoin_have_seed' if d['keystore_type'] == 'haveseed'
-                        else 'trustedcoin_scan_cosigner_qr',
+                'next': 'trustedcoin_have_seed',
             },
             'trustedcoin_have_seed': {
                 'next': lambda d: 'trustedcoin_have_ext' if wizard.wants_ext(d) else 'trustedcoin_keep_disable',
@@ -224,15 +324,9 @@ class TrustedCoinPlugin(BasePlugin):
                 'accept': lambda d: self.recovery_disable(d) if d['trustedcoin_keepordisable'] == 'disable' else None,
                 'last': lambda d: wizard.is_single_password() and d['trustedcoin_keepordisable'] == 'disable'
             },
-            # desktop: show xprv2 to the mobile cosigner, keep xprv1
+            # show xprv2 to the mobile cosigner, keep xprv1
             'trustedcoin_show_cosigner_qr': {
                 'accept': self.on_accept_cosigner_qr,
-                'next': 'wallet_password',
-                'last': lambda d: wizard.is_single_password()
-            },
-            # mobile: scan xprv2 from the desktop wizard
-            'trustedcoin_scan_cosigner_qr': {
-                'accept': self.on_scan_cosigner_qr,
                 'next': 'wallet_password',
                 'last': lambda d: wizard.is_single_password()
             },
@@ -248,11 +342,6 @@ class TrustedCoinPlugin(BasePlugin):
         self.logger.debug('mobile cosigner confirmed, creating keystores')
         xprv1, xpub1, xprv2, xpub2, xpub3 = self.create_keys(wizard_data)
         wizard_data.update({'x1': xprv1, 'x2': xpub2, 'x3': xpub3})
-
-    def on_scan_cosigner_qr(self, wizard_data):
-        self.logger.debug('cosigner QR code scanned, creating keystores')
-        xprv2, xpub1, xpub3 = parse_cosigner_qr_data(wizard_data['trustedcoin_cosigner_qr'])
-        wizard_data.update({'x1': xpub1, 'x2': xprv2, 'x3': xpub3})
 
     def recovery_disable(self, wizard_data):
         self.logger.debug('2fa disabled, creating keystores')

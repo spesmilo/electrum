@@ -1,3 +1,4 @@
+import json
 import os
 
 from electrum import SimpleConfig
@@ -12,8 +13,11 @@ from electrum.wallet_db import WalletDB
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
 from electrum.bitcoin import address_to_script
 from electrum.fee_policy import FixedFeePolicy
-from electrum.transaction import Transaction, PartialTxOutput, tx_from_any
+from electrum.transaction import (Transaction, PartialTransaction, PartialTxInput, PartialTxOutput,
+                                  TxOutpoint)
+from electrum import cosigner
 from electrum.plugins.trustedcoin import trustedcoin
+from electrum.util import InvalidPassword
 from electrum import util
 from electrum import slip39
 from electrum.bip32 import KeyOriginInfo
@@ -804,8 +808,6 @@ class WalletWizardTestCase(WizardTestCase):
         d = v.wizard_data
         self.assertEqual('trustedcoin_start', v.view)
 
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_choose_seed', v.view)
         d.update({'keystore_type': 'haveseed'})
         v = w.resolve_next(v.view, d)
         self.assertEqual('trustedcoin_have_seed', v.view)
@@ -866,42 +868,85 @@ class WalletWizardTestCase(WizardTestCase):
             cosigner_qr)
         desktop_wallet = self._set_password_and_check_address(v=v, w=w, recv_addr=recv_addr, password='desktop')
 
-        # mobile: scan the cosigner QR code
-        w = self._wizard_for(name='mobile', wallet_type='2fa')
-        v = w._current
-        d = v.wizard_data
-        self.assertEqual('trustedcoin_start', v.view)
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_choose_seed', v.view)
-        d.update({'keystore_type': 'cosigner_qr'})
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_scan_cosigner_qr', v.view)
-        d.update({'trustedcoin_cosigner_qr': cosigner_qr})
-        v = w.resolve_next(v.view, d)
-        mobile_wallet = self._set_password_and_check_address(v=v, w=w, recv_addr=recv_addr, password='mobile')
+        # mobile: the keys are stored in the config file, no wallet is created
+        scanned = trustedcoin.parse_cosigner_qr_data(cosigner_qr)
+        trustedcoin.add_cosigner(
+            self.config, xprv2=scanned[0], xpub1=scanned[1], xpub3=scanned[2], password='mobile')
 
-        self.assertTrue(isinstance(mobile_wallet, trustedcoin.Wallet_2fa))
-        self.assertTrue(mobile_wallet.keystores['x1'].is_watching_only())
-        self.assertFalse(mobile_wallet.keystores['x2'].is_watching_only())
-        self.assertFalse(mobile_wallet.can_sign_without_cosigner())
+        # this device also cosigns for another 2fa wallet
+        other_seed = 'universe topic remind silver february ranch shine worth innocent cattle enhance wise'
+        o_xprv1, o_xpub1, o_xprv2, o_xpub2 = trustedcoin.TrustedCoinPlugin.xkeys_from_seed(other_seed, '')
+        trustedcoin.add_cosigner(
+            self.config, xprv2=o_xprv2, xpub1=o_xpub1, xpub3=trustedcoin.get_xpub3(o_xpub1, o_xpub2),
+            password='mobile')
+        self.assertEqual(2, len(cosigner.get_cosigner_ids(self.config)))
+        # setting up the same wallet again does not add a second entry
+        trustedcoin.add_cosigner(
+            self.config, xprv2=scanned[0], xpub1=scanned[1], xpub3=scanned[2], password='mobile')
+        self.assertEqual(2, len(cosigner.get_cosigner_ids(self.config)))
+        # reading the config file does not tell which wallets this device cosigns for
+        stored = json.dumps(self.config.COSIGNERS)
+        for key in [xpub1, xpub2, xpub3, xprv2, o_xpub1, o_xpub2]:
+            self.assertNotIn(key, stored)
+        # they are indexed by the fingerprint their key uses in transactions
+        self.assertEqual(
+            sorted([trustedcoin.get_cosigner_id(xpub2), trustedcoin.get_cosigner_id(o_xpub2)]),
+            sorted(cosigner.get_cosigner_ids(self.config)))
 
-        with self.subTest(msg="desktop signs, mobile cosigns"):
+        with self.subTest(msg="desktop signs, mobile cosigns from its config file"):
             spk = address_to_script(recv_addr)
             funding_tx = Transaction(
                 '0200000001' + 32 * '11' + '0000000000ffffffff01'
                 + (100_000).to_bytes(8, 'little').hex() + bytes([len(spk)]).hex() + spk.hex() + '00000000')
-            for wallet in (desktop_wallet, mobile_wallet):
-                wallet.adb.receive_tx_callback(funding_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+            desktop_wallet.adb.receive_tx_callback(funding_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
             outputs = [PartialTxOutput.from_address_and_value('bc1qs2svwhfz47qv9qju2waa6prxzv5f522fc4p06t', 50_000)]
             tx = desktop_wallet.make_unsigned_transaction(outputs=outputs, fee_policy=FixedFeePolicy(1000))
             desktop_wallet.sign_transaction(tx, password='desktop')
             self.assertFalse(tx.is_complete())
-            qr_data, __ = tx.to_qr_data()
-            tx = tx_from_any(qr_data)  # scanned by the mobile app
-            mobile_wallet.sign_transaction(tx, password='mobile')
+
+            qr_data = trustedcoin.make_psbt_qr_data(tx)
+            self.assertTrue(qr_data.startswith('2fa:'))
+            # the mobile app finds the keys of that wallet in its config file
+            tx = trustedcoin.parse_psbt_qr_data(qr_data)
+            keys = trustedcoin.find_cosigner_for_tx(self.config, tx, 'mobile')
+            self.assertEqual(xpub2, keys['xpub2'])
+            trustedcoin.sign_tx(tx, keys)
             self.assertTrue(tx.is_complete())
 
-        with self.subTest(msg="invalid cosigner QR codes"):
+        with self.subTest(msg="the change of a transaction is not taken on trust"):
+            evil_tx = trustedcoin.parse_psbt_qr_data(qr_data)
+            ours = [o for o in evil_tx.outputs() if trustedcoin.is_wallet_output(keys, o)]
+            others = [o for o in evil_tx.outputs() if not trustedcoin.is_wallet_output(keys, o)]
+            self.assertEqual(1, len(ours))
+            self.assertEqual(1, len(others))
+            # whoever creates the transaction can claim one of our keys for an output of its own
+            others[0].bip32_paths = dict(ours[0].bip32_paths)
+            self.assertTrue(trustedcoin.claims_wallet_key(keys, others[0]))
+            # but that output does not pay to the script of the 2fa wallet
+            self.assertFalse(trustedcoin.is_wallet_output(keys, others[0]))
+            self.assertTrue(trustedcoin.is_wallet_output(keys, ours[0]))
+
+        with self.subTest(msg="wrong password"):
+            with self.assertRaises(InvalidPassword):
+                trustedcoin.find_cosigner_for_tx(self.config, tx, 'wrong')
+
+        with self.subTest(msg="transaction of an unrelated wallet"):
+            unrelated_tx = PartialTransaction.from_io(
+                [PartialTxInput(prevout=TxOutpoint(txid=bytes(32), out_idx=0))],
+                [PartialTxOutput.from_address_and_value(recv_addr, 10_000)])
+            self.assertIsNone(trustedcoin.find_cosigner_for_tx(self.config, unrelated_tx, 'mobile'))
+
+        with self.subTest(msg="the cosigner keys follow the password of the device"):
+            cosigner.update_cosigners_password(self.config, 'mobile', 'new password')
+            with self.assertRaises(InvalidPassword):
+                trustedcoin.find_cosigner_for_tx(self.config, tx, 'mobile')
+            keys = trustedcoin.find_cosigner_for_tx(self.config, tx, 'new password')
+            self.assertEqual(xpub2, keys['xpub2'])
+            # the other wallet this device cosigns for is re-encrypted too
+            other_id = trustedcoin.get_cosigner_id(o_xpub2)
+            self.assertEqual(o_xpub2, cosigner.get_cosigner(self.config, other_id, 'new password')['xpub2'])
+
+        with self.subTest(msg="invalid QR codes"):
             for data in [
                 xprv2,
                 trustedcoin.make_cosigner_qr_data(xpub2, xpub1, xpub3),
@@ -909,6 +954,9 @@ class WalletWizardTestCase(WizardTestCase):
             ]:
                 with self.assertRaises(ValueError):
                     trustedcoin.parse_cosigner_qr_data(data)
+            for data in ['2fa:not-a-transaction', qr_data[4:]]:
+                with self.assertRaises(ValueError):
+                    trustedcoin.parse_psbt_qr_data(data)
 
     async def test_2fa_wallet_without_x3(self):
         # created offline, and never completed online with the TrustedCoin server

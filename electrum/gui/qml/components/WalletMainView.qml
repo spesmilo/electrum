@@ -49,7 +49,10 @@ Item {
         })
         scanner.onFoundText.connect(function(data) {
             data = data.trim()
-            if (bitcoin.isRawTx(data)) {
+            var tc = app.pluginobjects['trustedcoin']
+            if (tc && tc.handleScannedData(data)) {
+                // 2fa cosigner setup or transaction
+            } else if (bitcoin.isRawTx(data)) {
                 app.stack.push(Qt.resolvedUrl('TxDetails.qml'), { rawtx: data })
             } else if (Daemon.currentWallet.isValidChannelBackup(data)) {
                 var dialog = app.messageDialog.createObject(app, {

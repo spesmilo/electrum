@@ -50,6 +50,7 @@ from .util import (
 from .wallet import Wallet, Abstract_Wallet
 from .storage import WalletStorage
 from .wallet_db import WalletDB
+from .cosigner import check_cosigners_password, update_cosigners_password
 from .commands import known_commands, Commands
 from .simple_config import SimpleConfig
 from .exchange_rate import FxThread
@@ -763,8 +764,12 @@ class Daemon(Logger):
             return False
         if is_unified and old_password == new_password:
             return True
+        # check the cosigner keys before any wallet is touched, so that a failure
+        # cannot leave them encrypted with a password that is no longer used
+        check_cosigners_password(self.config, old_password)
         self.check_password_for_directory(
             old_password=old_password, new_password=new_password, wallet_dir=wallet_dir)
+        update_cosigners_password(self.config, old_password, new_password)
         return True
 
     def update_recently_opened_wallets(self, wallet_path, *, remove: bool = False) -> None:

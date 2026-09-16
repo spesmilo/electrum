@@ -992,6 +992,9 @@ Warning: setting this to too low will result in lots of payment failures."""),
     # connect to remote WT
     WATCHTOWER_CLIENT_URL = ConfigVar('watchtower_url', default=None, type_=str)
 
+    # keys of the wallets this device cosigns for, see electrum/cosigner.py
+    COSIGNERS = ConfigVar('cosigners', default={}, type_=dict)
+
 
 def read_user_config(path: Optional[str]) -> Dict[str, Any]:
     """Parse and store the user config settings in electrum.conf into user_config[]."""
