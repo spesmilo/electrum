@@ -302,9 +302,17 @@ class HistoryModel(CustomModel, Logger):
             onchain_domain=self.get_domain(),
             include_lightning=self.should_include_lightning_payments(),
         )
+        balance = 0
+        for tx_item in transactions.values():
+            balance += tx_item['value'].value
+            tx_item['balance'] = Satoshis(balance)
         old_length = self._root.childCount()
+        if old_length == len(transactions) and transactions == self.transactions:
+            if self.view:
+                self.view.num_tx_label.setText(_("{} transactions").format(len(transactions)))
+            return
         if old_length != 0:
-            self.beginRemoveRows(QModelIndex(), 0, old_length)
+            self.beginRemoveRows(QModelIndex(), 0, old_length - 1)
             self.transactions.clear()
             self._root = HistoryNode(self, None)
             self.endRemoveRows()
@@ -318,10 +326,8 @@ class HistoryModel(CustomModel, Logger):
                 node.addChild(child_node)
 
         # compute balance once all children have been added
-        balance = 0
         for node in self._root._children:
-            balance += node._data['value'].value
-            node.set_balance(balance)
+            node.set_balance(node._data['balance'].value)
 
         # update tx_status_cache  (before endInsertRows() triggers get_data_for_role() calls)
         self.tx_status_cache.clear()
@@ -331,11 +337,12 @@ class HistoryModel(CustomModel, Logger):
                 self.tx_status_cache[txid] = self.window.wallet.get_tx_status(txid, tx_mined_info)
 
         new_length = self._root.childCount()
-        self.beginInsertRows(QModelIndex(), 0, new_length-1)
         self.transactions = transactions
-        self.endInsertRows()
+        if new_length:
+            self.beginInsertRows(QModelIndex(), 0, new_length - 1)
+            self.endInsertRows()
 
-        if selected_row:
+        if selected_row is not None:
             self.view.selectionModel().select(
                 self.createIndex(selected_row, 0),
                 QItemSelectionModel.SelectionFlag.Rows | QItemSelectionModel.SelectionFlag.SelectCurrent)
