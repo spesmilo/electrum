@@ -1,10 +1,11 @@
-import asyncio
 import qrcode
 from qrcode.exceptions import DataOverflowError
 
+from concurrent.futures import ThreadPoolExecutor
 import math
 import urllib
 
+from PyQt6 import sip
 from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QRect
 from PyQt6.QtGui import QImage, QColor
 from PyQt6.QtQuick import QQuickImageProvider
@@ -18,7 +19,7 @@ except ImportError:
 from electrum.logging import get_logger
 from electrum.qrreader import get_qr_reader
 from electrum.i18n import _
-from electrum.util import profiler, get_asyncio_loop
+from electrum.util import profiler
 from electrum.gui.common_qt.util import draw_qr
 
 
@@ -39,6 +40,10 @@ class QEQRParser(QObject):
         self.qrreader = get_qr_reader()
         if not self.qrreader:
             raise Exception(_("The platform QR detection library is not available."))
+
+        self._decoder = ThreadPoolExecutor(max_workers=1, thread_name_prefix='QEQRParser')
+        decoder = self._decoder
+        self.destroyed.connect(lambda: decoder.shutdown(wait=False))
 
     @pyqtProperty(QVideoSink, notify=videoSinkChanged)
     def videoSink(self):
@@ -66,18 +71,20 @@ class QEQRParser(QObject):
 
         # keep a reference to frame data on python side, otherwise Qt can free it after the function returns
         frame = QVideoFrame(videoframe)
+        self._decoder.submit(self._decode_frame, frame)
 
-        async def co_parse_qr(frame):
-            try:
-                image = frame.toImage()
-                if not image.isNull():
-                    self._parseQR(image)
-            except Exception:
-                self._logger.exception('Error parsing QR frame')
-            finally:
-                self._busy = False
-
-        asyncio.run_coroutine_threadsafe(co_parse_qr(frame), get_asyncio_loop())
+    def _decode_frame(self, frame: 'QVideoFrame'):
+        # Runs on the worker thread. Signals emitted here are queued to the GUI thread.
+        try:
+            image = frame.toImage()
+            if not image.isNull():
+                self._parseQR(image)
+        except Exception as e:
+            if isinstance(e, RuntimeError) and sip.isdeleted(self):
+                return  # the parser was destroyed while decoding
+            self._logger.exception('Error parsing QR frame')
+        finally:
+            self._busy = False
 
     def _parseQR(self, image: QImage):
         size = min(image.width(), image.height())
