@@ -30,7 +30,6 @@ from .qedaemon import QEDaemon
 from .qenetwork import QENetwork
 from .qewallet import QEWallet
 from .qeqr import QEQRParser, QEQRImageProvider, QEQRImageProviderHelper
-from .qeqrscanner import QEQRScanner
 from .qebitcoin import QEBitcoin
 from .qefx import QEFX
 from .qetxfinalizer import QETxFinalizer, QETxRbfFeeBumper, QETxCpfpFeeBumper, QETxCanceller, QETxSweepFinalizer, FeeSlider
@@ -156,7 +155,7 @@ class QEAppController(BaseCrashReporter, QObject):
         # multiple times
         if self.isAndroid() and not self.hasPermission(permissions.Permission.POST_NOTIFICATIONS) \
                 and self._permissions.get(permissions.Permission.POST_NOTIFICATIONS) is None:
-            self.request_permission(permissions.Permission.POST_NOTIFICATIONS)
+            self.requestPermission(permissions.Permission.POST_NOTIFICATIONS)
             return
         try:
             wallet, message = self.user_notification_queue.get_nowait()
@@ -199,9 +198,10 @@ class QEAppController(BaseCrashReporter, QObject):
         result = permissions.check_permission(permissionFqcn)
         return result
 
-    def request_permission(self, permissionFqcn: str, permission_result_cb: Optional[Callable] = None):
-        if not self.isAndroid():
-            return True
+    @pyqtSlot(str)
+    def requestPermission(self, permissionFqcn: str, permission_result_cb: Optional[Callable] = None):
+        if self.hasPermission(permissionFqcn):
+            return
         self.logger.debug(f'requesting {permissionFqcn=}')
         permissions.request_permission(
             permissionFqcn,
@@ -491,7 +491,6 @@ class ElectrumQmlApplication(QGuiApplication):
         qmlRegisterType(QEWallet, 'org.electrum', 1, 0, 'Wallet')
         qmlRegisterType(QEBitcoin, 'org.electrum', 1, 0, 'Bitcoin')
         qmlRegisterType(QEQRParser, 'org.electrum', 1, 0, 'QRParser')
-        qmlRegisterType(QEQRScanner, 'org.electrum', 1, 0, 'QRScanner')
         qmlRegisterType(QEFX, 'org.electrum', 1, 0, 'FX')
         qmlRegisterType(QETxFinalizer, 'org.electrum', 1, 0, 'TxFinalizer')
         qmlRegisterType(QEPIResolver, 'org.electrum', 1, 0, 'PIResolver')
