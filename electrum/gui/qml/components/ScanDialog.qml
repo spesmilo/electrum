@@ -51,5 +51,13 @@ ElDialog {
         }
     }
 
+    // Keep the camera preview out of screenshots and screen recordings.
+    Binding {
+        target: AppController
+        property: 'secureWindow'
+        when: scanDialog.visible  // enables stacking multiple secureWindow dialogs
+        value: true
+    }
+
     onClosed: destroy()
 }
