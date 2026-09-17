@@ -12,6 +12,8 @@ Item {
     property string url
     property string hint
 
+    readonly property string cameraPermission: 'android.permission.CAMERA'
+
     signal foundText(data: string)
 
     function restart() {
@@ -22,11 +24,13 @@ Item {
 
     function start() {
         console.log('qrscan.start')
+        AppController.requestPermission(scanner.cameraPermission)
         loader.item.startTimer.start()
     }
 
     function stop() {
         console.log('qrscan.stop')
+        loader.item.startTimer.stop()
         scanner.active = false
     }
 
@@ -40,6 +44,7 @@ Item {
         id: loader
         anchors.fill: parent
         sourceComponent: scancomp
+        onLoaded: scanner.start()
         onStatusChanged: {
             if (loader.status == Loader.Ready) {
                 console.log('camera loaded')
@@ -79,6 +84,7 @@ Item {
                     visible: scanner.hint
                     background.opacity: 0.5
                     iconStyle: InfoTextArea.IconStyle.None
+                    horizontalAlignment: Text.AlignHCenter
                     anchors {
                         top: parent.top
                         topMargin: constants.paddingXLarge
@@ -88,10 +94,6 @@ Item {
                         rightMargin: constants.paddingXXLarge
                     }
                     text: scanner.hint
-                }
-
-                Component.onCompleted: {
-                    startTimer.start()
                 }
             }
 
@@ -106,8 +108,19 @@ Item {
 
             Camera {
                 id: camera
-                cameraDevice: mediaDevices.defaultVideoInput
+                cameraDevice: {
+                    // The Android FFmpeg backend does not mark a default camera.
+                    for (var device of mediaDevices.videoInputs) {
+                        if (device.position === CameraDevice.BackFace)
+                            return device
+                    }
+                    return mediaDevices.defaultVideoInput
+                }
+                // The permission prompt pauses the activity, so the application
+                // state change re-evaluates this binding after the user answers.
                 active: scanner.active
+                    && Qt.application.state === Qt.ApplicationActive
+                    && AppController.hasPermission(scanner.cameraPermission)
                 focusMode: Camera.FocusModeAutoNear
                 customFocusPoint: Qt.point(0.5, 0.5)
 
@@ -149,7 +162,8 @@ Item {
     Connections {
         target: qr
         function onDataChanged() {
-            console.log('QR DATA: ' + qr.data)
+            if (!qr.data)
+                return
             scanner.active = false
             scanner.foundText(qr.data)
         }

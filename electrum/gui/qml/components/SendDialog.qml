@@ -7,7 +7,6 @@ import org.electrum 1.0
 
 import "controls"
 
-// currently not used on android, kept for future use when qt6 camera stops crashing
 ElDialog {
     id: root
 
@@ -22,7 +21,7 @@ ElDialog {
 
     header: null
     padding: 0
-    topPadding: 0
+    topPadding: app.statusBarHeight
 
     onAboutToHide: {
         console.log('about to hide')

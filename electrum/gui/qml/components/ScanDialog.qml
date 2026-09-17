@@ -6,23 +6,22 @@ import org.electrum
 
 import "controls"
 
-// currently not used on android, kept for testing on desktop, and future use
-// on android when qt6 camera support becomes usable (i.e. stops crashing)
 ElDialog {
     id: scanDialog
 
     property string error
-    property string hint
+    property string hint: qsTr('Scan a QR code.')
 
     signal foundText(data: string)
-    signal foundBinary(data: Bytes)
 
     width: parent.width
     height: parent.height
     padding: 0
 
     header: null
-    topPadding: 0 // dialog needs topPadding override
+    topPadding: app.statusBarHeight
+
+    onAboutToHide: qrscan.stop()
 
     function doClose() {
         qrscan.stop()
