@@ -25,12 +25,11 @@ Item {
     function start() {
         console.log('qrscan.start')
         AppController.requestPermission(scanner.cameraPermission)
-        loader.item.startTimer.start()
+        scanner.active = true
     }
 
     function stop() {
         console.log('qrscan.stop')
-        loader.item.startTimer.stop()
         scanner.active = false
     }
 
@@ -60,7 +59,6 @@ Item {
         Item {
             property alias vo: _vo
             property alias ic: _ic
-            property alias startTimer: _startTimer
 
             VideoOutput {
                 id: _vo
@@ -138,14 +136,6 @@ Item {
                 imageCapture: _ic
                 camera: camera
             }
-
-            Timer {
-                id: _startTimer
-                interval: 500
-                repeat: false
-                onTriggered: scanner.active = true
-            }
-
         }
     }
 
