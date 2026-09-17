@@ -34,9 +34,11 @@ QrCodePointList = List[QrCodePoint]
 class QrCodeResult():
     """
     A detected QR code.
+    data holds the raw payload bytes, without any charset conversion:
+    text QR codes usually hold UTF-8, but the payload can also be binary.
     """
-    def __init__(self, data: str, center: QrCodePoint, points: QrCodePointList):
-        self.data: str = data
+    def __init__(self, data: bytes, center: QrCodePoint, points: QrCodePointList):
+        self.data: bytes = data
         self.center: QrCodePoint = center
         self.points: QrCodePointList = points
 
@@ -76,5 +78,5 @@ class AbstractQrCodeReader(ABC):
         Reads a QR code from an image buffer in Y800 / GREY format.
         crop = (left, top, width, height) restricts the scan to that part of the image;
         the positions of the results are then relative to it.
-        Returns a list of detected QR codes which includes their data and positions.
+        Returns a list of detected QR codes which includes their raw payload bytes and positions.
         """
