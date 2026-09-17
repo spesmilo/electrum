@@ -86,4 +86,12 @@ ElDialog {
     Bitcoin {
         id: bitcoin
     }
+
+    // Keep the camera preview out of screenshots and screen recordings.
+    Binding {
+        target: AppController
+        property: 'secureWindow'
+        when: dialog.visible  // enables stacking multiple secureWindow dialogs
+        value: true
+    }
 }
