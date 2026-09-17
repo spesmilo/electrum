@@ -111,6 +111,18 @@ class QEQRParser(QObject):
         frame = QVideoFrame(videoframe)
         self._decoder.submit(self._decode_frame, frame)
 
+    @pyqtSlot('QVariant')
+    def decodeFrameOneShot(self, frame: 'QVideoFrame'):
+        """
+        Decodes frame even if the decoder is already busy (with a preview frame)
+        Allows a manual 'tap-to-focus'-like image capture for devices without autofocus:
+        https://github.com/spesmilo/electrum/issues/10383
+        """
+        if self._data or not frame.isValid():
+            return
+        self._logger.debug(f"one-shot frame decode")
+        self._decoder.submit(self._decode_frame, QVideoFrame(frame))
+
     def _decode_frame(self, frame: 'QVideoFrame'):
         # Runs on the worker thread. Signals emitted here are queued to the GUI thread.
         try:
