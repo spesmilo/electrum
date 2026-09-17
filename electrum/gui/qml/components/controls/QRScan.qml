@@ -121,7 +121,6 @@ Item {
                 active: scanner.active
                     && Qt.application.state === Qt.ApplicationActive
                     && AppController.hasPermission(scanner.cameraPermission)
-                focusMode: Camera.FocusModeAutoNear
                 customFocusPoint: Qt.point(0.5, 0.5)
 
                 onErrorOccurred: {
