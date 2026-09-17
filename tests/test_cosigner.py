@@ -4,7 +4,8 @@ from electrum import keystore
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
 from electrum.bip32 import BIP32Node
 from electrum.bitcoin import address_to_script
-from electrum.cosigner import Cosigner, add_cosigner, check_cosigners_password
+from electrum.cosigner import (Cosigner, HIGH_DERIVATION_INDEX, add_cosigner,
+                              check_cosigners_password)
 from electrum.fee_policy import FixedFeePolicy
 from electrum.simple_config import SimpleConfig
 from electrum.transaction import PartialTransaction, PartialTxOutput, Transaction, tx_from_any
@@ -77,6 +78,29 @@ class CosignerTestCase(ElectrumTestCase):
 
         cosigner.sign_transaction(tx)
         self.assertTrue(tx.is_complete())
+
+    async def test_change_sent_far_ahead_of_the_wallet_is_flagged(self):
+        # a wallet derives only a few addresses beyond the ones it has used, so change
+        # sent far ahead of them may never be found: the app warns about that
+        xprv, xpub = _keys('the only key', 'p2wpkh')
+        wallet = WalletIntegrityHelper.create_standard_wallet(
+            keystore.from_xpub(xpub), config=self.config)
+        tx = self._make_tx(wallet)
+        cosigner = Cosigner(xprv=xprv)
+
+        change = [txout for txout in tx.outputs() if cosigner.is_wallet_output(txout)]
+        self.assertEqual(1, len(change))
+        self.assertFalse(cosigner.is_high_derivation_index(change[0]))
+
+        # the transaction can pay to the wallet and still be out of its reach
+        der_suffix = [1, HIGH_DERIVATION_INDEX]
+        far_ahead = PartialTxOutput(
+            scriptpubkey=cosigner.get_script_descriptor(der_suffix).expand().output_script,
+            value=change[0].value)
+        far_ahead.bip32_paths = {
+            cosigner.keystore.derive_pubkey(*der_suffix): (bytes.fromhex(cosigner.cosigner_id), der_suffix)}
+        self.assertTrue(cosigner.is_wallet_output(far_ahead))
+        self.assertTrue(cosigner.is_high_derivation_index(far_ahead))
 
     async def test_script_type_follows_the_master_keys(self):
         for xtype, n, script_type in [

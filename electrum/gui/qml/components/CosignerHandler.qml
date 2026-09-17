@@ -1,10 +1,18 @@
 import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
 
 import org.electrum
+
+import "controls"
 
 // Scanned QR codes that concern the wallets this device signs for without having them.
 Item {
     id: root
+
+    // the transaction being read, the dialog that says so, and what the dialog that
+    // confirms it needs. Kept until that dialog has it.
+    property var _pending
 
     // called by the scan dialogs of the app. Returns true if the data was for us.
     function handleScannedData(data) {
@@ -95,17 +103,25 @@ Item {
     }
 
     function signTransaction(data, password) {
-        var summary = Cosigner.loadPsbt(data, password ? password : '')
-        if (summary['error']) {
-            showError(summary['error'])
-            return
-        }
-        var dialog = cosignDialog.createObject(app, {
-            summary: summary,
+        // reading the transaction may have to wait for the network, so the summary
+        // of it comes back with onPsbtLoaded
+        _pending = {
             psbt: data,
-            password: password ? password : ''
-        })
-        dialog.open()
+            password: password ? password : '',
+            busy: readingDialog.createObject(app)
+        }
+        _pending.busy.open()
+        Cosigner.loadPsbt(_pending.psbt, _pending.password)
+    }
+
+    // what signTransaction put aside, if its dialog is not open yet
+    function _takePending() {
+        if (!_pending)
+            return null
+        _pending.busy.stop()
+        var pending = _pending
+        _pending = null
+        return pending
     }
 
     function showError(message) {
@@ -132,7 +148,19 @@ Item {
         function onSetupFailed(message) {
             showError(message)
         }
+        function onPsbtLoaded(summary) {
+            var pending = _takePending()
+            if (!pending)  // the dialog that confirms it is already open
+                return
+            var dialog = cosignDialog.createObject(app, {
+                summary: summary,
+                psbt: pending.psbt,
+                password: pending.password
+            })
+            dialog.open()
+        }
         function onSignFailed(message) {
+            _takePending()
             showError(message)
         }
         function onSignSuccess(txid) {
@@ -150,6 +178,64 @@ Item {
     Component {
         id: cosignDialog
         CosignDialog {
+            onClosed: destroy()
+        }
+    }
+
+    // shown while the previous transactions of a transaction are fetched
+    Component {
+        id: readingDialog
+        ElDialog {
+            id: dialog
+
+            title: qsTr('Cosigner')
+            iconSource: Qt.resolvedUrl('../../icons/key.png')
+            allowClose: false
+            resizeWithKeyboard: false
+            needsSystemBarPadding: false
+            x: Math.floor((parent.width - implicitWidth) / 2)
+            y: Math.floor((parent.height - implicitHeight) / 2)
+
+            // only show up if the network keeps us waiting
+            function open() {
+                showTimer.start()
+            }
+
+            function stop() {
+                showTimer.stop()
+                if (visible) {
+                    close()
+                } else {
+                    // a dialog that was never shown does not get its onClosed callbacks
+                    Qt.callLater(function() { dialog.destroy() })
+                }
+            }
+
+            ColumnLayout {
+                width: parent.width
+
+                BusyIndicator {
+                    Layout.alignment: Qt.AlignHCenter
+                    running: true
+                }
+
+                Label {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: qsTr('Reading the transaction...')
+                }
+
+                Item {
+                    Layout.preferredHeight: 20
+                }
+            }
+
+            Timer {
+                id: showTimer
+                interval: 250
+                repeat: false
+                onTriggered: dialog.visible = true
+            }
+
             onClosed: destroy()
         }
     }
