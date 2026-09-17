@@ -826,7 +826,11 @@ class GenericInputHandler:
         except UserFacingException as e:
             show_error(str(e))
             return
-        data = scanned_qr.data
+        try:
+            data = scanned_qr.data.decode('utf-8')
+        except UnicodeDecodeError:
+            show_error(_("The QR code does not contain valid UTF-8 text."))
+            return
         try:
             if allow_multi:
                 text = self.text()
@@ -913,10 +917,11 @@ class GenericInputHandler:
             show_error(_("More than one QR code was found in the image."))
             return
 
-        if len(scan_result) > 1:
-            result_text = "\n".join([r.data for r in scan_result])
-        else:
-            result_text = scan_result[0].data
+        try:
+            result_text = "\n".join(r.data.decode('utf-8') for r in scan_result)
+        except UnicodeDecodeError:
+            show_error(_("The QR code does not contain valid UTF-8 text."))
+            return
 
         try:
             setText(result_text)

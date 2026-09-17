@@ -122,8 +122,12 @@ class QEQRParser(QObject):
                     crop=((width - size) // 2, (height - size) // 2, size, size),
                 )
             if results:
-                self._data = results[0]
-                self.dataChanged.emit()
+                try:
+                    self._data = results[0].data.decode('utf-8')
+                except UnicodeDecodeError:
+                    self._logger.warning('ignoring QR code: payload is not valid UTF-8 text')
+                else:
+                    self.dataChanged.emit()
         except Exception as e:
             if isinstance(e, RuntimeError) and sip.isdeleted(self):
                 return  # the parser was destroyed while decoding
@@ -133,9 +137,7 @@ class QEQRParser(QObject):
 
     @pyqtProperty(str, notify=dataChanged)
     def data(self):
-        if not self._data:
-            return ''
-        return self._data.data
+        return self._data or ''
 
     @pyqtSlot()
     def reset(self):
