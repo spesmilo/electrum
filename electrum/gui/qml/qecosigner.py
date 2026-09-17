@@ -7,7 +7,7 @@ from electrum.cosigner import (Cosigner, add_cosigner, check_cosigners_password,
                                find_cosigner_id_for_tx, get_cosigner_ids)
 from electrum.i18n import _
 from electrum.logging import get_logger
-from electrum.network import Network, TxBroadcastError, BestEffortRequestFailed
+from electrum.network import Network, NetworkException, TxBroadcastError, BestEffortRequestFailed
 from electrum.transaction import PartialTransaction, tx_from_any
 from electrum.util import InvalidPassword
 
@@ -25,6 +25,7 @@ class QECosigner(AuthMixin, QObject):
 
     cosignerAdded = pyqtSignal()
     setupFailed = pyqtSignal([str], arguments=['message'])
+    psbtLoaded = pyqtSignal(['QVariantMap'], arguments=['summary'])
     signFailed = pyqtSignal([str], arguments=['message'])
     signSuccess = pyqtSignal([str], arguments=['txid'])
 
@@ -117,9 +118,36 @@ class QECosigner(AuthMixin, QObject):
         add_cosigner(self._config, cosigner, password)
         self.cosignerAdded.emit()
 
-    @pyqtSlot(str, str, result='QVariantMap')
-    def loadPsbt(self, data: str, password: str) -> dict:
-        """Describes the transaction to be signed, for the confirmation dialog."""
+    def _add_info_to_tx(self, tx: PartialTransaction, cosigner: Cosigner) -> None:
+        """Completes the transaction with what the QR code could not carry, and checks
+        what it claims. Raises if it cannot be verified."""
+        if tx.is_missing_info_from_network():
+            # QR codes do not contain the previous transactions
+            Network.run_from_another_thread(tx.add_info_from_network(
+                Network.get_instance(), ignore_network_issues=False, timeout=10))
+        cosigner.add_wallet_info_to_tx(tx)
+
+    @pyqtSlot(str, str)
+    def loadPsbt(self, data: str, password: str):
+        """Describes the transaction to be signed, for the confirmation dialog. The
+        previous transactions are fetched from the network, so this does not run on the
+        gui thread: the summary comes back with psbtLoaded, a failure with signFailed.
+        """
+        def load_task():
+            try:
+                summary = self._load_psbt(data, password)
+            except Exception as e:
+                # the gui waits for one of our signals before it lets the user go on
+                self._logger.exception('could not read transaction')
+                summary = {'error': repr(e)}
+            if error := summary.get('error'):
+                self.signFailed.emit(error)
+            else:
+                self.psbtLoaded.emit(summary)
+
+        threading.Thread(target=load_task, daemon=True).start()
+
+    def _load_psbt(self, data: str, password: str) -> dict:
         config = self._config
         tx = self._parse_tx(data)
         if tx is None:
@@ -130,26 +158,40 @@ class QECosigner(AuthMixin, QObject):
             return {'error': _('Invalid password')}
         if cosigner is None:
             return {'error': _('This transaction belongs to no wallet that this device signs for.')}
+        try:
+            self._add_info_to_tx(tx, cosigner)
+        except NetworkException as e:
+            self._logger.info(f'could not fetch previous transactions: {e}')
+            return {'error': _('Could not fetch the previous transactions from the network.')}
+        except Exception as e:
+            self._logger.info(f'could not verify transaction: {e}')
+            return {'error': _('This transaction could not be verified.')}
         outputs = []
         amount = 0
-        warning = ''
+        claims_our_key = False
+        high_index = False
         for txout in tx.outputs():
             is_change = cosigner.is_wallet_output(txout)
-            if not is_change:
+            if is_change:
+                high_index = high_index or cosigner.is_high_derivation_index(txout)
+            else:
                 amount += txout.value
-                if cosigner.claims_our_key(txout):
-                    warning = _('An output of this transaction falsely claims to belong to your wallet.')
+                claims_our_key = claims_our_key or cosigner.claims_our_key(txout)
             outputs.append({
                 'address': txout.get_ui_address_str(),
                 'value': config.format_amount_and_units(txout.value),
                 'is_change': is_change,
             })
-        fee = tx.get_fee()
+        warnings = []
+        if claims_our_key:
+            warnings.append(_('An output of this transaction falsely claims to belong to your wallet.'))
+        if high_index:
+            warnings.append(_('The change of this transaction is sent to an address that your wallet may never find.'))
         return {
             'outputs': outputs,
             'amount': config.format_amount_and_units(amount),
-            'fee': config.format_amount_and_units(fee) if fee is not None else _('unknown'),
-            'warning': warning,
+            'fee': config.format_amount_and_units(tx.get_fee()),
+            'warning': '\n'.join(warnings),
         }
 
     @pyqtSlot(str, str)
@@ -163,9 +205,14 @@ class QECosigner(AuthMixin, QObject):
                 tx = self._parse_tx(data)
                 cosigner = find_cosigner_for_tx(
                     self._config, tx, password or QEDaemon.instance.singlePassword)
+                self._add_info_to_tx(tx, cosigner)
                 cosigner.sign_transaction(tx)
             except InvalidPassword:
                 self.signFailed.emit(_('Invalid password'))
+                return
+            except NetworkException as e:
+                self._logger.info(f'could not fetch previous transactions: {e}')
+                self.signFailed.emit(_('Could not fetch the previous transactions from the network.'))
                 return
             except Exception as e:
                 self._logger.exception('could not sign transaction')

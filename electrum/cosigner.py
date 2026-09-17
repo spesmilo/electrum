@@ -25,7 +25,7 @@ from typing import Dict, List, Optional, Sequence, Union, TYPE_CHECKING
 from . import descriptor, keystore
 from .bip32 import is_xprv, is_xpub, xpub_type
 from .crypto import pw_encode_with_version_and_mac, pw_decode_with_version_and_mac
-from .transaction import PartialTransaction, PartialTxInput, PartialTxOutput
+from .transaction import PartialTransaction, PartialTxInput, PartialTxOutput, Sighash
 from .util import os_chmod
 
 if TYPE_CHECKING:
@@ -37,6 +37,11 @@ KEYSTORES_FILE_NAME = 'keystores'
 # The device that holds the other keys of the wallet displays one of them in a
 # QR code, for this device to scan.
 COSIGNER_QR_PREFIX = 'cosigner:'
+
+# A wallet derives only a few addresses beyond the ones it has used, so it may never find
+# the change of a transaction that was sent far ahead of them. Where its addresses end we
+# cannot know, but normal use does not reach an index this high.
+HIGH_DERIVATION_INDEX = 1000
 
 
 class Cosigner:
@@ -122,9 +127,18 @@ class Cosigner:
         """Whether that output pays back to the wallet."""
         return self.get_wallet_script(txout) is not None
 
-    def sign_transaction(self, tx: PartialTransaction) -> None:
-        """Signs the transaction with our key. Raises ValueError if it cannot be verified."""
-        # add the scripts of the wallet, which a signer would otherwise get from its wallet
+    def is_high_derivation_index(self, txout: PartialTxOutput) -> bool:
+        """Whether that output of the wallet is so far ahead of the addresses it uses that
+        it may never be found, see HIGH_DERIVATION_INDEX. Only asked about wallet outputs,
+        whose derivation was verified against the script they pay to.
+        """
+        __, der_suffix = self.keystore.find_my_pubkey_in_txinout(txout, only_der_suffix=True)
+        return der_suffix is not None and der_suffix[-1] >= HIGH_DERIVATION_INDEX
+
+    def add_wallet_info_to_tx(self, tx: PartialTransaction) -> None:
+        """Adds the scripts of the wallet, which a signer would otherwise get from its
+        wallet. Raises ValueError if the transaction cannot be verified.
+        """
         for txin in tx.inputs():
             if not self.claims_our_key(txin):
                 continue
@@ -132,6 +146,24 @@ class Cosigner:
             if desc is None:
                 raise ValueError('input does not spend from this wallet')
             txin.script_descriptor = desc
+            if not desc.is_segwit() and txin.utxo is None:
+                # the signature of a non-segwit input does not commit to its amount. Without
+                # the previous transaction we cannot know it, and the fee could be anything.
+                # note: we ask the script we recomputed, as txin.is_segwit() believes the
+                # witness field of the transaction, which is not ours.
+                raise ValueError('missing previous transaction of a non-segwit input')
+            if txin.sighash is not None and txin.sighash != Sighash.ALL:
+                # with SIGHASH_NONE or ANYONECANPAY, our signature would not commit to the
+                # outputs of the transaction, which could then be changed after we signed
+                raise ValueError(f'non-default sighash type: {txin.sighash}')
+        if tx.get_fee() is None:
+            # the amount of an input is unknown, so we cannot tell what the transaction pays
+            raise ValueError('unknown fee')
+
+    def sign_transaction(self, tx: PartialTransaction) -> None:
+        """Signs the transaction with our key. Raises ValueError if the transaction
+        cannot be verified."""
+        self.add_wallet_info_to_tx(tx)
         self.keystore.sign_transaction(tx, None)
 
 
