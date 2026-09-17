@@ -4,16 +4,16 @@ from typing import TYPE_CHECKING
 from PyQt6.QtCore import pyqtSignal, pyqtProperty, pyqtSlot, QModelIndex
 
 from electrum.i18n import _
-from electrum.network import Network, TxBroadcastError, BestEffortRequestFailed
+from electrum.network import Network, NetworkException, TxBroadcastError, BestEffortRequestFailed
 from electrum.plugin import hook
 from electrum.util import InvalidPassword
 
 from electrum.gui.common_qt.plugins import PluginQObject
 from electrum.gui.qml.qedaemon import QEDaemon
 
-from .trustedcoin import (TrustedCoinPlugin, MOBILE_DISCLAIMER, add_cosigner, claims_wallet_key,
-                          find_cosigner_for_tx, is_wallet_output, parse_cosigner_qr_data,
-                          parse_psbt_qr_data, sign_tx)
+from .trustedcoin import (TrustedCoinPlugin, MOBILE_DISCLAIMER, add_cosigner, add_wallet_info_to_tx,
+                          claims_wallet_key, find_cosigner_for_tx, is_wallet_output,
+                          parse_cosigner_qr_data, parse_psbt_qr_data, sign_tx)
 
 if TYPE_CHECKING:
     from electrum.transaction import PartialTransaction
@@ -89,6 +89,15 @@ class TrustedcoinPluginQObject(PluginQObject):
         add_cosigner(self.plugin.config, xprv2=xprv2, xpub1=xpub1, xpub3=xpub3, password=password)
         self.cosignerAdded.emit()
 
+    def _add_info_to_tx(self, tx: 'PartialTransaction', keys: dict) -> None:
+        """Completes the transaction with what the QR code could not carry, and checks
+        what it claims. Raises if it cannot be verified."""
+        if tx.is_missing_info_from_network():
+            # QR codes do not contain the previous transactions
+            Network.run_from_another_thread(tx.add_info_from_network(
+                Network.get_instance(), ignore_network_issues=False, timeout=10))
+        add_wallet_info_to_tx(tx, keys)
+
     @pyqtSlot(str, str, result='QVariantMap')
     def loadPsbt(self, data: str, password: str) -> dict:
         """Describes the transaction to be cosigned, for the confirmation dialog."""
@@ -104,6 +113,14 @@ class TrustedcoinPluginQObject(PluginQObject):
             return {'error': _('Invalid password')}
         if keys is None:
             return {'error': _('This transaction belongs to no wallet that this device cosigns for.')}
+        try:
+            self._add_info_to_tx(tx, keys)
+        except NetworkException as e:
+            self.plugin.logger.info(f'could not fetch previous transactions: {e}')
+            return {'error': _('Could not fetch the previous transactions from the network.')}
+        except Exception as e:
+            self.plugin.logger.info(f'could not verify transaction: {e}')
+            return {'error': _('This transaction could not be verified.')}
         outputs = []
         amount = 0
         warning = ''
@@ -118,11 +135,10 @@ class TrustedcoinPluginQObject(PluginQObject):
                 'value': config.format_amount_and_units(txout.value),
                 'is_change': is_change,
             })
-        fee = tx.get_fee()
         return {
             'outputs': outputs,
             'amount': config.format_amount_and_units(amount),
-            'fee': config.format_amount_and_units(fee) if fee is not None else _('unknown'),
+            'fee': config.format_amount_and_units(tx.get_fee()),
             'warning': warning,
         }
 
@@ -133,9 +149,14 @@ class TrustedcoinPluginQObject(PluginQObject):
                 tx = parse_psbt_qr_data(data)
                 keys = find_cosigner_for_tx(
                     self.plugin.config, tx, password or QEDaemon.instance.singlePassword)
+                self._add_info_to_tx(tx, keys)
                 sign_tx(tx, keys)
             except InvalidPassword:
                 self.signFailed.emit(_('Invalid password'))
+                return
+            except NetworkException as e:
+                self.plugin.logger.info(f'could not fetch previous transactions: {e}')
+                self.signFailed.emit(_('Could not fetch the previous transactions from the network.'))
                 return
             except Exception as e:
                 self.plugin.logger.exception('could not sign transaction')

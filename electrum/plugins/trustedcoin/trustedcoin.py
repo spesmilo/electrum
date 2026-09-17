@@ -32,7 +32,8 @@ from electrum import constants, cosigner, descriptor, keystore, bip32
 from electrum.bip32 import BIP32Node, xpub_type, is_xprv, is_xpub
 from electrum.crypto import sha256
 from electrum.mnemonic import Mnemonic, calc_seed_type, is_any_2fa_seed_type
-from electrum.transaction import PartialTransaction, PartialTxInput, PartialTxOutput, tx_from_any
+from electrum.transaction import (PartialTransaction, PartialTxInput, PartialTxOutput, Sighash,
+                                  tx_from_any)
 from electrum.wallet import Multisig_Wallet, Deterministic_Wallet
 from electrum.i18n import _
 from electrum.plugin import BasePlugin
@@ -186,9 +187,10 @@ def is_wallet_output(keys: dict, txout: PartialTxOutput) -> bool:
     return _get_wallet_script(keys, txout) is not None
 
 
-def sign_tx(tx: PartialTransaction, keys: dict) -> None:
-    """Signs the transaction with the key of the cosigner."""
-    # add the scripts of the 2fa wallet, which a signer would otherwise get from its wallet
+def add_wallet_info_to_tx(tx: PartialTransaction, keys: dict) -> None:
+    """Adds the scripts of the 2fa wallet, which a signer would otherwise get from its
+    wallet. Raises ValueError if the transaction cannot be verified.
+    """
     for txin in tx.inputs():
         if not claims_wallet_key(keys, txin):
             continue
@@ -196,6 +198,29 @@ def sign_tx(tx: PartialTransaction, keys: dict) -> None:
         if desc is None:
             raise ValueError('input does not spend from this 2fa wallet')
         txin.script_descriptor = desc
+        if txin.witness or txin.script_sig:
+            # those fields decide how the input is signed, so a transaction that carries
+            # them could choose the sighash algorithm our key signs under
+            raise ValueError('input is already finalized')
+        if not desc.is_segwit() and txin.utxo is None:
+            # the signature of a non-segwit input does not commit to its amount. Without
+            # the previous transaction we cannot know it, and the fee could be anything.
+            # note: we ask the script we recomputed, as txin.is_segwit() believes the
+            # witness field of the transaction, which is not ours.
+            raise ValueError('missing previous transaction of a non-segwit input')
+        if txin.sighash is not None and txin.sighash != Sighash.ALL:
+            # with SIGHASH_NONE or ANYONECANPAY, our signature would not commit to the
+            # outputs of the transaction, which could then be changed after we signed
+            raise ValueError(f'non-default sighash type: {txin.sighash}')
+    if tx.get_fee() is None:
+        # the amount of an input is unknown, so we cannot tell what the transaction pays
+        raise ValueError('unknown fee')
+
+
+def sign_tx(tx: PartialTransaction, keys: dict) -> None:
+    """Signs the transaction with the key of the cosigner. Raises ValueError if the
+    transaction cannot be verified."""
+    add_wallet_info_to_tx(tx, keys)
     keystore.from_xprv(keys['xprv2']).sign_transaction(tx, None)
 
 

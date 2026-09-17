@@ -14,7 +14,7 @@ from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
 from electrum.bitcoin import address_to_script
 from electrum.fee_policy import FixedFeePolicy
 from electrum.transaction import (Transaction, PartialTransaction, PartialTxInput, PartialTxOutput,
-                                  TxOutpoint)
+                                  Sighash, TxOutpoint, TxOutput)
 from electrum import cosigner
 from electrum.plugins.trustedcoin import trustedcoin
 from electrum.util import InvalidPassword
@@ -926,6 +926,29 @@ class WalletWizardTestCase(WizardTestCase):
             self.assertFalse(trustedcoin.is_wallet_output(keys, others[0]))
             self.assertTrue(trustedcoin.is_wallet_output(keys, ours[0]))
 
+        with self.subTest(msg="a transaction whose fee is unknown is refused"):
+            # an input of unknown value, which the cosigner does not sign for
+            foreign_txin = PartialTxInput(prevout=TxOutpoint(txid=bytes(32), out_idx=0))
+            evil_tx = PartialTransaction.from_io(
+                [trustedcoin.parse_psbt_qr_data(qr_data).inputs()[0], foreign_txin],
+                trustedcoin.parse_psbt_qr_data(qr_data).outputs())
+            self.assertIsNone(evil_tx.get_fee())
+            with self.assertRaises(ValueError):
+                trustedcoin.sign_tx(evil_tx, keys)
+
+        with self.subTest(msg="a non-default sighash type is refused"):
+            for sighash in [Sighash.NONE, Sighash.SINGLE, Sighash.ALL | Sighash.ANYONECANPAY]:
+                evil_tx = trustedcoin.parse_psbt_qr_data(qr_data)
+                evil_tx.inputs()[0].sighash = sighash
+                with self.assertRaises(ValueError):
+                    trustedcoin.sign_tx(evil_tx, keys)
+            # the default is accepted, whether it is spelled out or not
+            for sighash in [None, Sighash.ALL]:
+                signed = trustedcoin.parse_psbt_qr_data(qr_data)
+                signed.inputs()[0].sighash = sighash
+                trustedcoin.sign_tx(signed, keys)
+                self.assertTrue(signed.is_complete())
+
         with self.subTest(msg="wrong password"):
             with self.assertRaises(InvalidPassword):
                 trustedcoin.find_cosigner_for_tx(self.config, tx, 'wrong')
@@ -957,6 +980,65 @@ class WalletWizardTestCase(WizardTestCase):
             for data in ['2fa:not-a-transaction', qr_data[4:]]:
                 with self.assertRaises(ValueError):
                     trustedcoin.parse_psbt_qr_data(data)
+
+    async def test_2fa_legacy_input_needs_prev_tx(self):
+        # the signature of a non-segwit input does not commit to its amount, so the
+        # cosigner needs the previous transaction in order to know the fee
+        seed = 'kiss live scene rude gate step hip quarter bunker oxygen motor glove'
+        xprv1, xpub1, xprv2, xpub2 = trustedcoin.TrustedCoinPlugin.xkeys_from_seed(seed, '')
+        xpub3 = trustedcoin.get_xpub3(xpub1, xpub2)
+        wallet = WalletIntegrityHelper.create_multisig_wallet(
+            [keystore.from_xprv(xprv1), keystore.from_xpub(xpub2), keystore.from_xpub(xpub3)],
+            '2of3', config=self.config)
+        self.assertEqual('p2sh', wallet.txin_type)
+
+        recv_addr = wallet.get_receiving_addresses()[0]
+        spk = address_to_script(recv_addr)
+        funding_tx = Transaction(
+            '0200000001' + 32 * '11' + '0000000000ffffffff01'
+            + (100_000).to_bytes(8, 'little').hex() + bytes([len(spk)]).hex() + spk.hex() + '00000000')
+        wallet.adb.receive_tx_callback(funding_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+        outputs = [PartialTxOutput.from_address_and_value('bc1qs2svwhfz47qv9qju2waa6prxzv5f522fc4p06t', 50_000)]
+        tx = wallet.make_unsigned_transaction(outputs=outputs, fee_policy=FixedFeePolicy(1000))
+        wallet.sign_transaction(tx, password=None)
+        trustedcoin.add_cosigner(
+            self.config, xprv2=xprv2, xpub1=xpub1, xpub3=xpub3, password='mobile')
+        keys = trustedcoin.find_cosigner_for_tx(self.config, tx, 'mobile')
+
+        with self.subTest(msg="the previous transaction is fetched, then the cosigner signs"):
+            signed = trustedcoin.parse_psbt_qr_data(trustedcoin.make_psbt_qr_data(tx))
+            # QR codes do not carry previous transactions
+            self.assertIsNone(signed.inputs()[0].utxo)
+            with self.assertRaises(ValueError):
+                trustedcoin.sign_tx(signed, keys)
+            # the mobile app fetches it from the network before it signs
+            signed.inputs()[0].utxo = funding_tx
+            trustedcoin.sign_tx(signed, keys)
+            self.assertTrue(signed.is_complete())
+
+        def unbacked_input() -> PartialTxInput:
+            # the amount is claimed by the transaction, but nothing backs it
+            txin = tx.inputs()[0]
+            evil_txin = PartialTxInput(prevout=txin.prevout)
+            evil_txin.witness_utxo = TxOutput(scriptpubkey=txin.scriptpubkey, value=1_000)
+            evil_txin.redeem_script = txin.redeem_script
+            evil_txin.bip32_paths = dict(txin.bip32_paths)
+            return evil_txin
+
+        with self.subTest(msg="a claimed amount that nothing backs is refused"):
+            evil_tx = PartialTransaction.from_io([unbacked_input()], tx.outputs())
+            self.assertIsNone(evil_tx.inputs()[0].utxo)
+            with self.assertRaises(ValueError):
+                trustedcoin.sign_tx(evil_tx, keys)
+
+        with self.subTest(msg="a witness field does not make a legacy input pass"):
+            evil_txin = unbacked_input()
+            evil_txin.witness = bytes.fromhex('0100')
+            # electrum believes that field, so it must not decide whether we sign
+            self.assertTrue(evil_txin.is_segwit())
+            evil_tx = PartialTransaction.from_io([evil_txin], tx.outputs())
+            with self.assertRaises(ValueError):
+                trustedcoin.sign_tx(evil_tx, keys)
 
     async def test_2fa_wallet_without_x3(self):
         # created offline, and never completed online with the TrustedCoin server
