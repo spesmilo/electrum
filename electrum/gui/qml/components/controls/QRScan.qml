@@ -95,11 +95,16 @@ Item {
                     }
                     text: scanner.hint
                 }
+
+                TapHandler {
+                    // "tap-to-focus", trigger an image capture which forces an autofocus
+                    onTapped: if (_ic.readyForCapture) _ic.capture()
+                }
             }
 
             ImageCapture {
                 id: _ic
-
+                onImageAvailable: (requestId, frame) => qr.decodeFrameOneShot(frame)
             }
 
             MediaDevices {
