@@ -158,16 +158,14 @@ class ZXingQrCodeReader(AbstractQrCodeReader):
                 try:
                     if not data:
                         raise MemoryError('zxing-cpp could not allocate the QR payload')
-                    # TODO: we could return bytes from the QR reader to support binary QRs
-                    #       e.g. for animated QR codes. This might fail if data is not valid utf-8.
-                    text: str = ctypes.string_at(data, length.value).decode('utf-8')
+                    payload = ctypes.string_at(data, length.value)  # raw bytes, no charset conversion
                 finally:
                     self._lib.ZXing_free(data)
                 position = self._lib.ZXing_Barcode_position(barcode)
                 points = [(getattr(position, corner).x, getattr(position, corner).y)
                           for corner, _type in _Position._fields_]
                 center = (sum(x for x, _ in points) // 4, sum(y for _, y in points) // 4)
-                results.append(QrCodeResult(text, center, points))
+                results.append(QrCodeResult(payload, center, points))
             return results
         finally:
             self._lib.ZXing_Barcodes_delete(barcodes)
