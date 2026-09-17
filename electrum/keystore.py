@@ -41,9 +41,9 @@ from .bip32 import (convert_bip32_strpath_to_intpath, BIP32_PRIME,
                     KeyOriginInfo)
 from .descriptor import PubkeyProvider
 from . import crypto
-from .crypto import (pw_decode, pw_encode, sha256, sha256d, PW_HASH_VERSION_LATEST,
+from .crypto import (pw_decode, pw_encode, sha256, sha256d,
                      SUPPORTED_PW_HASH_VERSIONS, UnsupportedPasswordHashVersion, hash_160,
-                     CiphertextFormatError)
+                     CiphertextFormatError, PasswordKey)
 from .util import (InvalidPassword, WalletFileException,
                    BitcoinException, bfh, inv_dict, is_hex_str)
 from .mnemonic import Mnemonic, Wordlist, calc_seed_type, is_seed
@@ -85,6 +85,9 @@ def also_test_none_password(check_password_fn):
 
 class KeyStore(Logger, ABC):
     type: str
+
+    # The db we are stored in. It holds the salt used by the KDF
+    db = None  # type: Optional[WalletDB]
 
     def __init__(self):
         Logger.__init__(self)
@@ -217,6 +220,44 @@ class Software_KeyStore(KeyStore):
         if self.pw_hash_version not in SUPPORTED_PW_HASH_VERSIONS:
             raise UnsupportedPasswordHashVersion(self.pw_hash_version)
 
+    def dump(self) -> dict[str, Any]:
+        return {'pw_hash_version': self.pw_hash_version}
+
+    def get_pw_key(self, password: Optional[str]) -> Optional[PasswordKey]:
+        """Runs the KDF, and returns the key this keystore's secrets are encrypted with
+        (None if the keystore has no password).
+
+        This is deliberately slow. Callers that need to decrypt (or encrypt) more than one
+        secret should call this once, and pass the result around instead of the password.
+        """
+        if not password:
+            return None
+        if self.pw_hash_version == 1:
+            return PasswordKey(password, version=1)  # legacy: unsalted
+        pw_key = self.db.get_pw_key(password)
+        assert pw_key is not None, f"keystore has {self.pw_hash_version=} but the db has no salt"
+        return pw_key
+
+    def reencrypt_secrets(
+            self, old_pw_key: Optional[PasswordKey], new_pw_key: Optional[PasswordKey]
+    ) -> None:
+        """Re-encrypts our secrets with new_pw_key, or stores them in plaintext if it is
+        None.
+
+        The KDF parameters live in the wallet db and are shared with the other keystores,
+        so it is up to the caller to generate them. (see #4909)
+        """
+        self._reencrypt_secrets(old_pw_key, new_pw_key)
+        # without a new key our secrets are now in plaintext: we go back to the version
+        # that needs no salt, so that we never claim one that the db does not have.
+        self.pw_hash_version = new_pw_key.version if new_pw_key else 1
+
+    @abstractmethod
+    def _reencrypt_secrets(
+            self, old_pw_key: Optional[PasswordKey], new_pw_key: Optional[PasswordKey]
+    ) -> None:
+        pass
+
     def may_have_password(self):
         return not self.is_watching_only()
 
@@ -234,29 +275,43 @@ class Software_KeyStore(KeyStore):
     def sign_transaction(self, tx, password):
         if self.is_watching_only():
             return
-        # Raise if password is not correct.
-        self.check_password(password)
+        # Raise if password is not correct. Note that this runs the KDF, once, and we then
+        # reuse its result for every key below, instead of re-deriving it per input.
+        pw_key = self.check_password(password)
         # Add private keys
         keypairs = {}
         pubkey_to_deriv_map = self._get_tx_derivations(tx)
         for pubkey, deriv in pubkey_to_deriv_map.items():
-            privkey, is_compressed = self.get_private_key(deriv, password)
+            privkey, is_compressed = self._get_private_key(deriv, pw_key)
             keypairs[pubkey] = privkey
         # Sign
         if keypairs:
             tx.sign(keypairs)
 
-    @abstractmethod
-    def update_password(self, old_password, new_password) -> None:
-        pass
+    @also_test_none_password
+    def check_password(self, password: Optional[str]) -> Optional[PasswordKey]:
+        """Raises InvalidPassword if password is not correct.
+
+        Returns the derived key, so that callers that go on to decrypt secrets can reuse
+        it instead of running the KDF again.
+        """
+        pw_key = self.get_pw_key(password)
+        self._check_password(pw_key)
+        return pw_key
 
     @abstractmethod
-    def check_password(self, password: Optional[str]) -> None:
-        """Raises InvalidPassword if password is not correct"""
+    def _check_password(self, pw_key: Optional[PasswordKey]) -> None:
+        """Raises InvalidPassword if pw_key is not correct"""
         pass
 
-    @abstractmethod
     def get_private_key(self, sequence: 'AddressIndexGeneric', password) -> Tuple[bytes, bool]:
+        """Returns (privkey, is_compressed)"""
+        return self._get_private_key(sequence, self.get_pw_key(password))
+
+    @abstractmethod
+    def _get_private_key(
+            self, sequence: 'AddressIndexGeneric', pw_key: Optional[PasswordKey]
+    ) -> Tuple[bytes, bool]:
         """Returns (privkey, is_compressed)"""
         pass
 
@@ -274,21 +329,19 @@ class Imported_KeyStore(Software_KeyStore):
         return False
 
     def dump(self):
-        return {
-            'type': self.type,
-            'keypairs': self.keypairs,
-            'pw_hash_version': self.pw_hash_version,
-        }
+        d = Software_KeyStore.dump(self)
+        d['type'] = self.type
+        d['keypairs'] = self.keypairs
+        return d
 
     def can_import(self):
         return True
 
-    @also_test_none_password
-    def check_password(self, password):
+    def _check_password(self, pw_key):
         pubkey = list(self.keypairs.keys())[0]
-        self.get_private_key(pubkey, password)
+        self._get_private_key(pubkey, pw_key)
 
-    def import_privkey(self, sec: str, password) -> Tuple[str, str]:
+    def import_privkey(self, sec: str, pw_key: Optional[PasswordKey]) -> Tuple[str, str]:
         txin_type, privkey, compressed = deserialize_privkey(sec)
         if txin_type not in bitcoin.PUBKEYHASH_SCRIPT_TYPES:
             raise NotImplementedError(txin_type)
@@ -300,15 +353,16 @@ class Imported_KeyStore(Software_KeyStore):
         # there will only be one pubkey-privkey pair for it in self.keypairs,
         # and the privkey will encode a txin_type but that txin_type cannot be trusted.
         # Removing keys complicates this further.
-        self.keypairs[pubkey] = pw_encode(serialized_privkey, password, version=self.pw_hash_version)
+        self.keypairs[pubkey] = pw_encode(serialized_privkey, pw_key)
         return txin_type, pubkey
 
     def import_private_keys(self, keys: Sequence[str], password: Optional[str]):
         good_inputs = []  # type: List[Tuple[str, bytes]]
         bad_keys = []  # type: List[Tuple[str, str]]
+        pw_key = self.get_pw_key(password)  # run the KDF once, not once per key
         for key in keys:
             try:
-                txin_type, pubkey = self.import_privkey(key, password)
+                txin_type, pubkey = self.import_privkey(key, pw_key)
             except NotImplementedError as e:
                 bad_keys.append((key, 'not implemented type' + f': {e}'))
             except Exception as e:
@@ -320,8 +374,8 @@ class Imported_KeyStore(Software_KeyStore):
     def delete_imported_key(self, key: str) -> None:
         self.keypairs.pop(key)
 
-    def get_private_key(self, pubkey: str, password):
-        sec = pw_decode(self.keypairs[pubkey], password, version=self.pw_hash_version)
+    def _get_private_key(self, pubkey: str, pw_key):
+        sec = pw_decode(self.keypairs[pubkey], pw_key)
         try:
             txin_type, privkey, compressed = deserialize_privkey(sec)
         except BaseDecodeError as e:
@@ -344,15 +398,10 @@ class Imported_KeyStore(Software_KeyStore):
             )
         return None
 
-    def update_password(self, old_password, new_password):
-        self.check_password(old_password)
-        if new_password == '':
-            new_password = None
+    def _reencrypt_secrets(self, old_pw_key, new_pw_key):
         for k, v in self.keypairs.items():
-            b = pw_decode(v, old_password, version=self.pw_hash_version)
-            c = pw_encode(b, new_password, version=PW_HASH_VERSION_LATEST)
-            self.keypairs[k] = c
-        self.pw_hash_version = PW_HASH_VERSION_LATEST
+            b = pw_decode(v, old_pw_key)
+            self.keypairs[k] = pw_encode(b, new_pw_key)
 
 
 class Deterministic_KeyStore(Software_KeyStore):
@@ -367,10 +416,8 @@ class Deterministic_KeyStore(Software_KeyStore):
         return True
 
     def dump(self):
-        d = {
-            'type': self.type,
-            'pw_hash_version': self.pw_hash_version,
-        }
+        d = Software_KeyStore.dump(self)
+        d['type'] = self.type
         if self.seed:
             d['seed'] = self.seed
         if self.passphrase:
@@ -401,11 +448,11 @@ class Deterministic_KeyStore(Software_KeyStore):
     def get_seed(self, password) -> str:
         if not self.has_seed():
             raise Exception("This wallet has no seed words")
-        return pw_decode(self.seed, password, version=self.pw_hash_version)
+        return pw_decode(self.seed, self.get_pw_key(password))
 
     def get_passphrase(self, password) -> str:
         if self.passphrase:
-            return pw_decode(self.passphrase, password, version=self.pw_hash_version)
+            return pw_decode(self.passphrase, self.get_pw_key(password))
         else:
             return ''
 
@@ -680,12 +727,14 @@ class BIP32_KeyStore(Xpub, Deterministic_KeyStore):
         d['root_fingerprint'] = self.get_root_fingerprint()
         return d
 
-    def get_master_private_key(self, password) -> str:
-        return pw_decode(self.xprv, password, version=self.pw_hash_version)
+    def _get_master_private_key(self, pw_key: Optional[PasswordKey]) -> str:
+        return pw_decode(self.xprv, pw_key)
 
-    @also_test_none_password
-    def check_password(self, password):
-        xprv = pw_decode(self.xprv, password, version=self.pw_hash_version)
+    def get_master_private_key(self, password) -> str:
+        return self._get_master_private_key(self.get_pw_key(password))
+
+    def _check_password(self, pw_key):
+        xprv = self._get_master_private_key(pw_key)
         try:
             bip32node = BIP32Node.from_xkey(xprv)
         except BaseDecodeError as e:
@@ -693,20 +742,13 @@ class BIP32_KeyStore(Xpub, Deterministic_KeyStore):
         if bip32node.chaincode != self.get_bip32_node_for_xpub().chaincode:
             raise InvalidPassword()
 
-    def update_password(self, old_password, new_password):
-        self.check_password(old_password)
-        if new_password == '':
-            new_password = None
+    def _reencrypt_secrets(self, old_pw_key, new_pw_key):
         if self.has_seed():
-            decoded = self.get_seed(old_password)
-            self.seed = pw_encode(decoded, new_password, version=PW_HASH_VERSION_LATEST)
+            self.seed = pw_encode(pw_decode(self.seed, old_pw_key), new_pw_key)
         if self.passphrase:
-            decoded = self.get_passphrase(old_password)
-            self.passphrase = pw_encode(decoded, new_password, version=PW_HASH_VERSION_LATEST)
+            self.passphrase = pw_encode(pw_decode(self.passphrase, old_pw_key), new_pw_key)
         if self.xprv is not None:
-            b = pw_decode(self.xprv, old_password, version=self.pw_hash_version)
-            self.xprv = pw_encode(b, new_password, version=PW_HASH_VERSION_LATEST)
-        self.pw_hash_version = PW_HASH_VERSION_LATEST
+            self.xprv = pw_encode(pw_decode(self.xprv, old_pw_key), new_pw_key)
 
     def is_watching_only(self):
         return self.xprv is None
@@ -728,8 +770,8 @@ class BIP32_KeyStore(Xpub, Deterministic_KeyStore):
         self.add_xprv(node.to_xprv())
         self.add_key_origin_from_root_node(derivation_prefix=derivation, root_node=rootnode)
 
-    def get_private_key(self, sequence: Sequence[int], password):
-        xprv = self.get_master_private_key(password)
+    def _get_private_key(self, sequence: Sequence[int], pw_key):
+        xprv = self._get_master_private_key(pw_key)
         node = BIP32Node.from_xkey(xprv).subkey_at_private_derivation(sequence)
         pk = node.eckey.get_secret_bytes()
         return pk, True
@@ -760,10 +802,10 @@ class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
     def watching_only_keystore(self):
         return Old_KeyStore({'mpk': self.mpk})
 
-    def _get_hex_seed(self, password) -> str:
-        if not is_hex_str(self.seed) and password is None:
+    def _get_hex_seed(self, pw_key: Optional[PasswordKey]) -> str:
+        if not is_hex_str(self.seed) and pw_key is None:
             raise InvalidPassword()
-        hex_str = pw_decode(self.seed, password, version=self.pw_hash_version)
+        hex_str = pw_decode(self.seed, pw_key)
         assert is_hex_str(hex_str), f"expected hex str, got {type(hex_str)} with {len(hex_str)=}"
         return hex_str
 
@@ -802,7 +844,7 @@ class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
 
     def get_seed(self, password):
         from . import old_mnemonic
-        hex_seed = self._get_hex_seed(password)
+        hex_seed = self._get_hex_seed(self.get_pw_key(password))
         return ' '.join(old_mnemonic.mn_encode(hex_seed))
 
     @classmethod
@@ -842,8 +884,8 @@ class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
         pk = int.to_bytes(secexp, length=32, byteorder='big', signed=False)
         return pk
 
-    def get_private_key(self, sequence: Sequence[int], password):
-        hex_seed = self._get_hex_seed(password)
+    def _get_private_key(self, sequence: Sequence[int], pw_key):
+        hex_seed = self._get_hex_seed(pw_key)
         secexp = self.stretch_key(hex_seed)
         self._check_seed(hex_seed, secexp=secexp)
         for_change, n = sequence
@@ -860,9 +902,8 @@ class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
         if master_public_key != bfh(self.mpk):
             raise InvalidPassword()
 
-    @also_test_none_password
-    def check_password(self, password):
-        hex_seed = self._get_hex_seed(password)
+    def _check_password(self, pw_key):
+        hex_seed = self._get_hex_seed(pw_key)
         self._check_seed(hex_seed)
 
     def get_master_public_key(self):
@@ -898,14 +939,9 @@ class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
             deriv_path=None,
         )
 
-    def update_password(self, old_password, new_password):
-        self.check_password(old_password)
-        if new_password == '':
-            new_password = None
+    def _reencrypt_secrets(self, old_pw_key, new_pw_key):
         if self.has_seed():
-            decoded = pw_decode(self.seed, old_password, version=self.pw_hash_version)
-            self.seed = pw_encode(decoded, new_password, version=PW_HASH_VERSION_LATEST)
-        self.pw_hash_version = PW_HASH_VERSION_LATEST
+            self.seed = pw_encode(pw_decode(self.seed, old_pw_key), new_pw_key)
 
 
 class Hardware_KeyStore(Xpub, KeyStore):
@@ -1139,6 +1175,7 @@ def load_keystore(db: 'WalletDB', name: str) -> KeyStore:
     except KeyError:
         raise WalletFileException(f'Unknown type {t} for keystore named {name}')
     k = ks_constructor(d)
+    k.db = db
     return k
 
 

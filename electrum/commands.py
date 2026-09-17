@@ -693,7 +693,7 @@ class Commands(Logger):
             # a single address
             return wallet.export_private_key(address.strip(), password)
         domain = address
-        return [wallet.export_private_key(address, password) for address in domain]
+        return list(wallet.export_private_keys(domain, password))
 
     @command('wp')
     async def getprivatekeyforpath(self, path, password=None, wallet: Abstract_Wallet = None):

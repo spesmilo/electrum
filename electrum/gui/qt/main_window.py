@@ -2489,11 +2489,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         done = False
         cancelled = False
         def privkeys_thread():
-            for addr in addresses:
+            for addr, privkey in zip(addresses, self.wallet.export_private_keys(addresses, password)):
                 time.sleep(0.1)
                 if done or cancelled:
                     break
-                privkey = self.wallet.export_private_key(addr, password)
                 private_keys[addr] = privkey
                 self.computing_privkeys_signal.emit()
             if not cancelled:

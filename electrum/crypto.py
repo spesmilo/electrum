@@ -192,11 +192,17 @@ def DecodeAES_bytes(secret: bytes, ciphertext: bytes) -> bytes:
     return s
 
 
-PW_HASH_VERSION_LATEST = 1
-KNOWN_PW_HASH_VERSIONS = (1, 2,)
-SUPPORTED_PW_HASH_VERSIONS = (1,)
+PW_HASH_VERSION_LATEST = 3
+KNOWN_PW_HASH_VERSIONS = (1, 2, 3,)
+SUPPORTED_PW_HASH_VERSIONS = (1, 3,)
 assert PW_HASH_VERSION_LATEST in KNOWN_PW_HASH_VERSIONS
 assert PW_HASH_VERSION_LATEST in SUPPORTED_PW_HASH_VERSIONS
+
+PW_HASH_SALT_LENGTH = 16
+# Number of PBKDF2 iterations used by pw hash version 3. This is a trade-off: the KDF now
+# only runs once per unlock (see PasswordKey), but it still runs on mobile and on the GUI
+# thread, so it cannot be too slow.
+PW_HASH_V3_ITERATIONS = 100_000
 
 
 class UnexpectedPasswordHashVersion(InvalidPassword, WalletFileException):
@@ -226,65 +232,84 @@ class UnsupportedPasswordHashVersion(InvalidPassword, WalletFileException):
                         "Alternatively, restore from seed.")
 
 
-def _hash_password(password: Union[bytes, str], *, version: int) -> bytes:
+def _hash_password(password: Union[bytes, str], *, version: int, salt: bytes) -> bytes:
     pw = to_bytes(password, 'utf8')
     if version not in SUPPORTED_PW_HASH_VERSIONS:
         raise UnsupportedPasswordHashVersion(version)
     if version == 1:
+        # note: unsalted and unstretched. only kept around to open old wallets.
         return sha256d(pw)
+    elif version == 3:
+        if len(salt) != PW_HASH_SALT_LENGTH:
+            raise Exception(f"unexpected salt length: {len(salt)}")
+        return hashlib.pbkdf2_hmac(
+            hash_name='sha512',
+            password=pw,
+            salt=b'ELECTRUM_PW_HASH_V3' + salt,
+            iterations=PW_HASH_V3_ITERATIONS,
+            dklen=32,
+        )
     else:
         assert version not in KNOWN_PW_HASH_VERSIONS
         raise UnexpectedPasswordHashVersion(version)
 
 
-def _pw_encode_raw(data: bytes, password: Union[bytes, str], *, version: int) -> bytes:
-    if version not in KNOWN_PW_HASH_VERSIONS:
-        raise UnexpectedPasswordHashVersion(version)
-    # derive key from password
-    secret = _hash_password(password, version=version)
-    # encrypt given data
-    ciphertext = EncodeAES_bytes(secret, data)
-    return ciphertext
+class PasswordKey:
+    """The symmetric key used by pw_encode/pw_decode, derived from a password.
+
+    Running the KDF is (deliberately) slow, so it is done here, once, instead of inside
+    pw_encode/pw_decode. All the secrets of a wallet share the salt stored in its db, and
+    hence the same key, so callers should derive one of these when the user enters their
+    password and then pass it around instead of the password. (see #4909)
+    """
+
+    __slots__ = ('version', 'salt', 'secret')
+
+    def __init__(self, password: Union[bytes, str], *, version: int, salt: bytes = b''):
+        self.version = version
+        self.salt = salt
+        self.secret = _hash_password(password, version=version, salt=salt)
 
 
-def _pw_decode_raw(data_bytes: bytes, password: Union[bytes, str], *, version: int) -> bytes:
-    if version not in KNOWN_PW_HASH_VERSIONS:
-        raise UnexpectedPasswordHashVersion(version)
-    # derive key from password
-    secret = _hash_password(password, version=version)
-    # decrypt given data
+def make_pw_salt() -> bytes:
+    return crandom.get_rand_bytes(PW_HASH_SALT_LENGTH)
+
+
+def _pw_encode_raw(data: bytes, pw_key: PasswordKey) -> bytes:
+    return EncodeAES_bytes(pw_key.secret, data)
+
+
+def _pw_decode_raw(data_bytes: bytes, pw_key: PasswordKey) -> bytes:
     try:
-        d = DecodeAES_bytes(secret, data_bytes)
+        return DecodeAES_bytes(pw_key.secret, data_bytes)
     except Exception as e:
         raise InvalidPassword() from e
-    return d
 
 
-def pw_encode_bytes(data: bytes, password: Union[bytes, str], *, version: int) -> str:
+def pw_encode_bytes(data: bytes, pw_key: PasswordKey) -> str:
     """plaintext bytes -> base64 ciphertext"""
-    ciphertext = _pw_encode_raw(data, password, version=version)
+    ciphertext = _pw_encode_raw(data, pw_key)
     ciphertext_b64 = base64.b64encode(ciphertext)
     return ciphertext_b64.decode('utf8')
 
 
-def pw_decode_bytes(data: str, password: Union[bytes, str], *, version:int) -> bytes:
+def pw_decode_bytes(data: str, pw_key: PasswordKey) -> bytes:
     """base64 ciphertext -> plaintext bytes"""
-    if version not in KNOWN_PW_HASH_VERSIONS:
-        raise UnexpectedPasswordHashVersion(version)
     try:
         data_bytes = bytes(base64.b64decode(data, validate=True))
     except binascii.Error as e:
         raise CiphertextFormatError("ciphertext not valid base64") from e
-    return _pw_decode_raw(data_bytes, password, version=version)
+    return _pw_decode_raw(data_bytes, pw_key)
 
 
-def pw_encode_with_version_and_mac(data: bytes, password: Union[bytes, str]) -> str:
+def pw_encode_with_xpub(data: bytes, xpub: str) -> str:
     """plaintext bytes -> base64 ciphertext"""
     # https://crypto.stackexchange.com/questions/202/should-we-mac-then-encrypt-or-encrypt-then-mac
     # Encrypt-and-MAC. The MAC will be used to detect invalid passwords
-    version = PW_HASH_VERSION_LATEST
+    version = 1  # no salt, and an xpub needs no stretching
+    pw_key = PasswordKey(xpub, version=version)
     mac = sha256(data)[0:4]
-    ciphertext = _pw_encode_raw(data, password, version=version)
+    ciphertext = _pw_encode_raw(data, pw_key)
     ciphertext_b64 = base64.b64encode(bytes([version]) + ciphertext + mac)
     return ciphertext_b64.decode('utf8')
 
@@ -300,25 +325,26 @@ def pw_decode_with_version_and_mac(data: str, password: Union[bytes, str]) -> by
     mac = data_bytes[-4:]
     if version not in KNOWN_PW_HASH_VERSIONS:
         raise UnexpectedPasswordHashVersion(version)
-    decrypted = _pw_decode_raw(encrypted, password, version=version)
+    pw_key = PasswordKey(password, version=version)
+    decrypted = _pw_decode_raw(encrypted, pw_key)
     if sha256(decrypted)[0:4] != mac:
         raise InvalidPassword()
     return decrypted
 
 
-def pw_encode(data: str, password: Union[bytes, str, None], *, version: int) -> str:
+def pw_encode(data: str, pw_key: Optional[PasswordKey]) -> str:
     """plaintext str -> base64 ciphertext"""
-    if not password:
+    if pw_key is None:
         return data
     plaintext_bytes = to_bytes(data, "utf8")
-    return pw_encode_bytes(plaintext_bytes, password, version=version)
+    return pw_encode_bytes(plaintext_bytes, pw_key)
 
 
-def pw_decode(data: str, password: Union[bytes, str, None], *, version: int) -> str:
+def pw_decode(data: str, pw_key: Optional[PasswordKey]) -> str:
     """base64 ciphertext -> plaintext str"""
-    if password is None:
+    if pw_key is None:
         return data
-    plaintext_bytes = pw_decode_bytes(data, password, version=version)
+    plaintext_bytes = pw_decode_bytes(data, pw_key)
     try:
         plaintext_str = to_string(plaintext_bytes, "utf8")
     except UnicodeDecodeError as e:

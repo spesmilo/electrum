@@ -19,11 +19,12 @@ from electrum.util import TxMinedInfo, InvalidPassword
 from electrum.bitcoin import COIN
 from electrum.wallet_db import WalletDB, JsonDB
 from electrum.simple_config import SimpleConfig
-from electrum import util, storage
+from electrum import util, storage, keystore
 from electrum.daemon import Daemon
 from electrum.invoices import PR_UNPAID, PR_PAID, PR_UNCONFIRMED
 from electrum.transaction import tx_from_any
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
+from electrum import crypto
 
 from . import ElectrumTestCase
 from . import restore_wallet_from_text__for_unittest
@@ -454,6 +455,42 @@ class TestWalletPassword(WalletTestCase):
         with self.assertRaises(InvalidPassword):
             wallet.check_password("wrong password")
         wallet.check_password("1234")
+
+    async def test_keystore_with_legacy_pw_hash_version(self):
+        """A keystore encrypted with the legacy (unsalted) pw hash version 1 must still
+        open, and must move to the latest version when the password is changed.
+        """
+        password = "1234"
+        privkey = 'L2sED74axVXC4H8szBJ4rQJrkfem7UMc6usLCPUoEWxDCFGUaGUM'
+        pubkey = '0344b1588589958b0bcab03435061539e9bcf54677c104904044e4f8901f4ebdf5'
+        db = WalletDB('', storage=None, upgrade=True)
+        ks = keystore.Imported_KeyStore({
+            'type': 'imported',
+            'pw_hash_version': 1,
+            'keypairs': {pubkey: crypto.pw_encode(privkey, crypto.PasswordKey(password, version=1))},
+        })
+        ks.db = db  # the salt of the latest version belongs to the db
+        ks.check_password(password)
+        with self.assertRaises(InvalidPassword):
+            ks.check_password("wrong password")
+
+        # changing the password re-encrypts the secrets using the latest (salted) version
+        old_pw_key = ks.get_pw_key(password)
+        ks.reencrypt_secrets(old_pw_key, db.set_new_pw_params("5678"))
+        self.assertEqual(crypto.PW_HASH_VERSION_LATEST, ks.pw_hash_version)
+        self.assertEqual(crypto.PW_HASH_VERSION_LATEST, db.get('pw_hash_version'))
+        self.assertEqual(crypto.PW_HASH_SALT_LENGTH, len(bytes.fromhex(db.get('pw_salt'))))
+        self.assertNotIn('pw_salt', ks.dump())
+        ks.check_password("5678")
+        with self.assertRaises(InvalidPassword):
+            ks.check_password(password)
+
+        # removing the password stores the secrets in plaintext again
+        old_pw_key = ks.get_pw_key("5678")
+        ks.reencrypt_secrets(old_pw_key, db.set_new_pw_params(None))
+        self.assertEqual(privkey, ks.keypairs[pubkey])
+        self.assertIsNone(db.get('pw_salt'))
+        ks.check_password(None)
 
     async def test_update_password_with_app_restarts(self):
         wallet_str = '{"addr_history":{"1364Js2VG66BwRdkaoxAaFtdPb1eQgn8Dr":[],"15CyDgLffJsJgQrhcyooFH4gnVDG82pUrA":[],"1Exet2BhHsFxKTwhnfdsBMkPYLGvobxuW6":[]},"addresses":{"change":[],"receiving":["1364Js2VG66BwRdkaoxAaFtdPb1eQgn8Dr","1Exet2BhHsFxKTwhnfdsBMkPYLGvobxuW6","15CyDgLffJsJgQrhcyooFH4gnVDG82pUrA"]},"keystore":{"keypairs":{"0344b1588589958b0bcab03435061539e9bcf54677c104904044e4f8901f4ebdf5":"L2sED74axVXC4H8szBJ4rQJrkfem7UMc6usLCPUoEWxDCFGUaGUM","0389508c13999d08ffae0f434a085f4185922d64765c0bff2f66e36ad7f745cc5f":"L3Gi6EQLvYw8gEEUckmqawkevfj9s8hxoQDFveQJGZHTfyWnbk1U","04575f52b82f159fa649d2a4c353eb7435f30206f0a6cb9674fbd659f45082c37d559ffd19bea9c0d3b7dcc07a7b79f4cffb76026d5d4dff35341efe99056e22d2":"5JyVyXU1LiRXATvRTQvR9Kp8Rx1X84j2x49iGkjSsXipydtByUq"},"type":"imported"},"pruned_txo":{},"seed_version":13,"stored_height":-1,"transactions":{},"tx_fees":{},"txi":{},"txo":{},"use_encryption":false,"verified_tx3":{},"wallet_type":"standard","winpos-qt":[100,100,840,405]}'

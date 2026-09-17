@@ -798,10 +798,6 @@ class NewWalletWizard(KeystoreWizard):
         else:
             raise NotImplementedError('unsupported/unknown keystore_type %s' % data['keystore_type'])
 
-        if data['password']:
-            if k and k.may_have_password():
-                k.update_password(None, data['password'])
-
         if data['encrypt']:
             if data.get('xpub_encrypt'):
                 assert data.get('keystore_type') == 'hardware' and data['wallet_type'] == 'standard'
@@ -815,6 +811,15 @@ class NewWalletWizard(KeystoreWizard):
 
         db.put('wallet_type', data['wallet_type'])
 
+        # every secret of the wallet is encrypted with this key. (see #4909)
+        if k and k.can_have_deterministic_lightning_xprv():
+            db.put('lightning_xprv', k.get_lightning_xprv(None))
+        # a standard wallet without a software keystore has no secret to encrypt
+        has_secrets = data['wallet_type'] != 'standard' or k.may_have_password()
+        pw_key = db.get_or_create_pw_key(data['password'] if has_secrets else None)
+        if data['password'] and k and k.may_have_password():
+            k.reencrypt_secrets(None, pw_key)
+
         if data['wallet_type'] == 'standard':
             db.put('keystore', k.dump())
         elif data['wallet_type'] == '2fa':
@@ -822,7 +827,7 @@ class NewWalletWizard(KeystoreWizard):
             if 'trustedcoin_keepordisable' in data and data['trustedcoin_keepordisable'] == 'disable':
                 k2 = keystore.from_xprv(data['x2']['xprv'])
                 if data['encrypt'] and k2.may_have_password():
-                    k2.update_password(None, data['password'])
+                    k2.reencrypt_secrets(None, pw_key)
                 db.put('x2', k2.dump())
             else:
                 db.put('x2', data['x2'])
@@ -842,15 +847,12 @@ class NewWalletWizard(KeystoreWizard):
                 if k_xpub_type != xpub_type(cosigner_keystore.xpub):
                     raise UserFacingException(_('Multisig wallet needs to have homogeneous xpub types.'))
                 if data['encrypt'] and cosigner_keystore.may_have_password():
-                    cosigner_keystore.update_password(None, data['password'])
+                    cosigner_keystore.reencrypt_secrets(None, pw_key)
                 db.put(f'x{cosigner}', cosigner_keystore.dump())
         elif data['wallet_type'] == 'imported':
             if k:
                 db.put('keystore', k.dump())
             db.put('addresses', addresses)
-
-        if k and k.can_have_deterministic_lightning_xprv():
-            db.put('lightning_xprv', k.get_lightning_xprv(data['password']))
 
         db.load_plugins()
         db.write()

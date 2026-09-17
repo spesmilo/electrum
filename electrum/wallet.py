@@ -878,17 +878,23 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         pass
 
     def export_private_key(self, address: str, password: Optional[str]) -> str:
+        [serialized_privkey] = self.export_private_keys([address], password)
+        return serialized_privkey
+
+    def export_private_keys(self, addresses: Sequence[str], password: Optional[str]) -> Iterable[str]:
         if self.is_watching_only():
             raise UserFacingException(_("This is a watching-only wallet"))
-        if not is_address(address):
-            raise UserFacingException(_('Invalid bitcoin address: {}').format(address))
-        if not self.is_mine(address):
-            raise UserFacingException(_('Address not in wallet: {}').format(address))
-        index = self.get_address_index(address)
-        pk, compressed = self.keystore.get_private_key(index, password)
-        txin_type = self.get_txin_type(address)
-        serialized_privkey = bitcoin.serialize_privkey(pk, compressed, txin_type)
-        return serialized_privkey
+        for address in addresses:
+            if not is_address(address):
+                raise UserFacingException(_('Invalid bitcoin address: {}').format(address))
+            if not self.is_mine(address):
+                raise UserFacingException(_('Address not in wallet: {}').format(address))
+        pw_key = self.keystore.get_pw_key(password)  # run the KDF once, not once per key
+        for address in addresses:
+            index = self.get_address_index(address)
+            pk, compressed = self.keystore._get_private_key(index, pw_key)
+            txin_type = self.get_txin_type(address)
+            yield bitcoin.serialize_privkey(pk, compressed, txin_type)
 
     def export_private_key_for_path(self, path: Union[Sequence[int], str], password: Optional[str]) -> str:
         raise UserFacingException("this wallet is not deterministic")
@@ -3228,16 +3234,19 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def may_have_password(cls):
         return True
 
-    def check_password(self, password: Optional[str]) -> None:
-        """Raises an InvalidPassword exception on invalid password"""
+    def check_password(self, password: Optional[str]) -> Optional[crypto.PasswordKey]:
+        """Raises an InvalidPassword exception on invalid password.
+        Returns the key derived from it, if the keystore is encrypted."""
         if not self.has_password():
             if password is not None:
                 raise InvalidPassword("password given but wallet has no password")
             return
+        pw_key = None
         if self.has_keystore_encryption():
-            self.keystore.check_password(password)
+            pw_key = self.keystore.check_password(password)
         if self.has_storage_encryption():
             self.storage.check_password(password)
+        return pw_key
 
     def update_password(self, old_pw, new_pw, *, encrypt_storage: bool = True, xpub_encrypt: bool = False):
         if old_pw is None and self.has_password():
@@ -3258,18 +3267,33 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         #       Hardware_KeyStore.may_have_password() == False.
         #       If these were not the case,
         #       extra care would need to be taken when encrypting keystores.
-        self._update_password_for_keystore(old_pw, new_pw)
-        encrypt_keystore = self.can_have_keystore_encryption()
-        self.db.set_keystore_encryption(bool(new_pw) and encrypt_keystore)
+        # All the secrets of a wallet are encrypted with the same key, so we derive the
+        # old ones before replacing the parameters they come from, and then re-encrypt
+        # everything with the new key. (see #4909)
+        keystores = [ks for ks in self.get_keystores() if ks.may_have_password()]
+        old_pw_keys = [ks.get_pw_key(old_pw) for ks in keystores]
+        with self.db.lock:  # FIXME: use write_batch once new_storage_api is merged
+            if self._has_legacy_pw_hash_version():
+                new_pw_key = crypto.PasswordKey(new_pw, version=1) if new_pw else None
+            else:
+                # without a software keystore there is no secret to encrypt (hw device, watching-only)
+                new_pw_key = self.db.set_new_pw_params(new_pw if self.can_have_keystore_encryption() else None)
+            for ks, old_pw_key in zip(keystores, old_pw_keys):
+                ks.reencrypt_secrets(old_pw_key, new_pw_key)
+            if keystores:
+                self.save_keystore()
+            encrypt_keystore = self.can_have_keystore_encryption()
+            self.db.set_keystore_encryption(bool(new_pw) and encrypt_keystore)
         # save changes. force full rewrite to rm remnants of old password
         if self.storage and self.storage.file_exists():
             self.db.write_and_force_consolidation()
         # if wallet was previously unlocked, reset password_in_memory
         self.lock_wallet()
 
-    @abstractmethod
-    def _update_password_for_keystore(self, old_pw: Optional[str], new_pw: Optional[str]) -> None:
-        pass
+    def _has_legacy_pw_hash_version(self) -> bool:
+        """Whether our keystores are encrypted with the legacy unsalted KDF. They keep it,
+        even across a password change: there is no migration yet. (see #4909)"""
+        return self.has_keystore_encryption() and not self.db.get('pw_salt')
 
     def sign_message(self, *, address: str, message: str, password, strip_inputs: bool = True) -> bytes:
         """Caller must handle UserFacingException."""
@@ -3680,11 +3704,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def unlock(self, password: Optional[str]) -> None:
         self.logger.info(f'unlocking wallet')
         password = password or None
-        self.check_password(password)
-        self.db.set_unlocked_password(password)
+        pw_key = self.check_password(password)
+        self.db.set_unlocked_password(password, pw_key)
 
     def lock_wallet(self):
-        self.db.set_unlocked_password(None)
+        self.db.set_unlocked_password(None, None)
 
     def get_unlocked_password(self) -> Optional[str]:
         # no check_password here: unlock() checked it, and that runs the KDF
@@ -3871,11 +3895,6 @@ class Simple_Wallet(Abstract_Wallet):
 
     def is_watching_only(self):
         return self.keystore.is_watching_only()
-
-    def _update_password_for_keystore(self, old_pw, new_pw):
-        if self.keystore and self.keystore.may_have_password():
-            self.keystore.update_password(old_pw, new_pw)
-            self.save_keystore()
 
     def save_keystore(self):
         self.db.put('keystore', self.keystore.dump())
@@ -4340,8 +4359,13 @@ class Deterministic_Wallet(Abstract_Wallet):
     def enable_keystore(self, keystore: KeyStore, is_hardware_keystore: bool, password) -> None:
         assert self.can_enable_disable_keystore(keystore)
         if not is_hardware_keystore and self.storage.is_encrypted_with_user_pw():
-            keystore.update_password(None, password)
+            # its secrets are encrypted with the key of the wallet, like ours
+            if self._has_legacy_pw_hash_version():
+                pw_key = crypto.PasswordKey(password, version=1)
+            else:
+                pw_key = self.db.get_or_create_pw_key(password)
             self.db.put('use_encryption', True)
+            keystore.reencrypt_secrets(None, pw_key)
         self._update_keystore(keystore)
 
     def disable_keystore(self, keystore: KeyStore) -> None:
@@ -4397,6 +4421,7 @@ class Standard_Wallet(Simple_Wallet, Deterministic_Wallet):
     def _update_keystore(self, keystore):
         if self.keystore.get_master_public_key() != keystore.get_master_public_key():
             raise Exception("mismatching xpubs")
+        keystore.db = self.db
         self.keystore = keystore
         self.save_keystore()
 
@@ -4457,6 +4482,7 @@ class Multisig_Wallet(Deterministic_Wallet):
                 break
         else:
             raise Exception('keystore not found')
+        keystore.db = self.db
         self.keystores[name] = keystore
         self.keystore = keystore
         self.save_keystore()
@@ -4464,18 +4490,14 @@ class Multisig_Wallet(Deterministic_Wallet):
     def can_have_keystore_encryption(self):
         return any([k.may_have_password() for k in self.get_keystores()])
 
-    def _update_password_for_keystore(self, old_pw, new_pw):
-        for name, keystore in self.keystores.items():
-            if keystore.may_have_password():
-                keystore.update_password(old_pw, new_pw)
-                self.db.put(name, keystore.dump())
-
     def check_password(self, password):
+        pw_key = None
         for name, keystore in self.keystores.items():
             if keystore.may_have_password():
-                keystore.check_password(password)
+                pw_key = keystore.check_password(password)
         if self.has_storage_encryption():
             self.storage.check_password(password)
+        return pw_key
 
     def get_available_storage_encryption_versions(self) -> Sequence[StorageEncryptionVersion]:
         # multisig wallets are not offered hw device encryption
@@ -4557,11 +4579,11 @@ def create_new_wallet(
     db = WalletDB('', storage=storage, upgrade=True)
     seed = Mnemonic('en').make_seed(seed_type=seed_type)
     k = keystore.from_seed(seed, passphrase=passphrase)
-    k.update_password(None, password)
+    if k.can_have_deterministic_lightning_xprv():
+        db.put('lightning_xprv', k.get_lightning_xprv(None))
+    k.reencrypt_secrets(None, db.get_or_create_pw_key(password))
     db.put('keystore', k.dump())
     db.put('wallet_type', 'standard')
-    if k.can_have_deterministic_lightning_xprv():
-        db.put('lightning_xprv', k.get_lightning_xprv(password))
     if gap_limit is not None:
         db.put('gap_limit', gap_limit)
     if gap_limit_for_change is not None:
@@ -4616,7 +4638,7 @@ def restore_wallet_from_text(
         # FIXME tell user about bad_inputs
         if not good_inputs:
             raise UserFacingException("None of the given privkeys can be imported")
-        k.update_password(None, password)
+        k.reencrypt_secrets(None, db.get_or_create_pw_key(password))
         db.put('keystore', k.dump())
         wallet = Imported_Wallet(db, config=config)
         wallet._add_imported_addresses(good_inputs)
@@ -4630,7 +4652,7 @@ def restore_wallet_from_text(
         else:
             raise UserFacingException("Seed or key not recognized")
         if not k.is_watching_only():
-            k.update_password(None, password)
+            k.reencrypt_secrets(None, db.get_or_create_pw_key(password))
         db.put('keystore', k.dump())
         db.put('wallet_type', 'standard')
         if gap_limit is not None:

@@ -55,7 +55,7 @@ from .transaction import (
     Transaction, get_script_type_from_output_script, PartialTxOutput, PartialTransaction, PartialTxInput
 )
 from .crypto import (
-    sha256, chacha20_encrypt, chacha20_decrypt, pw_encode_with_version_and_mac, pw_decode_with_version_and_mac
+    sha256, chacha20_encrypt, chacha20_decrypt, pw_encode_with_xpub, pw_decode_with_version_and_mac
 )
 
 from .onion_message import OnionMessageManager
@@ -3873,7 +3873,7 @@ class LNWallet(Logger):
         xpub = self.wallet.get_fingerprint()
         backup_bytes = self.create_channel_backup(channel_id).to_bytes()
         assert backup_bytes == ImportedChannelBackupStorage.from_bytes(backup_bytes).to_bytes(), "roundtrip failed"
-        encrypted = pw_encode_with_version_and_mac(backup_bytes, xpub)
+        encrypted = pw_encode_with_xpub(backup_bytes, xpub)
         assert backup_bytes == pw_decode_with_version_and_mac(encrypted, xpub), "encrypt failed"
         return 'channel_backup:' + encrypted
 
