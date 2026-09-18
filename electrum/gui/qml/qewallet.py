@@ -241,6 +241,12 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             if not self.synchronizing:
                 self.historyModel.initModel()  # refresh if dirty
 
+    @qt_event_listener
+    def on_event_frozen_state_changed(self, wallet, addresses, outpoints):
+        if wallet == self.wallet:
+            # frozenBalance, isLowReserve and the piechart all depend on the frozen set
+            self.balanceChanged.emit()
+
     @event_listener
     def on_event_channel(self, wallet, channel):
         if wallet == self.wallet:
