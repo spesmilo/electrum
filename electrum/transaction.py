@@ -1302,7 +1302,7 @@ class Transaction:
         except Exception as e:
             has_errored = True
             _logger.error(f"tx.add_info_from_network() got exc: {e!r}")
-            if isinstance(e, NetworkException) and not ignore_network_issues:
+            if not (isinstance(e, NetworkException) and ignore_network_issues):
                 raise
         finally:
             has_finished = True
