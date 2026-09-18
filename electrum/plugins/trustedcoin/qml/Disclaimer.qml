@@ -11,6 +11,10 @@ WizardComponent {
 
     property QtObject plugin
 
+    function apply() {
+        wizard_data['keystore_type'] = 'haveseed'
+    }
+
     ColumnLayout {
         width: parent.width
 

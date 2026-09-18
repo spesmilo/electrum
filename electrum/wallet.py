@@ -2009,7 +2009,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             inputs: Optional[List[PartialTxInput]] = None,
             fee_policy: FeePolicy,
             change_addr: str | None = None,
-            is_sweep: bool = False,  # used by Wallet_2fa subclass
             rbf: bool = True,
             BIP69_sort: Optional[bool] = True,
             base_tx: Optional[Transaction] = None,
@@ -2575,9 +2574,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return PartialTransaction.from_io(inputs, outputs)
 
     def _is_rbf_allowed_to_touch_tx_output(self, txout: TxOutput) -> bool:
-        # 2fa fee outputs if present, should not be removed or have their value decreased
-        if self.is_billing_address(txout.address):
-            return False
         # submarine swap funding outputs must not be decreased
         if self.lnworker and self.lnworker.swap_manager.is_lockup_address_for_a_swap(txout.address):
             return False
@@ -3412,10 +3408,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             else:
                 p = self.price_at_timestamp(txid, price_func)
                 return p * txin_value/Decimal(COIN)
-
-    def is_billing_address(self, addr):
-        # overridden for TrustedCoin wallets
-        return False
 
     @abstractmethod
     def is_watching_only(self) -> bool:

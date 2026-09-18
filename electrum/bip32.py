@@ -90,7 +90,7 @@ def CKD_pub(parent_pubkey: bytes, parent_chaincode: bytes, child_index: int) -> 
 
 
 # helper function, callable with arbitrary 'child_index' byte-string.
-# i.e.: 'child_index' does not need to fit into 32 bits here! (c.f. trustedcoin billing)
+# i.e.: 'child_index' does not need to fit into 32 bits here! (c.f. trustedcoin make_xpub)
 def _CKD_pub(parent_pubkey: bytes, parent_chaincode: bytes, child_index: bytes) -> Tuple[bytes, bytes]:
     I = hmac_oneshot(parent_chaincode, parent_pubkey + child_index, hashlib.sha512)
     pubkey = ecc.ECPrivkey(I[0:32]) + ecc.ECPubkey(parent_pubkey)

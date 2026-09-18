@@ -16,7 +16,6 @@ from electrum.util import (
 )
 from electrum.wallet import CannotBumpFee, CannotDoubleSpendTx, CannotCPFP, BumpFeeStrategy, sweep_preparations
 from electrum import keystore
-from electrum.plugin import run_hook
 from electrum.fee_policy import FeePolicy, FeeMethod
 from electrum.network import NetworkException
 
@@ -360,7 +359,6 @@ class TxFeeSlider(FeeSlider):
                 'short_id': str(TxOutpoint(bytes.fromhex(tx.txid()), idx).short_name()) if tx.txid() else '',
                 'is_mine': self._wallet.wallet.is_mine(o.get_ui_address_str()),
                 'is_change': self._wallet.wallet.is_change(o.get_ui_address_str()),
-                'is_billing': self._wallet.wallet.is_billing_address(o.get_ui_address_str()),
                 'is_swap': False if not sm else sm.is_lockup_address_for_a_swap(o.get_ui_address_str()) or o.get_ui_address_str() == DummyAddress.SWAP,
                 'is_accounting': self._wallet.wallet.is_accounting_address(o.get_ui_address_str()),
                 'is_reserve': o.is_utxo_reserve
@@ -409,7 +407,6 @@ class QETxFinalizer(TxFeeSlider):
         self._address = ''
         self._amount = QEAmount()
         self._effectiveAmount = QEAmount()
-        self._extraFee = QEAmount()
         self._canRbf = False
 
     addressChanged = pyqtSignal()
@@ -440,18 +437,6 @@ class QETxFinalizer(TxFeeSlider):
     @pyqtProperty(QEAmount, notify=effectiveAmountChanged)
     def effectiveAmount(self):
         return self._effectiveAmount
-
-    extraFeeChanged = pyqtSignal()
-    @pyqtProperty(QVariant, notify=extraFeeChanged)
-    def extraFee(self) -> QEAmount:
-        return self._extraFee
-
-    @extraFee.setter
-    def extraFee(self, extrafee: QEAmount):
-        assert extrafee is None or isinstance(extrafee, QEAmount)
-        if self._extraFee != extrafee:
-            self._extraFee.copyFrom(extrafee)
-            self.extraFeeChanged.emit()
 
     canRbfChanged = pyqtSignal()
     @pyqtProperty(bool, notify=canRbfChanged)
@@ -519,11 +504,6 @@ class QETxFinalizer(TxFeeSlider):
         self.effectiveAmountChanged.emit()
 
         self.update_from_tx(tx)
-
-        x_fee = run_hook('get_tx_extra_fee', self._wallet.wallet, tx)
-        if x_fee:
-            x_fee_address, x_fee_amount = x_fee
-            self.extraFee = QEAmount(amount_sat=x_fee_amount)
 
         self.update_fee_warning_from_tx(tx=tx, invoice_amt=amount)
 
@@ -1152,7 +1132,7 @@ class QETxSweepFinalizer(QETxFinalizer):
         outputs = [PartialTxOutput.from_address_and_value(address, value='!')]
 
         tx = self._wallet.wallet.make_unsigned_transaction(
-            coins=coins, outputs=outputs, fee_policy=self._fee_policy, rbf=self._rbf, is_sweep=True)
+            coins=coins, outputs=outputs, fee_policy=self._fee_policy, rbf=self._rbf)
         self._logger.debug('fee: %d, inputs: %d, outputs: %d' % (tx.get_fee(), len(tx.inputs()), len(tx.outputs())))
 
         tx.sign(keypairs)

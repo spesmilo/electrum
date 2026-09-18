@@ -21,9 +21,7 @@ TextHighlightPane {
                     : qsTr('mine')
             : model.is_swap
                 ? qsTr('swap')
-                : model.is_billing
-                    ? qsTr('billing')
-                    : ""
+                : ""
 
     RowLayout {
         width: parent.width
@@ -81,13 +79,11 @@ TextHighlightPane {
                         ? model.is_change
                             ? constants.colorAddressInternal
                             : constants.colorAddressExternal
-                        : model.is_billing
-                            ? constants.colorAddressBilling
-                            : model.is_swap
-                                ? constants.colorAddressSwap
-                                : model.is_accounting
-                                    ? constants.colorAddressAccounting
-                                    : Material.foreground
+                        : model.is_swap
+                            ? constants.colorAddressSwap
+                            : model.is_accounting
+                                ? constants.colorAddressAccounting
+                                : Material.foreground
                     TapHandler {
                         enabled: allowClickAddress && model.is_mine
                         onTapped: {

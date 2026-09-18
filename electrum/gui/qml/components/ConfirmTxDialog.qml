@@ -134,17 +134,6 @@ ElDialog {
                         id: feepicker
                         width: parent.width
                         finalizer: dialog.finalizer
-
-                        Label {
-                            visible: !finalizer.extraFee.isEmpty
-                            text: qsTr('Extra fee')
-                            color: Material.accentColor
-                        }
-
-                        FormattedAmount {
-                            visible: !finalizer.extraFee.isEmpty
-                            amount: finalizer.extraFee
-                        }
                     }
                 }
 

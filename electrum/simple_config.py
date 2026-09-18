@@ -992,7 +992,8 @@ Warning: setting this to too low will result in lots of payment failures."""),
     # connect to remote WT
     WATCHTOWER_CLIENT_URL = ConfigVar('watchtower_url', default=None, type_=str)
 
-    PLUGIN_TRUSTEDCOIN_NUM_PREPAY = ConfigVar('trustedcoin_prepay', default=20, type_=int)
+    # keys of the wallets this device cosigns for, see electrum/cosigner.py
+    COSIGNERS = ConfigVar('cosigners', default={}, type_=dict)
 
 
 def read_user_config(path: Optional[str]) -> Dict[str, Any]:

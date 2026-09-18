@@ -25,6 +25,20 @@ WizardComponent {
             text: Daemon.suggestWalletName()
             inputMethodHints: Qt.ImhNoPredictiveText
         }
+
+        ColumnLayout {
+            id: pluginButtons
+            Layout.fillWidth: true
+            Layout.topMargin: constants.paddingLarge
+
+            Component.onCompleted: {
+                var buttons = app.pluginsComponentsByName('wizard_scan_button')
+                for (var i=0; i < buttons.length; i++) {
+                    var b = buttons[i].createObject(pluginButtons)
+                    b.Layout.fillWidth = true
+                }
+            }
+        }
     }
 
     Component.onCompleted: {
