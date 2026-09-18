@@ -1,6 +1,8 @@
 import QtQuick
 import QtQuick.Controls
 
+import "."
+
 Item {
     id: root
     property string qrdata

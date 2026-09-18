@@ -369,6 +369,7 @@ Pane {
                     Label {
                         Layout.fillWidth: true
                         text: qsTr('<b>%1%</b> of payment').arg(maxfeeslider._fees[maxfeeslider.value]/10000)
+                        textFormat: Text.RichText
                         wrapMode: Text.Wrap
                     }
 

@@ -4,6 +4,7 @@ import QtMultimedia
 import QtQml
 
 import org.electrum 1.0
+import "."
 
 Item {
     id: scanner

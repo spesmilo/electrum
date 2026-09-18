@@ -37,6 +37,7 @@ class OverlayLabel(QtWidgets.QLabel):
         self.setMargin(0)
         parent.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setWordWrap(True)
+        self.setTextFormat(Qt.TextFormat.RichText)
 
     def mousePressEvent(self, e):
         self.hide()

@@ -2,6 +2,8 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
 
+import "."
+
 RowLayout {
     id: root
     property alias text: password_tf.text

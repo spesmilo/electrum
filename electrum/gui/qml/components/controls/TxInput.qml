@@ -4,6 +4,7 @@ import QtQuick.Controls
 import QtQuick.Controls.Material
 
 import org.electrum 1.0
+import "."
 
 TextHighlightPane {
     id: root
@@ -42,6 +43,7 @@ TextHighlightPane {
                     : '&lt;' + qsTr('unknown amount') + '&gt;'
                 font.pixelSize: constants.fontSizeMedium
                 font.family: FixedFont
+                textFormat: Text.RichText
             }
             Label {
                 text: Config.baseUnit

@@ -39,6 +39,7 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
         self.setMinimumSize(600, 400)
 
         self.title = QLabel()
+        self.title.setTextFormat(Qt.TextFormat.RichText)
         self.window_title = ''
         self.finish_label = _('Finish')
 

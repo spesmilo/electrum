@@ -1,5 +1,7 @@
 import QtQuick
 
+import "."
+
 Image {
     id: root
 

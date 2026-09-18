@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import QtQuick.Controls.Material
 
 import org.electrum 1.0
+import "."
 
 GridLayout {
     required property var amount // type: Amount

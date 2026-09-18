@@ -1,5 +1,7 @@
 import QtQuick
 
+import "."
+
 Canvas {
     id: piechart
 

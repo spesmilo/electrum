@@ -4,6 +4,8 @@ import QtQuick.Controls
 
 import org.electrum 1.0
 
+import "../controls"
+
 WizardComponent {
     valid: Daemon.isValidWalletName(wallet_name.text)
 

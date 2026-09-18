@@ -3,6 +3,8 @@ import QtQuick.Layouts
 import QtQuick.Controls
 import QtQuick.Controls.Material
 
+import "."
+
 Rectangle {
     id: root
     radius: height/2

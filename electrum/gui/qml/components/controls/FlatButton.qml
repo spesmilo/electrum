@@ -4,6 +4,8 @@ import QtQuick.Controls.Material
 import QtQuick.Controls.impl
 import QtQuick.Controls.Material.impl
 
+import "."
+
 TabButton {
     id: control
     checkable: false

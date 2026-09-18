@@ -180,8 +180,10 @@ class SeedWidget(QWidget):
 
         vbox.addStretch(1)
         self.seed_status = WWLabel('')
+        self.seed_status.setTextFormat(Qt.TextFormat.RichText)
         vbox.addWidget(self.seed_status)
         self.seed_warning = WWLabel('')
+        self.seed_warning.setTextFormat(Qt.TextFormat.RichText)
         if msg:
             self.seed_warning.setText(seed_warning_msg(seed))
         else:

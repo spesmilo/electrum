@@ -1,6 +1,7 @@
 import QtQuick
 
 import org.electrum 1.0
+import "."
 
 Item {
     id: root
