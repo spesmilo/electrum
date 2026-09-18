@@ -50,7 +50,7 @@ class PluginDialog(WindowModalDialog):
             name_label.setIcon(icon)
         vbox.addWidget(name_label)
         vbox.addStretch()
-        vbox.addWidget(WWLabel(description))
+        vbox.addWidget(WWLabel(description))  # must be plain text: don't parse untrusted text as rich-text
         vbox.addStretch()
         form = QFormLayout(None)
         if author:
