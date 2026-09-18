@@ -275,7 +275,7 @@ class QEInvoice(QObject, QtEventListener):
             return
 
         lnaddr = self._effectiveInvoice._lnaddr
-        ln_routing_info = lnaddr.get_routing_info('r')
+        ln_routing_info = lnaddr.get_routing_info()
         self._logger.debug(str(ln_routing_info))
 
         self._lnprops = {

@@ -277,7 +277,7 @@ class TestBolt11(ElectrumTestCase):
         # control: a well-formed hop is parsed
         r_hop = bytes(33) + bytes(8) + (1).to_bytes(4, 'big') + (2).to_bytes(4, 'big') + (3).to_bytes(2, 'big')
         invoice = self._encode_invoice_with_raw_tag('r', list(convertbits(r_hop, 8, 5)))
-        self.assertEqual(1, len(decode_bolt11_invoice(invoice).get_routing_info('r')))
+        self.assertEqual(1, len(decode_bolt11_invoice(invoice).get_routing_info()))
 
     def test_invalid_signature(self):
         # The trailing 65 bytes of an invoice are attacker-controlled: every way the ecc lib

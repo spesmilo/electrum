@@ -285,7 +285,7 @@ class MockLNWallet(LNWallet):
             payment_secret=decoded_invoice.payment_secret,
             initial_trampoline_fee_level=0,
             invoice_features=decoded_invoice.get_features(),
-            r_tags=decoded_invoice.get_routing_info('r'),
+            r_tags=decoded_invoice.get_routing_info(),
             min_final_cltv_delta=decoded_invoice.get_min_final_cltv_delta(),
             amount_to_pay=amount_msat,
             invoice_pubkey=decoded_invoice.pubkey.serialize(),

@@ -328,8 +328,8 @@ class BOLT11Addr:
             return None
         return self.amount * COIN
 
-    def get_routing_info(self, tag):
-        r_tags = list(filter(lambda x: x[0] == tag, self.tags))
+    def get_routing_info(self):
+        r_tags = list(filter(lambda x: x[0] == 'r', self.tags))
         # strip the tag type, it's implicitly 'r' now
         r_tags = list(map(lambda x: x[1], r_tags))
         # if there are multiple hints, we will use the first one that works,
@@ -427,7 +427,7 @@ class BOLT11Addr:
             'tags': self.tags,
             'unknown_tags': self.unknown_tags,
         }
-        if ln_routing_info := self.get_routing_info('r'):
+        if ln_routing_info := self.get_routing_info():
             d['r_tags'] = self.format_bolt11_routing_info_as_human_readable(ln_routing_info)
         return d
 
