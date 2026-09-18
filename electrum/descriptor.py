@@ -841,9 +841,11 @@ def _get_func_expr(s: str) -> Tuple[str, str]:
     try:
         start = s.index("(")
         end = s.rindex(")")
-        return s[0:start], s[start + 1:end]
     except ValueError:
         raise ValueError("A matching pair of parentheses cannot be found")
+    if end != len(s) - 1:
+        raise ValueError("Trailing characters '{}' after closing parenthesis".format(s[end + 1:]))
+    return s[0:start], s[start + 1:end]
 
 
 def _get_const(s: str, const: str) -> str:
