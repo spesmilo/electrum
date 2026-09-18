@@ -344,19 +344,16 @@ class TestStorageUpgrade(WalletTestCase):
     @as_testnet
     async def test_upgrade_removes_invoice_with_malformed_route_tag(self):
         # Db conversion 72->73 drops stored invoices that fail bolt11 decoding.
-        # Older versions decoded a malformed 'r'/'t' tag by silently skipping it, so such an
+        # Older versions decoded a malformed 'r' tag by silently skipping it, so such an
         # invoice can be sitting in a wallet file; without this conversion it would now abort
         # the load in Invoice._validate_invoice_str, leaving the file unopenable.
         # The older conversions that decode invoices themselves (45, 47, 51) drop such items
         # the same way, so a file from before those versions upgrades too.
-        # The malformed invoices below are correctly signed, but their 'r'/'t' payload has
+        # The malformed invoice below is correctly signed, but its 'r' payload has
         # non-zero padding bits; see TestBolt11._encode_invoice_with_raw_tag.
         bad_r = ('lntb1ps9zprzpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdq8w3jhxaqrqzq'
                  'pxhlj48td8uen6qqvke0kwsx0uf3g9pqfg3sdetumr2lla597ahcjcqcn5v7yycysc39ua9r2l8qx527'
                  'uthxfdgmhp47exeh98pv7facqmjed87')
-        bad_t = ('lntb1ps9zprzpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdq8w3jhxaqtqzq'
-                 'pg3tvdu05w4rd9ccwjq80f5ujz89c5ltq5fhp8dqxg7aan38gs24z0pgx8xj4vvzt2su5fqpr35tz692'
-                 'czrwt6e56twh3v8l0t8hfkxsq5xtyfu')
         good = ('lntb15u1p0m6lzupp5zqjthgvaad9mewmdjuehwddyze9d8zyxcc43zhaddeegt37sndgsdq4xysyymr0vd'
                 '4kzcmrd9hx7cqp7xqrrss9qy9qsqsp5vlhcs24hwm747w8f3uau2tlrdkvjaglffnsstwyamj84cxuhrn2'
                 's8tut3jqumepu42azyyjpgqa4w9w03204zp9h4clk499y2umstl6s29hqyj8vv4as6zt5567ux7l3f66m8'
@@ -372,7 +369,6 @@ class TestStorageUpgrade(WalletTestCase):
             'wallet_type': 'imported',
             'addresses': {'tb1qmjzmg8nd4z56ar4fpngzsr6euktrhnjg9td385': {}},
             'invoices': {'bad_r': invoice_json(bad_r),
-                         'bad_t': invoice_json(bad_t),
                          'good': invoice_json(good)},
         }
         db = self._load_db_from_json_string(wallet_json=json.dumps(data), upgrade=True)
@@ -382,13 +378,13 @@ class TestStorageUpgrade(WalletTestCase):
         # sanity: without the conversion (i.e. already at seed_version 73) the same file
         # would not load at all
         data['seed_version'] = 73
-        with self.assertRaises(BOLT11DecodeException):
+        with self.assertRaisesRegex(BOLT11DecodeException, "Failed to decode tag 'r'"):
             self._load_db_from_json_string(wallet_json=json.dumps(data), upgrade=True)
 
         # a pre-45 file: conversion 45 decodes the invoices itself and drops the bad ones
         data['seed_version'] = 44
         data['invoices'] = {key: {'type': 2, 'invoice': invoice_str}
-                            for key, invoice_str in (('bad_r', bad_r), ('bad_t', bad_t), ('good', good))}
+                            for key, invoice_str in (('bad_r', bad_r), ('good', good))}
         db = self._load_db_from_json_string(wallet_json=json.dumps(data), upgrade=True)
         self.assertEqual(73, db.get('seed_version'))
         self.assertEqual(['good'], list(db.get_dict('invoices').keys()))

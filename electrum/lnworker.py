@@ -1969,7 +1969,7 @@ class LNWallet(Logger):
         payment_secret = lnaddr.payment_secret
         invoice_pubkey = lnaddr.pubkey.serialize()
         invoice_features = lnaddr.get_features()
-        r_tags = lnaddr.get_routing_info('r')
+        r_tags = lnaddr.get_routing_info()
         amount_to_pay = lnaddr.get_amount_msat()
         status = self.get_invoice_status(invoice)
         if status == PR_PAID:

@@ -1718,7 +1718,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         invoice_e.setText(invoice.lightning_invoice)
         grid.addWidget(QLabel(_('Text') + ':'), 8, 0)
         grid.addWidget(invoice_e, 8, 1)
-        r_tags = lnaddr.get_routing_info('r')
+        r_tags = lnaddr.get_routing_info()
         r_tags = '\n'.join(repr(r) for r in BOLT11Addr.format_bolt11_routing_info_as_human_readable(r_tags))
         routing_e = QTextEdit(str(r_tags))
         routing_e.setReadOnly(True)

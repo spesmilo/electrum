@@ -160,7 +160,7 @@ class TestLNWallet(ElectrumTestCase):
         )
 
         lnaddr, _ = wallet.get_bolt11_invoice(payment_info=pi, message='test', fallback_address=None)
-        hint_node_ids = {route[0][0] for route in lnaddr.get_routing_info('r')}
+        hint_node_ids = {route[0][0] for route in lnaddr.get_routing_info()}
         self.assertEqual(hint_node_ids, {trampoline_pubkey, regular_pubkey})
 
         # trampoline feature should not be set if we use trampoline but one peer is not a trampoline
@@ -176,7 +176,7 @@ class TestLNWallet(ElectrumTestCase):
 
         wallet.clear_invoices_cache()
         lnaddr, _ = wallet.get_bolt11_invoice(payment_info=pi, message='test', fallback_address=None)
-        hint_node_ids = {route[0][0] for route in lnaddr.get_routing_info('r')}
+        hint_node_ids = {route[0][0] for route in lnaddr.get_routing_info()}
         self.assertEqual(hint_node_ids, {trampoline_pubkey, regular_pubkey})
 
         wallet.uses_trampoline = old_check
@@ -198,14 +198,14 @@ class TestLNWallet(ElectrumTestCase):
 
         wallet.clear_invoices_cache()
         lnaddr2, _ = wallet.get_bolt11_invoice(payment_info=pi2, message='test', fallback_address=None)
-        hint_node_ids2 = {route[0][0] for route in lnaddr2.get_routing_info('r')}
+        hint_node_ids2 = {route[0][0] for route in lnaddr2.get_routing_info()}
         self.assertEqual(hint_node_ids2, {trampoline_pubkey, regular_pubkey})
 
         # assert only trampoline peers are included in r_tags if the invoice_features signal trampoline
         del electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS['regular_peer']
         wallet.clear_invoices_cache()
         lnaddr3, _ = wallet.get_bolt11_invoice(payment_info=pi2, message='test', fallback_address=None)
-        hint_node_ids3 = {route[0][0] for route in lnaddr3.get_routing_info('r')}
+        hint_node_ids3 = {route[0][0] for route in lnaddr3.get_routing_info()}
         self.assertEqual(hint_node_ids3, {trampoline_pubkey})
 
     async def test_open_channel_just_in_time_success(self):

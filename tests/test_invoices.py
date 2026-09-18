@@ -258,34 +258,28 @@ class TestBaseInvoice(ElectrumTestCase):
             invoice.exp = "asd"
 
     async def test_malformed_route_tag_is_rejected(self):
-        # A bolt11 invoice with a malformed 'r'/'t' tag used to decode fine (the tag was silently
+        # A bolt11 invoice with a malformed 'r' tag used to decode fine (the tag was silently
         # skipped). It is now rejected, both when it arrives from outside and when it comes off
         # disk: the attrs validator decodes strictly. What keeps that from making an old wallet
         # file unloadable is db conversion 73, which purges such invoices; see
         # TestStorageUpgrade.test_upgrade_removes_invoice_with_malformed_route_tag.
-        # Both strings below are correctly signed testnet invoices whose 'r'/'t' payload has
+        # The string below is a correctly signed testnet invoice whose 'r' payload has
         # non-zero padding bits; see TestBolt11._encode_invoice_with_raw_tag.
-        for tag, invoice_str in (
-            ('r', 'lntb1ps9zprzpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdq8w3jhxaqrqzq'
-                  'pxhlj48td8uen6qqvke0kwsx0uf3g9pqfg3sdetumr2lla597ahcjcqcn5v7yycysc39ua9r2l8qx527'
-                  'uthxfdgmhp47exeh98pv7facqmjed87'),
-            ('t', 'lntb1ps9zprzpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdq8w3jhxaqtqzq'
-                  'pg3tvdu05w4rd9ccwjq80f5ujz89c5ltq5fhp8dqxg7aan38gs24z0pgx8xj4vvzt2su5fqpr35tz692'
-                  'czrwt6e56twh3v8l0t8hfkxsq5xtyfu'),
-        ):
-            with self.subTest(tag=tag):
-                with self.assertRaises(BOLT11DecodeException):
-                    Invoice(
-                        amount_msat=None,
-                        message="mymsg",
-                        time=1615922274,
-                        exp=LN_EXPIRY_NEVER,
-                        outputs=None,
-                        height=0,
-                        lightning_invoice=invoice_str,
-                    )
-                with self.assertRaises(InvoiceError):
-                    Invoice.from_bech32(invoice_str)
+        invoice_str = ('lntb1ps9zprzpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdq8w3jhxaqrqzq'
+                       'pxhlj48td8uen6qqvke0kwsx0uf3g9pqfg3sdetumr2lla597ahcjcqcn5v7yycysc39ua9r2l8qx527'
+                       'uthxfdgmhp47exeh98pv7facqmjed87')
+        with self.assertRaisesRegex(BOLT11DecodeException, "Failed to decode tag 'r'"):
+            Invoice(
+                amount_msat=None,
+                message="mymsg",
+                time=1615922274,
+                exp=LN_EXPIRY_NEVER,
+                outputs=None,
+                height=0,
+                lightning_invoice=invoice_str,
+            )
+        with self.assertRaisesRegex(InvoiceError, "Failed to decode tag 'r'"):
+            Invoice.from_bech32(invoice_str)
 
 
 class TestOutgoingInvoicesPaidCache(ElectrumTestCase):
