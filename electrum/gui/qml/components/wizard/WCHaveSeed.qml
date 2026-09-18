@@ -20,6 +20,7 @@ WizardComponent {
 
     property string _seedType
     property string _validationMessage
+    property string _warning
     property bool _canPassphrase
     property bool _seedValid
 
@@ -72,11 +73,18 @@ WizardComponent {
         var verifyResult = wiz.verifySeed(seedtext.text, seed_variant_cb.currentValue, wizard_data['wallet_type'])
 
         _validationMessage = verifyResult.message
+        _warning = verifyResult.warning
         _seedType = verifyResult.type
         _canPassphrase = verifyResult.can_passphrase
 
         if (!cosigner || !verifyResult.valid) {
             _seedValid = verifyResult.valid
+            if (_warning) {
+                infotext.text = _warning
+                infotext.visible = true
+            } else {
+                setSeedTypeHelpText()
+            }
         } else {
             // bip39 validate after derivation path is known
             if (seed_variant_cb.currentValue == 'electrum') {
@@ -190,6 +198,7 @@ WizardComponent {
                 Layout.fillWidth: true
                 Layout.columnSpan: 2
                 Layout.topMargin: constants.paddingLarge
+                iconStyle: root._warning === infotext.text ? InfoTextArea.IconStyle.Warn : InfoTextArea.IconStyle.Info
                 compact: true
                 backgroundColor: constants.darkerDialogBackground
             }
