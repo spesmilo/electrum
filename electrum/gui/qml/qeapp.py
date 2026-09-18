@@ -21,7 +21,7 @@ from electrum.bip21 import BITCOIN_BIP21_URI_SCHEME, LIGHTNING_URI_SCHEME
 from electrum.base_crash_reporter import BaseCrashReporter, EarlyExceptionsQueue
 from electrum.network import Network
 from electrum.plugin import run_hook
-from electrum.gui.common_qt.util import get_font_id
+from electrum.gui.common_qt.util import get_font_id, break_qt_network
 from electrum.util import profiler
 from electrum.lnurl import SUPPORTED_LNURL_SCHEMES
 
@@ -518,6 +518,7 @@ class ElectrumQmlApplication(QGuiApplication):
         # qmlRegisterUncreatableType(QSortFilterProxyModel, 'org.electrum', 1, 0, 'QSortFilterProxyModel', 'QSortFilterProxyModel can only be used as property')
 
         self.engine = QQmlApplicationEngine(parent=self)
+        break_qt_network()
 
         screensize = self.primaryScreen().size()
 

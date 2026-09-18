@@ -241,3 +241,27 @@ def qt_event_listener(func):
     def decorator(self, *args):
         self.qt_callback_signal.emit((func,) + args)
     return decorator
+
+
+def break_qt_network() -> None:
+    """Poor man's attempt at disabling Qt's networking functionality at runtime.
+
+    If Qt managed to make network requests, those would use its own SSL cert store,
+    would not go through the user-configured proxy, etc.
+    """
+    try:
+        import PyQt6.QtNetwork
+    except ImportError as e:
+        _logger.debug("QtNetwork module not available? No need to runtime-disable it then.")
+        return
+    from PyQt6.QtNetwork import QNetworkProxy
+    proxy = QNetworkProxy()
+    # FIXME localhost as destination seems to be exempt from the proxy, so this approach still
+    #  lets through network requests to localhost. This is not intended but accepted for now.
+    proxy.setType(QNetworkProxy.ProxyType.Socks5Proxy)
+    proxy.setHostName("127.0.0.1")
+    proxy.setPort(1)
+    # Remove all proxy capabilities, so QtNetwork requests
+    # fail back before even trying to connect to the proxy:
+    proxy.setCapabilities(QNetworkProxy.Capability(0))
+    QNetworkProxy.setApplicationProxy(proxy)
