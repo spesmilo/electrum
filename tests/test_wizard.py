@@ -51,7 +51,7 @@ class WizardTestCase(ElectrumTestCase):
             'electrum_path': self.electrum_path,
             'enable_plugin_trustedcoin': True,
         })
-        self.wallet_path = os.path.join(self.electrum_path, "somewallet")
+        self.wallet_path = os.path.join(self.config.get_datadir_wallet_path(), "somewallet")
         self.plugins = Plugins(self.config, gui_name='cmdline')
         self.plugins.load_plugin_by_name('trustedcoin')
         # note: hw plugins are loaded on-demand
