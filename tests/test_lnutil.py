@@ -1209,13 +1209,14 @@ class TestLNUtil(ElectrumTestCase):
         cb_with_alias = dataclasses.replace(reference, channel_type=reference.channel_type | ChannelType.OPTION_SCID_ALIAS)
         self.assertEqual(reference.channel_type, cb_with_alias.channel_type)
         chan_backup = ChannelBackup(decoded_cb, lnworker=None)
-        self.assertEqual(
-            Keypair(
-                privkey=bfh('f406b0899040d762a326035631c2ce38b22c2db18102ab9e3c666c87d9e0ab65'),
-                pubkey=bfh('0393145d5cb5d8a73cdffa3caaf3204ae0b2cf0c7a1a4b62c85d2182fefaaeee5e'),
-            ),
-            chan_backup.config[LOCAL].payment_basepoint,
+        payment_basepoint = Keypair(
+            privkey=bfh('f406b0899040d762a326035631c2ce38b22c2db18102ab9e3c666c87d9e0ab65'),
+            pubkey=bfh('0393145d5cb5d8a73cdffa3caaf3204ae0b2cf0c7a1a4b62c85d2182fefaaeee5e'),
         )
+        # this backup carries the payment_basepoint privkey; the config holds pubkeys only
+        self.assertEqual(payment_basepoint, chan_backup.keys.payment_basepoint)
+        self.assertEqual(OnlyPubkeyKeypair(payment_basepoint.pubkey),
+                         chan_backup.config[LOCAL].payment_basepoint)
 
     def test_onchain_channel_backup_json_roundtrip(self):
         cb = OnchainChannelBackupStorage(

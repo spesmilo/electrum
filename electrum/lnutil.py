@@ -90,8 +90,14 @@ def int_to_bytes_minimal(n: int, byteorder: Literal['big', 'little'] = 'big') ->
     return int.to_bytes(n, length=int_min_byte_len(n), byteorder=byteorder)
 
 
-def json_to_keypair(arg: Union['OnlyPubkeyKeypair', dict]) -> Union['OnlyPubkeyKeypair', 'Keypair']:
-    return arg if isinstance(arg, OnlyPubkeyKeypair) else Keypair(**arg) if len(arg) == 2 else OnlyPubkeyKeypair(**arg)
+def json_to_pubkey(arg: Union['OnlyPubkeyKeypair', dict]) -> 'OnlyPubkeyKeypair':
+    """Channel configs only ever hold pubkeys; our privkeys live in ChannelKeys."""
+    pubkey = arg.pubkey if isinstance(arg, OnlyPubkeyKeypair) else arg['pubkey']
+    return OnlyPubkeyKeypair(pubkey)
+
+
+def keypair_from_privkey(privkey: bytes) -> 'Keypair':
+    return Keypair(pubkey=ecc.ECPrivkey(privkey).get_public_key_bytes(), privkey=privkey)
 
 
 def serialize_htlc_key(scid: bytes, htlc_id: int) -> str:
@@ -115,12 +121,16 @@ class Keypair(OnlyPubkeyKeypair):
 
 @attr.s
 class ChannelConfig(StoredObject):
-    # shared channel config fields
-    payment_basepoint = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
-    multisig_key = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
-    htlc_basepoint = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
-    delayed_basepoint = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
-    revocation_basepoint = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
+    """The channel parameters of one side of a channel.
+
+    The config never holds a secret: our privkeys are all derived from the channel seed,
+    which lives next to the two configs in the channel storage. (see ChannelKeys)
+    """
+    payment_basepoint = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_pubkey)
+    multisig_key = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_pubkey)
+    htlc_basepoint = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_pubkey)
+    delayed_basepoint = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_pubkey)
+    revocation_basepoint = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_pubkey)
     to_self_delay = attr.ib(type=int)  # applies to OTHER ctx
     dust_limit_sat = attr.ib(type=int)  # applies to SAME ctx
     max_htlc_value_in_flight_msat = attr.ib(type=int)  # max val of INCOMING htlcs
@@ -131,6 +141,53 @@ class ChannelConfig(StoredObject):
     upfront_shutdown_script = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
     announcement_node_sig = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
     announcement_bitcoin_sig = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
+
+    @classmethod
+    def for_us(
+        cls,
+        *,
+        keys: 'ChannelKeys',
+        channel_type: 'ChannelType',
+        static_payment_key: Optional['Keypair'] = None,
+        payment_basepoint: Optional[bytes] = None,
+        **kwargs,
+    ) -> 'ChannelConfig':
+        """Our side of the config, holding the pubkeys of the keys we just derived.
+
+        The payment_basepoint is the one key that does not come from the channel seed,
+        so it is resolved here: see the cases below.
+        """
+        assert bool(static_payment_key) + bool(payment_basepoint) <= 1
+        if static_payment_key:
+            assert channel_type & ChannelType.OPTION_ANCHORS
+            # We derive the payment_basepoint from a static secret (derived from
+            # the wallet seed) and a public nonce that is revealed
+            # when the funding transaction is spent. This way we can restore the
+            # payment_basepoint, needed for sweeping in the event of a force close.
+            # note: only the pubkey is kept, the privkey is derived when it is needed.
+            #       (see Channel.get_payment_basepoint_privkey)
+            payment_basepoint = derive_payment_basepoint(
+                static_payment_secret=static_payment_key.privkey,
+                funding_pubkey=keys.multisig_key.pubkey,
+            ).pubkey
+        elif keys.payment_basepoint:  # channel backup that carries the privkey (anchors)
+            payment_basepoint = keys.payment_basepoint.pubkey
+        elif payment_basepoint:  # channel backup (or new SRK chan in unit tests)
+            assert len(payment_basepoint) == 33  # pubkey
+        else:
+            # v0 channel backup for srk channel: the real basepoint is a wallet pubkey that is
+            # not part of the backup and cannot be derived, see: https://github.com/spesmilo/electrum/pull/8536
+            assert channel_type == ChannelType.OPTION_STATIC_REMOTEKEY
+            payment_basepoint = None
+        assert ecc.ECPubkey.is_pubkey_bytes(payment_basepoint)
+        return cls(
+            payment_basepoint=OnlyPubkeyKeypair(payment_basepoint),
+            multisig_key=OnlyPubkeyKeypair(keys.multisig_key.pubkey),
+            htlc_basepoint=OnlyPubkeyKeypair(keys.htlc_basepoint.pubkey),
+            delayed_basepoint=OnlyPubkeyKeypair(keys.delayed_basepoint.pubkey),
+            revocation_basepoint=OnlyPubkeyKeypair(keys.revocation_basepoint.pubkey),
+            **kwargs,
+        )
 
     def validate_params(self, *, funding_sat: int, config: 'SimpleConfig', peer_features: 'LnFeatures') -> None:
         conf_name = type(self).__name__
@@ -235,56 +292,8 @@ class ChannelConfig(StoredObject):
 @stored_at('/channels/*/local_config')
 @attr.s
 class LocalConfig(ChannelConfig):
-    channel_seed = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)  # type: Optional[bytes]
-    funding_locked_received = attr.ib(type=bool)
     current_commitment_signature = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
     current_htlc_signatures = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
-    per_commitment_secret_seed = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
-
-    @classmethod
-    def from_seed(cls, **kwargs):
-        channel_seed = kwargs['channel_seed']
-        node = BIP32Node.from_rootseed(channel_seed, xtype='standard')
-
-        def keypair_generator(family: 'LnKeyFamily') -> 'Keypair':
-            return generate_keypair(node, family)
-
-        kwargs['per_commitment_secret_seed'] = keypair_generator(LnKeyFamily.REVOCATION_ROOT).privkey
-        if kwargs['multisig_key'] is None:
-            kwargs['multisig_key'] = keypair_generator(LnKeyFamily.MULTISIG)
-        kwargs['htlc_basepoint'] = keypair_generator(LnKeyFamily.HTLC_BASE)
-        kwargs['delayed_basepoint'] = keypair_generator(LnKeyFamily.DELAY_BASE)
-        kwargs['revocation_basepoint'] = keypair_generator(LnKeyFamily.REVOCATION_BASE)
-        static_payment_key = kwargs.pop('static_payment_key')
-        channel_type = kwargs.pop('channel_type')
-        payment_basepoint = kwargs.pop('payment_basepoint', None)  # type: bytes | None
-        assert bool(static_payment_key) + bool(payment_basepoint) <= 1
-        if static_payment_key:
-            assert channel_type & ChannelType.OPTION_ANCHORS
-            # We derive the payment_basepoint from a static secret (derived from
-            # the wallet seed) and a public nonce that is revealed
-            # when the funding transaction is spent. This way we can restore the
-            # payment_basepoint, needed for sweeping in the event of a force close.
-            kwargs['payment_basepoint'] = derive_payment_basepoint(
-                static_payment_secret=static_payment_key.privkey,
-                funding_pubkey=kwargs['multisig_key'].pubkey
-            )
-        elif payment_basepoint:  # channel backup (or new SRK chan in unit tests)
-            if len(payment_basepoint) == 32:  # privkey
-                assert channel_type & ChannelType.OPTION_ANCHORS
-                privkey = ecc.ECPrivkey(payment_basepoint)
-                kwargs['payment_basepoint'] = Keypair(privkey=privkey.get_secret_bytes(), pubkey=privkey.get_public_key_bytes())
-            else:
-                assert len(payment_basepoint) == 33  # pubkey
-                kwargs['payment_basepoint'] = OnlyPubkeyKeypair(payment_basepoint)
-        else:
-            # v0 channel backup for srk channel: the real basepoint is a wallet pubkey that is
-            # not part of the backup and cannot be derived, see: https://github.com/spesmilo/electrum/pull/8536
-            assert channel_type == ChannelType.OPTION_STATIC_REMOTEKEY
-            kwargs['payment_basepoint'] = OnlyPubkeyKeypair(None)
-
-        assert ecc.ECPubkey.is_pubkey_bytes(kwargs['payment_basepoint'].pubkey)
-        return LocalConfig(**kwargs)
 
     def validate_params(self, *, funding_sat: int, config: 'SimpleConfig', peer_features: 'LnFeatures') -> None:
         conf_name = type(self).__name__
@@ -302,6 +311,70 @@ class LocalConfig(ChannelConfig):
 class RemoteConfig(ChannelConfig):
     next_per_commitment_point = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
     current_per_commitment_point = attr.ib(default=None, type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
+
+
+@attr.s
+class ChannelKeys:
+    """Our secret keys for one channel.
+
+    Everything here is derived from the channel seed, except the multisig privkey: for
+    anchor channels it comes from the funding root key, and re-deriving it would require
+    the funding transaction (we only store its prevouts). So channel_seed and the
+    multisig privkey are the only local channel secrets in the wallet file, and they are
+    kept in the channel storage; the channel configs hold pubkeys only.
+
+    Note that this is not a StoredObject: it is rebuilt from the seed when the channel is
+    loaded, and checked against the pubkeys in our config. (see check_against_config)
+    """
+    channel_seed = attr.ib(type=bytes, repr=bytes_to_hex)
+    per_commitment_secret_seed = attr.ib(type=bytes, repr=bytes_to_hex)
+    multisig_key = attr.ib(type=Keypair)
+    htlc_basepoint = attr.ib(type=Keypair)
+    delayed_basepoint = attr.ib(type=Keypair)
+    revocation_basepoint = attr.ib(type=Keypair)
+    # only imported channel backups carry the payment_basepoint privkey; for our own
+    # channels we derive it when we need it. (see Channel.get_payment_basepoint_privkey)
+    payment_basepoint = attr.ib(default=None, type=Optional[Keypair])
+
+    @classmethod
+    def from_seed(
+            cls,
+            channel_seed: bytes,
+            *,
+            multisig_privkey: Optional[bytes] = None,
+            payment_basepoint_privkey: Optional[bytes] = None,
+    ) -> 'ChannelKeys':
+        node = BIP32Node.from_rootseed(channel_seed, xtype='standard')
+        if multisig_privkey is None:
+            # static_remotekey channels derive it like the rest; for anchor channels it
+            # comes from the funding root key, and the caller passes it.
+            multisig_key = generate_keypair(node, LnKeyFamily.MULTISIG)
+        else:
+            multisig_key = keypair_from_privkey(multisig_privkey)
+        payment_basepoint = (keypair_from_privkey(payment_basepoint_privkey)
+                             if payment_basepoint_privkey else None)
+        return ChannelKeys(
+            channel_seed=channel_seed,
+            per_commitment_secret_seed=generate_keypair(node, LnKeyFamily.REVOCATION_ROOT).privkey,
+            multisig_key=multisig_key,
+            payment_basepoint=payment_basepoint,
+            **{name: generate_keypair(node, key_family)
+               for name, key_family in DERIVED_LOCAL_BASEPOINTS.items()},
+        )
+
+    def check_against_config(self, config: ChannelConfig) -> None:
+        """The pubkeys are stored, so we can tell that we derived the right keys."""
+        for name in (*DERIVED_LOCAL_BASEPOINTS, 'multisig_key'):
+            derived = getattr(self, name).pubkey
+            if derived != getattr(config, name).pubkey:
+                raise Exception(f"unexpected {name} derived from channel_seed")
+
+    def per_commitment_secret(self, ctn: int) -> bytes:
+        return get_per_commitment_secret_from_seed(
+            self.per_commitment_secret_seed, RevocationStore.START_INDEX - ctn)
+
+    def per_commitment_point(self, ctn: int) -> bytes:
+        return get_per_commitment_point_from_seed(self.per_commitment_secret_seed, ctn)
 
 
 @stored_at('/channels/*/log/*/fee_updates/*')
@@ -726,6 +799,11 @@ def get_per_commitment_secret_from_seed(seed: bytes, i: int, bits: int = Revocat
             per_commitment_secret = bytearray(sha256(per_commitment_secret))
     bajts = bytes(per_commitment_secret)
     return bajts
+
+
+def get_per_commitment_point_from_seed(seed: bytes, ctn: int) -> bytes:
+    secret = get_per_commitment_secret_from_seed(seed, RevocationStore.START_INDEX - ctn)
+    return secret_to_pubkey(int.from_bytes(secret, 'big'))
 
 
 def secret_to_pubkey(secret: int) -> bytes:
@@ -1475,9 +1553,9 @@ def make_commitment_output_to_anchor_address(funding_pubkey: bytes) -> str:
     return bitcoin.redeem_script_to_address('p2wsh', script)
 
 
-def sign_and_get_sig_string(tx: PartialTransaction, local_config, remote_config):
-    tx.sign({local_config.multisig_key.pubkey: local_config.multisig_key.privkey})
-    sig = tx.inputs()[0].sigs_ecdsa[local_config.multisig_key.pubkey]
+def sign_and_get_sig_string(tx: PartialTransaction, multisig_key: 'Keypair') -> bytes:
+    tx.sign({multisig_key.pubkey: multisig_key.privkey})
+    sig = tx.inputs()[0].sigs_ecdsa[multisig_key.pubkey]
     sig_64 = ecdsa_sig64_from_der_sig(sig[:-1])
     return sig_64
 
@@ -2011,6 +2089,15 @@ class LnKeyFamily(IntEnum):
     PAYMENT_SECRET_KEY = 8 | BIP32_PRIME
     NOSTR_KEY = 9 | BIP32_PRIME
     FUNDING_ROOT_KEY = 10 | BIP32_PRIME
+
+
+# Basepoints of our local channel config that we derive from the channel seed, instead
+# of storing their privkeys. (see ChannelKeys)
+DERIVED_LOCAL_BASEPOINTS = {
+    'htlc_basepoint': LnKeyFamily.HTLC_BASE,
+    'delayed_basepoint': LnKeyFamily.DELAY_BASE,
+    'revocation_basepoint': LnKeyFamily.REVOCATION_BASE,
+}
 
 
 def generate_keypair(node: BIP32Node, key_family: LnKeyFamily) -> Keypair:

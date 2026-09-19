@@ -42,13 +42,13 @@ from .logging import Logger
 from .lntransport import LNPeerAddr
 from .lnonion import OnionRoutingFailure
 from . import lnutil
-from .lnutil import (Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKeypair, ChannelConstraints,
-                     get_per_commitment_secret_from_seed, secret_to_pubkey, derive_privkey, make_closing_tx,
+from .lnutil import (Outpoint, LocalConfig, RemoteConfig, ChannelKeys, OnlyPubkeyKeypair, ChannelConstraints,
+                     secret_to_pubkey, derive_privkey, make_closing_tx,
                      sign_and_get_sig_string, RevocationStore, derive_blinded_pubkey, Direction, derive_pubkey,
                      make_htlc_tx_with_open_channel, make_commitment, UpdateAddHtlc,
                      funding_output_script, SENT, RECEIVED, LOCAL, REMOTE, HTLCOwner, make_commitment_outputs,
                      ScriptHtlc, PaymentFailure, calc_fees_for_commitment_tx, RemoteMisbehaving, make_htlc_output_witness_script,
-                     ShortChannelID, map_htlcs_to_ctx_output_idxs,
+                     ShortChannelID, map_htlcs_to_ctx_output_idxs, derive_payment_basepoint,
                      fee_for_htlc_output, offered_htlc_trim_threshold_sat,
                      received_htlc_trim_threshold_sat, make_commitment_output_to_remote_address, FIXED_ANCHOR_SAT,
                      ChannelType, LNProtocolWarning, ZEROCONF_TIMEOUT)
@@ -179,6 +179,7 @@ class HTLCWithStatus(NamedTuple):
 class AbstractChannel(Logger, ABC):
     storage: Union['StoredDict', dict]
     config: Dict[HTLCOwner, Union[LocalConfig, RemoteConfig]]
+    keys: Optional[ChannelKeys] = None  # None for on-chain channel backups
     lnworker: 'LNWallet'
     channel_id: bytes
     short_channel_id: Optional[ShortChannelID] = None
@@ -617,27 +618,29 @@ class ChannelBackup(AbstractChannel):
         self.unconfirmed_closing_txid = None # not a state, only for GUI
 
     def init_config(self, cb: ImportedChannelBackupStorage):
-        local_payment_basepoint = cb.local_payment_basepoint
-        multisig_funding_keypair = None
-        if multisig_funding_secret := cb.multisig_funding_privkey:
-            multisig_funding_keypair = Keypair(
-                privkey=multisig_funding_secret,
-                pubkey=ecc.ECPrivkey(multisig_funding_secret).get_public_key_bytes(),
-            )
-        self.config[LOCAL] = LocalConfig.from_seed(
-            channel_seed=cb.channel_seed,
+        payment_basepoint = cb.local_payment_basepoint
+        payment_basepoint_privkey = None
+        if payment_basepoint and len(payment_basepoint) == 32:
+            # v3+ backups of anchor channels carry the privkey, so that non-deterministic
+            # LNWallets can recover their to_remote outputs
+            assert cb.channel_type & ChannelType.OPTION_ANCHORS
+            payment_basepoint, payment_basepoint_privkey = None, payment_basepoint
+        self.keys = ChannelKeys.from_seed(
+            cb.channel_seed,
+            multisig_privkey=cb.multisig_funding_privkey,
+            payment_basepoint_privkey=payment_basepoint_privkey,
+        )
+        self.config[LOCAL] = LocalConfig.for_us(
+            keys=self.keys,
             to_self_delay=cb.local_delay,
             channel_type=cb.channel_type,
-            payment_basepoint=local_payment_basepoint,
-            multisig_key=multisig_funding_keypair,
+            payment_basepoint=payment_basepoint,
             # dummy values
-            static_payment_key=None,
             dust_limit_sat=None,
             max_htlc_value_in_flight_msat=None,
             max_accepted_htlcs=None,
             initial_msat=None,
             reserve_sat=None,
-            funding_locked_received=False,
             current_commitment_signature=None,
             current_htlc_signatures=b'',
             htlc_minimum_msat=1,
@@ -824,6 +827,9 @@ class Channel(AbstractChannel):
         self.config = {}
         self.config[LOCAL] = state["local_config"]
         self.config[REMOTE] = state["remote_config"]
+        self.keys = ChannelKeys.from_seed(
+            bfh(state["channel_seed"]), multisig_privkey=bfh(state["multisig_privkey"]))
+        self.keys.check_against_config(self.config[LOCAL])
         self.constraints = state["constraints"]  # type: ChannelConstraints
         self.funding_outpoint = state["funding_outpoint"]
         self.node_id = bfh(state["node_id"])
@@ -841,6 +847,29 @@ class Channel(AbstractChannel):
         self.unconfirmed_closing_txid = None # not a state, only for GUI
         self.sent_channel_ready = False # no need to persist this, because channel_ready is re-sent in channel_reestablish
         self.sent_announcement_signatures = False
+
+    @property
+    def funding_locked_received(self) -> bool:
+        """Whether the peer has told us that the funding tx is locked."""
+        return self.storage['funding_locked_received']
+
+    @funding_locked_received.setter
+    def funding_locked_received(self, b: bool) -> None:
+        self.storage['funding_locked_received'] = b
+
+    def get_payment_basepoint_privkey(self) -> bytes:
+        """The privkey of our payment_basepoint. (only for anchor channels)
+
+        It is not stored: it is derived from a static wallet secret and from the funding
+        pubkey, which is a public nonce. (see derive_payment_basepoint)
+        """
+        assert self.has_anchors()
+        keypair = derive_payment_basepoint(
+            static_payment_secret=self.lnworker.static_payment_key.privkey,
+            funding_pubkey=self.config[LOCAL].multisig_key.pubkey,
+        )
+        assert keypair.pubkey == self.config[LOCAL].payment_basepoint.pubkey
+        return keypair.privkey
 
     def get_local_scid_alias(self, *, create_new_if_needed: bool = False) -> Optional[bytes]:
         """Get scid_alias to be used for *outgoing* HTLCs.
@@ -1310,11 +1339,11 @@ class Channel(AbstractChannel):
         assert not self.is_closed(), self.get_state()
 
         pending_remote_commitment = self.get_next_commitment(REMOTE)
-        sig_64 = sign_and_get_sig_string(pending_remote_commitment, self.config[LOCAL], self.config[REMOTE])
+        sig_64 = sign_and_get_sig_string(pending_remote_commitment, self.keys.multisig_key)
         self.logger.debug(f"sign_next_commitment. {pending_remote_commitment.serialize()=}. {sig_64.hex()=}")
 
         their_remote_htlc_privkey_number = derive_privkey(
-            int.from_bytes(self.config[LOCAL].htlc_basepoint.privkey, 'big'),
+            int.from_bytes(self.keys.htlc_basepoint.privkey, 'big'),
             self.config[REMOTE].next_per_commitment_point)
         their_remote_htlc_privkey = their_remote_htlc_privkey_number.to_bytes(32, 'big')
 
@@ -1718,7 +1747,7 @@ class Channel(AbstractChannel):
                 secret = self.revocation_store.retrieve_secret(RevocationStore.START_INDEX - ctn)
                 point = secret_to_pubkey(int.from_bytes(secret, 'big'))
         else:
-            secret = get_per_commitment_secret_from_seed(self.config[LOCAL].per_commitment_secret_seed, RevocationStore.START_INDEX - ctn)
+            secret = self.keys.per_commitment_secret(ctn)
             point = secret_to_pubkey(int.from_bytes(secret, 'big'))
         return secret, point
 
@@ -1957,7 +1986,7 @@ class Channel(AbstractChannel):
                                      funding_sat=self.constraints.capacity,
                                      outputs=outputs)
 
-        der_sig = closing_tx.sign_txin(0, self.config[LOCAL].multisig_key.privkey)
+        der_sig = closing_tx.sign_txin(0, self.keys.multisig_key.privkey)
         sig = ecc.ecdsa_sig64_from_der_sig(der_sig[:-1])
         return sig, closing_tx
 
@@ -1972,7 +2001,7 @@ class Channel(AbstractChannel):
     def force_close_tx(self) -> PartialTransaction:
         tx = self.get_latest_commitment(LOCAL)
         assert self.signature_fits(tx)
-        tx.sign({self.config[LOCAL].multisig_key.pubkey: self.config[LOCAL].multisig_key.privkey})
+        tx.sign({self.keys.multisig_key.pubkey: self.keys.multisig_key.privkey})
         remote_sig = self.config[LOCAL].current_commitment_signature
         remote_sig = ecc.ecdsa_der_sig_from_ecdsa_sig64(remote_sig) + Sighash.to_sigbytes(Sighash.ALL)
         tx.add_signature_to_txin(txin_idx=0,

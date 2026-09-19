@@ -24,6 +24,7 @@
 
 import unittest
 from unittest import mock
+import json
 import os
 import logging
 import dataclasses
@@ -38,11 +39,11 @@ from electrum.crypto import sha256
 from electrum.lnutil import (
     SENT, LOCAL, REMOTE, RECEIVED, UpdateAddHtlc, ChannelType,
     effective_htlc_tx_weight, ZEROCONF_TIMEOUT,
-    CHANNEL_OPENING_TIMEOUT_SEC,
+    CHANNEL_OPENING_TIMEOUT_SEC, ChannelKeys, DERIVED_LOCAL_BASEPOINTS,
 )
 from electrum.logging import console_stderr_handler
 from electrum.lnchannel import ChannelState, Channel
-from electrum.util import TxMinedInfo
+from electrum.util import TxMinedInfo, MyEncoder, bfh
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
 from electrum.lnsweep import SweepInfo
 from electrum.transaction import PartialTransaction, PartialTxOutput, Transaction, TxInput, tx_from_any
@@ -915,6 +916,28 @@ class TestChannel(ElectrumTestCase):
         self.assertEqual({}, self.alice_channel.get_payments(status='inflight', direction=RECEIVED))
         self.assertIn(phash, self.bob_channel.get_payments(status='inflight', direction=RECEIVED))
         self.assertEqual({}, self.bob_channel.get_payments(status='inflight', direction=SENT))
+
+    async def test_local_config_does_not_store_secrets(self):
+        """Our channel keys are all derived from the channel seed, which is now kept
+        outside of the config, so no secret must end up in the config. (see #4909)
+        """
+        chan = self.alice_channel
+        stored = json.loads(json.dumps(chan.storage, cls=MyEncoder))
+        local_config = stored['local_config']
+        self.assertNotIn('per_commitment_secret_seed', local_config)
+        for name in ('payment_basepoint', 'multisig_key', *DERIVED_LOCAL_BASEPOINTS):
+            self.assertEqual(['pubkey'], list(local_config[name]))
+        # our secrets are kept next to the configs, and nothing else is stored
+        self.assertEqual(64, len(stored['channel_seed']))
+        self.assertEqual(64, len(stored['multisig_privkey']))
+        keys = ChannelKeys.from_seed(
+            bfh(stored['channel_seed']), multisig_privkey=bfh(stored['multisig_privkey']))
+        self.assertEqual(chan.keys, keys)
+        keys.check_against_config(chan.config[LOCAL])  # raises if a key does not match
+        if chan.has_anchors():
+            privkey = chan.get_payment_basepoint_privkey()
+            self.assertEqual(chan.config[LOCAL].payment_basepoint.pubkey,
+                             ecc.ECPrivkey(privkey).get_public_key_bytes())
 
 
 class TestChannelNoAnchors(TestChannel):
