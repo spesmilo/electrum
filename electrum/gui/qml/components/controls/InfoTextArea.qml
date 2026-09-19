@@ -18,6 +18,7 @@ TextHighlightPane {
     property alias text: infotext.text
     property int iconStyle: InfoTextArea.IconStyle.Info
     property alias textFormat: infotext.textFormat
+    property alias horizontalAlignment: infotext.horizontalAlignment
     property bool compact: false
 
     borderColor: iconStyle == InfoTextArea.IconStyle.Info
