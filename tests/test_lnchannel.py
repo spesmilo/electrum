@@ -38,7 +38,7 @@ from electrum.crypto import sha256
 from electrum.lnutil import (
     SENT, LOCAL, REMOTE, RECEIVED, UpdateAddHtlc, ChannelType,
     effective_htlc_tx_weight, ZEROCONF_TIMEOUT,
-    CHANNEL_OPENING_TIMEOUT_SEC,
+    CHANNEL_OPENING_TIMEOUT_SEC, ChannelKeys,
 )
 from electrum.logging import console_stderr_handler
 from electrum.lnchannel import ChannelState, Channel
@@ -915,6 +915,27 @@ class TestChannel(ElectrumTestCase):
         self.assertEqual({}, self.alice_channel.get_payments(status='inflight', direction=RECEIVED))
         self.assertIn(phash, self.bob_channel.get_payments(status='inflight', direction=RECEIVED))
         self.assertEqual({}, self.bob_channel.get_payments(status='inflight', direction=SENT))
+
+    def test_check_against_config(self):
+        """Keys re-derived from our secrets must match the pubkeys in our config."""
+        chan = self.alice_channel
+        keys = ChannelKeys.from_seed(
+            chan.keys.channel_seed, multisig_privkey=chan.keys.multisig_key.privkey)
+        self.assertEqual(chan.keys, keys)
+        keys.check_against_config(chan.config[LOCAL])
+        # wrong multisig privkey
+        keys = ChannelKeys.from_seed(chan.keys.channel_seed, multisig_privkey=os.urandom(32))
+        with self.assertRaisesRegex(Exception, 'multisig_key'):
+            keys.check_against_config(chan.config[LOCAL])
+        # wrong channel seed
+        keys = ChannelKeys.from_seed(os.urandom(32), multisig_privkey=chan.keys.multisig_key.privkey)
+        with self.assertRaisesRegex(Exception, 'basepoint'):
+            keys.check_against_config(chan.config[LOCAL])
+        # payment_basepoint is not checked above; for anchor channels we derive its privkey
+        if chan.has_anchors():
+            privkey = chan.get_payment_basepoint_privkey()
+            self.assertEqual(chan.config[LOCAL].payment_basepoint.pubkey,
+                             ecc.ECPrivkey(privkey).get_public_key_bytes())
 
 
 class TestChannelNoAnchors(TestChannel):
