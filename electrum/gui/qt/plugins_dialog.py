@@ -46,8 +46,7 @@ class PluginDialog(WindowModalDialog):
         name_label = IconLabel(text=display_name, reverse=True)
         if icon_path:
             name_label.icon_size = 64
-            icon = read_QIcon_from_bytes(self.plugins.read_file(name, icon_path))
-            name_label.setIcon(icon)
+            self.window.maybe_set_icon(name_label, name, icon_path)
         vbox.addWidget(name_label)
         vbox.addStretch()
         vbox.addWidget(WWLabel(description))
@@ -117,8 +116,7 @@ class PluginDialog(WindowModalDialog):
         privkey = self.window.get_plugins_privkey()
         if not privkey:
             return
-        filename = self.plugins.zip_plugin_path(self.name)
-        self.window.plugins.authorize_plugin(self.name, filename, privkey)
+        self.window.plugins.authorize_plugin(self.name, privkey)
         self.window.plugins.enable(self.name)
         d = self.plugins.get_metadata(self.name)
         if details := d.get('registers_keystore'):
@@ -317,15 +315,25 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
     def add_external_plugin(self, path):
         manifest = self.plugins.read_manifest(path)
         name = manifest['name']
-        self.plugins.external_plugin_metadata[name] = manifest
+        if self.plugins.is_installed(name):
+            self.show_warning(_("Plugin {} already installed.").format(name))
+            return False
+        self.plugins.add_external_plugin_metadata(manifest)
         d = PluginDialog(name, manifest, None, self)
         if not d.exec():
-            self.plugins.external_plugin_metadata.pop(name)
+            self.plugins.remove_external_plugin_metadata(name)
             return False
         if self.gui_object:
             self.gui_object.reload_windows()
         self.show_list()
         return True
+
+    def maybe_set_icon(self, label, name, icon_path):
+        try:
+            icon = read_QIcon_from_bytes(self.plugins.read_file(name, icon_path))
+        except Exception:
+            icon = read_QIcon('warning.png')
+        label.setIcon(icon)
 
     def show_list(self):
         descriptions = self.plugins.descriptions
@@ -346,8 +354,7 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
             label = IconLabel(text=display_name, reverse=True)
             icon_path = metadata.get('icon')
             if icon_path:
-                icon = read_QIcon_from_bytes(self.plugins.read_file(name, icon_path))
-                label.setIcon(icon)
+                self.maybe_set_icon(label, name, icon_path)
             label.status_button = PluginStatusButton(self, name)
             grid.addWidget(label, i, 0)
             grid.addWidget(label.status_button, i, 1)
