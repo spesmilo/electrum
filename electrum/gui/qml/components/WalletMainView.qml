@@ -105,8 +105,10 @@ Item {
 
     function payOnchain(invoicedialog, invoice) {
         var dialog = confirmPaymentDialog.createObject(mainView, {
+                invoice: invoice,
                 address: invoice.address,
-                satoshis: invoice.amountOverride.isEmpty
+                // the amount override does not apply to multi-output invoices
+                satoshis: (invoice.outputs.length > 1 || invoice.amountOverride.isEmpty)
                     ? invoice.amount
                     : invoice.amountOverride,
                 message: invoice.message
@@ -670,10 +672,13 @@ Item {
         id: confirmPaymentDialog
         ConfirmTxDialog {
             id: _confirmPaymentDialog
+
+            property QtObject invoice
             title: qsTr('Confirm Payment')
             finalizer: TxFinalizer {
                 wallet: Daemon.currentWallet
                 canRbf: true
+                invoice: _confirmPaymentDialog.invoice
                 onFinished: (signed, saved, complete) => {
                     if (!complete) {
                         var msg

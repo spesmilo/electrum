@@ -22,7 +22,7 @@ ElDialog {
 
     padding: 0
 
-    property bool _canMax: invoice.invoiceType == Invoice.OnchainInvoice
+    property bool _canMax: invoice.invoiceType == Invoice.OnchainInvoice && invoice.outputs.length == 1
 
     property var _invoice_amount: invoice.amount  // type: Amount
 
@@ -75,7 +75,7 @@ ElDialog {
                 Label {
                     Layout.columnSpan: 2
                     Layout.topMargin: constants.paddingSmall
-                    visible: invoice.invoiceType == Invoice.OnchainInvoice
+                    visible: invoice.invoiceType == Invoice.OnchainInvoice && invoice.outputs.length == 1
                     text: qsTr('Address')
                     color: Material.accentColor
                 }
@@ -83,7 +83,7 @@ ElDialog {
                 DialogHighlightPane {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
-                    visible: invoice.invoiceType == Invoice.OnchainInvoice
+                    visible: invoice.invoiceType == Invoice.OnchainInvoice && invoice.outputs.length == 1
                     leftPadding: constants.paddingMedium
 
                     RowLayout {
@@ -104,6 +104,56 @@ ElDialog {
                                     text: invoice.address
                                 })
                                 dialog.open()
+                            }
+                        }
+                    }
+                }
+
+                Label {
+                    Layout.columnSpan: 2
+                    Layout.topMargin: constants.paddingSmall
+                    visible: invoice.outputs.length > 1
+                    text: qsTr('Outputs (%1)').arg(invoice.outputs.length)
+                    color: Material.accentColor
+                }
+
+                Repeater {
+                    model: invoice.outputs.length > 1
+                        ? invoice.outputs
+                        : undefined
+
+                    DialogHighlightPane {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+                        leftPadding: constants.paddingMedium
+
+                        ColumnLayout {
+                            width: parent.width
+                            spacing: 0
+                            Label {
+                                Layout.fillWidth: true
+                                text: modelData.address
+                                font.pixelSize: constants.fontSizeMedium
+                                font.family: FixedFont
+                                wrapMode: Text.Wrap
+                            }
+                            RowLayout {
+                                Layout.alignment: Qt.AlignRight
+                                Label {
+                                    text: !modelData.is_max
+                                        ? Config.formatSats(modelData.value)
+                                        : modelData.value == '!'
+                                            ? qsTr('Max')
+                                            : modelData.value
+                                    font.pixelSize: constants.fontSizeMedium
+                                    font.family: FixedFont
+                                }
+                                Label {
+                                    visible: !modelData.is_max
+                                    text: Config.baseUnit
+                                    font.pixelSize: constants.fontSizeMedium
+                                    color: Material.accentColor
+                                }
                             }
                         }
                     }
@@ -507,7 +557,7 @@ ElDialog {
     }
 
     Component.onCompleted: {
-        if (invoice.amount.isEmpty && invoice.status != Invoice.Expired) {
+        if (invoice.amount.isEmpty && invoice.status != Invoice.Expired && invoice.outputs.length <= 1) {
             amountContainer.editmode = true
         } else if (invoice.amount.isMax) {
             amountMax.checked = true
