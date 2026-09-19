@@ -350,6 +350,17 @@ class QEConfig(AuthMixin, QObject):
         # TODO: consider removing once encrypted wallet file headers are available
         return self.config.WALLET_DID_USE_SINGLE_PASSWORD
 
+    sendChangeToLightningChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=sendChangeToLightningChanged)
+    def sendChangeToLightning(self):
+        return self.config.WALLET_SEND_CHANGE_TO_LIGHTNING
+
+    @sendChangeToLightning.setter
+    def sendChangeToLightning(self, sendChangeToLightning):
+        if sendChangeToLightning != self.config.WALLET_SEND_CHANGE_TO_LIGHTNING:
+            self.config.WALLET_SEND_CHANGE_TO_LIGHTNING = sendChangeToLightning
+            self.sendChangeToLightningChanged.emit()
+
     @pyqtSlot('qint64', result=str)
     @pyqtSlot(QEAmount, result=str)
     def formatSatsForEditing(self, satoshis):
