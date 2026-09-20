@@ -462,10 +462,13 @@ class TxInput:
         n = vds.read_compact_size()
         return list(vds.read_bytes(vds.read_compact_size()) for i in range(n))
 
-    def is_segwit(self, *, guess_for_address=False) -> bool:
+    def has_witness(self) -> bool:
         if self.witness not in (b'\x00', b'', None):
             return True
         return False
+
+    def is_segwit(self, *, guess_for_address=False) -> bool:
+        return self.has_witness()
 
     def is_taproot(self) -> Optional[bool]:
         if self._is_taproot is None:
@@ -2043,7 +2046,7 @@ class PartialTxInput(TxInput, PSBTSection):
 
     def is_segwit(self, *, guess_for_address=False) -> bool:
         """Whether this input is segwit (any witness version)."""
-        if super().is_segwit():
+        if self.has_witness():
             return True
         if self.is_native_segwit() or self.is_p2sh_segwit():
             return True
@@ -2485,6 +2488,11 @@ class PartialTransaction(Transaction):
         # keypairs:  pubkey_bytes -> secret_bytes
         sighash_cache = SighashCache()
         for i, txin in enumerate(self.inputs()):
+            if txin.has_witness():
+                # note: serialize_preimage relies on is_segwit(), which returns True
+                # if the PSBT contains a witness, even for non-segwit inputs.
+                _logger.info(f"not signing input {i}: it already has a witness")
+                continue
             for pubkey in txin.pubkeys:
                 if txin.is_complete():
                     break
