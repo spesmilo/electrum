@@ -164,7 +164,7 @@ class ExchangeBase(Logger):
         self.on_history()
 
     def get_historical_rates(self, ccy: str, cache_dir: str) -> None:
-        if ccy not in self.history_ccys():
+        if ccy not in self.get_history_ccys():
             return
         h = self._history.get(ccy)
         if h is None:
@@ -172,7 +172,8 @@ class ExchangeBase(Logger):
         if h is None or h['timestamp'] < time.time() - 24*3600:
             util.get_asyncio_loop().create_task(self.get_historical_rates_safe(ccy, cache_dir))
 
-    def history_ccys(self) -> Sequence[str]:
+    def get_history_ccys(self) -> Sequence[str]:
+        """Returns list of currencies supported for historical rates."""
         return []
 
     def historical_rate(self, ccy: str, d_t: datetime) -> Decimal:
@@ -196,7 +197,8 @@ class ExchangeBase(Logger):
         """
         raise NotImplementedError()  # implemented by subclasses
 
-    async def get_currencies(self) -> Sequence[str]:
+    async def get_spot_ccys(self) -> Sequence[str]:
+        """Returns list of currencies supported for spot rates."""
         rates = await self.request_spot_rates('')
         return sorted([str(a) for (a, b) in rates.items() if b is not None and len(a)==3])
 
@@ -215,7 +217,7 @@ class ExchangeBase(Logger):
 
 class Yadio(ExchangeBase):
 
-    async def get_currencies(self):
+    async def get_spot_ccys(self):
         dicts = await self.get_json('api.yadio.io', '/currencies')
         return list(dicts.keys())
 
@@ -249,7 +251,7 @@ class BitcoinVenezuela(ExchangeBase):
                  if json['BTC'][r] is not None]  # Giving NULL for LTC
         return dict(rates)
 
-    def history_ccys(self):
+    def get_history_ccys(self):
         return ['ARS', 'EUR', 'USD', 'VEF']
 
     async def request_history(self, ccy):
@@ -266,7 +268,7 @@ class Bitbank(ExchangeBase):
 
 class BitFinex(ExchangeBase):
 
-    async def get_currencies(self):
+    async def get_spot_ccys(self):
         json = await self.get_json(
             'api-pub.bitfinex.com',
             f"/v2/conf/pub:list:pair:exchange")
@@ -274,7 +276,7 @@ class BitFinex(ExchangeBase):
                  if len(pair) == 6 and pair[:3] == "BTC"]
         return [pair[3:] for pair in pairs]
 
-    def history_ccys(self):
+    def get_history_ccys(self):
         return CURRENCIES[self.name()]
 
     async def request_spot_rates(self, ccy):
@@ -316,7 +318,7 @@ class Bitso(ExchangeBase):
 
 class BitStamp(ExchangeBase):
 
-    async def get_currencies(self):
+    async def get_spot_ccys(self):
         # ref https://www.bitstamp.net/api/#tag/Tickers/operation/GetCurrencyPairTickers
         json = await self.get_json(
             'www.bitstamp.net',
@@ -333,7 +335,7 @@ class BitStamp(ExchangeBase):
             return {ccy: to_decimal(json['last'])}
         return {}
 
-    def history_ccys(self):
+    def get_history_ccys(self):
         return CURRENCIES[self.name()]
 
     async def request_history(self, ccy):
@@ -397,7 +399,7 @@ class CoinCap(ExchangeBase):
         json = await self.get_json('api.coincap.io', '/v2/rates/bitcoin/')
         return {'USD': to_decimal(json['data']['rateUsd'])}
 
-    def history_ccys(self):
+    def get_history_ccys(self):
         return ['USD']
 
     async def request_history(self, ccy):
@@ -416,7 +418,7 @@ class CoinGecko(ExchangeBase):
         return dict([(ccy.upper(), to_decimal(d['value']))
                      for ccy, d in json['rates'].items() if d.get('value') is not None])
 
-    def history_ccys(self):
+    def get_history_ccys(self):
         # CoinGecko seems to have historical data for all ccys it supports
         return CURRENCIES[self.name()]
 
@@ -439,7 +441,7 @@ class Bit2C(ExchangeBase):
         json = await self.get_json('bit2c.co.il', '/Exchanges/BtcNis/Ticker.json')
         return {'ILS': to_decimal(json['ll'])}
 
-    def history_ccys(self):
+    def get_history_ccys(self):
         return CURRENCIES[self.name()]
 
     async def request_history(self, ccy):
@@ -468,7 +470,7 @@ class MempoolSpace(ExchangeBase):
             for ccy_, rate in json.items()
         }
 
-    def history_ccys(self):
+    def get_history_ccys(self):
         return CURRENCIES[self.name()]
 
     async def request_history(self, ccy):
@@ -525,7 +527,7 @@ class Winkdex(ExchangeBase):
         json = await self.get_json('winkdex.com', '/api/v0/price')
         return {'USD': to_decimal(json['price']) / 100}
 
-    def history_ccys(self):
+    def get_history_ccys(self):
         return ['USD']
 
     async def request_history(self, ccy):
@@ -590,7 +592,7 @@ def get_exchanges_and_currencies():
 
     async def get_currencies_safe(name, exchange):
         try:
-            d[name] = await exchange.get_currencies()
+            d[name] = await exchange.get_spot_ccys()
             print(name, "ok")
         except Exception:
             print(name, "error")
@@ -625,7 +627,7 @@ def get_exchanges_by_ccy(history=True):
     for name in exchanges:
         klass = globals()[name]
         exchange = klass(None, None)
-        d[name] = exchange.history_ccys()
+        d[name] = exchange.get_history_ccys()
     return dictinvert(d)
 
 
@@ -724,7 +726,7 @@ class FxThread(ThreadJob, EventListener, NetworkRetryManager[str]):
         self.trigger_update()
 
     def can_have_history(self):
-        return self.is_enabled() and self.ccy in self.exchange.history_ccys()
+        return self.is_enabled() and self.ccy in self.exchange.get_history_ccys()
 
     def has_history(self) -> bool:
         return self.can_have_history() and self.config.FX_HISTORY_RATES
