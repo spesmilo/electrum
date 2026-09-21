@@ -42,7 +42,7 @@ from .logging import Logger
 from .lntransport import LNPeerAddr
 from .lnonion import OnionRoutingFailure
 from . import lnutil
-from .lnutil import (Outpoint, LocalConfig, RemoteConfig, ChannelKeys, OnlyPubkeyKeypair, ChannelConstraints,
+from .lnutil import (Outpoint, ChannelConfig, ChannelKeys, OnlyPubkeyKeypair, ChannelConstraints,
                      secret_to_pubkey, derive_privkey, make_closing_tx,
                      sign_and_get_sig_string, RevocationStore, derive_blinded_pubkey, Direction, derive_pubkey,
                      make_htlc_tx_with_open_channel, make_commitment, UpdateAddHtlc,
@@ -178,7 +178,7 @@ class HTLCWithStatus(NamedTuple):
 
 class AbstractChannel(Logger, ABC):
     storage: Union['StoredDict', dict]
-    config: Dict[HTLCOwner, Union[LocalConfig, RemoteConfig]]
+    config: Dict[HTLCOwner, ChannelConfig]
     keys: Optional[ChannelKeys] = None  # None for on-chain channel backups
     lnworker: 'LNWallet'
     channel_id: bytes
@@ -630,7 +630,7 @@ class ChannelBackup(AbstractChannel):
             multisig_privkey=cb.multisig_funding_privkey,
             payment_basepoint_privkey=payment_basepoint_privkey,
         )
-        self.config[LOCAL] = LocalConfig.for_us(
+        self.config[LOCAL] = ChannelConfig.for_us(
             keys=self.keys,
             to_self_delay=cb.local_delay,
             channel_type=cb.channel_type,
@@ -646,7 +646,7 @@ class ChannelBackup(AbstractChannel):
             announcement_node_sig=b'',
             announcement_bitcoin_sig=b'',
         )
-        self.config[REMOTE] = RemoteConfig(
+        self.config[REMOTE] = ChannelConfig(
             # payment_basepoint needed to deobfuscate ctn in our_ctx
             payment_basepoint=OnlyPubkeyKeypair(cb.remote_payment_pubkey),
             # revocation_basepoint is used to claim to_local in our ctx
