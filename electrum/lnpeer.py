@@ -2524,7 +2524,7 @@ class Peer(Logger, EventListener):
             else:
                 # We raise fees more aggressively than we lower them. Overpaying is not too bad,
                 # but lowballing can be fatal if we can't even get into the mempool...
-                high_fee = 2 * current_feerate_per_kw  # type: # Union[float, int]
+                high_fee = 2 * current_feerate_per_kw  # type: Union[float, int]
                 low_fee = self.lnworker.current_low_feerate_per_kw_srk_channel()  # type: Optional[Union[float, int]]
                 if low_fee is None:
                     return None
