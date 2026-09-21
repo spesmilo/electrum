@@ -93,7 +93,9 @@ class ExchangeBase(Logger):
         if ccy == 'BTC':
             return Decimal(1)
         rate = self._quotes.get(ccy)
-        if not rate:  # don't return 0 to prevent DivisionByZero exceptions
+        if rate is None or rate.is_nan():
+            return Decimal('NaN')
+        if rate <= 0:  # filter out negative garbage, and prevent DivisionByZero
             return Decimal('NaN')
         if self._quotes_timestamp + SPOT_RATE_EXPIRY < time.time():
             # Our rate is stale. Probably better to return no rate than an incorrect one.
@@ -193,10 +195,15 @@ class ExchangeBase(Logger):
         date_str = d_t.strftime('%Y-%m-%d')
         rate = self._history.get(ccy, {}).get(date_str) or 'NaN'
         try:
-            return Decimal(rate)
+            drate = Decimal(rate)
         except Exception:  # guard against garbage coming from exchange
             #self.logger.debug(f"found corrupted historical_rate: {rate=!r}. for {ccy=} at {date_str}")
             return Decimal('NaN')
+        if drate.is_nan():
+            return Decimal('NaN')
+        if drate <= 0:  # filter out negative garbage, and prevent DivisionByZero
+            return Decimal('NaN')
+        return drate
 
     ##### Methods for subclasses to override:
 
