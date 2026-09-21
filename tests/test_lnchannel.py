@@ -937,6 +937,24 @@ class TestChannel(ElectrumTestCase):
             self.assertEqual(chan.config[LOCAL].payment_basepoint.pubkey,
                              ecc.ECPrivkey(privkey).get_public_key_bytes())
 
+    async def test_local_per_commitment_points_follow_our_ctn(self):
+        """We keep our own per-commitment points in the config, like the remote's, so
+        that both sides are described in the same way. They must follow our ctn.
+        """
+        def check_both_channels():
+            for chan in (self.alice_channel, self.bob_channel):
+                ctn = chan.get_oldest_unrevoked_ctn(LOCAL)
+                config = chan.config[LOCAL]
+                self.assertEqual(chan.keys.per_commitment_point(ctn),
+                                 config.current_per_commitment_point)
+                self.assertEqual(chan.keys.per_commitment_point(ctn + 1),
+                                 config.next_per_commitment_point)
+
+        check_both_channels()
+        for _ in range(3):
+            force_state_transition(self.alice_channel, self.bob_channel)
+            check_both_channels()
+
 
 class TestChannelNoAnchors(TestChannel):
     assert TestChannel.TEST_ANCHOR_CHANNELS is True

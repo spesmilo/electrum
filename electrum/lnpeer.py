@@ -1071,9 +1071,6 @@ class Peer(Logger, EventListener):
             open_channel_tlvs['channel_opening_fee'] = {
                 'channel_opening_fee': opening_fee
             }
-        # for the first commitment transaction
-        per_commitment_point_first = local_keys.per_commitment_point(0)
-
         # store the temp id now, so that it is recognized for e.g. 'error' messages
         self.temp_id_to_id[temp_channel_id] = None
         self._cleanup_temp_channelids()
@@ -1091,7 +1088,7 @@ class Peer(Logger, EventListener):
             htlc_basepoint=local_config.htlc_basepoint.pubkey,
             payment_basepoint=local_config.payment_basepoint.pubkey,
             delayed_payment_basepoint=local_config.delayed_basepoint.pubkey,
-            first_per_commitment_point=per_commitment_point_first,
+            first_per_commitment_point=local_config.current_per_commitment_point,
             to_self_delay=local_config.to_self_delay,
             max_htlc_value_in_flight_msat=local_config.max_htlc_value_in_flight_msat,
             channel_flags=channel_flags,
@@ -1138,8 +1135,10 @@ class Peer(Logger, EventListener):
             initial_msat=push_msat,
             reserve_sat=payload["channel_reserve_satoshis"],
             htlc_minimum_msat=payload['htlc_minimum_msat'],
-            next_per_commitment_point=remote_per_commitment_point,
+            current_commitment_signature=None,
+            current_htlc_signatures=b'',
             current_per_commitment_point=None,
+            next_per_commitment_point=remote_per_commitment_point,
             upfront_shutdown_script=upfront_shutdown_script,
             announcement_node_sig=b'',
             announcement_bitcoin_sig=b'',
@@ -1370,8 +1369,10 @@ class Peer(Logger, EventListener):
             initial_msat=funding_sat * 1000 - push_msat,
             reserve_sat=payload['channel_reserve_satoshis'],
             htlc_minimum_msat=payload['htlc_minimum_msat'],
-            next_per_commitment_point=payload['first_per_commitment_point'],
+            current_commitment_signature=None,
+            current_htlc_signatures=b'',
             current_per_commitment_point=None,
+            next_per_commitment_point=payload['first_per_commitment_point'],
             upfront_shutdown_script=upfront_shutdown_script,
             announcement_node_sig=b'',
             announcement_bitcoin_sig=b'',
@@ -1390,9 +1391,6 @@ class Peer(Logger, EventListener):
         channel_flags = ord(payload['channel_flags'])
 
         # -> accept channel
-        # for the first commitment transaction
-        per_commitment_point_first = local_keys.per_commitment_point(0)
-
         min_depth = 0 if is_zeroconf else 3
 
         accept_channel_tlvs = {
@@ -1419,7 +1417,7 @@ class Peer(Logger, EventListener):
             payment_basepoint=local_config.payment_basepoint.pubkey,
             delayed_payment_basepoint=local_config.delayed_basepoint.pubkey,
             htlc_basepoint=local_config.htlc_basepoint.pubkey,
-            first_per_commitment_point=per_commitment_point_first,
+            first_per_commitment_point=local_config.current_per_commitment_point,
             accept_channel_tlvs=accept_channel_tlvs,
         )
 
