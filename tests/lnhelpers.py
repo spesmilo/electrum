@@ -6,6 +6,8 @@ from decimal import Decimal
 from pprint import pformat
 from typing import NamedTuple, Tuple, Dict, Mapping, TYPE_CHECKING, Sequence
 
+import attr
+
 import electrum
 import electrum.trampoline
 from electrum import (
@@ -18,8 +20,8 @@ from electrum.bolt11 import encode_bolt11_invoice, BOLT11Addr, decode_bolt11_inv
 from electrum.invoices import PR_UNPAID, Invoice, LN_EXPIRY_NEVER
 from electrum.lnpeer import Peer
 from electrum.lnutil import (
-    LnFeatures, PaymentFeeBudget, LOCAL, REMOTE, ChannelType, LocalConfig, RemoteConfig,
-    ChannelKeys, OnlyPubkeyKeypair, RECEIVED,
+    LnFeatures, PaymentFeeBudget, LOCAL, REMOTE, ChannelType, ChannelConfig, ChannelKeys,
+    RECEIVED,
 )
 from electrum.lnchannel import ChannelState, Channel
 from electrum.lnrouter import LNPathFinder
@@ -512,30 +514,16 @@ def prepare_chans_and_peers_in_graph(
     return graph
 
 
-def _convert_to_rconfig_from_lconfig(lconfig: LocalConfig) -> RemoteConfig:
-    """converts Alice's local config to Bob's remote config"""
-    rconfig = RemoteConfig(
-        payment_basepoint=OnlyPubkeyKeypair(pubkey=lconfig.payment_basepoint.pubkey),
-        multisig_key=OnlyPubkeyKeypair(pubkey=lconfig.multisig_key.pubkey),
-        htlc_basepoint=OnlyPubkeyKeypair(pubkey=lconfig.htlc_basepoint.pubkey),
-        delayed_basepoint=OnlyPubkeyKeypair(pubkey=lconfig.delayed_basepoint.pubkey),
-        revocation_basepoint=OnlyPubkeyKeypair(pubkey=lconfig.revocation_basepoint.pubkey),
-        to_self_delay=lconfig.to_self_delay,
-        dust_limit_sat=lconfig.dust_limit_sat,
-        max_htlc_value_in_flight_msat=lconfig.max_htlc_value_in_flight_msat,
-        max_accepted_htlcs=lconfig.max_accepted_htlcs,
-        initial_msat=lconfig.initial_msat,
-        reserve_sat=lconfig.reserve_sat,
-        htlc_minimum_msat=lconfig.htlc_minimum_msat,
-        upfront_shutdown_script=lconfig.upfront_shutdown_script,
-        announcement_node_sig=lconfig.announcement_node_sig,
-        announcement_bitcoin_sig=lconfig.announcement_bitcoin_sig,
+def _convert_to_rconfig_from_lconfig(lconfig: ChannelConfig) -> ChannelConfig:
+    """Alice's local config, as it appears in Bob's channel: the same public parameters,
+    with only the first per-commitment point known, and no signatures yet."""
+    return attr.evolve(
+        lconfig,
         current_commitment_signature=None,
         current_htlc_signatures=b'',
         current_per_commitment_point=None,
         next_per_commitment_point=lconfig.current_per_commitment_point,
     )
-    return rconfig
 
 
 def _create_channel_state(
@@ -546,9 +534,9 @@ def _create_channel_state(
     is_initiator: bool,
     other_node_id: bytes,
     channel_type: ChannelType,
-    local_config: LocalConfig,
+    local_config: ChannelConfig,
     local_keys: ChannelKeys,
-    remote_config: RemoteConfig,
+    remote_config: ChannelConfig,
 ):
     channel_id, _ = lnpeer.channel_id_from_funding_tx(funding_txid, funding_index)
     state = {

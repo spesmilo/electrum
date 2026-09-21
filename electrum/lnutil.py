@@ -119,6 +119,8 @@ class Keypair(OnlyPubkeyKeypair):
     privkey = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
 
 
+@stored_at('/channels/*/local_config')
+@stored_at('/channels/*/remote_config')
 @attr.s
 class ChannelConfig(StoredObject):
     """The channel parameters and state of one side of a channel.
@@ -203,8 +205,10 @@ class ChannelConfig(StoredObject):
             **kwargs,
         )
 
-    def validate_params(self, *, funding_sat: int, config: 'SimpleConfig', peer_features: 'LnFeatures') -> None:
-        conf_name = type(self).__name__
+    def validate_params(
+            self, *, funding_sat: int, config: 'SimpleConfig', peer_features: 'LnFeatures',
+            is_local: bool = False) -> None:
+        conf_name = 'LOCAL' if is_local else 'REMOTE'
         for key in (
                 self.payment_basepoint,
                 self.multisig_key,
@@ -246,13 +250,19 @@ class ChannelConfig(StoredObject):
             raise Exception(f"{conf_name}. to_self_delay too high: {self.to_self_delay} > {MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED}")
         if self.max_htlc_value_in_flight_msat < min(1000 * funding_sat, 90_000_000):
             raise Exception(f"{conf_name}. max_htlc_value_in_flight_msat is too small: {self.max_htlc_value_in_flight_msat}")
+        if is_local:
+            # stricter checks on our own config (make sure we ourselves do the sane thing,
+            # even if we are lenient with the remote for compatibility reasons)
+            HTLC_MINIMUM_MSAT_MIN = 1
+            if self.htlc_minimum_msat < HTLC_MINIMUM_MSAT_MIN:
+                raise Exception(f"{conf_name}. htlc_minimum_msat too low: {self.htlc_minimum_msat} msat < {HTLC_MINIMUM_MSAT_MIN}")
 
     @classmethod
     def cross_validate_params(
             cls,
             *,
-            local_config: 'LocalConfig',
-            remote_config: 'RemoteConfig',
+            local_config: 'ChannelConfig',
+            remote_config: 'ChannelConfig',
             funding_sat: int,
             is_local_initiator: bool,  # whether we are the funder
             initial_feerate_per_kw: int,
@@ -262,7 +272,7 @@ class ChannelConfig(StoredObject):
     ) -> None:
         has_anchors = bool(channel_type & ChannelType.OPTION_ANCHORS)
         # first we validate the configs separately
-        local_config.validate_params(funding_sat=funding_sat, config=config, peer_features=peer_features)
+        local_config.validate_params(funding_sat=funding_sat, config=config, peer_features=peer_features, is_local=True)
         remote_config.validate_params(funding_sat=funding_sat, config=config, peer_features=peer_features)
         # now do tests that need access to both configs
         if is_local_initiator:
@@ -301,26 +311,6 @@ class ChannelConfig(StoredObject):
                 "transaction are less than or equal to channel_reserve_satoshis")
         if initial_feerate_per_kw < FEERATE_PER_KW_MIN_RELAY_LIGHTNING:
             raise Exception(f"feerate lower than min relay fee. {initial_feerate_per_kw} sat/kw.")
-
-
-@stored_at('/channels/*/local_config')
-@attr.s
-class LocalConfig(ChannelConfig):
-    def validate_params(self, *, funding_sat: int, config: 'SimpleConfig', peer_features: 'LnFeatures') -> None:
-        conf_name = type(self).__name__
-        # run base checks regardless whether LOCAL/REMOTE config
-        super().validate_params(funding_sat=funding_sat, config=config, peer_features=peer_features)
-        # run some stricter checks on LOCAL config (make sure we ourselves do the sane thing,
-        # even if we are lenient with REMOTE for compatibility reasons)
-        HTLC_MINIMUM_MSAT_MIN = 1
-        if self.htlc_minimum_msat < HTLC_MINIMUM_MSAT_MIN:
-            raise Exception(f"{conf_name}. htlc_minimum_msat too low: {self.htlc_minimum_msat} msat < {HTLC_MINIMUM_MSAT_MIN}")
-
-
-@stored_at('/channels/*/remote_config')
-@attr.s
-class RemoteConfig(ChannelConfig):
-    pass
 
 
 @attr.s
@@ -1146,7 +1136,7 @@ def make_htlc_output_witness_script(
 def get_ordered_channel_configs(
         chan: 'AbstractChannel',
         for_us: bool
-) -> Tuple[Union[LocalConfig, RemoteConfig], Union[LocalConfig, RemoteConfig]]:
+) -> Tuple[ChannelConfig, ChannelConfig]:
     conf =       chan.config[LOCAL] if     for_us else chan.config[REMOTE]
     other_conf = chan.config[LOCAL] if not for_us else chan.config[REMOTE]
     return conf, other_conf
@@ -1570,7 +1560,7 @@ def sign_and_get_sig_string(tx: PartialTransaction, multisig_key: 'Keypair') -> 
     return sig_64
 
 
-def funding_output_script(local_config: 'LocalConfig', remote_config: 'RemoteConfig') -> bytes:
+def funding_output_script(local_config: 'ChannelConfig', remote_config: 'ChannelConfig') -> bytes:
     return funding_output_script_from_keys(local_config.multisig_key.pubkey, remote_config.multisig_key.pubkey)
 
 
