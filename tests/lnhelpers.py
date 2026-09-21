@@ -512,7 +512,7 @@ def prepare_chans_and_peers_in_graph(
     return graph
 
 
-def _convert_to_rconfig_from_lconfig(lconfig: LocalConfig, lkeys: ChannelKeys) -> RemoteConfig:
+def _convert_to_rconfig_from_lconfig(lconfig: LocalConfig) -> RemoteConfig:
     """converts Alice's local config to Bob's remote config"""
     rconfig = RemoteConfig(
         payment_basepoint=OnlyPubkeyKeypair(pubkey=lconfig.payment_basepoint.pubkey),
@@ -530,8 +530,10 @@ def _convert_to_rconfig_from_lconfig(lconfig: LocalConfig, lkeys: ChannelKeys) -
         upfront_shutdown_script=lconfig.upfront_shutdown_script,
         announcement_node_sig=lconfig.announcement_node_sig,
         announcement_bitcoin_sig=lconfig.announcement_bitcoin_sig,
-        next_per_commitment_point=lkeys.per_commitment_point(0),
+        current_commitment_signature=None,
+        current_htlc_signatures=b'',
         current_per_commitment_point=None,
+        next_per_commitment_point=lconfig.current_per_commitment_point,
     )
     return rconfig
 
@@ -654,7 +656,7 @@ def create_test_channels(
                 channel_type=channel_type,
                 local_config=alice_lconfig,
                 local_keys=alice_lkeys,
-                remote_config=_convert_to_rconfig_from_lconfig(bob_lconfig, bob_lkeys),
+                remote_config=_convert_to_rconfig_from_lconfig(bob_lconfig),
             ),
             name=f"{alice_name}->{bob_name}",
             initial_feerate=feerate,
@@ -670,7 +672,7 @@ def create_test_channels(
                 channel_type=channel_type,
                 local_config=bob_lconfig,
                 local_keys=bob_lkeys,
-                remote_config=_convert_to_rconfig_from_lconfig(alice_lconfig, alice_lkeys),
+                remote_config=_convert_to_rconfig_from_lconfig(alice_lconfig),
             ),
             name=f"{bob_name}->{alice_name}",
             initial_feerate=feerate,

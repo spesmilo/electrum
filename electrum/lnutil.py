@@ -130,10 +130,11 @@ class Keypair(OnlyPubkeyKeypair):
 
 @dataclasses.dataclass(repr=False)
 class ChannelConfig(StoredObject):
-    """The channel parameters of one side of a channel.
+    """The channel parameters and state of one side of a channel.
 
-    The config never holds a secret: our privkeys are all derived from the channel seed,
-    which lives next to the two configs in the channel storage. (see ChannelKeys)
+    Both sides are described by the same fields, and neither holds any secret: our
+    privkeys are all derived from the channel seed, which lives next to the two configs
+    in the channel storage. (see ChannelKeys)
     """
     payment_basepoint: OnlyPubkeyKeypair
     multisig_key: OnlyPubkeyKeypair
@@ -150,6 +151,15 @@ class ChannelConfig(StoredObject):
     upfront_shutdown_script: bytes
     announcement_node_sig: bytes
     announcement_bitcoin_sig: bytes
+    # signatures for this side's latest ctx and its htlc txs: for LOCAL, the ones the
+    # remote sent us; for REMOTE, the ones we sent them.
+    current_commitment_signature: bytes
+    current_htlc_signatures: bytes
+    # per-commitment points of this side's oldest unrevoked ctx, and of the next one.
+    # ours are derivable from the channel seed; we keep them so that both configs can be
+    # described, and sent to a peer that backs up our channel, in the same way.
+    current_per_commitment_point: bytes
+    next_per_commitment_point: bytes
 
     def __post_init__(self):
         # keypairs are stored as dicts, and bytes as hex
@@ -161,6 +171,10 @@ class ChannelConfig(StoredObject):
         self.upfront_shutdown_script = hex_to_bytes(self.upfront_shutdown_script)
         self.announcement_node_sig = hex_to_bytes(self.announcement_node_sig)
         self.announcement_bitcoin_sig = hex_to_bytes(self.announcement_bitcoin_sig)
+        self.current_commitment_signature = hex_to_bytes(self.current_commitment_signature)
+        self.current_htlc_signatures = hex_to_bytes(self.current_htlc_signatures)
+        self.current_per_commitment_point = hex_to_bytes(self.current_per_commitment_point)
+        self.next_per_commitment_point = hex_to_bytes(self.next_per_commitment_point)
 
     def __repr__(self):
         return repr_dataclass(self, {bytes: bytes_to_hex})
@@ -209,6 +223,10 @@ class ChannelConfig(StoredObject):
             htlc_basepoint=OnlyPubkeyKeypair(keys.htlc_basepoint.pubkey),
             delayed_basepoint=OnlyPubkeyKeypair(keys.delayed_basepoint.pubkey),
             revocation_basepoint=OnlyPubkeyKeypair(keys.revocation_basepoint.pubkey),
+            current_commitment_signature=None,
+            current_htlc_signatures=b'',
+            current_per_commitment_point=keys.per_commitment_point(0),
+            next_per_commitment_point=keys.per_commitment_point(1),
             **kwargs,
         )
 
@@ -315,14 +333,6 @@ class ChannelConfig(StoredObject):
 @stored_at('/channels/*/local_config')
 @dataclasses.dataclass(repr=False)
 class LocalConfig(ChannelConfig):
-    current_commitment_signature: bytes
-    current_htlc_signatures: bytes
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.current_commitment_signature = hex_to_bytes(self.current_commitment_signature)
-        self.current_htlc_signatures = hex_to_bytes(self.current_htlc_signatures)
-
     def validate_params(self, *, funding_sat: int, config: 'SimpleConfig', peer_features: 'LnFeatures') -> None:
         conf_name = type(self).__name__
         # run base checks regardless whether LOCAL/REMOTE config
@@ -337,13 +347,7 @@ class LocalConfig(ChannelConfig):
 @stored_at('/channels/*/remote_config')
 @dataclasses.dataclass(repr=False)
 class RemoteConfig(ChannelConfig):
-    next_per_commitment_point: bytes
-    current_per_commitment_point: Optional[bytes] = None
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.next_per_commitment_point = hex_to_bytes(self.next_per_commitment_point)
-        self.current_per_commitment_point = hex_to_bytes(self.current_per_commitment_point)
+    pass
 
 
 @dataclasses.dataclass(repr=False)
