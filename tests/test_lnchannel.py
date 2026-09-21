@@ -917,16 +917,17 @@ class TestChannel(ElectrumTestCase):
         self.assertIn(phash, self.bob_channel.get_payments(status='inflight', direction=RECEIVED))
         self.assertEqual({}, self.bob_channel.get_payments(status='inflight', direction=SENT))
 
-    async def test_local_config_does_not_store_secrets(self):
-        """Our channel keys are all derived from the channel seed, which is now kept
-        outside of the config, so no secret must end up in the config. (see #4909)
+    async def test_channel_configs_are_symmetric(self):
+        """The two configs have the same fields and hold no secret: everything we keep
+        for ourselves is derived from the channel seed. (see #4909)
         """
         chan = self.alice_channel
         stored = json.loads(json.dumps(chan.storage, cls=MyEncoder))
-        local_config = stored['local_config']
-        self.assertNotIn('per_commitment_secret_seed', local_config)
+        local_config, remote_config = stored['local_config'], stored['remote_config']
+        self.assertEqual(sorted(local_config), sorted(remote_config))
         for name in ('payment_basepoint', 'multisig_key', *DERIVED_LOCAL_BASEPOINTS):
             self.assertEqual(['pubkey'], list(local_config[name]))
+            self.assertEqual(['pubkey'], list(remote_config[name]))
         # our secrets are kept next to the configs, and nothing else is stored
         self.assertEqual(64, len(stored['channel_seed']))
         self.assertEqual(64, len(stored['multisig_privkey']))
@@ -938,6 +939,24 @@ class TestChannel(ElectrumTestCase):
             privkey = chan.get_payment_basepoint_privkey()
             self.assertEqual(chan.config[LOCAL].payment_basepoint.pubkey,
                              ecc.ECPrivkey(privkey).get_public_key_bytes())
+
+    async def test_local_per_commitment_points_follow_our_ctn(self):
+        """We keep our own per-commitment points in the config, like the remote's, so
+        that both sides are described in the same way. They must follow our ctn.
+        """
+        def check_both_channels():
+            for chan in (self.alice_channel, self.bob_channel):
+                ctn = chan.get_oldest_unrevoked_ctn(LOCAL)
+                config = chan.config[LOCAL]
+                self.assertEqual(chan.keys.per_commitment_point(ctn),
+                                 config.current_per_commitment_point)
+                self.assertEqual(chan.keys.per_commitment_point(ctn + 1),
+                                 config.next_per_commitment_point)
+
+        check_both_channels()
+        for _ in range(3):
+            force_state_transition(self.alice_channel, self.bob_channel)
+            check_both_channels()
 
 
 class TestChannelNoAnchors(TestChannel):

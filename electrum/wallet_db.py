@@ -1515,16 +1515,17 @@ class WalletDBUpgrader(Logger):
         self.data['seed_version'] = 73
 
     def _convert_version_74(self):
-        """Stop storing the local channel keys that are derived from the channel seed,
-        and keep the ones we cannot derive outside of the config.
+        """Stop storing the local channel keys that are derived from the channel seed, and
+        describe both sides of a channel with the same fields.
 
         The channel seed and the multisig privkey (the one key we cannot re-derive) move
         out of the config and into the channel itself, together with
-        funding_locked_received. What is left is a config that holds public data only.
+        funding_locked_received. What is left is a config that holds public data only,
+        and that has the same fields for LOCAL and for REMOTE.
         """
         from .bip32 import BIP32Node
         from .lnutil import (DERIVED_LOCAL_BASEPOINTS, LnKeyFamily, generate_keypair,
-                             derive_payment_basepoint)
+                             derive_payment_basepoint, get_per_commitment_point_from_seed)
         if not self._is_upgrade_method_needed(73, 73):
             return
 
@@ -1540,6 +1541,7 @@ class WalletDBUpgrader(Logger):
 
         for channel_id, c in self.data.get('channels', {}).items():
             local_config = c['local_config']
+            remote_config = c['remote_config']
             channel_seed = local_config.pop('channel_seed')
             node = BIP32Node.from_rootseed(bfh(channel_seed), xtype='standard')
             for name, key_family in DERIVED_LOCAL_BASEPOINTS.items():
@@ -1561,6 +1563,13 @@ class WalletDBUpgrader(Logger):
             c['channel_seed'] = channel_seed
             c['multisig_privkey'] = local_config['multisig_key'].pop('privkey')
             c['funding_locked_received'] = local_config.pop('funding_locked_received')
+            # the remaining fields exist for both sides now. The signatures we sent for
+            # their ctx were not kept, so the remote config starts without them.
+            remote_config['current_commitment_signature'] = None
+            remote_config['current_htlc_signatures'] = ''
+            ctn = max(c['log']['1']['ctn'], 0)  # our oldest unrevoked ctn
+            local_config['current_per_commitment_point'] = get_per_commitment_point_from_seed(secret_seed, ctn).hex()
+            local_config['next_per_commitment_point'] = get_per_commitment_point_from_seed(secret_seed, ctn + 1).hex()
         self.data['seed_version'] = 74
 
     def _convert_imported(self):

@@ -641,8 +641,6 @@ class ChannelBackup(AbstractChannel):
             max_accepted_htlcs=None,
             initial_msat=None,
             reserve_sat=None,
-            current_commitment_signature=None,
-            current_htlc_signatures=b'',
             htlc_minimum_msat=1,
             upfront_shutdown_script='',
             announcement_node_sig=b'',
@@ -664,8 +662,10 @@ class ChannelBackup(AbstractChannel):
             initial_msat = None,
             reserve_sat = None,
             htlc_minimum_msat=None,
-            next_per_commitment_point=None,
+            current_commitment_signature=None,
+            current_htlc_signatures=b'',
             current_per_commitment_point=None,
+            next_per_commitment_point=None,
             upfront_shutdown_script='',
             announcement_node_sig=b'',
             announcement_bitcoin_sig=b'',
@@ -1373,6 +1373,8 @@ class Channel(AbstractChannel):
         htlcsigs = [x[1] for x in htlcsigs]
         with self.db_lock:
             self.hm.send_ctx()
+            self.config[REMOTE].current_commitment_signature = sig_64
+            self.config[REMOTE].current_htlc_signatures = b''.join(htlcsigs)
         return sig_64, htlcsigs
 
     def receive_new_commitment(self, sig: bytes, htlc_sigs: Sequence[bytes]) -> None:
@@ -1469,10 +1471,14 @@ class Channel(AbstractChannel):
         if not self.signature_fits(new_ctx):
             # this should never fail; as receive_new_commitment already did this test
             raise Exception("refusing to revoke as remote sig does not fit")
+        last_secret, last_point = self.get_secret_and_point(LOCAL, new_ctn - 1)
+        _cur_secret, cur_point = self.get_secret_and_point(LOCAL, new_ctn)
+        next_secret, next_point = self.get_secret_and_point(LOCAL, new_ctn + 1)
         with self.db_lock:
             self.hm.send_rev()
-        last_secret, last_point = self.get_secret_and_point(LOCAL, new_ctn - 1)
-        next_secret, next_point = self.get_secret_and_point(LOCAL, new_ctn + 1)
+            # new_ctn is now our oldest unrevoked ctn
+            self.config[LOCAL].current_per_commitment_point = cur_point
+            self.config[LOCAL].next_per_commitment_point = next_point
         return RevokeAndAck(last_secret, next_point)
 
     def receive_revocation(self, revocation: RevokeAndAck):

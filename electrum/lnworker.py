@@ -1820,8 +1820,6 @@ class LNWallet(Logger):
             max_accepted_htlcs=30,
             initial_msat=initial_msat,
             reserve_sat=reserve_sat,
-            current_commitment_signature=None,
-            current_htlc_signatures=b'',
             htlc_minimum_msat=1,
             announcement_node_sig=b'',
             announcement_bitcoin_sig=b'',

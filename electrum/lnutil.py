@@ -121,10 +121,11 @@ class Keypair(OnlyPubkeyKeypair):
 
 @attr.s
 class ChannelConfig(StoredObject):
-    """The channel parameters of one side of a channel.
+    """The channel parameters and state of one side of a channel.
 
-    The config never holds a secret: our privkeys are all derived from the channel seed,
-    which lives next to the two configs in the channel storage. (see ChannelKeys)
+    Both sides are described by the same fields, and neither holds any secret: our
+    privkeys are all derived from the channel seed, which lives next to the two configs
+    in the channel storage. (see ChannelKeys)
     """
     payment_basepoint = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_pubkey)
     multisig_key = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_pubkey)
@@ -141,6 +142,15 @@ class ChannelConfig(StoredObject):
     upfront_shutdown_script = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
     announcement_node_sig = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
     announcement_bitcoin_sig = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
+    # signatures for this side's latest ctx and its htlc txs: for LOCAL, the ones the
+    # remote sent us; for REMOTE, the ones we sent them.
+    current_commitment_signature = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
+    current_htlc_signatures = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
+    # per-commitment points of this side's oldest unrevoked ctx, and of the next one.
+    # ours are derivable from the channel seed; we keep them so that both configs can be
+    # described, and sent to a peer that backs up our channel, in the same way.
+    current_per_commitment_point = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
+    next_per_commitment_point = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
 
     @classmethod
     def for_us(
@@ -186,6 +196,10 @@ class ChannelConfig(StoredObject):
             htlc_basepoint=OnlyPubkeyKeypair(keys.htlc_basepoint.pubkey),
             delayed_basepoint=OnlyPubkeyKeypair(keys.delayed_basepoint.pubkey),
             revocation_basepoint=OnlyPubkeyKeypair(keys.revocation_basepoint.pubkey),
+            current_commitment_signature=None,
+            current_htlc_signatures=b'',
+            current_per_commitment_point=keys.per_commitment_point(0),
+            next_per_commitment_point=keys.per_commitment_point(1),
             **kwargs,
         )
 
@@ -292,9 +306,6 @@ class ChannelConfig(StoredObject):
 @stored_at('/channels/*/local_config')
 @attr.s
 class LocalConfig(ChannelConfig):
-    current_commitment_signature = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
-    current_htlc_signatures = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
-
     def validate_params(self, *, funding_sat: int, config: 'SimpleConfig', peer_features: 'LnFeatures') -> None:
         conf_name = type(self).__name__
         # run base checks regardless whether LOCAL/REMOTE config
@@ -309,8 +320,7 @@ class LocalConfig(ChannelConfig):
 @stored_at('/channels/*/remote_config')
 @attr.s
 class RemoteConfig(ChannelConfig):
-    next_per_commitment_point = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
-    current_per_commitment_point = attr.ib(default=None, type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
+    pass
 
 
 @attr.s
