@@ -82,21 +82,26 @@ class ExchangeBase(Logger):
         return self.__class__.__name__
 
     async def update_safe(self, ccy: str) -> None:
+        """Does not raise."""
         try:
             self.logger.info(f"getting fx quotes for {ccy}")
-            self._quotes = await self.get_rates(ccy)
-            assert all(isinstance(rate, (Decimal, type(None))) for rate in self._quotes.values()), \
-                f"fx rate must be Decimal, got {self._quotes}"
+            quotes = await self.get_rates(ccy)
+            if not all(isinstance(rate, (Decimal, type(None))) for rate in quotes.values()):
+                raise TypeError(f"fx rate must be Decimal, got {quotes}")
+            # TODO validate response shape
         except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as e:
             self.logger.info(f"failed fx quotes: {repr(e)}")
             self.on_quotes()
+            return
         except Exception as e:
             self.logger.exception(f"failed fx quotes: {repr(e)}")
             self.on_quotes()
-        else:
-            self.logger.debug("received fx quotes")
-            self._quotes_timestamp = time.time()
-            self.on_quotes(received_new_data=True)
+            return
+        # all checks done
+        self.logger.debug("received fx quotes")
+        self._quotes = quotes
+        self._quotes_timestamp = time.time()
+        self.on_quotes(received_new_data=True)
 
     @staticmethod
     def _read_historical_rates_from_file(
@@ -150,13 +155,14 @@ class ExchangeBase(Logger):
         try:
             self.logger.info(f"requesting fx history for {ccy}")
             h_new = await self.request_history(ccy)
-            self.logger.debug(f"received fx history for {ccy}")
+            # TODO validate response shape
         except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as e:
             self.logger.info(f"failed fx history: {repr(e)}")
             return
         except Exception as e:
             self.logger.exception(f"failed fx history: {repr(e)}")
             return
+        self.logger.debug(f"received fx history for {ccy}")
         # cast rates to str
         h_new = {date_str: str(rate) for (date_str, rate) in h_new.items()}  # type: Dict[str, str]
         # merge old history and new history. resolve duplicate dates using new data.
