@@ -5,7 +5,6 @@ import sys
 import os
 import json
 import time
-import csv
 import decimal
 from decimal import Decimal
 from typing import Sequence, Optional, Mapping, Dict, Union, Tuple
@@ -52,17 +51,7 @@ class ExchangeBase(Logger):
         self.on_quotes = on_quotes
         self.on_history = on_history
 
-    async def get_raw(self, site, get_string):
-        # APIs must have https
-        url = ''.join(['https://', site, get_string])
-        network = Network.get_instance()
-        proxy = network.proxy if network else None
-        async with make_aiohttp_session(proxy) as session:
-            async with session.get(url) as response:
-                response.raise_for_status()
-                return await response.text()
-
-    async def get_json(self, site, get_string):
+    async def get_json(self, site: str, get_string: str):
         # APIs must have https
         url = ''.join(['https://', site, get_string])
         network = Network.get_instance()
@@ -72,11 +61,6 @@ class ExchangeBase(Logger):
                 response.raise_for_status()
                 # set content_type to None to disable checking MIME type
                 return await response.json(content_type=None)
-
-    async def get_csv(self, site, get_string):
-        raw = await self.get_raw(site, get_string)
-        reader = csv.DictReader(raw.split('\n'))
-        return list(reader)
 
     def name(self):
         return self.__class__.__name__
