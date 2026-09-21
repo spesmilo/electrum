@@ -38,7 +38,7 @@ from .lnonion import (OnionFailureCode, OnionPacket, obfuscate_onion_error,
                       OnionParsingError)
 from .lnchannel import Channel, RevokeAndAck, ChannelState, PeerState, ChanCloseOption, CF_ANNOUNCE_CHANNEL
 from . import lnutil
-from .lnutil import (Outpoint, LocalConfig, RemoteConfig, RECEIVED, UpdateAddHtlc,
+from .lnutil import (Outpoint, RECEIVED, UpdateAddHtlc,
                      ChannelConfig, ChannelKeys, LnFeatureContexts,
                      OnlyPubkeyKeypair, ChannelConstraints, RevocationStore,
                      funding_output_script, PaymentFailure, LnFeatures,
@@ -1122,7 +1122,7 @@ class Peer(Logger, EventListener):
         if their_channel_type != our_channel_type:
             raise Exception(f"channel_type is not the one that we sent. {our_channel_type=}. {their_channel_type=}.")
 
-        remote_config = RemoteConfig(
+        remote_config = ChannelConfig(
             payment_basepoint=OnlyPubkeyKeypair(payload['payment_basepoint']),
             multisig_key=OnlyPubkeyKeypair(payload["funding_pubkey"]),
             htlc_basepoint=OnlyPubkeyKeypair(payload['htlc_basepoint']),
@@ -1240,9 +1240,9 @@ class Peer(Logger, EventListener):
         self, *,
         channel_id: bytes,
         outpoint: Outpoint,
-        local_config: LocalConfig,
+        local_config: ChannelConfig,
         local_keys: ChannelKeys,
-        remote_config: RemoteConfig,
+        remote_config: ChannelConfig,
         constraints: ChannelConstraints,
         channel_type: ChannelType,
     ) -> dict:
@@ -1356,7 +1356,7 @@ class Peer(Logger, EventListener):
         upfront_shutdown_script = self.upfront_shutdown_script_from_payload(
             payload, 'open')
 
-        remote_config = RemoteConfig(
+        remote_config = ChannelConfig(
             payment_basepoint=OnlyPubkeyKeypair(payload['payment_basepoint']),
             multisig_key=OnlyPubkeyKeypair(payload['funding_pubkey']),
             htlc_basepoint=OnlyPubkeyKeypair(payload['htlc_basepoint']),

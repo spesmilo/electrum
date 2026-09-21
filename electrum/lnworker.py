@@ -74,7 +74,7 @@ from .lnutil import (
     OnchainChannelBackupStorage, ln_compare_features, IncompatibleLightningFeatures, PaymentFeeBudget,
     NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, GossipForwardingMessage, MIN_FUNDING_SAT,
     MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE, RecvMPPResolution, ReceivedMPPStatus, ReceivedMPPHtlc,
-    PaymentSuccess, ChannelType, LocalConfig, ChannelKeys, Keypair, ZEROCONF_TIMEOUT,
+    PaymentSuccess, ChannelType, ChannelConfig, ChannelKeys, Keypair, ZEROCONF_TIMEOUT,
 )
 from .lnonion import (
     decode_onion_error, OnionFailureCode, OnionRoutingFailure, OnionPacket,
@@ -1767,7 +1767,7 @@ class LNWallet(Logger):
         multisig_funding_keypair: Optional[Keypair],  # if None, will get derived from channel_seed
         peer_features: LnFeatures,
         channel_seed: bytes | None = None,
-    ) -> Tuple[LocalConfig, ChannelKeys]:
+    ) -> Tuple[ChannelConfig, ChannelKeys]:
         if channel_seed is None:
             channel_seed = crandom.get_rand_bytes(32)
         initial_msat = funding_sat * 1000 - push_msat if initiator == LOCAL else push_msat
@@ -1808,7 +1808,7 @@ class LNWallet(Logger):
         keys = ChannelKeys.from_seed(
             channel_seed,
             multisig_privkey=multisig_funding_keypair.privkey if multisig_funding_keypair else None)
-        local_config = LocalConfig.for_us(
+        local_config = ChannelConfig.for_us(
             keys=keys,
             channel_type=channel_type,
             payment_basepoint=payment_basepoint,
@@ -1825,7 +1825,8 @@ class LNWallet(Logger):
             announcement_bitcoin_sig=b'',
         )
         local_config.validate_params(
-            funding_sat=funding_sat, config=self.network.config, peer_features=peer_features)
+            funding_sat=funding_sat, config=self.network.config,
+            peer_features=peer_features, is_local=True)
         return local_config, keys
 
     def cb_data(self, node_id: bytes) -> bytes:
