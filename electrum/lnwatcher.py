@@ -12,7 +12,7 @@ from .util import (
 )
 from .transaction import Transaction, TxOutpoint
 from .logging import Logger
-from .address_synchronizer import TX_HEIGHT_LOCAL
+from .address_synchronizer import TX_HEIGHT_LOCAL, AddressSynchronizer
 from .lnutil import REDEEM_AFTER_DOUBLE_SPENT_DELAY
 from .lnsweep import KeepWatchingTXO, SweepInfo, MaybeSweepInfo
 
@@ -110,16 +110,28 @@ class LNWatcher(Logger, EventListener):
         await self.trigger_callbacks()
 
     @event_listener
-    async def on_event_adb_added_tx(self, adb, tx_hash, tx):
-        # called if we add local tx
+    async def on_event_adb_added_tx(self, adb: AddressSynchronizer, tx_hash: str, tx: Transaction):
+        # called for every tx added to the adb: by the synchronizer, or if we add a local tx
         if adb != self.adb:
             return
+        if adb.db.is_in_verified_tx(tx_hash):
+            self.lnworker.maybe_add_backup_from_tx(tx)
         await self.trigger_callbacks()
 
     @event_listener
-    async def on_event_adb_added_verified_tx(self, adb, tx_hash):
+    async def on_event_adb_updated_tx(self, adb: AddressSynchronizer, tx_hash: str, tx: Transaction):
         if adb != self.adb:
             return
+        if adb.db.is_in_verified_tx(tx_hash):
+            self.lnworker.maybe_add_backup_from_tx(tx)
+
+    @event_listener
+    async def on_event_adb_added_verified_tx(self, adb: AddressSynchronizer, tx_hash: str):
+        if adb != self.adb:
+            return
+        if tx := adb.db.get_transaction(tx_hash):
+            # if we don't have the tx yet, the backup will be added once the tx gets added
+            self.lnworker.maybe_add_backup_from_tx(tx)
         await self.trigger_callbacks()
 
     @event_listener

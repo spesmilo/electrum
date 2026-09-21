@@ -3993,8 +3993,16 @@ class LNWallet(Logger):
         if not success:
             raise Exception('failed to connect')
 
-    def maybe_add_backup_from_tx(self, tx):
+    def maybe_add_backup_from_tx(self, tx: Transaction):
         """note: currently no support for batched channel opens"""
+        assert self.wallet.adb.db.is_in_verified_tx(tx.txid())
+        if not any(self.wallet.is_mine(self.wallet.adb.get_txin_address(txin)) for txin in tx.inputs()):
+            # only allow funding tx with inputs of our wallet to prevent replay of the channel backup.
+            # note: is_mine can be false during initial wallet synchronization: we might learn
+            #       of more-and-more inputs of being is_mine, as we roll the gap_limit forward.
+            #       Hence maybe_add_backup_from_tx also needs to be called on adb_updated_tx.
+            # note: if the channel was funded with wallet-external UTXOs we won't detect the backup (we don't do this).
+            return
         funding_txid = tx.txid()
         if any(funding_txid == c.funding_outpoint.txid for c in self.get_channel_objects().values()):
             # Check we don't override imported backups or full channels.
