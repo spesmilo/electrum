@@ -69,7 +69,7 @@ class ExchangeBase(Logger):
         """Does not raise."""
         try:
             self.logger.info(f"getting fx quotes for {ccy}")
-            quotes = await self.get_rates(ccy)
+            quotes = await self.request_spot_rates(ccy)
             if not all(isinstance(rate, (Decimal, type(None))) for rate in quotes.values()):
                 raise TypeError(f"fx rate must be Decimal, got {quotes}")
             # TODO validate response shape
@@ -187,11 +187,17 @@ class ExchangeBase(Logger):
     async def request_history(self, ccy: str) -> Dict[str, Union[str, float]]:
         raise NotImplementedError()  # implemented by subclasses
 
-    async def get_rates(self, ccy: str) -> Mapping[str, Optional[Decimal]]:
+    async def request_spot_rates(self, ccy: str) -> Mapping[str, Optional[Decimal]]:
+        """Download the current/live exchange rate from the network.
+        Returns a currency->rate map.
+
+        'ccy': currency we are interested in (e.g. "USD").
+               not guaranteed to be in the response. Other ccys might also be in the response.
+        """
         raise NotImplementedError()  # implemented by subclasses
 
     async def get_currencies(self) -> Sequence[str]:
-        rates = await self.get_rates('')
+        rates = await self.request_spot_rates('')
         return sorted([str(a) for (a, b) in rates.items() if b is not None and len(a)==3])
 
     def get_cached_spot_quote(self, ccy: str) -> Decimal:
@@ -213,7 +219,7 @@ class Yadio(ExchangeBase):
         dicts = await self.get_json('api.yadio.io', '/currencies')
         return list(dicts.keys())
 
-    async def get_rates(self, ccy: str) -> Mapping[str, Optional[Decimal]]:
+    async def request_spot_rates(self, ccy: str) -> Mapping[str, Optional[Decimal]]:
         json = await self.get_json('api.yadio.io', '/rate/%s/BTC' % ccy)
         return {ccy: to_decimal(json['rate'])}
 
@@ -222,7 +228,7 @@ class BitcoinAverage(ExchangeBase):
     # note: historical rates used to be freely available
     # but this is no longer the case. see #5188
 
-    async def get_rates(self, ccy):
+    async def request_spot_rates(self, ccy):
         json = await self.get_json('apiv2.bitcoinaverage.com', '/indices/global/ticker/short')
         return dict([(r.replace("BTC", ""), to_decimal(json[r]['last']))
                      for r in json if r != 'timestamp'])
@@ -230,14 +236,14 @@ class BitcoinAverage(ExchangeBase):
 
 class Bitcointoyou(ExchangeBase):
 
-    async def get_rates(self, ccy):
+    async def request_spot_rates(self, ccy):
         json = await self.get_json('bitcointoyou.com', "/API/ticker.aspx")
         return {'BRL': to_decimal(json['ticker']['last'])}
 
 
 class BitcoinVenezuela(ExchangeBase):
 
-    async def get_rates(self, ccy):
+    async def request_spot_rates(self, ccy):
         json = await self.get_json('api.bitcoinvenezuela.com', '/')
         rates = [(r, to_decimal(json['BTC'][r])) for r in json['BTC']
                  if json['BTC'][r] is not None]  # Giving NULL for LTC
@@ -253,7 +259,7 @@ class BitcoinVenezuela(ExchangeBase):
 
 class Bitbank(ExchangeBase):
 
-    async def get_rates(self, ccy):
+    async def request_spot_rates(self, ccy):
         json = await self.get_json('public.bitbank.cc', '/btc_jpy/ticker')
         return {'JPY': to_decimal(json['data']['last'])}
 
@@ -271,7 +277,7 @@ class BitFinex(ExchangeBase):
     def history_ccys(self):
         return CURRENCIES[self.name()]
 
-    async def get_rates(self, ccy):
+    async def request_spot_rates(self, ccy):
         # ref https://docs.bitfinex.com/reference/rest-public-ticker
         json = await self.get_json(
             'api-pub.bitfinex.com',
@@ -289,21 +295,21 @@ class BitFinex(ExchangeBase):
 
 class BitFlyer(ExchangeBase):
 
-    async def get_rates(self, ccy):
+    async def request_spot_rates(self, ccy):
         json = await self.get_json('bitflyer.jp', '/api/echo/price')
         return {'JPY': to_decimal(json['mid'])}
 
 
 class BitPay(ExchangeBase):
 
-    async def get_rates(self, ccy):
+    async def request_spot_rates(self, ccy):
         json = await self.get_json('bitpay.com', '/api/rates')
         return dict([(r['code'], to_decimal(r['rate'])) for r in json])
 
 
 class Bitso(ExchangeBase):
 
-    async def get_rates(self, ccy):
+    async def request_spot_rates(self, ccy):
         json = await self.get_json('api.bitso.com', '/v2/ticker')
         return {'MXN': to_decimal(json['last'])}
 
@@ -320,7 +326,7 @@ class BitStamp(ExchangeBase):
                  if len(pair) == 7 and pair[:4] == "BTC/"]
         return [pair[4:] for pair in pairs]
 
-    async def get_rates(self, ccy):
+    async def request_spot_rates(self, ccy):
         # ref https://www.bitstamp.net/api/#tag/Tickers/operation/GetMarketTicker
         if ccy in CURRENCIES[self.name()]:
             json = await self.get_json('www.bitstamp.net', f'/api/v2/ticker/btc{ccy.lower()}/')
@@ -358,28 +364,28 @@ class BitStamp(ExchangeBase):
 
 class Bitvalor(ExchangeBase):
 
-    async def get_rates(self,ccy):
+    async def request_spot_rates(self, ccy):
         json = await self.get_json('api.bitvalor.com', '/v1/ticker.json')
         return {'BRL': to_decimal(json['ticker_1h']['total']['last'])}
 
 
 class BlockchainInfo(ExchangeBase):
 
-    async def get_rates(self, ccy):
+    async def request_spot_rates(self, ccy):
         json = await self.get_json('blockchain.info', '/ticker')
         return dict([(r, to_decimal(json[r]['15m'])) for r in json])
 
 
 class Bylls(ExchangeBase):
 
-    async def get_rates(self, ccy):
+    async def request_spot_rates(self, ccy):
         json = await self.get_json('bylls.com', '/api/price?from_currency=BTC&to_currency=CAD')
         return {'CAD': to_decimal(json['public_price']['to_price'])}
 
 
 class Coinbase(ExchangeBase):
 
-    async def get_rates(self, ccy):
+    async def request_spot_rates(self, ccy):
         json = await self.get_json('api.coinbase.com',
                              '/v2/exchange-rates?currency=BTC')
         return {ccy: to_decimal(rate) for (ccy, rate) in json["data"]["rates"].items()}
@@ -387,7 +393,7 @@ class Coinbase(ExchangeBase):
 
 class CoinCap(ExchangeBase):
 
-    async def get_rates(self, ccy):
+    async def request_spot_rates(self, ccy):
         json = await self.get_json('api.coincap.io', '/v2/rates/bitcoin/')
         return {'USD': to_decimal(json['data']['rateUsd'])}
 
@@ -405,7 +411,7 @@ class CoinCap(ExchangeBase):
 
 class CoinGecko(ExchangeBase):
 
-    async def get_rates(self, ccy):
+    async def request_spot_rates(self, ccy):
         json = await self.get_json('api.coingecko.com', '/api/v3/exchange_rates')
         return dict([(ccy.upper(), to_decimal(d['value']))
                      for ccy, d in json['rates'].items() if d.get('value') is not None])
@@ -429,7 +435,7 @@ class CoinGecko(ExchangeBase):
 
 class Bit2C(ExchangeBase):
 
-    async def get_rates(self, ccy):
+    async def request_spot_rates(self, ccy):
         json = await self.get_json('bit2c.co.il', '/Exchanges/BtcNis/Ticker.json')
         return {'ILS': to_decimal(json['ll'])}
 
@@ -446,14 +452,14 @@ class Bit2C(ExchangeBase):
 
 class CointraderMonitor(ExchangeBase):
 
-    async def get_rates(self, ccy):
+    async def request_spot_rates(self, ccy):
         json = await self.get_json('cointradermonitor.com', '/api/pbb/v1/ticker')
         return {'BRL': to_decimal(json['last'])}
 
 
 class MempoolSpace(ExchangeBase):
 
-    async def get_rates(self, ccy):
+    async def request_spot_rates(self, ccy):
         # ref https://mempool.space/docs/api/rest#get-price
         json = await self.get_json('mempool.space', '/api/v1/prices')
         json.pop("time", None)
@@ -481,7 +487,7 @@ class MempoolSpace(ExchangeBase):
 
 class itBit(ExchangeBase):
 
-    async def get_rates(self, ccy):
+    async def request_spot_rates(self, ccy):
         ccys = ['USD', 'EUR', 'SGD']
         json = await self.get_json('api.itbit.com', '/v1/markets/XBT%s/ticker' % ccy)
         result = dict.fromkeys(ccys)
@@ -492,7 +498,7 @@ class itBit(ExchangeBase):
 
 class Kraken(ExchangeBase):
 
-    async def get_rates(self, ccy):
+    async def request_spot_rates(self, ccy):
         # ref https://docs.kraken.com/api/docs/rest-api/get-ticker-information
         ccys = ['EUR', 'USD', 'CAD', 'GBP', 'JPY']
         pairs = ['XBT%s' % c for c in ccys]
@@ -508,14 +514,14 @@ class Kraken(ExchangeBase):
 
 class MercadoBitcoin(ExchangeBase):
 
-    async def get_rates(self, ccy):
+    async def request_spot_rates(self, ccy):
         json = await self.get_json('api.bitvalor.com', '/v1/ticker.json')
         return {'BRL': to_decimal(json['ticker_1h']['exchanges']['MBT']['last'])}
 
 
 class Winkdex(ExchangeBase):
 
-    async def get_rates(self, ccy):
+    async def request_spot_rates(self, ccy):
         json = await self.get_json('winkdex.com', '/api/v0/price')
         return {'USD': to_decimal(json['price']) / 100}
 
@@ -531,28 +537,28 @@ class Winkdex(ExchangeBase):
 
 
 class Zaif(ExchangeBase):
-    async def get_rates(self, ccy):
+    async def request_spot_rates(self, ccy):
         json = await self.get_json('api.zaif.jp', '/api/1/last_price/btc_jpy')
         return {'JPY': to_decimal(json['last_price'])}
 
 
 class Bitragem(ExchangeBase):
 
-    async def get_rates(self,ccy):
+    async def request_spot_rates(self, ccy):
         json = await self.get_json('api.bitragem.com', '/v1/index?asset=BTC&market=BRL')
         return {'BRL': to_decimal(json['response']['index'])}
 
 
 class Biscoint(ExchangeBase):
 
-    async def get_rates(self,ccy):
+    async def request_spot_rates(self, ccy):
         json = await self.get_json('api.biscoint.io', '/v1/ticker?base=BTC&quote=BRL')
         return {'BRL': to_decimal(json['data']['last'])}
 
 
 class Walltime(ExchangeBase):
 
-    async def get_rates(self, ccy):
+    async def request_spot_rates(self, ccy):
         json = await self.get_json('s3.amazonaws.com',
                              '/data-production-walltime-info/production/dynamic/walltime-info.json')
         return {'BRL': to_decimal(json['BRL_XBT']['last_inexact'])}
