@@ -461,6 +461,34 @@ class CointraderMonitor(ExchangeBase):
         return {'BRL': to_decimal(json['last'])}
 
 
+class MempoolSpace(ExchangeBase):
+
+    async def get_rates(self, ccy):
+        # ref https://mempool.space/docs/api/rest#get-price
+        json = await self.get_json('mempool.space', '/api/v1/prices')
+        json.pop("time", None)
+        return {
+            ccy_: to_decimal(rate)
+            for ccy_, rate in json.items()
+        }
+
+    def history_ccys(self):
+        return CURRENCIES[self.name()]
+
+    async def request_history(self, ccy):
+        # ref https://mempool.space/docs/api/rest#get-historical-price
+        # note: as of 2026-09, data older than 2022-05 only has weekly resolution
+        ccy = ccy.upper()
+        history = await self.get_json(
+            'mempool.space',
+            f"/api/v1/historical-price?currency={ccy}")
+        return dict([
+            (timestamp_to_datetime(h["time"], utc=True).strftime('%Y-%m-%d'), str(h[ccy]))
+            for h in history["prices"]
+            if h[ccy] >= 0  # filter out rate=-1 values received for "unknown" fx rates
+        ])
+
+
 class itBit(ExchangeBase):
 
     async def get_rates(self, ccy):
