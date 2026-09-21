@@ -87,6 +87,18 @@ class ExchangeBase(Logger):
         self._quotes_timestamp = time.time()
         self.on_quotes(received_new_data=True)
 
+    def get_cached_spot_quote(self, ccy: str) -> Decimal:
+        """Returns the cached exchange rate as a Decimal"""
+        if ccy == 'BTC':
+            return Decimal(1)
+        rate = self._quotes.get(ccy)
+        if not rate:  # don't return 0 to prevent DivisionByZero exceptions
+            return Decimal('NaN')
+        if self._quotes_timestamp + SPOT_RATE_EXPIRY < time.time():
+            # Our rate is stale. Probably better to return no rate than an incorrect one.
+            return Decimal('NaN')
+        return Decimal(rate)
+
     @staticmethod
     def _read_historical_rates_from_file(
         *, exchange_name: str, ccy: str, cache_dir: str,
@@ -172,10 +184,6 @@ class ExchangeBase(Logger):
         if h is None or h['timestamp'] < time.time() - 24*3600:
             util.get_asyncio_loop().create_task(self.get_historical_rates_safe(ccy, cache_dir))
 
-    def get_history_ccys(self) -> Sequence[str]:
-        """Returns list of currencies supported for historical rates."""
-        return []
-
     def historical_rate(self, ccy: str, d_t: datetime) -> Decimal:
         date_str = d_t.strftime('%Y-%m-%d')
         rate = self._history.get(ccy, {}).get(date_str) or 'NaN'
@@ -185,8 +193,17 @@ class ExchangeBase(Logger):
             #self.logger.debug(f"found corrupted historical_rate: {rate=!r}. for {ccy=} at {date_str}")
             return Decimal('NaN')
 
-    async def request_history(self, ccy: str) -> Dict[str, Union[str, float]]:
+    ##### Methods for subclasses to override:
+
+    async def request_history(self, ccy: str) -> Mapping[str, str | float | int]:
+        """Download historical exchange rates from the network, only for the specified ccy.
+        Returns a date_string->rate map.
+        """
         raise NotImplementedError()  # implemented by subclasses
+
+    def get_history_ccys(self) -> Sequence[str]:
+        """Returns list of currencies supported for request_history."""
+        return []
 
     async def request_spot_rates(self, ccy: str) -> Mapping[str, Optional[Decimal]]:
         """Download the current/live exchange rate from the network.
@@ -198,21 +215,9 @@ class ExchangeBase(Logger):
         raise NotImplementedError()  # implemented by subclasses
 
     async def get_spot_ccys(self) -> Sequence[str]:
-        """Returns list of currencies supported for spot rates."""
+        """Returns list of currencies supported for request_spot_rates."""
         rates = await self.request_spot_rates('')
         return sorted([str(a) for (a, b) in rates.items() if b is not None and len(a)==3])
-
-    def get_cached_spot_quote(self, ccy: str) -> Decimal:
-        """Returns the cached exchange rate as a Decimal"""
-        if ccy == 'BTC':
-            return Decimal(1)
-        rate = self._quotes.get(ccy)
-        if not rate:  # don't return 0 to prevent DivisionByZero exceptions
-            return Decimal('NaN')
-        if self._quotes_timestamp + SPOT_RATE_EXPIRY < time.time():
-            # Our rate is stale. Probably better to return no rate than an incorrect one.
-            return Decimal('NaN')
-        return Decimal(rate)
 
 
 class Yadio(ExchangeBase):
