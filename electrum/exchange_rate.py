@@ -7,7 +7,7 @@ import json
 import time
 import decimal
 from decimal import Decimal
-from typing import Sequence, Optional, Mapping, Dict, Union, Tuple
+from typing import Sequence, Optional, Mapping, Dict, Union, Tuple, Any
 
 from aiorpcx.curio import timeout_after, ignore_after
 import aiohttp
@@ -51,7 +51,8 @@ class ExchangeBase(Logger):
         self.on_quotes = on_quotes
         self.on_history = on_history
 
-    async def get_json(self, site: str, get_string: str):
+    async def get_json(self, site: str, get_string: str) -> Any:
+        """Send an HTTP GET to given endpoint, and parse response as JSON."""
         # APIs must have https
         url = ''.join(['https://', site, get_string])
         network = Network.get_instance()
@@ -59,13 +60,13 @@ class ExchangeBase(Logger):
         async with make_aiohttp_session(proxy) as session:
             async with session.get(url) as response:
                 response.raise_for_status()
-                # set content_type to None to disable checking MIME type
+                # set content_type to None, to disable checking MIME type
                 return await response.json(content_type=None)
 
     def name(self):
         return self.__class__.__name__
 
-    async def update_safe(self, ccy: str) -> None:
+    async def update_spot_rates_safe(self, ccy: str) -> None:
         """Does not raise."""
         try:
             self.logger.info(f"getting fx quotes for {ccy}")
@@ -147,7 +148,7 @@ class ExchangeBase(Logger):
             f.write(json.dumps(history, sort_keys=True))
 
     @log_exceptions
-    async def get_historical_rates_safe(self, ccy: str, cache_dir: str) -> None:
+    async def _update_historical_rates(self, ccy: str, cache_dir: str) -> None:
         try:
             self.logger.info(f"requesting fx history for {ccy}")
             h_new = await self.request_history(ccy)
@@ -175,16 +176,20 @@ class ExchangeBase(Logger):
         self._history[ccy] = h
         self.on_history()
 
-    def get_historical_rates(self, ccy: str, cache_dir: str) -> None:
+    def maybe_update_historical_rates(self, ccy: str, cache_dir: str) -> None:
+        # FIXME we might raise, but callers do not expect this.
         if ccy not in self.get_history_ccys():
             return
         h = self._history.get(ccy)
         if h is None:
             h = self.read_historical_rates(ccy, cache_dir)
         if h is None or h['timestamp'] < time.time() - 24*3600:
-            util.get_asyncio_loop().create_task(self.get_historical_rates_safe(ccy, cache_dir))
+            util.get_asyncio_loop().create_task(self._update_historical_rates(ccy, cache_dir))
 
-    def historical_rate(self, ccy: str, d_t: datetime) -> Decimal:
+    def get_historical_rate(self, ccy: str, *, d_t: datetime) -> Decimal:
+        """Return exchange rate for given ccy at given date.
+        date has *day* resolution, and we only return a rate if we have one for the given day.
+        """
         date_str = d_t.strftime('%Y-%m-%d')
         rate = self._history.get(ccy, {}).get(date_str) or 'NaN'
         try:
@@ -708,7 +713,7 @@ class FxThread(ThreadJob, EventListener, NetworkRetryManager[str]):
             if not self.is_enabled():
                 continue
             if manually_triggered and self.has_history():  # maybe refresh historical prices
-                self.exchange.get_historical_rates(self.ccy, self.cache_dir)
+                self.exchange.maybe_update_historical_rates(self.ccy, self.cache_dir)
             now = time.time()
             if not manually_triggered and self.exchange._quotes_timestamp + SPOT_RATE_REFRESH_TARGET > now:
                 continue  # last quote still fresh
@@ -721,7 +726,7 @@ class FxThread(ThreadJob, EventListener, NetworkRetryManager[str]):
             if self._can_retry_addr(addr_name, urgent=is_urgent):
                 self._trying_addr_now(addr_name)
                 # refresh spot price
-                await self.exchange.update_safe(self.ccy)
+                await self.exchange.update_spot_rates_safe(self.ccy)
 
     def is_enabled(self) -> bool:
         return self.config.FX_USE_EXCHANGE_RATE
@@ -819,7 +824,7 @@ class FxThread(ThreadJob, EventListener, NetworkRetryManager[str]):
     def history_rate(self, d_t: Optional[datetime]) -> Decimal:
         if d_t is None:
             return Decimal('NaN')
-        rate = self.exchange.historical_rate(self.ccy, d_t)
+        rate = self.exchange.get_historical_rate(self.ccy, d_t=d_t)
         # Frequently there is no rate for today, until tomorrow :)
         # Use spot quotes in that case
         if rate.is_nan() and (datetime.today().date() - d_t.date()).days <= 2:
