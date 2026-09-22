@@ -623,6 +623,15 @@
         "JPY",
         "USD"
     ],
+    "MempoolSpace": [
+        "AUD",
+        "CAD",
+        "CHF",
+        "EUR",
+        "GBP",
+        "JPY",
+        "USD"
+    ],
     "Walltime": [
         "BRL"
     ],
