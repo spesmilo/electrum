@@ -3994,6 +3994,11 @@ class LNWallet(Logger):
             raise Exception('failed to connect')
 
     def maybe_add_backup_from_tx(self, tx):
+        """note: currently no support for batched channel opens"""
+        funding_txid = tx.txid()
+        if any(funding_txid == c.funding_outpoint.txid for c in self.get_channel_objects().values()):
+            # Check we don't override imported backups or full channels.
+            return
         funding_address = None
         node_id_prefix = None
         for i, o in enumerate(tx.outputs()):
@@ -4009,18 +4014,15 @@ class LNWallet(Logger):
                             node_id_prefix = data[len(CB_MAGIC_BYTES):]
         if node_id_prefix is None:
             return
-        funding_txid = tx.txid()
         cb_storage = OnchainChannelBackupStorage(
             node_id_prefix=node_id_prefix,
             funding_txid=funding_txid,
             funding_index=funding_index,
             funding_address=funding_address,
             is_initiator=True)
-        channel_id = cb_storage.channel_id().hex()
-        if channel_id in self.db.get_dict("channels"):
-            return
         self.logger.info(f"adding backup from tx")
         d = self.db.get_dict("onchain_channel_backups")
+        channel_id: str = cb_storage.channel_id().hex()
         d[channel_id] = cb_storage
         cb = ChannelBackup(cb_storage, lnworker=self)
         self.wallet.set_reserved_addresses_for_chan(cb, reserved=True)

@@ -336,7 +336,7 @@ class ChannelBackupStorage:
     def funding_outpoint(self):
         return Outpoint(self.funding_txid, self.funding_index)
 
-    def channel_id(self):
+    def channel_id(self) -> bytes:
         chan_id, _ = channel_id_from_funding_tx(self.funding_txid, self.funding_index)
         return chan_id
 
