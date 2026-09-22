@@ -1942,6 +1942,8 @@ class PartialTxInput(TxInput, PSBTSection):
             return True
         if self.script_sig is not None and not self.is_segwit():
             return True
+        if self.has_witness() and self.is_native_segwit():
+            return True
         if desc := self.script_descriptor:
             try:
                 desc.satisfy(allow_dummy=False, sigdata=self.sigs_ecdsa)
