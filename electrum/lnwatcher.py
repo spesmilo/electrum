@@ -90,6 +90,7 @@ class LNWatcher(Logger, EventListener):
             #   subscribed to, and will have adb.synchronizer sub to them again.
             #   (even for old redeemed channels and old swaps)
             self.adb.add_address(address)
+        assert address not in self.callbacks, f"not overriding existing callback: {address=}"
         self.callbacks[address] = callback
 
     async def trigger_callbacks(self, *, requires_synchronizer: bool = True):
