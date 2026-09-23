@@ -223,7 +223,7 @@ class ExchangeBase(Logger):
 
     ##### Methods for subclasses to override:
 
-    async def request_history(self, ccy: str) -> Mapping[str, str | float | int]:
+    async def request_history(self, ccy: str) -> Mapping[str, Decimal]:
         """Download historical exchange rates from the network, only for the specified ccy.
         Returns a date_string->rate map.
         """
@@ -233,7 +233,7 @@ class ExchangeBase(Logger):
         """Returns list of currencies supported for request_history."""
         return []
 
-    async def request_spot_rates(self, ccy: str) -> Mapping[str, Optional[Decimal]]:
+    async def request_spot_rates(self, ccy: str) -> Mapping[str, Optional[Decimal]]:  # TODO rm Optional
         """Download the current/live exchange rate from the network.
         Returns a currency->rate map.
 
@@ -301,7 +301,7 @@ class BitFinex(ExchangeBase):
         history = await self.get_json(
             'api.bitfinex.com',
             f"/v2/candles/trade:1D:tBTC{ccy}/hist?limit=10000")
-        return dict([(timestamp_to_datetime(h[0] // 1000, utc=True).strftime('%Y-%m-%d'), str(h[2]))
+        return dict([(timestamp_to_datetime(h[0] // 1000, utc=True).strftime('%Y-%m-%d'), to_decimal(h[2]))
                      for h in history])
 
 
@@ -360,7 +360,7 @@ class BitStamp(ExchangeBase):
                 'www.bitstamp.net',
                 f"/api/v2/ohlc/btc{ccy.lower()}/?step={step}&limit={items_per_request}&end={endtime}")
             history = dict([
-                (timestamp_to_datetime(int(h["timestamp"]), utc=True).strftime('%Y-%m-%d'), str(h["close"]))
+                (timestamp_to_datetime(int(h["timestamp"]), utc=True).strftime('%Y-%m-%d'), to_decimal(h["close"]))
                 for h in history["data"]["ohlc"]])
             merged_history.update(history)
 
@@ -416,7 +416,7 @@ class CoinGecko(ExchangeBase):
         history = await self.get_json('api.coingecko.com',
                                       f"/api/v3/coins/bitcoin/market_chart?vs_currency={ccy}&days={num_days}")
 
-        return dict([(timestamp_to_datetime(h[0]/1000, utc=True).strftime('%Y-%m-%d'), str(h[1]))
+        return dict([(timestamp_to_datetime(h[0]/1000, utc=True).strftime('%Y-%m-%d'), to_decimal(h[1]))
                      for h in history['prices']])
 
 
@@ -433,7 +433,7 @@ class Bit2C(ExchangeBase):
         history = await self.get_json('bit2c.co.il',
                                       '/Exchanges/BtcNis/KLines?resolution=1D&from=1357034400&to=%s' % int(time.time()))
 
-        return dict([(timestamp_to_datetime(h[0], utc=True).strftime('%Y-%m-%d'), str(h[6]))
+        return dict([(timestamp_to_datetime(h[0], utc=True).strftime('%Y-%m-%d'), to_decimal(h[6]))
                      for h in history])
 
 
@@ -466,7 +466,7 @@ class MempoolSpace(ExchangeBase):
             'mempool.space',
             f"/api/v1/historical-price?currency={ccy}")
         return dict([
-            (timestamp_to_datetime(h["time"], utc=True).strftime('%Y-%m-%d'), str(h[ccy]))
+            (timestamp_to_datetime(h["time"], utc=True).strftime('%Y-%m-%d'), to_decimal(h[ccy]))
             for h in history["prices"]
             if h[ccy] >= 0  # filter out rate=-1 values received for "unknown" fx rates
         ])
