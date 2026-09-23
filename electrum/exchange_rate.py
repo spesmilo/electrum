@@ -233,7 +233,7 @@ class ExchangeBase(Logger):
         """Returns list of currencies supported for request_history."""
         return []
 
-    async def request_spot_rates(self, ccy: str) -> Mapping[str, Optional[Decimal]]:  # TODO rm Optional
+    async def request_spot_rates(self, ccy: str) -> Mapping[str, Decimal]:
         """Download the current/live exchange rate from the network.
         Returns a currency->rate map.
 
@@ -254,7 +254,7 @@ class Yadio(ExchangeBase):
         dicts = await self.get_json('api.yadio.io', '/currencies')
         return list(dicts.keys())
 
-    async def request_spot_rates(self, ccy: str) -> Mapping[str, Optional[Decimal]]:
+    async def request_spot_rates(self, ccy):
         json = await self.get_json('api.yadio.io', '/rate/%s/BTC' % ccy)
         return {ccy: to_decimal(json['rate'])}
 
