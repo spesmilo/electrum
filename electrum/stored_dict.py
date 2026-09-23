@@ -312,6 +312,7 @@ class BaseStoredObject:
     _lock: threading.RLock = None
     _path = None
     _hint = None  # (object, structure_version)
+    _cache = None  # key -> value returned by db_get (see there)
 
     def set_db(self, db):
         self._db = db
@@ -347,20 +348,42 @@ class BaseStoredObject:
         # so that a reference to a removed subtree raises instead of writing into it.
         version = self._db._structure_version
         if self._hint is None or self._hint[1] != version:
-            self._hint = (self._db.get_hint(self._path), version)
+            hint = self._db.get_hint(self._path)
+            if self._hint is not None and hint is not self._hint[0]:
+                # the subtree was replaced: cached values belong to the old one
+                self._cache = None
+            self._hint = (hint, version)
         return self._hint[0]
 
     def db_get(self, key):
-        value = self._db.get(self.hint, self._path, key)
-        value = self._to_stored_dict_or_list(key, value)
+        hint = self.hint  # note: may drop self._cache
         if not self.should_convert():
+            value = self._db.get(hint, self._path, key)
+            return self._to_stored_dict_or_list(key, value)
+        # Converted values are cached, so that repeated reads do not repeat the
+        # conversion (e.g. parsing a transaction or decoding a bolt11 invoice), and
+        # so that callers get the same object back (e.g. to keep runtime-only attributes).
+        cache = self._cache
+        if cache is not None:
+            try:
+                return cache[key]
+            except KeyError:
+                pass
+        with self.lock:
+            # another thread may have converted the value meanwhile
+            if self._cache is None:
+                self._cache = {}
+            elif key in self._cache:
+                return self._cache[key]
+            value = self._db.get(hint, self._path, key)
+            value = self._to_stored_dict_or_list(key, value)
+            value = self._convert_value(key, value)
+            # set db for StoredObject, because it is not set in the constructor
+            if isinstance(value, StoredObject):
+                value.set_db(self._db)
+                value.set_parent(key=key, parent=self)
+            self._cache[key] = value
             return value
-        value = self._convert_value(key, value)
-        # set db for StoredObject, because it is not set in the constructor
-        if isinstance(value, StoredObject):
-            value.set_db(self._db)
-            value.set_parent(key=key, parent=self)
-        return value
 
     def _convert_key(self, key: str) -> _FLEX_KEY:
         """Maybe convert key from str to python type (typically int or IntEnum)"""
@@ -484,18 +507,28 @@ class StoredDict(BaseStoredObject, MutableMapping):
     @locked
     def __setitem__(self, key: _FLEX_KEY, value: Any) -> None:
         key = key_to_str(key)
-        if isinstance(value, StoredObject):
+        obj = value if isinstance(value, StoredObject) else None
+        if obj is not None:
             # side effect
-            value.set_db(self._db)
-            value.set_parent(key=key, parent=self)
+            obj.set_db(self._db)
+            obj.set_parent(key=key, parent=self)
         # convert to python
         value = to_default(value)
         self._db.put(self.hint, self._path, key, value)
+        if self._cache is not None:
+            self._cache.pop(key, None)
+        if obj is not None and self.should_convert():
+            # keep the caller's object, so that it is what later reads return
+            if self._cache is None:
+                self._cache = {}
+            self._cache[key] = obj
 
     @locked
     def __delitem__(self, key: _FLEX_KEY) -> None:
         key = key_to_str(key)
         self._db.remove(self.hint, self._path, key)
+        if self._cache is not None:
+            self._cache.pop(key, None)
 
     def __iter__(self) -> Iterator[_FLEX_KEY]:
         for k in self._db.iter_keys(self.hint, self._path):
@@ -525,6 +558,7 @@ class StoredDict(BaseStoredObject, MutableMapping):
     @locked
     def clear(self) -> None:
         self._db.clear(self.hint, self._path)
+        self._cache = None
 
     @locked
     def pop(self, key: _FLEX_KEY, default: Any = _RaiseKeyError) -> Any:
@@ -605,6 +639,7 @@ class StoredList(BaseStoredObject):
     @locked
     def clear(self):
         self._db.list_clear(self.hint, self._path)
+        self._cache = None
         assert len(self) == 0
 
     def index(self, item) -> int:
@@ -615,6 +650,7 @@ class StoredList(BaseStoredObject):
     def remove(self, item):
         item = to_default(item)
         self._db.list_remove(self.hint, self._path, item)
+        self._cache = None  # indices have shifted
 
     @locked
     def dump(self) -> list:

@@ -122,6 +122,7 @@ class JsonDB(BaseDB):
 
     def set_data(self, json_str):
         self.json_data = self.load_data(json_str)
+        self._structure_version += 1  # existing hints and caches refer to the old data
 
     def init_db(self):
         if self.storage.is_encrypted():

@@ -12,13 +12,19 @@ import dataclasses
 
 import jsonpatch
 
-from electrum.stored_dict import DictStorage, StoredDict, register_key, stored_at, to_default, StoredObject
+from electrum.stored_dict import DictStorage, StoredDict, StoredObject, register_key, stored_at, to_default
 from electrum.json_db import to_json_data
 from electrum.wallet_db import WalletDB
 
 
 
 from . import ElectrumTestCase
+
+
+@stored_at('/test_cache/*')
+@dataclasses.dataclass
+class _CachedObj(StoredObject):
+    x: int
 
 
 @stored_at('/test_strict/*')
@@ -129,6 +135,30 @@ class TestStorage(ElectrumTestCase):
         with self.assertRaises(KeyError):
             d.pop('bad', None)
         self.assertIn('bad', d)
+
+    def test_object_cache(self):
+        # converted values are cached: reads return the same object, until the value is replaced
+        sd = DictStorage(None)
+        sd['test_cache'] = {'k': {'x': 1}}
+        d = sd['test_cache']
+        self.assertIs(d, sd['test_cache'])
+        o = d['k']
+        self.assertIsInstance(o, _CachedObj)
+        self.assertIs(o, d['k'])
+        self.assertIs(o, list(d.values())[0])
+        o.x = 2  # attribute writes still go through to the db
+        self.assertEqual({'k': {'x': 2}}, sd._db.json_data['test_cache'])
+        d['k'] = {'x': 3}  # replacing the value drops the cached object
+        self.assertIsNot(o, d['k'])
+        self.assertEqual(3, d['k'].x)
+        new = _CachedObj(x=4)
+        d['k2'] = new  # an object we store is the object we read back
+        self.assertIs(new, d['k2'])
+        del d['k2']
+        self.assertNotIn('k2', d)
+        sd['test_cache'] = {'k': {'x': 5}}  # replacing the whole dict drops the cache of its wrapper
+        self.assertEqual(5, d['k'].x)
+        self.assertEqual(5, sd['test_cache']['k'].x)
 
     def test_tuples_and_sets(self):
         # to_default keeps built-in containers: it is up to the storage to serialize them
