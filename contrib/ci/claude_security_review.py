@@ -37,11 +37,17 @@ PROMPT_FILE = os.path.join(SCRIPT_DIR, "security_review_prompt.md")
 
 MAX_DIFF_CHARS = 800_000
 CLAUDE_TIMEOUT_SECONDS = 60 * 60
-CLAUDE_MODEL = "claude-opus-5"
+CLAUDE_MODEL = "claude-opus-5-5"
 CLAUDE_EFFORT = "max"
 
 VERDICT_PASS = "PASS"
 VERDICT_FAIL = "FAIL"
+
+# stream-json system events emitted when Claude Code switches to another model,
+# e.g. after a refusal by the cyber safeguards
+FALLBACK_EVENT_SUBTYPES = ("model_refusal_fallback", "model_fallback")
+# model name of assistant messages generated locally by Claude Code, not by the API
+SYNTHETIC_MODEL = "<synthetic>"
 
 
 def git(*args: str) -> str:
@@ -97,8 +103,8 @@ def build_user_prompt(diff: str, changed_files: str, commit_messages: str) -> st
     )
 
 
-def run_claude(user_prompt: str, system_prompt: str) -> str | None:
-    """Invoke Claude Code CLI in print mode. Returns review text or None on failure.
+def run_claude(user_prompt: str, system_prompt: str) -> tuple[str, list[str]] | None:
+    """Invoke Claude Code CLI in print mode. Returns (review text, model downgrades) or None on failure.
 
     Passes the prompt via stdin to avoid OS argument length limits (MAX_ARG_STRLEN).
     """
@@ -108,7 +114,8 @@ def run_claude(user_prompt: str, system_prompt: str) -> str | None:
         "--dangerously-skip-permissions",
         "--model", CLAUDE_MODEL,
         "--effort", CLAUDE_EFFORT,
-        "--output-format", "text",
+        "--output-format", "stream-json",
+        "--verbose",  # required by stream-json in print mode
         "--append-system-prompt", system_prompt,
     ]
 
@@ -133,7 +140,54 @@ def run_claude(user_prompt: str, system_prompt: str) -> str | None:
             print(result.stderr)
         return None
 
-    return result.stdout
+    review, downgrades = parse_stream_output(result.stdout)
+    if review is None:
+        return None
+    return review, downgrades
+
+
+def parse_stream_output(output: str) -> tuple[str | None, list[str]]:
+    """Extract the review text and any model downgrades from stream-json output.
+
+    Downgrades are detected from the fallback events Claude Code emits, and as a
+    backstop from the model that actually served each main-thread response.
+    """
+    review = None
+    downgrades = []
+    fallback_models = set()
+    served_models = set()
+    for line in output.splitlines():
+        try:
+            msg = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        msg_type = msg.get("type")
+        if msg_type == "system" and msg.get("subtype") in FALLBACK_EVENT_SUBTYPES:
+            reason = msg.get("api_refusal_category") or msg.get("trigger") or "unknown reason"
+            downgrades.append(f"{msg.get('original_model')} -> {msg.get('fallback_model')} ({reason})")
+            fallback_models.add(msg.get("fallback_model"))
+        elif msg_type == "assistant" and msg.get("parent_tool_use_id") is None:
+            served_models.add(msg.get("message", {}).get("model"))
+        elif msg_type == "result":
+            if msg.get("is_error"):
+                print(f"ERROR: Claude Code reported an error: {msg.get('result')}")
+            else:
+                review = msg.get("result")
+    unexpected_models = served_models - fallback_models - {CLAUDE_MODEL, SYNTHETIC_MODEL, None}
+    for model in sorted(unexpected_models):
+        downgrades.append(f"{CLAUDE_MODEL} -> {model} (served without a fallback event)")
+    return review, downgrades
+
+
+def print_downgrade_warning(downgrades: list[str]) -> None:
+    print("!" * 60)
+    print(f"WARNING: MODEL DOWNGRADE -- the review was not (fully) done by {CLAUDE_MODEL}.")
+    print("Review quality may be lower than expected:")
+    for downgrade in downgrades:
+        print(f"  {downgrade}")
+    print("!" * 60)
+    # GitHub Actions annotation, also shown on the workflow run summary page
+    print(f"::warning title=Security review model downgraded::{'; '.join(downgrades)}")
 
 
 def parse_verdict(review: str) -> str | None:
@@ -146,7 +200,7 @@ def parse_verdict(review: str) -> str | None:
     return None
 
 
-def post_github_comment(body: str, *, repo: str, pr: str) -> None:
+def post_github_comment(body: str, *, repo: str, pr: str, downgrades: list[str]) -> None:
     """Post a comment on the PR. Silently skips if credentials are missing."""
     token = os.environ.get("GITHUB_TOKEN", "").strip()
     if not token:
@@ -157,8 +211,14 @@ def post_github_comment(body: str, *, repo: str, pr: str) -> None:
     server_url = os.environ.get("GITHUB_SERVER_URL", "https://github.com")
     log_url = f"{server_url}/{repo}/actions/runs/{run_id}" if run_id else ""
 
-    comment = (
-        f"## Security Review -- Issues Found\n\n"
+    comment = "## Security Review -- Issues Found\n\n"
+    if downgrades:
+        comment += (
+            f"> [!WARNING]\n"
+            f"> Model downgrade detected, the review was not (fully) done by {CLAUDE_MODEL}: "
+            f"{'; '.join(downgrades)}\n\n"
+        )
+    comment += (
         f"{body}\n\n"
         f"---\n"
         f"*Reviewed by Claude Code ({CLAUDE_MODEL}) at {CLAUDE_EFFORT} effort*"
@@ -246,11 +306,12 @@ def main() -> int:
     system_prompt = read_system_prompt()
 
     print(f"\nRunning Claude Code review (model: {CLAUDE_MODEL}) at {CLAUDE_EFFORT} effort...\n")
-    review = run_claude(user_prompt, system_prompt)
+    result = run_claude(user_prompt, system_prompt)
 
-    if review is None:
+    if result is None:
         print("Review failed to produce output.")
         return 2
+    review, downgrades = result
 
     print(separator)
     print("REVIEW OUTPUT")
@@ -258,12 +319,15 @@ def main() -> int:
     print(review)
     print(separator)
 
+    if downgrades:
+        print_downgrade_warning(downgrades)
+
     verdict = parse_verdict(review)
 
     if verdict == VERDICT_FAIL:
         repo = os.environ.get("GITHUB_REPOSITORY", "").strip()
         print("\nVERDICT: FAIL -- Critical or high severity issues found.")
-        post_github_comment(review, repo=repo, pr=pr)
+        post_github_comment(review, repo=repo, pr=pr, downgrades=downgrades)
         return 1
 
     if verdict == VERDICT_PASS:
