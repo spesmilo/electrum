@@ -1839,6 +1839,9 @@ class LNWallet(Logger):
     def encrypt_cb_data(self, data: bytes, funding_address: str) -> bytes:
         funding_scripthash = bytes.fromhex(address_to_scripthash(funding_address))
         nonce = funding_scripthash[0:12]
+        # note: would have been nice, if besides the funding_script, we also committed to
+        #       the funding_amount (sats), and maybe all the inputs of the funding_tx. Without that,
+        #       the OP_RETURN can be replayed.
         # note: we are only using chacha20 instead of chacha20+poly1305 to save onchain space
         #       (not have the 16 byte MAC). Otherwise, the latter would be preferable.
         return chacha20_encrypt(key=self.backup_key, data=data, nonce=nonce)
