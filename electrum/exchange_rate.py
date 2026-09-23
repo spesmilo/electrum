@@ -74,9 +74,13 @@ class ExchangeBase(Logger):
         try:
             self.logger.info(f"getting fx quotes for {ccy}")
             quotes = await self.request_spot_rates(ccy)
-            if not all(isinstance(rate, (Decimal, type(None))) for rate in quotes.values()):
-                raise TypeError(f"fx rate must be Decimal, got {quotes}")
-            # TODO validate response shape
+            quotes = {
+                ccy_: rate for (ccy_, rate) in quotes.items()
+                if isinstance(ccy_, str)
+                   and isinstance(rate, Decimal)
+                   and rate.is_finite()
+                   and rate > 0
+            }
         except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as e:
             self.logger.info(f"failed fx quotes: {repr(e)}")
             self.on_quotes()
@@ -170,7 +174,13 @@ class ExchangeBase(Logger):
         try:
             self.logger.info(f"requesting fx history for {ccy}")
             h_new = await self.request_history(ccy)
-            # TODO validate response shape
+            h_new = {
+                date_str: rate for (date_str, rate) in h_new.items()
+                if isinstance(date_str, str)
+                   and isinstance(rate, Decimal)
+                   and rate.is_finite()
+                   and rate > 0
+            }
         except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as e:
             self.logger.info(f"failed fx history: {repr(e)}")
             return
