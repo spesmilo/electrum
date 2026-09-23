@@ -116,11 +116,12 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
 
     @pyqtSlot(str, str, str, result='QVariantMap')
     def verifySeed(self, seed, seed_variant, wallet_type='standard'):
-        seed_valid, seed_type, validation_message, can_passphrase = self.validate_seed(seed, seed_variant, wallet_type)
+        seed_valid, seed_type, validation_message, warning, can_passphrase = self.validate_seed(seed, seed_variant, wallet_type)
         return {
             'valid': seed_valid,
             'type': seed_type,
             'message': validation_message,
+            'warning': warning,
             'can_passphrase': can_passphrase
         }
 
