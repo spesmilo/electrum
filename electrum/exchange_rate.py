@@ -22,7 +22,10 @@ from .util import (
 from .util import NetworkRetryManager
 from .network import Network
 from .simple_config import SimpleConfig
-from .logging import Logger
+from .logging import Logger, get_logger
+
+
+_logger = get_logger(__name__)
 
 
 # See https://en.wikipedia.org/wiki/ISO_4217
@@ -113,9 +116,22 @@ class ExchangeBase(Logger):
         try:
             with open(filename, 'r', encoding='utf-8') as f:
                 h = json.loads(f.read())
-        except Exception:
+        except Exception as e:
+            _logger.warning(f"failed to read/parse cached hist rates ({filename!r}): {e!r}")
             return None, None
+        # validate shape of h:
         if not h:  # e.g. empty dict
+            return None, None
+        if not isinstance(h, dict):
+            _logger.warning(f"ignoring malformed cached hist rates ({filename!r}): not a dict")
+            return None, None
+        if not all(isinstance(date_str, str) for date_str in h.keys()):
+            _logger.warning(f"ignoring malformed cached hist rates ({filename!r}): keys not str")
+            return None, None
+        try:
+            [to_decimal(rate) for rate in h.values()]
+        except Exception:
+            _logger.warning(f"ignoring malformed cached hist rates ({filename!r}): rates not number-like")
             return None, None
         # cast rates to str
         h = {date_str: str(rate) for (date_str, rate) in h.items()}
