@@ -29,6 +29,7 @@ _logger = get_logger(__name__)
 
 
 # See https://en.wikipedia.org/wiki/ISO_4217
+# Used when displaying amounts. Bookkeeping precision might need to be higher.
 CCY_PRECISIONS = {'BHD': 3, 'BIF': 0, 'BYR': 0, 'CLF': 4, 'CLP': 0,
                   'CVE': 0, 'DJF': 0, 'GNF': 0, 'IQD': 3, 'ISK': 0,
                   'JOD': 3, 'JPY': 0, 'KMF': 0, 'KRW': 0, 'KWD': 3,
@@ -42,6 +43,14 @@ CCY_PRECISIONS = {'BHD': 3, 'BIF': 0, 'BYR': 0, 'CLF': 4, 'CLP': 0,
 SPOT_RATE_REFRESH_TARGET = 150      # approx. every 2.5 minutes, try to refresh spot price
 SPOT_RATE_CLOSE_TO_STALE = 450      # try harder to fetch an update if price is getting old
 SPOT_RATE_EXPIRY = 600              # spot price becomes stale after 10 minutes -> we no longer show/use it
+
+# Limit max BTC price and precision, to limit disk/mem usage.
+# note: these limits are more generous than decimal.DefaultContext.prec (=28), so
+#       we cannot even do arithmetic on values these large. If needed, we'd have to increase the decimal ctx prec.
+_MAX_BTC_PRICE_DIGITS = 50  # max num digits for integer part of CCY/BTC price
+MAX_BTC_PRICE = 10 ** _MAX_BTC_PRICE_DIGITS
+MAX_PRICE_PRECISION_DIGITS = 12  # max num digits past the decimal point, in the CCY/BTC price
+DECIMAL_HIGH_PREC_DIGITS = _MAX_BTC_PRICE_DIGITS + MAX_PRICE_PRECISION_DIGITS
 
 
 class ExchangeBase(Logger):
@@ -79,8 +88,12 @@ class ExchangeBase(Logger):
                 if isinstance(ccy_, str)
                    and isinstance(rate, Decimal)
                    and rate.is_finite()
-                   and rate > 0
+                   and 0 < rate < MAX_BTC_PRICE
             }
+            # lose redundant precision. Ironically, we temporarily need a high-precision decimal context for this.
+            with decimal.localcontext() as ctx:
+                ctx.prec = max(ctx.prec, DECIMAL_HIGH_PREC_DIGITS)
+                quotes = {ccy_: round(rate, MAX_PRICE_PRECISION_DIGITS).normalize() for (ccy_, rate) in quotes.items()}
         except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as e:
             self.logger.info(f"failed fx quotes: {repr(e)}")
             self.on_quotes()
@@ -179,8 +192,12 @@ class ExchangeBase(Logger):
                 if isinstance(date_str, str)
                    and isinstance(rate, Decimal)
                    and rate.is_finite()
-                   and rate > 0
+                   and 0 < rate < MAX_BTC_PRICE
             }
+            # lose redundant precision. Ironically, we temporarily need a high-precision decimal context for this.
+            with decimal.localcontext() as ctx:
+                ctx.prec = max(ctx.prec, DECIMAL_HIGH_PREC_DIGITS)
+                h_new = {date_str: round(rate, MAX_PRICE_PRECISION_DIGITS).normalize() for (date_str, rate) in h_new.items()}
         except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as e:
             self.logger.info(f"failed fx history: {repr(e)}")
             return
