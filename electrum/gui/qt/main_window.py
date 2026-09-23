@@ -1430,7 +1430,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
     def broadcast_or_show(self, tx: Transaction, *, invoice: 'Invoice' = None):
         if not tx.is_complete():
-            self.show_transaction(tx, invoice=invoice)
+            if not run_hook('show_incomplete_tx', self, tx):
+                self.show_transaction(tx, invoice=invoice)
             return
         if not self.network:
             self.show_error(_("You can't broadcast a transaction without a live network connection."))
@@ -1469,7 +1470,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         def on_failure(exc_info):
             self.on_error(exc_info)
             callback(False)
-        on_success = run_hook('tc_sign_wrapper', self.wallet, tx, on_success, on_failure) or on_success
         if external_keypairs:
             # can sign directly
             task = partial(tx.sign, external_keypairs)

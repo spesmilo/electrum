@@ -411,6 +411,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     txin_type: str
     wallet_type: str
+    m = None  # type: Optional[int]  # number of signatures a multisig wallet requires
     lnworker: Optional['LNWallet']
     network: Optional['Network']
 
@@ -2009,7 +2010,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             inputs: Optional[List[PartialTxInput]] = None,
             fee_policy: FeePolicy,
             change_addr: str | None = None,
-            is_sweep: bool = False,  # used by Wallet_2fa subclass
             rbf: bool = True,
             BIP69_sort: Optional[bool] = True,
             base_tx: Optional[Transaction] = None,
@@ -2575,9 +2575,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return PartialTransaction.from_io(inputs, outputs)
 
     def _is_rbf_allowed_to_touch_tx_output(self, txout: TxOutput) -> bool:
-        # 2fa fee outputs if present, should not be removed or have their value decreased
-        if self.is_billing_address(txout.address):
-            return False
         # submarine swap funding outputs must not be decreased
         if self.lnworker and self.lnworker.swap_manager.is_lockup_address_for_a_swap(txout.address):
             return False
@@ -2757,27 +2754,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         pubkeys = [ks.get_pubkey_provider(addr_index) for ks in self.get_keystores()]
         if not pubkeys:
             return None
-        if script_type == 'p2pk':
-            return descriptor.PKDescriptor(pubkey=pubkeys[0])
-        elif script_type == 'p2pkh':
-            return descriptor.PKHDescriptor(pubkey=pubkeys[0])
-        elif script_type == 'p2wpkh':
-            return descriptor.WPKHDescriptor(pubkey=pubkeys[0])
-        elif script_type == 'p2wpkh-p2sh':
-            wpkh = descriptor.WPKHDescriptor(pubkey=pubkeys[0])
-            return descriptor.SHDescriptor(subdescriptor=wpkh)
-        elif script_type == 'p2sh':
-            multi = descriptor.MultisigDescriptor(pubkeys=pubkeys, thresh=self.m, is_sorted=True)
-            return descriptor.SHDescriptor(subdescriptor=multi)
-        elif script_type == 'p2wsh':
-            multi = descriptor.MultisigDescriptor(pubkeys=pubkeys, thresh=self.m, is_sorted=True)
-            return descriptor.WSHDescriptor(subdescriptor=multi)
-        elif script_type == 'p2wsh-p2sh':
-            multi = descriptor.MultisigDescriptor(pubkeys=pubkeys, thresh=self.m, is_sorted=True)
-            wsh = descriptor.WSHDescriptor(subdescriptor=multi)
-            return descriptor.SHDescriptor(subdescriptor=wsh)
-        else:
-            raise NotImplementedError(f"unexpected {script_type=}")
+        return descriptor.from_legacy_electrum_script_type(script_type, pubkeys=pubkeys, m=self.m)
 
     def can_sign(self, tx: Transaction) -> bool:
         if not isinstance(tx, PartialTransaction):
@@ -3412,10 +3389,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             else:
                 p = self.price_at_timestamp(txid, price_func)
                 return p * txin_value/Decimal(COIN)
-
-    def is_billing_address(self, addr):
-        # overridden for TrustedCoin wallets
-        return False
 
     @abstractmethod
     def is_watching_only(self) -> bool:

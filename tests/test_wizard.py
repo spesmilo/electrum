@@ -7,7 +7,17 @@ from electrum.network import NetworkParameters, ProxySettings
 from electrum.plugin import Plugins, DeviceInfo, Device
 from electrum.wizard import ServerConnectWizard, NewWalletWizard, WizardViewState, KeystoreWizard
 from electrum.daemon import Daemon
-from electrum.wallet import Abstract_Wallet, Deterministic_Wallet
+from electrum.wallet import Abstract_Wallet, Deterministic_Wallet, Wallet
+from electrum.wallet_db import WalletDB
+from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
+from electrum.bitcoin import address_to_script
+from electrum.fee_policy import FixedFeePolicy
+from electrum.transaction import (Transaction, PartialTransaction, PartialTxInput, PartialTxOutput,
+                                  Sighash, TxOutpoint, TxOutput, tx_from_any)
+from electrum import cosigner
+from electrum.cosigner import Cosigner
+from electrum.plugins.trustedcoin import trustedcoin
+from electrum.util import InvalidPassword
 from electrum import util
 from electrum import slip39
 from electrum.bip32 import KeyOriginInfo
@@ -784,29 +794,46 @@ class WalletWizardTestCase(WizardTestCase):
         v = w.resolve_next(v.view, d)
         self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qs2svwhfz47qv9qju2waa6prxzv5f522fc4p06t")
 
-    async def test_2fa_createseed(self):
+    def _wizard_for_2fa_haveseed(
+        self,
+        *,
+        name: str = "mywallet",
+        keepordisable: str,
+        seed_extra_words: str | None = None,
+    ) -> tuple[NewWalletWizard, WizardViewState]:
+        """Restores a 2fa wallet from seed, up to the 'wallet_password' view."""
         self.assertTrue(self.config.get('enable_plugin_trustedcoin'))
-        w = self._wizard_for(wallet_type='2fa')
+        w = self._wizard_for(name=name, wallet_type='2fa')
         v = w._current
         d = v.wizard_data
         self.assertEqual('trustedcoin_start', v.view)
+
+        d.update({'keystore_type': 'haveseed'})
         v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_choose_seed', v.view)
-        d.update({'keystore_type': 'createseed'})
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_create_seed', v.view)
+        self.assertEqual('trustedcoin_have_seed', v.view)
         d.update({
             'seed': 'oblige basket safe educate whale bacon celery demand novel slice various awkward',
-            'seed_type': '2fa', 'seed_extend': False, 'seed_variant': 'electrum',
+            'seed_type': '2fa', 'seed_extend': seed_extra_words is not None, 'seed_variant': 'electrum',
         })
         v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_confirm_seed', v.view)
+        if seed_extra_words is not None:
+            self.assertEqual('trustedcoin_have_ext', v.view)
+            d.update({'seed_extra_words': seed_extra_words})
+            v = w.resolve_next(v.view, d)
+        self.assertEqual('trustedcoin_keep_disable', v.view)
+        d.update({'trustedcoin_keepordisable': keepordisable})
         v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_tos', v.view)
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_show_confirm_otp', v.view)
-        v = w.resolve_next(v.view, d)
+        if keepordisable == 'keep':
+            self.assertEqual('trustedcoin_show_cosigner_qr', v.view)
+            v = w.resolve_next(v.view, d)
+        return w, v
+
+    async def test_2fa_haveseed_keep2FAenabled(self):
+        w, v = self._wizard_for_2fa_haveseed(keepordisable='keep')
         wallet = self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qnf5qafvpx0afk47433j3tt30pqkxp5wa263m77wt0pvyqq67rmfs522m94")
+        self.assertFalse(wallet.keystores['x1'].is_watching_only())
+        self.assertTrue(wallet.keystores['x2'].is_watching_only())
+        self.assertFalse(wallet.can_sign_without_cosigner())
 
         with self.subTest(msg="2fa wallet cannot enable/disable keystore"):
             for ks in wallet.get_keystores():
@@ -818,82 +845,200 @@ class WalletWizardTestCase(WizardTestCase):
                     wallet.enable_keystore(ks, False, None)
                 self.assertTrue("2fa wallet cannot" in ctx.exception.args[0])
 
-    async def test_2fa_haveseed_keep2FAenabled(self):
-        self.assertTrue(self.config.get('enable_plugin_trustedcoin'))
-        w = self._wizard_for(wallet_type='2fa')
-        v = w._current
-        d = v.wizard_data
-        self.assertEqual('trustedcoin_start', v.view)
-
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_choose_seed', v.view)
-        d.update({'keystore_type': 'haveseed'})
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_have_seed', v.view)
-        d.update({
-            'seed': 'oblige basket safe educate whale bacon celery demand novel slice various awkward',
-            'seed_type': '2fa', 'seed_extend': False, 'seed_variant': 'electrum',
-        })
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_keep_disable', v.view)
-        d.update({'trustedcoin_keepordisable': 'keep'})
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_tos', v.view)
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_show_confirm_otp', v.view)
-        v = w.resolve_next(v.view, d)
-        self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qnf5qafvpx0afk47433j3tt30pqkxp5wa263m77wt0pvyqq67rmfs522m94")
-
     async def test_2fa_haveseed_disable2FA(self):
-        self.assertTrue(self.config.get('enable_plugin_trustedcoin'))
-        w = self._wizard_for(wallet_type='2fa')
-        v = w._current
-        d = v.wizard_data
-        self.assertEqual('trustedcoin_start', v.view)
-
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_choose_seed', v.view)
-        d.update({'keystore_type': 'haveseed'})
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_have_seed', v.view)
-        d.update({
-            'seed': 'oblige basket safe educate whale bacon celery demand novel slice various awkward',
-            'seed_type': '2fa', 'seed_extend': False, 'seed_variant': 'electrum',
-        })
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_keep_disable', v.view)
-        d.update({'trustedcoin_keepordisable': 'disable'})
-        v = w.resolve_next(v.view, d)
-        self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qnf5qafvpx0afk47433j3tt30pqkxp5wa263m77wt0pvyqq67rmfs522m94")
+        w, v = self._wizard_for_2fa_haveseed(keepordisable='disable')
+        wallet = self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qnf5qafvpx0afk47433j3tt30pqkxp5wa263m77wt0pvyqq67rmfs522m94")
+        self.assertTrue(wallet.can_sign_without_cosigner())
 
     async def test_2fa_haveseed_passphrase(self):
-        self.assertTrue(self.config.get('enable_plugin_trustedcoin'))
-        w = self._wizard_for(wallet_type='2fa')
-        v = w._current
-        d = v.wizard_data
-        self.assertEqual('trustedcoin_start', v.view)
-
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_choose_seed', v.view)
-        d.update({'keystore_type': 'haveseed'})
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_have_seed', v.view)
-        d.update({
-            'seed': 'oblige basket safe educate whale bacon celery demand novel slice various awkward',
-            'seed_type': '2fa', 'seed_extend': True, 'seed_variant': 'electrum',
-        })
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_have_ext', v.view)
-        d.update({'seed_extra_words': UNICODE_HORROR})
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_keep_disable', v.view)
-        d.update({'trustedcoin_keepordisable': 'keep'})
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_tos', v.view)
-        v = w.resolve_next(v.view, d)
-        self.assertEqual('trustedcoin_show_confirm_otp', v.view)
-        v = w.resolve_next(v.view, d)
+        w, v = self._wizard_for_2fa_haveseed(keepordisable='keep', seed_extra_words=UNICODE_HORROR)
         self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qcnu9ay4v3w0tawuxe6wlh6mh33rrpauqnufdgkxx7we8vpx3e6wqa25qud")
+
+    async def test_2fa_mobile_cosigner(self):
+        recv_addr = "bc1qnf5qafvpx0afk47433j3tt30pqkxp5wa263m77wt0pvyqq67rmfs522m94"
+        # desktop: restore the 2fa seed, and display the cosigner QR code
+        w, v = self._wizard_for_2fa_haveseed(name='desktop', keepordisable='keep')
+        xprv1, xpub1, xprv2, xpub2, xpub3 = w.plugins.get_plugin('trustedcoin').create_keys(v.wizard_data)
+        cosigner_qr = trustedcoin.make_cosigner_qr_data(xprv2, xpub1, xpub3)
+        self.assertEqual(
+            'cosigner:2:'
+            'ZprvAkSth4YNtt4491XR5QabACZmFzdDV7XPN2KiYEaJsbMBtKJDEsji7cNDMEEusUbvqYtze57R9UvKsBn2g5LLAjhQaVSNTMKagZfQKSe8KBA:'
+            'Zpub6ySF6a5GjFcMJW1bx83wzKoke47zD6ouqGZ9zfBBne6htiwJtqPpvxfcWn9HsJF8wsKVzzMCunJA1Ux7Cm9AAtKY658yzheEV7usDVXa9E7:'
+            'Zpub6vZyhw1ShkEwNuzEqzZx6oLjntiSVTtdNZwVuKFPkYTN8o1nq2UK4e6HnucfhgLm3UVJ1ZWrnfmN8swnT7bYJ5e7sGUqHsTghP8Wc7MJ5ji',
+            cosigner_qr)
+        desktop_wallet = self._set_password_and_check_address(v=v, w=w, recv_addr=recv_addr, password='desktop')
+
+        # mobile: the key is stored in the keystores file, no wallet is created
+        cosigner.add_cosigner(self.config, Cosigner.from_qr_data(cosigner_qr), 'mobile')
+
+        # this device also cosigns for another 2fa wallet
+        other_seed = 'universe topic remind silver february ranch shine worth innocent cattle enhance wise'
+        o_xprv1, o_xpub1, o_xprv2, o_xpub2 = trustedcoin.TrustedCoinPlugin.xkeys_from_seed(other_seed, '')
+        other = Cosigner.from_qr_data(trustedcoin.make_cosigner_qr_data(
+            o_xprv2, o_xpub1, trustedcoin.get_xpub3(o_xpub1, o_xpub2)))
+        cosigner.add_cosigner(self.config, other, 'mobile')
+        self.assertEqual(2, len(cosigner.get_cosigner_ids(self.config)))
+        # setting up the same wallet again does not add a second entry
+        cosigner.add_cosigner(self.config, Cosigner.from_qr_data(cosigner_qr), 'mobile')
+        self.assertEqual(2, len(cosigner.get_cosigner_ids(self.config)))
+        # reading the keystores file does not tell which wallets this device cosigns for
+        with open(os.path.join(self.electrum_path, "keystores")) as f:
+            stored = f.read()
+        for key in [xpub1, xpub2, xpub3, xprv2, o_xpub1, o_xpub2]:
+            self.assertNotIn(key, stored)
+        # they are indexed by the fingerprint their key uses in transactions
+        self.assertEqual(
+            sorted([keystore.from_xpub(xpub2).get_root_fingerprint(), other.cosigner_id]),
+            sorted(cosigner.get_cosigner_ids(self.config)))
+
+        with self.subTest(msg="desktop signs, mobile cosigns from its keystores file"):
+            spk = address_to_script(recv_addr)
+            funding_tx = Transaction(
+                '0200000001' + 32 * '11' + '0000000000ffffffff01'
+                + (100_000).to_bytes(8, 'little').hex() + bytes([len(spk)]).hex() + spk.hex() + '00000000')
+            desktop_wallet.adb.receive_tx_callback(funding_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+            outputs = [PartialTxOutput.from_address_and_value('bc1qs2svwhfz47qv9qju2waa6prxzv5f522fc4p06t', 50_000)]
+            tx = desktop_wallet.make_unsigned_transaction(outputs=outputs, fee_policy=FixedFeePolicy(1000))
+            desktop_wallet.sign_transaction(tx, password='desktop')
+            self.assertFalse(tx.is_complete())
+
+            qr_data, __ = tx.to_qr_data()
+            # the mobile app finds the key of that wallet in its keystores file
+            tx = tx_from_any(qr_data)
+            mobile = cosigner.find_cosigner_for_tx(self.config, tx, 'mobile')
+            self.assertEqual(xpub2, mobile.keystore.get_master_public_key())
+            mobile.sign_transaction(tx)
+            self.assertTrue(tx.is_complete())
+
+        with self.subTest(msg="the change of a transaction is not taken on trust"):
+            evil_tx = tx_from_any(qr_data)
+            ours = [o for o in evil_tx.outputs() if mobile.is_wallet_output(o)]
+            others = [o for o in evil_tx.outputs() if not mobile.is_wallet_output(o)]
+            self.assertEqual(1, len(ours))
+            self.assertEqual(1, len(others))
+            # whoever creates the transaction can claim one of our keys for an output of its own
+            others[0].bip32_paths = dict(ours[0].bip32_paths)
+            self.assertTrue(mobile.claims_our_key(others[0]))
+            # but that output does not pay to the script of the 2fa wallet
+            self.assertFalse(mobile.is_wallet_output(others[0]))
+            self.assertTrue(mobile.is_wallet_output(ours[0]))
+
+        with self.subTest(msg="a transaction whose fee is unknown is refused"):
+            # an input of unknown value, which the cosigner does not sign for
+            foreign_txin = PartialTxInput(prevout=TxOutpoint(txid=bytes(32), out_idx=0))
+            evil_tx = PartialTransaction.from_io(
+                [tx_from_any(qr_data).inputs()[0], foreign_txin],
+                tx_from_any(qr_data).outputs())
+            self.assertIsNone(evil_tx.get_fee())
+            with self.assertRaises(ValueError):
+                mobile.sign_transaction(evil_tx)
+
+        with self.subTest(msg="a non-default sighash type is refused"):
+            for sighash in [Sighash.NONE, Sighash.SINGLE, Sighash.ALL | Sighash.ANYONECANPAY]:
+                evil_tx = tx_from_any(qr_data)
+                evil_tx.inputs()[0].sighash = sighash
+                with self.assertRaises(ValueError):
+                    mobile.sign_transaction(evil_tx)
+            # the default is accepted, whether it is spelled out or not
+            for sighash in [None, Sighash.ALL]:
+                signed = tx_from_any(qr_data)
+                signed.inputs()[0].sighash = sighash
+                mobile.sign_transaction(signed)
+                self.assertTrue(signed.is_complete())
+
+        with self.subTest(msg="wrong password"):
+            with self.assertRaises(InvalidPassword):
+                cosigner.find_cosigner_for_tx(self.config, tx, 'wrong')
+
+        with self.subTest(msg="transaction of an unrelated wallet"):
+            unrelated_tx = PartialTransaction.from_io(
+                [PartialTxInput(prevout=TxOutpoint(txid=bytes(32), out_idx=0))],
+                [PartialTxOutput.from_address_and_value(recv_addr, 10_000)])
+            self.assertIsNone(cosigner.find_cosigner_for_tx(self.config, unrelated_tx, 'mobile'))
+
+        with self.subTest(msg="the cosigner keys follow the password of the device"):
+            cosigner.update_cosigners_password(self.config, 'mobile', 'new password')
+            with self.assertRaises(InvalidPassword):
+                cosigner.find_cosigner_for_tx(self.config, tx, 'mobile')
+            mobile = cosigner.find_cosigner_for_tx(self.config, tx, 'new password')
+            self.assertEqual(xpub2, mobile.keystore.get_master_public_key())
+            # the other wallet this device cosigns for is re-encrypted too
+            self.assertEqual(
+                o_xprv2, cosigner.get_cosigner(self.config, other.cosigner_id, 'new password').xprv)
+
+    async def test_2fa_legacy_input_needs_prev_tx(self):
+        # the signature of a non-segwit input does not commit to its amount, so the
+        # cosigner needs the previous transaction in order to know the fee
+        seed = 'kiss live scene rude gate step hip quarter bunker oxygen motor glove'
+        xprv1, xpub1, xprv2, xpub2 = trustedcoin.TrustedCoinPlugin.xkeys_from_seed(seed, '')
+        xpub3 = trustedcoin.get_xpub3(xpub1, xpub2)
+        wallet = WalletIntegrityHelper.create_multisig_wallet(
+            [keystore.from_xprv(xprv1), keystore.from_xpub(xpub2), keystore.from_xpub(xpub3)],
+            '2of3', config=self.config)
+        self.assertEqual('p2sh', wallet.txin_type)
+
+        recv_addr = wallet.get_receiving_addresses()[0]
+        spk = address_to_script(recv_addr)
+        funding_tx = Transaction(
+            '0200000001' + 32 * '11' + '0000000000ffffffff01'
+            + (100_000).to_bytes(8, 'little').hex() + bytes([len(spk)]).hex() + spk.hex() + '00000000')
+        wallet.adb.receive_tx_callback(funding_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+        outputs = [PartialTxOutput.from_address_and_value('bc1qs2svwhfz47qv9qju2waa6prxzv5f522fc4p06t', 50_000)]
+        tx = wallet.make_unsigned_transaction(outputs=outputs, fee_policy=FixedFeePolicy(1000))
+        wallet.sign_transaction(tx, password=None)
+        cosigner.add_cosigner(
+            self.config, Cosigner.from_qr_data(trustedcoin.make_cosigner_qr_data(xprv2, xpub1, xpub3)),
+            'mobile')
+        mobile = cosigner.find_cosigner_for_tx(self.config, tx, 'mobile')
+
+        with self.subTest(msg="the previous transaction is fetched, then the cosigner signs"):
+            signed = tx_from_any(tx.to_qr_data()[0])
+            # QR codes do not carry previous transactions
+            self.assertIsNone(signed.inputs()[0].utxo)
+            with self.assertRaises(ValueError):
+                mobile.sign_transaction(signed)
+            # the mobile app fetches it from the network before it signs
+            signed.inputs()[0].utxo = funding_tx
+            mobile.sign_transaction(signed)
+            self.assertTrue(signed.is_complete())
+
+        def unbacked_input() -> PartialTxInput:
+            # the amount is claimed by the transaction, but nothing backs it
+            txin = tx.inputs()[0]
+            evil_txin = PartialTxInput(prevout=txin.prevout)
+            evil_txin.witness_utxo = TxOutput(scriptpubkey=txin.scriptpubkey, value=1_000)
+            evil_txin.redeem_script = txin.redeem_script
+            evil_txin.bip32_paths = dict(txin.bip32_paths)
+            return evil_txin
+
+        with self.subTest(msg="a claimed amount that nothing backs is refused"):
+            evil_tx = PartialTransaction.from_io([unbacked_input()], tx.outputs())
+            self.assertIsNone(evil_tx.inputs()[0].utxo)
+            with self.assertRaises(ValueError):
+                mobile.sign_transaction(evil_tx)
+
+        with self.subTest(msg="a witness field does not make a legacy input pass"):
+            evil_txin = unbacked_input()
+            evil_txin.witness = bytes.fromhex('0100')
+            # electrum believes that field, so it must not decide whether we sign
+            self.assertTrue(evil_txin.is_segwit())
+            evil_tx = PartialTransaction.from_io([evil_txin], tx.outputs())
+            with self.assertRaises(ValueError):
+                mobile.sign_transaction(evil_tx)
+
+    async def test_2fa_wallet_without_x3(self):
+        # created offline, and never completed online with the TrustedCoin server
+        recv_addr = "bc1qnf5qafvpx0afk47433j3tt30pqkxp5wa263m77wt0pvyqq67rmfs522m94"
+        w, v = self._wizard_for_2fa_haveseed(keepordisable='keep')
+        wallet = self._set_password_and_check_address(v=v, w=w, recv_addr=recv_addr)
+        xpub3 = wallet.keystores['x3'].get_master_public_key()
+
+        storage = WalletStorage(wallet.storage.path)
+        db = WalletDB(storage.read(), storage=storage, upgrade=True)
+        db.put('x3', None)
+        wallet = Wallet(db, config=self.config)
+        self.assertEqual(xpub3, wallet.keystores['x3'].get_master_public_key())
+        self.assertEqual(recv_addr, wallet.get_receiving_addresses()[0])
 
     async def test_create_standard_wallet_trezor(self):
         # bip39 seed for trezor: "history six okay anchor sheriff flock atom tomorrow foster aerobic eternal foam"

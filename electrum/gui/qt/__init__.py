@@ -72,12 +72,9 @@ from electrum.util import (UserCancelled, profiler, send_exception_to_crash_repo
                            WalletFileException, get_new_wallet_name, InvalidPassword,
                            standardize_path, UserFacingException)
 from electrum.wallet import Wallet, Abstract_Wallet
-from electrum.wallet_db import WalletRequiresSplit, WalletRequiresUpgrade, WalletUnfinished
+from electrum.wallet_db import WalletRequiresSplit, WalletRequiresUpgrade
 from electrum.gui import BaseElectrumGui
 from electrum.simple_config import SimpleConfig
-from electrum.wizard import WizardViewState
-from electrum.keystore import load_keystore
-from electrum.bip32 import is_xprv
 from electrum import constants
 
 from electrum.gui.common_qt.i18n import ElectrumTranslator
@@ -396,8 +393,6 @@ class ElectrumGui(BaseElectrumGui, Logger):
                 pass  # open with wizard below
             except WalletRequiresUpgrade:
                 pass  # open with wizard below
-            except WalletUnfinished:
-                pass  # open with wizard below
             except Exception as e:
                 __handle_wallet_loading_exc(e, 1)
                 # if app is starting, still let wizard appear
@@ -470,8 +465,6 @@ class ElectrumGui(BaseElectrumGui, Logger):
         if not d['wallet_exists']:
             self.logger.info('about to create wallet')
             wizard.create_storage()
-            if d['wallet_type'] == '2fa' and 'x3' not in d:
-                return
             wallet_file = wizard.path
         else:
             wallet_file = d['wallet_name']
@@ -484,36 +477,6 @@ class ElectrumGui(BaseElectrumGui, Logger):
         except WalletRequiresSplit as e:
             wizard.run_split(wallet_file, e._split_data)
             return
-        except WalletUnfinished as e:
-            # wallet creation is not complete, 2fa online phase
-            db = e._wallet_db
-            action = db.get_action()
-            assert action[1] == 'accept_terms_of_use', 'only support for resuming trustedcoin split setup'
-            k1 = load_keystore(db, 'x1')
-            if password is not None:
-                xprv = k1.get_master_private_key(password)
-            else:
-                xprv = db.get('x1')['xprv']
-                if not is_xprv(xprv):
-                    xprv = k1
-            _wiz_data_updates = {
-                'wallet_name': wallet_file,
-                'xprv1': xprv,
-                'xpub1': db.get('x1')['xpub'],
-                'xpub2': db.get('x2')['xpub'],
-            }
-            data = {**d, **_wiz_data_updates}
-            wizard = QENewWalletWizard(self.config, self.app, self.plugins, self.daemon, path,
-                                       start_viewstate=WizardViewState('trustedcoin_tos', data, {}))
-            result = wizard.exec()
-            if result == QDialog.DialogCode.Rejected:
-                self.logger.info('wizard dialog cancelled by user')
-                return
-            db.put('x3', wizard.get_wizard_data()['x3'])
-            db.write_and_force_consolidation()  # TODO API for db is a bit weird: there should be a close method
-
-        wallet = self.daemon.load_wallet(wallet_file, password, upgrade=True)
-        return wallet
 
     def close_window(self, window: ElectrumWindow):
         if window in self.windows:

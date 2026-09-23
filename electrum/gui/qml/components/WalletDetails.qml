@@ -299,68 +299,9 @@ Pane {
                         Label {
                             Layout.fillWidth: true
                             visible: _is2fa
-                            text: Daemon.currentWallet.canSignWithoutServer
-                                    ? qsTr('disabled (can sign without server)')
+                            text: Daemon.currentWallet.canSignWithoutCosigner
+                                    ? qsTr('disabled (can sign without cosigner)')
                                     : qsTr('enabled')
-                        }
-
-                        Label {
-                            visible: _is2fa && !Daemon.currentWallet.canSignWithoutServer
-                            text: qsTr('Remaining TX')
-                            color: Material.accentColor
-                        }
-
-                        Label {
-                            Layout.fillWidth: true
-                            visible: _is2fa && !Daemon.currentWallet.canSignWithoutServer
-                            text: 'tx_remaining' in Daemon.currentWallet.billingInfo
-                                    ? Daemon.currentWallet.billingInfo['tx_remaining']
-                                    : qsTr('unknown')
-                        }
-
-                        Label {
-                            Layout.columnSpan: 2
-                            Layout.topMargin: constants.paddingSmall
-                            visible: _is2fa && !Daemon.currentWallet.canSignWithoutServer
-                            text: qsTr('Billing')
-                            color: Material.accentColor
-                        }
-
-                        TextHighlightPane {
-                            Layout.columnSpan: 2
-                            Layout.fillWidth: true
-                            visible: _is2fa && !Daemon.currentWallet.canSignWithoutServer
-
-                            ColumnLayout {
-                                spacing: 0
-
-                                ButtonGroup {
-                                    id: billinggroup
-                                    onCheckedButtonChanged: {
-                                        Config.trustedcoinPrepay = checkedButton.value
-                                    }
-                                }
-
-                                Repeater {
-                                    model: AppController.plugin('trustedcoin').billingModel
-                                    delegate: RowLayout {
-                                        RadioButton {
-                                            ButtonGroup.group: billinggroup
-                                            property string value: modelData.value
-                                            text: modelData.text
-                                            checked: modelData.value == Config.trustedcoinPrepay
-                                        }
-                                        Label {
-                                            text: Config.formatSats(modelData.sats_per_tx)
-                                            font.family: FixedFont
-                                        }
-                                        Label {
-                                            text: Config.baseUnit + '/tx'
-                                            color: Material.accentColor
-                                        }
-                                    }
-                                }
-                            }
                         }
 
                         Repeater {

@@ -442,6 +442,15 @@ class QEDaemon(AuthMixin, QObject):
             self._password = password
             self.singlePasswordChanged.emit()
 
+    def setSinglePassword(self, password: str) -> None:
+        """Set the password of this device. Only for when there is no wallet yet,
+        so that wallets created later use that password too."""
+        assert password
+        self.daemon.config.WALLET_SHOULD_USE_SINGLE_PASSWORD = True
+        self._use_single_password = True
+        self._password = password
+        self.singlePasswordChanged.emit()
+
     @pyqtSlot(result=str)
     def suggestWalletName(self):
         # FIXME why not use util.get_new_wallet_name ?
@@ -470,7 +479,13 @@ class QEDaemon(AuthMixin, QObject):
     def _update_password_for_directory_and_unlock_wallets(self, *, old_password, new_password):
         # note: this assumes all wallet files are in a single directory.
         # change wallet passwords:
-        ret = self.daemon.update_password_for_directory(old_password=old_password, new_password=new_password)
+        try:
+            ret = self.daemon.update_password_for_directory(old_password=old_password, new_password=new_password)
+        except InvalidPassword:
+            # the keys of a cosigner cannot be read with that password, and nothing was
+            # changed. This must not keep the user from opening their wallets.
+            self._logger.warning('cosigner keys do not use the password of this device')
+            ret = False
         # If some wallets just had their password changed, they got "locked" by wallet.update_password().
         # If the password is not unified yet, other loaded wallets might still be unlocked.
         # restore the invariant that all loaded wallets in qml must be unlocked:
