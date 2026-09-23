@@ -1,5 +1,6 @@
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
+from datetime import date as dt_date
 import inspect
 import sys
 import os
@@ -184,6 +185,8 @@ class ExchangeBase(Logger):
 
     @log_exceptions
     async def _update_historical_rates(self, ccy: str, cache_dir: str) -> None:
+        min_allowed_date = datetime.fromisoformat("2009-01-01").date()  # around genesis block
+        max_allowed_date = datetime.today().date() + timedelta(days=1)
         try:
             self.logger.info(f"requesting fx history for {ccy}")
             h_new = await self.request_history(ccy)
@@ -193,6 +196,7 @@ class ExchangeBase(Logger):
                    and isinstance(rate, Decimal)
                    and rate.is_finite()
                    and 0 < rate < MAX_BTC_PRICE
+                   and min_allowed_date <= dt_date.fromisoformat(date_str) <= max_allowed_date
             }
             # lose redundant precision. Ironically, we temporarily need a high-precision decimal context for this.
             with decimal.localcontext() as ctx:
