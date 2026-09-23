@@ -31,7 +31,7 @@ class LNWatcher(Logger, EventListener):
         Logger.__init__(self)
         self.adb = lnworker.wallet.adb
         self.config = lnworker.config
-        self.callbacks = {}  # type: Dict[str, Callable[[], Awaitable[None]]]  # address -> lambda function
+        self.callbacks = {}  # type: Dict[str, Callable[[], Awaitable[None]]]  # address/txo -> lambda function
         self.network = None
         self.register_callbacks()
         self._pending_force_closes = {}  # type: Dict['AbstractChannel', int]  # chan -> lowest remote htlc timeout height
@@ -72,10 +72,10 @@ class LNWatcher(Logger, EventListener):
                 await self.trigger_callbacks()
             await asyncio.sleep(self.CALLBACK_LOOP_POLL_INTERVAL_SEC)
 
-    def remove_callback(self, address: str) -> None:
-        self.callbacks.pop(address, None)
+    def remove_callback(self, key: str) -> None:  # address or outpoint
+        self.callbacks.pop(key, None)
 
-    def add_callback(
+    def add_address_callback(
         self,
         address: str,
         callback: Callable[[], Awaitable[None]],
@@ -93,15 +93,28 @@ class LNWatcher(Logger, EventListener):
         assert address not in self.callbacks, f"not overriding existing callback: {address=}"
         self.callbacks[address] = callback
 
+    def add_outpoint_callback(
+        self,
+        outpoint: str,
+        callback: Callable[[], Awaitable[None]],
+        *,
+        address: str,
+        subscribe: bool = True,
+    ) -> None:
+        if subscribe:  # FIXME: see add_address_callback
+            self.adb.add_address(address)
+        assert outpoint not in self.callbacks, f"not overriding existing callback: {outpoint=}"
+        self.callbacks[outpoint] = callback
+
     async def trigger_callbacks(self, *, requires_synchronizer: bool = True):
         if requires_synchronizer and not self.adb.synchronizer:
             self.logger.debug("synchronizer not set yet")
             return
-        for address, callback in list(self.callbacks.items()):
+        for key, callback in list(self.callbacks.items()):
             try:
                 await callback()
             except Exception:
-                self.logger.exception(f"LNWatcher callback failed {address=}")
+                self.logger.exception(f"LNWatcher callback failed {key=}")
         # send callback to GUI
         util.trigger_callback('wallet_updated', self.lnworker.wallet)
         self._last_callback_trigger_ts = now()
@@ -145,7 +158,9 @@ class LNWatcher(Logger, EventListener):
         outpoint = chan.funding_outpoint.to_str()
         address = chan.get_funding_address()
         callback = lambda: self.check_onchain_situation(address, outpoint)
-        self.add_callback(address, callback, subscribe=chan.need_to_subscribe())
+        # keyed by outpoint, as we cannot fully enforce uniqueness of the funding address.
+        # a remote peer might reuse the funding_pubkey, causing the address to conflict with a channel backup.
+        self.add_outpoint_callback(outpoint, callback, address=address, subscribe=chan.need_to_subscribe())
 
     @ignore_exceptions
     @log_exceptions
@@ -165,7 +180,7 @@ class LNWatcher(Logger, EventListener):
             if closing_tx:
                 keep_watching = await self.sweep_commitment_transaction(funding_outpoint, closing_tx)
                 if not keep_watching:
-                    self.remove_callback(address)
+                    self.remove_callback(funding_outpoint)
             else:
                 self.logger.info(f"channel {funding_outpoint} closed by {closing_txid}. still waiting for tx itself...")
                 keep_watching = True
