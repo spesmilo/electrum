@@ -622,7 +622,7 @@ class WCHaveSeed(WalletWizardComponent, Logger):
         # really only used for electrum seeds. bip39 and slip39 are validated in SeedWidget
         t = mnemonic.calc_seed_type(x)
         if self.wizard_data['wallet_type'] == 'standard':
-            return mnemonic.is_seed(x) and not mnemonic.is_any_2fa_seed_type(t)
+            return mnemonic.is_seed(x) and (self.wizard.supports_2fa() or not mnemonic.is_any_2fa_seed_type(t))
         elif self.wizard_data['wallet_type'] == '2fa':
             return mnemonic.is_any_2fa_seed_type(t)
         else:
