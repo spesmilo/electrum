@@ -42,6 +42,12 @@ class DaemonMock:
         self.network = NetworkMock()
 
 
+class TNewWalletWizard(NewWalletWizard):
+    def is_single_password(self):
+        """impl abstract reqd"""
+        return True
+
+
 class WizardTestCase(ElectrumTestCase):
 
     def setUp(self):
@@ -133,11 +139,6 @@ class KeystoreWizardTestCase(WizardTestCase):
             """impl abstract reqd"""
             return True
 
-    class TNewWalletWizard(NewWalletWizard):
-        def is_single_password(self):
-            """impl abstract reqd"""
-            return True
-
     def _wizard_for(self, *, wallet_type: str = 'standard', hww: bool = False) -> tuple[KeystoreWizard, WizardViewState]:
         w = KeystoreWizardTestCase.TKeystoreWizard(self.plugins)
         start_viewstate = WizardViewState('keystore_type', {'wallet_type': wallet_type}, {})
@@ -156,7 +157,7 @@ class KeystoreWizardTestCase(WizardTestCase):
         return w, v
 
     def _create_xpub_keystore_wallet(self, *, wallet_type: str = 'standard', xpub):
-        w = KeystoreWizardTestCase.TNewWalletWizard(DaemonMock(self.config), self.plugins)
+        w = TNewWalletWizard(DaemonMock(self.config), self.plugins)
         wallet_path = self.wallet_path
         d = {
             'wallet_type': wallet_type,
@@ -261,6 +262,14 @@ class KeystoreWizardTestCase(WizardTestCase):
         with self.assertRaises(Exception) as ctx:
             wallet.enable_keystore(ks, ishww, None)
         self.assertTrue("mismatching xpubs" in ctx.exception.args[0])
+
+    async def test_haveseed_electrum__2fa_seed(self):
+        """unlike NewWalletWizard, KeystoreWizard cannot redirect to the 2fa flow, so 2fa seeds are invalid"""
+        w, v = self._wizard_for()
+        seed_valid, seed_type, *_ = w.validate_seed(
+            'oblige basket safe educate whale bacon celery demand novel slice various awkward', 'electrum', 'standard')
+        self.assertFalse(seed_valid)
+        self.assertEqual('2fa_segwit', seed_type)
 
     async def test_haveseed_electrum_oldseed(self):
         w, v = self._wizard_for()
@@ -439,9 +448,8 @@ class WalletWizardTestCase(WizardTestCase):
         name: str = "mywallet",
         wallet_type: str,
     ) -> NewWalletWizard:
-        w = NewWalletWizard(DaemonMock(self.config), self.plugins)
-        if wallet_type == '2fa':
-            w.plugins.get_plugin('trustedcoin').extend_wizard(w)
+        w = TNewWalletWizard(DaemonMock(self.config), self.plugins)
+        w.plugins.get_plugin('trustedcoin').extend_wizard(w)
         v_init = w.start()
         self.assertEqual('wallet_name', v_init.view)
         d = {'wallet_name': name}
@@ -894,6 +902,57 @@ class WalletWizardTestCase(WizardTestCase):
         self.assertEqual('trustedcoin_show_confirm_otp', v.view)
         v = w.resolve_next(v.view, d)
         self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qcnu9ay4v3w0tawuxe6wlh6mh33rrpauqnufdgkxx7we8vpx3e6wqa25qud")
+
+    async def test_2fa_haveseed_redirected_from_standard(self):
+        w = self._wizard_for(wallet_type='standard')
+        v = w._current
+        d = v.wizard_data
+        self.assertEqual('keystore_type', v.view)
+
+        d.update({'keystore_type': 'haveseed'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('have_seed', v.view)
+        myseed = 'oblige basket safe educate whale bacon celery demand novel slice various awkward'
+        self.assertTrue(w.validate_seed(myseed, 'electrum', 'standard')[0])
+        d.update({
+            'seed': myseed,
+            'seed_type': '2fa_segwit', 'seed_extend': False, 'seed_variant': 'electrum',
+        })
+        self.assertFalse(w.is_last_view(v.view, d))
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('trustedcoin_keep_disable', v.view)
+        self.assertEqual('2fa', v.wizard_data['wallet_type'])
+        d.update({'trustedcoin_keepordisable': 'keep'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('trustedcoin_tos', v.view)
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('trustedcoin_show_confirm_otp', v.view)
+        v = w.resolve_next(v.view, d)
+        wallet = self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qnf5qafvpx0afk47433j3tt30pqkxp5wa263m77wt0pvyqq67rmfs522m94")
+        self.assertEqual('2fa', wallet.wallet_type)
+
+    async def test_2fa_haveseed_redirected_from_standard_passphrase(self):
+        w = self._wizard_for(wallet_type='standard')
+        v = w._current
+        d = v.wizard_data
+        self.assertEqual('keystore_type', v.view)
+
+        d.update({'keystore_type': 'haveseed'})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('have_seed', v.view)
+        d.update({
+            'seed': 'oblige basket safe educate whale bacon celery demand novel slice various awkward',
+            'seed_type': '2fa_segwit', 'seed_extend': True, 'seed_variant': 'electrum',
+        })
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('trustedcoin_have_ext', v.view)
+        d.update({'seed_extra_words': UNICODE_HORROR})
+        v = w.resolve_next(v.view, d)
+        self.assertEqual('trustedcoin_keep_disable', v.view)
+        d.update({'trustedcoin_keepordisable': 'disable'})
+        v = w.resolve_next(v.view, d)
+        wallet = self._set_password_and_check_address(v=v, w=w, recv_addr="bc1qcnu9ay4v3w0tawuxe6wlh6mh33rrpauqnufdgkxx7we8vpx3e6wqa25qud")
+        self.assertEqual('2fa', wallet.wallet_type)
 
     async def test_create_standard_wallet_trezor(self):
         # bip39 seed for trezor: "history six okay anchor sheriff flock atom tomorrow foster aerobic eternal foam"
