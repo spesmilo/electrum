@@ -22,6 +22,7 @@
 # SOFTWARE.
 import concurrent.futures
 import copy
+import dataclasses
 from dataclasses import dataclass
 import logging
 import os
@@ -451,6 +452,21 @@ def json_decode(x):
         return json.loads(x, parse_float=Decimal)
     except Exception:
         return x
+
+
+def repr_dataclass(obj, formatters: Dict[Union[str, type], Callable[[Any], str]]) -> str:
+    """repr of a dataclass instance, with a custom formatting of some fields (like the
+    'repr' parameter of attrs). formatters is keyed by field name, or by the type of a value.
+    None values are never formatted.
+    """
+    parts = []
+    for f in dataclasses.fields(obj):
+        if not f.repr:
+            continue
+        value = getattr(obj, f.name)
+        fmt = None if value is None else formatters.get(f.name) or formatters.get(type(value))
+        parts.append(f"{f.name}={fmt(value) if fmt else repr(value)}")
+    return f"{type(obj).__name__}({', '.join(parts)})"
 
 
 def json_normalize(x):
