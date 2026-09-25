@@ -235,7 +235,7 @@ class UserCancelled(Exception):
     pass
 
 
-def to_decimal(x: Union[str, float, int, Decimal]) -> Decimal:
+def to_decimal(x: str | float | int | Decimal | None) -> Decimal:
     # helper function mainly for float->Decimal conversion, i.e.:
     #   >>> Decimal(41754.681)
     #   Decimal('41754.680999999996856786310672760009765625')
@@ -245,6 +245,8 @@ def to_decimal(x: Union[str, float, int, Decimal]) -> Decimal:
         return x
     if isinstance(x, int):
         return Decimal(x)
+    if x is None:
+        return Decimal('NaN')
     return Decimal(str(x))
 
 
