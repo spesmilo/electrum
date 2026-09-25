@@ -166,7 +166,7 @@ class BaseStoredObject:
 
 
 class StoredObject(BaseStoredObject):
-    """for attr.s objects """
+    """for dataclasses"""
 
     def __setattr__(self, key: str, value):
         assert isinstance(key, str), repr(key)

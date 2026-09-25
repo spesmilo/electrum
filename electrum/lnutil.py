@@ -15,9 +15,8 @@ import electrum_ecc as ecc
 from electrum_ecc import CURVE_ORDER, ecdsa_sig64_from_der_sig
 from electrum_ecc.util import bip340_tagged_hash
 import dataclasses
-import attr
 
-from .util import bfh, UserFacingException, list_enabled_bits, is_hex_str
+from .util import bfh, UserFacingException, list_enabled_bits, is_hex_str, repr_dataclass
 from .util import ShortID as ShortChannelID, format_short_id as format_short_channel_id
 
 from .crypto import sha256, pw_decode_with_version_and_mac
@@ -103,34 +102,58 @@ def deserialize_htlc_key(htlc_key: str) -> Tuple[bytes, int]:
     return bytes.fromhex(scid), int(htlc_id)
 
 
-@attr.s
+@dataclasses.dataclass(repr=False)
 class OnlyPubkeyKeypair(StoredObject):
-    pubkey = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
+    pubkey: bytes
+
+    def __post_init__(self):
+        self.pubkey = hex_to_bytes(self.pubkey)  # stored as hex
+
+    def __repr__(self):
+        return repr_dataclass(self, {bytes: bytes_to_hex})
 
 
-@attr.s
+@dataclasses.dataclass(repr=False)
 class Keypair(OnlyPubkeyKeypair):
-    privkey = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
+    privkey: bytes
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.privkey = hex_to_bytes(self.privkey)
 
 
-@attr.s
+@dataclasses.dataclass(repr=False)
 class ChannelConfig(StoredObject):
     # shared channel config fields
-    payment_basepoint = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
-    multisig_key = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
-    htlc_basepoint = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
-    delayed_basepoint = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
-    revocation_basepoint = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
-    to_self_delay = attr.ib(type=int)  # applies to OTHER ctx
-    dust_limit_sat = attr.ib(type=int)  # applies to SAME ctx
-    max_htlc_value_in_flight_msat = attr.ib(type=int)  # max val of INCOMING htlcs
-    max_accepted_htlcs = attr.ib(type=int)  # max num of INCOMING htlcs
-    initial_msat = attr.ib(type=int)
-    reserve_sat = attr.ib(type=int)  # applies to OTHER ctx
-    htlc_minimum_msat = attr.ib(type=int)  # smallest value for INCOMING htlc
-    upfront_shutdown_script = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
-    announcement_node_sig = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
-    announcement_bitcoin_sig = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
+    payment_basepoint: OnlyPubkeyKeypair
+    multisig_key: OnlyPubkeyKeypair
+    htlc_basepoint: OnlyPubkeyKeypair
+    delayed_basepoint: OnlyPubkeyKeypair
+    revocation_basepoint: OnlyPubkeyKeypair
+    to_self_delay: int  # applies to OTHER ctx
+    dust_limit_sat: int  # applies to SAME ctx
+    max_htlc_value_in_flight_msat: int  # max val of INCOMING htlcs
+    max_accepted_htlcs: int  # max num of INCOMING htlcs
+    initial_msat: int
+    reserve_sat: int  # applies to OTHER ctx
+    htlc_minimum_msat: int  # smallest value for INCOMING htlc
+    upfront_shutdown_script: bytes
+    announcement_node_sig: bytes
+    announcement_bitcoin_sig: bytes
+
+    def __post_init__(self):
+        # keypairs are stored as dicts, and bytes as hex
+        self.payment_basepoint = json_to_keypair(self.payment_basepoint)
+        self.multisig_key = json_to_keypair(self.multisig_key)
+        self.htlc_basepoint = json_to_keypair(self.htlc_basepoint)
+        self.delayed_basepoint = json_to_keypair(self.delayed_basepoint)
+        self.revocation_basepoint = json_to_keypair(self.revocation_basepoint)
+        self.upfront_shutdown_script = hex_to_bytes(self.upfront_shutdown_script)
+        self.announcement_node_sig = hex_to_bytes(self.announcement_node_sig)
+        self.announcement_bitcoin_sig = hex_to_bytes(self.announcement_bitcoin_sig)
+
+    def __repr__(self):
+        return repr_dataclass(self, {bytes: bytes_to_hex})
 
     def validate_params(self, *, funding_sat: int, config: 'SimpleConfig', peer_features: 'LnFeatures') -> None:
         conf_name = type(self).__name__
@@ -233,13 +256,20 @@ class ChannelConfig(StoredObject):
 
 
 @stored_at('/channels/*/local_config')
-@attr.s
+@dataclasses.dataclass(repr=False)
 class LocalConfig(ChannelConfig):
-    channel_seed = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)  # type: Optional[bytes]
-    funding_locked_received = attr.ib(type=bool)
-    current_commitment_signature = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
-    current_htlc_signatures = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
-    per_commitment_secret_seed = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
+    channel_seed: Optional[bytes]
+    funding_locked_received: bool
+    current_commitment_signature: bytes
+    current_htlc_signatures: bytes
+    per_commitment_secret_seed: bytes
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.channel_seed = hex_to_bytes(self.channel_seed)
+        self.current_commitment_signature = hex_to_bytes(self.current_commitment_signature)
+        self.current_htlc_signatures = hex_to_bytes(self.current_htlc_signatures)
+        self.per_commitment_secret_seed = hex_to_bytes(self.per_commitment_secret_seed)
 
     @classmethod
     def from_seed(cls, **kwargs):
@@ -298,27 +328,35 @@ class LocalConfig(ChannelConfig):
 
 
 @stored_at('/channels/*/remote_config')
-@attr.s
+@dataclasses.dataclass(repr=False)
 class RemoteConfig(ChannelConfig):
-    next_per_commitment_point = attr.ib(type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
-    current_per_commitment_point = attr.ib(default=None, type=bytes, converter=hex_to_bytes, repr=bytes_to_hex)
+    next_per_commitment_point: bytes
+    current_per_commitment_point: Optional[bytes] = None
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.next_per_commitment_point = hex_to_bytes(self.next_per_commitment_point)
+        self.current_per_commitment_point = hex_to_bytes(self.current_per_commitment_point)
 
 
 @stored_at('/channels/*/log/*/fee_updates/*')
-@attr.s
+@dataclasses.dataclass
 class FeeUpdate(StoredObject):
-    rate = attr.ib(type=int)  # in sat/kw
-    ctn_local = attr.ib(default=None, type=int)
-    ctn_remote = attr.ib(default=None, type=int)
+    rate: int  # in sat/kw
+    ctn_local: Optional[int] = None
+    ctn_remote: Optional[int] = None
 
 
 @stored_at('/channels/*/constraints')
-@attr.s
+@dataclasses.dataclass
 class ChannelConstraints(StoredObject):
-    flags = attr.ib(type=int, converter=int)
-    capacity = attr.ib(type=int)  # in sat
-    is_initiator = attr.ib(type=bool)  # note: sometimes also called "funder"
-    funding_txn_minimum_depth = attr.ib(type=int)
+    flags: int
+    capacity: int  # in sat
+    is_initiator: bool  # note: sometimes also called "funder"
+    funding_txn_minimum_depth: int
+
+    def __post_init__(self):
+        self.flags = int(self.flags)
 
 
 CHANNEL_BACKUP_VERSION_LATEST = 3
@@ -500,10 +538,10 @@ class ScriptHtlc(NamedTuple):
 
 # FIXME duplicate of TxOutpoint in transaction.py??
 @stored_at('/channels/*/funding_outpoint')
-@attr.s
+@dataclasses.dataclass
 class Outpoint(StoredObject):
-    txid = attr.ib(type=str)
-    output_index = attr.ib(type=int)
+    txid: str
+    output_index: int
 
     def to_str(self):
         return "{}:{}".format(self.txid, self.output_index)
