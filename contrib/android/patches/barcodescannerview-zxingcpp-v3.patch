@@ -1,0 +1,35 @@
+Build against zxing-cpp v3.
+
+BarcodeScannerView 1.6.5 is the newest release and still pins zxing-cpp v2.3.0.4.
+We bump zxing-cpp ourselves for the newer scanning code and to
+get onto a toolchain that matches p4a's.
+
+The version here must match ZXING_CPP_VERSION in make_barcode_scanner.sh
+
+diff --git a/barcodescannerview/build.gradle b/barcodescannerview/build.gradle
+index bd26c96..29eefd8 100644
+--- a/barcodescannerview/build.gradle
++++ b/barcodescannerview/build.gradle
+@@ -36,7 +36,7 @@ android {
+
+ 	dependencies {
+-		api 'com.github.markusfisch:CameraView:1.10.0'
+-		api 'com.github.markusfisch:zxing-cpp:v2.3.0.4'
++		api 'com.github.markusfisch:CameraView:1.10.2'
++		api 'com.github.markusfisch:zxing-cpp:v3.1.0.0'
+ 	}
+ }
+
+diff --git a/barcodescannerview/src/main/java/de/markusfisch/android/barcodescannerview/widget/BarcodeScannerView.java b/barcodescannerview/src/main/java/de/markusfisch/android/barcodescannerview/widget/BarcodeScannerView.java
+index 2746009..dafa470 100644
+--- a/barcodescannerview/src/main/java/de/markusfisch/android/barcodescannerview/widget/BarcodeScannerView.java
++++ b/barcodescannerview/src/main/java/de/markusfisch/android/barcodescannerview/widget/BarcodeScannerView.java
+@@ -173,7 +173,7 @@ public class BarcodeScannerView extends CameraView {
+ 	}
+
+ 	private void init(Context context) {
+-		formats.add(BarcodeFormat.QR_CODE);
++		formats.add(BarcodeFormat.QRCode);
+ 		setUseOrientationListener(true);
+ 		setOnCameraListener(new OnCameraListener() {
+ 			@Override

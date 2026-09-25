@@ -1,0 +1,22 @@
+Do not build the bundled libzint.
+
+The aar wrapper forces ZXING_WRITERS on which enables the "new" writer backed
+by libzint. Electrum only decodes barcodes. Turning writers off drops the
+submodule requirement.
+
+diff --git a/wrappers/aar/zxingcpp/src/main/cpp/CMakeLists.txt b/wrappers/aar/zxingcpp/src/main/cpp/CMakeLists.txt
+index faee74fc..93b54798 100644
+--- a/wrappers/aar/zxingcpp/src/main/cpp/CMakeLists.txt
++++ b/wrappers/aar/zxingcpp/src/main/cpp/CMakeLists.txt
+@@ -5,7 +5,10 @@ project(ZXingCppAndroid)
+ set(CMAKE_CXX_STANDARD 20)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+-set(ZXING_WRITERS ON)
++# electrum: barcode *writing* pulls in the bundled libzint (a git submodule) and
++# ~478 KB of native code per abi. electrum only scans, so leave it off, which is
++# also the zxing-cpp core default.
++set(ZXING_WRITERS OFF)
+
+ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../core ZXing EXCLUDE_FROM_ALL)
+
