@@ -2,11 +2,13 @@ import logging
 import os
 import socket
 import asyncio
+import time
 from unittest import mock
 
 from . import ElectrumTestCase
 
-from electrum.lntransport import ConnStringFormatError
+from electrum.lnpeer import Peer
+from electrum.lntransport import ConnStringFormatError, LNPeerAddr, LNResponderTransport, LNTransport
 from electrum.logging import console_stderr_handler
 
 
@@ -58,6 +60,65 @@ class TestLNPeerManager(ElectrumTestCase):
             with self.assertRaises(ConnStringFormatError) as cm:
                 await peermgr.add_peer(bad_host_conn_str)
             self.assertIn("Hostname does not resolve", str(cm.exception))
+
+    def _add_channelless_peer(self, *, incoming: bool, initialization_time: float) -> Peer:
+        peermgr = self.lnpeermgr
+        pubkey = os.urandom(33)
+        if incoming:
+            transport = LNResponderTransport(peermgr.node_keypair.privkey, None, None)
+            transport._pubkey = pubkey  # normally set during the handshake
+        else:
+            peer_addr = LNPeerAddr('127.0.0.1', 9735, pubkey)
+            transport = LNTransport(peermgr.node_keypair.privkey, peer_addr, e_proxy=None)
+        peer = Peer(peermgr._lnwallet_or_lngossip, pubkey, transport)
+        peer.initialization_time = initialization_time
+        peermgr._peers[pubkey] = peer
+        return peer
+
+    async def _run_single_cleanup_iteration(self):
+        num_sleeps = 0
+
+        async def limited_sleep(delay):
+            nonlocal num_sleeps
+            num_sleeps += 1
+            if num_sleeps > 1:  # run exactly one iteration of the cleanup loop
+                raise asyncio.CancelledError
+
+        with mock.patch.object(asyncio, 'sleep', limited_sleep):
+            with self.assertRaises(asyncio.CancelledError):
+                await self.lnpeermgr._cleanup_unused_peers()
+
+    async def test_cleanup_unused_peers_evicts_per_direction(self):
+        """Incoming connection pressure must not cause eviction of outgoing connections,
+        as we opened those for a purpose (e.g. an onion message session)."""
+        peermgr = self.lnpeermgr
+        now = time.monotonic()
+        outgoing = [self._add_channelless_peer(incoming=False, initialization_time=now - 7200) for _ in range(2)]
+        incoming = [self._add_channelless_peer(incoming=True, initialization_time=now - 3600 - i)
+                    for i in range(peermgr.MAX_CHANNELLESS_PEERS_PER_DIRECTION + 3)]
+        num_excess_incoming = len(incoming) - peermgr.MAX_CHANNELLESS_PEERS_PER_DIRECTION
+        await self._run_single_cleanup_iteration()
+        for peer in outgoing:  # outgoing peers survive even though they are the oldest
+            self.assertIn(peer.pubkey, peermgr.peers)
+        self.assertEqual(peermgr.MAX_CHANNELLESS_PEERS_PER_DIRECTION + len(outgoing), len(peermgr.peers))
+        # the incoming excess got evicted from the incoming peers, oldest first
+        evicted = [peer for peer in incoming if peer.pubkey not in peermgr.peers]
+        oldest_incoming = sorted(incoming, key=lambda p: p.initialization_time)[:num_excess_incoming]
+        self.assertEqual({p.pubkey for p in oldest_incoming}, {p.pubkey for p in evicted})
+
+    async def test_cleanup_unused_peers_keeps_young_outgoing_peers(self):
+        """Outgoing connections younger than the minimum lifetime are not evicted, even above the cap."""
+        peermgr = self.lnpeermgr
+        now = time.monotonic()
+        old = [self._add_channelless_peer(incoming=False, initialization_time=now - 3600) for _ in range(2)]
+        young = [self._add_channelless_peer(incoming=False, initialization_time=now - 5)
+                 for _ in range(peermgr.MAX_CHANNELLESS_PEERS_PER_DIRECTION + 2)]
+        await self._run_single_cleanup_iteration()
+        self.assertEqual(len(young), len(peermgr.peers))
+        for peer in old:
+            self.assertNotIn(peer.pubkey, peermgr.peers)
+        for peer in young:
+            self.assertIn(peer.pubkey, peermgr.peers)
 
     def test_choose_preferred_address(self):
         peermgr = self.lnpeermgr
