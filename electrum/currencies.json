@@ -192,9 +192,6 @@
     "Bitso": [
         "MXN"
     ],
-    "Bitvalor": [
-        "BRL"
-    ],
     "BlockchainInfo": [
         "ARS",
         "AUD",
@@ -227,9 +224,6 @@
     ],
     "Bylls": [
         "CAD"
-    ],
-    "CoinCap": [
-        "USD"
     ],
     "CoinGecko": [
         "AED",
@@ -631,9 +625,6 @@
         "GBP",
         "JPY",
         "USD"
-    ],
-    "Walltime": [
-        "BRL"
     ],
     "Yadio": [
         "AED",
