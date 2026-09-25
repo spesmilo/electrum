@@ -374,10 +374,10 @@ def custom_message_box(
             else:
                 custom_buttons.append(button)
     if type(icon) is QPixmap:
-        d = QMessageBox(QMessageBox.Icon.Information, title, str(text), standard_buttons, parent)
+        d = QMessageBox(QMessageBox.Icon.Information, title, "", standard_buttons, parent)
         d.setIconPixmap(icon)
     else:
-        d = QMessageBox(icon, title, str(text), standard_buttons, parent)
+        d = QMessageBox(icon, title, "", standard_buttons, parent)
     for button, role, _ in custom_buttons:
         d.addButton(button, role)
     d.setWindowModality(Qt.WindowModality.WindowModal)
@@ -388,6 +388,7 @@ def custom_message_box(
     else:
         d.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         d.setTextFormat(Qt.TextFormat.PlainText)
+    d.setText(str(text))  # set the text only after setting textFormat, so unwanted rich text is left unparsed
     if checkbox is not None:
         d.setCheckBox(checkbox)
     result = d.exec()
