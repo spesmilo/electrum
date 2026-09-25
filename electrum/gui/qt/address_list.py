@@ -184,13 +184,18 @@ class AddressList(MyTreeView):
             addr_list = self.wallet.get_change_addresses()
         else:
             addr_list = self.wallet.get_addresses()
-        self.proxy.setDynamicSortFilter(False)  # temp. disable re-sorting after every change
-        self.std_model.clear()
-        self.refresh_headers()
-        set_address = None
-        num_shown = 0
-        new_address_list_status = 0
+        should_show_fiat = self.should_show_fiat()
+        fiat_ccy = self.main_window.fx.get_currency() if should_show_fiat else None
+        fiat_rate = self.main_window.fx.exchange_rate() if should_show_fiat else None
         self.addresses_beyond_gap_limit = self.wallet.get_all_known_addresses_beyond_gap_limit()
+        num_shown = 0
+        new_address_list_status = hash((
+            self.show_change,
+            self.show_used,
+            should_show_fiat,
+            fiat_ccy,
+            fiat_rate,
+        ))
         for address in addr_list:
             c, u, x = self.wallet.get_addr_balance(address)
             balance = c + u + x
@@ -204,7 +209,38 @@ class AddressList(MyTreeView):
             if self.show_used == AddressUsageStateFilter.FUNDED_OR_UNUSED and is_used_and_empty:
                 continue
             num_shown += 1
-            new_address_list_status = hash((new_address_list_status, address, c, u, x, is_used_and_empty))
+            new_address_list_status = hash((
+                new_address_list_status,
+                address,
+                c,
+                u,
+                x,
+                is_used_and_empty,
+                self.wallet.get_label_for_address(address),
+                self.wallet.adb.get_address_history_len(address),
+                self.wallet.is_change(address),
+                self.wallet.is_frozen_address(address),
+                address in self.addresses_beyond_gap_limit,
+            ))
+        if (self._address_list_status == new_address_list_status
+                and self.std_model.rowCount() == num_shown):
+            return
+        self.proxy.setDynamicSortFilter(False)  # temp. disable re-sorting after every change
+        self.std_model.clear()
+        self.refresh_headers()
+        set_address = None
+        for address in addr_list:
+            c, u, x = self.wallet.get_addr_balance(address)
+            balance = c + u + x
+            is_used_and_empty = self.wallet.adb.is_used(address) and balance == 0
+            if self.show_used == AddressUsageStateFilter.UNUSED and (balance or is_used_and_empty):
+                continue
+            if self.show_used == AddressUsageStateFilter.FUNDED and balance == 0:
+                continue
+            if self.show_used == AddressUsageStateFilter.USED_AND_EMPTY and not is_used_and_empty:
+                continue
+            if self.show_used == AddressUsageStateFilter.FUNDED_OR_UNUSED and is_used_and_empty:
+                continue
             labels = [""] * len(self.Columns)
             labels[self.Columns.ADDRESS] = address
             address_item = [QStandardItem(e) for e in labels]
