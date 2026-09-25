@@ -929,4 +929,22 @@ ApplicationWindow
     property var _lastActive: 0 // record time of last activity
     property bool _lockDialogShown: false
 
+    // We want all Text/Label/etc components to use PlainText by default.
+    // Qt normally defaults to AutoText, which allows rich text.
+    // For our Android builds, we patch Qt at compile-time to change this.
+    // (see "qt-6-10-rich-text-should-be-opt-in.patch")
+    // FIXME other platforms? (e.g. running QML on desktop Linux / dev environment)
+    // This runtime check here aims to prevent regressions by hard-failing.
+    Label {
+        id: richtext_sanity_label
+        Component.onCompleted: {
+            if (richtext_sanity_label.textFormat !== 0 && AppController.isAndroid()) {
+                console.log(
+                    "richtext_sanity_label failed check: expected PlainText, "
+                    + "got " + richtext_sanity_label.textFormat + ". Exiting...")
+                Qt.callLater(Qt.quit)
+            }
+        }
+    }
+
 }
