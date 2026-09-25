@@ -1702,7 +1702,8 @@ class WalletDB(JsonDB):
         return {int(n): (v, cb) for (n, (v, cb)) in d.items()}
 
     @modifier
-    def add_txi_addr(self, tx_hash: str, addr: str, ser: str, v: int) -> None:
+    def add_txi_addr(self, tx_hash: str, addr: str, ser: str, v: int) -> bool:
+        """Returns True if the item was newly added to the DB, or False if it was already there."""
         assert isinstance(tx_hash, str)
         assert isinstance(addr, str)
         assert isinstance(ser, str)
@@ -1712,7 +1713,10 @@ class WalletDB(JsonDB):
         d = self.txi[tx_hash]
         if addr not in d:
             d[addr] = {}
+        if d[addr].get(ser) == v:
+            return False
         d[addr][ser] = v
+        return True
 
     @modifier
     def add_txo_addr(self, tx_hash: str, addr: str, n: Union[int, str], v: int, is_coinbase: bool) -> None:
