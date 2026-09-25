@@ -48,7 +48,7 @@ from electrum.lnsweep import SweepInfo
 from electrum.transaction import PartialTransaction, PartialTxOutput, Transaction, TxInput, tx_from_any
 
 from . import ElectrumTestCase
-from .lnhelpers import create_test_channels
+from .lnhelpers import create_test_channels, force_state_transition
 
 
 one_bitcoin_in_msat = bitcoin.COIN * 1000
@@ -1397,20 +1397,3 @@ class TestHtlcSpendWitnesses(ElectrumTestCase):
 class TestHtlcSpendWitnessesSRK(TestHtlcSpendWitnesses):
     assert TestHtlcSpendWitnesses.TEST_ANCHOR_CHANNELS is True
     TEST_ANCHOR_CHANNELS = False
-
-
-def force_state_transition(chanA: Channel, chanB: Channel) -> None:
-    # note: chanA signs first, chanB signs second, argument order matters.
-    #       All new updates originating from *A* will be irrevocably committed to in both ctxs after we return.
-    #       New updates originating from *B* will be irrevocably committed to A's ctx, but not to B's ctx yet.
-    # Alice           Bob
-    #   ---commitsig-->
-    #   <---revack-----
-    #   <--commitsig---
-    #   ----revack---->
-    chanB.receive_new_commitment(*chanA.sign_next_commitment())
-    rev = chanB.revoke_current_commitment()
-    bob_sig, bob_htlc_sigs = chanB.sign_next_commitment()
-    chanA.receive_revocation(rev)
-    chanA.receive_new_commitment(bob_sig, bob_htlc_sigs)
-    chanB.receive_revocation(chanA.revoke_current_commitment())
