@@ -13,8 +13,16 @@ This guide explains how to build Electrum binaries for macOS systems.
 
 This needs to be done on a system running macOS or OS X.
 
-The script is only tested on Intel-based (x86_64) Macs, and the binary built
-targets `x86_64` currently.
+The script is only tested on Intel-based (x86_64) Macs.
+By default, the binary built targets `x86_64`. To build the binary for
+Apple Silicon (`arm64`) Macs, set the `ELECTRUM_MACOS_ARCH` env var:
+
+    ELECTRUM_MACOS_ARCH=arm64 ./contrib/osx/make_osx.sh
+
+Note that the arm64 binary is *cross-compiled*: the build host stays x86_64
+for both targets (see [#7557](https://github.com/spesmilo/electrum/issues/7557)).
+The arm64 `.dmg` gets an `-arm64` suffix in its file name; the file name of the
+x86_64 `.dmg` is unchanged.
 
 Notes about compatibility with different macOS versions:
 - In general the binary is not guaranteed to run on an older version of macOS
