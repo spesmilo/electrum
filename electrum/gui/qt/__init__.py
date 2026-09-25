@@ -655,6 +655,7 @@ def standalone_exception_dialog(exception: Union[str, BaseException]) -> None:
         app = QApplication([])
 
     msg_box = QMessageBox()
+    msg_box.setTextFormat(Qt.TextFormat.PlainText)
     msg_box.setWindowTitle(_("Error starting Electrum"))
     msg_box.setIcon(QMessageBox.Icon.Critical)
     msg_box.setText(_("An error occurred") + ":")
