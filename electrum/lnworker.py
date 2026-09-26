@@ -78,7 +78,7 @@ from .lnutil import (
 )
 from .lnonion import (
     decode_onion_error, OnionFailureCode, OnionRoutingFailure, OnionPacket,
-    ProcessedOnionPacket, calc_hops_data_for_payment, new_onion_packet,
+    ProcessedOnionPacket, calc_hops_data_for_payment, new_onion_packet, InvalidPayloadSize,
 )
 from .lnmsg import decode_msg
 from .lnrouter import (
@@ -4276,25 +4276,37 @@ class LNWallet(Logger):
                     break
             # open JIT channel
             if not direct_channels and next_peer.accepts_zeroconf() and self.features.supports(LnFeatures.OPTION_ZEROCONF_OPT):
-                scid_alias = self._scid_alias_of_node(next_peer.pubkey)
-                route = [RouteEdge(
-                    start_node=next_peer.pubkey,
-                    end_node=outgoing_node_id,
-                    short_channel_id=scid_alias,
-                    fee_base_msat=0,
-                    fee_proportional_millionths=0,
-                    cltv_delta=144,
-                    node_features=0
-                )]
-                next_onion, amount_msat, cltv_abs, session_key = self.create_onion_for_route(
-                    route=route,
-                    amount_msat=amt_to_forward,
-                    total_msat=amt_to_forward,
-                    payment_hash=payment_hash,
-                    min_final_cltv_delta=cltv_budget_for_rest_of_route,
-                    payment_secret=payment_secret,
-                    trampoline_onion=next_trampoline_onion,
-                )
+                # The outgoing cltv is local_height + cltv_budget_for_rest_of_route, chosen by the sender.
+                # Check it here, as an exception other than OnionRoutingFailure would not fail the incoming htlcs.
+                if cltv_budget_for_rest_of_route <= 0:
+                    raise OnionRoutingFailure(code=OnionFailureCode.TRAMPOLINE_EXPIRY_TOO_SOON, data=b'')
+                if cltv_budget_for_rest_of_route > lnutil.NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE:
+                    raise OnionRoutingFailure(code=OnionFailureCode.EXPIRY_TOO_FAR, data=b'')
+                try:
+                    scid_alias = self._scid_alias_of_node(next_peer.pubkey)
+                    route = [RouteEdge(
+                        start_node=next_peer.pubkey,
+                        end_node=outgoing_node_id,
+                        short_channel_id=scid_alias,
+                        fee_base_msat=0,
+                        fee_proportional_millionths=0,
+                        cltv_delta=144,
+                        node_features=0
+                    )]
+                    next_onion, amount_msat, cltv_abs, session_key = self.create_onion_for_route(
+                        route=route,
+                        amount_msat=amt_to_forward,
+                        total_msat=amt_to_forward,
+                        payment_hash=payment_hash,
+                        min_final_cltv_delta=cltv_budget_for_rest_of_route,
+                        payment_secret=payment_secret,
+                        trampoline_onion=next_trampoline_onion,
+                    )
+                except InvalidPayloadSize as e:
+                    raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
+                except BaseException:
+                    self.logger.exception('failed to create onion for JIT channel')
+                    raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
                 await self.open_channel_just_in_time(
                     next_peer=next_peer,
                     next_amount_msat_htlc=amt_to_forward,
