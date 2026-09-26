@@ -362,6 +362,28 @@ class TxWalletDelta(NamedTuple):
     fee: Optional[int]
 
 
+class UnconfAncestorsInfo(NamedTuple):
+    """The chain of unconfirmed ancestors of a tx, as far as it is known to the wallet.
+    See Abstract_Wallet.get_unconf_ancestors_info.
+    """
+    chain: List[Tuple[int, int]]  # (fee, vsize) of each ancestor, parent first
+    all_ancestors_included: bool  # False if there are further unconfirmed ancestors not in the chain
+
+    def effective_feerate(self, *, tx_fee: int, tx_size: int) -> float:
+        """Returns the feerate (sat/vbyte) at which a tx with the given fee and vsize would
+        get mined: the lowest feerate of the tx together with its parent, grandparent, etc.
+        (ancestors above that point get mined on their own).
+        note: ancestors not in the chain and other descendants of the ancestors are ignored.
+        """
+        feerate = tx_fee / tx_size
+        fee, size = tx_fee, tx_size
+        for ancestor_fee, ancestor_size in self.chain:
+            fee += ancestor_fee
+            size += ancestor_size
+            feerate = min(feerate, fee / size)
+        return feerate
+
+
 class TxWalletDetails(NamedTuple):
     txid: Optional[str]
     status: str
@@ -2588,6 +2610,39 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if not is_dscancel and self.is_lightning_funding_tx(tx.txid()):
             return False
         return tx.is_rbf_enabled()
+
+    def get_unconf_ancestors_info(self, tx: Transaction) -> UnconfAncestorsInfo:
+        """Returns the chain of unconfirmed ancestors of tx, as far as known to the wallet.
+        Only a chain is handled (at most one unconfirmed parent per tx): the usual case
+        when spending the change of our own unconfirmed tx.
+        Ancestors that don't touch our addresses are not in our history, but the server
+        does tell us whether a mempool tx has unconfirmed parents at all
+        (TX_HEIGHT_UNCONF_PARENT vs TX_HEIGHT_UNCONFIRMED).
+        """
+        chain = []  # type: List[Tuple[int, int]]
+        all_ancestors_included = True
+        child = tx
+        while True:
+            parents = {txin.prevout.txid.hex() for txin in child.inputs()}
+            unconf_parents = [txid for txid in parents if self.adb.get_tx_height(txid).height() <= 0]
+            if not unconf_parents:
+                break
+            if len(unconf_parents) > 1:
+                all_ancestors_included = False  # not a chain
+                break
+            txid = unconf_parents[0]
+            parent = self.db.get_transaction(txid)
+            fee = self.adb.get_tx_fee(txid)
+            if parent is None or fee is None:
+                all_ancestors_included = False  # not in our history, or fee unknown
+                break
+            if not parent.is_complete():
+                parent.add_info_from_wallet(self)  # needed for estimated_size()
+            chain.append((fee, parent.estimated_size()))
+            if self.adb.get_tx_height(txid).height() == TX_HEIGHT_UNCONFIRMED:
+                break  # the server says all parents of this one are confirmed
+            child = parent
+        return UnconfAncestorsInfo(chain=chain, all_ancestors_included=all_ancestors_included)
 
     def cpfp(self, tx: Transaction, fee: int) -> Optional[PartialTransaction]:
         assert tx
