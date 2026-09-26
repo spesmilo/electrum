@@ -4315,6 +4315,9 @@ class LNWallet(Logger):
                     next_onion=next_onion)
                 return
 
+        # Here we only check that there is some budget, before calling pay_to_node,
+        # which is expensive (calls create_route_for_single_htlc in another thread)
+        # The real check (comparing our budget to the actual route) will be in pay_to_node
         if budget.fee_msat < (1000 if not direct_channels else 0):
             raise OnionRoutingFailure(code=OnionFailureCode.TRAMPOLINE_FEE_INSUFFICIENT, data=b'')
         if budget.cltv < (576 if not direct_channels else 0):
