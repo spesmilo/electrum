@@ -182,6 +182,14 @@ class TestDescriptor(ElectrumTestCase):
         self.assertRaises(ValueError, parse_descriptor, "")
 
     @as_testnet
+    def test_parse_descriptor_rejects_trailing_characters(self):
+        key = "tpubD6NzVbkrYhZ4WaWSyoBvQwbpLkojyoTZPRsgXELWz3Popb3qkjcJyJUGLnL4qHHoQvao8ESaAstxYSnhyswJ76uZPStJRJCTKvosUCJZL5B"
+        # trailing characters after the closing parenthesis must not be silently ignored
+        self.assertRaises(ValueError, parse_descriptor, "wpkh({}/0/0)abc".format(key))
+        # the same applies to the closing parenthesis of a nested descriptor
+        self.assertRaises(ValueError, parse_descriptor, "sh(wpkh({}/0/0))x".format(key))
+
+    @as_testnet
     def test_parse_descriptor_replace_h(self):
         d = "wpkh([00000001/84'/1'/0']tpubD6NzVbkrYhZ4WaWSyoBvQwbpLkojyoTZPRsgXELWz3Popb3qkjcJyJUGLnL4qHHoQvao8ESaAstxYSnhyswJ76uZPStJRJCTKvosUCJZL5B/0/0)"
         desc = parse_descriptor(d)
