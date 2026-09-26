@@ -4126,6 +4126,7 @@ class LNWallet(Logger):
         else:
             next_peer = None
 
+        open_jit_channel = False
         if not next_chan and next_peer and next_peer.accepts_zeroconf():
             # check if an already existing channel can be used.
             # todo: split the payment
@@ -4133,32 +4134,40 @@ class LNWallet(Logger):
                 if next_chan.can_pay(next_amount_msat_htlc):
                     break
             else:
-                return await self.open_channel_just_in_time(
-                    next_peer=next_peer,
-                    next_amount_msat_htlc=next_amount_msat_htlc,
-                    next_cltv_abs=next_cltv_abs,
-                    payment_hash=htlc.payment_hash,
-                    next_onion=processed_onion.next_packet)
+                open_jit_channel = True
 
         local_height = chain.height()
-        if next_chan is None:
-            log_fail_reason(f"cannot find next_chan {next_chan_scid}")
-            raise OnionRoutingFailure(code=OnionFailureCode.UNKNOWN_NEXT_PEER, data=b'')
-        outgoing_chan_upd = next_chan.get_outgoing_gossip_channel_update(scid=next_chan_scid)[2:]
-        outgoing_chan_upd_len = len(outgoing_chan_upd).to_bytes(2, byteorder="big")
-        outgoing_chan_upd_message = outgoing_chan_upd_len + outgoing_chan_upd
-        if not next_chan.can_send_update_add_htlc():
-            log_fail_reason(
-                f"next_chan {next_chan.get_id_for_log()} cannot send ctx updates. "
-                f"chan state {next_chan.get_state()!r}, peer state: {next_chan.peer_state!r}")
-            raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=outgoing_chan_upd_message)
-        if not next_chan.can_pay(next_amount_msat_htlc):
-            log_fail_reason(f"transient error (likely due to insufficient funds): not next_chan.can_pay(amt)")
-            raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=outgoing_chan_upd_message)
-        if htlc.cltv_abs - next_cltv_abs < next_chan.forwarding_cltv_delta:
+        if open_jit_channel:
+            # The channel does not exist yet, so there is no channel_update to put in errors.
+            # Fee and cltv delta are those of the route hint in the invoice of the client,
+            # see calc_routing_hints_for_invoice. The opening fee is deducted from the forwarded amount.
+            outgoing_chan_upd_message = (0).to_bytes(2, byteorder="big")
+            forwarding_cltv_delta = 144
+            forwarding_fees = 0
+        else:
+            if next_chan is None:
+                log_fail_reason(f"cannot find next_chan {next_chan_scid}")
+                raise OnionRoutingFailure(code=OnionFailureCode.UNKNOWN_NEXT_PEER, data=b'')
+            outgoing_chan_upd = next_chan.get_outgoing_gossip_channel_update(scid=next_chan_scid)[2:]
+            outgoing_chan_upd_len = len(outgoing_chan_upd).to_bytes(2, byteorder="big")
+            outgoing_chan_upd_message = outgoing_chan_upd_len + outgoing_chan_upd
+            if not next_chan.can_send_update_add_htlc():
+                log_fail_reason(
+                    f"next_chan {next_chan.get_id_for_log()} cannot send ctx updates. "
+                    f"chan state {next_chan.get_state()!r}, peer state: {next_chan.peer_state!r}")
+                raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=outgoing_chan_upd_message)
+            if not next_chan.can_pay(next_amount_msat_htlc):
+                log_fail_reason(f"transient error (likely due to insufficient funds): not next_chan.can_pay(amt)")
+                raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=outgoing_chan_upd_message)
+            forwarding_cltv_delta = next_chan.forwarding_cltv_delta
+            forwarding_fees = fee_for_edge_msat(
+                forwarded_amount_msat=next_amount_msat_htlc,
+                fee_base_msat=next_chan.forwarding_fee_base_msat,
+                fee_proportional_millionths=next_chan.forwarding_fee_proportional_millionths)
+        if htlc.cltv_abs - next_cltv_abs < forwarding_cltv_delta:
             log_fail_reason(
                 f"INCORRECT_CLTV_EXPIRY. "
-                f"{htlc.cltv_abs=} - {next_cltv_abs=} < {next_chan.forwarding_cltv_delta=}")
+                f"{htlc.cltv_abs=} - {next_cltv_abs=} < {forwarding_cltv_delta=}")
             data = htlc.cltv_abs.to_bytes(4, byteorder="big") + outgoing_chan_upd_message
             raise OnionRoutingFailure(code=OnionFailureCode.INCORRECT_CLTV_EXPIRY, data=data)
         if htlc.cltv_abs - lnutil.MIN_FINAL_CLTV_DELTA_ACCEPTED <= local_height \
@@ -4166,13 +4175,16 @@ class LNWallet(Logger):
             raise OnionRoutingFailure(code=OnionFailureCode.EXPIRY_TOO_SOON, data=outgoing_chan_upd_message)
         if max(htlc.cltv_abs, next_cltv_abs) > local_height + lnutil.NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE:
             raise OnionRoutingFailure(code=OnionFailureCode.EXPIRY_TOO_FAR, data=b'')
-        forwarding_fees = fee_for_edge_msat(
-            forwarded_amount_msat=next_amount_msat_htlc,
-            fee_base_msat=next_chan.forwarding_fee_base_msat,
-            fee_proportional_millionths=next_chan.forwarding_fee_proportional_millionths)
         if htlc.amount_msat - next_amount_msat_htlc < forwarding_fees:
             data = next_amount_msat_htlc.to_bytes(8, byteorder="big") + outgoing_chan_upd_message
             raise OnionRoutingFailure(code=OnionFailureCode.FEE_INSUFFICIENT, data=data)
+        if open_jit_channel:
+            return await self.open_channel_just_in_time(
+                next_peer=next_peer,
+                next_amount_msat_htlc=next_amount_msat_htlc,
+                next_cltv_abs=next_cltv_abs,
+                payment_hash=htlc.payment_hash,
+                next_onion=processed_onion.next_packet)
         self.logger.info(
             f"maybe_forward_htlc. will forward HTLC: inc_chan={incoming_chan.short_channel_id}. inc_htlc={str(htlc)}. "
             f"next_chan={next_chan.get_id_for_log()}.")
