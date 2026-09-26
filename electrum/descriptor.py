@@ -303,6 +303,26 @@ class PubkeyProvider(object):
             return False
         return b"\x04" == self.get_pubkey_bytes()[:1]
 
+    def validate_pubkey(self, *, permit_uncompressed: bool, is_taproot: bool) -> None:
+        """Check that a raw-hex pubkey is a valid public key for its context.
+
+        A full compressed or uncompressed point is accepted everywhere; a
+        32-byte x-only point is additionally accepted inside tr(). An
+        uncompressed point is rejected where the context forbids it. Keys
+        derived from an extended key are valid by construction and need no
+        point check.
+        """
+        if self.extkey is None:
+            data = unhexlify(self.pubkey)
+            if len(data) in (33, 65) and data[0] in (2, 3, 4) and ecc.ECPubkey.is_pubkey_bytes(data):
+                pass  # compressed or uncompressed point; hybrid prefixes 0x06/0x07 are rejected, as in Core
+            elif len(data) == 32 and is_taproot and ecc.ECPubkey.is_pubkey_bytes(b"\x02" + data):
+                pass  # x-only point (even y), BIP340
+            else:
+                raise ValueError(f"invalid public key in descriptor: {self.pubkey!r}")
+        if not permit_uncompressed and self.has_uncompressed_pubkey():
+            raise ValueError("uncompressed pubkeys are not allowed")
+
 
 class Descriptor(object):
     r"""
@@ -898,8 +918,8 @@ def parse_pubkey(expr: str, *, ctx: '_ParseDescriptorContext') -> Tuple['PubkeyP
         next_expr = expr[end + 1:]
     pubkey_provider = PubkeyProvider.parse(expr[:end])
     permit_uncompressed = ctx in (_ParseDescriptorContext.TOP, _ParseDescriptorContext.P2SH)
-    if not permit_uncompressed and pubkey_provider.has_uncompressed_pubkey():
-        raise ValueError("uncompressed pubkeys are not allowed")
+    is_taproot = ctx == _ParseDescriptorContext.P2TR
+    pubkey_provider.validate_pubkey(permit_uncompressed=permit_uncompressed, is_taproot=is_taproot)
     return pubkey_provider, next_expr
 
 
@@ -983,7 +1003,7 @@ def _parse_descriptor(desc: str, *, ctx: '_ParseDescriptorContext') -> 'Descript
     if func == "tr":
         if ctx != _ParseDescriptorContext.TOP:
             raise ValueError("Can only have tr at top level")
-        internal_key, expr = parse_pubkey(expr, ctx=ctx)
+        internal_key, expr = parse_pubkey(expr, ctx=_ParseDescriptorContext.P2TR)
         desc_tree = []
         if expr:
             def parse_tree(tree_str):
