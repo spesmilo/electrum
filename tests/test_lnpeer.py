@@ -37,7 +37,7 @@ from electrum.lnpeer import CoopCloseFailure
 from electrum.lntransport import LNPeerAddr
 from electrum.crypto import privkey_to_pubkey
 from electrum.lnutil import Keypair, PaymentFailure, LnFeatures, HTLCOwner, PaymentFeeBudget, RECEIVED
-from electrum.lnchannel import ChannelState, PeerState, Channel
+from electrum.lnchannel import ChannelState, PeerState, Channel, CF_ANNOUNCE_CHANNEL
 from electrum.lnrouter import LNPathFinder, PathEdge, LNPathInconsistent
 from electrum.channel_db import ChannelDB, InvalidGossipMsg
 from electrum.lnworker import LNWallet, NoPathFound, SentHtlcInfo, PaySession, LNPeerManager
@@ -2790,26 +2790,56 @@ class TestPeerForwarding(TestPeer):
                 attempts=2,
             )
 
-    async def test_payment_trampoline_e2e_lazy(self):
+    async def _test_lazy_trampoline(self, is_legacy):
         # alice -> T1_bob -> T2_carol -> T3_dave -> edward
+        # Bob is the lazy trampoline (no gossip)
         graph_definition = self.GRAPH_DEFINITIONS['line_graph']
-        graph = self.prepare_chans_and_peers_in_graph(graph_definition)
-        with self.assertRaises(NoPathFound):
-            await self._run_trampoline_payment(
-                graph, sender_name='alice',
-                destination_name='edward',
-                trampoline_forwarders=('bob', 'dave'),
-                trampoline_users=('alice', 'bob'),
-                attempts=3, # fails with only 2
-            )
-        with self.assertRaises(PaymentDone):
-            await self._run_trampoline_payment(
-                graph, sender_name='alice',
-                destination_name='edward',
-                trampoline_forwarders=('bob', 'carol', 'dave'),
-                trampoline_users=('alice', 'bob'),
-                attempts=3, # fails with only 2
-            )
+        # bob must not send back to alice: deplete channel
+        graph_definition['alice']['channels']['bob'][0]['remote_balance_msat'] = 0
+
+        workers = self.prepare_lnwallets(graph_definition)
+        # carol does not advertise trampoline, so bob does not hint her in subtest 1.
+        # subtests 2 and 3 rely on the hardcoded list, where she is added as forwarder.
+        workers['carol'].features &= ~LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM
+        graph = self.prepare_chans_and_peers_in_graph(graph_definition, workers=workers)
+        graph.workers['alice'].config.INITIAL_TRAMPOLINE_FEE_LEVEL = 6  # so that one attempt is enough
+        if is_legacy:
+            graph.workers['edward'].features = graph.workers['edward'].features ^ LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM
+
+        with self.subTest(msg="carol is not a trampoline: two attempts fail"):
+            with self.assertRaises(NoPathFound):
+                await self._run_trampoline_payment(
+                    graph, sender_name='alice',
+                    destination_name='edward',
+                    trampoline_forwarders=('bob', 'dave'),
+                    trampoline_users=('alice', 'bob'),
+                    attempts=2,
+                )
+        with self.subTest(msg="carol is a trampoline: one attempt fails"):
+            with self.assertRaises(NoPathFound):
+                await self._run_trampoline_payment(
+                    graph, sender_name='alice',
+                    destination_name='edward',
+                    trampoline_forwarders=('bob', 'carol', 'dave'),
+                    trampoline_users=('alice', 'bob'),
+                    attempts=1,
+                )
+        with self.subTest(msg="carol is a trampoline: two attempts succeed"):
+            with self.assertRaises(PaymentDone):
+                await self._run_trampoline_payment(
+                    graph, sender_name='alice',
+                    destination_name='edward',
+                    trampoline_forwarders=('bob', 'carol', 'dave'),
+                    trampoline_users=('alice', 'bob'),
+                    attempts=2,
+                )
+
+    async def test_lazy_trampoline_e2e(self):
+        await self._test_lazy_trampoline(is_legacy=False)
+
+    async def test_lazy_trampoline_legacy(self):
+        await self._test_lazy_trampoline(is_legacy=True)
+
 
     async def test_multi_trampoline_payment(self):
         """

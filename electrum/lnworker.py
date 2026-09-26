@@ -2504,7 +2504,7 @@ class LNWallet(Logger):
             try:
                 is_direct_path = all(node_id == paysession.invoice_pubkey for (chan_id, node_id) in sc.config.keys())
                 if self.uses_trampoline() and not is_direct_path:
-                    if fwd_trampoline_onion:
+                    if we_are_forwarding:
                         raise NoPathFound()
                     per_trampoline_channel_amounts = defaultdict(list)
                     # categorize by trampoline nodes for trampoline mpp construction
