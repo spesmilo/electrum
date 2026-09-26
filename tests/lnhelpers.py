@@ -6,6 +6,8 @@ from decimal import Decimal
 from pprint import pformat
 from typing import NamedTuple, Tuple, Dict, Mapping, TYPE_CHECKING, Sequence
 
+import attr
+
 import electrum
 import electrum.trampoline
 from electrum import (
@@ -18,8 +20,8 @@ from electrum.bolt11 import encode_bolt11_invoice, BOLT11Addr, decode_bolt11_inv
 from electrum.invoices import PR_UNPAID, Invoice, LN_EXPIRY_NEVER
 from electrum.lnpeer import Peer
 from electrum.lnutil import (
-    LnFeatures, PaymentFeeBudget, LOCAL, REMOTE, ChannelType, LocalConfig, RemoteConfig,
-    OnlyPubkeyKeypair, secret_to_pubkey, RECEIVED,
+    LnFeatures, PaymentFeeBudget, LOCAL, REMOTE, ChannelType, ChannelConfig, ChannelKeys,
+    RECEIVED,
 )
 from electrum.lnchannel import ChannelState, Channel
 from electrum.lnrouter import LNPathFinder
@@ -512,33 +514,16 @@ def prepare_chans_and_peers_in_graph(
     return graph
 
 
-def _convert_to_rconfig_from_lconfig(lconfig: LocalConfig) -> RemoteConfig:
-    """converts Alice's local config to Bob's remote config (neutering private keys, etc)"""
-    ctn = 0
-    pcp_secret = lnutil.get_per_commitment_secret_from_seed(
-        lconfig.per_commitment_secret_seed,
-        lnutil.RevocationStore.START_INDEX - ctn)
-    pcp_point = secret_to_pubkey(int.from_bytes(pcp_secret, 'big'))
-    rconfig = RemoteConfig(
-        payment_basepoint=OnlyPubkeyKeypair(pubkey=lconfig.payment_basepoint.pubkey),
-        multisig_key=OnlyPubkeyKeypair(pubkey=lconfig.multisig_key.pubkey),
-        htlc_basepoint=OnlyPubkeyKeypair(pubkey=lconfig.htlc_basepoint.pubkey),
-        delayed_basepoint=OnlyPubkeyKeypair(pubkey=lconfig.delayed_basepoint.pubkey),
-        revocation_basepoint=OnlyPubkeyKeypair(pubkey=lconfig.revocation_basepoint.pubkey),
-        to_self_delay=lconfig.to_self_delay,
-        dust_limit_sat=lconfig.dust_limit_sat,
-        max_htlc_value_in_flight_msat=lconfig.max_htlc_value_in_flight_msat,
-        max_accepted_htlcs=lconfig.max_accepted_htlcs,
-        initial_msat=lconfig.initial_msat,
-        reserve_sat=lconfig.reserve_sat,
-        htlc_minimum_msat=lconfig.htlc_minimum_msat,
-        upfront_shutdown_script=lconfig.upfront_shutdown_script,
-        announcement_node_sig=lconfig.announcement_node_sig,
-        announcement_bitcoin_sig=lconfig.announcement_bitcoin_sig,
-        next_per_commitment_point=pcp_point,
+def _convert_to_rconfig_from_lconfig(lconfig: ChannelConfig) -> ChannelConfig:
+    """Alice's local config, as it appears in Bob's channel: the same public parameters,
+    with only the first per-commitment point known, and no signatures yet."""
+    return attr.evolve(
+        lconfig,
+        current_commitment_signature=None,
+        current_htlc_signatures=b'',
         current_per_commitment_point=None,
+        next_per_commitment_point=lconfig.current_per_commitment_point,
     )
-    return rconfig
 
 
 def _create_channel_state(
@@ -549,8 +534,9 @@ def _create_channel_state(
     is_initiator: bool,
     other_node_id: bytes,
     channel_type: ChannelType,
-    local_config: LocalConfig,
-    remote_config: RemoteConfig,
+    local_config: ChannelConfig,
+    local_keys: ChannelKeys,
+    remote_config: ChannelConfig,
 ):
     channel_id, _ = lnpeer.channel_id_from_funding_tx(funding_txid, funding_index)
     state = {
@@ -559,6 +545,9 @@ def _create_channel_state(
             "funding_outpoint":lnpeer.Outpoint(funding_txid, funding_index),
             "remote_config": remote_config,
             "local_config": local_config,
+            "channel_seed": local_keys.channel_seed.hex(),
+            "multisig_privkey": local_keys.multisig_key.privkey.hex(),
+            "funding_locked_received": True,  # this helper only creates open channels
             "constraints":lnpeer.ChannelConstraints(
                 flags=lnchannel.CF_ANNOUNCE_CHANNEL,
                 capacity=funding_sat,
@@ -614,7 +603,7 @@ def create_test_channels(
     else:
         channel_type = ChannelType.OPTION_STATIC_REMOTEKEY | ChannelType.OPTION_ANCHORS
     # create alice's local config
-    alice_lconfig = alice_lnwallet.make_local_config_for_new_channel(
+    alice_lconfig, alice_lkeys = alice_lnwallet.make_local_config_for_new_channel(
         funding_sat=funding_sat,
         push_msat=remote_msat,
         initiator=LOCAL,
@@ -623,14 +612,13 @@ def create_test_channels(
         peer_features=peer_features,
         channel_seed=random_gen.get_bytes(32),
     )
-    alice_lconfig.funding_locked_received = True
     alice_lconfig.dust_limit_sat = 200
     alice_lconfig.to_self_delay = 5
     alice_lconfig.reserve_sat = 0
     alice_lconfig.max_accepted_htlcs = max_accepted_htlcs
     alice_lconfig.max_htlc_value_in_flight_msat = local_max_inflight
     # create bob's local config
-    bob_lconfig = bob_lnwallet.make_local_config_for_new_channel(
+    bob_lconfig, bob_lkeys = bob_lnwallet.make_local_config_for_new_channel(
         funding_sat=funding_sat,
         push_msat=remote_msat,
         initiator=REMOTE,
@@ -639,7 +627,6 @@ def create_test_channels(
         peer_features=peer_features,
         channel_seed=random_gen.get_bytes(32),
     )
-    bob_lconfig.funding_locked_received = True
     bob_lconfig.dust_limit_sat = 1300
     bob_lconfig.to_self_delay = 4
     bob_lconfig.reserve_sat = 0
@@ -656,6 +643,7 @@ def create_test_channels(
                 other_node_id=bob_pubkey,
                 channel_type=channel_type,
                 local_config=alice_lconfig,
+                local_keys=alice_lkeys,
                 remote_config=_convert_to_rconfig_from_lconfig(bob_lconfig),
             ),
             name=f"{alice_name}->{bob_name}",
@@ -671,6 +659,7 @@ def create_test_channels(
                 other_node_id=alice_pubkey,
                 channel_type=channel_type,
                 local_config=bob_lconfig,
+                local_keys=bob_lkeys,
                 remote_config=_convert_to_rconfig_from_lconfig(alice_lconfig),
             ),
             name=f"{bob_name}->{alice_name}",
@@ -698,10 +687,8 @@ def create_test_channels(
     alice.open_with_first_pcp(alice.config[REMOTE].next_per_commitment_point, sig_from_bob)
     bob.open_with_first_pcp(bob.config[REMOTE].next_per_commitment_point, sig_from_alice)
 
-    alice_second = lnutil.secret_to_pubkey(int.from_bytes(
-        lnutil.get_per_commitment_secret_from_seed(alice.config[LOCAL].per_commitment_secret_seed, lnutil.RevocationStore.START_INDEX - 1), "big"))
-    bob_second = lnutil.secret_to_pubkey(int.from_bytes(
-        lnutil.get_per_commitment_secret_from_seed(bob.config[LOCAL].per_commitment_secret_seed, lnutil.RevocationStore.START_INDEX - 1), "big"))
+    alice_second = alice.keys.per_commitment_point(1)
+    bob_second = bob.keys.per_commitment_point(1)
 
     # from funding_locked:
     alice.config[REMOTE].next_per_commitment_point = bob_second

@@ -7,7 +7,10 @@ import asyncio
 import inspect
 
 import electrum
-from electrum.wallet_db import WalletDBUpgrader, WalletDB, WalletRequiresUpgrade, WalletRequiresSplit
+from electrum.wallet_db import (WalletDBUpgrader, WalletDB, WalletRequiresUpgrade,
+                                WalletRequiresSplit, FINAL_SEED_VERSION)
+from electrum.lnutil import DERIVED_LOCAL_BASEPOINTS, ChannelKeys
+from electrum.util import bfh
 from electrum.bolt11 import BOLT11DecodeException
 from electrum.wallet import Wallet
 from electrum import constants
@@ -324,13 +327,15 @@ class TestStorageUpgrade(WalletTestCase):
         # some labels, frozen addresses, saved local txs, invoices/requests, etc. The file also has partial writes.
         # Also, regression test for #8913
         wallet_str = self._get_wallet_str()
-        await self._upgrade_storage(wallet_str)
+        db = await self._upgrade_storage(wallet_str)
+        self._check_channel_configs_are_symmetric(db)  # static_remotekey channels
 
     @as_regtest
     async def test_upgrade_from_client_4_6_0_with_unfulfilled_htlcs(self):
         # tests unfulfilled_htlcs conversion in 62->63. seed_version is 60.
         wallet_str = self._get_wallet_str()
-        await self._upgrade_storage(wallet_str)
+        db = await self._upgrade_storage(wallet_str)
+        self._check_channel_configs_are_symmetric(db)  # anchor channels
 
     @as_testnet
     async def test_upgrade_from_client_4_8_1_9dk_with_ln_chan_backups(self):
@@ -372,7 +377,7 @@ class TestStorageUpgrade(WalletTestCase):
                          'good': invoice_json(good)},
         }
         db = self._load_db_from_json_string(wallet_json=json.dumps(data), upgrade=True)
-        self.assertEqual(73, db.get('seed_version'))
+        self.assertEqual(FINAL_SEED_VERSION, db.get('seed_version'))
         self.assertEqual(['good'], list(db.get_dict('invoices').keys()))
 
         # sanity: without the conversion (i.e. already at seed_version 73) the same file
@@ -386,7 +391,7 @@ class TestStorageUpgrade(WalletTestCase):
         data['invoices'] = {key: {'type': 2, 'invoice': invoice_str}
                             for key, invoice_str in (('bad_r', bad_r), ('good', good))}
         db = self._load_db_from_json_string(wallet_json=json.dumps(data), upgrade=True)
-        self.assertEqual(73, db.get('seed_version'))
+        self.assertEqual(FINAL_SEED_VERSION, db.get('seed_version'))
         self.assertEqual(['good'], list(db.get_dict('invoices').keys()))
 
     @as_testnet
@@ -423,7 +428,7 @@ class TestStorageUpgrade(WalletTestCase):
                                          good_rhash: request_json(seed_version, good)},
                 }
                 db = self._load_db_from_json_string(wallet_json=json.dumps(data), upgrade=True)
-                self.assertEqual(73, db.get('seed_version'))
+                self.assertEqual(FINAL_SEED_VERSION, db.get('seed_version'))
                 self.assertEqual([good_rhash], list(db.get_dict('payment_requests').keys()))
 
 
@@ -467,6 +472,35 @@ class TestStorageUpgrade(WalletTestCase):
                     data = json.dumps(item)
                     new_db = WalletDB(data, storage=None, upgrade=True)
                     await self._sanity_check_upgraded_db(new_db)
+
+    def _check_channel_configs_are_symmetric(self, db: WalletDB) -> None:
+        """Conversion 73->74 drops the local channel keys that are derived from the
+        channel seed, and moves our remaining secrets out of the config, so that the two
+        configs end up with the same fields.
+        """
+        channels = json.loads(db.dump())['channels']
+        self.assertTrue(channels)
+        for channel_id, chan in channels.items():
+            local_config, remote_config = chan['local_config'], chan['remote_config']
+            self.assertEqual(sorted(local_config), sorted(remote_config))
+            self.assertNotIn('per_commitment_secret_seed', local_config)
+            for name in ('payment_basepoint', 'multisig_key', *DERIVED_LOCAL_BASEPOINTS):
+                self.assertEqual(['pubkey'], list(local_config[name]))
+                self.assertEqual(['pubkey'], list(remote_config[name]))
+            # our secrets are now kept next to the configs
+            self.assertEqual(64, len(chan['channel_seed']))
+            self.assertEqual(64, len(chan['multisig_privkey']))
+            self.assertIn('funding_locked_received', chan)
+            # in memory, the keys are re-derived and checked against the stored pubkeys
+            keys = ChannelKeys.from_seed(
+                bfh(chan['channel_seed']), multisig_privkey=bfh(chan['multisig_privkey']))
+            keys.check_against_config(db.get('channels')[channel_id]['local_config'])
+            # our per-commitment points were backfilled, and must match our ctn
+            ctn = max(chan['log']['1']['ctn'], 0)
+            self.assertEqual(keys.per_commitment_point(ctn).hex(),
+                             local_config['current_per_commitment_point'])
+            self.assertEqual(keys.per_commitment_point(ctn + 1).hex(),
+                             local_config['next_per_commitment_point'])
 
     async def _sanity_check_upgraded_db(self, db):
         wallet = Wallet(db, config=self.config)

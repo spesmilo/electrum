@@ -74,7 +74,7 @@ from .lnutil import (
     OnchainChannelBackupStorage, ln_compare_features, IncompatibleLightningFeatures, PaymentFeeBudget,
     NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, GossipForwardingMessage, MIN_FUNDING_SAT,
     MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE, RecvMPPResolution, ReceivedMPPStatus, ReceivedMPPHtlc,
-    PaymentSuccess, ChannelType, LocalConfig, Keypair, ZEROCONF_TIMEOUT,
+    PaymentSuccess, ChannelType, ChannelConfig, ChannelKeys, Keypair, ZEROCONF_TIMEOUT,
 )
 from .lnonion import (
     decode_onion_error, OnionFailureCode, OnionRoutingFailure, OnionPacket,
@@ -1767,7 +1767,7 @@ class LNWallet(Logger):
         multisig_funding_keypair: Optional[Keypair],  # if None, will get derived from channel_seed
         peer_features: LnFeatures,
         channel_seed: bytes | None = None,
-    ) -> LocalConfig:
+    ) -> Tuple[ChannelConfig, ChannelKeys]:
         if channel_seed is None:
             channel_seed = crandom.get_rand_bytes(32)
         initial_msat = funding_sat * 1000 - push_msat if initiator == LOCAL else push_msat
@@ -1805,12 +1805,14 @@ class LNWallet(Logger):
         # https://github.com/ElementsProject/lightning/blob/0056dd75572a8857cff36fcbdb1a2295a1ac9253/lightningd/options.c#L657
         # https://github.com/lightningnetwork/lnd/blob/56b61078c5b2be007d318673a5f3b40c6346883a/config.go#L81
         max_htlc_value_in_flight_msat = self.network.config.LIGHTNING_MAX_HTLC_VALUE_IN_FLIGHT_MSAT or funding_sat * 1000
-        local_config = LocalConfig.from_seed(
-            channel_seed=channel_seed,
+        keys = ChannelKeys.from_seed(
+            channel_seed,
+            multisig_privkey=multisig_funding_keypair.privkey if multisig_funding_keypair else None)
+        local_config = ChannelConfig.for_us(
+            keys=keys,
             channel_type=channel_type,
             payment_basepoint=payment_basepoint,
             static_payment_key=static_payment_key,
-            multisig_key=multisig_funding_keypair,
             upfront_shutdown_script=upfront_shutdown_script,
             to_self_delay=self.network.config.LIGHTNING_TO_SELF_DELAY_CSV,
             dust_limit_sat=dust_limit_sat,
@@ -1818,15 +1820,14 @@ class LNWallet(Logger):
             max_accepted_htlcs=30,
             initial_msat=initial_msat,
             reserve_sat=reserve_sat,
-            funding_locked_received=False,
-            current_commitment_signature=None,
-            current_htlc_signatures=b'',
             htlc_minimum_msat=1,
             announcement_node_sig=b'',
             announcement_bitcoin_sig=b'',
         )
-        local_config.validate_params(funding_sat=funding_sat, config=self.network.config, peer_features=peer_features)
-        return local_config
+        local_config.validate_params(
+            funding_sat=funding_sat, config=self.network.config,
+            peer_features=peer_features, is_local=True)
+        return local_config, keys
 
     def cb_data(self, node_id: bytes) -> bytes:
         return CB_MAGIC_BYTES + node_id[0:NODE_ID_PREFIX_LEN]
@@ -3817,7 +3818,7 @@ class LNWallet(Logger):
         peer_addresses = list(chan.get_peer_addresses())
         peer_addr = peer_addresses[0] if peer_addresses else None
         if chan.has_anchors():
-            local_payment_basepoint = chan.config[LOCAL].payment_basepoint.privkey
+            local_payment_basepoint = chan.get_payment_basepoint_privkey()
         else:
             local_payment_basepoint = chan.config[LOCAL].payment_basepoint.pubkey
         return ImportedChannelBackupStorage(
@@ -3829,14 +3830,14 @@ class LNWallet(Logger):
             host=peer_addr.host if peer_addr else '',
             port=peer_addr.port if peer_addr else 0,
             is_initiator=chan.constraints.is_initiator,
-            channel_seed=chan.config[LOCAL].channel_seed,
+            channel_seed=chan.keys.channel_seed,
             channel_type=int(chan.storage['channel_type']),
             local_delay=chan.config[LOCAL].to_self_delay,
             remote_delay=chan.config[REMOTE].to_self_delay,
             remote_revocation_pubkey=chan.config[REMOTE].revocation_basepoint.pubkey,
             remote_payment_pubkey=chan.config[REMOTE].payment_basepoint.pubkey,
             local_payment_basepoint=local_payment_basepoint,
-            multisig_funding_privkey=chan.config[LOCAL].multisig_key.privkey,
+            multisig_funding_privkey=chan.keys.multisig_key.privkey,
         )
 
     def export_channel_backup(self, channel_id):

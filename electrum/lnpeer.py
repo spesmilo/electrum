@@ -38,10 +38,10 @@ from .lnonion import (OnionFailureCode, OnionPacket, obfuscate_onion_error,
                       OnionParsingError)
 from .lnchannel import Channel, RevokeAndAck, ChannelState, PeerState, ChanCloseOption, CF_ANNOUNCE_CHANNEL
 from . import lnutil
-from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc, ChannelConfig, LnFeatureContexts,
-                     RemoteConfig, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore,
-                     funding_output_script, get_per_commitment_secret_from_seed,
-                     secret_to_pubkey, PaymentFailure, LnFeatures,
+from .lnutil import (Outpoint, RECEIVED, UpdateAddHtlc,
+                     ChannelConfig, ChannelKeys, LnFeatureContexts,
+                     OnlyPubkeyKeypair, ChannelConstraints, RevocationStore,
+                     funding_output_script, PaymentFailure, LnFeatures,
                      LOCAL, REMOTE, HTLCOwner,
                      ln_compare_features, MIN_FINAL_CLTV_DELTA_ACCEPTED,
                      RemoteMisbehaving, ShortChannelID,
@@ -1054,7 +1054,7 @@ class Peer(Logger, EventListener):
             )
         else:
             multisig_funding_keypair = None
-        local_config = self.lnworker.make_local_config_for_new_channel(
+        local_config, local_keys = self.lnworker.make_local_config_for_new_channel(
             funding_sat=funding_sat,
             push_msat=push_msat,
             initiator=LOCAL,
@@ -1071,14 +1071,6 @@ class Peer(Logger, EventListener):
             open_channel_tlvs['channel_opening_fee'] = {
                 'channel_opening_fee': opening_fee
             }
-        # for the first commitment transaction
-        per_commitment_secret_first = get_per_commitment_secret_from_seed(
-            local_config.per_commitment_secret_seed,
-            RevocationStore.START_INDEX
-        )
-        per_commitment_point_first = secret_to_pubkey(
-            int.from_bytes(per_commitment_secret_first, 'big'))
-
         # store the temp id now, so that it is recognized for e.g. 'error' messages
         self.temp_id_to_id[temp_channel_id] = None
         self._cleanup_temp_channelids()
@@ -1096,7 +1088,7 @@ class Peer(Logger, EventListener):
             htlc_basepoint=local_config.htlc_basepoint.pubkey,
             payment_basepoint=local_config.payment_basepoint.pubkey,
             delayed_payment_basepoint=local_config.delayed_basepoint.pubkey,
-            first_per_commitment_point=per_commitment_point_first,
+            first_per_commitment_point=local_config.current_per_commitment_point,
             to_self_delay=local_config.to_self_delay,
             max_htlc_value_in_flight_msat=local_config.max_htlc_value_in_flight_msat,
             channel_flags=channel_flags,
@@ -1130,7 +1122,7 @@ class Peer(Logger, EventListener):
         if their_channel_type != our_channel_type:
             raise Exception(f"channel_type is not the one that we sent. {our_channel_type=}. {their_channel_type=}.")
 
-        remote_config = RemoteConfig(
+        remote_config = ChannelConfig(
             payment_basepoint=OnlyPubkeyKeypair(payload['payment_basepoint']),
             multisig_key=OnlyPubkeyKeypair(payload["funding_pubkey"]),
             htlc_basepoint=OnlyPubkeyKeypair(payload['htlc_basepoint']),
@@ -1143,8 +1135,10 @@ class Peer(Logger, EventListener):
             initial_msat=push_msat,
             reserve_sat=payload["channel_reserve_satoshis"],
             htlc_minimum_msat=payload['htlc_minimum_msat'],
-            next_per_commitment_point=remote_per_commitment_point,
+            current_commitment_signature=None,
+            current_htlc_signatures=b'',
             current_per_commitment_point=None,
+            next_per_commitment_point=remote_per_commitment_point,
             upfront_shutdown_script=upfront_shutdown_script,
             announcement_node_sig=b'',
             announcement_bitcoin_sig=b'',
@@ -1199,6 +1193,7 @@ class Peer(Logger, EventListener):
             channel_id=channel_id,
             outpoint=outpoint,
             local_config=local_config,
+            local_keys=local_keys,
             remote_config=remote_config,
             constraints=constraints,
             channel_type=our_channel_type,
@@ -1245,8 +1240,9 @@ class Peer(Logger, EventListener):
         self, *,
         channel_id: bytes,
         outpoint: Outpoint,
-        local_config: LocalConfig,
-        remote_config: RemoteConfig,
+        local_config: ChannelConfig,
+        local_keys: ChannelKeys,
+        remote_config: ChannelConfig,
         constraints: ChannelConstraints,
         channel_type: ChannelType,
     ) -> dict:
@@ -1257,6 +1253,11 @@ class Peer(Logger, EventListener):
             "funding_outpoint": outpoint,
             "remote_config": remote_config,
             "local_config": local_config,
+            # our channel secrets. everything else we need is derived from the seed.
+            # (see ChannelKeys)
+            "channel_seed": local_keys.channel_seed.hex(),
+            "multisig_privkey": local_keys.multisig_key.privkey.hex(),
+            "funding_locked_received": False,
             "constraints": constraints,
             "remote_update": None,
             "state": ChannelState.PREOPENING.name,
@@ -1343,7 +1344,7 @@ class Peer(Logger, EventListener):
             )
         else:
             multisig_funding_keypair = None
-        local_config = self.lnworker.make_local_config_for_new_channel(
+        local_config, local_keys = self.lnworker.make_local_config_for_new_channel(
             funding_sat=funding_sat,
             push_msat=push_msat,
             initiator=REMOTE,
@@ -1355,7 +1356,7 @@ class Peer(Logger, EventListener):
         upfront_shutdown_script = self.upfront_shutdown_script_from_payload(
             payload, 'open')
 
-        remote_config = RemoteConfig(
+        remote_config = ChannelConfig(
             payment_basepoint=OnlyPubkeyKeypair(payload['payment_basepoint']),
             multisig_key=OnlyPubkeyKeypair(payload['funding_pubkey']),
             htlc_basepoint=OnlyPubkeyKeypair(payload['htlc_basepoint']),
@@ -1368,8 +1369,10 @@ class Peer(Logger, EventListener):
             initial_msat=funding_sat * 1000 - push_msat,
             reserve_sat=payload['channel_reserve_satoshis'],
             htlc_minimum_msat=payload['htlc_minimum_msat'],
-            next_per_commitment_point=payload['first_per_commitment_point'],
+            current_commitment_signature=None,
+            current_htlc_signatures=b'',
             current_per_commitment_point=None,
+            next_per_commitment_point=payload['first_per_commitment_point'],
             upfront_shutdown_script=upfront_shutdown_script,
             announcement_node_sig=b'',
             announcement_bitcoin_sig=b'',
@@ -1388,14 +1391,6 @@ class Peer(Logger, EventListener):
         channel_flags = ord(payload['channel_flags'])
 
         # -> accept channel
-        # for the first commitment transaction
-        per_commitment_secret_first = get_per_commitment_secret_from_seed(
-            local_config.per_commitment_secret_seed,
-            RevocationStore.START_INDEX
-        )
-        per_commitment_point_first = secret_to_pubkey(
-            int.from_bytes(per_commitment_secret_first, 'big'))
-
         min_depth = 0 if is_zeroconf else 3
 
         accept_channel_tlvs = {
@@ -1422,7 +1417,7 @@ class Peer(Logger, EventListener):
             payment_basepoint=local_config.payment_basepoint.pubkey,
             delayed_payment_basepoint=local_config.delayed_basepoint.pubkey,
             htlc_basepoint=local_config.htlc_basepoint.pubkey,
-            first_per_commitment_point=per_commitment_point_first,
+            first_per_commitment_point=local_config.current_per_commitment_point,
             accept_channel_tlvs=accept_channel_tlvs,
         )
 
@@ -1448,6 +1443,7 @@ class Peer(Logger, EventListener):
             channel_id=channel_id,
             outpoint=outpoint,
             local_config=local_config,
+            local_keys=local_keys,
             remote_config=remote_config,
             constraints=constraints,
             channel_type=channel_type,
@@ -1813,9 +1809,7 @@ class Peer(Logger, EventListener):
         if chan.sent_channel_ready:
             return
         channel_id = chan.channel_id
-        per_commitment_secret_index = RevocationStore.START_INDEX - 1
-        second_per_commitment_point = secret_to_pubkey(int.from_bytes(
-            get_per_commitment_secret_from_seed(chan.config[LOCAL].per_commitment_secret_seed, per_commitment_secret_index), 'big'))
+        second_per_commitment_point = chan.keys.per_commitment_point(1)
         channel_ready_tlvs = {}
         if self.features.supports(LnFeatures.OPTION_SCID_ALIAS_OPT):
             # LND requires that we send an alias if the option has been negotiated in INIT.
@@ -1844,10 +1838,10 @@ class Peer(Logger, EventListener):
         scid_alias = payload.get('channel_ready_tlvs', {}).get('short_channel_id', {}).get('alias')
         if scid_alias:
             chan.save_remote_scid_alias(scid_alias)
-        if not chan.config[LOCAL].funding_locked_received:
+        if not chan.funding_locked_received:
             their_next_point = payload["second_per_commitment_point"]
             chan.config[REMOTE].next_per_commitment_point = their_next_point
-            chan.config[LOCAL].funding_locked_received = True
+            chan.funding_locked_received = True
             self.lnworker.save_channel(chan)
         self.maybe_mark_open(chan)
 
@@ -1915,7 +1909,7 @@ class Peer(Logger, EventListener):
     def maybe_mark_open(self, chan: Channel):
         if not chan.sent_channel_ready:
             return
-        if not chan.config[LOCAL].funding_locked_received:
+        if not chan.funding_locked_received:
             return
         self.mark_open(chan)
 
@@ -1928,7 +1922,7 @@ class Peer(Logger, EventListener):
         if old_state != ChannelState.FUNDED:
             self.logger.info(f"cannot mark open ({chan.get_id_for_log()}), current state: {repr(old_state)}")
             return
-        assert chan.config[LOCAL].funding_locked_received
+        assert chan.funding_locked_received
         chan.set_state(ChannelState.OPEN)
         util.trigger_callback('channel', self.lnworker.wallet, chan)
         # peer may have sent us a channel update for the incoming direction previously
@@ -1950,7 +1944,7 @@ class Peer(Logger, EventListener):
         if not is_reply and chan.config[REMOTE].announcement_node_sig:
             return
         h = chan.get_channel_announcement_hash()
-        bitcoin_signature = ecc.ECPrivkey(chan.config[LOCAL].multisig_key.privkey).ecdsa_sign(h, sigencode=ecdsa_sig64_from_r_and_s)
+        bitcoin_signature = ecc.ECPrivkey(chan.keys.multisig_key.privkey).ecdsa_sign(h, sigencode=ecdsa_sig64_from_r_and_s)
         node_signature = ecc.ECPrivkey(self.privkey).ecdsa_sign(h, sigencode=ecdsa_sig64_from_r_and_s)
         self.send_message(
             "announcement_signatures",
