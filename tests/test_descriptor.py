@@ -20,6 +20,8 @@ from electrum.descriptor import (
     WSHDescriptor,
     PubkeyProvider,
 )
+from electrum.bip32 import BIP32Node
+from electrum.bitcoin import taproot_output_script
 from electrum.util import bfh
 
 from . import ElectrumTestCase, as_testnet
@@ -257,6 +259,42 @@ class TestDescriptor(ElectrumTestCase):
         self.assertEqual(
             "512017cf18db381d836d8923b1bdb246cfcd818da1a9f0e6e7907f187f0b2f937754",
             parse_descriptor("tr(a34b99f22c790c4e36b2b3c2c35a36db06226e41c692fc82b8b56ac1c540c5bd,pk(669b8afcec803a0d323e9a17f3ea8e68e8abe5a278020a929adbec52421adbd0))").expand().output_script.hex())
+
+    @as_testnet
+    def test_tr_descriptor_expand_reduces_compressed_key_to_xonly(self):
+        # A tr() internal key, or a pk() tapscript leaf key, given as a 33-byte compressed
+        # point (raw, or derived from an extended key) is reduced to its 32-byte x-only form
+        # for the taproot output, as Bitcoin Core does by dropping the parity byte.
+        tpub = "tpubD6NzVbkrYhZ4WaWSyoBvQwbpLkojyoTZPRsgXELWz3Popb3qkjcJyJUGLnL4qHHoQvao8ESaAstxYSnhyswJ76uZPStJRJCTKvosUCJZL5B"
+        compressed = "02669b8afcec803a0d323e9a17f3ea8e68e8abe5a278020a929adbec52421adbd0"
+
+        # internal key from an extended key: expansion uses the x-only form of the derived key.
+        derived = BIP32Node.from_xkey(tpub).subkey_at_public_derivation([0, 0]).eckey.get_public_key_bytes(compressed=True)
+        self.assertEqual(33, len(derived))
+        self.assertEqual(
+            taproot_output_script(derived[1:], script_tree=None).hex(),
+            parse_descriptor(f"tr([00000001/84h/1h/0h]{tpub}/0/0)").expand().output_script.hex())
+
+        # internal key given as a raw 33-byte compressed point.
+        self.assertEqual(
+            taproot_output_script(bytes.fromhex(compressed)[1:], script_tree=None).hex(),
+            parse_descriptor(f"tr({compressed})").expand().output_script.hex())
+
+        # tapscript leaf key given as a 33-byte compressed point: reducing it to x-only yields
+        # exactly the BIP-0386 vector for the same key written x-only.
+        self.assertEqual(
+            "512017cf18db381d836d8923b1bdb246cfcd818da1a9f0e6e7907f187f0b2f937754",
+            parse_descriptor(f"tr(a34b99f22c790c4e36b2b3c2c35a36db06226e41c692fc82b8b56ac1c540c5bd,pk({compressed}))").expand().output_script.hex())
+
+        # tapscript leaf key derived from an extended key also expands to a p2tr output.
+        leaf_from_xpub = parse_descriptor(f"tr(a34b99f22c790c4e36b2b3c2c35a36db06226e41c692fc82b8b56ac1c540c5bd,pk({tpub}))").expand().output_script
+        self.assertEqual(34, len(leaf_from_xpub))
+        self.assertTrue(leaf_from_xpub.hex().startswith("5120"))
+
+        # a 32-byte x-only internal key passes through unchanged.
+        self.assertEqual(
+            "512077aab6e066f8a7419c5ab714c12c67d25007ed55a43cadcacb4d7a970a093f11",
+            parse_descriptor("tr(a34b99f22c790c4e36b2b3c2c35a36db06226e41c692fc82b8b56ac1c540c5bd)").expand().output_script.hex())
 
     @as_testnet
     def test_parse_descriptor_with_range(self):
