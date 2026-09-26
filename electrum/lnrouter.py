@@ -135,6 +135,7 @@ def is_route_within_budget(
     budget: PaymentFeeBudget,
     amount_msat_for_dest: int,  # that final receiver gets
     cltv_delta_for_dest: int,   # that final receiver gets
+    we_are_forwarding: bool,    # trampoline: sender must pay first edge
 ) -> bool:
     """Run some sanity checks on the whole route, before attempting to use it.
     called when we are paying; so e.g. lower cltv is better
@@ -143,7 +144,8 @@ def is_route_within_budget(
         return False
     amt = amount_msat_for_dest
     cltv_cost_of_route = 0  # excluding cltv_delta_for_dest
-    for route_edge in reversed(route[1:]):
+    paying_edges = route[(0 if we_are_forwarding else 1):]
+    for route_edge in reversed(paying_edges):
         amt += route_edge.fee_for_edge(amt)
         cltv_cost_of_route += route_edge.cltv_delta
     fee_cost = amt - amount_msat_for_dest

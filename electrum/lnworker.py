@@ -2108,6 +2108,7 @@ class LNWallet(Logger):
                             fwd_trampoline_onion=fwd_trampoline_onion,
                             channels=channels,
                             budget=budget._replace(fee_msat=remaining_fee_budget_msat),
+                            we_are_forwarding=fw_payment_key is not None,
                         )
                         # 2. send htlcs
                         async for sent_htlc_info, cltv_delta, trampoline_onion in routes:
@@ -2463,6 +2464,7 @@ class LNWallet(Logger):
             full_path: LNPaymentPath = None,
             channels: Optional[Sequence[Channel]] = None,
             budget: PaymentFeeBudget,
+            we_are_forwarding: bool,
     ) -> AsyncGenerator[Tuple[SentHtlcInfo, int, Optional[OnionPacket]], None]:
 
         """Creates multiple routes for splitting a payment over the available
@@ -2594,7 +2596,8 @@ class LNWallet(Logger):
                             if not is_route_within_budget(
                                     route, budget=budget._replace(fee_msat=budget.fee_msat // sc.config.number_parts()),
                                     amount_msat_for_dest=part_amount_msat,
-                                    cltv_delta_for_dest=paysession.min_final_cltv_delta):
+                                    cltv_delta_for_dest=paysession.min_final_cltv_delta,
+                                    we_are_forwarding=we_are_forwarding):
                                 self.logger.info(f"rejecting route (exceeds budget): {route=}. {budget=}")
                                 raise FeeBudgetExceeded()
                             shi = SentHtlcInfo(
