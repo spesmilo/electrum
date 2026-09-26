@@ -1019,6 +1019,7 @@ class TxDialog(QDialog, MessageBoxMixin):
 
         fee_hbox = QHBoxLayout()
         self.fee_label = TxDetailLabel()
+        self.fee_label.setTextFormat(Qt.TextFormat.RichText)
         fee_hbox.addWidget(self.fee_label)
         self.fee_warning_icon = QLabel()
         pixmap = QPixmap(icon_path("warning"))
@@ -1121,6 +1122,7 @@ class TxOutputColoring:
         font.setPointSize(font.pointSize() - 1)
         self.legend_label.setFont(font)
         self.legend_label.setVisible(False)
+        self.legend_label.setTextFormat(Qt.TextFormat.RichText)
         self.text_char_format = QTextCharFormat()
         self.text_char_format.setBackground(QBrush(self.color))
         self.text_char_format.setToolTip(tooltip)

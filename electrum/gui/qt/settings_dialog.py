@@ -50,7 +50,8 @@ def checkbox_from_configvar(cv: 'ConfigVarWithConfig') -> QCheckBox:
     assert short_desc is not None, f"short_desc missing for {cv}"
     cb = QCheckBox(short_desc)
     if (long_desc := cv.get_long_desc()) is not None:
-        cb.setToolTip(messages.to_rtf(long_desc))
+        long_desc = messages.wrap_multi_paragraph_text(long_desc)
+        cb.setToolTip(long_desc)
     return cb
 
 

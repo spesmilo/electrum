@@ -1,9 +1,24 @@
+import textwrap
+
 from electrum.i18n import _
 from electrum.submarine_swaps import MIN_FINAL_CLTV_DELTA_FOR_CLIENT
 
 
 def to_rtf(msg):
     return '\n'.join(['<p>' + x + '</p>' for x in msg.split('\n\n')])
+
+
+def wrap_multi_paragraph_text(text: str) -> str:
+    """Word-wrap long lines.
+
+    - If text contains multiple paragraphs, the paragraph-separation is kept.
+    - Useful for tooltips (shown on mouse-over), as Qt otherwise
+      only word-wraps lines longer than the screen-width.
+    """
+    return "\n".join(
+        textwrap.fill(line)
+        for line in text.split("\n")
+    )
 
 
 MSG_COOPERATIVE_CLOSE = _(

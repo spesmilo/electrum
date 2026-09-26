@@ -120,6 +120,7 @@ class RichLabel(WWLabel):
         WWLabel.__init__(self, text, parent)
         self.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         self.setOpenExternalLinks(True)
+        self.setTextFormat(Qt.TextFormat.RichText)
 
 
 class AmountLabel(QLabel):
@@ -146,9 +147,10 @@ class Spinner(QLabel):
 
 
 class HelpMixin:
-    def __init__(self, help_text: str, *, help_title: str | None = None):
+    def __init__(self, help_text: str, *, help_title: str | None = None, rich_text: bool = False):
         assert isinstance(self, QWidget), "HelpMixin must be a QWidget instance!"
         self.help_text = help_text
+        self.rich_text = rich_text
         self._help_title = help_title or _('Help')
         if isinstance(self, QLabel):
             self.setTextInteractionFlags(
@@ -161,15 +163,15 @@ class HelpMixin:
             parent=self,
             title=self._help_title,
             text=self.help_text,
-            rich_text=True,
+            rich_text=self.rich_text,
         )
 
 
 class HelpLabel(HelpMixin, QLabel):
 
-    def __init__(self, text: str, help_text: str):
+    def __init__(self, text: str, help_text: str, *, rich_text: bool = False):
         QLabel.__init__(self, text)
-        HelpMixin.__init__(self, help_text)
+        HelpMixin.__init__(self, help_text, rich_text=rich_text)
         self.app = QCoreApplication.instance()
         self.font = self.font()
 
@@ -194,9 +196,9 @@ class HelpLabel(HelpMixin, QLabel):
 
 
 class HelpButton(HelpMixin, QToolButton):
-    def __init__(self, text: str):
+    def __init__(self, text: str, *, rich_text: bool = False):
         QToolButton.__init__(self)
-        HelpMixin.__init__(self, text)
+        HelpMixin.__init__(self, text, rich_text=rich_text)
         self.setText('?')
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.setFixedWidth(round(2.2 * char_width_in_lineedit()))
@@ -204,9 +206,9 @@ class HelpButton(HelpMixin, QToolButton):
 
 
 class InfoButton(HelpMixin, QPushButton):
-    def __init__(self, text: str):
+    def __init__(self, text: str, *, rich_text: bool = False):
         QPushButton.__init__(self, _('Info'))
-        HelpMixin.__init__(self, text, help_title=_('Info'))
+        HelpMixin.__init__(self, text, help_title=_('Info'), rich_text=rich_text)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.setFixedWidth(6 * char_width_in_lineedit())
         self.clicked.connect(self.show_help)
@@ -343,10 +345,18 @@ class MessageBoxMixin(object):
             return None
         return choice_widget.selected_key
 
-    def password_dialog(self, msg=None, parent=None):
+    def password_dialog(
+        self,
+        *,
+        msg: str | None = None,
+        parent: QWidget | None = None,
+        rich_text: bool = False,
+    ):
         from .password_dialog import PasswordDialog
         parent = parent or self
-        d = PasswordDialog(parent, msg)
+        d = PasswordDialog(parent=parent, msg=msg)
+        if rich_text:
+            d.label.setTextFormat(Qt.TextFormat.RichText)
         return d.run()
 
 
@@ -373,24 +383,21 @@ def custom_message_box(
             else:
                 custom_buttons.append(button)
     if type(icon) is QPixmap:
-        d = QMessageBox(QMessageBox.Icon.Information, title, str(text), standard_buttons, parent)
+        d = QMessageBox(QMessageBox.Icon.Information, title, "", standard_buttons, parent)
         d.setIconPixmap(icon)
     else:
-        d = QMessageBox(icon, title, str(text), standard_buttons, parent)
+        d = QMessageBox(icon, title, "", standard_buttons, parent)
     for button, role, _ in custom_buttons:
         d.addButton(button, role)
     d.setWindowModality(Qt.WindowModality.WindowModal)
     d.setDefaultButton(defaultButton)
     if rich_text:
         d.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.LinksAccessibleByMouse)
-        # set AutoText instead of RichText
-        # AutoText lets Qt figure out whether to render as rich text.
-        # e.g. if text is actually plain text and uses "\n" newlines;
-        #      and we set RichText here, newlines would be swallowed
-        d.setTextFormat(Qt.TextFormat.AutoText)
+        d.setTextFormat(Qt.TextFormat.RichText)
     else:
         d.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         d.setTextFormat(Qt.TextFormat.PlainText)
+    d.setText(str(text))  # set the text only after setting textFormat, so unwanted rich text is left unparsed
     if checkbox is not None:
         d.setCheckBox(checkbox)
     result = d.exec()

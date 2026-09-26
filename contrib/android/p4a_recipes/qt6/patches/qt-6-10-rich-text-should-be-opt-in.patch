@@ -1,0 +1,14 @@
+# Set default textFormat of Labels and all other controls to PlainText.
+# Security-by-default, instead of convenience: require programmer to opt-in to RichText.
+
+--- a/qtdeclarative/src/quick/items/qquicktext.cpp
++++ b/qtdeclarative/src/quick/items/qquicktext.cpp
+@@ -52,7 +52,7 @@ QQuickTextPrivate::QQuickTextPrivate()
+     , color(0xFF000000), linkColor(0xFF0000FF), styleColor(0xFF000000)
+     , lineCount(1), multilengthEos(-1)
+     , elideMode(QQuickText::ElideNone), hAlign(QQuickText::AlignLeft), vAlign(QQuickText::AlignTop)
+-    , format(QQuickText::AutoText), wrapMode(QQuickText::NoWrap)
++    , format(QQuickText::PlainText), wrapMode(QQuickText::NoWrap)
+     , style(QQuickText::Normal)
+     , renderType(QQuickTextUtil::textRenderType<QQuickText>())
+     , updateType(UpdatePaintNode)

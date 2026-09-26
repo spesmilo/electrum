@@ -50,7 +50,7 @@ class PluginDialog(WindowModalDialog):
             name_label.setIcon(icon)
         vbox.addWidget(name_label)
         vbox.addStretch()
-        vbox.addWidget(WWLabel(description))
+        vbox.addWidget(WWLabel(description))  # must be plain text: don't parse untrusted text as rich-text
         vbox.addStretch()
         form = QFormLayout(None)
         if author:
@@ -196,7 +196,7 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
             self.init_plugins_password()
             return None
         # ask for url and password, same window
-        pw = self.password_dialog(msg=messages.MSG_THIRD_PARTY_PLUGIN_WARNING)
+        pw = self.password_dialog(msg=messages.MSG_THIRD_PARTY_PLUGIN_WARNING, rich_text=True)
         if not pw:
             return None
         privkey = self.plugins.derive_privkey(pw, salt)

@@ -131,6 +131,7 @@ ElDialog
                     text: reportText
                     wrapMode: Text.Wrap
                     width: parent.width
+                    textFormat: Text.RichText
                 }
             }
             onClosed: destroy()
