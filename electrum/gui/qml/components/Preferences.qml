@@ -139,6 +139,31 @@ Pane {
                         }
                     }
 
+                    RowLayout {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+                        spacing: 0
+                        Switch {
+                            id: hideAmounts
+                            checked: Config.hideAmounts
+                            onCheckedChanged: {
+                                if (activeFocus) {
+                                    Config.hideAmounts = checked
+                                    let hint = app.messageDialog.createObject(app, {
+                                        title: qsTr('Did you know?'),
+                                        text: qsTr('You can also toggle this by long-pressing the balance on the home screen.'),
+                                    })
+                                    hint.open()
+                                }
+                            }
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            text: qsTr('Hide amounts')
+                            wrapMode: Text.Wrap
+                        }
+                    }
+
                     Label {
                         text: qsTr('Exchange rate provider')
                         enabled: Daemon.fx.enabled
@@ -499,6 +524,7 @@ Pane {
         thousands.checked = Config.thousandsSeparator
         currencies.currentIndex = currencies.indexOfValue(Daemon.fx.fiatCurrency)
         historicRates.checked = Daemon.fx.historicRates
+        hideAmounts.checked = Config.hideAmounts
         rateSources.currentIndex = rateSources.indexOfValue(Daemon.fx.rateSource)
         fiatEnable.checked = Daemon.fx.enabled
         spendUnconfirmed.checked = Config.spendUnconfirmed
