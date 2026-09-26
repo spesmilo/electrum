@@ -5,7 +5,6 @@ from electrum.i18n import _
 from electrum.plugin import hook
 from electrum.util import UserFacingException
 
-from electrum.gui.qml.qewallet import QEWallet
 from electrum.gui.qml.qedaemon import QEDaemon
 
 from .common_qt import TrustedcoinPluginQObject
@@ -108,7 +107,7 @@ class Plugin(TrustedCoinPlugin):
         on_failure: Callable[[str], None],
     ):
         self.logger.debug('prompt_user_for_otp')
-        qewallet = QEWallet.getInstanceFor(wallet)
+        qewallet = QEDaemon.getQEWalletInstanceFor(wallet)
         qewallet.request_otp(partial(self.on_otp, wallet, tx, on_success=on_success, on_failure=on_failure))
 
     def on_otp(
@@ -145,6 +144,6 @@ class Plugin(TrustedCoinPlugin):
 
     def billing_info_retrieved(self, wallet):
         self.logger.info('billing_info_retrieved')
-        qewallet = QEWallet.getInstanceFor(wallet)
+        qewallet = QEDaemon.getQEWalletInstanceFor(wallet)
         qewallet.billingInfoChanged.emit()
         self.so.updateBillingInfo(wallet)

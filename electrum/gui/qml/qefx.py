@@ -24,7 +24,7 @@ class QEFX(QObject, QtEventListener):
         self.fx = fxthread
         self.config = config
         self.register_callbacks()
-        self.destroyed.connect(lambda: self.on_destroy())
+        self.destroyed.connect(self.on_destroy)
 
     def on_destroy(self):
         self.unregister_callbacks()

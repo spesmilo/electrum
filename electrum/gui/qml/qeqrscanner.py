@@ -1,6 +1,6 @@
 import os
 
-from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, Qt
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, Qt, QMetaObject
 from PyQt6.QtGui import QGuiApplication
 
 from electrum.gui.qml.qeconfig import QEConfig
@@ -26,13 +26,11 @@ class QEQRScanner(QObject):
 
     foundText = pyqtSignal(str)
     foundBinary = pyqtSignal(QEBytes)
-
     finished = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._hint = _("Scan a QR code.")
-        self.finished.connect(self._unbind, Qt.ConnectionType.QueuedConnection)
 
         self.destroyed.connect(lambda: self.on_destroy())
 
@@ -80,6 +78,11 @@ class QEQRScanner(QObject):
             send_exception_to_crash_reporter(e)
         finally:
             self.finished.emit()
+            self.unbind()
+
+    def unbind(self):
+        # submit unbind request queued
+        QMetaObject.invokeMethod(self, '_unbind', Qt.ConnectionType.QueuedConnection)
 
     @pyqtSlot()
     def _unbind(self):
@@ -90,4 +93,3 @@ class QEQRScanner(QObject):
         data = QGuiApplication.clipboard().text()
         self.foundText.emit(data)
         self.finished.emit()
-        return
