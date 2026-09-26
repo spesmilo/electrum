@@ -8,10 +8,6 @@ jsonpatch
 electrum_ecc>=0.0.4,<0.1
 electrum_aionostr>=0.1.0,<0.2
 
-# - upper limit to avoid needing hatchling at build-time :/
-#   (however newer versions should work at runtime)
-attrs>=20.1.0,<23
-
 # Note that we also need the dnspython[DNSSEC] extra which pulls in cryptography,
 # but as that is not pure-python it cannot be listed in this file!
 # - upper limit to avoid needing hatchling at build-time :/

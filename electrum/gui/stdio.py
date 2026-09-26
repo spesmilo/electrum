@@ -6,7 +6,7 @@ from typing import Optional
 
 from electrum.gui import BaseElectrumGui
 from electrum import util
-from electrum import WalletStorage, Wallet
+from electrum import DictStorage, Wallet
 from electrum.wallet import Abstract_Wallet
 from electrum.wallet_db import WalletDB
 from electrum.util import format_satoshis, EventListener, event_listener
@@ -26,7 +26,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
     def __init__(self, *, config, daemon, plugins):
         BaseElectrumGui.__init__(self, config=config, daemon=daemon, plugins=plugins)
         self.network = daemon.network
-        storage = WalletStorage(config.get_wallet_path())
+        storage = DictStorage(config.get_wallet_path())
         password = None
         if not storage.file_exists():
             print("Wallet not found. try 'electrum create'")

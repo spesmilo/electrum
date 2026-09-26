@@ -1123,14 +1123,12 @@ def hardware_keystore(d) -> Hardware_KeyStore:
                               f'hw_keystores: {list(hw_keystores)}')
 
 def load_keystore(db: 'WalletDB', name: str) -> KeyStore:
-    # deepcopy object to avoid keeping a pointer to db.data
-    # note: this is needed as type(wallet.db.get("keystore")) != StoredDict
-    d = copy.deepcopy(db.get(name, {}))
+    d = db.get(name)
+    if d is None:
+        raise WalletFileException('Cannot find keystore for name {}'.format(name))
     t = d.get('type')
     if not t:
-        raise WalletFileException(
-            'Wallet format requires update.\n'
-            'Cannot find keystore for name {}'.format(name))
+        raise WalletFileException('Cannot find keystore for name {}'.format(name))
     keystore_constructors = {ks.type: ks for ks in [Old_KeyStore, Imported_KeyStore, BIP32_KeyStore]}
     keystore_constructors['hardware'] = hardware_keystore
     try:

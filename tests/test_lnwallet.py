@@ -31,7 +31,7 @@ from electrum.crypto import sha256, pw_encode_with_version_and_mac
 from electrum.simple_config import SimpleConfig
 from electrum.transaction import Transaction, TxOutpoint, BCDataStream
 from electrum.util import bfh, UserFacingException
-from electrum.storage import WalletStorage
+from electrum.stored_dict import DictStorage
 from electrum.wallet import Abstract_Wallet
 from electrum.wallet_db import WalletDB
 
@@ -771,10 +771,8 @@ class TestChannelBackup(ToyServerTestCase):
         alice = self.create_deterministic_wallet(self.alice_instance)
         chan = await self.fund_and_open_channel(alice, anchors=True)
         chan_id = chan.channel_id
-        alice.storage = WalletStorage(os.path.join(alice.config.get_datadir_wallet_path(), 'alice_wallet'))
         backup_path = alice.save_backup(self.electrum_path)
-        with open(backup_path) as f:
-            backup_db = WalletDB(f.read(), storage=None, upgrade=False)
+        backup_db = WalletDB(DictStorage(backup_path), upgrade=False)
         cb_blob = backup_db.get_dict('imported_channel_backups')[chan_id.hex()]
         self.assertEqual(
             alice.lnworker.create_channel_backup(chan_id),

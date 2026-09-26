@@ -53,8 +53,7 @@ from .stored_dict import StorageEncryptionVersion, StorageReadWriteError
 class StorageOnDiskUnexpectedlyChanged(Exception): pass
 
 
-# TODO: Rename to Storage
-class WalletStorage(Logger):
+class FileStorage(Logger):
 
     # TODO maybe split this into separate create() and open() classmethods, to prevent some bugs.
     #      Until then, the onus is on the caller to check file_exists().
@@ -68,6 +67,7 @@ class WalletStorage(Logger):
         self.path = standardize_path(path)
         self._file_exists = bool(self.path and os.path.exists(self.path))
         self.logger.info(f"wallet path {self.path}")
+
         self._allow_partial_writes = allow_partial_writes
         self.pubkey = None
         self.decrypted = ''
@@ -254,7 +254,4 @@ class WalletStorage(Logger):
         else:
             self.pubkey = None
             self._encryption_version = StorageEncryptionVersion.PLAINTEXT
-
-    def basename(self) -> str:
-        return os.path.basename(self.path)
 

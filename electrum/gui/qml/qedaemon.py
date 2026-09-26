@@ -12,7 +12,7 @@ from electrum.util import (
 )
 from electrum.plugin import run_hook
 from electrum.lnchannel import ChannelState
-from electrum.storage import StorageReadWriteError, WalletStorage
+from electrum.stored_dict import StorageReadWriteError, DictStorage
 from electrum.wallet import Abstract_Wallet
 
 from .auth import AuthMixin, auth_protect
@@ -343,7 +343,7 @@ class QEDaemon(AuthMixin, QObject):
         wallet_path = self.wallet_path_from_wallet_name(wallet_name)
         # validate that the path looks sane to the filesystem:
         try:
-            temp_storage = WalletStorage(wallet_path)
+            temp_storage = DictStorage(wallet_path, init_db=False)
         except (StorageReadWriteError, WalletFileException):
             return False
         except Exception:

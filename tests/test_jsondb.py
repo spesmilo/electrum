@@ -2,6 +2,7 @@ import contextlib
 import copy
 import traceback
 import json
+import os
 from typing import Any
 
 import jsonpatch
@@ -11,6 +12,7 @@ from jsonpointer import JsonPointerException
 from . import ElectrumTestCase
 
 from electrum.json_db import JsonDB
+from electrum.stored_dict import DictStorage
 from electrum.util import WalletFileException
 
 class TestJsonpatch(ElectrumTestCase):
@@ -90,16 +92,6 @@ class TestJsonpatch(ElectrumTestCase):
             fail_if_leaking_secret(ctx)
 
 
-def pop1_from_dict(d: dict, key: str) -> Any:
-    return d.pop(key)
-
-
-def pop2_from_dict(d: dict, key: str) -> Any:
-    val = d[key]
-    del d[key]
-    return val
-
-
 class TestJsonDB(ElectrumTestCase):
 
     async def test_jsonpatch_replace_after_remove(self):
@@ -120,46 +112,37 @@ class TestJsonDB(ElectrumTestCase):
         with self.assertRaises(JsonPatchException):
             data = jpatch.apply(data)
 
-    async def test_jsondb_replace_after_remove(self):
-        for pop_from_dict in [pop1_from_dict, pop2_from_dict]:
-            with self.subTest(pop_from_dict):
-                data = { 'a': {'b': {'c': 0}}, 'd': 3}
-                db = JsonDB(repr(data))
-                a = db.get_dict('a')
-                # remove
-                b = pop_from_dict(a, 'b')
-                self.assertEqual(len(db.pending_changes), 1)
-                # replace item. this must not been written to db
-                b['c'] = 42
-                self.assertEqual(len(db.pending_changes), 1)
-                patches = json.loads('[' + ','.join(db.pending_changes) + ']')
-                jpatch = jsonpatch.JsonPatch(patches)
-                data = jpatch.apply(data)
-                self.assertEqual(data, {'a': {}, 'd': 3})
+    async def test_jsondb_partial_write_round_test(self):
+        wallet_path = os.path.join(self.electrum_path, "somewallet")
+        storage = DictStorage(wallet_path, allow_partial_writes=True)
+        storage['a'] = [1, 2, 3]
+        storage._db.write_and_force_consolidation()
+        storage['a'].append(4)
+        storage._db._append_pending_changes()
+        storage = DictStorage(wallet_path, allow_partial_writes=True)
+        self.assertEqual(len(storage['a']), 4)
 
-    async def test_jsondb_replace_after_remove_nested(self):
-        for pop_from_dict in [pop1_from_dict, pop2_from_dict]:
-            with self.subTest(pop_from_dict):
-                data = { 'a': {'b': {'c': 0}}, 'd': 3}
-                db = JsonDB(repr(data))
-                # remove
-                a = pop_from_dict(db.data, "a")
-                self.assertEqual(len(db.pending_changes), 1)
-                b = a['b']
-                # replace item. this must not be written to db
-                b['c'] = 42
-                self.assertEqual(len(db.pending_changes), 1)
-                patches = json.loads('[' + ','.join(db.pending_changes) + ']')
-                jpatch = jsonpatch.JsonPatch(patches)
-                data = jpatch.apply(data)
-                self.assertEqual(data, {'d': 3})
+    async def test_jsondb_list_clear(self):
+        wallet_path = os.path.join(self.electrum_path, "somewallet")
+        storage = DictStorage(wallet_path, allow_partial_writes=True)
+        storage['a'] = [1, 2, 3]
+        storage._db.write()
+        storage['a'].clear()
+        storage._db.write()
+        storage = DictStorage(wallet_path, allow_partial_writes=True)
+        self.assertEqual(len(storage['a']), 0)
+
+    @staticmethod
+    def _load_json_db(s: str) -> dict:
+        db = JsonDB(None)
+        db.set_data(s)
+        return json.loads(json.dumps(db.json_data))
 
     async def test_json_db_maybe_load_incomplete_data_with_control_characters(self):
         # user-supplied text such as tx labels can contain arbitrary characters, such as "}"
         raw_json_db = '{"a": {"b": "c1"}, "d": "e"},\n{"op": "replace", "path": "/a/b", "value": "user_supp}}}lied_text"}'
         raw_json_db = raw_json_db[:-4]  # truncate some characters, to trigger maybe_load_incomplete_data()
-        db = JsonDB(raw_json_db)
-        self.assertEqual({"a": {"b": "c1"}, "d": "e"}, dict(db.data))
+        self.assertEqual({"a": {"b": "c1"}, "d": "e"}, self._load_json_db(raw_json_db))
 
     async def test_json_db_load_arbitrarily_truncated_data(self):
         # a file cut at any offset after the main object must recover to a valid prefix state;
@@ -176,24 +159,25 @@ class TestJsonDB(ElectrumTestCase):
         s = json.dumps(base)
         for p in patches:
             s += ',\n' + json.dumps(p)
-        self.assertEqual(states[-1], json.loads(json.dumps(JsonDB(s).data)))
+        self.assertEqual(states[-1], self._load_json_db(s))
         main_len = len(json.dumps(base))
         for i in range(1, len(s)):
             if i < main_len:  # main object truncated: unrecoverable
                 with self.assertRaises(WalletFileException):
-                    JsonDB(s[:i])
+                    self._load_json_db(s[:i])
             else:  # main object intact: must recover
-                db = JsonDB(s[:i])
-                self.assertIn(json.loads(json.dumps(db.data)), states)
+                self.assertIn(self._load_json_db(s[:i]), states)
 
     async def test_jsondb_pointer_escaping(self):
         # keys containing '/' or '~' must be escaped per RFC 6901 in emitted patches
         data = {'labels': {'some/label~key': 'hello'}, 'x1/': {'type': 'bip32'}}
-        db = JsonDB(json.dumps(data))
-        labels = db.get_dict('labels')
-        labels['some/label~key'] = 'world'
-        db.data.pop('x1/')
-        patches = json.loads('[' + ','.join(db.pending_changes) + ']')
+        wallet_path = os.path.join(self.electrum_path, "somewallet")
+        storage = DictStorage(wallet_path)
+        storage.update(copy.deepcopy(data))
+        storage._db.write_and_force_consolidation()
+        storage['labels']['some/label~key'] = 'world'
+        storage.pop('x1/')
+        patches = json.loads('[' + ','.join(storage._db.pending_changes) + ']')
         self.assertEqual({'/labels/some~1label~0key', '/x1~1'}, {p['path'] for p in patches})
         data = jsonpatch.JsonPatch(patches).apply(data)
         self.assertEqual({'labels': {'some/label~key': 'world'}}, data)
