@@ -543,6 +543,16 @@ class Plugins(DaemonThread):
                 manifest['zip_hash_sha256'] = sha256(blob).hex()
                 return manifest
 
+    @staticmethod
+    def _is_version_compatible(d: dict) -> bool:
+        min_version = d.get('min_electrum_version')
+        if min_version and StrictVersion(min_version) > StrictVersion(ELECTRUM_VERSION):
+            return False
+        max_version = d.get('max_electrum_version')
+        if max_version and StrictVersion(max_version) < StrictVersion(ELECTRUM_VERSION):
+            return False
+        return True
+
     def zip_plugin_path(self, name) -> str:
         path = self.get_metadata(name)['path']
         filename = os.path.basename(path)
@@ -571,13 +581,8 @@ class Plugins(DaemonThread):
                 continue
             if self.cmd_only and not self.config.get(f'plugins.{name}.enabled'):
                 continue
-            min_version = d.get('min_electrum_version')
-            if min_version and StrictVersion(min_version) > StrictVersion(ELECTRUM_VERSION):
-                self.logger.info(f"version mismatch for zip plugin {filename}", exc_info=True)
-                continue
-            max_version = d.get('max_electrum_version')
-            if max_version and StrictVersion(max_version) < StrictVersion(ELECTRUM_VERSION):
-                self.logger.info(f"version mismatch for zip plugin {filename}", exc_info=True)
+            if not self._is_version_compatible(d):
+                self.logger.info(f"version mismatch for zip plugin {filename}")
                 continue
 
             if not self.cmd_only:
@@ -751,14 +756,47 @@ class Plugins(DaemonThread):
             verified = False
         return verified
 
-    def authorize_plugin(self, name: str, privkey: ECPrivkey):
+    def _sign_plugin_hash(self, name: str, privkey: ECPrivkey) -> None:
         pubkey_bytes, salt = self.get_pubkey_bytes()
         assert pubkey_bytes == privkey.get_public_key_bytes()
         plugin_hash = bytes.fromhex(self.get_metadata(name)['zip_hash_sha256'])
         sig = privkey.ecdsa_sign(plugin_hash)
-        value = sig.hex()
-        self.config.set_key(f'plugins.{name}.authorized', value)
+        self.config.set_key(f'plugins.{name}.authorized', sig.hex())
+
+    def authorize_plugin(self, name: str, privkey: ECPrivkey):
+        self._sign_plugin_hash(name, privkey)
         self.config.set_key(f'plugins.{name}.enabled', True)
+
+    def upgrade_external_plugin(self, manifest: dict, privkey: ECPrivkey) -> None:
+        """Replaces the zip of an installed external plugin with the one described
+        by `manifest` (as returned by read_manifest), and signs it. The new file
+        keeps its own name, which often contains the version, and the old file
+        is removed.
+
+        This does not go through uninstall(): the 'plugins.<name>' config subtree is
+        kept, and so is the plugin's wallet data (see WalletDB.prune_uninstalled_plugin_data).
+        The client must be restarted: we cannot undo the side effects of the old
+        code, which is imported on startup if the plugin is enabled. Until then,
+        the old code keeps running from memory.
+        """
+        name = manifest['name']
+        assert self.is_external(name) and self.is_plugin_zip(name), name
+        if not self._is_version_compatible(manifest):
+            raise Exception(f"plugin {name!r} is not compatible with Electrum {ELECTRUM_VERSION}")
+        # the bytes we write are the bytes whose hash the user was shown
+        blob = self._read_check_bytes(manifest['path'], expected_hash=bytes.fromhex(manifest['zip_hash_sha256']))
+        old_path = self.zip_plugin_path(name)
+        path = os.path.join(self.get_external_plugin_dir(), os.path.basename(manifest['path']))
+        if path != old_path and os.path.exists(path):
+            raise FileExistsError(f"Plugin file {path} already exists")
+        # Remove the old file first: find_zip_plugins would pick either of two
+        # files with the same plugin name. If we stop before signing, the plugin
+        # is missing or unauthorized, but its config is kept.
+        os.unlink(old_path)
+        with open(path, 'wb') as f:
+            f.write(blob)
+        self.external_plugin_metadata[name] = dict(manifest, path=path)
+        self._sign_plugin_hash(name, privkey)
 
     def enable(self, name: str) -> 'BasePlugin':
         self.config.enable_plugin(name)
@@ -869,19 +907,22 @@ class Plugins(DaemonThread):
                 return importer.read(filename)
             # Plugins not in authorized list
             # We allow reading files without importing code (eg to display icon)
-            metadata = self.get_metadata(name)
-            dirname = metadata['dirname']
-            blob = self._read_check_bytes(metadata['path'], expected_hash=bytes.fromhex(metadata['zip_hash_sha256']))
-            member = "/".join([dirname, filename]) if dirname else filename
-            with zipfile_lib.ZipFile(io.BytesIO(blob)) as myzip:
-                with myzip.open(member) as myfile:
-                    return myfile.read()
+            return self.read_zip_file(self.get_metadata(name), filename)
         elif name in self.internal_plugin_metadata:
             path = os.path.join(os.path.dirname(__file__), 'plugins', name, filename)
             with open(path, 'rb') as myfile:
                 return myfile.read()
         else:
             raise Exception(f"plugin not found: {name!r}")
+
+    def read_zip_file(self, manifest: dict, filename: str) -> bytes:
+        """Reads a file from the zip described by `manifest`, without importing its code."""
+        dirname = manifest['dirname']
+        blob = self._read_check_bytes(manifest['path'], expected_hash=bytes.fromhex(manifest['zip_hash_sha256']))
+        member = "/".join([dirname, filename]) if dirname else filename
+        with zipfile_lib.ZipFile(io.BytesIO(blob)) as myzip:
+            with myzip.open(member) as myfile:
+                return myfile.read()
 
 
 def hook(func):

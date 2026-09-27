@@ -105,3 +105,50 @@ class PluginLoaderTestCase(ElectrumTestCase):
         plugins = self._start_plugins()
         manifest = plugins.read_manifest(self.zip_path)
         self.assertEqual(sha256(blob).hex(), manifest['zip_hash_sha256'])
+
+    # --- upgrade ---
+
+    def _download_new_version(self, secret: str) -> dict:
+        path = os.path.join(self.electrum_path, f'{PLUGIN_NAME}-{secret}.zip')
+        make_plugin_zip(path, secret=secret)
+        return self.plugins.read_manifest(path)
+
+    def test_upgrade_keeps_config(self):
+        make_plugin_zip(self.zip_path, secret='v1')
+        plugins = self._start_plugins()
+        self._authorize(plugins)
+        plugins.disable(PLUGIN_NAME)
+        plugins.upgrade_external_plugin(self._download_new_version('v2'), self.privkey)
+        # what WalletDB.prune_uninstalled_plugin_data() looks at
+        self.assertIn(PLUGIN_NAME, self.config.get_installed_plugins())
+        self.assertFalse(self.config.get(f'plugins.{PLUGIN_NAME}.enabled'))
+        self.assertTrue(plugins.is_authorized(PLUGIN_NAME))
+        # the new file keeps its name, the old one is removed
+        self.assertEqual([f'{PLUGIN_NAME}-v2.zip'], os.listdir(self.plugins_dir))
+
+    def test_upgrade_takes_effect_after_restart(self):
+        make_plugin_zip(self.zip_path, secret='v1')
+        plugins = self._start_plugins()
+        self._authorize(plugins)
+        p = plugins.load_plugin_by_name(PLUGIN_NAME)
+        self.assertEqual('v1', sys.modules[p.__module__].SECRET)
+        plugins.upgrade_external_plugin(self._download_new_version('v2'), self.privkey)
+        # the old code keeps running from memory
+        self.assertIs(p, plugins.load_plugin_by_name(PLUGIN_NAME))
+        self.assertEqual(b'v1', plugins.read_file(PLUGIN_NAME, 'icon.txt'))
+        # as if electrum had been restarted
+        self._stop_plugins()
+        plugins = self._start_plugins()
+        self.assertTrue(plugins.is_authorized(PLUGIN_NAME))
+        p = plugins.load_plugin_by_name(PLUGIN_NAME)
+        self.assertEqual('v2', sys.modules[p.__module__].SECRET)
+
+    def test_upgrade_refuses_bytes_other_than_those_shown(self):
+        make_plugin_zip(self.zip_path, secret='v1')
+        plugins = self._start_plugins()
+        self._authorize(plugins)
+        manifest = self._download_new_version('v2')
+        make_plugin_zip(manifest['path'], secret='evil')
+        with self.assertRaises(IncorrectPluginHash):
+            plugins.upgrade_external_plugin(manifest, self.privkey)
+        self.assertTrue(plugins.is_authorized(PLUGIN_NAME))
