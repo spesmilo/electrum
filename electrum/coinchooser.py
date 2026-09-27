@@ -376,7 +376,7 @@ class CoinChooserBase(Logger):
     def choose_buckets(self, buckets: List[Bucket],
                        sufficient_funds: Callable,
                        penalty_func: Callable[[List[Bucket]], ScoredCandidate]) -> ScoredCandidate:
-        raise NotImplemented('To be subclassed')
+        raise NotImplementedError('To be subclassed')
 
 
 class CoinChooserRandom(CoinChooserBase):
