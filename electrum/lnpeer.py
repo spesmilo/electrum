@@ -1181,7 +1181,7 @@ class Peer(Logger, EventListener):
                 raise Exception('op_return output not found in funding tx')
         # must not be malleable
         funding_tx.set_rbf(False)
-        if not funding_tx.is_segwit():
+        if not funding_tx.is_any_segwit():  # FIXME needs "is_all_segwit"
             raise Exception('Funding transaction is not segwit')
         funding_txid = funding_tx.txid()
         assert funding_txid

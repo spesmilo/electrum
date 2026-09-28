@@ -1168,7 +1168,9 @@ class Transaction:
             sig64 = ecc.ecdsa_sig64_from_der_sig(der_sig)
             return pubkey.ecdsa_verify(sig64, msg_hash)
 
-    def is_segwit(self, *, guess_for_address=False):
+    def is_any_segwit(self, *, guess_for_address: bool = False) -> bool:
+        # If any input is segwit, the tx needs to serialized with a witness and it will have a wtxid != txid,
+        # however the non-segwit inputs are still malleable.
         return any(txin.is_segwit(guess_for_address=guess_for_address)
                    for txin in self.inputs())
 
@@ -1206,8 +1208,8 @@ class Transaction:
             for txin in inputs)
         txouts = var_int(len(outputs)).hex() + ''.join(o.serialize_to_network().hex() for o in outputs)
 
-        use_segwit_ser_for_estimate_size = estimate_size and self.is_segwit(guess_for_address=True)
-        use_segwit_ser_for_actual_use = not estimate_size and self.is_segwit()
+        use_segwit_ser_for_estimate_size = estimate_size and self.is_any_segwit(guess_for_address=True)
+        use_segwit_ser_for_actual_use = not estimate_size and self.is_any_segwit()
         use_segwit_ser = use_segwit_ser_for_estimate_size or use_segwit_ser_for_actual_use
         if include_sigs and not force_legacy and use_segwit_ser:
             marker = '00'
@@ -1415,7 +1417,7 @@ class Transaction:
     def estimated_witness_size(self):
         """Return an estimate of witness size in bytes."""
         estimate = not self.is_complete()
-        if not self.is_segwit(guess_for_address=estimate):
+        if not self.is_any_segwit(guess_for_address=estimate):
             return 0
         inputs = self.inputs()
         witness = b"".join(self.serialize_witness(x, estimate_size=estimate) for x in inputs)

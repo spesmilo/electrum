@@ -877,7 +877,7 @@ class TestWalletSending(ElectrumTestCase):
         wallet1.sign_transaction(tx, password=None)
 
         self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         self.assertEqual(1, len(tx.inputs()))
         tx_copy = tx_from_any(tx.serialize())
         self.assertTrue(wallet1.is_mine(wallet1.adb.get_txin_address(tx_copy.inputs()[0])))
@@ -897,7 +897,7 @@ class TestWalletSending(ElectrumTestCase):
         wallet2.sign_transaction(tx, password=None)
 
         self.assertTrue(tx.is_complete())
-        self.assertFalse(tx.is_segwit())
+        self.assertFalse(tx.is_any_segwit())
         self.assertEqual(1, len(tx.inputs()))
         tx_copy = tx_from_any(tx.serialize())
         self.assertTrue(wallet2.is_mine(wallet2.adb.get_txin_address(tx_copy.inputs()[0])))
@@ -956,7 +956,7 @@ class TestWalletSending(ElectrumTestCase):
         wallet1b.sign_transaction(tx, password=None)
 
         self.assertTrue(tx.is_complete())
-        self.assertFalse(tx.is_segwit())
+        self.assertFalse(tx.is_any_segwit())
         self.assertEqual(1, len(tx.inputs()))
         tx_copy = tx_from_any(tx.serialize())
         self.assertTrue(wallet1a.is_mine(wallet1a.adb.get_txin_address(tx_copy.inputs()[0])))
@@ -979,7 +979,7 @@ class TestWalletSending(ElectrumTestCase):
         wallet2.sign_transaction(tx, password=None)
 
         self.assertTrue(tx.is_complete())
-        self.assertFalse(tx.is_segwit())
+        self.assertFalse(tx.is_any_segwit())
         self.assertEqual(1, len(tx.inputs()))
         tx_copy = tx_from_any(tx.serialize())
         self.assertTrue(wallet2.is_mine(wallet2.adb.get_txin_address(tx_copy.inputs()[0])))
@@ -1063,7 +1063,7 @@ class TestWalletSending(ElectrumTestCase):
 
         self.assertTrue(tx.is_complete())
         self.assertEqual((2, 2), tx.signature_count())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         self.assertEqual(1, len(tx.inputs()))
         tx_copy = tx_from_any(tx.serialize())
         self.assertTrue(wallet1a.is_mine(wallet1a.adb.get_txin_address(tx_copy.inputs()[0])))
@@ -1097,7 +1097,7 @@ class TestWalletSending(ElectrumTestCase):
 
         self.assertTrue(tx.is_complete())
         self.assertEqual((2, 2), tx.signature_count())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         self.assertEqual(1, len(tx.inputs()))
         tx_copy = tx_from_any(tx.serialize())
         self.assertTrue(wallet2a.is_mine(wallet2a.adb.get_txin_address(tx_copy.inputs()[0])))
@@ -1146,7 +1146,7 @@ class TestWalletSending(ElectrumTestCase):
         wallet1a.sign_transaction(tx, password=None)
 
         self.assertTrue(tx.is_complete())
-        self.assertFalse(tx.is_segwit())
+        self.assertFalse(tx.is_any_segwit())
         self.assertEqual(1, len(tx.inputs()))
         tx_copy = tx_from_any(tx.serialize())
         self.assertTrue(wallet1a.is_mine(wallet1a.adb.get_txin_address(tx_copy.inputs()[0])))
@@ -1166,7 +1166,7 @@ class TestWalletSending(ElectrumTestCase):
         wallet2.sign_transaction(tx, password=None)
 
         self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         self.assertEqual(1, len(tx.inputs()))
         tx_copy = tx_from_any(tx.serialize())
         self.assertTrue(wallet2.is_mine(wallet2.adb.get_txin_address(tx_copy.inputs()[0])))
@@ -1292,7 +1292,7 @@ class TestWalletSending(ElectrumTestCase):
         wallet.sign_transaction(tx, password=None)
 
         self.assertTrue(tx.is_complete())
-        self.assertFalse(tx.is_segwit())
+        self.assertFalse(tx.is_any_segwit())
         self.assertEqual(1, len(tx.inputs()))
         tx_copy = tx_from_any(tx.serialize())
         self.assertTrue(wallet.is_mine(wallet.adb.get_txin_address(tx_copy.inputs()[0])))
@@ -1320,7 +1320,7 @@ class TestWalletSending(ElectrumTestCase):
 
         wallet.sign_transaction(tx, password=None)
         self.assertTrue(tx.is_complete())
-        self.assertFalse(tx.is_segwit())
+        self.assertFalse(tx.is_any_segwit())
         tx_copy = tx_from_any(tx.serialize())
         self.assertEqual('01000000016207d958dc46508d706e4cd7d3bc46c5c2b02160e2578e5fad2efafc39270503000000006a4730440220228deafd10b344371cb828eda507707f0b01f8b421feae5b079396aef72fa08f02205c63a540ac54b483cb59275ff191c89997be02fcf548a216ed1b1045c5d21041012102a807c07bd7975211078e916bdda061d97e98d59a3631a804aada2f9a3f5b587afdffffff02a02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987a0337200000000001976a914aab9af3fbee0ab4e5c00d53e92f66d4bcb44f1bd88acbd391400',
                          str(tx_copy))
@@ -1362,7 +1362,7 @@ class TestWalletSending(ElectrumTestCase):
 
         wallet.sign_transaction(tx, password=None)
         self.assertTrue(tx.is_complete())
-        self.assertFalse(tx.is_segwit())
+        self.assertFalse(tx.is_any_segwit())
         tx_copy = tx_from_any(tx.serialize())
         self.assertEqual('02000000014e679224851da8e67493fb536ab1d3ecf7b9f64ccdeff2ef1b717b5f61d8980d000000006a473044022043b34ed26822f120a2454aa9dd271400883e5c7133d3cd58ac018ddfa8ba4648022010394ca68edaf75df31217d3097f1171a87c846facfd963e49618fb1af89b66d012103d4ce4ba5be0b861d2ee7c715b84ab0e791ccd36530bd8652babae37eda693c39fdffffff01200b0700000000001976a914ac55156f62fa9085c114fc6496aee5ab153cb22888ac14f71c00',
                          str(tx_copy))
@@ -1404,7 +1404,7 @@ class TestWalletSending(ElectrumTestCase):
 
         wallet.sign_transaction(tx, password=None)
         self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         tx_copy = tx_from_any(tx.serialize())
         self.assertEqual('0200000000010146f231f027fd3cf48ecf81454f1cdb1d053c62a9c13cc9b488d53c56d1f00bdd0100000000fdffffff02c8af000000000000160014999a95482213a896c72a251b6cc9f3d137b0a458ccb5000000000000160014ea76d391236726af7d7a9c10abe600129154eb5a024730440220063a2d330f0d659b3f686cc291722a87cc37371d3520c946e74da8dbbd4c57e00220604b0f387754988f71af47db78263698a513173e8ce3b27a696b9e3954ba757b0121024196fb7b766ac987a08b69a5e108feae8513b7e72bc9e47899e27b36100f2af4d58a1d00',
                          str(tx_copy))
@@ -1446,7 +1446,7 @@ class TestWalletSending(ElectrumTestCase):
 
         wallet.sign_transaction(tx, password=None)
         self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         tx_copy = tx_from_any(tx.serialize())
         self.assertEqual('0200000000010146f231f027fd3cf48ecf81454f1cdb1d053c62a9c13cc9b488d53c56d1f00bdd0100000000fdffffff045d0500000000000016001470fcde1ed0159ba5af97baec085ceb857098cedb0c49000000000000160014999a95482213a896c72a251b6cc9f3d137b0a4587d5300000000000016001440c234c451fbd9ddf7824d6b8f0dc968a220946425b5000000000000160014ea76d391236726af7d7a9c10abe600129154eb5a024730440220477ff315d3ac58de3bc1ec0b44b90a90da9bc09c440982fd9a1563eae98df0dc0220574033b0e306d388edcc77e4c2b39338fc8f182c747014aef3ce2c99cf9e5e960121024196fb7b766ac987a08b69a5e108feae8513b7e72bc9e47899e27b36100f2af4df8a1d00',
                          str(tx_copy))
@@ -1539,7 +1539,7 @@ class TestWalletSending(ElectrumTestCase):
         wallet.adb.receive_tx_callback(tx_to_bump, tx_height=TX_HEIGHT_UNCONFIRMED)
 
         self.assertTrue(tx_to_bump.is_complete())
-        self.assertTrue(tx_to_bump.is_segwit())
+        self.assertTrue(tx_to_bump.is_any_segwit())
         self.assertEqual(2, len(tx_to_bump.inputs()))
         self.assertEqual(3, len(tx_to_bump.outputs()))
         self.assertTrue(wallet.can_rbf_tx(tx_to_bump))
@@ -1567,7 +1567,7 @@ class TestWalletSending(ElectrumTestCase):
         wallet.sign_transaction(tx, password=None)
 
         self.assertTrue(tx.is_complete())
-        self.assertFalse(tx.is_segwit())
+        self.assertFalse(tx.is_any_segwit())
         self.assertEqual(1, len(tx.inputs()))
         tx_copy = tx_from_any(tx.serialize())
 
@@ -1607,7 +1607,7 @@ class TestWalletSending(ElectrumTestCase):
         wallet.sign_transaction(tx, password=None)
 
         self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         self.assertEqual(1, len(tx.inputs()))
         tx_copy = tx_from_any(tx.serialize())
         self.assertTrue(wallet.is_mine(wallet.adb.get_txin_address(tx_copy.inputs()[0])))
@@ -1635,7 +1635,7 @@ class TestWalletSending(ElectrumTestCase):
 
         wallet.sign_transaction(tx, password=None)
         self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         tx_copy = tx_from_any(tx.serialize())
         self.assertEqual('01000000000101c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff02a02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f9870c4a720000000000160014f0fe5c1867a174a12e70165e728a072619455ed50247304402202a7e412d37f7a54f7ede0f85e58c7f9dc0f7244d222a4f50a90f87b05badeed40220788d4a4a13f660de7d5464dce5e79419361fdd5d1853c7da65469cd32f7981a90121028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c5bc391400',
                          str(tx_copy))
@@ -1695,7 +1695,7 @@ class TestWalletSending(ElectrumTestCase):
 
         wallet.sign_transaction(tx, password=None)
         self.assertFalse(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         tx_copy = tx_from_any(tx.serialize())
         self.assertEqual('70736274ff0100b90200000002a3a9d94039c1051102e36b835764b89985602608a3e121c91cb63d67277355080000000000fdfffffffd57af9ecf29b1cb42cb91087cf0d1d9fce59a3ca0b25bbfa7d27c07f99870590200000000fdffffff031660070000000000160014a36590fb127d05cf17a07a84a17f2f2d6cc90a7bb2a00700000000001600147db4ab480b7d2218fba561ff304178f4afcbc972be358900000000001600149d91f0053172fab394d277ae27e9fa5c5a4921091cf71c000001011f20a1070000000000160014db44724ac632ae47ee5765954d64796dd5fec7270100de02000000000101a5883f3de780d260e6f26cf85144403c7744a65a44cd38f9ff45aecadf010c540100000000fdffffff0220a1070000000000160014db44724ac632ae47ee5765954d64796dd5fec72708de3c000000000016001424b32aadb42a89016c4de8f11741c3b29b15f21c02473044022045cc6c1cc875cbb0c0d8fe323dc1de9716e49ed5659741b0fb3dd9a196894066022077c242640071d12ec5763c5870f482a4823d8713e4bd14353dd621ed29a7f96d012102aea8d439a0f79d8b58e8d7bda83009f587e1f3da350adaa484329bf47cd03465fef61c0001070001086b0247304402201f5ea643f6bc59c96ab8f1a3935b455e8f9395a67b74d618d121d16ae76f7b440220574d05df88740f915798e7993158c08e544801a044d19ef140574da19c1937d7012102a1c9b25b37aa31ccbb2d72caaffce81ec8253020a74017d92bbfc14a832fc9cb000100fd910102000000000102a5883f3de780d260e6f26cf85144403c7744a65a44cd38f9ff45aecadf010c540000000000fdffffffbdeb0175b1c51c96843d1952f7e1c49c1703717d7d020048d4de0a8eed94dad50000000000fdffffff03b2a00700000000001600140cd6c9f8ce0aa73d77fcf7f156c74f5cbec6906bb2a00700000000001600146435504ddc95e6019a90bb7dfc7ca81a88a8633106d790000000000016001444bd3017ee214370abf683abaa7f6204c9f40210024730440220652a04a2a301d9a031a034f3ae48174e204e17acf7bfc27f0dcab14243f73e2202207b29e964c434dfb2c515232d36566a40dccd4dd93ccb7fd15260ecbda10f0d9801210231994e564a0530068d17a9b0f85bec58d1352517a2861ea99e5b3070d2c5dbda02473044022072186473874919019da0e3d92b6e0aa4f88cba448ed5434615e5a3c8e2b7c42a02203ec05cef66960d5bc45d0f3d25675190cf8035b11a05ed4b719fd9c3a894899b012102f5fdca8c4e30ba0a1babf9cf9ebe62519b08aead351c349ed1ffc8316c24f542d7f61c0000220203b1b437d6d3366441e63e387594ffacb80676d7d518971d1d284b775cd7d8c38b109c9fff98000000800100000000000000000000',
                          tx_copy.serialize_as_bytes().hex())
@@ -1754,7 +1754,7 @@ class TestWalletSending(ElectrumTestCase):
 
         wallet.sign_transaction(tx, password=None)
         self.assertFalse(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         tx_copy = tx_from_any(tx.serialize())
         self.assertEqual('70736274ff01009a0200000002a3a9d94039c1051102e36b835764b89985602608a3e121c91cb63d67277355080000000000fdffffffda7757e44c027e6e004d71338515472e301113a6a69f4d4451b62d96d30dff590000000000fdffffff02bc780700000000001600144710cfecc31828d31e68ad101dd022fe091a02b1683f0f00000000001600145fd89e3ff2f32c48d85ac65edb4fdf40112ffdfb21f71c00000100de02000000000101a5883f3de780d260e6f26cf85144403c7744a65a44cd38f9ff45aecadf010c540100000000fdffffff0220a1070000000000160014db44724ac632ae47ee5765954d64796dd5fec72708de3c000000000016001424b32aadb42a89016c4de8f11741c3b29b15f21c02473044022045cc6c1cc875cbb0c0d8fe323dc1de9716e49ed5659741b0fb3dd9a196894066022077c242640071d12ec5763c5870f482a4823d8713e4bd14353dd621ed29a7f96d012102aea8d439a0f79d8b58e8d7bda83009f587e1f3da350adaa484329bf47cd03465fef61c000001011fd63f0f00000000001600141ef4658adb12ec745a1a1fef6ab8897f04bade060100fd530102000000000102c247447533b530cacc3e716aae84621857f04a483252374cbdccfdf8b4ef816b0000000000fdffffffc247447533b530cacc3e716aae84621857f04a483252374cbdccfdf8b4ef816b0100000000fdffffff01d63f0f00000000001600141ef4658adb12ec745a1a1fef6ab8897f04bade060247304402201dc5be86749d8ce33571a6f1a2f8bbfceba89b9dbf2b4683e66c8c17cf7df6090220729199516cb894569ebbe3e998d47fc74030231ed30f110c9babd8a9dc361115012102728251a5f5f55375eef3c14fe59ab0755ba4d5f388619895238033ac9b51aad20247304402202e5d416489c20810e96e931b98a84b0c0c4fc32d2d34d3470b7ee16810246a4c022040f86cf8030d2117d6487bbe6e23d68d6d70408b002d8055de1f33d038d3a0550121039c009e7e7dad07e74ec5a8ac9f9e3499420dd9fe9709995525c714170152512620f71c0001070001086b0247304402206842258bbe37829facadef81fa17eb1c97e6f9a4c66717c0cea37b61c9be804902203d291a2c9e3df57e3422f9b90589c2350f0168867c3320e994258169b8da402b012102999b1062a5acf7071a43fd6f2bd37a4e0f7162182490661949dbeeb7d1b0340100220202519a4072fd8c29362693439f441bd7a45c0d8dea26ce88872a4bca7e5d07cb4510277f03120000008000000000020000000022020314c9b46fce4c6111e4bbe89bb06b3dd29c6cbac586a4914bb18fe8bb7e0a463c10277f031200000080000000000100000000',
                          tx_copy.serialize_as_bytes().hex())
@@ -1786,7 +1786,7 @@ class TestWalletSending(ElectrumTestCase):
         wallet.sign_transaction(tx, password=None)
 
         self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         self.assertEqual(1, len(tx.inputs()))
         tx_copy = tx_from_any(tx.serialize())
         self.assertTrue(wallet.is_mine(wallet.adb.get_txin_address(tx_copy.inputs()[0])))
@@ -1813,7 +1813,7 @@ class TestWalletSending(ElectrumTestCase):
 
         wallet.sign_transaction(tx, password=None)
         self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         tx_copy = tx_from_any(tx.serialize())
         self.assertEqual('02000000000101c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff014676980000000000160014f0fe5c1867a174a12e70165e728a072619455ed502473044022008bcb6fab261e9f4d5ccdd11c389b0620de1a1f493e97df6ec83f0c1a261e96c02205e352d3096cc68d4b1279f05dd4a2b1f9d1134dd01f761d01e21f4a88e608cca0121028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c5bc391400',
                          str(tx_copy))
@@ -1848,7 +1848,7 @@ class TestWalletSending(ElectrumTestCase):
         wallet.sign_transaction(tx, password=None)
 
         self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         self.assertEqual(1, len(tx.inputs()))
         tx_copy = tx_from_any(tx.serialize())
         self.assertTrue(wallet.is_mine(wallet.adb.get_txin_address(tx_copy.inputs()[0])))
@@ -1876,7 +1876,7 @@ class TestWalletSending(ElectrumTestCase):
 
         wallet.sign_transaction(tx, password=None)
         self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         tx_copy = tx_from_any(tx.serialize())
         self.assertEqual('01000000000101c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff01267898000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f98702473044022069412007c3a6509fdfcfbe90679395c202c973740b0530b8ff366bc86ebff99d02206a02e3c0beb0921fa7d30379db4999d685d4b97239a2b8c7dd839531c72863110121028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c5bc391400',
                          str(tx_copy))
@@ -1912,7 +1912,7 @@ class TestWalletSending(ElectrumTestCase):
         wallet.sign_transaction(tx, password=None)
 
         self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         self.assertEqual(1, len(tx.inputs()))
         tx_copy = tx_from_any(tx.serialize())
         self.assertTrue(wallet.is_mine(wallet.adb.get_txin_address(tx_copy.inputs()[0])))
@@ -1948,7 +1948,7 @@ class TestWalletSending(ElectrumTestCase):
 
         wallet.sign_transaction(tx, password=None)
         self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         tx_copy = tx_from_any(tx.serialize())
         self.assertEqual('01000000000102c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff4a5d2593658f7feb9fadcf70dced3bc18db8c90bf77495e608f14dd51c6e6ac30100000000fdffffff025c254c0000000000160014f0fe5c1867a174a12e70165e728a072619455ed5f88298000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f9870247304402200d295ba3935c797c8eec441f1525f43697ddb07b2d5950a1474054d594bc2e4e0220549e9f07c01d35c19737d7e651c8a0a87c28b33b489ac2be2cc5f1cebbab3fc80121028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c50247304402206ac987d1ac834bc29c8b763da115942da6b070988eed1c33a3a53571f9d7c18e02204cb082efb881b1852abafdc28693ca45864b0130e252d97f58e790618010a629012102a6ff1ffc189b4776b78e20edca969cc45da3e610cc0cc79925604be43fee469fbc391400',
                          str(tx_copy))
@@ -1983,7 +1983,7 @@ class TestWalletSending(ElectrumTestCase):
         wallet.sign_transaction(tx, password=None)
 
         self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         self.assertEqual(1, len(tx.inputs()))
         tx_copy = tx_from_any(tx.serialize())
         self.assertTrue(wallet.is_mine(wallet.adb.get_txin_address(tx_copy.inputs()[0])))
@@ -2022,7 +2022,7 @@ class TestWalletSending(ElectrumTestCase):
         wallet.sign_transaction(tx, password=None)
 
         self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         self.assertEqual(1, len(tx.inputs()))
         tx_copy = tx_from_any(tx.serialize())
         self.assertTrue(wallet.is_mine(wallet.adb.get_txin_address(tx_copy.inputs()[0])))
@@ -2053,7 +2053,7 @@ class TestWalletSending(ElectrumTestCase):
         wallet.sign_transaction(tx, password=None)
 
         self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         self.assertEqual(2, len(tx.inputs()))
         tx_copy = tx_from_any(tx.serialize())
         self.assertTrue(wallet.is_mine(wallet.adb.get_txin_address(tx_copy.inputs()[0])))
@@ -2093,7 +2093,7 @@ class TestWalletSending(ElectrumTestCase):
         wallet.adb.receive_tx_callback(tx1, tx_height=TX_HEIGHT_UNCONFIRMED)
 
         self.assertTrue(tx1.is_complete())
-        self.assertTrue(tx1.is_segwit())
+        self.assertTrue(tx1.is_any_segwit())
         self.assertEqual(2, len(tx1.inputs()))
         self.assertEqual(3, len(tx1.outputs()))
 
@@ -2114,7 +2114,7 @@ class TestWalletSending(ElectrumTestCase):
         wallet.sign_transaction(tx2, password=None)
 
         self.assertTrue(tx2.is_complete())
-        self.assertTrue(tx2.is_segwit())
+        self.assertTrue(tx2.is_any_segwit())
         self.assertEqual(3, len(tx2.inputs()))
         self.assertEqual(4, len(tx2.outputs()))
 
@@ -2420,7 +2420,7 @@ class TestWalletSending(ElectrumTestCase):
         wallet.sign_transaction(tx, password=None)
 
         self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         self.assertEqual(1, len(tx.inputs()))
         tx_copy = tx_from_any(tx.serialize())
 
@@ -2674,7 +2674,7 @@ class TestWalletSending(ElectrumTestCase):
         tx = tx_from_any(tx2.serialize_as_bytes().hex())  # simulates moving partial txn between cosigners
 
         self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         self.assertEqual("02000000000102e546bc0a7c9736e82a07df5c24fe6d05df58a310dc376cf09302842ca7264f930100000000fdffffffd5bd4f8ebe63f0521f94e2d174b95d4327757a7e74fda3c9ff5c08796318f8d80000000000fdffffff04988d07000000000016001453675a59be834aa6d139c3ebea56646a9b160c4cb82e0f0000000000160014250dbabd5761d7e0773d6147699938dd08ec2eb88096980000000000160014b93357242ad5a6fff8930ce9dadd8ba44a6c44498096980000000000160014e2672a59431c261903c9469aa082202f37a859a40247304402205106349e1644223b5128009376fc497477227172ac28a54942da58014869d4f502205aa60ba466f53b52c5933c39cfa1ab735c1722029039d7a5a7577789ae891389012102275b4fba18bb34e5198a9cfb3e940306658839079b3bda50d504a9cf2bae36f402473044022003010ece3471f7a23f31b2a0fd157f88f7d436c0c73ec408043c7f5dd2b7ccbb02204bd21f5829555c3f94fbd0b5295d1071f739c6b8f2682f8a688e34d0ad26c90101210205e8db1b1906219782fadb18e763c0874a3118a17ce931e01707cbde194e04156f851800",
                          str(tx))
         self.assertEqual('4a33546eeaed0e25f9e6a58968be92a804a7e70a5332360dabc79f93cd059752', tx.txid())
@@ -2725,7 +2725,7 @@ class TestWalletSending(ElectrumTestCase):
         tx = tx_from_any(partial_tx)  # simulates moving partial txn between cosigners
 
         self.assertFalse(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         self.assertEqual('652c1a903a659c9fabb9caf4a2281a9fbcc59cd598bf6edc88cd60f940c2352c', tx.txid())
 
         self.assertEqual('tb1qxq5crk6yadw66rdt8xr3xj5ctvmq4c3z0fl85yx0ar8l6ga6ehysk0rjrk', tx.inputs()[0].address)
@@ -2791,7 +2791,7 @@ class TestWalletSending(ElectrumTestCase):
         wallet.sign_transaction(tx, password=None)
 
         self.assertTrue(tx.is_complete())
-        self.assertFalse(tx.is_segwit())
+        self.assertFalse(tx.is_any_segwit())
         self.assertEqual(1, len(tx.inputs()))
         tx_copy = tx_from_any(tx.serialize())
         self.assertTrue(wallet.is_mine(wallet.adb.get_txin_address(tx_copy.inputs()[0])))
@@ -2836,7 +2836,7 @@ class TestWalletSending(ElectrumTestCase):
         wallet.sign_transaction(tx, password=None)
 
         self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         self.assertEqual(1, len(tx.inputs()))
         tx_copy = tx_from_any(tx.serialize())
         self.assertTrue(wallet.is_mine(wallet.adb.get_txin_address(tx_copy.inputs()[0])))
@@ -2866,7 +2866,7 @@ class TestWalletSending(ElectrumTestCase):
 
         wallet.sign_transaction(tx, password=None)
         self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         tx_copy = tx_from_any(tx.serialize())
         self.assertEqual('02000000000101c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff016c78980000000000160014f0fe5c1867a174a12e70165e728a072619455ed50247304402201e706f7ab50e4212a98782e483476102cd6579dad91196002b13dedec79a9a6302205ae30e6c3cf6dd8c566ddae090eeedaac09ba0adc4c0205dfa77bc627621a6b70121028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c5455f1c00',
                          str(tx_copy))
@@ -2901,7 +2901,7 @@ class TestWalletSending(ElectrumTestCase):
         wallet.sign_transaction(tx, password=None)
 
         self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         self.assertEqual(1, len(tx.inputs()))
         tx_copy = tx_from_any(tx.serialize())
         self.assertTrue(wallet.is_mine(wallet.adb.get_txin_address(tx_copy.inputs()[0])))
@@ -2931,7 +2931,7 @@ class TestWalletSending(ElectrumTestCase):
 
         wallet.sign_transaction(tx, password=None)
         self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         tx_copy = tx_from_any(tx.serialize())
         self.assertEqual('02000000000101c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff016c78980000000000160014f0fe5c1867a174a12e70165e728a072619455ed502473044022013892ba1580bd8b35fe74cb7a0dceb6914b01ed5cfef6435b94ac0256866971c02200290d08d5f199fcdbba1a2dc4884f5cdea0177cb88e423d8588480d6a5fd62740121028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c57f5f1c00',
                          str(tx_copy))
@@ -2991,7 +2991,7 @@ class TestWalletSending(ElectrumTestCase):
 
         wallet.sign_transaction(tx, password=None)
         self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         tx_copy = tx_from_any(tx.serialize())
         self.assertEqual('02000000000101a3a9d94039c1051102e36b835764b89985602608a3e121c91cb63d67277355080000000000fdffffff010c830700000000001600145dc80fd43eb70fd21a6c4446e3ce043df94f100c0247304402202e75e1edceb8ce27d75814bc7895bc48a0d5c423b492b980b655908612485cc8022072a947c4516ab220d0825634efd8b1ad3a5503e63ed8fbb97700b5d73786c63f012102a1c9b25b37aa31ccbb2d72caaffce81ec8253020a74017d92bbfc14a832fc9cb26f71c00',
                          str(tx_copy))
@@ -3016,7 +3016,7 @@ class TestWalletSending(ElectrumTestCase):
         wallet.adb.receive_tx_callback(tx_to_cancel, tx_height=TX_HEIGHT_UNCONFIRMED)
 
         self.assertTrue(tx_to_cancel.is_complete())
-        self.assertTrue(tx_to_cancel.is_segwit())
+        self.assertTrue(tx_to_cancel.is_any_segwit())
         self.assertEqual(2, len(tx_to_cancel.inputs()))
         self.assertEqual(3, len(tx_to_cancel.outputs()))
 
@@ -3047,7 +3047,7 @@ class TestWalletSending(ElectrumTestCase):
         self.assertEqual("70736274ff0100710200000001a97a9ae7fb1a9220fdd170a974987ac24631dcff89b60fa4907c78c3639994db0000000000fdffffff02a0860100000000001600148270d6b93e2117fd2b31c756e61ee1faaf02e63ab4fc1c0000000000160014b8e4fdc91593b67de2bf214694ef47e38dc2ee8ead951d000001011f12841e000000000016001477fe6d2a27e8860c278d4d2cd90bad716bb9521a0100bf0200000000010132515e6aade1b79ec7dd3bac0896d8b32c56195d23d07d48e21659cef24301560100000000fdffffff0112841e000000000016001477fe6d2a27e8860c278d4d2cd90bad716bb9521a02473044022041ed68ef7ef122813ac6a5e996b8284f645c53fbe6823b8e430604a8915a867802203233f5f4d347a687eb19b2aa570829ab12aeeb29a24cc6d6d20b8b3d79e971ae012102bee0ee043817e50ac1bb31132770f7c41e35946ccdcb771750fb9696bdd1b307ad951d002206026cc6a74c2b0e38661d341ffae48fe7dde5196ca4afe95d28b496673fa4cf6467105f83afb40000008000000000000000000022020312ea49b9b1eea28e3330316a5b7e6673b43e01da38f802c99a777d30b903fa5e105f83afb40000008000000000010000000022020349321bee98c012887997f26c6400018b0711dd254b702c038b96a30ebe2af1d2105f83afb400000080010000000000000000",
                          tx.serialize_as_bytes().hex())
         self.assertFalse(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         wallet.adb.add_transaction(tx)
 
         # create tx2, which spends from unsigned tx1
@@ -3060,7 +3060,7 @@ class TestWalletSending(ElectrumTestCase):
         self.assertEqual("70736274ff01007b020000000288234495e0ff1d8ac06038f6cc5d5a92738d719f4c15afd581366da94754478f0000000000fdffffff88234495e0ff1d8ac06038f6cc5d5a92738d719f4c15afd581366da94754478f0100000000fdffffff01cc6f1e000000000016001403ffb2e61b0682996232fc3ccd2dc42c7f306207af951d000001011fa0860100000000001600148270d6b93e2117fd2b31c756e61ee1faaf02e63a22060312ea49b9b1eea28e3330316a5b7e6673b43e01da38f802c99a777d30b903fa5e105f83afb40000008000000000010000000001011fb4fc1c0000000000160014b8e4fdc91593b67de2bf214694ef47e38dc2ee8e22060349321bee98c012887997f26c6400018b0711dd254b702c038b96a30ebe2af1d2105f83afb4000000800100000000000000002202036f9a5913f1c22742dbc9e7f3ac3064be8b125a23563fcc8a519f387e16c7244c105f83afb400000080000000000200000000",
                          tx.serialize_as_bytes().hex())
         self.assertFalse(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         wallet.adb.add_transaction(tx)
 
         coins = wallet.get_spendable_coins(domain=None)
@@ -3516,7 +3516,7 @@ class TestWalletSending(ElectrumTestCase):
                                      partial_tx)
                 # load tx into cosignerB's online wallet
                 tx = tx_from_any(partial_tx)
-                self.assertFalse(tx.is_segwit())
+                self.assertFalse(tx.is_any_segwit())
                 self.assertFalse(tx.is_complete())
                 tx.add_info_from_wallet(wallet1b)
 
@@ -3696,7 +3696,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
 
         self.assertFalse(tx.is_complete())
         self.assertEqual((0, 1), tx.signature_count())
-        self.assertFalse(tx.is_segwit())
+        self.assertFalse(tx.is_any_segwit())
         self.assertEqual(1, len(tx.inputs()))
         partial_tx = tx.serialize_as_bytes().hex()
         self.assertEqual("70736274ff01007401000000015608436ec7dc01c95ca1ca91519f2dc62b6613ac3d6304cb56462f6081059e3b0200000000fdffffff02a02526000000000016001423a3878d93d5acac68e7245a4433169d3d455087585d7200000000001976a914b6a6bbbc4cf9da58786a8acc58291e218d52130688acff121600000100fd000101000000000101161115f8d8110001aa0883989487f9c7a2faf4451038e4305c7594c5236cbb490100000000fdffffff0338117a0000000000160014c1d7b2ded7017cbde837aab36c1e7b2a3952a57800127a00000000001600143e2ab71fc9738ce16fbe6b3b1c210a68c12db84180969800000000001976a91424b64d981d621c227716b51479faf33019371f4688ac0247304402207a5efc6d970f6a5fdcd1933f68b353b4bf2904743f9f1dc3e9177d8754074baf02202eed707e661493bc450357f12cd7a8b8c610c7cb32ded10516c2933a2ba4346a01210287dce03f594fd889726b13a12970237992a0094a5c9f4eebcca6d50d454b39e9ff121600420604e79eb77f2f3f989f5e9d090bc0af50afeb0d5bd6ec916f2022c5629ed022e84a87584ef647d69f073ea314a0f0c110ebe24ad64bc1922a10819ea264fc3f35f50c343ddcab000000000100000000004202048e2004ca581afcc54a5d9b3b47affdf48b3f89e16d5bd96774fc0f167f2d7873bac6264e3d1f1bb96f64d1530a54e026e0bd7d674151d146fba582e79f4ef5e80c343ddcab010000000000000000",
@@ -3710,7 +3710,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
         tx = wallet_offline.sign_transaction(tx_copy, password=None)
         self.assertTrue(tx.is_complete())
         self.assertEqual((1, 1), tx.signature_count())
-        self.assertFalse(tx.is_segwit())
+        self.assertFalse(tx.is_any_segwit())
         self.assertEqual('01000000015608436ec7dc01c95ca1ca91519f2dc62b6613ac3d6304cb56462f6081059e3b020000008a47304402206bed3e02af8a38f6ba2fa3bf5908cb8c643aa62e78e8de6d9af2e19dec55fafc0220039cc1d81d4e5e0292bbc54ea92b8ec4ec016d4828eedc8975a66952cedf13a1014104e79eb77f2f3f989f5e9d090bc0af50afeb0d5bd6ec916f2022c5629ed022e84a87584ef647d69f073ea314a0f0c110ebe24ad64bc1922a10819ea264fc3f35f5fdffffff02a02526000000000016001423a3878d93d5acac68e7245a4433169d3d455087585d7200000000001976a914b6a6bbbc4cf9da58786a8acc58291e218d52130688acff121600',
                          str(tx))
         self.assertEqual('06032230d0bf6a277bc4f8c39e3311a712e0e614626d0dea7cc9f592abfae5d8', tx.txid())
@@ -3742,7 +3742,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
         tx.version = 1
 
         self.assertFalse(tx.is_complete())
-        self.assertFalse(tx.is_segwit())
+        self.assertFalse(tx.is_any_segwit())
         self.assertEqual(1, len(tx.inputs()))
 
         orig_tx = tx
@@ -3766,7 +3766,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
                 # sign tx
                 tx = wallet_offline.sign_transaction(tx_copy, password=None, ignore_warnings=True)
                 self.assertTrue(tx.is_complete())
-                self.assertFalse(tx.is_segwit())
+                self.assertFalse(tx.is_any_segwit())
                 self.assertEqual('d9c21696eca80321933e7444ca928aaf25eeda81aaa2f4e5c085d4d0a9cf7aa7', tx.txid())
                 self.assertEqual('d9c21696eca80321933e7444ca928aaf25eeda81aaa2f4e5c085d4d0a9cf7aa7', tx.wtxid())
 
@@ -3796,7 +3796,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
         tx.version = 1
 
         self.assertFalse(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         self.assertEqual(1, len(tx.inputs()))
         partial_tx = tx.serialize_as_bytes().hex()
         self.assertEqual("70736274ff010072010000000162878508bdcd372fc4c33ce6145cd1fb1dcc5314d4930ceb6957e7f6c54b57980300000000fdffffff02a0252600000000001600140bf6c540d0218c99511f7c62a49784c88b1870b8585d72000000000017a914191e7373ae7b4829532220e8f281f4581ed52638871d39140000010120809698000000000017a914a6885437e0762013facbda93894202a0fe86e35f870100fd4c0d01000000000116e9c9dac2651672316aab3b9553257b6942c5f762c5d795776d9cfa504f183c000000000000fdffffff8085019852fada9da84b58dcf753d292dde314a19f5a5527f6588fa2566142130000000000fdffffffa4154a48db20ce538b28722a89c6b578bd5b5d60d6d7b52323976339e39405230000000000fdffffff0b5ef43f843a96364aebd708e25ea1bdcf2c7df7d0d995560b8b1be5f357b64f0100000000fdffffffd41dfe1199c76fdb3f20e9947ea31136d032d9da48c5e45d85c8f440e2351a510100000000fdffffff5bd015d17e4a1837b01c24ebb4a6b394e3da96a85442bd7dc6abddfbf16f20510000000000fdffffff13a3e7f80b1bd46e38f2abc9e2f335c18a4b0af1778133c7f1c3caae9504345c0200000000fdffffffdf4fc1ab21bca69d18544ddb10a913cd952dbc730ab3d236dd9471445ff405680100000000fdffffffe0424d78a30d5e60ac6b26e2274d7d6e7c6b78fe0b49bdc3ac4dd2147c9535750100000000fdffffff7ab6dd6b3c0d44b0fef0fdc9ab0ad6eee23eef799eee29c005d52bc4461998760000000000fdffffff48a77e5053a21acdf4f235ce00c82c9bc1704700f54d217f6a30704711b9737d0000000000fdffffff86918b39c1d9bb6f34d9b082182f73cedd15504331164dc2b186e95c568ccb870000000000fdffffff15a847356cbb44be67f345965bb3f2589e2fec1c9a0ada21fd28225dcc602e8f0100000000fdffffff9a2875297f81dfd3b77426d63f621db350c270cc28c634ad86b9969ee33ac6960000000000fdffffffd6eeb1d1833e00967083d1ab86fa5a2e44355bd613d9277135240fe6f60148a20100000000fdffffffd8a6e5a9b68a65ff88220ca33e36faf6f826ae8c5c8a13fe818a5e63828b68a40100000000fdffffff73aab8471f82092e45ed1b1afeffdb49ea1ec74ce4853f971812f6a72a7e85aa0000000000fdffffffacd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba0000000000fdffffff1eddd5e13bef1aba1ff151762b5860837daa9b39db1eae8ea8227c81a5a1c8ba0000000000fdffffff67a096ff7c343d39e96929798097f6d7a61156bbdb905fbe534ba36f273271d40100000000fdffffff109a671eb7daf6dcd07c0ceff99f2de65864ab36d64fb3a890bab951569adeee0100000000fdffffff4f1bdc64da8056d08f79db7f5348d1de55946e57aa7c8279499c703889b6e0fd0200000000fdffffff042f280000000000001600149c756aa33f4f89418b33872a973274b5445c727b80969800000000001600146c540c1c9f546004539f45318b8d9f4d7b4857ef80969800000000001976a91422a6daa4a7b695c8a2dd104d47c5dc73d655c96f88ac809698000000000017a914a6885437e0762013facbda93894202a0fe86e35f8702473044022075ef5f04d7a63347064938e15a0c74277a79e5c9d32a26e39e8a517a44d565cc022015246790fb5b29c9bf3eded1b95699b1635bcfc6d521886fddf1135ba1b988ec012102801bc7170efb82c490e243204d86970f15966aa3bce6a06bef5c09a83a5bfffe02473044022061aa9b0d9649ffd7259bc54b35f678565dbbe11507d348dd8885522eaf1fa70c02202cc79de09e8e63e8d57fde6ef66c079ddac4d9828e1936a9db833d4c142615c3012103a8f58fc1f5625f18293403104874f2d38c9279f777e512570e4199c7d292b81b0247304402207744dc1ab0bf77c081b58540c4321d090c0a24a32742a361aa55ad86f0c7c24e02201a9b0dd78b63b495ab5a0b5b161c54cb085d70683c90e188bb4dc2e41e142f6601210361fb354f8259abfcbfbdda36b7cb4c3b05a3ca3d68dd391fd8376e920d93870d0247304402204803e423c321acc6c12cb0ebf196d2906842fdfed6de977cc78277052ee5f15002200634670c1dc25e6b1787a65d3e09c8e6bb0340238d90b9d98887e8fd53944e080121031104c60d027123bf8676bcaefaa66c001a0d3d379dc4a9492a567a9e1004452d02473044022050e4b5348d30011a22b6ae8b43921d29249d88ea71b1fbaa2d9c22dfdef58b7002201c5d5e143aa8835454f61b0742226ebf8cd466bcc2cdcb1f77b92e473d3b13190121030496b9d49aa8efece4f619876c60a77d2c0dc846390ecdc5d9acbfa1bb3128760247304402204d6a9b986e1a0e3473e8aef84b3eb7052442a76dfd7631e35377f141496a55490220131ab342853c01e31f111436f8461e28bc95883b871ca0e01b5f57146e79d7bb012103262ffbc88e25296056a3c65c880e3686297e07f360e6b80f1219d65b0900e84e02483045022100c8ffacf92efa1dddef7e858a241af7a80adcc2489bcc325195970733b1f35fac022076f40c26023a228041a9665c5290b9918d06f03b716e4d8f6d47e79121c7eb37012102d9ba7e02d7cd7dd24302f823b3114c99da21549c663f72440dc87e8ba412120902483045022100b55545d84e43d001bbc10a981f184e7d3b98a7ed6689863716cab053b3655a2f0220537eb76a695fbe86bf020b4b6f7ae93b506d778bbd0885f0a61067616a2c8bce0121034a57f2fa2c32c9246691f6a922fb1ebdf1468792bae7eff253a99fc9f2a5023902483045022100f1d4408463dbfe257f9f778d5e9c8cdb97c8b1d395dbd2e180bc08cad306492c022002a024e19e1a406eaa24467f033659de09ab58822987281e28bb6359288337bd012103e91daa18d924eea62011ce596e15b6d683975cf724ea5bf69a8e2022c26fc12f0247304402204f1e12b923872f396e5e1a3aa94b0b2e86b4ce448f4349a017631db26d7dff8a022069899a05de2ad2bbd8e0202c56ab1025a7db9a4998eea70744e3c367d2a7eb71012103b0eee86792dbef1d4a49bc4ea32d197c8c15d27e6e0c5c33e58e409e26d4a39a0247304402201787dacdb92e0df6ad90226649f0e8321287d0bd8fddc536a297dd19b5fc103e022001fe89300a76e5b46d0e3f7e39e0ee26cc83b71d59a2a5da1dd7b13350cd0c07012103afb1e43d7ec6b7999ef0f1093069e68fe1dfe5d73fc6cfb4f7a5022f7098758c02483045022100acc1212bba0fe4fcc6c3ae5cf8e25f221f140c8444d3c08dfc53a93630ac25da02203f12982847244bd9421ef340293f3a38d2ab5d028af60769e46fcc7d81312e7e012102801bc7170efb82c490e243204d86970f15966aa3bce6a06bef5c09a83a5bfffe024830450221009c04934102402949484b21899271c3991c007b783b8efc85a3c3d24641ac7c24022006fb1895ce969d08a2cb29413e1a85427c7e85426f7a185108ca44b5a0328cb301210360248db4c7d7f76fe231998d2967104fee04df8d8da34f10101cc5523e82648c02483045022100b11fe61b393fa5dbe18ab98f65c249345b429b13f69ee2d1b1335725b24a0e73022010960cdc5565cbc81885c8ed95142435d3c202dfa5a3dc5f50f3914c106335ce0121029c878610c34c21381cda12f6f36ab88bf60f5f496c1b82c357b8ac448713e7b50247304402200ca080db069c15bbf98e1d4dff68d0aea51227ff5d17a8cf67ceae464c22bbb0022051e7331c0918cbb71bb2cef29ca62411454508a16180b0fb5df94248890840df0121028f0be0cde43ff047edbda42c91c37152449d69789eb812bb2e148e4f22472c0f0247304402201fefe258938a2c481d5a745ef3aa8d9f8124bbe7f1f8c693e2ddce4ddc9a927c02204049e0060889ede8fda975edf896c03782d71ba53feb51b04f5ae5897d7431dc012103946730b480f52a43218a9edce240e8b234790e21df5e96482703d81c3c19d3f1024730440220126a6a56dbe69af78d156626fc9cf41d6aac0c07b8b5f0f8491f68db5e89cb5002207ee6ed6f2f41da256f3c1e79679a3de6cf34cc08b940b82be14aefe7da031a6b012102801bc7170efb82c490e243204d86970f15966aa3bce6a06bef5c09a83a5bfffe024730440220363204a1586d7f13c148295122cbf9ec7939685e3cadab81d6d9e921436d21b7022044626b8c2bd4aa7c167d74bc4e9eb9d0744e29ce0ad906d78e10d6d854f23d170121037fb9c51716739bb4c146857fab5a783372f72a65987d61f3b58c74360f4328dd0247304402207925a4c2a3a6b76e10558717ee28fcb8c6fde161b9dc6382239af9f372ace99902204a58e31ce0b4a4804a42d2224331289311ded2748062c92c8aca769e81417a4c012102e18a8c235b48e41ef98265a8e07fa005d2602b96d585a61ad67168d74e7391cb02483045022100bbfe060479174a8d846b5a897526003eb2220ba307a5fee6e1e8de3e4e8b38fd02206723857301d447f67ac98a5a5c2b80ef6820e98fae213db1720f93d91161803b01210386728e2ac3ecee15f58d0505ee26f86a68f08c702941ffaf2fb7213e5026aea10247304402203a2613ae68f697eb02b5b7d18e3c4236966dac2b3a760e3021197d76e9ad4239022046f9067d3df650fcabbdfd250308c64f90757dec86f0b08813c979a42d06a6ec012102a1d7ee1cb4dc502f899aaafae0a2eb6cbf80d9a1073ae60ddcaabc3b1d1f15df02483045022100ab1bea2cc5388428fd126c7801550208701e21564bd4bd00cfd4407cfafc1acd0220508ee587f080f3c80a5c0b2175b58edd84b755e659e2135b3152044d75ebc4b501210236dd1b7f27a296447d0eb3750e1bdb2d53af50b31a72a45511dc1ec3fe7a684a193914000104160014105db4dae7e5b8dd4dda7b7d3b1e588c9bf26f192206030dddd5d3c31738ca2d8b25391f648af6a8b08e6961e8f56d4173d03e9db82d3e0c105d19280000000002000000000001001600144f485261505d5cbd33dce02a723776c99240c28722020211ab9359cc49c95b3b9a87ee95fd4edf0cecce862f9e9f86ff63e10880baaba80c105d1928010000000000000000",
@@ -3810,7 +3810,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
         # sign tx
         tx = wallet_offline.sign_transaction(tx_copy, password=None)
         self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         self.assertEqual('3f0d188519237478258ad2bf881643618635d11c2bb95512e830fcf2eda3c522', tx.txid())
         self.assertEqual('27b78ec072a403b0545258e7a1a8d494e4b6fd48bf77f4251a12160c92207cbc', tx.wtxid())
 
@@ -3841,7 +3841,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
 
         self.assertFalse(tx.is_complete())
         self.assertEqual((0, 1), tx.signature_count())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         self.assertEqual(1, len(tx.inputs()))
 
         orig_tx = tx
@@ -3867,7 +3867,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
                 tx = wallet_offline.sign_transaction(tx_copy, password=None)
                 self.assertTrue(tx.is_complete())
                 self.assertEqual((1, 1), tx.signature_count())
-                self.assertTrue(tx.is_segwit())
+                self.assertTrue(tx.is_any_segwit())
                 self.assertEqual('ee76c0c6da87f0eb5ab4d1ae05d3942512dcd3c4c42518f9d3619e74400cfc1f', tx.txid())
                 self.assertEqual('484e350beaa722a744bb3e2aa38de005baa8526d86536d6143e5814355acf775', tx.wtxid())
 
@@ -3897,7 +3897,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
         tx.version = 1
 
         self.assertFalse(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         self.assertEqual(1, len(tx.inputs()))
         partial_tx = tx.serialize_as_bytes().hex()
         self.assertEqual("70736274ff010071010000000162878508bdcd372fc4c33ce6145cd1fb1dcc5314d4930ceb6957e7f6c54b57980100000000fdffffff02a0252600000000001600140bf6c540d0218c99511f7c62a49784c88b1870b8585d7200000000001600145543fe1a1364b806b27a5c9dc92ac9bbf0d42aa31d3914000001011f80969800000000001600146c540c1c9f546004539f45318b8d9f4d7b4857ef0100fd4c0d01000000000116e9c9dac2651672316aab3b9553257b6942c5f762c5d795776d9cfa504f183c000000000000fdffffff8085019852fada9da84b58dcf753d292dde314a19f5a5527f6588fa2566142130000000000fdffffffa4154a48db20ce538b28722a89c6b578bd5b5d60d6d7b52323976339e39405230000000000fdffffff0b5ef43f843a96364aebd708e25ea1bdcf2c7df7d0d995560b8b1be5f357b64f0100000000fdffffffd41dfe1199c76fdb3f20e9947ea31136d032d9da48c5e45d85c8f440e2351a510100000000fdffffff5bd015d17e4a1837b01c24ebb4a6b394e3da96a85442bd7dc6abddfbf16f20510000000000fdffffff13a3e7f80b1bd46e38f2abc9e2f335c18a4b0af1778133c7f1c3caae9504345c0200000000fdffffffdf4fc1ab21bca69d18544ddb10a913cd952dbc730ab3d236dd9471445ff405680100000000fdffffffe0424d78a30d5e60ac6b26e2274d7d6e7c6b78fe0b49bdc3ac4dd2147c9535750100000000fdffffff7ab6dd6b3c0d44b0fef0fdc9ab0ad6eee23eef799eee29c005d52bc4461998760000000000fdffffff48a77e5053a21acdf4f235ce00c82c9bc1704700f54d217f6a30704711b9737d0000000000fdffffff86918b39c1d9bb6f34d9b082182f73cedd15504331164dc2b186e95c568ccb870000000000fdffffff15a847356cbb44be67f345965bb3f2589e2fec1c9a0ada21fd28225dcc602e8f0100000000fdffffff9a2875297f81dfd3b77426d63f621db350c270cc28c634ad86b9969ee33ac6960000000000fdffffffd6eeb1d1833e00967083d1ab86fa5a2e44355bd613d9277135240fe6f60148a20100000000fdffffffd8a6e5a9b68a65ff88220ca33e36faf6f826ae8c5c8a13fe818a5e63828b68a40100000000fdffffff73aab8471f82092e45ed1b1afeffdb49ea1ec74ce4853f971812f6a72a7e85aa0000000000fdffffffacd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba0000000000fdffffff1eddd5e13bef1aba1ff151762b5860837daa9b39db1eae8ea8227c81a5a1c8ba0000000000fdffffff67a096ff7c343d39e96929798097f6d7a61156bbdb905fbe534ba36f273271d40100000000fdffffff109a671eb7daf6dcd07c0ceff99f2de65864ab36d64fb3a890bab951569adeee0100000000fdffffff4f1bdc64da8056d08f79db7f5348d1de55946e57aa7c8279499c703889b6e0fd0200000000fdffffff042f280000000000001600149c756aa33f4f89418b33872a973274b5445c727b80969800000000001600146c540c1c9f546004539f45318b8d9f4d7b4857ef80969800000000001976a91422a6daa4a7b695c8a2dd104d47c5dc73d655c96f88ac809698000000000017a914a6885437e0762013facbda93894202a0fe86e35f8702473044022075ef5f04d7a63347064938e15a0c74277a79e5c9d32a26e39e8a517a44d565cc022015246790fb5b29c9bf3eded1b95699b1635bcfc6d521886fddf1135ba1b988ec012102801bc7170efb82c490e243204d86970f15966aa3bce6a06bef5c09a83a5bfffe02473044022061aa9b0d9649ffd7259bc54b35f678565dbbe11507d348dd8885522eaf1fa70c02202cc79de09e8e63e8d57fde6ef66c079ddac4d9828e1936a9db833d4c142615c3012103a8f58fc1f5625f18293403104874f2d38c9279f777e512570e4199c7d292b81b0247304402207744dc1ab0bf77c081b58540c4321d090c0a24a32742a361aa55ad86f0c7c24e02201a9b0dd78b63b495ab5a0b5b161c54cb085d70683c90e188bb4dc2e41e142f6601210361fb354f8259abfcbfbdda36b7cb4c3b05a3ca3d68dd391fd8376e920d93870d0247304402204803e423c321acc6c12cb0ebf196d2906842fdfed6de977cc78277052ee5f15002200634670c1dc25e6b1787a65d3e09c8e6bb0340238d90b9d98887e8fd53944e080121031104c60d027123bf8676bcaefaa66c001a0d3d379dc4a9492a567a9e1004452d02473044022050e4b5348d30011a22b6ae8b43921d29249d88ea71b1fbaa2d9c22dfdef58b7002201c5d5e143aa8835454f61b0742226ebf8cd466bcc2cdcb1f77b92e473d3b13190121030496b9d49aa8efece4f619876c60a77d2c0dc846390ecdc5d9acbfa1bb3128760247304402204d6a9b986e1a0e3473e8aef84b3eb7052442a76dfd7631e35377f141496a55490220131ab342853c01e31f111436f8461e28bc95883b871ca0e01b5f57146e79d7bb012103262ffbc88e25296056a3c65c880e3686297e07f360e6b80f1219d65b0900e84e02483045022100c8ffacf92efa1dddef7e858a241af7a80adcc2489bcc325195970733b1f35fac022076f40c26023a228041a9665c5290b9918d06f03b716e4d8f6d47e79121c7eb37012102d9ba7e02d7cd7dd24302f823b3114c99da21549c663f72440dc87e8ba412120902483045022100b55545d84e43d001bbc10a981f184e7d3b98a7ed6689863716cab053b3655a2f0220537eb76a695fbe86bf020b4b6f7ae93b506d778bbd0885f0a61067616a2c8bce0121034a57f2fa2c32c9246691f6a922fb1ebdf1468792bae7eff253a99fc9f2a5023902483045022100f1d4408463dbfe257f9f778d5e9c8cdb97c8b1d395dbd2e180bc08cad306492c022002a024e19e1a406eaa24467f033659de09ab58822987281e28bb6359288337bd012103e91daa18d924eea62011ce596e15b6d683975cf724ea5bf69a8e2022c26fc12f0247304402204f1e12b923872f396e5e1a3aa94b0b2e86b4ce448f4349a017631db26d7dff8a022069899a05de2ad2bbd8e0202c56ab1025a7db9a4998eea70744e3c367d2a7eb71012103b0eee86792dbef1d4a49bc4ea32d197c8c15d27e6e0c5c33e58e409e26d4a39a0247304402201787dacdb92e0df6ad90226649f0e8321287d0bd8fddc536a297dd19b5fc103e022001fe89300a76e5b46d0e3f7e39e0ee26cc83b71d59a2a5da1dd7b13350cd0c07012103afb1e43d7ec6b7999ef0f1093069e68fe1dfe5d73fc6cfb4f7a5022f7098758c02483045022100acc1212bba0fe4fcc6c3ae5cf8e25f221f140c8444d3c08dfc53a93630ac25da02203f12982847244bd9421ef340293f3a38d2ab5d028af60769e46fcc7d81312e7e012102801bc7170efb82c490e243204d86970f15966aa3bce6a06bef5c09a83a5bfffe024830450221009c04934102402949484b21899271c3991c007b783b8efc85a3c3d24641ac7c24022006fb1895ce969d08a2cb29413e1a85427c7e85426f7a185108ca44b5a0328cb301210360248db4c7d7f76fe231998d2967104fee04df8d8da34f10101cc5523e82648c02483045022100b11fe61b393fa5dbe18ab98f65c249345b429b13f69ee2d1b1335725b24a0e73022010960cdc5565cbc81885c8ed95142435d3c202dfa5a3dc5f50f3914c106335ce0121029c878610c34c21381cda12f6f36ab88bf60f5f496c1b82c357b8ac448713e7b50247304402200ca080db069c15bbf98e1d4dff68d0aea51227ff5d17a8cf67ceae464c22bbb0022051e7331c0918cbb71bb2cef29ca62411454508a16180b0fb5df94248890840df0121028f0be0cde43ff047edbda42c91c37152449d69789eb812bb2e148e4f22472c0f0247304402201fefe258938a2c481d5a745ef3aa8d9f8124bbe7f1f8c693e2ddce4ddc9a927c02204049e0060889ede8fda975edf896c03782d71ba53feb51b04f5ae5897d7431dc012103946730b480f52a43218a9edce240e8b234790e21df5e96482703d81c3c19d3f1024730440220126a6a56dbe69af78d156626fc9cf41d6aac0c07b8b5f0f8491f68db5e89cb5002207ee6ed6f2f41da256f3c1e79679a3de6cf34cc08b940b82be14aefe7da031a6b012102801bc7170efb82c490e243204d86970f15966aa3bce6a06bef5c09a83a5bfffe024730440220363204a1586d7f13c148295122cbf9ec7939685e3cadab81d6d9e921436d21b7022044626b8c2bd4aa7c167d74bc4e9eb9d0744e29ce0ad906d78e10d6d854f23d170121037fb9c51716739bb4c146857fab5a783372f72a65987d61f3b58c74360f4328dd0247304402207925a4c2a3a6b76e10558717ee28fcb8c6fde161b9dc6382239af9f372ace99902204a58e31ce0b4a4804a42d2224331289311ded2748062c92c8aca769e81417a4c012102e18a8c235b48e41ef98265a8e07fa005d2602b96d585a61ad67168d74e7391cb02483045022100bbfe060479174a8d846b5a897526003eb2220ba307a5fee6e1e8de3e4e8b38fd02206723857301d447f67ac98a5a5c2b80ef6820e98fae213db1720f93d91161803b01210386728e2ac3ecee15f58d0505ee26f86a68f08c702941ffaf2fb7213e5026aea10247304402203a2613ae68f697eb02b5b7d18e3c4236966dac2b3a760e3021197d76e9ad4239022046f9067d3df650fcabbdfd250308c64f90757dec86f0b08813c979a42d06a6ec012102a1d7ee1cb4dc502f899aaafae0a2eb6cbf80d9a1073ae60ddcaabc3b1d1f15df02483045022100ab1bea2cc5388428fd126c7801550208701e21564bd4bd00cfd4407cfafc1acd0220508ee587f080f3c80a5c0b2175b58edd84b755e659e2135b3152044d75ebc4b501210236dd1b7f27a296447d0eb3750e1bdb2d53af50b31a72a45511dc1ec3fe7a684a19391400220603fd88f32a81e812af0187677fc0e7ac9b7fb63ca68c2d98c2afbcf99aa311ac060cdf758ae500000000020000000000220202ac05f54ef082ac98302d57d532e728653565bd55f46fcf03cacbddb168fd6c760cdf758ae5010000000000000000",
@@ -3911,7 +3911,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
         # sign tx
         tx = wallet_offline.sign_transaction(tx_copy, password=None)
         self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         self.assertEqual('ee76c0c6da87f0eb5ab4d1ae05d3942512dcd3c4c42518f9d3619e74400cfc1f', tx.txid())
         self.assertEqual('484e350beaa722a744bb3e2aa38de005baa8526d86536d6143e5814355acf775', tx.wtxid())
 
@@ -3967,7 +3967,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
         # sign tx
         tx = wallet_offline.sign_transaction(tx_copy, password=None)
         self.assertTrue(tx.is_complete())
-        self.assertFalse(tx.is_segwit())
+        self.assertFalse(tx.is_any_segwit())
         self.assertEqual('e56da664631b8c666c6df38ec80c954c4ac3c4f56f040faf0070e4681e937fc4', tx.txid())
         self.assertEqual('e56da664631b8c666c6df38ec80c954c4ac3c4f56f040faf0070e4681e937fc4', tx.wtxid())
 
@@ -4006,7 +4006,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
             "sh(wpkh(03845818239fe468a9e7c7ae1a3d3653a8333f89ff316a771a3acf6854b4d8c6db))",
             tx.inputs()[0].script_descriptor.to_string_no_checksum())
         self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         self.assertEqual('7642816d051aa3b333b6564bb6e44fe3a5885bfe7db9860dfbc9973a5c9a6562', tx.txid())
         self.assertEqual('9bb9949974954613945756c48ca5525cd5cba1b667ccb10c7a53e1ed076a1117', tx.wtxid())
 
@@ -4042,7 +4042,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
         # sign tx
         tx = wallet_offline.sign_transaction(tx_copy, password=None)
         self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         self.assertEqual('f8039bd85279f2b5698f15d47f2e338d067d09af391bd8a19467aa94d03f280c', tx.txid())
         self.assertEqual('3b7cc3c3352bbb43ddc086487ac696e09f2863c3d9e8636721851b8008a83ffa', tx.wtxid())
 
@@ -4085,7 +4085,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
         # sign tx
         tx = wallet_offline.sign_transaction(tx_copy, password=None)
         self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         self.assertEqual('020000000001032079f96374ee9641d9a64f0d4bfc13c0f896e876eac6f7ffe1e6d01723b05a190100000000fdffffff94697ad8f540a9a93e2b7b11753289ed8a66c0a5bd5e09082c8d228b2e109b7201000000171600146bcf730f3a82c8a047b567ed2fff9beb945090c3fdffffff58b03491083d8ac03ee29b73622094ef38108bc4a52595a26b433064aadbce9e010000006a4730440220534c7119d920f9589d47ecd2b92d9fb7d23308e4a8f65540fad4e3b73970bb2b02201aeedb63c27844666539e72ec7afa587310027ac5c4f1cc17737195258ebe9730121038daf92580f95544335297532e782f2493c6b852d2e1382aa8816945d819c08acfdffffff015880040000000000160014912274ef7d2b24f5fea42f23793ff793e213e9f8024730440220248bb782cf19430981bf346dc397316ad28d693a55c3c5de0a1b9f5be958fe1802204a8d8b056c76e0e77db083b50db36e618857692407027f4e299baf5cc433aa410121034e22a0f8b13e2f5e91355b74bdc8e07b7ec6c5e2c31ff7daabdc167ad2d175390247304402206c7a8c33e13ae3dd84c0605a8380d98bf7f543f5ab6061678ddd851dda2ca3d302201868479f8b5d9b2045f039dfd9624432c4b40e62273d8920aede6a99bd5622dd012103e46ebd17af4cb7746dd6e190f85f34a855467346e11f34a2cc864fcf9c7d33c9006dfa4800',
                          str(tx))
         self.assertEqual('08b4283f230ffbb72b001eef01e267b310fa6f9d3800d2000474787e13c98ae7', tx.txid())
@@ -4130,7 +4130,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
             "pkh([233d2ae4]tpubDDMN69wQjDZxaJz9afZQGa48hZS7X5oSegF2hg67yddNvqfpuTN9DqvDEp7YyVf7AzXnqBqHdLhzTAStHvsoMDDb8WoJQzNrcHgDJHVYgQF/0/1)",
             tx.inputs()[0].script_descriptor.to_string_no_checksum())
         self.assertTrue(tx.is_complete())
-        self.assertFalse(tx.is_segwit())
+        self.assertFalse(tx.is_any_segwit())
         self.assertEqual('e56da664631b8c666c6df38ec80c954c4ac3c4f56f040faf0070e4681e937fc4', tx.txid())
         self.assertEqual('e56da664631b8c666c6df38ec80c954c4ac3c4f56f040faf0070e4681e937fc4', tx.wtxid())
 
@@ -4170,7 +4170,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
         # sign tx
         tx = wallet_offline.sign_transaction(tx_copy, password=None)
         self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         self.assertEqual('7642816d051aa3b333b6564bb6e44fe3a5885bfe7db9860dfbc9973a5c9a6562', tx.txid())
         self.assertEqual('9bb9949974954613945756c48ca5525cd5cba1b667ccb10c7a53e1ed076a1117', tx.wtxid())
 
@@ -4210,7 +4210,7 @@ class TestWalletOfflineSigning(ElectrumTestCase):
         # sign tx
         tx = wallet_offline.sign_transaction(tx_copy, password=None)
         self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
+        self.assertTrue(tx.is_any_segwit())
         self.assertEqual('f8039bd85279f2b5698f15d47f2e338d067d09af391bd8a19467aa94d03f280c', tx.txid())
         self.assertEqual('3b7cc3c3352bbb43ddc086487ac696e09f2863c3d9e8636721851b8008a83ffa', tx.wtxid())
 
