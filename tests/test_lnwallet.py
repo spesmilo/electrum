@@ -1,3 +1,4 @@
+import dataclasses
 import logging
 import os
 import asyncio
@@ -970,3 +971,27 @@ class TestChannelBackup(ToyServerTestCase):
         # now try importing an older version again, this should not work
         with self.assertRaises(UserFacingException):
             alice.lnworker.import_channel_backup(backup_v2)
+
+    async def test_channel_backup_with_same_funding_address_as_channel(self):
+        """
+        We restore from seed.
+        The remote peer reuses their funding_pubkey to open a channel to us.
+        We import a channel backup of a different channel using the same funding_pubkey.
+        LNWatcher should watch both channels."""
+        alice = self.create_deterministic_wallet(self.alice_instance)
+        chan = await self.fund_and_open_channel(alice, anchors=True)
+        lnwatcher = alice.lnworker.lnwatcher
+
+        # alice imports a backup of another channel, with the same funding address
+        backup = alice.lnworker.export_channel_backup(chan.channel_id)
+        cb_storage = ImportedChannelBackupStorage.from_encrypted_str(backup, password=alice.get_fingerprint())
+        cb_storage = dataclasses.replace(cb_storage, funding_txid=os.urandom(32).hex())
+        alice.lnworker.import_channel_backup('channel_backup:' + pw_encode_with_version_and_mac(cb_storage.to_bytes(), alice.get_fingerprint()))
+        cb = alice.lnworker.channel_backups[cb_storage.channel_id()]
+        self.assertEqual(chan.get_funding_address(), cb.get_funding_address())
+        self.assertEqual({chan.funding_outpoint.to_str(), cb.funding_outpoint.to_str()}, set(lnwatcher.callbacks))
+
+        # wallet load
+        lnwatcher.callbacks.clear()
+        alice.lnworker.subscribe_to_channels()
+        self.assertEqual({chan.funding_outpoint.to_str(), cb.funding_outpoint.to_str()}, set(lnwatcher.callbacks))

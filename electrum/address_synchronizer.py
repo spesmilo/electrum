@@ -333,7 +333,9 @@ class AddressSynchronizer(Logger, EventListener):
                 for tx_hash2 in conflicting_txns:
                     self.remove_transaction(tx_hash2)
             # add inputs
+            txi_changed = False
             def add_value_from_prev_output():
+                nonlocal txi_changed
                 # note: this takes linear time in num is_mine outputs of prev_tx
                 addr = self.get_txin_address(txi)
                 if addr and self.is_mine(addr):
@@ -343,7 +345,7 @@ class AddressSynchronizer(Logger, EventListener):
                     except KeyError:
                         pass
                     else:
-                        self.db.add_txi_addr(tx_hash, addr, ser, v)
+                        txi_changed |= self.db.add_txi_addr(tx_hash, addr, ser, v)
                         self.invalidate_cache()
             for txi in tx.inputs():
                 if txi.is_coinbase_input():
@@ -366,8 +368,12 @@ class AddressSynchronizer(Logger, EventListener):
                     # give v to txi that spends me
                     next_tx = self.db.get_spent_outpoint(tx_hash, n)
                     if next_tx is not None:
-                        self.db.add_txi_addr(next_tx, addr, ser, v)
+                        is_new_txi = self.db.add_txi_addr(next_tx, addr, ser, v)
                         self._add_tx_to_local_history(next_tx)
+                        if is_new_txi:
+                            spender_tx = self.db.get_transaction(next_tx)
+                            assert spender_tx
+                            util.trigger_callback('adb_updated_tx', self, next_tx, spender_tx)
             # add to local history
             self._add_tx_to_local_history(tx_hash)
             # save
@@ -375,6 +381,9 @@ class AddressSynchronizer(Logger, EventListener):
             self.db.add_num_inputs_to_tx(tx_hash, len(tx.inputs()))
             if is_new:
                 util.trigger_callback('adb_added_tx', self, tx_hash, tx)
+            elif txi_changed:
+                # adb_updated_tx: we learned of more is_mine inputs of an already known tx
+                util.trigger_callback('adb_updated_tx', self, tx_hash, tx)
             return True
 
     @with_lock

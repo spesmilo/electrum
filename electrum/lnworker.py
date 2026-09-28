@@ -1839,6 +1839,9 @@ class LNWallet(Logger):
     def encrypt_cb_data(self, data: bytes, funding_address: str) -> bytes:
         funding_scripthash = bytes.fromhex(address_to_scripthash(funding_address))
         nonce = funding_scripthash[0:12]
+        # note: would have been nice, if besides the funding_script, we also committed to
+        #       the funding_amount (sats), and maybe all the inputs of the funding_tx. Without that,
+        #       the OP_RETURN can be replayed.
         # note: we are only using chacha20 instead of chacha20+poly1305 to save onchain space
         #       (not have the 16 byte MAC). Otherwise, the latter would be preferable.
         return chacha20_encrypt(key=self.backup_key, data=data, nonce=nonce)
@@ -3760,6 +3763,7 @@ class LNWallet(Logger):
         with self.lock:
             self._channels.pop(chan_id)
             self.db.get('channels').pop(chan_id.hex())
+        self.lnwatcher.remove_callback(chan.funding_outpoint.to_str())
         self.wallet.set_reserved_addresses_for_chan(chan, reserved=False)
 
         util.trigger_callback('channels_updated', self.wallet)
@@ -3899,6 +3903,7 @@ class LNWallet(Logger):
         self.wallet.set_reserved_addresses_for_chan(cb, reserved=True)
         self.wallet.save_db()
         util.trigger_callback('channels_updated', self.wallet)
+        self.lnwatcher.remove_callback(cb.funding_outpoint.to_str())
         self.lnwatcher.add_channel(cb)
         if not cb.can_sweep_their_ctx_to_remote():
             # the user has lost their channel state and cannot locally force close. If they'd request a remote fclose
@@ -3933,6 +3938,7 @@ class LNWallet(Logger):
             raise Exception('Channel not found')
         with self.lock:
             self._channel_backups.pop(channel_id)
+        self.lnwatcher.remove_callback(chan.funding_outpoint.to_str())
         self.wallet.set_reserved_addresses_for_chan(chan, reserved=False)
         self.wallet.save_db()
         util.trigger_callback('channels_updated', self.wallet)
@@ -3993,34 +3999,45 @@ class LNWallet(Logger):
         if not success:
             raise Exception('failed to connect')
 
-    def maybe_add_backup_from_tx(self, tx):
+    def maybe_add_backup_from_tx(self, tx: Transaction):
+        """note: currently no support for batched channel opens"""
+        assert self.wallet.adb.db.is_in_verified_tx(tx.txid())
+        if not any(self.wallet.is_mine(self.wallet.adb.get_txin_address(txin)) for txin in tx.inputs()):
+            # only allow funding tx with inputs of our wallet to prevent replay of the channel backup.
+            # note: is_mine can be false during initial wallet synchronization: we might learn
+            #       of more-and-more inputs of being is_mine, as we roll the gap_limit forward.
+            #       Hence maybe_add_backup_from_tx also needs to be called on adb_updated_tx.
+            # note: if the channel was funded with wallet-external UTXOs we won't detect the backup (we don't do this).
+            return
+        funding_txid = tx.txid()
+        if any(funding_txid == c.funding_outpoint.txid for c in self.get_channel_objects().values()):
+            # Check we don't override imported backups or full channels.
+            return
         funding_address = None
         node_id_prefix = None
+        # note: loop is quadratic but that's ok as we require at least 1 tx input to be is_mine
         for i, o in enumerate(tx.outputs()):
             script_type = get_script_type_from_output_script(o.scriptpubkey)
             if script_type == 'p2wsh':
-                funding_index = i
-                funding_address = o.address
                 for o2 in tx.outputs():
                     if o2.scriptpubkey.startswith(bytes([opcodes.OP_RETURN])):
                         encrypted_data = o2.scriptpubkey[2:]
-                        data = self.decrypt_cb_data(encrypted_data, funding_address)
+                        data = self.decrypt_cb_data(encrypted_data, o.address)
                         if data.startswith(CB_MAGIC_BYTES):
+                            funding_index = i
+                            funding_address = o.address
                             node_id_prefix = data[len(CB_MAGIC_BYTES):]
         if node_id_prefix is None:
             return
-        funding_txid = tx.txid()
         cb_storage = OnchainChannelBackupStorage(
             node_id_prefix=node_id_prefix,
             funding_txid=funding_txid,
             funding_index=funding_index,
             funding_address=funding_address,
             is_initiator=True)
-        channel_id = cb_storage.channel_id().hex()
-        if channel_id in self.db.get_dict("channels"):
-            return
         self.logger.info(f"adding backup from tx")
         d = self.db.get_dict("onchain_channel_backups")
+        channel_id: str = cb_storage.channel_id().hex()
         d[channel_id] = cb_storage
         cb = ChannelBackup(cb_storage, lnworker=self)
         self.wallet.set_reserved_addresses_for_chan(cb, reserved=True)

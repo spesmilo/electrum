@@ -70,19 +70,19 @@ class WatchTower(Logger, EventListener):
         wallet_db = WalletDB('', storage=None, upgrade=True)
         self.adb = AddressSynchronizer(wallet_db, self.config, name=self.diagnostic_name())
         self.adb.start_network(network)
-        self.callbacks = {}  # address -> lambda function
+        self.callbacks = {}  # outpoint -> lambda function
         self.register_callbacks()
         # status gets populated when we run
         self.channel_status = {}
         self.network = network
         self.sweepstore = SweepStore(os.path.join(self.config.path, "watchtower_db"), network)
 
-    def remove_callback(self, address):
-        self.callbacks.pop(address, None)
+    def remove_callback(self, outpoint):
+        self.callbacks.pop(outpoint, None)
 
-    def add_callback(self, address, callback):
+    def add_callback(self, outpoint, callback, *, address):
         self.adb.add_address(address)
-        self.callbacks[address] = callback
+        self.callbacks[outpoint] = callback
 
     @event_listener
     async def on_event_blockchain_updated(self, *args):
@@ -112,7 +112,7 @@ class WatchTower(Logger, EventListener):
         if not self.adb.synchronizer:
             self.logger.info("synchronizer not set yet")
             return
-        for address, callback in list(self.callbacks.items()):
+        for outpoint, callback in list(self.callbacks.items()):
             await callback()
 
     async def stop(self):
@@ -121,7 +121,7 @@ class WatchTower(Logger, EventListener):
 
     def add_channel(self, outpoint: str, address: str) -> None:
         callback = lambda: self.check_onchain_situation(address, outpoint)
-        self.add_callback(address, callback)
+        self.add_callback(outpoint, callback, address=address)
 
     def diagnostic_name(self):
         return "watchtower"
@@ -231,7 +231,7 @@ class WatchTower(Logger, EventListener):
             return txid
 
     async def get_ctn(self, outpoint, addr):
-        if addr not in self.callbacks.keys():
+        if outpoint not in self.callbacks.keys():
             self.logger.info(f'watching new channel: {outpoint} {addr}')
             self.add_channel(outpoint, addr)
         return await self.sweepstore.get_ctn(outpoint, addr)
@@ -252,6 +252,7 @@ class WatchTower(Logger, EventListener):
         return self.network.run_from_another_thread(f())
 
     async def unwatch_channel(self, address, funding_outpoint):
+        self.remove_callback(funding_outpoint)
         await self.sweepstore.remove_sweep_tx(funding_outpoint)
         await self.sweepstore.remove_channel(funding_outpoint)
 

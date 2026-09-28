@@ -654,8 +654,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if not self.tx_is_related(tx):
             return
         self.clear_tx_parents_cache()
-        if self.lnworker:
-            self.lnworker.maybe_add_backup_from_tx(tx)
         self._update_invoices_and_reqs_touched_by_tx(tx)
         util.trigger_callback('new_transaction', self, tx)
 
