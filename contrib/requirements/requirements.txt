@@ -16,4 +16,4 @@ attrs>=20.1.0,<23
 # but as that is not pure-python it cannot be listed in this file!
 # - upper limit to avoid needing hatchling at build-time :/
 #   (however newer versions should work at runtime)
-dnspython>=2.2,<2.5
+dnspython>=2.3,<2.5

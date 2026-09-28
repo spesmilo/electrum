@@ -122,8 +122,10 @@ async def _get_and_validate(ns, url, _type) -> dns.rrset.RRset:
         # verify that a signed DS validates DNSKEY
         for ds in ds_rrset:
             for dnskey in rrset:
-                htype = 'SHA256' if ds.digest_type == 2 else 'SHA1'
-                good_ds = dns.dnssec.make_ds(name, dnskey, htype)
+                try:
+                    good_ds = dns.dnssec.make_ds(name, dnskey, ds.digest_type, validating=True)
+                except (dns.dnssec.UnsupportedAlgorithm, dns.dnssec.DeniedByPolicy):
+                    continue  # skip digest types we cannot verify
                 if ds == good_ds:
                     break
             else:
