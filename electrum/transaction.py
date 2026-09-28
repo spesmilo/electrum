@@ -1174,6 +1174,20 @@ class Transaction:
         return any(txin.is_segwit(guess_for_address=guess_for_address)
                    for txin in self.inputs())
 
+    def is_all_segwit(self, *, guess_for_address: bool = False) -> bool:
+        """Returns whether *all* inputs are segwit.
+
+        If not, the txid is trivially malleable:
+        - by any signer, who can e.g. re-sign the non-segwit inputs using different nonces
+        - by miners: most third-party malleability results in the tx being non-standard,
+          so at least arbitrary tx relaying nodes cannot do it. But if they mine the tx, they can.
+
+        ref https://github.com/bitcoin/bips/blob/master/bip-0062.mediawiki#motivation
+        ref https://github.com/bitcoin/bitcoin/blob/05bc2f53ce0cb239c17dbdd6b261bd2db7d2a940/src/policy/policy.h#L118-L131
+        """
+        return all(txin.is_segwit(guess_for_address=guess_for_address)
+                   for txin in self.inputs())
+
     def invalidate_ser_cache(self):
         self._cached_network_ser = None
         self._cached_txid = None
@@ -1237,8 +1251,7 @@ class Transaction:
     def txid(self) -> Optional[str]:
         if self._cached_txid is None:
             self.deserialize()
-            all_segwit = all(txin.is_segwit() for txin in self.inputs())
-            if not all_segwit and not self.is_complete():
+            if not self.is_all_segwit() and not self.is_complete():
                 return None
             try:
                 ser = self.serialize_to_network(force_legacy=True)
