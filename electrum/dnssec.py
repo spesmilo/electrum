@@ -37,6 +37,7 @@ import dns.asyncquery
 import dns.dnssec
 import dns.message
 import dns.asyncresolver
+import dns.rdataclass
 import dns.rdatatype
 import dns.rdtypes.ANY.NS
 import dns.rdtypes.ANY.CNAME
@@ -71,18 +72,17 @@ trust_anchors = [
 
 async def _query_signed(ns, sub, _type) -> Tuple[dns.rrset.RRset, dns.rrset.RRset]:
     """Returns the (not yet validated) rrset and its rrsig."""
-    q = dns.message.make_query(sub, _type, want_dnssec=True)
+    name = dns.name.from_text(sub)
+    q = dns.message.make_query(name, _type, want_dnssec=True)
     response = await dns.asyncquery.tcp(q, ns, timeout=5)
     assert response.rcode() == 0, 'No answer'
-    answer = response.answer
-    assert len(answer) != 0, ('No DNS record found', sub, _type)
-    assert len(answer) != 1, ('No DNSSEC record found', sub, _type)
-    if answer[0].rdtype == dns.rdatatype.RRSIG:
-        rrsig, rrset = answer
-    elif answer[1].rdtype == dns.rdatatype.RRSIG:
-        rrset, rrsig = answer
-    else:
-        raise Exception('No signature set in record')
+    # only accept the queried name and type, otherwise any validly signed rrset of the zone could be replayed
+    rrset = response.get_rrset(response.answer, name, dns.rdataclass.IN, _type)
+    assert rrset is not None, ('No DNS record found', sub, _type)
+    rrsig = response.get_rrset(response.answer, name, dns.rdataclass.IN, dns.rdatatype.RRSIG, _type)
+    assert rrsig is not None, ('No DNSSEC record found', sub, _type)
+    # reject wildcard expansions, we don't verify the NSEC(3) proof that the name itself doesn't exist
+    assert all(sig.labels == len(name) - 1 for sig in rrsig), ('Wildcard DNS record not supported', sub, _type)
     return rrset, rrsig
 
 
