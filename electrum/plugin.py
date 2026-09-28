@@ -745,6 +745,9 @@ class Plugins(DaemonThread):
         metadata = self.external_plugin_metadata[name]
         if not metadata.get('is_zip'):
             return False
+        if metadata['path'] != self.zip_plugin_path(name):
+            # not installed yet, or was manually deleted
+            return False
         hex_hash = metadata['zip_hash_sha256']
         sig = self.config.get(f'plugins.{name}.authorized')
         if not sig:
@@ -764,8 +767,29 @@ class Plugins(DaemonThread):
         self.config.set_key(f'plugins.{name}.authorized', sig.hex())
 
     def authorize_plugin(self, name: str, privkey: ECPrivkey):
+        metadata = self.get_metadata(name)
+        if metadata['path'] != self.zip_plugin_path(name):
+            # new plugin, not yet in the plugins directory
+            metadata['path'] = self.copy_external_plugin_file(metadata)
         self._sign_plugin_hash(name, privkey)
         self.config.set_key(f'plugins.{name}.enabled', True)
+
+    def copy_external_plugin_file(self, manifest: dict, *, replace: Optional[str] = None) -> str:
+        """Copies the zip described by `manifest` (as returned by read_manifest) into
+        the external plugins directory, keeping its name, and returns its new path.
+        If `replace` is given, that file is removed first.
+        """
+        # the bytes we write are the bytes described by the manifest
+        blob = self._read_check_bytes(manifest['path'], expected_hash=bytes.fromhex(manifest['zip_hash_sha256']))
+        path = os.path.join(self.get_external_plugin_dir(), os.path.basename(manifest['path']))
+        if path != replace and os.path.exists(path):
+            raise FileExistsError(f"Plugin file {path} already exists")
+        if replace:
+            # Remove old file first
+            os.unlink(replace)
+        with open(path, 'wb') as f:
+            f.write(blob)
+        return path
 
     def upgrade_external_plugin(self, manifest: dict, privkey: ECPrivkey) -> None:
         """Replaces the zip of an installed external plugin with the one described
@@ -783,18 +807,8 @@ class Plugins(DaemonThread):
         assert self.is_external(name) and self.is_plugin_zip(name), name
         if not self._is_version_compatible(manifest):
             raise Exception(f"plugin {name!r} is not compatible with Electrum {ELECTRUM_VERSION}")
-        # the bytes we write are the bytes whose hash the user was shown
-        blob = self._read_check_bytes(manifest['path'], expected_hash=bytes.fromhex(manifest['zip_hash_sha256']))
-        old_path = self.zip_plugin_path(name)
-        path = os.path.join(self.get_external_plugin_dir(), os.path.basename(manifest['path']))
-        if path != old_path and os.path.exists(path):
-            raise FileExistsError(f"Plugin file {path} already exists")
-        # Remove the old file first: find_zip_plugins would pick either of two
-        # files with the same plugin name. If we stop before signing, the plugin
-        # is missing or unauthorized, but its config is kept.
-        os.unlink(old_path)
-        with open(path, 'wb') as f:
-            f.write(blob)
+        # If we stop before signing, the plugin is missing or unauthorized, but its config is kept.
+        path = self.copy_external_plugin_file(manifest, replace=self.zip_plugin_path(name))
         self.external_plugin_metadata[name] = dict(manifest, path=path)
         self._sign_plugin_hash(name, privkey)
 

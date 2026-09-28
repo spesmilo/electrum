@@ -1,7 +1,5 @@
 from typing import TYPE_CHECKING, Optional
 from functools import partial
-import shutil
-import os
 
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QHBoxLayout, QGridLayout, QPushButton, QWidget, QScrollArea, \
     QFormLayout, QFileDialog, QMenu, QApplication, QMessageBox
@@ -81,7 +79,7 @@ class PluginDialog(WindowModalDialog):
         elif is_external:
             is_authorized = self.plugins.is_authorized(name)
             if status_button is not None:
-                # status_button is None when called from add_external_plugin
+                # status_button is None when called from add_plugin_dialog
                 remove_button = QPushButton('')
                 remove_button.clicked.connect(self.do_remove)
                 remove_button.setText(_('Remove'))
@@ -125,7 +123,11 @@ class PluginDialog(WindowModalDialog):
         privkey = self.window.get_plugins_privkey()
         if not privkey:
             return
-        self.window.plugins.authorize_plugin(self.name, privkey)
+        try:
+            self.window.plugins.authorize_plugin(self.name, privkey)
+        except Exception as e:
+            self.show_error(f"{e}")
+            return
         self.window.plugins.enable(self.name)
         d = self.plugins.get_metadata(self.name)
         if details := d.get('registers_keystore'):
@@ -313,50 +315,18 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
         if self.plugins.is_external(name):
             self.upgrade_plugin(manifest)
             return
-        plugins_dir = self.plugins.get_external_plugin_dir()
-        path = os.path.join(plugins_dir, os.path.basename(filename))
-        if os.path.exists(path):
-            self.show_warning(_('Plugin already installed.'))
-            return
-        try:
-            shutil.copyfile(filename, path)
-        except OSError as e:
-            self.show_error(_("Could not copy plugin file {} into directory {}:\n\n{}").format(
-                filename,
-                path,
-                str(e)
-            ))
-            return
-        self._try_add_external_plugin_from_path(path)
-
-    def _try_add_external_plugin_from_path(self, path: str):
-        try:
-            success = self.add_external_plugin(path)
-        except Exception as e:
-            self._logger.exception("")
-            self.show_error(f"{e}")
-            success = False
-        if not success:
-            try:
-                os.unlink(path)
-            except FileNotFoundError:
-                self._logger.debug("", exc_info=True)
-
-    def add_external_plugin(self, path):
-        manifest = self.plugins.read_manifest(path)
-        name = manifest['name']
         if self.plugins.is_installed(name):
             self.show_warning(_("Plugin {} already installed.").format(name))
-            return False
+            return
+        # the file is copied into the plugins directory if the user clicks 'Install'
         self.plugins.add_external_plugin_metadata(manifest)
         d = PluginDialog(name, manifest, None, self)
         if not d.exec():
             self.plugins.remove_external_plugin_metadata(name)
-            return False
+            return
         if self.gui_object:
             self.gui_object.reload_windows()
         self.show_list()
-        return True
 
     def upgrade_plugin(self, manifest: dict):
         d = PluginDialog(manifest['name'], manifest, None, self, is_upgrade=True)
