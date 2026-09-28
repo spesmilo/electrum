@@ -814,6 +814,7 @@ class Test_xprv_xpub(ElectrumTestCase):
         self.assertEqual([0, 0x80000001, 0x80000001], convert_bip32_strpath_to_intpath("m/0/-1/1'"))
         self.assertEqual([], convert_bip32_strpath_to_intpath("m/"))
         self.assertEqual([2147483692, 2147488889, 221], convert_bip32_strpath_to_intpath("m/44'/5241h/221"))
+        self.assertEqual([0x80000000], convert_bip32_strpath_to_intpath("m/-0"))
         # largest valid non-hardened / hardened index
         self.assertEqual([0x7fffffff], convert_bip32_strpath_to_intpath("m/2147483647"))
         self.assertEqual([0xffffffff], convert_bip32_strpath_to_intpath("m/2147483647'"))
@@ -828,6 +829,17 @@ class Test_xprv_xpub(ElectrumTestCase):
             convert_bip32_strpath_to_intpath("m/-2147483648")
         with self.assertRaisesRegex(ValueError, r"^bip32 path child index too large: 4294967296 >= 2147483648\.$"):
             convert_bip32_strpath_to_intpath("m/4294967296")
+        # child index must be ascii digits, optionally prefixed with '-'.
+        for path in (
+            "m/ -5",
+            "m/ -5'",
+            "m/5 ",
+            "m/+5",
+            "m/1_000",
+            "m/٤٤'",  # arabic-indic digits
+        ):
+            with self.assertRaisesRegex(ValueError, r"^failed to parse bip32 path", msg=path):
+                convert_bip32_strpath_to_intpath(path)
 
     def test_convert_bip32_intpath_to_strpath(self):
         self.assertEqual("m/0/1h/1h", convert_bip32_intpath_to_strpath([0, 0x80000001, 0x80000001]))
