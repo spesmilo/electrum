@@ -3757,10 +3757,11 @@ class LNWallet(Logger):
     def remove_channel(self, chan_id):
         chan = self._channels[chan_id]
         assert chan.can_be_deleted()
+        # before the removal: this reads the channel's storage, which is gone afterwards
+        self.wallet.set_reserved_addresses_for_chan(chan, reserved=False)
         with self.lock:
             self._channels.pop(chan_id)
-            self.db.get('channels').pop(chan_id.hex())
-        self.wallet.set_reserved_addresses_for_chan(chan, reserved=False)
+            self.db.get_dict('channels').pop(chan_id.hex())
 
         util.trigger_callback('channels_updated', self.wallet)
         util.trigger_callback('wallet_updated', self.wallet)

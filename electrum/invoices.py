@@ -1,8 +1,7 @@
 import time
 from typing import TYPE_CHECKING, List, Optional, Union, Dict, Any, Sequence
 from decimal import Decimal
-
-import attr
+import dataclasses
 
 from .stored_dict import StoredObject, stored_at
 from .i18n import _
@@ -92,35 +91,40 @@ def _decode_outputs(outputs) -> Optional[List[PartialTxOutput]]:
 LN_EXPIRY_NEVER = 100 * 365 * 24 * 60 * 60  # 100 years
 
 
-@attr.s
+@dataclasses.dataclass(kw_only=True)
 class BaseInvoice(StoredObject):
     """
     Base class for Invoice and Request
     In the code, we use 'invoice' for outgoing payments, and 'request' for incoming payments.
-
-    TODO this class is getting too complicated for "attrs"... maybe we should rewrite it without.
     """
 
     # mandatory fields
-    amount_msat = attr.ib(  # can be '!' or None
-        kw_only=True, on_setattr=attr.setters.validate)  # type: Optional[Union[int, str]]
-    message = attr.ib(type=str, kw_only=True)
-    time = attr.ib(  # timestamp of the invoice
-        type=int, kw_only=True, validator=attr.validators.instance_of(int), on_setattr=attr.setters.validate)
-    exp = attr.ib(  # expiration delay (relative). 0 means never
-        type=int, kw_only=True, validator=attr.validators.instance_of(int), on_setattr=attr.setters.validate)
+    amount_msat: Optional[Union[int, str]]  # can be '!' or None
+    message: str
+    time: int  # timestamp of the invoice
+    exp: int  # expiration delay (relative). 0 means never
 
     # optional fields.
     # an request (incoming) can be satisfied onchain, using lightning or using a swap
     # an invoice (outgoing) is constructed from a source: bip21, lnaddr
 
     # onchain only
-    outputs = attr.ib(kw_only=True, converter=_decode_outputs)  # type: Optional[List[PartialTxOutput]]
-    height = attr.ib(  # only for receiving
-        type=int, kw_only=True, validator=attr.validators.instance_of(int), on_setattr=attr.setters.validate)
+    outputs: Optional[List[PartialTxOutput]]
+    height: int  # only for receiving
 
     # (unused) historical bip70 invoice data, for BIP70 invoices paid in the past
-    bip70 = attr.ib(type=str, kw_only=True, default=None)  # type: Optional[str]
+    bip70: Optional[str] = None
+
+    def __post_init__(self):
+        self.outputs = _decode_outputs(self.outputs)  # stored as legacy tuples
+
+    def __setattr__(self, key, value):
+        # some fields are validated, at init (the generated __init__ assigns them) and on later assignments
+        if key == 'amount_msat':
+            self._validate_amount(value)
+        elif key in ('time', 'exp', 'height') and not isinstance(value, int):
+            raise TypeError(f"{key} must be an int, not {value!r}")
+        super().__setattr__(key, value)
 
     def is_lightning(self) -> bool:
         raise NotImplementedError()
@@ -194,8 +198,8 @@ class BaseInvoice(StoredObject):
             self.outputs = [PartialTxOutput(scriptpubkey=outputs[0].scriptpubkey, value=amount_sat)]
         self.amount_msat = amount_msat
 
-    @amount_msat.validator
-    def _validate_amount(self, attribute, value):
+    @staticmethod
+    def _validate_amount(value):
         if value is None:
             return
         if isinstance(value, int):
@@ -236,7 +240,7 @@ class BaseInvoice(StoredObject):
         else:  # on-chain
             return get_id_from_onchain_outputs(outputs=self.get_outputs(), timestamp=self.time)
 
-    def as_dict(self, status):
+    def export(self, status):
         d = {
             'is_lightning': self.is_lightning(),
             'amount_BTC': format_satoshis(self.get_amount_sat()),
@@ -254,11 +258,17 @@ class BaseInvoice(StoredObject):
 
 
 @stored_at('/invoices/*')
-@attr.s
+@dataclasses.dataclass(kw_only=True)
 class Invoice(BaseInvoice):
-    lightning_invoice = attr.ib(type=str, kw_only=True)  # type: Optional[str]
+    lightning_invoice: Optional[str]
     __lnaddr = None  # type: BOLT11Addr | None
     _broadcasting_status = None # can be None or PR_BROADCASTING or PR_BROADCAST
+
+    def __post_init__(self):
+        super().__post_init__()
+        if self.lightning_invoice is not None:
+            # this checks the str can be decoded; the result is saved, just to avoid having to recompute later
+            self.__lnaddr = decode_bolt11_invoice(self.lightning_invoice)
 
     def is_lightning(self):
         return self.lightning_invoice is not None
@@ -285,12 +295,6 @@ class Invoice(BaseInvoice):
         assert self.is_lightning()
         return self._lnaddr.paymenthash.hex()
 
-    @lightning_invoice.validator
-    def _validate_invoice_str(self, attribute, value):
-        if value is not None:
-            lnaddr = decode_bolt11_invoice(value)  # this checks the str can be decoded
-            self.__lnaddr = lnaddr    # save it, just to avoid having to recompute later
-
     def can_be_paid_onchain(self) -> bool:
         if self.is_lightning():
             return bool(self._lnaddr.get_fallback_address()) or (bool(self.outputs))
@@ -298,15 +302,19 @@ class Invoice(BaseInvoice):
             return True
 
     def to_debug_json(self) -> Dict[str, Any]:
-        d = self.to_json()
+        d = self.as_dict()
         d["lnaddr"] = self._lnaddr.to_debug_json()
         return d
 
 
 @stored_at('/payment_requests/*')
-@attr.s
+@dataclasses.dataclass(kw_only=True)
 class Request(BaseInvoice):
-    payment_hash = attr.ib(type=bytes, kw_only=True, converter=hex_to_bytes)  # type: Optional[bytes]
+    payment_hash: Optional[bytes]
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.payment_hash = hex_to_bytes(self.payment_hash)  # stored as hex
 
     def is_lightning(self):
         return self.payment_hash is not None

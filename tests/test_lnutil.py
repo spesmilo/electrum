@@ -4,7 +4,6 @@ import json
 from typing import Dict, List
 
 from electrum import bitcoin
-from electrum.json_db import StoredDict
 from electrum.lnutil import (
     RevocationStore, get_per_commitment_secret_from_seed, make_offered_htlc, make_received_htlc, make_commitment,
     make_htlc_tx_witness, make_htlc_tx_output, make_htlc_tx_inputs, secret_to_pubkey, derive_blinded_pubkey,
@@ -14,7 +13,8 @@ from electrum.lnutil import (
     ImportedChannelBackupStorage, OnchainChannelBackupStorage, list_enabled_ln_feature_bits, PaymentFeeBudget,
     LnFeatureContexts, Keypair, OnlyPubkeyKeypair, LOCAL
 )
-from electrum.util import bfh, MyEncoder
+from electrum.util import bfh
+from electrum.stored_dict import to_default, DictStorage
 from electrum.transaction import Transaction, PartialTransaction, Sighash
 from electrum.lnworker import LNWallet
 from electrum.lnchannel import ChannelBackup
@@ -478,10 +478,11 @@ class TestLNUtil(ElectrumTestCase):
         ]
 
         for test in tests:
-            receiver = RevocationStore(StoredDict({}, None))
+            storage = DictStorage(None)
+            storage.set_data(json.dumps({"channels": {"0": { "revocation_store": {}}}}))
+            receiver = RevocationStore(storage["channels"]["0"]["revocation_store"])
             for insert in test["inserts"]:
                 secret = bytes.fromhex(insert["secret"])
-
                 try:
                     receiver.add_next_entry(secret)
                 except Exception as e:
@@ -501,7 +502,9 @@ class TestLNUtil(ElectrumTestCase):
 
     def test_shachain_produce_consume(self):
         seed = bitcoin.sha256(b"shachaintest")
-        consumer = RevocationStore(StoredDict({}, None))
+        storage = DictStorage(None)
+        storage.set_data(json.dumps({"channels": {"0": { "revocation_store": {}}}}))
+        consumer = RevocationStore(storage["channels"]["0"]["revocation_store"])
         for i in range(10000):
             secret = get_per_commitment_secret_from_seed(seed, RevocationStore.START_INDEX - i)
             try:
@@ -510,9 +513,11 @@ class TestLNUtil(ElectrumTestCase):
                 raise Exception("iteration " + str(i) + ": " + str(e))
             if i % 1000 == 0:
                 c1 = consumer
-                s1 = json.dumps(c1.storage, cls=MyEncoder)
-                c2 = RevocationStore(StoredDict(json.loads(s1), None))
-                s2 = json.dumps(c2.storage, cls=MyEncoder)
+                s1 = json.dumps(storage._db.json_data, default=to_default)
+                storage2 = DictStorage(None)
+                storage2.set_data(s1)
+                c2 = RevocationStore(storage2["channels"]["0"]["revocation_store"])
+                s2 = json.dumps(storage2._db.json_data, default=to_default)
                 self.assertEqual(s1, s2)
 
     def test_commitment_tx_with_all_five_HTLCs_untrimmed_minimum_feerate(self):
@@ -1226,7 +1231,9 @@ class TestLNUtil(ElectrumTestCase):
             node_id_prefix=bfh('02bf82e22f99dcd7ac1de4aad5152ce4'),
         )
         data = {'seed_version': FINAL_SEED_VERSION, 'onchain_channel_backups': {cb.channel_id().hex(): cb}}
-        db = WalletDB(json.dumps(data, cls=MyEncoder), storage=None, upgrade=False)
+        storage = DictStorage(None)
+        storage.set_data(json.dumps(data, default=to_default))
+        db = WalletDB(storage, upgrade=False)
         self.assertEqual(cb, db.get_dict('onchain_channel_backups')[cb.channel_id().hex()])
 
     async def test_payment_fee_budget(self):

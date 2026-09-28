@@ -11,6 +11,7 @@ from electrum.wallet import Abstract_Wallet
 from electrum.lnworker import LNWallet, LNPeerManager
 from electrum.lnwatcher import LNWatcher
 from electrum import util
+from electrum import storage
 from electrum.utils.memory_leak import count_objects_in_memory
 from electrum import constants
 
@@ -365,8 +366,10 @@ class TestLoadWallet(DaemonTestCase):
 
         # case 2: existing older wallet (db v57) that gets populated with 'genesis_blockhash' in convert_version_71
         path = self.get_wallet_file_path("client_4_5_2_9dk_with_ln")
-        with self.assertRaises(util.WalletFileException):
-            wallet = self.daemon.load_wallet(path, password=None, upgrade=True)
+        with mock.patch.object(storage.FileStorage, 'write') as mock_write, \
+                mock.patch.object(storage.FileStorage, 'append') as mock_append:
+            with self.assertRaises(util.WalletFileException):
+                wallet = self.daemon.load_wallet(path, password=None, upgrade=True)
 
         # case 3: existing older wallet (db v18) that gets populated with 'genesis_blockhash' in convert_version_71
         # // this test does not work:  convert_version_20 raises InvalidMasterKeyVersionBytes

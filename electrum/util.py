@@ -22,6 +22,7 @@
 # SOFTWARE.
 import concurrent.futures
 import copy
+import dataclasses
 from dataclasses import dataclass
 import logging
 import os
@@ -72,6 +73,7 @@ import dns.asyncresolver
 from .i18n import _
 from .logging import get_logger, Logger
 from . import crandom
+from .stored_dict import stored_at
 
 if TYPE_CHECKING:
     from .network import Network, ProxySettings
@@ -346,6 +348,12 @@ class MyEncoder(json.JSONEncoder):
             return obj.hex()
         if hasattr(obj, 'to_json') and callable(obj.to_json):
             return obj.to_json()
+        if hasattr(obj, 'to_str') and callable(obj.to_str):
+            return obj.to_str()
+        if hasattr(obj, 'as_tuple') and callable(obj.as_tuple):
+            return obj.as_tuple()
+        if hasattr(obj, 'as_dict') and callable(obj.as_dict):
+            return obj.as_dict()
         return super(MyEncoder, self).default(obj)
 
 
@@ -453,6 +461,21 @@ def json_decode(x):
         return json.loads(x, parse_float=Decimal)
     except Exception:
         return x
+
+
+def repr_dataclass(obj, formatters: Dict[Union[str, type], Callable[[Any], str]]) -> str:
+    """repr of a dataclass instance, with a custom formatting of some fields (like the
+    'repr' parameter of attrs). formatters is keyed by field name, or by the type of a value.
+    None values are never formatted.
+    """
+    parts = []
+    for f in dataclasses.fields(obj):
+        if not f.repr:
+            continue
+        value = getattr(obj, f.name)
+        fmt = None if value is None else formatters.get(f.name) or formatters.get(type(value))
+        parts.append(f"{f.name}={fmt(value) if fmt else repr(value)}")
+    return f"{type(obj).__name__}({', '.join(parts)})"
 
 
 def json_normalize(x):
@@ -1273,6 +1296,19 @@ class TxMinedInfo:
     txpos: Optional[int] = None        # position of tx in serialized block
     header_hash: Optional[str] = None  # hash of block that mined tx
     wanted_height: Optional[int] = None  # in case of timelock, min abs block height
+
+    def as_tuple(self):
+        return (self._height, self.timestamp, self.txpos, self.header_hash)
+
+    @staticmethod
+    @stored_at('/verified_tx3/*', tuple)
+    def from_tuple(height, timestamp, txpos, header_hash):
+        return TxMinedInfo(
+            _height=height,
+            timestamp=timestamp,
+            txpos=txpos,
+            header_hash=header_hash,
+        )
 
     def height(self) -> int:
         """Treat unverified heights as unconfirmed."""

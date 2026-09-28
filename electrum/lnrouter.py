@@ -30,10 +30,9 @@ import time
 import threading
 from threading import RLock
 from math import inf
+import dataclasses
 
-import attr
-
-from .util import profiler, with_lock, now
+from .util import profiler, with_lock, now, repr_dataclass
 from .logging import Logger
 from .lnutil import (NUM_MAX_EDGES_IN_PAYMENT_PATH, ShortChannelID, LnFeatures,
                      NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, PaymentFeeBudget)
@@ -61,23 +60,31 @@ def fee_for_edge_msat(forwarded_amount_msat: int, fee_base_msat: int, fee_propor
            + (forwarded_amount_msat * fee_proportional_millionths // 1_000_000)
 
 
-@attr.s(slots=True)
+@dataclasses.dataclass(slots=True, kw_only=True, repr=False)
 class PathEdge:
-    start_node = attr.ib(type=bytes, kw_only=True, repr=lambda val: val.hex())
-    end_node = attr.ib(type=bytes, kw_only=True, repr=lambda val: val.hex())
-    short_channel_id = attr.ib(type=ShortChannelID, kw_only=True, repr=lambda val: str(val))
+    start_node: bytes
+    end_node: bytes
+    short_channel_id: ShortChannelID
+
+    def __repr__(self):
+        return repr_dataclass(self, {
+            'start_node': bytes.hex,
+            'end_node': bytes.hex,
+            'short_channel_id': str,
+            'node_features': lambda val: str(int(val)),  # RouteEdge
+        })
 
     @property
     def node_id(self) -> bytes:
         # legacy compat  # TODO rm
         return self.end_node
 
-@attr.s
+@dataclasses.dataclass(kw_only=True, repr=False)
 class RouteEdge(PathEdge):
-    fee_base_msat = attr.ib(type=int, kw_only=True)                # for start_node
-    fee_proportional_millionths = attr.ib(type=int, kw_only=True)  # for start_node
-    cltv_delta = attr.ib(type=int, kw_only=True)                   # for start_node
-    node_features = attr.ib(type=int, kw_only=True, repr=lambda val: str(int(val)))  # note: for end_node!
+    fee_base_msat: int                # for start_node
+    fee_proportional_millionths: int  # for start_node
+    cltv_delta: int                   # for start_node
+    node_features: int  # note: for end_node!
 
     def fee_for_edge(self, amount_msat: int) -> int:
         return fee_for_edge_msat(forwarded_amount_msat=amount_msat,
@@ -113,12 +120,12 @@ class RouteEdge(PathEdge):
     def is_trampoline(self) -> bool:
         return False
 
-@attr.s
+@dataclasses.dataclass(kw_only=True, repr=False)
 class TrampolineEdge(RouteEdge):
-    invoice_routing_info = attr.ib(type=Sequence[bytes], default=None)
-    invoice_features = attr.ib(type=int, default=None)
+    invoice_routing_info: Optional[Sequence[bytes]] = None
+    invoice_features: Optional[int] = None
     # this is re-defined from parent just to specify a default value:
-    short_channel_id = attr.ib(default=ShortChannelID(8), repr=lambda val: str(val))
+    short_channel_id: ShortChannelID = ShortChannelID(8)
 
     def is_trampoline(self):
         return True
