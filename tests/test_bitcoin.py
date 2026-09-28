@@ -814,6 +814,20 @@ class Test_xprv_xpub(ElectrumTestCase):
         self.assertEqual([0, 0x80000001, 0x80000001], convert_bip32_strpath_to_intpath("m/0/-1/1'"))
         self.assertEqual([], convert_bip32_strpath_to_intpath("m/"))
         self.assertEqual([2147483692, 2147488889, 221], convert_bip32_strpath_to_intpath("m/44'/5241h/221"))
+        # largest valid non-hardened / hardened index
+        self.assertEqual([0x7fffffff], convert_bip32_strpath_to_intpath("m/2147483647"))
+        self.assertEqual([0xffffffff], convert_bip32_strpath_to_intpath("m/2147483647'"))
+        self.assertEqual([0xffffffff], convert_bip32_strpath_to_intpath("m/-2147483647"))
+        # literal index >= 2**31 must be rejected: it would either silently become
+        # hardened ("m/2147483648" == "m/0'") or make the hardened marker a no-op
+        with self.assertRaisesRegex(ValueError, r"^bip32 path child index too large: 2147483648 >= 2147483648\.$"):
+            convert_bip32_strpath_to_intpath("m/2147483648")
+        with self.assertRaisesRegex(ValueError, r"^bip32 path child index too large: 2147483648 >= 2147483648\.$"):
+            convert_bip32_strpath_to_intpath("m/2147483648'")
+        with self.assertRaisesRegex(ValueError, r"^bip32 path child index too large: 2147483648 >= 2147483648\.$"):
+            convert_bip32_strpath_to_intpath("m/-2147483648")
+        with self.assertRaisesRegex(ValueError, r"^bip32 path child index too large: 4294967296 >= 2147483648\.$"):
+            convert_bip32_strpath_to_intpath("m/4294967296")
 
     def test_convert_bip32_intpath_to_strpath(self):
         self.assertEqual("m/0/1h/1h", convert_bip32_intpath_to_strpath([0, 0x80000001, 0x80000001]))
