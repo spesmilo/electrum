@@ -104,9 +104,9 @@ async def _get_and_validate(ns, url, _type) -> dns.rrset.RRset:
         raise dns.dnssec.ValidationFailure('None of the trust anchors found in DNS')
     keys = {dns.name.root: root_rrset}
     # top-down verification
-    parts = url.split('.')
-    for i in range(len(parts), 0, -1):
-        sub = '.'.join(parts[i-1:])
+    sub = ''
+    for label in reversed(url.split('.')):
+        sub = f'{label}.{sub}'
         name = dns.name.from_text(sub)
         # If server is authoritative, don't fetch DNSKEY
         query = dns.message.make_query(sub, dns.rdatatype.NS)
