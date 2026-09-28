@@ -24,7 +24,6 @@
 # SOFTWARE.
 
 # Check DNSSEC trust chain.
-# Todo: verify expiration dates
 #
 # Based on
 #  http://backreference.org/2010/11/17/dnssec-verification-with-dig/
