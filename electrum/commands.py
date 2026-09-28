@@ -2391,6 +2391,14 @@ def check_txid(txid):
     return txid
 
 
+def _decimal_arg(x: str) -> str:
+    """argparse type for decimal amounts: a malformed value becomes a usage error instead of a traceback."""
+    try:
+        return str(to_decimal(x))
+    except InvalidOperation:
+        raise argparse.ArgumentTypeError(f"invalid decimal value: {x!r}") from None
+
+
 arg_types = {
     'int': int,
     'bool': eval_bool,
@@ -2398,9 +2406,9 @@ arg_types = {
     'txid': check_txid,
     'tx': convert_raw_tx_to_hex,
     'json': json_loads,
-    'decimal': lambda x: str(to_decimal(x)),
-    'decimal_or_dryrun': lambda x: str(to_decimal(x)) if x != 'dryrun' else x,
-    'decimal_or_max': lambda x: str(to_decimal(x)) if not parse_max_spend(x) else x,
+    'decimal': _decimal_arg,
+    'decimal_or_dryrun': lambda x: _decimal_arg(x) if x != 'dryrun' else x,
+    'decimal_or_max': lambda x: _decimal_arg(x) if not parse_max_spend(x) else x,
 }
 
 config_variables = {
