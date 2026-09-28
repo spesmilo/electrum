@@ -69,7 +69,8 @@ trust_anchors = [
 ]
 
 
-async def _check_query(ns, sub, _type, keys) -> dns.rrset.RRset:
+async def _query_signed(ns, sub, _type) -> Tuple[dns.rrset.RRset, dns.rrset.RRset]:
+    """Returns the (not yet validated) rrset and its rrsig."""
     q = dns.message.make_query(sub, _type, want_dnssec=True)
     response = await dns.asyncquery.tcp(q, ns, timeout=5)
     assert response.rcode() == 0, 'No answer'
@@ -82,8 +83,11 @@ async def _check_query(ns, sub, _type, keys) -> dns.rrset.RRset:
         rrset, rrsig = answer
     else:
         raise Exception('No signature set in record')
-    if keys is None:
-        keys = {dns.name.from_text(sub):rrset}
+    return rrset, rrsig
+
+
+async def _check_query(ns, sub, _type, keys) -> dns.rrset.RRset:
+    rrset, rrsig = await _query_signed(ns, sub, _type)
     dns.dnssec.validate(rrset, rrsig, keys)
     return rrset
 
@@ -115,24 +119,26 @@ async def _get_and_validate(ns, url, _type) -> dns.rrset.RRset:
         rr = rrset[0]
         if rr.rdtype == dns.rdatatype.SOA:
             continue
-        # get DNSKEY (self-signed)
-        rrset = await _check_query(ns, sub, dns.rdatatype.DNSKEY, None)
+        # get DNSKEY (not yet validated)
+        rrset, rrsig = await _query_signed(ns, sub, dns.rdatatype.DNSKEY)
         # get DS (signed by parent)
         ds_rrset = await _check_query(ns, sub, dns.rdatatype.DS, keys)
-        # verify that a signed DS validates DNSKEY
-        for ds in ds_rrset:
-            for dnskey in rrset:
+        # find the DNSKEYs committed to by the signed DS
+        ds_keys = []
+        for dnskey in rrset:
+            for ds in ds_rrset:
                 try:
                     good_ds = dns.dnssec.make_ds(name, dnskey, ds.digest_type, validating=True)
                 except (dns.dnssec.UnsupportedAlgorithm, dns.dnssec.DeniedByPolicy):
                     continue  # skip digest types we cannot verify
                 if ds == good_ds:
+                    ds_keys.append(dnskey)
                     break
-            else:
-                continue
-            break
-        else:
+        if not ds_keys:
             raise Exception("DS does not match DNSKEY")
+        # the DNSKEY RRset must be signed by one of those keys (RFC 4035 5.2),
+        # otherwise an attacker could add their own key to it and self-sign
+        dns.dnssec.validate(rrset, rrsig, {name: dns.rrset.from_rdata_list(name, rrset.ttl, ds_keys)})
         # set key for next iteration
         keys = {name: rrset}
     # get TXT record (signed by zone)
