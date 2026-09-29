@@ -1168,8 +1168,24 @@ class Transaction:
             sig64 = ecc.ecdsa_sig64_from_der_sig(der_sig)
             return pubkey.ecdsa_verify(sig64, msg_hash)
 
-    def is_segwit(self, *, guess_for_address=False):
+    def is_any_segwit(self, *, guess_for_address: bool = False) -> bool:
+        # If any input is segwit, the tx needs to serialized with a witness and it will have a wtxid != txid,
+        # however the non-segwit inputs are still malleable.
         return any(txin.is_segwit(guess_for_address=guess_for_address)
+                   for txin in self.inputs())
+
+    def is_all_segwit(self, *, guess_for_address: bool = False) -> bool:
+        """Returns whether *all* inputs are segwit.
+
+        If not, the txid is trivially malleable:
+        - by any signer, who can e.g. re-sign the non-segwit inputs using different nonces
+        - by miners: most third-party malleability results in the tx being non-standard,
+          so at least arbitrary tx relaying nodes cannot do it. But if they mine the tx, they can.
+
+        ref https://github.com/bitcoin/bips/blob/master/bip-0062.mediawiki#motivation
+        ref https://github.com/bitcoin/bitcoin/blob/05bc2f53ce0cb239c17dbdd6b261bd2db7d2a940/src/policy/policy.h#L118-L131
+        """
+        return all(txin.is_segwit(guess_for_address=guess_for_address)
                    for txin in self.inputs())
 
     def invalidate_ser_cache(self):
@@ -1206,8 +1222,8 @@ class Transaction:
             for txin in inputs)
         txouts = var_int(len(outputs)).hex() + ''.join(o.serialize_to_network().hex() for o in outputs)
 
-        use_segwit_ser_for_estimate_size = estimate_size and self.is_segwit(guess_for_address=True)
-        use_segwit_ser_for_actual_use = not estimate_size and self.is_segwit()
+        use_segwit_ser_for_estimate_size = estimate_size and self.is_any_segwit(guess_for_address=True)
+        use_segwit_ser_for_actual_use = not estimate_size and self.is_any_segwit()
         use_segwit_ser = use_segwit_ser_for_estimate_size or use_segwit_ser_for_actual_use
         if include_sigs and not force_legacy and use_segwit_ser:
             marker = '00'
@@ -1235,8 +1251,7 @@ class Transaction:
     def txid(self) -> Optional[str]:
         if self._cached_txid is None:
             self.deserialize()
-            all_segwit = all(txin.is_segwit() for txin in self.inputs())
-            if not all_segwit and not self.is_complete():
+            if not self.is_all_segwit() and not self.is_complete():
                 return None
             try:
                 ser = self.serialize_to_network(force_legacy=True)
@@ -1415,7 +1430,7 @@ class Transaction:
     def estimated_witness_size(self):
         """Return an estimate of witness size in bytes."""
         estimate = not self.is_complete()
-        if not self.is_segwit(guess_for_address=estimate):
+        if not self.is_any_segwit(guess_for_address=estimate):
             return 0
         inputs = self.inputs()
         witness = b"".join(self.serialize_witness(x, estimate_size=estimate) for x in inputs)
