@@ -2478,9 +2478,12 @@ class LNWallet(Logger):
         if channels:
             my_active_channels = channels
         else:
+            # if we are forwarding, we cannot pay directly: use only public channels
             my_active_channels = [
                 chan for chan in self.channels.values() if
-                chan.is_active() and not chan.is_frozen_for_sending()]
+                chan.is_active() and not chan.is_frozen_for_sending()
+                and (chan.is_public() or not we_are_forwarding)
+            ]
         # try random order
         random.shuffle(my_active_channels)
         split_configurations = self.suggest_payment_splits(
@@ -4279,7 +4282,6 @@ class LNWallet(Logger):
         if next_peer:
             for next_chan in next_peer.channels.values():
                 if next_chan.can_pay(amt_to_forward):
-                    # todo: detect if we can do mpp
                     direct_channels = [next_chan]
                     break
             # open JIT channel
@@ -4310,6 +4312,12 @@ class LNWallet(Logger):
                     payment_hash=payment_hash,
                     next_onion=next_onion)
                 return
+            # split over direct channels. not before JIT, because JIT invoices disable mpp
+            next_chans = [chan for chan in next_peer.channels.values() if chan.is_active()]
+            if (not direct_channels
+                    and LnFeatures(invoice_features).supports(LnFeatures.BASIC_MPP_OPT)
+                    and sum(chan.available_to_spend(LOCAL) for chan in next_chans) >= amt_to_forward):
+                direct_channels = next_chans
 
         if budget.fee_msat < (1000 if not direct_channels else 0):
             raise OnionRoutingFailure(code=OnionFailureCode.TRAMPOLINE_FEE_INSUFFICIENT, data=b'')
