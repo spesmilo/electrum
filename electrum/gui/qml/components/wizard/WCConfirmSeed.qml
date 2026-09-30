@@ -45,6 +45,7 @@ WizardComponent {
                 Layout.fillWidth: true
                 Layout.topMargin: constants.paddingSmall
                 placeholderText: qsTr('Enter your seed')
+                validateWords: true
                 onTextChanged: checkValid()
             }
         }
