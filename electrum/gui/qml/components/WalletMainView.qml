@@ -34,57 +34,20 @@ Item {
     }
 
     function openSendDialog() {
-        // Qt based send dialog if not on android
-        if (!AppController.isAndroid()) {
-            _sendDialog = qtSendDialog.createObject(mainView, {invoiceParser: invoiceParser, piResolver: piResolver})
-            _sendDialog.open()
-            return
-        }
-
-        // Android based send dialog if on android
-        var scanner = app.scanDialog.createObject(mainView, {
-            hint: Daemon.currentWallet.isLightning
-                ? qsTr('Scan an Invoice, an Address, an LNURL, a PSBT or a Channel Backup')
-                : qsTr('Scan an Invoice, an Address, an LNURL or a PSBT')
-        })
-        scanner.onFoundText.connect(function(data) {
-            data = data.trim()
-            if (bitcoin.isRawTx(data)) {
-                app.stack.push(Qt.resolvedUrl('TxDetails.qml'), { rawtx: data })
-            } else if (Daemon.currentWallet.isValidChannelBackup(data)) {
-                var dialog = app.messageDialog.createObject(app, {
-                    title: qsTr('Import Channel Backup?'),
-                    yesno: true
-                })
-                dialog.accepted.connect(function() {
-                    Daemon.currentWallet.importChannelBackup(data)
-                })
-                dialog.open()
-            } else {
-                piResolver.recipient = data
-            }
-            //scanner.destroy()  // TODO
-        })
-        scanner.open()
+        _sendDialog = qtSendDialog.createObject(mainView, {invoiceParser: invoiceParser, piResolver: piResolver})
+        _sendDialog.open()
     }
 
     function closeSendDialog() {
-        if (!AppController.isAndroid()) {
-            if (_sendDialog) {
-                _sendDialog.doClose()
-                _sendDialog = null
-            }
+        if (_sendDialog) {
+            _sendDialog.doClose()
+            _sendDialog = null
         }
     }
 
     function restartSendDialog() {
-        if (!AppController.isAndroid()) {
-            if (_sendDialog) {
-                _sendDialog.restart()
-            }
-            return
-        } else {
-            openSendDialog()
+        if (_sendDialog) {
+            _sendDialog.restart()
         }
     }
 
@@ -780,4 +743,3 @@ Item {
         }
     }
 }
-

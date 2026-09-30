@@ -143,7 +143,8 @@ function host_strip()
                 gcc_host strip "$@"
                 ;;
             darwin)
-                # TODO: Strip on macOS?
+                # dylibs have to keep their global symbols, so only strip debug and local symbols
+                strip -S -x "$@"
                 ;;
         esac
     fi

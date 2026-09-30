@@ -7,7 +7,6 @@ import org.electrum 1.0
 
 import "controls"
 
-// currently not used on android, kept for future use when qt6 camera stops crashing
 ElDialog {
     id: dialog
 
@@ -19,7 +18,7 @@ ElDialog {
 
     header: null
     padding: 0
-    topPadding: 0
+    topPadding: app.statusBarHeight
 
     onAboutToHide: {
         console.log('about to hide')
@@ -86,5 +85,13 @@ ElDialog {
 
     Bitcoin {
         id: bitcoin
+    }
+
+    // Keep the camera preview out of screenshots and screen recordings.
+    Binding {
+        target: AppController
+        property: 'secureWindow'
+        when: dialog.visible  // enables stacking multiple secureWindow dialogs
+        value: true
     }
 }

@@ -55,6 +55,8 @@ source.exclude_dirs =
 
 # (list) List of exclusions using pattern matching
 source.exclude_patterns = Makefile,setup*,
+    # the android zxing scanner is built through the p4a recipe
+    electrum/libZXing.*,
     # not reproducible:
     packages/aiohttp-*.dist-info/*,
     packages/frozenlist-*.dist-info/*
@@ -79,7 +81,7 @@ requirements =
     pycryptodomex,
     pyqt6sip,
     pyqt6,
-    libzbar
+    libzxing
 
 # (str) Presplash of the application
 presplash.filename = %(source.dir)s/electrum/gui/icons/electrum_presplash.png
@@ -111,13 +113,13 @@ android.api = 36
 android.target_sdk_version = 36
 
 # (int) Minimum API required. You will need to set the android.ndk_api to be as low as this value.
-android.minapi = 26
+android.minapi = 28
 
 # (str) Android NDK version to use
 android.ndk = 28c
 
 # (int) Android NDK API to use (optional). This is the minimum API your app will support.
-android.ndk_api = 26
+android.ndk_api = 28
 
 # (bool) Use --private data storage (True) or --dir public storage (False)
 #android.private_storage = True
@@ -151,27 +153,18 @@ android.accept_sdk_license = True
 # down the build process. Allows wildcards matching, for example:
 # OUYA-ODK/libs/*.jar
 #android.add_jars = foo.jar,bar.jar,path/to/more/*.jar
-#android.add_jars = lib/android/zbar.jar
 
 android.add_jars = .buildozer/android/platform/*/build/libs_collections/Electrum/jar/*.jar
-
-
-android.add_aars =
-    contrib/android/.cache/aars/BarcodeScannerView.aar,
-    contrib/android/.cache/aars/CameraView.aar,
-    contrib/android/.cache/aars/zxing-cpp.aar
 
 
 # (list) List of Java files to add to the android project (can be java or a
 # directory containing the files)
 android.add_src = electrum/gui/qml/java_classes/
 
-# kotlin-stdlib is required for zxing-cpp (BarcodeScannerView)
 android.gradle_dependencies =
-    androidx.core:core:1.16.0,
-    org.jetbrains.kotlin:kotlin-stdlib:1.8.22
+    androidx.core:core:1.16.0
 
-android.add_activities = org.electrum.qr.SimpleScannerActivity, org.electrum.biometry.BiometricActivity
+android.add_activities = org.electrum.biometry.BiometricActivity
 
 # (list) Put these files or directories in the apk res directory.
 # The option may be used in three ways, the value may contain one or zero ':'
@@ -183,7 +176,6 @@ android.add_activities = org.electrum.qr.SimpleScannerActivity, org.electrum.bio
 # 3) A directory, here 'legal_resources' must contain one or more directories,
 # each of a resource kind:  drawable, xml, etc...
 # android.add_resources = legal_resources
-android.add_resources = electrum/gui/qml/android_res/layout:layout
 
 # (str) python-for-android branch to use, if not master, useful to try
 # not yet merged features.
