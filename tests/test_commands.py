@@ -1,6 +1,7 @@
 import asyncio
 import binascii
 import datetime
+import json
 import os.path
 import unittest
 from unittest import mock
@@ -10,7 +11,8 @@ import shutil
 
 import electrum
 from electrum.commands import Commands, eval_bool
-from electrum import storage, wallet
+from electrum import storage, wallet, constants
+from electrum.constants import BitcoinMainnet
 from electrum.lnutil import RECEIVED, channel_id_from_funding_tx
 from electrum.lnworker import RecvMPPResolution
 from electrum.wallet import Abstract_Wallet
@@ -21,6 +23,7 @@ from electrum.transaction import Transaction, TxOutput, tx_from_any
 from electrum.util import UserFacingException, NotEnoughFunds
 from electrum.crypto import sha256
 from electrum.bolt11 import decode_bolt11_invoice
+from electrum.bolt12 import BOLT12Offer
 from electrum.daemon import Daemon
 from electrum import json_db
 
@@ -860,3 +863,80 @@ class TestCommandsTestnet(ElectrumTestCase):
         result = await cmds.delete_channel_backup(self._CHANNEL_POINT, wallet=w)
         self.assertIsNone(result)
         w.lnworker.remove_channel_backup.assert_called_once_with(chan_id)
+
+    async def test_decode_bolt12(self, *mock_args):
+        cmds = Commands(config=self.config)
+
+        # set net to mainnet as the offers below contain the mainnet chain
+        prev_net = constants.net
+        constants.net = BitcoinMainnet
+
+        # offer
+        offer = 'lno1pggxv6tjwd6zqar9wd6zqmmxvejhy93pq02rpdcl6l20pakl2ad70k0n8v862jwp2twq8a8uz0hz5wfafg495'
+        decoded = json.loads(await cmds.decode_bolt12(bech32=offer))
+        self.assertEqual(decoded['offer_description']['description'], 'first test offer')
+        self.assertEqual(
+            decoded['offer_issuer_id']['id'],
+            '03d430b71fd7d4f0f6df575be7d9f33b0fa549c152dc03f4fc13ee2a393d4a2a5a',
+        )
+
+        # invoice_request
+        invoice_request = ('lnr1qqp6hn00zcssxr0juddeytv7nwawhk9nq9us0arnk8j8wnsq8r2e86vzgtfneupe2g'
+                           'p9yzzcyypymkt4c0n6rhcdw9a7ay2ptuje2gvehscwcchlvgntump3x7e7tc0sgp9k43q'
+                           'eu892gfnz2hrr7akh2x8erh7zm2tv52884vyl462dm5tfcahgtuzt7j0npy7getf4trv5'
+                           'd4g78a9fkwu3kke6hcxdr6t2n7vz')
+        decoded = json.loads(await cmds.decode_bolt12(bech32=invoice_request))
+        self.assertEqual(decoded['invreq_amount']['msat'], 21_000)
+        self.assertEqual(decoded['invreq_metadata']['blob'], 'abcdef')
+        self.assertIn('invreq_payer_id', decoded)
+        self.assertIn('signature', decoded)
+
+        # invoice
+        invoice = ('lni1qqzdatd7auzqwqgzqvzq2ps8pqqszzsnw3jhxazlv4hxxmmyv40kjmnkda5kxegkyypwa3e'
+                   'yt44h6txtxquqh7lz5djge4afgfjn7k4rgrkuag0jsd5xvx2cyypwa3eyt44h6txtxquqh7lz5'
+                   'djge4afgfjn7k4rgrkuag0jsd5xvxdqdvpwa3eyt44h6txtxquqh7lz5djge4afgfjn7k4rgrk'
+                   'uag0jsd5xvxgzamrjghtt05kvkvpcp0a79gmy3nt6jsn98ad2xs8de6sl9qmgvcvszqhwcuj96'
+                   '6ma9n9nqwqtl032xeyv6755yeflt235pmww58egx6rxryqq2vfjxv6rtgsaqqqqqeqqqqp7sqx'
+                   'gqqqqqqqqqqqqzqqqqqqqqr6zgqqqzq9yq35cmzpm5cppcg9gyr9tzrp2zpr86lwy2y4fzpfsa'
+                   'u6azq5xv2m9ez3sv4sndlu403jcn2sz2gytqggzamrjghtt05kvkvpcp0a79gmy3nt6jsn98ad'
+                   '2xs8de6sl9qmgvcvlqsq2smesfhwpr27j0kpgk7prlvewkk639e2c080wyc43epy04hegwgv8k'
+                   'wm04v8ey9t6lxkp5rv65dz9w0xly26mu8rl42hheq0h98y0z')
+        decoded = json.loads(await cmds.decode_bolt12(bech32=invoice))
+        self.assertIn('invoice_amount', decoded)
+        self.assertIn('invoice_payment_hash', decoded)
+        self.assertIn('invoice_node_id', decoded)
+        self.assertIn('invoice_created_at', decoded)
+        self.assertIn('invoice_paths', decoded)
+        self.assertIn('signature', decoded)
+
+        # decoding an invalid bech32 string raises
+        with self.assertRaises(UserFacingException):
+            await cmds.decode_bolt12(bech32='invalid_string')
+
+        # set back to Testnet
+        constants.net = prev_net
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_add_lightning_offer(self, *mock_args):
+        wallet: Abstract_Wallet = restore_wallet_from_text__for_unittest(
+            'disagree rug lemon bean unaware square alone beach tennis exhibit fix mimic',
+            path='if_this_exists_mocking_failed_648151893',
+            config=self.config)['wallet']
+        cmds = Commands(config=self.config)
+
+        bolt12_offer = (await cmds.add_lightning_offer(
+            amount=Decimal(0.001),
+            description="test cli",
+            relative_expiry=None,
+            issuer_name="me",
+            allow_unblinded=True,
+            wallet=wallet,
+        ))['offer']
+        decoded_offer = BOLT12Offer.decode(bolt12_offer)
+        self.assertEqual(len(decoded_offer.offer_metadata), 40)
+        self.assertEqual(decoded_offer.offer_amount, 100000000)
+        self.assertEqual(decoded_offer.offer_description, "test cli")
+        self.assertEqual(decoded_offer.offer_absolute_expiry, None)
+        self.assertEqual(decoded_offer.offer_issuer, "me")
+        self.assertEqual(decoded_offer.offer_issuer_id, wallet.lnworker.node_keypair.pubkey)
+        self.assertEqual(decoded_offer.offer_paths, None)
