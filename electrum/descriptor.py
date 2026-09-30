@@ -1009,6 +1009,41 @@ def _parse_descriptor(desc: str, *, ctx: '_ParseDescriptorContext') -> 'Descript
     raise ValueError("{} is not a valid descriptor function".format(func))
 
 
+def from_legacy_electrum_script_type(
+        script_type: str,
+        *,
+        pubkeys: List['PubkeyProvider'],
+        m: Optional[int] = None,
+) -> 'Descriptor':
+    """Builds the descriptor of a script type Electrum names, as wallets do.
+    Inverse of Descriptor.to_legacy_electrum_script_type. m is the number of
+    signatures a multisig script requires.
+
+    :raises: NotImplementedError: if the script type is unknown
+    """
+    if script_type == 'p2pk':
+        return PKDescriptor(pubkey=pubkeys[0])
+    elif script_type == 'p2pkh':
+        return PKHDescriptor(pubkey=pubkeys[0])
+    elif script_type == 'p2wpkh':
+        return WPKHDescriptor(pubkey=pubkeys[0])
+    elif script_type == 'p2wpkh-p2sh':
+        wpkh = WPKHDescriptor(pubkey=pubkeys[0])
+        return SHDescriptor(subdescriptor=wpkh)
+    elif script_type == 'p2sh':
+        multi = MultisigDescriptor(pubkeys=pubkeys, thresh=m, is_sorted=True)
+        return SHDescriptor(subdescriptor=multi)
+    elif script_type == 'p2wsh':
+        multi = MultisigDescriptor(pubkeys=pubkeys, thresh=m, is_sorted=True)
+        return WSHDescriptor(subdescriptor=multi)
+    elif script_type == 'p2wsh-p2sh':
+        multi = MultisigDescriptor(pubkeys=pubkeys, thresh=m, is_sorted=True)
+        wsh = WSHDescriptor(subdescriptor=multi)
+        return SHDescriptor(subdescriptor=wsh)
+    else:
+        raise NotImplementedError(f"unexpected {script_type=}")
+
+
 def parse_descriptor(desc: str) -> 'Descriptor':
     """
     Parse a descriptor string into a :class:`Descriptor`.

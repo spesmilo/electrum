@@ -1,150 +1,57 @@
-from functools import partial
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
-from electrum.i18n import _
+from PyQt6.QtCore import pyqtProperty
+
 from electrum.plugin import hook
-from electrum.util import UserFacingException
 
-from electrum.gui.qml.qewallet import QEWallet
+from electrum.gui.common_qt.plugins import PluginQObject
 from electrum.gui.qml.qedaemon import QEDaemon
 
-from .common_qt import TrustedcoinPluginQObject
-from .trustedcoin import TrustedCoinPlugin, TrustedCoinException, Wallet_2fa
+from .trustedcoin import TrustedCoinPlugin, MOBILE_DISCLAIMER
 
 if TYPE_CHECKING:
     from electrum.gui.qml import ElectrumQmlApplication
-    from electrum.wallet import Abstract_Wallet
-    from electrum.wizard import NewWalletWizard
-    from electrum.transaction import PartialTransaction
+    from electrum.gui.qml.qewizard import QENewWalletWizard
+
+
+class TrustedcoinPluginQObject(PluginQObject):
+
+    @pyqtProperty(str, constant=True)
+    def disclaimer(self):
+        return '\n\n'.join(MOBILE_DISCLAIMER)
 
 
 class Plugin(TrustedCoinPlugin):
     def __init__(self, *args):
         super().__init__(*args)
-        self._app = None  # type: ElectrumQmlApplication
         self.so = None  # type: TrustedcoinPluginQObject
-
-    @hook
-    def load_wallet(self, wallet: 'Abstract_Wallet'):
-        if not isinstance(wallet, self.wallet_class):
-            return
-        self.logger.debug(f'plugin enabled for wallet "{str(wallet)}"')
-        if wallet.can_sign_without_server():
-            self.so._canSignWithoutServer = True
-            self.so.canSignWithoutServerChanged.emit()
-
-            msg = ' '.join([
-                _('This wallet was restored from seed, and it contains two master private keys.'),
-                _('Therefore, two-factor authentication is disabled.')
-            ])
-            self.logger.info(msg)
-        self.start_request_thread(wallet)
 
     @hook
     def init_qml(self, app: 'ElectrumQmlApplication'):
         self.logger.debug(f'init_qml hook called, gui={str(type(app))}')
-        self._app = app
-        wizard = QEDaemon.instance.newWalletWizard
         # important: TrustedcoinPluginQObject needs to be parented, as keeping a ref
         # in the plugin is not enough to avoid gc
-        # Note: storing the trustedcoin qt helper in the plugin is different from the desktop client,
-        # which stores the helper in the wizard object. As the mobile client only shows a single wizard
-        # at a time, this is ok for now.
-        self.so = TrustedcoinPluginQObject(self, wizard, self._app)
-        # extend wizard
-        self.extend_wizard(wizard)
+        self.so = TrustedcoinPluginQObject(self, app)
+        self.extend_wizard(QEDaemon.instance.newWalletWizard)
 
-    # wizard support functions
-
-    def extend_wizard(self, wizard: 'NewWalletWizard'):
+    def extend_wizard(self, wizard: 'QENewWalletWizard'):
         super().extend_wizard(wizard)
         views = {
             'trustedcoin_start': {
                 'gui': '../../../../plugins/trustedcoin/qml/Disclaimer',
             },
-            'trustedcoin_choose_seed': {
-                'gui': '../../../../plugins/trustedcoin/qml/ChooseSeed',
-            },
-            'trustedcoin_create_seed': {
-                'gui': 'WCCreateSeed',
-            },
-            'trustedcoin_create_ext': {
-                'gui': 'WCEnterExt',
-            },
-            'trustedcoin_confirm_seed': {
-                'gui': 'WCConfirmSeed',
-            },
-            'trustedcoin_confirm_ext': {
-                'gui': 'WCConfirmExt',
-            },
+            # on mobile, restoring from seed disables two-factor authentication
             'trustedcoin_have_seed': {
                 'gui': 'WCHaveSeed',
+                'next': lambda d: 'trustedcoin_have_ext' if wizard.wants_ext(d) else 'wallet_password',
+                'accept': lambda d: None if wizard.wants_ext(d) else self.recovery_disable(d),
+                'last': lambda d: wizard.is_single_password() and not wizard.wants_ext(d),
             },
             'trustedcoin_have_ext': {
                 'gui': 'WCEnterExt',
+                'next': 'wallet_password',
+                'accept': self.recovery_disable,
+                'last': lambda d: wizard.is_single_password(),
             },
-            'trustedcoin_keep_disable': {
-                'gui': '../../../../plugins/trustedcoin/qml/KeepDisable',
-            },
-            'trustedcoin_tos': {
-                'gui': '../../../../plugins/trustedcoin/qml/Terms',
-            },
-            'trustedcoin_keystore_unlock': {
-                # TODO when QML can import external wallet files
-            },
-            'trustedcoin_show_confirm_otp': {
-                'gui': '../../../../plugins/trustedcoin/qml/ShowConfirmOTP',
-            }
         }
         wizard.navmap_merge(views)
-
-    # running wallet functions
-
-    def prompt_user_for_otp(
-        self,
-        wallet: Wallet_2fa,
-        tx: 'PartialTransaction',
-        on_success: Callable[['PartialTransaction'], None],
-        on_failure: Callable[[str], None],
-    ):
-        self.logger.debug('prompt_user_for_otp')
-        qewallet = QEWallet.getInstanceFor(wallet)
-        qewallet.request_otp(partial(self.on_otp, wallet, tx, on_success=on_success, on_failure=on_failure))
-
-    def on_otp(
-            self,
-            wallet: Wallet_2fa,
-            tx: 'PartialTransaction',
-            otp,
-            *,
-            on_success: Callable[['PartialTransaction'], None],
-            on_failure: Callable[[str], None] = None
-    ):
-        self.logger.debug('on_otp')
-        assert wallet and isinstance(wallet, Wallet_2fa)
-
-        on_failure = on_failure if on_failure else lambda x: self.logger.error(x)
-
-        if not otp:
-            on_failure(_('No auth code'))
-            return
-
-        try:
-            wallet.on_otp(tx, otp)
-        except UserFacingException as e:
-            on_failure(_('Invalid one-time password.'))
-        except TrustedCoinException as e:
-            if e.status_code == 400:  # invalid OTP
-                on_failure(_('Invalid one-time password.'))
-            else:
-                on_failure(_('Service Error') + ':\n' + str(e))
-        except Exception as e:
-            on_failure(_('Error') + ':\n' + str(e))
-        else:
-            on_success(tx)
-
-    def billing_info_retrieved(self, wallet):
-        self.logger.info('billing_info_retrieved')
-        qewallet = QEWallet.getInstanceFor(wallet)
-        qewallet.billingInfoChanged.emit()
-        self.so.updateBillingInfo(wallet)

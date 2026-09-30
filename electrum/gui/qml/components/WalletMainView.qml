@@ -49,7 +49,9 @@ Item {
         })
         scanner.onFoundText.connect(function(data) {
             data = data.trim()
-            if (bitcoin.isRawTx(data)) {
+            if (app.cosignerHandler.handleScannedData(data)) {
+                // a key for this device to sign with, or a transaction to sign
+            } else if (bitcoin.isRawTx(data)) {
                 app.stack.push(Qt.resolvedUrl('TxDetails.qml'), { rawtx: data })
             } else if (Daemon.currentWallet.isValidChannelBackup(data)) {
                 var dialog = app.messageDialog.createObject(app, {
@@ -479,11 +481,6 @@ Item {
             })
             dialog.open()
         }
-        function onOtpRequested() {
-            console.log('OTP requested')
-            var dialog = otpDialog.createObject(mainView)
-            dialog.open()
-        }
         function onBroadcastFailed(txid, code, message) {
             var dialog = app.messageDialog.createObject(app, {
                 title: qsTr('Error'),
@@ -742,16 +739,6 @@ Item {
         id: lnurlWithdrawDialog
         LnurlWithdrawRequestDialog {
             width: parent.width * 0.9
-            anchors.centerIn: parent
-
-            onClosed: destroy()
-        }
-    }
-
-    Component {
-        id: otpDialog
-        OtpDialog {
-            width: parent.width * 2/3
             anchors.centerIn: parent
 
             onClosed: destroy()

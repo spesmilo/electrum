@@ -993,8 +993,6 @@ Warning: setting this to too low will result in lots of payment failures."""),
     # connect to remote WT
     WATCHTOWER_CLIENT_URL = ConfigVar('watchtower_url', default=None, type_=str)
 
-    PLUGIN_TRUSTEDCOIN_NUM_PREPAY = ConfigVar('trustedcoin_prepay', default=20, type_=int)
-
 
 def read_user_config(path: Optional[str]) -> Dict[str, Any]:
     """Parse and store the user config settings in electrum.conf into user_config[]."""

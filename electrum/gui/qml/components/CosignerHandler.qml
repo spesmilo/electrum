@@ -1,0 +1,242 @@
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
+
+import org.electrum
+
+import "controls"
+
+// Scanned QR codes that concern the wallets this device signs for without having them.
+Item {
+    id: root
+
+    // the transaction being read, the dialog that says so, and what the dialog that
+    // confirms it needs. Kept until that dialog has it.
+    property var _pending
+
+    // called by the scan dialogs of the app. Returns true if the data was for us.
+    function handleScannedData(data) {
+        if (Cosigner.isCosignerQr(data)) {
+            confirmSetup(data)
+            return true
+        }
+        if (Cosigner.canCosign(data)) {
+            if (Cosigner.canUseAppPassword()) {
+                signTransaction(data, '')
+            } else {
+                // the keys of the wallets we sign for are encrypted
+                var dialog = app.passwordDialog.createObject(app, {
+                    infotext: qsTr('Enter the password of this device to read the transaction.')
+                })
+                dialog.passwordEntered.connect(function(password) {
+                    if (!Cosigner.verifyPassword(password)) {
+                        dialog.clearPassword()
+                        dialog.errorMessage = qsTr('Invalid Password')
+                        return
+                    }
+                    dialog.close()
+                    signTransaction(data, password)
+                })
+                dialog.open()
+            }
+            return true
+        }
+        return false
+    }
+
+    function scanQrCode() {
+        var scanner = app.scanDialog.createObject(app, {
+            hint: qsTr('Scan a QR code displayed by Electrum desktop')
+        })
+        scanner.onFoundText.connect(function(data) {
+            scanner.close()
+            if (!handleScannedData(data.trim()))
+                showError(qsTr('This is not a cosigner QR code.'))
+        })
+        scanner.open()
+    }
+
+    function confirmSetup(data) {
+        var dialog = app.messageDialog.createObject(app, {
+            title: qsTr('Cosigner'),
+            text: qsTr('Set up this device as the cosigner of your Electrum desktop wallet?'),
+            yesno: true
+        })
+        dialog.accepted.connect(function() {
+            setupCosigner(data)
+        })
+        dialog.open()
+    }
+
+    function setupCosigner(data) {
+        if (Cosigner.canUseAppPassword() || Cosigner.hasWallets()) {
+            // the password of the app encrypts the cosigner key. If it is not
+            // available, Cosigner explains what the user has to do first.
+            Cosigner.setupCosigner(data, '')
+            return
+        }
+        // There is no wallet on this device. If it already holds keys, they use the password
+        // of the app, and the user types that one: letting them choose another password here
+        // would leave this device with two of them. Otherwise, they choose it now.
+        var dialog = Cosigner.hasCosigners()
+            ? app.passwordDialog.createObject(app, {
+                infotext: qsTr('Enter the password of this device to store this key.')
+            })
+            : app.passwordDialog.createObject(app, {
+                confirmPassword: true,
+                infotext: [
+                    qsTr('Choose a password for Electrum.'),
+                    qsTr('It encrypts the cosigner key, and the wallets you create on this device.')
+                ].join(' ')
+            })
+        dialog.passwordEntered.connect(function(password) {
+            // if this device already holds keys, the password must be the one they use
+            if (!Cosigner.verifyPassword(password)) {
+                dialog.clearPassword()
+                dialog.errorMessage = qsTr('Invalid Password')
+                return
+            }
+            dialog.close()
+            Cosigner.setupCosigner(data, password)
+        })
+        dialog.open()
+    }
+
+    function signTransaction(data, password) {
+        // reading the transaction may have to wait for the network, so the summary
+        // of it comes back with onPsbtLoaded
+        _pending = {
+            psbt: data,
+            password: password ? password : '',
+            busy: readingDialog.createObject(app)
+        }
+        _pending.busy.open()
+        Cosigner.loadPsbt(_pending.psbt, _pending.password)
+    }
+
+    // what signTransaction put aside, if its dialog is not open yet
+    function _takePending() {
+        if (!_pending)
+            return null
+        _pending.busy.stop()
+        var pending = _pending
+        _pending = null
+        return pending
+    }
+
+    function showError(message) {
+        var dialog = app.messageDialog.createObject(app, {
+            title: qsTr('Cosigner'),
+            iconSource: Qt.resolvedUrl('../../icons/warning.png'),
+            text: message
+        })
+        dialog.open()
+    }
+
+    Connections {
+        target: Cosigner
+        function onAuthRequired(method, authMessage) {
+            app.handleAuthRequired(Cosigner, method, authMessage)
+        }
+        function onCosignerAdded() {
+            var dialog = app.messageDialog.createObject(app, {
+                title: qsTr('Cosigner'),
+                text: qsTr('This device is now a cosigner of your desktop wallet.')
+            })
+            dialog.open()
+        }
+        function onSetupFailed(message) {
+            showError(message)
+        }
+        function onPsbtLoaded(summary) {
+            var pending = _takePending()
+            if (!pending)  // the dialog that confirms it is already open
+                return
+            var dialog = cosignDialog.createObject(app, {
+                summary: summary,
+                psbt: pending.psbt,
+                password: pending.password
+            })
+            dialog.open()
+        }
+        function onSignFailed(message) {
+            _takePending()
+            showError(message)
+        }
+        function onSignSuccess(txid) {
+            var dialog = app.messageDialog.createObject(app, {
+                title: qsTr('Cosigner'),
+                text: [
+                    qsTr('The transaction was signed and broadcast.'),
+                    txid
+                ].join('\n\n')
+            })
+            dialog.open()
+        }
+    }
+
+    Component {
+        id: cosignDialog
+        CosignDialog {
+            onClosed: destroy()
+        }
+    }
+
+    // shown while the previous transactions of a transaction are fetched
+    Component {
+        id: readingDialog
+        ElDialog {
+            id: dialog
+
+            title: qsTr('Cosigner')
+            iconSource: Qt.resolvedUrl('../../icons/key.png')
+            allowClose: false
+            resizeWithKeyboard: false
+            needsSystemBarPadding: false
+            x: Math.floor((parent.width - implicitWidth) / 2)
+            y: Math.floor((parent.height - implicitHeight) / 2)
+
+            // only show up if the network keeps us waiting
+            function open() {
+                showTimer.start()
+            }
+
+            function stop() {
+                showTimer.stop()
+                if (visible) {
+                    close()
+                } else {
+                    // a dialog that was never shown does not get its onClosed callbacks
+                    Qt.callLater(function() { dialog.destroy() })
+                }
+            }
+
+            ColumnLayout {
+                width: parent.width
+
+                BusyIndicator {
+                    Layout.alignment: Qt.AlignHCenter
+                    running: true
+                }
+
+                Label {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: qsTr('Reading the transaction...')
+                }
+
+                Item {
+                    Layout.preferredHeight: 20
+                }
+            }
+
+            Timer {
+                id: showTimer
+                interval: 250
+                repeat: false
+                onTriggered: dialog.visible = true
+            }
+
+            onClosed: destroy()
+        }
+    }
+}

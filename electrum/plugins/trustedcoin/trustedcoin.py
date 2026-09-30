@@ -23,28 +23,18 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import json
-import time
 import hashlib
-from typing import Dict, Union, Sequence, List, TYPE_CHECKING
-from urllib.parse import urljoin
-from urllib.parse import quote
-
-from aiohttp import ClientResponse
+from typing import Tuple, TYPE_CHECKING
 
 import electrum_ecc as ecc
 
-from electrum import constants, keystore, version, bip32, bitcoin
-from electrum.bip32 import BIP32Node, xpub_type, is_xprv
+from electrum import constants, cosigner, keystore, bip32
+from electrum.bip32 import BIP32Node, xpub_type
 from electrum.crypto import sha256
-from electrum.transaction import PartialTxOutput, PartialTxInput, PartialTransaction, Transaction
 from electrum.mnemonic import Mnemonic, calc_seed_type, is_any_2fa_seed_type
 from electrum.wallet import Multisig_Wallet, Deterministic_Wallet
 from electrum.i18n import _
-from electrum.plugin import BasePlugin, hook
-from electrum.util import NotEnoughFunds, UserFacingException, error_text_str_to_safe_str
-from electrum.network import Network
-from electrum.logging import Logger
+from electrum.plugin import BasePlugin
 from electrum.keystore import KeyStore
 
 if TYPE_CHECKING:
@@ -64,187 +54,30 @@ def get_signing_xpub(xtype):
     return node._replace(xtype=xtype).to_xpub()
 
 
-def get_billing_xpub():
-    if constants.net.TESTNET:
-        return "tpubD6NzVbkrYhZ4X11EJFTJujsYbUmVASAYY7gXsEt4sL97AMBdypiH1E9ZVTpdXXEy3Kj9Eqd1UkxdGtvDt5z23DKsh6211CfNJo8bLLyem5r"
-    else:
-        return "xpub6DTBdtBB8qUmH5c77v8qVGVoYk7WjJNpGvutqjLasNG1mbux6KsojaLrYf2sRhXAVU4NaFuHhbD9SvVPRt1MB1MaMooRuhHcAZH1yhQ1qDU"
-
-
 DESKTOP_DISCLAIMER = [
-    _("Two-factor authentication is a service provided by TrustedCoin.  "
-      "It uses a multi-signature wallet, where you own 2 of 3 keys.  "
-      "The third key is stored on a remote server that signs transactions on "
-      "your behalf.  To use this service, you will need a smartphone with "
-      "Google Authenticator installed."),
-    _("A small fee will be charged on each transaction that uses the "
-      "remote server.  You may check and modify your billing preferences "
-      "once the installation is complete."),
-    _("Note that your coins are not locked in this service.  You may withdraw "
-      "your funds at any time and at no cost, without the remote server, by "
-      "using the 'restore wallet' option with your wallet seed."),
-    _("The next step will generate the seed of your wallet.  This seed will "
-      "NOT be saved in your computer, and it must be stored on paper.  "
-      "To be safe from malware, you may want to do this on an offline "
-      "computer, and move your wallet later to an online computer."),
+    _("The two-factor authentication service of TrustedCoin has been discontinued. "
+      "Your coins are not locked: they can be recovered with your 2FA seed."),
+    _("A 2FA wallet is a multi-signature wallet, where two of the three keys are derived from your seed. "
+      "You may keep using two-factor authentication, with the Electrum app on your phone as cosigner: "
+      "this computer will hold the first key, and your phone will hold the second key."),
+    _("Alternatively, you may disable two-factor authentication, and have both keys in this wallet."),
 ]
 DISCLAIMER = DESKTOP_DISCLAIMER
 
 MOBILE_DISCLAIMER = [
-    _("Two-factor authentication is a service provided by TrustedCoin. "
-      "To use it, you must have a separate device with Google Authenticator."),
-    _("This service uses a multi-signature wallet, where you own 2 of 3 keys.  "
-      "The third key is stored on a remote server that signs transactions on "
-      "your behalf. A small fee will be charged on each transaction that uses the "
-      "remote server."),
-    _("Note that your coins are not locked in this service.  You may withdraw "
-      "your funds at any time and at no cost, without the remote server, by "
-      "using the 'restore wallet' option with your wallet seed."),
+    _("The two-factor authentication service of TrustedCoin has been discontinued. "
+      "Your coins are not locked: they can be recovered with your 2FA seed."),
+    _("To use this device as the cosigner of a 2FA wallet on Electrum desktop, "
+      "restore your 2FA seed on desktop, and scan the QR code it displays."),
+    _("Alternatively, you may restore your 2FA seed on this device, with two-factor authentication disabled."),
 ]
 
-RESTORE_MSG = _("Enter the seed for your 2-factor wallet:")
 
-
-class TrustedCoinException(Exception):
-    def __init__(self, message, *, status_code=0):
-        # note: 'message' is arbitrary text coming from the server
-        safer_message = (
-            f"Received error from 2FA server\n"
-            f"[DO NOT TRUST THIS MESSAGE]:\n\n"
-            f"status_code={status_code}\n\n"
-            f"{error_text_str_to_safe_str(message)}")
-        Exception.__init__(self, safer_message)
-        self.status_code = status_code
-
-
-class ErrorConnectingServer(Exception):
-    def __init__(self, reason: Union[str, Exception] = None):
-        self.reason = reason
-
-    def __str__(self):
-        header = _("Error connecting to {} server").format('TrustedCoin')
-        reason = self.reason
-        if isinstance(reason, BaseException):
-            reason = repr(reason)
-        return f"{header}:\n{reason}" if reason else header
-
-
-class TrustedCoinCosignerClient(Logger):
-    def __init__(self, user_agent=None, base_url='https://api.trustedcoin.com/2/'):
-        self.base_url = base_url
-        self.debug = False
-        self.user_agent = user_agent
-        Logger.__init__(self)
-
-    async def handle_response(self, resp: ClientResponse):
-        if resp.status != 200:
-            try:
-                r = await resp.json()
-                message = r['message']
-            except Exception:
-                message = await resp.text()
-            raise TrustedCoinException(message, status_code=resp.status)
-        try:
-            return await resp.json()
-        except Exception:
-            return await resp.text()
-
-    def send_request(self, method, relative_url, data=None, *, timeout=None):
-        network = Network.get_instance()
-        if not network:
-            raise ErrorConnectingServer('You are offline.')
-        url = urljoin(self.base_url, relative_url)
-        if self.debug:
-            self.logger.debug(f'<-- {method} {url} {data}')
-        headers = {}
-        if self.user_agent:
-            headers['user-agent'] = self.user_agent
-        try:
-            if method == 'get':
-                response = Network.send_http_on_proxy(method, url,
-                                                      params=data,
-                                                      headers=headers,
-                                                      on_finish=self.handle_response,
-                                                      timeout=timeout)
-            elif method == 'post':
-                response = Network.send_http_on_proxy(method, url,
-                                                      json=data,
-                                                      headers=headers,
-                                                      on_finish=self.handle_response,
-                                                      timeout=timeout)
-            else:
-                raise Exception(f"unexpected {method=!r}")
-        except TrustedCoinException:
-            raise
-        except Exception as e:
-            raise ErrorConnectingServer(e)
-        else:
-            if self.debug:
-                self.logger.debug(f'--> {response}')
-            return response
-
-    def get_terms_of_service(self, billing_plan='electrum-per-tx-otp'):
-        """
-        Returns the TOS for the given billing plan as a plain/text unicode string.
-        :param billing_plan: the plan to return the terms for
-        """
-        payload = {'billing_plan': billing_plan}
-        return self.send_request('get', 'tos', payload)
-
-    def create(self, xpubkey1, xpubkey2, email, billing_plan='electrum-per-tx-otp'):
-        """
-        Creates a new cosigner resource.
-        :param xpubkey1: a bip32 extended public key (customarily the hot key)
-        :param xpubkey2: a bip32 extended public key (customarily the cold key)
-        :param email: a contact email
-        :param billing_plan: the billing plan for the cosigner
-        """
-        payload = {
-            'email': email,
-            'xpubkey1': xpubkey1,
-            'xpubkey2': xpubkey2,
-            'billing_plan': billing_plan,
-        }
-        return self.send_request('post', 'cosigner', payload)
-
-    def auth(self, id, otp):
-        """
-        Attempt to authenticate for a particular cosigner.
-        :param id: the id of the cosigner
-        :param otp: the one time password
-        """
-        payload = {'otp': otp}
-        return self.send_request('post', 'cosigner/%s/auth' % quote(id), payload)
-
-    def get(self, id):
-        """ Get billing info """
-        return self.send_request('get', 'cosigner/%s' % quote(id))
-
-    def get_challenge(self, id):
-        """ Get challenge to reset Google Auth secret """
-        return self.send_request('get', 'cosigner/%s/otp_secret' % quote(id))
-
-    def reset_auth(self, id, challenge, signatures):
-        """ Reset Google Auth secret """
-        payload = {'challenge': challenge, 'signatures': signatures}
-        return self.send_request('post', 'cosigner/%s/otp_secret' % quote(id), payload)
-
-    def sign(self, id, transaction, otp):
-        """
-        Attempt to authenticate for a particular cosigner.
-        :param id: the id of the cosigner
-        :param transaction: the hex encoded [partially signed] compact transaction to sign
-        :param otp: the one time password
-        """
-        payload = {
-            'otp': otp,
-            'transaction': transaction
-        }
-        return self.send_request('post', 'cosigner/%s/sign' % quote(id), payload,
-                                 timeout=60)
-
-
-server = TrustedCoinCosignerClient(user_agent="Electrum/" + version.ELECTRUM_VERSION)
+def make_cosigner_qr_data(xprv2: str, xpub1: str, xpub3: str) -> str:
+    """The QR code that the desktop wizard displays for the mobile app to scan, which
+    sets it up as cosigner: the second master private key, and the two other public ones.
+    """
+    return cosigner.Cosigner(xprv=xprv2, xpubs=[xpub1, xpub3], m=2).to_qr_data()
 
 
 class Wallet_2fa(Multisig_Wallet):
@@ -253,137 +86,14 @@ class Wallet_2fa(Multisig_Wallet):
 
     def __init__(self, db, *, config):
         self.m, self.n = 2, 3
+        if not db.get('x3'):
+            # wallet created offline, and never completed online with the TrustedCoin server
+            xpub3 = get_xpub3(db.get('x1')['xpub'], db.get('x2')['xpub'])
+            db.put('x3', keystore.from_xpub(xpub3).dump())
         Deterministic_Wallet.__init__(self, db, config=config)
-        self.is_billing = False
-        self.billing_info = None
-        self._load_billing_addresses()
 
-    def _load_billing_addresses(self):
-        billing_addresses = {
-            'legacy': self.db.get('trustedcoin_billing_addresses', {}),
-            'segwit': self.db.get('trustedcoin_billing_addresses_segwit', {})
-        }
-        self._billing_addresses = {}  # type: Dict[str, Dict[int, str]]  # addr_type -> index -> addr
-        self._billing_addresses_set = set()  # set of addrs
-        for addr_type, d in list(billing_addresses.items()):
-            self._billing_addresses[addr_type] = {}
-            # convert keys from str to int
-            for index, addr in d.items():
-                self._billing_addresses[addr_type][int(index)] = addr
-                self._billing_addresses_set.add(addr)
-
-    def can_sign_without_server(self):
-        return not self.keystores['x2'].is_watching_only()
-
-    def get_user_id(self):
-        return get_user_id(self.db)
-
-    def min_prepay(self):
-        return min(self.price_per_tx.keys())
-
-    def num_prepay(self):
-        default_fallback = self.min_prepay()
-        num = self.config.PLUGIN_TRUSTEDCOIN_NUM_PREPAY
-        if num not in self.price_per_tx:
-            num = default_fallback
-        return num
-
-    def extra_fee(self):
-        if self.can_sign_without_server():
-            return 0
-        if self.billing_info is None:
-            self.plugin.start_request_thread(self)
-            return 0
-        if self.billing_info.get('tx_remaining'):
-            return 0
-        if self.is_billing:
-            return 0
-        n = self.num_prepay()
-        price = int(self.price_per_tx[n])
-        # sanity check: price capped at 0.5 mBTC per tx or 20 mBTC total
-        #               (note that the server can influence our choice of n by sending unexpected values)
-        if price > min(50_000 * n, 2_000_000):
-            raise Exception(f"too high trustedcoin fee ({price} for {n} txns)")
-        return price
-
-    def make_unsigned_transaction(
-            self, *,
-            outputs: List[PartialTxOutput],
-            is_sweep=False,
-            **kwargs,
-    ) -> PartialTransaction:
-
-        mk_tx = lambda o: Multisig_Wallet.make_unsigned_transaction(
-            self, outputs=o, **kwargs)
-        extra_fee = self.extra_fee() if not is_sweep else 0
-        if extra_fee:
-            address = self.billing_info['billing_address_segwit']
-            fee_output = PartialTxOutput.from_address_and_value(address, extra_fee)
-            try:
-                tx = mk_tx(outputs + [fee_output])
-            except NotEnoughFunds:
-                # TrustedCoin won't charge if the total inputs is
-                # lower than their fee
-                tx = mk_tx(outputs)
-                if tx.input_value() >= extra_fee:
-                    raise
-                self.logger.info("not charging for this tx")
-        else:
-            tx = mk_tx(outputs)
-        return tx
-
-    def on_otp(self, tx: PartialTransaction, otp):
-        if not otp:
-            self.logger.info("sign_transaction: no auth code")
-            return
-        otp = int(otp)
-        long_user_id, short_id = self.get_user_id()
-        raw_tx = tx.serialize_as_bytes().hex()
-        assert raw_tx[:10] == "70736274ff", f"bad magic. {raw_tx[:10]}"
-        try:
-            r = server.sign(short_id, raw_tx, otp)
-        except TrustedCoinException as e:
-            if e.status_code == 400:  # invalid OTP
-                raise UserFacingException(_('Invalid one-time password.')) from e
-            else:
-                raise
-        if r:
-            received_raw_tx = r.get('transaction')
-            received_tx = Transaction(received_raw_tx)
-            tx.combine_with_other_psbt(received_tx)
-        self.logger.info(f"twofactor: is complete {tx.is_complete()}")
-        # reset billing_info
-        self.billing_info = None
-        self.plugin.start_request_thread(self)
-
-    def add_new_billing_address(self, billing_index: int, address: str, addr_type: str):
-        billing_addresses_of_this_type = self._billing_addresses[addr_type]
-        saved_addr = billing_addresses_of_this_type.get(billing_index)
-        if saved_addr is not None:
-            if saved_addr == address:
-                return  # already saved this address
-            else:
-                raise Exception('trustedcoin billing address inconsistency.. '
-                                'for index {}, already saved {}, now got {}'
-                                .format(billing_index, saved_addr, address))
-        if billing_index > 50_000:  # otherwise DOS against CPU/memory/disk
-            raise Exception(f"trustedcoin billing_index too high. got {billing_index} > 50_000")
-        # do we have all prior indices? (are we synced?)
-        largest_index_we_have = max(billing_addresses_of_this_type) if billing_addresses_of_this_type else -1
-        if largest_index_we_have + 1 < billing_index:  # need to sync
-            for i in range(largest_index_we_have + 1, billing_index):
-                addr = make_billing_address(self, i, addr_type=addr_type)
-                billing_addresses_of_this_type[i] = addr
-                self._billing_addresses_set.add(addr)
-        # save this address; and persist to disk
-        billing_addresses_of_this_type[billing_index] = address
-        self._billing_addresses_set.add(address)
-        self._billing_addresses[addr_type] = billing_addresses_of_this_type
-        self.db.put('trustedcoin_billing_addresses', self._billing_addresses['legacy'])
-        self.db.put('trustedcoin_billing_addresses_segwit', self._billing_addresses['segwit'])
-
-    def is_billing_address(self, addr: str) -> bool:
-        return addr in self._billing_addresses_set
+    def can_sign_without_cosigner(self) -> bool:
+        return not self.keystores['x1'].is_watching_only() and not self.keystores['x2'].is_watching_only()
 
     def can_enable_disable_keystore(self, ks: KeyStore) -> bool:
         return False
@@ -418,37 +128,18 @@ def make_xpub(xpub, s) -> str:
     return child_node.to_xpub()
 
 
-def make_billing_address(wallet, num, addr_type):
-    long_id, short_id = wallet.get_user_id()
-    xpub = make_xpub(get_billing_xpub(), long_id)
-    usernode = BIP32Node.from_xkey(xpub)
-    child_node = usernode.subkey_at_public_derivation([num])
-    pubkey = child_node.eckey.get_public_key_bytes(compressed=True)
-    if addr_type == 'legacy':
-        return bitcoin.public_key_to_p2pkh(pubkey)
-    elif addr_type == 'segwit':
-        return bitcoin.public_key_to_p2wpkh(pubkey)
-    else:
-        raise ValueError(f'unexpected billing type: {addr_type}')
-
-
-def finish_requesting(func):
-    def f(self, *args, **kwargs):
-        try:
-            return func(self, *args, **kwargs)
-        finally:
-            self.requesting = False
-    return f
+def get_xpub3(xpub1: str, xpub2: str) -> str:
+    """The third key is derived from the TrustedCoin signing key."""
+    long_user_id, short_id = get_user_id({'x1': {'xpub': xpub1}, 'x2': {'xpub': xpub2}})
+    return make_xpub(get_signing_xpub(xpub_type(xpub1)), long_user_id)
 
 
 class TrustedCoinPlugin(BasePlugin):
     wallet_class = Wallet_2fa
-    disclaimer_msg = DISCLAIMER
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
         self.wallet_class.plugin = self
-        self.requesting = False
 
     def is_available(self):
         return True
@@ -458,86 +149,6 @@ class TrustedCoinPlugin(BasePlugin):
 
     def can_user_disable(self):
         return False
-
-    @hook
-    def tc_sign_wrapper(self, wallet, tx, on_success, on_failure):
-        if not isinstance(wallet, self.wallet_class):
-            return
-        if tx.is_complete():
-            return
-        if wallet.can_sign_without_server():
-            return
-        if not wallet.keystores['x3'].can_sign(tx, ignore_watching_only=True):
-            self.logger.info("twofactor: xpub3 not needed")
-            return
-
-        def wrapper(tx):
-            assert tx
-            self.prompt_user_for_otp(wallet, tx, on_success, on_failure)
-
-        return wrapper
-
-    def prompt_user_for_otp(self, wallet, tx, on_success, on_failure) -> None:
-        raise NotImplementedError()
-
-    @hook
-    def get_tx_extra_fee(self, wallet, tx: Transaction):
-        if type(wallet) is not Wallet_2fa:
-            return
-        for o in tx.outputs():
-            if wallet.is_billing_address(o.address):
-                return o.address, o.value
-
-    @finish_requesting
-    def request_billing_info(self, wallet: 'Wallet_2fa', *, suppress_connection_error=True):
-        if wallet.can_sign_without_server():
-            return
-        self.logger.info("request billing info")
-        try:
-            billing_info = server.get(wallet.get_user_id()[1])
-        except ErrorConnectingServer as e:
-            if suppress_connection_error:
-                self.logger.info(repr(e))
-                return
-            raise
-        billing_index = billing_info['billing_index']
-        # add segwit billing address; this will be used for actual billing
-        billing_address = make_billing_address(wallet, billing_index, addr_type='segwit')
-        if billing_address != billing_info['billing_address_segwit']:
-            raise Exception(f'unexpected trustedcoin billing address: '
-                            f'calculated {billing_address}, received {billing_info["billing_address_segwit"]}')
-        wallet.add_new_billing_address(billing_index, billing_address, addr_type='segwit')
-        # also add legacy billing address; only used for detecting past payments in GUI
-        billing_address = make_billing_address(wallet, billing_index, addr_type='legacy')
-        wallet.add_new_billing_address(billing_index, billing_address, addr_type='legacy')
-
-        wallet.billing_info = billing_info
-        wallet.price_per_tx = dict(billing_info['price_per_tx'])
-        wallet.price_per_tx.pop(1, None)
-        self.billing_info_retrieved(wallet)
-        return True
-
-    def billing_info_retrieved(self, wallet):
-        # override to handle billing info when it becomes available
-        pass
-
-    def start_request_thread(self, wallet):
-        from threading import Thread
-        if self.requesting is False:
-            self.requesting = True
-            t = Thread(target=self.request_billing_info, args=(wallet,))
-            t.daemon = True
-            t.start()
-            return t
-
-    def make_seed(self, seed_type):
-        if not is_any_2fa_seed_type(seed_type):
-            raise Exception(f'unexpected seed type: {seed_type!r}')
-        return Mnemonic('english').make_seed(seed_type=seed_type)
-
-    @hook
-    def do_clear(self, window):
-        window.wallet.is_billing = False
 
     @classmethod
     def get_xkeys(cls, seed, t, passphrase, derivation):
@@ -576,38 +187,11 @@ class TrustedCoinPlugin(BasePlugin):
             raise Exception(f'unexpected seed type: {t!r}')
         return xprv1, xpub1, xprv2, xpub2
 
-    @hook
-    def get_action(self, db):
-        if db.get('wallet_type') != '2fa':
-            return
-        if not db.get('x1'):
-            return self, 'show_disclaimer'
-        if not db.get('x2'):
-            return self, 'show_disclaimer'
-        if not db.get('x3'):
-            return self, 'accept_terms_of_use'
-
     # insert trustedcoin pages in new wallet wizard
     def extend_wizard(self, wizard: 'NewWalletWizard'):
         views = {
             'trustedcoin_start': {
-                'next': 'trustedcoin_choose_seed',
-            },
-            'trustedcoin_choose_seed': {
-                'next': lambda d: 'trustedcoin_create_seed' if d['keystore_type'] == 'createseed'
-                        else 'trustedcoin_have_seed'
-            },
-            'trustedcoin_create_seed': {
-                'next': lambda d: 'trustedcoin_create_ext' if wizard.wants_ext(d) else 'trustedcoin_confirm_seed',
-            },
-            'trustedcoin_create_ext': {
-                'next': 'trustedcoin_confirm_seed',
-            },
-            'trustedcoin_confirm_seed': {
-                'next': lambda d: 'trustedcoin_confirm_ext' if wizard.wants_ext(d) else 'trustedcoin_tos',
-            },
-            'trustedcoin_confirm_ext': {
-                'next': 'trustedcoin_tos',
+                'next': 'trustedcoin_have_seed',
             },
             'trustedcoin_have_seed': {
                 'next': lambda d: 'trustedcoin_have_ext' if wizard.wants_ext(d) else 'trustedcoin_keep_disable',
@@ -616,66 +200,31 @@ class TrustedCoinPlugin(BasePlugin):
                 'next': 'trustedcoin_keep_disable',
             },
             'trustedcoin_keep_disable': {
-                'next': lambda d: 'trustedcoin_tos' if d['trustedcoin_keepordisable'] != 'disable'
+                'next': lambda d: 'trustedcoin_show_cosigner_qr' if d['trustedcoin_keepordisable'] != 'disable'
                         else 'wallet_password',
-                'accept': self.recovery_disable,
+                'accept': lambda d: self.recovery_disable(d) if d['trustedcoin_keepordisable'] == 'disable' else None,
                 'last': lambda d: wizard.is_single_password() and d['trustedcoin_keepordisable'] == 'disable'
             },
-            'trustedcoin_tos': {
-                'next': lambda d: 'trustedcoin_show_confirm_otp' if 'xprv1' not in d or is_xprv(d['xprv1'])
-                        else 'trustedcoin_keystore_unlock'
-            },
-            'trustedcoin_keystore_unlock': {
-                'next': 'trustedcoin_show_confirm_otp'
-            },
-            'trustedcoin_show_confirm_otp': {
-                'accept': self.on_accept_otp_secret,
+            # show xprv2 to the mobile cosigner, keep xprv1
+            'trustedcoin_show_cosigner_qr': {
+                'accept': self.on_accept_cosigner_qr,
                 'next': 'wallet_password',
-                'last': lambda d: wizard.is_single_password() or 'xprv1' in d
-            }
+                'last': lambda d: wizard.is_single_password()
+            },
         }
         wizard.navmap_merge(views)
 
-    # combined create_keystore and create_remote_key pre
-    def create_keys(self, wizard_data):
-        if 'seed' not in wizard_data:
-            # online continuation
-            xprv1, xpub1, xprv2, xpub2 = (wizard_data['xprv1'], wizard_data['xpub1'], None, wizard_data['xpub2'])
-        else:
-            seed_extension = wizard_data['seed_extra_words'] if wizard_data['seed_extend'] else ''
-            xprv1, xpub1, xprv2, xpub2 = self.xkeys_from_seed(wizard_data['seed'], seed_extension)
+    def create_keys(self, wizard_data) -> Tuple[str, str, str, str, str]:
+        seed_extension = wizard_data['seed_extra_words'] if wizard_data['seed_extend'] else ''
+        xprv1, xpub1, xprv2, xpub2 = self.xkeys_from_seed(wizard_data['seed'], seed_extension)
+        return xprv1, xpub1, xprv2, xpub2, get_xpub3(xpub1, xpub2)
 
-        data = {'x1': {'xpub': xpub1}, 'x2': {'xpub': xpub2}}
-
-        # Generate third key deterministically.
-        long_user_id, short_id = get_user_id(data)
-        xtype = xpub_type(xpub1)
-        xpub3 = make_xpub(get_signing_xpub(xtype), long_user_id)
-
-        return xprv1, xpub1, xprv2, xpub2, xpub3, short_id
-
-    def on_accept_otp_secret(self, wizard_data):
-        self.logger.debug('OTP secret accepted, creating keystores')
-        xprv1, xpub1, xprv2, xpub2, xpub3, short_id = self.create_keys(wizard_data)
-        k1 = keystore.from_xprv(xprv1)
-        k2 = keystore.from_xpub(xpub2)
-        k3 = keystore.from_xpub(xpub3)
-
-        wizard_data['x1'] = k1.dump()
-        wizard_data['x2'] = k2.dump()
-        wizard_data['x3'] = k3.dump()
+    def on_accept_cosigner_qr(self, wizard_data):
+        self.logger.debug('mobile cosigner confirmed, creating keystores')
+        xprv1, xpub1, xprv2, xpub2, xpub3 = self.create_keys(wizard_data)
+        wizard_data.update({'x1': xprv1, 'x2': xpub2, 'x3': xpub3})
 
     def recovery_disable(self, wizard_data):
-        if wizard_data['trustedcoin_keepordisable'] != 'disable':
-            return
-
         self.logger.debug('2fa disabled, creating keystores')
-        xprv1, xpub1, xprv2, xpub2, xpub3, short_id = self.create_keys(wizard_data)
-        k1 = keystore.from_xprv(xprv1)
-        k2 = keystore.from_xprv(xprv2)
-        k3 = keystore.from_xpub(xpub3)
-
-        wizard_data['x1'] = k1.dump()
-        wizard_data['x2'] = k2.dump()
-        wizard_data['x3'] = k3.dump()
-
+        xprv1, xpub1, xprv2, xpub2, xpub3 = self.create_keys(wizard_data)
+        wizard_data.update({'x1': xprv1, 'x2': xprv2, 'x3': xpub3})
