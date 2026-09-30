@@ -2108,6 +2108,7 @@ class LNWallet(Logger):
                             fwd_trampoline_onion=fwd_trampoline_onion,
                             channels=channels,
                             budget=budget._replace(fee_msat=remaining_fee_budget_msat),
+                            we_are_forwarding=fw_payment_key is not None,
                         )
                         # 2. send htlcs
                         async for sent_htlc_info, cltv_delta, trampoline_onion in routes:
@@ -2463,6 +2464,7 @@ class LNWallet(Logger):
             full_path: LNPaymentPath = None,
             channels: Optional[Sequence[Channel]] = None,
             budget: PaymentFeeBudget,
+            we_are_forwarding: bool,
     ) -> AsyncGenerator[Tuple[SentHtlcInfo, int, Optional[OnionPacket]], None]:
 
         """Creates multiple routes for splitting a payment over the available
@@ -2476,9 +2478,12 @@ class LNWallet(Logger):
         if channels:
             my_active_channels = channels
         else:
+            # if we are forwarding, we cannot pay directly: use only public channels
             my_active_channels = [
                 chan for chan in self.channels.values() if
-                chan.is_active() and not chan.is_frozen_for_sending()]
+                chan.is_active() and not chan.is_frozen_for_sending()
+                and (chan.is_public() or not we_are_forwarding)
+            ]
         # try random order
         random.shuffle(my_active_channels)
         split_configurations = self.suggest_payment_splits(
@@ -2502,7 +2507,7 @@ class LNWallet(Logger):
             try:
                 is_direct_path = all(node_id == paysession.invoice_pubkey for (chan_id, node_id) in sc.config.keys())
                 if self.uses_trampoline() and not is_direct_path:
-                    if fwd_trampoline_onion:
+                    if we_are_forwarding:
                         raise NoPathFound()
                     per_trampoline_channel_amounts = defaultdict(list)
                     # categorize by trampoline nodes for trampoline mpp construction
@@ -2594,7 +2599,8 @@ class LNWallet(Logger):
                             if not is_route_within_budget(
                                     route, budget=budget._replace(fee_msat=budget.fee_msat // sc.config.number_parts()),
                                     amount_msat_for_dest=part_amount_msat,
-                                    cltv_delta_for_dest=paysession.min_final_cltv_delta):
+                                    cltv_delta_for_dest=paysession.min_final_cltv_delta,
+                                    we_are_forwarding=we_are_forwarding):
                                 self.logger.info(f"rejecting route (exceeds budget): {route=}. {budget=}")
                                 raise FeeBudgetExceeded()
                             shi = SentHtlcInfo(
@@ -4276,7 +4282,6 @@ class LNWallet(Logger):
         if next_peer:
             for next_chan in next_peer.channels.values():
                 if next_chan.can_pay(amt_to_forward):
-                    # todo: detect if we can do mpp
                     direct_channels = [next_chan]
                     break
             # open JIT channel
@@ -4307,6 +4312,12 @@ class LNWallet(Logger):
                     payment_hash=payment_hash,
                     next_onion=next_onion)
                 return
+            # split over direct channels. not before JIT, because JIT invoices disable mpp
+            next_chans = [chan for chan in next_peer.channels.values() if chan.is_active()]
+            if (not direct_channels
+                    and LnFeatures(invoice_features).supports(LnFeatures.BASIC_MPP_OPT)
+                    and sum(chan.available_to_spend(LOCAL) for chan in next_chans) >= amt_to_forward):
+                direct_channels = next_chans
 
         if budget.fee_msat < (1000 if not direct_channels else 0):
             raise OnionRoutingFailure(code=OnionFailureCode.TRAMPOLINE_FEE_INSUFFICIENT, data=b'')
