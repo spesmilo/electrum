@@ -14,6 +14,15 @@ ItemDelegate {
 
     property int indent: 0
 
+    background: ItemDelegateBackground {
+        delegate: delegate
+        color: model.coincontrol
+                    ? highlighted
+                        ? constants.colorAlpha(constants.colorCoinInCoinControl, 0.5)
+                        : constants.colorAlpha(constants.colorCoinInCoinControl, 0.25)
+                    : highlighted ? constants.listSelectedColor : 'transparent'
+    }
+
     ColumnLayout {
         id: delegateLayout
         width: parent.width
@@ -28,13 +37,18 @@ ItemDelegate {
 
             Rectangle {
                 id: useIndicator
-                Layout.rowSpan: 2
-                Layout.preferredWidth: constants.iconSizeSmall
-                Layout.preferredHeight: constants.iconSizeSmall
-                Layout.alignment: Qt.AlignTop
-                color: model.held
+                Layout.rowSpan: labelLabel.visible ? 2 : 1
+                Layout.preferredWidth: constants.iconSizeXSmall
+                Layout.preferredHeight: constants.iconSizeXSmall
+                Layout.alignment: Qt.AlignVCenter
+                color: model.held || model.address_held
                         ? constants.colorAddressFrozen
-                        : constants.colorAddressUsedWithBalance
+                        : model.coincontrol
+                            ? constants.colorCoinInCoinControl
+                            : constants.colorAddressUsedWithBalance
+                radius: 2
+                rotation: 45
+                transformOrigin: Item.Center
             }
 
             RowLayout {
