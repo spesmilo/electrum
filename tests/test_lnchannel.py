@@ -1033,6 +1033,30 @@ class TestAvailableToSpend(ElectrumTestCase):
         self.assertEqual(10 * one_mbtc_in_msat, bob_channel.available_to_spend(LOCAL))
         self.assertEqual(10 * one_mbtc_in_msat, bob_channel.available_to_spend(REMOTE))
 
+    async def test_no_htlc_slots_left_if_remote_exceeds_strict_limit(self):
+        alice_channel, bob_channel = create_test_channels(alice_lnwallet=self.alice_lnwallet, bob_lnwallet=self.bob_lnwallet)
+        # bob accepts more incoming htlcs than alice does
+        self.assertEqual(5, alice_channel.config[LOCAL].max_accepted_htlcs)
+        bob_channel.config[LOCAL].max_accepted_htlcs = 10
+        alice_channel.config[REMOTE].max_accepted_htlcs = 10
+        # Alice only applies the loose BOLT-02 limit when offering htlcs,
+        # so she can exceed the stricter limit bob applies to his own offers (see Channel.htlc_slots_left()).
+        for _ in range(alice_channel.config[LOCAL].max_accepted_htlcs + 1):  # 6 (exceeding her own max_accepted_htlcs)
+            htlc = UpdateAddHtlc(
+                payment_hash=sha256(os.urandom(32)),
+                amount_msat=one_mbtc_in_msat,
+                cltv_abs=5,
+                htlc_id=alice_channel.hm.get_next_htlc_id(LOCAL),
+            )
+            alice_channel.hm.send_htlc(htlc)
+            bob_channel.receive_htlc(htlc)
+        force_state_transition(alice_channel, bob_channel)
+        # bob now must not try to add even more htlcs, further exceeding Alice's limit
+        self.assertEqual(0, bob_channel.htlc_slots_left(LOCAL))
+        self.assertEqual(0, bob_channel.available_to_spend(LOCAL))
+        with self.assertRaisesRegex(lnutil.PaymentFailure, 'Too many HTLCs already in channel'):
+            bob_channel.add_htlc(UpdateAddHtlc(payment_hash=sha256(os.urandom(32)), amount_msat=one_mbtc_in_msat, cltv_abs=5))
+
 
 class TestAvailableToSpendNoAnchors(TestAvailableToSpend):
     assert TestAvailableToSpend.TEST_ANCHOR_CHANNELS is True
