@@ -891,7 +891,7 @@ def sweep_their_ctx_htlc(
     txin._trusted_value_sats = val
     txin.witness_script = witness_script
     txin.script_sig = b''
-    txin.nsequence = 1 if has_anchors else 0xffffffff - 2
+    txin.nsequence = 1 if has_anchors and not is_revocation else 0xffffffff - 2
     txin.privkey = privkey
     if not is_revocation:
         txin.make_witness = lambda sig: construct_witness([sig, preimage, witness_script])
