@@ -13,7 +13,7 @@ from electrum.commands import Commands, eval_bool
 from electrum import storage, wallet
 from electrum.lnutil import RECEIVED, channel_id_from_funding_tx
 from electrum.lnworker import RecvMPPResolution
-from electrum.wallet import Abstract_Wallet
+from electrum.wallet import Abstract_Wallet, CannotDoubleSpendTx
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
 from electrum.simple_config import SimpleConfig
 from electrum.submarine_swaps import SwapOffer, SwapFees, NostrTransport
@@ -439,6 +439,43 @@ class TestCommandsTestnet(ElectrumTestCase):
         # test "from_coins" arg
         self.assertEqual("02000000000101b9723dfc69af058ef6613539a000d2cd098a2c8a74e802b6d8739db708ba8c9a0100000000fdffffff02a00f00000000000016001429e1fd187f0cac845946ae1b11dc136c536bfc0f84b2000000000000160014100611bcb3aee7aad176936cf4ed56ade03027aa0247304402203aa63539b673a3bd70a76482b17f35f8843974fab28f84143a00450789010bc40220779c2ce2d0217f973f1f6c9f718e19fc7ebd14dd8821a962f002437cda3082ec012102ee3f00141178006c78b0b458aab21588388335078c655459afe544211f15aee000000000",
                          await cmds.bumpfee(tx=orig_rawtx, new_fee_rate='1.6', from_coins="9a8cba08b79d73d8b602e8748a2c8a09cdd200a0393561f68e05af69fc3d72b9:1", wallet=wallet))
+
+    async def test_dscancel(self):
+        wallet = restore_wallet_from_text__for_unittest(
+            'right nominee cheese afford exotic pilot mask illness rug fringe degree pottery',
+            path=None,
+            config=self.config)['wallet']  # type: Abstract_Wallet
+
+        funding_tx = Transaction("02000000000102789e8aa8caa79d87241ff9df0e3fd757a07c85a30195d76e8efced1d57c56b670000000000fdffffff7ee2b6abd52b332f797718ae582f8d3b979b83b1799e0a3bfb2c90c6e070c29e0100000000fdffffff020820000000000000160014c0eb720c93a61615d2d66542d381be8943ca553950c3000000000000160014d7dbd0196a2cbd76420f14a19377096cf6cddb75024730440220485b491ad8d3ce3b4da034a851882da84a06ec9800edff0d3fd6aa42eeba3b440220359ea85d32a05932ac417125e133fa54e54e7e9cd20ebc54b883576b8603fd65012103860f1fbf8a482b9d35d7d4d04be8fb33d856a514117cd8b73e372d36895feec60247304402206c2ca56cc030853fa59b4b3cb293f69a3378ead0f10cb76f640f8c2888773461022079b7055d0f6af6952a48e5b97218015b0723462d667765c142b41bd35e3d9c0a01210359e303f57647094a668d69e8ff0bd46c356d00aa7da6dc533c438e71c057f0793e721f00")
+        funding_txid = funding_tx.txid()
+        wallet.adb.receive_tx_callback(funding_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+
+        cmds = Commands(config=self.config)
+        orig_rawtx = "02000000000101b9723dfc69af058ef6613539a000d2cd098a2c8a74e802b6d8739db708ba8c9a0100000000fdffffff02a00f00000000000016001429e1fd187f0cac845946ae1b11dc136c536bfc0fe8b2000000000000160014100611bcb3aee7aad176936cf4ed56ade03027aa02473044022063c05e2347f16251922830ccc757231247b3c2970c225f988e9204844a1ab7b802204652d2c4816707e3d3bea2609b83b079001a435bad2a99cc2e730f276d07070c012102ee3f00141178006c78b0b458aab21588388335078c655459afe544211f15aee050721f00"
+        orig_tx = tx_from_any(orig_rawtx)
+        orig_txid = orig_tx.txid()
+        # the replacement spends the same input and pays everything back to the wallet
+        self.assertEqual("02000000000101b9723dfc69af058ef6613539a000d2cd098a2c8a74e802b6d8739db708ba8c9a0100000000fdffffff011ac2000000000000160014100611bcb3aee7aad176936cf4ed56ade03027aa0247304402204c3c74226c00f49d240702d172864adead02f7c91c224a05e842d4eb9fbef65002206b16176b08e372f0b114a1495a94bf8867554ebad0864b8b5a71e4dff0e77673012102ee3f00141178006c78b0b458aab21588388335078c655459afe544211f15aee000000000",
+                         await cmds.dscancel(tx=orig_rawtx, new_fee_rate='1.6', wallet=wallet))
+        # unsigned: returns a PSBT that spends the same input
+        psbt = tx_from_any(await cmds.dscancel(tx=orig_rawtx, new_fee_rate='1.6', unsigned=True, wallet=wallet))
+        self.assertEqual([txin.prevout.to_str() for txin in orig_tx.inputs()],
+                         [txin.prevout.to_str() for txin in psbt.inputs()])
+        self.assertEqual(1, len(psbt.outputs()))
+        self.assertTrue(wallet.is_mine(psbt.outputs()[0].address))
+        # new fee rate must be higher than the old one
+        with self.assertRaises(CannotDoubleSpendTx):
+            await cmds.dscancel(tx=orig_rawtx, new_fee_rate='1', wallet=wallet)
+        # test txid as first arg
+        # -> first test while NOT having the tx in the wallet db:
+        with self.assertRaises(Exception) as ctx:
+            await cmds.dscancel(tx=orig_txid, new_fee_rate='1.6', wallet=wallet)
+        self.assertTrue("Transaction not in wallet" in ctx.exception.args[0])
+        # -> now test while having the tx:
+        assert wallet.adb.add_transaction(orig_tx)
+        self.assertEqual("02000000000101b9723dfc69af058ef6613539a000d2cd098a2c8a74e802b6d8739db708ba8c9a0100000000fdffffff011ac2000000000000160014100611bcb3aee7aad176936cf4ed56ade03027aa0247304402204c3c74226c00f49d240702d172864adead02f7c91c224a05e842d4eb9fbef65002206b16176b08e372f0b114a1495a94bf8867554ebad0864b8b5a71e4dff0e77673012102ee3f00141178006c78b0b458aab21588388335078c655459afe544211f15aee000000000",
+                         await cmds.dscancel(tx=orig_txid, new_fee_rate='1.6', wallet=wallet))
+        wallet.adb.remove_transaction(orig_txid)  # undo side-effect on wallet
 
     async def test_importprivkey(self):
         wallet = restore_wallet_from_text__for_unittest(

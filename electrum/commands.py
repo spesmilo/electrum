@@ -1101,6 +1101,33 @@ class Commands(Logger):
             wallet.sign_transaction(new_tx, password)
         return new_tx.serialize()
 
+    @command('wp')
+    async def dscancel(self, tx, new_fee_rate, password=None, unsigned=False, wallet: Abstract_Wallet = None):
+        """
+        Cancel an unconfirmed transaction by double-spending its inputs back to the wallet (RBF).
+        'tx' can be either a raw hex tx or a txid. If txid, the corresponding tx must already be part of the wallet history.
+
+        arg:str:tx:Serialized transaction (hexadecimal)
+        arg:str:new_fee_rate: The Updated/Increased Transaction fee rate (in sats/vbyte)
+        arg:bool:unsigned:Do not sign transaction
+        """
+        if is_hash256_str(tx):  # txid
+            tx = wallet.db.get_transaction(tx)
+            if tx is None:
+                raise UserFacingException("Transaction not in wallet.")
+        else:  # raw tx
+            try:
+                tx = Transaction(tx)
+                tx.deserialize()
+            except transaction.SerializationError as e:
+                raise UserFacingException(f"Failed to deserialize transaction: {e}") from e
+        tx.add_info_from_wallet(wallet)
+        await tx.add_info_from_network(self.network)
+        new_tx = wallet.dscancel(tx=tx, new_fee_rate=new_fee_rate)
+        if not unsigned:
+            wallet.sign_transaction(new_tx, password)
+        return new_tx.serialize()
+
     @command('w')
     async def onchain_history(
         self, show_fiat=False, year=None, show_addresses=False,
