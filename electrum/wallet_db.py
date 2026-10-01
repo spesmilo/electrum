@@ -30,8 +30,7 @@ from typing import (Dict, Optional, List, Tuple, Set, Iterable, NamedTuple, Sequ
                     Union, AbstractSet)
 import time
 from functools import partial
-
-import attr
+import dataclasses
 
 from . import bitcoin
 from . import constants
@@ -85,10 +84,10 @@ class TxFeesValue(NamedTuple):
 
 
 @stored_at('/db_metadata')
-@attr.s
+@dataclasses.dataclass
 class DBMetadata(StoredObject):
-    creation_timestamp = attr.ib(default=None, type=int)
-    first_electrum_version_used = attr.ib(default=None, type=str)
+    creation_timestamp: Optional[int] = None
+    first_electrum_version_used: Optional[str] = None
 
     def to_str(self) -> str:
         ts = self.creation_timestamp

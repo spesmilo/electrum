@@ -8,8 +8,8 @@ from typing import TYPE_CHECKING, Optional, Dict, Sequence, Tuple, Iterable, Lis
 from decimal import Decimal
 import math
 import time
+import dataclasses
 
-import attr
 import aiohttp
 
 from electrum_ecc import ECPrivkey
@@ -182,22 +182,22 @@ class SwapServerError(Exception):
         return _("The swap server errored or is unreachable.")
 
 
-@attr.s(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class SwapFees:
-    percentage = attr.ib(type=Decimal)
-    mining_fee = attr.ib(type=int)
-    min_amount = attr.ib(type=int)
-    max_forward = attr.ib(type=int)
-    max_reverse = attr.ib(type=int)
+    percentage: Decimal
+    mining_fee: int
+    min_amount: int
+    max_forward: int
+    max_reverse: int
 
 
-@attr.frozen
+@dataclasses.dataclass(frozen=True)
 class SwapOffer:
-    pairs = attr.ib(type=SwapFees)
-    relays = attr.ib(type=list[str])
-    pow_bits = attr.ib(type=int)
-    server_pubkey = attr.ib(type=str)
-    timestamp = attr.ib(type=int)
+    pairs: SwapFees
+    relays: list[str]
+    pow_bits: int
+    server_pubkey: str
+    timestamp: int
 
     @property
     def server_npub(self):
@@ -205,21 +205,28 @@ class SwapOffer:
 
 
 @stored_at('/submarine_swaps/*')
-@attr.s
+@dataclasses.dataclass
 class SwapData(StoredObject):
-    is_reverse = attr.ib(type=bool)  # for whoever is running code (PoV of client or server)
-    locktime = attr.ib(type=int)  # onchain, abs
-    onchain_amount = attr.ib(type=int)  # in sats
-    lightning_amount = attr.ib(type=int)  # in sats
-    redeem_script = attr.ib(type=bytes, converter=hex_to_bytes)
-    preimage = attr.ib(type=Optional[bytes], converter=hex_to_bytes)
-    prepay_hash = attr.ib(type=Optional[bytes], converter=hex_to_bytes)
-    privkey = attr.ib(type=bytes, converter=hex_to_bytes)
-    lockup_address = attr.ib(type=str)
-    claim_to_output = attr.ib(type=Optional[Tuple[str, int]])  # address, amount to claim the funding utxo to
-    funding_txid = attr.ib(type=Optional[str])
-    spending_txid = attr.ib(type=Optional[str])
-    is_redeemed = attr.ib(type=bool)
+    is_reverse: bool  # for whoever is running code (PoV of client or server)
+    locktime: int  # onchain, abs
+    onchain_amount: int  # in sats
+    lightning_amount: int  # in sats
+    redeem_script: bytes
+    preimage: Optional[bytes]
+    prepay_hash: Optional[bytes]
+    privkey: bytes
+    lockup_address: str
+    claim_to_output: Optional[Tuple[str, int]]  # address, amount to claim the funding utxo to
+    funding_txid: Optional[str]
+    spending_txid: Optional[str]
+    is_redeemed: bool
+
+    def __post_init__(self):
+        # bytes are stored as hex
+        self.redeem_script = hex_to_bytes(self.redeem_script)
+        self.preimage = hex_to_bytes(self.preimage)
+        self.prepay_hash = hex_to_bytes(self.prepay_hash)
+        self.privkey = hex_to_bytes(self.privkey)
 
     _funding_prevout = None  # type: Optional[TxOutpoint]  # for RBF
     _payment_hash = None
