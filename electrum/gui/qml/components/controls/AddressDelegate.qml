@@ -67,7 +67,7 @@ ItemDelegate {
                 }
                 Label {
                     font.family: FixedFont
-                    text: Config.formatSats(model.balance, false)
+                    text: Config.formatSats(model.balance, false, Config.hideAmounts)
                     visible: model.balance.satsInt != 0
                 }
                 Label {
