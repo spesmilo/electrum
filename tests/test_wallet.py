@@ -45,7 +45,7 @@ class WalletTestCase(ElectrumTestCase):
         super(WalletTestCase, self).setUp()
         self.config = SimpleConfig({'electrum_path': self.electrum_path})
 
-        self.wallet_path = os.path.join(self.electrum_path, "somewallet")
+        self.wallet_path = os.path.join(self.config.get_datadir_wallet_path(), "somewallet")
 
         self._saved_stdout = sys.stdout
         self._stdout_buffer = StringIO()
@@ -245,8 +245,8 @@ class TestHistoryExport(ElectrumTestCase):
         self.patch_timezone.start()
         time.tzset()
         super(TestHistoryExport, self).setUp()
-        shutil.copytree(Path(__file__).parent / "fiat_fx_data", Path(self.electrum_path) / "cache")
         self.config = SimpleConfig({'electrum_path': self.electrum_path})
+        shutil.copytree(Path(__file__).parent / "fiat_fx_data", Path(self.config.path) / "cache")
 
     def tearDown(self):
         super(TestHistoryExport, self).tearDown()
