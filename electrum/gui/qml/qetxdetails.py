@@ -30,8 +30,6 @@ class QETxDetails(QObject, QtEventListener):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.register_callbacks()
-        self.destroyed.connect(lambda: self.on_destroy())
 
         self._wallet = None  # type: Optional[QEWallet]
         self._txid = ''
@@ -72,6 +70,9 @@ class QETxDetails(QObject, QtEventListener):
         self._confirmations = 0
         self._header_hash = ''
         self._short_id = ""
+
+        self.register_callbacks()
+        self.destroyed.connect(self.on_destroy)
 
     def on_destroy(self):
         self.unregister_callbacks()
@@ -407,6 +408,23 @@ class QETxDetails(QObject, QtEventListener):
         self._header_hash = tx_mined_info.header_hash
         self._short_id = tx_mined_info.short_id() or ""
 
+    def on_sign_success(self):
+        self._logger.debug('on_sign_success')
+        self.update()
+
+    def on_sign_failed(self, failure):
+        self._logger.debug('on_sign_failed')
+
+    def on_broadcast_success(self, *args):
+        self._logger.debug('on_broadcast_success')
+        self._can_broadcast = False
+        self.detailsChanged.emit()
+
+    def on_broadcast_failed(self, *args):
+        self._logger.debug('on_broadcast_failed')
+        self._can_broadcast = True
+        self.detailsChanged.emit()
+
     @pyqtSlot()
     def signAndBroadcast(self):
         self._sign(broadcast=True)
@@ -416,69 +434,25 @@ class QETxDetails(QObject, QtEventListener):
         self._sign(broadcast=False)
 
     def _sign(self, broadcast):
-        # TODO: connecting/disconnecting signal handlers here is hmm
-        try:
-            if broadcast:
-                self._wallet.broadcastSucceeded.disconnect(self.onBroadcastSucceeded)
-                self._wallet.broadcastFailed.disconnect(self.onBroadcastFailed)
-        except Exception:
-            pass
+        def on_sign_success():
+            self._logger.debug('on_sign_success, broadcasting')
+            self.on_sign_success()  # indicate sign success
+            if self._tx.is_complete():
+                self._wallet.broadcast(self._tx, on_success=self.on_broadcast_success, on_failure=self.on_broadcast_failed)
+            else:
+                self._logger.warning('tx not complete, not broadcasting')
 
-        if broadcast:
-            self._wallet.broadcastSucceeded.connect(self.onBroadcastSucceeded)
-            self._wallet.broadcastFailed.connect(self.onBroadcastFailed)
-            self._wallet.sign_and_broadcast(self._tx, on_success=self.on_signed_tx)
-        else:
-            self._wallet.sign(self._tx, on_success=self.on_signed_tx)
-
-        # side-effect: signing updates self._tx
-        # we rely on this for broadcast
-
-    def on_signed_tx(self, tx: Transaction):
-        self._logger.debug('on_signed_tx')
-        self.update()
+        sign_success_cb = on_sign_success if broadcast else self.on_sign_success
+        self._wallet.sign(self._tx, on_success=sign_success_cb, on_failure=self.on_sign_failed)
 
     @pyqtSlot()
     def broadcast(self):
         assert self._tx.is_complete()
 
-        try:
-            self._wallet.broadcastFailed.disconnect(self.onBroadcastFailed)
-        except Exception:
-            pass
-        self._wallet.broadcastFailed.connect(self.onBroadcastFailed)
-
         self._can_broadcast = False
         self.detailsChanged.emit()
 
-        self._wallet.broadcast(self._tx)
-
-    @pyqtSlot(str)
-    def onBroadcastSucceeded(self, txid):
-        if txid != self._txid:
-            return
-
-        self._logger.debug('onBroadcastSucceeded')
-        try:
-            self._wallet.broadcastSucceeded.disconnect(self.onBroadcastSucceeded)
-        except Exception:
-            pass
-
-        self._can_broadcast = False
-        self.detailsChanged.emit()
-
-    @pyqtSlot(str, str, str)
-    def onBroadcastFailed(self, txid, code, reason):
-        if txid != self._txid:
-            return
-
-        try:
-            self._wallet.broadcastFailed.disconnect(self.onBroadcastFailed)
-        except Exception:
-            pass
-
-        self._can_broadcast = True
-        self.detailsChanged.emit()
+        self._wallet.broadcast(self._tx, on_success=self.on_broadcast_success, on_failure=self.on_broadcast_failed)
 
     @pyqtSlot()
     @pyqtSlot(bool)
