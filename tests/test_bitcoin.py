@@ -30,7 +30,7 @@ from electrum.crypto import sha256d, SUPPORTED_PW_HASH_VERSIONS
 from electrum import crypto, constants
 from electrum.util import bfh, InvalidPassword
 from electrum.storage import WalletStorage
-from electrum.keystore import xtype_from_derivation
+from electrum.keystore import xtype_from_derivation, Imported_KeyStore
 
 from . import ElectrumTestCase
 from . import FAST_TESTS
@@ -1191,6 +1191,44 @@ class Test_keyImport(ElectrumTestCase):
         with self.assertRaises(BitcoinException):
             is_private_key("KwFAa6AumokBD2dVqQLPou42jHiVsvThY1n25HJ8Ji8REf1wxAQb",
                            raise_on_error=True)
+
+    def test_import_private_keys_rejected_type_not_stored(self):
+        # Keys with a script type that deserialize_privkey() accepts but
+        # Imported_KeyStore does not support (p2sh/p2wsh/p2wsh-p2sh) are
+        # reported as rejected; they must not be left in the keystore,
+        # where they would get persisted to the wallet file. (see #10998)
+        wif = 'KzuqaaLp9zYjVuj8vQtCwFdiZFreW3NJNBachgVS8S9XMgj5y78b'  # compressed
+        for txin_type in ('p2sh', 'p2wsh', 'p2wsh-p2sh'):
+            ks = Imported_KeyStore({})
+            good_inputs, bad_keys = ks.import_private_keys([f'{txin_type}:{wif}'], password=None)
+            self.assertEqual([], good_inputs)
+            self.assertEqual(1, len(bad_keys))
+            self.assertIn('not implemented type', bad_keys[0][1])
+            self.assertEqual({}, ks.keypairs)
+
+    def test_import_private_keys_rejected_type_keeps_existing_key(self):
+        # Re-importing the same secret with an unsupported script type must
+        # not clobber or remove the previously imported supported key.
+        wif = 'KzuqaaLp9zYjVuj8vQtCwFdiZFreW3NJNBachgVS8S9XMgj5y78b'  # compressed
+        ks = Imported_KeyStore({})
+        good_inputs, bad_keys = ks.import_private_keys([f'p2wpkh:{wif}'], password=None)
+        self.assertEqual(1, len(good_inputs))
+        self.assertEqual([], bad_keys)
+        keypairs_before = dict(ks.keypairs)
+        good_inputs, bad_keys = ks.import_private_keys([f'p2wsh:{wif}'], password=None)
+        self.assertEqual([], good_inputs)
+        self.assertEqual(1, len(bad_keys))
+        self.assertEqual(keypairs_before, ks.keypairs)
+
+    def test_import_private_keys_mixed_good_and_bad(self):
+        wif = 'KzuqaaLp9zYjVuj8vQtCwFdiZFreW3NJNBachgVS8S9XMgj5y78b'  # compressed
+        ks = Imported_KeyStore({})
+        good_inputs, bad_keys = ks.import_private_keys(
+            [f'p2wsh:{wif}', f'p2wpkh:{wif}'], password=None)
+        self.assertEqual(1, len(good_inputs))
+        self.assertEqual('p2wpkh', good_inputs[0][0])
+        self.assertEqual(1, len(bad_keys))
+        self.assertEqual(1, len(ks.keypairs))
 
 
 class TestBaseEncode(ElectrumTestCase):
