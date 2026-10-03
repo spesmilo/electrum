@@ -305,6 +305,12 @@ class Imported_KeyStore(Software_KeyStore):
         good_inputs = []  # type: List[Tuple[str, bytes]]
         bad_keys = []  # type: List[Tuple[str, str]]
         for key in keys:
+            # import_privkey() stores the key in self.keypairs as a side-effect,
+            # before the script type is validated below. Snapshot the keypairs,
+            # so that a rejected key can be rolled back: it must not be stored
+            # (callers persist self.keypairs to disk), and a pre-existing entry
+            # for the same pubkey must not be clobbered by a rejected re-import.
+            keypairs_snapshot = dict(self.keypairs)
             try:
                 txin_type, pubkey = self.import_privkey(key, password)
             except Exception as e:
@@ -312,6 +318,10 @@ class Imported_KeyStore(Software_KeyStore):
                 continue
             if txin_type not in ('p2pkh', 'p2wpkh', 'p2wpkh-p2sh'):
                 bad_keys.append((key, 'not implemented type' + f': {txin_type}'))
+                if pubkey in keypairs_snapshot:
+                    self.keypairs[pubkey] = keypairs_snapshot[pubkey]
+                else:
+                    self.keypairs.pop(pubkey, None)
                 continue
             good_inputs.append((txin_type, pubkey))
         return good_inputs, bad_keys
