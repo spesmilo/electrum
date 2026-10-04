@@ -190,6 +190,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.tray = gui_object.tray
         self.app = gui_object.app
         self._cleaned_up = False
+        self.closing_warning_callbacks = []  # type: List[Callable[[], Optional[str]]]
         self.qr_window = None
         self.pluginsdialog = None
         self.showing_cert_mismatch_error = False
@@ -278,7 +279,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         # network callbacks
         self.register_callbacks()
         # wallet closing warning callbacks
-        self.closing_warning_callbacks = []  # type: List[Callable[[], Optional[str]]]
+        # (the list itself is created early in __init__: the window can be
+        #  shown and closed before this point is reached, and closeEvent
+        #  iterates the list -- see #10969)
         self.register_closing_warning_callback(self._check_ongoing_submarine_swaps_callback)
         self.register_closing_warning_callback(self._check_ongoing_force_closures)
         # banner may already be there
