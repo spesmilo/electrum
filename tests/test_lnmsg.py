@@ -380,6 +380,7 @@ class TestLNMsg(ElectrumTestCase):
         invalid_inputs_parsing = (
             b'', # empty input
             b'\x06\x00', # address type 6 (\x06) is not specified
+            b'\x05\x02\xff\xff\x26\x07', # non-ASCII dns hostname
         )
         invalid_inputs_serialization = (
             ("::1", 9735),  # local ipv6
