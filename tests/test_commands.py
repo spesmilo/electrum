@@ -417,9 +417,6 @@ class TestCommandsTestnet(ElectrumTestCase):
             'disagree rug lemon bean unaware square alone beach tennis exhibit fix mimic',
             path=None,
             config=self.config)['wallet']
-        # bootstrap wallet
-        funding_tx = Transaction('0200000000010165806607dd458280cb57bf64a16cf4be85d053145227b98c28932e953076b8e20000000000fdffffff02ac150700000000001600147e3ddfe6232e448a8390f3073c7a3b2044fd17eb102908000000000016001427fbe3707bc57e5bb63d6f15733ec88626d8188a02473044022049ce9efbab88808720aa563e2d9bc40226389ab459c4390ea3e89465665d593502206c1c7c30a2f640af1e463e5107ee4cfc0ee22664cfae3f2606a95303b54cdef80121026269e54d06f7070c1f967eb2874ba60de550dfc327a945c98eb773672d9411fd77181e00')
-        wallet.adb.receive_tx_callback(funding_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
         cmds = Commands(config=self.config)
         addr = "tb1qyla7xurmc4l9hd3adu2hx0kgscndsxy2snf2gg"
         sig = await cmds.signmessage(addr, "hello", wallet=wallet)
@@ -459,6 +456,7 @@ class TestCommandsTestnet(ElectrumTestCase):
         # setlabel
         await cmds.setlabel(addr, "savings", wallet=wallet)
         self.assertEqual("savings", wallet.get_label_for_address(addr))
+        self.assertEqual([(addr, "'savings'")], await cmds.listaddresses(funded=True, labels=True, wallet=wallet))
 
     async def test_signtransaction_without_wallet(self):
         cmds = Commands(config=self.config)
