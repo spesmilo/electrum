@@ -383,6 +383,81 @@ class TestCommandsTestnet(ElectrumTestCase):
         self.assertEqual("0200000000010115de15adc19661582a948876fbff49fa5deee24a158f1bec847d859cbd77e9e80100000000fdffffff04400d030000000000160014b450f5942ea3b0bb085e45f568fe49e72d3f28b0e09304000000000016001484770005f3783adcaafdece4e536dded3fbf798e12190f00000000001600141fb2ce607fffe4b193bbd11568cd7bf856053ce19ca5160000000000160014e8ea4cd62b6a65a2527124da12f5b7829dc1298f02473044022079570c62352d7c462ee50851d27f829f7ea5757d258b6b38a6b377a4910ba597022056653f1b15a9693ba790e89ebac60e33b7a1d8357e05cd3d7ecc1ae00e9ab4a8012102eed460ead0cbaa71ad52b70899acf4ea12682ab237207b045c5cf9c6d11c2bcfe6f31f00",
                          tx_str)
 
+    async def test_coin_control_commands(self):
+        wallet = restore_wallet_from_text__for_unittest(
+            'disagree rug lemon bean unaware square alone beach tennis exhibit fix mimic',
+            path=None,
+            config=self.config)['wallet']
+        # bootstrap wallet
+        funding_tx = Transaction('0200000000010165806607dd458280cb57bf64a16cf4be85d053145227b98c28932e953076b8e20000000000fdffffff02ac150700000000001600147e3ddfe6232e448a8390f3073c7a3b2044fd17eb102908000000000016001427fbe3707bc57e5bb63d6f15733ec88626d8188a02473044022049ce9efbab88808720aa563e2d9bc40226389ab459c4390ea3e89465665d593502206c1c7c30a2f640af1e463e5107ee4cfc0ee22664cfae3f2606a95303b54cdef80121026269e54d06f7070c1f967eb2874ba60de550dfc327a945c98eb773672d9411fd77181e00')
+        wallet.adb.receive_tx_callback(funding_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+        cmds = Commands(config=self.config)
+        addr = "tb1qyla7xurmc4l9hd3adu2hx0kgscndsxy2snf2gg"
+        coin = "ede61d39e501d65ccf34e6300da439419c43393f793bb9a8a4b06b2d0d80a8a0:1"
+        dest = "tb1qsyzgpwa0vg2940u5t6l97etuvedr5dejpf9tdy"
+        # listunspent: the single funding output
+        coins = await cmds.listunspent(wallet=wallet)
+        self.assertEqual([(f"{c['prevout_hash']}:{c['prevout_n']}", c['address'], c['value']) for c in coins],
+                         [(coin, addr, "0.005348")])
+        # a frozen coin is not spent
+        self.assertTrue(await cmds.freeze_utxo(coin, wallet=wallet))
+        with self.assertRaises(NotEnoughFunds):
+            await cmds.payto(destination=dest, amount="0.001", feerate=50, wallet=wallet)
+        self.assertTrue(await cmds.unfreeze_utxo(coin, wallet=wallet))
+        await cmds.payto(destination=dest, amount="0.001", feerate=50, wallet=wallet)
+        # the same for a frozen address
+        self.assertTrue(await cmds.freeze(addr, wallet=wallet))
+        with self.assertRaises(NotEnoughFunds):
+            await cmds.payto(destination=dest, amount="0.001", feerate=50, wallet=wallet)
+        self.assertTrue(await cmds.unfreeze(addr, wallet=wallet))
+        await cmds.payto(destination=dest, amount="0.001", feerate=50, wallet=wallet)
+
+    async def test_signmessage(self):
+        wallet = restore_wallet_from_text__for_unittest(
+            'disagree rug lemon bean unaware square alone beach tennis exhibit fix mimic',
+            path=None,
+            config=self.config)['wallet']
+        cmds = Commands(config=self.config)
+        addr = "tb1qyla7xurmc4l9hd3adu2hx0kgscndsxy2snf2gg"
+        sig = await cmds.signmessage(addr, "hello", wallet=wallet)
+        self.assertEqual("IEmhImhYOceJxpcdFc5NgtSEix3i9OYWPIY9uBO3WU08J4eWYby4oiMC1qS7ZgrbMidq4tKFGplUqZCAYeN2RX0=", sig)
+        self.assertTrue(await cmds.verifymessage(addr, sig, "hello"))
+        self.assertFalse(await cmds.verifymessage(addr, sig, "hello!"))
+        # on the CLI, surrounding whitespace is part of the message
+        sig2 = await cmds.signmessage(addr, " hello ", wallet=wallet)
+        self.assertNotEqual(sig, sig2)
+        self.assertTrue(await cmds.verifymessage(addr, sig2, " hello "))
+        self.assertFalse(await cmds.verifymessage(addr, sig, " hello "))
+        # only addresses of this wallet can sign
+        with self.assertRaises(UserFacingException):
+            await cmds.signmessage("tb1qsyzgpwa0vg2940u5t6l97etuvedr5dejpf9tdy", "hello", wallet=wallet)
+
+    async def test_listaddresses_and_setlabel(self):
+        wallet = restore_wallet_from_text__for_unittest(
+            'disagree rug lemon bean unaware square alone beach tennis exhibit fix mimic',
+            path=None,
+            config=self.config)['wallet']
+        # bootstrap wallet
+        funding_tx = Transaction('0200000000010165806607dd458280cb57bf64a16cf4be85d053145227b98c28932e953076b8e20000000000fdffffff02ac150700000000001600147e3ddfe6232e448a8390f3073c7a3b2044fd17eb102908000000000016001427fbe3707bc57e5bb63d6f15733ec88626d8188a02473044022049ce9efbab88808720aa563e2d9bc40226389ab459c4390ea3e89465665d593502206c1c7c30a2f640af1e463e5107ee4cfc0ee22664cfae3f2606a95303b54cdef80121026269e54d06f7070c1f967eb2874ba60de550dfc327a945c98eb773672d9411fd77181e00')
+        wallet.adb.receive_tx_callback(funding_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+        cmds = Commands(config=self.config)
+        addr = "tb1qyla7xurmc4l9hd3adu2hx0kgscndsxy2snf2gg"
+        self.assertEqual([addr], await cmds.listaddresses(funded=True, wallet=wallet))
+        self.assertEqual([(addr, "0.005348")], await cmds.listaddresses(funded=True, balance=True, wallet=wallet))
+        receiving = await cmds.listaddresses(receiving=True, wallet=wallet)
+        change = await cmds.listaddresses(change=True, wallet=wallet)
+        self.assertEqual(sorted(await cmds.listaddresses(wallet=wallet)), sorted(receiving + change))
+        self.assertFalse(set(receiving) & set(change))
+        self.assertNotIn(addr, await cmds.listaddresses(unused=True, wallet=wallet))
+        # frozen filter
+        self.assertEqual([], await cmds.listaddresses(frozen=True, wallet=wallet))
+        await cmds.freeze(addr, wallet=wallet)
+        self.assertEqual([addr], await cmds.listaddresses(frozen=True, wallet=wallet))
+        # setlabel
+        await cmds.setlabel(addr, "savings", wallet=wallet)
+        self.assertEqual("savings", wallet.get_label_for_address(addr))
+        self.assertEqual([(addr, "'savings'")], await cmds.listaddresses(funded=True, labels=True, wallet=wallet))
+
     async def test_signtransaction_without_wallet(self):
         cmds = Commands(config=self.config)
         unsigned_tx = "70736274ff0100a0020000000221d3645ba44f33fff6fe2666dc080279bc34b531c66888729712a80b204a32a10100000000fdffffffdd7f90d51acf98dc45ad7489316a983868c75e16bf14ffeb9eae01603a7b4da40100000000fdffffff02e8030000000000001976a9149a9ec2b35a7660c80dae38dd806fdf9b0fde68fd88ac74c11000000000001976a914f0dc093f7fb1b76cfd06610d5359d6595676cc2b88aca79b1d00000100e102000000018ba8cf9f0ff0b44c389e4a1cd25c0770636d95ccef161e313542647d435a5fd0000000006a4730440220373b3989905177f2e36d7e3d02b967d03092747fe7bbd3ba7b2c24623a88538c02207be79ee1d981060c2be6783f4946ce1bda1f64671b349ef14a4a6fecc047a71e0121030de43c5ed4c6272d20ce3becf3fb7afd5c3ccfb5d58ddfdf3047981e0b005e0dfdffffff02c0010700000000001976a9141cd3eb65bce2cae9f54544b65e46b3ad1f0b187288ac40420f00000000001976a914f0dc093f7fb1b76cfd06610d5359d6595676cc2b88ac979b1d00000100e102000000014e39236158716e91b0b2170ebe9d6b359d139e9ebfff163f2bafd0bec9890d04000000006a473044022070340deb95ca25ef86c4c7a9539b5c8f7b8351941635450311f914cd9c2f45ea02203fa7576e032ab5ae4763c78f5c2124573213c956286fd766582d9462515dc6540121033f6737e40a3a6087bc58bc5b82b427f9ed26d710b8fe2f70bfdd3d62abebcf74fdffffff02e8030000000000001976a91490350959750b3b38e451df16bd5957b7649bf5d288acac840100000000001976a914f0dc093f7fb1b76cfd06610d5359d6595676cc2b88ac979b1d00000000"
