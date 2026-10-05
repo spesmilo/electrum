@@ -93,7 +93,7 @@ ElDialog {
                             dialog.onFoundText.connect(function(data) {
                                 if (verify(data)) {
                                     if (import_ta.text != '')
-                                        import_ta.text = import_ta.text + ',\n'
+                                        import_ta.text = import_ta.text + '\n'
                                     import_ta.text = import_ta.text + data
                                 }
                                 dialog.close()
