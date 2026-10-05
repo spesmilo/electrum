@@ -118,6 +118,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
     @event_listener
     def on_event_wallet_updated(self, wallet):
         self.need_update = True
+        curses.beep()
 
     @event_listener
     def on_event_network_updated(self):
