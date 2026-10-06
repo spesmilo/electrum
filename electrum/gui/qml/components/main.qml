@@ -451,6 +451,7 @@ ApplicationWindow
         }
     }
 
+    property Component sendDialog  // set in Component.onCompleted
     property Component scanDialog  // set in Component.onCompleted
     Component {
         id: _scanDialog
@@ -537,6 +538,15 @@ ApplicationWindow
         } else {
             // for running on Desktop. uses QtMultimedia.
             app.scanDialog = Qt.createComponent('ScanDialog.qml')
+            app.sendDialog = Qt.createComponent('SendDialog.qml') // component property not used on android
+            if (app.scanDialog.status != Component.Ready) {
+                console.log(app.scanDialog.errorString())
+                return
+            }
+            if (app.sendDialog.status != Component.Ready) {
+                console.log(app.sendDialog.errorString())
+                return
+            }
         }
 
         function continueWithServerConnection() {

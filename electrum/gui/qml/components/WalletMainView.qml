@@ -36,7 +36,7 @@ Item {
     function openSendDialog() {
         // Qt based send dialog if not on android
         if (!AppController.isAndroid()) {
-            _sendDialog = qtSendDialog.createObject(mainView, {invoiceParser: invoiceParser, piResolver: piResolver})
+            _sendDialog = app.sendDialog.createObject(mainView, {invoiceParser: invoiceParser, piResolver: piResolver})
             _sendDialog.open()
             return
         }
@@ -577,42 +577,6 @@ Item {
                     _invoiceDialog.close()
                 }
             }
-        }
-    }
-
-    Component {
-        id: qtSendDialog
-        SendDialog {
-            width: parent.width
-            height: parent.height
-
-            onTxFound: (data) => {
-                app.stack.push(Qt.resolvedUrl('TxDetails.qml'), { rawtx: data })
-                close()
-            }
-            onChannelBackupFound: (data) => {
-                if (!Daemon.currentWallet.isLightning) {
-                    var dialog = app.messageDialog.createObject(app, {
-                        title: qsTr('Cannot import Channel Backup, Lightning not enabled.')
-                    })
-                    dialog.open()
-                    return
-                }
-
-                var dialog = app.messageDialog.createObject(app, {
-                    title: qsTr('Import Channel Backup?'),
-                    yesno: true
-                })
-                dialog.accepted.connect(function() {
-                    Daemon.currentWallet.importChannelBackup(data)
-                    close()
-                })
-                dialog.rejected.connect(function() {
-                    close()
-                })
-                dialog.open()
-            }
-            onClosed: destroy()
         }
     }
 
