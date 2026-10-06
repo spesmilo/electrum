@@ -290,7 +290,7 @@ class Imported_KeyStore(Software_KeyStore):
 
     def import_privkey(self, sec: str, password) -> Tuple[str, str]:
         txin_type, privkey, compressed = deserialize_privkey(sec)
-        if txin_type not in ('p2pkh', 'p2wpkh', 'p2wpkh-p2sh'):
+        if txin_type not in bitcoin.PUBKEYHASH_SCRIPT_TYPES:
             raise NotImplementedError(txin_type)
         pubkey = ecc.ECPrivkey(privkey).get_public_key_hex(compressed=compressed)
         # re-serialize the key so the internal storage format is consistent
