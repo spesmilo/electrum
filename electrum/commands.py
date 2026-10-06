@@ -690,9 +690,8 @@ class Commands(Logger):
         arg:str:address:Bitcoin address
         """
         if isinstance(address, str):
-            address = address.strip()
-        if is_address(address):
-            return wallet.export_private_key(address, password)
+            # a single address. Don't iterate over the characters of the string.
+            return wallet.export_private_key(address.strip(), password)
         domain = address
         return [wallet.export_private_key(address, password) for address in domain]
 
