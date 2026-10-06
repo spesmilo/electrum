@@ -1,6 +1,7 @@
 import asyncio
 import binascii
 import datetime
+import io
 import os.path
 import unittest
 from unittest import mock
@@ -9,7 +10,7 @@ from os import urandom
 import shutil
 
 import electrum
-from electrum.commands import Commands, eval_bool
+from electrum.commands import Commands, eval_bool, get_parser
 from electrum import storage, wallet
 from electrum.lnutil import RECEIVED, channel_id_from_funding_tx
 from electrum.lnworker import RecvMPPResolution
@@ -68,6 +69,24 @@ class TestCommands(ElectrumTestCase):
         self.assertEqual("none", Commands._setconfig_normalize_value("somekey", "none"))
         self.assertEqual("", Commands._setconfig_normalize_value("somekey", ""))
         self.assertEqual("empty", Commands._setconfig_normalize_value("somekey", "empty"))
+
+    def test_cli_args_reject_malformed_values(self):
+        parser = get_parser()
+        # a malformed value is a usage error, not a traceback
+        for argv, error in (
+            (['add_request', 'help'], "invalid decimal value: 'help'"),
+            (['payto', 'tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx', 'abc'], "invalid decimal_or_max value: 'abc'"),
+            (['getmerkle', 'zz', '1'], "invalid txid value: 'zz'"),
+            (['create', '--encrypt_file', 'foo bar'], "invalid bool value: 'foo bar'"),
+        ):
+            with self.subTest(argv=argv):
+                with mock.patch('sys.stderr', new_callable=io.StringIO) as stderr, self.assertRaises(SystemExit) as ctx:
+                    parser.parse_args(argv)
+                self.assertEqual(2, ctx.exception.code)
+                self.assertIn(error, stderr.getvalue())
+        # valid values and the special keywords are still accepted
+        self.assertEqual('0.1', parser.parse_args(['add_request', '0.1']).amount)
+        self.assertEqual('!', parser.parse_args(['payto', 'tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx', '!']).amount)
 
     def test_eval_bool(self):
         self.assertFalse(eval_bool("False"))
