@@ -17,6 +17,7 @@ from electrum.util import UserFacingException
 from electrum.wallet_db import WalletDB
 from electrum.bip32 import normalize_bip32_derivation, xpub_type
 from electrum import descriptor, keystore, mnemonic, bitcoin
+from electrum import crandom
 from electrum.mnemonic import is_any_2fa_seed_type, can_seed_have_passphrase
 from electrum.util import multisig_type
 
@@ -120,6 +121,7 @@ class AbstractWizard:
 
         self.log_stack()
 
+        crandom.rand_add_refresh()  # feed "next"/"back" button timing entropy into our RNG
         return new_view
 
     def resolve_prev(self):
@@ -128,6 +130,7 @@ class AbstractWizard:
         self._logger.debug(f'resolve_prev view is "{self._current.view}"')
         self.log_stack()
 
+        crandom.rand_add_refresh()  # feed "next"/"back" button timing entropy into our RNG
         return self._current
 
     # check if this view is the final view

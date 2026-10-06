@@ -33,6 +33,7 @@ from typing import Optional
 import electrum_ecc as ecc
 
 from . import crypto
+from . import crandom
 from .util import (profiler, InvalidPassword, WalletFileException, bfh, standardize_path,
                    test_read_write_permissions, os_chmod)
 
@@ -86,6 +87,11 @@ class WalletStorage(Logger):
             self._encryption_version = StorageEncryptionVersion.PLAINTEXT
             self.pos = 0
             self.init_pos = 0
+        # feed timing/wallet_name entropy into our RNG.
+        # note: both qt/qml GUIs create temp WalletStorage objects (to check R/W permissions)
+        #       on *every keypress* when editing wallet_name. what a gold mine!
+        crandom.rand_add_refresh()
+        crandom.feed_entropy(str(path))
 
     def get_path(self):
         return self.path
