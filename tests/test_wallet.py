@@ -128,13 +128,23 @@ class TestWalletStorage(WalletTestCase):
         wallet.import_private_keys(['p2wpkh:KzuqaaLp9zYjVuj8vQtCwFdiZFreW3NJNBachgVS8S9XMgj5y78b'], password=None)
         self.assertEqual(3, len(wallet.get_receiving_addresses()))
         self.assertEqual(3, len(wallet.keystore.keypairs))
+
+        # keys with unsupported script types get rejected, and must not be persisted (see #10998)
+        keypairs_before = dict(wallet.keystore.keypairs)
+        good_addr, bad_keys = wallet.import_private_keys([
+            'p2wsh:L1cgMEnShp73r9iCukoPE3MogLeueNYRD9JVsfT1zVHyPBR3KqBY',
+            'p2wsh-p2sh:KzuqaaLp9zYjVuj8vQtCwFdiZFreW3NJNBachgVS8S9XMgj5y78b',
+        ], password=None)
+        self.assertEqual([], good_addr)
+        self.assertEqual(2, len(bad_keys))
+        self.assertEqual(keypairs_before, wallet.keystore.keypairs)
         await wallet.stop()
 
         # open the wallet anew again, and verify if the privkey was stored
         del wallet
         wallet = Daemon._load_wallet(self.wallet_path, password=None, config=self.config)
         self.assertEqual(3, len(wallet.get_receiving_addresses()))
-        self.assertEqual(3, len(wallet.keystore.keypairs))
+        self.assertEqual(keypairs_before, wallet.keystore.keypairs)
         self.assertTrue('03bf450797034dc95693096e575e3b3db14e5f074679b349b727f90fc7804ce7ab' in wallet.keystore.keypairs)
         self.assertTrue('030dac677b9484e23db6f9255eddf433f4f12c02f9b35e0100f2f103ffbccf540f' in wallet.keystore.keypairs)
         self.assertTrue('02f11d5f222a728fd08226cb5a1e85a74d58fc257bd3764bf1234346f91defed72' in wallet.keystore.keypairs)
