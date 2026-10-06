@@ -37,7 +37,7 @@ from asyncio import CancelledError
 from collections import defaultdict
 from functools import wraps
 from decimal import Decimal, InvalidOperation
-from typing import Optional, TYPE_CHECKING, Dict, List, Any, Union
+from typing import Optional, TYPE_CHECKING, Dict, List, Any, Union, Callable
 import os
 import re
 
@@ -2391,14 +2391,6 @@ def check_txid(txid):
     return txid
 
 
-def _decimal_arg(x: str) -> str:
-    """argparse type for decimal amounts: a malformed value becomes a usage error instead of a traceback."""
-    try:
-        return str(to_decimal(x))
-    except InvalidOperation:
-        raise argparse.ArgumentTypeError(f"invalid decimal value: {x!r}") from None
-
-
 arg_types = {
     'int': int,
     'bool': eval_bool,
@@ -2406,10 +2398,23 @@ arg_types = {
     'txid': check_txid,
     'tx': convert_raw_tx_to_hex,
     'json': json_loads,
-    'decimal': _decimal_arg,
-    'decimal_or_dryrun': lambda x: _decimal_arg(x) if x != 'dryrun' else x,
-    'decimal_or_max': lambda x: _decimal_arg(x) if not parse_max_spend(x) else x,
+    'decimal': lambda x: str(to_decimal(x)),
+    'decimal_or_dryrun': lambda x: str(to_decimal(x)) if x != 'dryrun' else x,
+    'decimal_or_max': lambda x: str(to_decimal(x)) if not parse_max_spend(x) else x,
 }
+
+
+def _get_argparse_type(type_descriptor: Optional[str]) -> Optional[Callable[[str], Any]]:
+    convert = arg_types.get(type_descriptor)
+    if convert is None:
+        return None
+    def argparse_type(x: str):
+        try:
+            return convert(x)
+        except Exception as e:
+            raise argparse.ArgumentTypeError(f"invalid {type_descriptor} value: {x!r}") from e
+    return argparse_type
+
 
 config_variables = {
     'addrequest': {
@@ -2613,7 +2618,7 @@ def get_parser():
             action = "store_true" if default is False else 'store'
             if action == 'store':
                 type_descriptor = cmd.arg_types.get(optname)
-                _type = arg_types.get(type_descriptor, str)
+                _type = _get_argparse_type(type_descriptor) or str
                 p.add_argument('--' + optname, dest=optname, action=action, default=default, help=help, type=_type)
             else:
                 p.add_argument('--' + optname, dest=optname, action=action, default=default, help=help)
@@ -2626,7 +2631,7 @@ def get_parser():
             if not help:
                 print(f'undocumented argument {cmdname}::{param}', file=sys.stderr)
             type_descriptor = cmd.arg_types.get(param)
-            _type = arg_types.get(type_descriptor)
+            _type = _get_argparse_type(type_descriptor)
             if help is not None and _type is None:
                 print(f'unknown type \'{_type}\' for {cmdname}::{param}', file=sys.stderr)
             p.add_argument(param, help=help, type=_type)
