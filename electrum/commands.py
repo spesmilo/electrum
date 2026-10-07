@@ -54,7 +54,7 @@ from .util import (
     UserFacingException, InvalidPassword
 )
 from . import bitcoin
-from .bitcoin import is_address,  hash_160, COIN
+from .bitcoin import is_address,  hash_160, COIN, opcodes
 from .bip32 import BIP32Node
 from .payment_identifier import PaymentIdentifier, RE_SCRIPT_FN
 from .transaction import (
@@ -1029,6 +1029,9 @@ class Commands(Logger):
                     scriptpubkey = PaymentIdentifier.parse_script(m.group(1))
                 except Exception as e:
                     raise UserFacingException(f"Invalid script: {m.group(1)!r}") from e
+                if scriptpubkey[:1] == bytes([opcodes.OP_RETURN]) and amount_sat != 0:
+                    # coins sent to an OP_RETURN output are burned (bitcoind's "data" outputs always have zero value)
+                    raise UserFacingException("an OP_RETURN output is unspendable, its amount must be 0")
                 final_outputs.append(PartialTxOutput(scriptpubkey=scriptpubkey, value=amount_sat))
                 continue
             address = await self._resolver(address, wallet)

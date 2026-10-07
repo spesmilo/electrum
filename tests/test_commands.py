@@ -345,8 +345,17 @@ class TestCommandsTestnet(ElectrumTestCase):
         self.assertTrue(op_return in tx.outputs())
         self.assertTrue(txout in tx.outputs())
         # a malformed script is a user-facing error
-        with self.assertRaises(UserFacingException):
+        with self.assertRaisesRegex(UserFacingException, "Invalid script: 'OP_RETURN zz'"):
             await cmds.payto(destination="script(OP_RETURN zz)", amount="0", feerate=50, wallet=wallet)
+        # coins sent to an OP_RETURN output would be burned
+        for amount in ("0.001", "!"):
+            with self.assertRaisesRegex(UserFacingException, "OP_RETURN output is unspendable"):
+                await cmds.payto(destination="script(OP_RETURN 3210)", amount=amount, feerate=50, wallet=wallet)
+        with self.assertRaisesRegex(UserFacingException, "OP_RETURN output is unspendable"):
+            await cmds.paytomany(outputs=[["script(OP_RETURN 3210)", "0.001"]], feerate=50, wallet=wallet)
+        # other scripts can carry value
+        tx = tx_from_any(await cmds.payto(destination="script(OP_1)", amount="0.001", feerate=50, wallet=wallet))
+        self.assertTrue(TxOutput(scriptpubkey=bytes.fromhex("51"), value=100000) in tx.outputs())
 
     async def test_payto__confirmed_only(self):
         """test that payto respects 'confirmed_only' config var"""
