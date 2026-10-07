@@ -29,8 +29,10 @@
 #  http://backreference.org/2010/11/17/dnssec-verification-with-dig/
 #  https://github.com/rthalley/dnspython/blob/master/tests/test_dnssec.py
 
+import asyncio
 import logging
 
+import aiohttp
 import dns
 import dns.name
 import dns.asyncquery
@@ -85,7 +87,7 @@ class DNSTransport:
     """Delegate that decides how a single DNS query message is sent and answered.
 
     The DNSSEC logic downstream is transport-agnostic: it builds query messages and
-    hands them to a transport..
+    hands them to a transport. Transports raise dns.exception.DNSException on failure.
     """
 
     async def send(self, q: dns.message.Message) -> dns.message.Message:
@@ -101,7 +103,10 @@ class LocalTransport(DNSTransport):
         self.nameserver = nameserver or _system_nameserver()
 
     async def send(self, q: dns.message.Message) -> dns.message.Message:
-        response, _used_tcp = await dns.asyncquery.udp_with_fallback(q, self.nameserver, timeout=5)
+        try:
+            response, _used_tcp = await dns.asyncquery.udp_with_fallback(q, self.nameserver, timeout=5)
+        except OSError as e:  # e.g. truncated over UDP, and TCP refused
+            raise dns.exception.DNSException(f"DNS query failed: {e!r}") from e
         return response
 
 
@@ -122,16 +127,19 @@ class DoHTransport(DNSTransport):
             resp.raise_for_status()
             return await resp.read()
 
-        raw = await Network.async_send_http_on_proxy(
-            'post', self.doh_endpoint,
-            body=q.to_wire(),
-            headers={
-                'content-type': 'application/dns-message',
-                'accept': 'application/dns-message',
-            },
-            on_finish=on_finish,
-            timeout=5,
-        )
+        try:
+            raw = await Network.async_send_http_on_proxy(
+                'post', self.doh_endpoint,
+                body=q.to_wire(),
+                headers={
+                    'content-type': 'application/dns-message',
+                    'accept': 'application/dns-message',
+                },
+                on_finish=on_finish,
+                timeout=5,
+            )
+        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+            raise dns.exception.DNSException(f"DoH request failed: {e!r}") from e
         return dns.message.from_wire(raw)
 
 
