@@ -80,7 +80,11 @@ class WCProxyConfig(WizardComponent):
         self.pw.proxy_host.setText('localhost')
         self.pw.proxy_port.setText('9050')
         self.layout().addWidget(self.pw)
-        self._valid = True
+        self.pw.validChanged.connect(self.on_proxy_settings_valid)
+        self.pw.validate()
+
+    def on_proxy_settings_valid(self, valid):
+        self.valid = valid
 
     def apply(self):
         self.wizard_data['proxy'] = self.pw.get_proxy_settings().to_dict()
