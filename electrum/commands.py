@@ -1064,18 +1064,9 @@ class Commands(Logger):
         fx = self.daemon.fx if self.daemon else FxThread(config=self.config)
         return json_normalize(wallet.get_onchain_capital_gains(fx, **kwargs))
 
-    @command('wp')
-    async def bumpfee(self, tx, new_fee_rate, from_coins=None, decrease_payment=False, password=None, unsigned=False, wallet: Abstract_Wallet = None):
-        """
-        Bump the fee for an unconfirmed transaction.
-        'tx' can be either a raw hex tx or a txid. If txid, the corresponding tx must already be part of the wallet history.
-
-        arg:str:tx:Serialized transaction (hexadecimal)
-        arg:str:new_fee_rate: The Updated/Increased Transaction fee rate (in sats/vbyte)
-        arg:bool:decrease_payment:Whether payment amount will be decreased (true/false)
-        arg:bool:unsigned:Do not sign transaction
-        arg:json:from_coins:Coins that may be used to inncrease the fee (must be in wallet)
-        """
+    async def _get_tx_for_replacement(self, tx: str, wallet: Abstract_Wallet) -> Transaction:
+        """Returns the transaction given as a txid (must be in the wallet history) or as raw hex,
+        with info from the wallet and the network added."""
         if is_hash256_str(tx):  # txid
             tx = wallet.db.get_transaction(tx)
             if tx is None:
@@ -1086,17 +1077,52 @@ class Commands(Logger):
                 tx.deserialize()
             except transaction.SerializationError as e:
                 raise UserFacingException(f"Failed to deserialize transaction: {e}") from e
+        tx.add_info_from_wallet(wallet)
+        await tx.add_info_from_network(self.network)
+        return tx
+
+    @command('wp')
+    async def bumpfee(self, tx, new_fee_rate, from_coins=None, decrease_payment=False, password=None, unsigned=False, wallet: Abstract_Wallet = None):
+        """
+        Bump the fee for an unconfirmed transaction.
+        'tx' can be either a raw hex tx or a txid. If txid, the corresponding tx must already be part of the wallet history.
+
+        arg:str:tx:Serialized transaction (hexadecimal)
+        arg:decimal:new_fee_rate: The Updated/Increased Transaction fee rate (in sats/vbyte)
+        arg:bool:decrease_payment:Whether payment amount will be decreased (true/false)
+        arg:bool:unsigned:Do not sign transaction
+        arg:json:from_coins:Coins that may be used to inncrease the fee (must be in wallet)
+        """
+        tx = await self._get_tx_for_replacement(tx, wallet)
         domain_coins = from_coins.split(',') if from_coins else None
         coins = wallet.get_spendable_coins(None)
         if domain_coins is not None:
             coins = [coin for coin in coins if (coin.prevout.to_str() in domain_coins)]
-        tx.add_info_from_wallet(wallet)
-        await tx.add_info_from_network(self.network)
         new_tx = wallet.bump_fee(
             tx=tx,
             coins=coins,
             strategy=BumpFeeStrategy.DECREASE_PAYMENT if decrease_payment else BumpFeeStrategy.PRESERVE_PAYMENT,
             new_fee_rate=new_fee_rate)
+        if not unsigned:
+            wallet.sign_transaction(new_tx, password)
+        return new_tx.serialize()
+
+    @command('wp')
+    async def dscancel(self, tx, new_fee_rate, password=None, unsigned=False, wallet: Abstract_Wallet = None):
+        """
+        Cancel an unconfirmed transaction by double-spending its inputs back to the wallet (RBF).
+        'tx' can be either a raw hex tx or a txid; either way it must be an unconfirmed tx in the wallet history.
+
+        arg:str:tx:Serialized transaction (hexadecimal)
+        arg:decimal:new_fee_rate: The Updated/Increased Transaction fee rate (in sats/vbyte)
+        arg:bool:unsigned:Do not sign transaction
+        """
+        tx = await self._get_tx_for_replacement(tx, wallet)
+        if not wallet.get_tx_info(tx).can_dscancel:
+            raise UserFacingException(
+                "This transaction cannot be cancelled. Only unconfirmed transactions from the wallet history "
+                "that spend coins of this wallet, signal RBF and pay to an address outside of it can be cancelled.")
+        new_tx = wallet.dscancel(tx=tx, new_fee_rate=new_fee_rate)
         if not unsigned:
             wallet.sign_transaction(new_tx, password)
         return new_tx.serialize()
