@@ -34,9 +34,7 @@ this especially easy to hit, because it re-opens the archive on every single
 module load, and it never verifies the CRC of what it reads.
 
 `MemoryZipImporter` closes that window. The archive is read into memory once,
-and every module and resource is served from those bytes. `sha256` is the
-digest of the very bytes being held, so a caller that verifies it has no second
-read left to race.
+and every module and resource is served from those bytes.
 
 This is not a general replacement for `zipimport`: it mounts exactly one
 package, deliberately never writes bytecode, and does not implement
@@ -64,7 +62,6 @@ class MemoryZipImporter(importlib.abc.SourceLoader, importlib.abc.MetaPathFinder
     """
 
     def __init__(self, blob: bytes, *, root_name: str, prefix: str = '', archive_path: str = '<memory>'):
-        self._sha256 = bytes(hashlib.sha256(blob).digest())
         self._zip = zipfile_lib.ZipFile(io.BytesIO(blob))
         self._root_name = root_name
         self._prefix = (prefix.strip('/') + '/') if prefix.strip('/') else ''
