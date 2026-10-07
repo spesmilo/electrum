@@ -136,14 +136,14 @@ class TestCommands(ElectrumTestCase):
             config=self.config)['wallet']
         cmds = Commands(config=self.config)
         # single address tests
-        with self.assertRaises(UserFacingException):
-            await cmds.getprivatekeys("asdasd", wallet=wallet)  # invalid addr, though might raise "not in wallet"
-        with self.assertRaises(UserFacingException):
+        with self.assertRaisesRegex(UserFacingException, "Invalid bitcoin address: asdasd"):
+            await cmds.getprivatekeys("asdasd", wallet=wallet)  # error must name the whole string, see #3676
+        with self.assertRaisesRegex(UserFacingException, "Address not in wallet: bc1qgfam82qk7uwh5j2xxmcd8cmklpe0zackyj6r23"):
             await cmds.getprivatekeys("bc1qgfam82qk7uwh5j2xxmcd8cmklpe0zackyj6r23", wallet=wallet)  # not in wallet
         self.assertEqual("p2wpkh:L4jkdiXszG26SUYvwwJhzGwg37H2nLhrbip7u6crmgNeJysv5FHL",
                          await cmds.getprivatekeys("bc1q2ccr34wzep58d4239tl3x3734ttle92a8srmuw", wallet=wallet))
         # list of addresses tests
-        with self.assertRaises(UserFacingException):
+        with self.assertRaisesRegex(UserFacingException, "Invalid bitcoin address: asd$"):
             await cmds.getprivatekeys(['bc1q2ccr34wzep58d4239tl3x3734ttle92a8srmuw', 'asd'], wallet=wallet)
         self.assertEqual(['p2wpkh:L4jkdiXszG26SUYvwwJhzGwg37H2nLhrbip7u6crmgNeJysv5FHL', 'p2wpkh:L4rYY5QpfN6wJEF4SEKDpcGhTPnCe9zcGs6hiSnhpprZqVywFifN'],
                          await cmds.getprivatekeys(['bc1q2ccr34wzep58d4239tl3x3734ttle92a8srmuw', 'bc1q9pzjpjq4nqx5ycnywekcmycqz0wjp2nq604y2n'], wallet=wallet))
@@ -155,14 +155,14 @@ class TestCommands(ElectrumTestCase):
             config=self.config)['wallet']
         cmds = Commands(config=self.config)
         # single address tests
-        with self.assertRaises(UserFacingException):
-            await cmds.getprivatekeys("asdasd", wallet=wallet)  # invalid addr, though might raise "not in wallet"
-        with self.assertRaises(UserFacingException):
+        with self.assertRaisesRegex(UserFacingException, "Invalid bitcoin address: asdasd"):
+            await cmds.getprivatekeys("asdasd", wallet=wallet)  # error must name the whole string, see #3676
+        with self.assertRaisesRegex(UserFacingException, "Address not in wallet: bc1qgfam82qk7uwh5j2xxmcd8cmklpe0zackyj6r23"):
             await cmds.getprivatekeys("bc1qgfam82qk7uwh5j2xxmcd8cmklpe0zackyj6r23", wallet=wallet)  # not in wallet
         self.assertEqual("p2wpkh:L15oxP24NMNAXxq5r2aom24pHPtt3Fet8ZutgL155Bad93GSubM2",
                          await cmds.getprivatekeys("bc1q3g5tmkmlvxryhh843v4dz026avatc0zzr6h3af", wallet=wallet))
         # list of addresses tests
-        with self.assertRaises(UserFacingException):
+        with self.assertRaisesRegex(UserFacingException, "Invalid bitcoin address: asd$"):
             await cmds.getprivatekeys(['bc1q3g5tmkmlvxryhh843v4dz026avatc0zzr6h3af', 'asd'], wallet=wallet)
         self.assertEqual(['p2wpkh:L15oxP24NMNAXxq5r2aom24pHPtt3Fet8ZutgL155Bad93GSubM2', 'p2wpkh:L4rYY5QpfN6wJEF4SEKDpcGhTPnCe9zcGs6hiSnhpprZqVywFifN'],
                          await cmds.getprivatekeys(['bc1q3g5tmkmlvxryhh843v4dz026avatc0zzr6h3af', 'bc1q9pzjpjq4nqx5ycnywekcmycqz0wjp2nq604y2n'], wallet=wallet))
