@@ -299,6 +299,12 @@ class QETxDetails(QObject, QtEventListener):
         if from_txid:
             self._tx = self._wallet.wallet.db.get_transaction(self._txid)
             assert self._tx is not None, f'unknown txid "{self._txid}"'
+        elif (txid := self._tx.txid()) != self._txid:
+            # a tx with legacy inputs only gets a txid once it is fully signed
+            self._txid = txid
+            self.txidChanged.emit()
+            if txid and self._label:  # entered while the txid was unknown, so not saved yet
+                self._wallet.wallet.set_label(txid, self._label)
 
         #self._logger.debug(repr(self._tx.to_json()))
 
