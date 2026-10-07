@@ -764,6 +764,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
                     new_proxy_config.deserialize_proxy_cfgstr(out.get('proxy'))
                     new_proxy_config.user = out.get('proxy user', proxy_config.user)
                     new_proxy_config.password = out.get('proxy pass', proxy_config.password)
+                    new_proxy_config.doh_endpoint = self.config.NETWORK_PROXY_DOH_ENDPOINT  # passthrough
                     new_proxy_config.enabled = True
                 else:
                     new_proxy_config = proxy_config
