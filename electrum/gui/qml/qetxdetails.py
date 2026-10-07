@@ -372,7 +372,7 @@ class QETxDetails(QObject, QtEventListener):
             if isinstance(self._tx, PartialTransaction):
                 self._sighash_danger = self._wallet.wallet.check_sighash(self._tx)
 
-        if self._wallet.wallet.lnworker:
+        if self._wallet.wallet.lnworker and self._txid:  # no txid yet for an unsigned tx with legacy inputs
             # Calling wallet.get_full_history here is inefficient.
             # We should probably pass the tx_item to the constructor.
             full_history = self._wallet.wallet.get_full_history()

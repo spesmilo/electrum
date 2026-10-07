@@ -12,9 +12,7 @@ from .. import ElectrumTestCase, restore_wallet_from_text__for_unittest
 class TestTxDetails(ElectrumTestCase):
     TESTNET = True
 
-    async def test_remove_saved_tx_with_legacy_inputs(self):
-        # see #9004, #8775
-        config = SimpleConfig({'electrum_path': self.electrum_path})
+    def _create_wallet_and_unsigned_tx_with_legacy_input(self, config):
         wallet = restore_wallet_from_text__for_unittest(
             'p2pkh:cN9spWsvaxA8taS7DFMxnk1yJD2gaF2PX1npuTpy3vuZFJdwavaw', path=None, config=config)['wallet']
         addr = wallet.get_addresses()[0]
@@ -29,6 +27,12 @@ class TestTxDetails(ElectrumTestCase):
         tx = wallet.make_unsigned_transaction(
             outputs=[PartialTxOutput.from_address_and_value(addr, 50_000)], fee_policy=FixedFeePolicy(1000))
         self.assertIsNone(tx.txid())  # legacy input: the txid is only known once signed
+        return wallet, tx
+
+    async def test_remove_saved_tx_with_legacy_inputs(self):
+        # see #9004, #8775
+        config = SimpleConfig({'electrum_path': self.electrum_path})
+        wallet, tx = self._create_wallet_and_unsigned_tx_with_legacy_input(config)
 
         qewallet = QEWallet(wallet)
         self.addCleanup(qewallet.unregister_callbacks)
@@ -54,3 +58,21 @@ class TestTxDetails(ElectrumTestCase):
 
         txdetails.removeLocalTx(confirm=True)
         self.assertIsNone(wallet.db.get_transaction(txid))
+
+    async def test_open_unsigned_tx_with_legacy_inputs_in_lightning_wallet(self):
+        # see #8395
+        config = SimpleConfig({'electrum_path': self.electrum_path})
+        _, tx = self._create_wallet_and_unsigned_tx_with_legacy_input(config)
+        wallet = restore_wallet_from_text__for_unittest(
+            'bitter grass shiver impose acquire brush forget axis eager alone wine silver', path=None, config=config)['wallet']
+        self.assertIsNotNone(wallet.lnworker)
+
+        qewallet = QEWallet(wallet)
+        self.addCleanup(qewallet.unregister_callbacks)
+        txdetails = QETxDetails()
+        self.addCleanup(txdetails.unregister_callbacks)
+        txdetails.wallet = qewallet
+        txdetails.rawtx = tx.serialize()
+        self.assertIsNotNone(txdetails._tx)
+        serialized_tx, *_ = txdetails.getSerializedTx()  # "Share..."
+        self.assertEqual(tx.serialize(), serialized_tx)
