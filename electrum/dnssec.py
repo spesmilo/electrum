@@ -38,6 +38,7 @@ import dns.name
 import dns.asyncquery
 import dns.dnssec
 import dns.exception
+import dns.flags
 import dns.message
 import dns.asyncresolver
 import dns.resolver
@@ -163,6 +164,9 @@ async def _query_signed(transport: DNSTransport, sub, _type) -> Tuple[dns.rrset.
     """Returns the (not yet validated) rrset and its rrsig."""
     name = dns.name.from_text(sub)
     q = dns.message.make_query(name, _type, want_dnssec=True)
+    # we validate ourselves, so set CD (RFC 6840 5.9). Without it, a stub resolver that doesn't do
+    # DNSSEC (e.g. systemd-resolved with DNSSEC=no) SERVFAILs DNSKEY/DS queries and strips RRSIGs.
+    q.flags |= dns.flags.CD
     response = await transport.send(q)
     assert response.rcode() == 0, 'No answer'
     # only accept the queried name and type, otherwise any validly signed rrset of the zone could be replayed
