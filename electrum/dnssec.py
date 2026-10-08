@@ -60,7 +60,7 @@ import dns.rdtypes.IN.A
 import dns.rdtypes.IN.AAAA
 
 from .logging import get_logger
-from typing import Tuple, Optional, TYPE_CHECKING
+from typing import Tuple, Optional, Sequence, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .network import ProxySettings
@@ -79,8 +79,8 @@ trust_anchors = [
 ]
 
 
-# public fallback nameserver, used only if the system/DHCP resolver cannot be determined
-# (e.g. no /etc/resolv.conf, some mobile setups). Google Public DNS.
+# public fallback nameserver, tried after the system/DHCP nameservers, or alone if those cannot
+# be determined (e.g. no /etc/resolv.conf, some mobile setups). Google Public DNS.
 FALLBACK_NAMESERVER = '8.8.8.8'
 
 
@@ -96,18 +96,30 @@ class DNSTransport:
 
 
 class LocalTransport(DNSTransport):
-    """Plain DNS to the system (DHCP-provided) nameserver over UDP, falling back to
+    """Plain DNS to the system (DHCP-provided) nameservers over UDP, falling back to
     TCP on truncation (DNSSEC responses are large and routinely get truncated).
+    Nameservers are tried in order, FALLBACK_NAMESERVER last. One answering SERVFAIL/REFUSED
+    is skipped for that query, an unreachable one for the rest of the lookup.
     Used when no proxy is configured."""
 
-    def __init__(self, nameserver: Optional[str] = None):
-        self.nameserver = nameserver or _system_nameserver()
+    def __init__(self, nameservers: Optional[Sequence[str]] = None):
+        if nameservers is None:
+            nameservers = _system_nameservers()
+        self.nameservers = list(dict.fromkeys([*nameservers, FALLBACK_NAMESERVER]))  # dedup, keep order
 
     async def send(self, q: dns.message.Message) -> dns.message.Message:
-        try:
-            response, _used_tcp = await dns.asyncquery.udp_with_fallback(q, self.nameserver, timeout=5)
-        except OSError as e:  # e.g. truncated over UDP, and TCP refused
-            raise dns.exception.DNSException(f"DNS query failed: {e!r}") from e
+        response = None
+        for ns in list(self.nameservers):
+            try:
+                response, _used_tcp = await dns.asyncquery.udp_with_fallback(q, ns, timeout=5)
+            except (dns.exception.DNSException, OSError, ValueError) as e:  # e.g. timeout, TCP refused, bad address
+                _logger.info(f"nameserver {ns} failed, skipping it: {e!r}")
+                self.nameservers.remove(ns)
+                continue
+            if response.rcode() not in (dns.rcode.SERVFAIL, dns.rcode.REFUSED):
+                return response
+        if response is None:
+            raise dns.exception.DNSException("none of the nameservers answered")
         return response
 
 
@@ -144,14 +156,13 @@ class DoHTransport(DNSTransport):
         return dns.message.from_wire(raw)
 
 
-def _system_nameserver() -> str:
+def _system_nameservers() -> Sequence[str]:
     # the DHCP/OS-provided resolver(s), as dnspython reads them from the system config
     try:
-        nameservers = dns.resolver.get_default_resolver().nameservers
+        return dns.resolver.get_default_resolver().nameservers
     except Exception as e:
-        _logger.info(f"could not determine system nameserver, using fallback: {e!r}")
-        nameservers = None
-    return nameservers[0] if nameservers else FALLBACK_NAMESERVER
+        _logger.info(f"could not determine system nameservers: {e!r}")
+        return []
 
 
 def _make_transport(proxy: Optional['ProxySettings']) -> DNSTransport:
@@ -262,9 +273,10 @@ async def query(
     so the caller must carefully consider whether the response can be used for anything if validated=False.
 
     The transport is chosen from the proxy settings: without a proxy we query the system
-    (DHCP-provided) nameserver directly over UDP/TCP; with a proxy we run DNS-over-HTTPS
-    tunneled through it (SOCKS cannot carry UDP, and Tor's RESOLVE extension supports
-    neither TXT nor DNSSEC). The DoH endpoint is taken from ProxySettings.doh_endpoint.
+    (DHCP-provided) nameservers directly over UDP/TCP, falling back to FALLBACK_NAMESERVER;
+    with a proxy we run DNS-over-HTTPS tunneled through it (SOCKS cannot carry UDP, and
+    Tor's RESOLVE extension supports neither TXT nor DNSSEC). The DoH endpoint is taken
+    from ProxySettings.doh_endpoint.
     """
     if proxy is None:
         from .network import Network
