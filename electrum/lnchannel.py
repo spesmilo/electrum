@@ -1205,14 +1205,15 @@ class Channel(AbstractChannel):
         strict = (htlc_proposer == LOCAL)
         if not strict:
             # this is the loose check BOLT-02 specifies:
-            return chan_config.max_accepted_htlcs - len(self.hm.htlcs_by_direction(htlc_receiver, direction=RECEIVED, ctn=ctn))
+            slots = chan_config.max_accepted_htlcs - len(self.hm.htlcs_by_direction(htlc_receiver, direction=RECEIVED, ctn=ctn))
         else:
             # however, c-lightning is a lot stricter, so extra checks:
             # https://github.com/ElementsProject/lightning/blob/4dcd4ca1556b13b6964a10040ba1d5ef82de4788/channeld/full_channel.c#L581
             max_concurrent_htlcs = min(
                 self.config[htlc_proposer].max_accepted_htlcs,
                 self.config[htlc_receiver].max_accepted_htlcs)
-            return max_concurrent_htlcs - len(self.hm.htlcs(htlc_receiver, ctn=ctn))
+            slots = max_concurrent_htlcs - len(self.hm.htlcs(htlc_receiver, ctn=ctn))
+        return max(slots, 0)
 
     def remaining_max_inflight(self, htlc_receiver: HTLCOwner, *, strict: bool) -> int:
         """
