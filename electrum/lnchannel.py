@@ -376,7 +376,7 @@ class AbstractChannel(Logger, ABC):
             elif self.has_funding_timed_out():
                 self.logger.warning(f"dropping incoming channel, funding tx taking too long to reach req num conf")
                 self.lnworker.remove_channel(self.channel_id)
-        elif self.is_zeroconf() and state in [ChannelState.OPEN, ChannelState.CLOSING, ChannelState.FORCE_CLOSING]:
+        elif self.is_zeroconf() and ChannelState.OPEN <= state < ChannelState.CLOSED:
             # handling zeroconf channels with no funding tx, can happen if broadcasting fails on LSP side
             # or if the LSP did double spent the funding tx/never published it intentionally.
             if not self.lnworker.wallet.is_up_to_date() or not self.lnworker.network \
@@ -404,6 +404,9 @@ class AbstractChannel(Logger, ABC):
                     self.logger.warning(
                         f"we may have been scammed out of {local_balance_sat} sat by our "
                         f"JIT provider: {self.lnworker.config.ZEROCONF_TRUSTED_NODE} or he didn't use our preimage")
+        elif self.has_funding_timed_out() and state < ChannelState.CLOSED:
+            self.logger.warning(f"dropping incoming channel, funding tx taking too long to reach req num conf")
+            self.lnworker.remove_channel(self.channel_id)
 
     def update_funded_state(self, *, funding_txid: str, funding_height: TxMinedInfo) -> None:
         if funding_height.conf>0:
