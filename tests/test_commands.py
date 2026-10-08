@@ -137,6 +137,10 @@ class TestCommands(ElectrumTestCase):
             {'address': '3QsFXpFJf2ZY6GLWVoNFFd2xSDwdS713qX',
              'redeemScript': '5221' + pk1 + '21' + pk2 + '52ae'},
             await cmds.createmultisig(2, [pk1, pk2]))
+        # the keys are used in the given order, not sorted (see #5343)
+        self.assertEqual(
+            '5221' + pk2 + '21' + pk1 + '52ae',
+            (await cmds.createmultisig(2, [pk2, pk1]))['redeemScript'])
         # invalid public keys must not yield an address
         for bad_pubkey in ("0378", "", "zz", "05" + pk1[2:], "02" + "00" * 31 + "05", 3, bytes.fromhex(pk1)):
             with self.assertRaisesRegex(UserFacingException, "invalid public key"):
