@@ -1,0 +1,69 @@
+Build against the toolchain the builder image and p4a already provide.
+
+Upstream is on AGP 8.12.3 / gradle 8.14.2, so it fetched a second gradle
+distribution and let AGP download its own build-tools from dl.google.com
+mid-build, unpinned and unverified.
+
+:app is upstream's sample application; we only ever build the library. It is
+dropped from settings.gradle because gradle configures every included project
+even when only one is built, and configuring :app fails under AGP 9: it calls
+getDefaultProguardFile('proguard-android.txt'), which AGP 9 removed in favour
+of the -optimize variant.
+
+Note this does change the resulting aar (10480 bytes, was 10857): the same
+sources built by a newer AGP.
+
+The gradle wrapper is pointed at gradle-9.4.1-all, the same distribution p4a's
+bootstrap downloads, so the whole build shares one distribution instead of fetching
+several, and pinned with distributionSha256Sum so the wrapper verifies it before
+executing it. Keep both in sync with p4a's
+bootstraps/common/build/gradle/wrapper/gradle-wrapper.properties.
+
+diff --git a/barcodescannerview/build.gradle b/barcodescannerview/build.gradle
+index bd26c96..d4759ff 100644
+--- a/barcodescannerview/build.gradle
++++ b/barcodescannerview/build.gradle
+@@ -17,6 +17,9 @@ plugins {
+ android {
+ 	namespace 'de.markusfisch.android.barcodescannerview'
+ 	compileSdk sdk_version
++	// electrum: use the build-tools installed in the builder image, instead of
++	// letting AGP download its own default version from Google mid-build
++	buildToolsVersion System.getenv('ANDROID_SDK_BUILD_TOOLS_VERSION')
+ 
+ 	defaultConfig {
+ 		minSdk 9
+diff --git a/build.gradle b/build.gradle
+index 9be7983..16d84e2 100644
+--- a/build.gradle
++++ b/build.gradle
+@@ -1,6 +1,6 @@
+ buildscript {
+ 	ext {
+-		tools_version = '8.12.3'
++		tools_version = '9.1.0'
+ 		sdk_version = 36
+ 	}
+ 
+diff --git a/gradle/wrapper/gradle-wrapper.properties b/gradle/wrapper/gradle-wrapper.properties
+index 2bfda95..4e859cd 100644
+--- a/gradle/wrapper/gradle-wrapper.properties
++++ b/gradle/wrapper/gradle-wrapper.properties
+@@ -1,6 +1,7 @@
+ #Wed Jan 26 11:58:22 CET 2022
+ distributionBase=GRADLE_USER_HOME
+-distributionUrl=https\://services.gradle.org/distributions/gradle-8.14.2-bin.zip
++distributionUrl=https\://services.gradle.org/distributions/gradle-9.4.1-all.zip
++distributionSha256Sum=708d2c6ecc97ca9a11838ef64a6c2301151b8dd10387e22dc1a12c30557cab5b
+ distributionPath=wrapper/dists
+ zipStorePath=wrapper/dists
+ zipStoreBase=GRADLE_USER_HOME
+diff --git a/settings.gradle b/settings.gradle
+index 0aa4f1f..361c86f 100644
+--- a/settings.gradle
++++ b/settings.gradle
+@@ -1 +1,3 @@
+-include ':app', ':barcodescannerview'
++// electrum: :app is upstream's sample app; we only build the library, and
++// configuring :app fails on AGP 9 (it uses the removed proguard-android.txt)
++include ':barcodescannerview'
