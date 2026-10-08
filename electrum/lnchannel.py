@@ -221,8 +221,9 @@ class AbstractChannel(Logger, ABC):
 
     def is_funded(self) -> bool:
         # NOTE: also true for unfunded zeroconf channels (OPEN > FUNDED)
-        #     - also true for unfunded channel in ChannnelState.FORCE_CLOSING
-        return self.get_state() >= ChannelState.FUNDED
+        # Peers can push an unfunded channel into CLOSING (> FUNDED) state, however
+        # the short_channel_id is only set if the funding tx was seen in a block.
+        return self.get_state() >= ChannelState.FUNDED and (self.short_channel_id is not None or self.is_zeroconf())
 
     def is_open(self) -> bool:
         return self.get_state() == ChannelState.OPEN
