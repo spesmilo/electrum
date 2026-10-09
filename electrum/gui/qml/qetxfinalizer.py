@@ -77,8 +77,9 @@ class FeeSlider(QObject):
         assert wallet is None or isinstance(wallet, QEWallet)
         if self._wallet != wallet:
             self._wallet = wallet
-            self._config = self._wallet.wallet.config
-            self.read_config()
+            if wallet is not None:  # None e.g. when the current wallet is closed
+                self._config = wallet.wallet.config
+                self.read_config()
             self.walletChanged.emit()
 
     sliderStepsChanged = pyqtSignal()
@@ -622,14 +623,14 @@ class TxMonMixin(QtEventListener):
 
     @event_listener
     def on_event_verified(self, wallet, txid, info):
-        if wallet == self._wallet.wallet and txid == self._txid:
+        if self._wallet and wallet == self._wallet.wallet and txid == self._txid:
             self._logger.debug('verified event for our txid %s' % txid)
             self.tx_verified()
             self.txMined.emit()
 
     @event_listener
     def on_event_removed_transaction(self, wallet, tx):
-        if wallet == self._wallet.wallet and tx.txid() == self._txid:
+        if self._wallet and wallet == self._wallet.wallet and tx.txid() == self._txid:
             self._logger.debug('remove tx for our txid %s' % self._txid)
             self.tx_removed()
             self.txRemoved.emit()
