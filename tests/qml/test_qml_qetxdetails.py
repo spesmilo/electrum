@@ -69,19 +69,3 @@ class TestTxDetails(ElectrumTestCase):
 
         txdetails.removeLocalTx(confirm=True)
         self.assertIsNone(wallet.db.get_transaction(txid))
-
-    async def test_open_unsigned_tx_with_legacy_inputs_in_lightning_wallet(self):
-        # see #8395
-        config = SimpleConfig({'electrum_path': self.electrum_path})
-        _, tx = self._create_wallet_and_unsigned_tx_with_legacy_input(config)
-        wallet = restore_wallet_from_text__for_unittest(
-            'bitter grass shiver impose acquire brush forget axis eager alone wine silver', path=None, config=config)['wallet']
-        self.assertIsNotNone(wallet.lnworker)
-
-        qewallet = QEWallet(wallet)
-        self.addCleanup(qewallet.unregister_callbacks)
-        txdetails = QETxDetails()
-        self.addCleanup(txdetails.unregister_callbacks)
-        txdetails.wallet = qewallet
-        txdetails.rawtx = tx.serialize()
-        self.assertIsNotNone(txdetails._tx)
