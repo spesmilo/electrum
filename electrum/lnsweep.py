@@ -16,11 +16,11 @@ from .lnutil import (make_commitment_output_to_remote_address, make_commitment_o
                      derive_privkey, derive_pubkey, derive_blinded_pubkey, derive_blinded_privkey,
                      make_htlc_tx_witness, make_htlc_tx_with_open_channel, UpdateAddHtlc,
                      LOCAL, REMOTE, make_htlc_output_witness_script,
-                     get_ordered_channel_configs, get_per_commitment_secret_from_seed,
+                     get_ordered_channel_configs,
                      RevocationStore, extract_ctn_from_tx_and_chan, UnableToDeriveSecret, SENT, RECEIVED,
                      map_htlcs_to_ctx_output_idxs, Direction, make_commitment_output_to_remote_witness_script,
                      derive_payment_basepoint, ctx_has_anchors, SCRIPT_TEMPLATE_FUNDING, Keypair,
-                     derive_multisig_funding_key_if_we_opened, derive_multisig_funding_key_if_they_opened, LocalConfig)
+                     derive_multisig_funding_key_if_we_opened, derive_multisig_funding_key_if_they_opened)
 from .transaction import (Transaction, TxInput, PartialTxInput,
                           PartialTxOutput, TxOutpoint, script_GetOp, match_script_against_template)
 from .logging import get_logger, Logger
@@ -85,7 +85,7 @@ def sweep_their_ctx_watchtower(
     pcp = ecc.ECPrivkey(per_commitment_secret).get_public_key_bytes(compressed=True)
     breacher_conf, watcher_conf = get_ordered_channel_configs(chan=chan, for_us=False)
     watcher_revocation_privkey = derive_blinded_privkey(
-        watcher_conf.revocation_basepoint.privkey,
+        chan.keys.revocation_basepoint.privkey,
         per_commitment_secret
     )
     to_self_delay = watcher_conf.to_self_delay
@@ -201,7 +201,7 @@ def sweep_their_ctx_justice(
     # prep
     pcp = ecc.ECPrivkey(per_commitment_secret).get_public_key_bytes(compressed=True)
     this_conf, other_conf = get_ordered_channel_configs(chan=chan, for_us=False)
-    other_revocation_privkey = derive_blinded_privkey(other_conf.revocation_basepoint.privkey,
+    other_revocation_privkey = derive_blinded_privkey(chan.keys.revocation_basepoint.privkey,
                                                       per_commitment_secret)
     to_self_delay = other_conf.to_self_delay
     this_delayed_pubkey = derive_pubkey(this_conf.delayed_basepoint.pubkey, pcp)
@@ -245,7 +245,7 @@ def sweep_their_htlctx_justice(
     pcp = ecc.ECPrivkey(per_commitment_secret).get_public_key_bytes(compressed=True)
     this_conf, other_conf = get_ordered_channel_configs(chan=chan, for_us=False)
     other_revocation_privkey = derive_blinded_privkey(
-        other_conf.revocation_basepoint.privkey,
+        chan.keys.revocation_basepoint.privkey,
         per_commitment_secret)
     to_self_delay = other_conf.to_self_delay
     this_delayed_pubkey = derive_pubkey(this_conf.delayed_basepoint.pubkey, pcp)
@@ -316,15 +316,14 @@ def sweep_our_ctx(
     """
     ctn = extract_ctn_from_tx_and_chan(ctx, chan)
     our_conf, their_conf = get_ordered_channel_configs(chan=chan, for_us=True)
-    our_per_commitment_secret = get_per_commitment_secret_from_seed(
-        our_conf.per_commitment_secret_seed, RevocationStore.START_INDEX - ctn)
+    our_per_commitment_secret = chan.keys.per_commitment_secret(ctn)
     our_pcp = ecc.ECPrivkey(our_per_commitment_secret).get_public_key_bytes(compressed=True)
-    our_delayed_bp_privkey = ecc.ECPrivkey(our_conf.delayed_basepoint.privkey)
+    our_delayed_bp_privkey = ecc.ECPrivkey(chan.keys.delayed_basepoint.privkey)
     our_localdelayed_privkey = derive_privkey(our_delayed_bp_privkey.secret_scalar, our_pcp)
     our_localdelayed_privkey = ecc.ECPrivkey.from_secret_scalar(our_localdelayed_privkey)
     their_revocation_pubkey = derive_blinded_pubkey(their_conf.revocation_basepoint.pubkey, our_pcp)
     to_self_delay = their_conf.to_self_delay
-    our_htlc_privkey = derive_privkey(secret=int.from_bytes(our_conf.htlc_basepoint.privkey, 'big'),
+    our_htlc_privkey = derive_privkey(secret=int.from_bytes(chan.keys.htlc_basepoint.privkey, 'big'),
                                        per_commitment_point=our_pcp).to_bytes(32, 'big')
     our_localdelayed_pubkey = our_localdelayed_privkey.get_public_key_bytes(compressed=True)
     to_local_witness_script = make_commitment_output_to_local_witness_script(
@@ -350,7 +349,7 @@ def sweep_our_ctx(
 
     # local anchor
     if actual_htlc_tx is None and chan.has_anchors():
-        if txin := sweep_ctx_anchor(ctx=ctx, multisig_key=our_conf.multisig_key):
+        if txin := sweep_ctx_anchor(ctx=ctx, multisig_key=chan.keys.multisig_key):
             txs[txin.prevout.to_str()] = SweepInfo(
                 name='local_anchor',
                 our_cltv_abs=None,
@@ -576,16 +575,16 @@ def sweep_their_ctx_to_remote_backup(
     and anchors are enabled, we need to sweep to_remote."""
 
     txs = {}  # type: Dict[str, SweepInfo]
-    local_config = chan.config.get(LOCAL)  # type: Optional[LocalConfig]
+    keys = chan.keys  # None for on-chain backups
     fp_idx = None  # type: Optional[int]
     if ctx_has_anchors(ctx):
         funding_pubkeys = extract_funding_pubkeys_from_ctx(ctx.inputs()[0])
         # for anchors we need the payment_basepoint to spend the to_remote
-        if local_config and isinstance(local_config.payment_basepoint, Keypair):
+        if keys and keys.payment_basepoint:
             _logger.debug("using payment_basepoint key from channel backup")
             # if we have a channel backup v3+ the imported payment_basepoint is a private key for anchor channels
             # so non-deterministic LNWallets can recover their to_remote outputs
-            our_payment_keypair = local_config.payment_basepoint
+            our_payment_keypair = keys.payment_basepoint
             to_remote_address = make_commitment_output_to_remote_address(our_payment_keypair.pubkey, has_anchors=True)
             if not ctx.get_output_idxs_from_address(to_remote_address):
                 _logger.debug(f"no to_remote output found for {to_remote_address=} from backup")
@@ -610,12 +609,12 @@ def sweep_their_ctx_to_remote_backup(
         return {}
 
     # get remote anchor funding_privkey ("multisig_key")
-    # note: for imported backups, we already have this as 'local_config.multisig_key'
+    # note: for imported backups, we already have this as 'chan.keys.multisig_key'
     #       but for on-chain backups, we need to derive it.
     our_ms_funding_keypair = None
-    if local_config and local_config.multisig_key.pubkey in funding_pubkeys:
+    if keys and keys.multisig_key.pubkey in funding_pubkeys:
         _logger.debug("using multisig_key from channel backup to spend remote anchor")
-        our_ms_funding_keypair = local_config.multisig_key
+        our_ms_funding_keypair = keys.multisig_key
     elif fp_idx is not None:
         _logger.debug("found no multisig_key for remote anchor in channel backup, deriving key")
         our_funding_pubkey = funding_pubkeys[fp_idx]
@@ -716,7 +715,7 @@ def sweep_their_ctx(
 
     # remote anchor
     if chan.has_anchors():
-        if txin := sweep_ctx_anchor(ctx=ctx, multisig_key=our_conf.multisig_key):
+        if txin := sweep_ctx_anchor(ctx=ctx, multisig_key=chan.keys.multisig_key):
             txs[txin.prevout.to_str()] = SweepInfo(
                 name='remote_anchor',
                 our_cltv_abs=None,
@@ -728,7 +727,7 @@ def sweep_their_ctx(
 
     # to_local is handled by lnwatcher
     if is_revocation:
-        our_revocation_privkey = derive_blinded_privkey(our_conf.revocation_basepoint.privkey, per_commitment_secret)
+        our_revocation_privkey = derive_blinded_privkey(chan.keys.revocation_basepoint.privkey, per_commitment_secret)
         if txin := sweep_their_ctx_justice(chan, ctx, per_commitment_secret):
             txs[txin.prevout.to_str()] = SweepInfo(
                 name='to_local_for_revoked_ctx',
@@ -742,7 +741,7 @@ def sweep_their_ctx(
     # to_remote
     if chan.has_anchors():
         sweep_to_remote = True
-        our_payment_privkey = ecc.ECPrivkey(our_conf.payment_basepoint.privkey)
+        our_payment_privkey = ecc.ECPrivkey(chan.get_payment_basepoint_privkey())
     else:
         assert chan.is_static_remotekey_enabled()
         sweep_to_remote = False
@@ -771,7 +770,7 @@ def sweep_their_ctx(
                 )
 
     # HTLCs
-    our_htlc_privkey = derive_privkey(secret=int.from_bytes(our_conf.htlc_basepoint.privkey, 'big'), per_commitment_point=their_pcp)
+    our_htlc_privkey = derive_privkey(secret=int.from_bytes(chan.keys.htlc_basepoint.privkey, 'big'), per_commitment_point=their_pcp)
     our_htlc_privkey = ecc.ECPrivkey.from_secret_scalar(our_htlc_privkey)
     their_htlc_pubkey = derive_pubkey(their_conf.htlc_basepoint.pubkey, their_pcp)
     def tx_htlc(
