@@ -1,3 +1,5 @@
+import gc
+
 from electrum import SimpleConfig
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
 from electrum.bitcoin import address_to_script
@@ -11,6 +13,12 @@ from .. import ElectrumTestCase, restore_wallet_from_text__for_unittest
 
 class TestTxDetails(ElectrumTestCase):
     TESTNET = True
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        # free the QObjects (and the wallets they hold) before other tests check for lingering wallets
+        cls.addClassCleanup(gc.collect)
 
     def _create_wallet_and_unsigned_tx_with_legacy_input(self, config):
         wallet = restore_wallet_from_text__for_unittest(
