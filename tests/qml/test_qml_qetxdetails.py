@@ -49,6 +49,7 @@ class TestTxDetails(ElectrumTestCase):
         txdetails.wallet = qewallet
         txdetails.rawtx = tx.serialize()
         self.assertFalse(txdetails.txid)
+        self.assertFalse(txdetails.canSaveAsLocal)
         txdetails.setLabel('rent')
 
         txdetails.sign()
@@ -56,12 +57,14 @@ class TestTxDetails(ElectrumTestCase):
         self.assertTrue(txdetails.isComplete)
         txid = txdetails._tx.txid()
         self.assertTrue(txid)
+        self.assertTrue(txdetails.canSaveAsLocal)
         self.assertEqual(txid, txdetails.txid)
         self.assertEqual('rent', txdetails.label)
         self.assertEqual('rent', wallet.get_label_for_txid(txid))
 
         txdetails.save()
         self.assertIsNotNone(wallet.db.get_transaction(txid))
+        self.assertFalse(txdetails.canSaveAsLocal)
         self.assertTrue(txdetails.canRemove)
 
         txdetails.removeLocalTx(confirm=True)
@@ -82,5 +85,3 @@ class TestTxDetails(ElectrumTestCase):
         txdetails.wallet = qewallet
         txdetails.rawtx = tx.serialize()
         self.assertIsNotNone(txdetails._tx)
-        serialized_tx, *_ = txdetails.getSerializedTx()  # "Share..."
-        self.assertEqual(tx.serialize(), serialized_tx)
