@@ -16,7 +16,8 @@ import electrum.trampoline
 from electrum.channel_db import UpdateStatus
 from electrum.lnutil import (
     RECEIVED, SENT, MIN_FINAL_CLTV_DELTA_ACCEPTED, serialize_htlc_key, LnFeatures, HTLCOwner, PaymentFailure,
-    LOCAL, REMOTE, ImportedChannelBackupStorage, make_commitment_output_to_anchor_address,
+    LOCAL, REMOTE, ImportedChannelBackupStorage, make_commitment_output_to_anchor_address, UpdateAddHtlc,
+    NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE,
 )
 from electrum.logging import console_stderr_handler
 from electrum.lnmsg import decode_msg
@@ -26,7 +27,9 @@ from electrum.lntransport import LNPeerAddr
 from electrum.invoices import LN_EXPIRY_NEVER, PR_UNPAID, PR_INFLIGHT, Invoice
 from electrum.lnpeer import Peer
 from electrum.lnchannel import Channel, ChannelBackup, ChannelState
-from electrum.lnonion import OnionPacket, OnionRoutingFailure, OnionFailureCode
+from electrum.lnonion import (
+    OnionPacket, OnionRoutingFailure, OnionFailureCode, ProcessedOnionPacket, OnionHopsDataSingle,
+)
 from electrum.mpp_split import SplitConfig, SplitConfigRating
 from electrum.crypto import sha256, pw_encode_with_version_and_mac
 from electrum.simple_config import SimpleConfig
@@ -378,6 +381,120 @@ class TestLNWallet(ElectrumTestCase):
                 payment_hash=os.urandom(32),
                 next_onion=mock.Mock(spec=OnionPacket)
             )
+
+    async def test_maybe_forward_htlc_jit_checks_incoming_htlc(self):
+        """before opening a just-in-time channel, the incoming htlc must pass the same
+        amount and cltv checks as for a regular forward"""
+        wallet = self.lnwallet_anchors
+        wallet.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS = True
+        wallet.lnpeermgr.features |= LnFeatures.OPTION_ZEROCONF_OPT
+        next_peer = mock.Mock(spec=Peer)
+        next_peer.accepts_zeroconf.return_value = True
+        next_peer.channels = {}
+        wallet.get_peer_by_static_jit_scid_alias = lambda scid: next_peer
+        wallet.open_channel_just_in_time = mock.AsyncMock(return_value='htlc_key')
+        height = wallet.network.get_local_height()
+        next_amount_msat = 1_000_000
+        next_cltv_abs = height + 1000
+
+        async def forward(*, amount_msat: int, cltv_abs: int, next_cltv_abs: int = next_cltv_abs) -> str:
+            htlc = UpdateAddHtlc(
+                amount_msat=amount_msat,
+                payment_hash=os.urandom(32),
+                cltv_abs=cltv_abs,
+                htlc_id=0,
+                timestamp=int(time.time()))
+            processed_onion = ProcessedOnionPacket(
+                are_we_final=False,
+                hop_data=OnionHopsDataSingle(payload={
+                    'short_channel_id': {'short_channel_id': os.urandom(8)},
+                    'amt_to_forward': {'amt_to_forward': next_amount_msat},
+                    'outgoing_cltv_value': {'outgoing_cltv_value': next_cltv_abs},
+                }),
+                next_packet=mock.Mock(spec=OnionPacket),
+                trampoline_onion_packet=None)
+            return await wallet._maybe_forward_htlc(
+                incoming_chan=mock.Mock(spec=Channel),
+                htlc=htlc,
+                processed_onion=processed_onion)
+
+        with self.subTest(msg="incoming amount lower than forwarded amount"):
+            with self.assertRaises(OnionRoutingFailure) as ctx:
+                await forward(amount_msat=next_amount_msat - 1, cltv_abs=next_cltv_abs + 144)
+            self.assertEqual(ctx.exception.code, OnionFailureCode.FEE_INSUFFICIENT)
+        with self.subTest(msg="incoming cltv delta too small"):
+            with self.assertRaises(OnionRoutingFailure) as ctx:
+                await forward(amount_msat=next_amount_msat, cltv_abs=next_cltv_abs + 143)
+            self.assertEqual(ctx.exception.code, OnionFailureCode.INCORRECT_CLTV_EXPIRY)
+        with self.subTest(msg="incoming htlc expires too soon"):
+            with self.assertRaises(OnionRoutingFailure) as ctx:
+                await forward(
+                    amount_msat=next_amount_msat,
+                    cltv_abs=height + MIN_FINAL_CLTV_DELTA_ACCEPTED,
+                    next_cltv_abs=height + MIN_FINAL_CLTV_DELTA_ACCEPTED - 144)
+            self.assertEqual(ctx.exception.code, OnionFailureCode.EXPIRY_TOO_SOON)
+            self.assertEqual(ctx.exception.data, b'\x00\x00')  # empty channel_update
+        wallet.open_channel_just_in_time.assert_not_called()
+
+        with self.subTest(msg="valid htlc opens the channel"):
+            htlc_key = await forward(amount_msat=next_amount_msat, cltv_abs=next_cltv_abs + 144)
+            self.assertEqual(htlc_key, 'htlc_key')
+            wallet.open_channel_just_in_time.assert_awaited_once()
+            kwargs = wallet.open_channel_just_in_time.call_args.kwargs
+            self.assertEqual(kwargs['next_amount_msat_htlc'], next_amount_msat)
+            self.assertEqual(kwargs['next_cltv_abs'], next_cltv_abs)
+
+    async def test_maybe_forward_trampoline_jit_checks_outgoing_cltv(self):
+        """the outgoing cltv of a trampoline forward to a just-in-time channel is chosen by the sender.
+        It must be checked before creating the onion, so that the incoming htlcs get failed"""
+        wallet = self.lnwallet_anchors
+        wallet.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS = True
+        wallet.config.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS = True
+        wallet.lnpeermgr.features |= LnFeatures.OPTION_ZEROCONF_OPT
+        next_node_id = ecc.ECPrivkey.generate_random_key().get_public_key_bytes()
+        next_peer = mock.Mock(spec=Peer)
+        next_peer.pubkey = next_node_id
+        next_peer.accepts_zeroconf.return_value = True
+        next_peer.channels = {}
+        wallet.lnpeermgr.get_peer_by_pubkey = lambda pubkey: next_peer if pubkey == next_node_id else None
+        wallet.open_channel_just_in_time = mock.AsyncMock(return_value='htlc_key')
+        height = wallet.network.get_local_height()
+        amount_msat = 1_000_000
+
+        async def forward(*, out_cltv_abs: int) -> None:
+            trampoline_onion = ProcessedOnionPacket(
+                are_we_final=False,
+                hop_data=OnionHopsDataSingle(payload={
+                    'outgoing_node_id': {'outgoing_node_id': next_node_id},
+                    'amt_to_forward': {'amt_to_forward': amount_msat},
+                    'outgoing_cltv_value': {'outgoing_cltv_value': out_cltv_abs},
+                    'invoice_features': {'invoice_features': 0},
+                    'invoice_routing_info': {'invoice_routing_info': b''},
+                }),
+                next_packet=mock.Mock(spec=OnionPacket),
+                trampoline_onion_packet=None)
+            await wallet._maybe_forward_trampoline(
+                payment_hash=os.urandom(32),
+                closest_inc_cltv_abs=out_cltv_abs + 576,
+                total_msat=amount_msat,
+                any_trampoline_onion=trampoline_onion,
+                fw_payment_key='fw_payment_key')
+
+        with self.subTest(msg="outgoing htlc already expired"):
+            with self.assertRaises(OnionRoutingFailure) as ctx:
+                await forward(out_cltv_abs=height - 1)
+            self.assertEqual(ctx.exception.code, OnionFailureCode.TRAMPOLINE_EXPIRY_TOO_SOON)
+        with self.subTest(msg="outgoing htlc expires too far into the future"):
+            with self.assertRaises(OnionRoutingFailure) as ctx:
+                await forward(out_cltv_abs=height + NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE)
+            self.assertEqual(ctx.exception.code, OnionFailureCode.EXPIRY_TOO_FAR)
+        wallet.open_channel_just_in_time.assert_not_called()
+
+        with self.subTest(msg="latest accepted outgoing cltv opens the channel"):
+            await forward(out_cltv_abs=height + NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE - 1)
+            wallet.open_channel_just_in_time.assert_awaited_once()
+            kwargs = wallet.open_channel_just_in_time.call_args.kwargs
+            self.assertEqual(kwargs['next_cltv_abs'], height + NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE)
 
     async def test_cleanup_failed_jit_channel(self):
         wallet = self.lnwallet_anchors
