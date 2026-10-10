@@ -41,7 +41,7 @@ import re
 import electrum_ecc as ecc
 from electrum_ecc.util import bip340_tagged_hash
 
-from . import bitcoin, bip32
+from . import bitcoin, bip32, bcur
 from .bip32 import BIP32Node
 from .util import to_bytes, bfh, chunks, is_hex_str, parse_max_spend
 from .bitcoin import (
@@ -1278,6 +1278,27 @@ class Transaction:
         tx_base43 = base_encode(tx_bytes, base=43)  # FIXME this takes quadratic time in len(tx)
         return tx_base43, is_complete
 
+    def to_ur_psbt(self) -> Tuple[bytes, bool]:
+        """Returns (psbt, data_stripped). The PSBT is to be put inside a BC-UR (animated) QR code.
+        No side-effects. Complete transactions are returned as finalized PSBT.
+        To make the QR code smaller, full UTXOs (prev txs) of segwit inputs are left out.
+        If this affects an input that is not complete yet (i.e. that a signer might need
+        the full UTXO for), this is signalled via data_stripped=True.
+        """
+        if isinstance(self, PartialTransaction):
+            tx = copy.deepcopy(self)  # make copy as we mutate tx
+        else:
+            tx = PartialTransaction.from_tx(self, strip_witness=False)
+        data_stripped = False
+        for txin in tx.inputs():
+            # the full UTXO of legacy inputs is kept: signing them without it is risky
+            if txin.utxo and txin.is_segwit():
+                txin.convert_utxo_to_witness_utxo()
+                data_stripped |= not txin.is_complete()
+        if tx.is_complete():
+            tx.remove_xpubs_and_bip32_paths()  # only needed for signing
+        return tx.serialize_as_bytes(force_psbt=True), data_stripped
+
     def txid(self) -> Optional[str]:
         if self._cached_txid is None:
             self.deserialize()
@@ -1537,10 +1558,13 @@ class Transaction:
 
 
 def convert_raw_tx_to_hex(raw: Union[str, bytes]) -> str:
-    """Sanitizes tx-describing input (hex/base43/base64) into
+    """Sanitizes tx-describing input (hex/base43/base64/BC-UR) into
     raw tx hex string."""
     if not raw:
         raise ValueError("empty string")
+    # try BC-UR. note: before base43, as uppercase UR text only consists of base43 characters
+    if isinstance(raw, str) and bcur.is_ur(raw):
+        return bcur.decode_tx_ur(raw).hex()
     # try hex
     try:
         return binascii.unhexlify(raw).hex()
