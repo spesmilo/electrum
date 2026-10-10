@@ -46,7 +46,7 @@ from .bip32 import BIP32Node
 from .util import to_bytes, bfh, chunks, is_hex_str, parse_max_spend
 from .bitcoin import (
     TYPE_ADDRESS, TYPE_SCRIPT, hash_160, hash160_to_p2sh, hash160_to_p2pkh, hash_to_segwit_addr, var_int,
-    TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN, opcodes, base_decode, base_encode, construct_witness, construct_script,
+    TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN, opcodes, base_decode, construct_witness, construct_script,
     taproot_tweak_seckey
 )
 from .crypto import sha256d, sha256
@@ -1262,21 +1262,6 @@ class Transaction:
             return nVersion + marker + flag + txins + txouts + witness + nLocktime
         else:
             return nVersion + txins + txouts + nLocktime
-
-    def to_qr_data(self) -> Tuple[str, bool]:
-        """Returns (serialized_tx, is_complete). The tx is serialized to be put inside a QR code. No side-effects.
-        As space in a QR code is limited, some data might have to be omitted. This is signalled via is_complete=False.
-        """
-        is_complete = True
-        tx = copy.deepcopy(self)  # make copy as we mutate tx
-        if isinstance(tx, PartialTransaction):
-            # this makes QR codes a lot smaller (or just possible in the first place!)
-            # note: will not apply if all inputs are taproot, due to new sighash.
-            tx.convert_all_utxos_to_witness_utxos()
-            is_complete = False
-        tx_bytes = tx.serialize_as_bytes()
-        tx_base43 = base_encode(tx_bytes, base=43)  # FIXME this takes quadratic time in len(tx)
-        return tx_base43, is_complete
 
     def to_ur_psbt(self) -> Tuple[bytes, bool]:
         """Returns (psbt, data_stripped). The PSBT is to be put inside a BC-UR (animated) QR code.
@@ -2745,14 +2730,6 @@ class PartialTransaction(Transaction):
         if any([is_ks_missing_info(ks) for ks in wallet.get_keystores()]):
             _logger.warning('PSBT was requested to be filled with full bip32 paths but '
                             'some keystores lacked either the derivation prefix or the root fingerprint')
-
-    def convert_all_utxos_to_witness_utxos(self) -> None:
-        """Replaces all NON-WITNESS-UTXOs with WITNESS-UTXOs.
-        This will likely make an exported PSBT invalid spec-wise,
-        but it makes e.g. QR codes significantly smaller.
-        """
-        for txin in self.inputs():
-            txin.convert_utxo_to_witness_utxo()
 
     def remove_signatures(self):
         for txin in self.inputs():

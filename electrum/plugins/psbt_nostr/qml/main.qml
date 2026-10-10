@@ -49,11 +49,11 @@ Item {
             property variant dialog
             text: qsTr('Nostr')
             icon.source: Qt.resolvedUrl('../../../gui/icons/network.png')
-            visible: AppController.plugin('psbt_nostr').canSendPsbt(Daemon.currentWallet, dialog.text)
+            visible: AppController.plugin('psbt_nostr').canSendPsbt(Daemon.currentWallet, dialog.psbt)
             onClicked: {
                 console.log('about to psbt nostr send')
                 psbt_nostr_send_button.enabled = false
-                AppController.plugin('psbt_nostr').sendPsbt(Daemon.currentWallet, dialog.text, dialog.tx_label)
+                AppController.plugin('psbt_nostr').sendPsbt(Daemon.currentWallet, dialog.psbt, dialog.tx_label)
             }
             Connections {
                 target: AppController ? AppController.plugin('psbt_nostr') : null

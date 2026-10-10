@@ -590,13 +590,13 @@ class QETxFinalizer(TxFeeSlider):
         self._logger.debug('on_sign_failed')
         self.signError.emit(msg)
 
-    @pyqtSlot(result='QVariantList')
+    @pyqtSlot(result='QVariantMap')
     def getSerializedTx(self):
-        txqr = self._tx.to_qr_data()
         label = ""
         if txid := self._tx.txid():
             label = self._wallet.wallet.get_label_for_txid(txid)
-        return [str(self._tx), txqr[0], txqr[1], label]
+        # pass as psbt so utxo info is kept for qr code
+        return {'psbt': self._tx.serialize_as_bytes(force_psbt=True).hex(), 'label': label}
 
 
 class TxMonMixin(QtEventListener):

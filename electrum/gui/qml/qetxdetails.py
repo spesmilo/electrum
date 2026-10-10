@@ -520,10 +520,13 @@ class QETxDetails(QObject, QtEventListener):
             self._can_remove = True
             self.detailsChanged.emit()
 
-    @pyqtSlot(result='QVariantList')
+    @pyqtSlot(result='QVariantMap')
     def getSerializedTx(self):
-        txqr = self._tx.to_qr_data()
         label = ""
         if txid := self._tx.txid():
             label = self._wallet.wallet.get_label_for_txid(txid)
-        return [str(self._tx), txqr[0], txqr[1], label]
+        psbt = self._tx
+        if not isinstance(psbt, PartialTransaction):
+            psbt = PartialTransaction.from_tx(psbt, strip_witness=False)
+        # pass as psbt so utxo info is kept for qr code
+        return {'psbt': psbt.serialize_as_bytes(force_psbt=True).hex(), 'label': label}

@@ -29,7 +29,7 @@ from .qeconfig import QEConfig
 from .qedaemon import QEDaemon
 from .qenetwork import QENetwork
 from .qewallet import QEWallet
-from .qeqr import QEQRParser, QEQRImageProvider, QEQRImageProviderHelper
+from .qeqr import QEQRParser, QEURQREncoder, QEQRImageProvider, QEQRImageProviderHelper
 from .qebitcoin import QEBitcoin
 from .qefx import QEFX
 from .qetxfinalizer import QETxFinalizer, QETxRbfFeeBumper, QETxCpfpFeeBumper, QETxCanceller, QETxSweepFinalizer, FeeSlider
@@ -531,6 +531,7 @@ class ElectrumQmlApplication(QGuiApplication):
         qmlRegisterType(QEWallet, 'org.electrum', 1, 0, 'Wallet')
         qmlRegisterType(QEBitcoin, 'org.electrum', 1, 0, 'Bitcoin')
         qmlRegisterType(QEQRParser, 'org.electrum', 1, 0, 'QRParser')
+        qmlRegisterType(QEURQREncoder, 'org.electrum', 1, 0, 'URQREncoder')
         qmlRegisterType(QEFX, 'org.electrum', 1, 0, 'FX')
         qmlRegisterType(QETxFinalizer, 'org.electrum', 1, 0, 'TxFinalizer')
         qmlRegisterType(QEPIResolver, 'org.electrum', 1, 0, 'PIResolver')
