@@ -299,6 +299,12 @@ class QETxDetails(QObject, QtEventListener):
         if from_txid:
             self._tx = self._wallet.wallet.db.get_transaction(self._txid)
             assert self._tx is not None, f'unknown txid "{self._txid}"'
+        elif (txid := self._tx.txid()) != self._txid:
+            # a tx with legacy inputs only gets a txid once it is fully signed
+            self._txid = txid
+            self.txidChanged.emit()
+            if txid and self._label:  # entered while the txid was unknown, so not saved yet
+                self._wallet.wallet.set_label(txid, self._label)
 
         #self._logger.debug(repr(self._tx.to_json()))
 
@@ -366,7 +372,7 @@ class QETxDetails(QObject, QtEventListener):
             if isinstance(self._tx, PartialTransaction):
                 self._sighash_danger = self._wallet.wallet.check_sighash(self._tx)
 
-        if self._wallet.wallet.lnworker:
+        if self._wallet.wallet.lnworker and self._txid:  # no txid yet for an unsigned tx with legacy inputs
             # Calling wallet.get_full_history here is inefficient.
             # We should probably pass the tx_item to the constructor.
             full_history = self._wallet.wallet.get_full_history()
