@@ -26,7 +26,7 @@
 from typing import List
 
 from PyQt6.QtWidgets import QWidget
-from PyQt6.QtGui import QPainter, QPaintEvent, QPen, QPainterPath, QColor, QTransform
+from PyQt6.QtGui import QPainter, QPaintEvent, QPen, QPainterPath, QColor, QTransform, QFont
 from PyQt6.QtCore import QPoint, QSize, QRect, QRectF, Qt
 
 from electrum.qrreader import QrCodeResult
@@ -41,7 +41,9 @@ class QrReaderVideoOverlay(QWidget):
 
     BG_RECT_PADDING = 10
     BG_RECT_CORNER_RADIUS = 10.0
-    BG_RECT_OPACITY = 0.75
+    BG_RECT_OPACITY = 0.85
+    QR_OUTLINE_WIDTH = 4
+    TEXT_POINT_SIZE = 18
 
     def __init__(self, parent: QWidget = None):
         super().__init__(parent)
@@ -52,13 +54,18 @@ class QrReaderVideoOverlay(QWidget):
         self.crop = None
         self.resolution = None
 
+        # Cosmetic, so the width is in widget pixels and doesn't shrink with the frame scaling
         self.qr_outline_pen = QPen()
         self.qr_outline_pen.setColor(Qt.GlobalColor.red)
-        self.qr_outline_pen.setWidth(3)
-        self.qr_outline_pen.setStyle(Qt.PenStyle.DotLine)
+        self.qr_outline_pen.setCosmetic(True)
+        self.qr_outline_pen.setWidth(self.QR_OUTLINE_WIDTH)
+        self.qr_outline_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
 
         self.text_pen = QPen()
         self.text_pen.setColor(Qt.GlobalColor.black)
+        self.text_font = QFont()
+        self.text_font.setPointSize(self.TEXT_POINT_SIZE)
+        self.text_font.setBold(True)
 
         self.bg_rect_pen = QPen()
         self.bg_rect_pen.setColor(Qt.GlobalColor.black)
@@ -104,8 +111,11 @@ class QrReaderVideoOverlay(QWidget):
         # Starting from here we care about AA
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        # Draw all the QR code results
+        # Draw the QR code results that have a message, i.e. the parts of an animated QR code.
+        # Other QR codes are accepted right away, so they would only flicker.
         for res in self.results:
+            if res not in self.validator_results.result_messages:
+                continue
             painter.setWorldTransform(transform_flip * transform, False)
 
             # Draw lines between all of the QR code points
@@ -125,18 +135,19 @@ class QrReaderVideoOverlay(QWidget):
 
                 painter.drawLine(line_from, line_to)
 
-            # Draw the QR code data
-            # Note that we reset the world transform to only the scaled transform
-            # because otherwise the text could be flipped. We only use transform_flip
+            # Draw the QR code message
+            # Note that we reset the world transform because otherwise the text could be
+            # flipped, and it would be scaled down with the frame. We only use the transforms
             # to map the center point of the result.
-            painter.setWorldTransform(transform, False)
-            text = res.data.decode('utf-8', errors='replace')
+            painter.resetTransform()
+            painter.setFont(self.text_font)
+            text = self.validator_results.result_messages[res]
             font_metrics = painter.fontMetrics()
             data_metrics = QSize(font_metrics.horizontalAdvance(text), font_metrics.capHeight())
 
             center_pos = toqp(res.center)
             center_pos += self.crop.topLeft()
-            center_pos = transform_flip.map(center_pos)
+            center_pos = (transform_flip * transform).map(center_pos)
 
             text_offset = QPoint(data_metrics.width(), data_metrics.height())
             text_offset = text_offset / 2

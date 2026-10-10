@@ -26,8 +26,12 @@
 from typing import List, Dict
 
 from PyQt6.QtGui import QColor
+from PyQt6.QtCore import Qt
 
+from electrum.bcur import URScanCollector, is_multipart_ur
 from electrum.qrreader import QrCodeResult
+
+from electrum.gui.qt.util import QColorLerp
 
 
 class QrReaderValidatorResult():
@@ -40,22 +44,41 @@ class QrReaderValidatorResult():
 
         self.simple_result : str | None = None
 
+        # The video overlay only shows the results that have a message
         self.result_colors: Dict[QrCodeResult, QColor] = {}
         self.result_messages: Dict[QrCodeResult, str] = {}
 
 
 class QrReaderValidator:
     """
-    Accepts the first QR code containing text that is detected.
+    Accepts the first QR code containing text that is detected. The parts of animated QR codes
+    (multi-part BC-UR) are collected until all have been scanned, and are labelled with the progress,
+    colorized from red to green.
     """
+
+    START_COLOR: QColor = QColor(Qt.GlobalColor.red)
+    DONE_COLOR: QColor = QColor(Qt.GlobalColor.green)
+
+    def __init__(self):
+        self.ur_collector = URScanCollector()
 
     def validate_results(self, results: List[QrCodeResult]) -> QrReaderValidatorResult:
         res = QrReaderValidatorResult()
+        texts: Dict[QrCodeResult, str] = {}
         for result in results:
             try:
-                res.simple_result = result.data.decode('utf-8')
+                texts[result] = result.data.decode('utf-8')
             except UnicodeDecodeError:
                 continue  # not text, keep scanning
+        if (data := self.ur_collector.add_frame(list(texts.values()))) is not None:
             res.accepted = True
-            break
+            res.simple_result = data
+            return res
+        if progress := self.ur_collector.progress:
+            received, total = progress
+            color = QColorLerp(self.START_COLOR, self.DONE_COLOR, received / total)
+            for result, text in texts.items():
+                if is_multipart_ur(text):
+                    res.result_colors[result] = color
+                    res.result_messages[result] = f'{received}/{total}'
         return res
