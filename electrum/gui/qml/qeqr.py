@@ -4,6 +4,7 @@ from qrcode.exceptions import DataOverflowError
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 import math
+from typing import Optional, Tuple
 import urllib
 
 from PyQt6 import sip
@@ -26,6 +27,7 @@ except ImportError:
     from PyQt6.QtCore import QObject as QVideoSink
     _LUMA_PLANE_FORMATS = frozenset()
 
+from electrum.bcur import URScanCollector
 from electrum.logging import get_logger
 from electrum.qrreader import get_qr_reader
 from electrum.util import profiler
@@ -68,6 +70,7 @@ class QEQRParser(QObject):
 
     dataChanged = pyqtSignal()
     videoSinkChanged = pyqtSignal()
+    urProgressChanged = pyqtSignal()
 
     def __init__(self, text=None, parent=None):
         super().__init__(parent)
@@ -75,6 +78,8 @@ class QEQRParser(QObject):
         self._busy = False
         self._data = None
         self._video_sink = None
+        self._ur_collector = URScanCollector()  # only used on the decoder thread
+        self._ur_progress = None  # type: Optional[Tuple[int, int]]
 
         self._text = text
         self.qrreader = get_qr_reader()
@@ -133,12 +138,17 @@ class QEQRParser(QObject):
                     buffer, buffer_size, stride, width, height,
                     crop=((width - size) // 2, (height - size) // 2, size, size),
                 )
-            if results:
+            texts = []
+            for result in results:
                 try:
-                    self._data = results[0].data.decode('utf-8')
+                    texts.append(result.data.decode('utf-8'))
                 except UnicodeDecodeError:
                     self._logger.warning('ignoring QR code: payload is not valid UTF-8 text')
-                else:
+            if texts:
+                data = self._ur_collector.add_frame(texts)
+                self._update_ur_progress()
+                if data is not None:
+                    self._data = data
                     self.dataChanged.emit()
         except Exception as e:
             if isinstance(e, RuntimeError) and sip.isdeleted(self):
@@ -147,6 +157,32 @@ class QEQRParser(QObject):
         finally:
             self._busy = False
 
+    def _update_ur_progress(self):
+        # runs on the decoder thread
+        progress = self._ur_collector.progress
+        if progress != self._ur_progress:
+            self._ur_progress = progress
+            self.urProgressChanged.emit()
+
+    def _reset_ur(self):
+        # runs on the decoder thread
+        self._ur_collector.reset()
+        self._update_ur_progress()
+
+    @pyqtProperty(bool, notify=urProgressChanged)
+    def urInProgress(self):
+        return self._ur_progress is not None
+
+    @pyqtProperty(int, notify=urProgressChanged)
+    def urPartsReceived(self):
+        progress = self._ur_progress  # written by the decoder thread, so read it only once
+        return progress[0] if progress else 0
+
+    @pyqtProperty(int, notify=urProgressChanged)
+    def urPartsTotal(self):
+        progress = self._ur_progress
+        return progress[1] if progress else 0
+
     @pyqtProperty(str, notify=dataChanged)
     def data(self):
         return self._data or ''
@@ -154,6 +190,7 @@ class QEQRParser(QObject):
     @pyqtSlot()
     def reset(self):
         self._data = None
+        self._decoder.submit(self._reset_ur)
         self.dataChanged.emit()
 
 
