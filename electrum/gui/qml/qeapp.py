@@ -26,6 +26,7 @@ from electrum.util import profiler
 from electrum.lnurl import SUPPORTED_LNURL_SCHEMES
 
 from .qeconfig import QEConfig
+from .qeconsole import QEConsole
 from .qedaemon import QEDaemon
 from .qenetwork import QENetwork
 from .qewallet import QEWallet
@@ -542,6 +543,7 @@ class ElectrumQmlApplication(QGuiApplication):
         self.appController = QEAppController(self, self.plugins)
         self.maxAmount = QEAmount(is_max=True)
         self.biometrics = QEBiometrics(config=config, parent=self)
+        self.pyConsole = QEConsole(config, daemon=daemon, qedaemon=self.daemon, plugins=self.plugins, parent=self)
         self.context.setContextProperty('AppController', self.appController)
         self.context.setContextProperty('Config', self.config)
         self.context.setContextProperty('Network', self.network)
@@ -550,6 +552,8 @@ class ElectrumQmlApplication(QGuiApplication):
         self.context.setContextProperty('MAX', self.maxAmount)
         self.context.setContextProperty('QRIP', self.qr_ip_h)
         self.context.setContextProperty('Biometrics', self.biometrics)
+        # note: named 'PyConsole' as 'console' would clash with the QML logging object
+        self.context.setContextProperty('PyConsole', self.pyConsole)
         self.context.setContextProperty('BUILD', {
             'electrum_version': version.ELECTRUM_VERSION,
             'protocol_version': f"[{version.PROTOCOL_VERSION_MIN}, {version.PROTOCOL_VERSION_MAX}]",
