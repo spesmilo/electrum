@@ -135,6 +135,24 @@ class Test_SimpleConfig(ElectrumTestCase):
             # revert:
             config.NETWORK_SERVER = None
 
+    def test_lightning_min_funding_sat(self):
+        from electrum.lnutil import MIN_FUNDING_SAT
+        config = SimpleConfig(self.options)
+        # default equals the module-level default constant (now 50_000)
+        self.assertEqual(50_000, MIN_FUNDING_SAT)
+        self.assertEqual(MIN_FUNDING_SAT, config.LIGHTNING_MIN_FUNDING_SAT)
+        self.assertEqual(MIN_FUNDING_SAT, config.cv.LIGHTNING_MIN_FUNDING_SAT.get_default_value())
+        self.assertIsInstance(config.LIGHTNING_MIN_FUNDING_SAT, int)
+        # user can override it, and the value round-trips through the key
+        config.LIGHTNING_MIN_FUNDING_SAT = 25_000
+        self.assertEqual(25_000, config.LIGHTNING_MIN_FUNDING_SAT)
+        self.assertEqual(25_000, config.get("lightning_min_funding_sat"))
+        # the preferences UI relies on these descriptions being present
+        self.assertTrue(config.cv.LIGHTNING_MIN_FUNDING_SAT.get_short_desc())
+        long_desc = config.cv.LIGHTNING_MIN_FUNDING_SAT.get_long_desc()
+        self.assertIn("⚠️", long_desc)
+        self.assertIn("50 000 sats", long_desc)
+
     def test_configvars_setter_catches_typo(self):
         config = SimpleConfig(self.options)
         assert not hasattr(config, "NETORK_AUTO_CONNECTT")
