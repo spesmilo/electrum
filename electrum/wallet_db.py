@@ -1718,6 +1718,7 @@ class WalletDB(JsonDB):
             encoder=MyEncoder,
             upgrader=partial(upgrade_wallet_db, do_upgrade=upgrade),
         )
+        self._unlocked_password = None  # see set_unlocked_password
         # create pointers
         self.load_transactions()
         # load plugins that are conditional on wallet type
@@ -2174,3 +2175,10 @@ class WalletDB(JsonDB):
 
     def set_keystore_encryption(self, enable):
         self.put('use_encryption', enable)
+
+    def set_unlocked_password(self, password: Optional[str]) -> None:
+        """Keeps the password in memory while the wallet is unlocked (None locks it)."""
+        self._unlocked_password = password
+
+    def get_unlocked_password(self) -> Optional[str]:
+        return self._unlocked_password

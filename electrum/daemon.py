@@ -503,24 +503,24 @@ class Daemon(Logger):
         password: Optional[str],
         *,
         upgrade: bool = False,
-        force_check_password: bool = False,
+        unlock: bool = False,
     ) -> Optional[Abstract_Wallet]:
         """
-        force_check_password: if False, the password arg is only used if it needed to decrypt the storage.
-                              if True, the password arg is always validated.
+        unlock: if False, the password arg is only used if it needed to decrypt the storage.
+                if True, the password arg is always validated, and the wallet is unlocked with it.
         """
         assert password != ''
         path = standardize_path(path)
         wallet_key = self._wallet_key_from_path(path)
         # wizard will be launched if we return
         if wallet := self._wallets.get(wallet_key):
-            if force_check_password:
-                wallet.check_password(password)
+            if unlock:
+                wallet.unlock(password)
             if self.config.get('wallet_path') is None:
                 self.config.CURRENT_WALLET = path
             return wallet
         wallet = self._load_wallet(
-            path, password, upgrade=upgrade, config=self.config, force_check_password=force_check_password)
+            path, password, upgrade=upgrade, config=self.config, unlock=unlock)
         if self.network:
             wallet.start_network(self.network)
         elif wallet.lnworker:
@@ -542,7 +542,7 @@ class Daemon(Logger):
             *,
             upgrade: bool = False,
             config: SimpleConfig,
-            force_check_password: bool = False,  # if set, always validate password
+            unlock: bool = False,  # if set, always validate password, and unlock the wallet
     ) -> Optional[Abstract_Wallet]:
         path = standardize_path(path)
         storage = WalletStorage(path, allow_partial_writes=config.WALLET_PARTIAL_WRITES)
@@ -557,8 +557,8 @@ class Daemon(Logger):
         if db.get_action():
             raise WalletUnfinished(db)
         wallet = Wallet(db, config=config)
-        if force_check_password:
-            wallet.check_password(password)
+        if unlock:
+            wallet.unlock(password)
         return wallet
 
     @with_wallet_lock

@@ -422,7 +422,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         # load addresses needs to be called before constructor for sanity checks
         db.load_addresses(self.wallet_type)
         self.keystore = None  # type: Optional[KeyStore]  # will be set by load_keystore
-        self._password_in_memory = None  # see self.unlock
         Logger.__init__(self)
 
         self.network = None
@@ -3682,23 +3681,17 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self.logger.info(f'unlocking wallet')
         password = password or None
         self.check_password(password)
-        self._password_in_memory = password
+        self.db.set_unlocked_password(password)
 
     def lock_wallet(self):
-        self._password_in_memory = None
+        self.db.set_unlocked_password(None)
 
     def get_unlocked_password(self) -> Optional[str]:
-        pw = self._password_in_memory
-        if not self.is_unlocked():
-            return None
-        try:
-            self.check_password(pw)
-        except InvalidPassword as e:
-            raise Exception("inconsistent _password_in_memory") from e
-        return pw
+        # no check_password here: unlock() checked it, and that runs the KDF
+        return self.db.get_unlocked_password()
 
     def is_unlocked(self) -> bool:
-        return self._password_in_memory is not None or not self.has_password()
+        return self.db.get_unlocked_password() is not None or not self.has_password()
 
     def get_text_not_enough_funds_mentioning_frozen(
             self,
