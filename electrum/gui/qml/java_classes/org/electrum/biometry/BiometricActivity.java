@@ -22,8 +22,6 @@ import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 
-import org.electrum.electrum.res.R;
-
 public class BiometricActivity extends Activity {
     private static final String TAG = "BiometricActivity";
     private static final String KEY_NAME = "electrum_biometric_key";

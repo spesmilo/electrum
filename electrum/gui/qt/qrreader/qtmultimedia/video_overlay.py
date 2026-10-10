@@ -130,8 +130,9 @@ class QrReaderVideoOverlay(QWidget):
             # because otherwise the text could be flipped. We only use transform_flip
             # to map the center point of the result.
             painter.setWorldTransform(transform, False)
+            text = res.data.decode('utf-8', errors='replace')
             font_metrics = painter.fontMetrics()
-            data_metrics = QSize(font_metrics.horizontalAdvance(res.data), font_metrics.capHeight())
+            data_metrics = QSize(font_metrics.horizontalAdvance(text), font_metrics.capHeight())
 
             center_pos = toqp(res.center)
             center_pos += self.crop.topLeft()
@@ -154,4 +155,4 @@ class QrReaderVideoOverlay(QWidget):
             painter.drawPath(bg_rect_path)
 
             painter.setPen(self.text_pen)
-            painter.drawText(center_pos, res.data)
+            painter.drawText(center_pos, text)
