@@ -107,7 +107,7 @@ class Test_SimpleConfig(ElectrumTestCase):
                               read_user_dir_function=read_user_dir)
         config.save_user_config()
         contents = None
-        with open(os.path.join(self.electrum_dir, "config"), "r") as f:
+        with open(os.path.join(config.path, "config"), "r") as f:
             contents = f.read()
         result = ast.literal_eval(contents)
         result.pop('config_version', None)
