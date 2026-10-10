@@ -640,8 +640,25 @@ class Commands(Logger):
         arg:int:num:Number of cosigners required
         arg:json:pubkeys:List of public keys
         """
-        assert isinstance(pubkeys, list), (type(num), type(pubkeys))
+        # same checks as bitcoind's createmultisig
+        if not isinstance(num, int) or isinstance(num, bool):
+            raise UserFacingException(f"num must be an integer, not {num!r}")
+        if not isinstance(pubkeys, list):
+            raise UserFacingException("pubkeys must be a list of hex-encoded public keys")
+        if not (1 <= num <= len(pubkeys) <= 15):
+            raise UserFacingException(
+                f"invalid multisig parameters: {num} of {len(pubkeys)} (need 1 <= num <= number of pubkeys <= 15)")
+        for pubkey in pubkeys:
+            # an invalid pubkey would yield an address whose coins might not be spendable
+            if not is_hex_str(pubkey):
+                raise UserFacingException(f"invalid public key: {pubkey!r}")
+            try:
+                ecc.ECPubkey(bytes.fromhex(pubkey))
+            except ecc.InvalidECPointException:
+                raise UserFacingException(f"invalid public key: {pubkey!r}") from None
         redeem_script = multisig_script(pubkeys, num)
+        if len(redeem_script) > 520:  # MAX_SCRIPT_ELEMENT_SIZE: larger p2sh redeem scripts are unspendable
+            raise UserFacingException(f"redeem script too large: {len(redeem_script)} bytes (max 520)")
         address = bitcoin.hash160_to_p2sh(hash_160(redeem_script))
         return {'address': address, 'redeemScript': redeem_script.hex()}
 
