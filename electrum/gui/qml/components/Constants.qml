@@ -34,6 +34,7 @@ Item {
     property color dialogColor: Material.dialogColor
     property color seedTextAreaBackground: Qt.darker(darkerDialogBackground, 1.20)
     property color notificationBackground: Qt.lighter(Material.background, 1.5)
+    property color listSelectedColor: colorAlpha(Material.accentColor, 0.25)
 
     property color colorCredit: "#ff80ff80"
     property color colorDebit: "#ffff8080"
@@ -73,6 +74,7 @@ Item {
     property color colorAddressBilling: "#8cb3f2"
     property color colorAddressSwap: colorAddressBilling
     property color colorAddressAccounting: "#ff9b45"
+    property color colorCoinInCoinControl: Qt.rgba(0.5, 1, 0.5, 1)
 
     function colorAlpha(baseColor, alpha) {
         return Qt.rgba(baseColor.r, baseColor.g, baseColor.b, alpha)
