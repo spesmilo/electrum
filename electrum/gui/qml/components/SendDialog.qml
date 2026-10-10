@@ -65,7 +65,9 @@ ElDialog {
 
     function dispatch(data) {
         data = data.trim()
-        if (bitcoin.isRawTx(data)) {
+        if (app.cosignerHandler.handleScannedData(data)) {
+            // a key for this device to sign with, or a transaction to sign
+        } else if (bitcoin.isRawTx(data)) {
             txFound(data)
         } else if (Daemon.currentWallet.isValidChannelBackup(data)) {
             channelBackupFound(data)

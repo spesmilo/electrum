@@ -45,7 +45,7 @@ from .lnutil import HTLCOwner, ChannelType, RecvMPPResolution
 from .json_db import JsonDB, locked, modifier
 from . import stored_dict
 from .stored_dict import StoredObject, stored_at, register_key, register_name
-from .plugin import run_hook, plugin_loaders
+from .plugin import plugin_loaders
 from .version import ELECTRUM_VERSION
 from .i18n import _
 
@@ -61,12 +61,6 @@ class WalletRequiresSplit(WalletFileException):
     def __init__(self, split_data):
         super().__init__()
         self._split_data = split_data
-
-
-class WalletUnfinished(WalletFileException):
-    def __init__(self, wallet_db: 'WalletDB'):
-        super().__init__()
-        self._wallet_db = wallet_db
 
 
 # seed_version is now used for the version of the wallet file
@@ -2151,10 +2145,6 @@ class WalletDB(JsonDB):
             db.write()
             file_list.append(path)
         return file_list
-
-    def get_action(self):
-        action = run_hook('get_action', self)
-        return action
 
     def load_plugins(self):
         wallet_type = self.get('wallet_type')

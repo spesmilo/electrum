@@ -530,6 +530,11 @@ ApplicationWindow
         width: parent.width
     }
 
+    property alias cosignerHandler: _cosignerHandler
+    CosignerHandler {
+        id: _cosignerHandler
+    }
+
     Component.onCompleted: {
         coverTimer.start()
 
@@ -663,7 +668,7 @@ ApplicationWindow
                 let qtobject = app._pendingBiometricAuth.qtobject
                 let method = app._pendingBiometricAuth.method
 
-                if (Daemon.currentWallet.verifyPassword(password)) {
+                if (app.verifyPassword(password)) {
                     qtobject.authProceed()
                 } else {
                     console.warn("Biometric password invalid falling back to manual input")
@@ -862,6 +867,14 @@ ApplicationWindow
         }
     }
 
+    // the password of this device. The wallets use it, and so do the keys of the wallets
+    // this device cosigns for, which can be here when no wallet is open.
+    function verifyPassword(password) {
+        return Daemon.currentWallet
+            ? Daemon.currentWallet.verifyPassword(password)
+            : Cosigner.verifyPassword(password)
+    }
+
     function handleAuthRequired(qtobject, method, authMessage) {
         console.log('auth using method ' + method)
 
@@ -875,8 +888,8 @@ ApplicationWindow
             }
         }
 
-        if (Daemon.currentWallet.verifyPassword('')) {
-            // wallet has no password
+        if (app.verifyPassword('')) {
+            // nothing here is protected by a password
             qtobject.authProceed()
             return
         }
@@ -903,7 +916,7 @@ ApplicationWindow
         if (method === 'wallet' || method === 'wallet_password_only') {
             var dialog = app.passwordDialog.createObject(app, authMessage ? {'title': authMessage} : {})
             dialog.passwordEntered.connect(function(password) {
-                if (Daemon.currentWallet.verifyPassword(password)) {
+                if (app.verifyPassword(password)) {
                     dialog.close()
                     qtobject.authProceed()
                 } else {
