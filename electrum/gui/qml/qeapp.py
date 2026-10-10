@@ -325,7 +325,7 @@ class QEAppController(BaseCrashReporter, QObject):
         for item in self._plugins.descriptions:
             s.append({
                 'name': item,
-                'fullname': self._plugins.descriptions[item]['fullname'],
+                'fullname': self._plugins.descriptions[item].fullname,
                 'enabled': bool(self._plugins.get(item))
                 })
 
