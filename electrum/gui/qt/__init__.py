@@ -298,11 +298,13 @@ class ElectrumGui(BaseElectrumGui, Logger):
             return
         self._cleaned_up = True
         self.app.new_window_signal.disconnect()
+        # it is safe to remove the filters, even if they weren't installed
         self.app.removeEventFilter(self.open_file_efilter)
         self.open_file_efilter = None
-        # it is save to remove the filter, even if it has not been installed
         self.app.removeEventFilter(self.screenshot_protection_efilter)
         self.screenshot_protection_efilter = None
+        self.app.removeEventFilter(self.efilter_no_rich_text)
+        self.efilter_no_rich_text = None
         # If there are still some open windows, try to clean them up.
         for window in list(self.windows):
             window.close()
