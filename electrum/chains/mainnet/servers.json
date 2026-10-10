@@ -1,4 +1,10 @@
 {
+    "icv6i4cvtso4mancisn2wjpci2cqqdazcfohdot42zppzbpmeba7gcad.onion": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.6.0"
+    },
     "5.9.83.108": {
       "pruning": "-",
       "s": "50002",
