@@ -3273,11 +3273,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         keystores = [ks for ks in self.get_keystores() if ks.may_have_password()]
         old_pw_keys = [ks.get_pw_key(old_pw) for ks in keystores]
         with self.db.lock:  # FIXME: use write_batch once new_storage_api is merged
-            if self._has_legacy_pw_hash_version():
-                new_pw_key = crypto.PasswordKey(new_pw, version=1) if new_pw else None
-            else:
-                # without a software keystore there is no secret to encrypt (hw device, watching-only)
-                new_pw_key = self.db.set_new_pw_params(new_pw if self.can_have_keystore_encryption() else None)
+            # without a software keystore there is no secret to encrypt (hw device, watching-only)
+            new_pw_key = self.db.set_new_pw_params(new_pw if self.can_have_keystore_encryption() else None)
             for ks, old_pw_key in zip(keystores, old_pw_keys):
                 ks.reencrypt_secrets(old_pw_key, new_pw_key)
             if keystores:
@@ -3290,10 +3287,29 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         # if wallet was previously unlocked, reset password_in_memory
         self.lock_wallet()
 
-    def _has_legacy_pw_hash_version(self) -> bool:
-        """Whether our keystores are encrypted with the legacy unsalted KDF. They keep it,
-        even across a password change: there is no migration yet. (see #4909)"""
-        return self.has_keystore_encryption() and not self.db.get('pw_salt')
+    def upgrade_pw_hash_version(self, password: str) -> None:
+        """Re-encrypt the secrets of our keystores using the latest pw hash version.
+
+        This is called when opening a wallet whose file is encrypted, as that is the only
+        moment where we already have the password and do not need to ask the user for it.
+        Wallets that only encrypt their keystore keep their old pw hash version until the
+        next password change. (see #4909)
+        """
+        if not self.has_keystore_encryption():
+            return
+        keystores = [k for k in self.get_keystores() if k.may_have_password()]
+        if all(k.pw_hash_version == crypto.PW_HASH_VERSION_LATEST for k in keystores):
+            return
+        self.logger.info(f"upgrading keystores to pw_hash_version={crypto.PW_HASH_VERSION_LATEST}")
+        old_pw_keys = [k.get_pw_key(password) for k in keystores]
+        with self.db.lock:  # FIXME: use write_batch once new_storage_api is merged
+            pw_key = self.db.get_or_create_pw_key(password)
+            for ks, old_pw_key in zip(keystores, old_pw_keys):
+                ks.reencrypt_secrets(old_pw_key, pw_key)
+            self.save_keystore()
+        # save changes. force full rewrite to rm remnants of the old ciphertexts
+        if self.storage and self.storage.file_exists():
+            self.db.write_and_force_consolidation()
 
     def sign_message(self, *, address: str, message: str, password, strip_inputs: bool = True) -> bytes:
         """Caller must handle UserFacingException."""
@@ -4360,12 +4376,8 @@ class Deterministic_Wallet(Abstract_Wallet):
         assert self.can_enable_disable_keystore(keystore)
         if not is_hardware_keystore and self.storage.is_encrypted_with_user_pw():
             # its secrets are encrypted with the key of the wallet, like ours
-            if self._has_legacy_pw_hash_version():
-                pw_key = crypto.PasswordKey(password, version=1)
-            else:
-                pw_key = self.db.get_or_create_pw_key(password)
             self.db.put('use_encryption', True)
-            keystore.reencrypt_secrets(None, pw_key)
+            keystore.reencrypt_secrets(None, self.db.get_or_create_pw_key(password))
         self._update_keystore(keystore)
 
     def disable_keystore(self, keystore: KeyStore) -> None:

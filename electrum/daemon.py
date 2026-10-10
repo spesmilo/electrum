@@ -543,6 +543,7 @@ class Daemon(Logger):
             upgrade: bool = False,
             config: SimpleConfig,
             unlock: bool = False,  # if set, always validate password, and unlock the wallet
+            check_only: bool = False,  # only checking the password: don't migrate
     ) -> Optional[Abstract_Wallet]:
         path = standardize_path(path)
         storage = WalletStorage(path, allow_partial_writes=config.WALLET_PARTIAL_WRITES)
@@ -559,6 +560,10 @@ class Daemon(Logger):
         wallet = Wallet(db, config=config)
         if unlock:
             wallet.unlock(password)
+        if storage.is_encrypted_with_user_pw() and not check_only:
+            # we just used the password to decrypt the file, so we have it at hand:
+            # this is our chance to move the keystores to the latest KDF. (see #4909)
+            wallet.upgrade_pw_hash_version(password)
         return wallet
 
     @with_wallet_lock
@@ -716,7 +721,7 @@ class Daemon(Logger):
             #                  hard-to-understand bugs will follow...
             if wallet is None:
                 try:
-                    wallet = self._load_wallet(path, old_password, upgrade=True, config=self.config)
+                    wallet = self._load_wallet(path, old_password, upgrade=True, config=self.config, check_only=True)
                 except util.InvalidPassword:
                     pass
                 except Exception:

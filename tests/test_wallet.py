@@ -409,10 +409,14 @@ class TestCreateRestoreWallet(WalletTestCase):
         self.assertEqual(1, len(wallet.get_receiving_addresses()))
 
 
+# a v13 wallet file with three imported private keys (p2pkh, the last one uncompressed)
+IMPORTED_WALLET_WITH_3_KEYS = '{"addr_history":{"1364Js2VG66BwRdkaoxAaFtdPb1eQgn8Dr":[],"15CyDgLffJsJgQrhcyooFH4gnVDG82pUrA":[],"1Exet2BhHsFxKTwhnfdsBMkPYLGvobxuW6":[]},"addresses":{"change":[],"receiving":["1364Js2VG66BwRdkaoxAaFtdPb1eQgn8Dr","1Exet2BhHsFxKTwhnfdsBMkPYLGvobxuW6","15CyDgLffJsJgQrhcyooFH4gnVDG82pUrA"]},"keystore":{"keypairs":{"0344b1588589958b0bcab03435061539e9bcf54677c104904044e4f8901f4ebdf5":"L2sED74axVXC4H8szBJ4rQJrkfem7UMc6usLCPUoEWxDCFGUaGUM","0389508c13999d08ffae0f434a085f4185922d64765c0bff2f66e36ad7f745cc5f":"L3Gi6EQLvYw8gEEUckmqawkevfj9s8hxoQDFveQJGZHTfyWnbk1U","04575f52b82f159fa649d2a4c353eb7435f30206f0a6cb9674fbd659f45082c37d559ffd19bea9c0d3b7dcc07a7b79f4cffb76026d5d4dff35341efe99056e22d2":"5JyVyXU1LiRXATvRTQvR9Kp8Rx1X84j2x49iGkjSsXipydtByUq"},"type":"imported"},"pruned_txo":{},"seed_version":13,"stored_height":-1,"transactions":{},"tx_fees":{},"txi":{},"txo":{},"use_encryption":false,"verified_tx3":{},"wallet_type":"standard","winpos-qt":[100,100,840,405]}'
+
+
 class TestWalletPassword(WalletTestCase):
 
     async def test_update_password_of_imported_wallet(self):
-        wallet_str = '{"addr_history":{"1364Js2VG66BwRdkaoxAaFtdPb1eQgn8Dr":[],"15CyDgLffJsJgQrhcyooFH4gnVDG82pUrA":[],"1Exet2BhHsFxKTwhnfdsBMkPYLGvobxuW6":[]},"addresses":{"change":[],"receiving":["1364Js2VG66BwRdkaoxAaFtdPb1eQgn8Dr","1Exet2BhHsFxKTwhnfdsBMkPYLGvobxuW6","15CyDgLffJsJgQrhcyooFH4gnVDG82pUrA"]},"keystore":{"keypairs":{"0344b1588589958b0bcab03435061539e9bcf54677c104904044e4f8901f4ebdf5":"L2sED74axVXC4H8szBJ4rQJrkfem7UMc6usLCPUoEWxDCFGUaGUM","0389508c13999d08ffae0f434a085f4185922d64765c0bff2f66e36ad7f745cc5f":"L3Gi6EQLvYw8gEEUckmqawkevfj9s8hxoQDFveQJGZHTfyWnbk1U","04575f52b82f159fa649d2a4c353eb7435f30206f0a6cb9674fbd659f45082c37d559ffd19bea9c0d3b7dcc07a7b79f4cffb76026d5d4dff35341efe99056e22d2":"5JyVyXU1LiRXATvRTQvR9Kp8Rx1X84j2x49iGkjSsXipydtByUq"},"type":"imported"},"pruned_txo":{},"seed_version":13,"stored_height":-1,"transactions":{},"tx_fees":{},"txi":{},"txo":{},"use_encryption":false,"verified_tx3":{},"wallet_type":"standard","winpos-qt":[100,100,840,405]}'
+        wallet_str = IMPORTED_WALLET_WITH_3_KEYS
         storage = WalletStorage(self.wallet_path)
         db = WalletDB(wallet_str, storage=storage, upgrade=True)
         wallet = Wallet(db, config=self.config)
@@ -492,8 +496,68 @@ class TestWalletPassword(WalletTestCase):
         self.assertIsNone(db.get('pw_salt'))
         ks.check_password(None)
 
+    def _write_wallet_with_legacy_pw_hash_version(self, password: str, *, encrypt_storage: bool):
+        """Writes to disk an imported wallet whose keystore still uses pw hash version 1,
+        i.e. what an Electrum older than the new KDF would have written.
+        """
+        storage = WalletStorage(self.wallet_path)
+        db = WalletDB(IMPORTED_WALLET_WITH_3_KEYS, storage=storage, upgrade=True)
+        wallet = Wallet(db, config=self.config)
+        wallet.update_password(None, password, encrypt_storage=encrypt_storage)
+        ks = wallet.keystore
+        v3_pw_key, v1_pw_key = ks.get_pw_key(password), crypto.PasswordKey(password, version=1)
+        ks.keypairs = {pubkey: crypto.pw_encode(crypto.pw_decode(privkey, v3_pw_key), v1_pw_key)
+                       for pubkey, privkey in ks.keypairs.items()}
+        ks.pw_hash_version = 1
+        wallet.db.set_new_pw_params(None)
+        wallet.save_keystore()
+        wallet.db.write_and_force_consolidation()
+        return wallet
+
+    async def test_pw_hash_version_upgraded_when_opening_encrypted_file(self):
+        """An encrypted wallet file hands us the password when it is opened, so its
+        keystores move to the latest pw hash version right then. (see #4909)
+        """
+        password = "1234"
+        wallet = self._write_wallet_with_legacy_pw_hash_version(password, encrypt_storage=True)
+        self.assertEqual(1, wallet.keystore.pw_hash_version)
+        await wallet.stop()
+
+        wallet = Daemon._load_wallet(self.wallet_path, password, config=self.config)
+        self.assertEqual(crypto.PW_HASH_VERSION_LATEST, wallet.keystore.pw_hash_version)
+        self.assertEqual(crypto.PW_HASH_SALT_LENGTH, len(bytes.fromhex(wallet.db.get('pw_salt'))))
+        wallet.check_password(password)
+        with self.assertRaises(InvalidPassword):
+            wallet.check_password("wrong password")
+        pw_salt = wallet.db.get('pw_salt')
+        await wallet.stop()
+
+        # the upgrade was persisted, and opening the file again does not redo it
+        wallet = Daemon._load_wallet(self.wallet_path, password, config=self.config)
+        self.assertEqual(crypto.PW_HASH_VERSION_LATEST, wallet.keystore.pw_hash_version)
+        self.assertEqual(pw_salt, wallet.db.get('pw_salt'))
+        wallet.check_password(password)
+        await wallet.stop()
+
+    async def test_pw_hash_version_kept_when_file_is_not_encrypted(self):
+        """If only the keystore is encrypted, we have no password when the file is
+        opened, so the upgrade has to wait for the next password change.
+        """
+        password = "1234"
+        wallet = self._write_wallet_with_legacy_pw_hash_version(password, encrypt_storage=False)
+        await wallet.stop()
+
+        wallet = Daemon._load_wallet(self.wallet_path, None, config=self.config)
+        self.assertEqual(1, wallet.keystore.pw_hash_version)
+        wallet.check_password(password)
+
+        wallet.update_password(password, password)
+        self.assertEqual(crypto.PW_HASH_VERSION_LATEST, wallet.keystore.pw_hash_version)
+        wallet.check_password(password)
+        await wallet.stop()
+
     async def test_update_password_with_app_restarts(self):
-        wallet_str = '{"addr_history":{"1364Js2VG66BwRdkaoxAaFtdPb1eQgn8Dr":[],"15CyDgLffJsJgQrhcyooFH4gnVDG82pUrA":[],"1Exet2BhHsFxKTwhnfdsBMkPYLGvobxuW6":[]},"addresses":{"change":[],"receiving":["1364Js2VG66BwRdkaoxAaFtdPb1eQgn8Dr","1Exet2BhHsFxKTwhnfdsBMkPYLGvobxuW6","15CyDgLffJsJgQrhcyooFH4gnVDG82pUrA"]},"keystore":{"keypairs":{"0344b1588589958b0bcab03435061539e9bcf54677c104904044e4f8901f4ebdf5":"L2sED74axVXC4H8szBJ4rQJrkfem7UMc6usLCPUoEWxDCFGUaGUM","0389508c13999d08ffae0f434a085f4185922d64765c0bff2f66e36ad7f745cc5f":"L3Gi6EQLvYw8gEEUckmqawkevfj9s8hxoQDFveQJGZHTfyWnbk1U","04575f52b82f159fa649d2a4c353eb7435f30206f0a6cb9674fbd659f45082c37d559ffd19bea9c0d3b7dcc07a7b79f4cffb76026d5d4dff35341efe99056e22d2":"5JyVyXU1LiRXATvRTQvR9Kp8Rx1X84j2x49iGkjSsXipydtByUq"},"type":"imported"},"pruned_txo":{},"seed_version":13,"stored_height":-1,"transactions":{},"tx_fees":{},"txi":{},"txo":{},"use_encryption":false,"verified_tx3":{},"wallet_type":"standard","winpos-qt":[100,100,840,405]}'
+        wallet_str = IMPORTED_WALLET_WITH_3_KEYS
         storage = WalletStorage(self.wallet_path)
         db = WalletDB(wallet_str, storage=storage, upgrade=True)
         wallet = Wallet(db, config=self.config)
