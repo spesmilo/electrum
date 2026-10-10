@@ -8,9 +8,9 @@
 from typing import Optional, List, Set, FrozenSet, Tuple, Union
 
 from .ur import UR
-from .fountain_encoder import FountainEncoder, Part as FountainEncoderPart
+from .fountain_encoder import Part as FountainEncoderPart
 from .fountain_decoder import FountainDecoder
-from .bytewords import *
+from .bytewords import Bytewords, Bytewords_Style_minimal
 from .utils import drop_first, is_ur_type
 
 
@@ -27,10 +27,6 @@ class InvalidPathLength(Exception):
 
 
 class InvalidSequenceComponent(Exception):
-    pass
-
-
-class InvalidFragment(Exception):
     pass
 
 
@@ -91,7 +87,7 @@ class URDecoder:
             if seq_num < 1 or seq_len < 1:
                 raise InvalidSequenceComponent()
             return (seq_num, seq_len)
-        except:
+        except ValueError:
             raise InvalidSequenceComponent()
 
     def validate_part(self, type: str) -> bool:
@@ -143,11 +139,8 @@ class URDecoder:
                 self.result = self.fountain_decoder.result_error()
 
             return True
-        except Exception as err:
+        except Exception:
             return False
-
-    def expected_type(self) -> Optional[str]:
-        return self.expected_type
 
     def expected_part_count(self) -> int:
         return self.fountain_decoder.expected_part_count()

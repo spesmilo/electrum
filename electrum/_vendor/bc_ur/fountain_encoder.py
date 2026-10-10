@@ -6,85 +6,55 @@
 #
 
 import math
-from typing import Optional, List, Set, Iterable
+from dataclasses import dataclass
+from typing import Optional, List, Iterable
 
-from .cbor_lite import CBORDecoder, CBOREncoder
+from ... import cbor
 from .fountain_utils import choose_fragments
-from .utils import split, crc32_int, xor_into, data_to_hex
-from .constants import MAX_UINT32, MAX_UINT64
+from .utils import crc32_int, xor_into
+from .constants import MAX_UINT32
 
 
 class InvalidHeader(Exception):
     pass
 
 
+@dataclass(frozen=True)
 class Part:
+    MAX_SEQ_LEN = 10_000  # limit for untrusted input (QR codes)
 
-    def __init__(self, seq_num: int, seq_len: int, message_len: int, checksum: int, data: bytes) -> None:
-        self.seq_num = seq_num
-        self.seq_len = seq_len
-        self.message_len = message_len
-        self.checksum = checksum
-        self.data = data
+    seq_num: int
+    seq_len: int
+    message_len: int
+    checksum: int
+    data: bytes
+
+    def __post_init__(self) -> None:
+        if not all(type(x) is int for x in (self.seq_num, self.seq_len, self.message_len, self.checksum)):
+            raise InvalidHeader('header field is not an int')
+        if type(self.data) is not bytes:
+            raise InvalidHeader('data is not bytes')
+        if not (1 <= self.seq_num <= MAX_UINT32 and 0 <= self.checksum <= MAX_UINT32):
+            raise InvalidHeader('seq_num or checksum out of range')
+        if not (1 <= self.seq_len <= self.MAX_SEQ_LEN and self.message_len >= 1 and len(self.data) >= 1):
+            raise InvalidHeader('seq_len, message_len or fragment length out of range')
+        # all fragments have the same length, the last one is padded
+        if self.seq_len != -(-self.message_len // len(self.data)):
+            raise InvalidHeader('seq_len does not match message_len and fragment length')
 
     @staticmethod
     def from_cbor(cbor_buf: bytes) -> 'Part':
         try:
-            decoder = CBORDecoder(cbor_buf)
-            (array_size, _) = decoder.decodeArraySize()
-            if array_size != 5:
-                raise InvalidHeader()
+            obj = cbor.loads(cbor_buf)
+        except Exception as e:
+            raise InvalidHeader('invalid CBOR') from e
+        if not isinstance(obj, list) or len(obj) != 5:
+            raise InvalidHeader('not an array of 5 elements')
+        seq_num, seq_len, message_len, checksum, data = obj
+        return Part(seq_num, seq_len, message_len, checksum, data)
 
-            (seq_num, _) = decoder.decodeUnsigned()
-            if seq_num > MAX_UINT64:  # TODO: Do something better with this check
-                raise InvalidHeader()
-
-            (seq_len, _) = decoder.decodeUnsigned()
-            if seq_len > MAX_UINT64:
-                raise InvalidHeader()
-
-            (message_len, _) = decoder.decodeUnsigned()
-            if message_len > MAX_UINT64:
-                raise InvalidHeader()
-
-            (checksum, _) = decoder.decodeUnsigned()
-            if checksum > MAX_UINT64:
-                raise InvalidHeader()
-
-            (data, _) = decoder.decodeBytes()
-
-            return Part(seq_num, seq_len, message_len, checksum, data)
-        except Exception as err:
-            raise InvalidHeader()
-
-    def cbor(self) -> bytearray:
-        encoder = CBOREncoder()
-        encoder.encodeArraySize(5)
-        encoder.encodeInteger(self.seq_num)
-        encoder.encodeInteger(self.seq_len)
-        encoder.encodeInteger(self.message_len)
-        encoder.encodeInteger(self.checksum)
-        encoder.encodeBytes(self.data)
-        return encoder.get_bytes()
-
-    def seq_num(self) -> int:
-        return self.seq_num
-
-    def seq_len(self) -> int:
-        return self.seq_len
-
-    def message_len(self) -> int:
-        return self.message_len
-
-    def checksum(self) -> int:
-        return self.checksum
-
-    def data(self) -> bytes:
-        return self.data
-
-    def description(self) -> str:
-        return "seqNum:{}, seqLen:{}, messageLen:{}, checksum:{}, data:{}".format(
-            self.seq_num, self.seq_len, self.message_len, self.checksum, data_to_hex(self.data))
+    def to_cbor(self) -> bytes:
+        return cbor.dumps([self.seq_num, self.seq_len, self.message_len, self.checksum, self.data])
 
 
 class FountainEncoder:
@@ -114,20 +84,11 @@ class FountainEncoder:
 
     @staticmethod
     def partition_message(message: bytes, fragment_len: int) -> List[bytes]:
-        remaining = message
         fragments = []
-        while len(remaining) != 0:
-            (fragment, remaining) = split(remaining, fragment_len)
-            padding = fragment_len - len(fragment)
-            while padding > 0:
-                fragment.append(0)
-                padding -= 1
-            fragments.append(fragment)
-
+        for i in range(0, len(message), fragment_len):
+            # the last fragment is padded with zeroes
+            fragments.append(bytes(message[i:i + fragment_len]).ljust(fragment_len, b'\x00'))
         return fragments
-
-    def last_part_indexes(self) -> Set[int]:
-        return self.last_part_indexes
 
     def seq_len(self) -> int:
         return len(self.fragments)
@@ -142,8 +103,7 @@ class FountainEncoder:
         return self.seq_len() == 1
 
     def next_part(self) -> Part:
-        self.seq_num += 1
-        self.seq_num = self.seq_num % MAX_UINT32  # wrap at period 2^32
+        self.seq_num = (self.seq_num + 1) & MAX_UINT32  # wrap at period 2^32
         indexes = choose_fragments(self.seq_num, self.seq_len(), self.checksum)
         mixed = self.mix(indexes)
         data = bytes(mixed)

@@ -5,10 +5,10 @@
 # Licensed under the "BSD-2-Clause Plus Patent License"
 #
 
-from typing import Iterable, Set
+from typing import Iterable
 
 from .fountain_encoder import FountainEncoder, Part
-from .bytewords import *
+from .bytewords import Bytewords, Bytewords_Style_minimal
 from .ur import UR
 
 
@@ -23,9 +23,6 @@ class UREncoder:
     def encode(ur: UR) -> str:
         body = Bytewords.encode(Bytewords_Style_minimal, ur.cbor)
         return UREncoder.encode_ur([ur.type, body])
-
-    def last_part_indexes(self) -> Set[int]:
-        return self.fountain_encoder.last_part_indexes()
 
     # `True` if the minimal number of parts to transmit the message have been
     # generated. Parts generated when this is `true` will be fountain codes
@@ -48,7 +45,7 @@ class UREncoder:
     @staticmethod
     def encode_part(type: str, part: Part) -> str:
         seq = '{}-{}'.format(part.seq_num, part.seq_len)
-        body = Bytewords.encode(Bytewords_Style_minimal, part.cbor())
+        body = Bytewords.encode(Bytewords_Style_minimal, part.to_cbor())
         result = UREncoder.encode_ur([type, seq, body])
         return result
 

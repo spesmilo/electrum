@@ -15,7 +15,12 @@ class RandomSampler:
             assert p > 0
 
         # Normalize given probabilities
-        total = sum(probs)
+        # note: The spec requires naive left-to-right summation. The builtin sum()
+        #       uses compensated summation for floats since python 3.12, which can
+        #       differ in the last bits, and hence produce different alias tables.
+        total = 0.0
+        for p in probs:
+            total += p
         assert total > 0
 
         n = len(probs)

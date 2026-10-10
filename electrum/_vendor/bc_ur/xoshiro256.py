@@ -5,19 +5,11 @@
 # Licensed under the "BSD-2-Clause Plus Patent License"
 #
 
-import sys
+import hashlib
 from typing import Optional, Sequence
 
-try:
-    import uhashlib as hashlib
-except:
-    try:
-        import hashlib
-    except:
-        sys.exit("ERROR: No hashlib or uhashlib implementation found (required for sha256)")
-
-from ur.utils import string_to_bytes, int_to_bytes
-from ur.constants import MAX_UINT64
+from .utils import string_to_bytes, int_to_bytes
+from .constants import MAX_UINT64
 
 # Original Info:
 # Written in 2018 by David Blackman and Sebastiano Vigna (vigna@acm.org)
@@ -42,10 +34,6 @@ from ur.constants import MAX_UINT64
 
 def rotl(x: int, k: int) -> int:
     return ((x << k) | (x >> (64 - k))) & MAX_UINT64
-
-
-JUMP = [0x180ec6d33cfd0aba, 0xd5a61266f0c9392c, 0xa9582618e03fc9aa, 0x39abdc4529b1661c]
-LONG_JUMP = [0x76e15d3efefdcbbf, 0xc5004e441c522fb3, 0x77710069854ee241, 0x39109bb02acbe635]
 
 
 class Xoshiro256:
@@ -129,45 +117,3 @@ class Xoshiro256:
         for i in range(count):
             result.append(self.next_byte())
         return result
-
-    def jump(self) -> None:
-        global JUMP
-
-        s0 = 0
-        s1 = 0
-        s2 = 0
-        s3 = 0
-        for i in range(len(JUMP)):
-            for b in range(64):
-                if JUMP[i] & (1 << b):
-                    s0 ^= self.s[0]
-                    s1 ^= self.s[1]
-                    s2 ^= self.s[2]
-                    s3 ^= self.s[3]
-                self.next()
-
-        self.s[0] = s0
-        self.s[1] = s1
-        self.s[2] = s2
-        self.s[3] = s3
-
-    def long_jump(self) -> None:
-        global LONG_JUMP
-
-        s0 = 0
-        s1 = 0
-        s2 = 0
-        s3 = 0
-        for i in range(len(LONG_JUMP)):
-            for b in range(64):
-                if LONG_JUMP[i] & (1 << b):
-                    s0 ^= self.s[0]
-                    s1 ^= self.s[1]
-                    s2 ^= self.s[2]
-                    s3 ^= self.s[3]
-                self.next()
-
-        self.s[0] = s0
-        self.s[1] = s1
-        self.s[2] = s2
-        self.s[3] = s3

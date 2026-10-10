@@ -5,18 +5,19 @@
 # Licensed under the "BSD-2-Clause Plus Patent License"
 #
 
+import re
+import zlib
 from typing import List, Tuple, Iterable, MutableSequence, AnyStr
 
-from .crc32 import crc32, crc32n
+_UR_TYPE_RE = re.compile(r'[a-z0-9-]+')
 
 
 def crc32_bytes(buf: bytes) -> bytes:
-    checksum = crc32n(buf)
-    return checksum
+    return crc32_int(buf).to_bytes(4, 'big')
 
 
 def crc32_int(buf: bytes) -> int:
-    return crc32(buf)
+    return zlib.crc32(buf)
 
 
 def data_to_hex(buf: bytes) -> str:
@@ -36,14 +37,8 @@ def string_to_bytes(s: str) -> bytes:
     return bytes(s, 'utf8')
 
 
-def is_ur_type(ch: str) -> bool:
-    if 'a' <= ch and ch <= 'z':
-        return True
-    if '0' <= ch and ch <= '9':
-        return True
-    if ch == '-':
-        return True
-    return False
+def is_ur_type(s: str) -> bool:
+    return _UR_TYPE_RE.fullmatch(s) is not None
 
 
 def partition(s: AnyStr, n: int) -> List[AnyStr]:
@@ -55,11 +50,6 @@ def partition(s: AnyStr, n: int) -> List[AnyStr]:
 # The second entry in the tuple has the remaining values.
 def split(buf: AnyStr, count: int) -> Tuple[AnyStr, AnyStr]:
     return (buf[0:count], buf[count:])
-
-
-def join_lists(lists: List[list]) -> list:
-    # return [y for x in lists for y in x]
-    return sum(lists, [])
 
 
 def join_bytes(list_of_ba: Iterable[bytes]) -> bytes:

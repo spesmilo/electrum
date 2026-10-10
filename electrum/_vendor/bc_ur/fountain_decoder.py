@@ -5,11 +5,12 @@
 # Licensed under the "BSD-2-Clause Plus Patent License"
 #
 
+from dataclasses import dataclass
 from typing import Optional, List, Dict, Set, FrozenSet, Union, Iterable
 
 from .fountain_encoder import Part as FountainEncoderPart
 from .fountain_utils import choose_fragments, contains, is_strict_subset, set_difference
-from .utils import join_lists, join_bytes, crc32_int, xor_with, take_first
+from .utils import join_bytes, crc32_int, xor_with, take_first
 
 
 class InvalidPart(Exception):
@@ -20,30 +21,24 @@ class InvalidChecksum(Exception):
     pass
 
 
+@dataclass(frozen=True)
+class Part:
+    indexes: FrozenSet[int]
+    data: bytes
+
+    @classmethod
+    def from_encoder_part(cls, p: FountainEncoderPart) -> 'Part':
+        return cls(frozenset(choose_fragments(p.seq_num, p.seq_len, p.checksum)), p.data)
+
+    def is_simple(self) -> bool:
+        return len(self.indexes) == 1
+
+    def index(self) -> int:
+        # TODO: Not efficient
+        return list(self.indexes)[0]
+
+
 class FountainDecoder:
-    class Part:
-        def __init__(self, indexes: Iterable[int], data: bytes) -> None:
-            self.indexes = frozenset(indexes)
-            self.data = data
-
-        @classmethod
-        def from_encoder_part(cls, p: FountainEncoderPart) -> 'FountainDecoder.Part':
-            return cls(choose_fragments(p.seq_num, p.seq_len, p.checksum), p.data[:])
-
-        def indexes(self) -> FrozenSet[int]:
-            return self.indexes
-
-        def data(self) -> bytes:
-            return self.data
-
-        def is_simple(self) -> bool:
-            return len(self.indexes) == 1
-
-        def index(self) -> int:
-            # TODO: Not efficient
-            return list(self.indexes)[0]
-
-    # FountainDecoder
     def __init__(self) -> None:
         self.received_part_indexes: Set[int] = set()
         self.last_part_indexes: Optional[FrozenSet[int]] = None
@@ -53,9 +48,9 @@ class FountainDecoder:
         self.expected_fragment_len: Optional[int] = None
         self.expected_message_len: Optional[int] = None
         self.expected_checksum: Optional[int] = None
-        self.simple_parts: Dict[FrozenSet[int], FountainDecoder.Part] = {}
-        self.mixed_parts: Dict[FrozenSet[int], FountainDecoder.Part] = {}
-        self.queued_parts: List[FountainDecoder.Part] = []
+        self.simple_parts: Dict[FrozenSet[int], Part] = {}
+        self.mixed_parts: Dict[FrozenSet[int], Part] = {}
+        self.queued_parts: List[Part] = []
 
     def expected_part_count(self) -> int:
         assert self.expected_part_indexes is not None
@@ -96,7 +91,7 @@ class FountainDecoder:
             return False
 
         # Add this part to the queue
-        p = FountainDecoder.Part.from_encoder_part(encoder_part)
+        p = Part.from_encoder_part(encoder_part)
         self.last_part_indexes = p.indexes
         self.enqueue(p)
 
@@ -106,8 +101,6 @@ class FountainDecoder:
 
         # Keep track of how many parts we've processed
         self.processed_parts_count += 1
-
-        # self.print_part_end()
 
         return True
 
@@ -122,13 +115,11 @@ class FountainDecoder:
 
     def process_queue_item(self) -> None:
         part = self.queued_parts.pop(0)
-        # self.print_part(part)
 
         if part.is_simple():
             self.process_simple_part(part)
         else:
             self.process_mixed_part(part)
-        # self.print_state()
 
     def reduce_mixed_by(self, p: Part) -> None:
         # Reduce all the current mixed parts by the given part
@@ -156,7 +147,7 @@ class FountainDecoder:
             new_indexes = set_difference(a.indexes, b.indexes)
             # The new data in the revised part are `a` XOR `b`
             new_data = xor_with(bytearray(a.data), b.data)
-            return self.Part(new_indexes, new_data)
+            return Part(new_indexes, new_data)
         else:
             # `a` is not reducable by `b`, so return a
             return a
@@ -246,41 +237,3 @@ class FountainDecoder:
 
         # This part should be processed
         return True
-
-    # debugging
-    def indexes_to_string(self, indexes: Iterable[int]) -> str:
-        i = list(indexes)
-        i.sort()
-        s = [str(j) for j in i]
-        return '[{}]'.format(', '.join(s))
-
-    def result_description(self) -> str:
-        if self.result is None:
-            return 'None'
-
-        if self.is_success():
-            return '{} bytes'.format(len(self.result))
-        elif self.is_failure():
-            return 'Exception: {}'.format(self.result)
-        else:
-            assert False
-
-    def print_part(self, p: Part) -> None:
-        print('part indexes: {}'.format(self.indexes_to_string(p.indexes)))
-
-    def print_part_end(self) -> None:
-        expected = self.expected_part_count() if self.expected_part_indexes is not None else 'None'
-        percent = int(round(self.estimated_percent_complete() * 100))
-        print("processed: {}, expected: {}, received: {}, percent: {}%".format(self.processed_parts_count, expected, len(self.received_part_indexes), percent))
-
-    def print_state(self) -> None:
-        parts = self.expected_part_count() if self.expected_part_indexes is not None else 'None'
-        received = self.indexes_to_string(self.received_part_indexes)
-        mixed = []
-        for indexes, p in self.mixed_parts.items():
-            mixed.append(self.indexes_to_string(indexes))
-
-        mixed_s = "[{}]".format(', '.join(mixed))
-        queued = len(self.queued_parts)
-        res = self.result_description()
-        print('parts: {}, received: {}, mixed: {}, queued: {}, result: {}'.format(parts, received, mixed_s, queued, res))
