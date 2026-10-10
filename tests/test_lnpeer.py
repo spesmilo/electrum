@@ -37,7 +37,7 @@ from electrum.lnpeer import CoopCloseFailure
 from electrum.lntransport import LNPeerAddr
 from electrum.crypto import privkey_to_pubkey
 from electrum.lnutil import Keypair, PaymentFailure, LnFeatures, HTLCOwner, PaymentFeeBudget, RECEIVED
-from electrum.lnchannel import ChannelState, PeerState, Channel
+from electrum.lnchannel import ChannelState, PeerState, Channel, CF_ANNOUNCE_CHANNEL
 from electrum.lnrouter import LNPathFinder, PathEdge, LNPathInconsistent
 from electrum.channel_db import ChannelDB, InvalidGossipMsg
 from electrum.lnworker import LNWallet, NoPathFound, SentHtlcInfo, PaySession, LNPeerManager
@@ -1411,6 +1411,74 @@ class TestPeerDirect(TestPeer):
                 await f()
 
 
+    async def test_trampoline_forward_budget_must_cover_our_cltv_delta(self):
+        # this test is about forwarding. It is in TestPeerDirect because it only requires 2 peers.
+        """The cltv budget of a trampoline forward must also cover the cltv_delta of our own
+        outgoing channel. Otherwise the outgoing htlc may expire together with the incoming one,
+        and we would have no time to claim the incoming htlc after learning the preimage.
+        """
+        graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
+        p1, p2 = graph.peers.values()
+        w1, w2 = graph.workers.values()
+        alice_channel = graph.channels[('alice', 'bob')][0]
+        w2.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS = True
+        w2.config.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS = True
+
+        forwarded_htlcs = []
+        orig_pay = p2.pay
+        def pay(**kwargs):
+            htlc = orig_pay(**kwargs)
+            forwarded_htlcs.append(htlc)
+            return htlc
+        p2.pay = pay
+
+        async def run():
+            await util.wait_for2(p1.initialized, 1)
+            await util.wait_for2(p2.initialized, 1)
+            # Bob is asked to relay to Alice, so that he uses his direct channel with her.
+            # The fee budget (1000 msat) covers his fee, so only the cltv budget varies.
+            with self.subTest(msg="cltv budget below our cltv_delta"):
+                send_trampoline_htlc_to_forward(
+                    p1=p1, w1=w1, w2=w2, chan=alice_channel,
+                    payment_hash=os.urandom(32),
+                    outer_payment_secret=os.urandom(32),
+                    htlc_amount_msat=2000,
+                    amt_to_forward=1000,
+                    inner_cltv_delta=143,
+                    outgoing_node_id=w1.node_keypair.pubkey,
+                )
+                await self.wait_until(lambda: htlc_tracker.num_failed == 1)
+                self.assertEqual([], forwarded_htlcs)
+
+            with self.subTest(msg="cltv budget covers our cltv_delta"):
+                incoming_htlc = send_trampoline_htlc_to_forward(
+                    p1=p1, w1=w1, w2=w2, chan=alice_channel,
+                    payment_hash=os.urandom(32),
+                    outer_payment_secret=os.urandom(32),
+                    htlc_amount_msat=2000,
+                    amt_to_forward=1000,
+                    inner_cltv_delta=144,
+                    outgoing_node_id=w1.node_keypair.pubkey,
+                )
+                await self.wait_until(lambda: forwarded_htlcs)
+                # 144 minus one block, because _maybe_forward_trampoline skews the height towards the past
+                self.assertEqual(143, incoming_htlc.cltv_abs - forwarded_htlcs[0].cltv_abs)
+
+            raise SuccessfulTest()
+
+        async def f():
+            async with OldTaskGroup() as group:
+                await group.spawn(p1._message_loop())
+                await group.spawn(p1.htlc_switch())
+                await group.spawn(p2._message_loop())
+                await group.spawn(p2.htlc_switch())
+                await asyncio.sleep(0.01)
+                await group.spawn(run())
+
+        htlc_tracker = SenderHtlcResolvedTracker.register()
+        with self.assertRaises(SuccessfulTest):
+            await f()
+
     async def test_refuse_to_forward_htlc_that_corresponds_to_payreq_we_created(self):
         """Alice holds an invoice created by Bob, hence she knows RHASH and Bob's payment_secret.
         She sends Bob a dust htlc whose outer onion is addressed to Bob (using the invoice's
@@ -2501,6 +2569,7 @@ class TestPeerForwarding(TestPeer):
             graph.workers['bob'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['bob'].node_keypair.pubkey),
             graph.workers['carol'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['carol'].node_keypair.pubkey),
         }
+        graph.workers['alice'].config.INITIAL_TRAMPOLINE_FEE_LEVEL = 6  # set high so the first attempt would succeed
         with self.assertRaises(PaymentDone):
             await self._run_mpp(graph,{'alice_uses_trampoline': True, 'attempts': 1})
 
@@ -2686,6 +2755,7 @@ class TestPeerForwarding(TestPeer):
     async def test_payment_trampoline_e2e_alice_t1_dave(self):
         with self.assertRaises(PaymentDone):
             graph = self.create_square_graph(direct=True, is_legacy=False)
+            graph.workers['alice'].config.INITIAL_TRAMPOLINE_FEE_LEVEL = 6  # set high so the first attempt would succeed
             await self._run_trampoline_payment(graph)
 
     async def test_payment_trampoline_e2e_alice_t1_t2_dave(self):
@@ -2720,26 +2790,76 @@ class TestPeerForwarding(TestPeer):
                 attempts=2,
             )
 
-    async def test_payment_trampoline_e2e_lazy(self):
+    async def _test_lazy_trampoline(self, is_legacy):
         # alice -> T1_bob -> T2_carol -> T3_dave -> edward
+        # Bob is the lazy trampoline (no gossip)
         graph_definition = self.GRAPH_DEFINITIONS['line_graph']
+        workers = self.prepare_lnwallets(graph_definition)
+        # carol does not advertise trampoline, so bob does not hint her in subtest 1.
+        # subtests 2 and 3 rely on the hardcoded list, where she is added as forwarder.
+        workers['carol'].features &= ~LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM
+        graph = self.prepare_chans_and_peers_in_graph(graph_definition, workers=workers)
+        graph.workers['alice'].config.INITIAL_TRAMPOLINE_FEE_LEVEL = 6  # so that one attempt is enough
+        if is_legacy:
+            graph.workers['edward'].features = graph.workers['edward'].features ^ LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM
+
+        # bob must not send back to alice: make channel private
+        bob_alice_channel = graph.channels[('bob', 'alice')][0]
+        self.assertTrue(bob_alice_channel.is_public())
+        bob_alice_channel.constraints.flags = bob_alice_channel.constraints.flags ^ CF_ANNOUNCE_CHANNEL
+        self.assertFalse(bob_alice_channel.is_public())
+
+        with self.subTest(msg="carol is not a trampoline: two attempts fail"):
+            with self.assertRaises(NoPathFound):
+                await self._run_trampoline_payment(
+                    graph, sender_name='alice',
+                    destination_name='edward',
+                    trampoline_forwarders=('bob', 'dave'),
+                    trampoline_users=('alice', 'bob'),
+                    attempts=2,
+                )
+        with self.subTest(msg="carol is a trampoline: one attempt fails"):
+            with self.assertRaises(NoPathFound):
+                await self._run_trampoline_payment(
+                    graph, sender_name='alice',
+                    destination_name='edward',
+                    trampoline_forwarders=('bob', 'carol', 'dave'),
+                    trampoline_users=('alice', 'bob'),
+                    attempts=1,
+                )
+        with self.subTest(msg="carol is a trampoline: two attempts succeed"):
+            with self.assertRaises(PaymentDone):
+                await self._run_trampoline_payment(
+                    graph, sender_name='alice',
+                    destination_name='edward',
+                    trampoline_forwarders=('bob', 'carol', 'dave'),
+                    trampoline_users=('alice', 'bob'),
+                    attempts=2,
+                )
+
+    async def test_lazy_trampoline_e2e(self):
+        await self._test_lazy_trampoline(is_legacy=False)
+
+    async def test_lazy_trampoline_legacy(self):
+        await self._test_lazy_trampoline(is_legacy=True)
+
+    async def test_trampoline_forward_mpp_over_private_direct_channels(self):
+        # alice -> T1_bob -> carol
+        # bob has two private channels with carol, none of them can carry the payment alone
+        graph_definition = self.GRAPH_DEFINITIONS['line_graph']
+        small_channel = low_fee_channel.copy()
+        small_channel['local_balance_msat'] = int(100_000_000 * 0.75)
+        graph_definition['bob']['channels']['carol'] = [small_channel, small_channel.copy()]
+        del graph_definition['carol']['channels']['dave']  # else carol's invoice would only hint dave
         graph = self.prepare_chans_and_peers_in_graph(graph_definition)
-        with self.assertRaises(NoPathFound):
-            await self._run_trampoline_payment(
-                graph, sender_name='alice',
-                destination_name='edward',
-                trampoline_forwarders=('bob', 'dave'),
-                trampoline_users=('alice', 'bob'),
-                attempts=3, # fails with only 2
-            )
+        for chan in graph.channels[('bob', 'carol')]:
+            chan.constraints.flags &= ~CF_ANNOUNCE_CHANNEL
+        graph.workers['carol'].features |= LnFeatures.BASIC_MPP_OPT
+        graph.workers['alice'].config.INITIAL_TRAMPOLINE_FEE_LEVEL = 6  # so that one attempt is enough
         with self.assertRaises(PaymentDone):
             await self._run_trampoline_payment(
-                graph, sender_name='alice',
-                destination_name='edward',
-                trampoline_forwarders=('bob', 'carol', 'dave'),
-                trampoline_users=('alice', 'bob'),
-                attempts=3, # fails with only 2
-            )
+                graph, destination_name='carol', trampoline_forwarders=('bob',), attempts=1)
+
 
     async def test_multi_trampoline_payment(self):
         """
@@ -2751,6 +2871,7 @@ class TestPeerForwarding(TestPeer):
         # payment amount is 100_000_000 msat, size the channels so that alice must use both to succeed
         graph_definition['alice']['channels']['bob'][0]['local_balance_msat'] = int(100_000_000 * 0.75)
         graph_definition['alice']['channels']['carol'][0]['local_balance_msat'] = int(100_000_000 * 0.75)
+        graph_definition['bob']['channels']['dave'] = [low_fee_channel]
         g = self.prepare_chans_and_peers_in_graph(graph_definition)
         w = g.workers['alice'], g.workers['carol'], g.workers['bob'], g.workers['dave']
         alice_w, carol_w, bob_w, dave_w = w
