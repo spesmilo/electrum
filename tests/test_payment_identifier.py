@@ -7,6 +7,7 @@ from electrum.invoices import Invoice
 from electrum.payment_identifier import (
     maybe_extract_bech32_lightning_payment_identifier, PaymentIdentifier, PaymentIdentifierType,
     PaymentIdentifierState, invoice_from_payment_identifier, remove_uri_prefix, outputs_to_multiline_csv,
+    parse_script,
 )
 from electrum.lnurl import LNURL6Data, LNURL3Data, LNURLError
 from electrum.transaction import PartialTxOutput
@@ -381,6 +382,22 @@ class TestPaymentIdentifier(ElectrumTestCase):
             pi = PaymentIdentifier(None, pi_str)
             self.assertTrue(pi.is_valid())
             self.assertTrue(pi.is_available())
+
+        for pi_str in ['script()', 'script(  )']:
+            pi = PaymentIdentifier(None, pi_str)
+            self.assertFalse(pi.is_valid())
+
+    def test_parse_script(self):
+        spk = bytes.fromhex('6a05baddc0ffee')
+        self.assertEqual(spk, parse_script('script(OP_RETURN baddc0ffee)'))
+        self.assertEqual(spk, parse_script('  script(OP_RETURN baddc0ffee)\n'))
+        # not script(...) syntax
+        for text in ['', 'bc1qj3zx2zc4rpv3npzmznxhdxzn0wm7pzqp8p2293', 'some.domain', 'script(OP_RETURN']:
+            self.assertIsNone(parse_script(text))
+        # script(...) syntax, but invalid or empty
+        for text in ['script(OP_RETRUN)', 'script(OP_RETURN zz)', 'script()', 'script(  )']:
+            with self.assertRaises(ValueError):
+                parse_script(text)
 
     def test_email_and_domain(self):
         # TODO resolve mock
