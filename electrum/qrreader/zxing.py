@@ -30,19 +30,22 @@ elif sys.platform == 'win32':
 else:
     LIBNAME = 'libZXing.so'
 
-# Pin ZXING to a major version to prevent the API from silently changing
-# e.g. when loading a system provided library or bumping the hash pin
-ZXING_MAJOR_VERSION = 3
+# Pin ZXING to known major versions to prevent the API from silently changing
+# e.g. when loading a system provided library or bumping the hash pin.
+# 2.x is only compatible from 2.3 (e.g. libzxing3 on Debian 13), older releases
+# have a different C-API and will already fail the version check.
+ZXING_MAJOR_VERSIONS = (2, 3)
 
 
-def _check_version(lib: ctypes.CDLL) -> str:
-    """Returns the version of an API-compatible zxing-cpp, raises ValueError otherwise."""
+def _check_version(lib: ctypes.CDLL) -> Tuple[str, int]:
+    """Returns the version and major version of an API-compatible zxing-cpp, raises ValueError otherwise."""
     lib.ZXing_Version.restype = ctypes.c_char_p  # static string, not owned by the caller
     lib.ZXing_Version.argtypes = []
     version = (lib.ZXing_Version() or b'').decode('ascii', errors='replace')
-    if version.split('.')[0] != str(ZXING_MAJOR_VERSION):
-        raise ValueError(f'unsupported zxing-cpp version {version!r}, need {ZXING_MAJOR_VERSION}.x')
-    return version
+    major = version.split('.')[0]
+    if not major.isdigit() or int(major) not in ZXING_MAJOR_VERSIONS:
+        raise ValueError(f'unsupported zxing-cpp version {version!r}, need [2.3;3]')
+    return version, int(major)
 
 
 try:
@@ -51,7 +54,7 @@ try:
     except OSError:
         # Fall back to a system-wide install, e.g. when running from source.
         LIBZXING = ctypes.cdll.LoadLibrary(LIBNAME)
-    LIBZXING_VERSION = _check_version(LIBZXING)
+    LIBZXING_VERSION, LIBZXING_MAJOR_VERSION = _check_version(LIBZXING)
 
     # ZXingC.h from the pinned zxing-cpp build. Owning pointers must remain
     # pointers (not c_char_p, which copies strings and loses the allocation).
@@ -72,13 +75,15 @@ try:
         'ZXing_LastErrorMsg': (ctypes.c_void_p, []),
         'ZXing_free': (None, [ctypes.c_void_p]),
     }
+    if LIBZXING_MAJOR_VERSION == 2:  # takes a bitmask of formats instead of an array
+        signatures['ZXing_ReaderOptions_setFormats'] = (None, [ctypes.c_void_p, ctypes.c_int])
     for name, (restype, argtypes) in signatures.items():
         function = getattr(LIBZXING, name)
         function.restype = restype
         function.argtypes = argtypes
 except (OSError, AttributeError, ValueError):
     _logger.exception('Failed to load zxing-cpp C API')
-    LIBZXING = LIBZXING_VERSION = None
+    LIBZXING = LIBZXING_VERSION = LIBZXING_MAJOR_VERSION = None
 
 
 class ZXingQrCodeReader(AbstractQrCodeReader):
@@ -92,10 +97,13 @@ class ZXingQrCodeReader(AbstractQrCodeReader):
         self._options = self._lib.ZXing_ReaderOptions_new()
         if not self._options:
             raise self._error()
-        qr_format = ctypes.c_int(self._lib.ZXing_BarcodeFormatFromString(b'QRCode'))
-        if qr_format.value == 0xffff:  # ZXing_BarcodeFormat_Invalid
+        qr_format = self._lib.ZXing_BarcodeFormatFromString(b'QRCode')
+        if qr_format in (0xffff, -1):  # ZXing_BarcodeFormat_Invalid of 3.x and 2.x
             raise MissingLib('zxing-cpp does not support the QRCode barcode format')
-        self._lib.ZXing_ReaderOptions_setFormats(self._options, ctypes.byref(qr_format), 1)
+        if LIBZXING_MAJOR_VERSION == 2:
+            self._lib.ZXing_ReaderOptions_setFormats(self._options, qr_format)
+        else:
+            self._lib.ZXing_ReaderOptions_setFormats(self._options, ctypes.byref(ctypes.c_int(qr_format)), 1)
 
     def __del__(self):
         if self._options:
