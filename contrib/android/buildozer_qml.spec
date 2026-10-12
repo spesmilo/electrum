@@ -161,8 +161,9 @@ android.add_jars = .buildozer/android/platform/*/build/libs_collections/Electrum
 # directory containing the files)
 android.add_src = electrum/gui/qml/java_classes/
 
-android.gradle_dependencies =
-    androidx.core:core:1.16.0
+# (bool) Enable AndroidX support. We don't use any androidx packages, keep it
+# disabled so gradle fails the build if one gets pulled in.
+android.enable_androidx = False
 
 android.add_activities = org.electrum.biometry.BiometricActivity
 
