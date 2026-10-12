@@ -6,7 +6,7 @@ from pythonforandroid.util import load_source
 util = load_source('util', os.path.join(os.path.dirname(os.path.dirname(__file__)), 'util.py'))
 
 assert Qt6Recipe._version == "6.10.2"
-assert Qt6Recipe.depends == ['python3', 'hostqt6']
+assert Qt6Recipe.depends == ['python3', 'hostqt6', 'ffmpeg_qt']
 assert Qt6Recipe.python_depends == []
 
 

@@ -451,12 +451,10 @@ ApplicationWindow
         }
     }
 
-    property Component scanDialog  // set in Component.onCompleted
+    property alias scanDialog: _scanDialog
     Component {
         id: _scanDialog
-        QRScanner {
-            onFinished: destroy()
-        }
+        ScanDialog {}
     }
 
     Component {
@@ -532,21 +530,12 @@ ApplicationWindow
     Component.onCompleted: {
         coverTimer.start()
 
-        if (AppController.isAndroid()) {
-            app.scanDialog = _scanDialog
-        } else {
-            // for running on Desktop. uses QtMultimedia.
-            app.scanDialog = Qt.createComponent('ScanDialog.qml')
-        }
-
         function continueWithServerConnection() {
             if (!Network.autoConnectDefined) {
                 var dialog = serverConnectWizard.createObject(app)
                 // without completed serverConnectWizard we can't start
                 dialog.rejected.connect(function() {
-                    app.visible = false
-                    AppController.wantClose = true
-                    Qt.callLater(Qt.quit)
+                    app.quitApp()
                 })
                 dialog.accepted.connect(function() {
                     Daemon.startNetwork()
@@ -579,9 +568,7 @@ ApplicationWindow
             var dialog = termsOfUseWizard.createObject(app)
 
             dialog.rejected.connect(function() {
-                app.visible = false
-                AppController.wantClose = true
-                Qt.callLater(Qt.quit)
+                app.quitApp()
             })
             dialog.accepted.connect(function() {
                 Config.termsOfUseAccepted = true
@@ -626,6 +613,13 @@ ApplicationWindow
             dialog.open()
             close.accepted = false
         }
+    }
+
+    function quitApp() {
+        // quit the app immediately
+        app.visible = false
+        AppController.wantClose = true
+        Qt.callLater(Qt.quit)
     }
 
     property var _pendingBiometricAuth: null
@@ -942,9 +936,8 @@ ApplicationWindow
                 console.log(
                     "richtext_sanity_label failed check: expected PlainText, "
                     + "got " + richtext_sanity_label.textFormat + ". Exiting...")
-                Qt.callLater(Qt.quit)
+                app.quitApp()
             }
         }
     }
-
 }

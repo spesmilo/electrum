@@ -12,6 +12,8 @@ Item {
     property string url
     property string hint
 
+    readonly property string cameraPermission: 'android.permission.CAMERA'
+
     signal foundText(data: string)
 
     function restart() {
@@ -22,7 +24,8 @@ Item {
 
     function start() {
         console.log('qrscan.start')
-        loader.item.startTimer.start()
+        AppController.requestPermission(scanner.cameraPermission)
+        scanner.active = true
     }
 
     function stop() {
@@ -40,6 +43,7 @@ Item {
         id: loader
         anchors.fill: parent
         sourceComponent: scancomp
+        onLoaded: scanner.start()
         onStatusChanged: {
             if (loader.status == Loader.Ready) {
                 console.log('camera loaded')
@@ -55,7 +59,6 @@ Item {
         Item {
             property alias vo: _vo
             property alias ic: _ic
-            property alias startTimer: _startTimer
 
             VideoOutput {
                 id: _vo
@@ -79,6 +82,7 @@ Item {
                     visible: scanner.hint
                     background.opacity: 0.5
                     iconStyle: InfoTextArea.IconStyle.None
+                    horizontalAlignment: Text.AlignHCenter
                     anchors {
                         top: parent.top
                         topMargin: constants.paddingXLarge
@@ -90,14 +94,15 @@ Item {
                     text: scanner.hint
                 }
 
-                Component.onCompleted: {
-                    startTimer.start()
+                TapHandler {
+                    // "tap-to-focus", trigger an image capture which forces an autofocus
+                    onTapped: if (_ic.readyForCapture) _ic.capture()
                 }
             }
 
             ImageCapture {
                 id: _ic
-
+                onImageAvailable: (requestId, frame) => qr.decodeFrameOneShot(frame)
             }
 
             MediaDevices {
@@ -106,9 +111,19 @@ Item {
 
             Camera {
                 id: camera
-                cameraDevice: mediaDevices.defaultVideoInput
+                cameraDevice: {
+                    // The Android FFmpeg backend does not mark a default camera.
+                    for (var device of mediaDevices.videoInputs) {
+                        if (device.position === CameraDevice.BackFace)
+                            return device
+                    }
+                    return mediaDevices.defaultVideoInput
+                }
+                // The permission prompt pauses the activity, so the application
+                // state change re-evaluates this binding after the user answers.
                 active: scanner.active
-                focusMode: Camera.FocusModeAutoNear
+                    && Qt.application.state === Qt.ApplicationActive
+                    && AppController.hasPermission(scanner.cameraPermission)
                 customFocusPoint: Qt.point(0.5, 0.5)
 
                 onErrorOccurred: {
@@ -121,14 +136,6 @@ Item {
                 imageCapture: _ic
                 camera: camera
             }
-
-            Timer {
-                id: _startTimer
-                interval: 500
-                repeat: false
-                onTriggered: scanner.active = true
-            }
-
         }
     }
 
@@ -149,7 +156,8 @@ Item {
     Connections {
         target: qr
         function onDataChanged() {
-            console.log('QR DATA: ' + qr.data)
+            if (!qr.data)
+                return
             scanner.active = false
             scanner.foundText(qr.data)
         }

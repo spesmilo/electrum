@@ -49,7 +49,9 @@ Pane {
             'mempool': qsTr('Mempool'),
             'today': qsTr('Today'),
             'yesterday': qsTr('Yesterday'),
+            'thisweek': qsTr('Earlier this week'),
             'lastweek': qsTr('Last week'),
+            'thismonth': qsTr('Earlier this month'),
             'lastmonth': qsTr('Last month'),
             'older': qsTr('Older')
         }

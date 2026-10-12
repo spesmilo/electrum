@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Dict, Any
 
 from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot
-from PyQt6.QtCore import Qt, QAbstractListModel, QModelIndex
+from PyQt6.QtCore import Qt, QAbstractListModel, QModelIndex, QLocale
 
 from electrum.logging import get_logger
 from electrum.util import Satoshis, TxMinedInfo
@@ -168,14 +168,24 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
     def get_section_by_timestamp(timestamp):
         txts = datetime.fromtimestamp(timestamp)
         today = datetime.today().replace(hour=0, minute=0, second=0, microsecond=0)
+        first_day_of_week = QLocale.system().firstDayOfWeek()
+        # Qt.DayOfWeek and isoweekday() both count Monday=1 .. Sunday=7
+        this_week_start = today - timedelta(days=(today.isoweekday() - first_day_of_week.value) % 7)
+        this_month_start = today.replace(day=1)
+        last_month_start = (this_month_start - timedelta(days=1)).replace(day=1)
 
-        if txts > today:
+        # calendar based, the most specific section wins (e.g. on mondays sunday is 'yesterday', not 'lastweek')
+        if txts >= today:
             return 'today'
-        elif txts > today - timedelta(days=1):
+        elif txts >= today - timedelta(days=1):
             return 'yesterday'
-        elif txts > today - timedelta(days=7):
+        elif txts >= this_week_start:
+            return 'thisweek'
+        elif txts >= this_week_start - timedelta(days=7):
             return 'lastweek'
-        elif txts > today - timedelta(days=31):
+        elif txts >= this_month_start:
+            return 'thismonth'
+        elif txts >= last_month_start:
             return 'lastmonth'
         else:
             return 'older'
@@ -186,7 +196,9 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
         dfmt = {
             'today': '%H:%M',
             'yesterday': '%H:%M',
-            'lastweek': '%a, %H:%M',
+            'thisweek': '%a, %H:%M',
+            'lastweek': '%a %d, %H:%M',
+            'thismonth': '%a %d, %H:%M',
             'lastmonth': '%a %d, %H:%M',
             'older': '%Y-%m-%d %H:%M'
         }

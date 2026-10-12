@@ -29,6 +29,8 @@ RUN apt-get update -q && \
         wget \
         python3 \
         make \
+        cmake \
+        clang-16 \
         autotools-dev \
         autoconf \
         libtool \
@@ -72,14 +74,31 @@ RUN apt-get update -q && \
         libc6-dev \
         libc6 \
         libc-dev-bin \
-        libv4l-dev \
-        libjpeg62-turbo-dev \
         libx11-dev \
+        libegl1 \
+        libgl1 \
+        libxrandr2 \
         desktop-file-utils \
         && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get autoremove -y && \
     apt-get clean
+
+# build binutils from source:
+# bullseye's binutils (2.35) corrupts shared libraries whose program headers were rewritten by
+# patchelf, e.g. the ffmpeg libs shipped in the PyQt6-Qt6 wheel: after "strip", the dynamic loader
+# rejects them with "ELF load command address/offset not page-aligned", and Qt Multimedia then has
+# no backend (no camera for QR scanning).
+# FIXME: remove this once the base image is bumped to trixie (or later)
+RUN cd /tmp && \
+    wget -q "https://ftp.gnu.org/gnu/binutils/binutils-2.47.tar.xz" && \
+    echo "154ab23b60070e8f27013c22977f1129425d67d1e8acd6e13010e617811e4cff  binutils-2.47.tar.xz" | sha256sum -c - && \
+    tar xf binutils-2.47.tar.xz && \
+    mkdir binutils-build && cd binutils-build && \
+    ../binutils-2.47/configure --prefix=/usr/local --enable-deterministic-archives --disable-nls && \
+    make -j"$(nproc)" all-binutils && \
+    make install-binutils && \
+    cd /tmp && rm -rf binutils-build binutils-2.47 binutils-2.47.tar.xz
 
 # create new user to avoid using root; but with sudo access and no password for convenience.
 ARG UID=1000

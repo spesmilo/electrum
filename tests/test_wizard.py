@@ -1229,3 +1229,18 @@ class WalletWizardTestCase(WizardTestCase):
             {"bc1qq2tmmcngng78nllq2pvrkchcdukemtj56uyue0", "1LNvv5h6QHoYv1nJcqrp13T2TBkD2sUGn1", "1FJEEB8ihPMbzs2SkLmr37dHyRFzakqUmo"},
         )
         self.assertFalse(wallet.can_enable_disable_keystore(wallet.keystore))
+
+    async def test_create_imported_wallet_from_wif_keys__unsupported_type(self):
+        w = self._wizard_for(wallet_type='imported')
+        v = w._current
+        d = v.wizard_data
+        self.assertEqual('imported', v.view)
+
+        d.update({
+            'private_key_list':
+                'p2wpkh:L1cgMEnShp73r9iCukoPE3MogLeueNYRD9JVsfT1zVHyPBR3KqBY\n'
+                'p2wsh:KyQ2voUQj71P6E9KyDFqQoYMMm3yKKAPMKbfqZccib6xWxbWHCex\n'})
+        v = w.resolve_next(v.view, d)
+        with self.assertRaises(util.UserFacingException) as ctx:
+            self._set_password_and_check_address(v=v, w=w, recv_addr=None)
+        self.assertEqual("Importing individual private keys of type 'p2wsh' is not supported.", str(ctx.exception))

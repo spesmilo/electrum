@@ -3288,7 +3288,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             raise UserFacingException(_("Address not in wallet."))
         txin_type = self.get_txin_type(address)
         assert txin_type != "address"  # logic error, as this implies watching-only
-        if txin_type not in ['p2pkh', 'p2wpkh', 'p2wpkh-p2sh']:
+        if txin_type not in bitcoin.PUBKEYHASH_SCRIPT_TYPES:
             raise UserFacingException(
                 _("Cannot sign messages with this type of address:") +
                 " " + txin_type + "\n\n"

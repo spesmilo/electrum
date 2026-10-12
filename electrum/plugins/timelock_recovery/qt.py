@@ -33,7 +33,7 @@ from electrum import constants, version
 from electrum.gui.common_qt.util import draw_qr, get_font_id
 from electrum.gui.qt.paytoedit import PayToEdit
 from electrum.payment_identifier import PaymentIdentifierType
-from electrum.plugin import hook
+from electrum.plugin import hook, PluginMetadata
 from electrum.i18n import _
 from electrum.transaction import PartialTxOutput, Transaction
 from electrum.util import NotEnoughFunds, make_dir
@@ -96,8 +96,8 @@ class Plugin(TimelockRecoveryPlugin):
         self.small_logo_bytes = self.read_file("timelock_recovery_60.png")
         self.large_logo_bytes = self.read_file("timelock_recovery_820.png")
         self.intro_text = self.read_file("intro.txt").decode('utf-8')
-        plugin_metadata: Optional[dict] = parent.get_metadata('timelock_recovery')
-        self.plugin_version: str = plugin_metadata['version'] if plugin_metadata else 'unknown'
+        plugin_metadata: Optional[PluginMetadata] = parent.get_metadata('timelock_recovery')
+        self.plugin_version: str = plugin_metadata.version if plugin_metadata else 'unknown'
 
     @hook
     def load_wallet(self, wallet, window):

@@ -290,6 +290,8 @@ class Imported_KeyStore(Software_KeyStore):
 
     def import_privkey(self, sec: str, password) -> Tuple[str, str]:
         txin_type, privkey, compressed = deserialize_privkey(sec)
+        if txin_type not in bitcoin.PUBKEYHASH_SCRIPT_TYPES:
+            raise NotImplementedError(txin_type)
         pubkey = ecc.ECPrivkey(privkey).get_public_key_hex(compressed=compressed)
         # re-serialize the key so the internal storage format is consistent
         serialized_privkey = serialize_privkey(
@@ -307,13 +309,12 @@ class Imported_KeyStore(Software_KeyStore):
         for key in keys:
             try:
                 txin_type, pubkey = self.import_privkey(key, password)
+            except NotImplementedError as e:
+                bad_keys.append((key, 'not implemented type' + f': {e}'))
             except Exception as e:
                 bad_keys.append((key, 'invalid private key' + f': {e}'))
-                continue
-            if txin_type not in ('p2pkh', 'p2wpkh', 'p2wpkh-p2sh'):
-                bad_keys.append((key, 'not implemented type' + f': {txin_type}'))
-                continue
-            good_inputs.append((txin_type, pubkey))
+            else:
+                good_inputs.append((txin_type, pubkey))
         return good_inputs, bad_keys
 
     def delete_imported_key(self, key: str) -> None:

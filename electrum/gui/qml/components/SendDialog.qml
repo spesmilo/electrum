@@ -7,9 +7,8 @@ import org.electrum 1.0
 
 import "controls"
 
-// currently not used on android, kept for future use when qt6 camera stops crashing
 ElDialog {
-    id: dialog
+    id: root
 
     property var invoiceParser  // type: InvoiceParser
     property var piResolver  // type: PIResolver
@@ -17,14 +16,47 @@ ElDialog {
     signal txFound(data: string)
     signal channelBackupFound(data: string)
 
+    width: parent.width
+    height: parent.height
+
     header: null
     padding: 0
-    topPadding: 0
+    topPadding: app.statusBarHeight
 
     onAboutToHide: {
         console.log('about to hide')
         qrscan.stop()
     }
+
+    onTxFound: (data) => {
+        app.stack.push(Qt.resolvedUrl('TxDetails.qml'), { rawtx: data })
+        close()
+    }
+
+    onChannelBackupFound: (data) => {
+        if (!Daemon.currentWallet.isLightning) {
+            var dialog = app.messageDialog.createObject(app, {
+                title: qsTr('Cannot import Channel Backup, Lightning not enabled.')
+            })
+            dialog.open()
+            return
+        }
+
+        var dialog = app.messageDialog.createObject(app, {
+            title: qsTr('Import Channel Backup?'),
+            yesno: true
+        })
+        dialog.accepted.connect(function() {
+            Daemon.currentWallet.importChannelBackup(data)
+            close()
+        })
+        dialog.rejected.connect(function() {
+            close()
+        })
+        dialog.open()
+    }
+
+    onClosed: destroy()
 
     function restart() {
         qrscan.restart()
@@ -62,7 +94,7 @@ ElDialog {
                 : qsTr('Scan an Invoice, an Address, an LNURL or a PSBT')
 
             onFoundText: (data) => {
-                dialog.dispatch(data)
+                root.dispatch(data)
             }
         }
 
@@ -77,7 +109,7 @@ ElDialog {
                 text: qsTr('Paste')
                 onClicked: {
                     qrscan.stop()
-                    dialog.dispatch(AppController.clipboardToText())
+                    root.dispatch(AppController.clipboardToText())
                 }
             }
         }
@@ -86,5 +118,13 @@ ElDialog {
 
     Bitcoin {
         id: bitcoin
+    }
+
+    // Keep the camera preview out of screenshots and screen recordings.
+    Binding {
+        target: AppController
+        property: 'secureWindow'
+        when: root.visible  // enables stacking multiple secureWindow dialogs
+        value: true
     }
 }

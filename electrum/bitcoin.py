@@ -630,6 +630,7 @@ WIF_SCRIPT_TYPES = {
     'p2wsh-p2sh': 7
 }
 WIF_SCRIPT_TYPES_INV = inv_dict(WIF_SCRIPT_TYPES)
+PUBKEYHASH_SCRIPT_TYPES = ('p2pkh', 'p2wpkh', 'p2wpkh-p2sh')
 
 
 def is_segwit_script_type(txin_type: str) -> bool:
@@ -901,7 +902,7 @@ def verify_usermessage_with_address(address: str, sig65: bytes, message: bytes, 
         return False
     # check public key using the address
     pubkey_hex = public_key.get_public_key_hex(compressed)
-    txin_types = (txin_type_guess,) if txin_type_guess else ('p2pkh', 'p2wpkh', 'p2wpkh-p2sh')
+    txin_types = (txin_type_guess,) if txin_type_guess else PUBKEYHASH_SCRIPT_TYPES
     for txin_type in txin_types:
         addr = pubkey_to_address(txin_type, pubkey_hex, net=net)
         if address == addr:

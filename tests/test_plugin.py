@@ -6,7 +6,7 @@ from unittest import mock
 from electrum import util
 from electrum import plugin as plugin_module
 from electrum.crypto import sha256
-from electrum.plugin import Plugins, IncorrectPluginHash
+from electrum.plugin import Plugins, IncorrectPluginHash, PluginMetadata
 from electrum.zip_importer import MemoryZipImporter
 from electrum.simple_config import SimpleConfig
 
@@ -104,11 +104,11 @@ class PluginLoaderTestCase(ElectrumTestCase):
         blob = make_plugin_zip(self.zip_path, secret='benign')
         plugins = self._start_plugins()
         manifest = plugins.read_manifest(self.zip_path)
-        self.assertEqual(sha256(blob).hex(), manifest['zip_hash_sha256'])
+        self.assertEqual(sha256(blob).hex(), manifest.zip_hash_sha256)
 
     # --- upgrade ---
 
-    def _download_new_version(self, secret: str) -> dict:
+    def _download_new_version(self, secret: str) -> PluginMetadata:
         path = os.path.join(self.electrum_path, f'{PLUGIN_NAME}-{secret}.zip')
         make_plugin_zip(path, secret=secret)
         return self.plugins.read_manifest(path)
@@ -148,7 +148,7 @@ class PluginLoaderTestCase(ElectrumTestCase):
         plugins = self._start_plugins()
         self._authorize(plugins)
         manifest = self._download_new_version('v2')
-        make_plugin_zip(manifest['path'], secret='evil')
+        make_plugin_zip(manifest.path, secret='evil')
         with self.assertRaises(IncorrectPluginHash):
             plugins.upgrade_external_plugin(manifest, self.privkey)
         self.assertTrue(plugins.is_authorized(PLUGIN_NAME))
