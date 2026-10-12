@@ -1661,6 +1661,25 @@ class TestPeerDirect(TestPeer):
 
         return alice_channel, bob_channel, coop_close_failure
 
+    async def test_shutdown_with_pending_update_fee(self):
+        graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
+        p1, p2 = graph.peers.values()
+        w1, w2 = graph.workers.values()
+        w1.network.config.TEST_SHUTDOWN_FEE = w2.network.config.TEST_SHUTDOWN_FEE = 1000
+        alice_channel = graph.channels[('alice', 'bob')][0]
+        async def close():
+            await util.wait_for2(p1.initialized, 1)
+            await util.wait_for2(p2.initialized, 1)
+            # update_fee without commitment_signed
+            feerate = alice_channel.get_latest_feerate(LOCAL) + 1
+            alice_channel.update_fee(feerate, True)
+            p1.send_message("update_fee", channel_id=alice_channel.channel_id, feerate_per_kw=feerate)
+            await util.wait_for2(p1.close_channel(alice_channel.channel_id), 5)
+            raise SuccessfulTest()
+        gath = asyncio.gather(close(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
+        with self.assertRaises(SuccessfulTest):
+            await gath
+
     async def test_warning(self):
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
         p1, p2 = graph.peers.values()
