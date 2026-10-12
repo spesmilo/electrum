@@ -307,12 +307,12 @@ class TxEditor(WindowModalDialog, SubmarineSwapMixin, Logger):
 
     def update_tab_visibility(self):
         """Update self.tab_widget to show all tabs that are enabled."""
-        # first remove all tabs
-        while self.tab_widget.count() > 0:
-            self.tab_widget.removeTab(0)
-
         # always show onchain payment tab
-        self.tab_widget.addTab(self.onchain_tab, _('Onchain Transaction'))
+        if self.tab_widget.indexOf(self.onchain_tab) == -1:
+            self.tab_widget.addTab(self.onchain_tab, _('Onchain Transaction'))
+
+        # will be re-added if enabled, no-op if not shown
+        self.tab_widget.removeTab(self.tab_widget.indexOf(self.submarine_payment_tab))
 
         allow_swaps = self.context == TxEditorContext.PAYMENT and self.payee_outputs and self.swap_manager
         if self.config.WALLET_ENABLE_SUBMARINE_PAYMENTS and allow_swaps:
