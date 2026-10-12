@@ -24,11 +24,12 @@ class _Position(ctypes.Structure):
 
 
 if sys.platform == 'darwin':
-    LIBNAME = 'libZXing.dylib'
+    LIBNAMES = ('libZXing.dylib',)
 elif sys.platform == 'win32':
-    LIBNAME = 'ZXing.dll'
+    LIBNAMES = ('ZXing.dll',)
 else:
-    LIBNAME = 'libZXing.so'
+    # Distro runtime packages only ship the versioned soname, e.g. libZXing.so.3 of Debian's libzxing3.
+    LIBNAMES = ('libZXing.so', 'libZXing.so.4', 'libZXing.so.3')
 
 # Pin ZXING to known major versions to prevent the API from silently changing
 # e.g. when loading a system provided library or bumping the hash pin.
@@ -48,13 +49,21 @@ def _check_version(lib: ctypes.CDLL) -> Tuple[str, int]:
     return version, int(major)
 
 
+def _load_library() -> Tuple[ctypes.CDLL, str, int]:
+    """Loads the bundled zxing-cpp, falling back to a system-wide install, e.g. when running from source."""
+    paths = [os.path.join(os.path.dirname(__file__), '..', LIBNAMES[0]), *LIBNAMES]
+    errors = []
+    for path in paths:
+        try:
+            lib = ctypes.cdll.LoadLibrary(path)
+            return lib, *_check_version(lib)  # check version so the next .so will be tried if it raises
+        except (OSError, AttributeError, ValueError) as e:
+            errors.append(e)
+    raise OSError(f'no compatible zxing-cpp found: {errors!r}')
+
+
 try:
-    try:
-        LIBZXING = ctypes.cdll.LoadLibrary(os.path.join(os.path.dirname(__file__), '..', LIBNAME))
-    except OSError:
-        # Fall back to a system-wide install, e.g. when running from source.
-        LIBZXING = ctypes.cdll.LoadLibrary(LIBNAME)
-    LIBZXING_VERSION, LIBZXING_MAJOR_VERSION = _check_version(LIBZXING)
+    LIBZXING, LIBZXING_VERSION, LIBZXING_MAJOR_VERSION = _load_library()
 
     # ZXingC.h from the pinned zxing-cpp build. Owning pointers must remain
     # pointers (not c_char_p, which copies strings and loses the allocation).
