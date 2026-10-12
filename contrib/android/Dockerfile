@@ -77,38 +77,11 @@ RUN mkdir --parents "${ANDROID_SDK_HOME}/.android/" \
     && echo '### User Sources for Android SDK Manager' \
         > "${ANDROID_SDK_HOME}/.android/repositories.cfg"
 
-# download Java-17 (debian 13 only packages Java-21 and Java-25)
-# - we download the amd64 binaries from debian 12 repos
-# - we should try to upgrade to Java-21...
-ENV JAVA_JRE_DL_URL="https://snapshot.debian.org/archive/debian/20260130T143028Z/pool/main/o/openjdk-17/openjdk-17-jre-headless_17.0.18+8-1~deb12u1_amd64.deb"
-ENV JAVA_JRE_ARCHIVE="openjdk-17-jre-headless.deb"
-ENV JAVA_JRE_HASH="5bc36cbb4e383dbea4168d57b5fd9b42375ec8837dd62a1d56677632c3c960e0"
-ENV JAVA_JDK_DL_URL="https://snapshot.debian.org/archive/debian/20260130T143028Z/pool/main/o/openjdk-17/openjdk-17-jdk-headless_17.0.18+8-1~deb12u1_amd64.deb"
-ENV JAVA_JDK_ARCHIVE="openjdk-17-jdk-headless.deb"
-ENV JAVA_JDK_HASH="8841044caa66860a71039342fe3c02b7853b61c518e05970e501faa215b1788a"
+# install Java
 RUN apt -y update -qq \
-    && apt -y install -qq --no-install-recommends \
-        ca-certificates-java \
-        java-common \
-        libcups2 \
-        libfontconfig1 \
-        liblcms2-2 \
-        libjpeg62-turbo \
-        libnss3 \
-        libasound2 \
-        libfreetype6 \
-        libharfbuzz0b \
-        libpcsclite1 \
-    && apt -y autoremove \
-    && cd /opt \
-    && curl --location --progress-bar "${JAVA_JRE_DL_URL}" --output "${JAVA_JRE_ARCHIVE}" \
-    && echo "${JAVA_JRE_HASH} ${JAVA_JRE_ARCHIVE}" | sha256sum -c - \
-    && dpkg -i "${JAVA_JRE_ARCHIVE}" \
-    && rm "${JAVA_JRE_ARCHIVE}" \
-    && curl --location --progress-bar "${JAVA_JDK_DL_URL}" --output "${JAVA_JDK_ARCHIVE}" \
-    && echo "${JAVA_JDK_HASH} ${JAVA_JDK_ARCHIVE}" | sha256sum -c - \
-    && dpkg -i "${JAVA_JDK_ARCHIVE}" \
-    && rm "${JAVA_JDK_ARCHIVE}"
+    && apt -y install -qq --no-install-recommends --allow-downgrades \
+        openjdk-21-jdk-headless \
+    && apt -y autoremove
 
 # accept Android licenses (JDK necessary!)
 RUN yes | ${ANDROID_SDK_MANAGER} --licenses > /dev/null
