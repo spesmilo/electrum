@@ -460,7 +460,7 @@ class TestLNWallet(ElectrumTestCase):
         height = wallet.network.get_local_height()
         amount_msat = 1_000_000
 
-        async def forward(*, out_cltv_abs: int) -> None:
+        async def forward(*, out_cltv_abs: int, cltv_delta: int = 576) -> None:
             trampoline_onion = ProcessedOnionPacket(
                 are_we_final=False,
                 hop_data=OnionHopsDataSingle(payload={
@@ -474,7 +474,7 @@ class TestLNWallet(ElectrumTestCase):
                 trampoline_onion_packet=None)
             await wallet._maybe_forward_trampoline(
                 payment_hash=os.urandom(32),
-                closest_inc_cltv_abs=out_cltv_abs + 576,
+                closest_inc_cltv_abs=out_cltv_abs + cltv_delta,
                 total_msat=amount_msat,
                 any_trampoline_onion=trampoline_onion,
                 fw_payment_key='fw_payment_key')
@@ -483,10 +483,18 @@ class TestLNWallet(ElectrumTestCase):
             with self.assertRaises(OnionRoutingFailure) as ctx:
                 await forward(out_cltv_abs=height - 1)
             self.assertEqual(ctx.exception.code, OnionFailureCode.TRAMPOLINE_EXPIRY_TOO_SOON)
+        with self.subTest(msg="outgoing htlc expires too soon for the recipient"):
+            with self.assertRaises(OnionRoutingFailure) as ctx:
+                await forward(out_cltv_abs=height + MIN_FINAL_CLTV_DELTA_ACCEPTED - 2)
+            self.assertEqual(ctx.exception.code, OnionFailureCode.TRAMPOLINE_EXPIRY_TOO_SOON)
         with self.subTest(msg="outgoing htlc expires too far into the future"):
             with self.assertRaises(OnionRoutingFailure) as ctx:
                 await forward(out_cltv_abs=height + NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE)
             self.assertEqual(ctx.exception.code, OnionFailureCode.EXPIRY_TOO_FAR)
+        with self.subTest(msg="incoming cltv delta too small"):
+            with self.assertRaises(OnionRoutingFailure) as ctx:
+                await forward(out_cltv_abs=height + 1000, cltv_delta=144)
+            self.assertEqual(ctx.exception.code, OnionFailureCode.TRAMPOLINE_EXPIRY_TOO_SOON)
         wallet.open_channel_just_in_time.assert_not_called()
 
         with self.subTest(msg="latest accepted outgoing cltv opens the channel"):

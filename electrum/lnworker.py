@@ -4278,7 +4278,7 @@ class LNWallet(Logger):
             if not direct_channels and next_peer.accepts_zeroconf() and self.features.supports(LnFeatures.OPTION_ZEROCONF_OPT):
                 # The outgoing cltv is local_height + cltv_budget_for_rest_of_route, chosen by the sender.
                 # Check it here, as an exception other than OnionRoutingFailure would not fail the incoming htlcs.
-                if cltv_budget_for_rest_of_route <= 0:
+                if cltv_budget_for_rest_of_route < lnutil.MIN_FINAL_CLTV_DELTA_ACCEPTED:
                     raise OnionRoutingFailure(code=OnionFailureCode.TRAMPOLINE_EXPIRY_TOO_SOON, data=b'')
                 if cltv_budget_for_rest_of_route > lnutil.NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE:
                     raise OnionRoutingFailure(code=OnionFailureCode.EXPIRY_TOO_FAR, data=b'')
@@ -4307,6 +4307,9 @@ class LNWallet(Logger):
                 except BaseException:
                     self.logger.exception('failed to create onion for JIT channel')
                     raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
+                # same cltv delta as the JIT route hint, see calc_routing_hints_for_invoice
+                if closest_inc_cltv_abs - cltv_abs < 144:
+                    raise OnionRoutingFailure(code=OnionFailureCode.TRAMPOLINE_EXPIRY_TOO_SOON, data=b'')
                 await self.open_channel_just_in_time(
                     next_peer=next_peer,
                     next_amount_msat_htlc=amt_to_forward,
