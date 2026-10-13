@@ -1,16 +1,36 @@
 #
 # bytewords.py
 #
-# Copyright © 2020 Foundation Devices, Inc.
+# Copyright (C) 2020 Foundation Devices, Inc.
 # Licensed under the "BSD-2-Clause Plus Patent License"
 #
 
+from typing import Optional, List
+
 from .utils import crc32_bytes, partition
 
-BYTEWORDS = 'ableacidalsoapexaquaarchatomauntawayaxisbackbaldbarnbeltbetabiasbluebodybragbrewbulbbuzzcalmcashcatschefcityclawcodecolacookcostcruxcurlcuspcyandarkdatadaysdelidicedietdoordowndrawdropdrumdulldutyeacheasyechoedgeepicevenexamexiteyesfactfairfernfigsfilmfishfizzflapflewfluxfoxyfreefrogfuelfundgalagamegeargemsgiftgirlglowgoodgraygrimgurugushgyrohalfhanghardhawkheathelphighhillholyhopehornhutsicedideaidleinchinkyintoirisironitemjadejazzjoinjoltjowljudojugsjumpjunkjurykeepkenokeptkeyskickkilnkingkitekiwiknoblamblavalazyleaflegsliarlimplionlistlogoloudloveluaulucklungmainmanymathmazememomenumeowmildmintmissmonknailnavyneednewsnextnoonnotenumbobeyoboeomitonyxopenovalowlspaidpartpeckplaypluspoempoolposepuffpumapurrquadquizraceramprealredorichroadrockroofrubyruinrunsrustsafesagascarsetssilkskewslotsoapsolosongstubsurfswantacotasktaxitenttiedtimetinytoiltombtoystriptunatwinuglyundouniturgeuservastveryvetovialvibeviewvisavoidvowswallwandwarmwaspwavewaxywebswhatwhenwhizwolfworkyankyawnyellyogayurtzapszerozestzinczonezoom'
-WORD_ARRAY = None
+BYTEWORDS = (
+    'ableacidalsoapexaquaarchatomauntawayaxisbackbaldbarnbeltbetabias'
+    'bluebodybragbrewbulbbuzzcalmcashcatschefcityclawcodecolacookcost'
+    'cruxcurlcuspcyandarkdatadaysdelidicedietdoordowndrawdropdrumdull'
+    'dutyeacheasyechoedgeepicevenexamexiteyesfactfairfernfigsfilmfish'
+    'fizzflapflewfluxfoxyfreefrogfuelfundgalagamegeargemsgiftgirlglow'
+    'goodgraygrimgurugushgyrohalfhanghardhawkheathelphighhillholyhope'
+    'hornhutsicedideaidleinchinkyintoirisironitemjadejazzjoinjoltjowl'
+    'judojugsjumpjunkjurykeepkenokeptkeyskickkilnkingkitekiwiknoblamb'
+    'lavalazyleaflegsliarlimplionlistlogoloudloveluaulucklungmainmany'
+    'mathmazememomenumeowmildmintmissmonknailnavyneednewsnextnoonnote'
+    'numbobeyoboeomitonyxopenovalowlspaidpartpeckplaypluspoempoolpose'
+    'puffpumapurrquadquizraceramprealredorichroadrockroofrubyruinruns'
+    'rustsafesagascarsetssilkskewslotsoapsolosongstubsurfswantacotask'
+    'taxitenttiedtimetinytoiltombtoystriptunatwinuglyundouniturgeuser'
+    'vastveryvetovialvibeviewvisavoidvowswallwandwarmwaspwavewaxywebs'
+    'whatwhenwhizwolfworkyankyawnyellyogayurtzapszerozestzinczonezoom'
+)
+WORD_ARRAY: Optional[List[int]] = None
 
-def decode_word(word, word_len):
+
+def decode_word(word: str, word_len: int) -> int:
     global WORD_ARRAY
     global BYTEWORDS
 
@@ -22,7 +42,7 @@ def decode_word(word, word_len):
     # Since the first and last letters of each Byteword are unique,
     # we can use them as indexes into a two-dimensional lookup table.
     # This table is generated lazily.
-    if WORD_ARRAY == None:
+    if WORD_ARRAY is None:
         WORD_ARRAY = [-1] * (dim * dim)  # create empty array
 
         for i in range(256):
@@ -55,15 +75,18 @@ def decode_word(word, word_len):
     # Successful decode.
     return value
 
-def get_word(index):
+
+def get_word(index: int) -> str:
     byteword_offset = index * 4
     return BYTEWORDS[byteword_offset:byteword_offset + 4]
 
-def get_minimal_word(index):
+
+def get_minimal_word(index: int) -> str:
     byteword_offset = index * 4
     return BYTEWORDS[byteword_offset] + BYTEWORDS[byteword_offset + 3]
 
-def encode(buf, separator):
+
+def encode(buf: bytes, separator: str) -> str:
     words = []
     for i in range(len(buf)):
         byte = buf[i]
@@ -71,15 +94,18 @@ def encode(buf, separator):
 
     return separator.join(words)
 
-def add_crc(buf):
+
+def add_crc(buf: bytes) -> bytes:
     crc_buf = crc32_bytes(buf)
     return buf + crc_buf
 
-def encode_with_separator(buf, separator):
+
+def encode_with_separator(buf: bytes, separator: str) -> str:
     crc_buf = add_crc(buf)
     return encode(crc_buf, separator)
 
-def encode_minimal(buf):
+
+def encode_minimal(buf: bytes) -> str:
     result = ''
 
     crc_buf = add_crc(buf)
@@ -89,7 +115,8 @@ def encode_minimal(buf):
 
     return result
 
-def decode(s, separator, word_len):
+
+def decode(s: str, separator: str, word_len: int) -> bytes:
     buf = bytearray()
 
     if word_len == 4:
@@ -101,10 +128,10 @@ def decode(s, separator, word_len):
         buf.append(decode_word(word, word_len))
 
     if len(buf) < 5:
-        raise ValueError('Invalid Bytewords.') 
+        raise ValueError('Invalid Bytewords.')
 
     # Validate checksum
-    body = buf[0:-4]
+    body = bytes(buf[0:-4])
     body_checksum = buf[-4:]
     checksum = crc32_bytes(body)
     if checksum != body_checksum:
@@ -112,13 +139,15 @@ def decode(s, separator, word_len):
 
     return body
 
+
 Bytewords_Style_standard = 1
 Bytewords_Style_uri = 2
 Bytewords_Style_minimal = 3
 
+
 class Bytewords:
     @staticmethod
-    def encode(style, bytes):
+    def encode(style: int, bytes: bytes) -> str:
         if style == Bytewords_Style_standard:
             return encode_with_separator(bytes, ' ')
         elif style == Bytewords_Style_uri:
@@ -126,15 +155,15 @@ class Bytewords:
         elif style == Bytewords_Style_minimal:
             return encode_minimal(bytes)
         else:
-            assert(False)
+            assert False
 
     @staticmethod
-    def decode(style, str):
+    def decode(style: int, str: str) -> bytes:
         if style == Bytewords_Style_standard:
             return decode(str, ' ', 4)
         elif style == Bytewords_Style_uri:
             return decode(str, '-', 4)
         elif style == Bytewords_Style_minimal:
-            return decode(str, 0, 2)
+            return decode(str, '', 2)
         else:
-            assert(False)
+            assert False

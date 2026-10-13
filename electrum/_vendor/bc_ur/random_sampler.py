@@ -1,19 +1,22 @@
 #
 # random_sampler.py
 #
-# Copyright © 2020 Foundation Devices, Inc.
+# Copyright (C) 2020 Foundation Devices, Inc.
 # Licensed under the "BSD-2-Clause Plus Patent License"
 #
 
+from typing import List, Sequence, Callable
+
+
 class RandomSampler:
 
-    def __init__(self, probs):
+    def __init__(self, probs: Sequence[float]) -> None:
         for p in probs:
-            assert(p > 0)
+            assert p > 0
 
         # Normalize given probabilities
         total = sum(probs)
-        assert(total > 0)
+        assert total > 0
 
         n = len(probs)
 
@@ -33,7 +36,7 @@ class RandomSampler:
                 L.append(i)
 
         # Work through index lists
-        _probs = [0] * n
+        _probs: List[float] = [0] * n
         _aliases = [0] * n
 
         while len(S) > 0 and len(L) > 0:
@@ -57,7 +60,7 @@ class RandomSampler:
         self.probs = _probs
         self.aliases = _aliases
 
-    def next(self, rng_func):
+    def next(self, rng_func: Callable[[], float]) -> int:
         r1 = rng_func()
         r2 = rng_func()
         n = len(self.probs)

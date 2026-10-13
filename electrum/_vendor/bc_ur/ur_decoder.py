@@ -1,9 +1,11 @@
 #
 # ur_decoder.py
 #
-# Copyright © 2020 Foundation Devices, Inc.
+# Copyright (C) 2020 Foundation Devices, Inc.
 # Licensed under the "BSD-2-Clause Plus Patent License"
 #
+
+from typing import Optional, List, Set, FrozenSet, Tuple, Union
 
 from .ur import UR
 from .fountain_encoder import FountainEncoder, Part as FountainEncoderPart
@@ -11,29 +13,35 @@ from .fountain_decoder import FountainDecoder
 from .bytewords import *
 from .utils import drop_first, is_ur_type
 
+
 class InvalidScheme(Exception):
     pass
+
 
 class InvalidType(Exception):
     pass
 
+
 class InvalidPathLength(Exception):
     pass
+
 
 class InvalidSequenceComponent(Exception):
     pass
 
+
 class InvalidFragment(Exception):
     pass
 
+
 class URDecoder:
-    def __init__(self):
+    def __init__(self) -> None:
         self.fountain_decoder = FountainDecoder()
-        self.expected_type = None
-        self.result = None
+        self.expected_type: Optional[str] = None
+        self.result: Union[None, UR, Exception] = None
 
     @staticmethod
-    def decode(str):
+    def decode(str: str) -> UR:
         (type, components) = URDecoder.parse(str)
         if len(components) == 0:
             raise InvalidPathLength()
@@ -42,19 +50,19 @@ class URDecoder:
         return URDecoder.decode_by_type(type, body)
 
     @staticmethod
-    def decode_by_type(type, body):
+    def decode_by_type(type: str, body: str) -> UR:
         cbor = Bytewords.decode(Bytewords_Style_minimal, body)
         return UR(type, cbor)
 
     @staticmethod
-    def parse(str):
+    def parse(str: str) -> Tuple[str, List[str]]:
         # Don't consider case
         lowered = str.lower()
 
         # Validate URI scheme
         if not lowered.startswith('ur:'):
             raise InvalidScheme()
-        
+
         path = drop_first(lowered, 3)
 
         # Split the remainder into path components
@@ -69,11 +77,11 @@ class URDecoder:
         if not is_ur_type(type):
             raise InvalidType()
 
-        comps = components[1:] # Don't include the ur type
+        comps = components[1:]  # Don't include the ur type
         return (type, comps)
 
     @staticmethod
-    def parse_sequence_component(str):
+    def parse_sequence_component(str: str) -> Tuple[int, int]:
         try:
             comps = str.split('-')
             if len(comps) != 2:
@@ -86,8 +94,8 @@ class URDecoder:
         except:
             raise InvalidSequenceComponent()
 
-    def validate_part(self, type):
-        if self.expected_type == None:
+    def validate_part(self, type: str) -> bool:
+        if self.expected_type is None:
             if not is_ur_type(type):
                 return False
             self.expected_type = type
@@ -95,10 +103,10 @@ class URDecoder:
         else:
             return type == self.expected_type
 
-    def receive_part(self, str):
+    def receive_part(self, str: str) -> bool:
         try:
             # Don't process the part if we're already done
-            if self.result != None:
+            if self.result is not None:
                 return False
 
             # Don't continue if this part doesn't validate
@@ -138,39 +146,37 @@ class URDecoder:
         except Exception as err:
             return False
 
-    def expected_type(self):
-       return self.expected_type
+    def expected_type(self) -> Optional[str]:
+        return self.expected_type
 
-    def expected_part_count(self):
+    def expected_part_count(self) -> int:
         return self.fountain_decoder.expected_part_count()
 
-    def received_part_indexes(self):
+    def received_part_indexes(self) -> Set[int]:
         return self.fountain_decoder.received_part_indexes
 
-    def last_part_indexes(self):
+    def last_part_indexes(self) -> Optional[FrozenSet[int]]:
         return self.fountain_decoder.last_part_indexes
 
-    def processed_parts_count(self):
+    def processed_parts_count(self) -> int:
         return self.fountain_decoder.processed_parts_count
 
-    def estimated_percent_complete(self):
+    def estimated_percent_complete(self) -> float:
         return self.fountain_decoder.estimated_percent_complete()
-        
-    def is_success(self):
-        result = self.result
-        return result if not isinstance(result, Exception) else False
 
-    def is_failure(self):
-        result = self.result
-        return result if isinstance(result, Exception) else False
+    def is_success(self) -> bool:
+        return isinstance(self.result, UR)
 
-    def is_complete(self):
-        return self.result != None
+    def is_failure(self) -> bool:
+        return isinstance(self.result, Exception)
 
-    def result_message(self):
+    def is_complete(self) -> bool:
+        return self.result is not None
+
+    def result_message(self) -> UR:
+        assert isinstance(self.result, UR)
         return self.result
 
-    def result_error(self):
-         return self.result
-
-    
+    def result_error(self) -> Exception:
+        assert isinstance(self.result, Exception)
+        return self.result

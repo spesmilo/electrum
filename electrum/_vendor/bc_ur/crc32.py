@@ -1,21 +1,26 @@
 #
 # crc32.py
 #
-# Copyright © 2020 Foundation Devices, Inc.
+# Copyright (C) 2020 Foundation Devices, Inc.
 # Licensed under the "BSD-2-Clause Plus Patent License"
 #
 
+from typing import Optional, List
+
 from .constants import MAX_UINT32
 
-def bit_length(n):
+
+def bit_length(n: int) -> int:
     return len(bin(abs(n))) - 2
 
-TABLE = None
 
-def crc32(buf):
+TABLE: Optional[List[Optional[int]]] = None
+
+
+def crc32(buf: bytes) -> int:
     # Lazily instantiate CRC table
     global TABLE
-    if TABLE == None:
+    if TABLE is None:
         TABLE = [None] * (256 * 4)
 
         for i in range(256):
@@ -31,6 +36,7 @@ def crc32(buf):
 
     return MAX_UINT32 & ~crc
 
-def crc32n(buf):
+
+def crc32n(buf: bytes) -> bytes:
     n = crc32(buf)
     return n.to_bytes(4, 'big')

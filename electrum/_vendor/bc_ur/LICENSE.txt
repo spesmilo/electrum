@@ -4,7 +4,7 @@ BSD-2-Clause Plus Patent License
 
 SPDX-License-Identifier: [BSD-2-Clause-Patent](https://spdx.org/licenses/BSD-2-Clause-Patent.html)
 
-Copyright © 2020 Foundation Devices, Inc.
+Copyright (C) 2020 Foundation Devices, Inc.
 
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
 

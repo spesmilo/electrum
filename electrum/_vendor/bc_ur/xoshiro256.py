@@ -1,11 +1,13 @@
 #
 # xoshiro256.py
 #
-# Copyright © 2020 Foundation Devices, Inc.
+# Copyright (C) 2020 Foundation Devices, Inc.
 # Licensed under the "BSD-2-Clause Plus Patent License"
 #
 
 import sys
+from typing import Optional, Sequence
+
 try:
     import uhashlib as hashlib
 except:
@@ -37,23 +39,25 @@ from ur.constants import MAX_UINT64
 # a 64-bit seed, we suggest to seed a splitmix64 generator and use its
 # output to fill s.
 
-def rotl(x, k):
-	return ((x << k) | (x >> (64 - k))) & MAX_UINT64
 
-JUMP = [ 0x180ec6d33cfd0aba, 0xd5a61266f0c9392c, 0xa9582618e03fc9aa, 0x39abdc4529b1661c ]
-LONG_JUMP = [ 0x76e15d3efefdcbbf, 0xc5004e441c522fb3, 0x77710069854ee241, 0x39109bb02acbe635 ]
+def rotl(x: int, k: int) -> int:
+    return ((x << k) | (x >> (64 - k))) & MAX_UINT64
+
+
+JUMP = [0x180ec6d33cfd0aba, 0xd5a61266f0c9392c, 0xa9582618e03fc9aa, 0x39abdc4529b1661c]
+LONG_JUMP = [0x76e15d3efefdcbbf, 0xc5004e441c522fb3, 0x77710069854ee241, 0x39109bb02acbe635]
+
 
 class Xoshiro256:
-    def __init__(self, arr = None):
+    def __init__(self, arr: Optional[Sequence[int]] = None) -> None:
         self.s = [0] * 4
-        if arr != None:
+        if arr is not None:
             self.s[0] = arr[0]
             self.s[1] = arr[1]
             self.s[2] = arr[2]
             self.s[3] = arr[3]
 
-
-    def _set_s(self, arr):
+    def _set_s(self, arr: Sequence[int]) -> None:
         for i in range(4):
             o = i * 8
             v = 0
@@ -62,39 +66,39 @@ class Xoshiro256:
                 v |= (arr[o + n])
             self.s[i] = v
 
-    def _hash_then_set_s(self, buf):
+    def _hash_then_set_s(self, buf: bytes) -> None:
         m = hashlib.sha256()
         m.update(buf)
         digest = m.digest()
         self._set_s(digest)
 
     @classmethod
-    def from_int8_array(cls, arr):
+    def from_int8_array(cls, arr: Sequence[int]) -> 'Xoshiro256':
         x = Xoshiro256()
         x._set_s(arr)
         return x
 
     @classmethod
-    def from_bytes(cls, buf):
+    def from_bytes(cls, buf: bytes) -> 'Xoshiro256':
         x = Xoshiro256()
         x._hash_then_set_s(buf)
         return x
 
     @classmethod
-    def from_crc32(cls, crc32):
+    def from_crc32(cls, crc32: int) -> 'Xoshiro256':
         x = Xoshiro256()
         buf = int_to_bytes(crc32)
         x._hash_then_set_s(buf)
         return x
 
     @classmethod
-    def from_string(cls, s):
+    def from_string(cls, s: str) -> 'Xoshiro256':
         x = Xoshiro256()
         buf = string_to_bytes(s)
         x._hash_then_set_s(buf)
         return x
 
-    def next(self):
+    def next(self) -> int:
         result = (rotl((self.s[1] * 5) & MAX_UINT64, 7) * 9) & MAX_UINT64
         t = (self.s[1] << 17) & MAX_UINT64
 
@@ -109,24 +113,24 @@ class Xoshiro256:
 
         return result
 
-    def next_double(self):
+    def next_double(self) -> float:
         m = float(MAX_UINT64) + 1
         nxt = self.next()
         return nxt / m
 
-    def next_int(self, low, high):
+    def next_int(self, low: int, high: int) -> int:
         return int(self.next_double() * (high - low + 1) + low) & MAX_UINT64
 
-    def next_byte(self):
+    def next_byte(self) -> int:
         return self.next_int(0, 255)
 
-    def next_data(self, count):
+    def next_data(self, count: int) -> bytearray:
         result = bytearray()
         for i in range(count):
             result.append(self.next_byte())
         return result
 
-    def jump(self):
+    def jump(self) -> None:
         global JUMP
 
         s0 = 0
@@ -147,7 +151,7 @@ class Xoshiro256:
         self.s[2] = s2
         self.s[3] = s3
 
-    def long_jump(self):
+    def long_jump(self) -> None:
         global LONG_JUMP
 
         s0 = 0
