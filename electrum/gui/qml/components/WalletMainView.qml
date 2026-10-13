@@ -302,6 +302,9 @@ Item {
                 iconSource: Qt.resolvedUrl('../../icons/warning.png'),
                 text: message
             })
+            dialog.closed.connect(function() {
+                restartSendDialog()
+            })
             dialog.open()
         }
 
