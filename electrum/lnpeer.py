@@ -2905,9 +2905,9 @@ class Peer(Logger, EventListener):
         #    and not added to any set.
         #    Each htlc is only supposed to go through this first loop once when being received.
         for chan_id, chan in self.channels.items():
+            self.maybe_send_commitment(chan)  # sign pending updates, e.g. during send_shutdown
             if not chan.can_send_ctx_updates():
                 continue
-            self.maybe_send_commitment(chan)
             unfulfilled = chan.unfulfilled_htlcs
             for htlc_id, onion_packet_hex in list(unfulfilled.items()):
                 if not chan.hm.is_htlc_irrevocably_added_yet(htlc_proposer=REMOTE, htlc_id=htlc_id):
