@@ -2855,6 +2855,15 @@ class TestPeerForwarding(TestPeer):
                     trampoline_users=('alice', 'bob'),
                     attempts=2,
                 )
+        with self.subTest(msg="carol is not a trampoline: bob forwards to her directly"):
+            with self.assertRaises(PaymentDone):
+                await self._run_trampoline_payment(
+                    graph, sender_name='alice',
+                    destination_name='carol',
+                    trampoline_forwarders=('bob', 'dave'),
+                    trampoline_users=('alice', 'bob'),
+                    attempts=1,
+                )
 
     async def test_lazy_trampoline_e2e(self):
         await self._test_lazy_trampoline(is_legacy=False)
