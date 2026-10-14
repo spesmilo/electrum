@@ -16,7 +16,7 @@ Item {
 
     function show(item, text) {
         _text = text
-        var r = item.mapToItem(parent, item.x, item.y)
+        var r = item.mapToItem(parent, 0, 0)
         x = r.x + 0.5*(item.width - toaster.width)
         y = r.y - toaster.height - constants.paddingLarge
         toaster._y = y - toaster.height
