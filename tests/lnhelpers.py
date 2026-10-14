@@ -299,6 +299,7 @@ class MockLNWallet(LNWallet):
             paysession=paysession,
             full_path=full_path,
             budget=PaymentFeeBudget.from_invoice_amount(invoice_amount_msat=amount_msat, config=self.config),
+            we_are_forwarding=False,
         )]
 
 
