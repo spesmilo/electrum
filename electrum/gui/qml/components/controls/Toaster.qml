@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Layouts
 import QtQuick.Controls
 import QtQuick.Controls.Material
 
@@ -7,7 +6,7 @@ import ".."
 
 Item {
     id: toaster
-    width: contentItem.implicitWidth
+    width: rect.width
     height: rect.height
     visible: false
 
@@ -38,20 +37,14 @@ Item {
 
     Rectangle {
         id: rect
-        width: contentItem.width
-        height: contentItem.height
+        width: label.implicitWidth
+        height: label.implicitHeight
         color: constants.colorAlpha(Material.background, 0.90)
 
-        RowLayout {
-            id: contentItem
-            Label {
-                Layout.margins: 10
-                text: toaster._text
-                onTextChanged: {
-                    // hack. ref implicitWidth so it gets recalculated
-                    var _ = contentItem.implicitWidth
-                }
-            }
+        Label {
+            id: label
+            padding: 10
+            text: toaster._text
         }
     }
 }
