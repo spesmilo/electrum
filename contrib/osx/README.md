@@ -13,8 +13,11 @@ This guide explains how to build Electrum binaries for macOS systems.
 
 This needs to be done on a system running macOS or OS X.
 
-The script is only tested on Intel-based (x86_64) Macs, and the binary built
-targets `x86_64` currently.
+The default target is Intel (`x86_64`). To build natively on Apple Silicon, use
+`OSX_ARCH=arm64`. Build on a host running the selected architecture, with native
+Homebrew tools; cross-compilation and universal2 bundles are not supported.
+Use a checkout path without spaces, as the native Autotools install steps do
+not reliably handle them.
 
 Notes about compatibility with different macOS versions:
 - In general the binary is not guaranteed to run on an older version of macOS
@@ -93,6 +96,38 @@ Let brew install the Xcode CLI tools.
     ./contrib/osx/make_osx.sh
 
 This creates both a folder named Electrum.app and the .dmg file (both unsigned).
+
+For Apple Silicon:
+
+    OSX_ARCH=arm64 ./contrib/osx/make_osx.sh
+
+This creates `dist/Electrum.app` and `dist/electrum-<version>-arm64-unsigned.dmg`.
+Intel DMG filenames remain unchanged. Native libraries, Python environments,
+and build caches are separated under `contrib/osx/.cache/<architecture>/`.
+The `dist` directory is shared: build one architecture at a time per checkout.
+The builder verifies that all bundled Mach-O binaries contain the target slice.
+
+By default the builder installs the pinned python.org framework and selects it
+explicitly, rather than relying on `python3` on PATH. For local development,
+`OSX_PYTHON=/absolute/path/to/python3.12` skips that installation and uses an
+existing Python 3.12 interpreter. Such builds can differ from official releases.
+
+The macOS CI workflow builds unsigned Intel and ARM apps on separate native
+runners, smoke-tests the packaged executable, and uploads DMGs and zipped app
+bundles. It runs for build-related pull requests, nightly through `builds.yml`,
+and manually (select `macos` in the builds workflow). Hosted runner builds do
+not establish reproducibility against the macOS 11 release environment above,
+nor compatibility with older macOS versions.
+
+For a release that includes both architectures, build and sign each on its
+native builder using separate checkouts. `sign_osx.sh` detects the app's
+architecture and keeps `-arm64` in the signed DMG filename. Copy both signed
+DMGs to the release machine's `dist` directory, then set
+`INCLUDE_MACOS_ARM64=1` for `release.sh` and `release_www.sh`. This includes the
+ARM DMG in download, comparison, and signature checks. The website template
+can use `##link_mac_arm64##` and `##sigs_mac_arm64##` to link it. Without this
+opt-in, the existing Intel release artifact set is unchanged. Signing,
+notarization, and production publication still run through the release manager.
 
 ##### 2.1. For release binaries, here be dragons
 

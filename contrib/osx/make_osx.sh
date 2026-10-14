@@ -14,11 +14,18 @@ export PYTHONDONTWRITEBYTECODE=1  # don't create __pycache__/ folders with .pyc 
 
 . "$(dirname "$0")/../build_tools_util.sh"
 
+export OSX_ARCH="${OSX_ARCH:-x86_64}"
+case "$OSX_ARCH" in
+    x86_64|arm64) ;;
+    *) fail "Unsupported OSX_ARCH: $OSX_ARCH (use x86_64 or arm64)" ;;
+esac
+# Native builds only: pip and Homebrew must use the same architecture as the output.
+[[ "$(uname -m)" == "$OSX_ARCH" ]] || fail "Build $OSX_ARCH on a native $OSX_ARCH host."
 
 CONTRIB_OSX="$(dirname "$(realpath "$0")")"
 CONTRIB="$CONTRIB_OSX/.."
 PROJECT_ROOT="$CONTRIB/.."
-CACHEDIR="$CONTRIB_OSX/.cache"
+CACHEDIR="$CONTRIB_OSX/.cache/$OSX_ARCH"
 export DLL_TARGET_DIR="$CACHEDIR/dlls"
 PIP_CACHE_DIR="$CACHEDIR/pip_cache"
 
@@ -33,30 +40,42 @@ which brew > /dev/null 2>&1 || fail "Please install brew from https://brew.sh/ t
 which xcodebuild > /dev/null 2>&1 || fail "Please install xcode command line tools to continue"
 
 
-info "Installing Python $PYTHON_VERSION"
-PKG_FILE="python-${PYTHON_VERSION}-macos11.pkg"
-if [ ! -f "$CACHEDIR/$PKG_FILE" ]; then
-    curl -o "$CACHEDIR/$PKG_FILE" "https://www.python.org/ftp/python/${PYTHON_VERSION}/$PKG_FILE"
-fi
-echo "8373e58da4ea146b3eb1c1f9834f19a319440b6b679b06050b1f9ee3237aa8e4  $CACHEDIR/$PKG_FILE" | shasum -a 256 -c \
-    || fail "python pkg checksum mismatched"
-sudo installer -pkg "$CACHEDIR/$PKG_FILE" -target / \
-    || fail "failed to install python"
+if [ -z "$OSX_PYTHON" ]; then
+    info "Installing Python $PYTHON_VERSION"
+    PKG_FILE="python-${PYTHON_VERSION}-macos11.pkg"
+    if [ ! -f "$CACHEDIR/$PKG_FILE" ]; then
+        curl -o "$CACHEDIR/$PKG_FILE" "https://www.python.org/ftp/python/${PYTHON_VERSION}/$PKG_FILE"
+    fi
+    echo "8373e58da4ea146b3eb1c1f9834f19a319440b6b679b06050b1f9ee3237aa8e4  $CACHEDIR/$PKG_FILE" | shasum -a 256 -c \
+        || fail "python pkg checksum mismatched"
+    sudo installer -pkg "$CACHEDIR/$PKG_FILE" -target / \
+        || fail "failed to install python"
 
-# sanity check "python3" has the version we just installed.
-FOUND_PY_VERSION=$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:3])))')
-if [[ "$FOUND_PY_VERSION" != "$PYTHON_VERSION" ]]; then
-    fail "python version mismatch: $FOUND_PY_VERSION != $PYTHON_VERSION"
+    # Use the installed framework explicitly; Homebrew/runner Python may precede it on PATH.
+    OSX_PYTHON="/Library/Frameworks/Python.framework/Versions/$PY_VER_MAJOR/bin/python$PY_VER_MAJOR"
+    FOUND_PY_VERSION=$(/usr/bin/arch "-$OSX_ARCH" "$OSX_PYTHON" -c 'import platform; print(platform.python_version())')
+    if [[ "$FOUND_PY_VERSION" != "$PYTHON_VERSION" ]]; then
+        fail "python version mismatch: $FOUND_PY_VERSION != $PYTHON_VERSION"
+    fi
+else
+    warn "Using custom Python $OSX_PYTHON; this build may differ from official releases."
 fi
+FOUND_PY_ARCH=$(/usr/bin/arch "-$OSX_ARCH" "$OSX_PYTHON" -c 'import platform; print(platform.machine())')
+[[ "$FOUND_PY_ARCH" == "$OSX_ARCH" ]] || fail "Python architecture $FOUND_PY_ARCH != $OSX_ARCH"
+FOUND_PY_MAJOR=$(/usr/bin/arch "-$OSX_ARCH" "$OSX_PYTHON" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+[[ "$FOUND_PY_MAJOR" == "$PY_VER_MAJOR" ]] || fail "Python $PY_VER_MAJOR is required."
 
-break_legacy_easy_install
+# Scope the legacy easy_install override to this build, instead of modifying HOME.
+export DIST_EXTRA_CONFIG="$CACHEDIR/distutils.cfg"
+printf '[easy_install]\nindex_url =\nfind_links =\n' > "$DIST_EXTRA_CONFIG"
 
 # create a fresh virtualenv
 # This helps to avoid older versions of pip-installed dependencies interfering with the build.
-VENV_DIR="$CONTRIB_OSX/build-venv"
+VENV_DIR="$CACHEDIR/build-venv"
 rm -rf "$VENV_DIR"
-python3 -m venv "$VENV_DIR"
+/usr/bin/arch "-$OSX_ARCH" "$OSX_PYTHON" -m venv "$VENV_DIR"
 source "$VENV_DIR/bin/activate"
+[[ "$(python3 -c 'import platform; print(platform.machine())')" == "$OSX_ARCH" ]] || fail "virtualenv architecture does not match $OSX_ARCH"
 
 # don't add debug info to compiled C files (e.g. when pip calls setuptools/wheel calls gcc)
 # see https://github.com/pypa/pip/issues/6505#issuecomment-526613584
@@ -66,7 +85,7 @@ export CFLAGS="-g0"
 
 # Do not build universal binaries. The default on macos 11+ and xcode 12+ is "-arch arm64 -arch x86_64"
 # but with that e.g. "hid.cpython-310-darwin.so" is not reproducible as built by clang.
-export ARCHFLAGS="-arch x86_64"
+export ARCHFLAGS="-arch $OSX_ARCH"
 
 info "Installing build dependencies"
 # note: re pip installing from PyPI,
@@ -78,10 +97,10 @@ info "Installing build dependencies"
 #         and I am not quite sure how to break the circular dependence there (I guess we could introduce
 #         "requirements-build-base-base.txt" with just wheel in it...)
 python3 -m pip install --no-build-isolation --no-dependencies --no-warn-script-location \
-    --cache-dir "$PIP_CACHE_DIR" -Ir ./contrib/deterministic-build/requirements-build-base.txt \
+    --cache-dir "$PIP_CACHE_DIR" --force-reinstall -r ./contrib/deterministic-build/requirements-build-base.txt \
     || fail "Could not install build dependencies (base)"
 python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: --no-warn-script-location \
-    --cache-dir "$PIP_CACHE_DIR" -Ir ./contrib/deterministic-build/requirements-build-mac.txt \
+    --cache-dir "$PIP_CACHE_DIR" --force-reinstall -r ./contrib/deterministic-build/requirements-build-mac.txt \
     || fail "Could not install build dependencies (mac)"
 
 info "Installing some build-time deps for compilation..."
@@ -115,7 +134,7 @@ PYINSTALLER_COMMIT="306d4d92580fea7be7ff2c89ba112cdc6f73fac1"
     echo "const char *electrum_tag = \"tagged by Electrum@$ELECTRUM_COMMIT_HASH\";" >> ./bootloader/src/pyi_main.c
     pushd bootloader
     # compile bootloader
-    python3 ./waf all CFLAGS="-static"
+    python3 ./waf all --no-universal2 CFLAGS="-static -arch $OSX_ARCH"
     popd
     # sanity check bootloader is there:
     [[ -e "PyInstaller/bootloader/Darwin-64bit/runw" ]] || fail "Could not find runw in target dir!"
@@ -187,19 +206,19 @@ export ELECTRUM_ECC_DONT_COMPILE=1
 info "Installing requirements..."
 python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: \
     --cache-dir "$PIP_CACHE_DIR" --no-warn-script-location \
-    -Ir ./contrib/deterministic-build/requirements.txt \
+    --force-reinstall -r ./contrib/deterministic-build/requirements.txt \
     || fail "Could not install requirements"
 
 info "Installing hardware wallet requirements..."
 python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: --only-binary cryptography \
     --cache-dir "$PIP_CACHE_DIR" --no-warn-script-location \
-    -Ir ./contrib/deterministic-build/requirements-hw.txt \
+    --force-reinstall -r ./contrib/deterministic-build/requirements-hw.txt \
     || fail "Could not install hardware wallet requirements"
 
 info "Installing dependencies specific to binaries..."
 python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: --only-binary PyQt6,PyQt6-Qt6,cryptography \
     --cache-dir "$PIP_CACHE_DIR" --no-warn-script-location \
-    -Ir ./contrib/deterministic-build/requirements-binaries-mac.txt \
+    --force-reinstall -r ./contrib/deterministic-build/requirements-binaries-mac.txt \
     || fail "Could not install dependencies specific to binaries"
 
 info "Building $PACKAGE..."
@@ -222,12 +241,15 @@ VERSION=$(git describe --tags --always)
 
 info "Building binary"
 ELECTRUM_VERSION=$VERSION pyinstaller --noconfirm --clean contrib/osx/pyinstaller.spec || fail "Could not build binary"
+python3 "$CONTRIB_OSX/verify_bundle.py" --arch "$OSX_ARCH" "dist/${PACKAGE}.app"
 
 info "Finished building unsigned dist/${PACKAGE}.app. This hash should be reproducible:"
 find "dist/${PACKAGE}.app" -type f -print0 | sort -z | xargs -0 shasum -a 256 | shasum -a 256
 
 info "Creating unsigned .DMG"
-hdiutil create -fs HFS+ -volname $PACKAGE -srcfolder dist/$PACKAGE.app dist/electrum-$VERSION-unsigned.dmg || fail "Could not create .DMG"
+ARCH_SUFFIX=""
+[[ "$OSX_ARCH" == x86_64 ]] || ARCH_SUFFIX="-$OSX_ARCH"
+hdiutil create -fs HFS+ -volname $PACKAGE -srcfolder dist/$PACKAGE.app dist/electrum-$VERSION$ARCH_SUFFIX-unsigned.dmg || fail "Could not create .DMG"
 
 info "App was built successfully but was not code signed. Users may get security warnings from macOS."
 info "Now you also need to run sign_osx.sh to codesign/notarize the binary."
