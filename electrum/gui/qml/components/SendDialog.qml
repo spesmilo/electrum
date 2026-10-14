@@ -136,8 +136,13 @@ ElDialog {
                 icon.source: '../../icons/copy_bw.png'
                 text: qsTr('Paste')
                 onClicked: {
+                    var cliptext = AppController.clipboardToText().trim()
+                    if (!cliptext) {
+                        toaster.show(this, qsTr('Clipboard is empty'))
+                        return
+                    }
                     qrscan.stop()
-                    root.dispatch(AppController.clipboardToText())
+                    root.dispatch(cliptext)
                 }
             }
         }
@@ -146,6 +151,10 @@ ElDialog {
 
     Bitcoin {
         id: bitcoin
+    }
+
+    Toaster {
+        id: toaster
     }
 
     Component {
