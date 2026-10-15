@@ -28,7 +28,12 @@ GridLayout {
     Label {
         id: btcLabel
         visible: valid
-        text: msatPrecision ? Config.formatMilliSats(amount) : Config.formatSats(amount)
+        text: {
+            // re-format when these change
+            Config.baseUnit
+            Config.thousandsSeparator
+            return msatPrecision ? Config.formatMilliSats(amount.bind) : Config.formatSats(amount.bind)
+        }
         font.family: FixedFont
     }
     Label {
@@ -52,7 +57,6 @@ GridLayout {
                 fiatLabel.text = Daemon.fx.isRecent(timestamp)
                     ? '(' + Daemon.fx.fiatValue(amount) + ' ' + Daemon.fx.fiatCurrency + ')'
                     : ''
-        btcLabel.text = msatPrecision ? Config.formatMilliSats(amount) : Config.formatSats(amount)
     }
 
     onAmountChanged: update()

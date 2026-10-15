@@ -118,6 +118,23 @@ class QEAmount(QObject):
     def positive(self) -> bool:
         return self.isEmpty or self.isMax or self.msatsInt >= 0
 
+    @pyqtProperty('QVariant', notify=valueChanged)
+    def bind(self) -> 'QEAmount':
+        """returns self, notifying on valueChanged.
+
+           QEAmount properties are usually updated in place instead of replacing the QEAmount instance,
+           so one cannot depend on the usual <amount-property>Changed signals, one can only use the Changed
+           signals on the QEAmount instance's properties like satsInt. To work around this, a .bind property
+           is introduced.
+
+           Pass amount.bind instead of amount to a slot in a property binding
+           (e.g. Config.formatMilliSats(amount.bind)), so the binding re-evaluates when the value changes.
+
+           WARNING: Don't use on amounts whose getter updates the instance when read,
+           as these emit valueChanged during binding evaluation, resulting in a binding loop.
+           """
+        return self
+
     @pyqtSlot()
     def clear(self):
         self._amount_msat = 0

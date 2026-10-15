@@ -19,20 +19,13 @@ ElDialog {
     needsSystemBarPadding: false
 
     property bool commentValid: comment.text.length <= invoiceParser.lnurlData['comment_allowed']
-    property bool amountValid: false
+    property bool amountValid: isValidAmount()
     property bool valid: commentValid && amountValid
 
     function isValidAmount() {
-        return amountBtc.textAsSats.gte(invoiceParser.lnurlData['min_sendable_msat'])
-            && amountBtc.textAsSats.lte(invoiceParser.lnurlData['max_sendable_msat'])
-            && amountBtc.textAsSats.lte(invoiceParser.wallet.lightningCanSend)
-    }
-
-    Connections {
-        target: invoiceParser.wallet
-        function onLightningCanSendChanged() {
-            dialog.amountValid = isValidAmount()
-        }
+        return amountBtc.textAsSats.bind.gte(invoiceParser.lnurlData['min_sendable_msat'])
+            && amountBtc.textAsSats.bind.lte(invoiceParser.lnurlData['max_sendable_msat'])
+            && amountBtc.textAsSats.bind.lte(invoiceParser.wallet.lightningCanSend)
     }
 
     ColumnLayout {
@@ -94,10 +87,7 @@ ElDialog {
                     color: Material.foreground // override gray-out on disabled
                     fiatfield: amountFiat
                     msatPrecision: true
-                    onValueChanged: {
-                        invoiceParser.amountOverride = textAsSats
-                        dialog.amountValid = isValidAmount()
-                    }
+                    onValueChanged: invoiceParser.amountOverride = textAsSats
                 }
                 Label {
                     text: Config.baseUnit
