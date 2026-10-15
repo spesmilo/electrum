@@ -42,7 +42,7 @@ from .video_widget import QrReaderVideoWidget
 from .video_overlay import QrReaderVideoOverlay
 from .video_surface import QrReaderVideoSurface
 from .crop_blur_effect import QrReaderCropBlurEffect
-from .validator import AbstractQrReaderValidator, QrReaderValidatorCounted, QrReaderValidatorResult
+from .validator import QrReaderValidator, QrReaderValidatorResult
 
 
 class CameraError(RuntimeError):
@@ -76,7 +76,7 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
         QDialog.__init__(self, parent=parent)
         Logger.__init__(self)
 
-        self.validator: AbstractQrReaderValidator = None
+        self.validator: QrReaderValidator = None
         self.frame_id: int = 0
         self.qr_crop: QRect = None
         self.qrreader_res: List[QrCodeResult] = []
@@ -182,7 +182,7 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
         If the camera is not found or can't be opened NoCamerasFound will be raised.
         """
 
-        self.validator = QrReaderValidatorCounted()
+        self.validator = QrReaderValidator()
 
         device_info = None
 
@@ -269,12 +269,8 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
     def _on_finished(self, code):
         accepted = code == QDialog.DialogCode.Accepted
         res = ''
-        if accepted and self.validator_res and self.validator_res.accepted and self.validator_res.simple_result:
-            try:
-                res = self.validator_res.simple_result.decode('utf-8')
-            except UnicodeDecodeError:
-                accepted = False
-                self._error_message = _("The QR code does not contain valid UTF-8 text.")
+        if accepted and self.validator_res and self.validator_res.accepted:
+            res = self.validator_res.simple_result
 
         self.validator = None
 
@@ -357,8 +353,6 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
         if last_stats_delta > 1.0:  # stats every 1.0 seconds
             fps = self.frame_counter / last_stats_delta
             qr_fps = self.qr_frame_counter / last_stats_delta
-            #if self.validator is not None:
-            #    self.validator.strong_count = math.ceil(qr_fps / 3)  # 1/3 of a second's worth of qr frames determines strong_count
             stats_format = 'running at {} FPS, scanner at {} FPS'
             self.logger.info(stats_format.format(fps, qr_fps))
             self.frame_counter = 0
