@@ -38,8 +38,8 @@ ElDialog {
 
     function isValidAmount() {
         return !dialog.insufficientLiquidity
-                && amountBtc.textAsSats.gte(dialog.effectiveMinWithdrawable)
-                && amountBtc.textAsSats.lte(dialog.effectiveMaxWithdrawable)
+                && amountBtc.textAsSats.bind.gte(dialog.effectiveMinWithdrawable.bind)
+                && amountBtc.textAsSats.bind.lte(dialog.effectiveMaxWithdrawable.bind)
     }
 
     function updateLimits() {
@@ -48,11 +48,9 @@ ElDialog {
         dialog.insufficientLiquidity = dialog.effectiveMinWithdrawable.gt(requestDetails.wallet.lightningCanReceive)
         dialog.liquidityWarning = dialog.providerMaxWithdrawable.gt(requestDetails.wallet.lightningCanReceive)
         dialog.fixedAmount = dialog.providerMinWithdrawable.eq(dialog.providerMaxWithdrawable)
-        dialog.amountValid = isValidAmount()
     }
 
     Connections {
-        // assign walletCanReceive directly to prevent a binding loop
         target: requestDetails.wallet
         function onLightningCanReceiveChanged() {
             if (!requestDetails.busy) {
@@ -60,13 +58,6 @@ ElDialog {
                 // the incoming payment
                 updateLimits()
             }
-        }
-    }
-
-    Connections {
-        target: amountBtc
-        function onValueChanged() {
-            dialog.amountValid = isValidAmount()
         }
     }
 
@@ -91,7 +82,7 @@ ElDialog {
                 text: qsTr('Too little incoming liquidity to satisfy this withdrawal request.')
                           + '\n\n'
                           + qsTr('Can receive: %1')
-                            .arg(Config.formatMilliSats(dialog.walletCanReceive.msatsInt) + ' ' + Config.baseUnit)
+                            .arg(Config.formatMilliSats(dialog.walletCanReceive.bind) + ' ' + Config.baseUnit)
                           + '\n'
                           + qsTr('Minimum withdrawal amount: %1')
                             .arg(Config.formatMilliSats(dialog.providerMinWithdrawable) + ' ' + Config.baseUnit)
@@ -107,8 +98,8 @@ ElDialog {
                 compact: true
                 visible: !dialog.insufficientLiquidity && !dialog.fixedAmount
                 text: qsTr('Amount must be between %1 and %2 %3')
-                        .arg(Config.formatMilliSats(dialog.effectiveMinWithdrawable.msatsInt))
-                        .arg(Config.formatMilliSats(dialog.effectiveMaxWithdrawable.msatsInt))
+                        .arg(Config.formatMilliSats(dialog.effectiveMinWithdrawable.bind))
+                        .arg(Config.formatMilliSats(dialog.effectiveMaxWithdrawable.bind))
                         .arg(Config.baseUnit)
                 backgroundColor: constants.darkerDialogBackground
             }
@@ -120,7 +111,7 @@ ElDialog {
                 visible: dialog.liquidityWarning && !dialog.insufficientLiquidity
                 text: qsTr('The maximum withdrawable amount (%1) is larger than what your channels can receive (%2).')
                             .arg(Config.formatMilliSats(dialog.providerMaxWithdrawable) + ' ' + Config.baseUnit)
-                            .arg(Config.formatMilliSats(dialog.walletCanReceive.msatsInt) + ' ' + Config.baseUnit)
+                            .arg(Config.formatMilliSats(dialog.walletCanReceive.bind) + ' ' + Config.baseUnit)
                         + ' '
                         + qsTr('You may need to do a submarine swap to increase your incoming liquidity.')
                 iconStyle: InfoTextArea.IconStyle.Warn
@@ -157,7 +148,7 @@ ElDialog {
                 BtcField {
                     id: amountBtc
                     Layout.preferredWidth: rootLayout.width / 3
-                    text: Config.formatMilliSatsForEditing(dialog.effectiveMaxWithdrawable.msatsInt)
+                    text: Config.formatMilliSatsForEditing(dialog.effectiveMaxWithdrawable.bind)
                     enabled: !dialog.insufficientLiquidity && !dialog.fixedAmount
                     color: Material.foreground // override gray-out on disabled
                     fiatfield: amountFiat

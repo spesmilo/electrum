@@ -19,7 +19,7 @@ ElDialog {
     property alias expiry: expires.currentValue
     property bool isLightning: false
 
-    property bool _canReceiveLightningAmount: Daemon.currentWallet.lightningCanReceive.msatsInt > amountBtc.textAsSats.msatsInt
+    property bool _canReceiveLightningAmount: Daemon.currentWallet.lightningCanReceive.gt(amountBtc.textAsSats.bind)
 
     padding: 0
     needsSystemBarPadding: false

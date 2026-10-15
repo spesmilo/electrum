@@ -1,6 +1,9 @@
 import shutil
 import tempfile
 
+from PyQt6.QtCore import QUrl
+from PyQt6.QtQml import QQmlComponent, QQmlEngine
+
 from electrum import SimpleConfig
 from electrum.gui.qml.qetypes import QEAmount
 from electrum.invoices import Invoice, LN_EXPIRY_NEVER
@@ -126,6 +129,30 @@ class TestTypes(QETestCase):
         self.assertFalse(t.isEmpty)
         self.assertTrue(t.isMax)
         self.assertEqual(1, len(t_er.received))
+
+    @qt_test
+    def test_qeamount_bind(self):
+        amount = QEAmount(amount_sat=1)
+        self.assertIs(amount, amount.bind)
+
+        # gt() is a slot, the binding only re-evaluates on valueChanged of amount because it reads amount.bind
+        other = QEAmount(amount_sat=5)
+        engine = QQmlEngine()
+        engine.rootContext().setContextProperty('amount', amount)
+        engine.rootContext().setContextProperty('other', other)
+        component = QQmlComponent(engine)
+        component.setData(b'import QtQml\nQtObject { property bool otherIsGreater: other.gt(amount.bind) }', QUrl())
+        obj = component.create()
+        self.assertIsNotNone(obj, component.errorString())
+        self.assertTrue(obj.property('otherIsGreater'))
+
+        amount.satsInt = 10
+        self.assertFalse(obj.property('otherIsGreater'))
+
+        amount.copyFrom(QEAmount(amount_sat=2))
+        self.assertTrue(obj.property('otherIsGreater'))
+
+        del obj  # before amount and other, whose deletion would re-evaluate the binding against null
 
     @qt_test
     def test_qeamount_frominvoice(self):
