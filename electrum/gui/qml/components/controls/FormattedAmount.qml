@@ -12,6 +12,7 @@ GridLayout {
     property bool valid: true
     property bool historic: Daemon.fx.historicRates
     property int timestamp: 0
+    property bool msatPrecision: false
 
     columns: !valid
                 ? 1
@@ -27,7 +28,7 @@ GridLayout {
     Label {
         id: btcLabel
         visible: valid
-        text: Config.formatMilliSats(amount)
+        text: msatPrecision ? Config.formatMilliSats(amount) : Config.formatSats(amount)
         font.family: FixedFont
     }
     Label {
@@ -51,7 +52,7 @@ GridLayout {
                 fiatLabel.text = Daemon.fx.isRecent(timestamp)
                     ? '(' + Daemon.fx.fiatValue(amount) + ' ' + Daemon.fx.fiatCurrency + ')'
                     : ''
-        btcLabel.text = Config.formatMilliSats(amount)
+        btcLabel.text = msatPrecision ? Config.formatMilliSats(amount) : Config.formatSats(amount)
     }
 
     onAmountChanged: update()

@@ -61,6 +61,7 @@ Pane {
             FormattedAmount {
                 amount: lnpaymentdetails.amount
                 timestamp: lnpaymentdetails.timestamp
+                msatPrecision: true
             }
 
             Label {
@@ -73,6 +74,7 @@ Pane {
                 visible: !lnpaymentdetails.amount.positive
                 amount: lnpaymentdetails.fee
                 timestamp: lnpaymentdetails.timestamp
+                msatPrecision: true
             }
 
             Label {

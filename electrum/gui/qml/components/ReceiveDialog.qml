@@ -124,6 +124,7 @@ ElDialog {
                         visible: !request.amount.isEmpty
                         valid: !request.amount.isEmpty
                         amount: request.amount
+                        msatPrecision: true
                     }
                     Label {
                         visible: request.amount.isEmpty
