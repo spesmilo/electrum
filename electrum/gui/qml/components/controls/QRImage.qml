@@ -8,6 +8,8 @@ Item {
     property bool enableToggleText: false  // if true, clicking the QR code shows the encoded text
     property bool isTextState: false    // internal state, if the above is enabled
 
+    signal clicked()
+
     property var _qrprops: QRIP.getDimensions(qrdata)
 
     width: r.width
@@ -71,6 +73,8 @@ Item {
         onClicked: {
             if (enableToggleText) {
                 root.isTextState = !root.isTextState
+            } else {
+                root.clicked()
             }
         }
     }

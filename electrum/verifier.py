@@ -43,6 +43,7 @@ class MerkleVerificationFailure(Exception): pass
 class MissingBlockHeader(MerkleVerificationFailure): pass
 class MerkleRootMismatch(MerkleVerificationFailure): pass
 class InnerNodeOfSpvProofIsValidTx(MerkleVerificationFailure): pass
+class LeftSiblingDuplicate(MerkleVerificationFailure): pass
 
 
 class SPV(NetworkJobOnDefaultServer):
@@ -86,9 +87,9 @@ class SPV(NetworkJobOnDefaultServer):
             # if it's in the checkpoint region, we still might not have the header
             header = self.blockchain.read_header(tx_height)
             if header is None:
-                if tx_height < constants.net.max_checkpoint():
+                if tx_height <= constants.net.max_checkpoint():
                     # FIXME these requests are not counted (self._requests_sent += 1)
-                    await self.taskgroup.spawn(self.interface.request_chunk(tx_height, can_return_early=True))
+                    await self.taskgroup.spawn(self.interface.request_chunk_below_max_checkpoint(height=tx_height))
                 continue
             # request now
             self.logger.info(f'requested merkle {tx_hash}')
@@ -131,7 +132,7 @@ class SPV(NetworkJobOnDefaultServer):
         self.requested_merkle.discard(tx_hash)
         self.logger.info(f"verified {tx_hash}")
         header_hash = hash_header(header)
-        tx_info = TxMinedInfo(height=tx_height,
+        tx_info = TxMinedInfo(_height=tx_height,
                               timestamp=header.get('timestamp'),
                               txpos=pos,
                               header_hash=header_hash)
@@ -149,11 +150,16 @@ class SPV(NetworkJobOnDefaultServer):
         if leaf_pos_in_tree < 0:
             raise MerkleVerificationFailure('leaf_pos_in_tree must be non-negative')
         index = leaf_pos_in_tree
-        for item in merkle_branch_bytes:
-            if len(item) != 32:
+        for sibling in merkle_branch_bytes:
+            if len(sibling) != 32:
                 raise MerkleVerificationFailure('all merkle branch items have to be 32 bytes long')
-            inner_node = (item + h) if (index & 1) else (h + item)
+            is_right_child = (index & 1)
+            inner_node = (sibling + h) if is_right_child else (h + sibling)
+            # CVE-2017-12842 protection: inner node must not be a valid tx
             cls._raise_if_valid_tx(inner_node.hex())
+            # CVE-2012-2459 protection: reject left-sibling duplicates
+            if is_right_child and sibling == h:
+                raise LeftSiblingDuplicate()
             h = sha256d(inner_node)
             index >>= 1
         if index != 0:
@@ -162,7 +168,7 @@ class SPV(NetworkJobOnDefaultServer):
 
     @classmethod
     def _raise_if_valid_tx(cls, raw_tx: str):
-        # If an inner node of the merkle proof is also a valid tx, chances are, this is an attack.
+        # CVE-2017-12842: If an inner node of the merkle proof is also a valid tx, chances are, this is an attack.
         # https://lists.linuxfoundation.org/pipermail/bitcoin-dev/2018-June/016105.html
         # https://lists.linuxfoundation.org/pipermail/bitcoin-dev/attachments/20180609/9f4f5b1f/attachment-0001.pdf
         # https://bitcoin.stackexchange.com/questions/76121/how-is-the-leaf-node-weakness-in-merkle-trees-exploitable/76122#76122

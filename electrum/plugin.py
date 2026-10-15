@@ -23,6 +23,8 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import dataclasses
+import io
 import json
 import os
 import pkgutil
@@ -30,16 +32,14 @@ import importlib.util
 import time
 import threading
 import sys
-import aiohttp
 import zipfile as zipfile_lib
 from urllib.parse import urlparse
 
 from typing import (NamedTuple, Any, Union, TYPE_CHECKING, Optional, Tuple,
                     Dict, Iterable, List, Sequence, Callable, TypeVar, Mapping)
 import concurrent
-import zipimport
+from concurrent.futures import Future
 from functools import wraps, partial
-from itertools import chain
 
 from electrum_ecc import ECPrivkey, ECPubkey
 
@@ -47,13 +47,15 @@ from ._vendor.distutils.version import StrictVersion
 from .version import ELECTRUM_VERSION
 from .i18n import _
 from .util import (profiler, DaemonThread, UserCancelled, ThreadJob, UserFacingException, ChoiceItem,
-                   make_dir, make_aiohttp_session)
+                   make_dir, make_aiohttp_session, make_object_immutable)
 from . import bip32
 from . import plugins
+from . import crandom
 from .simple_config import SimpleConfig
 from .logging import get_logger, Logger
 from .crypto import sha256
 from .network import Network
+from .zip_importer import MemoryZipImporter
 
 if TYPE_CHECKING:
     from .hw_wallet import HW_PluginBase, HardwareClientBase, HardwareHandlerBase
@@ -69,6 +71,77 @@ _exec_module_failure = {}  # type: Dict[str, Exception]
 
 PLUGIN_PASSWORD_VERSION = 1
 
+class IncorrectPluginHash(Exception):
+    pass
+
+
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class PluginMetadata:
+    name: str  # e.g. 'amodem'
+    fullname: str  # e.g. 'Audio Modem'
+    description: str = ''  # e.g. 'This plugin allows to do XYZ...'
+    author: str = ''  # e.g. 'Satoshi N.'
+    version: Optional[str] = None  # e.g. '0.2.1'
+    icon: Optional[str] = None  # e.g. 'modem.png', relative to the plugin directory
+    available_for: Tuple[str, ...] = ()  # e.g. ('cmdline', 'qt')
+    requires: Tuple[Tuple[str, str], ...] = ()  # (module name, url)
+    requires_wallet_type: Tuple[str, ...] = ()  # e.g. ('2fa',)
+    registers_wallet_type: Optional[str] = None  # e.g. '2fa'
+    registers_keystore: Optional[Tuple[str, ...]] = None  # ('hardware', keystore type, description)
+    min_electrum_version: Optional[str] = None  # e.g. '4.6.0'
+    max_electrum_version: Optional[str] = None  # e.g. '5.0.0'
+
+    # not read from manifest.json:
+    path: str = dataclasses.field(metadata={'json': False})  # the plugin directory, or the zip file
+    dirname: Optional[str] = dataclasses.field(default=None, metadata={'json': False})  # the plugin directory inside the zip
+    zip_hash_sha256: Optional[str] = dataclasses.field(default=None, metadata={'json': False})
+
+    @property
+    def is_zip(self) -> bool:
+        return self.zip_hash_sha256 is not None
+
+    def is_electrum_version_compatible(self) -> bool:
+        min_version = self.min_electrum_version
+        if min_version and StrictVersion(min_version) > StrictVersion(ELECTRUM_VERSION):
+            return False
+        max_version = self.max_electrum_version
+        if max_version and StrictVersion(max_version) < StrictVersion(ELECTRUM_VERSION):
+            return False
+        return True
+
+    def __post_init__(self):
+        def is_str_tuple(v, length: Optional[int] = None) -> bool:
+            return isinstance(v, tuple) and all(isinstance(x, str) for x in v) and length in (None, len(v))
+        is_valid = {
+            'name': isinstance(self.name, str) and self.name.isidentifier(),  # used as module name and config key
+            'fullname': isinstance(self.fullname, str),
+            'description': isinstance(self.description, str),
+            'author': isinstance(self.author, str),
+            'version': self.version is None or isinstance(self.version, str),
+            'available_for': is_str_tuple(self.available_for),
+            'requires': isinstance(self.requires, tuple) and all(is_str_tuple(r, 2) for r in self.requires),
+            'registers_keystore': self.registers_keystore is None or is_str_tuple(self.registers_keystore, 3),
+        }
+        for field, valid in is_valid.items():
+            if not valid:
+                raise ValueError(f"invalid {field!r} in plugin manifest: {getattr(self, field)!r}")
+        for version in (self.version, self.min_electrum_version, self.max_electrum_version):
+            if version:  # validate version, it's not hashable so we keep storing it as str
+                StrictVersion(version)
+
+    @classmethod
+    def from_json(cls, d: Mapping[str, Any], **kwargs) -> 'PluginMetadata':
+        """Unknown keys are ignored. `kwargs` override and extend values of `d`"""
+        assert isinstance(d, Mapping), d
+        json_fields = {f.name for f in dataclasses.fields(cls) if f.metadata.get('json', True)}
+        values = {k: make_object_immutable(v) for k, v in d.items() if k in json_fields}
+        return cls(**(values | kwargs))
+
+
+# cached importers
+_zip_importers = {}  # type: Dict[str, MemoryZipImporter]  # see _get_zip_importer()
+_zip_importers_lock = threading.RLock()
+
 
 class Plugins(DaemonThread):
 
@@ -78,11 +151,11 @@ class Plugins(DaemonThread):
     keyfile_windows = r'HKEY_LOCAL_MACHINE\SOFTWARE\Electrum\PluginsKey'
 
     @profiler
-    def __init__(self, config: SimpleConfig, gui_name: str = None, cmd_only: bool = False):
+    def __init__(self, config: SimpleConfig, gui_name: str | None = None, cmd_only: bool = False):
         self.config = config
         self.cmd_only = cmd_only  # type: bool
-        self.internal_plugin_metadata = {}
-        self.external_plugin_metadata = {}
+        self.internal_plugin_metadata = {}  # type: Dict[str, PluginMetadata]
+        self.external_plugin_metadata = {}  # type: Dict[str, PluginMetadata]
         if cmd_only:
             # only import the command modules of plugins
             Logger.__init__(self)
@@ -92,7 +165,7 @@ class Plugins(DaemonThread):
         DaemonThread.__init__(self)
         self.device_manager = DeviceMgr(config)
         self.name = 'Plugins'  # set name of thread
-        self.hw_wallets = {}
+        self._hw_wallets = {}
         self.plugins = {}  # type: Dict[str, BasePlugin]
         self.gui_name = gui_name
         self.find_plugins()
@@ -101,8 +174,8 @@ class Plugins(DaemonThread):
         self.start()
 
     @property
-    def descriptions(self):
-        return dict(list(self.internal_plugin_metadata.items()) + list(self.external_plugin_metadata.items()))
+    def descriptions(self) -> Dict[str, PluginMetadata]:
+        return self.internal_plugin_metadata | self.external_plugin_metadata
 
     def find_directory_plugins(self, pkg_path: str, external: bool):
         """Finds plugins in directory form from the given pkg_path and populates the metadata dicts"""
@@ -124,17 +197,17 @@ class Plugins(DaemonThread):
                 continue
             if 'fullname' not in d:
                 continue
-            d['path'] = module_path
+            d = PluginMetadata.from_json(d, name=name, path=module_path)
             if not self.cmd_only:
-                gui_good = self.gui_name in d.get('available_for', [])
+                gui_good = self.gui_name in d.available_for
                 if not gui_good:
                     continue
-                details = d.get('registers_wallet_type')
+                details = d.registers_wallet_type
                 if details:
                     self.register_wallet_type(name, gui_good, details)
-                details = d.get('registers_keystore')
+                details = d.registers_keystore
                 if details:
-                    self.register_keystore(name, gui_good, details)
+                    self.register_keystore(name, details)
             if name in self.internal_plugin_metadata or name in self.external_plugin_metadata:
                 _logger.info(f"Found the following plugin modules: {iter_modules=}")
                 _logger.info(f"duplicate plugins? for {name=}")
@@ -176,8 +249,8 @@ class Plugins(DaemonThread):
                     self.find_zip_plugins(pkg_path=pkg_path, external=external)
 
     def load_plugins(self):
-        for name, d in chain(self.internal_plugin_metadata.items(), self.external_plugin_metadata.items()):
-            if not d.get('requires_wallet_type') and self.config.get(f'plugins.{name}.enabled'):
+        for name, d in self.descriptions.items():
+            if not d.requires_wallet_type and self.config.get(f'plugins.{name}.enabled'):
                 try:
                     if self.cmd_only:  # only load init method to register commands
                         self.maybe_load_plugin_init_method(name)
@@ -192,7 +265,7 @@ class Plugins(DaemonThread):
     def get_keyfile_path(self, key_hex: Optional[str]) -> Tuple[str, str]:
         if sys.platform in ['windows', 'win32']:
             keyfile_path = self.keyfile_windows
-            keyfile_help = _('This file can be edited with Regdit')
+            keyfile_help = _('This file can be edited with Regedit')
         elif 'ANDROID_DATA' in os.environ:
             raise Exception('platform not supported')
         else:
@@ -440,13 +513,13 @@ class Plugins(DaemonThread):
             pass
 
     def create_new_key(self, password:str) -> str:
-        salt = os.urandom(32)
+        salt = crandom.get_rand_bytes(32)
         privkey = self.derive_privkey(password, salt)
         pubkey = privkey.get_public_key_bytes()
         key = bytes([PLUGIN_PASSWORD_VERSION]) + salt + pubkey
         return key.hex()
 
-    def get_pubkey_bytes(self) -> Tuple[Optional[bytes], bytes]:
+    def get_pubkey_bytes(self) -> Tuple[Optional[bytes], Optional[bytes]]:
         """
         returns pubkey, salt
         returns None, None if the pubkey has not been set
@@ -467,7 +540,7 @@ class Plugins(DaemonThread):
             if not os.path.exists(self.keyfile_posix):
                 return None, None
             if not self._has_root_permissions(self.keyfile_posix):
-                return
+                return None, None
             with open(self.keyfile_posix) as f:
                 key_hex = f.read()
         try:
@@ -505,24 +578,36 @@ class Plugins(DaemonThread):
                             fd.write(chunk)
         return path
 
-    def read_manifest(self, path) -> dict:
-        """ return json dict """
-        with zipfile_lib.ZipFile(path) as file:
+    def _read_check_bytes(self, path: str, *, expected_hash: Optional[bytes] = None) -> bytes:
+        # Read the file and compare the hash to expectation
+        MAX_SIZE = 10_000_000
+        with open(path, 'rb') as f:
+            blob = f.read(MAX_SIZE + 1)
+        if len(blob) > MAX_SIZE:
+            raise Exception(f'Plugin file too large {path}')
+        if expected_hash is not None and sha256(blob) != expected_hash:
+            raise IncorrectPluginHash(f'Plugin file {path} has been modified (sha256 mismatch)')
+        return blob
+
+    def read_manifest(self, path) -> PluginMetadata:
+        """ return plugin manifest """
+        blob = self._read_check_bytes(path, expected_hash=None)
+        with zipfile_lib.ZipFile(io.BytesIO(blob)) as file:
             for filename in file.namelist():
                 if filename.endswith('manifest.json'):
                     break
             else:
                 raise Exception('could not find manifest.json in zip archive')
             with file.open(filename, 'r') as f:
-                manifest = json.load(f)
-                manifest['path'] = path  # external, path of the zipfile
-                manifest['dirname'] = os.path.dirname(filename)  # internal
-                manifest['is_zip'] = True
-                manifest['zip_hash_sha256'] = get_file_hash256(path).hex()
-                return manifest
+                return PluginMetadata.from_json(
+                    json.load(f),
+                    path=path,  # external, path of the zipfile
+                    dirname=os.path.dirname(filename),  # internal
+                    zip_hash_sha256=sha256(blob).hex(),
+                )
 
     def zip_plugin_path(self, name) -> str:
-        path = self.get_metadata(name)['path']
+        path = self.get_metadata(name).path
         filename = os.path.basename(path)
         if name in self.internal_plugin_metadata:
             pkg_path = self.pkgpath
@@ -540,7 +625,7 @@ class Plugins(DaemonThread):
                 continue
             try:
                 d = self.read_manifest(path)
-                name = d['name']
+                name = d.name
             except Exception:
                 self.logger.info(f"could not load manifest.json from zip plugin {filename}", exc_info=True)
                 continue
@@ -549,24 +634,17 @@ class Plugins(DaemonThread):
                 continue
             if self.cmd_only and not self.config.get(f'plugins.{name}.enabled'):
                 continue
-            min_version = d.get('min_electrum_version')
-            if min_version and StrictVersion(min_version) > StrictVersion(ELECTRUM_VERSION):
-                self.logger.info(f"version mismatch for zip plugin {filename}", exc_info=True)
-                continue
-            max_version = d.get('max_electrum_version')
-            if max_version and StrictVersion(max_version) < StrictVersion(ELECTRUM_VERSION):
-                self.logger.info(f"version mismatch for zip plugin {filename}", exc_info=True)
+            if not d.is_electrum_version_compatible():
+                self.logger.info(f"version mismatch for zip plugin {filename}")
                 continue
 
             if not self.cmd_only:
-                gui_good = self.gui_name in d.get('available_for', [])
+                gui_good = self.gui_name in d.available_for
                 if not gui_good:
                     continue
-                if 'fullname' not in d:
-                    continue
-                details = d.get('registers_keystore')
+                details = d.registers_keystore
                 if details:
-                    self.register_keystore(name, gui_good, details)
+                    self.register_keystore(name, details)
             if external:
                 self.external_plugin_metadata[name] = d
             else:
@@ -587,41 +665,44 @@ class Plugins(DaemonThread):
         else:
             raise Exception(f"could not find plugin {name!r}")
 
+    def base_module_name(self, name: str) -> str:
+        return ('electrum_external_plugins.' if self.is_external(name) else 'electrum.plugins.') + name
+
     def maybe_load_plugin_init_method(self, name: str) -> None:
         """Loads the __init__.py module of the plugin if it is not already loaded."""
-        base_name = ('electrum_external_plugins.' if self.is_external(name) else 'electrum.plugins.') + name
+        if not self.is_authorized(name):
+            return
+        base_name = self.base_module_name(name)
         if base_name not in sys.modules:
             metadata = self.get_metadata(name)
-            is_zip = metadata.get('is_zip', False)
+            is_zip = metadata.is_zip
             # if the plugin was not enabled on startup the init module hasn't been loaded yet
             if not is_zip:
                 if self.is_external(name):
                     # this branch is deprecated: external plugins are always zip files
-                    path = os.path.join(metadata['path'], '__init__.py')
+                    path = os.path.join(metadata.path, '__init__.py')
                     init_spec = importlib.util.spec_from_file_location(base_name, path)
                 else:
                     init_spec = importlib.util.find_spec(base_name)
             else:
-                zipfile = zipimport.zipimporter(metadata['path'])
-                dirname = metadata['dirname']
-                init_spec = zipfile.find_spec(dirname)
+                # This registers the importer on sys.meta_path
+                importer = self._get_zip_importer(name)
+                if importer is None:
+                    raise Exception(f"plugin {name!r} is not authorized")
+                init_spec = importer.find_spec(base_name)
+                if init_spec is None:
+                    raise Exception(f"no __init__.py for plugin {name!r} in {metadata.path}")
 
             self.exec_module_from_spec(init_spec, base_name)
 
-    def load_plugin_by_name(self, name: str) -> 'BasePlugin':
+    def load_plugin_by_name(self, name: str) -> Optional['BasePlugin']:
+        if not self.is_authorized(name):
+            return None
         if name in self.plugins:
             return self.plugins[name]
         # if the plugin was not enabled on startup the init module hasn't been loaded yet
         self.maybe_load_plugin_init_method(name)
-        is_external = self.is_external(name)
-        if is_external and not self.is_authorized(name):
-            self.logger.info(f'plugin not authorized {name}')
-            return
-        if not is_external:
-            full_name = f'electrum.plugins.{name}.{self.gui_name}'
-        else:
-            full_name = f'electrum_external_plugins.{name}.{self.gui_name}'
-
+        full_name = f'{self.base_module_name(name)}.{self.gui_name}'
         spec = importlib.util.find_spec(full_name)
         if spec is None:
             raise RuntimeError(f"{self.gui_name} implementation for {name} plugin not found")
@@ -638,12 +719,24 @@ class Plugins(DaemonThread):
     def close_plugin(self, plugin):
         self.remove_jobs(plugin.thread_jobs())
 
-    def derive_privkey(self, pw: str, salt:bytes) -> ECPrivkey:
+    @staticmethod
+    def derive_privkey(pw: str, salt: bytes) -> ECPrivkey:
         from hashlib import pbkdf2_hmac
         secret = pbkdf2_hmac('sha256', pw.encode('utf-8'), salt, iterations=10**5)
         return ECPrivkey(secret)
 
+    def add_external_plugin_metadata(self, manifest: PluginMetadata) -> None:
+        """Registers the metadata of a newly installed external plugin."""
+        name = manifest.name
+        assert name not in self.external_plugin_metadata
+        self.external_plugin_metadata[name] = manifest
+
+    def remove_external_plugin_metadata(self, name: str) -> None:
+        """Unregisters an external plugin that did not end up being installed."""
+        self.external_plugin_metadata.pop(name, None)
+
     def uninstall(self, name: str):
+        self.disable(name)
         if self.config.get(f'plugins.{name}'):
             self.config.set_key(f'plugins.{name}', None)
         if name in self.external_plugin_metadata:
@@ -657,13 +750,40 @@ class Plugins(DaemonThread):
     def is_external(self, name) -> bool:
         return name in self.external_plugin_metadata
 
-    def is_auto_loaded(self, name):
-        metadata = self.external_plugin_metadata.get(name) or self.internal_plugin_metadata.get(name)
-        return metadata and (metadata.get('registers_keystore') or metadata.get('registers_wallet_type'))
+    def is_auto_loaded(self, name) -> bool:
+        metadata = self.get_metadata(name)
+        return bool(metadata and (metadata.registers_keystore or metadata.registers_wallet_type))
 
     def is_installed(self, name) -> bool:
         """an external plugin may be installed but not authorized """
         return (name in self.internal_plugin_metadata or name in self.external_plugin_metadata)
+
+    def _get_zip_importer(self, name: str, *, cache_only: bool = False) -> Optional[MemoryZipImporter]:
+        """Returns an in-memory copy of a zip plugin's archive, or None if the
+        plugin is not (or no longer) authorized.
+        """
+        metadata = self.get_metadata(name)
+        if metadata is None or not metadata.is_zip:
+            return None
+        is_external = self.is_external(name)
+        # internal plugins ship inside the application bundle, and are not signed separately
+        if is_external and not self.is_authorized(name):
+            return None
+        with _zip_importers_lock:
+            if (cached := _zip_importers.get(name)) is not None:
+                return cached
+            elif cache_only:
+                return None
+            blob = self._read_check_bytes(metadata.path, expected_hash=bytes.fromhex(metadata.zip_hash_sha256))
+            archive_path = self.zip_plugin_path(name)
+            importer = MemoryZipImporter(
+                blob,
+                root_name=self.base_module_name(name),
+                prefix=metadata.dirname,
+                archive_path=archive_path,
+            )
+            _zip_importers[name] = importer.install()
+            return importer
 
     def is_authorized(self, name) -> bool:
         if name in self.internal_plugin_metadata:
@@ -673,24 +793,76 @@ class Plugins(DaemonThread):
         pubkey_bytes, salt = self.get_pubkey_bytes()
         if not pubkey_bytes:
             return False
-        if not self.is_plugin_zip(name):
+        metadata = self.external_plugin_metadata[name]
+        if not metadata.is_zip:
             return False
-        filename = self.zip_plugin_path(name)
-        plugin_hash = get_file_hash256(filename)
+        if metadata.path != self.zip_plugin_path(name):
+            # not installed yet, or was manually deleted
+            return False
+        hex_hash = metadata.zip_hash_sha256
         sig = self.config.get(f'plugins.{name}.authorized')
         if not sig:
             return False
-        pubkey = ECPubkey(pubkey_bytes)
-        return pubkey.ecdsa_verify(bytes.fromhex(sig), plugin_hash)
+        try:
+            verified = ECPubkey(pubkey_bytes).ecdsa_verify(bytes.fromhex(sig), bytes.fromhex(hex_hash))
+        except Exception:
+            self.logger.info(f"malformed signature for plugin {name!r}", exc_info=True)
+            verified = False
+        return verified
 
-    def authorize_plugin(self, name: str, filename, privkey: ECPrivkey):
+    def _sign_plugin_hash(self, name: str, privkey: ECPrivkey) -> None:
         pubkey_bytes, salt = self.get_pubkey_bytes()
         assert pubkey_bytes == privkey.get_public_key_bytes()
-        plugin_hash = get_file_hash256(filename)
+        plugin_hash = bytes.fromhex(self.get_metadata(name).zip_hash_sha256)
         sig = privkey.ecdsa_sign(plugin_hash)
-        value = sig.hex()
-        self.config.set_key(f'plugins.{name}.authorized', value)
+        self.config.set_key(f'plugins.{name}.authorized', sig.hex())
+
+    def authorize_plugin(self, name: str, privkey: ECPrivkey):
+        metadata = self.get_metadata(name)
+        if metadata.path != self.zip_plugin_path(name):
+            # new plugin, not yet in the plugins directory
+            path = self.copy_external_plugin_file(metadata)
+            self.external_plugin_metadata[name] = dataclasses.replace(metadata, path=path)
+        self._sign_plugin_hash(name, privkey)
         self.config.set_key(f'plugins.{name}.enabled', True)
+
+    def copy_external_plugin_file(self, manifest: PluginMetadata, *, replace: Optional[str] = None) -> str:
+        """Copies the zip described by `manifest` (as returned by read_manifest) into
+        the external plugins directory, keeping its name, and returns its new path.
+        If `replace` is given, that file is removed first.
+        """
+        # the bytes we write are the bytes described by the manifest
+        blob = self._read_check_bytes(manifest.path, expected_hash=bytes.fromhex(manifest.zip_hash_sha256))
+        path = os.path.join(self.get_external_plugin_dir(), os.path.basename(manifest.path))
+        if path != replace and os.path.exists(path):
+            raise FileExistsError(f"Plugin file {path} already exists")
+        if replace:
+            # Remove old file first
+            os.unlink(replace)
+        with open(path, 'wb') as f:
+            f.write(blob)
+        return path
+
+    def upgrade_external_plugin(self, manifest: PluginMetadata, privkey: ECPrivkey) -> None:
+        """Replaces the zip of an installed external plugin with the one described
+        by `manifest` (as returned by read_manifest), and signs it. The new file
+        keeps its own name, which often contains the version, and the old file
+        is removed.
+
+        This does not go through uninstall(): the 'plugins.<name>' config subtree is
+        kept, and so is the plugin's wallet data (see WalletDB.prune_uninstalled_plugin_data).
+        The client must be restarted: we cannot undo the side effects of the old
+        code, which is imported on startup if the plugin is enabled. Until then,
+        the old code keeps running from memory.
+        """
+        name = manifest.name
+        assert self.is_external(name) and self.is_plugin_zip(name), name
+        if not manifest.is_electrum_version_compatible():
+            raise Exception(f"plugin {name!r} is not compatible with Electrum {ELECTRUM_VERSION}")
+        # If we stop before signing, the plugin is missing or unauthorized, but its config is kept.
+        path = self.copy_external_plugin_file(manifest, replace=self.zip_plugin_path(name))
+        self.external_plugin_metadata[name] = dataclasses.replace(manifest, path=path)
+        self._sign_plugin_hash(name, privkey)
 
     def enable(self, name: str) -> 'BasePlugin':
         self.config.enable_plugin(name)
@@ -716,7 +888,7 @@ class Plugins(DaemonThread):
         d = self.descriptions.get(name)
         if not d:
             return False
-        deps = d.get('requires', [])
+        deps = d.requires
         for dep, s in deps:
             try:
                 __import__(dep)
@@ -727,21 +899,27 @@ class Plugins(DaemonThread):
 
     def get_hardware_support(self):
         out = []
-        for name, (gui_good, details) in self.hw_wallets.items():
-            if gui_good:
-                try:
-                    p = self.get_plugin(name)
-                    if p.is_available():
-                        out.append(HardwarePluginToScan(name=name,
-                                                        description=details[2],
-                                                        plugin=p,
-                                                        exception=None))
-                except Exception as e:
-                    self.logger.exception(f"cannot load plugin for: {name}")
-                    out.append(HardwarePluginToScan(name=name,
-                                                    description=details[2],
-                                                    plugin=None,
-                                                    exception=e))
+        for name, details in self._hw_wallets.items():
+            if not self.is_authorized(name):
+                # we allow non-authorized plugins to populate self._hw_wallets
+                # so that a plugin can be loaded and authorized without having
+                # to start a new session
+                continue
+            try:
+                p = self.get_plugin(name)
+                if p.is_available():
+                    out.append(HardwarePluginToScan(
+                        name=name,
+                        description=details[2],
+                        plugin=p,
+                        exception=None))
+            except Exception as e:
+                self.logger.exception(f"cannot load plugin for: {name}")
+                out.append(HardwarePluginToScan(
+                    name=name,
+                    description=details[2],
+                    plugin=None,
+                    exception=e))
         return out
 
     def register_wallet_type(self, name, gui_good, wallet_type):
@@ -754,17 +932,18 @@ class Plugins(DaemonThread):
         register_wallet_type(wallet_type)
         plugin_loaders[wallet_type] = loader
 
-    def register_keystore(self, name, gui_good, details):
+    def register_keystore(self, name, details):
         from .keystore import register_keystore
 
         def dynamic_constructor(d):
             return self.get_plugin(name).keystore_class(d)
         if details[0] == 'hardware':
-            self.hw_wallets[name] = (gui_good, details)
+            self._hw_wallets[name] = details
             self.logger.info(f"registering hardware {name}: {details}")
             register_keystore(details[1], dynamic_constructor)
 
     def get_plugin(self, name: str) -> 'BasePlugin':
+        assert self.is_authorized(name)
         if name not in self.plugins:
             self.load_plugin(name)
         return self.plugins[name]
@@ -773,14 +952,11 @@ class Plugins(DaemonThread):
         """Returns True if the plugin is a zip file"""
         if (metadata := self.get_metadata(name)) is None:
             return False
-        return metadata.get('is_zip', False)
+        return metadata.is_zip
 
-    def get_metadata(self, name: str) -> Optional[dict]:
+    def get_metadata(self, name: str) -> Optional[PluginMetadata]:
         """Returns the metadata of the plugin"""
-        metadata = self.internal_plugin_metadata.get(name) or self.external_plugin_metadata.get(name)
-        if not metadata:
-            return None
-        return metadata
+        return self.internal_plugin_metadata.get(name) or self.external_plugin_metadata.get(name)
 
     def run(self):
         while self.is_running():
@@ -790,24 +966,26 @@ class Plugins(DaemonThread):
 
     def read_file(self, name: str, filename: str) -> bytes:
         if self.is_plugin_zip(name):
-            plugin_filename = self.zip_plugin_path(name)
-            metadata = self.external_plugin_metadata[name]
-            dirname = metadata['dirname']
-            with zipfile_lib.ZipFile(plugin_filename) as myzip:
-                with myzip.open(os.path.join(dirname, filename)) as myfile:
-                    return myfile.read()
+            if importer := self._get_zip_importer(name, cache_only=True):
+                return importer.read(filename)
+            # Plugins not in authorized list
+            # We allow reading files without importing code (eg to display icon)
+            return self.read_zip_file(self.get_metadata(name), filename)
         elif name in self.internal_plugin_metadata:
             path = os.path.join(os.path.dirname(__file__), 'plugins', name, filename)
             with open(path, 'rb') as myfile:
                 return myfile.read()
         else:
-            # no icon
-            return None
+            raise Exception(f"plugin not found: {name!r}")
 
-def get_file_hash256(path: str) -> bytes:
-    '''Get the sha256 hash of a file, similar to `sha256sum`.'''
-    with open(path, 'rb') as f:
-        return sha256(f.read())
+    def read_zip_file(self, manifest: PluginMetadata, filename: str) -> bytes:
+        """Reads a file from the zip described by `manifest`, without importing its code."""
+        dirname = manifest.dirname
+        blob = self._read_check_bytes(manifest.path, expected_hash=bytes.fromhex(manifest.zip_hash_sha256))
+        member = "/".join([dirname, filename]) if dirname else filename
+        with zipfile_lib.ZipFile(io.BytesIO(blob)) as myzip:
+            with myzip.open(member) as myfile:
+                return myfile.read()
 
 
 def hook(func):
@@ -900,6 +1078,7 @@ class BasePlugin(Logger):
         """Returns a dict which is persisted in the per-wallet database."""
         plugin_storage = wallet.db.get_plugin_storage()
         return plugin_storage.setdefault(self.name, {})
+
 
 class DeviceUnpairableError(UserFacingException): pass
 class HardwarePluginLibraryUnavailable(Exception): pass
@@ -1038,6 +1217,7 @@ class DeviceMgr(ThreadJob):
         self._recognised_vendor = {}  # type: Dict[int, HW_PluginBase]  # vendor_id -> Plugin
         # Custom enumerate functions for devices we don't know about.
         self._enumerate_func = set()  # Needs self.lock.
+        self._ongoing_timeout_checks = {}  # type: Dict[str, Future]
 
         self.lock = threading.RLock()
 
@@ -1048,13 +1228,19 @@ class DeviceMgr(ThreadJob):
         return [self]
 
     def run(self):
-        '''Handle device timeouts.  Runs in the context of the Plugins
-        thread.'''
+        """Handle device timeouts.  Runs in the context of the Plugins
+        thread."""
         with self.lock:
-            clients = list(self.clients.keys())
+            clients = list(self.clients.items())
         cutoff = time.time() - self.config.get_session_timeout()
-        for client in clients:
-            client.timeout(cutoff)
+        for client, client_id in clients:
+            if fut := self._ongoing_timeout_checks.get(client_id):
+                if not fut.done():
+                    continue
+            # scheduling the timeout check prevents blocking the Plugins DaemonThread if the
+            # _hwd_comms_executor Thread is blocked (e.g. due to it awaiting user input).
+            fut = _hwd_comms_executor.submit(client.timeout, cutoff)
+            self._ongoing_timeout_checks[client_id] = fut
 
     def register_devices(self, device_pairs, *, plugin: 'HW_PluginBase'):
         for pair in device_pairs:
@@ -1111,8 +1297,15 @@ class DeviceMgr(ThreadJob):
         with self.lock:
             client = self._client_by_id(id_)
             self.clients.pop(client, None)
+            if fut := self._ongoing_timeout_checks.pop(id_, None):
+                fut.cancel()
         if client:
-            client.close()
+            try:
+                client.close()
+            except Exception as e:
+                # closing is best-effort: it does device I/O, which can fail,
+                # e.g. if the device was unplugged
+                self.logger.info(f"failed to close hardware client cleanly: {e!r}")
 
     def _client_by_id(self, id_) -> Optional['HardwareClientBase']:
         with self.lock:
@@ -1122,9 +1315,9 @@ class DeviceMgr(ThreadJob):
         return None
 
     def client_by_id(self, id_, *, scan_now: bool = True) -> Optional['HardwareClientBase']:
-        '''Returns a client for the device ID if one is registered.  If
+        """Returns a client for the device ID if one is registered.  If
         a device is wiped or in bootloader mode pairing is impossible;
-        in such cases we communicate by device ID and not wallet.'''
+        in such cases we communicate by device ID and not wallet."""
         if scan_now:
             self.scan_devices()
         return self._client_by_id(id_)

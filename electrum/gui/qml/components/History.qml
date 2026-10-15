@@ -14,8 +14,8 @@ Pane {
     padding: 0
     clip: true
 
-    background: Rectangle {
-        color: constants.darkerBackground
+    background: PaneInsetBackground {
+        vertical: false
     }
 
     ElListView {
@@ -23,6 +23,10 @@ Pane {
         width: parent.width
         height: parent.height
         boundsBehavior: Flickable.StopAtBounds
+        reuseItems: true
+        property bool dragScrolling: vdragscroll.drag.active
+        // keeps a buffer of delegate items outside the view, this makes normal scrolling (flicking) smoother
+        cacheBuffer: dragScrolling ? 0 : 1000
 
         model: visualModel
 
@@ -45,7 +49,9 @@ Pane {
             'mempool': qsTr('Mempool'),
             'today': qsTr('Today'),
             'yesterday': qsTr('Yesterday'),
+            'thisweek': qsTr('Earlier this week'),
             'lastweek': qsTr('Last week'),
+            'thismonth': qsTr('Earlier this month'),
             'lastmonth': qsTr('Last month'),
             'older': qsTr('Older')
         }
@@ -147,14 +153,18 @@ Pane {
     Connections {
         target: Daemon
         function onWalletLoaded() {
+            listview.reuseItems = false  // flush the reuseItems delegate instance pool
             listview.positionViewAtBeginning()
+            listview.reuseItems = true  // re-enable delegate instance reuse
         }
     }
 
     StackView.onVisibleChanged: {
         // refresh model if History becomes visible and the model is dirty.
         if (StackView.visible) {
+            listview.reuseItems = false
             Daemon.currentWallet.historyModel.initModel(false)
+            listview.reuseItems = true
         }
     }
 }

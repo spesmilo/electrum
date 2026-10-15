@@ -43,6 +43,7 @@ ElDialog {
                     Layout.fillWidth: true
                     Layout.bottomMargin: constants.paddingLarge
                     text: qsTr('Cancel an unconfirmed transaction by double-spending its inputs back to your wallet with a higher fee.')
+                    backgroundColor: constants.darkerDialogBackground
                 }
 
                 Label {
@@ -79,7 +80,7 @@ ElDialog {
                     color: Material.accentColor
                 }
 
-                TextHighlightPane {
+                DialogHighlightPane {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
                     height: feepicker.height
@@ -88,18 +89,18 @@ ElDialog {
                         id: feepicker
                         width: parent.width
                         finalizer: dialog.txcanceller
-
+                        allowPickerAbsFees: false
                     }
                 }
 
                 InfoTextArea {
                     Layout.columnSpan: 2
-                    Layout.preferredWidth: parent.width * 3/4
-                    Layout.alignment: Qt.AlignHCenter
+                    Layout.fillWidth: true
                     Layout.topMargin: constants.paddingLarge
                     iconStyle: InfoTextArea.IconStyle.Warn
                     visible: txcanceller.warning != ''
                     text: txcanceller.warning
+                    backgroundColor: constants.darkerDialogBackground
                 }
 
                 ToggleLabel {
@@ -154,13 +155,17 @@ ElDialog {
             }
         }
 
-        FlatButton {
-            id: confirmButton
+        DialogButtonContainer {
             Layout.fillWidth: true
-            text: qsTr('Ok')
-            icon.source: '../../icons/confirmed.png'
-            enabled: txcanceller.valid
-            onClicked: doAccept()
+
+            FlatButton {
+                id: confirmButton
+                Layout.fillWidth: true
+                text: qsTr('Ok')
+                icon.source: '../../icons/confirmed.png'
+                enabled: txcanceller.valid
+                onClicked: doAccept()
+            }
         }
     }
 }

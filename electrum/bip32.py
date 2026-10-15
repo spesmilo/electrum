@@ -154,7 +154,13 @@ class BIP32Node(NamedTuple):
         xtype = headers_inv[header]
         if not allow_custom_headers and xtype != "standard":
             raise ValueError(f"only standard xpub/xprv allowed. found custom xtype={xtype}")
+        if depth == 0 and (child_number != bytes(4) or fingerprint != bytes(4)):
+            raise BitcoinException('Invalid extended key: a depth-0 (master) key must have '
+                                   'zero child number and zero parent fingerprint')
         if is_private:
+            if xkey[13 + 32] != 0:
+                raise BitcoinException('Invalid extended private key: '
+                                       'key data must be prefixed with 0x00')
             eckey = ecc.ECPrivkey(xkey[13 + 33:])
         else:
             eckey = ecc.ECPubkey(xkey[13 + 32:])
@@ -290,12 +296,12 @@ class BIP32Node(NamedTuple):
         return hash_160(self.eckey.get_public_key_bytes(compressed=True))[0:4]
 
 
-def xpub_type(x: str):
+def xpub_type(x: str) -> str:
     assert x is not None
     return BIP32Node.from_xkey(x).xtype
 
 
-def is_xpub(text):
+def is_xpub(text: str) -> bool:
     try:
         node = BIP32Node.from_xkey(text)
         return not node.is_private()
@@ -303,7 +309,7 @@ def is_xpub(text):
         return False
 
 
-def is_xprv(text):
+def is_xprv(text: str) -> bool:
     try:
         node = BIP32Node.from_xkey(text)
         return node.is_private()
@@ -311,7 +317,7 @@ def is_xprv(text):
         return False
 
 
-def xpub_from_xprv(xprv):
+def xpub_from_xprv(xprv: str) -> str:
     return BIP32Node.from_xkey(xprv).to_xpub()
 
 
@@ -342,14 +348,16 @@ def convert_bip32_strpath_to_intpath(n: str) -> List[int]:
         if x.startswith('-'):
             if prime:
                 raise ValueError(f"bip32 path child index is signalling hardened level in multiple ways")
+            x = x[1:]
             prime = BIP32_PRIME
-        try:
-            x_int = int(x)
-        except ValueError as e:
-            raise ValueError(f"failed to parse bip32 path: {(str(e))}") from None
-        child_index = abs(x_int) | prime
-        if child_index > UINT32_MAX:
-            raise ValueError(f"bip32 path child index too large: {child_index} > {UINT32_MAX}")
+        if not (x.isascii() and x.isdecimal()):
+            raise ValueError(f"failed to parse bip32 path: invalid child index: {x!r}")
+        x_int = int(x)
+        if x_int >= BIP32_PRIME:
+            # the top bit is the hardened flag; a literal index >= 2**31 would either
+            # silently become hardened or make the explicit hardened marker a no-op
+            raise ValueError(f"bip32 path child index too large: {x_int} >= {BIP32_PRIME}.")
+        child_index = x_int | prime
         path.append(child_index)
     return path
 
@@ -423,9 +431,12 @@ def root_fp_and_der_prefix_from_xkey(xkey: str) -> Tuple[Optional[str], Optional
     return root_fingerprint, derivation_prefix
 
 
-def is_xkey_consistent_with_key_origin_info(xkey: str, *,
-                                            derivation_prefix: str = None,
-                                            root_fingerprint: str = None) -> bool:
+def is_xkey_consistent_with_key_origin_info(
+    xkey: str,
+    *,
+    derivation_prefix: str | None = None,
+    root_fingerprint: str | None = None,
+) -> bool:
     bip32node = BIP32Node.from_xkey(xkey)
     int_path = None
     if derivation_prefix is not None:
@@ -525,3 +536,10 @@ class KeyOriginInfo:
         xfp.extend(self.path)
         return xfp
 
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, KeyOriginInfo):
+            return False
+        return self.serialize() == other.serialize()
+
+    def __repr__(self) -> str:
+        return f"<KeyOriginInfo {self.to_string()}>"

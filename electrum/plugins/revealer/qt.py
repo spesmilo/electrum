@@ -191,12 +191,8 @@ class Plugin(RevealerPlugin):
 
         # Define the create noise file function.
         def create_noise_file():
-            try:
-                self.make_digital(self.d)
-            except Exception:
-                self.logger.exception('')
-            else:
-                self.cypherseed_dialog(window)
+            self.make_digital(self.d)
+            self.cypherseed_dialog(window)
 
         # Handle clicks on the buttons.
         create_button.clicked.connect(create_noise_file)
@@ -258,24 +254,37 @@ class Plugin(RevealerPlugin):
         self.rawnoise = False
         version = self.versioned_seed.version
         code_id = self.versioned_seed.checksum
-        dialog.show_message(''.join([_("{} encrypted for Revealer {}_{} saved as PNG and PDF at: ").format(self.was, version, code_id),
-                                     "<b>", self.get_path_to_revealer_file(), "</b>", "<br/>",
-                                     "<br/>", "<b>", _("Always check your backups.")]),
-                            rich_text=True)
+        dialog.show_message(''.join([
+            _("{} encrypted for Revealer {}_{} saved as PNG and PDF at: ").format(self.was, version, code_id),
+            "<b>",
+            self.get_path_to_revealer_file(),
+            "</b>",
+            "<br/>",
+            "<br/>",
+            "<b>",
+            _("Always check your backups.")
+        ]), rich_text=True)
         dialog.close()
 
     def ext_warning(self, dialog):
-        dialog.show_message(''.join(["<b>",_("Warning"), ": </b>",
-                                     _("your seed extension will <b>not</b> be included in the encrypted backup.")]),
-                            rich_text=True)
+        dialog.show_message(''.join([
+            "<b>",
+            _("Warning"),
+            ": </b>",
+            _("your seed extension will <b>not</b> be included in the encrypted backup.")
+        ]), rich_text=True)
         dialog.close()
 
     def bdone(self, dialog):
         version = self.versioned_seed.version
         code_id = self.versioned_seed.checksum
-        dialog.show_message(''.join([_("Digital Revealer ({}_{}) saved as PNG and PDF at:").format(version, code_id),
-                                     "<br/>","<b>", self.get_path_to_revealer_file(), '</b>']),
-                            rich_text=True)
+        dialog.show_message(''.join([
+            _("Digital Revealer ({}_{}) saved as PNG and PDF at:").format(version, code_id),
+            "<br/>",
+            "<b>",
+            self.get_path_to_revealer_file(),
+            '</b>'
+        ]), rich_text=True)
 
 
     def customtxt_limits(self):
@@ -355,7 +364,9 @@ class Plugin(RevealerPlugin):
         self.custom_secret_maximum_characters_warning_label = QLabel("<font color='red'>"
                                                        + _("This version supports a maximum of {} characters.").format(self.MAX_PLAINTEXT_LEN)
                                                        +"</font>")
+        self.custom_secret_maximum_characters_warning_label.setTextFormat(Qt.TextFormat.RichText)
         one_time_pad_warning_label = QLabel("<b>" + _("Warning ") + "</b>: " + _("each Revealer is a one-time-pad, use it for a single secret."))
+        one_time_pad_warning_label.setTextFormat(Qt.TextFormat.RichText)
 
         # Allow users to select text in the labels.
         ready_to_encrypt_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
@@ -844,9 +855,10 @@ class Plugin(RevealerPlugin):
         d.setMinimumSize(100, 200)
 
         vbox = QVBoxLayout(d)
-        vbox.addWidget(QLabel(''.join(["<br/>", _("If you have an old printer, or want optimal precision"),"<br/>",
-                                       _("print the calibration pdf and follow the instructions "), "<br/>","<br/>",
-                                    ])))
+        vbox.addWidget(QLabel("".join([
+            _("If you have an old printer, or want optimal precision"), "\n",
+            _("print the calibration pdf and follow the instructions "), "\n\n",
+        ])))
         self.calibration_h = self.config.get('calibration_h')
         self.calibration_v = self.config.get('calibration_v')
         cprint = QPushButton(_("Open calibration pdf"))

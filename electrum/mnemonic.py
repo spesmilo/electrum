@@ -30,7 +30,8 @@ import string
 from typing import Sequence, Dict, Iterator, Optional
 from types import MappingProxyType
 
-from .util import resource_path, bfh, randrange
+from . import crandom
+from .util import resource_path, bfh
 from .crypto import hmac_oneshot
 from . import version
 from .logging import Logger
@@ -158,7 +159,7 @@ class Mnemonic(Logger):
     # Seed derivation does not follow BIP39
     # Mnemonic phrase uses a hash based checksum, instead of a wordlist-dependent checksum
 
-    def __init__(self, lang: str = None):
+    def __init__(self, lang: str | None = None):
         Logger.__init__(self)
         lang = lang or 'en'
         self.logger.info(f'language {lang}')
@@ -198,7 +199,7 @@ class Mnemonic(Logger):
             i = i*n + k
         return i
 
-    def make_seed(self, *, seed_type: str = None, num_bits: int = None) -> str:
+    def make_seed(self, *, seed_type: str | None = None, num_bits: int | None = None) -> str:
         from .keystore import bip39_is_checksum_valid
         if seed_type is None:
             seed_type = 'segwit'
@@ -212,7 +213,7 @@ class Mnemonic(Logger):
         # generate random
         entropy = 1
         while entropy < pow(2, num_bits - bpw):  # try again if seed would not contain enough words
-            entropy = randrange(pow(2, num_bits))
+            entropy = crandom.get_rand_below(pow(2, num_bits))
         # brute-force seed that has correct "version number"
         nonce = 0
         while True:

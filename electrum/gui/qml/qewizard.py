@@ -3,11 +3,11 @@ from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
+from electrum.base_crash_reporter import send_exception_to_crash_reporter
 from electrum.logging import get_logger
 from electrum import mnemonic
 from electrum.wizard import NewWalletWizard, ServerConnectWizard, TermsOfUseWizard
-from electrum.storage import WalletStorage, StorageReadWriteError
-from electrum.util import WalletFileException
+from electrum.util import UserFacingException
 from electrum.gui import messages
 
 if TYPE_CHECKING:
@@ -68,14 +68,18 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
             'wallet_type': {'gui': 'WCWalletType'},
             'keystore_type': {'gui': 'WCKeystoreType'},
             'create_seed': {'gui': 'WCCreateSeed'},
+            'create_ext': {'gui': 'WCEnterExt'},
             'confirm_seed': {'gui': 'WCConfirmSeed'},
+            'confirm_ext': {'gui': 'WCConfirmExt'},
             'have_seed': {'gui': 'WCHaveSeed'},
+            'have_ext': {'gui': 'WCEnterExt'},
             'script_and_derivation': {'gui': 'WCScriptAndDerivation'},
             'have_master_key': {'gui': 'WCHaveMasterKey'},
             'multisig': {'gui': 'WCMultisig'},
             'multisig_cosigner_keystore': {'gui': 'WCCosignerKeystore'},
             'multisig_cosigner_key': {'gui': 'WCHaveMasterKey'},
             'multisig_cosigner_seed': {'gui': 'WCHaveSeed'},
+            'multisig_cosigner_have_ext': {'gui': 'WCEnterExt'},
             'multisig_cosigner_script_and_derivation': {'gui': 'WCScriptAndDerivation'},
             'imported': {'gui': 'WCImport'},
             'wallet_password': {'gui': 'WCWalletPassword'}
@@ -120,35 +124,6 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
             'can_passphrase': can_passphrase
         }
 
-    def _wallet_path_from_wallet_name(self, wallet_name: str) -> str:
-        return os.path.join(self._qedaemon.daemon.config.get_datadir_wallet_path(), wallet_name)
-
-    @pyqtSlot(str, result=bool)
-    def isValidNewWalletName(self, wallet_name: str) -> bool:
-        if not wallet_name:
-            return False
-        if self._qedaemon.availableWallets.wallet_name_exists(wallet_name):
-            return False
-        wallet_path = self._wallet_path_from_wallet_name(wallet_name)
-        # note: we should probably restrict wallet names to be alphanumeric (plus underscore, etc)...
-        # try to prevent sketchy path traversals:
-        for forbidden_char in ("/", "\\", ):
-            if forbidden_char in wallet_name:
-                return False
-        if os.path.basename(wallet_name) != wallet_name:
-            return False
-        # validate that the path looks sane to the filesystem:
-        try:
-            temp_storage = WalletStorage(wallet_path)
-        except (StorageReadWriteError, WalletFileException) as e:
-            return False
-        except Exception as e:
-            self._logger.exception("")
-            return False
-        if temp_storage.file_exists():
-            return False
-        return True
-
     @pyqtSlot('QJSValue', bool, str)
     def createStorage(self, js_data, single_password_enabled, single_password):
         self._logger.info('Creating wallet from wizard data')
@@ -158,7 +133,7 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
             data['encrypt'] = True
             data['password'] = single_password
 
-        path = self._wallet_path_from_wallet_name(data['wallet_name'])
+        path = self._qedaemon.wallet_path_from_wallet_name(data['wallet_name'])
 
         try:
             self.create_storage(path, data)
@@ -168,9 +143,12 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
             self.path = path
 
             self.createSuccess.emit()
+        except UserFacingException as e:
+            self._logger.debug(f"createStorage errored: {e!r}", exc_info=True)
+            self.createError.emit(str(e))
         except Exception as e:
             self._logger.exception(f"createStorage errored: {e!r}")
-            self.createError.emit(str(e))
+            send_exception_to_crash_reporter(e)
 
 
 class QEServerConnectWizard(ServerConnectWizard, QEAbstractWizard):

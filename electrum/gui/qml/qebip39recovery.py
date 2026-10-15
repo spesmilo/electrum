@@ -71,7 +71,7 @@ class QEBip39RecoveryListModel(QAbstractListModel):
 
     @pyqtSlot(str, str)
     @pyqtSlot(str, str, str)
-    def startScan(self, wallet_type: str, seed: str, seed_extra_words: str = None):
+    def startScan(self, wallet_type: str, seed: str, seed_extra_words: str | None = None):
         if not seed or not wallet_type:
             return
 

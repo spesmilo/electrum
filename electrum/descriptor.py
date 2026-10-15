@@ -841,9 +841,11 @@ def _get_func_expr(s: str) -> Tuple[str, str]:
     try:
         start = s.index("(")
         end = s.rindex(")")
-        return s[0:start], s[start + 1:end]
     except ValueError:
         raise ValueError("A matching pair of parentheses cannot be found")
+    if end != len(s) - 1:
+        raise ValueError("Trailing characters '{}' after closing parenthesis".format(s[end + 1:]))
+    return s[0:start], s[start + 1:end]
 
 
 def _get_const(s: str, const: str) -> str:
@@ -961,14 +963,14 @@ def _parse_descriptor(desc: str, *, ctx: '_ParseDescriptorContext') -> 'Descript
         elif thresh > len(pubkeys):
             raise ValueError("Multisig threshold cannot be larger than the number of keys; threshold is {} but only {} keys specified".format(thresh, len(pubkeys)))
         if ctx == _ParseDescriptorContext.TOP and len(pubkeys) > 3:
-            raise ValueError("Cannot have {} pubkeys in bare multisig: only at most 3 pubkeys")
+            raise ValueError("Cannot have {} pubkeys in bare multisig: only at most 3 pubkeys".format(len(pubkeys)))
         return MultisigDescriptor(pubkeys, thresh, is_sorted)
     if func == "wpkh":
         if not (ctx == _ParseDescriptorContext.TOP or ctx == _ParseDescriptorContext.P2SH):
             raise ValueError("Can only have wpkh() at top level or inside sh()")
         pubkey, expr = parse_pubkey(expr, ctx=_ParseDescriptorContext.P2WPKH)
         if expr:
-            raise ValueError("More than one pubkey in pkh descriptor")
+            raise ValueError("More than one pubkey in wpkh descriptor")
         return WPKHDescriptor(pubkey)
     if func == "sh":
         if ctx != _ParseDescriptorContext.TOP:
@@ -1031,6 +1033,9 @@ def parse_descriptor(desc: str) -> 'Descriptor':
 #####
 
 
+class NotLegacySinglesigScriptType(Exception): pass
+
+
 def get_singlesig_descriptor_from_legacy_leaf(*, pubkey: str, script_type: str) -> Optional[Descriptor]:
     pubkey = PubkeyProvider.parse(pubkey)
     if script_type == 'p2pk':
@@ -1043,7 +1048,7 @@ def get_singlesig_descriptor_from_legacy_leaf(*, pubkey: str, script_type: str) 
         wpkh = WPKHDescriptor(pubkey=pubkey)
         return SHDescriptor(subdescriptor=wpkh)
     else:
-        raise NotImplementedError(f"unexpected {script_type=}")
+        raise NotLegacySinglesigScriptType(f"unexpected {script_type=}")
 
 
 def create_dummy_descriptor_from_address(addr: Optional[str]) -> 'Descriptor':

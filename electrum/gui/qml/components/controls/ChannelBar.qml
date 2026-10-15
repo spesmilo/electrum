@@ -6,11 +6,11 @@ import QtQuick.Controls.Material
 import org.electrum 1.0
 
 Item {
-    property Amount capacity
-    property Amount localCapacity
-    property Amount remoteCapacity
-    property Amount canSend
-    property Amount canReceive
+    property var capacity  // type: Amount
+    property var localCapacity  // type: Amount
+    property var remoteCapacity  // type: Amount
+    property var canSend  // type: Amount
+    property var canReceive  // type: Amount
     property bool frozenForSending: false
     property bool frozenForReceiving: false
 
@@ -45,6 +45,12 @@ Item {
     onWidthChanged: update()
     onFrozenForSendingChanged: update()
     onFrozenForReceivingChanged: update()
+    // the channel list model replaces the amounts, the Connections below handle in-place updates
+    onCapacityChanged: update()
+    onLocalCapacityChanged: update()
+    onRemoteCapacityChanged: update()
+    onCanSendChanged: update()
+    onCanReceiveChanged: update()
 
     Connections {
         target: localCapacity

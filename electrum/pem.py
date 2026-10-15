@@ -30,8 +30,6 @@
 
 import binascii
 
-from .x509 import ASN1_Node, bytestr_to_int, decode_OID
-
 
 def a2b_base64(s):
     try:
@@ -39,9 +37,6 @@ def a2b_base64(s):
     except Exception as e:
         raise SyntaxError("base64 error: %s" % e)
     return b
-
-def b2a_base64(b):
-    return binascii.b2a_base64(b)
 
 
 def dePem(s, name):
@@ -108,84 +103,4 @@ def dePemList(s, name):
         retBytes = a2b_base64(s2) # May raise SyntaxError
         bList.append(retBytes)
         s = s[end+len(postfix) : ]
-
-def pem(b, name):
-    """Encode a payload bytearray into a PEM string.
-
-    The input will be base64 encoded, then wrapped in a PEM prefix/postfix
-    based on the name string, e.g. for name="CERTIFICATE":
-
-    -----BEGIN CERTIFICATE-----
-    MIIBXDCCAUSgAwIBAgIBADANBgkqhkiG9w0BAQUFADAPMQ0wCwYDVQQDEwRUQUNL
-    ...
-    KoZIhvcNAQEFBQADAwA5kw==
-    -----END CERTIFICATE-----
-    """
-    s1 = b2a_base64(b)[:-1] # remove terminating \n
-    s2 = b""
-    while s1:
-        s2 += s1[:64] + b"\n"
-        s1 = s1[64:]
-    s = ("-----BEGIN %s-----\n" % name).encode('ascii') + s2 + \
-        ("-----END %s-----\n" % name).encode('ascii')
-    return s
-
-def pemSniff(inStr, name):
-    searchStr = "-----BEGIN %s-----" % name
-    return searchStr in inStr
-
-
-def parse_private_key(s):
-    """Parse a string containing a PEM-encoded <privateKey>."""
-    if pemSniff(s, "PRIVATE KEY"):
-        bytes = dePem(s, "PRIVATE KEY")
-        return _parsePKCS8(bytes)
-    elif pemSniff(s, "RSA PRIVATE KEY"):
-        bytes = dePem(s, "RSA PRIVATE KEY")
-        return _parseSSLeay(bytes)
-    else:
-        raise SyntaxError("Not a PEM private key file")
-
-
-def _parsePKCS8(_bytes):
-    s = ASN1_Node(_bytes)
-    root = s.root()
-    version_node = s.first_child(root)
-    version = bytestr_to_int(s.get_value_of_type(version_node, 'INTEGER'))
-    if version != 0:
-        raise SyntaxError("Unrecognized PKCS8 version")
-    rsaOID_node = s.next_node(version_node)
-    ii = s.first_child(rsaOID_node)
-    rsaOID = decode_OID(s.get_value_of_type(ii, 'OBJECT IDENTIFIER'))
-    if rsaOID != '1.2.840.113549.1.1.1':
-        raise SyntaxError("Unrecognized AlgorithmIdentifier")
-    privkey_node = s.next_node(rsaOID_node)
-    value = s.get_value_of_type(privkey_node, 'OCTET STRING')
-    return _parseASN1PrivateKey(value)
-
-
-def _parseSSLeay(bytes):
-    return _parseASN1PrivateKey(ASN1_Node(bytes))
-
-
-def bytesToNumber(s):
-    return int(binascii.hexlify(s), 16)
-
-
-def _parseASN1PrivateKey(s):
-    s = ASN1_Node(s)
-    root = s.root()
-    version_node = s.first_child(root)
-    version = bytestr_to_int(s.get_value_of_type(version_node, 'INTEGER'))
-    if version != 0:
-        raise SyntaxError("Unrecognized RSAPrivateKey version")
-    n = s.next_node(version_node)
-    e = s.next_node(n)
-    d = s.next_node(e)
-    p = s.next_node(d)
-    q = s.next_node(p)
-    dP = s.next_node(q)
-    dQ = s.next_node(dP)
-    qInv = s.next_node(dQ)
-    return list(map(lambda x: bytesToNumber(s.get_value_of_type(x, 'INTEGER')), [n, e, d, p, q, dP, dQ, qInv]))
 

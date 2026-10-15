@@ -5,7 +5,7 @@ import QtQuick.Controls
 import org.electrum 1.0
 
 WizardComponent {
-    valid: wiz.isValidNewWalletName(wallet_name.text)
+    valid: Daemon.isValidWalletName(wallet_name.text)
 
     function apply() {
         wizard_data['wallet_name'] = wallet_name.text

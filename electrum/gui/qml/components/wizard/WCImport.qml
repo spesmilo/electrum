@@ -27,8 +27,10 @@ WizardComponent {
     ColumnLayout {
         width: parent.width
         height: parent.height
+
         InfoTextArea {
             Layout.preferredWidth: parent.width
+            backgroundColor: constants.darkerDialogBackground
             text: qsTr('Enter a list of Bitcoin addresses (this will create a watching-only wallet), or a list of private keys.')
         }
 
@@ -67,7 +69,6 @@ WizardComponent {
                     icon.source: '../../../icons/qrcode.png'
                     icon.height: constants.iconSizeMedium
                     icon.width: constants.iconSizeMedium
-                    scale: 1.2
                     onClicked: {
                         var dialog = app.scanDialog.createObject(app, {
                             hint: bitcoin.isAddressList(import_ta.text)
@@ -76,11 +77,11 @@ WizardComponent {
                                     ? qsTr('Scan another private key')
                                     : qsTr('Scan a private key or an address')
                         })
-                        dialog.onFound.connect(function() {
-                            if (verify(dialog.scanData)) {
+                        dialog.onFoundText.connect(function(data) {
+                            if (verify(data)) {
                                 if (import_ta.text != '')
                                     import_ta.text = import_ta.text + '\n'
-                                import_ta.text = import_ta.text + dialog.scanData
+                                import_ta.text = import_ta.text + data
                             }
                             dialog.close()
                         })

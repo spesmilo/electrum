@@ -11,7 +11,7 @@ ElDialog {
     id: dialog
 
     required property QtObject finalizer
-    required property Amount satoshis
+    required property var satoshis  // type: Amount
     property string address
     property string message
     property bool showOptions: true
@@ -71,7 +71,7 @@ ElDialog {
                     color: Material.accentColor
                 }
 
-                TextHighlightPane {
+                DialogHighlightPane {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
                     GridLayout {
@@ -112,6 +112,9 @@ ElDialog {
                             function onEffectiveAmountChanged() {
                                 updateAmountText()
                             }
+                            function onValidChanged() {
+                                updateAmountText()
+                            }
                         }
                     }
                 }
@@ -122,7 +125,7 @@ ElDialog {
                     color: Material.accentColor
                 }
 
-                TextHighlightPane {
+                DialogHighlightPane {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
                     height: feepicker.height
@@ -153,7 +156,7 @@ ElDialog {
                     visible: showOptions
                 }
 
-                TextHighlightPane {
+                DialogHighlightPane {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
                     visible: optionstoggle.visible && !optionstoggle.collapsed
@@ -214,6 +217,7 @@ ElDialog {
                     visible: finalizer.warning != ''
                     text: finalizer.warning
                     iconStyle: InfoTextArea.IconStyle.Warn
+                    backgroundColor: constants.darkerDialogBackground
                 }
 
                 ToggleLabel {
@@ -234,6 +238,7 @@ ElDialog {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
                         visible: finalizer.valid
+                        backgroundColor: constants.darkerDialogBackground
 
                         idx: index
                         model: modelData
@@ -258,6 +263,7 @@ ElDialog {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
                         visible: finalizer.valid
+                        backgroundColor: constants.darkerDialogBackground
 
                         allowShare: false
                         allowClickAddress: false
@@ -270,15 +276,19 @@ ElDialog {
             }
         }
 
-        FlatButton {
-            id: sendButton
+        DialogButtonContainer {
             Layout.fillWidth: true
-            text: (Daemon.currentWallet.isWatchOnly || !Daemon.currentWallet.canSignWithoutCosigner)
-                    ? qsTr('Finalize...')
-                    : qsTr('Pay...')
-            icon.source: '../../icons/confirmed.png'
-            enabled: finalizer.valid
-            onClicked: doAccept()
+
+            FlatButton {
+                id: sendButton
+                Layout.fillWidth: true
+                text: (Daemon.currentWallet.isWatchOnly || !Daemon.currentWallet.canSignWithoutCosigner)
+                        ? qsTr('Finalize...')
+                        : qsTr('Pay...')
+                icon.source: '../../icons/confirmed.png'
+                enabled: finalizer.valid
+                onClicked: doAccept()
+            }
         }
     }
 

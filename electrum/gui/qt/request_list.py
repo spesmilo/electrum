@@ -209,7 +209,7 @@ class RequestList(MyTreeView):
         #    menu.addAction(_("View in web browser"), lambda: webopen(req['view_url']))
         menu.addAction(_("Delete"), lambda: self.delete_requests([key]))
         run_hook('receive_list_menu', self.main_window, menu, key)
-        menu.exec(self.viewport().mapToGlobal(position))
+        self.open_menu(menu, position)
 
     def delete_requests(self, keys):
         self.wallet.delete_requests(keys)

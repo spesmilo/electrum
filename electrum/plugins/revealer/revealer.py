@@ -3,6 +3,7 @@ import os
 from hashlib import sha256
 from typing import NamedTuple, Optional, Dict, Tuple
 
+from electrum import crandom
 from electrum.plugin import BasePlugin
 from electrum.util import to_bytes, bfh
 
@@ -92,7 +93,7 @@ class RevealerPlugin(BasePlugin):
     @classmethod
     def gen_random_versioned_seed(cls):
         version = cls.LATEST_VERSION
-        hex_seed = os.urandom(16).hex()
+        hex_seed = crandom.get_rand_bytes(16).hex()
         checksum = cls.code_hashid(version + hex_seed)
         return VersionedSeed(version=version.upper(),
                              seed=hex_seed.upper(),

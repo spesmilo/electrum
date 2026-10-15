@@ -28,3 +28,5 @@ async def f():
         stopping_fut.set_result(1)
 
 asyncio.run_coroutine_threadsafe(f(), loop)
+while loop_thread.is_alive():
+    loop_thread.join(1)

@@ -53,68 +53,62 @@ Item {
             model: proxy_type_map
         }
 
-        GridLayout {
-            columns: 2
+        ColumnLayout {
+            // columns: 2
             Layout.fillWidth: true
+            spacing: constants.paddingSmall
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.rightMargin: constants.paddingLarge
+
+                TextField {
+                    id: address
+                    Layout.fillWidth: true
+                    enabled: proxy_enabled_cb.checked
+                    inputMethodHints: Qt.ImhNoPredictiveText
+                    placeholderText: qsTr("Address")
+                }
+
+                TextField {
+                    id: port
+                    Layout.fillWidth: true
+                    enabled: proxy_enabled_cb.checked
+                    inputMethodHints: Qt.ImhDigitsOnly
+                    placeholderText: qsTr("Port")
+                }
+            }
 
             Label {
-                text: qsTr("Address")
-                enabled: address.enabled
-            }
-
-            TextField {
-                id: address
-                enabled: proxy_enabled_cb.checked
-                inputMethodHints: Qt.ImhNoPredictiveText
-            }
-
-            Label {
-                text: qsTr("Port")
-                enabled: port.enabled
-            }
-
-            TextField {
-                id: port
-                enabled: proxy_enabled_cb.checked
-                inputMethodHints: Qt.ImhDigitsOnly
-            }
-
-            Label {
-                text: qsTr("Username")
+                Layout.topMargin: constants.paddingLarge
+                text: qsTr("Authentication")
                 enabled: username_tf.enabled
             }
 
             TextField {
                 id: username_tf
+                Layout.fillWidth: true
+                Layout.rightMargin: constants.paddingLarge
                 enabled: proxy_enabled_cb.checked
                 inputMethodHints: Qt.ImhNoPredictiveText
-            }
-
-            Label {
-                text: qsTr("Password")
-                enabled: password_tf.enabled
+                placeholderText: qsTr("Username")
             }
 
             PasswordField {
                 id: password_tf
                 enabled: proxy_enabled_cb.checked
+                placeholderText: qsTr("Password")
             }
         }
 
-        Pane {
+        Button {
             Layout.alignment: Qt.AlignHCenter
             Layout.topMargin: constants.paddingLarge
-            padding: 0
-            background: Rectangle {
-                color: constants.darkerDialogBackground
-            }
-            FlatButton {
-                enabled: proxy_enabled_cb.checked && !_probing
-                text: qsTr('Detect Tor proxy')
-                onClicked: {
-                    _probing = true
-                    Network.probeTor()
-                }
+            enabled: proxy_enabled_cb.checked && !_probing
+            text: qsTr('Detect Tor proxy')
+            onClicked: {
+                _probing = true
+                Network.probeTor()
             }
         }
 

@@ -7,9 +7,10 @@ import "../../../gui/qml/components/controls"
 Item {
     Connections {
         target: AppController ? AppController.plugin('psbt_nostr') : null
-        function onCosignerReceivedPsbt(pubkey, event, tx, label) {
+        function onCosignerReceivedPsbt(pubkey, event, tx, label, can_be_saved) {
             var dialog = psbtReceiveDialog.createObject(app, {
-                tx_label: label
+                tx_label: label,
+                can_be_saved: can_be_saved
             })
             dialog.accepted.connect(function () {
                 if (dialog.choice == PsbtReceiveDialog.Choice.Open) {

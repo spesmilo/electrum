@@ -1,15 +1,18 @@
 from pythonforandroid.recipes.packaging import PackagingRecipe
+from pythonforandroid.util import HashPinnedDependency
 
 
-assert PackagingRecipe._version == "21.3"
+assert PackagingRecipe._version == "26.0"
 assert PackagingRecipe.depends == ["setuptools", "pyparsing", "python3"]
 assert PackagingRecipe.python_depends == []
 
 
 class PackagingRecipePinned(PackagingRecipe):
-    #version = "21.3"
-    # note: 21.3 is the last version to use setup.py, so newer versions don't work. see comment for PyparsingRecipePinned
-    sha512sum = "2e3aa276a4229ac7dc0654d586799473ced9761a83aa4159660d37ae1a2a8f30e987248dd0e260e2834106b589f259a57ce9936eef0dcc3c430a99ac6b663e05"
+    sha512sum = "27a066a7d65ba76189212973b6a0d162f3d361848b1b0c34a82865cf180b3284a837cc34206c297f002a73feae414e25a26c5960bb884a74ea337f582585f1d2"
+    hostpython_prerequisites = [
+        HashPinnedDependency(package="flit-core==3.12.0",
+                             hashes=['sha256:e7a0304069ea895172e3c7bb703292e992c5d1555dd1233ab7b5621b5b69e62c']),
+    ]
 
 
 recipe = PackagingRecipePinned()

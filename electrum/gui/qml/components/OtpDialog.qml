@@ -17,7 +17,7 @@ ElDialog {
 
     property bool _waiting: false
     property string _otpError
-
+    property string passwordCharacter: '8'
     focus: true
 
     ColumnLayout {
@@ -31,7 +31,7 @@ ElDialog {
 
         TextField {
             id: otpEdit
-            Layout.preferredWidth: fontMetrics.advanceWidth(passwordCharacter) * 6
+            Layout.preferredWidth: leftPadding + rightPadding + fontMetrics.advanceWidth(passwordCharacter) * 6
             Layout.alignment: Qt.AlignHCenter
             font.pixelSize: constants.fontSizeXXLarge
             maximumLength: 6
@@ -51,9 +51,9 @@ ElDialog {
         Label {
             Layout.topMargin: constants.paddingMedium
             Layout.bottomMargin: constants.paddingMedium
-            Layout.alignment: Qt.AlignHCenter
             Layout.fillWidth: true
             wrapMode: Text.Wrap
+            horizontalAlignment: Text.AlignHCenter
 
             text: _otpError
             color: constants.colorError

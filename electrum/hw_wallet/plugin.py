@@ -39,6 +39,7 @@ if TYPE_CHECKING:
     import threading
     from electrum.plugin import DeviceInfo
     from electrum.wallet import Abstract_Wallet
+    from electrum.wizard import AbstractWizard
 
 
 class HW_PluginBase(BasePlugin, ABC):
@@ -85,9 +86,11 @@ class HW_PluginBase(BasePlugin, ABC):
     def close_wallet(self, wallet: 'Abstract_Wallet'):
         for keystore in wallet.get_keystores():
             if isinstance(keystore, self.keystore_class):
-                self.device_manager().unpair_pairing_code(keystore.pairing_code())
+                # stop the thread first: if unpairing raises, the thread must not be leaked,
+                # as a still-running QThread would make Qt abort() the process at shutdown
                 if keystore.thread:
                     keystore.thread.stop()
+                self.device_manager().unpair_pairing_code(keystore.pairing_code())
 
     def get_client(self, keystore: 'Hardware_KeyStore', force_pair: bool = True, *,
                    devices: Sequence['Device'] = None,
@@ -186,6 +189,14 @@ class HW_PluginBase(BasePlugin, ABC):
     def wizard_entry_for_device(self, device_info: 'DeviceInfo', *, new_wallet: bool) -> str:
         """Return view name for device
         """
+        pass
+
+    @hook
+    def init_wallet_wizard(self, wizard: 'AbstractWizard') -> None:
+        self.extend_wizard(wizard)
+
+    @abstractmethod
+    def extend_wizard(self, wizard: 'AbstractWizard') -> None:
         pass
 
 
@@ -325,6 +336,9 @@ class HardwareHandlerBase:
     def show_message(self, msg: str, on_cancel=None) -> None:
         raise NotImplementedError()
 
+    def show_warning(self, msg: str, blocking: bool = False) -> None:
+        raise NotImplementedError()
+
     def show_error(self, msg: str, blocking: bool = False) -> None:
         raise NotImplementedError()
 
@@ -354,7 +368,7 @@ def trezor_validate_op_return_output_and_get_data(output: TxOutput) -> bytes:
     return script[2:]
 
 
-def validate_op_return_output(output: TxOutput, *, max_size: int = None) -> None:
+def validate_op_return_output(output: TxOutput, *, max_size: int | None = None) -> None:
     script = output.scriptpubkey
     if script[0] != opcodes.OP_RETURN:
         raise UserFacingException(_("Only OP_RETURN scripts are supported."))

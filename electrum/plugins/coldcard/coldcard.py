@@ -34,7 +34,12 @@ try:
     from ckcc.constants import (MAX_MSG_LEN, MAX_BLK_LEN, MSG_SIGNING_MAX_LENGTH, MAX_TXN_LEN,
         AF_CLASSIC, AF_P2SH, AF_P2WPKH, AF_P2WSH, AF_P2WPKH_P2SH, AF_P2WSH_P2SH)
 
-    from ckcc.client import ColdcardDevice, COINKITE_VID, CKCC_PID, CKCC_SIMULATOR_PATH
+    from ckcc.client import ColdcardDevice, COINKITE_VID, CKCC_PID
+
+    try:  # >= v1.5.0
+        from ckcc.client import DEFAULT_SIM_SOCKET as CKCC_SIMULATOR_PATH
+    except ImportError:  # <= v1.4.x
+        from ckcc.client import CKCC_SIMULATOR_PATH
 
     requirements_ok = True
 
@@ -72,7 +77,11 @@ class CKCCClient(HardwareClientBase):
         else:
             # open the real HID device
             hd = hid.device(path=dev_path)
-            hd.open_path(dev_path)
+            try:
+                hd.open_path(dev_path)
+            except OSError:
+                _logger.error('cannot open hid path. Did you forget to configure udev rules?')
+                raise
 
             self.dev = ElectrumColdcardDevice(dev=hd, encrypt=True)
 
@@ -84,7 +93,7 @@ class CKCCClient(HardwareClientBase):
 
     def get_soft_device_id(self) -> Optional[str]:
         try:
-            super().get_soft_device_id()
+            return super().get_soft_device_id()
         except CCProtoError:
             return None
 
@@ -292,10 +301,10 @@ class Coldcard_KeyStore(Hardware_KeyStore):
 
         return client
 
-    def give_error(self, message):
+    def give_error(self, message: str | BaseException):
         self.logger.info(message)
         if not self.ux_busy:
-            self.handler.show_error(message)
+            self.handler.show_error(str(message))
         else:
             self.ux_busy = False
         raise UserFacingException(message)
@@ -451,7 +460,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
                 _('Error showing address') + ':', str(exc)))
         except BaseException as exc:
             self.logger.exception('')
-            self.handler.show_error(exc)
+            self.handler.show_error(str(exc))
 
     @wrap_busy
     def show_p2sh_address(self, M, script, xfp_paths, txin_type):
@@ -473,7 +482,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
                 str(exc)))
         except BaseException as exc:
             self.logger.exception('')
-            self.handler.show_error(exc)
+            self.handler.show_error(str(exc))
 
 
 class ColdcardPlugin(HW_PluginBase):

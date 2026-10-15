@@ -25,13 +25,14 @@
 from typing import TYPE_CHECKING, Optional
 from functools import partial
 from datetime import datetime
+from decimal import Decimal
 
 from PyQt6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QTreeWidget, QTreeWidgetItem,
     QTextEdit, QApplication, QSpinBox, QSizePolicy, QComboBox, QLineEdit,
 )
 from PyQt6.QtGui import QPixmap, QImage
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 
 from electrum.i18n import _
 from electrum.plugin import hook
@@ -117,7 +118,8 @@ class Plugin(NWCServerPlugin):
                 else:
                     budget = self.config.format_amount(conn['daily_limit_sat'])
                     used = self.config.format_amount(
-                        self.nwc_server.get_used_budget(conn['client_pub']))
+                        amount_sat=round(Decimal(self.nwc_server.get_used_budget_msat(conn['client_pub'])) / 1000)
+                    )
                     limit = f"{used}/{budget}"
                 item = QTreeWidgetItem(
                     [
@@ -194,6 +196,11 @@ class Plugin(NWCServerPlugin):
         vbox.addWidget(connections_list)
         vbox.addLayout(footer_buttons)
         d.setLayout(main_layout)
+
+        # update the list from time to time to see if budgets have changed
+        refresh_timer = QTimer(d)
+        refresh_timer.timeout.connect(update_connections_list)
+        refresh_timer.start(5_000)  # msec
 
         return bool(d.exec())
 

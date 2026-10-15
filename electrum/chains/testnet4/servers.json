@@ -1,19 +1,43 @@
 {
-    "testnet4-electrumx.wakiyamap.dev": {
+    "134.199.227.217": {
         "pruning": "-",
-        "s": "51002",
-        "t": "51001",
-        "version": "1.4"
+        "s": "50002",
+        "t": "50001",
+        "version": "1.6.0"
+    },
+    "bitcoin.stagemole.eu": {
+        "pruning": "-",
+        "s": "5010",
+        "t": "5000",
+        "version": "1.6.0"
     },
     "blackie.c3-soft.com": {
         "pruning": "-",
         "s": "57010",
         "t": "57009",
-        "version": "1.4"
+        "version": "1.6"
     },
-    "mempool.space": {
+    "fulcrum.theuplink.net": {
         "pruning": "-",
-        "s": "40002",
-        "version": "1.4"
+        "s": "60002",
+        "version": "1.6"
+    },
+    "gsw6sn27quwf6u3swgra6o7lrp5qau6kt3ymuyoxgkth6wntzm2bjwyd.onion": {
+        "pruning": "-",
+        "s": "52002",
+        "t": "52001",
+        "version": "1.5.3"
+    },
+    "testnet4.qtornado.com": {
+        "pruning": "-",
+        "s": "51012",
+        "t": "51011",
+        "version": "1.6.0"
+    },
+    "v22019051929289916.bestsrv.de": {
+        "pruning": "-",
+        "s": "60002",
+        "t": "60001",
+        "version": "1.6"
     }
 }

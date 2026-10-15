@@ -161,6 +161,19 @@ class Test_SimpleConfig(ElectrumTestCase):
         config.NETWORK_PROXY = None
         self.assertEqual(None, config.NETWORK_PROXY)
 
+    def test_configvars_convert_setter(self):
+        config = SimpleConfig(self.options)
+        self.assertEqual(60, config.CLI_TIMEOUT)
+        assert isinstance(config.CLI_TIMEOUT, float)
+
+        config.CLI_TIMEOUT = 10
+        self.assertEqual(10, config.CLI_TIMEOUT)
+        assert isinstance(config.CLI_TIMEOUT, float)
+
+        config.CLI_TIMEOUT = None
+        self.assertEqual(60, config.CLI_TIMEOUT)
+        assert isinstance(config.CLI_TIMEOUT, float)
+
     def test_configvars_is_set(self):
         config = SimpleConfig(self.options)
         self.assertEqual(MAX_MSG_SIZE_DEFAULT, config.NETWORK_MAX_INCOMING_MSG_SIZE)

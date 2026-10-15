@@ -1,6 +1,18 @@
-from electrum.interface import ServerAddr
+import asyncio
+from aiorpcx import RPCError
+
+from electrum import util
+from electrum.bitcoin import COIN
+from electrum.interface import ServerAddr, PaddedRSTransport
+from electrum.util import bfh
+from electrum.simple_config import SimpleConfig
+from electrum.transaction import Transaction, TxOutput
+from electrum.wallet import Abstract_Wallet
 
 from . import ElectrumTestCase
+from . import restore_wallet_from_text__for_unittest
+from .toyserver.toynetwork import ToyNetwork
+from .toyserver.toyserver import ToyServer, ToyServerSession
 
 
 class TestServerAddr(ElectrumTestCase):
@@ -46,3 +58,141 @@ class TestServerAddr(ElectrumTestCase):
                          ServerAddr(host="2400:6180:0:d1::86b:e001", port=50002, protocol="s").to_friendly_name())
         self.assertEqual("[2400:6180:0:d1::86b:e001]:50001:t",
                          ServerAddr(host="2400:6180:0:d1::86b:e001", port=50001, protocol="t").to_friendly_name())
+
+
+class TestInterface(ElectrumTestCase):
+    REGTEST = True
+
+    def setUp(self):
+        super().setUp()
+        self.config = SimpleConfig({'electrum_path': self.electrum_path})
+        self.config.NETWORK_SKIPMERKLECHECK = True
+        self._orig_WAIT_FOR_BUFFER_GROWTH_SECONDS = PaddedRSTransport.WAIT_FOR_BUFFER_GROWTH_SECONDS
+        PaddedRSTransport.WAIT_FOR_BUFFER_GROWTH_SECONDS = 0
+
+    def tearDown(self):
+        PaddedRSTransport.WAIT_FOR_BUFFER_GROWTH_SECONDS = self._orig_WAIT_FOR_BUFFER_GROWTH_SECONDS
+        super().tearDown()
+
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        self._toyserver = ToyServer()
+        await self._toyserver.start()
+        self.network = ToyNetwork(config=self.config)
+        for _ in range(10):  # mine some blocks
+            await self._toyserver.mine_block()
+        await self._toyserver.set_up_faucet(config=self.config)
+
+    async def asyncTearDown(self):
+        await self.network.stop()
+        await self._toyserver.stop()
+        await super().asyncTearDown()
+
+    async def _start_iface_and_wait_for_sync(self):
+        return await self.network.connect(self._toyserver, client_name="alice")
+
+    def _get_server_session(self) -> ToyServerSession:
+        return self._toyserver.get_session_by_name("alice")
+
+    async def test_client_syncs_headers_to_tip(self):
+        interface = await self._start_iface_and_wait_for_sync()
+        self.assertEqual(self._toyserver.cur_height, interface.tip)
+        self.assertFalse(interface.got_disconnected.is_set())
+
+    async def test_transaction_get(self):
+        interface = await self._start_iface_and_wait_for_sync()
+        # inject a tx into the server:
+        self._toyserver._add_tx(Transaction("020000000001010000000000000000000000000000000000000000000000000000000000000000ffffffff025100ffffffff0200f2052a010000001600140297bde2689a3c79ffe050583b62f86f2d9dae540000000000000000266a24aa21a9ede2f61c3f71d1defd3fa999dfa36953755c690689799962b48bebd836974e8cf90120000000000000000000000000000000000000000000000000000000000000000000000000"))
+        # try requesting tx unknown to server:
+        with self.assertRaises(RPCError) as ctx:
+            await interface.get_transaction("deadbeef"*8)
+        self.assertTrue("unknown txid" in ctx.exception.message)
+        # try requesting known tx:
+        rawtx = await interface.get_transaction("bdae818ad3c1f261317738ae9284159bf54874356f186dbc7afd631dc1527fcb")
+        self.assertEqual(rawtx, self._toyserver.txs["bdae818ad3c1f261317738ae9284159bf54874356f186dbc7afd631dc1527fcb"].hex())
+        self.assertEqual(self._get_server_session()._method_counts["blockchain.transaction.get"], 2)
+
+    async def test_transaction_broadcast(self):
+        interface = await self._start_iface_and_wait_for_sync()
+        rawtx1 = "020000000001010000000000000000000000000000000000000000000000000000000000000000ffffffff025200ffffffff0200f2052a010000001600140297bde2689a3c79ffe050583b62f86f2d9dae540000000000000000266a24aa21a9ede2f61c3f71d1defd3fa999dfa36953755c690689799962b48bebd836974e8cf90120000000000000000000000000000000000000000000000000000000000000000000000000"
+        tx = Transaction(rawtx1)
+        # broadcast
+        await interface.broadcast_transaction(tx)
+        self.assertEqual(bfh(rawtx1), self._toyserver.txs.get(tx.txid()))
+        # now request tx.
+        # as we just broadcast this same tx, this will hit the client iface cache, and won't call the server.
+        self.assertEqual(self._get_server_session()._method_counts["blockchain.transaction.get"], 0)
+        rawtx2 = await interface.get_transaction(tx.txid())
+        self.assertEqual(rawtx1, rawtx2)
+        self.assertEqual(self._get_server_session()._method_counts["blockchain.transaction.get"], 0)
+
+    async def test_dont_request_gethistory_if_status_change_results_from_mempool_txs_simply_getting_mined(self):
+        """After a new block is mined, we recv "blockchain.scripthash.subscribe" notifs.
+        We opportunistically guess the scripthash status changed purely because touching mempool txs just got mined.
+        If the guess is correct, we won't call the "blockchain.scripthash.get_history" RPC.
+        """
+        interface = await self._start_iface_and_wait_for_sync()
+        server_blockheight = interface.tip
+        w1 = restore_wallet_from_text__for_unittest("9dk", path=None, config=self.config)['wallet']  # type: Abstract_Wallet
+        w1.start_network(self.network)
+        await w1.up_to_date_changed_event.wait()
+        self.assertEqual(self._get_server_session()._method_counts["blockchain.scripthash.get_history"], 0)
+        # fund w1 (in mempool)
+        w1_addr = w1.get_receiving_address()
+        funding_tx = await self._toyserver.ask_faucet([TxOutput.from_address_and_value(w1_addr, 1 * COIN)])
+        funding_txid = funding_tx.txid()
+        await w1.up_to_date_changed_event.wait()
+        while not w1.is_up_to_date():
+            await w1.up_to_date_changed_event.wait()
+        self.assertEqual(self._get_server_session()._method_counts["blockchain.scripthash.get_history"], 1)
+        self.assertEqual(
+            w1.adb.get_address_history(w1_addr),
+            {funding_txid: 0})
+        # mine funding tx
+        await self._toyserver.mine_block()
+        server_blockheight += 1
+        await w1.up_to_date_changed_event.wait()
+        while not w1.is_up_to_date():
+            await w1.up_to_date_changed_event.wait()
+        # see if we managed to guess new history, and hence did not need to call get_history RPC
+        self.assertEqual(self._get_server_session()._method_counts["blockchain.scripthash.get_history"], 1)
+        self.assertEqual(
+            w1.adb.get_address_history(w1_addr),
+            {funding_txid: server_blockheight})
+
+    async def test_we_disconnect_on_incoming_request(self):
+        """We don't expect the server to send us any requests of its own."""
+        interface = await self._start_iface_and_wait_for_sync()
+        with self.assertLogs('electrum', level='INFO') as logs:
+            with self.assertRaises(asyncio.CancelledError):
+                await self._get_server_session().send_request('blockchain.block.header', [999])
+        self.assertTrue(any(("Interface.[127.0.0.1:" in msg and "unexpected request. not a notification" in msg)
+                            for msg in logs.output))
+
+    async def test_we_disconnect_on_incoming_notification_spam(self):
+        """We don't expect the server to send us any requests of its own."""
+        interface = await self._start_iface_and_wait_for_sync()
+        # set lower resource limits on client
+        assert interface.session.cost_hard_limit > 0
+        interface.session.cost_hard_limit /= 30
+        interface.session.cost_soft_limit = interface.session.cost_hard_limit - 1
+        interface.session.bw_cost_per_byte *= 10
+        with self.assertLogs('electrum', level='INFO') as logs:
+            # server now sends a crazy number of notifications to the client
+            srv_sess = self._get_server_session()
+            headersub_res = (srv_sess._get_headersub_result(),)
+            spam_count = 200_000
+            for i in range(spam_count):
+                if srv_sess.got_disconnected.is_set():
+                    break
+                await srv_sess.send_notification('blockchain.headers.subscribe', headersub_res)
+            # both parties should close their end of the session (triggered by the client DC-ing)
+            async with util.async_timeout(1):
+                await srv_sess.got_disconnected.wait()
+            async with util.async_timeout(1):
+                await interface.got_disconnected.wait()
+        # the client should not have received most of the spam:
+        assert interface.session.recv_count < spam_count / 20
+        assert interface.session.cost > interface.session.cost_hard_limit
+        self.assertTrue(any(("Interface.[127.0.0.1:" in msg and "closing session over resource usage" in msg)
+                            for msg in logs.output))

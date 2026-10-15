@@ -12,6 +12,7 @@ Item {
     property bool showAutoselectServer: true
     property alias address: address_tf.text
     property alias serverConnectMode: server_connect_mode_cb.currentValue
+    property alias addressValid: address_tf.valid
 
     implicitHeight: rootLayout.height
 
@@ -28,6 +29,11 @@ Item {
 
             ServerConnectModeComboBox {
                 id: server_connect_mode_cb
+                onCurrentValueChanged: {
+                    if (currentValue == ServerConnectModeComboBox.Mode.Autoconnect) {
+                        address_tf.text = ""
+                    }
+                }
             }
 
             Item {
@@ -37,7 +43,7 @@ Item {
 
             HelpButton {
                 Layout.alignment: Qt.AlignRight
-                heading: qsTr('Connection mode')+':'
+                heading: qsTr('Connection mode') + ':'
                 helptext: Config.getTranslatedMessage('MSG_CONNECTMODE_SERVER_HELP') + '<br/><br/>' +
                     Config.getTranslatedMessage('MSG_CONNECTMODE_NODES_HELP') + '<ul>' +
                     '<li><b>' + Config.getTranslatedMessage('MSG_CONNECTMODE_AUTOCONNECT') +
@@ -50,19 +56,32 @@ Item {
             }
         }
 
-        Label {
-            text: qsTr("Server")
-            enabled: address_tf.enabled
-        }
-
-        TextHighlightPane {
+        TextField {
+            id: address_tf
             Layout.fillWidth: true
 
-            TextField {
-                id: address_tf
-                enabled: server_connect_mode_cb.currentValue != ServerConnectModeComboBox.Mode.Autoconnect
-                width: parent.width
-                inputMethodHints: Qt.ImhNoPredictiveText
+            enabled: server_connect_mode_cb.currentValue != ServerConnectModeComboBox.Mode.Autoconnect
+            inputMethodHints: Qt.ImhNoPredictiveText
+            placeholderText: qsTr('Server')
+
+            property bool valid: true
+
+            function validate() {
+                if (!enabled) {
+                    valid = true
+                    return
+                }
+                valid = Network.isValidServerAddress(address_tf.text)
+            }
+
+            onTextChanged: validate()
+            onEnabledChanged: validate()
+
+            Rectangle {
+                anchors.fill: parent
+                color: "red"
+                opacity: 0.2
+                visible: !parent.valid
             }
         }
 

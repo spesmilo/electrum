@@ -14,12 +14,15 @@ ElDialog {
     iconSource: Qt.resolvedUrl('../../icons/lock.png')
 
     property bool confirmPassword: false
-    property string password
     property string infotext
+    property string errorMessage
+
+    signal passwordEntered(string password)
 
     anchors.centerIn: parent
     width: parent.width * 4/5
     padding: 0
+    needsSystemBarPadding: false
 
     ColumnLayout {
         id: rootLayout
@@ -36,32 +39,23 @@ ElDialog {
                 text: infotext
                 Layout.bottomMargin: constants.paddingMedium
                 Layout.fillWidth: true
-            }
-
-            Label {
-                Layout.fillWidth: true
-                text: qsTr('Password')
-                color: Material.accentColor
+                backgroundColor: constants.darkerDialogBackground
+                compact: true
             }
 
             PasswordField {
                 id: pw_1
-                Layout.leftMargin: constants.paddingXLarge
-            }
-
-            Label {
-                Layout.fillWidth: true
-                text: qsTr('Password (again)')
-                visible: confirmPassword
-                color: Material.accentColor
+                Layout.bottomMargin: constants.paddingSmall
+                placeholderText: qsTr('Password')
             }
 
             PasswordField {
                 id: pw_2
-                Layout.leftMargin: constants.paddingXLarge
+                Layout.bottomMargin: constants.paddingSmall
                 visible: confirmPassword
                 showReveal: false
                 echoMode: pw_1.echoMode
+                placeholderText: qsTr('Password (again)')
             }
 
             RowLayout {
@@ -79,22 +73,39 @@ ElDialog {
                 }
 
                 PasswordStrengthIndicator {
-                    Layout.fillWidth: true
+                    Layout.preferredWidth: passworddialog.width / 2
                     password: pw_1.text
                 }
             }
+
+            Label {
+                Layout.maximumWidth: parent.width
+                Layout.alignment: Qt.AlignHCenter
+                text: errorMessage
+                wrapMode: Text.Wrap
+                visible: errorMessage
+                color: constants.colorError
+                font.pixelSize: constants.fontSizeLarge
+            }
         }
 
-        FlatButton {
+        DialogButtonContainer {
             Layout.fillWidth: true
-            text: qsTr("Ok")
-            icon.source: '../../icons/confirmed.png'
-            enabled: confirmPassword ? pw_1.text.length >= 6 && pw_1.text == pw_2.text : true
-            onClicked: {
-                password = pw_1.text
-                passworddialog.doAccept()
+
+            FlatButton {
+                Layout.fillWidth: true
+                text: qsTr("Ok")
+                icon.source: '../../icons/confirmed.png'
+                enabled: confirmPassword ? pw_1.text.length >= 6 && pw_1.text == pw_2.text : true
+                onClicked: {
+                    passwordEntered(pw_1.text)
+                }
             }
         }
     }
 
+    function clearPassword() {
+        pw_1.text = ""
+        pw_2.text = ""
+    }
 }

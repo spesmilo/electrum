@@ -25,16 +25,24 @@ import locale
 import traceback
 import sys
 import queue
-from typing import TYPE_CHECKING, NamedTuple, Optional
+from typing import TYPE_CHECKING, NamedTuple, Optional, TypedDict
+from types import TracebackType
 
 from .version import ELECTRUM_VERSION
 from . import constants
 from .i18n import _
 from .util import make_aiohttp_session, error_text_str_to_safe_str
-from .logging import describe_os_version, Logger, get_git_version
+from .logging import describe_os_version, Logger, get_logger, get_git_version
+from .crypto import sha256
 
 if TYPE_CHECKING:
     from .network import ProxySettings
+
+
+_tainted_by_console = False
+def taint_reports_by_console_usage():
+    global _tainted_by_console
+    _tainted_by_console = True
 
 
 class CrashReportResponse(NamedTuple):
@@ -68,21 +76,34 @@ class BaseCrashReporter(Logger):
     USER_COMMENT_PLACEHOLDER = _("Do not enter sensitive/private information here. "
                                  "The report will be visible on the public issue tracker.")
 
-    def __init__(self, exctype, value, tb):
+    exc_args: tuple[type[BaseException], BaseException, TracebackType | None]
+
+    def __init__(
+        self,
+        exctype: type[BaseException],
+        excvalue: BaseException,
+        tb: TracebackType | None,
+    ):
         Logger.__init__(self)
-        self.exc_args = (exctype, value, tb)
+        self.exc_args = (exctype, excvalue, tb)
 
     def send_report(self, asyncio_loop, proxy: 'ProxySettings', *, timeout=None) -> CrashReportResponse:
         # FIXME the caller needs to catch generic "Exception", as this method does not have a well-defined API...
-        if (constants.net.GENESIS[-4:] not in [
+        bitcoinlike_genesis = constants.net.GENESIS[-4:] in [
             "e26f",  # mainnet
             "4943",  # testnet 3
             "f043",  # testnet 4
             "1ef6",  # signet
-        ] and ".electrum.org" in BaseCrashReporter.report_server):
-            # Gah! Some kind of altcoin wants to send us crash reports.
+        ]
+        is_forked_codebase = not bitcoinlike_genesis or "/spesmilo/" not in constants.GIT_REPO_URL
+        if is_forked_codebase and ".electrum.org" in BaseCrashReporter.report_server:
+            # Some kind of altcoin wants to send us crash reports... ?
+            # - You, the reader, yes *you*: if you forked the codebase e.g. to support an altcoin,
+            #   please consider that upstream Electrum does NOT want to receive automated crash reports
+            #   from your users.  You should set up your own crash report server,
+            #   and change `BaseCrashReporter.report_server` accordingly, or just disable reporting.
             raise Exception(_("Missing report URL."))
-        report = self.get_traceback_info()
+        report = self.get_traceback_info(*self.exc_args)
         report.update(self.get_additional_info())
         report = json.dumps(report)
         coro = self.do_post(proxy, BaseCrashReporter.report_server + "/crash.json", data=report)
@@ -111,24 +132,44 @@ class BaseCrashReporter(Logger):
             async with session.post(url, data=data, raise_for_status=True) as resp:
                 return await resp.text()
 
-    def get_traceback_info(self):
-        exc_string = str(self.exc_args[1])
-        stack = traceback.extract_tb(self.exc_args[2])
-        readable_trace = self.__get_traceback_str_to_send()
-        id = {
+    @classmethod
+    def get_traceback_info(
+        cls,
+        exctype: type[BaseException],
+        excvalue: BaseException,
+        tb: TracebackType | None,
+    ) -> TypedDict('TBInfo', {'exc_string': str, 'stack': str, 'id': dict[str, str]}):
+        exc_string = str(excvalue)
+        stack = traceback.extract_tb(tb)
+        readable_trace = cls._get_traceback_str_to_send(exctype, excvalue, tb)
+        _id = {
             "file": stack[-1].filename if len(stack) else '<no stack>',
             "name": stack[-1].name if len(stack) else '<no stack>',
-            "type": self.exc_args[0].__name__
-        }
+            "type": exctype.__name__
+        }  # note: this is the "id" the crash reporter server uses to group together reports.
         return {
             "exc_string": exc_string,
             "stack": readable_trace,
-            "id": id
+            "id": _id,
         }
 
+    @classmethod
+    def get_traceback_groupid_hash(
+        cls,
+        exctype: type[BaseException],
+        excvalue: BaseException,
+        tb: TracebackType | None,
+    ) -> bytes:
+        tb_info = cls.get_traceback_info(exctype, excvalue, tb)
+        _id = tb_info["id"]
+        return sha256(str(_id))
+
     def get_additional_info(self):
+        app_version = (get_git_version() or ELECTRUM_VERSION)
+        if _tainted_by_console:
+            app_version += "-consoletaint"
         args = {
-            "app_version": get_git_version() or ELECTRUM_VERSION,
+            "app_version": app_version,
             "python_version": sys.version,
             "os": describe_os_version(),
             "wallet_type": "unknown",
@@ -142,15 +183,21 @@ class BaseCrashReporter(Logger):
             pass
         return args
 
-    def __get_traceback_str_to_send(self) -> str:
+    @classmethod
+    def _get_traceback_str_to_send(
+        cls,
+        exctype: type[BaseException],
+        excvalue: BaseException,
+        tb: TracebackType | None,
+    ) -> str:
         # make sure that traceback sent to crash reporter contains
         # e.__context__ and e.__cause__, i.e. if there was a chain of
         # exceptions, we want the full traceback for the whole chain.
-        return "".join(traceback.format_exception(*self.exc_args))
+        return "".join(traceback.format_exception(exctype, excvalue, tb))
 
     def _get_traceback_str_to_display(self) -> str:
         # overridden in Qt subclass
-        return self.__get_traceback_str_to_send()
+        return self._get_traceback_str_to_send(*self.exc_args)
 
     def get_report_string(self):
         info = self.get_additional_info()
@@ -174,7 +221,8 @@ class EarlyExceptionsQueue:
     """
 
     _is_exc_hook_ready = False
-    _exc_queue = queue.Queue()
+    _exc_queue = queue.Queue(maxsize=100)
+    _logger = get_logger(__name__)
 
     @classmethod
     def set_hook_as_ready(cls):
@@ -191,7 +239,12 @@ class EarlyExceptionsQueue:
         if cls._is_exc_hook_ready:
             cls._send_exception_to_crash_reporter(e)
         else:
-            cls._exc_queue.put(e)
+            # The exc hook might never become ready (e.g. daemon), so log now.
+            cls._logger.error("exception passed to crash reporter (exc hook not ready):", exc_info=e)
+            try:
+                cls._exc_queue.put_nowait(e)
+            except queue.Full:
+                pass
 
     @staticmethod
     def _send_exception_to_crash_reporter(e: BaseException):

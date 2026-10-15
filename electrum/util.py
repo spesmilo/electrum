@@ -21,17 +21,23 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import concurrent.futures
+import copy
+import dataclasses
 from dataclasses import dataclass
 import logging
 import os
 import sys
 import re
+import subprocess
 from collections import defaultdict, OrderedDict
 from concurrent.futures.process import ProcessPoolExecutor
+import typing
+from pathlib import Path
 from typing import (
     NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable, Any, Sequence, Dict, Generic, TypeVar, List, Iterable,
     Set, Awaitable
 )
+from types import MappingProxyType
 from datetime import datetime, timezone, timedelta
 import decimal
 from decimal import Decimal
@@ -47,22 +53,26 @@ import ssl
 import ipaddress
 from ipaddress import IPv4Address, IPv6Address
 import random
-import secrets
 import functools
 from functools import partial
 from abc import abstractmethod, ABC
 import enum
-from contextlib import nullcontext
+import contextlib
+from contextlib import nullcontext, suppress
 import traceback
+import inspect
+import weakref
 
 import aiohttp
 from aiohttp_socks import ProxyConnector, ProxyType
+from aiohttp_socks import ProxyConnectionError, ProxyTimeoutError, ProxyError
 import aiorpcx
 import certifi
 import dns.asyncresolver
 
 from .i18n import _
 from .logging import get_logger, Logger
+from . import crandom
 
 if TYPE_CHECKING:
     from .network import Network, ProxySettings
@@ -226,7 +236,7 @@ class UserCancelled(Exception):
     pass
 
 
-def to_decimal(x: Union[str, float, int, Decimal]) -> Decimal:
+def to_decimal(x: str | float | int | Decimal | None) -> Decimal:
     # helper function mainly for float->Decimal conversion, i.e.:
     #   >>> Decimal(41754.681)
     #   Decimal('41754.680999999996856786310672760009765625')
@@ -234,6 +244,10 @@ def to_decimal(x: Union[str, float, int, Decimal]) -> Decimal:
     #   Decimal('41754.681')
     if isinstance(x, Decimal):
         return x
+    if isinstance(x, int):
+        return Decimal(x)
+    if x is None:
+        return Decimal('NaN')
     return Decimal(str(x))
 
 
@@ -325,8 +339,9 @@ class MyEncoder(json.JSONEncoder):
         if isinstance(obj, Decimal):
             return str(obj)
         if isinstance(obj, datetime):
-            return obj.isoformat(' ')[:-3]
-        if isinstance(obj, set):
+            # note: if there is a timezone specified, this will include the offset
+            return obj.isoformat(' ', timespec="minutes")
+        if isinstance(obj, (set, frozenset)):
             return list(obj)
         if isinstance(obj, bytes): # for nametuples in lnchannel
             return obj.hex()
@@ -347,31 +362,6 @@ class ThreadJob(Logger):
         """Called periodically from the thread"""
         pass
 
-class DebugMem(ThreadJob):
-    '''A handy class for debugging GC memory leaks'''
-    def __init__(self, classes, interval=30):
-        ThreadJob.__init__(self)
-        self.next_time = 0
-        self.classes = classes
-        self.interval = interval
-
-    def mem_stats(self):
-        import gc
-        self.logger.info("Start memscan")
-        gc.collect()
-        objmap = defaultdict(list)
-        for obj in gc.get_objects():
-            for class_ in self.classes:
-                if isinstance(obj, class_):
-                    objmap[class_].append(obj)
-        for class_, objs in objmap.items():
-            self.logger.info(f"{class_.__name__}: {len(objs)}")
-        self.logger.info("Finish memscan")
-
-    def run(self):
-        if time.time() > self.next_time:
-            self.mem_stats()
-            self.next_time = time.time() + self.interval
 
 class DaemonThread(threading.Thread, Logger):
     """ daemon thread that terminates cleanly """
@@ -398,10 +388,14 @@ class DaemonThread(threading.Thread, Logger):
         # malformed or malicious server responses
         with self.job_lock:
             for job in self.jobs:
+                start = time.perf_counter()
                 try:
                     job.run()
                 except Exception as e:
                     self.logger.exception('')
+                duration = time.perf_counter() - start
+                if duration > 0.5:
+                    self.logger.warning(f"thread job {job} blocked {self} DaemonThread for {duration:.2f} s")
 
     def remove_jobs(self, jobs):
         with self.job_lock:
@@ -462,6 +456,21 @@ def json_decode(x):
         return x
 
 
+def repr_dataclass(obj, formatters: Dict[Union[str, type], Callable[[Any], str]]) -> str:
+    """repr of a dataclass instance, with a custom formatting of some fields (like the
+    'repr' parameter of attrs). formatters is keyed by field name, or by the type of a value.
+    None values are never formatted.
+    """
+    parts = []
+    for f in dataclasses.fields(obj):
+        if not f.repr:
+            continue
+        value = getattr(obj, f.name)
+        fmt = None if value is None else formatters.get(f.name) or formatters.get(type(value))
+        parts.append(f"{f.name}={fmt(value) if fmt else repr(value)}")
+    return f"{type(obj).__name__}({', '.join(parts)})"
+
+
 def json_normalize(x):
     # note: The return value of commands, when going through the JSON-RPC interface,
     #       is json-encoded. The encoder used there cannot handle some types, e.g. electrum.util.Satoshis.
@@ -497,7 +506,7 @@ def profiler(func=None, *, min_threshold: Union[int, float, None] = None):
         if min_threshold is None or t > min_threshold:
             _profiler_logger.debug(f"{func.__qualname__} {t:,.4f} sec")
 
-    if asyncio.iscoroutinefunction(func):
+    if inspect.iscoroutinefunction(func):
         async def do_profile(*args, **kw_args):
             timer_start()
             o = await func(*args, **kw_args)
@@ -560,14 +569,18 @@ def android_data_dir():
     return PythonActivity.mActivity.getFilesDir().getPath() + '/data'
 
 
-def ensure_sparse_file(filename):
+def ensure_sparse_file(file_path: str | Path):
     # On modern Linux, no need to do anything.
     # On Windows, need to explicitly mark file.
     if os.name == "nt":
         try:
-            os.system('fsutil sparse setflag "{}" 1'.format(filename))
-        except Exception as e:
-            _logger.info(f'error marking file {filename} as sparse: {e}')
+            subprocess.run(
+                ['fsutil', 'sparse', 'setflag', file_path, '1'],
+                check=True,
+                capture_output=True,
+            )
+        except (subprocess.CalledProcessError, OSError) as e:
+            _logger.warning(f'error marking file {file_path} as sparse: {e}')
 
 
 def get_headers_dir(config):
@@ -616,6 +629,13 @@ def get_new_wallet_name(wallet_folder: str) -> str:
         else:
             break
     return filename
+
+
+def is_hidden_wallet_path(wallet_path: Any) -> bool:
+    if not isinstance(wallet_path, str):
+        return False
+    fname = os.path.basename(wallet_path)
+    return fname.startswith(".")
 
 
 def is_android_debug_apk() -> bool:
@@ -667,7 +687,7 @@ def to_string(x, enc) -> str:
         raise TypeError("Not a string or bytes like object")
 
 
-def to_bytes(something, encoding='utf8') -> bytes:
+def to_bytes(something: str | bytes | bytearray, encoding='utf8') -> bytes:
     """
     cast string to bytes() like object, but for python2 support it's bytearray copy
     """
@@ -792,14 +812,17 @@ def format_satoshis_plain(
         x: Union[int, float, Decimal, str],  # amount in satoshis,
         *,
         decimal_point: int = 8,  # how much to shift decimal point to left (default: sat->BTC)
+        is_max_allowed: bool = True,
 ) -> str:
     """Display a satoshi amount scaled.  Always uses a '.' as a decimal
     point and has no thousands separator"""
-    if parse_max_spend(x):
+    if is_max_allowed and parse_max_spend(x):
         return f'max({x})'
     assert isinstance(x, (int, float, Decimal)), f"{x!r} should be a number"
+    # TODO(ghost43) just hard-fail if x is a float. do we even use floats for money anywhere?
+    x = to_decimal(x)
     scale_factor = pow(10, decimal_point)
-    return "{:.8f}".format(Decimal(x) / scale_factor).rstrip('0').rstrip('.')
+    return "{:.8f}".format(x / scale_factor).rstrip('0').rstrip('.')
 
 
 # Check that Decimal precision is sufficient.
@@ -831,8 +854,10 @@ def format_satoshis(
     if parse_max_spend(x):
         return f'max({x})'
     assert isinstance(x, (int, float, Decimal)), f"{x!r} should be a number"
+    # TODO(ghost43) just hard-fail if x is a float. do we even use floats for money anywhere?
+    x = to_decimal(x)
     # lose redundant precision
-    x = Decimal(x).quantize(Decimal(10) ** (-precision))
+    x = x.quantize(Decimal(10) ** (-precision))
     # format string
     overall_precision = decimal_point + precision  # max digits after final decimal point
     decimal_format = "." + str(overall_precision) if overall_precision > 0 else ""
@@ -877,6 +902,7 @@ UI_UNIT_NAME_FEERATE_SAT_PER_VBYTE = "sat/vbyte"
 UI_UNIT_NAME_FEERATE_SAT_PER_VB = "sat/vB"
 UI_UNIT_NAME_TXSIZE_VBYTES = "vbytes"
 UI_UNIT_NAME_MEMPOOL_MB = "vMB"
+UI_UNIT_NAME_FIXED_SAT = "sat"
 
 
 def format_fee_satoshis(fee, *, num_zeros=0, precision=None):
@@ -893,10 +919,11 @@ def quantize_feerate(fee) -> Union[None, Decimal, int]:
     return Decimal(fee).quantize(_feerate_quanta, rounding=decimal.ROUND_HALF_DOWN)
 
 
+DEFAULT_TIMEZONE = None  # type: timezone | None  # None means local OS timezone
 def timestamp_to_datetime(timestamp: Union[int, float, None], *, utc: bool = False) -> Optional[datetime]:
     if timestamp is None:
         return None
-    tz = None
+    tz = DEFAULT_TIMEZONE
     if utc:
         tz = timezone.utc
     return datetime.fromtimestamp(timestamp, tz=tz)
@@ -905,6 +932,10 @@ def timestamp_to_datetime(timestamp: Union[int, float, None], *, utc: bool = Fal
 def format_time(timestamp: Union[int, float, None]) -> str:
     date = timestamp_to_datetime(timestamp)
     return date.isoformat(' ', timespec="minutes") if date else _("Unknown")
+
+
+def now() -> int:
+    return int(time.time())
 
 
 def age(
@@ -1185,7 +1216,7 @@ def make_dir(path, *, allow_symlink=True):
     """
     if not os.path.exists(path):
         if not allow_symlink and os.path.islink(path):
-            raise Exception('Dangling link: ' + path)
+            raise FileNotFoundError('Dangling link: ' + path)
         try:
             os.mkdir(path)
         except FileExistsError:
@@ -1209,7 +1240,7 @@ def is_subpath(long_path: str, short_path: str) -> bool:
 
 def log_exceptions(func):
     """Decorator to log AND re-raise exceptions."""
-    assert asyncio.iscoroutinefunction(func), 'func needs to be a coroutine'
+    assert inspect.iscoroutinefunction(func), 'func needs to be a coroutine'
 
     @functools.wraps(func)
     async def wrapper(*args, **kwargs):
@@ -1230,7 +1261,7 @@ def log_exceptions(func):
 
 def ignore_exceptions(func):
     """Decorator to silently swallow all exceptions."""
-    assert asyncio.iscoroutinefunction(func), 'func needs to be a coroutine'
+    assert inspect.iscoroutinefunction(func), 'func needs to be a coroutine'
 
     @functools.wraps(func)
     async def wrapper(*args, **kwargs):
@@ -1250,26 +1281,37 @@ def with_lock(func):
     return func_wrapper
 
 
-class TxMinedInfo(NamedTuple):
-    height: int                        # height of block that mined tx
+@dataclass(frozen=True, kw_only=True)
+class TxMinedInfo:
+    _height: int                       # height of block that mined tx
     conf: Optional[int] = None         # number of confirmations, SPV verified. >=0, or None (None means unknown)
     timestamp: Optional[int] = None    # timestamp of block that mined tx
     txpos: Optional[int] = None        # position of tx in serialized block
     header_hash: Optional[str] = None  # hash of block that mined tx
     wanted_height: Optional[int] = None  # in case of timelock, min abs block height
 
+    def height(self) -> int:
+        """Treat unverified heights as unconfirmed."""
+        h = self._height
+        if h > 0:
+            if self.conf is not None and self.conf >= 1:
+                return h
+            return 0  # treat it as unconfirmed until SPV-ed
+        else:  # h <= 0
+            return h
+
     def short_id(self) -> Optional[str]:
-        if self.txpos is not None and self.txpos >= 0:
-            assert self.height > 0
-            return f"{self.height}x{self.txpos}"
+        """'<height>x<txpos>' if mined and SPV-verified, else None."""
+        if self.height() > 0 and self.txpos is not None and self.txpos >= 0:
+            return f"{self.height()}x{self.txpos}"
         return None
 
     def is_local_like(self) -> bool:
         """Returns whether the tx is local-like (LOCAL/FUTURE)."""
         from .address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT
-        if self.height > 0:
+        if self.height() > 0:
             return False
-        if self.height in (TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT):
+        if self.height() in (TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT):
             return False
         return True
 
@@ -1345,7 +1387,7 @@ def make_aiohttp_proxy_connector(proxy: 'ProxySettings', ssl_context: Optional[s
     )
 
 
-def make_aiohttp_session(proxy: Optional['ProxySettings'], headers=None, timeout=None):
+def _make_aiohttp_session(proxy: Optional['ProxySettings'], headers=None, timeout=None):
     if headers is None:
         headers = {'User-Agent': 'Electrum'}
     if timeout is None:
@@ -1362,6 +1404,23 @@ def make_aiohttp_session(proxy: Optional['ProxySettings'], headers=None, timeout
         connector = aiohttp.TCPConnector(ssl=ssl_context)
 
     return aiohttp.ClientSession(headers=headers, timeout=timeout, connector=connector)
+
+
+@contextlib.asynccontextmanager
+async def make_aiohttp_session(proxy: Optional['ProxySettings'], headers=None, timeout=None):
+    """
+    Caller should typically handle at least:
+    - aiohttp.ClientError
+    - asyncio.TimeoutError
+    """
+    try:
+        async with _make_aiohttp_session(proxy, headers=headers, timeout=timeout) as session:
+            yield session
+    except (ProxyConnectionError, ProxyTimeoutError, ProxyError) as e:
+        # We unify all proxy-related exceptions to a single type.
+        # Maybe it would be better to unify to ProxyError, but ~all call sites already expect aiohttp.ClientError,
+        # and that is a generic http-related error that we usually display the str() of, so let's just reuse that.
+        raise aiohttp.ClientError(f"proxy error: {repr(e)}") from e
 
 
 class OldTaskGroup(aiorpcx.TaskGroup):
@@ -1679,8 +1738,20 @@ def create_and_start_event_loop() -> Tuple[asyncio.AbstractEventLoop,
             loop.run_until_complete(stopping_fut)
         finally:
             # clean-up
+            try:
+                pending_tasks = asyncio.gather(*asyncio.all_tasks(loop), return_exceptions=True)
+                pending_tasks.cancel()
+                with suppress(asyncio.CancelledError):
+                    loop.run_until_complete(pending_tasks)
+                loop.run_until_complete(loop.shutdown_asyncgens())
+                if isinstance(loop, asyncio.BaseEventLoop):
+                    loop.run_until_complete(loop.shutdown_default_executor())
+            except Exception as e:
+                _logger.debug(f"exception when cleaning up asyncio event loop: {e}")
+
             global _asyncio_event_loop
             _asyncio_event_loop = None
+            loop.close()
 
     loop.set_exception_handler(on_exception)
     _set_custom_task_factory(loop)
@@ -1740,7 +1811,7 @@ def _set_custom_task_factory(loop: asyncio.AbstractEventLoop):
     loop.set_task_factory(factory)
 
 
-def run_sync_function_on_asyncio_thread(func: Callable, *, block: bool) -> None:
+def run_sync_function_on_asyncio_thread(func: Callable[[], Any], *, block: bool) -> None:
     """Run a non-async fn on the asyncio thread. Can be called from any thread.
 
     If the current thread is already the asyncio thread, func is guaranteed
@@ -1748,7 +1819,7 @@ def run_sync_function_on_asyncio_thread(func: Callable, *, block: bool) -> None:
 
     For any other thread, we only wait for completion if `block` is True.
     """
-    assert not asyncio.iscoroutinefunction(func), "func must be a non-async function"
+    assert not inspect.iscoroutinefunction(func), "func must be a non-async function"
     asyncio_loop = get_asyncio_loop()
     if get_running_loop() == asyncio_loop:  # we are running on the asyncio thread
         func()
@@ -1838,6 +1909,51 @@ class OrderedDictWithIndex(OrderedDict):
         return ret
 
 
+T = typing.TypeVar("T")
+
+class OrderedSet(typing.MutableSet[T]):
+    """A set that preserves insertion order by internally using a dict."""
+
+    def __init__(self, iterable: typing.Iterable[T] = ()):
+        self._d = dict.fromkeys(iterable)
+
+    def add(self, value: T) -> None:
+        self._d[value] = None
+
+    def discard(self, value: T) -> None:
+        self._d.pop(value, None)
+
+    def __contains__(self, value: object) -> bool:
+        return self._d.__contains__(value)
+
+    def __len__(self) -> int:
+        return self._d.__len__()
+
+    def __iter__(self) -> typing.Iterator[T]:
+        return self._d.__iter__()
+
+    def __str__(self):
+        return f"{{{', '.join(str(i) for i in self)}}}"
+
+    def __repr__(self):
+        return f"<OrderedSet {self}>"
+
+
+def make_object_immutable(obj):
+    """Makes the passed object immutable recursively."""
+    allowed_types = (
+        dict, MappingProxyType, list, tuple, set, frozenset, str, int, float, bool, bytes, type(None)
+    )
+    assert isinstance(obj, allowed_types), f"{type(obj)=} cannot be made immutable"
+    if isinstance(obj, (dict, MappingProxyType)):
+        return MappingProxyType({k: make_object_immutable(v) for k, v in obj.items()})
+    elif isinstance(obj, (list, tuple)):
+        return tuple(make_object_immutable(item) for item in obj)
+    elif isinstance(obj, (set, frozenset)):
+        return frozenset(make_object_immutable(item) for item in obj)
+    return obj
+
+
 def multisig_type(wallet_type):
     """If wallet_type is mofn multi-sig, return [m, n],
     otherwise return None."""
@@ -1907,16 +2023,6 @@ async def resolve_dns_srv(host: str):
     return [dict_from_srv_record(srv) for srv in srv_records]
 
 
-def randrange(bound: int) -> int:
-    """Return a random integer k such that 1 <= k < bound, uniformly
-    distributed across that range.
-    This is guaranteed to be cryptographically strong.
-    """
-    # secrets.randbelow(bound) returns a random int: 0 <= r < bound,
-    # hence transformations:
-    return secrets.randbelow(bound - 1) + 1
-
-
 class CallbackManager(Logger):
     # callbacks set by the GUI or any thread
     # guarantee: the callbacks will always get triggered from the asyncio thread.
@@ -1927,21 +2033,44 @@ class CallbackManager(Logger):
 
     def __init__(self):
         Logger.__init__(self)
-        self.callback_lock = threading.Lock()
-        self.callbacks = defaultdict(list)      # note: needs self.callback_lock
+        self.callback_lock = threading.RLock()
+        self._wcallbacks = defaultdict(set)  # type: Dict[str, Set[weakref.ref[Callable]]]  # note: needs self.callback_lock
 
-    def register_callback(self, func, events):
+    @staticmethod
+    def _wcb_from_any_callback(cb: Callable) -> weakref.ref[Callable]:
+        assert callable(cb), type(cb)
+        if isinstance(cb, weakref.ref):  # no-op
+            return cb
+        elif inspect.ismethod(cb):  # instance method, such as for a subclass of EventListener
+            return WeakMethodProper(cb)
+        else:  # proper function? e.g. used by lnpeer unit tests
+            return weakref.ref(cb)
+
+    def register_callback(self, cb: Callable, events: Sequence[str]) -> None:
+        wcb = self._wcb_from_any_callback(cb)
         with self.callback_lock:
             for event in events:
-                self.callbacks[event].append(func)
+                self._wcallbacks[event].add(wcb)
 
-    def unregister_callback(self, callback):
+    def unregister_callback(self, cb: Callable) -> None:
+        # FIXME if trigger_callback() was just called for this cb, it could race so that
+        #       the cb gets code exec *after* unregister_callback() returns.
+        wcb = self._wcb_from_any_callback(cb)
         with self.callback_lock:
-            for callbacks in self.callbacks.values():
-                if callback in callbacks:
-                    callbacks.remove(callback)
+            # note: ^ callback_lock needs to be re-entrant, as we can now trigger __del__, which also takes the lock
+            for callbacks in self._wcallbacks.values():
+                if wcb in callbacks:
+                    callbacks.remove(wcb)
 
-    def trigger_callback(self, event, *args):
+    def count_all_callbacks(self) -> int:
+        with self.callback_lock:
+            return sum(len(cbs) for cbs in self._wcallbacks.values())
+
+    def clear_all_callbacks(self) -> None:
+        with self.callback_lock:
+            self._wcallbacks.clear()
+
+    def trigger_callback(self, event: str, *args) -> None:
         """Trigger a callback with given arguments.
         Can be called from any thread. The callback itself will get scheduled
         on the event loop.
@@ -1949,9 +2078,12 @@ class CallbackManager(Logger):
         loop = get_asyncio_loop()
         assert loop.is_running(), "event loop not running"
         with self.callback_lock:
-            callbacks = self.callbacks[event][:]
-        for callback in callbacks:
-            if asyncio.iscoroutinefunction(callback):  # async cb
+            wcallbacks = copy.copy(self._wcallbacks[event])
+        for wcb in wcallbacks:
+            callback = wcb()
+            if callback is None:
+                continue
+            if inspect.iscoroutinefunction(callback):  # async cb
                 fut = asyncio.run_coroutine_threadsafe(callback(*args), loop)
 
                 def on_done(fut_: concurrent.futures.Future):
@@ -1972,11 +2104,28 @@ unregister_callback = callback_mgr.unregister_callback
 _event_listeners = defaultdict(set)  # type: Dict[str, Set[str]]
 
 
+class WeakMethodProper(weakref.WeakMethod):
+    """Unlike weakref.WeakMethod, this class has an __eq__ I can trust."""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        meth = self()
+        self._my_id = (id(meth.__self__), id(meth.__func__))
+
+    def __hash__(self):
+        return hash(self._my_id)
+
+    def __eq__(self, other):
+        if not isinstance(other, WeakMethodProper):
+            return False
+        return self._my_id == other._my_id
+
+
 class EventListener:
     """Use as a mixin for a class that has methods to be triggered on events.
     - Methods that receive the callbacks should be named "on_event_*" and decorated with @event_listener.
-    - register_callbacks() should be called exactly once per instance of EventListener, e.g. in __init__
+    - register_callbacks() should be called once per instance of EventListener, e.g. in __init__
     - unregister_callbacks() should be called at least once, e.g. when the instance is destroyed
+        - as fallback, __del__() also calls unregister_callbacks()
     """
 
     def _list_callbacks(self):
@@ -1997,6 +2146,9 @@ class EventListener:
         for name, method in self._list_callbacks():
             #_logger.debug(f'unregistering callback {method}')
             unregister_callback(method)
+
+    def __del__(self):
+        self.unregister_callbacks()
 
 
 def event_listener(func):
@@ -2095,6 +2247,7 @@ class ESocksProxy(aiorpcx.SOCKSProxy):
         username, pw = proxy.user, proxy.password
         if not username or not pw:
             # is_proxy_tor is tri-state; None indicates it is still probing the proxy to test for TOR
+            # FIXME race: if is_proxy_tor is None, we should wait until it gets set. Instead now we reuse Tor circuits.
             if network.is_proxy_tor:
                 auth = aiorpcx.socks.SOCKSRandomAuth()
             else:
@@ -2199,6 +2352,30 @@ class classproperty(property):
         return self.fget(owner_cls)
 
 
+def sticky_property(val):
+    """Creates a 'property' whose value cannot be changed and that cannot be deleted.
+    Attempts to change the value are silently ignored.
+
+    >>> class C: pass
+    ...
+    >>> setattr(C, 'x', sticky_property(3))
+    >>> c = C()
+    >>> c.x
+    3
+    >>> c.x = 2
+    >>> c.x
+    3
+    >>> del c.x
+    >>> c.x
+    3
+    """
+    return property(
+        fget=lambda self: val,
+        fset=lambda *args, **kwargs: None,
+        fdel=lambda *args, **kwargs: None,
+    )
+
+
 def get_running_loop() -> Optional[asyncio.AbstractEventLoop]:
     """Returns the asyncio event loop that is *running in this thread*, if any."""
     try:
@@ -2251,10 +2428,10 @@ def nostr_pow_worker(nonce, nostr_pubk, target_bits, hash_function, hash_len_bit
             digest = hash_function(hash_preimage + nonce.to_bytes(32, 'big')).digest()
             if int.from_bytes(digest, 'big') < (1 << (hash_len_bits - target_bits)):
                 shutdown.set()
-                return hash, nonce
+                return nonce
             nonce += 1
         if shutdown.is_set():
-            return None, None
+            return None
 
 
 async def gen_nostr_ann_pow(nostr_pubk: bytes, target_bits: int) -> Tuple[int, int]:
@@ -2287,16 +2464,21 @@ async def gen_nostr_ann_pow(nostr_pubk: bytes, target_bits: int) -> Tuple[int, i
             if start_nonce > max_nonce:  # make sure we don't go over the max_nonce
                 start_nonce = random.randint(0, int(max_nonce * 0.75))
 
-        done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-        hash_res, nonce_res = done.pop().result()
+        # workers that observe the shutdown event return None; their results can be
+        # delivered before the winner's own result, so wait for all workers and
+        # collect the result that carries a nonce.
+        done, _pending = await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
+        nonce_res = next((n for n in (fut.result() for fut in done) if n is not None), None)
         executor.shutdown(wait=False, cancel_futures=True)
 
+    if nonce_res is None:
+        raise Exception("nostr announcement PoW mining failed: no worker returned a nonce")
     return nonce_res, get_nostr_ann_pow_amount(nostr_pubk, nonce_res)
 
 
 def get_nostr_ann_pow_amount(nostr_pubk: bytes, nonce: Optional[int]) -> int:
     """Return the amount of leading zero bits for a nostr announcement PoW."""
-    if not nonce:
+    if nonce is None or nonce < 0:
         return 0
     hash_function = hashlib.sha256
     hash_len_bits = 256
@@ -2322,7 +2504,7 @@ class OnchainHistoryItem(NamedTuple):
             'txid': self.txid,
             'amount_sat': self.amount_sat,
             'fee_sat': self.fee_sat,
-            'height': self.tx_mined_status.height,
+            'height': self.tx_mined_status.height(),
             'confirmations': self.tx_mined_status.conf,
             'timestamp': self.tx_mined_status.timestamp,
             'monotonic_timestamp': self.monotonic_timestamp,

@@ -10,7 +10,7 @@ To generate an APK file, follow these instructions.
 ✓ _These binaries should be reproducible, meaning you should be able to generate
    binaries that match the official releases._
 
-- _Minimum supported target system (i.e. what end-users need): Android 6.0 (API 23)_
+- _Minimum supported target system (i.e. what end-users need): Android 8.0 (API 26)_
 
 This assumes an Ubuntu (x86_64) host, but it should not be too hard to adapt to another
 similar system.
@@ -62,6 +62,11 @@ repository.
 ### I changed something but I don't see any differences on the phone. What did I do wrong?
 You probably need to clear the cache: `rm -rf .buildozer/android/platform/build-*/{build,dists}`
 
+Or more extreme, to nuke all build-related dirs: `rm -rf .buildozer_qml/ packages/ contrib/android/.cache/`
+
+Having a several months old build cache might also cause confusing build failures,
+in such a case, worth a try clearing it.
+
 
 ### How do I deploy on connected phone for quick testing?
 Assuming `adb` is installed:
@@ -69,6 +74,8 @@ Assuming `adb` is installed:
 $ adb -d install -r dist/Electrum-*-arm64-v8a-debug.apk
 $ adb shell monkey -p org.electrum.electrum 1
 ```
+Note `adb install` can take a `--user {userId}` option to install the app for a specific profile.
+Without that, the default is to install to *all* profiles.
 
 
 ### How do I get an interactive shell inside docker?
@@ -106,8 +113,6 @@ Run electrum with the `-g` switch: `electrum -g qml`
 
 Notes:
 
-- pyqt ~6.4 would work best, as the gui has not yet been adapted to styling changes in 6.5
-- However, pyqt6 as distributed on PyPI does not include a required module (PyQt6.QtQml) until 6.5
 - Installing these deps from your OS package manager should also work,
   except many don't distribute pyqt6 yet.
   For pyqt5 on debian-based distros, this used to look like this:
@@ -198,10 +203,9 @@ cat d
 
 ### How to install apks built by the CI on my phone?
 
-The CI (Cirrus) builds apks on most git commits.
-See e.g. [here](https://github.com/spesmilo/electrum/runs/9272252577).
-The task name should start with "Android build".
-Click "View more details on Cirrus CI" to get to cirrus' website, and search for "Artifacts".
+The CI (GitHub Actions) builds apks on a nightly schedule.
+See the [`builds` workflow](https://github.com/spesmilo/electrum/actions/workflows/builds.yml).
+Open the run of interest and download the `electrum-android-*` artifact.
 The apk is built in `debug` mode, and is signed using an ephemeral RSA key.
 
 For tech demo purposes, you can directly install this apk on your phone.

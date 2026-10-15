@@ -7,23 +7,26 @@ from decimal import Decimal
 import time
 from io import StringIO
 import asyncio
+from unittest import mock
+from pathlib import Path
 
 from electrum.storage import WalletStorage
 from electrum.wallet_db import FINAL_SEED_VERSION
 from electrum.wallet import (Abstract_Wallet, Standard_Wallet, create_new_wallet,
-                             restore_wallet_from_text, Imported_Wallet, Wallet)
+                             Imported_Wallet, Wallet)
 from electrum.exchange_rate import ExchangeBase, FxThread
 from electrum.util import TxMinedInfo, InvalidPassword
 from electrum.bitcoin import COIN
 from electrum.wallet_db import WalletDB, JsonDB
 from electrum.simple_config import SimpleConfig
-from electrum import util
+from electrum import util, storage
 from electrum.daemon import Daemon
 from electrum.invoices import PR_UNPAID, PR_PAID, PR_UNCONFIRMED
 from electrum.transaction import tx_from_any
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
 
 from . import ElectrumTestCase
+from . import restore_wallet_from_text__for_unittest
 
 
 class FakeSynchronizer(object):
@@ -88,12 +91,32 @@ class TestWalletStorage(WalletTestCase):
         for key, value in some_dict.items():
             self.assertEqual(d[key], value)
 
+    async def test_appends_after_incomplete_data_recovery_survive_reload(self):
+        storage = WalletStorage(self.wallet_path, allow_partial_writes=True)
+        db = JsonDB('', storage=storage)
+        db.put("a", "b")
+        db.write()
+        # simulate a crash that truncated an appended patch
+        with open(self.wallet_path, "a") as f:
+            f.write(',\n{"op": "add", "path": "/x", "value": {"inco')
+        # reopen: recovery drops the incomplete patch
+        storage = WalletStorage(self.wallet_path, allow_partial_writes=True)
+        db = JsonDB(storage.read(), storage=storage)
+        self.assertEqual(db.get("a"), "b")
+        # append a new patch to the recovered wallet
+        db.put("c", "d")
+        db.write()
+        # reopen: the appended patch must not be lost
+        storage = WalletStorage(self.wallet_path, allow_partial_writes=True)
+        db = JsonDB(storage.read(), storage=storage)
+        self.assertEqual(db.get("c"), "d")
+
     async def test_storage_imported_add_privkeys_persistence_test(self):
         text = ' '.join([
             'p2wpkh:L4jkdiXszG26SUYvwwJhzGwg37H2nLhrbip7u6crmgNeJysv5FHL',
             'p2wpkh:L24GxnN7NNUAfCXA6hFzB1jt59fYAAiFZMcLaJ2ZSawGpM3uqhb1'
         ])
-        d = restore_wallet_from_text(text, path=self.wallet_path, config=self.config)
+        d = restore_wallet_from_text__for_unittest(text, path=self.wallet_path, config=self.config)
         wallet = d['wallet']  # type: Imported_Wallet
         self.assertEqual(2, len(wallet.get_receiving_addresses()))
         await wallet.stop()
@@ -105,20 +128,30 @@ class TestWalletStorage(WalletTestCase):
         wallet.import_private_keys(['p2wpkh:KzuqaaLp9zYjVuj8vQtCwFdiZFreW3NJNBachgVS8S9XMgj5y78b'], password=None)
         self.assertEqual(3, len(wallet.get_receiving_addresses()))
         self.assertEqual(3, len(wallet.keystore.keypairs))
+
+        # keys with unsupported script types get rejected, and must not be persisted (see #10998)
+        keypairs_before = dict(wallet.keystore.keypairs)
+        good_addr, bad_keys = wallet.import_private_keys([
+            'p2wsh:L1cgMEnShp73r9iCukoPE3MogLeueNYRD9JVsfT1zVHyPBR3KqBY',
+            'p2wsh-p2sh:KzuqaaLp9zYjVuj8vQtCwFdiZFreW3NJNBachgVS8S9XMgj5y78b',
+        ], password=None)
+        self.assertEqual([], good_addr)
+        self.assertEqual(2, len(bad_keys))
+        self.assertEqual(keypairs_before, wallet.keystore.keypairs)
         await wallet.stop()
 
         # open the wallet anew again, and verify if the privkey was stored
         del wallet
         wallet = Daemon._load_wallet(self.wallet_path, password=None, config=self.config)
         self.assertEqual(3, len(wallet.get_receiving_addresses()))
-        self.assertEqual(3, len(wallet.keystore.keypairs))
+        self.assertEqual(keypairs_before, wallet.keystore.keypairs)
         self.assertTrue('03bf450797034dc95693096e575e3b3db14e5f074679b349b727f90fc7804ce7ab' in wallet.keystore.keypairs)
         self.assertTrue('030dac677b9484e23db6f9255eddf433f4f12c02f9b35e0100f2f103ffbccf540f' in wallet.keystore.keypairs)
         self.assertTrue('02f11d5f222a728fd08226cb5a1e85a74d58fc257bd3764bf1234346f91defed72' in wallet.keystore.keypairs)
 
     async def test_storage_prevouts_by_scripthash_persistence(self):
         text = 'cycle rocket west magnet parrot shuffle foot correct salt library feed song'
-        d = restore_wallet_from_text(text, path=self.wallet_path, gap_limit=2, config=self.config)
+        d = restore_wallet_from_text__for_unittest(text, path=self.wallet_path, config=self.config)
         wallet1 = d['wallet']  # type: Standard_Wallet
         # create payreq
         addr = wallet1.get_unused_address()
@@ -163,7 +196,7 @@ class FakeADB:
     def get_tx_height(self, txid):
         # because we use a current timestamp, and history is empty,
         # FxThread.history_rate will use spot prices
-        return TxMinedInfo(height=10, conf=10, timestamp=int(time.time()), header_hash='def')
+        return TxMinedInfo(_height=10, conf=10, timestamp=int(time.time()), header_hash='def')
 
 class FakeWallet:
     def __init__(self, fiat_value):
@@ -213,6 +246,64 @@ class TestFiat(ElectrumTestCase):
         self.assertNotIn(ccy, self.fiat_value)
 
 
+class TestHistoryExport(ElectrumTestCase):
+    TESTNET = True
+
+    def setUp(self):
+        # mock timezone, explicitly define timezone as the CI seems to miss a timezone db and cant resolve just 'CET'
+        self.patch_timezone = mock.patch.dict(os.environ, {'TZ': 'CET-1CEST,M3.5.0,M10.5.0/3'})
+        self.patch_timezone.start()
+        time.tzset()
+        super(TestHistoryExport, self).setUp()
+        shutil.copytree(Path(__file__).parent / "fiat_fx_data", Path(self.electrum_path) / "cache")
+        self.config = SimpleConfig({'electrum_path': self.electrum_path})
+
+    def tearDown(self):
+        super(TestHistoryExport, self).tearDown()
+        self.patch_timezone.stop()
+        time.tzset()
+
+    @mock.patch('electrum.wallet.run_hook')
+    @mock.patch.object(storage.WalletStorage, 'write')
+    @mock.patch.object(storage.WalletStorage, 'append')
+    async def test_export_history_to_file(self, _mock_append, _mock_write, mock_run_hook):
+        # prepare wallet with realistic history
+        c = self.config
+        c.NETWORK_OFFLINE = True
+        c.FX_EXCHANGE, c.FX_CURRENCY, c.FX_USE_EXCHANGE_RATE, c.FX_HISTORY_RATES = "BitFinex", "EUR", True, True
+        daemon = Daemon(config=c, listen_jsonrpc=False)
+        test_wallet_name = "client_4_5_2_9dk_with_ln"  # has labels, local tx, ln tx
+        wallet_path = self.get_wallet_file_path(test_wallet_name)
+        test_wallet = daemon.load_wallet(wallet_path, None, upgrade=True)
+        self.assertTrue(daemon.fx.has_history())
+        mock_run_hook.return_value = False
+
+        testcases = (
+            f'history_no_fx_{test_wallet_name}.csv',
+            f'history_with_fx_{test_wallet_name}.csv',
+            f'history_no_fx_{test_wallet_name}.json',
+            f'history_with_fx_{test_wallet_name}.json',
+        )
+        for filename in testcases:
+            test_export_path = (Path(self.electrum_path) / filename).as_posix()
+            is_csv = filename.endswith('.csv')
+            fx = daemon.fx if 'with_fx' in filename else None
+            test_wallet.export_history_to_file(
+                file_path=test_export_path,
+                is_csv=is_csv,
+                fx=fx,
+            )
+            mock_run_hook.assert_called_with('export_history_to_file', test_wallet, fx, test_export_path, is_csv)
+            reference_path = Path(__file__).parent / "test_history_export" / filename
+            with open(reference_path, 'r', encoding='utf-8') as reference:
+                reference_text = reference.readlines()
+            with open(test_export_path, 'r', encoding='utf-8') as test_export:
+                test_export_text = test_export.readlines()
+            # compare line by line for more readable traceback on difference
+            for reference, test in zip(reference_text, test_export_text):
+                self.assertEqual(reference, test)
+
+
 class TestCreateRestoreWallet(WalletTestCase):
 
     async def test_create_new_wallet(self):
@@ -224,6 +315,7 @@ class TestCreateRestoreWallet(WalletTestCase):
                               password=password,
                               encrypt_file=encrypt_file,
                               gap_limit=1,
+                              gap_limit_for_change=1,
                               config=self.config)
         wallet = d['wallet']  # type: Standard_Wallet
 
@@ -240,13 +332,14 @@ class TestCreateRestoreWallet(WalletTestCase):
         passphrase = 'mypassphrase'
         password = 'mypassword'
         encrypt_file = True
-        d = restore_wallet_from_text(text,
-                                     path=self.wallet_path,
-                                     passphrase=passphrase,
-                                     password=password,
-                                     encrypt_file=encrypt_file,
-                                     gap_limit=1,
-                                     config=self.config)
+        d = restore_wallet_from_text__for_unittest(
+            text,
+            path=self.wallet_path,
+            passphrase=passphrase,
+            password=password,
+            encrypt_file=encrypt_file,
+            gap_limit=1,
+            config=self.config)
         wallet = d['wallet']  # type: Standard_Wallet
         self.assertEqual(passphrase, wallet.keystore.get_passphrase(password))
         self.assertEqual(text, wallet.keystore.get_seed(password))
@@ -255,7 +348,7 @@ class TestCreateRestoreWallet(WalletTestCase):
 
     async def test_restore_wallet_from_text_no_storage(self):
         text = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
-        d = restore_wallet_from_text(
+        d = restore_wallet_from_text__for_unittest(
             text,
             path=None,
             gap_limit=1,
@@ -268,38 +361,42 @@ class TestCreateRestoreWallet(WalletTestCase):
 
     async def test_restore_wallet_from_text_xpub(self):
         text = 'zpub6nydoME6CFdJtMpzHW5BNoPz6i6XbeT9qfz72wsRqGdgGEYeivso6xjfw8cGcCyHwF7BNW4LDuHF35XrZsovBLWMF4qXSjmhTXYiHbWqGLt'
-        d = restore_wallet_from_text(text, path=self.wallet_path, gap_limit=1, config=self.config)
+        d = restore_wallet_from_text__for_unittest(text, path=self.wallet_path, gap_limit=1, config=self.config)
         wallet = d['wallet']  # type: Standard_Wallet
         self.assertEqual(text, wallet.keystore.get_master_public_key())
         self.assertEqual('bc1q2ccr34wzep58d4239tl3x3734ttle92a8srmuw', wallet.get_receiving_addresses()[0])
 
     async def test_restore_wallet_from_text_xkey_that_is_also_a_valid_electrum_seed_by_chance(self):
         text = 'yprvAJBpuoF4FKpK92ofzQ7ge6VJMtorow3maAGPvPGj38ggr2xd1xCrC9ojUVEf9jhW5L9SPu6fU2U3o64cLrRQ83zaQGNa6YP3ajZS6hHNPXj'
-        d = restore_wallet_from_text(text, path=self.wallet_path, gap_limit=1, config=self.config)
+        d = restore_wallet_from_text__for_unittest(text, path=self.wallet_path, gap_limit=1, config=self.config)
         wallet = d['wallet']  # type: Standard_Wallet
         self.assertEqual(text, wallet.keystore.get_master_private_key(password=None))
         self.assertEqual('3Pa4hfP3LFWqa2nfphYaF7PZfdJYNusAnp', wallet.get_receiving_addresses()[0])
 
     async def test_restore_wallet_from_text_xprv(self):
         text = 'zprvAZzHPqhCMt51fskXBUYB1fTFYgG3CBjJUT4WEZTpGw6hPSDWBPZYZARC5sE9xAcX8NeWvvucFws8vZxEa65RosKAhy7r5MsmKTxr3hmNmea'
-        d = restore_wallet_from_text(text, path=self.wallet_path, gap_limit=1, config=self.config)
+        d = restore_wallet_from_text__for_unittest(text, path=self.wallet_path, gap_limit=1, config=self.config)
         wallet = d['wallet']  # type: Standard_Wallet
         self.assertEqual(text, wallet.keystore.get_master_private_key(password=None))
         self.assertEqual('bc1q2ccr34wzep58d4239tl3x3734ttle92a8srmuw', wallet.get_receiving_addresses()[0])
 
     async def test_restore_wallet_from_text_addresses(self):
         text = 'bc1q2ccr34wzep58d4239tl3x3734ttle92a8srmuw bc1qnp78h78vp92pwdwq5xvh8eprlga5q8gu66960c'
-        d = restore_wallet_from_text(text, path=self.wallet_path, config=self.config)
+        d = restore_wallet_from_text__for_unittest(text, path=self.wallet_path, config=self.config)
         wallet = d['wallet']  # type: Imported_Wallet
         self.assertEqual('bc1q2ccr34wzep58d4239tl3x3734ttle92a8srmuw', wallet.get_receiving_addresses()[0])
         self.assertEqual(2, len(wallet.get_receiving_addresses()))
+        # we don't know the script type of an imported address
+        self.assertEqual('address', wallet.get_txin_type('bc1qnp78h78vp92pwdwq5xvh8eprlga5q8gu66960c'))
         # also test addr deletion
         wallet.delete_address('bc1qnp78h78vp92pwdwq5xvh8eprlga5q8gu66960c')
         self.assertEqual(1, len(wallet.get_receiving_addresses()))
+        # querying an address that is not is_mine
+        self.assertEqual('unknown', wallet.get_txin_type('bc1qnp78h78vp92pwdwq5xvh8eprlga5q8gu66960c'))
 
     async def test_restore_wallet_from_text_privkeys(self):
         text = 'p2wpkh:L4jkdiXszG26SUYvwwJhzGwg37H2nLhrbip7u6crmgNeJysv5FHL p2wpkh:L24GxnN7NNUAfCXA6hFzB1jt59fYAAiFZMcLaJ2ZSawGpM3uqhb1'
-        d = restore_wallet_from_text(text, path=self.wallet_path, config=self.config)
+        d = restore_wallet_from_text__for_unittest(text, path=self.wallet_path, config=self.config)
         wallet = d['wallet']  # type: Imported_Wallet
         addr0 = wallet.get_receiving_addresses()[0]
         self.assertEqual('bc1q2ccr34wzep58d4239tl3x3734ttle92a8srmuw', addr0)
@@ -334,6 +431,20 @@ class TestWalletPassword(WalletTestCase):
         storage = WalletStorage(self.wallet_path)
         db = WalletDB(wallet_str, storage=storage, upgrade=True)
         wallet = Wallet(db, config=self.config)
+
+        wallet.check_password(None)
+
+        wallet.update_password(None, "1234")
+        with self.assertRaises(InvalidPassword):
+            wallet.check_password(None)
+        with self.assertRaises(InvalidPassword):
+            wallet.check_password("wrong password")
+        wallet.check_password("1234")
+
+    async def test_update_password_of_standard_wallet_oldseed(self):
+        d = restore_wallet_from_text__for_unittest(
+            "powerful random nobody notice nothing important anyway look away hidden message over", path=self.wallet_path, config=self.config)
+        wallet = d['wallet']  # type: Standard_Wallet
 
         wallet.check_password(None)
 

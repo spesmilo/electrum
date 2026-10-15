@@ -46,3 +46,10 @@ except AssertionError:
 else:
     raise ImportError("Running with asserts disabled. Refusing to continue. Exiting...")
 
+
+# Check that os.urandom works
+import zlib
+length = len(zlib.compress(os.urandom(1000)))
+if length <= 900:
+    raise ImportError("Broken PRNG. Refusing to continue. Exiting...")
+

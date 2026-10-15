@@ -2,9 +2,10 @@ from typing import Optional, Sequence, Tuple, Union, TYPE_CHECKING, Dict
 from decimal import Decimal
 from numbers import Real
 from enum import IntEnum
+import math
 
 from .i18n import _
-from .util import NoDynamicFeeEstimates, quantize_feerate, format_fee_satoshis
+from .util import NoDynamicFeeEstimates, quantize_feerate, format_fee_satoshis, FEERATE_PRECISION
 from . import util, constants
 from .logging import Logger
 
@@ -23,8 +24,11 @@ FEERATE_STATIC_VALUES = [1000, 2000, 5000, 10000, 20000, 30000,
 FEERATE_MAX_DYNAMIC = 1500000
 FEERATE_WARNING_HIGH_FEE = 600000
 FEERATE_FALLBACK_STATIC_FEE = 150000
-FEERATE_DEFAULT_RELAY = 1000
+FEERATE_REGTEST_STATIC_FEE = FEERATE_FALLBACK_STATIC_FEE  # hardcoded fee used on regtest
+FEERATE_MIN_RELAY = 100
+FEERATE_DEFAULT_RELAY = 1000  # conservative "min relay fee"
 FEERATE_MAX_RELAY = 50000
+assert FEERATE_MIN_RELAY <= FEERATE_DEFAULT_RELAY <= FEERATE_MAX_RELAY
 
 # warn user if fee/amount for on-chain tx is higher than this
 FEE_RATIO_HIGH_WARNING = 0.05
@@ -60,9 +64,10 @@ class FeeMethod(IntEnum):
 
     def name_for_GUI(self):
         names = {
+            FeeMethod.FIXED: _('FIXED'),
             FeeMethod.FEERATE: _('Feerate'),
-            FeeMethod.ETA:_('ETA'),
-            FeeMethod.MEMPOOL :_('Mempool')
+            FeeMethod.ETA: _('ETA'),
+            FeeMethod.MEMPOOL: _('Mempool')
         }
         return names[self]
 
@@ -169,6 +174,8 @@ class FeePolicy(Logger):
         elif self.method == FeeMethod.FEERATE:
             fee_per_byte = self.value/1000
             return format_fee_satoshis(fee_per_byte) + f" {util.UI_UNIT_NAME_FEERATE_SAT_PER_VBYTE}"
+        elif self.method == FeeMethod.FIXED:
+            return f'{self.value} {util.UI_UNIT_NAME_FIXED_SAT}'
 
     def get_estimate_text(self, network: 'Network') -> str:
         """
@@ -217,21 +224,20 @@ class FeePolicy(Logger):
         """Returns sat/kvB fee to pay for a txn.
         Note: might return None.
         """
-        if self.use_dynamic_estimates and constants.net is constants.BitcoinRegtest:
-            return FEERATE_FALLBACK_STATIC_FEE
-
         if self.method == FeeMethod.FEERATE:
             fee_rate = self.value
         elif self.method == FeeMethod.MEMPOOL:
-            if network and network.mempool_fees.has_data():
+            if network:
                 fee_rate = network.mempool_fees.depth_to_fee(self.get_slider_pos())
             else:
                 fee_rate = None
         elif self.method == FeeMethod.ETA:
-            if network and network.fee_estimates.has_data():
+            if network:
                 fee_rate = network.fee_estimates.eta_to_fee(self.get_slider_pos())
             else:
                 fee_rate = None
+        elif self.method == FeeMethod.FIXED:
+            fee_rate = None
         else:
             raise Exception(self.method)
         if fee_rate is not None:
@@ -259,19 +265,27 @@ class FeePolicy(Logger):
             else:
                 raise NoDynamicFeeEstimates()
 
-        return self.estimate_fee_for_feerate(fee_per_kb, size)
+        # a feerate explicitly set by the user is honored at its full precision
+        quantize = self.method != FeeMethod.FEERATE
+        return self.estimate_fee_for_feerate(fee_per_kb=fee_per_kb, size=size, quantize=quantize)
 
     @classmethod
-    def estimate_fee_for_feerate(cls, fee_per_kb: Union[int, float, Decimal],
-                                 size: Union[int, float, Decimal]) -> int:
+    def estimate_fee_for_feerate(
+        cls,
+        *,
+        fee_per_kb: Union[int, float, Decimal],
+        size: Union[int, float, Decimal],
+        quantize: bool = True,
+    ) -> int:
         # note: 'size' is in vbytes
         size = Decimal(size)
         fee_per_kb = Decimal(fee_per_kb)
         fee_per_byte = fee_per_kb / 1000
-        # to be consistent with what is displayed in the GUI,
-        # the calculation needs to use the same precision:
-        fee_per_byte = quantize_feerate(fee_per_byte)
-        return round(fee_per_byte * size)
+        if quantize:
+            # to be consistent with what is displayed in the GUI,
+            # the calculation needs to use the same precision:
+            fee_per_byte = quantize_feerate(fee_per_byte)
+        return math.ceil(fee_per_byte * size)
 
 
 class FixedFeePolicy(FeePolicy):
@@ -285,6 +299,8 @@ def impose_hard_limits_on_fee(func):
         if fee is None:
             return fee
         fee = min(FEERATE_MAX_DYNAMIC, fee)
+        # Clamp dynamic feerates with conservative min relay fee,
+        # to ensure txs propagate well:
         fee = max(FEERATE_DEFAULT_RELAY, fee)
         return fee
     return get_fee_within_limits
@@ -345,7 +361,7 @@ class FeeHistogram:
 
     def get_capped_data(self):
         """ used by QML """
-        data = self._data or [[FEERATE_DEFAULT_RELAY/1000,1]]
+        data = self._data or [[FEERATE_DEFAULT_RELAY/1000, 1]]
         # cap the histogram to a limited number of megabytes
         bytes_limit = 10*1000*1000
         bytes_current = 0
@@ -353,10 +369,12 @@ class FeeHistogram:
         for item in sorted(data, key=lambda x: x[0], reverse=True):
             if bytes_current >= bytes_limit:
                 break
-            slot = min(item[1], bytes_limit-bytes_current)
+            slot = min(item[1], bytes_limit - bytes_current)
             bytes_current += slot
+            # round & limit precision
+            value = int(item[0] * 10**FEERATE_PRECISION) / 10**FEERATE_PRECISION
             capped_histogram.append([
-                max(FEERATE_DEFAULT_RELAY/1000, item[0]),  # clamped to [FEERATE_DEFAULT_RELAY/1000,inf[
+                max(FEERATE_MIN_RELAY/1000, value),  # clamped to [FEERATE_MIN_RELAY/1000, inf)
                 slot,  # width of bucket
                 bytes_current,  # cumulative depth at far end of bucket
             ])
@@ -371,9 +389,15 @@ class FeeTimeEstimates:
     def get_data(self):
         return self.data
 
-    def has_data(self):
-        # we do not request estimate for next block fee
-        return len(self.data) == len(FEE_ETA_TARGETS) - 1
+    def has_data(self) -> bool:
+        """Returns if we have estimates for *all* targets requested.
+        Note: if wanting an estimate for a specific target, instead of checking has_data(),
+              just try to do the estimate and handle a potential None result. That way,
+              estimation works for targets we have, even if some targets are missing.
+        """
+        targets = set(FEE_ETA_TARGETS)
+        targets.discard(1)  # rm "next block" target
+        return all(target in self.data for target in targets)
 
     def set_data(self, nblock_target: int, fee_per_kb: int):
         assert isinstance(nblock_target, int), f"expected int, got {nblock_target!r}"
@@ -420,4 +444,7 @@ class FeeTimeEstimates:
             fee = self.data.get(num_blocks)
             if fee is not None:
                 fee = int(fee)
+        # fallback for regtest
+        if fee is None and constants.net is constants.BitcoinRegtest:
+            return FEERATE_REGTEST_STATIC_FEE
         return fee

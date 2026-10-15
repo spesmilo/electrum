@@ -179,8 +179,9 @@ ElDialog {
             }
         }
 
-        ButtonContainer {
+        DialogButtonContainer {
             Layout.fillWidth: true
+
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
@@ -189,8 +190,8 @@ ElDialog {
                 enabled: _addressMine
                 icon.source: '../../icons/seal.png'
                 onClicked: {
-                    var sig = Daemon.currentWallet.signMessage(addressField.text, plaintext.text)
-                    signature.text = sig
+                    Daemon.currentWallet.signMessage(addressField.text, plaintext.text)
+                    // emits messageSigned(sig)
                 }
             }
             FlatButton {
@@ -207,7 +208,33 @@ ElDialog {
                 }
             }
         }
+    }
 
+    Connections {
+        target: Daemon.currentWallet
+        function onMessageSigned(sig) {
+            signature.text = sig
+        }
+        function onSignMessageError(error) {
+            var dialog = app.messageDialog.createObject(app, {
+                title: qsTr('Error'),
+                iconSource: Qt.resolvedUrl('../../icons/warning.png'),
+                text: error
+            })
+            dialog.open()
+        }
+    }
+
+    Connections {
+        target: Daemon
+        function onVerifyMessageError(error) {
+            var dialog = app.messageDialog.createObject(app, {
+                title: qsTr('Error'),
+                iconSource: Qt.resolvedUrl('../../icons/warning.png'),
+                text: error
+            })
+            dialog.open()
+        }
     }
 
     Component.onCompleted: {

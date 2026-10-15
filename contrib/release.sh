@@ -24,7 +24,8 @@
 #     2. cd to the submodule dir, and git pull
 #     3. cd .. && git push
 # - update RELEASE-NOTES and version.py
-# - $ git tag -s $VERSION -m $VERSION
+# - $ git tag -s "$VERSION" -m "$VERSION"
+# - $ git push "$REMOTE_ORIGIN" tag "$VERSION"
 #
 # -----
 # Then, typical release flow:
@@ -163,7 +164,12 @@ do
         if [ ! -z "$RELEASEMANAGER" ] ; then
             ./contrib/android/build.sh qml $arch release $password
         else
-            ./contrib/android/build.sh qml $arch release-unsigned
+            if test -f "dist/$apk_unsigned"; then
+                # has already been built separately before
+                info "found unsigned: $apk_unsigned"
+            else
+                ./contrib/android/build.sh qml $arch release-unsigned
+            fi
             mv "dist/$apk_unsigned" "dist/$apk"
         fi
     fi
@@ -207,7 +213,15 @@ fi
 if [ -z "$RELEASEMANAGER" ] ; then
     # people OTHER THAN release manager.
     # download binaries built by RM
-    rm -rf "$PROJECT_ROOT/dist/releasemanager"
+    if test -d "$PROJECT_ROOT/dist/releasemanager" ; then  # resume after partial downloads from previous release.sh run
+        info "dist/releasemanager/ folder with (some?) downloads already exists!"
+        echo -n "Reuse dist/releasemanager/ folder and proceed (y/n)? "
+        read answer
+        if [ "$answer" != "y" ]; then
+            info "deleting dist/releasemanager/ folder"
+            rm -rf "$PROJECT_ROOT/dist/releasemanager"
+        fi
+    fi
     mkdir --parent "$PROJECT_ROOT/dist/releasemanager"
     cd "$PROJECT_ROOT/dist/releasemanager"
 
@@ -240,7 +254,7 @@ if [ -z "$RELEASEMANAGER" ] ; then
         sftp -oBatchMode=no -b - "$SSHUSER@uploadserver" <<-EOF
            cd electrum-downloads-airlock
            cd "$VERSION"
-           mget *
+           mget -a *
            bye
 EOF
     fi
@@ -310,7 +324,7 @@ else
     test -f "$PROJECT_ROOT/dist/$apk3"       || fail "apk3 not found among built files"
     test -f "$PROJECT_ROOT/dist/$dmg"        || fail "dmg not found among built files"
 
-    if [ $REV != $VERSION ]; then
+    if [ "$REV" != "$VERSION" ]; then
         fail "versions differ, not uploading"
     fi
 

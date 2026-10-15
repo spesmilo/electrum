@@ -186,6 +186,9 @@ class LNPeerAddr:
     def net_addr_str(self) -> str:
         return str(self._net_addr)
 
+    def is_onion(self) -> bool:
+        return self.host.endswith('.onion')
+
     def __eq__(self, other):
         if not isinstance(other, LNPeerAddr):
             return False
@@ -232,7 +235,10 @@ class LNTransportBase:
         """Should be used when possible (in async scope), to avoid memory exhaustion."""
         async with self.drain_write_lock:
             self.send_bytes(msg)
-            await self.writer.drain()
+            try:
+                await self.writer.drain()
+            except ConnectionError as e:
+                raise LightningPeerConnectionClosed() from e
 
     async def read_messages(self):
         buffer = bytearray()
@@ -284,6 +290,9 @@ class LNTransportBase:
 
     def close(self):
         self.writer.close()
+
+    def is_closing(self) -> bool:
+        return self.writer.is_closing()
 
     def remote_pubkey(self) -> Optional[bytes]:
         raise NotImplementedError()

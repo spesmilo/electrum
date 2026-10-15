@@ -19,6 +19,10 @@ Pane {
         kbd.keyEvent(keycode, key)
     }
 
+    background: Rectangle {
+        color: constants.darkerDialogBackground
+    }
+
     FlatButton {
         anchors.fill: parent
 

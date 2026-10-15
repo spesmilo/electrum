@@ -1,4 +1,9 @@
 {
+    "5.9.83.108": {
+      "pruning": "-",
+      "s": "50002",
+      "version": "1.6.0"
+    },
     "104.248.139.211": {
         "pruning": "-",
         "s": "50002",
@@ -244,11 +249,11 @@
         "t": "50001",
         "version": "1.4"
     },
-    "electrum.jochen-hoenicke.de": {
+    "electrum.jhoenicke.de": {
         "pruning": "-",
-        "s": "50006",
-        "t": "50099",
-        "version": "1.4.5"
+        "s": "50002",
+        "t": "50001",
+        "version": "1.6"
     },
     "electrum.pabu.io": {
         "pruning": "-",
@@ -364,11 +369,6 @@
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.4.2"
-    },
-    "lavahost.org": {
-        "pruning": "-",
-        "s": "50002",
         "version": "1.4.2"
     },
     "node.degga.net": {

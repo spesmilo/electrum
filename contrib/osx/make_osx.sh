@@ -55,8 +55,8 @@ break_legacy_easy_install
 # This helps to avoid older versions of pip-installed dependencies interfering with the build.
 VENV_DIR="$CONTRIB_OSX/build-venv"
 rm -rf "$VENV_DIR"
-python3 -m venv $VENV_DIR
-source $VENV_DIR/bin/activate
+python3 -m venv "$VENV_DIR"
+source "$VENV_DIR/bin/activate"
 
 # don't add debug info to compiled C files (e.g. when pip calls setuptools/wheel calls gcc)
 # see https://github.com/pypa/pip/issues/6505#issuecomment-526613584
@@ -85,7 +85,10 @@ python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: 
     || fail "Could not install build dependencies (mac)"
 
 info "Installing some build-time deps for compilation..."
-brew install autoconf automake libtool gettext coreutils pkgconfig swig
+# cmake, wget and gcc@14 are required for zxing-cpp.
+# gcc can be removed with a C++ 20 compatible compiler becoming available (newer MacOS version)
+# swig is required to compile pyscard (Satochip plugin)
+brew install autoconf automake libtool gettext coreutils pkgconfig cmake wget gcc@14 swig
 
 info "Building PyInstaller."
 PYINSTALLER_REPO="https://github.com/pyinstaller/pyinstaller.git"
@@ -117,7 +120,7 @@ PYINSTALLER_COMMIT="306d4d92580fea7be7ff2c89ba112cdc6f73fac1"
     popd
     # sanity check bootloader is there:
     [[ -e "PyInstaller/bootloader/Darwin-64bit/runw" ]] || fail "Could not find runw in target dir!"
-) || fail "PyInstaller build failed"
+)
 info "Installing PyInstaller."
 python3 -m pip install --no-build-isolation --no-dependencies \
     --cache-dir "$PIP_CACHE_DIR" --no-warn-script-location "$CACHEDIR/pyinstaller"
@@ -144,7 +147,7 @@ info "preparing electrum-locale."
     "$CONTRIB/locale/build_cleanlocale.sh"
     # we want the binary to have only compiled (.mo) locale files; not source (.po) files
     rm -r "$PROJECT_ROOT/electrum/locale/locale"/*/electrum.po
-) || fail "failed generating locale"
+)
 
 
 if ls "$DLL_TARGET_DIR"/libsecp256k1.*.dylib 1> /dev/null 2>&1; then
@@ -155,13 +158,17 @@ else
 fi
 cp -f "$DLL_TARGET_DIR"/libsecp256k1.*.dylib "$PROJECT_ROOT/electrum" || fail "Could not copy libsecp256k1 dylib"
 
-if [ ! -f "$DLL_TARGET_DIR/libzbar.0.dylib" ]; then
-    info "Building ZBar dylib..."
-    "$CONTRIB"/make_zbar.sh || fail "Could not build ZBar dylib"
+if [ ! -f "$DLL_TARGET_DIR/libZXing.dylib" ]; then
+    info "Building zxing-cpp dylib..."
+    # Build zxing with the installed gcc 14 for C++20 support and statically link the runtimes into the library.
+    CC="$(brew --prefix gcc@14)/bin/gcc-14" \
+    CXX="$(brew --prefix gcc@14)/bin/g++-14" \
+    LDFLAGS="-static-libgcc -static-libstdc++ -Wl,-S" \
+        "$CONTRIB"/make_zxing.sh || fail "Could not build zxing-cpp dylib"
 else
-    info "Skipping ZBar build: reusing already built dylib."
+    info "Skipping zxing-cpp build: reusing already built dylib."
 fi
-cp -f "$DLL_TARGET_DIR/libzbar.0.dylib" "$PROJECT_ROOT/electrum/" || fail "Could not copy ZBar dylib"
+cp -f "$DLL_TARGET_DIR/libZXing.dylib" "$PROJECT_ROOT/electrum/" || fail "Could not copy zxing-cpp dylib"
 
 if [ ! -f "$DLL_TARGET_DIR/libusb-1.0.dylib" ]; then
     info "Building libusb dylib..."

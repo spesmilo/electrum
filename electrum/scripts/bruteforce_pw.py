@@ -84,8 +84,8 @@ if __name__ == '__main__':
         test_password = partial(test_password_for_storage_encryption, storage)
         print(f"wallet found: with storage encryption.")
     else:
-        db = WalletDB(storage.read(), manual_upgrades=True)
-        wallet = Wallet(db, storage, config=config)
+        db = WalletDB(storage.read(), storage=storage, upgrade=False)
+        wallet = Wallet(db, config=config)
         if not wallet.has_password():
             print("wallet found but it is not encrypted.")
             sys.exit(0)

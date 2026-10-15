@@ -46,6 +46,7 @@ ElDialog {
                     Layout.fillWidth: true
                     Layout.bottomMargin: constants.paddingLarge
                     text: qsTr('Move the slider to increase your transaction\'s fee. This will improve its position in the mempool')
+                    backgroundColor: constants.darkerDialogBackground
                 }
 
                 Label {
@@ -107,7 +108,7 @@ ElDialog {
                     color: Material.accentColor
                 }
 
-                TextHighlightPane {
+                DialogHighlightPane {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
                     height: feepicker.height
@@ -116,7 +117,7 @@ ElDialog {
                         id: feepicker
                         width: parent.width
                         finalizer: dialog.rbffeebumper
-
+                        allowPickerAbsFees: false
                     }
                 }
 
@@ -127,7 +128,7 @@ ElDialog {
                     color: Material.accentColor
                 }
 
-                TextHighlightPane {
+                DialogHighlightPane {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
                     visible: !optionstoggle.collapsed
@@ -162,12 +163,12 @@ ElDialog {
 
                 InfoTextArea {
                     Layout.columnSpan: 2
-                    Layout.preferredWidth: parent.width * 3/4
-                    Layout.alignment: Qt.AlignHCenter
+                    Layout.fillWidth: true
                     Layout.topMargin: constants.paddingLarge
                     iconStyle: InfoTextArea.IconStyle.Warn
                     visible: rbffeebumper.warning != ''
                     text: rbffeebumper.warning
+                    backgroundColor: constants.darkerDialogBackground
                 }
 
                 ToggleLabel {
@@ -222,13 +223,17 @@ ElDialog {
             }
         }
 
-        FlatButton {
-            id: sendButton
+        DialogButtonContainer {
             Layout.fillWidth: true
-            text: qsTr('Ok')
-            icon.source: '../../icons/confirmed.png'
-            enabled: rbffeebumper.valid
-            onClicked: doAccept()
+
+            FlatButton {
+                id: sendButton
+                Layout.fillWidth: true
+                text: qsTr('Ok')
+                icon.source: '../../icons/confirmed.png'
+                enabled: rbffeebumper.valid
+                onClicked: doAccept()
+            }
         }
     }
 }

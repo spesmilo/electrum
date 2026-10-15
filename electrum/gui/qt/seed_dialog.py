@@ -102,7 +102,7 @@ class SeedWidget(QWidget):
         if options:
             self.seed_types = [
                 ChoiceItem(key=stype, label=label) for stype, label in (
-                    ('electrum', _('Electrum')),
+                    ('electrum', 'Electrum'),
                     ('bip39', _('BIP39 seed')),
                     ('slip39', _('SLIP39 seed')),
                 )
@@ -180,8 +180,10 @@ class SeedWidget(QWidget):
 
         vbox.addStretch(1)
         self.seed_status = WWLabel('')
+        self.seed_status.setTextFormat(Qt.TextFormat.RichText)
         vbox.addWidget(self.seed_status)
         self.seed_warning = WWLabel('')
+        self.seed_warning.setTextFormat(Qt.TextFormat.RichText)
         if msg:
             self.seed_warning.setText(seed_warning_msg(seed))
         else:

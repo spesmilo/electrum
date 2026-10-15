@@ -13,4 +13,5 @@ LOCALE="$PROJECT_ROOT/electrum/locale/"
 cd "$LOCALE"
 git clean -ffxd
 git reset --hard
+rm -rf llm_proofreader
 "$CONTRIB_LOCALE/build_locale.sh" "$LOCALE/locale" "$LOCALE/locale"

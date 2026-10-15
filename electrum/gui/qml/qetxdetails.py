@@ -1,6 +1,6 @@
 from typing import Optional
 
-from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QVariant
 
 from electrum.i18n import _
 from electrum.logging import get_logger
@@ -12,9 +12,10 @@ from electrum.address_synchronizer import TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNC
 from electrum.wallet import TxSighashDanger
 from electrum.fee_policy import FeePolicy
 
+from electrum.gui.common_qt.util import QtEventListener, qt_event_listener
+
 from .qewallet import QEWallet
 from .qetypes import QEAmount
-from .util import QtEventListener, qt_event_listener
 
 
 class QETxDetails(QObject, QtEventListener):
@@ -95,13 +96,20 @@ class QETxDetails(QObject, QtEventListener):
             self.update()
             self.txRemoved.emit()
 
+    @qt_event_listener
+    def on_event_fee_histogram(self, histogram):
+        if not self._wallet or not self._tx:
+            return
+        self.update()
+
     walletChanged = pyqtSignal()
-    @pyqtProperty(QEWallet, notify=walletChanged)
-    def wallet(self):
+    @pyqtProperty(QVariant, notify=walletChanged)
+    def wallet(self) -> QEWallet:
         return self._wallet
 
     @wallet.setter
     def wallet(self, wallet: QEWallet):
+        assert wallet is None or isinstance(wallet, QEWallet)
         if self._wallet != wallet:
             self._wallet = wallet
             self.walletChanged.emit()
@@ -291,6 +299,12 @@ class QETxDetails(QObject, QtEventListener):
         if from_txid:
             self._tx = self._wallet.wallet.db.get_transaction(self._txid)
             assert self._tx is not None, f'unknown txid "{self._txid}"'
+        elif (txid := self._tx.txid()) != self._txid:
+            # a tx with legacy inputs only gets a txid once it is fully signed
+            self._txid = txid
+            self.txidChanged.emit()
+            if txid and self._label:  # entered while the txid was unknown, so not saved yet
+                self._wallet.wallet.set_label(txid, self._label)
 
         #self._logger.debug(repr(self._tx.to_json()))
 
@@ -346,19 +360,19 @@ class QETxDetails(QObject, QtEventListener):
 
         self._lock_delay = 0
         self._in_mempool = False
-        self._is_mined = False if not txinfo.tx_mined_status else txinfo.tx_mined_status.height > 0
+        self._is_mined = False if not txinfo.tx_mined_status else txinfo.tx_mined_status.height() > 0
         if self._is_mined:
             self.update_mined_status(txinfo.tx_mined_status)
         else:
-            if txinfo.tx_mined_status.height in [TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT]:
+            if txinfo.tx_mined_status.height() in [TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT]:
                 self._mempool_depth = FeePolicy.depth_tooltip(txinfo.mempool_depth_bytes)
                 self._in_mempool = True
-            elif txinfo.tx_mined_status.height == TX_HEIGHT_FUTURE:
+            elif txinfo.tx_mined_status.height() == TX_HEIGHT_FUTURE:
                 self._lock_delay = txinfo.tx_mined_status.wanted_height - self._wallet.wallet.adb.get_local_height()
             if isinstance(self._tx, PartialTransaction):
                 self._sighash_danger = self._wallet.wallet.check_sighash(self._tx)
 
-        if self._wallet.wallet.lnworker:
+        if self._wallet.wallet.lnworker and self._txid:  # no txid yet for an unsigned tx with legacy inputs
             # Calling wallet.get_full_history here is inefficient.
             # We should probably pass the tx_item to the constructor.
             full_history = self._wallet.wallet.get_full_history()
@@ -509,5 +523,7 @@ class QETxDetails(QObject, QtEventListener):
     @pyqtSlot(result='QVariantList')
     def getSerializedTx(self):
         txqr = self._tx.to_qr_data()
-        label = self._wallet.wallet.get_label_for_txid(self._tx.txid())
+        label = ""
+        if txid := self._tx.txid():
+            label = self._wallet.wallet.get_label_for_txid(txid)
         return [str(self._tx), txqr[0], txqr[1], label]

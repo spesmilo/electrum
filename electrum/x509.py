@@ -100,18 +100,6 @@ def decode_OID(s):
     return '.'.join(map(str, r))
 
 
-def encode_OID(oid):
-    x = [int(i) for i in oid.split('.')]
-    s = chr(x[0] * 40 + x[1])
-    for i in x[2:]:
-        ss = chr(i % 128)
-        while i > 128:
-            i //= 128
-            ss = chr(128 + i % 128) + ss
-        s += ss
-    return s
-
-
 class ASN1_Node(bytes):
     def get_node(self, ix):
         # return index of first byte, first content byte and last byte.
@@ -315,8 +303,11 @@ class X509(object):
 
 
 @profiler
-def load_certificates(ca_path):
+def load_ca_certs():
+    # kept for console use
+    import certifi
     from . import pem
+    ca_path = certifi.where()
     ca_list = {}
     ca_keyID = {}
     # ca_path = '/tmp/tmp.txt'
@@ -326,22 +317,18 @@ def load_certificates(ca_path):
     for b in bList:
         try:
             x = X509(b)
-            x.check_date()
-        except BaseException as e:
+        except Exception as e:
             # with open('/tmp/tmp.txt', 'w') as f:
             #     f.write(pem.pem(b, 'CERTIFICATE').decode('ascii'))
             _logger.info(f"cert error: {e}")
             continue
-
+        try:
+            x.check_date()
+        except CertificateError as e:
+            _logger.info(f"cert has expired: {e}")
+            continue
         fp = x.getFingerprint()
         ca_list[fp] = x
         ca_keyID[x.get_keyID()] = fp
 
     return ca_list, ca_keyID
-
-
-if __name__ == "__main__":
-    import certifi
-
-    ca_path = certifi.where()
-    ca_list, ca_keyID = load_certificates(ca_path)

@@ -61,7 +61,7 @@ class ContactList(MyTreeView):
     def __init__(self, main_window: 'ElectrumWindow'):
         super().__init__(
             main_window=main_window,
-            stretch_column=self.Columns.NAME,
+            stretch_column=self.Columns.ADDRESS,
             editable_columns=[self.Columns.NAME],
         )
         self.setModel(QStandardItemModel(self))
@@ -101,7 +101,7 @@ class ContactList(MyTreeView):
                 menu.addAction(_("View on block explorer"), lambda: [webopen(u) for u in URLs])
 
         run_hook('create_contact_menu', menu, selected_keys)
-        menu.exec(self.viewport().mapToGlobal(position))
+        self.open_menu(menu, position)
 
     def update(self):
         if self.maybe_defer_update():

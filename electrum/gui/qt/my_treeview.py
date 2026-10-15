@@ -86,7 +86,7 @@ class QMenuWithConfig(QMenu):
             checked = bool(configvar.get())
         tooltip = None
         if (long_desc := configvar.get_long_desc()) is not None:
-            tooltip = messages.to_rtf(long_desc)
+            tooltip = messages.wrap_multi_paragraph_text(long_desc)
         return self.addToggle(
             short_desc,
             lambda: self._do_toggle_config(configvar, callback=callback),
@@ -110,7 +110,9 @@ class QMenuWithConfig(QMenu):
 def create_toolbar_with_menu(config: 'SimpleConfig', title):
     menu = QMenuWithConfig(config)
     toolbar_button = QToolButton()
+    toolbar_button.setText(_('Tools'))
     toolbar_button.setIcon(read_QIcon("preferences.png"))
+    toolbar_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
     toolbar_button.setMenu(menu)
     toolbar_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
     toolbar_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -254,11 +256,25 @@ class MyTreeView(QTreeView):
         self._pending_update = False
         self._forced_update = False
 
+        self._currently_open_menu = None  # type: Optional[QMenu]
+
         self._default_bg_brush = QStandardItem().background()
         self.proxy = None # history, and address tabs use a proxy
 
     def create_menu(self, position: QPoint) -> None:
         pass
+
+    def open_menu(self, menu: QMenu, position) -> None:
+        try:
+            self._currently_open_menu = menu
+            menu.exec(self.viewport().mapToGlobal(position))
+        finally:
+            self._currently_open_menu = None
+
+    def close_menu(self):
+        if self._currently_open_menu:
+            self._currently_open_menu.close()
+            self._currently_open_menu = None
 
     def set_editability(self, items):
         for idx, i in enumerate(items):
@@ -465,7 +481,7 @@ class MyTreeView(QTreeView):
                          self.place_text_on_clipboard(text, title=title))
         return cc
 
-    def place_text_on_clipboard(self, text: str, *, title: str = None) -> None:
+    def place_text_on_clipboard(self, text: str, *, title: str | None = None) -> None:
         self.main_window.do_copy(text, title=title)
 
     def showEvent(self, e: 'QShowEvent'):

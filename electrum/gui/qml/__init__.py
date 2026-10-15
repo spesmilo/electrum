@@ -59,7 +59,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.logger.info("CWD=%s" % os.getcwd())
         # Uncomment this call to verify objects are being properly
         # GC-ed when windows are closed
-        #network.add_jobs([DebugMem([Abstract_Wallet, SPV, Synchronizer,
+        #plugins.add_jobs([DebugMem([Abstract_Wallet, SPV, Synchronizer,
         #                            ElectrumWindow], interval=5)])
 
         if hasattr(Qt, "AA_ShareOpenGLContexts"):

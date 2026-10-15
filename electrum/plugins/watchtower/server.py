@@ -1,14 +1,7 @@
-import os
-import asyncio
-from collections import defaultdict
 from typing import TYPE_CHECKING
 
 from aiohttp import web
 
-from electrum.util import log_exceptions, ignore_exceptions
-from electrum.logging import Logger
-from electrum.util import EventListener
-from electrum.lnaddr import lndecode
 from electrum.daemon import AuthenticatedServer
 
 
@@ -28,8 +21,8 @@ class WatchTowerServer(AuthenticatedServer):
         self.lnwatcher = watchtower
         self.app = web.Application()
         self.app.router.add_post("/", self.handle)
-        self.register_method(self.get_ctn)
-        self.register_method(self.add_sweep_tx)
+        self.register_method('get_ctn', self.get_ctn)
+        self.register_method('add_sweep_tx', self.add_sweep_tx)
 
     async def run(self):
         self.runner = web.AppRunner(self.app)

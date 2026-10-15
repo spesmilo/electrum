@@ -54,10 +54,6 @@ class Plugin(BitBox02Plugin, QtPluginBase):
         device_name = "{} ({})".format(self.device, keystore.label)
         mpk_text.addButton(read_QIcon("eye1.png"), on_button_click, _("Show on {}").format(device_name))
 
-    @hook
-    def init_wallet_wizard(self, wizard: 'QENewWalletWizard'):
-        self.extend_wizard(wizard)
-
     # insert bitbox02 pages in new wallet wizard
     def extend_wizard(self, wizard: 'QENewWalletWizard'):
         super().extend_wizard(wizard)

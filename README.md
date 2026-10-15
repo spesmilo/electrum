@@ -7,7 +7,7 @@ Language: Python (>= 3.10)
 Homepage: https://electrum.org/
 ```
 
-[![Build Status](https://api.cirrus-ci.com/github/spesmilo/electrum.svg?branch=master)](https://cirrus-ci.com/github/spesmilo/electrum)
+[![Build Status](https://github.com/spesmilo/electrum/actions/workflows/builds.yml/badge.svg?branch=master)](https://github.com/spesmilo/electrum/actions/workflows/builds.yml)
 [![Test coverage statistics](https://coveralls.io/repos/github/spesmilo/electrum/badge.svg?branch=master)](https://coveralls.io/github/spesmilo/electrum?branch=master)
 [![Help translate Electrum online](https://d322cqt584bo4o.cloudfront.net/electrum/localized.svg)](https://crowdin.com/project/electrum)
 
@@ -33,6 +33,20 @@ $ ELECTRUM_ECC_DONT_COMPILE=1 python3 -m pip install --user ".[gui,crypto]"
 If you want to use the Qt interface, install the Qt dependencies:
 ```
 $ sudo apt-get install python3-pyqt6
+```
+
+#### QR code scanning
+
+QR code decoding uses [zxing-cpp](https://github.com/zxing-cpp/zxing-cpp/).
+To build the library, install CMake and a C++20 compiler and run:
+```
+$ ./contrib/make_zxing.sh
+```
+
+Camera scanning also requires Qt Multimedia. It is included in the PyQt6 pip
+package; when using Debian/Ubuntu packages, install it separately:
+```
+$ sudo apt-get install python3-pyqt6.qtmultimedia
 ```
 
 #### libsecp256k1
@@ -124,6 +138,7 @@ Run unit tests with `pytest`:
 ```
 $ pytest tests -v
 ```
+(can be parallelized with `-n auto` option, using [`pytest-xdist`](https://github.com/pytest-dev/pytest-xdist) plugin)
 
 To run a single file, specify it directly like this:
 ```

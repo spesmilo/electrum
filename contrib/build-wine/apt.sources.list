@@ -1,2 +1,2 @@
-deb https://snapshot.debian.org/archive/debian/20250530T143637Z/ bookworm main
-deb-src https://snapshot.debian.org/archive/debian/20250530T143637Z/ bookworm main
+deb https://snapshot.debian.org/archive/debian/20260227T144551Z/ trixie main
+deb-src https://snapshot.debian.org/archive/debian/20260227T144551Z/ trixie main

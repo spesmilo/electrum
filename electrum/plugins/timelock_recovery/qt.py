@@ -33,9 +33,9 @@ from electrum import constants, version
 from electrum.gui.common_qt.util import draw_qr, get_font_id
 from electrum.gui.qt.paytoedit import PayToEdit
 from electrum.payment_identifier import PaymentIdentifierType
-from electrum.plugin import hook
+from electrum.plugin import hook, PluginMetadata
 from electrum.i18n import _
-from electrum.transaction import PartialTxOutput
+from electrum.transaction import PartialTxOutput, Transaction
 from electrum.util import NotEnoughFunds, make_dir
 from electrum.gui.qt.util import ColorScheme, WindowModalDialog, Buttons, HelpLabel
 from electrum.gui.qt.util import read_QIcon_from_bytes, read_QPixmap_from_bytes, WaitingDialog
@@ -50,7 +50,7 @@ if TYPE_CHECKING:
     from electrum.gui.qt.main_window import ElectrumWindow
 
 
-AGREEMENT_TEXT = "I understand that the Timelock Recovery plan will be broken if I keep using this wallet"
+AGREEMENT_TEXT = _("I understand that the Timelock Recovery plan will be broken if I keep using this wallet")
 MIN_LOCKTIME_DAYS = 2
 # 0xFFFF * 512 seconds = 388.36 days.
 MAX_LOCKTIME_DAYS = 388
@@ -96,8 +96,8 @@ class Plugin(TimelockRecoveryPlugin):
         self.small_logo_bytes = self.read_file("timelock_recovery_60.png")
         self.large_logo_bytes = self.read_file("timelock_recovery_820.png")
         self.intro_text = self.read_file("intro.txt").decode('utf-8')
-        plugin_metadata: Optional[dict] = parent.get_metadata('timelock_recovery')
-        self.plugin_version: str = plugin_metadata['version'] if plugin_metadata else 'unknown'
+        plugin_metadata: Optional[PluginMetadata] = parent.get_metadata('timelock_recovery')
+        self.plugin_version: str = plugin_metadata.version if plugin_metadata else 'unknown'
 
     @hook
     def load_wallet(self, wallet, window):
@@ -176,12 +176,14 @@ class Plugin(TimelockRecoveryPlugin):
         plan_dialog = WindowModalDialog(context.main_window, "Timelock Recovery")
         plan_dialog.setContentsMargins(11, 11, 1, 1)
         plan_dialog.resize(800, plan_dialog.height())
-
-        fee_policy = FeePolicy(context.main_window.config.FEE_POLICY)
+        fee_policy = FeePolicy('eta:1')
         create_cancel_cb = QCheckBox('', checked=False)
-        alert_tx_label = QLabel('')
-        recovery_tx_label = QLabel('')
-        cancellation_tx_label = QLabel('')
+        alert_tx_fee_label = QLabel('')
+        alert_tx_complete_label = QLabel('')
+        recovery_tx_fee_label = QLabel('')
+        recovery_tx_complete_label = QLabel('')
+        cancellation_tx_fee_label = QLabel('')
+        cancellation_tx_complete_label = QLabel('')
 
         if not context.get_alert_address():
             plan_dialog.show_error(''.join([
@@ -227,34 +229,62 @@ class Plugin(TimelockRecoveryPlugin):
                 view_recovery_tx_button.setEnabled(False)
                 view_cancellation_tx_button.setEnabled(False)
                 next_button.setEnabled(False)
+                next_button.setToolTip("")
                 return
             try:
-                context.alert_tx = context.make_unsigned_alert_tx(fee_policy)
-                assert all(tx_input.is_segwit() for tx_input in context.alert_tx.inputs())
-                alert_tx_label.setText(_("Fee: {}").format(self.config.format_amount_and_units(context.alert_tx.get_fee())))
-                context.recovery_tx = context.make_unsigned_recovery_tx(fee_policy)
-                assert all(tx_input.is_segwit() for tx_input in context.recovery_tx.inputs())
-                recovery_tx_label.setText(_("Fee: {}").format(self.config.format_amount_and_units(context.recovery_tx.get_fee())))
+                new_alert_tx = context.make_unsigned_alert_tx(fee_policy)
+                alert_changed = False
+                if not context.alert_tx or context.alert_tx.txid() != new_alert_tx.txid():
+                    context.alert_tx = new_alert_tx
+                    alert_changed = True
+                assert context.alert_tx.is_all_segwit()
+                alert_tx_complete_label.setText(_("✓ Signed") if context.alert_tx.is_complete() else "")
+                alert_tx_fee_label.setText(_("Fee: {}").format(self.config.format_amount_and_units(context.alert_tx.get_fee())))
+                new_recovery_tx = context.make_unsigned_recovery_tx(fee_policy)
+                if alert_changed or not context.recovery_tx or context.recovery_tx.txid() != new_recovery_tx.txid():
+                    context.recovery_tx = new_recovery_tx
+                    context.add_input_info_to_recovery_tx()
+                assert context.recovery_tx.is_all_segwit()
+                recovery_tx_complete_label.setText(_("✓ Signed") if context.recovery_tx.is_complete() else "")
+                recovery_tx_fee_label.setText(_("Fee: {}").format(self.config.format_amount_and_units(context.recovery_tx.get_fee())))
                 if create_cancel_cb.isChecked():
-                    context.cancellation_tx = context.make_unsigned_cancellation_tx(fee_policy)
-                    assert all(tx_input.is_segwit() for tx_input in context.cancellation_tx.inputs())
-                    cancellation_tx_label.setText(_("Fee: {}").format(self.config.format_amount_and_units(context.cancellation_tx.get_fee())))
+                    new_cancellation_tx = context.make_unsigned_cancellation_tx(fee_policy)
+                    if alert_changed or not context.cancellation_tx or context.cancellation_tx.txid() != new_cancellation_tx.txid():
+                        context.cancellation_tx = new_cancellation_tx
+                        context.add_input_info_to_cancellation_tx()
+                    assert context.cancellation_tx.is_all_segwit()
+                    cancellation_tx_complete_label.setText(_("✓ Signed") if context.cancellation_tx.is_complete() else "")
+                    cancellation_tx_fee_label.setText(_("Fee: {}").format(self.config.format_amount_and_units(context.cancellation_tx.get_fee())))
                 else:
                     context.cancellation_tx = None
+                cancellation_tx_complete_label.setText(_("✓ Signed") if context.cancellation_tx is not None and context.cancellation_tx.is_complete() else "")
             except NotEnoughFunds:
                 view_alert_tx_button.setEnabled(False)
+                alert_tx_complete_label.setText("")
+                alert_tx_fee_label.setText("")
                 view_recovery_tx_button.setEnabled(False)
+                recovery_tx_complete_label.setText("")
+                recovery_tx_fee_label.setText("")
                 view_cancellation_tx_button.setEnabled(False)
+                cancellation_tx_complete_label.setText("")
+                cancellation_tx_fee_label.setText("")
                 payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
-                payto_e.setToolTip("Not enough funds to create the transactions.")
+                payto_e.setToolTip(_("Not enough funds to create the transactions."))
                 next_button.setEnabled(False)
+                next_button.setToolTip("")
                 return
             view_alert_tx_button.setEnabled(True)
             view_recovery_tx_button.setEnabled(True)
             view_cancellation_tx_button.setEnabled(True)
             payto_e.setStyleSheet(ColorScheme.GREEN.as_stylesheet(True))
             payto_e.setToolTip("")
+            if context.main_window.wallet.is_watching_only():
+                if not context.alert_tx.is_complete() or not context.recovery_tx.is_complete() or (context.cancellation_tx is not None and not context.cancellation_tx.is_complete()):
+                    next_button.setEnabled(False)
+                    next_button.setToolTip(_("This is a watching-only wallet. You must sign the transactions externally - use the View button of each transaction."))
+                    return
             next_button.setEnabled(True)
+            next_button.setToolTip("")
 
 
         payto_e.paymentIdentifierChanged.connect(update_transactions)
@@ -309,30 +339,64 @@ class Plugin(TimelockRecoveryPlugin):
         )
 
         fee_combo = FeeComboBox(fee_slider)
-        plan_grid.addWidget(QLabel('Fee policy'), grid_row, 0)
+        plan_grid.addWidget(QLabel(_('Fee policy')), grid_row, 0)
         plan_grid.addWidget(fee_slider, grid_row, 1)
         plan_grid.addWidget(fee_combo, grid_row, 2)
         grid_row += 1
 
-        plan_grid.addWidget(QLabel('Alert transaction'), grid_row, 0)
-        plan_grid.addWidget(alert_tx_label, grid_row, 1, 1, 3)
+        plan_grid.addWidget(QLabel(_('Alert transaction')), grid_row, 0)
+        plan_grid.addWidget(alert_tx_fee_label, grid_row, 1, 1, 2)
+        plan_grid.addWidget(alert_tx_complete_label, grid_row, 3)
         view_alert_tx_button = QPushButton(_('View'))
-        view_alert_tx_button.clicked.connect(lambda: context.main_window.show_transaction(context.alert_tx, show_sign_button=False, show_broadcast_button=False))
+        def on_alert_tx_closed(tx: Optional[Transaction]):
+            if tx is not None and context.alert_tx is not None and tx.txid() == context.alert_tx.txid() and tx.is_complete():
+                old_alert_tx_complete = context.alert_tx and context.alert_tx.is_complete()
+                context.alert_tx = tx
+                if not old_alert_tx_complete and context.alert_tx.is_complete():
+                    context.add_input_info_to_recovery_tx()
+                    context.add_input_info_to_cancellation_tx()
+                update_transactions()
+        view_alert_tx_button.clicked.connect(lambda: context.main_window.show_transaction(
+            context.alert_tx,
+            prompt_if_complete_unsaved=False,
+            show_broadcast_button=False,
+            on_closed=on_alert_tx_closed
+        ))
         plan_grid.addWidget(view_alert_tx_button, grid_row, 4)
         grid_row += 1
 
-        plan_grid.addWidget(QLabel('Recovery transaction'), grid_row, 0)
-        plan_grid.addWidget(recovery_tx_label, grid_row, 1, 1, 3)
+        plan_grid.addWidget(QLabel(_('Recovery transaction')), grid_row, 0)
+        plan_grid.addWidget(recovery_tx_fee_label, grid_row, 1, 1, 2)
+        plan_grid.addWidget(recovery_tx_complete_label, grid_row, 3)
         view_recovery_tx_button = QPushButton(_('View'))
-        view_recovery_tx_button.clicked.connect(lambda: context.main_window.show_transaction(context.recovery_tx, show_sign_button=False, show_broadcast_button=False))
+        def on_recovery_tx_closed(tx: Optional[Transaction]):
+            if tx is not None and context.recovery_tx is not None and tx.txid() == context.recovery_tx.txid() and tx.is_complete():
+                context.recovery_tx = tx
+                update_transactions()
+        view_recovery_tx_button.clicked.connect(lambda: context.main_window.show_transaction(
+            context.recovery_tx,
+            prompt_if_complete_unsaved=False,
+            show_broadcast_button=False,
+            on_closed=on_recovery_tx_closed
+        ))
         plan_grid.addWidget(view_recovery_tx_button, grid_row, 4)
         grid_row += 1
 
-        cancellation_label = QLabel('Cancellation transaction')
+        cancellation_label = QLabel(_('Cancellation transaction'))
         plan_grid.addWidget(cancellation_label, grid_row, 0)
-        plan_grid.addWidget(cancellation_tx_label, grid_row, 1, 1, 3)
+        plan_grid.addWidget(cancellation_tx_fee_label, grid_row, 1, 1, 2)
+        plan_grid.addWidget(cancellation_tx_complete_label, grid_row, 3)
         view_cancellation_tx_button = QPushButton(_('View'))
-        view_cancellation_tx_button.clicked.connect(lambda: context.main_window.show_transaction(context.cancellation_tx, show_sign_button=False, show_broadcast_button=False))
+        def on_cancellation_tx_closed(tx: Optional[Transaction]):
+            if tx is not None and context.cancellation_tx is not None and tx.txid() == context.cancellation_tx.txid() and tx.is_complete():
+                context.cancellation_tx = tx
+                update_transactions()
+        view_cancellation_tx_button.clicked.connect(lambda: context.main_window.show_transaction(
+            context.cancellation_tx,
+            prompt_if_complete_unsaved=False,
+            show_broadcast_button=False,
+            on_closed=on_cancellation_tx_closed
+        ))
         plan_grid.addWidget(view_cancellation_tx_button, grid_row, 4)
         grid_row += 1
 
@@ -342,7 +406,7 @@ class Plugin(TimelockRecoveryPlugin):
 
         def on_cb_change(x):
             cancellation_label.setVisible(x)
-            cancellation_tx_label.setVisible(x)
+            cancellation_tx_fee_label.setVisible(x)
             view_cancellation_tx_button.setVisible(x)
             update_transactions()
         create_cancel_cb.stateChanged.connect(on_cb_change)
@@ -384,7 +448,7 @@ class Plugin(TimelockRecoveryPlugin):
             timelock_days_widget.setToolTip("")
         except ValueError:
             timelock_days_widget.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
-            timelock_days_widget.setToolTip("Value must be between {} and {} days.".format(MIN_LOCKTIME_DAYS, MAX_LOCKTIME_DAYS))
+            timelock_days_widget.setToolTip(_("Value must be between {} and {} days.").format(MIN_LOCKTIME_DAYS, MAX_LOCKTIME_DAYS))
             return False
         pi = payto_e.payment_identifier
         if not pi:
@@ -392,20 +456,34 @@ class Plugin(TimelockRecoveryPlugin):
         if not pi.is_valid():
             # Don't make background red - maybe the user did not complete typing yet.
             payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True) if '\n' in pi.text.strip() else '')
-            payto_e.setToolTip((pi.get_error() or "Invalid address.") if pi.text else "")
+            payto_e.setToolTip((pi.get_error() or _("Invalid address.")) if pi.text else "")
             return False
         elif pi.is_multiline():
             if not pi.is_multiline_max():
                 payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
-                payto_e.setToolTip("At least one line must be set to max spend ('!' in the amount column).")
+                payto_e.setToolTip(_("At least one line must be set to max spend ('!' in the amount column)."))
                 return False
+            for output in pi.multiline_outputs:  # type: PartialTxOutput
+                if not output.address:
+                    payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
+                    payto_e.setToolTip(_("Recovery should only send to addresses."))
+                    return False
+                else:
+                    if context.wallet.is_mine(output.address):
+                        payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
+                        payto_e.setToolTip(_("Recovery should not send to same wallet."))
+                        return False
             context.outputs = pi.multiline_outputs
         else:
             if not pi.is_available() or pi.type != PaymentIdentifierType.SPK or not pi.spk_is_address:
                 payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
-                payto_e.setToolTip("Invalid address type - must be a Bitcoin address.")
+                payto_e.setToolTip(_("Invalid address type - must be a Bitcoin address."))
                 return False
             assert pi.spk and pi.spk_is_address
+            if context.wallet.is_mine(pi.text):
+                payto_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
+                payto_e.setToolTip(_("Recovery should not send to same wallet."))
+                return False
             context.outputs = [PartialTxOutput(scriptpubkey=pi.spk, value='!')]
         return True
 
@@ -415,11 +493,21 @@ class Plugin(TimelockRecoveryPlugin):
         password = main_window.get_password()
 
         def task():
-            wallet.sign_transaction(context.alert_tx, password, ignore_warnings=True)
-            context.add_input_info()
-            wallet.sign_transaction(context.recovery_tx, password, ignore_warnings=True)
+            if not context.alert_tx.is_complete():
+                wallet.sign_transaction(context.alert_tx, password, ignore_warnings=True)
+                context.add_input_info_to_recovery_tx()
+                context.add_input_info_to_cancellation_tx()
+            if not context.alert_tx.is_complete():
+                raise Exception(_("Alert transaction signing was not completed"))
+            if not context.recovery_tx.is_complete():
+                wallet.sign_transaction(context.recovery_tx, password, ignore_warnings=True)
+            if not context.recovery_tx.is_complete():
+                raise Exception(_("Recovery transaction signing was not completed"))
             if context.cancellation_tx is not None:
-                wallet.sign_transaction(context.cancellation_tx, password, ignore_warnings=True)
+                if not context.cancellation_tx.is_complete():
+                    wallet.sign_transaction(context.cancellation_tx, password, ignore_warnings=True)
+                if not context.cancellation_tx.is_complete():
+                    raise Exception(_("Cancellation transaction signing was not completed"))
 
         def on_success(result):
             self.create_download_dialog(context)
@@ -515,12 +603,12 @@ class Plugin(TimelockRecoveryPlugin):
             line_number += 1
 
         grid.setRowStretch(line_number, 1)
-        # Create butttons
+        # Create buttons
         recovery_menu = QMenu()
-        action = QAction('Save as PDF', recovery_menu)
+        action = QAction(_('Save as PDF'), recovery_menu)
         action.triggered.connect(partial(self._save_recovery_plan_pdf, context, download_dialog))
         recovery_menu.addAction(action)
-        action = QAction('Save as JSON', recovery_menu)
+        action = QAction(_('Save as JSON'), recovery_menu)
         action.triggered.connect(partial(self._save_recovery_plan_json, context, download_dialog))
         recovery_menu.addAction(action)
         recovery_button = QToolButton()
@@ -529,10 +617,10 @@ class Plugin(TimelockRecoveryPlugin):
         recovery_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         # Save Cancellation Plan button row (if applicable)
         cancellation_menu = QMenu()
-        action = QAction('Save as PDF', cancellation_menu)
+        action = QAction(_('Save as PDF'), cancellation_menu)
         action.triggered.connect(partial(self._save_cancellation_plan_pdf, context, download_dialog))
         cancellation_menu.addAction(action)
-        action = QAction('Save as JSON', cancellation_menu)
+        action = QAction(_('Save as JSON'), cancellation_menu)
         action.triggered.connect(partial(self._save_cancellation_plan_json, context, download_dialog))
         cancellation_menu.addAction(action)
         cancellation_button = QToolButton()
@@ -593,17 +681,6 @@ class Plugin(TimelockRecoveryPlugin):
 
         return bool(download_dialog.exec())
 
-    @classmethod
-    def _checksum(cls, json_data: dict[str, Any]) -> str:
-        # Assumes the values have a consistent json representation (not a key-value
-        # object whose fields can be ordered in multiple ways).
-        return hashlib.sha256(json.dumps(
-            sorted(json_data.items()),
-            skipkeys=False, ensure_ascii=True, check_circular=True,
-            allow_nan=True, cls=None, indent=None, separators=(',', ':'),
-            default=None, sort_keys=False,
-        ).encode()).hexdigest()
-
     def _save_recovery_plan_json(self, context: TimelockRecoveryContext, download_dialog: WindowModalDialog):
         try:
             # Open a Save As dialog to get the file path
@@ -640,7 +717,7 @@ class Plugin(TimelockRecoveryPlugin):
                     "recovery_outputs": [[tx_output.address, tx_output.value] for tx_output in context.recovery_tx.outputs()],
                 }
                 # Simple checksum to ensure the file is not corrupted by foolish users
-                json_data["checksum"] = self._checksum(json_data)
+                json_data["checksum"] = self.json_checksum(json_data)
                 json.dump(json_data, json_file, indent=2)
             download_dialog.show_message(_("File saved successfully"))
             context.recovery_plan_saved = True
@@ -678,7 +755,7 @@ class Plugin(TimelockRecoveryPlugin):
                     "cancellation_amount": context.cancellation_tx.output_value(),
                 }
                 # Simple checksum to ensure the file is not corrupted by foolish users
-                json_data["checksum"] = self._checksum(json_data)
+                json_data["checksum"] = self.json_checksum(json_data)
                 json.dump(json_data, f, indent=2)
             download_dialog.show_message(_("File saved successfully"))
             context.cancellation_plan_saved = True
@@ -971,7 +1048,7 @@ class Plugin(TimelockRecoveryPlugin):
             "The time that takes a transaction to confirm depends on the fee that it pays, compared to the fee that other "
             "pending transactions are willing to pay. At the time this document was created, it was hard to predict what a "
             "reasonable fee would be today. If the transaction is not confirmed after 24 hours, you may try paying to a "
-            "Transaction Acceleration service, such as the one offered by: https://mempool.space.com ."
+            "Transaction Acceleration service, such as the one offered by: https://mempool.space ."
         )
         if len(context.outputs) > 0:
             explanation_text += (

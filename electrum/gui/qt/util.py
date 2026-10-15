@@ -7,7 +7,7 @@ import queue
 import os
 import webbrowser
 import ctypes
-from functools import partial, lru_cache, wraps
+from functools import partial, lru_cache
 from typing import (NamedTuple, Callable, Optional, TYPE_CHECKING, List, Any, Sequence, Tuple, Union)
 
 from PyQt6 import QtCore
@@ -21,11 +21,12 @@ from PyQt6.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout, QVBo
                              QFrame, QAbstractButton)
 
 from electrum.i18n import _
-from electrum.util import (FileImportFailed, FileExportFailed, resource_path, EventListener, event_listener,
+from electrum.util import (FileImportFailed, FileExportFailed, resource_path, EventListener,
                            get_logger, UserCancelled, UserFacingException, ChoiceItem)
 from electrum.invoices import (PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT, PR_UNKNOWN, PR_FAILED, PR_ROUTING,
                                PR_UNCONFIRMED, PR_BROADCASTING, PR_BROADCAST)
 from electrum.qrreader import MissingQrDetectionLib, QrCodeResult
+from electrum.submarine_swaps import pubkey_to_rgb_color
 
 from electrum.gui.common_qt.util import TaskThread
 
@@ -119,6 +120,7 @@ class RichLabel(WWLabel):
         WWLabel.__init__(self, text, parent)
         self.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         self.setOpenExternalLinks(True)
+        self.setTextFormat(Qt.TextFormat.RichText)
 
 
 class AmountLabel(QLabel):
@@ -145,9 +147,10 @@ class Spinner(QLabel):
 
 
 class HelpMixin:
-    def __init__(self, help_text: str, *, help_title: str = None):
+    def __init__(self, help_text: str, *, help_title: str | None = None, rich_text: bool = False):
         assert isinstance(self, QWidget), "HelpMixin must be a QWidget instance!"
         self.help_text = help_text
+        self.rich_text = rich_text
         self._help_title = help_title or _('Help')
         if isinstance(self, QLabel):
             self.setTextInteractionFlags(
@@ -160,15 +163,15 @@ class HelpMixin:
             parent=self,
             title=self._help_title,
             text=self.help_text,
-            rich_text=True,
+            rich_text=self.rich_text,
         )
 
 
 class HelpLabel(HelpMixin, QLabel):
 
-    def __init__(self, text: str, help_text: str):
+    def __init__(self, text: str, help_text: str, *, rich_text: bool = False):
         QLabel.__init__(self, text)
-        HelpMixin.__init__(self, help_text)
+        HelpMixin.__init__(self, help_text, rich_text=rich_text)
         self.app = QCoreApplication.instance()
         self.font = self.font()
 
@@ -193,9 +196,9 @@ class HelpLabel(HelpMixin, QLabel):
 
 
 class HelpButton(HelpMixin, QToolButton):
-    def __init__(self, text: str):
+    def __init__(self, text: str, *, rich_text: bool = False):
         QToolButton.__init__(self)
-        HelpMixin.__init__(self, text)
+        HelpMixin.__init__(self, text, rich_text=rich_text)
         self.setText('?')
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.setFixedWidth(round(2.2 * char_width_in_lineedit()))
@@ -203,9 +206,9 @@ class HelpButton(HelpMixin, QToolButton):
 
 
 class InfoButton(HelpMixin, QPushButton):
-    def __init__(self, text: str):
+    def __init__(self, text: str, *, rich_text: bool = False):
         QPushButton.__init__(self, _('Info'))
-        HelpMixin.__init__(self, text, help_title=_('Info'))
+        HelpMixin.__init__(self, text, help_title=_('Info'), rich_text=rich_text)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.setFixedWidth(6 * char_width_in_lineedit())
         self.clicked.connect(self.show_help)
@@ -342,10 +345,18 @@ class MessageBoxMixin(object):
             return None
         return choice_widget.selected_key
 
-    def password_dialog(self, msg=None, parent=None):
+    def password_dialog(
+        self,
+        *,
+        msg: str | None = None,
+        parent: QWidget | None = None,
+        rich_text: bool = False,
+    ):
         from .password_dialog import PasswordDialog
         parent = parent or self
-        d = PasswordDialog(parent, msg)
+        d = PasswordDialog(parent=parent, msg=msg)
+        if rich_text:
+            d.label.setTextFormat(Qt.TextFormat.RichText)
         return d.run()
 
 
@@ -372,24 +383,21 @@ def custom_message_box(
             else:
                 custom_buttons.append(button)
     if type(icon) is QPixmap:
-        d = QMessageBox(QMessageBox.Icon.Information, title, str(text), standard_buttons, parent)
+        d = QMessageBox(QMessageBox.Icon.Information, title, "", standard_buttons, parent)
         d.setIconPixmap(icon)
     else:
-        d = QMessageBox(icon, title, str(text), standard_buttons, parent)
+        d = QMessageBox(icon, title, "", standard_buttons, parent)
     for button, role, _ in custom_buttons:
         d.addButton(button, role)
     d.setWindowModality(Qt.WindowModality.WindowModal)
     d.setDefaultButton(defaultButton)
     if rich_text:
         d.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.LinksAccessibleByMouse)
-        # set AutoText instead of RichText
-        # AutoText lets Qt figure out whether to render as rich text.
-        # e.g. if text is actually plain text and uses "\n" newlines;
-        #      and we set RichText here, newlines would be swallowed
-        d.setTextFormat(Qt.TextFormat.AutoText)
+        d.setTextFormat(Qt.TextFormat.RichText)
     else:
         d.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         d.setTextFormat(Qt.TextFormat.PlainText)
+    d.setText(str(text))  # set the text only after setting textFormat, so unwanted rich text is left unparsed
     if checkbox is not None:
         d.setCheckBox(checkbox)
     result = d.exec()
@@ -640,7 +648,7 @@ class VLine(QFrame):
         self.setLineWidth(1)
 
 
-def address_field(addresses, *, btn_text: str = None):
+def address_field(addresses, *, btn_text: str | None = None):
     if btn_text is None:
         btn_text = _('Get wallet address')
     hbox = QHBoxLayout()
@@ -726,13 +734,22 @@ def get_icon_camera() -> QIcon:
     return read_QIcon(name)
 
 
-def editor_contextMenuEvent(self, p: 'PayToEdit', e: 'QContextMenuEvent') -> None:
-    m = self.createStandardContextMenu()
-    m.addSeparator()
-    m.addAction(get_icon_camera(),    _("Read QR code with camera"), p.on_qr_from_camera_input_btn)
-    m.addAction(read_QIcon("picture_in_picture.png"), _("Read QR code from screen"), p.on_qr_from_screenshot_input_btn)
-    m.addAction(read_QIcon("file.png"), _("Read file"), p.on_input_file)
-    m.exec(e.globalPos())
+def pubkey_to_q_icon(server_pubkey: str) -> QIcon:
+    color = QColor(*pubkey_to_rgb_color(server_pubkey))
+    color_pixmap = QPixmap(100, 100)
+    color_pixmap.fill(color)
+    return QIcon(color_pixmap)
+
+
+def add_input_actions_to_context_menu(gih: 'GenericInputHandler', m: QMenu) -> None:
+    if gih.on_qr_from_camera_input_btn:
+        m.addAction(get_icon_camera(), _("Read QR code with camera"), gih.on_qr_from_camera_input_btn)
+    if gih.on_qr_from_screenshot_input_btn:
+        m.addAction(read_QIcon("picture_in_picture.png"), _("Read QR code from screen"), gih.on_qr_from_screenshot_input_btn)
+    if gih.on_qr_from_file_input_btn:
+        m.addAction(read_QIcon("qr_file.png"), _("Read QR code from file"), gih.on_qr_from_file_input_btn)
+    if gih.on_input_file:
+        m.addAction(read_QIcon("file.png"), _("Read text from file"), gih.on_input_file)
 
 
 def scan_qr_from_screenshot() -> QrCodeResult:
@@ -758,6 +775,11 @@ def scan_qr_from_screenshot() -> QrCodeResult:
 
 
 class GenericInputHandler:
+    on_qr_from_camera_input_btn: Callable[[], None] = None
+    on_qr_from_screenshot_input_btn: Callable[[], None] = None
+    on_qr_from_file_input_btn: Callable[[], None] = None
+    on_input_file: Callable[[], None] = None
+
     def input_qr_from_camera(
             self,
             *,
@@ -792,10 +814,10 @@ class GenericInputHandler:
             except Exception as e:
                 show_error(_('Invalid payment identifier in QR') + ':\n' + repr(e))
 
-        from .qrreader import scan_qrcode
+        from .qrreader import scan_qrcode_from_camera
         if parent is None:
             parent = self if isinstance(self, QWidget) else None
-        scan_qrcode(parent=parent, config=config, callback=cb)
+        scan_qrcode_from_camera(parent=parent, config=config, callback=cb)
 
     def input_qr_from_screenshot(
             self,
@@ -811,7 +833,11 @@ class GenericInputHandler:
         except UserFacingException as e:
             show_error(str(e))
             return
-        data = scanned_qr.data
+        try:
+            data = scanned_qr.data.decode('utf-8')
+        except UnicodeDecodeError:
+            show_error(_("The QR code does not contain valid UTF-8 text."))
+            return
         try:
             if allow_multi:
                 text = self.text()
@@ -898,10 +924,11 @@ class GenericInputHandler:
             show_error(_("More than one QR code was found in the image."))
             return
 
-        if len(scan_result) > 1:
-            result_text = "\n".join([r.data for r in scan_result])
-        else:
-            result_text = scan_result[0].data
+        try:
+            result_text = "\n".join(r.data.decode('utf-8') for r in scan_result)
+        except UnicodeDecodeError:
+            show_error(_("The QR code does not contain valid UTF-8 text."))
+            return
 
         try:
             setText(result_text)
@@ -1019,39 +1046,6 @@ class OverlayControlMixin(GenericInputHandler):
         # side-effect: we export this method:
         self.on_qr_show_btn = qr_show
 
-    def add_qr_input_combined_button(
-            self,
-            *,
-            config: 'SimpleConfig',
-            allow_multi: bool = False,
-            show_error: Callable[[str], None],
-            setText: Callable[[str], None] = None,
-    ):
-        input_qr_from_camera = partial(
-            self.input_qr_from_camera,
-            config=config,
-            allow_multi=allow_multi,
-            show_error=show_error,
-            setText=setText,
-        )
-        input_qr_from_screenshot = partial(
-            self.input_qr_from_screenshot,
-            allow_multi=allow_multi,
-            show_error=show_error,
-            setText=setText,
-        )
-        self.add_menu_button(
-            icon=get_icon_camera(),
-            tooltip=_("Read QR code"),
-            options=[
-                (get_icon_camera(),    _("Read QR code from camera"), input_qr_from_camera),
-                ("picture_in_picture.png", _("Read QR code from screen"), input_qr_from_screenshot),
-            ],
-        )
-        # side-effect: we export these methods:
-        self.on_qr_from_camera_input_btn = input_qr_from_camera
-        self.on_qr_from_screenshot_input_btn = input_qr_from_screenshot
-
     def add_qr_input_from_camera_button(
             self,
             *,
@@ -1067,7 +1061,7 @@ class OverlayControlMixin(GenericInputHandler):
             show_error=show_error,
             setText=setText,
         )
-        self.addButton(get_icon_camera(), input_qr_from_camera, _("Read QR code from camera"))
+        self.addButton(get_icon_camera(), input_qr_from_camera, _("Read QR code with camera"))
         # side-effect: we export these methods:
         self.on_qr_from_camera_input_btn = input_qr_from_camera
 
@@ -1271,8 +1265,8 @@ def getSaveFileName(
         title,
         filename,
         filter="",
-        default_extension: str = None,
-        default_filter: str = None,
+        default_extension: str | None = None,
+        default_filter: str | None = None,
         config: 'SimpleConfig',
 ) -> Optional[str]:
     """Custom wrapper for getSaveFileName that remembers the path selected by the user."""
@@ -1498,36 +1492,6 @@ class ImageGraphicsEffect(QObject):
         return result
 
 
-class QtEventListener(EventListener):
-    qt_callback_signal = QtCore.pyqtSignal(tuple)
-
-    def register_callbacks(self):
-        self.qt_callback_signal.connect(self.on_qt_callback_signal)
-        EventListener.register_callbacks(self)
-
-    def unregister_callbacks(self):
-        try:
-            self.qt_callback_signal.disconnect()
-        except (RuntimeError, TypeError):  # wrapped Qt object might be deleted
-            # "TypeError: disconnect() failed between 'qt_callback_signal' and all its connections"
-            pass
-        EventListener.unregister_callbacks(self)
-
-    def on_qt_callback_signal(self, args):
-        func = args[0]
-        return func(self, *args[1:])
-
-
-# decorator for members of the QtEventListener class
-def qt_event_listener(func):
-    func = event_listener(func)
-
-    @wraps(func)
-    def decorator(self, *args):
-        self.qt_callback_signal.emit( (func,) + args)
-    return decorator
-
-
 def insert_spaces(text: str, every_chars: int) -> str:
     '''Insert spaces at every Nth character to allow for WordWrap'''
     return ' '.join(text[i:i+every_chars] for i in range(0, len(text), every_chars))
@@ -1547,6 +1511,21 @@ def set_windows_os_screenshot_protection_drm_flag(window: QWidget) -> None:
         ctypes.windll.user32.SetWindowDisplayAffinity(window_id, WDA_MONITOR)
     except Exception:
         _logger.exception(f"failed to set windows screenshot protection flag")
+
+
+def debug_widget_layouts(gui_element: QObject):
+    """Draw red borders around all widgets of given QObject for debugging.
+    E.g. add util.debug_widget_layouts(self) at the end of TxEditor.__init__
+    """
+    assert isinstance(gui_element, QObject) and hasattr(gui_element, 'findChildren')
+    def set_border(widget):
+        if widget is not None:
+            widget.setStyleSheet(widget.styleSheet() + " * { border: 1px solid red; }")
+
+    # Apply to all child widgets recursively
+    for widget in gui_element.findChildren(QWidget):
+        set_border(widget)
+
 
 class _ABCQObjectMeta(type(QObject), ABCMeta): pass
 class _ABCQWidgetMeta(type(QWidget), ABCMeta): pass

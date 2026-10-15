@@ -39,8 +39,8 @@ except Exception as e:
         "you may try 'sudo apt-get install python3-pyqt6'") from e
 
 from PyQt6.QtGui import QGuiApplication, QCursor
-from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QWidget, QMenu, QMessageBox, QDialog, QToolTip
-from PyQt6.QtCore import QObject, pyqtSignal, QTimer, Qt
+from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QWidget, QMenu, QMessageBox, QDialog, QToolTip, QLabel
+from PyQt6.QtCore import QObject, pyqtSignal, QTimer, Qt, QEvent
 
 import PyQt6.QtCore as QtCore
 
@@ -70,7 +70,7 @@ from electrum.i18n import _, set_language
 from electrum.plugin import run_hook
 from electrum.util import (UserCancelled, profiler, send_exception_to_crash_reporter,
                            WalletFileException, get_new_wallet_name, InvalidPassword,
-                           standardize_path)
+                           standardize_path, UserFacingException)
 from electrum.wallet import Wallet, Abstract_Wallet
 from electrum.wallet_db import WalletRequiresSplit, WalletRequiresUpgrade, WalletUnfinished
 from electrum.gui import BaseElectrumGui
@@ -81,6 +81,7 @@ from electrum.bip32 import is_xprv
 from electrum import constants
 
 from electrum.gui.common_qt.i18n import ElectrumTranslator
+from electrum.gui.common_qt.util import break_qt_network
 from electrum.gui.messages import TERMS_OF_USE_LATEST_VERSION
 
 from .util import (read_QIcon, ColorScheme, custom_message_box, MessageBoxMixin, WWLabel,
@@ -112,9 +113,6 @@ class OpenFileEventFilter(QObject):
 
 
 class ScreenshotProtectionEventFilter(QObject):
-    def __init__(self):
-        super().__init__()
-
     def eventFilter(self, obj, event):
         if (
             event.type() == QtCore.QEvent.Type.Show
@@ -122,6 +120,36 @@ class ScreenshotProtectionEventFilter(QObject):
             and obj.isWindow()
         ):
             set_windows_os_screenshot_protection_drm_flag(obj)
+        return False
+
+
+class InjectNoRichTextEventFilter(QObject):
+    """Set the default textFormat of all QLabels to PlainText.
+
+    note: this also affects e.g. QMessageBox as it uses a QLabel internally.
+    FIXME if obj is a QLabel and it contains rich text, has the rich text already been parsed
+      and acted upon by the time the Polish event is emitted? For example, if the rich text
+      contains and embedded base64-encoded PNG and there is a vuln in the PNG parser,
+      is it already too late?
+      E.g. apparently if using a screen reader, the accessibility bridge queries the label’s text
+      from inside setText(), and Qt parses the HTML at that moment. So "Polish" is too late there.
+      In general against parser vulns, it is not even safe to pass untrusted text to the Label()
+      constructor... Instead:
+        lbl = Label(); lbl.setTextFormat(Qt.TextFormat.PlainText); lbl.setText(untrusted_text);
+      should be used... :/
+    """
+    def eventFilter(self, obj: QObject, event: QEvent) -> bool:
+        if event.type() != QEvent.Type.Polish:
+            # see https://doc.qt.io/qt-6/qstyle.html#polish :
+            # > This function [QStyle.polish()] is called for every widget at some point after
+            # > it has been fully created but just before it is shown for the very first time.
+            return False
+        if not isinstance(obj, QLabel):
+            return False
+        if obj.textFormat() != Qt.TextFormat.AutoText:
+            # non-default textFormat => we leave it alone
+            return False
+        obj.setTextFormat(Qt.TextFormat.PlainText)
         return False
 
 
@@ -147,12 +175,12 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.logger.info(f"Qt GUI starting up... Qt={QtCore.QT_VERSION_STR}, PyQt={QtCore.PYQT_VERSION_STR}")
         # Uncomment this call to verify objects are being properly
         # GC-ed when windows are closed
-        #network.add_jobs([DebugMem([Abstract_Wallet, SPV, Synchronizer,
+        #plugins.add_jobs([DebugMem([Abstract_Wallet, SPV, Synchronizer,
         #                            ElectrumWindow], interval=5)])
         if hasattr(QtCore.Qt, "AA_ShareOpenGLContexts"):
             QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_ShareOpenGLContexts)
         if hasattr(QGuiApplication, 'setDesktopFileName'):
-            QGuiApplication.setDesktopFileName('electrum.desktop')
+            QGuiApplication.setDesktopFileName('electrum')
         QGuiApplication.setApplicationName("Electrum")
         self.gui_thread = threading.current_thread()
         self.windows = []  # type: List[ElectrumWindow]
@@ -162,17 +190,15 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.screenshot_protection_efilter = ScreenshotProtectionEventFilter()
         if sys.platform in ['win32', 'windows'] and self.config.GUI_QT_SCREENSHOT_PROTECTION:
             self.app.installEventFilter(self.screenshot_protection_efilter)
+        self.efilter_no_rich_text = InjectNoRichTextEventFilter()
+        self.app.installEventFilter(self.efilter_no_rich_text)
         # explicitly set 'AA_DontShowIconsInMenus' False so menu icons are shown on MacOS
         self.app.setAttribute(Qt.ApplicationAttribute.AA_DontShowIconsInMenus, on=False)
         self.app.setWindowIcon(read_QIcon("electrum.png"))
         self.translator = ElectrumTranslator()
         self.app.installTranslator(self.translator)
+        break_qt_network()
         self._cleaned_up = False
-        # timer
-        self.timer = QTimer(self.app)
-        self.timer.setSingleShot(False)
-        self.timer.setInterval(500)  # msec
-
         self.network_dialog = None
         self.lightning_dialog = None
         self._num_wizards_in_progress = 0
@@ -287,9 +313,6 @@ class ElectrumGui(BaseElectrumGui, Logger):
         if self.lightning_dialog:
             self.lightning_dialog.close()
             self.lightning_dialog = None
-        # Shut down the timer cleanly
-        self.timer.stop()
-        self.timer = None
         # clipboard persistence. see http://www.mail-archive.com/pyqt@riverbankcomputing.com/msg17328.html
         event = QtCore.QEvent(QtCore.QEvent.Type.Clipboard)
         self.app.sendEvent(self.app.clipboard(), event)
@@ -339,6 +362,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.build_tray_menu()
         w.warn_if_testnet()
         w.warn_if_watching_only()
+        w.show_startup_warnings()
         return w
 
     def count_wizards_in_progress(func):
@@ -355,7 +379,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
 
     def get_window_for_wallet(self, wallet):
         for window in self.windows:
-            if window.wallet.storage.path == wallet.storage.path:
+            if window.wallet.storage.get_path() == wallet.storage.get_path():
                 return window
 
     @count_wizards_in_progress
@@ -376,6 +400,17 @@ class ElectrumGui(BaseElectrumGui, Logger):
             self.logger.warning(f"terms of use not accepted, rejecting to start new window")
             return None
 
+        def __handle_wallet_loading_exc(exc: Exception, pos):
+            if isinstance(exc, UserFacingException) \
+                    or isinstance(exc, WalletFileException) and not exc.should_report_crash:
+                self.logger.exception(f"{pos=}")
+                custom_message_box(icon=QMessageBox.Icon.Warning,
+                                   parent=None,
+                                   title=_('Error'),
+                                   text=_('Cannot load wallet') + f' ({pos}):\n' + str(exc))
+            else:
+                send_exception_to_crash_reporter(exc)
+
         wallet = None
         # Try to open with daemon first. If this succeeds, there won't be a wizard at all
         # (the wallet main window will appear directly).
@@ -393,14 +428,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
             except WalletUnfinished:
                 pass  # open with wizard below
             except Exception as e:
-                self.logger.exception('')
-                err_text = str(e) if isinstance(e, WalletFileException) else repr(e)
-                custom_message_box(icon=QMessageBox.Icon.Warning,
-                                   parent=None,
-                                   title=_('Error'),
-                                   text=_('Cannot load wallet') + ' (1):\n' + err_text)
-                if isinstance(e, WalletFileException) and e.should_report_crash:
-                    send_exception_to_crash_reporter(e)
+                __handle_wallet_loading_exc(e, 1)
                 # if app is starting, still let wizard appear
                 if not app_is_starting:
                     return
@@ -418,14 +446,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         except UserCancelled:
             return
         except Exception as e:
-            self.logger.exception('')
-            err_text = str(e) if isinstance(e, WalletFileException) else repr(e)
-            custom_message_box(icon=QMessageBox.Icon.Warning,
-                               parent=None,
-                               title=_('Error'),
-                               text=_('Cannot load wallet') + '(2) :\n' + err_text)
-            if isinstance(e, WalletFileException) and e.should_report_crash:
-                send_exception_to_crash_reporter(e)
+            __handle_wallet_loading_exc(e, 2)
             if app_is_starting:
                 # If we raise in this context, there are no more fallbacks, we will shut down.
                 # Worst case scenario, we might have gotten here without user interaction,
@@ -446,6 +467,14 @@ class ElectrumGui(BaseElectrumGui, Logger):
         window.activateWindow()
         if uri:
             window.show_send_tab()
+            # Handle URI defensively - local attacker with access to RPC server and config file could get here:
+            #   - tell user something happened
+            window.notify(_("Updated 'Pay To' field to handle external URI"))
+            #   - clear all fields in Send tab:
+            #     - perhaps user was just filling out the fields, trying to make another payment.
+            #       e.g. if the given URI does not have an amount, we should clear the amount field
+            window.send_tab.do_clear()
+            #   - update "Pay To" field (and maybe others)
             window.send_tab.set_payment_identifier(uri)
         return window
 
@@ -463,7 +492,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         if d['wallet_is_open']:
             wallet_path = standardize_path(d['wallet_name'])
             for window in self.windows:
-                if window.wallet.storage.path == wallet_path:
+                if window.wallet.storage.get_path() == wallet_path:
                     return window.wallet
             raise Exception('found by wizard but not here?!')
 
@@ -510,11 +539,9 @@ class ElectrumGui(BaseElectrumGui, Logger):
                 self.logger.info('wizard dialog cancelled by user')
                 return
             db.put('x3', wizard.get_wizard_data()['x3'])
-            db.write()
+            db.write_and_force_consolidation()  # TODO API for db is a bit weird: there should be a close method
 
-        wallet = Wallet(db, config=self.config)
-        wallet.start_network(self.daemon.network)
-        self.daemon.add_wallet(wallet)
+        wallet = self.daemon.load_wallet(wallet_file, password, upgrade=True)
         return wallet
 
     def close_window(self, window: ElectrumWindow):
@@ -523,7 +550,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.build_tray_menu()
         run_hook('on_close_window', window)
         if window.should_stop_wallet_on_close:
-            self.daemon.stop_wallet(window.wallet.storage.path)
+            self.daemon.stop_wallet(window.wallet.storage.get_path())
 
     def reload_window(self, window):
         # bump counter so that we do not close the app
@@ -589,7 +616,6 @@ class ElectrumGui(BaseElectrumGui, Logger):
             self.logger.exception('')
             return
         # start wizard to select/create wallet
-        self.timer.start()
         path = self.config.get_wallet_path()
         try:
             if not self.start_new_window(path, self.config.get('url'), app_is_starting=True):
@@ -618,11 +644,11 @@ class ElectrumGui(BaseElectrumGui, Logger):
             ret["pyqt.path"] = ", ".join(PyQt6.__path__ or [])
         return ret
 
-    def do_copy(self, text: str, *, title: str = None) -> None:
+    def do_copy(self, text: str, *, title: str | None = None) -> None:
         self.app.clipboard().setText(text)
         message = _("Text copied to Clipboard") if title is None else _("{} copied to Clipboard").format(title)
         # tooltip cannot be displayed immediately when called from a menu; wait 200ms
-        self.timer.singleShot(200, lambda: QToolTip.showText(QCursor.pos(), message, None))
+        QTimer.singleShot(200, lambda: QToolTip.showText(QCursor.pos(), message, None))
 
 
 def standalone_exception_dialog(exception: Union[str, BaseException]) -> None:
@@ -631,6 +657,7 @@ def standalone_exception_dialog(exception: Union[str, BaseException]) -> None:
         app = QApplication([])
 
     msg_box = QMessageBox()
+    msg_box.setTextFormat(Qt.TextFormat.PlainText)
     msg_box.setWindowTitle(_("Error starting Electrum"))
     msg_box.setIcon(QMessageBox.Icon.Critical)
     msg_box.setText(_("An error occurred") + ":")

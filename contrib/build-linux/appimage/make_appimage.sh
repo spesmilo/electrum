@@ -9,6 +9,7 @@ DISTDIR="$PROJECT_ROOT/dist"
 BUILDDIR="$CONTRIB_APPIMAGE/build/appimage"
 APPDIR="$BUILDDIR/electrum.AppDir"
 CACHEDIR="$CONTRIB_APPIMAGE/.cache/appimage"
+TYPE2_RUNTIME_REPO_DIR="$CACHEDIR/type2-runtime"
 export DLL_TARGET_DIR="$CACHEDIR/dlls"
 PIP_CACHE_DIR="$CONTRIB_APPIMAGE/.cache/pip_cache"
 
@@ -19,7 +20,7 @@ git -C "$PROJECT_ROOT" rev-parse 2>/dev/null || fail "Building outside a git clo
 export GCC_STRIP_BINARIES="1"
 
 # pinned versions
-PYTHON_VERSION=3.12.11
+PYTHON_VERSION=3.12.14
 PY_VER_MAJOR="3.12"  # as it appears in fs paths
 PKG2APPIMAGE_COMMIT="a9c85b7e61a3a883f4a35c41c5decb5af88b6b5d"
 
@@ -37,14 +38,13 @@ info "downloading some dependencies."
 download_if_not_exist "$CACHEDIR/functions.sh" "https://raw.githubusercontent.com/AppImage/pkg2appimage/$PKG2APPIMAGE_COMMIT/functions.sh"
 verify_hash "$CACHEDIR/functions.sh" "8f67711a28635b07ce539a9b083b8c12d5488c00003d6d726c7b134e553220ed"
 
-download_if_not_exist "$CACHEDIR/appimagetool" "https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-x86_64.AppImage"
-verify_hash "$CACHEDIR/appimagetool" "df3baf5ca5facbecfc2f3fa6713c29ab9cefa8fd8c1eac5d283b79cab33e4acb"
-# TODO migrate to https://github.com/AppImage/appimagetool/releases
-#      note: we will also have to build AppImage/type2-runtime, as otherwise new appimagetool just downloads "latest" from the internet.
-#            see https://github.com/AppImage/appimagetool/blob/7cfafc45e5a8e64ad0755870b1001e5d7ffb4e85/README.md#L61
+download_if_not_exist "$CACHEDIR/appimagetool" "https://github.com/AppImage/appimagetool/releases/download/1.9.0/appimagetool-x86_64.AppImage"
+verify_hash "$CACHEDIR/appimagetool" "46fdd785094c7f6e545b61afcfb0f3d98d8eab243f644b4b17698c01d06083d1"
+# note: desktop-file-utils in the docker image is needed to run desktop-file-validate for appimagetool <= 1.9.0, so it can be removed once
+# appimagetool tags a new release (see https://github.com/AppImage/appimagetool/pull/47)
 
 download_if_not_exist "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tar.xz"
-verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "c30bb24b7f1e9a19b11b55a546434f74e739bb4c271a3e3a80ff4380d49f7adb"
+verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "5c8462af5790baf43a321a1559dbe0db06d1be4300fb85fb53c40060668e548a"
 
 
 
@@ -89,13 +89,13 @@ fi
 cp -f "$DLL_TARGET_DIR"/libsecp256k1.so.* "$APPDIR/usr/lib/" || fail "Could not copy libsecp to its destination"
 
 
-if [ -f "$DLL_TARGET_DIR/libzbar.so.0" ]; then
-    info "libzbar already built, skipping"
+if [ -f "$DLL_TARGET_DIR/libZXing.so" ]; then
+    info "zxing-cpp already built, skipping"
 else
-    # note: could instead just use the libzbar0 pkg from debian/apt, but that is too old and missing fixes for CVE-2023-40889
-    "$CONTRIB"/make_zbar.sh || fail "Could not build zbar"
+    # Bullseye's default GCC lacks the required C++20 support.
+    CC=clang-16 CXX=clang++-16 "$CONTRIB"/make_zxing.sh || fail "Could not build zxing-cpp"
 fi
-cp -f "$DLL_TARGET_DIR/libzbar.so.0" "$APPDIR/usr/lib/" || fail "Could not copy libzbar to its destination"
+cp -f "$DLL_TARGET_DIR/libZXing.so" "$APPDIR/usr/lib/" || fail "Could not copy zxing-cpp to its destination"
 
 
 appdir_python() {
@@ -140,6 +140,7 @@ info "Installing build dependencies."
 # opt out of compiling C extensions
 export YARL_NO_EXTENSIONS=1
 export FROZENLIST_NO_EXTENSIONS=1
+export PROPCACHE_NO_EXTENSIONS=1
 
 export ELECTRUM_ECC_DONT_COMPILE=1
 
@@ -181,7 +182,7 @@ info "finalizing AppDir."
     mv usr/include usr/include.tmp
     delete_blacklisted
     mv usr/include.tmp usr/include
-) || fail "Could not finalize AppDir"
+)
 
 info "Copying additional libraries"
 (
@@ -231,13 +232,19 @@ done
 rm -rf "$PYDIR"/site-packages/PyQt6/Qt6/{qml,libexec}
 rm -rf "$PYDIR"/site-packages/PyQt6/{pyrcc*.so,pylupdate*.so,uic}
 rm -rf "$PYDIR"/site-packages/PyQt6/Qt6/plugins/{bearer,gamepads,geometryloaders,geoservices,playlistformats,position,renderplugins,sceneparsers,sensors,sqldrivers,texttospeech,webview}
-for component in Bluetooth Concurrent Designer Help Location NetworkAuth Nfc Positioning PositioningQuick Qml Quick Sensors SerialPort Sql Test Web Xml Labs ShaderTools SpatialAudio ; do
+for component in Bluetooth Designer Help Location NetworkAuth Nfc Positioning PositioningQuick Sensors SerialPort Sql Test Web Xml Labs ShaderTools SpatialAudio ; do
     rm -rf "$PYDIR"/site-packages/PyQt6/Qt6/lib/libQt6${component}*
     rm -rf "$PYDIR"/site-packages/PyQt6/Qt${component}*
     rm -rf "$PYDIR"/site-packages/PyQt6/bindings/Qt${component}*
 done
-for component in Qml Quick ; do
-    rm -rf "$PYDIR"/site-packages/PyQt6/Qt6/lib/libQt6*${component}.so*
+# Qt's FFmpeg backend links to Quick/Qml; Qt 6.10's Multimedia also links to Concurrent.
+# https://github.com/qt/qtmultimedia/blob/v6.9.2/src/plugins/multimedia/ffmpeg/CMakeLists.txt#L199-L203
+# https://github.com/qt/qtdeclarative/blob/v6.9.2/src/quick/CMakeLists.txt#L243-L248
+# https://github.com/qt/qtmultimedia/blob/v6.10.0/src/multimedia/CMakeLists.txt#L124-L128
+# Keep those native libraries even though the desktop GUI does not import the bindings.
+for component in Concurrent Qml Quick ; do
+    rm -rf "$PYDIR"/site-packages/PyQt6/Qt${component}*
+    rm -rf "$PYDIR"/site-packages/PyQt6/bindings/Qt${component}*
 done
 rm -rf "$PYDIR"/site-packages/PyQt6/Qt.so
 
@@ -245,10 +252,10 @@ rm -rf "$PYDIR"/site-packages/PyQt6/Qt.so
 find "$APPDIR" -path '*/__pycache__*' -delete
 # although note that *.dist-info might be needed by certain packages...
 # e.g. slip10 uses importlib that needs it
-for f in "$PYDIR"/site-packages/slip10-*.dist-info; do mv "$f" "$(echo "$f" | sed s/\.dist-info/\.dist-info2/)"; done
+for f in "$PYDIR"/site-packages/{slip10,trezor}-*.dist-info; do mv "$f" "$(echo "$f" | sed s/\.dist-info/\.dist-info2/)"; done
 rm -rf "$PYDIR"/site-packages/*.dist-info/
 rm -rf "$PYDIR"/site-packages/*.egg-info/
-for f in "$PYDIR"/site-packages/slip10-*.dist-info2; do mv "$f" "$(echo "$f" | sed s/\.dist-info2/\.dist-info/)"; done
+for f in "$PYDIR"/site-packages/{slip10,trezor}-*.dist-info2; do mv "$f" "$(echo "$f" | sed s/\.dist-info2/\.dist-info/)"; done
 
 
 find -exec touch -h -d '2000-11-11T11:11:11+00:00' {} +
@@ -264,14 +271,14 @@ info "creating the AppImage."
     "$CACHEDIR/appimagetool_copy" --appimage-extract
     # We build a small wrapper for mksquashfs that removes the -mkfs-time option
     # as it conflicts with SOURCE_DATE_EPOCH.
-    mv "$BUILDDIR/squashfs-root/usr/lib/appimagekit/mksquashfs" "$BUILDDIR/squashfs-root/usr/lib/appimagekit/mksquashfs_orig"
-    cat > "$BUILDDIR/squashfs-root/usr/lib/appimagekit/mksquashfs" << EOF
+    mv "$BUILDDIR/squashfs-root/usr/bin/mksquashfs" "$BUILDDIR/squashfs-root/usr/bin/mksquashfs_orig"
+    cat > "$BUILDDIR/squashfs-root/usr/bin/mksquashfs" << EOF
 #!/bin/sh
 args=\$(echo "\$@" | sed -e 's/-mkfs-time 0//')
-"$BUILDDIR/squashfs-root/usr/lib/appimagekit/mksquashfs_orig" \$args
+"$BUILDDIR/squashfs-root/usr/bin/mksquashfs_orig" \$args
 EOF
-    chmod +x "$BUILDDIR/squashfs-root/usr/lib/appimagekit/mksquashfs"
-    env VERSION="$VERSION" ARCH=x86_64 ./squashfs-root/AppRun --no-appstream --verbose "$APPDIR" "$APPIMAGE"
+    chmod +x "$BUILDDIR/squashfs-root/usr/bin/mksquashfs"
+    env VERSION="$VERSION" ARCH=x86_64 ./squashfs-root/AppRun --runtime-file "$TYPE2_RUNTIME_REPO_DIR/runtime-x86_64" --no-appstream --verbose "$APPDIR" "$APPIMAGE"
 )
 
 

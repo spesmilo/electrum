@@ -124,10 +124,6 @@ class Plugin(ColdcardPlugin, QtPluginBase):
         # - doesn't matter if device not connected, continue
         CKCCSettingsDialog(window, self, keystore).exec()
 
-    @hook
-    def init_wallet_wizard(self, wizard: 'QENewWalletWizard'):
-        self.extend_wizard(wizard)
-
     # insert coldcard pages in new wallet wizard
     def extend_wizard(self, wizard: 'QENewWalletWizard'):
         super().extend_wizard(wizard)
@@ -197,6 +193,7 @@ class CKCCSettingsDialog(WindowModalDialog):
         for row_num, (member_name, label) in enumerate(rows):
             # XXX we know xfp already, even if not connected
             widget = QLabel('<tt>000000000000')
+            widget.setTextFormat(Qt.TextFormat.RichText)
             widget.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard)
 
             grid.addWidget(QLabel(label), y, 0, 1, 1, Qt.AlignmentFlag.AlignRight)

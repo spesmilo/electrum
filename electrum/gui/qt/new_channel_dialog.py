@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Callable, Sequence
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton, QComboBox, QLineEdit, QHBoxLayout
 
 import electrum_ecc as ecc
@@ -8,6 +8,7 @@ from electrum.lnutil import MIN_FUNDING_SAT
 from electrum.lnworker import hardcoded_trampoline_nodes
 from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates
 from electrum.fee_policy import FeePolicy
+from electrum.lntransport import extract_nodeid, ConnStringFormatError
 
 from .util import (WindowModalDialog, Buttons, OkButton, CancelButton,
                    EnterButton, WWLabel, char_width_in_lineedit)
@@ -15,12 +16,20 @@ from .amountedit import BTCAmountEdit
 from .my_treeview import create_toolbar_with_menu
 
 if TYPE_CHECKING:
+    from electrum.transaction import PartialTxInput
     from .main_window import ElectrumWindow
 
 
 class NewChannelDialog(WindowModalDialog):
 
-    def __init__(self, window: 'ElectrumWindow', amount_sat: Optional[int] = None, min_amount_sat: Optional[int] = None):
+    def __init__(
+        self,
+        window: 'ElectrumWindow',
+        *,
+        amount_sat: Optional[int] = None,
+        min_amount_sat: Optional[int] = None,
+        get_coins: Optional[Callable[..., Sequence['PartialTxInput']]] = None,
+    ):
         WindowModalDialog.__init__(self, window, _('Open Channel'))
         self.window = window
         self.network = window.network
@@ -29,6 +38,7 @@ class NewChannelDialog(WindowModalDialog):
         self.trampolines = hardcoded_trampoline_nodes()
         self.trampoline_names = list(self.trampolines.keys())
         self.min_amount_sat = min_amount_sat or MIN_FUNDING_SAT
+        self.get_coins = get_coins
         vbox = QVBoxLayout(self)
         toolbar, menu = create_toolbar_with_menu(self.config, '')
         menu.addConfig(
@@ -43,14 +53,18 @@ class NewChannelDialog(WindowModalDialog):
             vbox.addWidget(QLabel(_('Enter Remote Node ID or connection string or invoice')))
             self.remote_nodeid = QLineEdit()
             self.remote_nodeid.setMinimumWidth(700)
+            self.remote_nodeid.textChanged.connect(self.maybe_enable_ok_button)
             self.suggest_button = QPushButton(self, text=_('Suggest Peer'))
             self.suggest_button.clicked.connect(self.on_suggest)
         else:
             self.trampoline_combo = QComboBox()
             self.trampoline_combo.addItems(self.trampoline_names)
+            # index 1 is "Electrum trampoline" on mainnet, this defaults to -1 if 1 is not available
             self.trampoline_combo.setCurrentIndex(1)
+            self.trampoline_combo.currentIndexChanged.connect(self.maybe_enable_ok_button)
         self.amount_e = BTCAmountEdit(self.window.get_decimal_point)
         self.amount_e.setAmount(amount_sat)
+        self.amount_e.textChanged.connect(self.maybe_enable_ok_button)
 
         btn_width = 10 * char_width_in_lineedit()
         self.min_button = EnterButton(_("Min"), self.spend_min)
@@ -83,9 +97,26 @@ class NewChannelDialog(WindowModalDialog):
 
         vbox.addLayout(h)
         vbox.addStretch()
-        ok_button = OkButton(self)
-        ok_button.setDefault(True)
-        vbox.addLayout(Buttons(CancelButton(self), ok_button))
+        self.ok_button = OkButton(self)
+        self.ok_button.setDefault(True)
+        self.maybe_enable_ok_button()
+        vbox.addLayout(Buttons(CancelButton(self), self.ok_button))
+
+    def maybe_enable_ok_button(self):
+        enable = True
+        if self.network.channel_db:
+            try:
+                extract_nodeid(str(self.remote_nodeid.text()).strip())
+            except ConnStringFormatError:
+                enable = False
+        else:
+            try:
+                self.trampoline_names[self.trampoline_combo.currentIndex()]
+            except IndexError:
+                enable = False
+        if not self.amount_e.get_amount():
+            enable = False
+        self.ok_button.setEnabled(enable)
 
     def on_suggest(self):
         self.network.start_gossip()
@@ -119,7 +150,7 @@ class NewChannelDialog(WindowModalDialog):
         if not self.max_button.isChecked():
             return
         dummy_nodeid = ecc.GENERATOR.get_public_key_bytes(compressed=True)
-        make_tx = self.window.mktx_for_open_channel(funding_sat='!', node_id=dummy_nodeid)
+        make_tx = self.window.mktx_for_open_channel(funding_sat='!', node_id=dummy_nodeid, get_coins=self.get_coins)
         try:
             tx = make_tx(FeePolicy(self.config.FEE_POLICY))
         except (NotEnoughFunds, NoDynamicFeeEstimates) as e:
@@ -154,5 +185,5 @@ class NewChannelDialog(WindowModalDialog):
             connect_str = str(self.trampolines[name])
         if not connect_str:
             return
-        self.window.open_channel(connect_str, funding_sat, 0)
+        self.window.open_channel(connect_str, funding_sat, get_coins=self.get_coins)
         return True

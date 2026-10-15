@@ -39,6 +39,7 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
         self.setMinimumSize(600, 400)
 
         self.title = QLabel()
+        self.title.setTextFormat(Qt.TextFormat.RichText)
         self.window_title = ''
         self.finish_label = _('Finish')
 
@@ -124,10 +125,7 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
 
     @pyqtSlot()
     def strt(self):
-        if self.start_viewstate is not None:
-            viewstate = self._current = self.start_viewstate
-        else:
-            viewstate = self.start_wizard()
+        viewstate = self.start_wizard(start_viewstate=self.start_viewstate)
         self.load_next_component(viewstate.view, viewstate.wizard_data, viewstate.params)
         self.set_default_focus()
 
@@ -236,8 +234,8 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
                 self.prev()  # rollback the submit above
                 raise e
 
-    def start_wizard(self) -> 'WizardViewState':
-        self.start()
+    def start_wizard(self, *, start_viewstate: Optional['WizardViewState'] = None) -> 'WizardViewState':
+        self.start(start_viewstate=start_viewstate)
         return self._current
 
     def view_to_component(self, view) -> QWidget:
@@ -264,7 +262,7 @@ class QEAbstractWizard(QDialog, MessageBoxMixin):
 class WizardComponent(AbstractQWidget):
     updated = pyqtSignal(object)
 
-    def __init__(self, parent: QWidget, wizard: QEAbstractWizard, *, title: str = None, layout: QLayout = None):
+    def __init__(self, parent: QWidget, wizard: QEAbstractWizard, *, title: str | None = None, layout: QLayout | None = None):
         super().__init__(parent)
         self.setLayout(layout if layout else QVBoxLayout(self))
         self.wizard_data = {}

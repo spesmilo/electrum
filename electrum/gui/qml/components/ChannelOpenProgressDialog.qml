@@ -23,7 +23,7 @@ ElDialog {
 
     property string channelBackup
 
-    function reset() {
+    function resetDialog() {
         state = ''
         errorText.text = ''
         peerText.text = ''
@@ -81,7 +81,7 @@ ElDialog {
             }
         }
 
-        TextHighlightPane {
+        DialogHighlightPane {
             Layout.alignment: Qt.AlignHCenter
             Layout.preferredWidth: dialog.width * 3/4
             Label {
@@ -100,6 +100,7 @@ ElDialog {
             visible: false
             iconStyle: InfoTextArea.IconStyle.Error
             textFormat: TextEdit.PlainText
+            backgroundColor: constants.darkerDialogBackground
         }
 
         InfoTextArea {
@@ -108,6 +109,7 @@ ElDialog {
             Layout.preferredWidth: dialog.width * 2/3
             visible: false
             textFormat: TextEdit.PlainText
+            backgroundColor: constants.darkerDialogBackground
         }
     }
 

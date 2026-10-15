@@ -1,13 +1,18 @@
 import os
+import asyncio
+from unittest.mock import patch
 
 from electrum import SimpleConfig
 from electrum.invoices import Invoice
-from electrum.payment_identifier import (maybe_extract_lightning_payment_identifier, PaymentIdentifier,
-                                         PaymentIdentifierType, invoice_from_payment_identifier)
-from electrum.wallet import restore_wallet_from_text
+from electrum.payment_identifier import (
+    maybe_extract_bech32_lightning_payment_identifier, PaymentIdentifier, PaymentIdentifierType,
+    PaymentIdentifierState, invoice_from_payment_identifier, remove_uri_prefix, outputs_to_multiline_csv,
+)
+from electrum.lnurl import LNURL6Data, LNURL3Data, LNURLError
+from electrum.transaction import PartialTxOutput
 
 from . import ElectrumTestCase
-from electrum.transaction import PartialTxOutput
+from . import restore_wallet_from_text__for_unittest
 
 
 class WalletMock:
@@ -30,22 +35,41 @@ class TestPaymentIdentifier(ElectrumTestCase):
         })
         self.wallet2_path = os.path.join(self.electrum_path, "somewallet2")
 
-    def test_maybe_extract_lightning_payment_identifier(self):
+    def test_maybe_extract_bech32_lightning_payment_identifier(self):
         bolt11 = "lnbc1ps9zprzpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqsp5zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygsdqq9qypqszpyrpe4tym8d3q87d43cgdhhlsrt78epu7u99mkzttmt2wtsx0304rrw50addkryfrd3vn3zy467vxwlmf4uz7yvntuwjr2hqjl9lw5cqwtp2dy"
         lnurl = "lnurl1dp68gurn8ghj7um9wfmxjcm99e5k7telwy7nxenrxvmrgdtzxsenjcm98pjnwxq96s9"
-        self.assertEqual(bolt11, maybe_extract_lightning_payment_identifier(f"{bolt11}".upper()))
-        self.assertEqual(bolt11, maybe_extract_lightning_payment_identifier(f"lightning:{bolt11}"))
-        self.assertEqual(bolt11, maybe_extract_lightning_payment_identifier(f"  lightning:{bolt11}   ".upper()))
-        self.assertEqual(lnurl, maybe_extract_lightning_payment_identifier(lnurl))
-        self.assertEqual(lnurl, maybe_extract_lightning_payment_identifier(f"  lightning:{lnurl}   ".upper()))
+        self.assertEqual(bolt11, maybe_extract_bech32_lightning_payment_identifier(f"{bolt11}".upper()))
+        self.assertEqual(bolt11, maybe_extract_bech32_lightning_payment_identifier(f"lightning:{bolt11}"))
+        self.assertEqual(bolt11, maybe_extract_bech32_lightning_payment_identifier(f"  lightning:{bolt11}   ".upper()))
+        self.assertEqual(lnurl, maybe_extract_bech32_lightning_payment_identifier(lnurl))
+        self.assertEqual(lnurl, maybe_extract_bech32_lightning_payment_identifier(f"  lightning:{lnurl}   ".upper()))
 
-        self.assertEqual(None, maybe_extract_lightning_payment_identifier(f"bitcoin:{bolt11}"))
-        self.assertEqual(None, maybe_extract_lightning_payment_identifier(f":{bolt11}"))
-        self.assertEqual(None, maybe_extract_lightning_payment_identifier(f"garbage text"))
+        self.assertEqual(None, maybe_extract_bech32_lightning_payment_identifier(f"bitcoin:{bolt11}"))
+        self.assertEqual(None, maybe_extract_bech32_lightning_payment_identifier(f":{bolt11}"))
+        self.assertEqual(None, maybe_extract_bech32_lightning_payment_identifier(f"garbage text"))
+
+    def test_remove_uri_prefix(self):
+        lightning, bitcoin = 'lightning', 'bitcoin'
+        tests = (
+            (lightning, '', ''),
+            (lightning, 'lightning:test', 'test'),
+            (lightning, 'bitcoin:test', 'bitcoin:test'),
+            (lightning, 'lightningtest', 'lightningtest'),
+            (lightning, 'lightning test', 'lightning test'),
+            (bitcoin, 'lightning:test', 'lightning:test'),
+            (bitcoin, 'bitcoin:test', 'test'),
+            (bitcoin, 'bitcoin', 'bitcoin'),
+            (bitcoin, 'bitcoin:', ''),
+        )
+        for prefix, input_str, expected_output_str in tests:
+            output_str = remove_uri_prefix(input_str, prefix=prefix)
+            self.assertEqual(expected_output_str, output_str, msg=output_str)
+        with self.assertRaises(AssertionError):
+            remove_uri_prefix(data=1234, prefix="test")
 
     def test_bolt11(self):
         # no amount, no fallback address
-        bolt11 = 'lnbc1ps9zprzpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqsp5zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygsdqq9qypqszpyrpe4tym8d3q87d43cgdhhlsrt78epu7u99mkzttmt2wtsx0304rrw50addkryfrd3vn3zy467vxwlmf4uz7yvntuwjr2hqjl9lw5cqwtp2dy'
+        bolt11 = 'lnbc1ps9zprzpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqsp5zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygsr9yq20q82gphp2nflc7jtzrcazrra7wwgzxqc8u7754cdlpfrmccae92qgzqvzq2ps8pqqqqqqpqqqqq9qqqvpeuqafqxu92d8lr6fvg0r5gv0heeeqgcrqlnm6jhphu9y00rrhy4grqszsvpcgpy9qqqqqqgqqqqq7qqzqhp58yjmdan79s6qqdhdzgynm4zwqd5d7xmw5fk98klysy043l2ahrqs9qy9qsq9s2256hf3kmf539hhds9uh30expkc6ulzd29zatpz60g292lu85reau6e4zpdlchsg4eprgk96a82ejdlyhfqx684xdzzepklfx6r2cpga5nw2'
         for pi_str in [
             f'{bolt11}',
             f'  {bolt11}',
@@ -71,7 +95,8 @@ class TestPaymentIdentifier(ElectrumTestCase):
             self.assertFalse(pi.is_valid())
 
         # amount, fallback address
-        bolt_11_w_fallback = 'lnbc20m1pvjluezpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqhp58yjmdan79s6qqdhdzgynm4zwqd5d7xmw5fk98klysy043l2ahrqsfpp3qjmp7lwpagxun9pygexvgpjdc4jdj85fr9yq20q82gphp2nflc7jtzrcazrra7wwgzxqc8u7754cdlpfrmccae92qgzqvzq2ps8pqqqqqqpqqqqq9qqqvpeuqafqxu92d8lr6fvg0r5gv0heeeqgcrqlnm6jhphu9y00rrhy4grqszsvpcgpy9qqqqqqgqqqqq7qqzqj9n4evl6mr5aj9f58zp6fyjzup6ywn3x6sk8akg5v4tgn2q8g4fhx05wf6juaxu9760yp46454gpg5mtzgerlzezqcqvjnhjh8z3g2qqdhhwkj'
+        bolt_11_w_fallback = 'lnbc241ps9zprzpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqsp5zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygsr9yq20q82gphp2nflc7jtzrcazrra7wwgzxqc8u7754cdlpfrmccae92qgzqvzq2ps8pqqqqqqpqqqqq9qqqvpeuqafqxu92d8lr6fvg0r5gv0heeeqgcrqlnm6jhphu9y00rrhy4grqszsvpcgpy9qqqqqqgqqqqq7qqzqfpp3qjmp7lwpagxun9pygexvgpjdc4jdj85fhp58yjmdan79s6qqdhdzgynm4zwqd5d7xmw5fk98klysy043l2ahrqs9qy9qsqfnk063vsrgjx7l6td6v42skuxql7epn5tmrl4qte2e78nqnsjlgjg3sgkxreqex5fw4c9chnvtc2hykqnyxr84zwfr8f3d9q3h0nfdgqenlzvj'
+
         pi = PaymentIdentifier(None, bolt_11_w_fallback)
         self.assertTrue(pi.is_valid())
         self.assertEqual(PaymentIdentifierType.BOLT11, pi.type)
@@ -112,7 +137,7 @@ class TestPaymentIdentifier(ElectrumTestCase):
         self.assertEqual('unit_test', pi.bip21.get('message'))
 
         # amount, expired, message, lightning w matching amount
-        bip21 = 'bitcoin:1RustyRX2oai4EYYDpQGWvEL62BBGqN9T?amount=0.02&message=unit_test&time=1707382023&exp=3600&lightning=lnbc20m1pvjluezpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqhp58yjmdan79s6qqdhdzgynm4zwqd5d7xmw5fk98klysy043l2ahrqsfpp3qjmp7lwpagxun9pygexvgpjdc4jdj85fr9yq20q82gphp2nflc7jtzrcazrra7wwgzxqc8u7754cdlpfrmccae92qgzqvzq2ps8pqqqqqqpqqqqq9qqqvpeuqafqxu92d8lr6fvg0r5gv0heeeqgcrqlnm6jhphu9y00rrhy4grqszsvpcgpy9qqqqqqgqqqqq7qqzqj9n4evl6mr5aj9f58zp6fyjzup6ywn3x6sk8akg5v4tgn2q8g4fhx05wf6juaxu9760yp46454gpg5mtzgerlzezqcqvjnhjh8z3g2qqdhhwkj'
+        bip21 = 'bitcoin:1RustyRX2oai4EYYDpQGWvEL62BBGqN9T?amount=0.001&message=unit_test&time=1707382023&exp=3600&lightning=lnbc1m1ps9zprzpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqsp5zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygsdq5xysxxatsyp3k7enxv4jsxqzpu9qy9qsqw8l2pulslacwjt86vle3sgfdmcct5v34gtcpfnujsf6ufqa7v7jzdpddnwgte82wkscdlwfwucrgn8z36rv9hzk5mukltteh0yqephqpk5vegu'
 
         pi = PaymentIdentifier(None, bip21)
         self.assertTrue(pi.is_available())
@@ -143,14 +168,123 @@ class TestPaymentIdentifier(ElectrumTestCase):
         pi = PaymentIdentifier(None, bip21)
         self.assertFalse(pi.is_valid())
 
-    def test_lnurl(self):
-        lnurl = 'lnurl1dp68gurn8ghj7um9wfmxjcm99e5k7telwy7nxenrxvmrgdtzxsenjcm98pjnwxq96s9'
-        pi = PaymentIdentifier(None, lnurl)
+    def test_lnurl_basic(self):
+        """Test basic LNURL parsing without resolve"""
+        valid_lnurl = 'lnurl1dp68gurn8ghj7um9wfmxjcm99e5k7telwy7nxenrxvmrgdtzxsenjcm98pjnwxq96s9'
+        pi = PaymentIdentifier(None, valid_lnurl)
         self.assertTrue(pi.is_valid())
+        self.assertEqual(PaymentIdentifierType.LNURL, pi.type)
         self.assertFalse(pi.is_available())
         self.assertTrue(pi.need_resolve())
+        self.assertEqual(PaymentIdentifierState.NEED_RESOLVE, pi.state)
 
-        # TODO: resolve mock
+        # Test with lightning: prefix
+        lightning_lnurl = f'lightning:{valid_lnurl}'
+        pi = PaymentIdentifier(None, lightning_lnurl)
+        self.assertTrue(pi.is_valid())
+        self.assertEqual(PaymentIdentifierType.LNURL, pi.type)
+        self.assertTrue(pi.need_resolve())
+
+        # test with lud17 prefix
+        unsupported_lud_17_lnurl_c = f"lnurlc://service.io/?q=3fc3645b439ce8e7"
+        pi = PaymentIdentifier(None, unsupported_lud_17_lnurl_c)
+        self.assertFalse(pi.is_valid())
+
+        valid_lud_17_lnurl_w = f"lnurlw://service.io/?q=3fc3645b439ce8e7"
+        pi = PaymentIdentifier(None, valid_lud_17_lnurl_w)
+        self.assertTrue(pi.is_valid())
+        self.assertEqual(PaymentIdentifierType.LNURL, pi.type)
+        self.assertTrue(pi.need_resolve())
+
+    @patch('electrum.payment_identifier.request_lnurl')
+    def test_lnurl_pay_resolve(self, mock_request_lnurl):
+        """Test LNURL-pay (LNURL6) with mocked resolve"""
+        valid_lnurl = 'LNURL1DP68GURN8GHJ7MRWVF5HGUEWD3HXZERYWFJHXUEWVDHK6TMVDE6HYMRS9ANRV46DXETQPJQCS4'
+
+        # Mock lnurl-p response
+        mock_lnurl6_data = LNURL6Data(
+            callback_url='https://example.com/lnurl-pay',
+            max_sendable_sat=1_000_000,
+            min_sendable_sat=1_000,
+            metadata_plaintext='Test payment',
+            comment_allowed=100,
+        )
+        mock_request_lnurl.return_value = mock_lnurl6_data
+
+        pi = PaymentIdentifier(None, valid_lnurl)
+        self.assertTrue(pi.need_resolve())
+        self.assertEqual(PaymentIdentifierType.LNURL, pi.type)
+
+        async def run_resolve():
+            await pi._do_resolve()
+
+        asyncio.run(run_resolve())
+
+        self.assertEqual(PaymentIdentifierType.LNURLP, pi.type)
+        self.assertEqual(PaymentIdentifierState.LNURLP_FINALIZE, pi.state)
+        self.assertTrue(pi.need_finalize())
+        self.assertIsNotNone(pi.lnurl_data)
+        self.assertTrue(isinstance(pi.lnurl_data, LNURL6Data))
+        self.assertEqual(1_000, pi.lnurl_data.min_sendable_sat)
+        self.assertEqual(1_000_000, pi.lnurl_data.max_sendable_sat)
+        self.assertEqual('Test payment', pi.lnurl_data.metadata_plaintext)
+        self.assertEqual(100, pi.lnurl_data.comment_allowed)
+
+    @patch('electrum.payment_identifier.request_lnurl')
+    def test_lnurl_withdraw_resolve(self, mock_request_lnurl):
+        """Test LNURL-withdraw (LNURL3) with mocked resolve"""
+        valid_lnurl = 'LNURL1DP68GURN8GHJ7MRWVF5HGUEWD3HXZERYWFJHXUEWVDHK6TM4WPNHYCTYV4EJ7DFCVGENSDPH8QCRZETXVGCXGCMPVFJR' \
+                        'WENP8P3NJEP3XE3NQWRPXFJR2VRRVSCX2V33V5UNVC3SXP3RXCFSVFSKVWPCV3SKZWTP8YUZ7AMFW35XGUNPWUHKZURF9AMRZT' \
+                        'MVDE6HYMP0FETHVUNZDAMHQ7JSF4RX73TZ2VU9Z3J3GVMSLCJ57F'
+
+        # Mock lnurl-w response
+        mock_lnurl3_data = LNURL3Data(
+            callback_url='https://example.com/lnurl-withdraw',
+            k1='test-k1-value',
+            default_description='Test withdrawal',
+            min_withdrawable_sat=1_000,
+            max_withdrawable_sat=500_000,
+        )
+        mock_request_lnurl.return_value = mock_lnurl3_data
+
+        pi = PaymentIdentifier(None, valid_lnurl)
+        self.assertTrue(pi.need_resolve())
+        self.assertEqual(PaymentIdentifierType.LNURL, pi.type)
+
+        async def run_resolve():
+            await pi._do_resolve()
+
+        asyncio.run(run_resolve())
+
+        self.assertEqual(PaymentIdentifierType.LNURLW, pi.type)
+        self.assertEqual(PaymentIdentifierState.LNURLW_FINALIZE, pi.state)
+        self.assertIsNotNone(pi.lnurl_data)
+        self.assertEqual('test-k1-value', pi.lnurl_data.k1)
+        self.assertEqual('Test withdrawal', pi.lnurl_data.default_description)
+        self.assertEqual(1000, pi.lnurl_data.min_withdrawable_sat)
+        self.assertEqual(500000, pi.lnurl_data.max_withdrawable_sat)
+
+    @patch('electrum.payment_identifier.request_lnurl')
+    def test_lnurl_resolve_error(self, mock_request_lnurl):
+        """Test LNURL resolve error handling"""
+        lnurl = 'LNURL1DP68GURN8GHJ7MRWVF5HGUEWD3HXZERYWFJHXUEWVDHK6TM4WPNHYCTYV4EJ7DFCVGENSDPH8QCRZETXVGCXGCMPVFJR' \
+                  'WENP8P3NJEP3XE3NQWRPXFJR2VRRVSCX2V33V5UNVC3SXP3RXCFSVFSKVWPCV3SKZWTP8YUZ7AMFW35XGUNPWUHKZURF9AMRZT' \
+                  'MVDE6HYMP0FETHVUNZDAMHQ7JSF4RX73TZ2VU9Z3J3GVMSLCJ57F'
+
+        # Mock LNURL error
+        mock_request_lnurl.side_effect = LNURLError("Server error")
+
+        pi = PaymentIdentifier(None, lnurl)
+        self.assertTrue(pi.need_resolve())
+
+        async def run_resolve():
+            await pi._do_resolve()
+
+        asyncio.run(run_resolve())
+
+        self.assertEqual(PaymentIdentifierState.ERROR, pi.state)
+        self.assertTrue(pi.is_error())
+        self.assertIn("Server error", pi.get_error())
 
     def test_multiline(self):
         pi_str = '\n'.join([
@@ -166,6 +300,7 @@ class TestPaymentIdentifier(ElectrumTestCase):
         self.assertTrue(all(lambda x: isinstance(x, PartialTxOutput) for x in pi.multiline_outputs))
         self.assertEqual(1000, pi.multiline_outputs[0].value)
         self.assertEqual(1000, pi.multiline_outputs[1].value)
+        self.assertEqual(pi_str, outputs_to_multiline_csv(pi.multiline_outputs, self.config))
 
         pi_str = '\n'.join([
             'bc1qj3zx2zc4rpv3npzmznxhdxzn0wm7pzqp8p2293,0.01',
@@ -182,6 +317,7 @@ class TestPaymentIdentifier(ElectrumTestCase):
         self.assertEqual(1000, pi.multiline_outputs[0].value)
         self.assertEqual(1000, pi.multiline_outputs[1].value)
         self.assertEqual('!', pi.multiline_outputs[2].value)
+        self.assertEqual(pi_str, outputs_to_multiline_csv(pi.multiline_outputs, self.config))
 
         pi_str = '\n'.join([
             'bc1qj3zx2zc4rpv3npzmznxhdxzn0wm7pzqp8p2293,0.01',
@@ -201,16 +337,28 @@ class TestPaymentIdentifier(ElectrumTestCase):
 
         pi_str = '\n'.join([
             'bc1qj3zx2zc4rpv3npzmznxhdxzn0wm7pzqp8p2293,0.01',
-            'script(OP_RETURN baddc0ffee),0'
+            'script(OP_RETURN baddc0ffee),0',
+            'script(OP_0 OP_1NEGATE OP_16 ' + 'aa' * 80 + ' ' + 'bb' * 300 + '),0',  # every push encoding
         ])
         pi = PaymentIdentifier(self.wallet, pi_str)
         self.assertTrue(pi.is_valid())
         self.assertTrue(pi.is_multiline())
         self.assertIsNotNone(pi.multiline_outputs)
-        self.assertEqual(2, len(pi.multiline_outputs))
+        self.assertEqual(3, len(pi.multiline_outputs))
         self.assertTrue(all(lambda x: isinstance(x, PartialTxOutput) for x in pi.multiline_outputs))
         self.assertEqual(1000, pi.multiline_outputs[0].value)
         self.assertEqual(0, pi.multiline_outputs[1].value)
+        self.assertEqual(0, pi.multiline_outputs[2].value)
+        self.assertEqual(pi_str, outputs_to_multiline_csv(pi.multiline_outputs, self.config))
+
+        # disallow negative output values
+        pi_str = '\n'.join([
+            'bc1qj3zx2zc4rpv3npzmznxhdxzn0wm7pzqp8p2293,-0.01',
+        ])
+        pi = PaymentIdentifier(self.wallet, pi_str)
+        self.assertFalse(pi.is_valid())
+        self.assertTrue(pi.is_multiline())
+        self.assertIsNotNone(pi.error)
 
     def test_spk(self):
         address = 'bc1qj3zx2zc4rpv3npzmznxhdxzn0wm7pzqp8p2293'
@@ -235,58 +383,52 @@ class TestPaymentIdentifier(ElectrumTestCase):
             self.assertTrue(pi.is_available())
 
     def test_email_and_domain(self):
-        pi_str = 'some.domain'
-        pi = PaymentIdentifier(None, pi_str)
-        self.assertTrue(pi.is_valid())
-        self.assertEqual(PaymentIdentifierType.DOMAINLIKE, pi.type)
-        self.assertFalse(pi.is_available())
-        self.assertTrue(pi.need_resolve())
-
-        pi_str = 'some.weird.but.valid.domain'
-        pi = PaymentIdentifier(None, pi_str)
-        self.assertTrue(pi.is_valid())
-        self.assertEqual(PaymentIdentifierType.DOMAINLIKE, pi.type)
-        self.assertFalse(pi.is_available())
-        self.assertTrue(pi.need_resolve())
-
-        pi_str = 'user@some.domain'
-        pi = PaymentIdentifier(None, pi_str)
-        self.assertTrue(pi.is_valid())
-        self.assertEqual(PaymentIdentifierType.EMAILLIKE, pi.type)
-        self.assertFalse(pi.is_available())
-        self.assertTrue(pi.need_resolve())
-
-        pi_str = 'user@some.weird.but.valid.domain'
-        pi = PaymentIdentifier(None, pi_str)
-        self.assertTrue(pi.is_valid())
-        self.assertEqual(PaymentIdentifierType.EMAILLIKE, pi.type)
-        self.assertFalse(pi.is_available())
-        self.assertTrue(pi.need_resolve())
-
         # TODO resolve mock
+        domain_pi_strings = (
+            'some.domain',
+            'some.weird.but.valid.domain',
+            'lnbcsome.weird.but.valid.domain',
+            'bc1qsome.weird.but.valid.domain',
+            'lnurlsome.weird.but.valid.domain',
+        )
+        for pi_str in domain_pi_strings:
+            pi = PaymentIdentifier(None, pi_str)
+            self.assertTrue(pi.is_valid())
+            self.assertEqual(PaymentIdentifierType.DOMAINLIKE, pi.type)
+            self.assertFalse(pi.is_available())
+            self.assertTrue(pi.need_resolve())
 
-    def test_bip70(self):
-        pi_str = 'bitcoin:?r=https://test.bitpay.com/i/87iLJoaYVyJwFXtdassQJv'
-        pi = PaymentIdentifier(None, pi_str)
-        self.assertTrue(pi.is_valid())
-        self.assertEqual(PaymentIdentifierType.BIP70, pi.type)
-        self.assertFalse(pi.is_available())
-        self.assertTrue(pi.need_resolve())
-
-        # TODO resolve mock
+        email_pi_strings = (
+            'user@some.domain',
+            'user@some.weird.but.valid.domain',
+            'lnbcuser@some.domain',
+            'lnurluser@some.domain',
+            'bc1quser@some.domain',
+            'lightning:user@some.domain',
+            'lightning:user@some.weird.but.valid.domain',
+            'lightning:lnbcuser@some.domain',
+            'lightning:lnurluser@some.domain',
+            'lightning:bc1quser@some.domain',
+        )
+        for pi_str in email_pi_strings:
+            pi = PaymentIdentifier(None, pi_str)
+            self.assertTrue(pi.is_valid())
+            self.assertEqual(PaymentIdentifierType.EMAILLIKE, pi.type)
+            self.assertFalse(pi.is_available())
+            self.assertTrue(pi.need_resolve())
 
     async def test_invoice_from_payment_identifier(self):
         # amount, expired, message, lightning w matching amount
-        bip21 = 'bitcoin:1RustyRX2oai4EYYDpQGWvEL62BBGqN9T?amount=0.02&message=unit_test&time=1707382023&exp=3600&lightning=lnbc20m1pvjluezpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqhp58yjmdan79s6qqdhdzgynm4zwqd5d7xmw5fk98klysy043l2ahrqsfpp3qjmp7lwpagxun9pygexvgpjdc4jdj85fr9yq20q82gphp2nflc7jtzrcazrra7wwgzxqc8u7754cdlpfrmccae92qgzqvzq2ps8pqqqqqqpqqqqq9qqqvpeuqafqxu92d8lr6fvg0r5gv0heeeqgcrqlnm6jhphu9y00rrhy4grqszsvpcgpy9qqqqqqgqqqqq7qqzqj9n4evl6mr5aj9f58zp6fyjzup6ywn3x6sk8akg5v4tgn2q8g4fhx05wf6juaxu9760yp46454gpg5mtzgerlzezqcqvjnhjh8z3g2qqdhhwkj'
+        bip21 = 'bitcoin:1RustyRX2oai4EYYDpQGWvEL62BBGqN9T?amount=0.001&message=unit_test&time=1707382023&exp=3600&lightning=lnbc1m1ps9zprzpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqsp5zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygsdq5xysxxatsyp3k7enxv4jsxqzpu9qy9qsqw8l2pulslacwjt86vle3sgfdmcct5v34gtcpfnujsf6ufqa7v7jzdpddnwgte82wkscdlwfwucrgn8z36rv9hzk5mukltteh0yqephqpk5vegu'
 
         pi = PaymentIdentifier(None, bip21)
         invoice = invoice_from_payment_identifier(pi, None, None)
         self.assertTrue(isinstance(invoice, Invoice))
         self.assertTrue(invoice.is_lightning())
-        self.assertEqual(2_000_000_000, invoice.amount_msat)
+        self.assertEqual(100_000_000, invoice.amount_msat)
 
         text = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
-        d = restore_wallet_from_text(text, path=self.wallet2_path, gap_limit=2, config=self.config)
+        d = restore_wallet_from_text__for_unittest(text, path=self.wallet2_path, config=self.config)
         wallet2 = d['wallet']  # type: Standard_Wallet
 
         # no amount bip21+lightning, MAX amount passed

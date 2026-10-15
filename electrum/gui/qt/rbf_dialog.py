@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from .main_window import ElectrumWindow
 
 
-from .confirm_tx_dialog import TxEditor, TxSizeLabel, HelpLabel
+from .confirm_tx_dialog import TxEditor, TxEditorContext, TxSizeLabel, HelpLabel
 
 
 class _BaseRBFDialog(TxEditor):
@@ -47,6 +47,7 @@ class _BaseRBFDialog(TxEditor):
             title=title,
             make_tx=self.rbf_func,
             output_value=output_value,
+            context=TxEditorContext.RBF,
         )
 
         self.fee_e.setFrozen(True)  # disallow setting absolute fee for now, as wallet.bump_fee can only target feerate

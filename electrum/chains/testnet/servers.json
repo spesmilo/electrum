@@ -1,4 +1,10 @@
 {
+    "3tc6nefii2fwoc66dqvrwcyj64dd3r35ihgxvp4u37itsopns5fjtead.onion": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.6"
+    },
     "blackie.c3-soft.com": {
         "pruning": "-",
         "s": "57006",
@@ -22,27 +28,28 @@
         "t": "143",
         "version": "1.4"
     },
+    "gsw6sn27quwf6u3swgra6o7lrp5qau6kt3ymuyoxgkth6wntzm2bjwyd.onion": {
+        "pruning": "-",
+        "s": "51002",
+        "t": "51001",
+        "version": "1.6"
+    },
     "testnet.aranguren.org": {
         "pruning": "-",
         "s": "51002",
         "t": "51001",
-        "version": "1.4.2"
-    },
-    "testnet.hsmiths.com": {
-        "pruning": "-",
-        "s": "53012",
-        "version": "1.4.2"
+        "version": "1.6"
     },
     "testnet.qtornado.com": {
         "pruning": "-",
         "s": "51002",
         "t": "51001",
-        "version": "1.5"
+        "version": "1.6.0"
     },
-    "tn.not.fyi": {
+    "v22019051929289916.bestsrv.de": {
         "pruning": "-",
-        "s": "55002",
-        "t": "55001",
-        "version": "1.4"
+        "s": "50002",
+        "t": "50001",
+        "version": "1.6"
     }
 }

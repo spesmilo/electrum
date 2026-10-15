@@ -20,6 +20,7 @@ ElDialog {
     property bool isLightning: false
 
     padding: 0
+    needsSystemBarPadding: false
 
     ColumnLayout {
         width: parent.width
@@ -94,18 +95,19 @@ ElDialog {
             }
         }
 
-        GridLayout {
-            width: parent.width
-	    columns: 2
+        DialogButtonContainer {
+            Layout.fillWidth: true
 
             FlatButton {
                 Layout.fillWidth: true
+                Layout.preferredWidth: 1
                 text: qsTr('Onchain')
                 icon.source: '../../icons/bitcoin.png'
                 onClicked: { dialog.isLightning = false; doAccept() }
             }
             FlatButton {
                 Layout.fillWidth: true
+                Layout.preferredWidth: 1
                 enabled: Daemon.currentWallet.isLightning && (Daemon.currentWallet.lightningCanReceive.satsInt
                             > amountBtc.textAsSats.satsInt || Daemon.currentWallet.canGetZeroconfChannel)
                 text: qsTr('Lightning')
@@ -131,7 +133,7 @@ ElDialog {
                         })
                         confirmdialog.open()
                     } else {
-                        // show error that amnt > 200k is neccessary to get zeroconf channel
+                        // show error that amnt > 200k is necessary to get zeroconf channel
                         var confirmdialog = app.messageDialog.createObject(dialog, {
                             title: qsTr("Amount too low"),
                             text: [qsTr("You don't have channels with enough inbound liquidity to receive this payment."),

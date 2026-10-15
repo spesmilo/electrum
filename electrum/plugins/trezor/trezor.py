@@ -33,9 +33,11 @@ try:
         InputScriptType, OutputScriptType, MultisigRedeemScriptType,
         TxInputType, TxOutputType, TxOutputBinType, TransactionType, AmountUnit)
 
-    from trezorlib.client import PASSPHRASE_ON_DEVICE
+    from trezorlib.client import PassphraseSetting
     import trezorlib.log
     #trezorlib.log.enable_debug_output()
+
+    PASSPHRASE_ON_DEVICE = PassphraseSetting.ON_DEVICE
 
     TREZORLIB = True
 except Exception as e:
@@ -153,8 +155,8 @@ class TrezorPlugin(HW_PluginBase):
     libraries_URL = 'https://pypi.org/project/trezor/'
     minimum_firmware = (1, 5, 2)
     keystore_class = TrezorKeyStore
-    minimum_library = (0, 13, 0)
-    maximum_library = (0, 14)
+    minimum_library = (0, 20, 0)
+    maximum_library = (0, 21)
     SUPPORTED_XTYPES = ('standard', 'p2wpkh-p2sh', 'p2wpkh', 'p2wsh-p2sh', 'p2wsh')
     DEVICE_IDS = (TREZOR_PRODUCT_KEY,)
 
@@ -324,11 +326,11 @@ class TrezorPlugin(HW_PluginBase):
         raise ValueError('unexpected txin type: {}'.format(electrum_txin_type))
 
     def get_trezor_amount_unit(self):
-        if self.config.decimal_point == 0:
+        if self.config.BTC_AMOUNTS_DECIMAL_POINT == 0:
             return AmountUnit.SATOSHI
-        elif self.config.decimal_point == 2:
+        elif self.config.BTC_AMOUNTS_DECIMAL_POINT == 2:
             return AmountUnit.MICROBITCOIN
-        elif self.config.decimal_point == 5:
+        elif self.config.BTC_AMOUNTS_DECIMAL_POINT == 5:
             return AmountUnit.MILLIBITCOIN
         else:
             return AmountUnit.BITCOIN
@@ -508,6 +510,10 @@ class TrezorPlugin(HW_PluginBase):
         return t
 
     def wizard_entry_for_device(self, device_info: 'DeviceInfo', *, new_wallet=True) -> str:
+        if device_info.initialized is None:
+            # Device state is unknown - pairing is needed.
+            return 'trezor_unpaired'
+
         if new_wallet:  # new wallet
             return 'trezor_not_initialized' if not device_info.initialized else 'trezor_start'
         else:  # unlock existing wallet
@@ -515,6 +521,15 @@ class TrezorPlugin(HW_PluginBase):
 
     # insert trezor pages in new wallet wizard
     def extend_wizard(self, wizard: 'NewWalletWizard'):
+        def _after_pairing(d: dict) -> str:
+            if d['wallet_exists']:
+                return 'trezor_unlock'
+
+            if not d['trezor_initialized']:
+                return 'trezor_not_initialized'
+
+            return 'trezor_start'
+
         views = {
             'trezor_start': {
                 'next': 'trezor_xpub',
@@ -532,6 +547,9 @@ class TrezorPlugin(HW_PluginBase):
             },
             'trezor_do_init': {
                 'next': 'trezor_start',
+            },
+            'trezor_unpaired': {
+                'next': _after_pairing,
             },
             'trezor_unlock': {
                 'last': True

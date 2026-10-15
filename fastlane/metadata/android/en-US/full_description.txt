@@ -1,21 +1,18 @@
-Electrum is a libre self-custodial Bitcoin wallet with support of the Lightning Network.
+Electrum is a libre self-custodial Bitcoin wallet with support for the Lightning Network.
 It's secure, feature rich and trusted by the Bitcoin community since 2011.
 
-<b>Features:</b>
-<ul>
-<li><b>Safe:</b> Your private keys are encrypted and never leave your device.</li>
-<li><b>Forgiving:</b> Your wallet can be recovered from a secret phrase.</li>
-<li><b>Instant On:</b> Electrum uses servers that index the Bitcoin blockchain making it fast.</li>
-<li><b>No Lock-In:</b> You can export your private keys and use them in other Bitcoin clients.</li>
-<li><b>No Downtimes:</b> Electrum servers are decentralized and redundant. Your wallet is never down.</li>
-<li><b>Proof Checking:</b> Electrum Wallet verifies all the transactions in your history using SPV.</li>
-<li><b>Cold Storage:</b> Keep your private keys offline and go online with a watching-only wallet.</li>
-</ul>
+Features:
+• Safe: Your private keys are encrypted and never leave your device.
+• Open-source: MIT-licensed free/libre open-source software, with reproducible builds.
+• Forgiving: Your wallet can be recovered from a secret phrase.
+• Instant On: Electrum uses servers that index the Bitcoin blockchain making it fast.
+• No Lock-In: You can export your private keys and use them in other Bitcoin clients.
+• No Downtimes: Electrum servers are decentralized and redundant. Your wallet is never down.
+• Proof Checking: Electrum Wallet verifies all the transactions in your history using SPV.
+• Cold Storage: Keep your private keys offline and go online with a watching-only wallet.
 
-<b>Support:</b>
-<ul>
-<li><a href="https://electrum.org">Official Website</a> has a detailed <a href="electrum.readthedocs.io/">documentation and FAQ</a></li>
-<li><a href="https://github.com/spesmilo/electrum">Source code on GitHub</a></li>
-<li>Support: Please use GitHub or email electrumdev@gmail.com to report bugs rather than the app rating system.</li>
-<li>Please translate on <a href="https://crowdin.com/project/electrum">Crowdin</a></li>
-</ul>
+Links:
+• Website: https://electrum.org  (with documentation and FAQ)
+• Source code: https://github.com/spesmilo/electrum
+• Help us with translations: https://crowdin.com/project/electrum
+• Support: Please use GitHub (preferred) or email electrumdev@gmail.com to report bugs rather than the app rating system.

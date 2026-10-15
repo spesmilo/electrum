@@ -40,7 +40,8 @@ from electrum.logging import Logger
 from electrum.plugin import BasePlugin
 from electrum.transaction import PartialTransaction, tx_from_any
 from electrum.util import (
-    log_exceptions, OldTaskGroup, ca_path, trigger_callback, event_listener, json_decode, make_aiohttp_proxy_connector
+    log_exceptions, OldTaskGroup, ca_path, trigger_callback, event_listener, json_decode,
+    make_aiohttp_proxy_connector, run_sync_function_on_asyncio_thread,
 )
 from electrum.wallet import Multisig_Wallet
 
@@ -73,7 +74,7 @@ class PsbtNostrPlugin(BasePlugin):
             self.cosigner_wallets.pop(wallet)
 
 
-class CosignerWallet(Logger):
+class CosignerWallet(Logger):  # children have to inherit EventListener and register callbacks
     # one for each open window (Qt) / open wallet (QML)
     # if user signs a tx, we have the password
     # if user receives a dm? needs to enter password first
@@ -104,6 +105,19 @@ class CosignerWallet(Logger):
         self.nostr_pubkey = None
 
         for keystore in wallet.get_keystores():
+            # design question: how do we select our nsec/npub for communicating with our cosigners?
+            #       - We want a scheme where every cosigner can *non-interactively* figure out
+            #         each other's *npub*. The only cryptographic material we have shared amongst the cosigners
+            #         is the set of xpubs (~output script descriptors).
+            #       - Cosigners might be using hardware signers that do not allow arbitrary access to the
+            #         private keys corresponding to their xpub, and they need to be able to do ECDH
+            #         with their nostr key to encrypt/decrypt nostr DMs.
+            #       - The keys are not *that* sensitive: they only allow sending proposed PSBTs to cosigners.
+            #       Hence we construct the nostr secret key for each cosigner based on their xpub.
+            #       - drawback: each cosigner knows not only the *npub* but also the *nsec* for each other.
+            #         This is an accepted tradeoff. One cosigner "impersonating" another is accepted.
+            #       - assumption: people other than the multisig participants are unlikely to know the xpubs
+            #         participating in the multisig.
             # note: there should be domain separation between testnet/mainnet.
             #       Currently there is, due to the xpub str encoding it in its header.
             xpub = keystore.get_master_public_key()  # type: str
@@ -123,6 +137,7 @@ class CosignerWallet(Logger):
 
     @event_listener
     async def on_event_proxy_set(self, *args):
+        # note: the callbacks get registered in the child classes of CosignerWallet
         if not (self.network and self.nostr_pubkey):
             return
         await self.stop()
@@ -210,6 +225,8 @@ class CosignerWallet(Logger):
                     continue
                 try:
                     message = json_decode(message)
+                    if not isinstance(message, dict):
+                        raise Exception("malformed message, not dict")
                     tx_hex = message.get('tx')
                     label = message.get('label', '')
                     tx = tx_from_any(tx_hex)
@@ -248,9 +265,9 @@ class CosignerWallet(Logger):
     def mark_pending_event_rcvd(self, event_id):
         self.logger.debug('marking event rcvd')
         self.known_events[event_id] = now()
-        self.pending.set()
+        run_sync_function_on_asyncio_thread(self.pending.set, block=False)
 
-    def prepare_messages(self, tx: Union[Transaction, PartialTransaction], label: str = None) -> List[Tuple[str, dict]]:
+    def prepare_messages(self, tx: Union[Transaction, PartialTransaction], label: str | None = None) -> List[Tuple[str, dict]]:
         messages = []
         for xpub, pubkey in self.cosigner_list:
             if not self.cosigner_can_sign(tx, xpub):
@@ -261,7 +278,7 @@ class CosignerWallet(Logger):
             messages.append((pubkey, payload))
         return messages
 
-    def send_psbt(self, tx: Union[Transaction, PartialTransaction], label: str):
+    def send_psbt(self, tx: Union[Transaction, PartialTransaction], label: str | None):
         self.do_send(self.prepare_messages(tx, label), tx.txid())
 
     def do_send(self, messages: List[Tuple[str, dict]], txid: Optional[str] = None):
@@ -274,10 +291,11 @@ class CosignerWallet(Logger):
         self,
         tx: Union['Transaction', 'PartialTransaction'],
         *,
-        label: str = None,
-        on_failure: Callable = None,
-        on_success: Callable = None
+        label: str | None = None,
+        on_failure: Callable[[str], None] | None = None,
+        on_success: Callable[[], None] | None = None
     ) -> None:
+        assert tx.txid(), "Shouldn't allow to save tx without txid"
         try:
             # TODO: adding tx should be handled more gracefully here:
             # 1) don't replace tx with same tx with less signatures

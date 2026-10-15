@@ -20,6 +20,7 @@ from .util import read_QIcon, WWLabel, MessageBoxMixin, MONOSPACE_FONT, get_icon
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
+    from electrum.wallet import Request
 
 
 class ReceiveTab(QWidget, MessageBoxMixin, Logger):
@@ -101,6 +102,9 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.receive_zeroconf_button = QPushButton(_('Accept'))
         self.receive_zeroconf_button.clicked.connect(self.on_accept_zeroconf)
 
+        self.previous_request = None  # type: Optional['Request']
+        self.confirmed_zeroconf_for_this_request = False  # type: bool
+
         def on_receive_rebalance():
             if self.receive_rebalance_button.suggestion:
                 chan1, chan2, delta = self.receive_rebalance_button.suggestion
@@ -112,7 +116,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         def on_receive_swap():
             if self.receive_swap_button.suggestion:
                 chan, swap_recv_amount_sat = self.receive_swap_button.suggestion
-                self.window.run_swap_dialog(is_reverse=True, recv_amount_sat=swap_recv_amount_sat, channels=[chan])
+                self.window.run_swap_dialog(is_reverse=True, recv_amount_sat_or_max=swap_recv_amount_sat, channels=[chan])
         self.receive_swap_button.clicked.connect(on_receive_swap)
         buttons = QHBoxLayout()
         buttons.addWidget(self.receive_rebalance_button)
@@ -221,7 +225,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
 
     def update_receive_widgets(self):
         b = self.config.GUI_QT_RECEIVE_TAB_QR_VISIBLE
-        self.receive_widget.update_visibility(b)
+        self.receive_widget.update_visibility(b, bool(self.receive_help_text.text()))
 
     def update_current_request(self):
         if len(self.request_list.selectionModel().selectedRows(0)) > 1:
@@ -229,6 +233,9 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         else:
             key = self.request_list.get_current_key()
         req = self.wallet.get_request(key) if key else None
+        if req != self.previous_request:
+            self.previous_request = req
+            self.confirmed_zeroconf_for_this_request = False
         if req is None:
             self.receive_e.setText('')
             self.addr = self.URI = self.lnaddr = ''
@@ -243,7 +250,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.ln_help = help_texts.ln_help
         can_rebalance = help_texts.can_rebalance()
         can_swap = help_texts.can_swap()
-        can_zeroconf = help_texts.can_zeroconf()
+        can_zeroconf = help_texts.can_zeroconf() if not self.confirmed_zeroconf_for_this_request else False
         self.receive_rebalance_button.suggestion = help_texts.ln_rebalance_suggestion
         self.receive_swap_button.suggestion = help_texts.ln_swap_suggestion
         self.receive_rebalance_button.setVisible(can_rebalance)
@@ -253,25 +260,26 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.receive_zeroconf_button.setVisible(can_zeroconf)
         self.receive_zeroconf_button.setEnabled(can_zeroconf)
         text, data, help_text, title = self.get_tab_data()
+        if self.confirmed_zeroconf_for_this_request and help_texts.can_zeroconf():
+            help_text = ''
+        # set help before receive_e so we don't flicker from qr to help
+        self.receive_help_text.setText(help_text)
         self.receive_e.setText(text)
         self.receive_qr.setData(data)
-        self.receive_help_text.setText(help_text)
         for w in [self.receive_e, self.receive_qr]:
             w.setEnabled(bool(text) and (not help_text or can_zeroconf))
             w.setToolTip(help_text)
         # macOS hack (similar to #4777)
         self.receive_e.repaint()
         # always show
-        if can_zeroconf:
-            # show the help message if zeroconf so user can first accept it and still sees the invoice
-            # after accepting
-            self.receive_widget.show_help()
         self.receive_widget.setVisible(True)
         self.toggle_qr_button.setEnabled(True)
         self.update_receive_qr_window()
 
     def on_accept_zeroconf(self):
         self.receive_zeroconf_button.setVisible(False)
+        self.confirmed_zeroconf_for_this_request = True
+        self.receive_help_text.setText('')
         self.update_receive_widgets()
 
     def get_tab_data(self):
@@ -386,8 +394,8 @@ class ReceiveWidget(QWidget):
 
         self.setLayout(vbox)
 
-    def update_visibility(self, is_qr):
-        if str(self.textedit.toPlainText()):
+    def update_visibility(self, is_qr: bool, show_help: bool):
+        if str(self.textedit.toPlainText()) and not show_help:
             self.help_widget.setVisible(False)
             self.textedit.setVisible(not is_qr)
             self.qr.setVisible(is_qr)

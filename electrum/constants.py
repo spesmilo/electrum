@@ -23,6 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import copy
 import os
 import json
 from typing import Sequence, Tuple, Mapping, Type, List, Optional
@@ -57,6 +58,7 @@ def create_fallback_node_list(fallback_nodes_dict: dict[str, dict]) -> List[LNPe
 
 GIT_REPO_URL = "https://github.com/spesmilo/electrum"
 GIT_REPO_ISSUES_URL = "https://github.com/spesmilo/electrum/issues"
+RELEASE_NOTES_URL = "https://raw.githubusercontent.com/spesmilo/electrum/refs/heads/master/RELEASE-NOTES"
 BIP39_WALLET_FORMATS = read_json('bip39_wallet_formats.json')
 
 
@@ -98,8 +100,13 @@ class AbstractNet:
     def DEFAULT_SERVERS(cls) -> Mapping[str, Mapping[str, str]]:
         if cls._cached_default_servers is None:
             default_file = {} if cls.TESTNET else None  # for mainnet we hard-fail if the file is missing.
-            cls._cached_default_servers = read_json(os.path.join('chains', cls.NET_NAME, 'servers.json'), default_file)
-        return cls._cached_default_servers
+            d = read_json(os.path.join('chains', cls.NET_NAME, 'servers.json'), default_file)
+            # sanity check
+            for k, v in d.items():
+                assert isinstance(v, dict), f'value for {k} not a dict in servers.json'
+                assert all(isinstance(v2, str) for v2 in v.values()), f'non-str values for key {k} in servers.json'
+            cls._cached_default_servers = d
+        return copy.deepcopy(cls._cached_default_servers)
 
     _cached_fallback_lnnodes = None
     @classproperty
@@ -250,7 +257,16 @@ class BitcoinSignet(BitcoinTestnet):
     LN_DNS_SEEDS = []
 
 
+class BitcoinMutinynet(BitcoinTestnet):
+
+    NET_NAME = "mutinynet"
+    BOLT11_HRP = "tbs"
+    GENESIS = "00000008819873e925422c1ff0f99f7cc9bbb232af63a077a480a3633bee1ef6"
+    LN_DNS_SEEDS = []
+
+
 NETS_LIST = tuple(all_subclasses(AbstractNet))  # type: Sequence[Type[AbstractNet]]
+NETS_LIST = tuple(sorted(NETS_LIST, key=lambda x: x.NET_NAME))
 
 assert len(NETS_LIST) == len(set([chain.NET_NAME for chain in NETS_LIST])), "NET_NAME must be unique for each concrete AbstractNet"
 assert len(NETS_LIST) == len(set([chain.datadir_subdir() for chain in NETS_LIST])), "datadir must be unique for each concrete AbstractNet"

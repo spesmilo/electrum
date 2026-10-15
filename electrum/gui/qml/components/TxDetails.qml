@@ -480,6 +480,7 @@ Pane {
         }
 
     }
+    property color navigationBarBackgroundColor: constants.highlightBackground
 
     TxDetails {
         id: txdetails

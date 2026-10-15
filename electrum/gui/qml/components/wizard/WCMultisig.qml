@@ -41,6 +41,7 @@ WizardComponent {
 
             InfoTextArea {
                 Layout.preferredWidth: parent.width
+                backgroundColor: constants.darkerDialogBackground
                 text: qsTr('Choose the number of participants, and the number of signatures needed to unlock funds in your wallet.')
             }
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # from https://github.com/metabrainz/picard/blob/e1354632d2db305b7a7624282701d34d73afa225/scripts/package/macos-notarize-app.sh
 
+set -e
 
 if [ -z "$1" ]; then
     echo "Specify app bundle as first parameter"

@@ -1,6 +1,6 @@
 # based on https://github.com/kivy/python-for-android/blob/master/Dockerfile
 
-FROM debian:bookworm@sha256:d568e251e460295a8743e9d5ef7de673c5a8f9027db11f4e666e96fb5bed708e
+FROM debian:trixie@sha256:a3b5f4f0286249a124bfe9845b3aec0f88de32ff31dd8d7e1b945f9f98d116b0
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -25,19 +25,23 @@ ENV LANG="en_US.UTF-8" \
 RUN apt -y update -qq \
     && apt -y install -qq --no-install-recommends --allow-downgrades \
     curl \
+    wget \
     unzip \
     ca-certificates \
+    python3 \
     && apt -y autoremove
 
 
 ENV ANDROID_NDK_HOME="${ANDROID_HOME}/android-ndk"
-ENV ANDROID_NDK_VERSION="23b"
-ENV ANDROID_NDK_HASH="c6e97f9c8cfe5b7be0a9e6c15af8e7a179475b7ded23e2d1c1fa0945d6fb4382"
+ENV ANDROID_NDK_VERSION="28c"
+ENV ANDROID_NDK_HASH="dfb20d396df28ca02a8c708314b814a4d961dc9074f9a161932746f815aa552f"
 ENV ANDROID_NDK_HOME_V="${ANDROID_NDK_HOME}-r${ANDROID_NDK_VERSION}"
 
 # get the latest version from https://developer.android.com/ndk/downloads/index.html
 ENV ANDROID_NDK_ARCHIVE="android-ndk-r${ANDROID_NDK_VERSION}-linux.zip"
 ENV ANDROID_NDK_DL_URL="https://dl.google.com/android/repository/${ANDROID_NDK_ARCHIVE}"
+
+# below disabled in favor of CI build download
 
 # download and install Android NDK
 RUN curl --location --progress-bar \
@@ -49,12 +53,12 @@ RUN curl --location --progress-bar \
     && ln -sfn "${ANDROID_NDK_HOME_V}" "${ANDROID_NDK_HOME}" \
     && rm -rf "${ANDROID_NDK_ARCHIVE}"
 
-
 ENV ANDROID_SDK_HOME="${ANDROID_HOME}/android-sdk"
 
 # get the latest version from https://developer.android.com/studio/index.html
-ENV ANDROID_SDK_TOOLS_VERSION="9477386"
-ENV ANDROID_SDK_HASH="bd1aa17c7ef10066949c88dc6c9c8d536be27f992a1f3b5a584f9bd2ba5646a0"
+ENV ANDROID_SDK_TOOLS_VERSION="14742923"
+ENV ANDROID_SDK_HASH="04453066b540409d975c676d781da1477479dde3761310f1a7eb92a1dfb15af7"
+
 ENV ANDROID_SDK_TOOLS_ARCHIVE="commandlinetools-linux-${ANDROID_SDK_TOOLS_VERSION}_latest.zip"
 ENV ANDROID_SDK_TOOLS_DL_URL="https://dl.google.com/android/repository/${ANDROID_SDK_TOOLS_ARCHIVE}"
 ENV ANDROID_SDK_MANAGER="${ANDROID_SDK_HOME}/cmdline-tools/bin/sdkmanager --sdk_root=${ANDROID_SDK_HOME}"
@@ -73,16 +77,45 @@ RUN mkdir --parents "${ANDROID_SDK_HOME}/.android/" \
     && echo '### User Sources for Android SDK Manager' \
         > "${ANDROID_SDK_HOME}/.android/repositories.cfg"
 
-# accept Android licenses (JDK necessary!)
+# download Java-17 (debian 13 only packages Java-21 and Java-25)
+# - we download the amd64 binaries from debian 12 repos
+# - we should try to upgrade to Java-21...
+ENV JAVA_JRE_DL_URL="https://snapshot.debian.org/archive/debian/20260130T143028Z/pool/main/o/openjdk-17/openjdk-17-jre-headless_17.0.18+8-1~deb12u1_amd64.deb"
+ENV JAVA_JRE_ARCHIVE="openjdk-17-jre-headless.deb"
+ENV JAVA_JRE_HASH="5bc36cbb4e383dbea4168d57b5fd9b42375ec8837dd62a1d56677632c3c960e0"
+ENV JAVA_JDK_DL_URL="https://snapshot.debian.org/archive/debian/20260130T143028Z/pool/main/o/openjdk-17/openjdk-17-jdk-headless_17.0.18+8-1~deb12u1_amd64.deb"
+ENV JAVA_JDK_ARCHIVE="openjdk-17-jdk-headless.deb"
+ENV JAVA_JDK_HASH="8841044caa66860a71039342fe3c02b7853b61c518e05970e501faa215b1788a"
 RUN apt -y update -qq \
-    && apt -y install -qq --no-install-recommends --allow-downgrades \
-        openjdk-17-jdk-headless \
-    && apt -y autoremove
+    && apt -y install -qq --no-install-recommends \
+        ca-certificates-java \
+        java-common \
+        libcups2 \
+        libfontconfig1 \
+        liblcms2-2 \
+        libjpeg62-turbo \
+        libnss3 \
+        libasound2 \
+        libfreetype6 \
+        libharfbuzz0b \
+        libpcsclite1 \
+    && apt -y autoremove \
+    && cd /opt \
+    && curl --location --progress-bar "${JAVA_JRE_DL_URL}" --output "${JAVA_JRE_ARCHIVE}" \
+    && echo "${JAVA_JRE_HASH} ${JAVA_JRE_ARCHIVE}" | sha256sum -c - \
+    && dpkg -i "${JAVA_JRE_ARCHIVE}" \
+    && rm "${JAVA_JRE_ARCHIVE}" \
+    && curl --location --progress-bar "${JAVA_JDK_DL_URL}" --output "${JAVA_JDK_ARCHIVE}" \
+    && echo "${JAVA_JDK_HASH} ${JAVA_JDK_ARCHIVE}" | sha256sum -c - \
+    && dpkg -i "${JAVA_JDK_ARCHIVE}" \
+    && rm "${JAVA_JDK_ARCHIVE}"
+
+# accept Android licenses (JDK necessary!)
 RUN yes | ${ANDROID_SDK_MANAGER} --licenses > /dev/null
 
 
-ENV ANDROID_SDK_BUILD_TOOLS_MAJOR_V="31"
-ENV ANDROID_SDK_BUILD_TOOLS_VERSION="31.0.0"
+ENV ANDROID_SDK_BUILD_TOOLS_MAJOR_V="36"
+ENV ANDROID_SDK_BUILD_TOOLS_VERSION="36.0.0"
 
 # download platforms, API, build tools
 RUN ${ANDROID_SDK_MANAGER} "platforms;android-${ANDROID_SDK_BUILD_TOOLS_MAJOR_V}" > /dev/null && \
@@ -111,16 +144,10 @@ RUN curl --location --progress-bar \
 # https://github.com/kivy/buildozer/blob/master/docs/source/installation.rst#android-on-ubuntu-2004-64bit
 RUN apt -y update -q \
     && apt -y install -q --no-install-recommends --allow-downgrades \
-        python3 \
-        python3-dev \
-        python3-pip \
-        python3-setuptools \
-        python3-venv \
         wget \
         lbzip2 \
         patch \
         sudo \
-        software-properties-common \
         git \
         zip \
         unzip \
@@ -132,9 +159,7 @@ RUN apt -y update -q \
         libtool \
         pkg-config \
         zlib1g-dev \
-        libncurses5-dev \
-        libncursesw5-dev \
-        libtinfo5 \
+        libncurses-dev \
         cmake \
         libffi-dev \
         libssl-dev \
@@ -149,39 +174,57 @@ RUN apt -y update -qq \
     && apt -y install -qq --no-install-recommends --allow-downgrades \
         libopengl-dev \
         libegl-dev \
-        dos2unix \
+        ninja-build \
     && apt -y autoremove \
     && apt -y clean
 
 
 # create new user to avoid using root; but with sudo access and no password for convenience.
 ARG UID=1000
-ENV USER="user"
-ENV HOME_DIR="/home/${USER}"
-ENV WORK_DIR="${HOME_DIR}/wspace" \
-    PATH="${HOME_DIR}/.local/bin:${PATH}"
-RUN useradd --uid $UID --create-home --shell /bin/bash ${USER}
-RUN usermod -append --groups sudo ${USER}
+RUN useradd -u "$UID" -m -s /usr/bin/bash -d /home/user user
+RUN usermod -aG sudo user
 RUN echo "%sudo ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+ENV HOME_DIR=/home/user
+ENV WORK_DIR="${HOME_DIR}/wspace"
+ENV PATH="${HOME_DIR}/.local/bin:${PATH}"
 WORKDIR ${WORK_DIR}
-RUN chown --recursive ${USER} ${WORK_DIR} ${ANDROID_SDK_HOME}
-RUN chown ${USER} /opt
-USER ${USER}
+RUN chown -R user ${WORK_DIR} ${ANDROID_SDK_HOME} /opt
+USER user
+
+# build cpython. FIXME we can't use the python3 from apt, as it is too new o.O
+# - p4a and buildozer require cython<3 (see https://github.com/kivy/python-for-android/issues/2919)
+#   but the last such version, cython 0.29.37, can only be built by up to python 3.12
+ENV VENV_PYTHON_VERSION="3.12.12"
+ENV VENV_PY_VER_MAJOR="3.12"
+ENV VENV_PYTHON_HASH="487c908ddf4097a1b9ba859f25fe46d22ccaabfb335880faac305ac62bffb79b"
+RUN mkdir --parents "/opt/cpython/download" && cd "/opt/cpython/download" \
+    && wget "https://www.python.org/ftp/python/${VENV_PYTHON_VERSION}/Python-${VENV_PYTHON_VERSION}.tgz" \
+    && echo "${VENV_PYTHON_HASH} Python-${VENV_PYTHON_VERSION}.tgz" | sha256sum -c - \
+    && tar xf "Python-${VENV_PYTHON_VERSION}.tgz" -C "/opt/cpython/download" \
+    && cd "Python-${VENV_PYTHON_VERSION}" \
+    && mkdir "/opt/cpython/install" \
+    && ./configure \
+        --prefix="/opt/cpython/install" \
+        -q \
+    && make "-j$(nproc)" -s \
+    && make -s altinstall \
+    && ln -s "/opt/cpython/install/bin/python${VENV_PY_VER_MAJOR}" "/opt/cpython/install/bin/python3"
+RUN "/opt/cpython/install/bin/python3" -m ensurepip
 
 # venv, VIRTUAL_ENV is used by buildozer to indicate a venv environment
 ENV VIRTUAL_ENV=/opt/venv
-RUN python3 -m venv ${VIRTUAL_ENV}
+RUN "/opt/cpython/install/bin/python3" -m venv ${VIRTUAL_ENV}
 ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
 
-COPY contrib/deterministic-build/requirements-build-base.txt /opt/deterministic-build/
-COPY contrib/deterministic-build/requirements-build-android.txt /opt/deterministic-build/
+COPY --chown=user contrib/deterministic-build/requirements-build-base.txt /opt/deterministic-build/
+COPY --chown=user contrib/deterministic-build/requirements-build-android.txt /opt/deterministic-build/
 RUN /opt/venv/bin/python3 -m pip install --no-build-isolation --no-dependencies \
     -r /opt/deterministic-build/requirements-build-base.txt
 RUN /opt/venv/bin/python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: \
     -r /opt/deterministic-build/requirements-build-android.txt
 
 # install buildozer
-ENV BUILDOZER_CHECKOUT_COMMIT="4403ecf445f10b5fbf7c74f4621bf2b922ad35b5"
+ENV BUILDOZER_CHECKOUT_COMMIT="6242e3e41365e70f76bd18f30992dcc5898ad40e"
 # ^ from branch electrum_20240930 (note: careful with force-pushing! see #8162)
 RUN cd /opt \
     && git clone https://github.com/spesmilo/buildozer \
@@ -190,8 +233,8 @@ RUN cd /opt \
     && /opt/venv/bin/python3 -m pip install --no-build-isolation --no-dependencies -e .
 
 # install python-for-android
-ENV P4A_CHECKOUT_COMMIT="32a05cdedd41f0f569e9126fdfce23069c36fd9a"
-# ^ from branch electrum_20240930 (note: careful with force-pushing! see #8162)
+ENV P4A_CHECKOUT_COMMIT="40116ae6caf9971f02630d9e1107db76ed10c786"
+# ^ from branch electrum_202609_qtmultimedia (note: careful with force-pushing! see #8162)
 RUN cd /opt \
     && git clone https://github.com/spesmilo/python-for-android \
     && cd python-for-android \

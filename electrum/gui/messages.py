@@ -1,9 +1,24 @@
+import textwrap
+
 from electrum.i18n import _
 from electrum.submarine_swaps import MIN_FINAL_CLTV_DELTA_FOR_CLIENT
 
 
 def to_rtf(msg):
     return '\n'.join(['<p>' + x + '</p>' for x in msg.split('\n\n')])
+
+
+def wrap_multi_paragraph_text(text: str) -> str:
+    """Word-wrap long lines.
+
+    - If text contains multiple paragraphs, the paragraph-separation is kept.
+    - Useful for tooltips (shown on mouse-over), as Qt otherwise
+      only word-wraps lines longer than the screen-width.
+    """
+    return "\n".join(
+        textwrap.fill(line)
+        for line in text.split("\n")
+    )
 
 
 MSG_COOPERATIVE_CLOSE = _(
@@ -117,7 +132,7 @@ MSG_CONNECTMODE_ONESERVER = _('Connect only to a single server')
 
 MSG_CONNECTMODE_SERVER_HELP = _(
     "Electrum connects to a unique server in order to receive your transaction history. "
-    "This server will learn your wallet adddresses."
+    "This server will learn your wallet addresses."
 )
 MSG_CONNECTMODE_NODES_HELP = _(
     "In addition to your history server, Electrum will try to maintain connections with ~10 extra servers, in order to download block headers and find out the longest blockchain. "
@@ -141,3 +156,25 @@ MSG_CONNECTMODE_ONESERVER_HELP = _(
     "This mode is only intended for connecting to your own fully trusted server. "
     "Using this option on a public server is a security risk and is discouraged."
 )
+
+MSG_SUBMARINE_PAYMENT_HELP_TEXT = ''.join((
+    _("Submarine Payments use a reverse submarine swap to do on-chain transactions directly "
+      "from your lightning balance."), '\n\n',
+    _("Submarine Payments happen in two stages. In the first stage, your wallet sends a lightning "
+      "payment to the submarine swap provider. The swap provider will lock funds to a "
+      "funding output in an on-chain transaction (the funding transaction)."), '\n',
+    _("Once the funding transaction has one confirmation, your wallet will broadcast a claim "
+      "transaction as the second stage of the payment. This claim transaction spends the funding "
+      "output to the payee's address."), '\n\n',
+    _("Warning:"), '\n',
+    _('The funding transaction is not visible to the payee. They will only see a pending '
+      'transaction in the mempool after your wallet broadcasts the claim transaction. '
+      'Since confirmation of the funding transaction can take over 30 minutes, avoid using '
+      'Submarine Payments when the payee expects to see the transaction within a limited '
+      'time frame (e.g., an online shop checkout). Use a regular on-chain payment instead.'),
+))
+
+MSG_RELAYFEE = ' '.join([
+    _("This transaction requires a higher fee, or it will not be propagated by your current server."),
+    _("Try to raise your transaction fee, or use a server with a lower relay fee.")
+])

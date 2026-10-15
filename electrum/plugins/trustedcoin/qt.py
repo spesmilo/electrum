@@ -125,7 +125,7 @@ class Plugin(TrustedCoinPlugin):
         vbox.addLayout(grid)
         msg = _('If you have lost your second factor, you need to restore your wallet from seed in order to request a new code.')
         label = QLabel(msg)
-        label.setWordWrap(1)
+        label.setWordWrap(True)
         vbox.addWidget(label)
         vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
         if not d.exec():
@@ -186,7 +186,8 @@ class Plugin(TrustedCoinPlugin):
         msg = _('This wallet is protected by TrustedCoin\'s two-factor authentication.') + '<br/>'\
               + _("For more information, visit") + " <a href=\"https://api.trustedcoin.com/#/electrum-help\">https://api.trustedcoin.com/#/electrum-help</a>"
         label = QLabel(msg)
-        label.setOpenExternalLinks(1)
+        label.setOpenExternalLinks(True)
+        label.setTextFormat(Qt.TextFormat.RichText)
 
         hbox.addStretch(10)
         hbox.addWidget(logo)
@@ -197,9 +198,11 @@ class Plugin(TrustedCoinPlugin):
         vbox.addLayout(hbox)
         vbox.addStretch(10)
 
-        msg = _('TrustedCoin charges a small fee to co-sign transactions. The fee depends on how many prepaid transactions you buy. An extra output is added to your transaction every time you run out of prepaid transactions.') + '<br/>'
+        msg = _('TrustedCoin charges a small fee to co-sign transactions. '
+                'The fee depends on how many prepaid transactions you buy. '
+                'An extra output is added to your transaction every time you run out of prepaid transactions.')
         label = QLabel(msg)
-        label.setWordWrap(1)
+        label.setWordWrap(True)
         vbox.addWidget(label)
 
         vbox.addStretch(10)
@@ -250,12 +253,24 @@ class Plugin(TrustedCoinPlugin):
                 'gui': WCCreateSeed,
                 'params': {'icon': self.icon_path('trustedcoin-wizard.png')},
             },
+            'trustedcoin_create_ext': {
+                'gui': WCEnterExt,
+                'params': {'icon': self.icon_path('trustedcoin-wizard.png')},
+            },
             'trustedcoin_confirm_seed': {
                 'gui': WCConfirmSeed,
                 'params': {'icon': self.icon_path('trustedcoin-wizard.png')},
             },
+            'trustedcoin_confirm_ext': {
+                'gui': WCConfirmExt,
+                'params': {'icon': self.icon_path('trustedcoin-wizard.png')},
+            },
             'trustedcoin_have_seed': {
                 'gui': WCHaveSeed,
+                'params': {'icon': self.icon_path('trustedcoin-wizard.png')},
+            },
+            'trustedcoin_have_ext': {
+                'gui': WCEnterExt,
                 'params': {'icon': self.icon_path('trustedcoin-wizard.png')},
             },
             'trustedcoin_keep_disable': {
@@ -276,35 +291,6 @@ class Plugin(TrustedCoinPlugin):
             }
         }
         wizard.navmap_merge(views)
-
-        # modify default flow, insert seed extension entry/confirm as separate views
-        ext = {
-            'trustedcoin_create_seed': {
-                'next': lambda d: 'trustedcoin_create_ext' if wizard.wants_ext(d) else 'trustedcoin_confirm_seed'
-            },
-            'trustedcoin_create_ext': {
-                'gui': WCEnterExt,
-                'params': {'icon': self.icon_path('trustedcoin-wizard.png')},
-                'next': 'trustedcoin_confirm_seed',
-            },
-            'trustedcoin_confirm_seed': {
-                'next': lambda d: 'trustedcoin_confirm_ext' if wizard.wants_ext(d) else 'trustedcoin_tos'
-            },
-            'trustedcoin_confirm_ext': {
-                'gui': WCConfirmExt,
-                'params': {'icon': self.icon_path('trustedcoin-wizard.png')},
-                'next': 'trustedcoin_tos',
-            },
-            'trustedcoin_have_seed': {
-                'next': lambda d: 'trustedcoin_have_ext' if wizard.wants_ext(d) else 'trustedcoin_keep_disable'
-            },
-            'trustedcoin_have_ext': {
-                'gui': WCEnterExt,
-                'params': {'icon': self.icon_path('trustedcoin-wizard.png')},
-                'next': 'trustedcoin_keep_disable',
-            },
-        }
-        wizard.navmap_merge(ext)
 
         # insert page offering choice to go online or continue on another system
         ext_online = {
@@ -477,6 +463,18 @@ class WCShowConfirmOTP(WalletWizardComponent):
         self.wizard.trustedcoin_qhelper.otpError.connect(self.on_otp_error)
         self.wizard.trustedcoin_qhelper.remoteKeyError.connect(self.on_remote_key_error)
 
+        # set higher minHeight so the qr code and the input field are shown without scrolling
+        prev_height = self.wizard.height()
+        prev_min_height = self.wizard.minimumHeight()
+        def restore_prev_height():
+            self.wizard.setMinimumHeight(prev_min_height)
+            self.wizard.resize(self.wizard.width(), prev_height)
+            self.wizard.next_button.clicked.disconnect(restore_prev_height)
+            self.wizard.back_button.clicked.disconnect(restore_prev_height)
+        self.wizard.setMinimumHeight(530)
+        self.wizard.next_button.clicked.connect(restore_prev_height)
+        self.wizard.back_button.clicked.connect(restore_prev_height)
+
         self._is_online_continuation = 'seed' not in self.wizard_data
         if self._is_online_continuation:
             self.knownsecretlabel.setText(_('Authenticate below to finalize wallet creation'))
@@ -563,10 +561,9 @@ class WCKeepDisable(WalletWizardComponent):
             'or do you want to disable it, and have two master private keys in your wallet?'
         ])
         choices = [
-            ('keep',    _('Keep')),
-            ('disable', _('Disable')),
+            ChoiceItem(key='keep', label=_('Keep')),
+            ChoiceItem(key='disable', label=_('Disable')),
         ]
-
         self.choice_w = ChoiceWidget(message=message, choices=choices)
         self.layout().addWidget(self.choice_w)
         self.layout().addStretch(1)

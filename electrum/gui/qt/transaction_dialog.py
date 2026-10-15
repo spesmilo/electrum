@@ -47,7 +47,8 @@ from electrum.i18n import _
 from electrum.plugin import run_hook
 from electrum.transaction import SerializationError, Transaction, PartialTransaction, TxOutpoint, TxinDataFetchProgress
 from electrum.logging import get_logger
-from electrum.util import ShortID, get_asyncio_loop, UI_UNIT_NAME_TXSIZE_VBYTES, delta_time_str
+from electrum.util import (get_asyncio_loop, UI_UNIT_NAME_TXSIZE_VBYTES, delta_time_str,
+                           UserCancelled)
 from electrum.network import Network
 from electrum.wallet import TxSighashRiskLevel, TxSighashDanger
 
@@ -277,16 +278,12 @@ class TxInOutWidget(QWidget):
         o_text.clear()
         o_text.setFont(QFont(MONOSPACE_FONT))
         o_text.setReadOnly(True)
-        tx_height, tx_pos = None, None
         tx_hash = self.tx.txid()
-        if tx_hash:
-            tx_mined_info = self.wallet.adb.get_tx_height(tx_hash)
-            tx_height = tx_mined_info.height
-            tx_pos = tx_mined_info.txpos
+        tx_mined_info = self.wallet.adb.get_tx_height(tx_hash) if tx_hash else None
         cursor = o_text.textCursor()
         for txout_idx, o in enumerate(self.tx.outputs()):
-            if tx_height is not None and tx_pos is not None and tx_pos >= 0:
-                short_id = ShortID.from_components(tx_height, tx_pos, txout_idx)
+            if tx_mined_info and tx_mined_info.short_id():
+                short_id = f"{tx_mined_info.short_id()}x{txout_idx}"
             elif tx_hash:
                 short_id = TxOutpoint(bytes.fromhex(tx_hash), txout_idx).short_name()
             else:
@@ -425,9 +422,10 @@ def show_transaction(
     *,
     parent: 'ElectrumWindow',
     prompt_if_unsaved: bool = False,
+    prompt_if_complete_unsaved: bool = True,
     external_keypairs: Mapping[bytes, bytes] = None,
     invoice: 'Invoice' = None,
-    on_closed: Callable[[], None] = None,
+    on_closed: Callable[[Optional[Transaction]], None] = None,
     show_sign_button: bool = True,
     show_broadcast_button: bool = True,
 ):
@@ -436,6 +434,7 @@ def show_transaction(
             tx,
             parent=parent,
             prompt_if_unsaved=prompt_if_unsaved,
+            prompt_if_complete_unsaved=prompt_if_complete_unsaved,
             external_keypairs=external_keypairs,
             invoice=invoice,
             on_closed=on_closed,
@@ -447,6 +446,8 @@ def show_transaction(
     except SerializationError as e:
         _logger.exception('unable to deserialize the transaction')
         parent.show_critical(_("Electrum was unable to deserialize the transaction:") + "\n" + str(e))
+    except UserCancelled:
+        return
     else:
         d.show()
 
@@ -461,9 +462,10 @@ class TxDialog(QDialog, MessageBoxMixin):
         *,
         parent: 'ElectrumWindow',
         prompt_if_unsaved: bool,
+        prompt_if_complete_unsaved: bool = True,
         external_keypairs: Mapping[bytes, bytes] = None,
         invoice: 'Invoice' = None,
-        on_closed: Callable[[], None] = None,
+        on_closed: Callable[[Optional[Transaction]], None] = None,
     ):
         '''Transactions in the wallet will show their description.
         Pass desc to give a description for txs not yet in the wallet.
@@ -477,6 +479,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.wallet = parent.wallet
         self.invoice = invoice
         self.prompt_if_unsaved = prompt_if_unsaved
+        self.prompt_if_complete_unsaved = prompt_if_complete_unsaved
         self.on_closed = on_closed
         self.saved = False
         self.desc = None
@@ -640,7 +643,7 @@ class TxDialog(QDialog, MessageBoxMixin):
             self._fetch_txin_data_fut = None
 
         if self.on_closed:
-            self.on_closed()
+            self.on_closed(self.tx)
 
     def reject(self):
         # Override escape-key to close normally (and invoke closeEvent)
@@ -711,7 +714,7 @@ class TxDialog(QDialog, MessageBoxMixin):
 
     def sign(self):
         def sign_done(success):
-            if self.tx.is_complete():
+            if self.tx.is_complete() and self.prompt_if_complete_unsaved:
                 self.prompt_if_unsaved = True
                 self.saved = False
             self.update()
@@ -908,7 +911,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.rbf_label.setText(_('Replace by fee: {}').format(_('True') if self.tx.is_rbf_enabled() else _('False')))
 
         if tx_mined_status.header_hash:
-            self.block_height_label.setText(_("At block height: {}").format(tx_mined_status.height))
+            self.block_height_label.setText(_("At block height: {}").format(tx_mined_status.height()))
         else:
             self.block_height_label.hide()
         if amount is None and ln_amount is None:
@@ -1016,6 +1019,7 @@ class TxDialog(QDialog, MessageBoxMixin):
 
         fee_hbox = QHBoxLayout()
         self.fee_label = TxDetailLabel()
+        self.fee_label.setTextFormat(Qt.TextFormat.RichText)
         fee_hbox.addWidget(self.fee_label)
         self.fee_warning_icon = QLabel()
         pixmap = QPixmap(icon_path("warning"))
@@ -1118,6 +1122,7 @@ class TxOutputColoring:
         font.setPointSize(font.pointSize() - 1)
         self.legend_label.setFont(font)
         self.legend_label.setVisible(False)
+        self.legend_label.setTextFormat(Qt.TextFormat.RichText)
         self.text_char_format = QTextCharFormat()
         self.text_char_format.setBackground(QBrush(self.color))
         self.text_char_format.setToolTip(tooltip)

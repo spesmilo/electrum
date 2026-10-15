@@ -50,9 +50,9 @@ def parse_bip21(text):
 
 
 def parse_bolt11(text):
-    from electrum.lnaddr import lndecode
+    from electrum.bolt11 import decode_bolt11_invoice
     try:
-        return lndecode(text)
+        return decode_bolt11_invoice(text)
     except Exception:
         return
 
@@ -212,7 +212,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
             if not self.wallet.is_up_to_date():
                 msg = _("Synchronizing...")
             else:
-                balance = sum(self.wallet.get_balances_for_piechart())
+                balance = self.wallet.get_balances_for_piechart().total()
                 msg = _("Balance") + ': ' + self.config.format_amount_and_units(balance)
         else:
             msg = _("Not connected")
@@ -615,7 +615,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
             x = Decimal(text)
         except Exception:
             return None
-        power = pow(10, self.config.get_decimal_point())
+        power = pow(10, self.config.BTC_AMOUNTS_DECIMAL_POINT)
         return int(power * x)
 
     def read_invoice(self):
@@ -638,8 +638,8 @@ class ElectrumGui(BaseElectrumGui, EventListener):
             invoice = self.wallet.create_invoice(
                 outputs=outputs,
                 message=self.str_description,
-                pr=None,
-                URI=None)
+                URI=None,
+            )
         else:
             self.show_message(_('Invalid Bitcoin address'))
             return None

@@ -1,11 +1,11 @@
-altgraph==0.17.4 \
-    --hash=sha256:1b5afbb98f6c4dcadb2e2ae6ab9fa994bbb8c1d75f4fa96d340f9437ae454406
-Cython==3.1.1 \
-    --hash=sha256:505ccd413669d5132a53834d792c707974248088c4f60c497deb1b416e366397
-macholib==1.16.3 \
-    --hash=sha256:07ae9e15e8e4cd9a788013d81f5908b3609aa76f9b1421bae9c4d7606ec86a30
-packaging==25.0 \
-    --hash=sha256:d443872c98d677bf60f6a1f2f8c1cb748e8fe762d2bf9d3148b5599295b0fc4f
+altgraph==0.17.5 \
+    --hash=sha256:c87b395dd12fabde9c99573a9749d67da8d29ef9de0125c7f536699b4a9bc9e7
+Cython==3.1.8 \
+    --hash=sha256:518475fbe633ba30c1577669f417440f41e1a23ad6b6e2dbb20703cd457f04ef
+macholib==1.16.4 \
+    --hash=sha256:f408c93ab2e995cd2c46e34fe328b130404be143469e41bc366c807448979362
+packaging==26.2 \
+    --hash=sha256:ff452ff5a3e828ce110190feff1178bb1f2ea2281fa2075aadb987c2fb221661
 pip==25.1.1 \
     --hash=sha256:3de45d411d308d5054c2168185d8da7f9a2cd753dbac8acbfa88a8909ecd9077
 pyinstaller-hooks-contrib==2025.4 \

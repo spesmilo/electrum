@@ -1,4 +1,5 @@
 import urllib
+import urllib.parse
 import re
 from decimal import Decimal
 from typing import Optional
@@ -6,11 +7,17 @@ from typing import Optional
 from . import bitcoin
 from .util import format_satoshis_plain
 from .bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
-from .lnaddr import lndecode, LnDecodeException
+from .bolt11 import decode_bolt11_invoice, BOLT11InvoiceException
 
 # note: when checking against these, use .lower() to support case-insensitivity
 BITCOIN_BIP21_URI_SCHEME = 'bitcoin'
 LIGHTNING_URI_SCHEME = 'lightning'
+
+# note: URI scheme handler registrations are duplicated all over the codebase:
+# - for Android:  contrib/android/bitcoin_intent.xml
+# - for Linux Desktop:  electrum.desktop
+# - for Windows (setup.exe):  contrib/build-wine/electrum.nsi
+# - for macOS:  contrib/osx/pyinstaller.spec
 
 
 class InvalidBitcoinURI(Exception):
@@ -28,7 +35,11 @@ def parse_bip21_URI(uri: str) -> dict:
             raise InvalidBitcoinURI("Not a bitcoin address")
         return {'address': uri}
 
-    u = urllib.parse.urlparse(uri)
+    try:
+        u = urllib.parse.urlparse(uri)
+    except ValueError as e:
+        raise InvalidBitcoinURI("failed to parse uri") from e
+
     if u.scheme.lower() != BITCOIN_BIP21_URI_SCHEME:
         raise InvalidBitcoinURI("Not a bitcoin URI")
     address = u.path
@@ -86,8 +97,8 @@ def parse_bip21_URI(uri: str) -> dict:
             raise InvalidBitcoinURI(f"failed to parse 'sig' field: {repr(e)}") from e
     if 'lightning' in out:
         try:
-            lnaddr = lndecode(out['lightning'])
-        except LnDecodeException as e:
+            lnaddr = decode_bolt11_invoice(out['lightning'])
+        except BOLT11InvoiceException as e:
             raise InvalidBitcoinURI(f"Failed to decode 'lightning' field: {e!r}") from e
         amount_sat = out.get('amount')
         if amount_sat:

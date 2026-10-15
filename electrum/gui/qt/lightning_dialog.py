@@ -29,8 +29,9 @@ from PyQt6.QtWidgets import (QDialog, QLabel, QVBoxLayout, QPushButton)
 
 from electrum.i18n import _
 
+from electrum.gui.common_qt.util import QtEventListener, qt_event_listener
+
 from .util import Buttons
-from .util import QtEventListener, qt_event_listener
 
 if TYPE_CHECKING:
     from . import ElectrumGui
@@ -62,7 +63,7 @@ class LightningDialog(QDialog, QtEventListener):
         self.register_callbacks()
         self.network.channel_db.update_counts() # trigger callback
         if self.network.lngossip:
-            self.on_event_gossip_peers(self.network.lngossip.num_peers())
+            self.on_event_gossip_peers(self.network.lngossip.lnpeermgr.num_peers())
             self.on_event_unknown_channels(len(self.network.lngossip.unknown_ids))
         else:
             self.num_peers.setText(_('Lightning gossip not active.'))

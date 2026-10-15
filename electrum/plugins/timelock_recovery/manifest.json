@@ -1,6 +1,6 @@
 {
   "fullname": "Timelock Recovery Utility",
-  "description": "<br/>This plug-in allows you to create Timelock Recovery Plans for your wallet. See: <a href='https://timelockrecovery.com'>timelockrecovery.com</a>",
+  "description": "This plug-in allows you to create Timelock Recovery Plans for your wallet. See: https://timelockrecovery.com",
   "author": "orenz0@protonmail.com",
   "available_for": ["qt"],
   "icon":"timelock_recovery_60.png",

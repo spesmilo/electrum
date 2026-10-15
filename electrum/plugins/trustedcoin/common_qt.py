@@ -63,10 +63,6 @@ class TrustedcoinPluginQObject(PluginQObject):
     def shortId(self):
         return self._shortId
 
-    @pyqtSlot(str)
-    def otpSubmit(self, otp):
-        self._plugin.on_otp(otp)
-
     @pyqtProperty(str, notify=remoteKeyStateChanged)
     def remoteKeyState(self):
         return self._remoteKeyState

@@ -37,6 +37,7 @@ class ConfigVar(property):
         default: Union[Any, Callable[['SimpleConfig'], Any]],  # typically a literal, but can also be a callable
         type_=None,
         convert_getter: Callable[[Any], Any] = None,
+        convert_setter: Callable[[Any], Any] = None,
         short_desc: Callable[[], str] = None,
         long_desc: Callable[[], str] = None,
         plugin: Optional[str] = None,
@@ -45,6 +46,7 @@ class ConfigVar(property):
         self._default = default
         self._type = type_
         self._convert_getter = convert_getter
+        self._convert_setter = convert_setter
         # note: the descriptions are callables instead of str literals, to delay evaluating the _() translations
         #       until after the language is set.
         assert short_desc is None or callable(short_desc)
@@ -84,6 +86,10 @@ class ConfigVar(property):
             return value
 
     def _set_config_value(self, config: 'SimpleConfig', value, *, save=True):
+        # run converter
+        if self._convert_setter is not None and value is not None:
+            value = self._convert_setter(value)
+        # type-check
         if self._type is not None and value is not None:
             if not isinstance(value, self._type):
                 raise ValueError(
@@ -211,16 +217,15 @@ class SimpleConfig(Logger):
         self._check_dependent_keys()
 
         # units and formatting
-        # FIXME is this duplication (dp, nz, post_sat, thou_sep) due to performance reasons??
-        self.decimal_point = self.BTC_AMOUNTS_DECIMAL_POINT
         try:
-            decimal_point_to_base_unit_name(self.decimal_point)
+            decimal_point_to_base_unit_name(self.BTC_AMOUNTS_DECIMAL_POINT)
         except UnknownBaseUnit:
-            self.decimal_point = DECIMAL_POINT_DEFAULT
+            self.BTC_AMOUNTS_DECIMAL_POINT = DECIMAL_POINT_DEFAULT
         self.num_zeros = self.BTC_AMOUNTS_FORCE_NZEROS_AFTER_DECIMAL_POINT
         self.amt_precision_post_satoshi = self.BTC_AMOUNTS_PREC_POST_SAT
         self.amt_add_thousands_sep = self.BTC_AMOUNTS_ADD_THOUSANDS_SEP
 
+        self.warn_on_experimental_features()
         self._init_done = True
 
     def list_config_vars(self) -> Sequence[str]:
@@ -232,6 +237,14 @@ class SimpleConfig(Logger):
         path = self.get('electrum_path') or self.user_dir()
         make_dir(path, allow_symlink=False)
         return path
+
+    @classmethod
+    def set_chain_config_opt_based_on_android_packagename(cls, config_options: dict[str, Any]) -> None:
+        # ~hack for easier testnet builds. pkgname subject to change.
+        android_pkg_name = util.get_android_package_name()
+        for chain in constants.NETS_LIST:
+            if android_pkg_name == f"org.electrum.{chain.cli_flag()}.electrum":
+                config_options[chain.cli_flag()] = True
 
     def get_selected_chain(self) -> Type[constants.AbstractNet]:
         selected_chains = [
@@ -282,7 +295,8 @@ class SimpleConfig(Logger):
             json.dumps(key)
             json.dumps(value)
         except Exception:
-            self.logger.info(f"json error: cannot save {repr(key)} ({repr(value)})")
+            # note: "value" might be secret material, should probably not log it
+            self.logger.info(f"json error: cannot save {key=!r} ({type(value)})")
             return
         self._set_key_in_user_config(key, value, save=save)
 
@@ -434,6 +448,7 @@ class SimpleConfig(Logger):
 
     def save_user_config(self):
         if self.CONFIG_FORGET_CHANGES:
+            self.logger.warning(f"not saving config changes to disk as {self.cv.CONFIG_FORGET_CHANGES.key()} is set", only_once=True)
             return
         if not self.path:
             return
@@ -516,7 +531,7 @@ class SimpleConfig(Logger):
         return format_satoshis(
             amount_sat,
             num_zeros=self.num_zeros,
-            decimal_point=self.decimal_point,
+            decimal_point=self.BTC_AMOUNTS_DECIMAL_POINT,
             is_diff=is_diff,
             whitespaces=whitespaces,
             precision=precision,
@@ -531,15 +546,11 @@ class SimpleConfig(Logger):
         return format_fee_satoshis(fee_rate/1000, num_zeros=self.num_zeros) + f" {util.UI_UNIT_NAME_FEERATE_SAT_PER_VBYTE}"
 
     def get_base_unit(self):
-        return decimal_point_to_base_unit_name(self.decimal_point)
+        return decimal_point_to_base_unit_name(self.BTC_AMOUNTS_DECIMAL_POINT)
 
     def set_base_unit(self, unit):
         assert unit in base_units.keys()
-        self.decimal_point = base_unit_name_to_decimal_point(unit)
-        self.BTC_AMOUNTS_DECIMAL_POINT = self.decimal_point
-
-    def get_decimal_point(self):
-        return self.decimal_point
+        self.BTC_AMOUNTS_DECIMAL_POINT = base_unit_name_to_decimal_point(unit)
 
     def get_nostr_relays(self) -> Sequence[str]:
         relays = []
@@ -575,6 +586,19 @@ class SimpleConfig(Logger):
             f"Tried to define new instance attribute for config: {name=!r}. "
             "Did you perhaps mistype a ConfigVar?"
         )
+
+    def warn_on_experimental_features(self):
+        chain = self.get_selected_chain()  # use this instead of constants.net, as the latter might not be set yet
+        if not chain.TESTNET:
+            # ln forwarding
+            if self.EXPERIMENTAL_LN_FORWARD_PAYMENTS or self.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS:
+                if self.EXPERIMENTAL_LN_FORWARD_PAYMENTS:
+                    self.logger.warning(f"Found config setting {self.cv.EXPERIMENTAL_LN_FORWARD_PAYMENTS.key()!r}={self.EXPERIMENTAL_LN_FORWARD_PAYMENTS}")
+                if self.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS:
+                    self.logger.warning(f"Found config setting {self.cv.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS.key()!r}={self.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS}")
+                self.logger.warning(
+                    f"Lightning payment forwarding is an experimental feature that still has known bugs. "
+                    f"You really SHOULD NOT be running it on mainnet!!!")
 
     @cached_property
     def cv(config):
@@ -637,7 +661,11 @@ class SimpleConfig(Logger):
     NETWORK_OFFLINE = ConfigVar('offline', default=False, type_=bool)
     NETWORK_SKIPMERKLECHECK = ConfigVar('skipmerklecheck', default=False, type_=bool)
     NETWORK_SERVERFINGERPRINT = ConfigVar('serverfingerprint', default=None, type_=str)
-    NETWORK_MAX_INCOMING_MSG_SIZE = ConfigVar('network_max_incoming_msg_size', default=1_000_000, type_=int)  # in bytes
+    NETWORK_MAX_INCOMING_MSG_SIZE = ConfigVar('network_max_incoming_msg_size', default=8_100_000, type_=int)  # in bytes
+        # ^ the default is chosen so that the largest consensus-valid tx fits in a JSON-RPC message.
+        #   (so that if we request a tx from the server, we won't reject the response)
+        #   For Bitcoin, that is 4 M weight units, i.e. 4 MB on the p2p wire.
+        #   Double that due to our JSON-RPC hex-encoding, plus overhead, that's 8+ MB.
     NETWORK_TIMEOUT = ConfigVar('network_timeout', default=None, type_=int)
     NETWORK_BOOKMARKED_SERVERS = ConfigVar('network_bookmarked_servers', default=None)
 
@@ -663,12 +691,27 @@ class SimpleConfig(Logger):
     )
     WALLET_UNCONF_UTXO_FREEZE_THRESHOLD_SAT = ConfigVar('unconf_utxo_freeze_threshold', default=5_000, type_=int)
     WALLET_PAYREQ_EXPIRY_SECONDS = ConfigVar('request_expiry', default=invoices.PR_DEFAULT_EXPIRATION_WHEN_CREATING, type_=int)
-    WALLET_USE_SINGLE_PASSWORD = ConfigVar('single_password', default=False, type_=bool)
+    WALLET_SHOULD_USE_SINGLE_PASSWORD = ConfigVar('should_use_single_password', default=False, type_=bool)
+    # TODO: consider removing WALLET_DID_USE_SINGLE_PASSWORD once encrypted wallet file headers are available
+    WALLET_DID_USE_SINGLE_PASSWORD = ConfigVar('did_use_single_password', default=False, type_=bool)
+    WALLET_ANDROID_USE_BIOMETRIC_AUTHENTICATION = ConfigVar('android_use_biometrics', default=False, type_=bool)
+    # this is the wrap key encrypted with a secret stored in AndroidKeyStore
+    WALLET_ANDROID_BIOMETRIC_AUTH_ENCRYPTED_WRAP_KEY = ConfigVar('android_biometrics_encrypted_wrap_key', default='', type_=str)
+    # this is the "unified wallet password", encrypted with the wrap key
+    WALLET_ANDROID_BIOMETRIC_AUTH_WRAPPED_WALLET_PASSWORD = ConfigVar('android_biometrics_wrapped_wallet_password', default='', type_=str)
     # note: 'use_change' and 'multiple_change' are per-wallet settings
     WALLET_SEND_CHANGE_TO_LIGHTNING = ConfigVar(
         'send_change_to_lightning', default=False, type_=bool,
         short_desc=lambda: _('Send change to Lightning'),
-        long_desc=lambda: _('If possible, send the change of this transaction to your channels, with a submarine swap'),
+        long_desc=lambda: _('When possible, send transaction change to your Lightning balance using a swap. '
+                            'Swap fees apply. Otherwise, change stays on-chain.'),
+    )
+    WALLET_ENABLE_SUBMARINE_PAYMENTS = ConfigVar(
+        'enable_submarine_payments', default=False, type_=bool,
+        short_desc=lambda: _('Submarine Payments'),
+        long_desc=lambda: _('Send onchain payments directly from your Lightning balance with a '
+                            'submarine swap. This allows you to do onchain transactions even if your entire '
+                            'wallet balance is inside Lightning channels.')
     )
     WALLET_FREEZE_REUSED_ADDRESS_UTXOS = ConfigVar(
         'wallet_freeze_reused_address_utxos', default=False, type_=bool,
@@ -676,6 +719,11 @@ class SimpleConfig(Logger):
         long_desc=lambda: _("""Automatically freeze coins received to already used addresses.
 This can eliminate a serious privacy issue where a malicious user can track your spends by sending small payments
 to a previously-paid address of yours that would then be included with unrelated inputs in your future payments."""),
+    )
+    WALLET_PARTIAL_WRITES = ConfigVar(
+        'wallet_partial_writes', default=False, type_=bool,
+        long_desc=lambda: _("""Allows partial updates to be written to disk for the wallet DB.
+If disabled, the full wallet file is written to disk for every change. Experimental."""),
     )
 
     FX_USE_EXCHANGE_RATE = ConfigVar('use_exchange_rate', default=False, type_=bool)
@@ -694,7 +742,13 @@ to a previously-paid address of yours that would then be included with unrelated
         short_desc=lambda: _('Show Fiat balances'),
     )
 
-    LIGHTNING_LISTEN = ConfigVar('lightning_listen', default=None, type_=str)
+    LIGHTNING_LISTEN = ConfigVar(
+        'lightning_listen', default=None, type_=str,
+        long_desc=lambda: _("""By default the client does not listen on any port for incoming BOLT-08 transports.
+Set this to an interface:port combination, such as 'localhost:9735', to open a port and start listening.
+
+Note: if you open multiple lightning wallets, they will all try to bind the same port, conflict, and only the first will succeed."""),
+    )
     LIGHTNING_PEERS = ConfigVar('lightning_peers', default=None)
     LIGHTNING_USE_GOSSIP = ConfigVar(
         'use_gossip', default=False, type_=bool,
@@ -740,12 +794,13 @@ Warning: setting this to too low will result in lots of payment failures."""),
     TEST_FORCE_DISABLE_MPP = ConfigVar('test_force_disable_mpp', default=False, type_=bool)
     TEST_SHUTDOWN_FEE = ConfigVar('test_shutdown_fee', default=None, type_=int)
     TEST_SHUTDOWN_FEE_RANGE = ConfigVar('test_shutdown_fee_range', default=None)
-    TEST_SHUTDOWN_LEGACY = ConfigVar('test_shutdown_legacy', default=False, type_=bool)
+    TEST_LN_OPEN_SRK_CHANNELS = ConfigVar('test_ln_open_srk_channels', default=False, type_=bool)
 
     # fee_policy is a dict: fee_policy_name -> fee_policy_descriptor
     FEE_POLICY = ConfigVar('fee_policy.default', default='eta:2', type_=str)  # exposed to GUI
     FEE_POLICY_LIGHTNING = ConfigVar('fee_policy.lnwatcher', default='eta:2', type_=str)  # for txbatcher (sweeping)
     FEE_POLICY_SWAPS = ConfigVar('fee_policy.swaps', default='eta:2', type_=str)  # for txbatcher (sweeping and sending if we are a swapserver)
+    TEST_DISABLE_AUTOMATIC_FEE_ETA_UPDATE = ConfigVar('test_disable_automatic_fee_eta_update', default=False, type_=bool)
 
     RPC_USERNAME = ConfigVar('rpcuser', default=None, type_=str)
     RPC_PASSWORD = ConfigVar('rpcpassword', default=None, type_=str)
@@ -754,8 +809,13 @@ Warning: setting this to too low will result in lots of payment failures."""),
     RPC_SOCKET_TYPE = ConfigVar('rpcsock', default='auto', type_=str)
     RPC_SOCKET_FILEPATH = ConfigVar('rpcsockpath', default=None, type_=str)
 
+    DISABLE_MEMORY_HARDENING_LINUX = ConfigVar('nohardening', default=None, type_=bool) # default is False in add_global_options
+
     GUI_NAME = ConfigVar('gui', default='qt', type_=str)
-    CURRENT_WALLET = ConfigVar('current_wallet', default=None, type_=str)
+    CURRENT_WALLET = ConfigVar(
+        'current_wallet', default=None, type_=str,
+        convert_setter=lambda v: None if util.is_hidden_wallet_path(v) else v,  # don't save "hidden wallet" paths
+    )
 
     GUI_QT_COLOR_THEME = ConfigVar(
         'qt_gui_color_theme', default='default', type_=str,
@@ -815,6 +875,7 @@ Warning: setting this to too low will result in lots of payment failures."""),
     GUI_QML_ADDRESS_LIST_SHOW_USED = ConfigVar('address_list_show_used', default=False, type_=bool)
     GUI_QML_ALWAYS_ALLOW_SCREENSHOTS = ConfigVar('android_always_allow_screenshots', default=False, type_=bool)
     GUI_QML_SET_MAX_BRIGHTNESS_ON_QR_DISPLAY = ConfigVar('android_set_max_brightness_on_qr_display', default=True, type_=bool)
+    GUI_QML_PAYMENT_AUTHENTICATION = ConfigVar('qml_payment_authentication', default=False, type_=bool)
 
     BTC_AMOUNTS_DECIMAL_POINT = ConfigVar('decimal_point', default=DECIMAL_POINT_DEFAULT, type_=int)
     BTC_AMOUNTS_FORCE_NZEROS_AFTER_DECIMAL_POINT = ConfigVar(
@@ -841,7 +902,7 @@ Warning: setting this to too low will result in lots of payment failures."""),
         'video_device', default='default', type_=str,
         short_desc=lambda: _('Video Device'),
         long_desc=lambda: (_("For scanning QR codes.") + "\n" +
-                           _("Install the zbar package to enable this.")),
+                           _("QR scanning requires Qt Multimedia and zxing-cpp.")),
     )
     OPENALIAS_ID = ConfigVar(
         'alias', default="", type_=str,
@@ -853,7 +914,7 @@ Warning: setting this to too low will result in lots of payment failures."""),
             'For more information, see https://openalias.org'),
     )
     HWD_SESSION_TIMEOUT = ConfigVar('session_timeout', default=300, type_=int)
-    CLI_TIMEOUT = ConfigVar('timeout', default=60, type_=float)
+    CLI_TIMEOUT = ConfigVar('timeout', default=60.0, type_=float, convert_setter=lambda v: float(v))
     AUTOMATIC_CENTRALIZED_UPDATE_CHECKS = ConfigVar(
         'check_updates', default=False, type_=bool,
         short_desc=lambda: _("Automatically check for software updates"),
@@ -863,7 +924,18 @@ Warning: setting this to too low will result in lots of payment failures."""),
         short_desc=lambda: _("Write logs to file"),
         long_desc=lambda: _('Debug logs can be persisted to disk. These are useful for troubleshooting.'),
     )
-    LOGS_NUM_FILES_KEEP = ConfigVar('logs_num_files_keep', default=10, type_=int)
+    LOGS_NUM_FILES_KEEP = ConfigVar(
+        'logs_num_files_keep', default=30, type_=int,
+        long_desc=lambda: _("Old log files get deleted on startup, with only the newest few being kept."),
+    )
+    LOGS_MAX_TOTAL_SIZE_BYTES = ConfigVar(
+        'logs_max_total_size', default=200_000_000, type_=int,
+        long_desc=lambda: _(
+            "Old log files get deleted on startup. "
+            "This value limits the max total size of the old log files kept, "
+            "and also separately the max size of the current log file. "
+            "Hence, the max disk usage will be twice this value."),
+    )
     GUI_ENABLE_DEBUG_LOGS = ConfigVar('gui_enable_debug_logs', default=False, type_=bool)
     LOCALIZATION_LANGUAGE = ConfigVar(
         'language', default="", type_=str,
@@ -871,12 +943,10 @@ Warning: setting this to too low will result in lots of payment failures."""),
         long_desc=lambda: _("Select which language is used in the GUI (after restart)."),
     )
     BLOCKCHAIN_PREFERRED_BLOCK = ConfigVar('blockchain_preferred_block', default=None)
-    SHOW_CRASH_REPORTER = ConfigVar('show_crash_reporter', default=True, type_=bool)
     DONT_SHOW_TESTNET_WARNING = ConfigVar('dont_show_testnet_warning', default=False, type_=bool)
     RECENTLY_OPEN_WALLET_FILES = ConfigVar('recently_open', default=None)
     IO_DIRECTORY = ConfigVar('io_dir', default=os.path.expanduser('~'), type_=str)
     WALLET_BACKUP_DIRECTORY = ConfigVar('backup_dir', default=None, type_=str)
-    CONFIG_PIN_CODE = ConfigVar('pin_code', default=None, type_=str)
     QR_READER_FLIP_X = ConfigVar('qrreader_flip_x', default=True, type_=bool)
     WIZARD_DONT_CREATE_SEGWIT = ConfigVar('nosegwit', default=False, type_=bool)
     CONFIG_FORGET_CHANGES = ConfigVar('forget_config', default=False, type_=bool)
@@ -902,12 +972,16 @@ Warning: setting this to too low will result in lots of payment failures."""),
         ]),
     )
 
-    # anchor outputs channels
-    ENABLE_ANCHOR_CHANNELS = ConfigVar('enable_anchor_channels', default=True, type_=bool)
     # zeroconf channels
-    ACCEPT_ZEROCONF_CHANNELS = ConfigVar('accept_zeroconf_channels', default=False, type_=bool)
+    OPEN_ZEROCONF_CHANNELS = ConfigVar('open_zeroconf_channels', default=False, type_=bool)
     ZEROCONF_TRUSTED_NODE = ConfigVar('zeroconf_trusted_node', default='', type_=str)
+    # minimum absolute fee in sat for which we will open a channel just in time
     ZEROCONF_MIN_OPENING_FEE = ConfigVar('zeroconf_min_opening_fee', default=5000, type_=int)
+    # fee in ppm of the outgoing htlcs value we charge for opening new channels just in time
+    ZEROCONF_OPENING_FEE_PPM = ConfigVar('zeroconf_opening_fee_ppm', default=10_000, type_=int)
+    # size of the channel the lsp opens to the client in percent of the outgoing htlcs value
+    # (before deducting fees). required to be at least 120% to leave some buffer for the channel reserve
+    ZEROCONF_CHANNEL_SIZE_PERCENT = ConfigVar('zeroconf_channel_size_percent', default=200, type_=int)
     LN_UTXO_RESERVE = ConfigVar(
         'ln_utxo_reserve',
         default=10000,

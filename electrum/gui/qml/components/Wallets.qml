@@ -32,19 +32,50 @@ Pane {
 
         ColumnLayout {
             Layout.fillWidth: true
-            Layout.margins: constants.paddingLarge
 
             Heading {
                 text: qsTr('Wallets')
+            }
+
+            TextField {
+                id: searchEdit
+                Layout.fillWidth: true
+                Layout.leftMargin: constants.paddingLarge
+                Layout.rightMargin: constants.paddingLarge
+
+                placeholderText: qsTr('search')
+                inputMethodHints: Qt.ImhNoPredictiveText
+                EnterKey.type: Qt.EnterKeyDone
+                onAccepted: {
+                    // load a wallet (e.g. a hidden wallet not shown in the list) when
+                    // the search text exactly matches an available wallet name
+                    var path = Daemon.availableWallets.pathForName(text)
+                    if (path && !Daemon.loading) {
+                        if (!Daemon.currentWallet || Daemon.currentWallet.name != text) {
+                            Daemon.loadWallet(path)
+                        } else {
+                            app.stack.pop()
+                        }
+                    }
+                }
+
+                Image {
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.rightMargin: constants.paddingMedium
+                    source: Qt.resolvedUrl('../../icons/zoom.png')
+                    sourceSize.width: constants.iconSizeMedium
+                    sourceSize.height: constants.iconSizeMedium
+                }
             }
 
             Frame {
                 id: detailsFrame
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                verticalPadding: 0
+                verticalPadding: bg.lineWidth
                 horizontalPadding: 0
-                background: PaneInsetBackground {}
+                background: PaneInsetBackground { id: bg; vertical: false }
 
                 ElListView {
                     id: listview
@@ -53,9 +84,14 @@ Pane {
                     model: Daemon.availableWallets
 
                     delegate: ItemDelegate {
+                        property bool matchesSearch: searchEdit.text.length === 0
+                            || model.name.toLowerCase().indexOf(searchEdit.text.toLowerCase()) !== -1
+                        property bool hiddenWallet: model.name.startsWith('.') && !model.active
                         width: ListView.view.width
-                        height: row.height
-
+                        height: visible ? row.height : 0
+                        // visible: searchEdit.text.length === 0
+                        //     || model.name.toLowerCase().indexOf(searchEdit.text.toLowerCase()) !== -1
+                        visible: matchesSearch && !hiddenWallet
                         onClicked: {
                             if (!Daemon.currentWallet || Daemon.currentWallet.name != model.name) {
                                 if (!Daemon.loading) // wallet load in progress
@@ -117,19 +153,43 @@ Pane {
 
         }
 
-        FlatButton {
+        ButtonContainer {
             Layout.fillWidth: true
-            text: qsTr('Create Wallet')
-            icon.source: '../../icons/add.png'
-            onClicked: rootItem.createWallet()
+            visible: !searchEdit.text
+
+            FlatButton {
+                Layout.fillWidth: true
+                text: qsTr('Create Wallet')
+                icon.source: '../../icons/add.png'
+                onClicked: {
+                    if (Daemon.availableWallets.rowCount() > 0 && Config.walletShouldUseSinglePassword
+                        && (!Daemon.singlePassword || Daemon.numWalletsWithPassword(Daemon.singlePassword) < 1)) {
+                        // if the user has wallets but hasn't unlocked any wallet yet force them to do so.
+                        // this ensures they know at least one wallets password and can complete the wizard
+                        // where they will need to enter the password of an existing wallet.
+                        var dialog = app.messageDialog.createObject(app, {
+                            title: qsTr('Wallet unlock required'),
+                            text: qsTr("You have to unlock any existing wallet first before creating a new wallet."),
+                        })
+                        dialog.open()
+                    } else {
+                        rootItem.createWallet()
+                    }
+                }
+            }
         }
     }
+    property color navigationBarBackgroundColor: constants.highlightBackground
 
     Connections {
         target: Daemon
         function onWalletLoaded() {
             if (app.stack.currentItem.objectName == 'Wallets')
-                app.stack.pop()
+                if (app.stack.getRoot().objectName == 'Wallets') {
+                    app.stack.replaceRoot('WalletMainView.qml')
+                } else {
+                    app.stack.pop()
+                }
         }
     }
 

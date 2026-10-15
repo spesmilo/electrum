@@ -58,8 +58,10 @@ ElDialog {
 
                 RowLayout {
                     Layout.fillWidth: true
-                    TextHighlightPane {
+
+                    DialogHighlightPane {
                         Layout.fillWidth: true
+
                         Label {
                             text: qsTr('Enter the list of private keys to sweep into this wallet')
                             width: parent.width
@@ -112,14 +114,13 @@ ElDialog {
                             icon.source: '../../icons/qrcode.png'
                             icon.height: constants.iconSizeMedium
                             icon.width: constants.iconSizeMedium
-                            scale: 1.2
                             onClicked: {
                                 var dialog = app.scanDialog.createObject(app, {
                                     hint: qsTr('Scan a private key')
                                 })
-                                dialog.onFound.connect(function() {
-                                    if (verifyPrivateKey(dialog.scanData))
-                                        addPrivateKey(dialog.scanData)
+                                dialog.onFoundText.connect(function(data) {
+                                    if (verifyPrivateKey(data))
+                                        addPrivateKey(data)
                                     dialog.close()
                                 })
                                 dialog.open()
@@ -133,27 +134,39 @@ ElDialog {
                     iconStyle: InfoTextArea.IconStyle.Warn
                     Layout.fillWidth: true
                     Layout.margins: constants.paddingMedium
+                    backgroundColor: constants.darkerDialogBackground
                     visible: text
                 }
             }
         }
 
-        FlatButton {
+        DialogButtonContainer {
             Layout.fillWidth: true
-            Layout.preferredWidth: 1
-            enabled: valid
-            icon.source: '../../icons/tab_send.png'
-            text: qsTr('Sweep...')
-            onClicked: {
-                console.log('sweeping')
-                root.privateKeys = sweepkeys.text
-                root.accept()
+            headerComponent: null
+
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                enabled: valid
+                icon.source: '../../icons/tab_send.png'
+                text: qsTr('Sweep...')
+                onClicked: {
+                    console.log('sweeping')
+                    root.privateKeys = sweepkeys.text
+                    root.accept()
+                }
             }
         }
-
     }
 
     Bitcoin {
         id: bitcoin
+    }
+
+    Binding {
+        target: AppController
+        property: 'secureWindow'
+        when: root.visible  // enables stacking multiple secureWindow dialogs
+        value: true
     }
 }

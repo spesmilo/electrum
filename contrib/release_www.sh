@@ -46,7 +46,7 @@ set -x
 info "updating www repo"
 ./contrib/make_download "$WWW_DIR"
 info "signing the version announcement file"
-sig=$(./run_electrum -o signmessage $ELECTRUM_SIGNING_ADDRESS $VERSION -w $ELECTRUM_SIGNING_WALLET)
+sig=$(./run_electrum -o signmessage "$ELECTRUM_SIGNING_ADDRESS" "$VERSION" -w "$ELECTRUM_SIGNING_WALLET")
 # note: the contents of "extradata" are currently not signed. We could add another field, extradata_sigs,
 #       containing signature(s) for "extradata". extradata, being json, would have to be canonically
 #       serialized before signing.

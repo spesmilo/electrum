@@ -21,6 +21,7 @@ ElDialog {
     anchors.centerIn: parent
 
     padding: 0
+    needsSystemBarPadding: false
 
     width: rootLayout.width
 
@@ -45,8 +46,13 @@ ElDialog {
             }
         }
 
-        ButtonContainer {
+        DialogButtonContainer {
             Layout.fillWidth: true
+            function beforeLayout() {
+                if (!dialog.text) {
+                    headerComponent = null
+                }
+            }
 
             FlatButton {
                 Layout.fillWidth: true

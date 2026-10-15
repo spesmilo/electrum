@@ -21,23 +21,24 @@ Pane {
 
         ColumnLayout {
             Layout.fillWidth: true
-            Layout.margins: constants.paddingLarge
 
             InfoTextArea {
                 Layout.fillWidth: true
-                Layout.bottomMargin: constants.paddingLarge
+                Layout.topMargin: constants.paddingLarge
+                Layout.leftMargin: constants.paddingLarge
+                Layout.rightMargin: constants.paddingLarge
                 visible: !Config.userKnowsPressAndHold
                 text: qsTr('To access this list from the main screen, press and hold the Receive button')
             }
 
             Heading {
-                text: qsTr('Pending requests')
+                text: qsTr('Pending payment requests')
             }
 
             Frame {
-                background: PaneInsetBackground {}
+                background: PaneInsetBackground {id: bg; vertical: false}
 
-                verticalPadding: 0
+                verticalPadding: bg.lineWidth
                 horizontalPadding: 0
                 Layout.fillHeight: true
                 Layout.fillWidth: true
@@ -108,4 +109,5 @@ Pane {
             }
         }
     }
+    property color navigationBarBackgroundColor: constants.highlightBackground
 }

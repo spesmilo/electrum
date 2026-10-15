@@ -137,6 +137,11 @@ def test_pin_unlocked(func):
             return func(self, *args, **kwargs)
         except SecurityStatusNotSatisfiedError:
             raise UserFacingException(_('Your Ledger is locked. Please unlock it.'))
+        except OSError as e:
+            _logger.exception('')
+            raise UserFacingException(
+                _('Communication with Ledger failed. Open the Bitcoin app and try again.') + f'\n{str(e)}',
+            )
     return catch_exception
 
 
@@ -342,8 +347,9 @@ class Ledger_Client(HardwareClientBase, ABC):
     def __init__(self, *, plugin: HW_PluginBase):
         HardwareClientBase.__init__(self, plugin=plugin)
 
+    @abstractmethod
     def get_master_fingerprint(self) -> bytes:
-        return self.request_root_fingerprint_from_device()
+        pass
 
     @abstractmethod
     def show_address(self, address_path: str, txin_type: str):
@@ -385,6 +391,31 @@ class Ledger_Client_Legacy(Ledger_Client):
         self._product_key = product_key
         self._soft_device_id = None
 
+    def _get_master_fingerprint(self) -> bytes:
+        """Return the 4-byte master (root) key fingerprint.
+
+        Tries the dedicated GET_MASTER_FINGERPRINT APDU first (INS 0xD0),
+        which does NOT require DERIVE_MASTER permission.  If the device
+        does not support it (old firmware), falls back to
+        getWalletPublicKey("") + HASH160.
+        """
+        try:
+            return self.dongleObject.getMasterFingerprint()
+        except BTChipException as e:
+            if e.sw in (0x6d00, 0x6a80):  # INS not supported / bad data
+                _logger.info("getMasterFingerprint APDU not supported (sw=0x%04x), "
+                             "falling back to getWalletPublicKey", e.sw)
+            else:
+                raise
+        return self._get_node_fingerprint("")
+
+    def _get_node_fingerprint(self, bip32_path: str) -> bytes:
+        """Return the 4-byte fingerprint for an arbitrary BIP32 node
+        by calling getWalletPublicKey + HASH160.
+        """
+        nodeData = self.dongleObject.getWalletPublicKey(bip32_path)
+        return hash_160(compress_public_key(nodeData['publicKey']))[0:4]
+
     def is_pairable(self):
         return True
 
@@ -398,10 +429,10 @@ class Ledger_Client_Legacy(Ledger_Client):
                 self.signing = False
         return wrapper
 
-    def give_error(self, message):
+    def give_error(self, message: str | BaseException):
         _logger.info(message)
         if not self.signing:
-            self.handler.show_error(message)
+            self.handler.show_error(str(message))
         else:
             self.signing = False
         raise UserFacingException(message)
@@ -419,7 +450,7 @@ class Ledger_Client_Legacy(Ledger_Client):
             # modern ledger can provide xpub without user interaction
             # (hw1 would prompt for PIN)
             if not self.is_hw1():
-                self._soft_device_id = self.request_root_fingerprint_from_device()
+                self._soft_device_id = self._get_master_fingerprint().hex()
         return self._soft_device_id
 
     def is_hw1(self) -> bool:
@@ -427,6 +458,14 @@ class Ledger_Client_Legacy(Ledger_Client):
 
     def device_model_name(self):
         return LedgerPlugin.device_name_from_product_key(self._product_key)
+
+    @runs_in_hwd_thread
+    def request_root_fingerprint_from_device(self) -> str:
+        return self._get_master_fingerprint().hex()
+
+    @runs_in_hwd_thread
+    def get_master_fingerprint(self) -> bytes:
+        return self._get_master_fingerprint()
 
     @runs_in_hwd_thread
     def has_usable_connection_with_device(self):
@@ -455,9 +494,10 @@ class Ledger_Client_Legacy(Ledger_Client):
         bip32_path = bip32_path[2:]  # cut off "m/"
         if len(bip32_intpath) >= 1:
             prevPath = bip32.convert_bip32_intpath_to_strpath(bip32_intpath[:-1])[2:]
-            nodeData = self.dongleObject.getWalletPublicKey(prevPath)
-            publicKey = compress_public_key(nodeData['publicKey'])
-            fingerprint_bytes = hash_160(publicKey)[0:4]
+            if len(prevPath) == 0:
+                fingerprint_bytes = self._get_master_fingerprint()
+            else:
+                fingerprint_bytes = self._get_node_fingerprint(prevPath)
             childnum_bytes = bip32_intpath[-1].to_bytes(length=4, byteorder="big")
         else:
             fingerprint_bytes = bytes(4)
@@ -540,10 +580,10 @@ class Ledger_Client_Legacy(Ledger_Client):
                     _('Your device might not have support for this functionality.')))
             else:
                 _logger.exception('')
-                self.handler.show_error(e)
+                self.handler.show_error(str(e))
         except BaseException as e:
             _logger.exception('')
-            self.handler.show_error(e)
+            self.handler.show_error(str(e))
         finally:
             self.handler.finished()
 
@@ -954,7 +994,7 @@ class Ledger_Client_New(Ledger_Client):
             pass  # cancelled by user
         except BaseException as e:
             _logger.exception('Error while showing an address')
-            self.handler.show_error(e)
+            self.handler.show_error(str(e))
         finally:
             self.handler.finished()
 
@@ -1134,7 +1174,7 @@ class Ledger_Client_New(Ledger_Client):
             pass  # cancelled by user
         except BaseException as e:
             _logger.exception('Error while signing')
-            self.handler.show_error(e)
+            self.handler.show_error(str(e))
         finally:
             self.handler.finished()
 
@@ -1161,7 +1201,7 @@ class Ledger_Client_New(Ledger_Client):
             pass  # cancelled by user
         except BaseException as e:
             _logger.exception('')
-            self.handler.show_error(e)
+            self.handler.show_error(str(e))
         finally:
             self.handler.finished()
 
@@ -1211,7 +1251,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
 
 class LedgerPlugin(HW_PluginBase):
     keystore_class = Ledger_KeyStore
-    minimum_library = (0, 2, 0)
+    minimum_library = (0, 4, 1)
     maximum_library = (1, 0)
     DEVICE_IDS = [(0x2581, 0x1807),  # HW.1 legacy btchip            # not supported anymore (but we log an exception)
                   (0x2581, 0x2b7c),  # HW.1 transitional production  # not supported anymore
@@ -1223,7 +1263,7 @@ class LedgerPlugin(HW_PluginBase):
                   (0x2c97, 0x0005),  # Nano-S Plus
                   (0x2c97, 0x0006),  # Stax
                   (0x2c97, 0x0007),  # Flex
-                  (0x2c97, 0x0008),  # RFU
+                  (0x2c97, 0x0008),  # Nano Gen5
                   (0x2c97, 0x0009),  # RFU
                   (0x2c97, 0x000a)]  # RFU
     VENDOR_IDS = (0x2c97,)
@@ -1233,6 +1273,7 @@ class LedgerPlugin(HW_PluginBase):
         0x50: "Ledger Nano S Plus",
         0x60: "Ledger Stax",
         0x70: "Ledger Flex",
+        0x80: "Ledger Nano Gen5",
     }
 
     SUPPORTED_XTYPES = ('standard', 'p2wpkh-p2sh', 'p2wpkh', 'p2wsh-p2sh', 'p2wsh')
@@ -1284,6 +1325,8 @@ class LedgerPlugin(HW_PluginBase):
                 return True, "Ledger Stax"
             if product_key == (0x2c97, 0x0007):
                 return True, "Ledger Flex"
+            if product_key == (0x2c97, 0x0008):
+                return True, "Ledger Nano Gen5"
             return True, None
         # modern product_keys
         if product_key[0] == 0x2c97:

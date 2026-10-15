@@ -15,6 +15,8 @@ ElDialog {
 
     property string selectedPubkey
 
+    needsSystemBarPadding: false
+
     anchors.centerIn: parent
 
     padding: 0
@@ -87,10 +89,13 @@ ElDialog {
                                 Layout.preferredHeight: constants.paddingLarge
                                 Layout.preferredWidth: 1
                             }
-                            Image {
+                            Rectangle {
                                 Layout.rowSpan: 5
-                                Layout.alignment: Qt.AlignTop
-                                source: Qt.resolvedUrl('../../icons/network.png')
+                                Layout.alignment: Qt.AlignVCenter
+                                Layout.fillHeight: true
+                                Layout.preferredWidth: 10
+                                color: model.color
+
                             }
                             Label {
                                 text: qsTr('Pubkey')
@@ -118,6 +123,7 @@ ElDialog {
                             Label {
                                 Layout.fillWidth: true
                                 text: model.timestamp
+                                wrapMode: Text.Wrap
                             }
                             Label {
                                 text: qsTr('Max Forward')

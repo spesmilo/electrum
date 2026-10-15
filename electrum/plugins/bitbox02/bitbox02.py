@@ -518,7 +518,7 @@ class BitBox02Client(HardwareClientBase):
 
         format_unit = bitbox02.btc.BTCSignInitRequest.FormatUnit.DEFAULT
         # Base unit is configured to be "sat":
-        if self.config.get_decimal_point() == 0:
+        if self.config.BTC_AMOUNTS_DECIMAL_POINT == 0:
             format_unit = bitbox02.btc.BTCSignInitRequest.FormatUnit.SAT
 
         sigs = self.bitbox02_device.btc_sign(
@@ -577,10 +577,10 @@ class BitBox02_KeyStore(Hardware_KeyStore):
         super().__init__(d)
         self.ux_busy = False
 
-    def give_error(self, message: Exception):
+    def give_error(self, message: str | BaseException):
         self.logger.info(message)
         if not self.ux_busy:
-            self.handler.show_error(message)
+            self.handler.show_error(str(message))
         else:
             self.ux_busy = False
         raise UserFacingException(message)
@@ -636,12 +636,12 @@ class BitBox02_KeyStore(Hardware_KeyStore):
                 self.handler.finished()
         except Exception as e:
             self.logger.exception("")
-            self.handler.show_error(e)
+            self.handler.show_error(str(e))
 
 
 class BitBox02Plugin(HW_PluginBase):
     keystore_class = BitBox02_KeyStore
-    minimum_library = (6, 2, 0)
+    minimum_library = (7, 0, 0)
     DEVICE_IDS = [(0x03EB, 0x2403)]
 
     SUPPORTED_XTYPES = ("p2wpkh-p2sh", "p2wpkh", "p2wsh", "p2wsh-p2sh")

@@ -226,15 +226,17 @@ def var_int(i: int) -> bytes:
     # https://en.bitcoin.it/wiki/Protocol_specification#Variable_length_integer
     # https://github.com/bitcoin/bitcoin/blob/efe1ee0d8d7f82150789f1f6840f139289628a2b/src/serialize.h#L247
     # "CompactSize"
-    assert i >= 0, i
+    if i < 0:
+        raise OverflowError(f"int {i} must be non-negative for var_int")
     if i < 0xfd:
         return int.to_bytes(i, length=1, byteorder="little", signed=False)
     elif i <= 0xffff:
         return b"\xfd" + int.to_bytes(i, length=2, byteorder="little", signed=False)
     elif i <= 0xffffffff:
         return b"\xfe" + int.to_bytes(i, length=4, byteorder="little", signed=False)
-    else:
+    elif i <= 0xffff_ffff_ffff_ffff:
         return b"\xff" + int.to_bytes(i, length=8, byteorder="little", signed=False)
+    raise OverflowError(f"int {i} too large for var_int")
 
 
 def witness_push(item: bytes) -> bytes:
@@ -325,14 +327,14 @@ def construct_script(
 
 def relayfee(network: 'Network' = None) -> int:
     """Returns feerate in sat/kbyte."""
-    from .fee_policy import FEERATE_DEFAULT_RELAY, FEERATE_MAX_RELAY
+    from .fee_policy import FEERATE_MIN_RELAY, FEERATE_DEFAULT_RELAY, FEERATE_MAX_RELAY
     if network and network.relay_fee is not None:
         fee = network.relay_fee
     else:
         fee = FEERATE_DEFAULT_RELAY
     # sanity safeguards, as network.relay_fee is coming from a server:
     fee = min(fee, FEERATE_MAX_RELAY)
-    fee = max(fee, FEERATE_DEFAULT_RELAY)
+    fee = max(fee, FEERATE_MIN_RELAY)
     return fee
 
 
@@ -347,10 +349,7 @@ DUST_LIMIT_P2WPKH = 294
 
 def dust_threshold(network: 'Network' = None) -> int:
     """Returns the dust limit in satoshis."""
-    # Change <= dust threshold is added to the tx fee
-    dust_lim = 182 * 3 * relayfee(network)  # in msat
-    # convert to sat, but round up:
-    return (dust_lim // 1000) + (dust_lim % 1000 > 0)
+    return DUST_LIMIT_P2PKH
 
 
 def hash_encode(x: bytes) -> str:
@@ -442,7 +441,7 @@ def script_to_address(script: bytes, *, net=None) -> Optional[str]:
 def address_to_script(addr: str, *, net=None) -> bytes:
     if net is None: net = constants.net
     if not is_address(addr, net=net):
-        raise BitcoinException(f"invalid bitcoin address: {addr}")
+        raise BitcoinException(f"invalid bitcoin address: {neuter_bitcoin_address(addr)}")
     witver, witprog = segwit_addr.decode_segwit_address(net.SEGWIT_HRP, addr)
     if witprog is not None:
         if not (0 <= witver <= 16):
@@ -456,6 +455,17 @@ def address_to_script(addr: str, *, net=None) -> bytes:
     else:
         raise BitcoinException(f'unknown address type: {addrtype}')
     return script
+
+
+def neuter_bitcoin_address(addr: str) -> str:
+    """Truncate a bitcoin address, for display in errors that might get sent to the crash reporter,
+    to reduce harm to the user's privacy.
+    """
+    assert isinstance(addr, str), type(addr)
+    if len(addr) <= 7:
+        return addr
+    neutered_addr = addr[:5] + '..' + addr[-2:]
+    return f"{neutered_addr!r} (len={len(addr)})"
 
 
 class OnchainOutputType(Enum):
@@ -473,7 +483,7 @@ def address_to_payload(addr: str, *, net=None) -> Tuple[OnchainOutputType, bytes
     """Return (type, pubkey hash / witness program) for an address."""
     if net is None: net = constants.net
     if not is_address(addr, net=net):
-        raise BitcoinException(f"invalid bitcoin address: {addr}")
+        raise BitcoinException(f"invalid bitcoin address: {neuter_bitcoin_address(addr)}")
     witver, witprog = segwit_addr.decode_segwit_address(net.SEGWIT_HRP, addr)
     if witprog is not None:
         if witver == 0:
@@ -531,7 +541,10 @@ class BaseDecodeError(BitcoinException): pass
 
 
 def base_encode(v: bytes, *, base: int) -> str:
-    """ encode v, which is a string of bytes, to base58."""
+    """ encode v, which is a string of bytes, to base58.
+
+    note: time complexity is O(len(v)^2), due to big-int arithmetic.
+    """
     assert_bytes(v)
     if base not in (58, 43):
         raise ValueError('not supported base: {}'.format(base))
@@ -544,10 +557,11 @@ def base_encode(v: bytes, *, base: int) -> str:
     newlen = len(v)
 
     num = int.from_bytes(v, byteorder='big')
-    string = b""
+    string_rev = bytearray()
     while num:
         num, idx = divmod(num, base)
-        string = chars[idx:idx + 1] + string
+        string_rev += chars[idx:idx + 1]
+    string = string_rev[::-1]
 
     result = chars[0:1] * (origlen - newlen) + string
     return result.decode('ascii')
@@ -555,6 +569,8 @@ def base_encode(v: bytes, *, base: int) -> str:
 
 def base_decode(v: Union[bytes, str], *, base: int) -> Optional[bytes]:
     """ decode v into a string of len bytes.
+
+    note: time complexity is O(len(v)^2), due to big-int arithmetic.
 
     based on the work of David Keijser in https://github.com/keis/base58
     """
@@ -614,6 +630,7 @@ WIF_SCRIPT_TYPES = {
     'p2wsh-p2sh': 7
 }
 WIF_SCRIPT_TYPES_INV = inv_dict(WIF_SCRIPT_TYPES)
+PUBKEYHASH_SCRIPT_TYPES = ('p2pkh', 'p2wpkh', 'p2wpkh-p2sh')
 
 
 def is_segwit_script_type(txin_type: str) -> bool:
@@ -885,7 +902,7 @@ def verify_usermessage_with_address(address: str, sig65: bytes, message: bytes, 
         return False
     # check public key using the address
     pubkey_hex = public_key.get_public_key_hex(compressed)
-    txin_types = (txin_type_guess,) if txin_type_guess else ('p2pkh', 'p2wpkh', 'p2wpkh-p2sh')
+    txin_types = (txin_type_guess,) if txin_type_guess else PUBKEYHASH_SCRIPT_TYPES
     for txin_type in txin_types:
         addr = pubkey_to_address(txin_type, pubkey_hex, net=net)
         if address == addr:

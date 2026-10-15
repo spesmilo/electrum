@@ -36,7 +36,7 @@ from electrum.logging import Logger
 from electrum.util import UserCancelled, UserFacingException, ChoiceItem
 from electrum.plugin import hook
 
-from electrum.gui.common_qt.util import TaskThread
+from electrum.gui.common_qt.util import TaskThread, ignore_if_destroyed
 from electrum.gui.qt.password_dialog import PasswordLayout, PW_PASSPHRASE
 from electrum.gui.qt.util import (
     read_QIcon, WWLabel, OkButton, WindowModalDialog, Buttons, CancelButton, char_width_in_lineedit, PasswordLineEdit,
@@ -62,6 +62,7 @@ class QtHandlerBase(HardwareHandlerBase, QObject, Logger):
 
     passphrase_signal = pyqtSignal(object, object)
     message_signal = pyqtSignal(object, object)
+    warning_signal = pyqtSignal(object, object)
     error_signal = pyqtSignal(object, object)
     word_signal = pyqtSignal(object)
     clear_signal = pyqtSignal()
@@ -75,6 +76,7 @@ class QtHandlerBase(HardwareHandlerBase, QObject, Logger):
         assert win.gui_thread == threading.current_thread(), 'must be called from GUI thread'
         self.clear_signal.connect(self.clear_dialog)
         self.error_signal.connect(self.error_dialog)
+        self.warning_signal.connect(self.warning_dialog)
         self.message_signal.connect(self.message_dialog)
         self.passphrase_signal.connect(self.passphrase_dialog)
         self.word_signal.connect(self.word_dialog)
@@ -84,6 +86,8 @@ class QtHandlerBase(HardwareHandlerBase, QObject, Logger):
         self.win = win
         self.device = device
         self.dialog = None
+        self._dialog_label = None
+        self._dialog_on_cancel = None
         self.done = threading.Event()
 
     def top_level_window(self):
@@ -113,6 +117,12 @@ class QtHandlerBase(HardwareHandlerBase, QObject, Logger):
 
     def show_message(self, msg, on_cancel=None):
         self.message_signal.emit(msg, on_cancel)
+
+    def show_warning(self, msg, blocking=False):
+        self.done.clear()
+        self.warning_signal.emit(msg, blocking)
+        if blocking:
+            self.done.wait()
 
     def show_error(self, msg, blocking=False):
         self.done.clear()
@@ -174,12 +184,23 @@ class QtHandlerBase(HardwareHandlerBase, QObject, Logger):
 
     MESSAGE_DIALOG_TITLE = None  # type: Optional[str]
     def message_dialog(self, msg, on_cancel=None):
+        # If a dialog is already open, update its text instead of rebuilding it.
+        # A device emits one button request per output, and rebuilding the
+        # window-modal dialog each time is slow and visibly janky on macOS
+        # (the modal "sheet" animates closed/open between outputs). See #10718.
+        if self.dialog is not None and self._dialog_on_cancel == on_cancel:
+            with ignore_if_destroyed(self.dialog):
+                self._dialog_label.setText(msg)
+                if not self.dialog.isVisible():  # e.g. was hidden by a user "cancel"
+                    self.dialog.show()
+                return  # dialog gets rebuild if a RuntimeError was raised and the return is skipped
         self.clear_dialog()
         title = self.MESSAGE_DIALOG_TITLE
         if title is None:
             title = _('Please check your {} device').format(self.device)
         self.dialog = dialog = WindowModalDialog(self.top_level_window(), title)
-        label = QLabel(msg)
+        self._dialog_on_cancel = on_cancel
+        self._dialog_label = label = QLabel(msg)
         label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         vbox = QVBoxLayout(dialog)
         vbox.addWidget(label)
@@ -188,6 +209,11 @@ class QtHandlerBase(HardwareHandlerBase, QObject, Logger):
             vbox.addLayout(Buttons(CancelButton(dialog)))
         dialog.show()
 
+    def warning_dialog(self, msg, blocking):
+        self.win.show_warning(msg, parent=self.top_level_window())
+        if blocking:
+            self.done.set()
+
     def error_dialog(self, msg, blocking):
         self.win.show_error(msg, parent=self.top_level_window())
         if blocking:
@@ -195,8 +221,11 @@ class QtHandlerBase(HardwareHandlerBase, QObject, Logger):
 
     def clear_dialog(self):
         if self.dialog:
-            self.dialog.accept()
+            with ignore_if_destroyed(self.dialog):
+                self.dialog.accept()
             self.dialog = None
+            self._dialog_label = None
+            self._dialog_on_cancel = None
 
     def win_query_choice(self, msg: str, choices: Sequence[ChoiceItem]):
         try:

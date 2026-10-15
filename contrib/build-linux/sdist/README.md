@@ -11,7 +11,6 @@ and a strictly source-only one (for Linux distro packagers).
 The normal tarball, in addition to including everything from
 the source-only one, also includes:
 - compiled (`.mo`) locale files (in addition to source `.po` locale files)
-- compiled (`_pb2.py`) protobuf files (in addition to source `.proto` files)
 - the `packages/` folder containing source-only pure-python runtime dependencies
 
 
@@ -53,5 +52,3 @@ The differences are as follows:
 - the normal tarball includes compiled (.mo) locale files, the source-only tarball does not.
   Both tarballs contain (.po) source locale files. If you are packaging for a Linux distro,
   you probably want to compile the .mo locale files yourself (see `contrib/locale/build_locale.sh`).
-- the normal tarball includes generated `*_pb2.py` files. These are created
-  using `protobuf-compiler` from `.proto` files (see `contrib/generate_payreqpb2.sh`)

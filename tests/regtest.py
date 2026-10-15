@@ -58,12 +58,6 @@ class TestLightningAB(TestLightning):
     def test_collaborative_close(self):
         self.run_shell(['collaborative_close'])
 
-    def test_backup(self):
-        self.run_shell(['backup'])
-
-    def test_backup_local_forceclose(self):
-        self.run_shell(['backup_local_forceclose'])
-
     def test_breach(self):
         self.run_shell(['breach'])
 
@@ -82,6 +76,9 @@ class TestLightningAB(TestLightning):
     def test_breach_with_spent_htlc(self):
         self.run_shell(['breach_with_spent_htlc'])
 
+    def test_lnwatcher_waits_until_fees_go_down(self):
+        self.run_shell(['lnwatcher_waits_until_fees_go_down'])
+
 
 class TestLightningSwapserver(TestLightning):
     agents = {
@@ -98,8 +95,11 @@ class TestLightningSwapserver(TestLightning):
         }
     }
 
-    def test_swapserver_success(self):
-        self.run_shell(['swapserver_success'])
+    def test_swapserver_success_forward(self):
+        self.run_shell(['swapserver_success_forward'])
+
+    def test_swapserver_success_reverse(self):
+        self.run_shell(['swapserver_success_reverse'])
 
     def test_swapserver_forceclose(self):
         self.run_shell(['swapserver_forceclose'])
@@ -148,12 +148,12 @@ class TestLightningABC(TestLightning):
 class TestLightningJIT(TestLightning):
     agents = {
         'alice': {
-            'accept_zeroconf_channels': 'true',
+            'open_zeroconf_channels': 'true',
         },
         'bob': {
             'lightning_listen': 'localhost:9735',
             'lightning_forward_payments': 'true',
-            'accept_zeroconf_channels': 'true',
+            'open_zeroconf_channels': 'true',
         },
         'carol': {
         }
@@ -167,13 +167,13 @@ class TestLightningJITTrampoline(TestLightningJIT):
     agents = {
         'alice': {
             'use_gossip': 'false',
-            'accept_zeroconf_channels': 'true',
+            'open_zeroconf_channels': 'true',
         },
         'bob': {
             'lightning_listen': 'localhost:9735',
             'lightning_forward_payments': 'true',
             'lightning_forward_trampoline_payments': 'true',
-            'accept_zeroconf_channels': 'true',
+            'open_zeroconf_channels': 'true',
         },
         'carol': {
             'use_gossip': 'false',

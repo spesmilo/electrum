@@ -1,12 +1,15 @@
+from typing import TYPE_CHECKING
+
 from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot
 from PyQt6.QtCore import Qt, QAbstractListModel, QModelIndex
 
 from electrum.logging import get_logger
 from electrum.util import Satoshis
-from electrum.interface import ServerAddr, PREFERRED_NETWORK_PROTOCOL
-from electrum import blockchain
 
-from .util import QtEventListener, qt_event_listener
+from electrum.gui.common_qt.util import QtEventListener, qt_event_listener
+
+if TYPE_CHECKING:
+    from electrum.network import Network
 
 
 class QEServerListModel(QAbstractListModel, QtEventListener):
@@ -18,7 +21,7 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
     _ROLE_RMAP = dict(zip(_ROLE_NAMES, _ROLE_KEYS))
 
-    def __init__(self, network, parent=None):
+    def __init__(self, network: 'Network', parent=None):
         super().__init__(parent)
 
         self._chaintips = 0
@@ -89,7 +92,7 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
 
         for chain_id, interfaces in chains.items():
             self._logger.debug(f'chain {chain_id} has {len(interfaces)} interfaces')
-            b = blockchain.blockchains.get(chain_id)
+            b = self.network.bc_mgr.blockchains.get(chain_id)
             if b is None:
                 continue
 
@@ -111,28 +114,18 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
                 servers.append(server)
 
         # disconnected servers
-        all_servers = self.network.get_servers()
-        connected_hosts = set([iface.host for ifaces in chains.values() for iface in ifaces])
-        protocol = PREFERRED_NETWORK_PROTOCOL
-        for _host, d in sorted(all_servers.items()):
-            if _host in connected_hosts:
-                continue
-            if _host.endswith('.onion') and not self.network.is_proxy_tor:
-                continue
-            port = d.get(protocol)
-            if port:
-                s = ServerAddr(_host, port, protocol=protocol)
-                server = {
-                    'chain': '',
-                    'chain_height': 0,
-                    'height': 0,
-                    'is_primary': False,
-                    'is_connected': False,
-                    'name': s.net_addr_str()
-                }
-                server['address'] = server['name']
+        for s in self.network.get_disconnected_server_addrs():
+            server = {
+                'chain': '',
+                'chain_height': 0,
+                'height': 0,
+                'is_primary': False,
+                'is_connected': False,
+                'name': s.to_friendly_name()
+            }
+            server['address'] = server['name']
 
-                servers.append(server)
+            servers.append(server)
 
         self.beginInsertRows(QModelIndex(), 0, len(servers) - 1)
         self._servers = servers

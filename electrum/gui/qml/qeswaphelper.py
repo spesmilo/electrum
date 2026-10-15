@@ -1,27 +1,31 @@
 import asyncio
+import bisect
 from enum import IntEnum
 from typing import Union, Optional, TYPE_CHECKING, Sequence
 
 from PyQt6.QtCore import (pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer, pyqtEnum, QAbstractListModel, Qt,
-                          QModelIndex)
+                          QModelIndex, QVariant)
+from PyQt6.QtGui import QColor
 
 from electrum.i18n import _
 from electrum.bitcoin import DummyAddress
 from electrum.logging import get_logger
 from electrum.transaction import PartialTxOutput, PartialTransaction
 from electrum.util import (NotEnoughFunds, NoDynamicFeeEstimates, profiler, get_asyncio_loop, age,
-                           wait_for2)
-from electrum.submarine_swaps import NostrTransport, SwapServerTransport
+                           wait_for2, send_exception_to_crash_reporter)
+from electrum.submarine_swaps import NostrTransport, SwapServerTransport, pubkey_to_rgb_color
 from electrum.fee_policy import FeePolicy
 
 from electrum.gui import messages
 
+from electrum.gui.common_qt.util import QtEventListener, qt_event_listener
+
 from .auth import AuthMixin, auth_protect
 from .qetypes import QEAmount
 from .qewallet import QEWallet
-from .util import QtEventListener, qt_event_listener
 
 if TYPE_CHECKING:
+    import concurrent.futures
     from electrum.submarine_swaps import SwapOffer
 
 
@@ -33,7 +37,7 @@ class QESwapServerNPubListModel(QAbstractListModel):
 
     # define listmodel rolemap
     _ROLE_NAMES= ('npub', 'server_pubkey', 'timestamp', 'percentage_fee', 'mining_fee',
-                  'min_amount', 'max_forward_amount', 'max_reverse_amount')
+                  'min_amount', 'max_forward_amount', 'max_reverse_amount', 'pow_bits', 'color')
     _ROLE_KEYS = range(Qt.ItemDataRole.UserRole, Qt.ItemDataRole.UserRole + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
 
@@ -58,7 +62,7 @@ class QESwapServerNPubListModel(QAbstractListModel):
         service = self._services[index.row()]
         role_index = role - Qt.ItemDataRole.UserRole
         value = service[self._ROLE_NAMES[role_index]]
-        if isinstance(value, (bool, list, int, str)) or value is None:
+        if isinstance(value, (bool, list, int, str, QColor)) or value is None:
             return value
         return str(value)
 
@@ -71,12 +75,14 @@ class QESwapServerNPubListModel(QAbstractListModel):
         return {
             'npub': x.server_npub,
             'server_pubkey': x.server_pubkey,
-            'percentage_fee': x.pairs.percentage,
+            'percentage_fee': float(x.pairs.percentage),
             'mining_fee': x.pairs.mining_fee,
             'min_amount': x.pairs.min_amount,
             'max_forward_amount': x.pairs.max_forward,
             'max_reverse_amount': x.pairs.max_reverse,
             'timestamp': age(x.timestamp),
+            'pow_bits': x.pow_bits,
+            'color': QColor(*pubkey_to_rgb_color(x.server_pubkey)),
         }
 
     def updateModel(self, items: Sequence['SwapOffer']):
@@ -103,10 +109,16 @@ class QESwapServerNPubListModel(QAbstractListModel):
 
         # add new offers
         if offers:
-            self.beginInsertRows(QModelIndex(), len(self._services), len(self._services) + len(offers) - 1)
             for offer in offers:
-                self._services.append(self.offer_to_model(offer))
-            self.endInsertRows()
+                # offers are sorted by pow_bits
+                insertion_index = bisect.bisect_left(
+                    self._services,
+                    -offer.pow_bits,  # negate the values to get ascending order
+                    key=lambda service: -service['pow_bits'],
+                )
+                self.beginInsertRows(QModelIndex(), insertion_index, insertion_index)
+                self._services.insert(insertion_index, self.offer_to_model(offer))
+                self.endInsertRows()
 
         if offers or remove:
             self.countChanged.emit()
@@ -190,16 +202,16 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
     def on_destroy(self):
         if self.transport_task is not None:
             self.transport_task.cancel()
-            self.transport_task = None
         self.unregister_callbacks()
 
     walletChanged = pyqtSignal()
-    @pyqtProperty(QEWallet, notify=walletChanged)
-    def wallet(self):
+    @pyqtProperty(QVariant, notify=walletChanged)
+    def wallet(self) -> QEWallet:
         return self._wallet
 
     @wallet.setter
     def wallet(self, wallet: QEWallet):
+        assert wallet is None or isinstance(wallet, QEWallet)
         if self._wallet != wallet:
             self._wallet = wallet
             self.run_swap_manager()
@@ -283,34 +295,37 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
             self.userinfoChanged.emit()
 
     tosendChanged = pyqtSignal()
-    @pyqtProperty(QEAmount, notify=tosendChanged)
-    def tosend(self):
+    @pyqtProperty(QVariant, notify=tosendChanged)
+    def tosend(self) -> QEAmount:
         return self._tosend
 
     @tosend.setter
-    def tosend(self, tosend):
+    def tosend(self, tosend: QEAmount):
+        assert tosend is None or isinstance(tosend, QEAmount)
         if self._tosend != tosend:
             self._tosend = tosend
             self.tosendChanged.emit()
 
     toreceiveChanged = pyqtSignal()
-    @pyqtProperty(QEAmount, notify=toreceiveChanged)
-    def toreceive(self):
+    @pyqtProperty(QVariant, notify=toreceiveChanged)
+    def toreceive(self) -> QEAmount:
         return self._toreceive
 
     @toreceive.setter
-    def toreceive(self, toreceive):
+    def toreceive(self, toreceive: QEAmount):
+        assert toreceive is None or isinstance(toreceive, QEAmount)
         if self._toreceive != toreceive:
             self._toreceive = toreceive
             self.toreceiveChanged.emit()
 
     serverMiningfeeChanged = pyqtSignal()
-    @pyqtProperty(QEAmount, notify=serverMiningfeeChanged)
-    def serverMiningfee(self):
+    @pyqtProperty(QVariant, notify=serverMiningfeeChanged)
+    def serverMiningfee(self) -> QEAmount:
         return self._server_miningfee
 
     @serverMiningfee.setter
-    def serverMiningfee(self, server_miningfee):
+    def serverMiningfee(self, server_miningfee: QEAmount):
+        assert server_miningfee is None or isinstance(server_miningfee, QEAmount)
         if self._server_miningfee != server_miningfee:
             self._server_miningfee = server_miningfee
             self.serverMiningfeeChanged.emit()
@@ -327,12 +342,13 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
             self.serverfeepercChanged.emit()
 
     miningfeeChanged = pyqtSignal()
-    @pyqtProperty(QEAmount, notify=miningfeeChanged)
-    def miningfee(self):
+    @pyqtProperty(QVariant, notify=miningfeeChanged)
+    def miningfee(self) -> QEAmount:
         return self._miningfee
 
     @miningfee.setter
-    def miningfee(self, miningfee):
+    def miningfee(self, miningfee: QEAmount):
+        assert miningfee is None or isinstance(miningfee, QEAmount)
         if self._miningfee != miningfee:
             self._miningfee = miningfee
             self.miningfeeChanged.emit()
@@ -447,17 +463,19 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
                             self.offersUpdated.emit()
                     await asyncio.sleep(1)
 
-        async def handle_swap_transport(transport: SwapServerTransport):
-            # ensures that swap_transport is always set None if transport closes
-            try:
-                await swap_transport_task(transport)
-            finally:
-                self.swap_transport = None
+        def transport_closed_cb(fut: 'concurrent.futures.Future'):
+            self.transport_task = None
+            if fut.cancelled():
+                return
+            exc = fut.exception()
+            if exc:
+                send_exception_to_crash_reporter(exc)
 
         self.transport_task = asyncio.run_coroutine_threadsafe(
-            handle_swap_transport(swap_transport),
+            swap_transport_task(swap_transport),
             get_asyncio_loop()
         )
+        self.transport_task.add_done_callback(transport_closed_cb)
 
     @pyqtSlot()
     def npubSelectionCancelled(self):
@@ -645,9 +663,12 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
                 except RuntimeError:
                     pass
             except asyncio.CancelledError:
-                self._wallet.wallet.lnworker.swap_manager.cancel_normal_swap(self._swap)
-                self.userinfo = _('Swap cancelled')
-                self.state = QESwapHelper.State.Cancelled
+                if self._wallet.wallet.lnworker.swap_manager.cancel_normal_swap(self._swap):
+                    self.userinfo = _('Swap cancelled')
+                    self.state = QESwapHelper.State.Cancelled
+                else:
+                    self.userinfo = _('Swap was already funded, refusing to cancel')
+                    self.state = QESwapHelper.State.Success
             except Exception as e:
                 try:  # swaphelper might be destroyed at this point
                     self.state = QESwapHelper.State.Failed
@@ -707,6 +728,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
                     transport=self.swap_transport,
                     lightning_amount_sat=lightning_amount,
                     expected_onchain_amount_sat=onchain_amount + swap_manager.get_fee_for_txbatcher(),
+                    prepayment_sat=2 * self.serverMiningfee.satsInt,
                 )
                 try:  # swaphelper might be destroyed at this point
                     if txid:

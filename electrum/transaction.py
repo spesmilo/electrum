@@ -29,13 +29,14 @@ import struct
 import io
 import base64
 from typing import (
-    Sequence, Union, NamedTuple, Tuple, Optional, Iterable, Callable, List, Dict, Set, TYPE_CHECKING, Mapping
+    Sequence, Union, NamedTuple, Tuple, Optional, Iterable, Callable, List, Dict, Set, TYPE_CHECKING, Mapping, Any
 )
 from collections import defaultdict
 from enum import IntEnum
 import itertools
 import binascii
 import copy
+import re
 
 import electrum_ecc as ecc
 from electrum_ecc.util import bip340_tagged_hash
@@ -50,8 +51,8 @@ from .bitcoin import (
 )
 from .crypto import sha256d, sha256
 from .logging import get_logger
-from .util import ShortID, OldTaskGroup
-from .descriptor import Descriptor, MissingSolutionPiece, create_dummy_descriptor_from_address
+from .util import ShortID, OldTaskGroup, TxMinedInfo
+from .descriptor import Descriptor, MissingSolutionPiece, create_dummy_descriptor_from_address, DUMMY_DER_SIG
 
 if TYPE_CHECKING:
     from .wallet import Abstract_Wallet
@@ -203,6 +204,9 @@ class TxOutput:
     def __ne__(self, other):
         return not (self == other)
 
+    def __hash__(self) -> int:
+        return hash((self.scriptpubkey, self.value))
+
     def to_json(self):
         d = {
             'scriptpubkey': self.scriptpubkey.hex(),
@@ -323,9 +327,9 @@ class TxInput:
 
     def __init__(self, *,
                  prevout: TxOutpoint,
-                 script_sig: bytes = None,
+                 script_sig: bytes | None = None,
                  nsequence: int = 0xffffffff - 1,
-                 witness: bytes = None,
+                 witness: bytes | None = None,
                  is_coinbase_output: bool = False):
         self.prevout = prevout
         self.script_sig = script_sig
@@ -333,9 +337,9 @@ class TxInput:
         self.witness = witness
         self._is_coinbase_output = is_coinbase_output
         # blockchain fields
-        self.block_height = None  # type: Optional[int]  # height at which the TXO is mined; None means unknown. not SPV-ed.
+        self.block_height = None  # type: Optional[int]  # height at which the TXO is mined; None means unknown. SPV-ed.
         self.block_txpos = None  # type: Optional[int]  # position of tx in block, if TXO is mined; otherwise None or -1
-        self.spent_height = None  # type: Optional[int]  # height at which the TXO got spent
+        self.spent_height = None  # type: Optional[int]  # height at which the TXO got spent.  SPV-ed.
         self.spent_txid = None  # type: Optional[str]  # txid of the spender
         self._utxo = None  # type: Optional[Transaction]
         self.__scriptpubkey = None  # type: Optional[bytes]
@@ -346,20 +350,30 @@ class TxInput:
 
     def get_time_based_relative_locktime(self) -> Optional[int]:
         # see bip 68
-        if self.nsequence & (1<<31):
-            return
-        if self.nsequence & (1<<22):
+        if self.nsequence & (1<<31):  # "disable" flag
+            return None
+        if self.nsequence & (1<<22):  # in units of 512 sec
             return self.nsequence & 0xffff
+        return None
 
     def get_block_based_relative_locktime(self) -> Optional[int]:
-        if self.nsequence & (1<<31):
-            return
-        if not self.nsequence & (1<<22):
+        if self.nsequence & (1<<31):  # "disable" flag
+            return None
+        if not self.nsequence & (1<<22):  # in blocks
             return self.nsequence & 0xffff
+        return None
+
+    def set_mined_info(self, info: TxMinedInfo) -> None:
+        self.block_height = info.height()
+        self.block_txpos = info.txpos
+
+    def has_short_id(self) -> bool:
+        return (self.block_height is not None and self.block_height > 0
+                and self.block_txpos is not None and self.block_txpos >= 0)
 
     @property
     def short_id(self):
-        if self.block_txpos is not None and self.block_txpos >= 0:
+        if self.has_short_id():
             return ShortID.from_components(self.block_height, self.block_txpos, self.prevout.out_idx)
         else:
             return self.prevout.short_name()
@@ -374,7 +388,7 @@ class TxInput:
             return
         # note that tx might be a PartialTransaction
         # serialize and de-serialize tx now. this might e.g. convert a complete PartialTx to a Tx
-        tx = tx_from_any(str(tx))
+        tx = tx_from_any(str(tx), sanitize=False)
         # 'utxo' field should not be a PSBT:
         if not tx.is_complete():
             return
@@ -429,7 +443,7 @@ class TxInput:
             d['witness'] = [x.hex() for x in self.witness_elements()]
         return d
 
-    def serialize_to_network(self, *, script_sig: bytes = None) -> bytes:
+    def serialize_to_network(self, *, script_sig: bytes | None = None) -> bytes:
         if script_sig is None:
             script_sig = self.script_sig
         # Prev hash and index
@@ -448,10 +462,13 @@ class TxInput:
         n = vds.read_compact_size()
         return list(vds.read_bytes(vds.read_compact_size()) for i in range(n))
 
-    def is_segwit(self, *, guess_for_address=False) -> bool:
+    def has_witness(self) -> bool:
         if self.witness not in (b'\x00', b'', None):
             return True
         return False
+
+    def is_segwit(self, *, guess_for_address=False) -> bool:
+        return self.has_witness()
 
     def is_taproot(self) -> Optional[bool]:
         if self._is_taproot is None:
@@ -583,7 +600,7 @@ class BCDataStream(object):
 
         return self.read_bytes(length).decode(encoding)
 
-    def write_string(self, string, encoding='ascii'):
+    def write_string(self, string: str | bytes | bytearray, encoding='ascii'):
         string = to_bytes(string, encoding)
         # Length-encoded as with read-string
         self.write_compact_size(len(string))
@@ -642,22 +659,12 @@ class BCDataStream(object):
         except IndexError as e:
             raise SerializationError("attempt to read past end of buffer") from e
 
-    def write_compact_size(self, size):
-        if size < 0:
-            raise SerializationError("attempt to write size < 0")
-        elif size < 253:
-            self.write(bytes([size]))
-        elif size < 2**16:
-            self.write(b'\xfd')
-            self._write_num('<H', size)
-        elif size < 2**32:
-            self.write(b'\xfe')
-            self._write_num('<I', size)
-        elif size < 2**64:
-            self.write(b'\xff')
-            self._write_num('<Q', size)
-        else:
-            raise Exception(f"size {size} too large for compact_size")
+    def write_compact_size(self, size: int) -> None:
+        try:
+            compact_size = var_int(size)
+        except OverflowError as e:
+            raise SerializationError(f"size {size} outside valid range for compact_size") from e
+        self.write(compact_size)
 
     def _read_num(self, format):
         try:
@@ -703,7 +710,7 @@ def script_GetOp(_bytes : bytes):
 
 
 class OPPushDataGeneric:
-    def __init__(self, pushlen: Callable=None):
+    def __init__(self, pushlen: Callable[[int], bool] | None = None):
         if pushlen is not None:
             self.check_data_len = pushlen
 
@@ -721,7 +728,7 @@ class OPPushDataGeneric:
 
 
 class OPGeneric:
-    def __init__(self, matcher: Callable = None):
+    def __init__(self, matcher: Callable[[Any], bool] | None = None):
         if matcher is not None:
             self.matcher = matcher
 
@@ -729,7 +736,7 @@ class OPGeneric:
         return self.matcher(op)
 
     @classmethod
-    def is_instance(cls, item):
+    def is_instance(cls, item) -> bool:
         # accept objects that are instances of this class
         # or other classes that are subclasses
         return isinstance(item, cls) \
@@ -911,8 +918,8 @@ class Transaction:
             self._cached_network_ser = raw.hex()
         else:
             raise Exception(f"cannot initialize transaction from {raw}")
-        self._inputs = None  # type: List[TxInput]
-        self._outputs = None  # type: List[TxOutput]
+        self._inputs = None  # type: List[TxInput] | None
+        self._outputs = None  # type: List[TxOutput] | None
         self._locktime = 0
         self._version = 2
 
@@ -1002,8 +1009,7 @@ class Transaction:
             return construct_witness([])
 
         if estimate_size and hasattr(txin, 'make_witness'):
-            sig_dummy = b'\x00' * 71  # DER-encoded ECDSA sig, with low S and low R
-            txin.witness_sizehint = len(txin.make_witness(sig_dummy))
+            txin.witness_sizehint = len(txin.make_witness(DUMMY_DER_SIG))
 
         if estimate_size and txin.witness_sizehint is not None:
             return bytes(txin.witness_sizehint)
@@ -1050,7 +1056,7 @@ class Transaction:
         txin_index: int,
         *,
         sighash: Optional[int] = None,
-        sighash_cache: SighashCache = None,
+        sighash_cache: SighashCache | None = None,
     ) -> bytes:
         nVersion = int.to_bytes(self.version, length=4, byteorder="little", signed=True)
         nLocktime = int.to_bytes(self.locktime, length=4, byteorder="little", signed=False)
@@ -1149,7 +1155,7 @@ class Transaction:
         txin_index: int,
         pubkey_bytes: bytes,
         sig: bytes,
-        sighash_cache: SighashCache = None,
+        sighash_cache: SighashCache | None = None,
     ) -> bool:
         txin = self.inputs()[txin_index]
         if txin.is_taproot():
@@ -1162,8 +1168,24 @@ class Transaction:
             sig64 = ecc.ecdsa_sig64_from_der_sig(der_sig)
             return pubkey.ecdsa_verify(sig64, msg_hash)
 
-    def is_segwit(self, *, guess_for_address=False):
+    def is_any_segwit(self, *, guess_for_address: bool = False) -> bool:
+        # If any input is segwit, the tx needs to serialized with a witness and it will have a wtxid != txid,
+        # however the non-segwit inputs are still malleable.
         return any(txin.is_segwit(guess_for_address=guess_for_address)
+                   for txin in self.inputs())
+
+    def is_all_segwit(self, *, guess_for_address: bool = False) -> bool:
+        """Returns whether *all* inputs are segwit.
+
+        If not, the txid is trivially malleable:
+        - by any signer, who can e.g. re-sign the non-segwit inputs using different nonces
+        - by miners: most third-party malleability results in the tx being non-standard,
+          so at least arbitrary tx relaying nodes cannot do it. But if they mine the tx, they can.
+
+        ref https://github.com/bitcoin/bips/blob/master/bip-0062.mediawiki#motivation
+        ref https://github.com/bitcoin/bitcoin/blob/05bc2f53ce0cb239c17dbdd6b261bd2db7d2a940/src/policy/policy.h#L118-L131
+        """
+        return all(txin.is_segwit(guess_for_address=guess_for_address)
                    for txin in self.inputs())
 
     def invalidate_ser_cache(self):
@@ -1200,8 +1222,8 @@ class Transaction:
             for txin in inputs)
         txouts = var_int(len(outputs)).hex() + ''.join(o.serialize_to_network().hex() for o in outputs)
 
-        use_segwit_ser_for_estimate_size = estimate_size and self.is_segwit(guess_for_address=True)
-        use_segwit_ser_for_actual_use = not estimate_size and self.is_segwit()
+        use_segwit_ser_for_estimate_size = estimate_size and self.is_any_segwit(guess_for_address=True)
+        use_segwit_ser_for_actual_use = not estimate_size and self.is_any_segwit()
         use_segwit_ser = use_segwit_ser_for_estimate_size or use_segwit_ser_for_actual_use
         if include_sigs and not force_legacy and use_segwit_ser:
             marker = '00'
@@ -1223,13 +1245,13 @@ class Transaction:
             tx.convert_all_utxos_to_witness_utxos()
             is_complete = False
         tx_bytes = tx.serialize_as_bytes()
-        return base_encode(tx_bytes, base=43), is_complete
+        tx_base43 = base_encode(tx_bytes, base=43)  # FIXME this takes quadratic time in len(tx)
+        return tx_base43, is_complete
 
     def txid(self) -> Optional[str]:
         if self._cached_txid is None:
             self.deserialize()
-            all_segwit = all(txin.is_segwit() for txin in self.inputs())
-            if not all_segwit and not self.is_complete():
+            if not self.is_all_segwit() and not self.is_complete():
                 return None
             try:
                 ser = self.serialize_to_network(force_legacy=True)
@@ -1264,6 +1286,7 @@ class Transaction:
         timeout=None,
     ) -> None:
         """note: it is recommended to call add_info_from_wallet first, as this can save some network requests"""
+        from .interface import NetworkException
         if not self.is_missing_info_from_network():
             return
         if progress_cb is None:
@@ -1297,6 +1320,8 @@ class Transaction:
         except Exception as e:
             has_errored = True
             _logger.error(f"tx.add_info_from_network() got exc: {e!r}")
+            if not (isinstance(e, NetworkException) and ignore_network_issues):
+                raise
         finally:
             has_finished = True
             progress_cb(TxinDataFetchProgress(num_tasks_done, num_tasks_total, has_errored, has_finished))
@@ -1325,13 +1350,13 @@ class Transaction:
 
     def get_time_based_relative_locktime(self) -> Optional[int]:
         if self.version < 2:
-            return
+            return None
         locktimes = list(filter(None, [txin.get_time_based_relative_locktime() for txin in self.inputs()]))
         return max(locktimes) if locktimes else None
 
     def get_block_based_relative_locktime(self) -> Optional[int]:
         if self.version < 2:
-            return
+            return None
         locktimes = list(filter(None, [txin.get_block_based_relative_locktime() for txin in self.inputs()]))
         return max(locktimes) if locktimes else None
 
@@ -1339,12 +1364,22 @@ class Transaction:
         """Whether the tx explicitly signals BIP-0125 replace-by-fee."""
         return any([txin.nsequence < 0xffffffff - 1 for txin in self.inputs()])
 
+    def is_coinbase_tx(self) -> bool:
+        return self.inputs()[0].is_coinbase_input()
+
     def estimated_size(self) -> int:
         """Return an estimated virtual tx size in vbytes.
         BIP-0141 defines 'Virtual transaction size' to be weight/4 rounded up.
         This definition is only for humans, and has little meaning otherwise.
         If we wanted sub-byte precision, fee calculation should use transaction
-        weights, but for simplicity we approximate that with (virtual_size)x4
+        weights, but for simplicity we approximate that with (virtual_size)x4.
+        note: while we try to estimate as close to the true value as possible,
+            whenever that's not possible, we should over-estimate. E.g. ecdsa DER sig
+            sizes can be 71 or 72 bytes (even 73 though that is non-standard).
+            Over-estimating is preferred as the typical use-case is the user selecting
+            a target_feerate, and the code calculating abs fees as target_feerate*est_size.
+            If we over-estimate est_size there, that means the final true_feerate is going to
+            be higher than target_feerate, which is desirable especially near the min_relay_fee.
         """
         weight = self.estimated_weight()
         return self.virtual_size_from_weight(weight)
@@ -1395,7 +1430,7 @@ class Transaction:
     def estimated_witness_size(self):
         """Return an estimate of witness size in bytes."""
         estimate = not self.is_complete()
-        if not self.is_segwit(guess_for_address=estimate):
+        if not self.is_any_segwit(guess_for_address=estimate):
             return 0
         inputs = self.inputs()
         witness = b"".join(self.serialize_witness(x, estimate_size=estimate) for x in inputs)
@@ -1432,30 +1467,6 @@ class Transaction:
     def get_output_idxs_from_address(self, addr: str) -> Set[int]:
         script = bitcoin.address_to_script(addr)
         return self.get_output_idxs_from_scriptpubkey(script)
-
-    def replace_output_address(self, old_address: str, new_address: str) -> None:
-        idx = list(self.get_output_idxs_from_address(old_address))
-        assert len(idx) == 1
-        amount = self._outputs[idx[0]].value
-        funding_output = PartialTxOutput.from_address_and_value(new_address, amount)
-        old_output = PartialTxOutput.from_address_and_value(old_address, amount)
-        self._outputs.remove(old_output)
-        self.add_outputs([funding_output])
-        delattr(self, '_script_to_output_idx')
-
-    def get_change_outputs(self):
-        return  [o for o in self._outputs if o.is_change]
-
-    def has_change(self):
-        return len(self.get_change_outputs()) > 0
-
-    def get_dummy_output(self, dummy_addr: str) -> Optional['PartialTxOutput']:
-        idxs = self.get_output_idxs_from_address(dummy_addr)
-        if not idxs:
-            return
-        assert len(idxs) == 1
-        for i in idxs:
-            return self.outputs()[i]
 
     def output_value_for_address(self, addr):
         # assumes exactly one output has that address
@@ -1500,16 +1511,9 @@ def convert_raw_tx_to_hex(raw: Union[str, bytes]) -> str:
     raw tx hex string."""
     if not raw:
         raise ValueError("empty string")
-    raw_unstripped = raw
-    raw = raw.strip()
     # try hex
     try:
         return binascii.unhexlify(raw).hex()
-    except Exception:
-        pass
-    # try base43
-    try:
-        return base_decode(raw, base=43).hex()
     except Exception:
         pass
     # try base64
@@ -1518,16 +1522,42 @@ def convert_raw_tx_to_hex(raw: Union[str, bytes]) -> str:
             return base64.b64decode(raw, validate=True).hex()
         except Exception:
             pass
-    # raw bytes (do not strip whitespaces in this case)
-    if isinstance(raw_unstripped, bytes):
-        return raw_unstripped.hex()
+    # try base43
+    try:
+        # FIXME This takes quadratic time in len(tx).
+        #       We could prefix all txs we base43-serialize with e.g. "BASE43TX:",
+        #       (and break-compat with old versions).  Then at least we would not attempt
+        #       the expensive deser here if it's not needed.
+        if len(raw) > 30_000:
+            # note: base_decode for this length takes around 0.2 sec on my laptop.
+            # note: We only use/expect base43 inside QR codes. The max data a QR can fit is around 4 KB,
+            #       serializing that to b43 results in a length of ~5500. 30k is already over 5x that.
+            raise ValueError("raw tx too large for base43")
+        return base_decode(raw, base=43).hex()
+    except Exception:
+        pass
+    # raw bytes
+    if isinstance(raw, (bytes, bytearray)):
+        return raw.hex()
     raise ValueError(f"failed to recognize transaction encoding for txt: {raw[:30]}...")
 
 
-def tx_from_any(raw: Union[str, bytes], *,
-                deserialize: bool = True) -> Union['PartialTransaction', 'Transaction']:
-    if isinstance(raw, bytearray):
-        raw = bytes(raw)
+def tx_from_any(
+        raw: Union[str, bytes], *,
+        deserialize: bool = True,
+        sanitize: bool = True,
+) -> Union['PartialTransaction', 'Transaction']:
+    # re.sub is expensive, set sanitize to False if raw data is not from user input
+    if isinstance(raw, str) and sanitize:
+        # remove all whitespace characters, anywhere, for convenience
+        # - leading/trailing whitespaces are quite common for user-input
+        # - newlines in the middle can also happen, e.g. when copying a raw tx from a pdf
+        # note: we don't do this for bytes-like inputs, as whitespace-looking bytes can appear
+        #       anywhere in a raw tx. Even leading/trailing pseudo-whitespace: consider that
+        #       the nVersion or the nLocktime might contain e.g. "0a" bytes
+        #       consider:  "\n".encode().hex() == "0a"
+        #       For str, this is a non-issue and safe to do.
+        raw = re.sub(r'\s', '', raw)
     raw = convert_raw_tx_to_hex(raw)
     try:
         return PartialTransaction.from_raw_psbt(raw)
@@ -1543,7 +1573,7 @@ def tx_from_any(raw: Union[str, bytes], *,
         return tx
     except Exception as e:
         raise SerializationError(f"Failed to recognise tx encoding, or to parse transaction. "
-                                 f"raw: {raw[:30]}...") from e
+                                 f"raw: {raw[:30]!r}...") from e
 
 
 class PSBTGlobalType(IntEnum):
@@ -1927,6 +1957,8 @@ class PartialTxInput(TxInput, PSBTSection):
             return True
         if self.script_sig is not None and not self.is_segwit():
             return True
+        if self.has_witness() and self.is_native_segwit():
+            return True
         if desc := self.script_descriptor:
             try:
                 desc.satisfy(allow_dummy=False, sigdata=self.sigs_ecdsa)
@@ -1951,7 +1983,7 @@ class PartialTxInput(TxInput, PSBTSection):
             self.sighash = None
             self.bip32_paths = {}
             self.redeem_script = None
-            # FIXME: side effect interfers with make_witness
+            # FIXME: side effect interferes with make_witness
             # self.witness_script = None
 
         if self.script_sig is not None and self.witness is not None:
@@ -2031,7 +2063,7 @@ class PartialTxInput(TxInput, PSBTSection):
 
     def is_segwit(self, *, guess_for_address=False) -> bool:
         """Whether this input is segwit (any witness version)."""
-        if super().is_segwit():
+        if self.has_witness():
             return True
         if self.is_native_segwit() or self.is_p2sh_segwit():
             return True
@@ -2055,7 +2087,7 @@ class PartialTxInput(TxInput, PSBTSection):
 
     def already_has_some_signatures(self) -> bool:
         """Returns whether progress has been made towards completing this input."""
-        return (self.sigs_ecdsa
+        return (bool(self.sigs_ecdsa)
                 or self.tap_key_sig is not None
                 or self.script_sig is not None
                 or self.witness is not None)
@@ -2221,9 +2253,9 @@ class PartialTransaction(Transaction):
         return res
 
     @classmethod
-    def from_raw_psbt(cls, raw) -> 'PartialTransaction':
+    def from_raw_psbt(cls, raw: Union[str, bytes, bytearray]) -> 'PartialTransaction':
         # auto-detect and decode Base64 and Hex.
-        if raw[0:10].lower() in (b'70736274ff', '70736274ff'):  # hex
+        if raw[0:10].lower() == '70736274ff':  # hex (str)
             raw = bytes.fromhex(raw)
         elif raw[0:6] in (b'cHNidP', 'cHNidP'):  # base64
             raw = base64.b64decode(raw, validate=True)
@@ -2332,8 +2364,8 @@ class PartialTransaction(Transaction):
             inputs: Sequence[PartialTxInput],
             outputs: Sequence[PartialTxOutput],
             *,
-            locktime: int = None,
-            version: int = None,
+            locktime: int | None = None,
+            version: int | None = None,
             BIP69_sort: bool = True
     ) -> 'PartialTransaction':
         self = cls()
@@ -2431,6 +2463,30 @@ class PartialTransaction(Transaction):
             self.BIP69_sort(inputs=False)
         self.invalidate_ser_cache()
 
+    def replace_output_address(self, old_address: str, new_address: str) -> None:
+        idx = list(self.get_output_idxs_from_address(old_address))
+        assert len(idx) == 1
+        amount = self._outputs[idx[0]].value
+        funding_output = PartialTxOutput.from_address_and_value(new_address, amount)
+        old_output = PartialTxOutput.from_address_and_value(old_address, amount)
+        self._outputs.remove(old_output)
+        self.add_outputs([funding_output])
+        delattr(self, '_script_to_output_idx')
+
+    def get_change_outputs(self) -> Sequence[PartialTxOutput]:
+        return [o for o in self._outputs if o.is_change]
+
+    def has_change(self) -> bool:
+        return len(self.get_change_outputs()) > 0
+
+    def get_dummy_output(self, dummy_addr: str) -> Optional['PartialTxOutput']:
+        idxs = self.get_output_idxs_from_address(dummy_addr)
+        if not idxs:
+            return None
+        assert len(idxs) == 1
+        idx = list(idxs)[0]
+        return self.outputs()[idx]
+
     def set_rbf(self, rbf: bool) -> None:
         nSequence = 0xffffffff - (2 if rbf else 1)
         for txin in self.inputs():
@@ -2449,6 +2505,11 @@ class PartialTransaction(Transaction):
         # keypairs:  pubkey_bytes -> secret_bytes
         sighash_cache = SighashCache()
         for i, txin in enumerate(self.inputs()):
+            if txin.has_witness():
+                # note: serialize_preimage relies on is_segwit(), which returns True
+                # if the PSBT contains a witness, even for non-segwit inputs.
+                _logger.info(f"not signing input {i}: it already has a witness")
+                continue
             for pubkey in txin.pubkeys:
                 if txin.is_complete():
                     break
@@ -2467,7 +2528,7 @@ class PartialTransaction(Transaction):
         txin_index: int,
         privkey_bytes: bytes,
         *,
-        sighash_cache: SighashCache = None,
+        sighash_cache: SighashCache | None = None,
     ) -> bytes:
         txin = self.inputs()[txin_index]
         txin.validate_data(for_signing=True)

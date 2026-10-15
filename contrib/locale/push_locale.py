@@ -6,6 +6,7 @@
 # Dependencies:
 # $ sudo apt-get install python3-requests gettext qt6-l10n-tools
 
+import glob
 import os
 import subprocess
 import sys
@@ -44,32 +45,32 @@ except (subprocess.CalledProcessError, OSError) as e1:
     except (subprocess.CalledProcessError, OSError) as e2:
         raise Exception("missing Qt lupdate/convert tools. Maybe try 'apt install qt6-l10n-tools'")
 
-
-cmd = "find electrum -type f -name '*.py' -o -name '*.kv'"
-files = subprocess.check_output(cmd, shell=True)
-
-with open("app.fil", "wb") as f:
-    f.write(files)
-
-print("Found {} files to translate".format(len(files.splitlines())))
-
-# Generate fresh translation template
+# create build dir
 build_dir = os.path.join(locale_dir, "build")
 if not os.path.exists(build_dir):
     os.mkdir(build_dir)
+
+# add .py files
+files_list = glob.glob("electrum/**/*.py", recursive=True)
+files_list = sorted(files_list)  # makes output deterministic across CI runs
+with open(f"{build_dir}/app.fil", "w", encoding="utf-8") as f:
+    for item in files_list:
+        f.write(item + "\n")
+print("Found {} .py files to translate".format(len(files_list)))
+
+# Generate fresh translation template
 print('Generating template...')
-cmd = ["xgettext", "-s", "--from-code", "UTF-8", "--language", "Python", "--no-wrap", "-f", "app.fil", f"--output={build_dir}/messages_gettext.pot"]
+# note: do not use xgettext option "--sort-output", as that makes human translators have to context-switch all the time
+cmd = ["xgettext", "--from-code", "UTF-8", "--language", "Python", "--no-wrap", "-f", f"{build_dir}/app.fil", f"--output={build_dir}/messages_gettext.pot"]
 subprocess.check_output(cmd)
 
-
 # add QML translations
-cmd = "find electrum/gui/qml -type f -name '*.qml'"
-files = subprocess.check_output(cmd, shell=True)
-
-with open(f"{build_dir}/qml.lst", "wb") as f:
-    f.write(files)
-
-print("Found {} QML files to translate".format(len(files.splitlines())))
+files_list = glob.glob("electrum/gui/qml/**/*.qml", recursive=True)
+files_list = sorted(files_list)  # makes output deterministic across CI runs
+with open(f"{build_dir}/qml.lst", "w", encoding="utf-8") as f:
+    for item in files_list:
+        f.write(item + "\n")
+print("Found {} QML files to translate".format(len(files_list)))
 
 # note: lupdate writes relative paths into its output .ts file, relative to the .ts file itself :/
 cmd = [QT_LUPDATE, f"@{build_dir}/qml.lst","-ts", f"{build_dir}/qml.ts"]
@@ -90,6 +91,20 @@ cmd = ["msgcat", "-u", "-o", f"{build_dir}/messages.pot", f"{build_dir}/messages
 print('Generate template')
 subprocess.check_output(cmd)
 
+# Add a custom PO header entry to messages.pot. This header survives crowdin,
+# and will still be in the translated .po files, and will get compiled into the final .mo files.
+cnt_src_strings = 0
+with open(f"{build_dir}/messages.pot", "r", encoding="utf-8") as f:
+    for line in f.readlines():
+        if line.startswith('msgid '):
+            cnt_src_strings += 1
+with open(f"{build_dir}/messages_customheader.pot", "w", encoding="utf-8") as f:
+    f.write('''msgid ""\n''')
+    f.write('''msgstr ""\n''')
+    f.write(f'''"X-Electrum-SourceStringCount: {cnt_src_strings}"\n''')
+cmd = ["msgcat", "-u", "-o", f"{build_dir}/messages.pot", f"{build_dir}/messages.pot", f"{build_dir}/messages_customheader.pot"]
+print('Add custom header to template')
+subprocess.check_output(cmd)
 
 # prepare uploading to crowdin
 os.chdir(os.path.join(project_root, "electrum"))
@@ -137,6 +152,9 @@ print("", "source_files.update_file:", "-" * 20, response.text, "-" * 20, sep="\
 print(f"Rebuilding translations...")
 url = f'https://api.crowdin.com/api/v2/projects/{crowdin_project_id}/translations/builds'
 headers = {**global_headers, **{"content-type": "application/json"}}
-response = requests.request("POST", url, headers=headers)
+json_data = {
+    #"exportApprovedOnly": True,  # only include translated-strings approved by users with "Proofreader" permission
+}  # note: these settings MUST be verified by electrum-locale/update.py again, at download-time.
+response = requests.request("POST", url, json=json_data, headers=headers)
 response.raise_for_status()
 print("", "translations.build_crowdin_project_translation:", "-" * 20, response.text, "-" * 20, sep="\n")

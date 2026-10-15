@@ -51,7 +51,7 @@ done
 # note: "$BUNDLE/Contents/CodeResources" is the "notarization staple id"
 FILES_TO_COPY=$(cat << EOF
 $BUNDLE/Contents/_CodeSignature/CodeResources
-$BUNDLE/Contents/CodeResources
+$([ "${IS_NOTARIZED:-true}" != "false" ] && echo "$BUNDLE/Contents/CodeResources")
 EOF
 )
 

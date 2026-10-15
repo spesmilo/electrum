@@ -7,6 +7,7 @@ RowLayout {
     property alias text: password_tf.text
     property alias tf: password_tf
     property alias echoMode: password_tf.echoMode
+    property alias placeholderText: password_tf.placeholderText
     property bool showReveal: true
 
     signal accepted

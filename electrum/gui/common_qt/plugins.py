@@ -1,8 +1,13 @@
 import sys
+from typing import TYPE_CHECKING, Optional
 
 from PyQt6.QtCore import pyqtSignal, pyqtProperty, QObject
 
 from electrum.logging import get_logger
+
+if TYPE_CHECKING:
+    from electrum.gui.qml import ElectrumQmlApplication
+    from electrum.plugin import BasePlugin
 
 
 class PluginQObject(QObject):
@@ -12,7 +17,7 @@ class PluginQObject(QObject):
     busyChanged = pyqtSignal()
     pluginEnabledChanged = pyqtSignal()
 
-    def __init__(self, plugin, parent):
+    def __init__(self, plugin: 'BasePlugin', parent: Optional['ElectrumQmlApplication']):
         super().__init__(parent)
 
         self._busy = False

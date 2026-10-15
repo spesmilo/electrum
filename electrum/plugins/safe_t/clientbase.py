@@ -13,6 +13,9 @@ from electrum.plugin import runs_in_hwd_thread
 from electrum.hw_wallet.plugin import HardwareClientBase, HardwareHandlerBase
 
 
+DEPRECATION_WARNING_SHOWN = False
+
+
 class GuiMixin(object):
     # Requires: self.proto, self.device
     handler: Optional[HardwareHandlerBase]
@@ -175,6 +178,18 @@ class SafeTClientBase(HardwareClientBase, GuiMixin, Logger):
         address_n = self.expand_path(bip32_path)
         creating = False
         node = self.get_public_node(address_n, creating).node
+
+        deprecation_warning = (
+            "Archos Safe-T mini is being deprecated.\n\nIt is no longer supported by the manufacturer.\n"
+            "Future versions of Electrum will no longer be compatible with it.\n\n"
+            "You should move your coins and migrate to a modern hardware device.")
+        self.logger.warning(deprecation_warning.replace("\n", " "))
+
+        global DEPRECATION_WARNING_SHOWN
+        if self.handler and not DEPRECATION_WARNING_SHOWN:
+            DEPRECATION_WARNING_SHOWN = True
+            self.handler.show_warning(deprecation_warning, blocking=True)
+
         return BIP32Node(xtype=xtype,
                          eckey=ecc.ECPubkey(node.public_key),
                          chaincode=node.chain_code,

@@ -148,6 +148,12 @@ class TestUtil(ElectrumTestCase):
     def test_parse_URI_invalid(self):
         self.assertRaises(InvalidBitcoinURI, parse_bip21_URI, 'notbitcoin:15mKKb2eos1hWa6tisdPwwDC1a5J1y9nma')
 
+    def test_parse_URI_malformed(self):
+        # urllib.parse.urlparse itself raises ValueError on some inputs (an unterminated IPv6
+        # netloc, a bad port); that must come out as InvalidBitcoinURI like any other bad URI
+        self.assertRaises(InvalidBitcoinURI, parse_bip21_URI, 'bitcoin://[::1')
+        self.assertRaises(InvalidBitcoinURI, parse_bip21_URI, 'bitcoin://[abc]:notaport')
+
     def test_parse_URI_parameter_pollution(self):
         self.assertRaises(InvalidBitcoinURI, parse_bip21_URI, 'bitcoin:15mKKb2eos1hWa6tisdPwwDC1a5J1y9nma?amount=0.0003&label=test&amount=30.0')
 

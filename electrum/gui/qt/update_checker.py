@@ -35,9 +35,11 @@ class UpdateCheck(QDialog, Logger):
         self.content.setContentsMargins(*[10]*4)
 
         self.heading_label = QLabel()
+        self.heading_label.setTextFormat(Qt.TextFormat.RichText)
         self.content.addWidget(self.heading_label)
 
         self.detail_label = QLabel()
+        self.detail_label.setTextFormat(Qt.TextFormat.RichText)
         self.detail_label.setTextInteractionFlags(Qt.TextInteractionFlag.LinksAccessibleByMouse)
         self.detail_label.setOpenExternalLinks(True)
         self.content.addWidget(self.detail_label)

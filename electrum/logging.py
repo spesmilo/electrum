@@ -5,13 +5,15 @@
 import logging
 import logging.handlers
 import datetime
+from functools import lru_cache
 import sys
 import pathlib
 import os
 import platform
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, Set
 import copy
 import subprocess
+import hashlib
 
 if TYPE_CHECKING:
     from .simple_config import SimpleConfig
@@ -115,24 +117,52 @@ class TruncatingMemoryHandler(logging.handlers.MemoryHandler):
         super().close()
 
 
-def _delete_old_logs(path, *, num_files_keep: int):
-    files = sorted(list(pathlib.Path(path).glob("electrum_log_*.log")), reverse=True)
-    for f in files[num_files_keep:]:
+def _delete_old_logs(path, *, num_files_keep: int, max_total_size: int):
+    """Delete old logfiles, only keeping the latest few."""
+    def sortkey_oldest_first(p: pathlib.PurePath):
+        fname = p.name
+        basename, ext, counter = str(fname).partition(".log")
+        # - each time electrum is launched, there will be a new basename, ordered by date
+        # - for any given basename, there might be multiple log files, differing by counter
+        #   - empty counter is newest, then .1 is older, .2 is even older, etc
         try:
-            os.remove(str(f))
+            counter = int(counter[1:]) if counter else 0  # convert ".2" -> 2
+        except ValueError:
+            _logger.warning(f"failed to parse log file name: {fname}")
+            counter = 0
+        return basename, -counter
+    files = sorted(
+        list(pathlib.Path(path).glob("electrum_log_*.log*")),
+        key=sortkey_oldest_first,
+    )
+    total_size = sum(os.stat(f).st_size for f in files)  # in bytes
+    num_files_remaining = len(files)
+    for f in files:
+        fsize = os.stat(f).st_size
+        if total_size < max_total_size and num_files_remaining <= num_files_keep:
+            break
+        total_size -= fsize
+        num_files_remaining -= 1
+        try:
+            os.remove(f)
         except OSError as e:
             _logger.warning(f"cannot delete old logfile: {e}")
 
 
 _logfile_path = None
-def _configure_file_logging(log_directory: pathlib.Path, *, num_files_keep: int):
+def _configure_file_logging(
+    log_directory: pathlib.Path,
+    *,
+    num_files_keep: int,
+    max_total_size: int,
+):
     from .util import os_chmod
 
     global _logfile_path
     assert _logfile_path is None, 'file logging already initialized'
     log_directory.mkdir(exist_ok=True, mode=0o700)
 
-    _delete_old_logs(log_directory, num_files_keep=num_files_keep)
+    _delete_old_logs(log_directory, num_files_keep=num_files_keep, max_total_size=max_total_size)
 
     timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     PID = os.getpid()
@@ -141,7 +171,12 @@ def _configure_file_logging(log_directory: pathlib.Path, *, num_files_keep: int)
     with open(_logfile_path, "w+") as f:
         os_chmod(_logfile_path, 0o600)
 
-    file_handler = logging.FileHandler(_logfile_path, encoding='utf-8')
+    logfile_backupcount = 4
+    file_handler = logging.handlers.RotatingFileHandler(
+        _logfile_path,
+        maxBytes=max_total_size // (logfile_backupcount+1),
+        backupCount=logfile_backupcount,
+        encoding='utf-8')
     file_handler.setFormatter(file_formatter)
     file_handler.setLevel(logging.DEBUG)
     root_logger.addHandler(file_handler)
@@ -190,6 +225,24 @@ def _process_verbosity_log_levels(verbosity):
             raise Exception(f"invalid log filter: {filt}")
 
 
+class _CustomLogger(logging.getLoggerClass()):
+    def __init__(self, name, *args, **kwargs):
+        super().__init__(name, *args, **kwargs)
+        self.msg_hashes_seen = set()  # type: Set[bytes]
+        # ^ note: size grows without bounds, but only for log lines using "only_once".
+
+    def _log(self, level, msg: str, *args, only_once: bool = False, **kwargs) -> None:
+        """Overridden to add 'only_once' arg to logger.debug()/logger.info()/logger.warning()/etc."""
+        if only_once:  # if set, this logger will only log this msg a single time during its lifecycle
+            msg_hash = hashlib.sha256(msg.encode("utf-8")).digest()
+            if msg_hash in self.msg_hashes_seen:
+                return
+            self.msg_hashes_seen.add(msg_hash)
+        super()._log(level, msg, *args, **kwargs)
+
+logging.setLoggerClass(_CustomLogger)
+
+
 # enable logs universally (including for other libraries)
 root_logger = logging.getLogger()
 root_logger.setLevel(logging.WARNING)
@@ -216,9 +269,10 @@ electrum_logger.setLevel(logging.DEBUG)
 
 # --- External API
 
-def get_logger(name: str) -> logging.Logger:
-    if name.startswith("electrum."):
-        name = name[9:]
+def get_logger(name: str) -> _CustomLogger:
+    prefix = "electrum."
+    if name.startswith(prefix):
+        name = name[len(prefix):]
     return electrum_logger.getChild(name)
 
 
@@ -264,7 +318,8 @@ def configure_logging(config: 'SimpleConfig', *, log_to_file: Optional[bool] = N
     if log_to_file:
         log_directory = pathlib.Path(config.path) / "logs"
         num_files_keep = config.LOGS_NUM_FILES_KEEP
-        _configure_file_logging(log_directory, num_files_keep=num_files_keep)
+        max_total_size = config.LOGS_MAX_TOTAL_SIZE_BYTES
+        _configure_file_logging(log_directory, num_files_keep=num_files_keep, max_total_size=max_total_size)
 
     # clean up and delete in-memory logs
     global _inmemory_startup_logs
@@ -299,11 +354,16 @@ def describe_os_version() -> str:
         return platform.platform()
 
 
+@lru_cache  # result unlikely to change while running. though "-dirty" could technically change
 def get_git_version() -> Optional[str]:
     dir = os.path.dirname(os.path.realpath(__file__))
     try:
+        # note: this searches $PATH and perhaps $PWD for an executable named "git".  attack surface?
         version = subprocess.check_output(
-            ['git', 'describe', '--always', '--dirty'], cwd=dir)
+            ['git', 'describe', '--always', '--dirty'],
+            cwd=dir,
+            timeout=5,  # seconds
+        )
         version = str(version, "utf8").strip()
     except Exception:
         version = None

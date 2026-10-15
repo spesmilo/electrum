@@ -76,7 +76,6 @@ def check_imports():
         import dns
         import certifi
         import qrcode
-        import google.protobuf
         import aiorpcx
         import aiohttp
         import aiohttp_socks
@@ -87,17 +86,28 @@ def check_imports():
         sys.exit(f"Error: {str(e)}. Some dependencies are missing. Have you read the README? Or just try '$ python3 -m pip install -r contrib/requirements/requirements.txt'")
     if not ((0, 25, 0) <= aiorpcx._version < (0, 26)):
         raise RuntimeError(f'aiorpcX version {aiorpcx._version} does not match required: 0.25.0<=ver<0.26')
-    # the following imports are for pyinstaller
-    from google.protobuf import descriptor
-    from google.protobuf import message
-    from google.protobuf import reflection
-    from google.protobuf import descriptor_pb2
     # make sure that certificates are here
     assert os.path.exists(certifi.where())
 
 
 if not is_android:
     check_imports()
+
+
+if is_android:
+    # hack to make pycryptodomex work on Android
+    # from https://github.com/kivy/python-for-android/issues/1866#issuecomment-927157780
+    import ctypes
+    ctypes.pythonapi = ctypes.PyDLL("libpython%d.%d.so" % sys.version_info[:2])  # replaces ctypes.PyDLL(None)
+
+
+# Set default application-wide file umask to more restrictive than typical.
+# We want to create all files and directories (esp. inside the datadir) with locked-down permissions.
+# note: this helps even on Windows! (see https://docs.python.org/3/library/os.html#os.mkdir)
+#       > `os.mkdir(path, mode=0o777, *, dir_fd=None)`
+#       >   On Windows, a mode of 0o700 is specifically handled to apply access control to the new
+#       >   directory such that only the current user and administrators have access.
+os.umask(0o0077)
 
 
 sys._ELECTRUM_RUNNING_VIA_RUNELECTRUM = True  # used by logging.py
@@ -116,6 +126,7 @@ from electrum.commands import get_parser, get_simple_parser, known_commands, Com
 from electrum import daemon
 from electrum.util import create_and_start_event_loop, UserFacingException, JsonRPCError
 from electrum.i18n import set_language
+from electrum import constants
 
 if TYPE_CHECKING:
     import threading
@@ -151,7 +162,7 @@ def init_cmdline(config_options, wallet_path, *, rpcserver: bool, config: 'Simpl
         sys_exit(1)
 
     # instantiate wallet for command-line
-    storage = WalletStorage(wallet_path) if wallet_path else None
+    storage = WalletStorage(wallet_path, allow_partial_writes=config.WALLET_PARTIAL_WRITES) if wallet_path else None
 
     if cmd.requires_wallet and not storage.file_exists():
         print_msg("Error: Wallet file not found.")
@@ -211,8 +222,7 @@ def get_connected_hw_devices(plugins: 'Plugins'):
 def get_password_for_hw_device_encrypted_storage(plugins: 'Plugins') -> str:
     devices = get_connected_hw_devices(plugins)
     if len(devices) == 0:
-        print_msg("Error: No connected hw device found. Cannot decrypt this wallet.")
-        sys.exit(1)
+        raise UserFacingException("Error: No connected hw device found. Cannot decrypt this wallet.")
     elif len(devices) > 1:
         print_msg("Warning: multiple hardware devices detected. "
                   "The first one will be used to decrypt the wallet.")
@@ -224,17 +234,17 @@ def get_password_for_hw_device_encrypted_storage(plugins: 'Plugins') -> str:
         client.handler = client.plugin.create_handler(None)
         return client.get_password_for_storage_encryption()
     except UserCancelled:
-        sys.exit(0)
+        raise
 
 
-async def run_offline_command(config, config_options, wallet_path, plugins: 'Plugins'):
+async def run_offline_command(config: 'SimpleConfig', config_options: dict, wallet_path: str, plugins: 'Plugins'):
     cmdname = config.get('cmd')
     cmd = known_commands[cmdname]
     password = config_options.get('password')
     if 'wallet_path' in cmd.options and config_options.get('wallet_path') is None:
         config_options['wallet_path'] = wallet_path
     if cmd.requires_wallet:
-        storage = WalletStorage(wallet_path)
+        storage = WalletStorage(wallet_path, allow_partial_writes=config.WALLET_PARTIAL_WRITES)
         if storage.is_encrypted():
             if storage.is_encrypted_with_hw_device():
                 password = get_password_for_hw_device_encrypted_storage(plugins)
@@ -251,7 +261,7 @@ async def run_offline_command(config, config_options, wallet_path, plugins: 'Plu
             wallet.check_password(password)
         except InvalidPassword:
             print_msg("Error: This password does not decode this wallet.")
-            sys.exit(1)
+            raise
     if cmd.requires_network:
         print_msg("Warning: running command offline")
     # arguments passed to function
@@ -320,6 +330,8 @@ def parse_command_line(simple_parser=False) -> Dict:
         config_options = {key: config_options[key] for key in filter(f, config_options.keys())}
         if config_options.get(SimpleConfig.NETWORK_SERVER.key()):
             config_options[SimpleConfig.NETWORK_AUTO_CONNECT.key()] = False
+        if config_options.get(SimpleConfig.NETWORK_PROXY.key()):
+            config_options[SimpleConfig.NETWORK_PROXY_ENABLED.key()] = True
 
     config_options['cwd'] = cwd = os.getcwd()
 
@@ -389,14 +401,10 @@ def main():
             'verbosity': '*' if util.is_android_debug_apk() else '',
             'cmd': 'gui',
             SimpleConfig.GUI_NAME.key(): 'qml',
-            SimpleConfig.WALLET_USE_SINGLE_PASSWORD.key(): True,
+            SimpleConfig.WALLET_SHOULD_USE_SINGLE_PASSWORD.key(): True,
+            SimpleConfig.DISABLE_MEMORY_HARDENING_LINUX.key(): True,
         }
-        if util.get_android_package_name() == "org.electrum.testnet.electrum":
-            # ~hack for easier testnet builds. pkgname subject to change.
-            config_options['testnet'] = True
-        elif util.get_android_package_name() == "org.electrum.regtest.electrum":
-            # ~hack for easier regtest builds. pkgname subject to change.
-            config_options['regtest'] = True
+        SimpleConfig.set_chain_config_opt_based_on_android_packagename(config_options)
     else:
         # save sys args for next parser
         saved_sys_argv = sys.argv[:]
@@ -445,7 +453,7 @@ def main():
         print_stderr('unknown command:', uri)
         sys.exit(1)
 
-    if sys.platform == "linux" and not is_android:
+    if sys.platform == "linux" and not config.DISABLE_MEMORY_HARDENING_LINUX:
         import electrum.harden_memory_linux
         electrum.harden_memory_linux.set_dumpable_safe(False)
 
@@ -506,7 +514,9 @@ def handle_cmd(*, cmdname: str, config: 'SimpleConfig', config_options: dict):
         configure_logging(config)
         fd = daemon.get_file_descriptor(config)
         if fd is not None:
-            d = daemon.Daemon(config, fd, start_network=False)
+            # When running in GUI mode, only start a limited minimal RPC server, to limit attack surface.
+            only_minimal_jsonrpc = not constants.net.TESTNET
+            d = daemon.Daemon(config, fd, start_network=False, only_minimal_jsonrpc=only_minimal_jsonrpc)
             try:
                 d.run_gui()
             except BaseException as e:
@@ -532,7 +542,7 @@ def handle_cmd(*, cmdname: str, config: 'SimpleConfig', config_options: dict):
         fd = daemon.get_file_descriptor(config)
         if fd is not None:
             # run daemon
-            d = daemon.Daemon(config, fd)
+            d = daemon.Daemon(config, fd, only_minimal_jsonrpc=False)
             d.run_daemon()
             sys_exit(0)
         else:
@@ -574,7 +584,7 @@ def handle_cmd(*, cmdname: str, config: 'SimpleConfig', config_options: dict):
             except Exception as e:
                 _logger.exception("error running command (with daemon)")
                 sys_exit(1)
-        else:
+        else:  # --offline
             if cmd.requires_network:
                 print_msg("This command cannot be run offline")
                 sys_exit(1)
@@ -596,6 +606,12 @@ def handle_cmd(*, cmdname: str, config: 'SimpleConfig', config_options: dict):
                     plugins.stopped_event.wait(1)
             except UserFacingException as e:
                 print_stderr(str(e))
+                sys_exit(1)
+            except InvalidPassword:
+                print_stderr("Invalid password")
+                sys_exit(1)
+            except UserCancelled:
+                print_stderr("Aborted by user")
                 sys_exit(1)
             except Exception as e:
                 _logger.exception("error running command (without daemon)")

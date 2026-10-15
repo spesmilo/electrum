@@ -1,2 +1,3 @@
-tox
+pytest
+coverage
 coveralls

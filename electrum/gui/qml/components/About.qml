@@ -72,7 +72,7 @@ Pane {
                 Layout.alignment: Qt.AlignRight
             }
             Label {
-                text: qsTr('<a href="https://electrum.org">https://electrum.org</a>')
+                text: '<a href="https://electrum.org">https://electrum.org</a>'
                 textFormat: Text.RichText
                 onLinkActivated: Qt.openUrlExternally(link)
             }
@@ -81,7 +81,7 @@ Pane {
                 Layout.alignment: Qt.AlignRight
             }
             Label {
-                text: 'Thomas Voegtlin\nSomberNight\nSander van Grieken'
+                text: 'Thomas Voegtlin\nSomberNight\nSander van Grieken\nFelix B.'
             }
             Item {
                 width: 1

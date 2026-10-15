@@ -14,8 +14,7 @@ WizardComponent {
 
     function checkValid() {
         var seedvalid = wizard.wiz.isMatchingSeed(wizard_data['seed'], confirm.text)
-        var customwordsvalid =  customwordstext.text == wizard_data['seed_extra_words']
-        valid = seedvalid && (wizard_data['seed_extend'] ? customwordsvalid : true)
+        valid = seedvalid
     }
 
     Flickable {
@@ -31,6 +30,7 @@ WizardComponent {
             InfoTextArea {
                 Layout.fillWidth: true
                 Layout.bottomMargin: constants.paddingLarge
+                backgroundColor: constants.darkerDialogBackground
                 text: qsTr('Your seed is important!') + ' ' +
                     qsTr('If you lose your seed, your money will be permanently lost.') + ' ' +
                     qsTr('To make sure that you have properly saved your seed, please retype it here.')
@@ -43,22 +43,10 @@ WizardComponent {
             SeedTextArea {
                 id: confirm
                 Layout.fillWidth: true
+                Layout.topMargin: constants.paddingSmall
                 placeholderText: qsTr('Enter your seed')
                 onTextChanged: checkValid()
             }
-
-            TextField {
-                id: customwordstext
-                Layout.fillWidth: true
-                placeholderText: qsTr('Enter your custom word(s)')
-                inputMethodHints: Qt.ImhNoPredictiveText
-
-                onTextChanged: checkValid()
-            }
         }
-    }
-
-    Component.onCompleted: {
-        customwordstext.visible = wizard_data['seed_extend']
     }
 }

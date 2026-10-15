@@ -1,0 +1,137 @@
+[
+  {
+    "comment": "Simple n1 test, tlv1 = 1000",
+    "tlv": "n1",
+    "first-tlv": "010203e8",
+    "leaves": [
+      {
+        "H(`LnLeaf`,010203e8)": "67a2a995433890d8fe0c18a1765ad19e98f1fcfeff14c13a45bbc80964a78cf7",
+        "H(`LnNonce`|first-tlv,tlv1-type)": "255a95f5b6b3c6997e2838dc4d9348807fb6da8eb7bbc02d30662d144718b6aa",
+        "H(`LnBranch`,leaf+nonce)": "b013756c8fee86503a0b4abdab4cddeb1af5d344ca6fc2fa8b6c08938caa6f93"
+      }
+    ],
+    "branches": [],
+    "merkle": "b013756c8fee86503a0b4abdab4cddeb1af5d344ca6fc2fa8b6c08938caa6f93"
+  },
+  {
+    "comment": "n1 test, tlv1 = 1000, tlv2 = 1x2x3",
+    "tlv": "n1",
+    "first-tlv": "010203e8",
+    "leaves": [
+      {
+        "H(`LnLeaf`,010203e8)": "67a2a995433890d8fe0c18a1765ad19e98f1fcfeff14c13a45bbc80964a78cf7",
+        "H(`LnNonce`|first-tlv,tlv1-type)": "255a95f5b6b3c6997e2838dc4d9348807fb6da8eb7bbc02d30662d144718b6aa",
+        "H(`LnBranch`,leaf+nonce)": "b013756c8fee86503a0b4abdab4cddeb1af5d344ca6fc2fa8b6c08938caa6f93"
+      },
+      {
+        "H(`LnLeaf`,02080000010000020003)": "cc04567fcbff60d4de87afe5142de16b7401531300554838b2d1117341a4ea8d",
+        "H(`LnNonce`|first-tlv,tlv2-type)": "12bc15565410d8e3251a6fb1c53a2d360f39a9f65afb8403ef875016e34ff678",
+        "H(`LnBranch`,leaf+nonce)": "19d6ecfa3be88d29c30e56167f58526d7695dfac9cb95e1256deb222c92db4d0"
+      }
+    ],
+    "branches": [
+      {
+        "desc": "1: tlv1+nonce and tlv2+nonce",
+        "H(`LnBranch`,19d6ecfa3be88d29c30e56167f58526d7695dfac9cb95e1256deb222c92db4d0b013756c8fee86503a0b4abdab4cddeb1af5d344ca6fc2fa8b6c08938caa6f93)": "c3774abbf4815aa54ccaa026bff6581f01f3be5fe814c620a252534f434bc0d1"
+      }
+    ],
+    "merkle": "c3774abbf4815aa54ccaa026bff6581f01f3be5fe814c620a252534f434bc0d1"
+  },
+  {
+    "comment": "n1 test, tlv1 = 1000, tlv2 = 1x2x3, tlv3 = 0266e4598d1d3c415f572a8488830b60f7e744ed9235eb0b1ba93283b315c03518, 1, 2",
+    "tlv": "n1",
+    "first-tlv": "010203e8",
+    "leaves": [
+      {
+        "H(`LnLeaf`,010203e8)": "67a2a995433890d8fe0c18a1765ad19e98f1fcfeff14c13a45bbc80964a78cf7",
+        "H(`LnNonce`|first-tlv,1)": "255a95f5b6b3c6997e2838dc4d9348807fb6da8eb7bbc02d30662d144718b6aa",
+        "H(`LnBranch`,leaf+nonce)": "b013756c8fee86503a0b4abdab4cddeb1af5d344ca6fc2fa8b6c08938caa6f93"
+      },
+      {
+        "H(`LnLeaf`,02080000010000020003)": "cc04567fcbff60d4de87afe5142de16b7401531300554838b2d1117341a4ea8d",
+        "H(`LnNonce`|first-tlv,2)": "12bc15565410d8e3251a6fb1c53a2d360f39a9f65afb8403ef875016e34ff678",
+        "H(`LnBranch`,leaf+nonce)": "19d6ecfa3be88d29c30e56167f58526d7695dfac9cb95e1256deb222c92db4d0"
+      },
+      {
+        "H(`LnLeaf`,03310266e4598d1d3c415f572a8488830b60f7e744ed9235eb0b1ba93283b315c0351800000000000000010000000000000002)": "47da319b36d61a006e0dbcf6642fe4c822c33a6131af67dfa9293b089c5cbd27",
+        "H(`LnNonce`|first-tlv,3)": "068cf6e9d2db9258a6c1d3304a8f2e9d4d046ea711664c9a96960234f707a084",
+        "H(`LnBranch`,leaf+nonce)": "7c879819c09f1525e7bc69b84f7928180de584f92c846e01fa2daf5b17e32967"
+      }
+    ],
+    "branches": [
+      {
+        "desc": "1: tlv1+nonce and tlv2+nonce",
+        "H(`LnBranch`,19d6ecfa3be88d29c30e56167f58526d7695dfac9cb95e1256deb222c92db4d0b013756c8fee86503a0b4abdab4cddeb1af5d344ca6fc2fa8b6c08938caa6f93)": "c3774abbf4815aa54ccaa026bff6581f01f3be5fe814c620a252534f434bc0d1"
+      },
+      {
+        "desc": "1 and tlv3+nonce",
+        "H(`LnBranch`,7c879819c09f1525e7bc69b84f7928180de584f92c846e01fa2daf5b17e32967c3774abbf4815aa54ccaa026bff6581f01f3be5fe814c620a252534f434bc0d1)": "ab2e79b1283b0b31e0b035258de23782df6b89a38cfa7237bde69aed1a658c5d"
+      }
+    ],
+    "merkle": "ab2e79b1283b0b31e0b035258de23782df6b89a38cfa7237bde69aed1a658c5d"
+  },
+  {
+    "comment": "invoice_request test: offer_issuer_id = Alice (privkey 0x414141...), offer_description = 'A Mathematical Treatise', offer_amount = 100, offer_currency = 'USD', invreq_payer_id = Bob (privkey 0x424242...), invreq_metadata = 0x0000000000000000",
+    "bolt12": "lnr1qqyqqqqqqqqqqqqqqcp4256ypqqkgzshgysy6ct5dpjk6ct5d93kzmpq23ex2ct5d9ek293pqthvwfzadd7jejes8q9lhc4rvjxd022zv5l44g6qah82ru5rdpnpjkppqvjx204vgdzgsqpvcp4mldl3plscny0rt707gvpdh6ndydfacz43euzqhrurageg3n7kafgsek6gz3e9w52parv8gs2hlxzk95tzeswywffxlkeyhml0hh46kndmwf4m6xma3tkq2lu04qz3slje2rfthc89vss",
+    "tlv": "invoice_request",
+    "first-tlv": "00080000000000000000",
+    "leaves": [
+      {
+        "H(`LnLeaf`,00080000000000000000)": "cd45d50b8dbb73ba995f92aa48be7c2909331998cb070572f5499bae338a03c6",
+        "H(`LnNonce`|first-tlv,0)": "edc13c82e89b213a5641b27f0c06c5f31ea948a0cc2fd6495120cc8590cac3f5",
+        "H(`LnBranch`,leaf+nonce)": "5ced451fad76ab7edc8084b84c8b5086df195b2a503c25b371e6850a280c94ab"
+      },
+      {
+        "H(`LnLeaf`,0603555344)": "ae61bfe63f8fc81b7a02a962182a5b5e01501365806481d52fbdfbca915266fa",
+        "H(`LnNonce`|first-tlv,6)": "cc9fc57ce5e82252b6cc8908a93f012b13294a82132768e36dd767b3c3c289e8",
+        "H(`LnBranch`,leaf+nonce)": "a2ea87a666c1524d25132ff59883c96a118728ff76595d239f5806143e3e9c9e"
+      },
+      {
+        "H(`LnLeaf`,080164)": "b4f3adb8ca4f4a4c0e7cd9e0b1cafe8634cf8a864e1a730868bdda39fbd3e336",
+        "H(`LnNonce`|first-tlv,8)": "376180f1ef3b7973ba4989f9391502bd78a1a8a54929fe9adcaec1dd2bfec648",
+        "H(`LnBranch`,leaf+nonce)": "fa0bb4f0fa2f2625c63eec9bf3a29c9aa304e64d5aa44d38e050a6bd7d6fc5c0"
+      },
+      {
+        "H(`LnLeaf`,0a1741204d617468656d61746963616c205472656174697365)": "7007775409456c33c47bddd7ce946ecd5a82035f1d5a529cc90e84d146f75a6e",
+        "H(`LnNonce`|first-tlv,10)": "01926a0c38b4ec71d76b116eeb81ea7999706fdce24a7f5b9d67bf867fd0c4d8",
+        "H(`LnBranch`,leaf+nonce)": "349379beebd68fd72296e76cb2ae28554b35fa9234853956b81b24c008783230"
+      },
+      {
+        "H(`LnLeaf`,162102eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619)": "bdde38b7b58fa74acee1e943bbc32c04306368cb2aa513856f53f45be461051b",
+        "H(`LnNonce`|first-tlv,22)": "2e571571c7dd0739dbc4180bb96b7652b055f9e97f80d37337c96689990fdbaa",
+        "H(`LnBranch`,leaf+nonce)": "384853c9811863028876088ce34e75d784ac027fd564f103ea972cdf96236e47"
+      },
+      {
+        "H(`LnLeaf`,58210324653eac434488002cc06bbfb7f10fe18991e35f9fe4302dbea6d2353dc0ab1c)": "f3b92382531e261e16a0f35d65f314ae622306bbb1b206fee00d80153b76eea3",
+        "H(`LnNonce`|first-tlv,88)": "c31a695332d176217470b705cde5c8cd71cdb611e1f26c5a98f14c0d935c97bd",
+        "H(`LnBranch`,leaf+nonce)": "73e067757513706491e0da4e8077112e606da55c04239ad13ab609bc82907600"
+      }
+    ],
+    "branches": [
+      {
+        "desc": "1: metadata+nonce and currency+nonce",
+        "H(`LnBranch`,5ced451fad76ab7edc8084b84c8b5086df195b2a503c25b371e6850a280c94aba2ea87a666c1524d25132ff59883c96a118728ff76595d239f5806143e3e9c9e)": "f0aa4611039a3a8a90dc8331fa75c9acf433be7285cac0983902aaaa8f66aaa9"
+      },
+      {
+        "desc": "2: amount+nonce and descripton+nonce",
+        "H(`LnBranch`,349379beebd68fd72296e76cb2ae28554b35fa9234853956b81b24c008783230fa0bb4f0fa2f2625c63eec9bf3a29c9aa304e64d5aa44d38e050a6bd7d6fc5c0)": "92e6478159d6763b19c5d03a8a834e179116f89e0cec700049e5ce921f8c400e"
+      },
+      {
+        "desc": "3: 1 and 2",
+        "H(`LnBranch`,92e6478159d6763b19c5d03a8a834e179116f89e0cec700049e5ce921f8c400ef0aa4611039a3a8a90dc8331fa75c9acf433be7285cac0983902aaaa8f66aaa9)": "432097bd1a848ab41eee3695a2c5932c4aea987b27b1a61e58ac950ecce1214a"
+      },
+      {
+        "desc": "4: node_id+nonce and payer_id+nonce",
+        "H(`LnBranch`,384853c9811863028876088ce34e75d784ac027fd564f103ea972cdf96236e4773e067757513706491e0da4e8077112e606da55c04239ad13ab609bc82907600)": "2ac9b0261d644027939d9a7bd055cb2468b79d92c6811d56a300c6b8ff97c14d"
+      },
+      {
+        "desc": "5: 3 and 4",
+        "H(`LnBranch`,2ac9b0261d644027939d9a7bd055cb2468b79d92c6811d56a300c6b8ff97c14d432097bd1a848ab41eee3695a2c5932c4aea987b27b1a61e58ac950ecce1214a)": "608407c18ad9a94d9ea2bcdbe170b6c20c462a7833a197621c916f78cf18e624"
+      }
+    ],
+    "merkle": "608407c18ad9a94d9ea2bcdbe170b6c20c462a7833a197621c916f78cf18e624",
+    "signature_tag": "lightninginvoice_requestsignature",
+    "H(signature_tag,merkle)": "aefe3aa88a69772c246dcaef75ed3e7566c08ecc4e9f995233526a5651fc34cd",
+    "signature": "b8f83ea3288cfd6ea510cdb481472575141e8d8744157f98562d162cc1c472526fdb24befefbdebab4dbb726bbd1b7d8aec057f8fa805187e5950d2bbe0e5642"
+  }
+]

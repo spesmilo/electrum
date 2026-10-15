@@ -5,4 +5,6 @@
   <category android:name="android.intent.category.BROWSABLE" />
   <data android:scheme="bitcoin" />
   <data android:scheme="lightning" />
+  <data android:scheme="lnurlw" />
+  <data android:scheme="lnurlp" />
 </intent-filter>

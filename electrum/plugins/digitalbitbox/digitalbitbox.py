@@ -33,6 +33,7 @@ from electrum.util import to_string, UserCancelled, UserFacingException, bfh, Ch
 from electrum.network import Network
 from electrum.logging import get_logger
 from electrum.plugin import runs_in_hwd_thread, run_in_hwd_thread
+from electrum import crandom
 
 from electrum.hw_wallet import HW_PluginBase, HardwareClientBase, HardwareHandlerBase
 from electrum.hw_wallet.plugin import OperationCancelled
@@ -73,7 +74,7 @@ MIN_MAJOR_VERSION = 5
 
 ENCRYPTION_PRIVKEY_KEY = 'encryptionprivkey'
 CHANNEL_ID_KEY = 'comserverchannelid'
-
+DEPRECATION_WARNING_SHOWN = False
 
 class DigitalBitbox_Client(HardwareClientBase):
     def __init__(self, plugin, hidDevice):
@@ -125,17 +126,29 @@ class DigitalBitbox_Client(HardwareClientBase):
             raise UserFacingException(_('This device does not reveal xpubs corresponding to non-hardened paths'))
 
         reply = self._get_xpub(bip32_path)
-        if reply:
-            xpub = reply['xpub']
-            # Change type of xpub to the requested type. The firmware
-            # only ever returns the mainnet standard type, but it is agnostic
-            # to the type when signing.
-            if xtype != 'standard' or constants.net.TESTNET:
-                node = BIP32Node.from_xkey(xpub, net=constants.BitcoinMainnet)
-                xpub = node._replace(xtype=xtype).to_xpub()
-            return xpub
-        else:
+        if not reply:
             raise Exception('no reply')
+
+        xpub = reply['xpub']
+        # Change type of xpub to the requested type. The firmware
+        # only ever returns the mainnet standard type, but it is agnostic
+        # to the type when signing.
+        if xtype != 'standard' or constants.net.TESTNET:
+            node = BIP32Node.from_xkey(xpub, net=constants.BitcoinMainnet)
+            xpub = node._replace(xtype=xtype).to_xpub()
+
+        deprecation_warning = (
+            "DigitalBitbox (BitBox01) is being deprecated.\n\nIt is no longer supported by the manufacturer.\n"
+            "Future versions of Electrum will no longer be compatible with it.\n\n"
+            "You should move your coins and migrate to a modern hardware device.")
+        _logger.warning(deprecation_warning.replace("\n", " "))
+
+        global DEPRECATION_WARNING_SHOWN
+        if self.handler and not DEPRECATION_WARNING_SHOWN:
+            DEPRECATION_WARNING_SHOWN = True
+            self.handler.show_warning(deprecation_warning, blocking=True)
+
+        return xpub
 
     def get_soft_device_id(self):
         return None
@@ -311,7 +324,7 @@ class DigitalBitbox_Client(HardwareClientBase):
     def dbb_generate_wallet(self):
         key = self.stretch_key(self.password)
         filename = ("Electrum-" + time.strftime("%Y-%m-%d-%H-%M-%S") + ".pdf")
-        msg = ('{"seed":{"source": "create", "key": "%s", "filename": "%s", "entropy": "%s"}}' % (key, filename, to_hexstr(os.urandom(32)))).encode('utf8')
+        msg = ('{"seed":{"source": "create", "key": "%s", "filename": "%s", "entropy": "%s"}}' % (key, filename, to_hexstr(crandom.get_rand_bytes(32)))).encode('utf8')
         reply = self.hid_send_encrypt(msg)
         if 'error' in reply:
             raise UserFacingException(reply['error']['message'])
@@ -454,7 +467,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
         Hardware_KeyStore.__init__(self, d)
         self.maxInputs = 14 # maximum inputs per single sign command
 
-    def give_error(self, message):
+    def give_error(self, message: str | BaseException):
         raise Exception(message)
 
     def decrypt_message(self, pubkey, message, password):

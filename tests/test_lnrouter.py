@@ -1,17 +1,17 @@
-from math import inf
+import random
 import unittest
-import tempfile
-import shutil
-import asyncio
+from math import inf
+from unittest import mock
 from typing import Optional
 from os import urandom
 
 from electrum import util
 from electrum.channel_db import NodeInfo
 from electrum.onion_message import is_onion_message_node
-from electrum.trampoline import create_trampoline_onion
+from electrum.trampoline import (create_trampoline_onion, _allocate_fee_budget_among_route, PLACEHOLDER_FEE,
+                                 get_trampoline_budget)
 from electrum.util import bfh
-from electrum.lnutil import ShortChannelID, LnFeatures
+from electrum.lnutil import ShortChannelID, LnFeatures, PaymentFeeBudget
 from electrum.lnonion import (OnionHopsDataSingle, new_onion_packet,
                               process_onion_packet, _decode_onion_error, decode_onion_error,
                               OnionFailureCode)
@@ -19,7 +19,8 @@ from electrum import bitcoin, lnrouter
 from electrum.constants import BitcoinTestnet
 from electrum.simple_config import SimpleConfig
 from electrum.lnrouter import (PathEdge, LiquidityHintMgr, DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH,
-                               DEFAULT_PENALTY_BASE_MSAT, fee_for_edge_msat, LNPaymentTRoute, TrampolineEdge)
+                               DEFAULT_PENALTY_BASE_MSAT, fee_for_edge_msat, LNPaymentTRoute, TrampolineEdge,
+                               HINT_DURATION)
 
 from . import ElectrumTestCase
 from .test_bitcoin import needs_test_with_all_chacha20_implementations
@@ -248,7 +249,7 @@ class Test_LNRouter(ElectrumTestCase):
         A -6-> D -4-> C -1-> B -2-> E
         A -3-> B -1-> C -4-> D -5-> E
         """
-        self.path_finder.liquidity_hints.update_cannot_send(node('b'), node('e'), channel(2), amount_to_send - 1)
+        self.path_finder.liquidity_hints.update_cannot_send(node('b'), node('e'), channel(2), amount_msat=amount_to_send - 1)
         path = self.path_finder.find_path_for_payment(
             nodeA=node('a'),
             nodeB=node('e'),
@@ -265,7 +266,7 @@ class Test_LNRouter(ElectrumTestCase):
         A -6-> D -4-> C -1-> B |-2-> E
         A -3-> B -1-> C -4-> D |-5-> E
         """
-        self.path_finder.liquidity_hints.update_cannot_send(node('d'), node('e'), channel(5), amount_to_send - 1)
+        self.path_finder.liquidity_hints.update_cannot_send(node('d'), node('e'), channel(5), amount_msat=amount_to_send - 1)
         path = self.path_finder.find_path_for_payment(
             nodeA=node('a'),
             nodeB=node('e'),
@@ -283,7 +284,7 @@ class Test_LNRouter(ElectrumTestCase):
         A -6-> D -4-> C -1-> B |-2-> E
         A -3-> B -1-> C -4-> D |-5-> E
         """
-        self.path_finder.liquidity_hints.update_can_send(node('d'), node('c'), channel(4), amount_to_send + 1000)
+        self.path_finder.liquidity_hints.update_can_send(node('d'), node('c'), channel(4), amount_msat=amount_to_send + 1000)
         path = self.path_finder.find_path_for_payment(
             nodeA=node('a'),
             nodeB=node('e'),
@@ -340,10 +341,10 @@ class Test_LNRouter(ElectrumTestCase):
         # check default penalty
         self.assertEqual(
             fee_for_edge_msat(amount_to_send, DEFAULT_PENALTY_BASE_MSAT, DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH),
-            liquidity_hints.penalty(node_from, node_to, channel_id, amount_to_send)
+            liquidity_hints.penalty(node_from, node_to, channel_id, amount_msat=amount_to_send)
         )
-        liquidity_hints.update_can_send(node_from, node_to, channel_id, 1_000_000)
-        liquidity_hints.update_cannot_send(node_from, node_to, channel_id, 2_000_000)
+        liquidity_hints.update_can_send(node_from, node_to, channel_id, amount_msat=1_000_000)
+        liquidity_hints.update_cannot_send(node_from, node_to, channel_id, amount_msat=2_000_000)
         hint = liquidity_hints.get_hint(channel_id)
         self.assertEqual(1_000_000, hint.can_send(node_from < node_to))
         self.assertEqual(None, hint.cannot_send(node_to < node_from))
@@ -352,17 +353,17 @@ class Test_LNRouter(ElectrumTestCase):
         self.assertEqual(2_000_000, hint.can_send(node_to < node_from))
 
         # check penalties
-        self.assertEqual(0., liquidity_hints.penalty(node_from, node_to, channel_id, 1_000_000))
-        self.assertEqual(650, liquidity_hints.penalty(node_from, node_to, channel_id, 1_500_000))
-        self.assertEqual(inf, liquidity_hints.penalty(node_from, node_to, channel_id, 2_000_000))
+        self.assertEqual(0., liquidity_hints.penalty(node_from, node_to, channel_id, amount_msat=1_000_000))
+        self.assertEqual(650, liquidity_hints.penalty(node_from, node_to, channel_id, amount_msat=1_500_000))
+        self.assertEqual(inf, liquidity_hints.penalty(node_from, node_to, channel_id, amount_msat=2_000_000))
 
         # test that we don't overwrite significant info with less significant info
-        liquidity_hints.update_can_send(node_from, node_to, channel_id, 500_000)
+        liquidity_hints.update_can_send(node_from, node_to, channel_id, amount_msat=500_000)
         hint = liquidity_hints.get_hint(channel_id)
         self.assertEqual(1_000_000, hint.can_send(node_from < node_to))
 
         # test case when can_send > cannot_send
-        liquidity_hints.update_can_send(node_from, node_to, channel_id, 3_000_000)
+        liquidity_hints.update_can_send(node_from, node_to, channel_id, amount_msat=3_000_000)
         hint = liquidity_hints.get_hint(channel_id)
         self.assertEqual(3_000_000, hint.can_send(node_from < node_to))
         self.assertEqual(None, hint.cannot_send(node_from < node_to))
@@ -372,7 +373,42 @@ class Test_LNRouter(ElectrumTestCase):
         liquidity_hints.add_htlc(node_from, node_to, channel_id)
         liquidity_hints.get_hint(channel_id)
         # we have got 600 (attempt) + 600 (inflight) penalty
-        self.assertEqual(1200, liquidity_hints.penalty(node_from, node_to, channel_id, 1_000_000))
+        self.assertEqual(1200, liquidity_hints.penalty(node_from, node_to, channel_id, amount_msat=1_000_000))
+
+    def test_liquidity_hints_expiry(self):
+        liquidity_hints = LiquidityHintMgr()
+        node_from = bytes(0)
+        node_to = bytes(1)
+        channel_id = ShortChannelID.from_components(0, 0, 0)
+        mock_time = 1_000_000
+        with mock.patch.object(lnrouter, 'now', lambda: mock_time):
+            liquidity_hints.update_cannot_send(node_from, node_to, channel_id, amount_msat=1_000_000)
+            self.assertEqual(inf, liquidity_hints.penalty(node_from, node_to, channel_id, amount_msat=1_000_000))
+            # updating can_send after cannot_send expired must not resurrect the old cannot_send
+            mock_time += HINT_DURATION + 1
+            liquidity_hints.update_can_send(node_from, node_to, channel_id, amount_msat=10_000)
+            hint = liquidity_hints.get_hint(channel_id)
+            self.assertEqual(10_000, hint.can_send(node_from < node_to))
+            self.assertEqual(None, hint.cannot_send(node_from < node_to))
+            self.assertNotEqual(inf, liquidity_hints.penalty(node_from, node_to, channel_id, amount_msat=1_000_000))
+            # an expired higher can_send must not block recording a lower can_send
+            mock_time += HINT_DURATION + 1
+            liquidity_hints.update_can_send(node_from, node_to, channel_id, amount_msat=5_000)
+            hint = liquidity_hints.get_hint(channel_id)
+            self.assertEqual(5_000, hint.can_send(node_from < node_to))
+
+    def test_reset_liquidity_hints_clears_inflight_htlcs(self):
+        liquidity_hints = LiquidityHintMgr()
+        node_from, node_to = bytes(0), bytes(1)
+        channel_id = ShortChannelID.from_components(0, 0, 0)
+        liquidity_hints.add_htlc(node_from, node_to, channel_id)
+        liquidity_hints.add_htlc(node_to, node_from, channel_id)
+        hint = liquidity_hints.get_hint(channel_id)
+        self.assertEqual(1, hint.num_inflight_htlcs(node_from < node_to))
+        self.assertEqual(1, hint.num_inflight_htlcs(node_to < node_from))
+        liquidity_hints.reset_liquidity_hints()
+        self.assertEqual(0, hint.num_inflight_htlcs(node_from < node_to))
+        self.assertEqual(0, hint.num_inflight_htlcs(node_to < node_from))
 
     @needs_test_with_all_chacha20_implementations
     def test_new_onion_packet(self):
@@ -387,17 +423,22 @@ class Test_LNRouter(ElectrumTestCase):
         session_key = bfh('4141414141414141414141414141414141414141414141414141414141414141')
         associated_data = bfh('4242424242424242424242424242424242424242424242424242424242424242')
         hops_data = [
-            OnionHopsDataSingle(),
-            OnionHopsDataSingle(),
-            OnionHopsDataSingle(),
-            OnionHopsDataSingle(),
-            OnionHopsDataSingle(),
+            OnionHopsDataSingle(
+                _raw_bytes_payload=bfh("1202023a98040205dc06080000000000000001"),
+            ),
+            OnionHopsDataSingle(
+                _raw_bytes_payload=bfh("52020236b00402057806080000000000000002fd02013c0102030405060708090a0b0c0d0e0f0102030405060708090a0b0c0d0e0f0102030405060708090a0b0c0d0e0f0102030405060708090a0b0c0d0e0f"),
+            ),
+            OnionHopsDataSingle(
+                _raw_bytes_payload=bfh("12020230d4040204e206080000000000000003"),
+            ),
+            OnionHopsDataSingle(
+                _raw_bytes_payload=bfh("1202022710040203e806080000000000000004"),
+            ),
+            OnionHopsDataSingle(
+                _raw_bytes_payload=bfh("fd011002022710040203e8082224a33562c54507a9334e79f0dc4f17d407e6d7c61f0e2f3d0d38599502f617042710fd012de02a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a"),
+            ),
         ]
-        hops_data[0]._raw_bytes_payload = bfh("1202023a98040205dc06080000000000000001")
-        hops_data[1]._raw_bytes_payload = bfh("52020236b00402057806080000000000000002fd02013c0102030405060708090a0b0c0d0e0f0102030405060708090a0b0c0d0e0f0102030405060708090a0b0c0d0e0f0102030405060708090a0b0c0d0e0f")
-        hops_data[2]._raw_bytes_payload = bfh("12020230d4040204e206080000000000000003")
-        hops_data[3]._raw_bytes_payload = bfh("1202022710040203e806080000000000000004")
-        hops_data[4]._raw_bytes_payload = bfh("fd011002022710040203e8082224a33562c54507a9334e79f0dc4f17d407e6d7c61f0e2f3d0d38599502f617042710fd012de02a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a")
         packet = new_onion_packet(payment_path_pubkeys, session_key, hops_data, associated_data=associated_data)
         self.assertEqual(bfh('0002eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619f7f3416a5aa36dc7eeb3ec6d421e9615471ab870a33ac07fa5d5a51df0a8823aabe3fea3f90d387529d4f72837f9e687230371ccd8d263072206dbed0234f6505e21e282abd8c0e4f5b9ff8042800bbab065036eadd0149b37f27dde664725a49866e052e809d2b0198ab9610faa656bbf4ec516763a59f8f42c171b179166ba38958d4f51b39b3e98706e2d14a2dafd6a5df808093abfca5aeaaca16eded5db7d21fb0294dd1a163edf0fb445d5c8d7d688d6dd9c541762bf5a5123bf9939d957fe648416e88f1b0928bfa034982b22548e1a4d922690eecf546275afb233acf4323974680779f1a964cfe687456035cc0fba8a5428430b390f0057b6d1fe9a8875bfa89693eeb838ce59f09d207a503ee6f6299c92d6361bc335fcbf9b5cd44747aadce2ce6069cfdc3d671daef9f8ae590cf93d957c9e873e9a1bc62d9640dc8fc39c14902d49a1c80239b6c5b7fd91d05878cbf5ffc7db2569f47c43d6c0d27c438abff276e87364deb8858a37e5a62c446af95d8b786eaf0b5fcf78d98b41496794f8dcaac4eef34b2acfb94c7e8c32a9e9866a8fa0b6f2a06f00a1ccde569f97eec05c803ba7500acc96691d8898d73d8e6a47b8f43c3d5de74458d20eda61474c426359677001fbd75a74d7d5db6cb4feb83122f133206203e4e2d293f838bf8c8b3a29acb321315100b87e80e0edb272ee80fda944e3fb6084ed4d7f7c7d21c69d9da43d31a90b70693f9b0cc3eac74c11ab8ff655905688916cfa4ef0bd04135f2e50b7c689a21d04e8e981e74c6058188b9b1f9dfc3eec6838e9ffbcf22ce738d8a177c19318dffef090cee67e12de1a3e2a39f61247547ba5257489cbc11d7d91ed34617fcc42f7a9da2e3cf31a94a210a1018143173913c38f60e62b24bf0d7518f38b5bab3e6a1f8aeb35e31d6442c8abb5178efc892d2e787d79c6ad9e2fc271792983fa9955ac4d1d84a36c024071bc6e431b625519d556af38185601f70e29035ea6a09c8b676c9d88cf7e05e0f17098b584c4168735940263f940033a220f40be4c85344128b14beb9e75696db37014107801a59b13e89cd9d2258c169d523be6d31552c44c82ff4bb18ec9f099f3bf0e5b1bb2ba9a87d7e26f98d294927b600b5529c47e04d98956677cbcee8fa2b60f49776d8b8c367465b7c626da53700684fb6c918ead0eab8360e4f60edd25b4f43816a75ecf70f909301825b512469f8389d79402311d8aecb7b3ef8599e79485a4388d87744d899f7c47ee644361e17040a7958c8911be6f463ab6a9b2afacd688ec55ef517b38f1339efc54487232798bb25522ff4572ff68567fe830f92f7b8113efce3e98c3fffbaedce4fd8b50e41da97c0c08e423a72689cc68e68f752a5e3a9003e64e35c957ca2e1c48bb6f64b05f56b70b575ad2f278d57850a7ad568c24a4d32a3d74b29f03dc125488bc7c637da582357f40b0a52d16b3b40bb2c2315d03360bc24209e20972c200566bcf3bbe5c5b0aedd83132a8a4d5b4242ba370b6d67d9b67eb01052d132c7866b9cb502e44796d9d356e4e3cb47cc527322cd24976fe7c9257a2864151a38e568ef7a79f10d6ef27cc04ce382347a2488b1f404fdbf407fe1ca1c9d0d5649e34800e25e18951c98cae9f43555eef65fee1ea8f15828807366c3b612cd5753bf9fb8fced08855f742cddd6f765f74254f03186683d646e6f09ac2805586c7cf11998357cafc5df3f285329366f475130c928b2dceba4aa383758e7a9d20705c4bb9db619e2992f608a1ba65db254bb389468741d0502e2588aeb54390ac600c19af5c8e61383fc1bebe0029e4474051e4ef908828db9cca13277ef65db3fd47ccc2179126aaefb627719f421e20'),
                          packet.to_bytes())
@@ -519,29 +560,248 @@ class Test_LNRouter(ElectrumTestCase):
 
     async def test_find_path_for_onion_message(self):
         self.prepare_graph()
-        amount_to_send = 1000  # we route along channels, and we use find_path_for_payment, so dummy this.
 
-        path = self.path_finder.find_path_for_payment(
-            nodeA=node('a'),
-            nodeB=node('c'),
-            invoice_amount_msat=amount_to_send,
-            node_filter=is_onion_message_node)
+        path = self.path_finder.find_path_for_onion_message(nodeA=node('a'), nodeB=node('c'))
         self.assertEqual([
             PathEdge(start_node=node('a'), end_node=node('d'), short_channel_id=channel(6)),
             PathEdge(start_node=node('d'), end_node=node('c'), short_channel_id=channel(4)),
         ], path)
 
-        # impossible routes
-        path = self.path_finder.find_path_for_payment(
-            nodeA=node('e'),
-            nodeB=node('a'),
-            invoice_amount_msat=amount_to_send,
-            node_filter=is_onion_message_node)
+        # node e doesn't support onion messages
+        path = self.path_finder.find_path_for_onion_message(nodeA=node('a'), nodeB=node('e'))
         self.assertIsNone(path)
 
+    async def test_find_path_for_onion_message_ignores_amount_constraints(self):
+        self.prepare_graph()
+
+        # bump htlc_minimum_msat on channel(4) d->c direction
+        key = (node('d'), channel(4))
+        self.cdb._policies[key] = self.cdb._policies[key]._replace(htlc_minimum_msat=10_000_000)
+
+        # a small payment can no longer be routed
         path = self.path_finder.find_path_for_payment(
             nodeA=node('a'),
-            nodeB=node('e'),
-            invoice_amount_msat=amount_to_send,
-            node_filter=is_onion_message_node)
+            nodeB=node('c'),
+            invoice_amount_msat=1000,
+            node_filter=is_onion_message_node,
+        )
         self.assertIsNone(path)
+
+        # but an onion message still routes through the same hop
+        path = self.path_finder.find_path_for_onion_message(nodeA=node('a'), nodeB=node('c'))
+        self.assertEqual([
+            PathEdge(start_node=node('a'), end_node=node('d'), short_channel_id=channel(6)),
+            PathEdge(start_node=node('d'), end_node=node('c'), short_channel_id=channel(4)),
+        ], path)
+
+
+def _tramp_edge(start: str, end: str, *, fee_base=PLACEHOLDER_FEE, fee_prop=PLACEHOLDER_FEE, cltv=576) -> TrampolineEdge:
+    return TrampolineEdge(
+        start_node=node(start),
+        end_node=node(end),
+        short_channel_id=ShortChannelID.from_str("0x0x0"),
+        fee_base_msat=fee_base,
+        fee_proportional_millionths=fee_prop,
+        cltv_delta=cltv,
+        node_features=LnFeatures.VAR_ONION_OPT,
+    )
+
+
+class TestAllocateFeeBudget(ElectrumTestCase):
+    """Tests for _allocate_fee_budget_among_route (backward-walk allocator)."""
+
+    AMOUNT = 1_000_000  # 1000 sat
+    BUDGET = PaymentFeeBudget(fee_msat=10_000, cltv=144)  # 10 sat
+
+    def _allocate(self, route, *, amount=None, budget=None, level=6):
+        budget = budget.fee_msat if budget else self.BUDGET.fee_msat
+        budget_to_use = get_trampoline_budget(level, budget)
+        return _allocate_fee_budget_among_route(
+            route,
+            usable_budget_msat=budget_to_use,
+            amount_msat_for_dest=amount if amount is not None else self.AMOUNT,
+        )
+
+    def _realized_fee(self, route, amount=None) -> int:
+        amt = amount if amount is not None else self.AMOUNT
+        for edge in reversed(route[1:]):
+            amt += edge.fee_for_edge(amt)
+        return amt - (amount if amount is not None else self.AMOUNT)
+
+    def test_all_placeholders_matches_even_split(self):
+        # Route: me -> a -> b -> c (c is receiver). route[1:] has 2 placeholders.
+        route = [
+            _tramp_edge('m', 'a', fee_base=0, fee_prop=0, cltv=0),
+            _tramp_edge('a', 'b'),
+            _tramp_edge('b', 'c'),
+        ]
+        self._allocate(route)
+        # At level 6, usable_budget = BUDGET.fee_msat = 10_000; split across 2.
+        self.assertEqual(5_000, route[1].fee_base_msat)
+        self.assertEqual(5_000, route[2].fee_base_msat)
+        self.assertEqual(0, route[1].fee_proportional_millionths)
+        self.assertEqual(0, route[2].fee_proportional_millionths)
+        self.assertLessEqual(self._realized_fee(route), self.BUDGET.fee_msat)
+
+    def test_known_fee_base_only_deducted_from_budget(self):
+        # a->b is KNOWN with fee_base=2000, fee_prop=0; b->c is PLACEHOLDER.
+        route = [
+            _tramp_edge('m', 'a', fee_base=0, fee_prop=0, cltv=0),
+            _tramp_edge('a', 'b', fee_base=2_000, fee_prop=0),
+            _tramp_edge('b', 'c'),
+        ]
+        self._allocate(route)
+        # Placeholder gets the full remaining budget (one placeholder, no proportional amplification).
+        self.assertEqual(8_000, route[2].fee_base_msat)
+        self.assertLessEqual(self._realized_fee(route), self.BUDGET.fee_msat)
+
+    def test_known_proportional_amplifies_placeholder_cost(self):
+        # a->b is KNOWN with fee_prop=10% (100_000); b->c is PLACEHOLDER.
+        # Any fee f placed at b->c flows through a->b, which charges 10% on top.
+        # Budget check:  total_fee_const + (1 + 0.1) * placeholder_fee  <=  10_000
+        #   total_fee_const = 0 + amount * 0.1 = 100_000 msat.  That already exceeds budget,
+        # so placeholder_fee must be 0 and realized fee > budget (caller's
+        # is_route_within_budget will catch it).
+        route = [
+            _tramp_edge('m', 'a', fee_base=0, fee_prop=0, cltv=0),
+            _tramp_edge('a', 'b', fee_base=0, fee_prop=100_000),
+            _tramp_edge('b', 'c'),
+        ]
+        self._allocate(route)
+        self.assertEqual(0, route[2].fee_base_msat)
+
+    def test_known_proportional_small_fits_budget(self):
+        # Smaller proportional fee that leaves room. a->b: fee_prop = 1%.
+        # total_fee_const(amount=1_000_000) = 10_000 (== budget) without placeholders.
+        # With smaller proportional (0.5%), total_fee_const = 5_000,
+        # leaving budget_residual = 5_000.
+        # total_fee_coeff = 1.005, so placeholder_fee = 5_000 / 1.005 ≈ 4975.
+        route = [
+            _tramp_edge('m', 'a', fee_base=0, fee_prop=0, cltv=0),
+            _tramp_edge('a', 'b', fee_base=0, fee_prop=5_000),  # 0.5%
+            _tramp_edge('b', 'c'),
+        ]
+        self._allocate(route)
+        f = route[2].fee_base_msat
+        self.assertGreater(f, 0)
+        self.assertLessEqual(self._realized_fee(route), self.BUDGET.fee_msat)
+
+    def test_known_fee_exceeds_budget_yields_zero_placeholder(self):
+        # Known edge with fee_base > entire budget. Placeholder gets 0 instead
+        # of going negative.
+        route = [
+            _tramp_edge('m', 'a', fee_base=0, fee_prop=0, cltv=0),
+            _tramp_edge('a', 'b', fee_base=50_000, fee_prop=0),  # way over budget
+            _tramp_edge('b', 'c'),
+        ]
+        self._allocate(route)
+        self.assertEqual(0, route[2].fee_base_msat)
+        self.assertEqual(0, route[2].fee_proportional_millionths)
+
+    def test_no_placeholders_noop(self):
+        # All edges KNOWN: allocator does nothing.
+        route = [
+            _tramp_edge('m', 'a', fee_base=0, fee_prop=0, cltv=0),
+            _tramp_edge('a', 'b', fee_base=1_000, fee_prop=0),
+            _tramp_edge('b', 'c', fee_base=2_000, fee_prop=0),
+        ]
+        self._allocate(route)
+        self.assertEqual(1_000, route[1].fee_base_msat)
+        self.assertEqual(2_000, route[2].fee_base_msat)
+
+    def test_amount_at_each_hop(self):
+        # invoice amt: 1000k msat
+        # budget: 10k msat
+        #
+        route = [
+            _tramp_edge('m', 'a', fee_base=0, fee_prop=0, cltv=0),
+            _tramp_edge('a', 'b'),
+            _tramp_edge('b', 'c', fee_base=1_000, fee_prop=1500),
+            _tramp_edge('c', 'd'),
+            _tramp_edge('d', 'e', fee_base=1_000, fee_prop=1500),
+        ]
+        self._allocate(route)
+        amount = self.AMOUNT
+        amounts_from_destination = iter((
+            1000000, # amount for recipient (d -> e)
+            1002500, # c -> d
+            1004996, # b -> c
+            1007503, # a -> b
+            1009999 # us -> a
+        ))
+        for edge in reversed(route[1:]):
+            self.assertEqual(amount, next(amounts_from_destination))
+            amount += edge.fee_for_edge(amount)
+        self.assertEqual([0, 2496, 1000, 2496, 1000], [e.fee_base_msat for e in route])
+
+    @unittest.skip(reason="is a bit slow")
+    def test_fuzz(self):
+        invoice_amount = 1_000_000
+
+        for round_ in range(10**5):
+            budget = PaymentFeeBudget(fee_msat=random.randint(1000, 10*invoice_amount), cltv=144)
+            route = [
+                _tramp_edge('x', 'x', fee_base=0, fee_prop=0),
+            ]
+            num_edges = random.randint(1, 10)
+            fee_base_min = random.randint(1000, 50000)
+            fee_base_max = random.randint(fee_base_min, 50000)
+            fee_prop_min = random.randint(1000, 50000)
+            fee_prop_max = random.randint(fee_prop_min, 50000)
+            for e in range(num_edges):
+                if random.random() < 0.5:
+                    route.append(_tramp_edge('x', 'x'))
+                else:
+                    fee_base = random.randint(fee_base_min, fee_base_max)
+                    fee_prop = random.randint(fee_prop_min, fee_prop_max)
+                    route.append(_tramp_edge('x', 'x', fee_base=fee_base, fee_prop=fee_prop))
+            placeholder_fee = self._allocate(route, amount=invoice_amount, budget=budget)
+
+            actual_fees = []
+            fwd_amt = invoice_amount
+            for e in route[::-1]:
+                actual_fee = e.fee_for_edge(fwd_amt)
+                fwd_amt += actual_fee
+                actual_fees.append(actual_fee)
+            actual_fees = actual_fees[::-1]
+            # checks
+            no_solution = placeholder_fee == 0
+            solution_is_exact = (budget.fee_msat - num_edges <= sum(actual_fees) <= budget.fee_msat)
+            assert no_solution or solution_is_exact
+
+    def test_level_zero_gives_zero_placeholders(self):
+        route = [
+            _tramp_edge('m', 'a', fee_base=0, fee_prop=0, cltv=0),
+            _tramp_edge('a', 'b'),
+            _tramp_edge('b', 'c'),
+        ]
+        self._allocate(route, level=0)
+        self.assertEqual(0, route[1].fee_base_msat)
+        self.assertEqual(0, route[2].fee_base_msat)
+
+    def test_placeholder_upstream_of_known(self):
+        # Placeholder is UPSTREAM of known edge -> known edge's amount depends on placeholder fee.
+        # Route: me -> a -> b -> c. a->b PLACEHOLDER, b->c KNOWN (fee_base=1000, fee_prop=10_000 = 1%).
+        # Going backwards: first process b->c (known): total_fee_const = 1000 + 1_000_000 * 0.01 = 11_000.
+        # That alone exceeds budget 10_000; placeholder gets 0.
+        route = [
+            _tramp_edge('m', 'a', fee_base=0, fee_prop=0, cltv=0),
+            _tramp_edge('a', 'b'),
+            _tramp_edge('b', 'c', fee_base=1_000, fee_prop=10_000),
+        ]
+        self._allocate(route)
+        self.assertEqual(0, route[1].fee_base_msat)
+
+    def test_placeholder_upstream_of_small_known_fits(self):
+        # Same shape but small known fee so placeholder gets a positive fee.
+        # b->c known: fee_base=500, fee_prop=0. total_fee_const = 500.
+        # budget_residual = 9500. a->b placeholder sees
+        # total_fee_coeff=1 (no upstream known), so placeholder_fee = 9500.
+        route = [
+            _tramp_edge('m', 'a', fee_base=0, fee_prop=0, cltv=0),
+            _tramp_edge('a', 'b'),
+            _tramp_edge('b', 'c', fee_base=500, fee_prop=0),
+        ]
+        self._allocate(route)
+        self.assertEqual(9_500, route[1].fee_base_msat)
+        self.assertLessEqual(self._realized_fee(route), self.BUDGET.fee_msat)

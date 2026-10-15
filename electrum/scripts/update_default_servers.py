@@ -37,8 +37,8 @@ def get_newly_added_servers(fname1, fname2=None):
 
 
 # testnet?
-#constants.BitcoinTestnet.set_as_network()
 config = SimpleConfig({'testnet': False})
+config.get_selected_chain().set_as_network()
 
 loop, stopping_fut, loop_thread = create_and_start_event_loop()
 network = Network(config)
@@ -61,3 +61,5 @@ async def f():
         stopping_fut.set_result(1)
 
 asyncio.run_coroutine_threadsafe(f(), loop)
+while loop_thread.is_alive():
+    loop_thread.join(1)

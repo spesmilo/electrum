@@ -1,17 +1,38 @@
 import queue
 import sys
-from typing import Optional, NamedTuple, Callable
+from contextlib import contextmanager
+from functools import wraps
+from typing import Optional, NamedTuple, Callable, Iterator
 import os.path
 
-from PyQt6 import QtGui
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6 import QtGui, sip
+from PyQt6.QtCore import Qt, QThread, QObject, pyqtSignal
 from PyQt6.QtGui import QColor, QPen, QPaintDevice, QFontDatabase, QImage
 import qrcode
 
 from electrum.i18n import _
-from electrum.logging import Logger
+from electrum.logging import Logger, get_logger
+from electrum.util import EventListener, event_listener
+
+_logger = get_logger(__name__)
 
 _cached_font_ids: dict[str, int] = {}
+
+
+@contextmanager
+def ignore_if_destroyed(qobj: QObject) -> Iterator[None]:
+    """
+    Objects owned by qt (e.g. a child of a dialog) or by QML are destroyed as soon as the user
+    closes the dialog, while threads and tasks may still hold a reference to the python wrapper,
+    and writing a property or emitting a signal on it then raises RuntimeError.
+    Any other RuntimeError is re-raised.
+    """
+    try:
+        yield
+    except RuntimeError:
+        if not sip.isdeleted(qobj):
+            raise
+        _logger.debug(f'{type(qobj).__name__} has been destroyed, ignoring')
 
 
 def get_font_id(filename: str) -> int:
@@ -190,3 +211,57 @@ class TaskThread(QThread, Logger):
         self.tasks.put(None)  # in case the thread is still waiting on the queue
         self.exit()
         self.wait()
+
+
+class QtEventListener(EventListener):
+    qt_callback_signal = pyqtSignal(tuple)
+
+    def register_callbacks(self):
+        self.qt_callback_signal.connect(self.on_qt_callback_signal)
+        EventListener.register_callbacks(self)
+
+    def unregister_callbacks(self):
+        try:
+            self.qt_callback_signal.disconnect()
+        except (RuntimeError, TypeError):  # wrapped Qt object might be deleted
+            # "TypeError: disconnect() failed between 'qt_callback_signal' and all its connections"
+            pass
+        EventListener.unregister_callbacks(self)
+
+    def on_qt_callback_signal(self, args):
+        func = args[0]
+        return func(self, *args[1:])
+
+
+# decorator for members of the QtEventListener class
+def qt_event_listener(func):
+    func = event_listener(func)
+
+    @wraps(func)
+    def decorator(self, *args):
+        self.qt_callback_signal.emit((func,) + args)
+    return decorator
+
+
+def break_qt_network() -> None:
+    """Poor man's attempt at disabling Qt's networking functionality at runtime.
+
+    If Qt managed to make network requests, those would use its own SSL cert store,
+    would not go through the user-configured proxy, etc.
+    """
+    try:
+        import PyQt6.QtNetwork
+    except ImportError as e:
+        _logger.debug("QtNetwork module not available? No need to runtime-disable it then.")
+        return
+    from PyQt6.QtNetwork import QNetworkProxy
+    proxy = QNetworkProxy()
+    # FIXME localhost as destination seems to be exempt from the proxy, so this approach still
+    #  lets through network requests to localhost. This is not intended but accepted for now.
+    proxy.setType(QNetworkProxy.ProxyType.Socks5Proxy)
+    proxy.setHostName("127.0.0.1")
+    proxy.setPort(1)
+    # Remove all proxy capabilities, so QtNetwork requests
+    # fail back before even trying to connect to the proxy:
+    proxy.setCapabilities(QNetworkProxy.Capability(0))
+    QNetworkProxy.setApplicationProxy(proxy)

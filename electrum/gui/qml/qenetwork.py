@@ -7,8 +7,10 @@ from electrum import constants
 from electrum.network import ProxySettings
 from electrum.interface import ServerAddr
 from electrum.fee_policy import FEERATE_DEFAULT_RELAY
+from electrum.util import event_listener
 
-from .util import QtEventListener, event_listener
+from electrum.gui.common_qt.util import QtEventListener
+
 from .qeconfig import QEConfig
 from .qeserverlistmodel import QEServerListModel
 
@@ -148,10 +150,18 @@ class QENetwork(QObject, QtEventListener):
 
     @event_listener
     def on_event_channel_db(self, num_nodes, num_channels, num_policies):
-        self._logger.debug(f'channel_db: {num_nodes} nodes, {num_channels} channels, {num_policies} policies')
-        self._gossipDbNodes = num_nodes
-        self._gossipDbChannels = num_channels
-        self._gossipDbPolicies = num_policies
+        changed = False
+        if self._gossipDbNodes != num_nodes:
+            self._gossipDbNodes = num_nodes
+            changed = True
+        if self._gossipDbChannels != num_channels:
+            self._gossipDbChannels = num_channels
+            changed = True
+        if self._gossipDbPolicies != num_policies:
+            self._gossipDbPolicies = num_policies
+            changed = True
+        if changed:
+            self._logger.debug(f'channel_db: {num_nodes} nodes, {num_channels} channels, {num_policies} policies')
         self.gossipUpdated.emit()
 
     @event_listener
@@ -198,17 +208,18 @@ class QENetwork(QObject, QtEventListener):
     def server(self):
         return self._server
 
+    @pyqtSlot(str, result=bool)
+    def isValidServerAddress(self, server: str) -> bool:
+        return ServerAddr.from_str_with_inference(server) is not None
+
     @pyqtSlot(str, bool, bool)
-    def setServerParameters(self, server: str, auto_connect: bool, one_server: bool):
+    def setServerParameters(self, server_str: str, auto_connect: bool, one_server: bool):
         net_params = self.network.get_parameters()
+        server = ServerAddr.from_str_with_inference(server_str)
         if server == net_params.server and auto_connect == net_params.auto_connect and one_server == net_params.oneserver:
             return
-        if server != str(net_params.server):
-            try:
-                server = ServerAddr.from_str_with_inference(server)
-                if not server:
-                    raise Exception('failed to parse')
-            except Exception:
+        if server != net_params.server:
+            if server is None:
                 if not auto_connect:
                     return
                 server = net_params.server

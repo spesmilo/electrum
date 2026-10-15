@@ -40,15 +40,41 @@ WizardComponent {
             qrdata: encodeURI('otpauth://totp/Electrum 2FA ' + wizard_data['wallet_name']
                     + '?secret=' + plugin.otpSecret + '&digits=6')
             render: plugin.otpSecret
+            onClicked: {
+                if (plugin.otpSecret) {
+                    AppController.textToClipboard(plugin.otpSecret)
+                    toaster.show(this, qsTr('Copied!'))
+                    // On Android the app will get killed when switching to the authenticator app,
+                    // losing the wizard state. TODO: re-enable once we have means to keep app alive in background.
+                    // if (AppController.isAndroid()) {
+                    //     Qt.openUrlExternally(qrdata)
+                    // } else {
+                    //     AppController.textToClipboard(plugin.otpSecret)
+                    //     toaster.show(this, qsTr('Copied!'))
+                    // }
+                }
+            }
         }
 
-        TextHighlightPane {
+        Item {
             Layout.alignment: Qt.AlignHCenter
             visible: plugin.otpSecret
-            Label {
-                text: plugin.otpSecret
-                font.family: FixedFont
-                font.bold: true
+            implicitWidth: otpSecretPane.implicitWidth
+            implicitHeight: otpSecretPane.implicitHeight
+            TextHighlightPane {
+                id: otpSecretPane
+                Label {
+                    text: plugin.otpSecret
+                    font.family: FixedFont
+                    font.bold: true
+                }
+            }
+            MouseArea {
+                anchors.fill: parent
+                onClicked: {
+                    AppController.textToClipboard(plugin.otpSecret)
+                    toaster.show(otpSecretPane, qsTr('Copied!'))
+                }
             }
         }
 
@@ -116,6 +142,10 @@ WizardComponent {
         plugin = AppController.plugin('trustedcoin')
         plugin.createKeystore()
         otp_auth.forceActiveFocus()
+    }
+
+    Toaster {
+        id: toaster
     }
 
     Connections {

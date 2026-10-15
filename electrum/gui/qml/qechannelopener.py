@@ -4,17 +4,19 @@ from asyncio.exceptions import TimeoutError
 from typing import Optional
 import electrum_ecc as ecc
 
-from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
+from PyQt6 import sip
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QVariant
 
 from electrum.i18n import _
 from electrum.gui import messages
+from electrum.gui.common_qt.util import ignore_if_destroyed
 from electrum.util import bfh
 from electrum.lnutil import MIN_FUNDING_SAT
 from electrum.lntransport import extract_nodeid, ConnStringFormatError
 from electrum.bitcoin import DummyAddress
 from electrum.lnworker import hardcoded_trampoline_nodes
 from electrum.logging import get_logger
-from electrum.fee_policy import FeePolicy
+from electrum.transaction import PartialTransaction
 
 from .auth import AuthMixin, auth_protect
 from .qetxfinalizer import QETxFinalizer
@@ -54,12 +56,13 @@ class QEChannelOpener(QObject, AuthMixin):
         self._updating_max = False
 
     walletChanged = pyqtSignal()
-    @pyqtProperty(QEWallet, notify=walletChanged)
-    def wallet(self):
+    @pyqtProperty(QVariant, notify=walletChanged)
+    def wallet(self) -> QEWallet:
         return self._wallet
 
     @wallet.setter
     def wallet(self, wallet: QEWallet):
+        assert wallet is None or isinstance(wallet, QEWallet)
         if self._wallet != wallet:
             self._wallet = wallet
             self.walletChanged.emit()
@@ -78,12 +81,13 @@ class QEChannelOpener(QObject, AuthMixin):
             self.validate()
 
     amountChanged = pyqtSignal()
-    @pyqtProperty(QEAmount, notify=amountChanged)
-    def amount(self):
+    @pyqtProperty(QVariant, notify=amountChanged)
+    def amount(self) -> QEAmount:
         return self._amount
 
     @amount.setter
     def amount(self, amount: QEAmount):
+        assert amount is None or isinstance(amount, QEAmount)
         if self._amount != amount:
             self._amount.copyFrom(amount)
             self.amountChanged.emit()
@@ -219,7 +223,7 @@ class QEChannelOpener(QObject, AuthMixin):
         self.finalizerChanged.emit()
 
     @auth_protect(message=_('Open Lightning channel?'))
-    def do_open_channel(self, funding_tx, conn_str, password):
+    def do_open_channel(self, funding_tx: PartialTransaction, conn_str, password):
         """
         conn_str: a connection string that extract_nodeid can parse, i.e. cannot be a trampoline name
         """
@@ -228,6 +232,7 @@ class QEChannelOpener(QObject, AuthMixin):
         funding_sat = funding_tx.output_value_for_address(DummyAddress.CHANNEL)
         lnworker = self._wallet.wallet.lnworker
 
+        @ignore_if_destroyed(self)
         def open_thread():
             error = None
             try:
@@ -251,6 +256,8 @@ class QEChannelOpener(QObject, AuthMixin):
             except (CancelledError, TimeoutError):
                 error = _('Could not connect to channel peer')
             except Exception as e:
+                if isinstance(e, RuntimeError) and sip.isdeleted(self):
+                    return  # qt object already deleted
                 error = str(e)
                 if not error:
                     error = repr(e)
@@ -288,6 +295,7 @@ class QEChannelOpener(QObject, AuthMixin):
                 self._amount.satsInt = amount if amount else 0
             finally:
                 self._updating_max = False
-                self.validate()
+                with ignore_if_destroyed(self):
+                    self.validate()
 
         threading.Thread(target=calc_max, daemon=True).start()

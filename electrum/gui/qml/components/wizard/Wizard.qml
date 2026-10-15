@@ -102,12 +102,12 @@ ElDialog {
         return page
     }
 
-    ColumnLayout {
-        anchors.fill: parent
+    // make layout contentItem so ElDialog TapHandler can focus on it and the Keys hook stays active
+    contentItem: ColumnLayout {
         spacing: 0
 
         // root Item in Wizard, capture back button here and delegate to main
-        Keys.onReleased: {
+        Keys.onReleased: (event) => {
             if (event.key == Qt.Key_Back) {
                 console.log("Back button within wizard")
                 app.close() // this handles unwind of dialogs/stack
@@ -155,16 +155,18 @@ ElDialog {
             Binding {
                 target: AppController
                 property: 'secureWindow'
+                when: pages.visible  // enables stacking multiple secureWindow dialogs
                 value: pages.contentChildren[pages.currentIndex].securePage
             }
         }
 
-        ButtonContainer {
+        DialogButtonContainer {
             Layout.fillWidth: true
 
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
+                Layout.preferredHeight: constants.fingerWidth
                 visible: pages.currentIndex == 0
                 text: qsTr("Cancel")
                 onClicked: wizard.doReject()
@@ -172,6 +174,7 @@ ElDialog {
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
+                Layout.preferredHeight: constants.fingerWidth
                 visible: pages.currentIndex > 0
                 text: qsTr('Back')
                 onClicked: pages.prev()
@@ -179,6 +182,7 @@ ElDialog {
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
+                Layout.preferredHeight: constants.fingerWidth
                 text: qsTr("Next")
                 visible: !pages.lastpage
                 enabled: pages.pagevalid
@@ -188,6 +192,7 @@ ElDialog {
                 id: finishButton
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
+                Layout.preferredHeight: constants.fingerWidth
                 text: qsTr("Finish")
                 visible: pages.lastpage
                 enabled: pages.pagevalid

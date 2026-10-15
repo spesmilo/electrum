@@ -17,14 +17,15 @@ from electrum.keystore import bip44_derivation, bip39_to_seed, purpose48_derivat
 from electrum.plugin import run_hook, HardwarePluginLibraryUnavailable
 from electrum.storage import StorageReadWriteError
 from electrum.util import WalletFileException, get_new_wallet_name, UserFacingException, InvalidPassword
-from electrum.util import is_subpath, ChoiceItem, multisig_type
+from electrum.util import is_subpath, ChoiceItem, multisig_type, UserCancelled, standardize_path
 from electrum.wallet import wallet_types
 from .wizard import QEAbstractWizard, WizardComponent
 from electrum.logging import get_logger, Logger
 from electrum import WalletStorage, mnemonic, keystore
 from electrum.wallet_db import WalletDB
-from electrum.wizard import NewWalletWizard, KeystoreWizard
+from electrum.wizard import NewWalletWizard, KeystoreWizard, WizardViewState
 
+from electrum.gui.common_qt.util import ignore_if_destroyed
 from electrum.gui.qt.bip39_recovery_dialog import Bip39RecoveryDialog
 from electrum.gui.qt.password_dialog import PasswordLayout, PW_NEW, MSG_ENTER_PASSWORD, PasswordLayoutForHW
 from electrum.gui.qt.seed_dialog import SeedWidget, MSG_PASSPHRASE_WARN_ISSUE4566, KeysWidget
@@ -48,14 +49,21 @@ MSG_HW_STORAGE_ENCRYPTION = _("Set wallet file encryption.") + '\n'\
                           + _("It also contains your master public key that allows watching your addresses.")
 
 
-
 class QEKeystoreWizard(KeystoreWizard, QEAbstractWizard, MessageBoxMixin):
     _logger = get_logger(__name__)
 
-    def __init__(self, config: 'SimpleConfig', wallet_type: str, app: 'QElectrumApplication', plugins: 'Plugins', *, start_viewstate=None):
+    def __init__(
+            self,
+            *,
+            config: 'SimpleConfig',
+            app: 'QElectrumApplication',
+            plugins: 'Plugins',
+            start_viewstate: WizardViewState = None,
+    ):
+        assert 'wallet_type' in start_viewstate.wizard_data, 'wallet_type required'
+
         QEAbstractWizard.__init__(self, config, app, start_viewstate=start_viewstate)
         KeystoreWizard.__init__(self, plugins)
-        self._wallet_type = wallet_type
         self.window_title = _('Extend wallet keystore')
         # attach gui classes to views
         self.navmap_merge({
@@ -85,17 +93,21 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard, MessageBoxMixin):
         QEAbstractWizard.__init__(self, config, app, start_viewstate=start_viewstate)
         self.window_title = _('Create/Restore wallet')
 
-        self._path = path
+        self._path = standardize_path(path)
         self._password = None
 
         # attach gui classes to views
         self.navmap_merge({
             'wallet_name': {'gui': WCWalletName},
+            'hw_unlock': {'gui': WCChooseHWDevice},
             'wallet_type': {'gui': WCWalletType},
             'keystore_type': {'gui': WCKeystoreType},
             'create_seed': {'gui': WCCreateSeed},
+            'create_ext': {'gui': WCEnterExt},
             'confirm_seed': {'gui': WCConfirmSeed},
+            'confirm_ext': {'gui': WCConfirmExt},
             'have_seed': {'gui': WCHaveSeed},
+            'have_ext': {'gui': WCEnterExt},
             'choose_hardware_device': {'gui': WCChooseHWDevice},
             'script_and_derivation': {'gui': WCScriptAndDerivation},
             'have_master_key': {'gui': WCHaveMasterKey},
@@ -103,6 +115,7 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard, MessageBoxMixin):
             'multisig_cosigner_keystore': {'gui': WCCosignerKeystore},
             'multisig_cosigner_key': {'gui': WCHaveMasterKey},
             'multisig_cosigner_seed': {'gui': WCHaveSeed},
+            'multisig_cosigner_have_ext': {'gui': WCEnterExt},
             'multisig_cosigner_hardware': {'gui': WCChooseHWDevice},
             'multisig_cosigner_script_and_derivation': {'gui': WCScriptAndDerivation},
             'imported': {'gui': WCImport},
@@ -110,56 +123,11 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard, MessageBoxMixin):
             'wallet_password_hardware': {'gui': WCWalletPasswordHardware}
         })
 
-        # add open existing wallet from wizard, incl hw unlock
+        # add open existing wallet from wizard
         self.navmap_merge({
             'wallet_name': {
                 'next': lambda d: 'hw_unlock' if d['wallet_needs_hw_unlock'] else 'wallet_type',
                 'last': lambda d: d['wallet_exists'] and not d['wallet_needs_hw_unlock']
-            },
-            'hw_unlock': {
-                'gui': WCChooseHWDevice,
-                'next': lambda d: self.on_hardware_device(d, new_wallet=False)
-            }
-        })
-
-        # insert seed extension entry/confirm as separate views
-        self.navmap_merge({
-            'create_seed': {
-                'next': lambda d: 'create_ext' if self.wants_ext(d) else 'confirm_seed'
-            },
-            'create_ext': {
-                'next': 'confirm_seed',
-                'gui': WCEnterExt
-            },
-            'confirm_seed': {
-                'next': lambda d: 'confirm_ext' if self.wants_ext(d) else self.on_have_or_confirm_seed(d),
-                'accept': lambda d: None if self.wants_ext(d) else self.maybe_master_pubkey(d)
-            },
-            'confirm_ext': {
-                'next': self.on_have_or_confirm_seed,
-                'accept': self.maybe_master_pubkey,
-                'gui': WCConfirmExt
-            },
-            'have_seed': {
-                'next': lambda d: 'have_ext' if self.wants_ext(d) else self.on_have_or_confirm_seed(d),
-                'accept': lambda d: None if self.wants_ext(d) else self.maybe_master_pubkey(d),
-                'last': lambda d: self.is_single_password() and not
-                                  (self.needs_derivation_path(d) or self.is_multisig(d) or self.wants_ext(d))
-            },
-            'have_ext': {
-                'next': self.on_have_or_confirm_seed,
-                'accept': self.maybe_master_pubkey,
-                'gui': WCEnterExt
-            },
-            'multisig_cosigner_seed': {
-                'next': lambda d: 'multisig_cosigner_have_ext' if self.wants_ext(d) else self.on_have_cosigner_seed(d),
-                'last': lambda d: self.is_single_password() and self.last_cosigner(d) and not
-                                  (self.needs_derivation_path(d) or self.wants_ext(d))
-            },
-            'multisig_cosigner_have_ext': {
-                'next': self.on_have_cosigner_seed,
-                'last': lambda d: self.is_single_password() and self.last_cosigner(d) and not self.needs_derivation_path(d),
-                'gui': WCEnterExt
             },
         })
 
@@ -177,7 +145,7 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard, MessageBoxMixin):
         # not supported on desktop
         return False
 
-    def create_storage(self, single_password: str = None):
+    def create_storage(self, single_password: str | None = None):
         self._logger.info('Creating wallet from wizard data')
         data = self.get_wizard_data()
 
@@ -332,16 +300,17 @@ class WCWalletName(WalletWizardComponent, Logger):
             if _path:
                 self.name_e.setText(relative_path(_path))
 
-        def on_filename(filename):
-            # FIXME? "filename" might contain ".." (etc) and hence sketchy path traversals are possible
+        def on_filename(filename_or_path):
+            # Note: "filename" might contain ".." (etc) and hence sketchy path traversals are possible
             nonlocal temp_storage
             temp_storage = None
             msg = None
             self.wallet_exists = False
             self.wallet_is_open = False
             self.wallet_needs_hw_unlock = False
-            if filename:
-                _path = os.path.join(datadir_wallet_folder, filename)
+            if filename_or_path:
+                # Note: if filename_or_path is a path, os.path.join will leave it unchanged
+                _path = os.path.join(datadir_wallet_folder, filename_or_path)
                 wallet_from_memory = self.wizard._daemon.get_wallet(_path)
                 try:
                     if wallet_from_memory:
@@ -378,7 +347,7 @@ class WCWalletName(WalletWizardComponent, Logger):
                           + _("Press 'Finish' to create/focus window.")
             if msg is None:
                 msg = _('Cannot read file')
-            if filename and os.path.isabs(relative_path(_path)):
+            if filename_or_path and os.path.isabs(relative_path(_path)):
                 outside_text = _('Note: this wallet file is outside the default wallets folder.')
             else:
                 outside_text = ''
@@ -458,9 +427,7 @@ class WCKeystoreType(WalletWizardComponent):
         self.wizard_data['keystore_type'] = self.choice_w.selected_key
 
 
-
 class WCExtendKeystore(WalletWizardComponent):
-
     def __init__(self, parent, wizard):
         WalletWizardComponent.__init__(self, parent, wizard, title=_('Keystore'))
         message = _('What type of signing method do you want to add?')
@@ -472,16 +439,9 @@ class WCExtendKeystore(WalletWizardComponent):
         self.layout().addWidget(self.choice_w)
         self.layout().addStretch(1)
         self._valid = True
-        self.wizard_data['wallet_type'] = self._wallet_type = wizard._wallet_type
 
     def apply(self):
-        self.wizard_data['wallet_type'] = self._wallet_type
         self.wizard_data['keystore_type'] = self.choice_w.selected_key
-        if multisig_type(self._wallet_type):
-            self.wizard_data['wallet_type'] = self._wallet_type = 'multisig'
-            self.wizard_data['multisig_participants'] = 2
-            self.wizard_data['multisig_signatures'] = 2
-            self.wizard_data['multisig_cosigner_data'] = {}
 
 
 class WCCreateSeed(WalletWizardComponent):
@@ -660,14 +620,8 @@ class WCHaveSeed(WalletWizardComponent, Logger):
 
     def is_seed(self, x):
         # really only used for electrum seeds. bip39 and slip39 are validated in SeedWidget
-        t = mnemonic.calc_seed_type(x)
-        if self.wizard_data['wallet_type'] == 'standard':
-            return mnemonic.is_seed(x) and not mnemonic.is_any_2fa_seed_type(t)
-        elif self.wizard_data['wallet_type'] == '2fa':
-            return mnemonic.is_any_2fa_seed_type(t)
-        else:
-            # multisig?  by default, only accept modern non-2fa electrum seeds
-            return t in ['standard', 'segwit']
+        assert self.seed_widget.seed_type == 'electrum', self.seed_widget.seed_type
+        return self.wizard.validate_seed(x, 'electrum', self.wizard_data['wallet_type'])[0]
 
     def validate(self):
         # precond: only call when SeedWidget deems seed a valid seed
@@ -1059,7 +1013,7 @@ class WCWalletPassword(WalletWizardComponent):
 
 
 class SeedExtensionEdit(QWidget):
-    def __init__(self, parent, *, message: str = None, warning: str = None, warn_issue4566: bool = False):
+    def __init__(self, parent, *, message: str | None = None, warning: str | None = None, warn_issue4566: bool = False):
         super().__init__(parent)
 
         self.warn_issue4566 = warn_issue4566
@@ -1216,6 +1170,7 @@ class WCChooseHWDevice(WalletWizardComponent, Logger):
         self.busy_msg = _('Scanning devices...')
         self.busy = True
 
+        @ignore_if_destroyed(self)
         def scan_task():
             # check available plugins
             supported_plugins = self.plugins.get_hardware_support()
@@ -1316,19 +1271,40 @@ class WCWalletPasswordHardware(WalletWizardComponent):
         self.layout().addLayout(self.playout.layout())
         self.layout().addStretch(1)
 
-        self._valid = True
+        self._hw_password = None  # type: Optional[str]
+        self._valid = False
+
+    def on_ready(self):
+        _name, info = self.wizard_data['hardware_device']
+        device_id = info.device.id_
+        client = self.plugins.device_manager.client_by_id(device_id, scan_now=False)
+        if client is None:
+            self.valid = False
+            self.error = _("Client for hardware device was unpaired.")
+            return
+
+        def retrieve_password_task():
+            try:
+                self._hw_password = client.get_password_for_storage_encryption()
+                self.valid = True
+            except UserFacingException as e:
+                self.error = str(e)
+                self.valid = False
+            finally:
+                self.busy = False
+
+        self.busy = True
+        t = threading.Thread(target=retrieve_password_task, daemon=True)
+        t.start()
 
     def apply(self):
+        if not self.valid:
+            return
         self.wizard_data['encrypt'] = True
         if self.playout.should_encrypt_storage_with_xpub():
             self.wizard_data['xpub_encrypt'] = True
-            _name, _info = self.wizard_data['hardware_device']
-            device_id = _info.device.id_
-            client = self.plugins.device_manager.client_by_id(device_id, scan_now=False)
-            # client.handler = self.plugin.create_handler(self.wizard)
-            # FIXME client can be None if it was recently disconnected.
-            #       also, even if not None, this might raise (e.g. if it disconnected *just now*):
-            self.wizard_data['password'] = client.get_password_for_storage_encryption()
+            assert self._hw_password
+            self.wizard_data['password'] = self._hw_password
         else:
             self.wizard_data['xpub_encrypt'] = False
             self.wizard_data['password'] = self.playout.new_password()
@@ -1370,6 +1346,8 @@ class WCHWUnlock(WalletWizardComponent, Logger):
         def unlock_task(client):
             try:
                 self.password = client.get_password_for_storage_encryption()
+            except UserCancelled as e:
+                self.error = repr(e)
             except Exception as e:
                 self.error = repr(e)  # TODO: handle user interaction exceptions (e.g. invalid pin) more gracefully
                 self.logger.exception(repr(e))
@@ -1463,7 +1441,8 @@ class WCHWXPub(WalletWizardComponent, Logger):
             except Exception as e:
                 self.error = repr(e)  # TODO: handle user interaction exceptions (e.g. invalid pin) more gracefully
                 self.logger.exception(repr(e))
-            self.logger.debug(f'Done retrieve xpub: {self.xpub}')
+            if self.xpub:
+                self.logger.debug(f'Done retrieve xpub: {self.xpub[:10]}...{self.xpub[-5:]}')
             self.busy = False
             self.validate()
 

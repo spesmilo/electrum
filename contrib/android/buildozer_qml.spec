@@ -55,6 +55,8 @@ source.exclude_dirs =
 
 # (list) List of exclusions using pattern matching
 source.exclude_patterns = Makefile,setup*,
+    # the android zxing scanner is built through the p4a recipe
+    electrum/libZXing.*,
     # not reproducible:
     packages/aiohttp-*.dist-info/*,
     packages/frozenlist-*.dist-info/*
@@ -73,13 +75,12 @@ requirements =
     python3,
     android,
     openssl,
-    plyer,
     libffi,
     libsecp256k1,
-    cryptography,
+    pycryptodomex,
     pyqt6sip,
     pyqt6,
-    libzbar
+    libzxing
 
 # (str) Presplash of the application
 presplash.filename = %(source.dir)s/electrum/gui/icons/electrum_presplash.png
@@ -101,23 +102,23 @@ fullscreen = False
 #
 
 # (list) Permissions
-android.permissions = INTERNET, CAMERA, WRITE_EXTERNAL_STORAGE, POST_NOTIFICATIONS
+android.permissions = INTERNET, CAMERA, WRITE_EXTERNAL_STORAGE, POST_NOTIFICATIONS, USE_BIOMETRIC
 
 # (int) Android API to use  (compileSdkVersion)
 # note: when changing, Dockerfile also needs to be changed to install corresponding build tools
-android.api = 31
+android.api = 36
 
 # (int) Android targetSdkVersion
-android.target_sdk_version = 34
+android.target_sdk_version = 36
 
 # (int) Minimum API required. You will need to set the android.ndk_api to be as low as this value.
-android.minapi = 23
+android.minapi = 26
 
 # (str) Android NDK version to use
-android.ndk = 23b
+android.ndk = 28c
 
 # (int) Android NDK API to use (optional). This is the minimum API your app will support.
-android.ndk_api = 23
+android.ndk_api = 26
 
 # (bool) Use --private data storage (True) or --dir public storage (False)
 #android.private_storage = True
@@ -151,7 +152,6 @@ android.accept_sdk_license = True
 # down the build process. Allows wildcards matching, for example:
 # OUYA-ODK/libs/*.jar
 #android.add_jars = foo.jar,bar.jar,path/to/more/*.jar
-#android.add_jars = lib/android/zbar.jar
 
 android.add_jars = .buildozer/android/platform/*/build/libs_collections/Electrum/jar/*.jar
 
@@ -161,10 +161,9 @@ android.add_jars = .buildozer/android/platform/*/build/libs_collections/Electrum
 android.add_src = electrum/gui/qml/java_classes/
 
 android.gradle_dependencies =
-    com.android.support:support-compat:28.0.0,
-    me.dm7.barcodescanner:zxing:1.9.8
+    androidx.core:core:1.16.0
 
-android.add_activities = org.electrum.qr.SimpleScannerActivity
+android.add_activities = org.electrum.biometry.BiometricActivity
 
 # (list) Put these files or directories in the apk res directory.
 # The option may be used in three ways, the value may contain one or zero ':'
@@ -176,7 +175,7 @@ android.add_activities = org.electrum.qr.SimpleScannerActivity
 # 3) A directory, here 'legal_resources' must contain one or more directories,
 # each of a resource kind:  drawable, xml, etc...
 # android.add_resources = legal_resources
-android.add_resources = electrum/gui/qml/android_res/layout:layout
+android.add_resources = electrum/gui/icons/electrum_light_icon.png:drawable
 
 # (str) python-for-android branch to use, if not master, useful to try
 # not yet merged features.

@@ -107,12 +107,11 @@ class Contacts(dict, Logger):
     async def resolve_openalias(cls, url: str) -> Dict[str, Any]:
         out = await cls._resolve_openalias(url)
         if out:
-            address, name, validated = out
+            address, name = out
             return {
                 'address': address,
                 'name': name,
                 'type': 'openalias',
-                'validated': validated
             }
         return {}
 
@@ -138,13 +137,16 @@ class Contacts(dict, Logger):
             asyncio.run_coroutine_threadsafe(f(), get_asyncio_loop())
 
     @classmethod
-    async def _resolve_openalias(cls, url: str) -> Optional[Tuple[str, str, bool]]:
+    async def _resolve_openalias(cls, url: str) -> Optional[Tuple[str, str]]:
         # support email-style addresses, per the OA standard
         url = url.replace('@', '.')
         try:
             records, validated = await dnssec.query(url, dns.rdatatype.TXT)
         except DNSException as e:
             _logger.info(f'Error resolving openalias: {repr(e)}')
+            return None
+        if not validated:  # enforce DNSSEC validation. without it, DNS is completely insecure
+            _logger.info(f"DNSSEC validation failed for {url=!r}, or maybe dependencies are missing and could not even try.")
             return None
         prefix = 'btc'
         for record in records:
@@ -158,7 +160,7 @@ class Contacts(dict, Logger):
                     name = address
                 if not address:
                     continue
-                return address, name, validated
+                return address, name
         return None
 
     @staticmethod

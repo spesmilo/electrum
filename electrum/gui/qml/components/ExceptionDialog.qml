@@ -17,11 +17,15 @@ ElDialog
 
     width: parent.width
     height: parent.height
-    z: 1000  // assure topmost of all other dialogs
+    z: 1000  // assure topmost of all other dialogs. note: child popups need even higher!
+    // disable padding in ElDialog as it is overwritten here and shows no effect, this dialog needs padding though
+    needsSystemBarPadding: false
 
     header: null
 
     ColumnLayout {
+        anchors.topMargin: app.statusBarHeight  // edge-to-edge layout padding
+        anchors.bottomMargin: app.navigationBarHeight
         anchors.fill: parent
         enabled: !_sending
 
@@ -77,15 +81,16 @@ ElDialog
                 Layout.fillWidth: true
                 Layout.preferredWidth: 3
                 text: qsTr('Send Bug Report')
-                onClicked: AppController.sendReport(user_text.text)
-            }
-            Button {
-                Layout.fillWidth: true
-                Layout.preferredWidth: 2
-                text: qsTr('Never')
                 onClicked: {
-                    AppController.showNever()
-                    close()
+                    var dialog = app.messageDialog.createObject(app, {
+                        text: qsTr('Confirm to send bugreport?'),
+                        yesno: true,
+                        z: 1001  // assure topmost of all other dialogs
+                    })
+                    dialog.accepted.connect(function() {
+                        AppController.sendReport(user_text.text)
+                    })
+                    dialog.open()
                 }
             }
             Button {
@@ -110,11 +115,14 @@ ElDialog
             width: parent.width
             height: parent.height
             z: 1001  // above root
+            needsSystemBarPadding: false
 
             header: null
 
             Flickable {
                 anchors.fill: parent
+                anchors.topMargin: app.statusBarHeight
+                anchors.bottomMargin: app.navigationBarHeight
                 contentHeight: reportLabel.implicitHeight
                 interactive: height < contentHeight
 
@@ -123,6 +131,7 @@ ElDialog
                     text: reportText
                     wrapMode: Text.Wrap
                     width: parent.width
+                    textFormat: Text.RichText
                 }
             }
             onClosed: destroy()
@@ -135,7 +144,8 @@ ElDialog
             _sending = false
             var dialog = app.messageDialog.createObject(app, {
                 text: text,
-                richText: true
+                richText: true,
+                z: 1001  // assure topmost of all other dialogs
             })
             dialog.open()
             close()
@@ -146,7 +156,8 @@ ElDialog
                 title: qsTr('Error'),
                 iconSource: Qt.resolvedUrl('../../icons/warning.png'),
                 text: text,
-                richText: true
+                richText: true,
+                z: 1001  // assure topmost of all other dialogs
             })
             dialog.open()
         }

@@ -28,7 +28,6 @@ import stat
 import hashlib
 import base64
 import zlib
-from enum import IntEnum
 from typing import Optional
 
 import electrum_ecc as ecc
@@ -37,7 +36,6 @@ from . import crypto
 from .util import (profiler, InvalidPassword, WalletFileException, bfh, standardize_path,
                    test_read_write_permissions, os_chmod)
 
-from .wallet_db import WalletDB
 from .logging import Logger
 
 
@@ -47,13 +45,9 @@ def get_derivation_used_for_hw_device_encryption():
             "/1112098098'")  # ascii 'BIE2' as decimal
 
 
-class StorageEncryptionVersion(IntEnum):
-    PLAINTEXT = 0
-    USER_PASSWORD = 1
-    XPUB_PASSWORD = 2
+from .stored_dict import StorageEncryptionVersion, StorageReadWriteError
 
 
-class StorageReadWriteError(Exception): pass
 
 
 class StorageOnDiskUnexpectedlyChanged(Exception): pass
@@ -64,11 +58,17 @@ class WalletStorage(Logger):
 
     # TODO maybe split this into separate create() and open() classmethods, to prevent some bugs.
     #      Until then, the onus is on the caller to check file_exists().
-    def __init__(self, path):
+    def __init__(
+        self,
+        path,
+        *,
+        allow_partial_writes: bool = False,
+    ):
         Logger.__init__(self)
         self.path = standardize_path(path)
         self._file_exists = bool(self.path and os.path.exists(self.path))
         self.logger.info(f"wallet path {self.path}")
+        self._allow_partial_writes = allow_partial_writes
         self.pubkey = None
         self.decrypted = ''
         try:
@@ -87,6 +87,9 @@ class WalletStorage(Logger):
             self.pos = 0
             self.init_pos = 0
 
+    def get_path(self):
+        return self.path
+
     def read(self):
         return self.decrypted if self.is_encrypted() else self.raw
 
@@ -98,7 +101,10 @@ class WalletStorage(Logger):
         s = self.encrypt_before_writing(data)
         temp_path = "%s.tmp.%s" % (self.path, os.getpid())
         with open(temp_path, "wb") as f:
-            os_chmod(temp_path, mode)  # set restrictive perms *before* we write data
+            try:
+                os_chmod(temp_path, mode)  # set restrictive perms *before* we write data
+            except PermissionError as e:  # tolerate NFS or similar weirdness?
+                self.logger.warning(f"cannot chmod temp wallet file: {e!r}")
             f.write(s.encode("utf-8"))
             self.pos = f.seek(0, os.SEEK_END)
             f.flush()
@@ -112,6 +118,7 @@ class WalletStorage(Logger):
 
     def append(self, data: str) -> None:
         """ append data to file. for the moment, only non-encrypted file"""
+        assert self._allow_partial_writes
         assert not self.is_encrypted()
         with open(self.path, "rb+") as f:
             pos = f.seek(0, os.SEEK_END)
@@ -122,8 +129,17 @@ class WalletStorage(Logger):
             f.flush()
             os.fsync(f.fileno())
 
-    def needs_consolidation(self):
+    def _needs_consolidation(self):
         return self.pos > 2 * self.init_pos
+
+    def should_do_full_write_next(self) -> bool:
+        """If false, next action can be a partial-write ('append')."""
+        return (
+            not self.file_exists()
+            or self.is_encrypted()
+            or self._needs_consolidation()
+            or not self._allow_partial_writes
+        )
 
     def file_exists(self) -> bool:
         return self._file_exists

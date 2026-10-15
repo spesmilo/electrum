@@ -71,7 +71,7 @@ WizardComponent {
             wrapMode: Text.Wrap
         }
 
-        TextHighlightPane {
+        DialogHighlightPane {
             Layout.fillWidth: true
 
             visible: cosigner
@@ -159,16 +159,15 @@ WizardComponent {
                     icon.source: '../../../icons/qrcode.png'
                     icon.height: constants.iconSizeMedium
                     icon.width: constants.iconSizeMedium
-                    scale: 1.2
                     onClicked: {
                         var dialog = app.scanDialog.createObject(app, {
                             hint: cosigner
                                 ? qsTr('Scan a cosigner master public key')
                                 : qsTr('Scan a master key')
                         })
-                        dialog.onFound.connect(function() {
-                            if (verifyMasterKey(dialog.scanData))
-                                masterkey_ta.text = dialog.scanData
+                        dialog.onFoundText.connect(function(data) {
+                            if (verifyMasterKey(data))
+                                masterkey_ta.text = data
                             else
                                 masterkey_ta.text = ''
                             dialog.close()

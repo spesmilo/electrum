@@ -18,6 +18,8 @@ ElDialog {
     property string derivationPath
     property string scriptType
 
+    needsSystemBarPadding: false
+
     z: 1 // raise z so it also covers wizard dialog
 
     anchors.centerIn: parent
@@ -35,6 +37,7 @@ ElDialog {
         InfoTextArea {
             Layout.fillWidth: true
             Layout.margins: constants.paddingMedium
+            backgroundColor: constants.darkerDialogBackground
 
             text: bip39RecoveryListModel.state == Bip39RecoveryListModel.Scanning
                 ? qsTr('Scanning for accounts...')
@@ -63,7 +66,9 @@ ElDialog {
 
             verticalPadding: 0
             horizontalPadding: 0
-            background: PaneInsetBackground {}
+            background: PaneInsetBackground {
+                baseColor: constants.darkerDialogBackground
+            }
 
             ColumnLayout {
                 spacing: 0

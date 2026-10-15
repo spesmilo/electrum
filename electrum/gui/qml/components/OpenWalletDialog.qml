@@ -12,6 +12,7 @@ ElDialog {
 
     property string name
     property string path
+    property bool isStartup
 
     property bool _invalidPassword: false
     property bool _unlockClicked: false
@@ -25,6 +26,7 @@ ElDialog {
     anchors.centerIn: parent
 
     padding: 0
+    needsSystemBarPadding: false
 
     ColumnLayout {
         spacing: 0
@@ -39,23 +41,21 @@ ElDialog {
 
             InfoTextArea {
                 id: notice
-                text: Daemon.singlePasswordEnabled || !Daemon.currentWallet
+                Layout.fillWidth: true
+                Layout.bottomMargin: constants.paddingSmall
+                text: Daemon.singlePasswordEnabled || isStartup
                     ? qsTr('Please enter password')
                     : qsTr('Wallet <b>%1</b> requires password to unlock').arg(name)
-                iconStyle: InfoTextArea.IconStyle.Warn
-                Layout.fillWidth: true
-            }
-
-            Label {
-                text: qsTr('Password')
-                Layout.fillWidth: true
-                color: Material.accentColor
+                textFormat: Text.RichText
+                compact: true
+                iconStyle: InfoTextArea.IconStyle.Info
+                backgroundColor: constants.darkerDialogBackground
             }
 
             PasswordField {
                 id: password
                 Layout.fillWidth: true
-                Layout.leftMargin: constants.paddingXLarge
+                placeholderText: qsTr('Password')
 
                 onTextChanged: {
                     unlockButton.enabled = true
@@ -75,16 +75,19 @@ ElDialog {
             }
         }
 
-        FlatButton {
-            id: unlockButton
+        DialogButtonContainer {
             Layout.fillWidth: true
-            icon.source: '../../icons/unlock.png'
-            text: qsTr("Unlock")
-            onClicked: {
-                unlock()
+
+            FlatButton {
+                id: unlockButton
+                Layout.fillWidth: true
+                icon.source: '../../icons/unlock.png'
+                text: qsTr("Unlock")
+                onClicked: {
+                    unlock()
+                }
             }
         }
-
     }
 
     function unlock() {
@@ -93,9 +96,39 @@ ElDialog {
         Daemon.loadWallet(openwalletdialog.path, password.text)
     }
 
+    function maybeUnlockAnyOtherWallet() {
+        // try to open any other wallet with the password the user entered, hack to improve ux for
+        // users with non-unified wallet password.
+        // we should only fall back to opening a random wallet if:
+        // - the user did not select a specific wallet, otherwise this is confusing
+        // - there can be more than one password, otherwise this scan would be pointless
+        if (Daemon.availableWallets.rowCount() <= 1 || password.text === '') {
+            return false
+        }
+        if (Config.walletDidUseSinglePassword) {
+            // the last time the wallet was unlocked all wallets used the same password.
+            // trying to decrypt all of them now is most probably useless.
+            return false
+        }
+        if (!openwalletdialog.isStartup) {
+            return false  // this dialog got opened because the user clicked on a specific wallet
+        }
+        let wallet_paths = Daemon.getWalletsUnlockableWithPassword(password.text)
+        if (wallet_paths && wallet_paths.length > 0) {
+            console.log('could not unlock recent wallet, falling back to: ' + wallet_paths[0])
+            Daemon.loadWallet(wallet_paths[0], password.text)
+            return true
+        }
+        return false
+    }
+
     Connections {
         target: Daemon
         function onWalletRequiresPassword() {
+            if (maybeUnlockAnyOtherWallet()) {
+                password.text = ''  // reset pw so we cannot end up in a loop
+                return
+            }
             console.log('invalid password')
             _invalidPassword = true
             password.tf.forceActiveFocus()

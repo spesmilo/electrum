@@ -5,9 +5,9 @@ set -e
 
 PROJECT_ROOT="$(dirname "$(readlink -e "$0")")/../.."
 CONTRIB="$PROJECT_ROOT/contrib"
-here=$(dirname "$0")
+here="$(dirname "$0")"
 test -n "$here" -a -d "$here" || exit
-cd $here
+cd "$here"
 
 if ! which osslsigncode > /dev/null 2>&1; then
     echo "Please install osslsigncode"
@@ -22,9 +22,9 @@ version=$("$CONTRIB"/print_electrum_version.py)
 
 echo "Found $(ls dist/*.exe | wc -w) files to verify."
 
-for mine in $(ls dist/*.exe); do
+for mine in dist/*.exe; do
     echo "---------------"
-    f="$(basename $mine)"
+    f="$(basename "$mine")"
     if test -f "signed/$f"; then
         echo "Found file at signed/$f"
     else

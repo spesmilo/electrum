@@ -329,6 +329,7 @@ Pane {
             }
         }
     }
+    property color navigationBarBackgroundColor: constants.highlightBackground
 
     AddressDetails {
         id: addressdetails
@@ -345,5 +346,12 @@ Pane {
             })
             dialog.open()
         }
+    }
+
+    Binding {
+        target: AppController
+        property: 'secureWindow'
+        when: root.visible  // enables stacking multiple secureWindow dialogs
+        value: Boolean(addressdetails.privkey)
     }
 }

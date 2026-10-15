@@ -3,19 +3,16 @@ from typing import TYPE_CHECKING, Sequence
 import PyQt6.QtGui as QtGui
 import PyQt6.QtWidgets as QtWidgets
 import PyQt6.QtCore as QtCore
-from PyQt6.QtWidgets import QLabel, QLineEdit, QHBoxLayout, QGridLayout
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QLabel, QHBoxLayout
 
-from electrum.util import EventListener, ShortID
+from electrum.util import ShortID
 from electrum.i18n import _
-from electrum.util import format_time
-from electrum.lnutil import format_short_channel_id, LOCAL, REMOTE, UpdateAddHtlc, Direction
-from electrum.lnchannel import htlcsum, Channel, AbstractChannel, HTLCWithStatus
-from electrum.lnaddr import LnAddr, lndecode
-from electrum.bitcoin import COIN
-from electrum.wallet import Abstract_Wallet
+from electrum.lnutil import LOCAL, REMOTE, UpdateAddHtlc, Direction
+from electrum.lnchannel import Channel, AbstractChannel, HTLCWithStatus
 
-from .util import Buttons, CloseButton, ShowQRLineEdit, MessageBoxMixin, WWLabel
-from .util import QtEventListener, qt_event_listener, VLine
+from electrum.gui.common_qt.util import QtEventListener, qt_event_listener
+from .util import Buttons, CloseButton, ShowQRLineEdit, MessageBoxMixin, WWLabel, VLine
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -37,6 +34,7 @@ class LinkedLabel(QtWidgets.QLabel):
     def __init__(self, text, on_clicked):
         super().__init__(text)
         self.linkActivated.connect(on_clicked)
+        self.setTextFormat(Qt.TextFormat.RichText)
 
 
 class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin, QtEventListener):

@@ -8,6 +8,9 @@ https://github.com/lightningnetwork/lightning-rfc/blob/master/09-features.md
 import asyncio
 import os
 import time
+from typing import Optional
+
+from aiorpcx import NetAddress
 
 from electrum.logging import get_logger, configure_logging
 from electrum.simple_config import SimpleConfig
@@ -31,6 +34,7 @@ PRESYNC = False  # should we sync the graph or take it from an already synced da
 
 
 config = SimpleConfig({"testnet": IS_TESTNET, "verbosity": VERBOSITY})
+config.get_selected_chain().set_as_network()
 configure_logging(config)
 
 loop, stopping_fut, loop_thread = create_and_start_event_loop()
@@ -38,8 +42,6 @@ loop, stopping_fut, loop_thread = create_and_start_event_loop()
 # takes some time
 time.sleep(2)
 
-if IS_TESTNET:
-    constants.BitcoinTestnet.set_as_network()
 daemon = Daemon(config, listen_jsonrpc=False)
 network = daemon.network
 assert network.asyncio_loop.is_running()
@@ -52,7 +54,6 @@ if not os.path.exists(wallet_path):
 
 # open wallet
 wallet = daemon.load_wallet(wallet_path, password=None, upgrade=True)
-wallet.start_network(network)
 
 
 async def worker(work_queue: asyncio.Queue, results_queue: asyncio.Queue, flag):
@@ -67,23 +68,19 @@ async def worker(work_queue: asyncio.Queue, results_queue: asyncio.Queue, flag):
         work = await work_queue.get()
 
         # only check non-onion addresses
-        addr = None
-        for a in work['addrs']:
-            if "onion" not in a[0]:
+        addr = None  # type: Optional[NetAddress]
+        for a in work['addrs']:  # type: NetAddress
+            if not str(a.host).endswith(".onion"):
                 addr = a
         if not addr:
             await results_queue.put(None)
             continue
 
-        # handle ipv4/ipv6
-        if ':' in addr[0]:
-            connect_str = f"{work['pk'].hex()}@[{addr.host}]:{addr.port}"
-        else:
-            connect_str = f"{work['pk'].hex()}@{addr.host}:{addr.port}"
+        connect_str = f"{work['pk'].hex()}@{addr}"
 
         print(f"worker connecting to {connect_str}")
         try:
-            peer = await wallet.lnworker.add_peer(connect_str)
+            peer = await wallet.lnworker.lnpeermgr.add_peer(connect_str)
             res = await util.wait_for2(peer.initialized, TIMEOUT)
             if res:
                 if peer.features & flag == work['features'] & flag:
@@ -177,3 +174,5 @@ async def node_flag_stats(opt_flag: LnFeatures, presync: False):
 
 asyncio.run_coroutine_threadsafe(
     node_flag_stats(FLAG, presync=PRESYNC), loop)
+while loop_thread.is_alive():
+    loop_thread.join(1)

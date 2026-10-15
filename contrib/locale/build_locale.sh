@@ -4,6 +4,9 @@
 
 set -e
 
+CONTRIB_LOCALE="$(dirname "$(realpath "$0" 2> /dev/null || grealpath "$0")")"
+
+
 if [[ ! -d "$1" || -z "$2" ]]; then
     echo "usage: $0 locale_source_dir locale_dest_dir"
     echo "       The dirs can match, to build in place."
@@ -28,3 +31,6 @@ for i in *; do
     mkdir -p "$dir"
     (msgfmt --output-file="$dir/electrum.mo" "$i/electrum.po" || true)
 done
+
+echo "running stats.py"
+"$CONTRIB_LOCALE/stats.py"

@@ -7,15 +7,16 @@ TextField {
     id: amount
 
     required property TextField fiatfield
+    property bool msatPrecision: false
 
     font.family: FixedFont
     placeholderText: qsTr('Amount')
     inputMethodHints: Qt.ImhDigitsOnly
     validator: RegularExpressionValidator {
-        regularExpression: Config.btcAmountRegex
+        regularExpression: msatPrecision ? Config.btcAmountRegexMsat : Config.btcAmountRegex
     }
 
-    property Amount textAsSats
+    property var textAsSats
     onTextChanged: {
         textAsSats = Config.unitsToSats(amount.text)
         if (fiatfield.activeFocus)
@@ -32,5 +33,5 @@ TextField {
         }
     }
 
-    Component.onCompleted: textAsSats = Config.unitsToSats('')
+    Component.onCompleted: amount.textChanged()
 }

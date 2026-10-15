@@ -29,16 +29,16 @@ from typing import TYPE_CHECKING, Dict
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (QComboBox,  QTabWidget, QDialog, QSpinBox,  QCheckBox, QLabel,
-                             QVBoxLayout, QGridLayout, QLineEdit, QWidget, QHBoxLayout, QSlider)
+                             QVBoxLayout, QGridLayout, QLineEdit, QWidget, QHBoxLayout)
 
-from electrum.i18n import _, languages
+from electrum.i18n import _, get_gui_lang_names
 from electrum import util
 from electrum.util import base_units_list, event_listener
 
+from electrum.gui.common_qt.util import QtEventListener
 from electrum.gui import messages
 
-from .util import ColorScheme, HelpLabel, Buttons, CloseButton, QtEventListener
-
+from .util import ColorScheme, HelpLabel, Buttons, CloseButton
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig, ConfigVarWithConfig
@@ -50,7 +50,8 @@ def checkbox_from_configvar(cv: 'ConfigVarWithConfig') -> QCheckBox:
     assert short_desc is not None, f"short_desc missing for {cv}"
     cb = QCheckBox(short_desc)
     if (long_desc := cv.get_long_desc()) is not None:
-        cb.setToolTip(messages.to_rtf(long_desc))
+        long_desc = messages.wrap_multi_paragraph_text(long_desc)
+        cb.setToolTip(long_desc)
     return cb
 
 
@@ -76,8 +77,9 @@ class SettingsDialog(QDialog, QtEventListener):
         # language
         lang_label = HelpLabel.from_configvar(self.config.cv.LOCALIZATION_LANGUAGE)
         lang_combo = QComboBox()
-        lang_combo.addItems(list(languages.values()))
-        lang_keys = list(languages.keys())
+        _languages = get_gui_lang_names()
+        lang_combo.addItems(list(_languages.values()))
+        lang_keys = list(_languages.keys())
         lang_cur_setting = self.config.LOCALIZATION_LANGUAGE
         try:
             index = lang_keys.index(lang_cur_setting)
@@ -88,7 +90,7 @@ class SettingsDialog(QDialog, QtEventListener):
             for w in [lang_combo, lang_label]: w.setEnabled(False)
 
         def on_lang(x):
-            lang_request = list(languages.keys())[lang_combo.currentIndex()]
+            lang_request = list(_languages.keys())[lang_combo.currentIndex()]
             if lang_request != self.config.LOCALIZATION_LANGUAGE:
                 self.config.LOCALIZATION_LANGUAGE = lang_request
                 self.need_restart = True
@@ -97,7 +99,7 @@ class SettingsDialog(QDialog, QtEventListener):
         nz_label = HelpLabel.from_configvar(self.config.cv.BTC_AMOUNTS_FORCE_NZEROS_AFTER_DECIMAL_POINT)
         nz = QSpinBox()
         nz.setMinimum(0)
-        nz.setMaximum(self.config.decimal_point)
+        nz.setMaximum(self.config.BTC_AMOUNTS_DECIMAL_POINT)
         nz.setValue(self.config.num_zeros)
         if not self.config.cv.BTC_AMOUNTS_FORCE_NZEROS_AFTER_DECIMAL_POINT.is_modifiable():
             for w in [nz, nz_label]: w.setEnabled(False)
@@ -126,50 +128,17 @@ class SettingsDialog(QDialog, QtEventListener):
                     trampoline_cb.setCheckState(Qt.CheckState.Checked)
                     return
             self.config.LIGHTNING_USE_GOSSIP = not use_trampoline
-            if not use_trampoline:
-                self.network.start_gossip()
-            else:
-                self.network.run_from_another_thread(
-                    self.network.stop_gossip())
+            if self.network:
+                if not use_trampoline:
+                    self.network.start_gossip()
+                else:
+                    self.network.run_from_another_thread(
+                        self.network.stop_gossip())
             util.trigger_callback('ln_gossip_sync_progress')
             # FIXME: update all wallet windows
             util.trigger_callback('channels_updated', self.wallet)
         trampoline_cb.stateChanged.connect(on_trampoline_checked)
 
-        lnfee_hlabel = HelpLabel.from_configvar(self.config.cv.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS)
-        lnfee_map = [500, 1_000, 3_000, 5_000, 10_000, 20_000, 30_000, 50_000]
-
-        def lnfee_update_vlabel(fee_val: int):
-            lnfee_vlabel.setText(_("{}% of payment").format(f"{fee_val / 10 ** 4:.2f}"))
-
-        def lnfee_slider_moved():
-            pos = lnfee_slider.sliderPosition()
-            fee_val = lnfee_map[pos]
-            lnfee_update_vlabel(fee_val)
-
-        def lnfee_slider_released():
-            pos = lnfee_slider.sliderPosition()
-            fee_val = lnfee_map[pos]
-            self.config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS = fee_val
-
-        lnfee_slider = QSlider(Qt.Orientation.Horizontal)
-        lnfee_slider.setRange(0, len(lnfee_map)-1)
-        lnfee_slider.setTracking(True)
-        try:
-            lnfee_spos = lnfee_map.index(self.config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS)
-        except ValueError:
-            lnfee_spos = 0
-        lnfee_slider.setSliderPosition(lnfee_spos)
-        lnfee_vlabel = QLabel("")
-        lnfee_update_vlabel(self.config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS)
-        lnfee_slider.valueChanged.connect(lnfee_slider_moved)
-        lnfee_slider.sliderReleased.connect(lnfee_slider_released)
-        lnfee_hbox = QHBoxLayout()
-        lnfee_hbox.setContentsMargins(0, 0, 0, 0)
-        lnfee_hbox.addWidget(lnfee_vlabel)
-        lnfee_hbox.addWidget(lnfee_slider)
-        lnfee_hbox_w = QWidget()
-        lnfee_hbox_w.setLayout(lnfee_hbox)
 
         alias_label = HelpLabel.from_configvar(self.config.cv.OPENALIAS_ID)
         alias = self.config.OPENALIAS_ID
@@ -205,7 +174,7 @@ class SettingsDialog(QDialog, QtEventListener):
             if self.config.get_base_unit() == unit_result:
                 return
             self.config.set_base_unit(unit_result)
-            nz.setMaximum(self.config.decimal_point)
+            nz.setMaximum(self.config.BTC_AMOUNTS_DECIMAL_POINT)
             self.app.refresh_tabs_signal.emit()
             self.app.update_status_signal.emit()
             self.app.refresh_amount_edits_signal.emit()
@@ -237,8 +206,8 @@ class SettingsDialog(QDialog, QtEventListener):
         qr_combo.currentIndexChanged.connect(on_video_device)
 
         colortheme_combo = QComboBox()
-        colortheme_combo.addItem(_('Light'), 'default')
-        colortheme_combo.addItem(_('Dark'), 'dark')
+        colortheme_combo.addItem(_("System"), "default")
+        colortheme_combo.addItem("qdarkstyle", "dark")
         index = colortheme_combo.findData(self.config.GUI_QT_COLOR_THEME)
         colortheme_combo.setCurrentIndex(index)
         colortheme_label = QLabel(self.config.cv.GUI_QT_COLOR_THEME.get_short_desc() + ':')
@@ -393,7 +362,6 @@ class SettingsDialog(QDialog, QtEventListener):
         units_widgets.append((thousandsep_cb, None))
         lightning_widgets = []
         lightning_widgets.append((trampoline_cb, None))
-        lightning_widgets.append((lnfee_hlabel, lnfee_hbox_w))
         fiat_widgets = []
         fiat_widgets.append((QLabel(_('Fiat currency')), ccy_combo))
         fiat_widgets.append((QLabel(_('Source')), ex_combo))
@@ -442,8 +410,7 @@ class SettingsDialog(QDialog, QtEventListener):
             self.alias_e.setStyleSheet("")
             return
         if self.wallet.contacts.alias_info:
-            alias_addr, alias_name, validated = self.wallet.contacts.alias_info
-            self.alias_e.setStyleSheet((ColorScheme.GREEN if validated else ColorScheme.RED).as_stylesheet(True))
+            self.alias_e.setStyleSheet(ColorScheme.GREEN.as_stylesheet(True))
         else:
             self.alias_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
 

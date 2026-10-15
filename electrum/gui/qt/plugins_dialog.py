@@ -1,9 +1,7 @@
 from typing import TYPE_CHECKING, Optional
 from functools import partial
-import shutil
-import os
 
-from PyQt6.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton, QWidget, QScrollArea, \
+from PyQt6.QtWidgets import QLabel, QVBoxLayout, QHBoxLayout, QGridLayout, QPushButton, QWidget, QScrollArea, \
     QFormLayout, QFileDialog, QMenu, QApplication, QMessageBox
 from PyQt6.QtCore import QTimer
 
@@ -12,26 +10,30 @@ from electrum.gui import messages
 from electrum.logging import get_logger
 
 from .util import (WindowModalDialog, Buttons, CloseButton, WWLabel, insert_spaces, MessageBoxMixin,
-                   EnterButton, read_QIcon_from_bytes, IconLabel, RunCoroutineDialog)
+                   EnterButton, read_QIcon_from_bytes, IconLabel, RunCoroutineDialog, read_QIcon,
+                   webopen)
 
 
 if TYPE_CHECKING:
     from . import ElectrumGui
     from electrum_ecc import ECPrivkey
     from electrum.simple_config import SimpleConfig
-    from electrum.plugin import Plugins
+    from electrum.plugin import Plugins, PluginMetadata
 
 
 class PluginDialog(WindowModalDialog):
 
-    def __init__(self, name, metadata, status_button: Optional['PluginStatusButton'], window: 'PluginsDialog'):
-        display_name = metadata.get('fullname', '')
-        author = metadata.get('author', '')
-        description = metadata.get('description', '')
-        requires = metadata.get('requires')
-        version = metadata.get('version')
-        zip_hash = metadata.get('zip_hash_sha256', None)
-        icon_path = metadata.get('icon')
+    def __init__(self, metadata: 'PluginMetadata', status_button: Optional['PluginStatusButton'], window: 'PluginsDialog',
+                 *, is_upgrade: bool = False):
+        """If is_upgrade, `metadata` describes a new version of an installed plugin."""
+        name = metadata.name
+        display_name = metadata.fullname
+        author = metadata.author
+        description = metadata.description
+        requires = metadata.requires
+        version = metadata.version
+        zip_hash = metadata.zip_hash_sha256
+        icon_path = metadata.icon
 
         WindowModalDialog.__init__(self, window, 'Plugin')
         self.setMinimumSize(400, 250)
@@ -45,17 +47,18 @@ class PluginDialog(WindowModalDialog):
         name_label = IconLabel(text=display_name, reverse=True)
         if icon_path:
             name_label.icon_size = 64
-            icon = read_QIcon_from_bytes(self.plugins.read_file(name, icon_path))
-            name_label.setIcon(icon)
+            self.window.maybe_set_icon(name_label, name, icon_path, manifest=metadata if is_upgrade else None)
         vbox.addWidget(name_label)
         vbox.addStretch()
-        vbox.addWidget(WWLabel(description))
+        vbox.addWidget(WWLabel(description))  # must be plain text: don't parse untrusted text as rich-text
         vbox.addStretch()
         form = QFormLayout(None)
         if author:
             form.addRow(QLabel(_('Author') + ':'), QLabel(author))
         if version:
             form.addRow(QLabel(_('Version') + ':'), QLabel(version))
+        if is_upgrade and (installed_version := self.plugins.get_metadata(name).version):
+            form.addRow(QLabel(_('Installed version') + ':'), QLabel(installed_version))
         if zip_hash:
             form.addRow(QLabel('Hash [sha256]:'), WWLabel(insert_spaces(zip_hash, 8)))
         if requires:
@@ -69,10 +72,15 @@ class PluginDialog(WindowModalDialog):
         p = self.plugins.get(name)
         is_enabled = p and p.is_enabled()
         is_external = self.plugins.is_external(name)
-        if is_external:
+        if is_upgrade:
+            if zip_hash != self.plugins.get_metadata(name).zip_hash_sha256:
+                upgrade_button = QPushButton(_('Upgrade'))
+                upgrade_button.clicked.connect(self.do_upgrade)
+                buttons.insert(0, upgrade_button)
+        elif is_external:
             is_authorized = self.plugins.is_authorized(name)
             if status_button is not None:
-                # status_button is None when called from add_external_plugin
+                # status_button is None when called from add_plugin_dialog
                 remove_button = QPushButton('')
                 remove_button.clicked.connect(self.do_remove)
                 remove_button.setText(_('Remove'))
@@ -87,7 +95,7 @@ class PluginDialog(WindowModalDialog):
             toggle_button.clicked.connect(self.do_toggle)
             buttons.insert(0, toggle_button)
         # add settings button
-        if p and p.requires_settings() and p.is_enabled():
+        if p and p.requires_settings() and p.is_enabled() and not is_upgrade:
             settings_button = EnterButton(
                 _('Settings'),
                 partial(p.settings_dialog, self))
@@ -116,11 +124,28 @@ class PluginDialog(WindowModalDialog):
         privkey = self.window.get_plugins_privkey()
         if not privkey:
             return
-        filename = self.plugins.zip_plugin_path(self.name)
-        self.window.plugins.authorize_plugin(self.name, filename, privkey)
+        try:
+            self.window.plugins.authorize_plugin(self.name, privkey)
+        except Exception as e:
+            self.show_error(f"{e}")
+            return
         self.window.plugins.enable(self.name)
+        d = self.plugins.get_metadata(self.name)
+        if details := d.registers_keystore:
+            self.plugins.register_keystore(self.name, details)
         if self.status_button:
             self.status_button.update()
+        self.accept()
+
+    def do_upgrade(self):
+        privkey = self.window.get_plugins_privkey()
+        if not privkey:
+            return
+        try:
+            self.plugins.upgrade_external_plugin(self.metadata, privkey)
+        except Exception as e:
+            self.show_error(f"{e}")
+            return
         self.accept()
 
 
@@ -136,7 +161,7 @@ class PluginStatusButton(QPushButton):
 
     def show_plugin_dialog(self):
         metadata = self.plugins.descriptions[self.name]
-        d = PluginDialog(self.name, metadata, self, self.window)
+        d = PluginDialog(metadata, self, self.window)
         d.exec()
 
     def update(self):
@@ -174,11 +199,16 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
         vbox.addWidget(scroll)
         add_button = QPushButton(_('Add'))
         add_button.setMinimumWidth(40)  # looks better on windows, no difference on linux
-        menu = QMenu()
-        menu.addAction(_('Local ZIP file'), self.add_plugin_dialog)
-        menu.addAction(_('Download ZIP file'), self.download_plugin_dialog)
-        add_button.setMenu(menu)
-        vbox.addLayout(Buttons(add_button, CloseButton(self)))
+        add_button.clicked.connect(self.add_plugin_dialog)
+        website_button = QPushButton(read_QIcon('globe.png'), _('Help'))
+        website_button.setToolTip(_('Visit plugins website'))
+        website_button.clicked.connect(lambda: webopen('https://plugins.electrum.org/'))
+        hbox = QHBoxLayout()
+        hbox.addWidget(website_button)
+        hbox.addStretch(1)
+        hbox.addWidget(add_button)
+        hbox.addWidget(CloseButton(self))
+        vbox.addLayout(hbox)
         self.show_list()
 
     def get_plugins_privkey(self) -> Optional['ECPrivkey']:
@@ -187,7 +217,7 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
             self.init_plugins_password()
             return None
         # ask for url and password, same window
-        pw = self.password_dialog(msg=messages.MSG_THIRD_PARTY_PLUGIN_WARNING)
+        pw = self.password_dialog(msg=messages.MSG_THIRD_PARTY_PLUGIN_WARNING, rich_text=True)
         if not pw:
             return None
         privkey = self.plugins.derive_privkey(pw, salt)
@@ -268,28 +298,6 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
             if self.show_message(msg, buttons=buttons) or exit_dialog:
                 break
 
-    def download_plugin_dialog(self):
-        from .util import line_dialog
-        from electrum.util import UserCancelled
-        pubkey, salt = self.plugins.get_pubkey_bytes()
-        if not pubkey:
-            self.init_plugins_password()
-            return
-        url = line_dialog(self, 'url', _('Enter plugin URL'), _('Download'))
-        if not url:
-            return
-        coro = self.plugins.download_external_plugin(url)
-        try:
-            d = RunCoroutineDialog(self, _("Downloading plugin..."), coro)
-            path = d.run()
-        except UserCancelled:
-            return
-        except Exception as e:
-            self._logger.exception("")
-            self.show_error(f"{e}")
-            return
-        self._try_add_external_plugin_from_path(path)
-
     def add_plugin_dialog(self):
         pubkey, salt = self.plugins.get_pubkey_bytes()
         if not pubkey:
@@ -298,39 +306,47 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
         filename, __ = QFileDialog.getOpenFileName(self, _("Select your plugin zipfile"), "", "*.zip")
         if not filename:
             return
-        plugins_dir = self.plugins.get_external_plugin_dir()
-        path = os.path.join(plugins_dir, os.path.basename(filename))
-        if os.path.exists(path):
-            self.show_warning(_('Plugin already installed.'))
-            return
-        shutil.copyfile(filename, path)
-        self._try_add_external_plugin_from_path(path)
-
-    def _try_add_external_plugin_from_path(self, path: str):
         try:
-            success = self.add_external_plugin(path)
+            manifest = self.plugins.read_manifest(filename)
+            name = manifest.name
         except Exception as e:
             self._logger.exception("")
             self.show_error(f"{e}")
-            success = False
-        if not success:
-            try:
-                os.unlink(path)
-            except FileNotFoundError:
-                self._logger.debug("", exc_info=True)
-
-    def add_external_plugin(self, path):
-        manifest = self.plugins.read_manifest(path)
-        name = manifest['name']
-        self.plugins.external_plugin_metadata[name] = manifest
-        d = PluginDialog(name, manifest, None, self)
+            return
+        if self.plugins.is_external(name):
+            self.upgrade_plugin(manifest)
+            return
+        if self.plugins.is_installed(name):
+            self.show_warning(_("Plugin {} already installed.").format(name))
+            return
+        # the file is copied into the plugins directory if the user clicks 'Install'
+        self.plugins.add_external_plugin_metadata(manifest)
+        d = PluginDialog(manifest, None, self)
         if not d.exec():
-            self.plugins.external_plugin_metadata.pop(name)
-            return False
+            self.plugins.remove_external_plugin_metadata(name)
+            return
         if self.gui_object:
             self.gui_object.reload_windows()
         self.show_list()
-        return True
+
+    def upgrade_plugin(self, manifest: 'PluginMetadata'):
+        d = PluginDialog(manifest, None, self, is_upgrade=True)
+        if not d.exec():
+            return
+        self.show_message(_('Please restart Electrum to use the new version.'))
+        self.show_list()
+
+    def maybe_set_icon(self, label, name, icon_path, *, manifest: Optional['PluginMetadata'] = None):
+        """Sets the icon of the installed plugin, or of the zip described by `manifest`."""
+        try:
+            if manifest:
+                icon_bytes = self.plugins.read_zip_file(manifest, icon_path)
+            else:
+                icon_bytes = self.plugins.read_file(name, icon_path)
+            icon = read_QIcon_from_bytes(icon_bytes)
+        except Exception:
+            icon = read_QIcon('warning.png')
+        label.setIcon(icon)
 
     def show_list(self):
         descriptions = self.plugins.descriptions
@@ -345,14 +361,13 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
             i += 1
             if self.plugins.is_internal(name) and self.plugins.is_auto_loaded(name):
                 continue
-            display_name = metadata.get('fullname')
+            display_name = metadata.fullname
             if not display_name:
                 continue
             label = IconLabel(text=display_name, reverse=True)
-            icon_path = metadata.get('icon')
+            icon_path = metadata.icon
             if icon_path:
-                icon = read_QIcon_from_bytes(self.plugins.read_file(name, icon_path))
-                label.setIcon(icon)
+                self.maybe_set_icon(label, name, icon_path)
             label.status_button = PluginStatusButton(self, name)
             grid.addWidget(label, i, 0)
             grid.addWidget(label.status_button, i, 1)
@@ -379,6 +394,7 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
         if self.gui_object:
             self.gui_object.reload_windows()
         self.show_list()
+        self.show_message(_('Please restart Electrum to finish removing the plugin.'))
         self.bring_to_front()
 
     def bring_to_front(self):

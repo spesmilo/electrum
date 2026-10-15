@@ -75,36 +75,70 @@ TX_ICONS = [
 ]
 
 
-ROLE_SORT_ORDER = Qt.ItemDataRole.UserRole + 1000
-
-
 class HistorySortModel(QSortFilterProxyModel):
+
+    def data_for(self, index: QModelIndex):
+        col = index.column()
+        if col == HistoryColumns.STATUS:
+            # respect sort order of self.transactions (wallet.get_full_history)
+            return index.row()
+        else:
+            node = index.internalPointer()
+            return node.sort_keys[col]
+
     def lessThan(self, source_left: QModelIndex, source_right: QModelIndex):
-        item1 = self.sourceModel().data(source_left, ROLE_SORT_ORDER)
-        item2 = self.sourceModel().data(source_right, ROLE_SORT_ORDER)
-        if item1 is None or item2 is None:
-            raise Exception(f'UserRole not set for column {source_left.column()}')
-        v1 = item1.value()
-        v2 = item2.value()
-        if v1 is None or isinstance(v1, Decimal) and v1.is_nan(): v1 = -float("inf")
-        if v2 is None or isinstance(v2, Decimal) and v2.is_nan(): v2 = -float("inf")
-        try:
-            return v1 < v2
-        except Exception:
-            return False
+        return self.data_for(source_left) < self.data_for(source_right)
 
 
 def get_item_key(tx_item):
     return tx_item.get('txid') or tx_item['payment_hash']
+
+def flatten_sort_key(v):
+    if v is None or isinstance(v, Decimal) and v.is_nan():
+        return -float("inf")
+    else:
+        return v
 
 
 class HistoryNode(CustomNode):
 
     model: 'HistoryModel'
 
+    def __init__(self, model: 'CustomModel', tx_item):
+        super().__init__(model, tx_item)
+
+        if tx_item is None:
+            tx_item = {}
+        is_lightning = tx_item.get('lightning', False)
+        short_id = ""
+        if not is_lightning:
+            txpos_in_block = tx_item.get('txpos_in_block') or -1
+            if txpos_in_block >= 0:
+                short_id = f"{tx_item['height']}x{txpos_in_block}"
+        self.sort_keys = {
+            HistoryColumns.DESCRIPTION: flatten_sort_key(
+                tx_item.get('label')),
+            HistoryColumns.AMOUNT: flatten_sort_key(
+                (tx_item['bc_value'].value if 'bc_value' in tx_item else 0)\
+                    + (tx_item['ln_value'].value if 'ln_value' in tx_item else 0)),
+            HistoryColumns.BALANCE: 0,
+            HistoryColumns.FIAT_VALUE: flatten_sort_key(
+                tx_item['fiat_value'].value if 'fiat_value' in tx_item else None),
+            HistoryColumns.FIAT_ACQ_PRICE: flatten_sort_key(
+                tx_item['acquisition_price'].value if 'acquisition_price' in tx_item else None),
+            HistoryColumns.FIAT_CAP_GAINS: flatten_sort_key(
+                tx_item['capital_gain'].value if 'capital_gain' in tx_item else None),
+            HistoryColumns.TXID: flatten_sort_key(
+                tx_item.get('txid') if not is_lightning else None),
+            HistoryColumns.SHORT_ID:
+                short_id,
+        }
+
+    def set_balance(self, balance):
+        self._data['balance'] = Satoshis(balance)
+        self.sort_keys[HistoryColumns.BALANCE] = balance
+
     def get_data_for_role(self, index: QModelIndex, role: Qt.ItemDataRole) -> QVariant:
-        # note: this method is performance-critical.
-        # it is called a lot, and so must run extremely fast.
         assert index.isValid()
         col = index.column()
         window = self.model.window
@@ -115,7 +149,6 @@ class HistoryNode(CustomNode):
             # and the group does not have an onchain tx
             is_lightning = True
         timestamp = tx_item['timestamp']
-        short_id = None
         if is_lightning:
             status = 0
             if timestamp is None:
@@ -124,9 +157,6 @@ class HistoryNode(CustomNode):
                 status_str = format_time(int(timestamp))
         else:
             tx_hash = tx_item['txid']
-            txpos_in_block = tx_item.get('txpos_in_block')
-            if txpos_in_block is not None and txpos_in_block >= 0:
-                short_id = f"{tx_item['height']}x{txpos_in_block}"
             conf = tx_item['confirmations']
             try:
                 status, status_str = self.model.tx_status_cache[tx_hash]
@@ -134,28 +164,6 @@ class HistoryNode(CustomNode):
                 tx_mined_info = self.model._tx_mined_info_from_tx_item(tx_item)
                 status, status_str = window.wallet.get_tx_status(tx_hash, tx_mined_info)
 
-        if role == ROLE_SORT_ORDER:
-            d = {
-                HistoryColumns.STATUS:
-                    # respect sort order of self.transactions (wallet.get_full_history)
-                    -index.row(),
-                HistoryColumns.DESCRIPTION:
-                    tx_item['label'] if 'label' in tx_item else None,
-                HistoryColumns.AMOUNT:
-                    (tx_item['bc_value'].value if 'bc_value' in tx_item else 0)\
-                    + (tx_item['ln_value'].value if 'ln_value' in tx_item else 0),
-                HistoryColumns.BALANCE:
-                    (tx_item['balance'].value if 'balance' in tx_item else 0),
-                HistoryColumns.FIAT_VALUE:
-                    tx_item['fiat_value'].value if 'fiat_value' in tx_item else None,
-                HistoryColumns.FIAT_ACQ_PRICE:
-                    tx_item['acquisition_price'].value if 'acquisition_price' in tx_item else None,
-                HistoryColumns.FIAT_CAP_GAINS:
-                    tx_item['capital_gain'].value if 'capital_gain' in tx_item else None,
-                HistoryColumns.TXID: tx_hash if not is_lightning else None,
-                HistoryColumns.SHORT_ID: short_id,
-            }
-            return QVariant(d[col])
         if role == MyTreeView.ROLE_EDIT_KEY:
             return QVariant(get_item_key(tx_item))
         if role not in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole, MyTreeView.ROLE_CLIPBOARD_DATA):
@@ -226,7 +234,7 @@ class HistoryNode(CustomNode):
         elif col == HistoryColumns.TXID:
             return QVariant(tx_hash) if not is_lightning else QVariant('')
         elif col == HistoryColumns.SHORT_ID:
-            return QVariant(short_id or "")
+            return QVariant(self.sort_keys[HistoryColumns.SHORT_ID])
         return QVariant()
 
 
@@ -248,7 +256,8 @@ class HistoryModel(CustomModel, Logger):
 
     def update_label(self, index):
         tx_item = index.internalPointer().get_data()
-        tx_item['label'] = self.window.wallet.get_label_for_txid(get_item_key(tx_item))
+        tx_item['label'] = self.window.wallet.get_label_for_txid(
+            get_item_key(tx_item))  # FIXME get_item_key might return an RHASH, but we call get_label_for_txid?!
         topLeft = bottomRight = self.createIndex(index.row(), HistoryColumns.DESCRIPTION)
         self.dataChanged.emit(topLeft, bottomRight, [Qt.ItemDataRole.DisplayRole])
         self.window.utxo_list.update()
@@ -289,13 +298,10 @@ class HistoryModel(CustomModel, Logger):
         wallet = self.window.wallet
         self.set_visibility_of_columns()
         transactions = wallet.get_full_history(
-            self.window.fx,
+            fx=self.window.fx if self.should_show_fiat() else None,
             onchain_domain=self.get_domain(),
             include_lightning=self.should_include_lightning_payments(),
-            include_fiat=self.should_show_fiat(),
         )
-        if transactions == self.transactions:
-            return
         old_length = self._root.childCount()
         if old_length != 0:
             self.beginRemoveRows(QModelIndex(), 0, old_length)
@@ -315,7 +321,14 @@ class HistoryModel(CustomModel, Logger):
         balance = 0
         for node in self._root._children:
             balance += node._data['value'].value
-            node._data['balance'] = Satoshis(balance)
+            node.set_balance(balance)
+
+        # update tx_status_cache  (before endInsertRows() triggers get_data_for_role() calls)
+        self.tx_status_cache.clear()
+        for txid, tx_item in transactions.items():
+            if not tx_item.get('lightning', False):
+                tx_mined_info = self._tx_mined_info_from_tx_item(tx_item)
+                self.tx_status_cache[txid] = self.window.wallet.get_tx_status(txid, tx_mined_info)
 
         new_length = self._root.childCount()
         self.beginInsertRows(QModelIndex(), 0, new_length-1)
@@ -336,12 +349,6 @@ class HistoryModel(CustomModel, Logger):
                 end_date = self.transactions.value_from_pos(len(self.transactions) - 1).get('date') or end_date
             self.view.years = [str(i) for i in range(start_date.year, end_date.year + 1)]
             self.view.period_combo.insertItems(1, self.view.years)
-        # update tx_status_cache
-        self.tx_status_cache.clear()
-        for txid, tx_item in self.transactions.items():
-            if not tx_item.get('lightning', False):
-                tx_mined_info = self._tx_mined_info_from_tx_item(tx_item)
-                self.tx_status_cache[txid] = self.window.wallet.get_tx_status(txid, tx_mined_info)
         # update counter
         num_tx = len(self.transactions)
         if self.view:
@@ -432,7 +439,7 @@ class HistoryModel(CustomModel, Logger):
     def _tx_mined_info_from_tx_item(tx_item: Dict[str, Any]) -> TxMinedInfo:
         # FIXME a bit hackish to have to reconstruct the TxMinedInfo... same thing in qml-gui
         tx_mined_info = TxMinedInfo(
-            height=tx_item['height'],
+            _height=tx_item['height'],
             conf=tx_item['confirmations'],
             timestamp=tx_item['timestamp'],
             wanted_height=tx_item.get('wanted_height', None),
@@ -500,7 +507,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         self.period_combo.addItems([_('All'), _('Custom')])
         self.period_combo.activated.connect(self.on_combo)
         self.wallet = self.main_window.wallet  # type: Abstract_Wallet
-        self.sortByColumn(HistoryColumns.STATUS, Qt.SortOrder.AscendingOrder)
+        self.sortByColumn(HistoryColumns.STATUS, Qt.SortOrder.DescendingOrder)
         self.setRootIsDecorated(True)
         self.header().setStretchLastSection(False)
         for col in HistoryColumns:
@@ -620,7 +627,9 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         d.setMinimumSize(600, 150)
         vbox = QVBoxLayout()
         msg = messages.to_rtf(messages.MSG_CAPITAL_GAINS)
-        vbox.addWidget(WWLabel(msg))
+        lbl = WWLabel(msg)
+        lbl.setTextFormat(Qt.TextFormat.RichText)
+        vbox.addWidget(lbl)
         grid = QGridLayout()
         grid.addWidget(QLabel(_("Begin")), 0, 1)
         grid.addWidget(QLabel(_("End")), 0, 2)
@@ -757,7 +766,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             return
         tx_URL = block_explorer_URL(self.config, 'tx', tx_hash)
         tx_details = self.wallet.get_tx_info(tx)
-        is_unconfirmed = tx_details.tx_mined_status.height <= 0
+        is_unconfirmed = tx_details.tx_mined_status.height() <= 0
         menu = QMenu()
         menu.addAction(_("Details"), lambda: self.main_window.show_transaction(tx))
         if tx_details.can_remove:
@@ -792,7 +801,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
                 menu_invs.addAction(_("View invoice"), lambda inv=inv: self.main_window.show_onchain_invoice(inv))
         if tx_URL:
             menu.addAction(_("View on block explorer"), lambda: webopen(tx_URL))
-        menu.exec(self.viewport().mapToGlobal(position))
+        self.open_menu(menu, position)
 
     def remove_local_tx(self, tx_hash: str):
         num_child_txs = len(self.wallet.adb.get_depending_transactions(tx_hash))
@@ -837,67 +846,16 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         if not filename:
             return
         try:
-            self.do_export_history(filename, csv_button.isChecked())
+            self.wallet.export_history_to_file(
+                fx=self.main_window.fx if self.hm.should_show_fiat() else None,
+                file_path=filename,
+                is_csv=csv_button.isChecked(),
+            )
         except (IOError, os.error) as reason:
             export_error_label = _("Electrum was unable to produce a transaction export.")
             self.main_window.show_critical(export_error_label + "\n" + str(reason), title=_("Unable to export history"))
             return
         self.main_window.show_message(_("Your wallet history has been successfully exported."))
-
-    def do_export_history(self, file_name, is_csv):
-        txns = self.wallet.get_full_history(fx=self.main_window.fx)
-        lines = []
-
-        def get_all_fees_paid_sat(h_item: dict) -> int:
-            # gets all fees paid in an item (or group), as the outer group doesn't contain the
-            # transaction fees paid by the children
-            fees_sat = 0
-            for child in h_item.get('children', []):
-                fees_sat += child['fee_sat'] or 0 if 'fee_sat' in child \
-                                else (child.get('fee_msat', 0) or 0) // 1000
-
-            fees_sat += h_item['fee_sat'] or 0 if 'fee_sat' in h_item \
-                            else (h_item.get('fee_msat', 0) or 0) // 1000
-            return fees_sat
-
-        if is_csv:
-            # sort by timestamp so the generated csv is more understandable on first sight
-            txns = dict(sorted(txns.items(), key=lambda h_item: h_item[1]['timestamp'] or 0))
-            for item in txns.values():
-                # tx groups will are shown as single element
-                line = [
-                    item.get('txid', ''),
-                    item.get('payment_hash', ''),
-                    item.get('label', ''),
-                    item.get('confirmations', ''),
-                    item['bc_value'],
-                    item['ln_value'],
-                    item.get('fiat_value', ''),
-                    get_all_fees_paid_sat(item),
-                    item.get('fiat_fee', ''),
-                    item['date']
-                ]
-                lines.append(line)
-
-        with open(file_name, "w+", encoding='utf-8') as f:
-            if is_csv:
-                import csv
-                transaction = csv.writer(f, lineterminator='\n')
-                transaction.writerow(["oc_transaction_hash",
-                                      "ln_payment_hash",
-                                      "label",
-                                      "confirmations",
-                                      "amount_chain_bc",
-                                      "amount_lightning_bc",
-                                      "fiat_value",
-                                      "network_fee_satoshi",
-                                      "fiat_fee",
-                                      "timestamp"])
-                for line in lines:
-                    transaction.writerow(line)
-            else:
-                from electrum.util import json_encode
-                f.write(json_encode(txns))
 
     def get_text_from_coordinate(self, row, col):
         return self.get_role_data_from_coordinate(row, col, role=Qt.ItemDataRole.DisplayRole)

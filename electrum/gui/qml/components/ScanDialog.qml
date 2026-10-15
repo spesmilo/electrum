@@ -2,24 +2,26 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
+import org.electrum
+
 import "controls"
 
-// currently not used on android, kept for future use when qt6 camera stops crashing
 ElDialog {
     id: scanDialog
 
-    property string scanData
     property string error
-    property string hint
+    property string hint: qsTr('Scan a QR code.')
 
-    signal found
+    signal foundText(data: string)
 
     width: parent.width
     height: parent.height
     padding: 0
 
     header: null
-    topPadding: 0 // dialog needs topPadding override
+    topPadding: app.statusBarHeight
+
+    onAboutToHide: qrscan.stop()
 
     function doClose() {
         qrscan.stop()
@@ -35,9 +37,8 @@ ElDialog {
             Layout.fillWidth: true
             Layout.fillHeight: true
             hint: scanDialog.hint
-            onFound: {
-                scanDialog.scanData = scanData
-                scanDialog.found()
+            onFoundText: (data) => {
+                scanDialog.foundText(data)
             }
         }
 
@@ -49,4 +50,14 @@ ElDialog {
             onClicked: doReject()
         }
     }
+
+    // Keep the camera preview out of screenshots and screen recordings.
+    Binding {
+        target: AppController
+        property: 'secureWindow'
+        when: scanDialog.visible  // enables stacking multiple secureWindow dialogs
+        value: true
+    }
+
+    onClosed: destroy()
 }

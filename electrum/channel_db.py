@@ -43,7 +43,7 @@ from .sql_db import SqlDB, sql
 from . import constants, util
 from .util import profiler, get_headers_dir, is_ip_address, json_normalize, UserFacingException, is_private_netaddress
 from .lntransport import LNPeerAddr
-from .lnutil import (ShortChannelID, validate_features, IncompatibleOrInsaneFeatures,
+from .lnutil import (ShortChannelID, validate_features, IncompatibleOrInsaneFeatures, LnFeatureContexts,
                      InvalidGossipMsg, GossipForwardingMessage, GossipTimestampFilter)
 from .lnverifier import LNChannelVerifier, verify_sig_for_channel_update
 from .lnmsg import decode_msg
@@ -74,7 +74,7 @@ class ChannelInfo(NamedTuple):
     @staticmethod
     def from_msg(payload: dict) -> 'ChannelInfo':
         features = int.from_bytes(payload['features'], 'big')
-        features = validate_features(features)
+        features = validate_features(features, context=LnFeatureContexts.CHAN_ANN_AS_IS)
         channel_id = payload['short_channel_id']
         node_id_1 = payload['node_id_1']
         node_id_2 = payload['node_id_2']
@@ -176,7 +176,7 @@ class NodeInfo(NamedTuple):
     def from_msg(payload) -> Tuple['NodeInfo', Sequence['LNPeerAddr']]:
         node_id = payload['node_id']
         features = int.from_bytes(payload['features'], "big")
-        features = validate_features(features)
+        features = validate_features(features, context=LnFeatureContexts.NODE_ANN)
         addresses = NodeInfo.parse_addresses_field(payload['addresses'])
         peer_addrs = []
         for host, port in addresses:
@@ -495,7 +495,7 @@ class ChannelDB(SqlDB):
 
         self.update_counts()
 
-    def add_verified_channel_info(self, msg: dict, *, capacity_sat: int = None) -> None:
+    def add_verified_channel_info(self, msg: dict, *, capacity_sat: int | None = None) -> None:
         try:
             channel_info = ChannelInfo.from_msg(msg)
         except IncompatibleOrInsaneFeatures:
@@ -664,7 +664,7 @@ class ChannelDB(SqlDB):
                 c.execute("INSERT INTO address (node_id, host, port, timestamp) VALUES (?,?,?,?)", (addr.pubkey, addr.host, addr.port, 0))
 
     @classmethod
-    def verify_channel_update(cls, payload, *, start_node: bytes = None) -> None:
+    def verify_channel_update(cls, payload, *, start_node: bytes | None = None) -> None:
         short_channel_id = payload['short_channel_id']
         short_channel_id = ShortChannelID(short_channel_id)
         if constants.net.rev_genesis_bytes() != payload['chain_hash']:
@@ -732,6 +732,7 @@ class ChannelDB(SqlDB):
         now = int(time.time())
         return list(k for k, v in _policies.items() if v.timestamp <= now - delta)
 
+    @profiler(min_threshold=0.2)
     def prune_old_policies(self, delta):
         old_policies = self.get_old_policies(delta)
         if old_policies:
@@ -744,6 +745,7 @@ class ChannelDB(SqlDB):
             self.update_counts()
             self.logger.info(f'Deleting {len(old_policies)} old policies')
 
+    @profiler(min_threshold=0.2)
     def prune_orphaned_channels(self):
         with self.lock:
             orphaned_chans = self._chans_with_0_policies.copy()
@@ -758,7 +760,7 @@ class ChannelDB(SqlDB):
         start_node_id: bytes,
         short_channel_id: ShortChannelID,
         *,
-        now: int = None,  # unix ts
+        now: int | None = None,  # unix ts
     ) -> Optional[dict]:
         if now is None:
             now = int(time.time())
@@ -774,7 +776,7 @@ class ChannelDB(SqlDB):
         msg_payload: dict,
         start_node_id: bytes,
         *,
-        cache_ttl: int = None,  # seconds
+        cache_ttl: int | None = None,  # seconds
     ) -> bool:
         """Returns True iff the channel update was successfully added and it was different than
         what we had before (if any).
@@ -929,7 +931,7 @@ class ChannelDB(SqlDB):
             *,
             my_channels: Dict[ShortChannelID, 'Channel'] = None,
             private_route_edges: Dict[ShortChannelID, 'RouteEdge'] = None,
-            now: int = None,  # unix ts
+            now: int | None = None,  # unix ts
     ) -> Optional['Policy']:
         channel_info = self.get_channel_info(short_channel_id)
         if channel_info is not None:  # publicly announced channel

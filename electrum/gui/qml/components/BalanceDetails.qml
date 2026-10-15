@@ -100,14 +100,13 @@ Pane {
                         }
 
                         RowLayout {
+                            visible: Daemon.currentWallet.isLightning
                             Rectangle {
-                                visible: Daemon.currentWallet.isLightning
                                 Layout.preferredWidth: constants.iconSizeXSmall
                                 Layout.preferredHeight: constants.iconSizeXSmall
                                 color: constants.colorPiechartLightning
                             }
                             Label {
-                                visible: Daemon.currentWallet.isLightning
                                 text: qsTr('Lightning')
                             }
                         }
@@ -215,7 +214,7 @@ Pane {
                 Layout.preferredWidth: 1
                 text: qsTr('Lightning swap');
                 visible: Daemon.currentWallet.isLightning
-                enabled: Daemon.currentWallet.lightningCanSend.satsInt > 0 || Daemon.currentWallet.lightningCanReceive.satInt > 0
+                enabled: Daemon.currentWallet.lightningCanSend.satsInt > 0 || Daemon.currentWallet.lightningCanReceive.satsInt > 0
                 icon.source: Qt.resolvedUrl('../../icons/update.png')
                 onClicked: app.startSwap()
             }
@@ -234,8 +233,8 @@ Pane {
             }
 
         }
-
     }
+    property color navigationBarBackgroundColor: constants.highlightBackground
 
     Component {
         id: openChannelDialog

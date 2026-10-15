@@ -18,6 +18,7 @@ ElDialog {
     x: Math.floor((parent.width - implicitWidth) / 2)
     y: Math.floor((parent.height - implicitHeight) / 2)
     // anchors.centerIn: parent // this strangely pixelates the spinner
+    needsSystemBarPadding: false
 
     function open() {
         showTimer.start()
@@ -31,6 +32,10 @@ ElDialog {
 
             running: Daemon.loading
         }
+
+        Item {
+            Layout.preferredHeight: 20
+        }
     }
 
     Connections {
@@ -39,7 +44,13 @@ ElDialog {
             console.log('daemon loading ' + Daemon.loading)
             if (!Daemon.loading) {
                 showTimer.stop()
-                dialog.close()
+                if (dialog.visible) {
+                    dialog.close()
+                } else {
+                    // if the dialog wasn't visible its onClosed callbacks don't get called, so it
+                    // needs to be destroyed manually
+                    Qt.callLater(function() { dialog.destroy() })
+                }
             }
         }
     }

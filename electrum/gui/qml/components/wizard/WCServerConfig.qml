@@ -5,7 +5,7 @@ import QtQuick.Controls
 import "../controls"
 
 WizardComponent {
-    valid: true
+    valid: sc.addressValid
     last: true
     title: qsTr('Server')
 

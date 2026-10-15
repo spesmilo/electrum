@@ -212,6 +212,10 @@ class LabelsPlugin(BasePlugin):
         return asyncio.run_coroutine_threadsafe(self.push_thread(wallet), wallet.network.asyncio_loop).result()
 
     def start_wallet(self, wallet: 'Abstract_Wallet'):
+        """Labels have the same level of privacy as the wallet transaction
+        history. Since the wallet master public key(s) give access to
+        the transaction history, we also use it to encrypt labels.
+        """
         if not wallet.network:
             return  # 'offline' mode
         mpk = wallet.get_fingerprint()

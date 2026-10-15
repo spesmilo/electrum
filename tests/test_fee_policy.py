@@ -1,4 +1,4 @@
-from electrum.fee_policy import FeeHistogram
+from electrum.fee_policy import FeeHistogram, FeePolicy
 
 from . import ElectrumTestCase
 
@@ -53,3 +53,18 @@ class Test_FeeHistogram(ElectrumTestCase):
         self.assertEqual(36495000, mempool_fees.fee_to_depth(0.5))
 
 
+class Test_FeePolicy(ElectrumTestCase):
+
+    def test_estimate_fee_honors_explicit_feerate(self):
+        # an explicitly set feerate should be used at its full (sat/kvB) precision,
+        # instead of being rounded to FEERATE_PRECISION decimal places
+        self.assertEqual(45, FeePolicy('feerate:450').estimate_fee(100))    # 0.45 sat/vB
+        self.assertEqual(64, FeePolicy('feerate:450').estimate_fee(141))    # ceil(63.45)
+        self.assertEqual(125, FeePolicy('feerate:1250').estimate_fee(100))  # 1.25 sat/vB
+        self.assertEqual(40, FeePolicy('feerate:400').estimate_fee(100))    # 0.4 sat/vB
+
+    def test_estimate_fee_for_feerate_quantizes_by_default(self):
+        # estimates not explicitly set by the user keep being quantized,
+        # to stay consistent with what is displayed in the GUI
+        self.assertEqual(40, FeePolicy.estimate_fee_for_feerate(fee_per_kb=450, size=100))
+        self.assertEqual(120, FeePolicy.estimate_fee_for_feerate(fee_per_kb=1250, size=100))
