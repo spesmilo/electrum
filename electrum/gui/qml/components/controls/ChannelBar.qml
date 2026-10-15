@@ -45,6 +45,12 @@ Item {
     onWidthChanged: update()
     onFrozenForSendingChanged: update()
     onFrozenForReceivingChanged: update()
+    // the channel list model replaces the amounts, the Connections below handle in-place updates
+    onCapacityChanged: update()
+    onLocalCapacityChanged: update()
+    onRemoteCapacityChanged: update()
+    onCanSendChanged: update()
+    onCanReceiveChanged: update()
 
     Connections {
         target: localCapacity
