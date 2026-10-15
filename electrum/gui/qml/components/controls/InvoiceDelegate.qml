@@ -77,7 +77,7 @@ ItemDelegate {
                     ? ''
                     : model.amount.isMax
                         ? 'MAX'
-                        : Config.formatMilliSats(model.amount)
+                        : Config.formatSats(model.amount)
                 font.pixelSize: constants.fontSizeMedium
                 font.family: FixedFont
             }
@@ -142,10 +142,10 @@ ItemDelegate {
     Connections {
         target: Config
         function onBaseUnitChanged() {
-            amount.text = model.amount.isEmpty ? '' : Config.formatMilliSats(model.amount)
+            amount.text = model.amount.isEmpty ? '' : Config.formatSats(model.amount)
         }
         function onThousandsSeparatorChanged() {
-            amount.text = model.amount.isEmpty ? '' : Config.formatMilliSats(model.amount)
+            amount.text = model.amount.isEmpty ? '' : Config.formatSats(model.amount)
         }
     }
     Connections {

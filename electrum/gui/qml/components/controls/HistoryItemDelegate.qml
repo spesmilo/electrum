@@ -101,7 +101,7 @@ Item {
                     color: model.value.positive ? constants.colorCredit : constants.colorDebit
 
                     function updateText() {
-                        text = Config.formatMilliSats(model.value)
+                        text = Config.formatSats(model.value)
                     }
                     Component.onCompleted: updateText()
                 }
