@@ -75,7 +75,6 @@ requirements =
     python3,
     android,
     openssl,
-    plyer,
     libffi,
     libsecp256k1,
     pycryptodomex,
@@ -176,6 +175,7 @@ android.add_activities = org.electrum.biometry.BiometricActivity
 # 3) A directory, here 'legal_resources' must contain one or more directories,
 # each of a resource kind:  drawable, xml, etc...
 # android.add_resources = legal_resources
+android.add_resources = electrum/gui/icons/electrum_light_icon.png:drawable
 
 # (str) python-for-android branch to use, if not master, useful to try
 # not yet merged features.
