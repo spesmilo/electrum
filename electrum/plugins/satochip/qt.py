@@ -163,6 +163,7 @@ class SatochipSettingsDialog(WindowModalDialog):
         title = QLabel('''<center>
 <span style="font-size: x-large">Satochip Wallet</span>
 <br><a href="https://satochip.io">satochip.io</a>''')
+        title.setTextFormat(Qt.TextFormat.RichText)
         title.setTextInteractionFlags(Qt.TextInteractionFlag.LinksAccessibleByMouse)
 
         grid.addWidget(title, 0, 0, 1, 2, Qt.AlignmentFlag.AlignHCenter)
@@ -178,6 +179,7 @@ class SatochipSettingsDialog(WindowModalDialog):
         ]
         for row_num, (member_name, label) in enumerate(rows):
             widget = QLabel('<tt>')
+            widget.setTextFormat(Qt.TextFormat.RichText)
             widget.setTextInteractionFlags(
                 Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard)
 
