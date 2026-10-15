@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QRegularExpression
 
-from electrum.bitcoin import COIN
+from electrum.bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
 from electrum.exchange_rate import FxThread
 from electrum.logging import get_logger
 from electrum.simple_config import SimpleConfig
@@ -161,6 +161,9 @@ class QEFX(QObject, QtEventListener):
             return self._amount  # zero
         v = fd / Decimal(rate) * COIN
         if not v.is_nan():
+            max_sats = Decimal(COIN * TOTAL_COIN_SUPPLY_LIMIT_IN_BTC)
+            if v > max_sats:  # clamp to supply, to avoid msats overflowing qint64 (2**63-1)
+                v = max_sats
             self._amount.satsInt = int(v.to_integral_value())
         return self._amount
 
