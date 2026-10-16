@@ -1,5 +1,6 @@
 from os import urandom
 import hashlib
+import logging
 import time
 import electrum_ecc as ecc
 
@@ -30,6 +31,16 @@ from smartcard.CardType import AnyCardType
 from smartcard.CardRequest import CardRequest
 
 _logger = get_logger(__name__)
+
+# pysatochip logging is configured here, on the application side, as intended by
+# pysatochip's logging model (its module loggers stay at NOTSET; the importing
+# application owns levels and handlers): align the 'pysatochip' package logger
+# level with the app's and let records propagate to the handlers Electrum
+# installs on the root logger (console output is filtered by the --verbose flag).
+# pysatochip >= 0.18.5 keeps its module loggers at NOTSET, so this package level
+# cascades to all of them (what pysatochip.set_log_level() also does); on older
+# versions, constructors set their own module levels, which take precedence.
+logging.getLogger('pysatochip').setLevel(_logger.getEffectiveLevel())
 
 # version history for the plugin
 SATOCHIP_PLUGIN_REVISION = 'lib0.11.a-plugin0.1'
@@ -62,7 +73,7 @@ class SatochipClient(HardwareClientBase):
         self.device = plugin.device
         self.handler = handler
         # self.parser= CardDataParser()
-        self.cc = CardConnector(self, _logger.getEffectiveLevel())
+        self.cc = CardConnector(self)
 
     def __repr__(self):
         return '<SatochipClient TODO>'
