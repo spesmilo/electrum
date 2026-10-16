@@ -338,7 +338,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         self.print_list(2, x, sorted(messages), fmt % ("Outpoint", "Description", "Balance"))
 
     def print_channels(self):
-        if not self.wallet.lnworker:
+        if not self.wallet.has_lightning():
             return
         fmt = "%-35s  %-10s  %-30s"
         channels = self.wallet.lnworker.get_channel_objects()

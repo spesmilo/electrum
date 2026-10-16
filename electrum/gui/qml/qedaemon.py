@@ -285,7 +285,7 @@ class QEDaemon(AuthMixin, QObject):
     @pyqtSlot(QEWallet, bool)
     @pyqtSlot(QEWallet, bool, bool)
     def checkThenDeleteWallet(self, wallet, confirm_requests=False, confirm_balance=False):
-        if wallet.wallet.lnworker:
+        if wallet.wallet.has_lightning():
             lnchannels = wallet.wallet.lnworker.get_channel_objects()
             if any([channel.get_state() != ChannelState.REDEEMED and not channel.is_backup() for channel in lnchannels.values()]):
                 self.walletDeleteError.emit('unclosed_channels', _('There are still channels that are not fully closed'))

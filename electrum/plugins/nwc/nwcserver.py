@@ -235,7 +235,7 @@ class NWCServer(Logger, EventListener):
                         or not self.relays
                         or not self.wallet.network
                         or not self.wallet.network.is_connected()
-                        or not self.wallet.lnworker):
+                        or not self.wallet.has_lightning()):
                 await asyncio.sleep(5)
 
             if not await self.refresh_manager():

@@ -295,7 +295,7 @@ class ChannelsList(MyTreeView):
                 self.model().item(row, column).setData(v, QtCore.Qt.ItemDataRole.DisplayRole)
             items = [self.model().item(row, column) for column in self.Columns]
             self._update_chan_frozen_bg(chan=chan, items=items)
-        if wallet.lnworker:
+        if wallet.has_lightning():
             self.update_can_send(wallet.lnworker)
 
     @QtCore.pyqtSlot()
@@ -309,7 +309,7 @@ class ChannelsList(MyTreeView):
         self.model().clear()
         self.update_headers(self.headers)
         self.set_visibility_of_columns()
-        if not wallet.lnworker:
+        if not wallet.has_lightning():
             return
         self.update_can_send(wallet.lnworker)
         channels = wallet.lnworker.get_channel_objects()

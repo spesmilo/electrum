@@ -413,7 +413,7 @@ class LNPeerManager(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         """Check if node_id is one of our own wallets"""
         wallets = self.network.daemon.get_wallets()
         for wallet in wallets.values():
-            if wallet.lnworker and wallet.lnworker.node_keypair.pubkey == node_id:
+            if wallet.has_lightning() and wallet.lnworker.node_keypair.pubkey == node_id:
                 return True
         return False
 

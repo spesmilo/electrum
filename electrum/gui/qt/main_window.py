@@ -1265,7 +1265,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         if not self.network:
             self.show_error(_("You are offline."))
             return False
-        if not self.wallet.lnworker:
+        if not self.wallet.has_lightning():
             self.show_error(_('Lightning is disabled'))
             return False
         if not self.wallet.lnworker.num_sats_can_send() and not self.wallet.lnworker.num_sats_can_receive():
@@ -1768,7 +1768,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             'util': util,
             'bitcoin': bitcoin,
             'lnutil': lnutil,
-            'channels': list(self.wallet.lnworker.channels.values()) if self.wallet.lnworker else [],
+            'channels': list(self.wallet.lnworker.channels.values()) if self.wallet.has_lightning() else [],
             'scan_qr': scan_qr_from_screenshot,
         })
 
@@ -2314,7 +2314,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def import_channel_backup(self, encrypted: str):
         if not self.question('Import channel backup?'):
             return
-        if not self.wallet.lnworker:
+        if not self.wallet.has_lightning():
             self.show_error(_('Lightning is disabled'))
             return
         try:

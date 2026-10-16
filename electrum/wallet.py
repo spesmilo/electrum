@@ -515,7 +515,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         new_storage.pubkey = self.storage.pubkey
 
         new_db = WalletDB(self.db.dump(), storage=new_storage, upgrade=True)
-        if self.lnworker:
+        if self.has_lightning():
             channel_backups = new_db.get_dict('imported_channel_backups')
             for chan_id, chan in self.lnworker.channels.items():
                 channel_backups[chan_id.hex()] = self.lnworker.create_channel_backup(chan_id).to_bytes().hex()
@@ -527,7 +527,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def get_startup_warnings(self) -> Sequence[WalletWarning]:
         """Warnings that should be shown to the user once, when the wallet is opened in a GUI."""
         warnings = []  # type: List[WalletWarning]
-        if self.lnworker:
+        if self.has_lightning():
             warnings += self.lnworker.get_lightning_startup_warnings()
         acknowledged = self.db.get('acknowledged_warnings', [])
         return [warning for warning in warnings if warning.key not in acknowledged or warning.show_once is False]
@@ -544,7 +544,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return bool(self.lnworker)
 
     def has_channels(self):
-        return self.lnworker is not None and len(self.lnworker._channels) > 0
+        return self.has_lightning() and len(self.lnworker._channels) > 0
 
     def can_have_lightning(self) -> bool:
         """ whether this wallet can create new channels """
@@ -637,7 +637,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             self.save_db()
         # fire triggers
         if status_changed or up_to_date:  # suppress False->False transition, as it is spammy
-            if self.lnworker:
+            if self.has_lightning():
                 await self.lnworker.lnwatcher.trigger_callbacks()
             util.trigger_callback('wallet_updated', self)
             util.trigger_callback('status')
@@ -705,11 +705,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             assert network.config is self.config
             asyncio.run_coroutine_threadsafe(self.main_loop(), self.network.asyncio_loop)
             self.adb.start_network(network)
-            if self.lnworker:
+            if self.has_lightning():
                 self._start_network_lightning()
 
     def _start_network_lightning(self):
-        assert self.lnworker
+        assert self.has_lightning()
         assert self.lnworker.network is None, 'lnworker network already initialized'
         self.lnworker.start_network(self.network)
         # only start gossiping when we already have channels
@@ -908,7 +908,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return {}
 
     def is_lightning_funding_tx(self, txid: Optional[str]) -> bool:
-        if not self.lnworker or txid is None:
+        if not self.has_lightning() or txid is None:
             return False
         if any([chan.funding_outpoint.txid == txid
                 for chan in self.lnworker.channels.values()]):
@@ -919,10 +919,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return False
 
     def get_swaps_by_claim_tx(self, tx: Transaction) -> Iterable['SwapData']:
-        return self.lnworker.swap_manager.get_swaps_by_claim_tx(tx) if self.lnworker else []
+        return self.lnworker.swap_manager.get_swaps_by_claim_tx(tx) if self.has_lightning() else []
 
     def get_swaps_by_funding_tx(self, tx: Transaction) -> Iterable['SwapData']:
-        return self.lnworker.swap_manager.get_swaps_by_funding_tx(tx) if self.lnworker else []
+        return self.lnworker.swap_manager.get_swaps_by_funding_tx(tx) if self.has_lightning() else []
 
     def is_accounting_address(self, addr):
         """
@@ -1130,7 +1130,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return self.adb.get_balance(domain, **kwargs)
 
     def anchor_reserve(self) -> int:
-        if self.lnworker is None or not isinstance(self.lnworker, LNWallet):
+        if not self.has_lightning() or not isinstance(self.lnworker, LNWallet):
             return 0
         if not self.lnworker.has_anchor_channels():
             return 0
@@ -1255,7 +1255,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 and (from_height is not None or to_height is not None):
             raise UserFacingException('timestamp and block height based filtering cannot be used together')
         # call lnworker first, because it adds accounting addresses
-        groups = self.lnworker.get_groups_for_onchain_history() if self.lnworker else {}
+        groups = self.lnworker.get_groups_for_onchain_history() if self.has_lightning() else {}
         if domain is None:
             domain = self.get_addresses()
             domain += list(self._accounting_addresses)
@@ -1490,7 +1490,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             transactions_tmp[txid]['lightning'] = False
 
         # add lightning_transactions
-        lightning_history = self.lnworker.get_lightning_history() if self.lnworker and include_lightning else {}
+        lightning_history = self.lnworker.get_lightning_history() if self.has_lightning() and include_lightning else {}
         for tx_item in lightning_history.values():
             key = tx_item.payment_hash or 'ln:' + tx_item.group_id
             transactions_tmp[key] = tx_item.to_dict()
@@ -2117,7 +2117,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 fee_estimator_vb=fee_estimator,
                 dust_threshold=self.dust_threshold(),
                 BIP69_sort=BIP69_sort)
-            if send_change_to_lightning and self.lnworker and self.lnworker.swap_manager.is_initialized.is_set():
+            if send_change_to_lightning and self.has_lightning() and self.lnworker.swap_manager.is_initialized.is_set():
                 sm = self.lnworker.swap_manager
                 change = tx.get_change_outputs()
                 if len(change) == 1:
@@ -2582,7 +2582,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if self.is_billing_address(txout.address):
             return False
         # submarine swap funding outputs must not be decreased
-        if self.lnworker and self.lnworker.swap_manager.is_lockup_address_for_a_swap(txout.address):
+        if self.has_lightning() and self.lnworker.swap_manager.is_lockup_address_for_a_swap(txout.address):
             return False
         return True
 
@@ -2935,7 +2935,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if isinstance(invoice, Invoice) and invoice.get_id() in self._paid_invoice_keys_cache:
             return PR_PAID
         # lightning invoices can be paid onchain
-        if invoice.is_lightning() and self.lnworker:
+        if invoice.is_lightning() and self.has_lightning():
             status = self.lnworker.get_invoice_status(invoice)
             if status != PR_UNPAID:
                 return self.check_expired_status(invoice, status)
@@ -2967,7 +2967,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         # filter out expired
         reqs = [req for req in reqs if self.get_invoice_status(req) != PR_EXPIRED]
         # filter out paid-with-lightning
-        if self.lnworker:
+        if self.has_lightning():
             reqs = [req for req in reqs
                     if not req.is_lightning() or self.lnworker.get_invoice_status(req) == PR_UNPAID]
         if not reqs:
@@ -2996,7 +2996,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if x.is_lightning():
             d['rhash'] = x.rhash
             d['lightning_invoice'] = self.get_bolt11_invoice(x)
-            if self.lnworker:
+            if self.has_lightning():
                 if status == PR_UNPAID:
                     d['can_receive'] = self.lnworker.can_receive_invoice(x)
                 elif status == PR_PAID and (preimage := self.lnworker.get_preimage(x.payment_hash)):
@@ -3007,7 +3007,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             # if request was paid onchain, add relevant fields
             # note: addr is reused when getting paid on LN! so we check for that.
             _, conf, tx_hashes = self._is_onchain_invoice_paid(x)
-            if not x.is_lightning() or not self.lnworker or self.lnworker.get_invoice_status(x) != PR_PAID:
+            if not x.is_lightning() or not self.has_lightning() or self.lnworker.get_invoice_status(x) != PR_PAID:
                 if conf is not None:
                     d['confirmations'] = conf
                 d['tx_hashes'] = tx_hashes
@@ -3021,9 +3021,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         d['invoice_id'] = d.pop('id')
         if x.is_lightning():
             d['lightning_invoice'] = x.lightning_invoice
-            if self.lnworker and status == PR_UNPAID:
+            if self.has_lightning() and status == PR_UNPAID:
                 d['can_pay'] = self.lnworker.can_pay_invoice(x)
-            if self.lnworker and status == PR_PAID:
+            if self.has_lightning() and status == PR_PAID:
                 payment_hash = bytes.fromhex(d['invoice_id'])
                 preimage = self.lnworker.get_preimage(payment_hash)
                 d['preimage'] = preimage.hex() if preimage else None
@@ -3072,7 +3072,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             util.trigger_callback('invoice_status', self, key, status)
 
     def get_bolt11_invoice(self, req: Request) -> str:
-        if not self.lnworker:
+        if not self.has_lightning():
             return ''
         if (payment_hash := req.payment_hash) is None:  # e.g. req might have been generated before enabling LN
             return ''
@@ -3642,7 +3642,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             self.lnworker and len([chan for chan in self.lnworker.channels.values() if chan.is_open()]) > 0
         )
         lightning_online = self.lnworker and self.lnworker.lnpeermgr.num_peers() > 0
-        num_sats_can_receive = self.lnworker.num_sats_can_receive() if self.lnworker else 0
+        num_sats_can_receive = self.lnworker.num_sats_can_receive() if self.has_lightning() else 0
         can_receive_lightning = self.lnworker and num_sats_can_receive > 0 and amount_sat <= num_sats_can_receive
         can_get_zeroconf_channel = self.lnworker and self.lnworker.can_get_zeroconf_channel()
         status = self.get_invoice_status(req)

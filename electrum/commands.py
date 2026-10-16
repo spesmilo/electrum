@@ -738,7 +738,7 @@ class Commands(Logger):
     async def getbalance(self, wallet: Abstract_Wallet = None):
         """Return the balance of your wallet. """
         c, u, x = wallet.get_balance()
-        l = wallet.lnworker.get_balance() if wallet.lnworker else None
+        l = wallet.lnworker.get_balance() if wallet.has_lightning() else None
         out = {"confirmed": format_satoshis(c)}
         if u:
             out["unconfirmed"] = format_satoshis(u)
@@ -1141,7 +1141,7 @@ class Commands(Logger):
         arg:int:to_height:Only show transactions that confirmed before(exclusive) given block height
         """
         # trigger lnwatcher callbacks for their side effects: setting labels and accounting_addresses
-        if not self.network and wallet.lnworker:
+        if not self.network and wallet.has_lightning():
             await wallet.lnworker.lnwatcher.trigger_callbacks(requires_synchronizer=False)
 
         kwargs = self.get_year_timestamps(year)
@@ -1168,7 +1168,7 @@ class Commands(Logger):
     @command('wl')
     async def lightning_history(self, wallet: Abstract_Wallet = None):
         """ lightning history. """
-        lightning_history = wallet.lnworker.get_lightning_history() if wallet.lnworker else {}
+        lightning_history = wallet.lnworker.get_lightning_history() if wallet.has_lightning() else {}
         sorted_hist= sorted(lightning_history.values(), key=lambda x: x.timestamp)
         return json_normalize([x.to_dict() for x in sorted_hist])
 
@@ -2315,7 +2315,7 @@ class Commands(Logger):
         arg:str:message:Message to send
         """
         assert wallet
-        assert wallet.lnworker
+        assert wallet.has_lightning()
         assert node_id_or_blinded_path_hex
         assert message
 

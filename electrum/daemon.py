@@ -523,7 +523,7 @@ class Daemon(Logger):
             path, password, upgrade=upgrade, config=self.config, unlock=unlock)
         if self.network:
             wallet.start_network(self.network)
-        elif wallet.lnworker:
+        elif wallet.has_lightning():
             # in offline mode, we need to trigger callbacks
             coro = wallet.lnworker.lnwatcher.trigger_callbacks(requires_synchronizer=False)
             asyncio.run_coroutine_threadsafe(coro, self.asyncio_loop)

@@ -424,11 +424,11 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
     @pyqtProperty(str, notify=dataChanged)
     def lightningNodePubkey(self):
-        return self.wallet.lnworker.node_keypair.pubkey.hex() if self.wallet.lnworker else ''
+        return self.wallet.lnworker.node_keypair.pubkey.hex() if self.wallet.has_lightning() else ''
 
     @pyqtProperty(bool, notify=dataChanged)
     def lightningHasDeterministicNodeId(self):
-        return self.wallet.lnworker.has_deterministic_node_id() if self.wallet.lnworker else False
+        return self.wallet.lnworker.has_deterministic_node_id() if self.wallet.has_lightning() else False
 
     @pyqtProperty(str, notify=dataChanged)
     def derivationPrefix(self):
