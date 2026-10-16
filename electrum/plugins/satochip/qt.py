@@ -1,12 +1,11 @@
 from functools import partial
-from os import urandom
 import textwrap
 import threading
 
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (QPushButton, QLabel, QVBoxLayout, QHBoxLayout,
-                             QWidget, QGridLayout, QComboBox, QLineEdit, QTabWidget)
+                             QWidget, QGridLayout, QLineEdit, QTabWidget)
 
 from electrum.i18n import _
 from electrum.logging import get_logger
@@ -14,29 +13,19 @@ from electrum.util import UserFacingException
 from electrum.simple_config import SimpleConfig
 from electrum.gui.qt.util import (EnterButton, Buttons, CloseButton, icon_path,
                                   OkButton, CancelButton, WindowModalDialog, WWLabel, PasswordLineEdit)
-from electrum.gui.qt.qrcodewidget import QRDialog
 from electrum.gui.qt.wizard.wallet import (WCHaveSeed, WCEnterExt, WCScriptAndDerivation,
                                            WCHWUnlock, WCHWXPub, WalletWizardComponent, QENewWalletWizard)
 from electrum.plugin import hook
 from electrum.hw_wallet.qt import QtHandlerBase, QtPluginBase
 
 # satochip
-from .satochip import SatochipPlugin
+from .satochip import SatochipPlugin, MSG_2FA_NOT_SUPPORTED
 
 # pysatochip
 from pysatochip.CardConnector import UnexpectedSW12Error, CardError, CardNotPresentError, WrongPinError, PinRequiredError
-from pysatochip.Satochip2FA import Satochip2FA, SERVER_LIST
 from pysatochip.version import SATOCHIP_PROTOCOL_MAJOR_VERSION, SATOCHIP_PROTOCOL_MINOR_VERSION
 
 _logger = get_logger(__name__)
-
-MSG_USE_2FA = _(
-    "Do you want to use 2-Factor-Authentication (2FA)?"
-    "\n\nWith 2FA, any transaction must be confirmed on a second device such as your smartphone. "
-    "First you have to install the Satochip-2FA android app on google play. "
-    "Then you have to pair your 2FA device with your Satochip by scanning the qr-code on the next screen. "
-    "\n\nWARNING: be sure to backup a copy of the qr-code in a safe place, in case you have to reinstall the app!"
-)
 
 MSG_SEED_IMPORT = [
     _("Your Satochip is currently unseeded. "),
@@ -203,26 +192,6 @@ class SatochipSettingsDialog(WindowModalDialog):
             thread.add(connect_and_doit, on_success=self.show_values)
         seed_btn.clicked.connect(_reset_seed)
 
-        set_2FA_btn = QPushButton('Enable 2FA')
-
-        def _set_2FA():
-            thread.add(connect_and_doit, on_success=self.set_2FA)
-            thread.add(connect_and_doit, on_success=self.show_values)
-        set_2FA_btn.clicked.connect(_set_2FA)
-
-        reset_2FA_btn = QPushButton('Disable 2FA')
-
-        def _reset_2FA():
-            thread.add(connect_and_doit, on_success=self.reset_2FA)
-            thread.add(connect_and_doit, on_success=self.show_values)
-        reset_2FA_btn.clicked.connect(_reset_2FA)
-
-        change_2FA_server_btn = QPushButton('Select 2FA server')
-
-        def _change_2FA_server():
-            thread.add(connect_and_doit, on_success=self.change_2FA_server)
-        change_2FA_server_btn.clicked.connect(_change_2FA_server)
-
         verify_card_btn = QPushButton('Verify card')
 
         def _verify_card():
@@ -239,12 +208,6 @@ class SatochipSettingsDialog(WindowModalDialog):
         grid.addWidget(pin_btn, y, 0, 1, 2, Qt.AlignmentFlag.AlignHCenter)
         y += 2
         grid.addWidget(seed_btn, y, 0, 1, 2, Qt.AlignmentFlag.AlignHCenter)
-        y += 2
-        grid.addWidget(set_2FA_btn, y, 0, 1, 2, Qt.AlignmentFlag.AlignHCenter)
-        y += 2
-        grid.addWidget(reset_2FA_btn, y, 0, 1, 2, Qt.AlignmentFlag.AlignHCenter)
-        y += 2
-        grid.addWidget(change_2FA_server_btn, y, 0, 1, 2, Qt.AlignmentFlag.AlignHCenter)
         y += 2
         grid.addWidget(verify_card_btn, y, 0, 1, 2, Qt.AlignmentFlag.AlignHCenter)
         y += 2
@@ -374,51 +337,20 @@ class SatochipSettingsDialog(WindowModalDialog):
         pin = password.encode('utf8')
         pin = list(pin)
 
-        # if 2FA is enabled, get challenge-response
+        # 2FA is not supported in this plugin version: a card with 2FA enabled
+        # cannot be reset here (the card requires a 2FA confirmation)
         hmac = []
         if client.cc.needs_2FA is None:
             (response, sw1, sw2, d) = client.cc.card_get_status()
         if client.cc.needs_2FA:
-            # challenge based on authentikey
-            authentikeyx = bytearray(client.cc.parser.authentikey_coordx).hex()
-
-            # format & encrypt msg
-            import json
-            msg = {'action': "reset_seed", 'authentikeyx': authentikeyx}
-            msg = json.dumps(msg)
-            (id_2FA, msg_out) = client.cc.card_crypt_transaction_2FA(msg, True)
-            d = {}
-            d['msg_encrypt'] = msg_out
-            d['id_2FA'] = id_2FA
-
-            # do challenge-response with 2FA device...
-            self.window.show_message(
-                '2FA request sent! Approve or reject request on your second device.')
-            server_2FA = self.config.get(
-                "satochip_2FA_server", default=SERVER_LIST[0])
-            Satochip2FA.do_challenge_response(d, server_name=server_2FA)
-            # decrypt and parse reply to extract challenge response
-            try:
-                reply_encrypt = d['reply_encrypt']
-            except Exception:
-                self.give_error("No response received from 2FA", True)
-            reply_decrypt = client.cc.card_crypt_transaction_2FA(
-                reply_encrypt, False)
-            _logger.info("challenge:response= " + reply_decrypt)
-            reply_decrypt = reply_decrypt.split(":")
-            chalresponse = reply_decrypt[1]
-            hmac = list(bytes.fromhex(chalresponse))
+            self.window.show_error(MSG_2FA_NOT_SUPPORTED)
+            return
 
         # send request
         (response, sw1, sw2) = client.cc.card_reset_seed(pin, hmac)
         if sw1 == 0x90 and sw2 == 0x00:
             msg = _(
                 "Seed reset successfully!\nYou should close this wallet and launch the wizard to generate a new wallet.")
-            self.window.show_message(msg)
-            # to do: close client?
-        elif sw1 == 0x9c and sw2 == 0x0b:
-            msg = _(
-                f"Failed to reset seed: request rejected by 2FA device (error code: {hex(256*sw1+sw2)})")
             self.window.show_message(msg)
             # to do: close client?
         else:
@@ -442,113 +374,6 @@ class SatochipSettingsDialog(WindowModalDialog):
 
         passphrase = pw.text() if d.exec() else None
         return passphrase
-
-    def set_2FA(self, client):
-        if not client.cc.needs_2FA:
-            use_2FA = client.handler.yes_no_question(MSG_USE_2FA)
-            if use_2FA:
-                # verify PIN
-                is_ok = client.verify_PIN()
-                if not is_ok:
-                    msg = f"action cancelled by user"
-                    self.window.show_error(msg)
-                    return
-
-                secret_2FA = urandom(20)
-                secret_2FA_hex = secret_2FA.hex()
-                # the secret must be shared with the second factor app (eg on a smartphone)
-                try:
-                    help_txt = "Scan the QR-code with your Satochip-2FA app and make a backup of the following secret: " + secret_2FA_hex
-                    d = QRDialog(data=secret_2FA_hex, parent=None, title="Secret_2FA", show_text=False,
-                                 help_text=help_txt, show_copy_text_btn=True, show_cancel_btn=True, config=self.config)
-                    result = d.exec()  # result should be 0 or 1
-                    if result == 1:
-                        # further communications will require an id and an encryption key (for privacy).
-                        # Both are derived from the secret_2FA using a one-way function inside the Satochip
-                        amount_limit = 0  # i.e. always use
-                        (response, sw1, sw2) = client.cc.card_set_2FA_key(
-                            secret_2FA, amount_limit)
-                        if sw1 != 0x90 or sw2 != 0x00:
-                            _logger.info(
-                                f"Unable to set 2FA with error code:= {hex(256*sw1+sw2)}")
-                            self.window.show_error(
-                                f'Unable to setup 2FA with error code: {hex(256*sw1+sw2)}')
-                        else:
-                            self.window.show_message(
-                                "2FA enabled successfully!")
-                    else:
-                        self.window.show_message("2FA cancelled by user!")
-                        return
-                except Exception as e:
-                    _logger.info(f"SatochipPlugin: setup 2FA error: {e}")
-                    self.window.show_error(
-                        f'Unable to setup 2FA with error code: {e}')
-                    return
-
-    def reset_2FA(self, client):
-        if client.cc.needs_2FA:
-            # verify pin
-            is_ok = client.verify_PIN()
-            if not is_ok:
-                msg = f"action cancelled by user"
-                self.window.show_error(msg)
-                return
-
-            # challenge based on ID_2FA
-            # format & encrypt msg
-            import json
-            msg = {'action': "reset_2FA"}
-            msg = json.dumps(msg)
-            (id_2FA, msg_out) = client.cc.card_crypt_transaction_2FA(msg, True)
-            d = {}
-            d['msg_encrypt'] = msg_out
-            d['id_2FA'] = id_2FA
-
-            # do challenge-response with 2FA device...
-            self.window.show_message(
-                '2FA request sent! Approve or reject request on your second device.')
-            server_2FA = self.config.get(
-                "satochip_2FA_server", default=SERVER_LIST[0])
-            Satochip2FA.do_challenge_response(d, server_name=server_2FA)
-            # decrypt and parse reply to extract challenge response
-            try:
-                reply_encrypt = d['reply_encrypt']
-            except Exception:
-                self.give_error("No response received from 2FA!", True)
-            reply_decrypt = client.cc.card_crypt_transaction_2FA(
-                reply_encrypt, False)
-            _logger.info("challenge:response= " + reply_decrypt)
-            reply_decrypt = reply_decrypt.split(":")
-            chalresponse = reply_decrypt[1]
-            hmac = list(bytes.fromhex(chalresponse))
-
-            # send request
-            (response, sw1, sw2) = client.cc.card_reset_2FA_key(hmac)
-            if sw1 == 0x90 and sw2 == 0x00:
-                msg = _("2FA reset successfully!")
-                client.cc.needs_2FA = False
-                self.window.show_message(msg)
-            elif sw1 == 0x9c and sw2 == 0x17:
-                msg = _(
-                    f"Failed to reset 2FA: \nyou must reset the seed first (error code {hex(256*sw1+sw2)})")
-                self.window.show_error(msg)
-            else:
-                msg = _(
-                    f"Failed to reset 2FA with error code: {hex(256*sw1+sw2)}")
-                self.window.show_error(msg)
-        else:
-            msg = _(f"2FA is already disabled!")
-            self.window.show_error(msg)
-
-    def change_2FA_server(self, client):
-        _logger.info("in change_2FA_server")
-        help_txt = "Select 2FA server in the list:"
-        option_name = "satochip_2FA_server"
-        options = SERVER_LIST  # ["server1", "server2", "server3"]
-        title = "Select 2FA server"
-        d = SelectOptionsDialog(option_name=option_name, options=options,
-                                parent=None, title=title, help_text=help_txt, config=self.config)
-        result = d.exec()  # result should be 0 or 1
 
     def verify_card(self, client):
         # verify pin
@@ -689,57 +514,6 @@ class SatochipSettingsDialog(WindowModalDialog):
             else:
                 self.window.show_error(
                     _("Card label should not be longer than 64 chars!"))
-
-
-class SelectOptionsDialog(WindowModalDialog):
-
-    def __init__(
-            self,
-            *,
-            option_name,
-            options=None,
-            parent=None,
-            title="",
-            help_text=None,
-            config: SimpleConfig,
-    ):
-        WindowModalDialog.__init__(self, parent, title)
-        self.config = config
-
-        vbox = QVBoxLayout()
-        if help_text:
-            text_label = WWLabel()
-            text_label.setText(help_text)
-            vbox.addWidget(text_label)
-
-        def set_option():
-            _logger.info(f"New 2FA server: {options_combo.currentText()}")
-            # save in config
-            config.set_key(option_name, options_combo.currentText(), save=True)
-            _logger.info("config changed!")
-
-        default = config.get(option_name, default=SERVER_LIST[0])
-        options_combo = QComboBox()
-        options_combo.addItems(options)
-        options_combo.setCurrentText(default)
-        options_combo.currentIndexChanged.connect(set_option)
-        vbox.addWidget(options_combo)
-
-        hbox = QHBoxLayout()
-        hbox.addStretch(1)
-
-        b = QPushButton(_("Ok"))
-        hbox.addWidget(b)
-        b.clicked.connect(self.accept)
-        b.setDefault(True)
-
-        vbox.addLayout(hbox)
-        self.setLayout(vbox)
-
-        # note: the word-wrap on the text_label is causing layout sizing issues.
-        #       see https://stackoverflow.com/a/25661985 and https://bugreports.qt.io/browse/QTBUG-37673
-        #       workaround:
-        self.setMinimumSize(self.sizeHint())
 
 
 class DeviceCertificateDialog(WindowModalDialog):

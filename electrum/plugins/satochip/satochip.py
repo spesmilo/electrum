@@ -5,7 +5,6 @@ import time
 import electrum_ecc as ecc
 
 # electrum
-from electrum import constants
 from electrum.bitcoin import var_int
 from electrum.i18n import _
 from electrum.plugin import Device, DeviceInfo
@@ -23,7 +22,6 @@ from electrum.hw_wallet  import HW_PluginBase, HardwareClientBase
 # pysatochip
 from pysatochip.CardConnector import CardConnector, UninitializedSeedError
 from pysatochip.CardConnector import CardNotPresentError, UnexpectedSW12Error, WrongPinError, PinBlockedError, PinRequiredError
-from pysatochip.Satochip2FA import Satochip2FA, SERVER_LIST
 
 # pyscard
 from smartcard.Exceptions import CardRequestTimeoutException
@@ -49,11 +47,12 @@ SATOCHIP_PLUGIN_REVISION = 'lib0.11.a-plugin0.1'
 SATOCHIP_VID = 0  # 0x096E
 SATOCHIP_PID = 0  # 0x0503
 
-MSG_USE_2FA = _("Do you want to use 2-Factor-Authentication (2FA)?\n\nWith 2FA, any transaction must be confirmed on "
-                "a second device such as your smartphone. First you have to install the Satochip-2FA android app on "
-                "google play. Then you have to pair your 2FA device with your Satochip by scanning the qr-code on the "
-                "next screen. \n\nWARNING: be sure to backup a copy of the qr-code in a safe place, in case you have "
-                "to reinstall the app!")
+MSG_2FA_NOT_SUPPORTED = _(
+    "2-Factor-Authentication (2FA) is enabled on this card, but 2FA is not supported by this version "
+    "of the Satochip plugin (it will be reactivated when the new 2FA companion app is released).\n\n"
+    "To use this card with this version, first disable 2FA on the card using an earlier "
+    "Electrum-Satochip release."
+)
 
 
 def bip32path2bytes(bip32path: str) -> (int, bytes):
@@ -315,21 +314,13 @@ class Satochip_KeyStore(Hardware_KeyStore):
         address_path = self.get_derivation_prefix() + "/%d/%d" % sequence
         _logger.info(f"[Satochip_KeyStore] sign_message: path: {address_path}")
 
-        # check if 2FA is required
+        # 2FA is not supported in this plugin version: abort if the card requires it
         hmac = b''
         if client.cc.needs_2FA is None:
             (response, sw1, sw2, d) = client.cc.card_get_status()
         if client.cc.needs_2FA:
-            # challenge based on sha256(btcheader+msg)
-            # format & encrypt msg
-            import json
-            msg = {'action': "sign_msg", 'msg': message}
-            msg = json.dumps(msg)
-            # do challenge-response with 2FA device...
-            hmac = self.do_challenge_response(msg)
-            hmac = bytes.fromhex(hmac)
-        else:
-            self.handler.show_message(
+            self.give_error(MSG_2FA_NOT_SUPPORTED)
+        self.handler.show_message(
             "Signing message ...\r\nMessage hash: " + message_hash)
 
         try:
@@ -349,7 +340,7 @@ class Satochip_KeyStore(Hardware_KeyStore):
                     keynbr, pubkey, message_byte, hmac)
             if compsig == b'':
                 self.handler.show_error(
-                    _("Wrong signature!\nThe 2FA device may have rejected the action."))
+                    _("Wrong signature!"))
             return compsig
 
         except Exception as e:
@@ -365,6 +356,9 @@ class Satochip_KeyStore(Hardware_KeyStore):
         client.verify_PIN()
         if client.cc.needs_2FA is None:
             (response, sw1, sw2, d) = client.cc.card_get_status()
+        # 2FA is not supported in this plugin version: abort if the card requires it
+        if client.cc.needs_2FA:
+            self.give_error(MSG_2FA_NOT_SUPPORTED)
         segwitTransaction = False
 
         # outputs (bytes format)
@@ -427,28 +421,8 @@ class Satochip_KeyStore(Hardware_KeyStore):
             _logger.info(
                 f"[Satochip_KeyStore] sign_transaction(): pre_hash= {pre_hash.hex()}")
 
-            # 2FA
             keynbr = 0xFF  # for extended key
-            if client.cc.needs_2FA:
-                # format & encrypt msg
-                import json
-                coin_type = 1 if constants.net.TESTNET else 0
-                # 'sign_tx_hash' (with the sighash) makes the 2FA app compute the
-                # challenge-response over [hash | 0xCC-padding], as required by the
-                # card's SignTransactionHash command ('sign_tx' uses 0x00-padding)
-                if segwitTransaction:
-                    msg = {'action': "sign_tx_hash", 'tx': pre_tx.hex(), 'ct': coin_type, 'sw': segwitTransaction,
-                           'txo': txOutputs.hex(), 'ty': script_type, 'hash': pre_hash.hex()}
-                else:
-                    msg = {'action': "sign_tx_hash", 'tx': pre_tx.hex(), 'ct': coin_type,
-                           'sw': segwitTransaction, 'hash': pre_hash.hex()}
-                msg = json.dumps(msg)
-
-                # do challenge-response with 2FA device...
-                hmac = self.do_challenge_response(msg)
-                hmac = list(bytes.fromhex(hmac))
-            else:
-                hmac = None
+            hmac = None
 
             # sign tx
             try:
@@ -483,45 +457,6 @@ class Satochip_KeyStore(Hardware_KeyStore):
     def show_address(self, sequence, txin_type):
         _logger.info(f'[Satochip_KeyStore] show_address(): todo!')
         return
-
-    def do_challenge_response(self, msg):
-        client = self.get_client()
-        (id_2FA, msg_out) = client.cc.card_crypt_transaction_2FA(msg, True)
-        d = {}
-        d['msg_encrypt'] = msg_out
-        d['id_2FA'] = id_2FA
-        _logger.info("id_2FA: " + id_2FA)
-
-        reply_encrypt = None
-        hmac = 20 * "00"  # default response (reject)
-        status_msg = ""
-
-        # get server_2FA from config from existing object
-        server_2FA = self.plugin.config.get(
-            "satochip_2FA_server", default=SERVER_LIST[0])
-        status_msg += f"2FA request sent to '{server_2FA}' \nApprove or reject request on your second device."
-        try:
-            self.handler.show_message(status_msg)
-            try:
-                Satochip2FA.do_challenge_response(d, server_name=server_2FA)
-                # decrypt and parse reply to extract challenge response
-                reply_encrypt = d['reply_encrypt']
-            except Exception:
-                status_msg += f"\nFailed to contact cosigner! \n=> Select another 2FA server in Satochip settings\n\n"
-                self.handler.show_message(status_msg)
-            if reply_encrypt is not None:
-                reply_decrypt = client.cc.card_crypt_transaction_2FA(
-                    reply_encrypt, False)
-                _logger.info("challenge:response= " + reply_decrypt)
-                reply_decrypt = reply_decrypt.split(":")
-                hmac = reply_decrypt[1]
-        except Exception as ex:
-            _logger.info(f"do_challenge_response: exception with handler: {ex}")
-        finally:
-            _logger.info(f"[Satochip_KeyStore] do_challenge_response: finally")
-            self.handler.finished()
-
-        return hmac  # return a hexstring
 
 
 class SatochipPlugin(HW_PluginBase):
