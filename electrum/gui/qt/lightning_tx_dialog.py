@@ -84,7 +84,7 @@ class LightningTxDialog(WindowModalDialog):
         self.hash_e = ShowQRLineEdit(self.payment_hash, self.config, title=_("Payment hash"))
         vbox.addWidget(self.hash_e)
         vbox.addWidget(QLabel(_("Preimage") + ":"))
-        self.preimage_e = ShowQRLineEdit(self.preimage, self.config, title=_("Preimage"))
+        self.preimage_e = ShowQRLineEdit(self.preimage or '', self.config, title=_("Preimage"))
         vbox.addWidget(self.preimage_e)
         if self.invoice:
             vbox.addWidget(QLabel(_("Lightning Invoice") + ":"))

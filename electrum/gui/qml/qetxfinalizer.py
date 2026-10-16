@@ -351,7 +351,7 @@ class TxFeeSlider(FeeSlider):
         self.inputs = inputs
 
     def update_outputs_from_tx(self, tx: PartialTransaction):
-        sm = self._wallet.wallet.lnworker.swap_manager if self._wallet.wallet.lnworker else None
+        sm = self._wallet.wallet.lnworker.swap_manager if self._wallet.wallet.has_lightning() else None
 
         outputs = []
         for idx, o in enumerate(tx.outputs()):

@@ -36,7 +36,7 @@ from electrum_ecc import ECPubkey
 from . import constants, util
 from .util import bfh, chunks, TxMinedInfo, error_text_bytes_to_safe_str, now
 from .bitcoin import redeem_script_to_address, COINBASE_MATURITY
-from .crypto import sha256, sha256d
+from .crypto import sha256, sha256d, pw_decode
 from .transaction import Transaction, PartialTransaction, TxInput, Sighash
 from .logging import Logger
 from .lntransport import LNPeerAddr
@@ -51,7 +51,7 @@ from .lnutil import (Outpoint, ChannelConfig, ChannelKeys, OnlyPubkeyKeypair, Ch
                      ShortChannelID, map_htlcs_to_ctx_output_idxs, derive_payment_basepoint,
                      fee_for_htlc_output, offered_htlc_trim_threshold_sat,
                      received_htlc_trim_threshold_sat, make_commitment_output_to_remote_address, FIXED_ANCHOR_SAT,
-                     ChannelType, LNProtocolWarning, ZEROCONF_TIMEOUT)
+                     ChannelType, LNProtocolWarning, ZEROCONF_TIMEOUT, LightningLocked)
 from .lnsweep import sweep_our_ctx, sweep_their_ctx
 from .lnsweep import sweep_their_htlctx_justice, sweep_our_htlctx, SweepInfo, MaybeSweepInfo
 from .lnsweep import sweep_their_ctx_to_remote_backup
@@ -827,9 +827,9 @@ class Channel(AbstractChannel):
         self.config = {}
         self.config[LOCAL] = state["local_config"]
         self.config[REMOTE] = state["remote_config"]
-        self.keys = ChannelKeys.from_seed(
-            bfh(state["channel_seed"]), multisig_privkey=bfh(state["multisig_privkey"]))
-        self.keys.check_against_config(self.config[LOCAL])
+        self._keys = None  # type: Optional[ChannelKeys]
+        if lnworker.has_secrets():
+            self.load_keys()
         self.constraints = state["constraints"]  # type: ChannelConstraints
         self.funding_outpoint = state["funding_outpoint"]
         self.node_id = bfh(state["node_id"])
@@ -1085,6 +1085,18 @@ class Channel(AbstractChannel):
     def has_anchors(self) -> bool:
         channel_type = ChannelType(self.storage.get('channel_type'))
         return bool(channel_type & ChannelType.OPTION_ANCHORS)
+
+    @property
+    def keys(self) -> ChannelKeys:
+        if self._keys is None:
+            raise LightningLocked()
+        return self._keys
+
+    def load_keys(self) -> None:
+        self._keys = ChannelKeys.from_seed(
+            bfh(pw_decode(self.storage["channel_seed"], self.lnworker.pw_key)),
+            multisig_privkey=bfh(pw_decode(self.storage["multisig_privkey"], self.lnworker.pw_key)))
+        self._keys.check_against_config(self.config[LOCAL])
 
     def get_wallet_addresses_channel_might_want_reserved(self) -> Sequence[str]:
         assert self.is_static_remotekey_enabled()

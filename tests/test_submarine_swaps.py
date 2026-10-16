@@ -179,15 +179,16 @@ class TestSwapClaim(ToyServerTestCase):
             onchain_amount=swap.onchain_amount,
             lightning_amount=swap.lightning_amount,
             redeem_script=swap.redeem_script,
-            preimage=self.preimage,
+            preimage=self.preimage.hex(),  # no password: stored in plaintext
             prepay_hash=None,
-            privkey=self.server_privkey,
+            privkey=self.server_privkey.hex(),
             lockup_address=swap.lockup_address,
             claim_to_output=None,
             funding_txid=prevout.txid.hex(),
             spending_txid=None,
             is_redeemed=False,
         )
+        server_swap.unlock(None)
         txin = self.adb.get_addr_outputs(swap.lockup_address)[prevout]
         txin, _locktime = SwapManager.create_claim_txin(txin=txin, swap=server_swap)
         tx = PartialTransaction.from_io(
@@ -195,7 +196,7 @@ class TestSwapClaim(ToyServerTestCase):
             [PartialTxOutput.from_address_and_value(random_address(), txin.value_sats() - 1000)],
             version=2,
         )
-        txin.witness = txin.make_witness(tx.sign_txin(0, server_swap.privkey))
+        txin.witness = txin.make_witness(tx.sign_txin(0, server_swap.get_privkey()))
         assert tx.is_complete(), tx
         return tx
 
@@ -211,13 +212,14 @@ class TestSwapClaim(ToyServerTestCase):
             redeem_script=swap.redeem_script,
             preimage=None,  # not known by the server
             prepay_hash=None,
-            privkey=self.server_privkey,
+            privkey=self.server_privkey.hex(),  # no password: stored in plaintext
             lockup_address=swap.lockup_address,
             claim_to_output=None,
             funding_txid=prevout.txid.hex(),
             spending_txid=None,
             is_redeemed=False,
         )
+        server_swap.unlock(None)
         txin = self.adb.get_addr_outputs(swap.lockup_address)[prevout]
         txin, locktime = SwapManager.create_claim_txin(txin=txin, swap=server_swap)
         self.assertEqual(swap.locktime, locktime)
@@ -227,7 +229,7 @@ class TestSwapClaim(ToyServerTestCase):
             locktime=locktime,
             version=2,
         )
-        txin.witness = txin.make_witness(tx.sign_txin(0, server_swap.privkey))
+        txin.witness = txin.make_witness(tx.sign_txin(0, server_swap.get_privkey()))
         assert tx.is_complete(), tx
         return tx
 
@@ -290,12 +292,12 @@ class TestSwapClaim(ToyServerTestCase):
         # the funding utxo was selected, not one of the decoys
         self.assertEqual(funding_tx.txid(), swap._funding_prevout.txid.hex())
         self.assertEqual(funding_tx.txid(), swap.funding_txid)
-        self.assertIsNone(swap.preimage)
+        self.assertIsNone(swap.get_preimage())
         # the server claims our funding utxo, revealing the preimage
         claim_tx = await self.server_claims_utxo(swap, swap._funding_prevout)
         await self.mine_blocks(1)
         await self.sm._claim_swap(swap)
-        self.assertEqual(self.preimage, swap.preimage)
+        self.assertEqual(self.preimage, swap.get_preimage())
         self.assertEqual(self.preimage, self.wallet.lnworker.get_preimage(swap.payment_hash))
         self.assertEqual(claim_tx.txid(), swap.spending_txid)
 
@@ -334,7 +336,7 @@ class TestSwapClaim(ToyServerTestCase):
         await self.server_claims_utxo(swap, swap._funding_prevout)
         await self.mine_blocks(1)
         await self.sm._claim_swap(swap)
-        self.assertEqual(self.preimage, swap.preimage)
+        self.assertEqual(self.preimage, swap.get_preimage())
         self.assertFalse(swap.is_redeemed)
         self.assertIn(swap.lockup_address, self.wallet.lnworker.lnwatcher.callbacks)
         # one block short of finality we keep watching
@@ -359,7 +361,7 @@ class TestSwapClaim(ToyServerTestCase):
         await self.sm._claim_swap(swap)
         claim_tx = await self.server_claims_utxo(swap, swap._funding_prevout)
         await self.sm._claim_swap(swap)
-        self.assertEqual(self.preimage, swap.preimage)
+        self.assertEqual(self.preimage, swap.get_preimage())
         # the claim tx is evicted, so the lockup utxo looks unspent again
         await self.server.mempool_rm_tx(claim_tx)
         await self.wait_until(
@@ -408,7 +410,7 @@ class TestSwapClaim(ToyServerTestCase):
         await self.sm._claim_swap(swap)
         # we still hold the htlcs, so the preimage is worth something to us
         self.assertEqual(claim_tx.txid(), swap.spending_txid)
-        self.assertEqual(self.preimage, swap.preimage)
+        self.assertEqual(self.preimage, swap.get_preimage())
         self.assertEqual(self.preimage, self.wallet.lnworker.get_preimage(payment_hash))
         self.assertIn(payment_hash, self.wallet.lnworker.hold_invoice_callbacks)
 
@@ -854,7 +856,7 @@ class TestSwapServerPlugin(ElectrumTestCase):
         return wallet
 
     def load_wallet(self, wallet) -> None:
-        self.plugin.daemon_wallet_loaded(mock.Mock(), wallet)
+        self.plugin.lightning_loaded(wallet)
 
     def test_only_the_first_wallet_serves_swaps(self):
         wallet1, wallet2 = self.make_wallet(), self.make_wallet()
@@ -865,14 +867,6 @@ class TestSwapServerPlugin(ElectrumTestCase):
         # otherwise we would run a second server, on the same port and nostr identity
         self.assertTrue(wallet1.lnworker.swap_manager.is_server)
         self.assertFalse(wallet2.lnworker.swap_manager.is_server)
-
-    def test_wallet_without_lightning_is_skipped(self):
-        wallet1, wallet2 = self.make_wallet(has_lightning=False), self.make_wallet()
-
-        self.load_wallet(wallet1)
-        self.load_wallet(wallet2)
-
-        self.assertTrue(wallet2.lnworker.swap_manager.is_server)
 
     def test_disabling_the_plugin_stops_the_server(self):
         wallet = self.make_wallet()

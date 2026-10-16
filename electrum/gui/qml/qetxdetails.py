@@ -314,7 +314,7 @@ class QETxDetails(QObject, QtEventListener):
             Network.run_from_another_thread(
                 self._tx.add_info_from_network(self._wallet.wallet.network, timeout=10))  # FIXME is this needed?...
 
-        sm = self._wallet.wallet.lnworker.swap_manager if self._wallet.wallet.lnworker else None
+        sm = self._wallet.wallet.lnworker.swap_manager if self._wallet.wallet.has_lightning() else None
 
         self._inputs = list(map(lambda x: {
             'short_id': x.prevout.short_name(),
@@ -372,7 +372,7 @@ class QETxDetails(QObject, QtEventListener):
             if isinstance(self._tx, PartialTransaction):
                 self._sighash_danger = self._wallet.wallet.check_sighash(self._tx)
 
-        if self._wallet.wallet.lnworker and self._txid:  # no txid yet for an unsigned tx with legacy inputs
+        if self._wallet.wallet.has_lightning() and self._txid:  # no txid yet for an unsigned tx with legacy inputs
             # Calling wallet.get_full_history here is inefficient.
             # We should probably pass the tx_item to the constructor.
             full_history = self._wallet.wallet.get_full_history()

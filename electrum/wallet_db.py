@@ -35,13 +35,14 @@ import dataclasses
 from . import bitcoin
 from . import constants
 from .bolt11 import BOLT11InvoiceException
+from .crypto import PasswordKey, make_pw_salt, pw_encode, pw_decode, PW_HASH_VERSION_LATEST
 from .util import profiler, WalletFileException, multisig_type, TxMinedInfo, MyEncoder, bfh
 from .keystore import bip44_derivation
 from .transaction import (Transaction, TxOutpoint, tx_from_any, PartialTransaction, PartialTxOutput, BadHeaderMagic,
                           BCDataStream)
 from .logging import Logger
 
-from .lnutil import HTLCOwner, ChannelType, RecvMPPResolution
+from .lnutil import HTLCOwner, ChannelType, RecvMPPResolution, PW_KEY_MAGIC
 from .json_db import JsonDB, locked, modifier
 from . import stored_dict
 from .stored_dict import StoredObject, stored_at, register_key, register_name
@@ -1718,10 +1719,86 @@ class WalletDB(JsonDB):
             encoder=MyEncoder,
             upgrader=partial(upgrade_wallet_db, do_upgrade=upgrade),
         )
+        self._unlocked_password = None  # see set_unlocked_password
+        self._unlocked_pw_key = None
         # create pointers
         self.load_transactions()
         # load plugins that are conditional on wallet type
         self.load_plugins()
+
+    def get_pw_key(self, password: Optional[str]) -> Optional[PasswordKey]:
+        """Runs the KDF (unless the wallet is unlocked), and returns the key that the
+        secrets of this wallet are encrypted with. There is a single salt per wallet file,
+        shared by its keystores.
+
+        Returns None if the db has no KDF parameters, i.e. if the wallet has no password,
+        or if its keystores still use the legacy unsalted KDF. (see #4909)
+
+        This is deliberately slow. Callers that touch more than one secret should call it
+        once, and pass the result around instead of the password.
+        """
+        if not password or not self.get('pw_salt'):
+            return None
+        salt = bytes.fromhex(self.get('pw_salt'))
+        # the salt changes with the password, so a key derived before is checked against it
+        if (pw_key := self._unlocked_pw_key) and pw_key.salt == salt and password == self._unlocked_password:
+            return pw_key
+        return PasswordKey(password, version=self.get('pw_hash_version'), salt=salt)
+
+    def get_or_create_pw_key(self, password: Optional[str]) -> Optional[PasswordKey]:
+        """Like get_pw_key, but generates the parameters if the db does not have them
+        yet (i.e. if it does not hold any secret so far)."""
+        return self.get_pw_key(password) or self.set_new_pw_params(password)
+
+    def set_new_pw_params(self, new_password: Optional[str]) -> Optional[PasswordKey]:
+        """Moves the db to the latest pw hash version, with a freshly generated salt, and
+        returns the corresponding key. Without a password, the parameters are removed and
+        the secrets are stored in plaintext.
+
+        note: secrets encrypted with the previous parameters must be decrypted *before*
+              calling this, and re-encrypted with the returned key afterwards.
+        """
+        if not new_password:
+            self.put('pw_hash_version', None)
+            self.put('pw_salt', None)
+            return None
+        salt = make_pw_salt()
+        pw_key = PasswordKey(new_password, version=PW_HASH_VERSION_LATEST, salt=salt)
+        self.put('pw_hash_version', PW_HASH_VERSION_LATEST)
+        self.put('pw_salt', salt.hex())
+        if new_password == self._unlocked_password:
+            self._unlocked_pw_key = pw_key  # the wallet stays unlocked with the new salt
+        return pw_key
+
+    def reencrypt_lightning_secrets(
+            self, old_pw_key: Optional[PasswordKey], new_pw_key: Optional[PasswordKey]
+    ) -> None:
+        """Re-encrypts the lightning secrets stored in the db, with keys derived from the
+        given ones (see lnutil.PW_KEY_MAGIC).
+
+        This works on the stored form of the secrets, so it does not need lightning to be
+        loaded: it is also how a wallet that still holds them in plaintext gets migrated.
+        """
+        if old_pw_key is None and new_pw_key is None:
+            return
+        old_pw_key = old_pw_key and old_pw_key.child(PW_KEY_MAGIC)
+        new_pw_key = new_pw_key and new_pw_key.child(PW_KEY_MAGIC)
+        recode = lambda x: pw_encode(pw_decode(x, old_pw_key), new_pw_key) if x else x
+        for name in ('lightning_xprv', 'lightning_privkey2'):
+            if value := self.get(name):
+                self.put(name, recode(value))
+        for channel_id, chan in self.get_dict('channels').items():
+            for name in ('channel_seed', 'multisig_privkey'):
+                chan[name] = recode(chan[name])
+        backups = self.get_dict('imported_channel_backups')
+        for channel_id, backup in list(backups.items()):
+            backups[channel_id] = recode(backup)
+        preimages = self.get_dict('lightning_preimages')
+        for payment_hash, (preimage, is_public) in list(preimages.items()):
+            preimages[payment_hash] = (recode(preimage), is_public)
+        for key, swap in self.get_dict('submarine_swaps').items():
+            swap.privkey = recode(swap.privkey)
+            swap.preimage = recode(swap.preimage)
 
     @locked
     def get_seed_version(self):
@@ -2174,3 +2251,10 @@ class WalletDB(JsonDB):
 
     def set_keystore_encryption(self, enable):
         self.put('use_encryption', enable)
+
+    def set_unlocked_password(self, password: Optional[str], pw_key: Optional[PasswordKey]) -> None:
+        """Keeps the password and its key in memory while the wallet is unlocked (None locks it)."""
+        self._unlocked_password, self._unlocked_pw_key = password, pw_key
+
+    def get_unlocked_password(self) -> Optional[str]:
+        return self._unlocked_password

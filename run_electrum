@@ -177,7 +177,7 @@ def init_cmdline(config_options, wallet_path, *, rpcserver: bool, config: 'Simpl
 
     # commands needing password
     if ((cmd.requires_wallet and storage.is_encrypted() and not rpcserver)
-            or (cmdname == 'load_wallet' and storage.is_encrypted())
+            or (cmdname == 'load_wallet' and (storage.is_encrypted() or config.get('unlock')))
             or (cmdname in ['password', 'unlock'])
             or (cmd.requires_password and not rpcserver)):
         if storage.is_encrypted_with_hw_device():
@@ -262,6 +262,9 @@ async def run_offline_command(config: 'SimpleConfig', config_options: dict, wall
         except InvalidPassword:
             print_msg("Error: This password does not decode this wallet.")
             raise
+    if wallet and password is not None and wallet.has_keystore_encryption():
+        wallet.check_password(password)
+        wallet.load_lightning(password)
     if cmd.requires_network:
         print_msg("Warning: running command offline")
     # arguments passed to function

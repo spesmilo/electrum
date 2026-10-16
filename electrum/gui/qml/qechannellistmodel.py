@@ -127,7 +127,7 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
     @pyqtSlot()
     def initModel(self):
         self._logger.debug('init_model')
-        if not self.wallet.lnworker:
+        if not self.wallet.has_lightning():
             self._logger.warning('lnworker should be defined')
             return
 

@@ -416,7 +416,7 @@ class QEInvoice(QObject, QtEventListener):
         return self._wallet.wallet.get_spendable_balance_sat()
 
     def get_max_spendable_lightning(self):
-        return self._wallet.wallet.lnworker.num_sats_can_send() if self._wallet.wallet.lnworker else 0
+        return self._wallet.wallet.lnworker.num_sats_can_send() if self._wallet.wallet.has_lightning() else 0
 
     def count_connecting_channels(self) -> int:
         """Return count of channels that would become usable as soon as they are reestablished until a timeout"""
@@ -586,17 +586,17 @@ class QEInvoiceParser(QEInvoice):
                 return
             elif self._pi.type == PaymentIdentifierType.BOLT11:
                 lninvoice = self._pi.bolt11
-                if not self._wallet.wallet.has_lightning() and not lninvoice.get_address():
+                if not self._wallet.wallet.is_lightning_loaded() and not lninvoice.get_address():
                     self.validationError.emit('no_lightning',
                         _('Detected valid Lightning invoice, but Lightning not enabled for wallet and no fallback address found.'))
                     return
-                if self._wallet.wallet.lnworker and not self._wallet.wallet.lnworker.channels and not lninvoice.get_address():
+                if self._wallet.wallet.has_lightning() and not self._wallet.wallet.lnworker.channels and not lninvoice.get_address():
                     self.validationWarning.emit('no_channels',
                         _('Detected valid Lightning invoice, but there are no open channels'))
                 self.setValidLightningInvoice(lninvoice)
                 self.validationSuccess.emit()
             elif self._pi.type == PaymentIdentifierType.BIP21:
-                if self._wallet.wallet.has_lightning() and self._wallet.wallet.lnworker.channels and self._pi.bolt11:
+                if self._wallet.wallet.is_lightning_loaded() and self._wallet.wallet.lnworker.channels and self._pi.bolt11:
                     lninvoice = self._pi.bolt11
                     self.setValidLightningInvoice(lninvoice)
                     self.validationSuccess.emit()

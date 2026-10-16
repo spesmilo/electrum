@@ -179,8 +179,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         assert wallet, "no wallet"
         self.wallet = wallet
         self._protected_requires_password = self.wallet.has_keystore_encryption
-        if wallet.has_lightning() and not self.config.cv.GUI_QT_SHOW_TAB_CHANNELS.is_set():
-            self.config.GUI_QT_SHOW_TAB_CHANNELS = True  # override default, but still allow disabling tab manually
 
         Exception_Hook.maybe_setup(config=self.config, wallet=self.wallet)
 
@@ -195,6 +193,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.showing_cert_mismatch_error = False
         self.tl_windows = []
         Logger.__init__(self)
+
+        if not wallet.is_lightning_loaded() and wallet.has_lightning():
+            self.load_lightning(message=_('Enter your password to run lightning:'))
+        if wallet.is_lightning_loaded() and not self.config.cv.GUI_QT_SHOW_TAB_CHANNELS.is_set():
+            self.config.GUI_QT_SHOW_TAB_CHANNELS = True  # override default, but still allow disabling tab manually
 
         self._coroutines_scheduled = {}  # type: Dict[concurrent.futures.Future, str]
         self._coroutines_scheduled_lock = threading.Lock()
@@ -361,6 +364,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.lock_menu.setEnabled(self._protected_requires_password())
         text = _('Lock') if self.wallet.get_unlocked_password() else _('Unlock')
         self.lock_menu.setText(text)
+
+    @protected
+    def load_lightning(self, password, message=None):
+        self.wallet.load_lightning(password)
 
     @protected
     def unlock_wallet(self, password, message=None):
@@ -587,7 +594,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     @profiler
     def load_wallet(self, wallet: Abstract_Wallet):
         self.update_recently_opened_menu()
-        if wallet.has_lightning():
+        if wallet.is_lightning_loaded():
             util.trigger_callback('channels_updated', wallet)
         self.need_update.set()
         # Once GUI has been initialized check if we want to announce something since the callback has been called before the GUI was initialized
@@ -712,7 +719,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         backup_dir = self.config.WALLET_BACKUP_DIRECTORY
         backup_dir_label = HelpLabel(_('Backup directory') + ':', backup_help)
         msg = _('Please select a backup directory')
-        if self.wallet.has_lightning() and self.wallet.lnworker.channels:
+        if self.wallet.is_lightning_loaded() and self.wallet.lnworker.channels:
             msg += '\n\n' + ' '.join([
                 _("Note that lightning channels will be converted to channel backups."),
                 _("You cannot use channel backups to perform lightning payments."),
@@ -1265,7 +1272,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         if not self.network:
             self.show_error(_("You are offline."))
             return False
-        if not self.wallet.lnworker:
+        if not self.wallet.has_lightning():
             self.show_error(_('Lightning is disabled'))
             return False
         if not self.wallet.lnworker.num_sats_can_send() and not self.wallet.lnworker.num_sats_can_receive():
@@ -1768,7 +1775,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             'util': util,
             'bitcoin': bitcoin,
             'lnutil': lnutil,
-            'channels': list(self.wallet.lnworker.channels.values()) if self.wallet.lnworker else [],
+            'channels': list(self.wallet.lnworker.channels.values()) if self.wallet.has_lightning() else [],
             'scan_qr': scan_qr_from_screenshot,
         })
 
@@ -1896,7 +1903,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.coincontrol_sb.setVisible(True)
 
     def update_lightning_icon(self):
-        if not self.wallet.has_lightning():
+        if not self.wallet.is_lightning_loaded():
             self.lightning_button.setVisible(False)
             return
         if self.network is None or self.network.channel_db is None:
@@ -1991,7 +1998,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             msg = _('Not enough funds') + '\n\n' + _('You need at least {} to open a channel.').format(self.format_amount_and_units(min_amount_sat))
             self.show_error(msg)
             return
-        if not self.wallet.has_lightning() and not self.init_lightning_dialog():
+        if not self.wallet.is_lightning_loaded() and not self.init_lightning_dialog():
             return
         lnworker = self.wallet.lnworker
         if not lnworker.channels and not lnworker.channel_backups:
@@ -2022,7 +2029,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             self.set_contact(line2.text(), line1.text())
 
     def init_lightning_dialog(self, close_dialog: Optional[QDialog] = None) -> bool:
-        assert not self.wallet.has_lightning()
+        assert not self.wallet.is_lightning_loaded()
+        if self.wallet.has_lightning():
+            # the wallet is locked
+            self.load_lightning(message=_('Enter your password to run lightning:'))
+            return self.wallet.is_lightning_loaded()
         if self.wallet.can_have_deterministic_lightning():
             msg = _(
                 "Lightning is not enabled because this wallet was created with an old version of Electrum. "
@@ -2034,7 +2045,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                 "Create lightning keys?")
         if self.question(msg):
             self._init_lightning_dialog(close_dialog=close_dialog)
-        return self.wallet.has_lightning()
+        return self.wallet.is_lightning_loaded()
 
     @protected
     def _init_lightning_dialog(self, *, close_dialog: Optional[QDialog], password):
@@ -2314,7 +2325,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def import_channel_backup(self, encrypted: str):
         if not self.question('Import channel backup?'):
             return
-        if not self.wallet.lnworker:
+        if not self.wallet.has_lightning():
             self.show_error(_('Lightning is disabled'))
             return
         try:
@@ -2489,11 +2500,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         done = False
         cancelled = False
         def privkeys_thread():
-            for addr in addresses:
+            for addr, privkey in zip(addresses, self.wallet.export_private_keys(addresses, password)):
                 time.sleep(0.1)
                 if done or cancelled:
                     break
-                privkey = self.wallet.export_private_key(addr, password)
                 private_keys[addr] = privkey
                 self.computing_privkeys_signal.emit()
             if not cancelled:
@@ -2771,7 +2781,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.closing_warning_callbacks.append(warning_callback)
 
     def _check_ongoing_force_closures(self) -> Optional[str]:
-        if not self.wallet.has_lightning():
+        if not self.wallet.is_lightning_loaded():
             return None
         if not self.network:
             return None
@@ -2790,7 +2800,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def _check_ongoing_submarine_swaps_callback(self) -> Optional[str]:
         """Callback that will return a warning string if there are unconfirmed swap funding txs."""
         from electrum.submarine_swaps import MIN_FINAL_CLTV_DELTA_FOR_CLIENT, LOCKTIME_DELTA_REFUND
-        if not (self.wallet.has_lightning() and self.wallet.lnworker.swap_manager):
+        if not (self.wallet.is_lightning_loaded() and self.wallet.lnworker.swap_manager):
             return None
         if not self.network:
             return None

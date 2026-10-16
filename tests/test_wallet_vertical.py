@@ -185,7 +185,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
 
                 self.assertEqual(ks.mpk, 'e9d4b7866dd1e91c862aebf62a49548c7dbf7bcc6e4b7b8c9da820c7737968df9c09d5a3e271dc814a29981f81b3faaf2737b551ef5dcc6189cf0f8252c442b3')
                 self.assertEqual(ks.seed, seed_hex)
-                self.assertEqual(ks._get_hex_seed(password=None), seed_hex)
+                self.assertEqual(ks._get_hex_seed(pw_key=None), seed_hex)
                 self.assertEqual(ks.get_seed(password=None), seed_words)
 
                 w = WalletIntegrityHelper.create_standard_wallet(ks, config=self.config)

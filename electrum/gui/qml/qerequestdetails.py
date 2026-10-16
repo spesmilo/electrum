@@ -145,7 +145,7 @@ class QERequestDetails(QObject, QtEventListener):
     @pyqtProperty(str, notify=detailsChanged)
     def bolt11(self):
         wallet = self._wallet.wallet
-        if not wallet.lnworker:
+        if not wallet.has_lightning():
             return ''
         amount_sat = self._req.get_amount_sat() or 0 if self._req else 0
         can_receive = wallet.lnworker.num_sats_can_receive()

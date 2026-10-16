@@ -478,7 +478,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.invoice_error.setText(_('Expired') if pi.has_expired() else '')
 
     def _is_pi_usable(self, pi: 'PaymentIdentifier') -> bool:
-        return pi.is_valid() and not pi.is_error() and (self.wallet.has_lightning() or pi.is_onchain())
+        return pi.is_valid() and not pi.is_error() and (self.wallet.is_lightning_loaded() or pi.is_onchain())
 
     def _handle_payment_identifier(self):
         self.update_fields()
@@ -532,7 +532,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             self.show_error('error getting invoice' + self.payto_e.payment_identifier.error)
             return
 
-        if not self.wallet.has_lightning() and not invoice.can_be_paid_onchain():
+        if not self.wallet.is_lightning_loaded() and not invoice.can_be_paid_onchain():
             self.show_error(_('Lightning is disabled'))
         if self.wallet.get_invoice_status(invoice) == PR_PAID:
             # fixme: this is only for lightning
@@ -876,7 +876,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.amount_e.setAmount(total if outputs else None)
 
     def request_lnurl_withdraw_dialog(self, lnurl_data: LNURL3Data):
-        if not self.wallet.has_lightning():
+        if not self.wallet.is_lightning_loaded():
             self.show_error(
                 _("Cannot request lightning withdrawal, wallet has no lightning channels.")
             )
