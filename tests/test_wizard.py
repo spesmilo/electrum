@@ -306,6 +306,55 @@ class KeystoreWizardTestCase(WizardTestCase):
         wallet2 = Daemon._load_wallet(self.wallet_path, password=None, config=self.config)
         self.assertTrue(wallet2.get_keystore().is_watching_only())
 
+    async def test_disable_enable_keystore__keystore_encryption_without_storage_encryption(self):
+        myseed = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
+        wallet = restore_wallet_from_text(
+            myseed, path=self.wallet_path, config=self.config, password='1234', encrypt_file=False)['wallet']
+        self.assertTrue(wallet.has_keystore_encryption())
+        self.assertFalse(wallet.has_storage_encryption())
+
+        # the password only protected the keystore, so after disabling it, the wallet has no password
+        wallet.disable_keystore(wallet.get_keystore())
+        self.assertFalse(wallet.has_password())
+        self.assertFalse(wallet.db.get('use_encryption'))
+
+        ks = keystore.from_seed(myseed, passphrase='', for_multisig=False)
+        wallet.enable_keystore(ks, False, None)
+        self.assertFalse(wallet.has_keystore_encryption())
+        wallet.check_password(None)
+        self.assertEqual(myseed, wallet.get_keystore().get_seed(None))
+
+    async def test_disable_enable_keystore__storage_encryption(self):
+        myseed = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
+        wallet = restore_wallet_from_text(
+            myseed, path=self.wallet_path, config=self.config, password='1234', encrypt_file=True)['wallet']
+        self.assertTrue(wallet.has_keystore_encryption())
+
+        wallet.disable_keystore(wallet.get_keystore())
+        self.assertFalse(wallet.has_keystore_encryption())
+        self.assertTrue(wallet.has_password())  # storage encryption
+
+        ks = keystore.from_seed(myseed, passphrase='', for_multisig=False)
+        wallet.enable_keystore(ks, False, '1234')
+        self.assertTrue(wallet.has_keystore_encryption())
+        wallet.check_password('1234')
+        self.assertEqual(myseed, wallet.get_keystore().get_seed('1234'))
+
+    async def test_enable_keystore__stale_use_encryption_flag(self):
+        """older versions left 'use_encryption' set when disabling the only keystore that was encrypted"""
+        myseed = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
+        wallet = restore_wallet_from_text(myseed, path=self.wallet_path, config=self.config)['wallet']
+        wallet.disable_keystore(wallet.get_keystore())
+        wallet.db.put('use_encryption', True)
+        self.assertFalse(wallet.has_password())
+
+        ks = keystore.from_seed(myseed, passphrase='', for_multisig=False)
+        wallet.enable_keystore(ks, False, None)
+        # the seed is not encrypted, so the wallet must not claim keystore encryption
+        self.assertFalse(wallet.has_keystore_encryption())
+        wallet.check_password(None)
+        self.assertEqual(myseed, wallet.get_keystore().get_seed(None))
+
     async def test_haveseed_electrum__2fa_seed(self):
         """unlike NewWalletWizard, KeystoreWizard cannot redirect to the 2fa flow, so 2fa seeds are invalid"""
         w, v = self._wizard_for()
