@@ -16,7 +16,7 @@ from electrum.wallet import (sweep, sweep_preparations, Multisig_Wallet, Standar
                              Abstract_Wallet, CannotBumpFee, BumpFeeStrategy,
                              TransactionPotentiallyDangerousException,
                              TransactionDangerousException,
-                             TxSighashRiskLevel, CannotDoubleSpendTx)
+                             TxSighashRiskLevel, CannotDoubleSpendTx, UnconfAncestorsInfo)
 from electrum.util import bfh, NotEnoughFunds, UnrelatedTransactionException, UserFacingException, TxMinedInfo
 from electrum.fee_policy import FixedFeePolicy
 from electrum.transaction import Transaction, PartialTxOutput, tx_from_any, Sighash
@@ -2433,6 +2433,128 @@ class TestWalletSending(ElectrumTestCase):
 
         wallet.adb.receive_tx_callback(tx, tx_height=TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, funding_output_value - 50000, 0), wallet.get_balance())
+
+    def _create_wallet_with_funding_tx(self, *, funding_tx_height: int) -> tuple[Standard_Wallet, Transaction]:
+        wallet = self.create_standard_wallet_from_seed('frost repair depend effort salon ring foam oak cancel receive save usage')
+        # note: the input of the funding tx is not ours, so its fee is only known if the server tells us
+        funding_tx = Transaction('01000000000101c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520000000017160014ba9ca815474a674ff1efb3fc82cf0f3460de8c57fdffffff0230390f000000000017a9148b59abaca8215c0d4b18cbbf715550aa2b50c85b87404b4c000000000016001483c3bc7234f17a209cc5dcce14903b54ee4dab9002473044022038a05f7d38bcf810dfebb39f1feda5cc187da4cf5d6e56986957ddcccedc75d302203ab67ccf15431b4e2aeeab1582b9a5a7821e7ac4be8ebf512505dbfdc7e094fd0121032168234e0ba465b8cedc10173ea9391725c0f6d9fa517641af87926626a5144abd391400')
+        self.assertEqual('c36a6e1cd54df108e69574f70bc9b88dc13beddc70cfad9feb7f8f6593255d4a', funding_tx.txid())
+        self.assertEqual(165, funding_tx.estimated_size())
+        wallet.adb.receive_tx_callback(funding_tx, tx_height=funding_tx_height)
+        return wallet, funding_tx
+
+    def _make_tx_spending_coins(self, wallet: Standard_Wallet, *, fee: int, outputs=None, coins=None):
+        if outputs is None:
+            outputs = [PartialTxOutput.from_address_and_value('2N1VTMMFb91SH9SNRAkT7z8otP5eZEct4KL', 1000000)]
+        if coins is None:
+            coins = wallet.get_spendable_coins(domain=None)
+        return wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee_policy=FixedFeePolicy(fee))
+
+    async def test_get_unconf_ancestors_info__unconf_parent_with_server_fee(self):
+        wallet, funding_tx = self._create_wallet_with_funding_tx(funding_tx_height=TX_HEIGHT_UNCONFIRMED)
+        wallet.db.add_tx_fee_from_server(funding_tx.txid(), 1234)
+        tx = self._make_tx_spending_coins(wallet, fee=5000)
+        self.assertEqual(
+            UnconfAncestorsInfo(chain=[(1234, 165)], all_ancestors_included=True),
+            wallet.get_unconf_ancestors_info(tx))
+
+    async def test_get_unconf_ancestors_info__confirmed_parent(self):
+        wallet, funding_tx = self._create_wallet_with_funding_tx(funding_tx_height=1325000)
+        wallet.db.put('stored_height', 1325010)
+        wallet.adb.add_verified_tx(funding_tx.txid(), TxMinedInfo(_height=1325000, timestamp=1700000001, txpos=1, header_hash="01"*32))
+        tx = self._make_tx_spending_coins(wallet, fee=5000)
+        self.assertEqual(
+            UnconfAncestorsInfo(chain=[], all_ancestors_included=True),
+            wallet.get_unconf_ancestors_info(tx))
+
+    async def test_get_unconf_ancestors_info__unconf_parent_with_unknown_fee(self):
+        wallet, funding_tx = self._create_wallet_with_funding_tx(funding_tx_height=TX_HEIGHT_UNCONFIRMED)
+        tx = self._make_tx_spending_coins(wallet, fee=5000)
+        self.assertEqual(
+            UnconfAncestorsInfo(chain=[], all_ancestors_included=False),
+            wallet.get_unconf_ancestors_info(tx))
+
+    async def test_get_unconf_ancestors_info__unconf_parent_with_unknown_unconf_ancestors(self):
+        # the server says the funding tx has unconfirmed parents itself,
+        # but those do not touch our wallet, so we know nothing about them
+        wallet, funding_tx = self._create_wallet_with_funding_tx(funding_tx_height=TX_HEIGHT_UNCONF_PARENT)
+        wallet.db.add_tx_fee_from_server(funding_tx.txid(), 1234)
+        tx = self._make_tx_spending_coins(wallet, fee=5000)
+        self.assertEqual(
+            UnconfAncestorsInfo(chain=[(1234, 165)], all_ancestors_included=False),
+            wallet.get_unconf_ancestors_info(tx))
+
+    async def test_get_unconf_ancestors_info__chain(self):
+        wallet, funding_tx = self._create_wallet_with_funding_tx(funding_tx_height=TX_HEIGHT_UNCONFIRMED)
+        wallet.db.add_tx_fee_from_server(funding_tx.txid(), 1234)
+        # tx1 spends the unconfirmed funding tx and pays to ourselves, so both of its
+        # outputs (payment and change) are ours. tx2 spends both of them.
+        outputs = [PartialTxOutput.from_address_and_value(wallet.get_unused_address(), 1000000)]
+        tx1 = self._make_tx_spending_coins(wallet, fee=5000, outputs=outputs)
+        wallet.sign_transaction(tx1, password=None)
+        wallet.adb.receive_tx_callback(tx1, tx_height=TX_HEIGHT_UNCONF_PARENT)
+        outputs = [PartialTxOutput.from_address_and_value('2N1VTMMFb91SH9SNRAkT7z8otP5eZEct4KL', 4500000)]
+        tx2 = self._make_tx_spending_coins(wallet, fee=3000, outputs=outputs)
+        self.assertEqual(2, len(tx2.inputs()))
+        self.assertEqual({tx1.txid()}, {txin.prevout.txid.hex() for txin in tx2.inputs()})
+        self.assertEqual(
+            UnconfAncestorsInfo(chain=[(5000, tx1.estimated_size()), (1234, 165)], all_ancestors_included=True),
+            wallet.get_unconf_ancestors_info(tx2))
+
+    async def test_get_unconf_ancestors_info__local_parent(self):
+        wallet, funding_tx = self._create_wallet_with_funding_tx(funding_tx_height=TX_HEIGHT_UNCONFIRMED)
+        wallet.db.add_tx_fee_from_server(funding_tx.txid(), 1234)
+        # tx1 spends the unconfirmed funding tx, and is saved as local (not broadcast,
+        # and not even signed). tx2 spends the change of tx1.
+        tx1 = self._make_tx_spending_coins(wallet, fee=5000)
+        wallet.adb.add_transaction(tx1)
+        self.assertEqual(TX_HEIGHT_LOCAL, wallet.adb.get_tx_height(tx1.txid()).height())
+        tx2 = self._make_tx_spending_coins(wallet, fee=3000)
+        self.assertEqual({tx1.txid()}, {txin.prevout.txid.hex() for txin in tx2.inputs()})
+        self.assertEqual(
+            UnconfAncestorsInfo(chain=[(5000, tx1.estimated_size()), (1234, 165)], all_ancestors_included=True),
+            wallet.get_unconf_ancestors_info(tx2))
+
+    async def test_get_unconf_ancestors_info__two_unconf_parents(self):
+        wallet, funding_tx = self._create_wallet_with_funding_tx(funding_tx_height=TX_HEIGHT_UNCONFIRMED)
+        wallet.db.add_tx_fee_from_server(funding_tx.txid(), 1234)
+        # tx1 spends the unconfirmed funding tx and pays to ourselves. tx2 spends only the
+        # payment output of tx1. tx3 then spends the change of both tx1 and tx2: it has two
+        # unconfirmed parents, which is not a chain, so nothing is known about them.
+        outputs = [PartialTxOutput.from_address_and_value(wallet.get_unused_address(), 1000000)]
+        tx1 = self._make_tx_spending_coins(wallet, fee=5000, outputs=outputs)
+        wallet.sign_transaction(tx1, password=None)
+        wallet.adb.receive_tx_callback(tx1, tx_height=TX_HEIGHT_UNCONF_PARENT)
+        coins = [coin for coin in wallet.get_spendable_coins(domain=None) if coin.value_sats() == 1000000]
+        self.assertEqual(1, len(coins))
+        outputs = [PartialTxOutput.from_address_and_value('2N1VTMMFb91SH9SNRAkT7z8otP5eZEct4KL', 500000)]
+        tx2 = self._make_tx_spending_coins(wallet, fee=2000, outputs=outputs, coins=coins)
+        wallet.sign_transaction(tx2, password=None)
+        wallet.adb.receive_tx_callback(tx2, tx_height=TX_HEIGHT_UNCONF_PARENT)
+        outputs = [PartialTxOutput.from_address_and_value('2N1VTMMFb91SH9SNRAkT7z8otP5eZEct4KL', 4000000)]
+        tx3 = self._make_tx_spending_coins(wallet, fee=3000, outputs=outputs)
+        self.assertEqual({tx1.txid(), tx2.txid()}, {txin.prevout.txid.hex() for txin in tx3.inputs()})
+        self.assertEqual(
+            UnconfAncestorsInfo(chain=[], all_ancestors_included=False),
+            wallet.get_unconf_ancestors_info(tx3))
+
+    async def test_unconf_ancestors_info__effective_feerate(self):
+        def effective_feerate(chain, *, tx_fee=40, tx_size=100):
+            info = UnconfAncestorsInfo(chain=chain, all_ancestors_included=True)
+            return info.effective_feerate(tx_fee=tx_fee, tx_size=tx_size)
+        # no unconfirmed ancestors: the feerate of the tx itself
+        self.assertAlmostEqual(0.4, effective_feerate([]))
+        # a parent paying a lower feerate drags the tx down to the feerate of the package
+        self.assertAlmostEqual(0.37, effective_feerate([(34, 100)]))
+        # a parent paying a higher feerate gets mined on its own, it does not lift the tx
+        self.assertAlmostEqual(0.4, effective_feerate([(100, 100)]))
+        # the size of the parent matters, not only its fee
+        self.assertAlmostEqual(0.15, effective_feerate([(20, 300)]))
+        # the grandparent paying a high feerate gets mined on its own,
+        # and the tx is left with the parent paying a low feerate
+        self.assertAlmostEqual(0.25, effective_feerate([(10, 100), (1000, 100)]))
+        # the parent cannot lift the grandparent on its own, so the tx pays for both
+        self.assertAlmostEqual(1 / 3, effective_feerate([(50, 100), (10, 100)]))
 
     async def test_sweep_uncompressed_p2pk(self):
         class NetworkMock:
