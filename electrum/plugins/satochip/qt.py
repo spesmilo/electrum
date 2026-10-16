@@ -24,7 +24,7 @@ from electrum.hw_wallet.qt import QtHandlerBase, QtPluginBase
 from .satochip import SatochipPlugin
 
 # pysatochip
-from pysatochip.CardConnector import UnexpectedSW12Error, CardError, CardNotPresentError, WrongPinError
+from pysatochip.CardConnector import UnexpectedSW12Error, CardError, CardNotPresentError, WrongPinError, PinRequiredError
 from pysatochip.Satochip2FA import Satochip2FA, SERVER_LIST
 from pysatochip.version import SATOCHIP_PROTOCOL_MAJOR_VERSION, SATOCHIP_PROTOCOL_MINOR_VERSION
 
@@ -306,7 +306,17 @@ class SatochipSettingsDialog(WindowModalDialog):
                 self.needs_SC.setText('<tt>%s' % "no")
 
             # card label
-            (response, sw1, sw2, label) = client.cc.card_get_label()
+            try:
+                (response, sw1, sw2, label) = client.cc.card_get_label()
+            except PinRequiredError:
+                # reading the label requires PIN authentication but no PIN is cached:
+                # ask the user for the PIN (interactive variant) and retry once
+                try:
+                    client.cc.card_verify_PIN()
+                    (response, sw1, sw2, label) = client.cc.card_get_label()
+                except Exception as e:
+                    _logger.warning(f"show_values: could not read card label: {e!r}")
+                    label = "(unknown)"
             if label == "":
                 label = "(none)"
             self.card_label.setText('<tt>%s' % label)
@@ -638,7 +648,18 @@ class SatochipSettingsDialog(WindowModalDialog):
             return
 
         # set new label
-        (response, sw1, sw2) = client.cc.card_set_label(label)
+        try:
+            (response, sw1, sw2) = client.cc.card_set_label(label)
+        except PinRequiredError:
+            # setting the label requires PIN authentication but no PIN is cached:
+            # ask the user for the PIN (interactive variant) and retry once
+            try:
+                client.cc.card_verify_PIN()
+                (response, sw1, sw2) = client.cc.card_set_label(label)
+            except Exception as e:
+                _logger.warning(f"change_card_label: could not set card label: {e!r}")
+                self.window.show_error(_("Error while changing label: the card could not be unlocked with your PIN!"))
+                return
         if sw1 == 0x90 and sw2 == 0x00:
             self.window.show_message(_("Card label changed successfully!"))
         elif sw1 == 0x6D and sw2 == 0x00:
