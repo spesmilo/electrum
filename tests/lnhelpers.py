@@ -224,7 +224,7 @@ class MockStandardWallet(Standard_Wallet):
         ln_xprv = self.db.get('lightning_xprv') or self.db.get('lightning_privkey2')
         assert ln_xprv
         self.lnworker = MockLNWallet(self)
-        self.lnworker.load_secrets()
+        self.lnworker.load_secrets(None)
 
     def basename(self):
         passphrase = self.db.get("keystore").get("passphrase")

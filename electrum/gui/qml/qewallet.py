@@ -424,7 +424,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
     @pyqtProperty(str, notify=dataChanged)
     def lightningNodePubkey(self):
-        return self.wallet.lnworker.node_keypair.pubkey.hex() if self.wallet.has_lightning() else ''
+        return self.wallet.lnworker.node_keypair.pubkey.hex() if self.wallet.is_lightning_loaded() else ''
 
     @pyqtProperty(bool, notify=dataChanged)
     def lightningHasDeterministicNodeId(self):

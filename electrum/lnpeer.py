@@ -21,7 +21,7 @@ import aiorpcx
 from aiorpcx import ignore_after
 
 from .lrucache import LRUCache
-from .crypto import sha256, sha256d, privkey_to_pubkey
+from .crypto import sha256, sha256d, privkey_to_pubkey, pw_encode
 from . import bitcoin, util
 from . import constants
 from .util import (log_exceptions, ignore_exceptions, chunks, OldTaskGroup,
@@ -1255,8 +1255,8 @@ class Peer(Logger, EventListener):
             "local_config": local_config,
             # our channel secrets. everything else we need is derived from the seed.
             # (see ChannelKeys)
-            "channel_seed": local_keys.channel_seed.hex(),
-            "multisig_privkey": local_keys.multisig_key.privkey.hex(),
+            "channel_seed": pw_encode(local_keys.channel_seed.hex(), self.lnworker.pw_key),
+            "multisig_privkey": pw_encode(local_keys.multisig_key.privkey.hex(), self.lnworker.pw_key),
             "funding_locked_received": False,
             "constraints": constraints,
             "remote_update": None,

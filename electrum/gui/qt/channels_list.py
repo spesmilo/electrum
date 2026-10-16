@@ -366,7 +366,7 @@ class ChannelsList(MyTreeView):
         menu.addAction(_("Import channel backup"), lambda: self.main_window.do_process_from_text_channel_backup())
         # only enable menu if has LN. Or we could selectively enable menu items?
         #     and maybe add item "main_window.init_lightning_dialog()" when applicable
-        menu.setEnabled(self.wallet.has_lightning())
+        menu.setEnabled(self.wallet.is_lightning_loaded())
         self.new_channel_button = EnterButton(_('New Channel'), self.main_window.new_channel_dialog)
         if not self.wallet.can_have_lightning():
             self.new_channel_button.setEnabled(False)

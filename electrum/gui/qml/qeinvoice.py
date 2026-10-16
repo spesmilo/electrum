@@ -586,7 +586,7 @@ class QEInvoiceParser(QEInvoice):
                 return
             elif self._pi.type == PaymentIdentifierType.BOLT11:
                 lninvoice = self._pi.bolt11
-                if not self._wallet.wallet.has_lightning() and not lninvoice.get_address():
+                if not self._wallet.wallet.is_lightning_loaded() and not lninvoice.get_address():
                     self.validationError.emit('no_lightning',
                         _('Detected valid Lightning invoice, but Lightning not enabled for wallet and no fallback address found.'))
                     return
@@ -596,7 +596,7 @@ class QEInvoiceParser(QEInvoice):
                 self.setValidLightningInvoice(lninvoice)
                 self.validationSuccess.emit()
             elif self._pi.type == PaymentIdentifierType.BIP21:
-                if self._wallet.wallet.has_lightning() and self._wallet.wallet.lnworker.channels and self._pi.bolt11:
+                if self._wallet.wallet.is_lightning_loaded() and self._wallet.wallet.lnworker.channels and self._pi.bolt11:
                     lninvoice = self._pi.bolt11
                     self.setValidLightningInvoice(lninvoice)
                     self.validationSuccess.emit()

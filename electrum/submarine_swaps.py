@@ -25,7 +25,7 @@ from collections import defaultdict
 from .i18n import _
 from .interface import TxBroadcastError
 from .logging import Logger
-from .crypto import sha256, ripemd
+from .crypto import sha256, ripemd, pw_encode, pw_decode, PasswordKey
 from .bitcoin import (script_to_p2wsh, opcodes, dust_threshold, DummyAddress, construct_witness,
                       construct_script, address_to_script)
 from . import bitcoin
@@ -37,9 +37,9 @@ from .transaction import (
 from .util import (
     log_exceptions, ignore_exceptions, BelowDustLimit, OldTaskGroup, ca_path, gen_nostr_ann_pow,
     get_nostr_ann_pow_amount, make_aiohttp_proxy_connector, get_running_loop, get_asyncio_loop, wait_for2,
-    run_sync_function_on_asyncio_thread, trigger_callback, NoDynamicFeeEstimates, UserFacingException, now
+    run_sync_function_on_asyncio_thread, trigger_callback, NoDynamicFeeEstimates, UserFacingException, now, bfh
 )
-from .lnutil import hex_to_bytes, Keypair, SENT, RECEIVED, MIN_FINAL_CLTV_DELTA_ACCEPTED, PaymentFailure
+from .lnutil import hex_to_bytes, Keypair, SENT, RECEIVED, MIN_FINAL_CLTV_DELTA_ACCEPTED, PaymentFailure, LightningLocked
 from .bolt11 import decode_bolt11_invoice
 from .stored_dict import StoredObject, stored_at
 from . import constants
@@ -212,9 +212,10 @@ class SwapData(StoredObject):
     onchain_amount: int  # in sats
     lightning_amount: int  # in sats
     redeem_script: bytes
-    preimage: Optional[bytes]
+    # preimage and privkey are encrypted if the wallet has a password, see unlock()
+    preimage: Optional[str]
     prepay_hash: Optional[bytes]
-    privkey: bytes
+    privkey: str
     lockup_address: str
     claim_to_output: Optional[Tuple[str, int]]  # address, amount to claim the funding utxo to
     funding_txid: Optional[str]
@@ -224,14 +225,35 @@ class SwapData(StoredObject):
     def __post_init__(self):
         # bytes are stored as hex
         self.redeem_script = hex_to_bytes(self.redeem_script)
-        self.preimage = hex_to_bytes(self.preimage)
         self.prepay_hash = hex_to_bytes(self.prepay_hash)
-        self.privkey = hex_to_bytes(self.privkey)
 
     _funding_prevout = None  # type: Optional[TxOutpoint]  # for RBF
     _payment_hash = None
     _payment_pending = False # for forward swaps
     _is_cancelled = False  # forward swaps: funding must not be broadcast
+    _privkey = None  # type: Optional[bytes]
+    _preimage = None  # type: Optional[bytes]
+
+    def unlock(self, pw_key: Optional[PasswordKey]) -> None:
+        """Decrypts our secrets. (note: attributes with a leading underscore are not
+        written to the db, see StoredObject)
+        """
+        self._privkey = bfh(pw_decode(self.privkey, pw_key))
+        self._preimage = bfh(pw_decode(self.preimage, pw_key)) if self.preimage else None
+
+    def get_privkey(self) -> bytes:
+        if self._privkey is None:
+            raise LightningLocked()
+        return self._privkey
+
+    def get_preimage(self) -> Optional[bytes]:
+        if self._privkey is None:  # not unlocked yet
+            raise LightningLocked()
+        return self._preimage
+
+    def set_preimage(self, preimage: bytes, pw_key: Optional[PasswordKey]) -> None:
+        self.preimage = pw_encode(preimage.hex(), pw_key)
+        self._preimage = preimage
 
     @property
     def payment_hash(self) -> bytes:
@@ -294,6 +316,10 @@ class SwapManager(Logger):
         self._stopping_server = False
         self.is_initialized = asyncio.Event()
         self.pairs_updated = asyncio.Event()
+
+    def unlock_swaps(self, pw_key: Optional[PasswordKey]) -> None:
+        for swap in self._swaps.values():
+            swap.unlock(pw_key)
 
     def load_secrets(self) -> None:
         """Called by lnworker.load_secrets"""
@@ -641,7 +667,7 @@ class SwapManager(Logger):
             spent_height = None
         spender_is_final = spent_height is not None and spent_height > TX_HEIGHT_UNCONFIRMED \
                                 and current_height - spent_height >= SPENDER_FINALITY_DELAY
-        if spender_is_final and swap.preimage:
+        if spender_is_final and swap.get_preimage():
             self.logger.info(f'stop watching swap {swap.lockup_address}')
             swap.is_redeemed = True
             # cleanup
@@ -652,9 +678,9 @@ class SwapManager(Logger):
 
         public_preimage = self._get_public_preimage(swap)
         if not swap.is_reverse:
-            if swap.preimage is None and spent_height is not None:
+            if swap.get_preimage() is None and spent_height is not None:
                 if public_preimage:  # add it to lnwatcher
-                    swap.preimage = public_preimage
+                    swap.set_preimage(public_preimage, self.lnworker.pw_key)
                     self.logger.info(f'found preimage: {public_preimage.hex()}')
                     self.lnworker.save_preimage(swap.payment_hash, public_preimage, mark_as_public=True)
                 else:
@@ -668,11 +694,11 @@ class SwapManager(Logger):
             if remaining_time > 0:
                 # too early for refund
                 return
-            if swap.preimage:
+            if swap.get_preimage():
                 # we have been paid. do not try to get refund.
                 return
         else:
-            assert swap.preimage, f"reverse swap missing preimage? {swap.payment_hash.hex()=}"
+            assert swap.get_preimage(), f"reverse swap missing preimage? {swap.payment_hash.hex()=}"
             # if we revealed the preimage before we must continue trying to claim
             if remaining_time <= MIN_LOCKTIME_DELTA_FOR_CLAIM and public_preimage is None:
                 self.logger.warning(f'not claiming reverse swap {swap.payment_hash.hex()}, locktime too close: {remaining_time=}')
@@ -921,10 +947,11 @@ class SwapManager(Logger):
             prepay_hash = None
 
         lockup_address = script_to_p2wsh(redeem_script)
+        pw_key = self.lnworker.pw_key
         swap = SwapData(
             redeem_script=redeem_script,
             locktime=locktime,
-            privkey=our_privkey,
+            privkey=pw_encode(our_privkey.hex(), pw_key),
             preimage=None,
             prepay_hash=prepay_hash,
             lockup_address=lockup_address,
@@ -936,6 +963,7 @@ class SwapManager(Logger):
             funding_txid=None,
             spending_txid=None,
         )
+        swap.unlock(pw_key)
         self._add_swap(payment_hash, swap)
         self.add_lnwatcher_callback(swap)
         return swap, invoice, prepay_invoice
@@ -992,11 +1020,12 @@ class SwapManager(Logger):
             # there are no funds left for the fee of the claim tx
             assert claim_to_output.value < onchain_amount_sat, f"{claim_to_output=} >= {onchain_amount_sat=}"
             claim_to_output = (claim_to_output.address, claim_to_output.value)
+        pw_key = self.lnworker.pw_key
         swap = SwapData(
             redeem_script=redeem_script,
             locktime=locktime,
-            privkey=privkey,
-            preimage=preimage,
+            privkey=pw_encode(privkey.hex(), pw_key),
+            preimage=pw_encode(preimage.hex(), pw_key),
             prepay_hash=prepay_hash,
             lockup_address=lockup_address,
             onchain_amount=onchain_amount_sat,
@@ -1007,6 +1036,7 @@ class SwapManager(Logger):
             funding_txid=None,
             spending_txid=None,
         )
+        swap.unlock(pw_key)
         if prepay_hash:
             if prepay_hash in self._prepayments:
                 raise Exception("prepay_hash already in use")
@@ -1031,10 +1061,10 @@ class SwapManager(Logger):
             assert swap.lightning_amount == int(invoice.get_amount_sat())
             assert swap.is_reverse is True
             # check that we have the preimage
-            assert sha256(swap.preimage) == payment_hash
+            assert sha256(swap.get_preimage()) == payment_hash
             assert swap.spending_txid is None
             # check their_pubkey by recalculating redeem_script
-            our_pubkey = ECPrivkey(swap.privkey).get_public_key_bytes(compressed=True)
+            our_pubkey = ECPrivkey(swap.get_privkey()).get_public_key_bytes(compressed=True)
             redeem_script = _construct_swap_scriptcode(
                 payment_hash=payment_hash, locktime=swap.locktime, refund_pubkey=their_pubkey, claim_pubkey=our_pubkey,
             )
@@ -1174,7 +1204,7 @@ class SwapManager(Logger):
     ) -> Optional[str]:
         await transport.is_connected.wait()
         payment_hash = swap.payment_hash
-        refund_pubkey = ECPrivkey(swap.privkey).get_public_key_bytes(compressed=True)
+        refund_pubkey = ECPrivkey(swap.get_privkey()).get_public_key_bytes(compressed=True)
         lightning_payment = asyncio.Event()
         async def lightning_payment_callback(_payment_hash):
             try:
@@ -1584,7 +1614,7 @@ class SwapManager(Logger):
         """Add some info to a claim txin.
         note: even without signing, this is useful for tx size estimation.
         """
-        preimage = swap.preimage if swap.is_reverse else 0
+        preimage = swap.get_preimage() if swap.is_reverse else 0
         witness_script = swap.redeem_script
         txin.script_sig = b''
         txin.witness_script = witness_script
@@ -1610,10 +1640,10 @@ class SwapManager(Logger):
         else:  # timing out forward swap
             locktime = swap.locktime
         cls.add_txin_info(swap, txin)
-        txin.privkey = swap.privkey
+        txin.privkey = swap.get_privkey()
         def make_witness(sig):
             # preimae not known yet
-            preimage = swap.preimage if swap.is_reverse else 0
+            preimage = swap.get_preimage() if swap.is_reverse else 0
             witness_script = swap.redeem_script
             return construct_witness([sig, preimage, witness_script])
         txin.make_witness = make_witness

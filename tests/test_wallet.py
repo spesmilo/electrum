@@ -19,7 +19,7 @@ from electrum.util import TxMinedInfo, InvalidPassword
 from electrum.bitcoin import COIN
 from electrum.wallet_db import WalletDB, JsonDB
 from electrum.simple_config import SimpleConfig
-from electrum import util, storage, keystore
+from electrum import util, storage, keystore, lnutil
 from electrum.daemon import Daemon
 from electrum.invoices import PR_UNPAID, PR_PAID, PR_UNCONFIRMED
 from electrum.transaction import tx_from_any
@@ -320,8 +320,16 @@ class TestCreateRestoreWallet(WalletTestCase):
                               config=self.config)
         wallet = d['wallet']  # type: Standard_Wallet
 
-        # lightning initialization
-        self.assertTrue(wallet.db.get('lightning_xprv').startswith('zprv'))
+        # lightning initialization. the xprv is stored encrypted, as the wallet has a password
+        self.assertFalse(wallet.db.get('lightning_xprv').startswith('zprv'))
+        ln_pw_key = wallet.db.get_pw_key(password).child(lnutil.PW_KEY_MAGIC)
+        ln_xprv = crypto.pw_decode(wallet.db.get('lightning_xprv'), ln_pw_key)
+        self.assertTrue(ln_xprv.startswith('zprv'))
+        # lightning keeps its key in memory: it must not decrypt the keystore
+        wallet.unlock(password)
+        self.assertEqual(ln_pw_key.secret, wallet.lnworker.pw_key.secret)
+        with self.assertRaises(InvalidPassword):
+            wallet.keystore._check_password(wallet.lnworker.pw_key)
 
         wallet.check_password(password)
         self.assertEqual(passphrase, wallet.keystore.get_passphrase(password))

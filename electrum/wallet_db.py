@@ -35,14 +35,14 @@ import dataclasses
 from . import bitcoin
 from . import constants
 from .bolt11 import BOLT11InvoiceException
+from .crypto import PasswordKey, make_pw_salt, pw_encode, pw_decode, PW_HASH_VERSION_LATEST
 from .util import profiler, WalletFileException, multisig_type, TxMinedInfo, MyEncoder, bfh
 from .keystore import bip44_derivation
 from .transaction import (Transaction, TxOutpoint, tx_from_any, PartialTransaction, PartialTxOutput, BadHeaderMagic,
                           BCDataStream)
 from .logging import Logger
-from .crypto import PasswordKey, make_pw_salt, PW_HASH_VERSION_LATEST
 
-from .lnutil import HTLCOwner, ChannelType, RecvMPPResolution
+from .lnutil import HTLCOwner, ChannelType, RecvMPPResolution, PW_KEY_MAGIC
 from .json_db import JsonDB, locked, modifier
 from . import stored_dict
 from .stored_dict import StoredObject, stored_at, register_key, register_name
@@ -1769,6 +1769,36 @@ class WalletDB(JsonDB):
         if new_password == self._unlocked_password:
             self._unlocked_pw_key = pw_key  # the wallet stays unlocked with the new salt
         return pw_key
+
+    def reencrypt_lightning_secrets(
+            self, old_pw_key: Optional[PasswordKey], new_pw_key: Optional[PasswordKey]
+    ) -> None:
+        """Re-encrypts the lightning secrets stored in the db, with keys derived from the
+        given ones (see lnutil.PW_KEY_MAGIC).
+
+        This works on the stored form of the secrets, so it does not need lightning to be
+        loaded: it is also how a wallet that still holds them in plaintext gets migrated.
+        """
+        if old_pw_key is None and new_pw_key is None:
+            return
+        old_pw_key = old_pw_key and old_pw_key.child(PW_KEY_MAGIC)
+        new_pw_key = new_pw_key and new_pw_key.child(PW_KEY_MAGIC)
+        recode = lambda x: pw_encode(pw_decode(x, old_pw_key), new_pw_key) if x else x
+        for name in ('lightning_xprv', 'lightning_privkey2'):
+            if value := self.get(name):
+                self.put(name, recode(value))
+        for channel_id, chan in self.get_dict('channels').items():
+            for name in ('channel_seed', 'multisig_privkey'):
+                chan[name] = recode(chan[name])
+        backups = self.get_dict('imported_channel_backups')
+        for channel_id, backup in list(backups.items()):
+            backups[channel_id] = recode(backup)
+        preimages = self.get_dict('lightning_preimages')
+        for payment_hash, (preimage, is_public) in list(preimages.items()):
+            preimages[payment_hash] = (recode(preimage), is_public)
+        for key, swap in self.get_dict('submarine_swaps').items():
+            swap.privkey = recode(swap.privkey)
+            swap.preimage = recode(swap.preimage)
 
     @locked
     def get_seed_version(self):

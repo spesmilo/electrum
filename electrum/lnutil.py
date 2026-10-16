@@ -44,6 +44,9 @@ if TYPE_CHECKING:
 
 _logger = get_logger(__name__)
 
+# lightning keeps its key in memory: it uses one derived from the wallet key (see #4909)
+PW_KEY_MAGIC = b'lightning'
+
 
 # defined in BOLT-03:
 HTLC_TIMEOUT_WEIGHT_SRK = 663
@@ -658,6 +661,12 @@ class InvalidGossipMsg(Exception):
 
 
 class PaymentFailure(UserFacingException): pass
+
+
+class LightningLocked(UserFacingException):
+    """Our lightning secrets are encrypted, and the wallet has not been unlocked yet."""
+    def __init__(self):
+        UserFacingException.__init__(self, 'Lightning is locked. Unlock the wallet first.')
 class PaymentSuccess(Exception): pass
 
 

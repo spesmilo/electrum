@@ -30,7 +30,6 @@ from .server import HttpSwapServer
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
-    from electrum.daemon import Daemon
     from electrum.wallet import Abstract_Wallet
 
 
@@ -43,14 +42,11 @@ class SwapServerPlugin(BasePlugin):
         self.sm = None
 
     @hook
-    def daemon_wallet_loaded(self, daemon: 'Daemon', wallet: 'Abstract_Wallet'):
+    def lightning_loaded(self, wallet: 'Abstract_Wallet'):
         # we use the first wallet loaded
         # note: self.server must be set, otherwise we would start a second server (on the same
         #       port, with the same nostr identity) for every further wallet that gets loaded.
         if self.server is not None:
-            return
-        if wallet.lnworker is None:
-            self.logger.info(f"wallet {wallet.diagnostic_name()} has no lightning, cannot serve swaps with it")
             return
         self.server = HttpSwapServer(self.config, wallet)
         self.sm = wallet.lnworker.swap_manager

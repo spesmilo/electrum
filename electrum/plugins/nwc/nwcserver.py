@@ -66,7 +66,7 @@ class NWCServerPlugin(BasePlugin):
         self.logger.debug(f"NWCServerPlugin created, waiting for wallet to load...")
 
     def start_plugin(self, wallet: 'Abstract_Wallet'):
-        if not wallet.has_lightning():
+        if not wallet.is_lightning_loaded():
             return
         if self.initialized:
             # this might be called for several wallets. only use one.
@@ -77,6 +77,10 @@ class NWCServerPlugin(BasePlugin):
         self.nwc_server = NWCServer(self.config, wallet, self.connections)
         asyncio.run_coroutine_threadsafe(self.taskgroup.spawn(self.nwc_server.run()), get_asyncio_loop())
         self.initialized = True
+
+    @hook
+    def lightning_loaded(self, wallet: 'Abstract_Wallet'):
+        self.start_plugin(wallet)
 
     @hook
     def close_wallet(self, wallet: 'Abstract_Wallet', *args, **kwargs):

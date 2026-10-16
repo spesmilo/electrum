@@ -70,7 +70,7 @@ from .wallet import (
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from .mnemonic import Mnemonic
 from .lnutil import (channel_id_from_funding_tx, LnFeatures, SENT, RECEIVED, MIN_FINAL_CLTV_DELTA_ACCEPTED,
-                     PaymentFeeBudget, NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE)
+                     PaymentFeeBudget, NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, LightningLocked)
 from .plugin import run_hook, DeviceMgr, Plugins
 from .version import ELECTRUM_VERSION
 from .simple_config import SimpleConfig
@@ -205,6 +205,8 @@ def command(s):
                     raise UserFacingException(str(e)) from None
             if cmd.requires_lightning and (not wallet or not wallet.has_lightning()):
                 raise UserFacingException('Lightning not enabled in this wallet')
+            if cmd.requires_lightning and cmd.requires_network and not wallet.is_lightning_loaded():
+                raise LightningLocked()
             return await func(*args, **kwargs)
         return func_wrapper
     return decorator
@@ -286,15 +288,23 @@ class Commands(Logger):
         ]
 
     @command('n')
-    async def load_wallet(self, wallet_path=None, password=None):
+    async def load_wallet(self, wallet_path=None, password=None, unlock: bool = False):
         """
         Load the wallet in memory
+
+        arg:bool:unlock:Unlock the wallet, so that lightning can run
         """
-        wallet = self.daemon.load_wallet(wallet_path, password, upgrade=True)
+        try:
+            wallet = self.daemon.load_wallet(wallet_path, password, upgrade=True, unlock=unlock)
+        except InvalidPassword as e:
+            raise UserFacingException(str(e)) from None
         if wallet is None:
             raise UserFacingException('could not load wallet')
         run_hook('load_wallet', wallet, None)
-        return wallet_path
+        if not wallet.is_unlocked() and wallet.has_lightning():
+            # the gui can ask for the password when a channel is force closed (anchors), the daemon cannot
+            return "wallet loaded. Warning: lightning requires the wallet to be unlocked. Run 'unlock', or 'load_wallet --unlock'"
+        return 'wallet loaded'
 
     @command('n')
     async def close_wallet(self, wallet_path=None):

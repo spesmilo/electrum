@@ -11,8 +11,13 @@ from electrum.wallet_db import (WalletDBUpgrader, WalletDB, WalletRequiresUpgrad
                                 WalletRequiresSplit, FINAL_SEED_VERSION)
 from electrum.bolt11 import BOLT11DecodeException
 from electrum.wallet import Wallet
+from electrum.storage import WalletStorage
+from electrum.daemon import Daemon
 from electrum import constants
 from electrum import util
+from electrum import crypto
+from electrum import keystore
+from electrum.lnutil import PW_KEY_MAGIC, LightningLocked
 from electrum.plugin import Plugins
 from electrum.simple_config import SimpleConfig
 
@@ -468,6 +473,131 @@ class TestStorageUpgrade(WalletTestCase):
                     data = json.dumps(item)
                     new_db = WalletDB(data, storage=None, upgrade=True)
                     await self._sanity_check_upgraded_db(new_db)
+
+    @as_regtest
+    async def test_lightning_secrets_are_encrypted_with_password(self):
+        """Setting a password encrypts the lightning secrets in the wallet file, and
+        lightning then only starts once we have the password again. (see #4909)
+        """
+        password = "1234"
+        with open(self.get_wallet_file_path('client_4_6_0_with_unfulfilled_htlcs')) as f:
+            wallet_str = f.read()
+        storage = WalletStorage(self.wallet_path)
+        db = WalletDB(wallet_str, storage=storage, upgrade=True)
+        wallet = Wallet(db, config=self.config)
+        self.assertTrue(wallet.lnworker)  # no password: lightning runs right away
+        channel_id = list(db.get_dict('channels'))[0]
+        wallet.save_db()
+
+        wallet.update_password(None, password, encrypt_storage=False)
+        stored = json.loads(db.dump())
+        self.assertFalse(stored['lightning_xprv'].startswith('vprv'))
+        for name in ('channel_seed', 'multisig_privkey'):
+            self.assertNotEqual(64, len(stored['channels'][channel_id][name]), f'{name} is not encrypted')
+        self.assertEqual(crypto.PW_HASH_SALT_LENGTH, len(bytes.fromhex(db.get('pw_salt'))))
+        await wallet.stop()
+
+        # the file is not encrypted, so lightning waits for the wallet to be unlocked
+        wallet = Daemon._load_wallet(self.wallet_path, None, config=self.config)
+        self.assertFalse(wallet.is_lightning_loaded())
+        # but our channels can be read
+        chan = wallet.lnworker.channels[bytes.fromhex(channel_id)]
+        self.assertEqual(channel_id, chan.channel_id.hex())
+        with self.assertRaises(LightningLocked):
+            chan.keys
+        with self.assertRaises(LightningLocked):
+            wallet.lnworker.node_keypair
+        wallet.unlock(password)
+        self.assertTrue(wallet.is_lightning_loaded())
+        keys = wallet.lnworker.channels[bytes.fromhex(channel_id)].keys
+        self.assertEqual(32, len(keys.channel_seed))
+        self.assertEqual(32, len(keys.multisig_key.privkey))
+        await wallet.stop()
+
+        # removing the password puts them back in plaintext
+        wallet = Daemon._load_wallet(self.wallet_path, None, config=self.config)
+        wallet.update_password(password, None, encrypt_storage=False)
+        stored = json.loads(wallet.db.dump())['channels'][channel_id]
+        self.assertEqual(64, len(stored['channel_seed']))
+        self.assertIsNone(wallet.db.get('pw_salt'))
+        await wallet.stop()
+
+    @as_regtest
+    async def test_lightning_secrets_follow_keystore_encryption(self):
+        """Without a software keystore (hw device, watching-only), lightning secrets stay in
+        plaintext, even if the file is encrypted. Enabling the keystore encrypts them. (see #4909)
+        """
+        password = "1234"
+        with open(self.get_wallet_file_path('client_4_6_0_with_unfulfilled_htlcs')) as f:
+            wallet_dict = json.loads(f.read())
+        ks = keystore.from_xprv(wallet_dict['keystore'].pop('xprv'))
+        wallet_dict['keystore'].pop('seed', None)
+        storage = WalletStorage(self.wallet_path)
+        db = WalletDB(json.dumps(wallet_dict), storage=storage, upgrade=True)
+        wallet = Wallet(db, config=self.config)
+        self.assertTrue(wallet.is_watching_only())
+        channel_id = list(db.get_dict('channels'))[0]
+        wallet.update_password(None, password, encrypt_storage=True)
+        self.assertIsNone(db.get('pw_salt'))
+        self.assertEqual(64, len(json.loads(db.dump())['channels'][channel_id]['channel_seed']))
+        await wallet.stop()
+
+        wallet = Daemon._load_wallet(self.wallet_path, password, config=self.config)
+        self.assertTrue(wallet.lnworker)
+        self.assertIsNone(wallet.db.get('pw_salt'))
+        # enabling the keystore encrypts the lightning secrets, for the running lnworker too
+        wallet.enable_keystore(ks, False, password)
+        self.assertEqual(wallet.db.get_pw_key(password).child(PW_KEY_MAGIC).secret, wallet.lnworker.pw_key.secret)
+        self.assertNotEqual(64, len(json.loads(wallet.db.dump())['channels'][channel_id]['channel_seed']))
+        wallet.save_db()
+        await wallet.stop()
+
+        wallet = Daemon._load_wallet(self.wallet_path, password, config=self.config)
+        keys = wallet.lnworker.channels[bytes.fromhex(channel_id)].keys
+        self.assertEqual(32, len(keys.channel_seed))
+        await wallet.stop()
+
+    @as_regtest
+    async def test_legacy_secrets_are_migrated_when_opening_encrypted_file(self):
+        """A wallet written before #4909 has its keystore on pw hash version 1 and its
+        lightning secrets in plaintext. They now share a single salt, so they are
+        migrated together, the first time the file is opened with the password at hand.
+        """
+        password = "1234"
+        with open(self.get_wallet_file_path('client_4_6_0_with_unfulfilled_htlcs')) as f:
+            wallet_str = f.read()
+        storage = WalletStorage(self.wallet_path)
+        db = WalletDB(wallet_str, storage=storage, upgrade=True)
+        wallet = Wallet(db, config=self.config)
+        channel_id = list(db.get_dict('channels'))[0]
+        wallet.save_db()
+
+        # encrypt the file, then put the secrets back the way an older electrum left them
+        wallet.update_password(None, password, encrypt_storage=True)
+        ks = wallet.keystore
+        ks.reencrypt_secrets(ks.get_pw_key(password), crypto.PasswordKey(password, version=1))
+        self.assertEqual(1, ks.pw_hash_version)
+        wallet.save_keystore()
+        db.reencrypt_lightning_secrets(db.get_pw_key(password), None)
+        db.set_new_pw_params(None)
+        self.assertEqual(
+            64, len(json.loads(db.dump())['channels'][channel_id]['channel_seed']))
+        db.write_and_force_consolidation()
+        await wallet.stop()
+
+        # opening the file hands us the password, so both migrations happen right then
+        wallet = Daemon._load_wallet(self.wallet_path, password, config=self.config)
+        self.assertEqual(crypto.PW_HASH_VERSION_LATEST, wallet.keystore.pw_hash_version)
+        self.assertEqual(crypto.PW_HASH_SALT_LENGTH, len(bytes.fromhex(wallet.db.get('pw_salt'))))
+        stored = json.loads(wallet.db.dump())
+        self.assertFalse(stored['lightning_xprv'].startswith('vprv'))
+        self.assertNotEqual(64, len(stored['channels'][channel_id]['channel_seed']))
+        wallet.check_password(password)
+        # the file is encrypted, so lightning runs without the wallet being unlocked
+        self.assertTrue(wallet.lnworker)
+        keys = wallet.lnworker.channels[bytes.fromhex(channel_id)].keys
+        self.assertEqual(32, len(keys.channel_seed))
+        await wallet.stop()
 
     async def _sanity_check_upgraded_db(self, db):
         wallet = Wallet(db, config=self.config)

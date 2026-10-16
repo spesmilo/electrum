@@ -270,6 +270,13 @@ class PasswordKey:
         self.salt = salt
         self.secret = _hash_password(password, version=version, salt=salt)
 
+    def child(self, magic: bytes) -> 'PasswordKey':
+        """Returns a child key. Used by lightning."""
+        key = object.__new__(PasswordKey)
+        key.version, key.salt = self.version, self.salt
+        key.secret = hashlib.sha512(magic + self.secret).digest()[:32]
+        return key
+
 
 def make_pw_salt() -> bytes:
     return crandom.get_rand_bytes(PW_HASH_SALT_LENGTH)

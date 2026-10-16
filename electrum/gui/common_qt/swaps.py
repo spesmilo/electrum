@@ -52,7 +52,7 @@ class SubmarineSwapMixin(QtEventListener):
     def set_wallet_for_swap(self, wallet: 'Abstract_Wallet'):
         self.swap_wallet = wallet
         self.config = wallet.config
-        self.swap_manager = wallet.lnworker.swap_manager if wallet.has_lightning() else None
+        self.swap_manager = wallet.lnworker.swap_manager if wallet.is_lightning_loaded() else None
 
     # --- Shared functionality for submarine swaps (change to ln and submarine payments) ---
     def prepare_swap_transport(self):

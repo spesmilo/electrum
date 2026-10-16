@@ -55,7 +55,8 @@ from .transaction import (
     Transaction, get_script_type_from_output_script, PartialTxOutput, PartialTransaction, PartialTxInput
 )
 from .crypto import (
-    sha256, chacha20_encrypt, chacha20_decrypt, pw_encode_with_xpub, pw_decode_with_version_and_mac
+    sha256, chacha20_encrypt, chacha20_decrypt, pw_encode_with_xpub, pw_decode_with_version_and_mac,
+    pw_encode, pw_decode, PasswordKey,
 )
 
 from .onion_message import OnionMessageManager
@@ -74,7 +75,7 @@ from .lnutil import (
     OnchainChannelBackupStorage, ln_compare_features, IncompatibleLightningFeatures, PaymentFeeBudget,
     NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, GossipForwardingMessage, MIN_FUNDING_SAT,
     MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE, RecvMPPResolution, ReceivedMPPStatus, ReceivedMPPHtlc,
-    PaymentSuccess, ChannelType, ChannelConfig, ChannelKeys, Keypair, ZEROCONF_TIMEOUT,
+    PaymentSuccess, ChannelType, ChannelConfig, ChannelKeys, Keypair, ZEROCONF_TIMEOUT, LightningLocked,
 )
 from .lnonion import (
     decode_onion_error, OnionFailureCode, OnionRoutingFailure, OnionPacket,
@@ -413,7 +414,7 @@ class LNPeerManager(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         """Check if node_id is one of our own wallets"""
         wallets = self.network.daemon.get_wallets()
         for wallet in wallets.values():
-            if wallet.has_lightning() and wallet.lnworker.node_keypair.pubkey == node_id:
+            if wallet.is_lightning_loaded() and wallet.lnworker.node_keypair.pubkey == node_id:
                 return True
         return False
 
@@ -1000,9 +1001,34 @@ class PaySession(Logger):
         return nhtlcs_resolved == self._nhtlcs_inflight
 
 
+class _Secret:
+    """An attribute of LNWallet that can only be read once its secrets are loaded."""
+    def __set_name__(self, owner, name):
+        self.name = '_' + name
+
+    def __get__(self, lnworker: 'LNWallet', owner=None):
+        if lnworker is None:
+            return self
+        if not lnworker.has_secrets():
+            raise LightningLocked()
+        return getattr(lnworker, self.name)
+
+    def __set__(self, lnworker: 'LNWallet', value):
+        setattr(lnworker, self.name, value)
+
+
 class LNWallet(Logger):
 
     lnwatcher: Optional['LNWatcher']
+    # the key our secrets in the db are encrypted with. Lightning has to sign without
+    # user interaction, so we keep it for as long as we run. (see #4909)
+    pw_key = _Secret()  # type: Optional[PasswordKey]
+    node_keypair = _Secret()  # type: Keypair
+    backup_key = _Secret()  # type: bytes
+    static_payment_key = _Secret()  # type: Keypair
+    payment_secret_key = _Secret()  # type: bytes
+    funding_root_keypair = _Secret()  # type: Keypair
+    nostr_keypair = _Secret()  # type: Keypair
     MPP_EXPIRY = 120
     TIMEOUT_SHUTDOWN_FAIL_PENDING_HTLCS = 3  # seconds
     PAYMENT_TIMEOUT = 120
@@ -1094,11 +1120,13 @@ class LNWallet(Logger):
     def has_secrets(self) -> bool:
         return self._secrets_loaded
 
-    def load_secrets(self) -> None:
-        """Derives the keys we need to run lightning. They are not needed to read our channels."""
+    def load_secrets(self, pw_key: Optional[PasswordKey]) -> None:
+        """Decrypts our secrets with pw_key, derived from the wallet password. They are
+        needed to run lightning, but not to read our channels. (see #4909)"""
         assert not self._secrets_loaded
         ln_xprv = self.db.get('lightning_xprv') or self.db.get('lightning_privkey2')
-        node = BIP32Node.from_xkey(ln_xprv)
+        node = BIP32Node.from_xkey(pw_decode(ln_xprv, pw_key))
+        self.pw_key = pw_key
         self.node_keypair = generate_keypair(node, LnKeyFamily.NODE_KEY)
         self.backup_key = generate_keypair(node, LnKeyFamily.BACKUP_CIPHER).privkey
         self.static_payment_key = generate_keypair(node, LnKeyFamily.PAYMENT_BASE)
@@ -1109,12 +1137,21 @@ class LNWallet(Logger):
         self.lnpeermgr.node_keypair = self.node_keypair
         for chan in self._channels.values():
             chan.load_keys()
+        imported_backups = [
+            (bfh(channel_id), ImportedChannelBackupStorage.from_bytes(bfh(pw_decode(storage, pw_key))))
+            for channel_id, storage in self.db.get_dict("imported_channel_backups").items()]
+        self.swap_manager.unlock_swaps(pw_key)
         # imported backups overwrite onchain ones
-        for channel_id, storage in self.db.get_dict("imported_channel_backups").items():
-            storage = ImportedChannelBackupStorage.from_bytes(bytes.fromhex(storage))
-            self._add_channel_backup(bfh(channel_id), storage)
+        for channel_id, storage in imported_backups:
+            self._add_channel_backup(channel_id, storage)
         self.swap_manager.load_secrets()
         self.subscribe_to_channels()
+        if pw_key is not None:
+            # FIXME: this rescan would not be needed if backup_key was not encrypted
+            # while we were locked, the backups in the transactions we received could not be read
+            for txid in self.wallet.adb.db.list_verified_tx():
+                if tx := self.wallet.adb.db.get_transaction(txid):
+                    self.maybe_add_backup_from_tx(tx)
 
     def _add_channel_backup(self, channel_id: bytes, storage) -> None:
         assert isinstance(storage, (OnchainChannelBackupStorage, ImportedChannelBackupStorage))
@@ -1392,7 +1429,8 @@ class LNWallet(Logger):
             label = self.wallet.get_label_for_rhash(key)
             if not label and direction == PaymentDirection.FORWARDING:
                 label = _('Forwarding')
-            preimage = self.get_preimage(payment_hash).hex()
+            # preimages are encrypted
+            preimage = self.get_preimage(payment_hash).hex() if self.has_secrets() else None
             group_id = self.swap_manager.get_group_id_for_payment_hash(payment_hash)
             item = LightningHistoryItem(
                 type='payment',
@@ -2933,14 +2971,14 @@ class LNWallet(Logger):
         assert isinstance(preimage, bytes), f"expected bytes, but got {type(preimage)}"
         if sha256(preimage) != payment_hash:
             raise Exception("tried to save incorrect preimage for payment_hash")
-        old_tuple = _, old_is_public = self._preimages.get(payment_hash.hex(), (None, False))
+        old_preimage, old_is_public = self._preimages.get(payment_hash.hex(), (None, False))
+        old_preimage = old_preimage and pw_decode(old_preimage, self.pw_key)
         mark_as_public |= old_is_public  # disallow True->False transition
         # sanity checks and conversions done.
-        new_tuple = preimage.hex(), mark_as_public
-        if old_tuple == new_tuple:  # no change
+        if (old_preimage, old_is_public) == (preimage.hex(), mark_as_public):  # no change
             return
         self.logger.debug(f"saving preimage for {payment_hash.hex()} (public={mark_as_public})")
-        self._preimages[payment_hash.hex()] = new_tuple
+        self._preimages[payment_hash.hex()] = pw_encode(preimage.hex(), self.pw_key), mark_as_public
         if write_to_disk:
             self.wallet.save_db()
 
@@ -2949,7 +2987,7 @@ class LNWallet(Logger):
         preimage_hex, _ = self._preimages.get(payment_hash.hex(), (None, None))
         if preimage_hex is None:
             return None
-        preimage_bytes = bytes.fromhex(preimage_hex)
+        preimage_bytes = bfh(pw_decode(preimage_hex, self.pw_key))
         if sha256(preimage_bytes) != payment_hash:
             raise Exception("found incorrect preimage for payment_hash")
         return preimage_bytes
@@ -3922,7 +3960,7 @@ class LNWallet(Logger):
                 raise util.UserFacingException(_("You already have a newer version of this backup in your wallet."))
         self.logger.info(f'importing channel backup: {channel_id.hex()}')
         d = self.db.get_dict("imported_channel_backups")
-        d[channel_id.hex()] = cb_blob.hex()
+        d[channel_id.hex()] = pw_encode(cb_blob.hex(), self.pw_key)
         with self.lock:
             cb = ChannelBackup(cb_storage, lnworker=self)
             self._channel_backups[channel_id] = cb

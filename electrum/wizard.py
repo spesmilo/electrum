@@ -854,6 +854,8 @@ class NewWalletWizard(KeystoreWizard):
                 db.put('keystore', k.dump())
             db.put('addresses', addresses)
 
+        db.reencrypt_lightning_secrets(None, pw_key)  # encrypts the lightning secrets
+
         db.load_plugins()
         db.write()
 

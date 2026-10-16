@@ -543,7 +543,7 @@ class Daemon(Logger):
             upgrade: bool = False,
             config: SimpleConfig,
             unlock: bool = False,  # if set, always validate password, and unlock the wallet
-            check_only: bool = False,  # only checking the password: don't migrate
+            check_only: bool = False,  # only checking the password: don't migrate, don't load lightning
     ) -> Optional[Abstract_Wallet]:
         path = standardize_path(path)
         storage = WalletStorage(path, allow_partial_writes=config.WALLET_PARTIAL_WRITES)
@@ -563,7 +563,9 @@ class Daemon(Logger):
         if storage.is_encrypted_with_user_pw() and not check_only:
             # we just used the password to decrypt the file, so we have it at hand:
             # this is our chance to move the keystores to the latest KDF. (see #4909)
-            wallet.upgrade_pw_hash_version(password)
+            # and lightning can run without the wallet having to be unlocked
+            pw_key = wallet.upgrade_pw_hash_version(password)
+            wallet.load_lightning(password, pw_key=pw_key)
         return wallet
 
     @with_wallet_lock

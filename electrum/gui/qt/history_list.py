@@ -753,7 +753,8 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             menu.addAction(_("Details"), lambda: self.main_window.show_lightning_transaction(tx_item))
             cc = self.add_copy_menu(menu, idx)
             cc.addAction(_("Payment Hash"), lambda: self.place_text_on_clipboard(tx_item['payment_hash'], title="Payment Hash"))
-            cc.addAction(_("Preimage"), lambda: self.place_text_on_clipboard(tx_item['preimage'], title="Preimage"))
+            if tx_item['preimage']:  # not available while the wallet is locked
+                cc.addAction(_("Preimage"), lambda: self.place_text_on_clipboard(tx_item['preimage'], title="Preimage"))
             key = tx_item['payment_hash']
             log = self.wallet.lnworker.logs.get(key)
             if log:
