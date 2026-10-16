@@ -33,7 +33,6 @@ class LNWatcher(Logger, EventListener):
         self.config = lnworker.config
         self.callbacks = {}  # type: Dict[str, Callable[[], Awaitable[None]]]  # address/txo -> lambda function
         self.network = None
-        self.register_callbacks()
         self._pending_force_closes = {}  # type: Dict['AbstractChannel', int]  # chan -> lowest remote htlc timeout height
         self.taskgroup = OldTaskGroup()
         self._last_callback_trigger_ts = 0
@@ -41,6 +40,8 @@ class LNWatcher(Logger, EventListener):
     def start_network(self, network: 'Network'):
         assert not self.network, "already started?"
         self.network = network
+        # our callbacks may need the secrets of lnworker
+        self.register_callbacks()
         asyncio.run_coroutine_threadsafe(self._main_loop(), util.get_asyncio_loop())
 
     async def stop(self):

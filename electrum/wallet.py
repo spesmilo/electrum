@@ -582,7 +582,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             node = BIP32Node.from_rootseed(seed, xtype='standard')
             ln_xprv = node.to_xprv()
             self.db.put('lightning_privkey2', ln_xprv)
-        self.lnworker = LNWallet(self, ln_xprv)
+        self.lnworker = LNWallet(self)
+        self.lnworker.load_secrets()
         self.save_db()
         if self.network:
             self._start_network_lightning()
@@ -4165,7 +4166,9 @@ class Deterministic_Wallet(Abstract_Wallet):
         ln_xprv = self.db.get('lightning_xprv') or self.db.get('lightning_privkey2')
         # lnworker can only be initialized once receiving addresses are available
         # therefore we instantiate lnworker in DeterministicWallet
-        self.lnworker = LNWallet(self, ln_xprv) if ln_xprv else None
+        self.lnworker = LNWallet(self) if ln_xprv else None
+        if self.has_lightning():
+            self.lnworker.load_secrets()
 
     def has_seed(self):
         return self.keystore.has_seed()

@@ -288,7 +288,18 @@ class SwapManager(Logger):
             self._reindex_swap(swap.payment_hash, swap)
             if swap.prepay_hash is not None:
                 self._prepayments[swap.prepay_hash] = payment_hash
-            if not swap.is_reverse and not swap.is_redeemed and not self.lnworker.get_preimage(swap.payment_hash):
+        self.is_server = False # overridden by swapserver plugin if enabled
+        self.http_server = None  # set by the swapserver plugin if enabled
+        self._server_tasks = []  # type: List[asyncio.Task]
+        self._stopping_server = False
+        self.is_initialized = asyncio.Event()
+        self.pairs_updated = asyncio.Event()
+
+    def load_secrets(self) -> None:
+        """Called by lnworker.load_secrets"""
+        for swap in self._swaps.values():
+            payment_hash = swap.payment_hash
+            if not swap.is_reverse and not swap.is_redeemed and not self.lnworker.get_preimage(payment_hash):
                 if (swap.prepay_hash is not None
                         and self.lnworker.get_payment_status(swap.prepay_hash, direction=RECEIVED) != PR_PAID):
                     # re-bundle payments, because lnworker does not persist bundles.
@@ -297,12 +308,6 @@ class SwapManager(Logger):
                     # TODO: drop this once lnworker persists _payment_bundles_* (lnworker.py:1093-1094)
                     self.lnworker.bundle_payments([payment_hash, swap.prepay_hash])
                 self.lnworker.register_hold_invoice(payment_hash, self.hold_invoice_callback)
-        self.is_server = False # overridden by swapserver plugin if enabled
-        self.http_server = None  # set by the swapserver plugin if enabled
-        self._server_tasks = []  # type: List[asyncio.Task]
-        self._stopping_server = False
-        self.is_initialized = asyncio.Event()
-        self.pairs_updated = asyncio.Event()
 
     def start_network(self, network: 'Network'):
         assert network

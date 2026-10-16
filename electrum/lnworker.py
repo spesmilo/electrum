@@ -1009,16 +1009,13 @@ class LNWallet(Logger):
     MPP_SPLIT_PART_FRACTION = 0.2
     MPP_SPLIT_PART_MINAMT_MSAT = 5_000_000
 
-    def __init__(self, wallet: 'Abstract_Wallet', xprv, *, features: LnFeatures = None):
+    def __init__(self, wallet: 'Abstract_Wallet', *, features: LnFeatures = None):
+        """Only uses public data from the db: our secrets are loaded later, by load_secrets."""
         self.wallet = wallet
         self.config = wallet.config
         self.db = wallet.db
+        self._secrets_loaded = False
         self.instantiation_timestamp = int(time.time())
-        self.node_keypair = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.NODE_KEY)
-        self.backup_key = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.BACKUP_CIPHER).privkey
-        self.static_payment_key = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.PAYMENT_BASE)
-        self.payment_secret_key = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.PAYMENT_SECRET_KEY).privkey
-        self.funding_root_keypair = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.FUNDING_ROOT_KEY)
         Logger.__init__(self)
         if features is None:
             features = LNWALLET_FEATURES
@@ -1029,7 +1026,7 @@ class LNWallet(Logger):
             if self.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS and self.config.LIGHTNING_USE_GOSSIP:
                 features |= LnFeatures.GOSSIP_QUERIES_OPT  # signal we have gossip to fetch
         self.lock = threading.RLock()
-        self.lnpeermgr = LNPeerManager(self.node_keypair, features=features, config=self.config, lnwallet_or_lngossip=self)
+        self.lnpeermgr = LNPeerManager(None, features=features, config=self.config, lnwallet_or_lngossip=self)
         self.taskgroup = OldTaskGroup()
         self.lnwatcher = LNWatcher(self)
         self.lnrater: LNRater = None
@@ -1051,15 +1048,9 @@ class LNWallet(Logger):
             self.wallet.set_reserved_addresses_for_chan(chan, reserved=True)
 
         self._channel_backups = {}  # type: Dict[bytes, ChannelBackup]
-        # order is important: imported should overwrite onchain
-        for name in ["onchain_channel_backups", "imported_channel_backups"]:
-            channel_backups = self.db.get_dict(name)
-            for channel_id, storage in channel_backups.items():
-                if isinstance(storage, str):
-                    storage = ImportedChannelBackupStorage.from_bytes(bytes.fromhex(storage))
-                assert isinstance(storage, (OnchainChannelBackupStorage, ImportedChannelBackupStorage))
-                self._channel_backups[bfh(channel_id)] = cb = ChannelBackup(storage, lnworker=self)
-                self.wallet.set_reserved_addresses_for_chan(cb, reserved=True)
+        # imported channel backups contain secrets, see load_secrets
+        for channel_id, storage in self.db.get_dict("onchain_channel_backups").items():
+            self._add_channel_backup(bfh(channel_id), storage)
 
         self._paysessions = dict()                      # type: Dict[bytes, PaySession]
         self.sent_htlcs_info = dict()                   # type: Dict[SentHtlcKey, SentHtlcInfo]
@@ -1097,10 +1088,38 @@ class LNWallet(Logger):
         self._payment_bundles_pkey_to_canon = {}       # type: Dict[bytes, bytes]            # TODO: persist
         self._payment_bundles_canon_to_pkeylist = {}   # type: Dict[bytes, Sequence[bytes]]  # TODO: persist
 
-        self.nostr_keypair = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.NOSTR_KEY)
         self.swap_manager = SwapManager(wallet=self.wallet, lnworker=self)
         self.onion_message_manager = OnionMessageManager(self)
+
+    def has_secrets(self) -> bool:
+        return self._secrets_loaded
+
+    def load_secrets(self) -> None:
+        """Derives the keys we need to run lightning. They are not needed to read our channels."""
+        assert not self._secrets_loaded
+        ln_xprv = self.db.get('lightning_xprv') or self.db.get('lightning_privkey2')
+        node = BIP32Node.from_xkey(ln_xprv)
+        self.node_keypair = generate_keypair(node, LnKeyFamily.NODE_KEY)
+        self.backup_key = generate_keypair(node, LnKeyFamily.BACKUP_CIPHER).privkey
+        self.static_payment_key = generate_keypair(node, LnKeyFamily.PAYMENT_BASE)
+        self.payment_secret_key = generate_keypair(node, LnKeyFamily.PAYMENT_SECRET_KEY).privkey
+        self.funding_root_keypair = generate_keypair(node, LnKeyFamily.FUNDING_ROOT_KEY)
+        self.nostr_keypair = generate_keypair(node, LnKeyFamily.NOSTR_KEY)
+        self._secrets_loaded = True
+        self.lnpeermgr.node_keypair = self.node_keypair
+        for chan in self._channels.values():
+            chan.load_keys()
+        # imported backups overwrite onchain ones
+        for channel_id, storage in self.db.get_dict("imported_channel_backups").items():
+            storage = ImportedChannelBackupStorage.from_bytes(bytes.fromhex(storage))
+            self._add_channel_backup(bfh(channel_id), storage)
+        self.swap_manager.load_secrets()
         self.subscribe_to_channels()
+
+    def _add_channel_backup(self, channel_id: bytes, storage) -> None:
+        assert isinstance(storage, (OnchainChannelBackupStorage, ImportedChannelBackupStorage))
+        self._channel_backups[channel_id] = cb = ChannelBackup(storage, lnworker=self)
+        self.wallet.set_reserved_addresses_for_chan(cb, reserved=True)
 
     def subscribe_to_channels(self):
         for chan in self.channels.values():

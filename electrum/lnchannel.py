@@ -827,9 +827,9 @@ class Channel(AbstractChannel):
         self.config = {}
         self.config[LOCAL] = state["local_config"]
         self.config[REMOTE] = state["remote_config"]
-        self.keys = ChannelKeys.from_seed(
-            bfh(state["channel_seed"]), multisig_privkey=bfh(state["multisig_privkey"]))
-        self.keys.check_against_config(self.config[LOCAL])
+        self.keys = None  # type: Optional[ChannelKeys]
+        if lnworker.has_secrets():
+            self.load_keys()
         self.constraints = state["constraints"]  # type: ChannelConstraints
         self.funding_outpoint = state["funding_outpoint"]
         self.node_id = bfh(state["node_id"])
@@ -1085,6 +1085,11 @@ class Channel(AbstractChannel):
     def has_anchors(self) -> bool:
         channel_type = ChannelType(self.storage.get('channel_type'))
         return bool(channel_type & ChannelType.OPTION_ANCHORS)
+
+    def load_keys(self) -> None:
+        self.keys = ChannelKeys.from_seed(
+            bfh(self.storage["channel_seed"]), multisig_privkey=bfh(self.storage["multisig_privkey"]))
+        self.keys.check_against_config(self.config[LOCAL])
 
     def get_wallet_addresses_channel_might_want_reserved(self) -> Sequence[str]:
         assert self.is_static_remotekey_enabled()
