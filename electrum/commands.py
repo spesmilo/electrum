@@ -68,6 +68,7 @@ from .wallet import (
     Imported_Wallet
 )
 from .address_synchronizer import TX_HEIGHT_LOCAL
+from .keystore import BIP32_KeyStore
 from .mnemonic import Mnemonic
 from .lnutil import (channel_id_from_funding_tx, LnFeatures, SENT, RECEIVED, MIN_FINAL_CLTV_DELTA_ACCEPTED,
                      PaymentFeeBudget, NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE)
@@ -831,7 +832,10 @@ class Commands(Logger):
     @command('wp')
     async def getmasterprivate(self, password=None, wallet: Abstract_Wallet = None):
         """Get master private key. Return your wallet\'s master private key"""
-        return str(wallet.keystore.get_master_private_key(password))
+        ks = wallet.keystore
+        if not isinstance(ks, BIP32_KeyStore) or ks.is_watching_only():
+            raise UserFacingException("The keystore of this wallet does not have a master private key.")
+        return ks.get_master_private_key(password)
 
     @command('')
     async def convert_xkey(self, xkey, xtype):
