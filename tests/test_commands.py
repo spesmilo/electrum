@@ -129,6 +129,42 @@ class TestCommands(ElectrumTestCase):
         ciphertext = await cmds.encrypt(pubkey, cleartext)
         self.assertEqual(cleartext, await cmds.decrypt(pubkey, ciphertext, wallet=wallet))
 
+    async def test_createmultisig(self):
+        cmds = Commands(config=self.config)
+        pk1 = "03789ed0bb717d88f7d321a368d905e7430207ebbd82bd342cf11ae157a7ace5fd"
+        pk2 = "03dbc6764b8884a92e871274b87583e6d5c2a58819473e17e107ef3f6aa5a61626"
+        self.assertEqual(
+            {'address': '3QsFXpFJf2ZY6GLWVoNFFd2xSDwdS713qX',
+             'redeemScript': '5221' + pk1 + '21' + pk2 + '52ae'},
+            await cmds.createmultisig(2, [pk1, pk2]))
+        # the keys are used in the given order, not sorted (see #5343)
+        self.assertEqual(
+            '5221' + pk2 + '21' + pk1 + '52ae',
+            (await cmds.createmultisig(2, [pk2, pk1]))['redeemScript'])
+        # invalid public keys must not yield an address
+        for bad_pubkey in ("0378", "", "zz", "05" + pk1[2:], "02" + "00" * 31 + "05", 3, bytes.fromhex(pk1)):
+            with self.assertRaisesRegex(UserFacingException, "invalid public key"):
+                await cmds.createmultisig(1, [pk1, bad_pubkey])
+        with self.assertRaisesRegex(UserFacingException, "must be a list"):
+            await cmds.createmultisig(1, pk1)
+        for bad_num in ("2", 2.0, True):
+            with self.assertRaisesRegex(UserFacingException, "num must be an integer"):
+                await cmds.createmultisig(bad_num, [pk1, pk2])
+        for num in (0, 3):
+            with self.assertRaisesRegex(UserFacingException, "invalid multisig parameters"):
+                await cmds.createmultisig(num, [pk1, pk2])
+        with self.assertRaisesRegex(UserFacingException, "invalid multisig parameters"):
+            await cmds.createmultisig(1, [pk1] * 16)
+        # p2sh redeem scripts are limited to 520 bytes
+        pk_uncompressed = ("0479be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+                           "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8")
+        await cmds.createmultisig(1, [pk1] * 15)  # 513 bytes
+        await cmds.createmultisig(1, [pk_uncompressed] * 7)  # 465 bytes
+        pk_hybrid = "06" + pk_uncompressed[2:]  # accepted, like bitcoind
+        await cmds.createmultisig(1, [pk_hybrid])
+        with self.assertRaisesRegex(UserFacingException, "redeem script too large: 531 bytes"):
+            await cmds.createmultisig(1, [pk_uncompressed] * 8)
+
     async def test_export_private_key_imported(self):
         wallet = restore_wallet_from_text__for_unittest(
             'p2wpkh:L4rYY5QpfN6wJEF4SEKDpcGhTPnCe9zcGs6hiSnhpprZqVywFifN p2wpkh:L4jkdiXszG26SUYvwwJhzGwg37H2nLhrbip7u6crmgNeJysv5FHL',
