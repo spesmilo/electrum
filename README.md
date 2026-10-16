@@ -37,16 +37,9 @@ $ sudo apt-get install python3-pyqt6
 
 #### QR code scanning
 
-QR code decoding uses [zxing-cpp](https://github.com/zxing-cpp/zxing-cpp/).
-To build the library, install CMake and a C++20 compiler and run:
+QR code recognition uses QtMultimedia and [zxing-cpp](https://github.com/zxing-cpp/zxing-cpp/):
 ```
-$ ./contrib/make_zxing.sh
-```
-
-Camera scanning also requires Qt Multimedia. It is included in the PyQt6 pip
-package; when using Debian/Ubuntu packages, install it separately:
-```
-$ sudo apt-get install python3-pyqt6.qtmultimedia
+$ sudo apt-get install python3-pyqt6.qtmultimedia libzxing3 (or libzxing4)
 ```
 
 #### libsecp256k1
