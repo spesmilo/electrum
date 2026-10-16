@@ -343,6 +343,8 @@ class Satochip_KeyStore(Hardware_KeyStore):
         _logger.info(f"In sign_transaction(): tx: {str(tx)}")
         client = self.get_client()
         client.verify_PIN()
+        if client.cc.needs_2FA is None:
+            (response, sw1, sw2, d) = client.cc.card_get_status()
         segwitTransaction = False
 
         # outputs (bytes format)
@@ -388,32 +390,31 @@ class Satochip_KeyStore(Hardware_KeyStore):
             (depth, bytepath) = bip32path2bytes(inputPath)
             (key, chaincode) = client.cc.card_bip32_get_extendedkey(bytepath)
 
-            # parse tx (bytes format)
+            # compute the sighash locally: double-sha256 of the BIP143 preimage.
+            # The card simply signs this hash via card_sign_transaction_hash();
+            # the card-side parsing commands are deprecated (removed since applet v0.16)
             pre_tx = tx.serialize_preimage(i)
             pre_hash = sha256d(pre_tx)
             _logger.info(
                 f"[Satochip_KeyStore] sign_transaction(): pre_tx= {pre_tx.hex()}")
             _logger.info(
                 f"[Satochip_KeyStore] sign_transaction(): pre_hash= {pre_hash.hex()}")
-            (response, sw1, sw2, tx_hash_list, needs_2fa) = client.cc.card_parse_transaction(
-                pre_tx, segwitTransaction)
-            tx_hash = bytearray(tx_hash_list)
-            if pre_hash != tx_hash:
-                raise RuntimeError(
-                    f"[Satochip_KeyStore] Tx preimage mismatch: {pre_hash.hex()} vs {tx_hash.hex()}")
 
             # 2FA
             keynbr = 0xFF  # for extended key
-            if needs_2fa:
+            if client.cc.needs_2FA:
                 # format & encrypt msg
                 import json
                 coin_type = 1 if constants.net.TESTNET else 0
+                # 'sign_tx_hash' (with the sighash) makes the 2FA app compute the
+                # challenge-response over [hash | 0xCC-padding], as required by the
+                # card's SignTransactionHash command ('sign_tx' uses 0x00-padding)
                 if segwitTransaction:
-                    msg = {'tx': pre_tx.hex(), 'ct': coin_type, 'sw': segwitTransaction,
-                           'txo': txOutputs.hex(), 'ty': script_type}
+                    msg = {'action': "sign_tx_hash", 'tx': pre_tx.hex(), 'ct': coin_type, 'sw': segwitTransaction,
+                           'txo': txOutputs.hex(), 'ty': script_type, 'hash': pre_hash.hex()}
                 else:
-                    msg = {'tx': pre_tx.hex(), 'ct': coin_type,
-                           'sw': segwitTransaction}
+                    msg = {'action': "sign_tx_hash", 'tx': pre_tx.hex(), 'ct': coin_type,
+                           'sw': segwitTransaction, 'hash': pre_hash.hex()}
                 msg = json.dumps(msg)
 
                 # do challenge-response with 2FA device...
@@ -423,8 +424,8 @@ class Satochip_KeyStore(Hardware_KeyStore):
                 hmac = None
 
             # sign tx
-            (tx_sig, sw1, sw2) = client.cc.card_sign_transaction(
-                keynbr, tx_hash_list, hmac)
+            (tx_sig, sw1, sw2) = client.cc.card_sign_transaction_hash(
+                keynbr, list(pre_hash), hmac)
             # check sw1sw2 for error (0x9c0b if wrong challenge-response)
             if sw1 != 0x90 or sw2 != 0x00:
                 self.give_error(
