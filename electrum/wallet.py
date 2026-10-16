@@ -547,6 +547,23 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def has_channels(self):
         return self.lnworker is not None and len(self.lnworker._channels) > 0
 
+    def lightning_needs_keystore(self) -> bool:
+        """Whether lightning needs the keystore to keep functioning, i.e. whether
+        the keystore must not be disabled (made watching-only).
+
+        lnworker itself only needs lightning_xprv (or lightning_privkey2), not the keystore.
+        However, a watching-only wallet does not sign transactions (see sign_transaction),
+        so it could not sweep the outputs of force-closed channels (incl. penalty txs),
+        nor claim or refund submarine swaps. Anchor channels also need wallet coins for fees.
+        """
+        if not self.lnworker:
+            return False
+        if any(not chan.is_redeemed() for chan in self.lnworker.channels.values()):
+            return True
+        if self.lnworker.swap_manager.get_pending_swaps():
+            return True
+        return False
+
     def can_have_lightning(self) -> bool:
         """ whether this wallet can create new channels """
         # we want static_remotekey to be a wallet address
@@ -4366,8 +4383,9 @@ class Deterministic_Wallet(Abstract_Wallet):
 
     def disable_keystore(self, keystore: KeyStore) -> None:
         assert self.can_enable_disable_keystore(keystore)
-        assert not self.has_channels()
         assert keystore in self.get_keystores()
+        if self.lightning_needs_keystore():
+            raise Exception("cannot disable keystore: needed by lightning")
         if hasattr(keystore, 'thread') and keystore.thread:
             keystore.thread.stop()
         if self.storage.is_encrypted_with_hw_device():

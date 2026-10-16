@@ -180,8 +180,11 @@ class WalletInfoDialog(WindowModalDialog):
         self.setLayout(vbox)
 
     def disable_keystore(self, keystore):
-        if self.wallet.has_channels():
-            self.window.show_message(_('Cannot disable keystore: You have active lightning channels'))
+        if self.wallet.lightning_needs_keystore():
+            self.window.show_message(' '.join([
+                _('Cannot disable keystore: you have lightning channels that are not fully closed, or pending submarine swaps.'),
+                _('Lightning needs the keystore to sign transactions, e.g. to sweep funds after a channel was force-closed.'),
+            ]))
             return
 
         msg = _('Disable keystore? This will make the keystore watching-only.')

@@ -1,4 +1,5 @@
 import os
+from unittest import mock
 
 from electrum import SimpleConfig
 from electrum.interface import ServerAddr
@@ -354,6 +355,40 @@ class KeystoreWizardTestCase(WizardTestCase):
         self.assertFalse(wallet.has_keystore_encryption())
         wallet.check_password(None)
         self.assertEqual(myseed, wallet.get_keystore().get_seed(None))
+
+    async def test_disable_keystore__lightning(self):
+        myseed = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
+        wallet = restore_wallet_from_text(myseed, path=self.wallet_path, config=self.config)['wallet']
+        self.assertTrue(wallet.db.get('lightning_xprv'))
+        lnworker = wallet.lnworker
+
+        class FakeChannel:
+            def __init__(self, *, redeemed: bool):
+                self.redeemed = redeemed
+
+            def is_redeemed(self):
+                return self.redeemed
+
+        # no channels
+        self.assertFalse(wallet.lightning_needs_keystore())
+        # channel not fully closed
+        lnworker._channels[bytes(32)] = FakeChannel(redeemed=False)
+        self.assertTrue(wallet.lightning_needs_keystore())
+        with self.assertRaisesRegex(Exception, "needed by lightning"):
+            wallet.disable_keystore(wallet.get_keystore())
+        self.assertEqual(myseed, wallet.get_keystore().get_seed(None))
+        # channel fully closed
+        lnworker._channels[bytes(32)] = FakeChannel(redeemed=True)
+        self.assertFalse(wallet.lightning_needs_keystore())
+        # pending swap
+        with mock.patch.object(lnworker.swap_manager, 'get_pending_swaps', return_value=[object()]):
+            self.assertTrue(wallet.lightning_needs_keystore())
+            with self.assertRaisesRegex(Exception, "needed by lightning"):
+                wallet.disable_keystore(wallet.get_keystore())
+        self.assertFalse(wallet.get_keystore().is_watching_only())
+
+        wallet.disable_keystore(wallet.get_keystore())
+        self.assertTrue(wallet.get_keystore().is_watching_only())
 
     async def test_haveseed_electrum__2fa_seed(self):
         """unlike NewWalletWizard, KeystoreWizard cannot redirect to the 2fa flow, so 2fa seeds are invalid"""
