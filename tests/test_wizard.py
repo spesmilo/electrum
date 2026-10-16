@@ -9,6 +9,7 @@ from electrum.wizard import ServerConnectWizard, NewWalletWizard, WizardViewStat
 from electrum.daemon import Daemon
 from electrum.wallet import Abstract_Wallet, Deterministic_Wallet
 from electrum import util
+from electrum.util import InvalidPassword
 from electrum import slip39
 from electrum.bip32 import KeyOriginInfo
 from electrum import keystore
@@ -480,6 +481,36 @@ class KeystoreWizardTestCase(WizardTestCase):
         self.assertTrue("not watching-only" in ctx.exception.args[0])
         self.assertIs(x1, wallet.keystores['x1'])
         self.assertEqual(seed1, wallet.keystores['x1'].get_seed(None))
+
+    async def test_multisig__keystore_encryption_without_storage_encryption(self):
+        seed1 = "bitter grass shiver impose acquire brush forget axis eager alone wine silver"
+        seed2 = "snow nest raise royal more walk demise rotate smooth spirit canyon gun"
+        xpub2 = "Zpub6xwgqLvc42wXB1wEELTdALD9iXwStMUkGqBgxkJFYumaL2dWgNvUkjEDWyDFZD3fZuDWDzd1KQJ4NwVHS7hs6H6QkpNYSShfNiUZsgMdtNg"
+
+        wallet = WalletIntegrityHelper.create_multisig_wallet(
+            [
+                keystore.from_seed(seed1, passphrase='', for_multisig=True),
+                keystore.from_xpub(xpub2),
+            ],
+            '2of2',
+            config=self.config,
+            storage=WalletStorage(self.wallet_path),
+        )
+        wallet.update_password(None, '1234', encrypt_storage=False)
+        self.assertTrue(wallet.has_keystore_encryption())
+        self.assertFalse(wallet.has_storage_encryption())
+
+        ks = keystore.from_seed(seed2, passphrase='', for_multisig=True)
+        with self.assertRaises(InvalidPassword):
+            wallet.enable_keystore(ks, False, 'wrong password')
+        self.assertTrue(wallet.keystores['x2'].is_watching_only())
+
+        ks = keystore.from_seed(seed2, passphrase='', for_multisig=True)
+        wallet.enable_keystore(ks, False, '1234')
+        self.assertFalse(wallet.keystores['x2'].is_watching_only())
+        # the newly added seed must be encrypted with the wallet password
+        wallet.check_password('1234')
+        self.assertEqual(seed2, wallet.keystores['x2'].get_seed('1234'))
 
 
 class WalletWizardTestCase(WizardTestCase):
