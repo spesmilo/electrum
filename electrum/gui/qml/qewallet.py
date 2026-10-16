@@ -31,6 +31,7 @@ from .qechannellistmodel import QEChannelListModel
 from .qeinvoicelistmodel import QEInvoiceListModel, QERequestListModel
 from .qetransactionlistmodel import QETransactionListModel
 from .qetypes import QEAmount
+from .qeconfig import QEConfig
 
 if TYPE_CHECKING:
     from electrum.wallet import Abstract_Wallet
@@ -128,6 +129,8 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         self.sync_progress_timer.setSingleShot(False)
         self.sync_progress_timer.setInterval(2000)
         self.sync_progress_timer.timeout.connect(self.update_sync_progress)
+
+        QEConfig.instance.freezeReusedAddressUtxosChanged.connect(self._update_balances)
 
         # post-construction init in GUI thread
         # QMetaObject.invokeMethod(self, 'qt_init', Qt.QueuedConnection)
@@ -319,6 +322,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def addressCoinModel(self):
         if self._addressCoinModel is None:
             self._addressCoinModel = QEAddressCoinListModel(self.wallet)
+            self._addressCoinModel.frozenChanged.connect(self._update_balances)
         return self._addressCoinModel
 
     requestModelChanged = pyqtSignal()
@@ -467,6 +471,10 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     @pyqtProperty(bool, notify=canGetZeroconfChannelChanged)
     def canGetZeroconfChannel(self) -> bool:
         return self.wallet.lnworker and self.wallet.lnworker.can_get_zeroconf_channel()
+
+    @pyqtSlot()
+    def requestUpdateBalances(self):
+        self._update_balances()
 
     def _update_balances(self):
         """refresh the balance amounts in place, then emit balanceChanged.
