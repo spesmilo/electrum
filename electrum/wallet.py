@@ -4465,7 +4465,7 @@ class Multisig_Wallet(Deterministic_Wallet):
         else:
             raise Exception('keystore not found')
         self.keystores[name] = keystore
-        self.keystore = keystore
+        self.keystore = self.keystores['x1']
         self.save_keystore()
 
     def can_have_keystore_encryption(self):

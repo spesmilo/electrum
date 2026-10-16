@@ -434,10 +434,14 @@ class KeystoreWizardTestCase(WizardTestCase):
         self.assertFalse(wallet.get_keystores()[1].is_watching_only())
         self.assertEqual(seed1, wallet.get_keystores()[0].get_seed(None))
         self.assertEqual(seed2, wallet.get_keystores()[1].get_seed(None))
+        # wallet.keystore must keep pointing to x1
+        self.assertIs(wallet.keystore, wallet.keystores['x1'])
+        self.assertEqual(xpub1, wallet.get_master_public_key())
 
         keyorigininfo1 = wallet.get_keystores()[0].get_key_origin_info()
         wallet.disable_keystore(wallet.get_keystores()[0])
         self._sanity_checks_after_disabling_keystore(ks=wallet.get_keystores()[0], xpub=xpub1, key_origin_info=keyorigininfo1)
+        self.assertIs(wallet.keystore, wallet.keystores['x1'])
 
 
 class WalletWizardTestCase(WizardTestCase):
