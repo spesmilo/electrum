@@ -201,6 +201,7 @@ WizardComponent {
                 Layout.topMargin: constants.paddingLarge
 
                 placeholderText: cosigner ? qsTr('Enter cosigner seed') : qsTr('Enter your seed')
+                validateWords: true
 
                 indicatorValid: root._seedValid
                     ? root._seedType == 'bip39' && root._validationMessage
