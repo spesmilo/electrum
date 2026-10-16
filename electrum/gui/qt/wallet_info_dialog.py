@@ -153,12 +153,12 @@ class WalletInfoDialog(WindowModalDialog):
                 if wallet.can_enable_disable_keystore(ks):
                     ks_buttons = []
                     if not ks.is_watching_only():
-                        rm_keystore_button = QPushButton('Disable keystore')
+                        rm_keystore_button = QPushButton(_('Disable keystore'))
                         rm_keystore_button.clicked.connect(partial(self.disable_keystore, ks))
                         ks_buttons.insert(0, rm_keystore_button)
                     else:
-                        add_keystore_button = QPushButton('Enable Keystore')
-                        add_keystore_button.clicked.connect(self.enable_keystore)
+                        add_keystore_button = QPushButton(_('Enable keystore'))
+                        add_keystore_button.clicked.connect(partial(self.enable_keystore, ks))
                         ks_buttons.insert(0, add_keystore_button)
                     ks_vbox.addLayout(Buttons(*ks_buttons))
                 tab_label = _("Cosigner") + f' {idx+1}' if len(keystores) > 1 else _("Keystore")
@@ -193,7 +193,7 @@ class WalletInfoDialog(WindowModalDialog):
         self.wallet.disable_keystore(keystore)
         self.window.gui_object.reload_windows()
 
-    def enable_keystore(self, b: bool):
+    def enable_keystore(self, target_keystore):
         v = WizardViewState('keystore_type', {'wallet_type': self.window.wallet.wallet_type}, {})
         dialog = QEKeystoreWizard(config=self.window.config, app=self.window.gui_object.app,
                                   plugins=self.window.gui_object.plugins, start_viewstate=v)
@@ -201,11 +201,8 @@ class WalletInfoDialog(WindowModalDialog):
         if not result:
             return
         keystore, is_hardware = result
-        for k in self.wallet.get_keystores():
-            if k.get_master_public_key() == keystore.get_master_public_key():
-                break
-        else:
-            self.window.show_error(_('Keystore not found in this wallet'))
+        if keystore.get_master_public_key() != target_keystore.get_master_public_key():
+            self.window.show_error(_('The provided seed or hardware device does not match this keystore.'))
             return
         self._enable_keystore(keystore, is_hardware)
 

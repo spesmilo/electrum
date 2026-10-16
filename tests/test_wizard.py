@@ -263,6 +263,21 @@ class KeystoreWizardTestCase(WizardTestCase):
             wallet.enable_keystore(ks, ishww, None)
         self.assertTrue("mismatching xpubs" in ctx.exception.args[0])
 
+    async def test_haveseed_electrum__mismatching_seed__nothing_modified(self):
+        """a failed attempt to add an unrelated seed should not modify the wallet or the keystore"""
+        wallet = self._create_xpub_keystore_wallet(xpub='zpub6nAZodjgiMNf9zzX1pTqd6ZVX61ax8azhUDnWRumKVUr1VYATVoqAuqv3qKsb8WJXjxei4wei2p4vnMG9RnpKnen2kmgdhvZUmug2NnHNsr')
+        wallet.update_password(None, '1234', encrypt_storage=True)
+        self.assertTrue(wallet.storage.is_encrypted_with_user_pw())
+        self.assertFalse(wallet.db.get('use_encryption', False))
+
+        ks = keystore.from_seed('abandon bike', passphrase='', for_multisig=False)
+        with self.assertRaises(Exception) as ctx:
+            wallet.enable_keystore(ks, False, '1234')
+        self.assertTrue("mismatching xpubs" in ctx.exception.args[0])
+        self.assertTrue(wallet.get_keystore().is_watching_only())
+        self.assertFalse(wallet.db.get('use_encryption', False))
+        self.assertEqual('abandon bike', ks.get_seed(None))
+
     async def test_haveseed_electrum__2fa_seed(self):
         """unlike NewWalletWizard, KeystoreWizard cannot redirect to the 2fa flow, so 2fa seeds are invalid"""
         w, v = self._wizard_for()
@@ -442,6 +457,29 @@ class KeystoreWizardTestCase(WizardTestCase):
         wallet.disable_keystore(wallet.get_keystores()[0])
         self._sanity_checks_after_disabling_keystore(ks=wallet.get_keystores()[0], xpub=xpub1, key_origin_info=keyorigininfo1)
         self.assertIs(wallet.keystore, wallet.keystores['x1'])
+
+    async def test_multisig__refuse_to_replace_keystore_that_is_not_watching_only(self):
+        seed1 = "bitter grass shiver impose acquire brush forget axis eager alone wine silver"
+        xpub2 = "Zpub6xwgqLvc42wXB1wEELTdALD9iXwStMUkGqBgxkJFYumaL2dWgNvUkjEDWyDFZD3fZuDWDzd1KQJ4NwVHS7hs6H6QkpNYSShfNiUZsgMdtNg"
+
+        wallet = WalletIntegrityHelper.create_multisig_wallet(
+            [
+                keystore.from_seed(seed1, passphrase='', for_multisig=True),
+                keystore.from_xpub(xpub2),
+            ],
+            '2of2',
+            config=self.config,
+            storage=WalletStorage(self.wallet_path),
+        )
+        x1 = wallet.keystores['x1']
+        self.assertFalse(x1.is_watching_only())
+
+        ks = keystore.from_seed(seed1, passphrase='', for_multisig=True)
+        with self.assertRaises(Exception) as ctx:
+            wallet.enable_keystore(ks, False, None)
+        self.assertTrue("not watching-only" in ctx.exception.args[0])
+        self.assertIs(x1, wallet.keystores['x1'])
+        self.assertEqual(seed1, wallet.keystores['x1'].get_seed(None))
 
 
 class WalletWizardTestCase(WizardTestCase):

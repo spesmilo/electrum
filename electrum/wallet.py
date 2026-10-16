@@ -4346,6 +4346,13 @@ class Deterministic_Wallet(Abstract_Wallet):
 
     def enable_keystore(self, keystore: KeyStore, is_hardware_keystore: bool, password) -> None:
         assert self.can_enable_disable_keystore(keystore)
+        mpk = keystore.get_master_public_key()
+        target = next((k for k in self.get_keystores() if k.get_master_public_key() == mpk), None)
+        if target is None:
+            raise Exception("mismatching xpubs: keystore not found in wallet")
+        if not target.is_watching_only():
+            # e.g. replacing a keystore that has a seed would remove the seed from the wallet file
+            raise Exception("keystore to be replaced is not watching-only")
         if not is_hardware_keystore and self.storage.is_encrypted_with_user_pw():
             keystore.update_password(None, password)
             self.db.put('use_encryption', True)
