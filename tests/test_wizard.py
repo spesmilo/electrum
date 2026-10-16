@@ -7,7 +7,7 @@ from electrum.network import NetworkParameters, ProxySettings
 from electrum.plugin import Plugins, DeviceInfo, Device
 from electrum.wizard import ServerConnectWizard, NewWalletWizard, WizardViewState, KeystoreWizard
 from electrum.daemon import Daemon
-from electrum.wallet import Abstract_Wallet, Deterministic_Wallet
+from electrum.wallet import Abstract_Wallet, Deterministic_Wallet, restore_wallet_from_text
 from electrum import util
 from electrum.util import InvalidPassword
 from electrum import slip39
@@ -278,6 +278,33 @@ class KeystoreWizardTestCase(WizardTestCase):
         self.assertTrue(wallet.get_keystore().is_watching_only())
         self.assertFalse(wallet.db.get('use_encryption', False))
         self.assertEqual('abandon bike', ks.get_seed(None))
+
+    async def test_enable_keystore__written_to_disk(self):
+        myxpub = 'zpub6nAZodjgiMNf9zzX1pTqd6ZVX61ax8azhUDnWRumKVUr1VYATVoqAuqv3qKsb8WJXjxei4wei2p4vnMG9RnpKnen2kmgdhvZUmug2NnHNsr'
+        wallet = self._create_xpub_keystore_wallet(xpub=myxpub)
+        ks = keystore.from_seed('9dk', passphrase='', for_multisig=False)
+        wallet.enable_keystore(ks, False, None)
+
+        wallet2 = Daemon._load_wallet(self.wallet_path, password=None, config=self.config)
+        self.assertFalse(wallet2.get_keystore().is_watching_only())
+        self.assertEqual('9dk', wallet2.get_keystore().get_seed(None))
+
+    async def test_disable_keystore__seed_removed_from_disk(self):
+        myseed = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
+        wallet = restore_wallet_from_text(myseed, path=self.wallet_path, config=self.config)['wallet']
+        xprv = wallet.get_keystore().xprv
+        with open(self.wallet_path, 'r') as f:
+            contents = f.read()
+        self.assertTrue(myseed in contents and xprv in contents)
+
+        wallet.disable_keystore(wallet.get_keystore())
+        with open(self.wallet_path, 'r') as f:
+            contents = f.read()
+        self.assertFalse(myseed in contents, "seed still in wallet file")
+        self.assertFalse(xprv in contents, "xprv still in wallet file")
+
+        wallet2 = Daemon._load_wallet(self.wallet_path, password=None, config=self.config)
+        self.assertTrue(wallet2.get_keystore().is_watching_only())
 
     async def test_haveseed_electrum__2fa_seed(self):
         """unlike NewWalletWizard, KeystoreWizard cannot redirect to the 2fa flow, so 2fa seeds are invalid"""

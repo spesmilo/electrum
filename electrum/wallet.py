@@ -4358,6 +4358,7 @@ class Deterministic_Wallet(Abstract_Wallet):
             keystore.update_password(None, password)
             self.db.put('use_encryption', True)
         self._update_keystore(keystore)
+        self.save_db()
 
     def disable_keystore(self, keystore: KeyStore) -> None:
         assert self.can_enable_disable_keystore(keystore)
@@ -4370,6 +4371,9 @@ class Deterministic_Wallet(Abstract_Wallet):
             self.update_password(password, None, encrypt_storage=False)
         new = keystore.watching_only_keystore()
         self._update_keystore(new)
+        # save changes. force full rewrite to rm remnants of the seed
+        if self.storage and self.storage.file_exists():
+            self.db.write_and_force_consolidation()
 
 
 class Standard_Wallet(Simple_Wallet, Deterministic_Wallet):
