@@ -4427,9 +4427,10 @@ class Deterministic_Wallet(Abstract_Wallet):
             pw_key = self.db.get_or_create_pw_key(password)
             keystore.reencrypt_secrets(None, pw_key)
             # so are the lightning secrets now: they were in plaintext, see upgrade_pw_hash_version
-            self.db.reencrypt_lightning_secrets(None, pw_key)
-            if self.has_lightning():
-                self.lnworker.pw_key = pw_key.child(PW_KEY_MAGIC)
+            with self.db.lock:  # LNWallet may write pw_key
+                self.db.reencrypt_lightning_secrets(None, pw_key)
+                if self.has_lightning():
+                    self.lnworker.pw_key = pw_key.child(PW_KEY_MAGIC)
         self._update_keystore(keystore)
 
     def disable_keystore(self, keystore: KeyStore) -> None:

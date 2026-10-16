@@ -298,7 +298,7 @@ class SwapManager(Logger):
         self.dummy_address = DummyAddress.SWAP
 
         # note: accessing swaps dicts (besides simple lookup) needs swaps_lock
-        self.swaps_lock = threading.Lock()
+        self.swaps_lock = threading.RLock()  # taken before db.lock. TODO: replace with db.lock
         swaps = self.wallet.db.get_dict('submarine_swaps')  # type: Dict[str, SwapData]
         self._swaps = {}  # type: dict[str, SwapData]  # cached values
         self._swaps_by_funding_outpoint = {}  # type: Dict[TxOutpoint, SwapData]
@@ -680,7 +680,8 @@ class SwapManager(Logger):
         if not swap.is_reverse:
             if swap.get_preimage() is None and spent_height is not None:
                 if public_preimage:  # add it to lnwatcher
-                    swap.set_preimage(public_preimage, self.lnworker.pw_key)
+                    with self.wallet.db.lock:  # Wallet may write pw_key
+                        swap.set_preimage(public_preimage, self.lnworker.pw_key)
                     self.logger.info(f'found preimage: {public_preimage.hex()}')
                     self.lnworker.save_preimage(swap.payment_hash, public_preimage, mark_as_public=True)
                 else:
@@ -947,24 +948,25 @@ class SwapManager(Logger):
             prepay_hash = None
 
         lockup_address = script_to_p2wsh(redeem_script)
-        pw_key = self.lnworker.pw_key
-        swap = SwapData(
-            redeem_script=redeem_script,
-            locktime=locktime,
-            privkey=pw_encode(our_privkey.hex(), pw_key),
-            preimage=None,
-            prepay_hash=prepay_hash,
-            lockup_address=lockup_address,
-            onchain_amount=onchain_amount_sat,
-            claim_to_output=None,
-            lightning_amount=lightning_amount_sat,
-            is_reverse=False,
-            is_redeemed=False,
-            funding_txid=None,
-            spending_txid=None,
-        )
-        swap.unlock(pw_key)
-        self._add_swap(payment_hash, swap)
+        with self.swaps_lock, self.wallet.db.lock:  # Wallet may write pw_key
+            pw_key = self.lnworker.pw_key
+            swap = SwapData(
+                redeem_script=redeem_script,
+                locktime=locktime,
+                privkey=pw_encode(our_privkey.hex(), pw_key),
+                preimage=None,
+                prepay_hash=prepay_hash,
+                lockup_address=lockup_address,
+                onchain_amount=onchain_amount_sat,
+                claim_to_output=None,
+                lightning_amount=lightning_amount_sat,
+                is_reverse=False,
+                is_redeemed=False,
+                funding_txid=None,
+                spending_txid=None,
+            )
+            swap.unlock(pw_key)
+            self._add_swap(payment_hash, swap)
         self.add_lnwatcher_callback(swap)
         return swap, invoice, prepay_invoice
 
@@ -1020,28 +1022,29 @@ class SwapManager(Logger):
             # there are no funds left for the fee of the claim tx
             assert claim_to_output.value < onchain_amount_sat, f"{claim_to_output=} >= {onchain_amount_sat=}"
             claim_to_output = (claim_to_output.address, claim_to_output.value)
-        pw_key = self.lnworker.pw_key
-        swap = SwapData(
-            redeem_script=redeem_script,
-            locktime=locktime,
-            privkey=pw_encode(privkey.hex(), pw_key),
-            preimage=pw_encode(preimage.hex(), pw_key),
-            prepay_hash=prepay_hash,
-            lockup_address=lockup_address,
-            onchain_amount=onchain_amount_sat,
-            claim_to_output=claim_to_output,
-            lightning_amount=lightning_amount_sat,
-            is_reverse=True,
-            is_redeemed=False,
-            funding_txid=None,
-            spending_txid=None,
-        )
-        swap.unlock(pw_key)
-        if prepay_hash:
-            if prepay_hash in self._prepayments:
-                raise Exception("prepay_hash already in use")
-            self._prepayments[prepay_hash] = payment_hash
-        self._add_swap(payment_hash, swap)
+        with self.swaps_lock, self.wallet.db.lock:  # Wallet may write pw_key
+            pw_key = self.lnworker.pw_key
+            swap = SwapData(
+                redeem_script=redeem_script,
+                locktime=locktime,
+                privkey=pw_encode(privkey.hex(), pw_key),
+                preimage=pw_encode(preimage.hex(), pw_key),
+                prepay_hash=prepay_hash,
+                lockup_address=lockup_address,
+                onchain_amount=onchain_amount_sat,
+                claim_to_output=claim_to_output,
+                lightning_amount=lightning_amount_sat,
+                is_reverse=True,
+                is_redeemed=False,
+                funding_txid=None,
+                spending_txid=None,
+            )
+            swap.unlock(pw_key)
+            if prepay_hash:
+                if prepay_hash in self._prepayments:
+                    raise Exception("prepay_hash already in use")
+                self._prepayments[prepay_hash] = payment_hash
+            self._add_swap(payment_hash, swap)
         self.add_lnwatcher_callback(swap)
         return swap
 

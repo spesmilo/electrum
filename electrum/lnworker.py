@@ -1124,23 +1124,24 @@ class LNWallet(Logger):
         """Decrypts our secrets with pw_key, derived from the wallet password. They are
         needed to run lightning, but not to read our channels. (see #4909)"""
         assert not self._secrets_loaded
-        ln_xprv = self.db.get('lightning_xprv') or self.db.get('lightning_privkey2')
-        node = BIP32Node.from_xkey(pw_decode(ln_xprv, pw_key))
-        self.pw_key = pw_key
-        self.node_keypair = generate_keypair(node, LnKeyFamily.NODE_KEY)
-        self.backup_key = generate_keypair(node, LnKeyFamily.BACKUP_CIPHER).privkey
-        self.static_payment_key = generate_keypair(node, LnKeyFamily.PAYMENT_BASE)
-        self.payment_secret_key = generate_keypair(node, LnKeyFamily.PAYMENT_SECRET_KEY).privkey
-        self.funding_root_keypair = generate_keypair(node, LnKeyFamily.FUNDING_ROOT_KEY)
-        self.nostr_keypair = generate_keypair(node, LnKeyFamily.NOSTR_KEY)
-        self._secrets_loaded = True
-        self.lnpeermgr.node_keypair = self.node_keypair
-        for chan in self._channels.values():
-            chan.load_keys()
-        imported_backups = [
-            (bfh(channel_id), ImportedChannelBackupStorage.from_bytes(bfh(pw_decode(storage, pw_key))))
-            for channel_id, storage in self.db.get_dict("imported_channel_backups").items()]
-        self.swap_manager.unlock_swaps(pw_key)
+        with self.db.lock:  # Wallet may write pw_key
+            ln_xprv = self.db.get('lightning_xprv') or self.db.get('lightning_privkey2')
+            node = BIP32Node.from_xkey(pw_decode(ln_xprv, pw_key))
+            self.pw_key = pw_key
+            self.node_keypair = generate_keypair(node, LnKeyFamily.NODE_KEY)
+            self.backup_key = generate_keypair(node, LnKeyFamily.BACKUP_CIPHER).privkey
+            self.static_payment_key = generate_keypair(node, LnKeyFamily.PAYMENT_BASE)
+            self.payment_secret_key = generate_keypair(node, LnKeyFamily.PAYMENT_SECRET_KEY).privkey
+            self.funding_root_keypair = generate_keypair(node, LnKeyFamily.FUNDING_ROOT_KEY)
+            self.nostr_keypair = generate_keypair(node, LnKeyFamily.NOSTR_KEY)
+            self._secrets_loaded = True
+            self.lnpeermgr.node_keypair = self.node_keypair
+            for chan in self._channels.values():
+                chan.load_keys()
+            imported_backups = [
+                (bfh(channel_id), ImportedChannelBackupStorage.from_bytes(bfh(pw_decode(storage, pw_key))))
+                for channel_id, storage in self.db.get_dict("imported_channel_backups").items()]
+            self.swap_manager.unlock_swaps(pw_key)
         # imported backups overwrite onchain ones
         for channel_id, storage in imported_backups:
             self._add_channel_backup(channel_id, storage)
@@ -1791,16 +1792,20 @@ class LNWallet(Logger):
         channel_id = temp_chan.channel_id.hex()
         channels_db = self.db.get_dict('channels')
         assert channel_id not in channels_db
-        channels_db[channel_id] = temp_chan.storage
+        keys = temp_chan.keys
         jit_opening_fee = temp_chan.jit_opening_fee
         peer_state = temp_chan.peer_state
-        del temp_chan
-        storage = channels_db[channel_id] # StoredDict
-        chan = Channel(
-            storage,
-            lnworker=self,
-            jit_opening_fee=jit_opening_fee,
-        )
+        with self.db.lock:  # Wallet may write pw_key
+            temp_chan.storage['channel_seed'] = pw_encode(keys.channel_seed.hex(), self.pw_key)
+            temp_chan.storage['multisig_privkey'] = pw_encode(keys.multisig_key.privkey.hex(), self.pw_key)
+            channels_db[channel_id] = temp_chan.storage
+            del temp_chan
+            storage = channels_db[channel_id] # StoredDict
+            chan = Channel(
+                storage,
+                lnworker=self,
+                jit_opening_fee=jit_opening_fee,
+            )
         assert type(chan.storage) is StoredDict, type(chan.storage)
         chan.peer_state = peer_state
         self.add_channel(chan)
@@ -2971,23 +2976,25 @@ class LNWallet(Logger):
         assert isinstance(preimage, bytes), f"expected bytes, but got {type(preimage)}"
         if sha256(preimage) != payment_hash:
             raise Exception("tried to save incorrect preimage for payment_hash")
-        old_preimage, old_is_public = self._preimages.get(payment_hash.hex(), (None, False))
-        old_preimage = old_preimage and pw_decode(old_preimage, self.pw_key)
-        mark_as_public |= old_is_public  # disallow True->False transition
-        # sanity checks and conversions done.
-        if (old_preimage, old_is_public) == (preimage.hex(), mark_as_public):  # no change
-            return
-        self.logger.debug(f"saving preimage for {payment_hash.hex()} (public={mark_as_public})")
-        self._preimages[payment_hash.hex()] = pw_encode(preimage.hex(), self.pw_key), mark_as_public
+        with self.db.lock:  # Wallet may write pw_key
+            old_preimage, old_is_public = self._preimages.get(payment_hash.hex(), (None, False))
+            old_preimage = old_preimage and pw_decode(old_preimage, self.pw_key)
+            mark_as_public |= old_is_public  # disallow True->False transition
+            # sanity checks and conversions done.
+            if (old_preimage, old_is_public) == (preimage.hex(), mark_as_public):  # no change
+                return
+            self.logger.debug(f"saving preimage for {payment_hash.hex()} (public={mark_as_public})")
+            self._preimages[payment_hash.hex()] = pw_encode(preimage.hex(), self.pw_key), mark_as_public
         if write_to_disk:
             self.wallet.save_db()
 
     def get_preimage(self, payment_hash: bytes) -> Optional[bytes]:
         assert isinstance(payment_hash, bytes), f"expected bytes, but got {type(payment_hash)}"
-        preimage_hex, _ = self._preimages.get(payment_hash.hex(), (None, None))
-        if preimage_hex is None:
-            return None
-        preimage_bytes = bfh(pw_decode(preimage_hex, self.pw_key))
+        with self.db.lock:  # Wallet may write pw_key
+            preimage_hex, _ = self._preimages.get(payment_hash.hex(), (None, None))
+            if preimage_hex is None:
+                return None
+            preimage_bytes = bfh(pw_decode(preimage_hex, self.pw_key))
         if sha256(preimage_bytes) != payment_hash:
             raise Exception("found incorrect preimage for payment_hash")
         return preimage_bytes
@@ -3960,7 +3967,8 @@ class LNWallet(Logger):
                 raise util.UserFacingException(_("You already have a newer version of this backup in your wallet."))
         self.logger.info(f'importing channel backup: {channel_id.hex()}')
         d = self.db.get_dict("imported_channel_backups")
-        d[channel_id.hex()] = pw_encode(cb_blob.hex(), self.pw_key)
+        with self.db.lock:  # Wallet may write pw_key
+            d[channel_id.hex()] = pw_encode(cb_blob.hex(), self.pw_key)
         with self.lock:
             cb = ChannelBackup(cb_storage, lnworker=self)
             self._channel_backups[channel_id] = cb
