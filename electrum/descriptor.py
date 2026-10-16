@@ -460,6 +460,19 @@ class Descriptor(object):
         return "unknown"
 
 
+def _pubkey_to_xonly(pubkey: bytes) -> bytes:
+    """Return the 32-byte x-only form of a public key, for use in a taproot context.
+
+    A 33-byte compressed key is reduced by dropping its parity byte. This is correct
+    even for an odd-parity key, as taproot keys are lifted to even-y before tweaking.
+    A 32-byte x-only key is returned unchanged.
+    """
+    if len(pubkey) == 33:
+        return pubkey[1:]
+    assert len(pubkey) == 32, len(pubkey)
+    return pubkey
+
+
 class PKDescriptor(Descriptor):
     """
     A descriptor for ``pk()`` descriptors
@@ -473,8 +486,10 @@ class PKDescriptor(Descriptor):
         """
         super().__init__([pubkey], [], "pk")
 
-    def expand(self, *, pos: Optional[int] = None) -> "ExpandedScripts":
+    def expand(self, *, pos: Optional[int] = None, taproot: bool = False) -> "ExpandedScripts":
         pubkey = self.pubkeys[0].get_pubkey_bytes(pos=pos)
+        if taproot:
+            pubkey = _pubkey_to_xonly(pubkey)
         script = construct_script([pubkey, opcodes.OP_CHECKSIG])
         return ExpandedScripts(output_script=script)
 
@@ -803,13 +818,15 @@ class TRDescriptor(Descriptor):
 
     # TODO add more test vectors from BIP-0386
     def expand(self, *, pos: Optional[int] = None) -> "ExpandedScripts":
-        internal_pubkey = self.pubkeys[0].get_pubkey_bytes(pos=pos)
+        # taproot keys are x-only: reduce a compressed internal key (e.g. from an xpub) to 32 bytes
+        internal_pubkey = _pubkey_to_xonly(self.pubkeys[0].get_pubkey_bytes(pos=pos))
         script_tree = None
         if self.desc_tree:
             def transform(tree_node):
                 if isinstance(tree_node, Descriptor):
                     leaf_version = 0xc0
-                    leaf_script = tree_node.expand(pos=pos).scriptcode_for_sighash  # FIXME maybe rename scriptcode_for_sighash
+                    # only pk() is a valid tapscript leaf; taproot=True reduces its key to x-only form
+                    leaf_script = tree_node.expand(pos=pos, taproot=True).scriptcode_for_sighash  # FIXME maybe rename scriptcode_for_sighash
                     return (leaf_version, leaf_script)
                 assert len(tree_node) == 2, len(tree_node)
                 return [transform(tree_node[0]), transform(tree_node[1])]
