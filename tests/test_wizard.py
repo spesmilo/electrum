@@ -7,8 +7,9 @@ from electrum.network import NetworkParameters, ProxySettings
 from electrum.plugin import Plugins, DeviceInfo, Device
 from electrum.wizard import ServerConnectWizard, NewWalletWizard, WizardViewState, KeystoreWizard
 from electrum.daemon import Daemon
-from electrum.wallet import Abstract_Wallet, Deterministic_Wallet
+from electrum.wallet import Abstract_Wallet, Deterministic_Wallet, restore_wallet_from_text
 from electrum import util
+from electrum.util import InvalidPassword
 from electrum import slip39
 from electrum.bip32 import KeyOriginInfo
 from electrum import keystore
@@ -263,6 +264,97 @@ class KeystoreWizardTestCase(WizardTestCase):
             wallet.enable_keystore(ks, ishww, None)
         self.assertTrue("mismatching xpubs" in ctx.exception.args[0])
 
+    async def test_haveseed_electrum__mismatching_seed__nothing_modified(self):
+        """a failed attempt to add an unrelated seed should not modify the wallet or the keystore"""
+        wallet = self._create_xpub_keystore_wallet(xpub='zpub6nAZodjgiMNf9zzX1pTqd6ZVX61ax8azhUDnWRumKVUr1VYATVoqAuqv3qKsb8WJXjxei4wei2p4vnMG9RnpKnen2kmgdhvZUmug2NnHNsr')
+        wallet.update_password(None, '1234', encrypt_storage=True)
+        self.assertTrue(wallet.storage.is_encrypted_with_user_pw())
+        self.assertFalse(wallet.db.get('use_encryption', False))
+
+        ks = keystore.from_seed('abandon bike', passphrase='', for_multisig=False)
+        with self.assertRaises(Exception) as ctx:
+            wallet.enable_keystore(ks, False, '1234')
+        self.assertTrue("mismatching xpubs" in ctx.exception.args[0])
+        self.assertTrue(wallet.get_keystore().is_watching_only())
+        self.assertFalse(wallet.db.get('use_encryption', False))
+        self.assertEqual('abandon bike', ks.get_seed(None))
+
+    async def test_enable_keystore__written_to_disk(self):
+        myxpub = 'zpub6nAZodjgiMNf9zzX1pTqd6ZVX61ax8azhUDnWRumKVUr1VYATVoqAuqv3qKsb8WJXjxei4wei2p4vnMG9RnpKnen2kmgdhvZUmug2NnHNsr'
+        wallet = self._create_xpub_keystore_wallet(xpub=myxpub)
+        ks = keystore.from_seed('9dk', passphrase='', for_multisig=False)
+        wallet.enable_keystore(ks, False, None)
+
+        wallet2 = Daemon._load_wallet(self.wallet_path, password=None, config=self.config)
+        self.assertFalse(wallet2.get_keystore().is_watching_only())
+        self.assertEqual('9dk', wallet2.get_keystore().get_seed(None))
+
+    async def test_disable_keystore__seed_removed_from_disk(self):
+        myseed = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
+        wallet = restore_wallet_from_text(myseed, path=self.wallet_path, config=self.config)['wallet']
+        xprv = wallet.get_keystore().xprv
+        with open(self.wallet_path, 'r') as f:
+            contents = f.read()
+        self.assertTrue(myseed in contents and xprv in contents)
+
+        wallet.disable_keystore(wallet.get_keystore())
+        with open(self.wallet_path, 'r') as f:
+            contents = f.read()
+        self.assertFalse(myseed in contents, "seed still in wallet file")
+        self.assertFalse(xprv in contents, "xprv still in wallet file")
+
+        wallet2 = Daemon._load_wallet(self.wallet_path, password=None, config=self.config)
+        self.assertTrue(wallet2.get_keystore().is_watching_only())
+
+    async def test_disable_enable_keystore__keystore_encryption_without_storage_encryption(self):
+        myseed = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
+        wallet = restore_wallet_from_text(
+            myseed, path=self.wallet_path, config=self.config, password='1234', encrypt_file=False)['wallet']
+        self.assertTrue(wallet.has_keystore_encryption())
+        self.assertFalse(wallet.has_storage_encryption())
+
+        # the password only protected the keystore, so after disabling it, the wallet has no password
+        wallet.disable_keystore(wallet.get_keystore())
+        self.assertFalse(wallet.has_password())
+        self.assertFalse(wallet.db.get('use_encryption'))
+
+        ks = keystore.from_seed(myseed, passphrase='', for_multisig=False)
+        wallet.enable_keystore(ks, False, None)
+        self.assertFalse(wallet.has_keystore_encryption())
+        wallet.check_password(None)
+        self.assertEqual(myseed, wallet.get_keystore().get_seed(None))
+
+    async def test_disable_enable_keystore__storage_encryption(self):
+        myseed = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
+        wallet = restore_wallet_from_text(
+            myseed, path=self.wallet_path, config=self.config, password='1234', encrypt_file=True)['wallet']
+        self.assertTrue(wallet.has_keystore_encryption())
+
+        wallet.disable_keystore(wallet.get_keystore())
+        self.assertFalse(wallet.has_keystore_encryption())
+        self.assertTrue(wallet.has_password())  # storage encryption
+
+        ks = keystore.from_seed(myseed, passphrase='', for_multisig=False)
+        wallet.enable_keystore(ks, False, '1234')
+        self.assertTrue(wallet.has_keystore_encryption())
+        wallet.check_password('1234')
+        self.assertEqual(myseed, wallet.get_keystore().get_seed('1234'))
+
+    async def test_enable_keystore__stale_use_encryption_flag(self):
+        """older versions left 'use_encryption' set when disabling the only keystore that was encrypted"""
+        myseed = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
+        wallet = restore_wallet_from_text(myseed, path=self.wallet_path, config=self.config)['wallet']
+        wallet.disable_keystore(wallet.get_keystore())
+        wallet.db.put('use_encryption', True)
+        self.assertFalse(wallet.has_password())
+
+        ks = keystore.from_seed(myseed, passphrase='', for_multisig=False)
+        wallet.enable_keystore(ks, False, None)
+        # the seed is not encrypted, so the wallet must not claim keystore encryption
+        self.assertFalse(wallet.has_keystore_encryption())
+        wallet.check_password(None)
+        self.assertEqual(myseed, wallet.get_keystore().get_seed(None))
+
     async def test_haveseed_electrum__2fa_seed(self):
         """unlike NewWalletWizard, KeystoreWizard cannot redirect to the 2fa flow, so 2fa seeds are invalid"""
         w, v = self._wizard_for()
@@ -434,10 +526,67 @@ class KeystoreWizardTestCase(WizardTestCase):
         self.assertFalse(wallet.get_keystores()[1].is_watching_only())
         self.assertEqual(seed1, wallet.get_keystores()[0].get_seed(None))
         self.assertEqual(seed2, wallet.get_keystores()[1].get_seed(None))
+        # wallet.keystore must keep pointing to x1
+        self.assertIs(wallet.keystore, wallet.keystores['x1'])
+        self.assertEqual(xpub1, wallet.get_master_public_key())
 
         keyorigininfo1 = wallet.get_keystores()[0].get_key_origin_info()
         wallet.disable_keystore(wallet.get_keystores()[0])
         self._sanity_checks_after_disabling_keystore(ks=wallet.get_keystores()[0], xpub=xpub1, key_origin_info=keyorigininfo1)
+        self.assertIs(wallet.keystore, wallet.keystores['x1'])
+
+    async def test_multisig__refuse_to_replace_keystore_that_is_not_watching_only(self):
+        seed1 = "bitter grass shiver impose acquire brush forget axis eager alone wine silver"
+        xpub2 = "Zpub6xwgqLvc42wXB1wEELTdALD9iXwStMUkGqBgxkJFYumaL2dWgNvUkjEDWyDFZD3fZuDWDzd1KQJ4NwVHS7hs6H6QkpNYSShfNiUZsgMdtNg"
+
+        wallet = WalletIntegrityHelper.create_multisig_wallet(
+            [
+                keystore.from_seed(seed1, passphrase='', for_multisig=True),
+                keystore.from_xpub(xpub2),
+            ],
+            '2of2',
+            config=self.config,
+            storage=WalletStorage(self.wallet_path),
+        )
+        x1 = wallet.keystores['x1']
+        self.assertFalse(x1.is_watching_only())
+
+        ks = keystore.from_seed(seed1, passphrase='', for_multisig=True)
+        with self.assertRaises(Exception) as ctx:
+            wallet.enable_keystore(ks, False, None)
+        self.assertTrue("not watching-only" in ctx.exception.args[0])
+        self.assertIs(x1, wallet.keystores['x1'])
+        self.assertEqual(seed1, wallet.keystores['x1'].get_seed(None))
+
+    async def test_multisig__keystore_encryption_without_storage_encryption(self):
+        seed1 = "bitter grass shiver impose acquire brush forget axis eager alone wine silver"
+        seed2 = "snow nest raise royal more walk demise rotate smooth spirit canyon gun"
+        xpub2 = "Zpub6xwgqLvc42wXB1wEELTdALD9iXwStMUkGqBgxkJFYumaL2dWgNvUkjEDWyDFZD3fZuDWDzd1KQJ4NwVHS7hs6H6QkpNYSShfNiUZsgMdtNg"
+
+        wallet = WalletIntegrityHelper.create_multisig_wallet(
+            [
+                keystore.from_seed(seed1, passphrase='', for_multisig=True),
+                keystore.from_xpub(xpub2),
+            ],
+            '2of2',
+            config=self.config,
+            storage=WalletStorage(self.wallet_path),
+        )
+        wallet.update_password(None, '1234', encrypt_storage=False)
+        self.assertTrue(wallet.has_keystore_encryption())
+        self.assertFalse(wallet.has_storage_encryption())
+
+        ks = keystore.from_seed(seed2, passphrase='', for_multisig=True)
+        with self.assertRaises(InvalidPassword):
+            wallet.enable_keystore(ks, False, 'wrong password')
+        self.assertTrue(wallet.keystores['x2'].is_watching_only())
+
+        ks = keystore.from_seed(seed2, passphrase='', for_multisig=True)
+        wallet.enable_keystore(ks, False, '1234')
+        self.assertFalse(wallet.keystores['x2'].is_watching_only())
+        # the newly added seed must be encrypted with the wallet password
+        wallet.check_password('1234')
+        self.assertEqual(seed2, wallet.keystores['x2'].get_seed('1234'))
 
 
 class WalletWizardTestCase(WizardTestCase):
