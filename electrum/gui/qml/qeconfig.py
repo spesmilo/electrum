@@ -197,6 +197,17 @@ class QEConfig(AuthMixin, QObject):
         self.config.GUI_ENABLE_DEBUG_LOGS = enable
         self.enableDebugLogsChanged.emit()
 
+    showConsoleChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=showConsoleChanged)
+    def showConsole(self):
+        return self.config.GUI_QML_SHOW_CONSOLE
+
+    @showConsole.setter
+    def showConsole(self, enable):
+        if self.config.GUI_QML_SHOW_CONSOLE != enable:
+            self.config.GUI_QML_SHOW_CONSOLE = enable
+            self.showConsoleChanged.emit()
+
     alwaysAllowScreenshotsChanged = pyqtSignal()
     @pyqtProperty(bool, notify=alwaysAllowScreenshotsChanged)
     def alwaysAllowScreenshots(self):
