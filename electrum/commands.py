@@ -732,6 +732,11 @@ class Commands(Logger):
 
         arg:str:address:Bitcoin address
         """
+        address = address.strip()
+        if not is_address(address):
+            raise UserFacingException(f"Invalid bitcoin address: {address}")
+        if not wallet.is_mine(address):
+            raise UserFacingException(f"Address not in wallet: {address}")
         return wallet.get_public_keys(address)
 
     @command('w')
