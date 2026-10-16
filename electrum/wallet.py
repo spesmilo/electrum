@@ -4353,10 +4353,14 @@ class Deterministic_Wallet(Abstract_Wallet):
         if not target.is_watching_only():
             # e.g. replacing a keystore that has a seed would remove the seed from the wallet file
             raise Exception("keystore to be replaced is not watching-only")
-        if not is_hardware_keystore and (self.storage.is_encrypted_with_user_pw() or self.has_keystore_encryption()):
-            self.check_password(password)
-            keystore.update_password(None, password)
-            self.db.put('use_encryption', True)
+        if not is_hardware_keystore:
+            if self.storage.is_encrypted_with_user_pw() or self.has_keystore_encryption():
+                self.check_password(password)
+                keystore.update_password(None, password)
+                self.db.set_keystore_encryption(True)
+            else:
+                # the wallet has no password.
+                self.db.set_keystore_encryption(False)
         self._update_keystore(keystore)
         self.save_db()
 
@@ -4371,6 +4375,10 @@ class Deterministic_Wallet(Abstract_Wallet):
             self.update_password(password, None, encrypt_storage=False)
         new = keystore.watching_only_keystore()
         self._update_keystore(new)
+        if not self.can_have_keystore_encryption():
+            # no keystore left that can be encrypted. Without storage encryption,
+            # the wallet no longer has a password.
+            self.db.set_keystore_encryption(False)
         # save changes. force full rewrite to rm remnants of the seed
         if self.storage and self.storage.file_exists():
             self.db.write_and_force_consolidation()

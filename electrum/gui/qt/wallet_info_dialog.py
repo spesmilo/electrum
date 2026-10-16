@@ -187,6 +187,13 @@ class WalletInfoDialog(WindowModalDialog):
         msg = _('Disable keystore? This will make the keystore watching-only.')
         if self.wallet.storage.is_encrypted_with_hw_device():
             msg += '\n\n' + _('Note that this will disable wallet file encryption, because it uses your hardware wallet device.')
+        other_keystores = [k for k in self.wallet.get_keystores() if k is not keystore]
+        if (self.wallet.has_keystore_encryption() and not self.wallet.storage.is_encrypted_with_user_pw()
+                and not any(k.may_have_password() for k in other_keystores)):
+            msg += '\n\n' + ' '.join([
+                _('Note that this will remove the wallet password, because it only protects this keystore.'),
+                _('If you enable the keystore again later, set a new password to protect it.'),
+            ])
         if not self.window.question(msg):
             return
         self.accept()
