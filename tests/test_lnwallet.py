@@ -1120,3 +1120,40 @@ class TestChannelBackup(ToyServerTestCase):
         lnwatcher.callbacks.clear()
         alice.lnworker.subscribe_to_channels()
         self.assertEqual({chan.funding_outpoint.to_str(), cb.funding_outpoint.to_str()}, set(lnwatcher.callbacks))
+
+    async def test_concurrent_channel_openings_use_distinct_coins(self):
+        """The funding tx reserves its coins before the channel establishment flow awaits the peer."""
+        alice = self.create_deterministic_wallet(self.alice_instance)
+        await self.pay_to_address(alice.get_receiving_address(), 1 * COIN)
+        await self.pay_to_address(alice.get_receiving_address(), 1 * COIN)
+        await self.mine_blocks(1)
+        to_nodeid = self.bob.lnworker.node_keypair.pubkey
+        peer = await alice.lnworker.lnpeermgr.add_peer(f"{to_nodeid.hex()}@{self.bob.config.LIGHTNING_LISTEN}")
+        (chan1, tx1), (chan2, tx2) = await asyncio.gather(
+            alice.lnworker.open_channel_with_peer(peer, self.FUNDING_SAT, password=None),
+            alice.lnworker.open_channel_with_peer(peer, self.FUNDING_SAT, password=None),
+        )
+        prevouts1 = {txin.prevout.to_str() for txin in tx1.inputs()}
+        prevouts2 = {txin.prevout.to_str() for txin in tx2.inputs()}
+        self.assertFalse(prevouts1 & prevouts2)
+        self.assertIsNotNone(alice.adb.get_transaction(tx1.txid()))
+        self.assertIsNotNone(alice.adb.get_transaction(tx2.txid()))
+
+    async def test_failed_channel_opening_releases_coins(self):
+        alice = self.create_deterministic_wallet(self.alice_instance)
+        await self.pay_to_address(alice.get_receiving_address(), 1 * COIN)
+        await self.mine_blocks(1)
+        get_coins = lambda: {txin.prevout.to_str() for txin in alice.get_spendable_coins(None, nonlocal_only=True)}
+        coins_before = get_coins()
+        self.assertTrue(coins_before)
+        txids_before = set(alice.db.list_transactions())
+        to_nodeid = self.bob.lnworker.node_keypair.pubkey
+        peer = await alice.lnworker.lnpeermgr.add_peer(f"{to_nodeid.hex()}@{self.bob.config.LIGHTNING_LISTEN}")
+        async def flow(**kwargs):
+            self.assertEqual(set(), get_coins())
+            raise Exception('peer rejected channel')
+        with mock.patch.object(peer, 'channel_establishment_flow', side_effect=flow):
+            with self.assertRaisesRegex(Exception, 'peer rejected channel'):
+                await alice.lnworker.open_channel_with_peer(peer, self.FUNDING_SAT, password=None)
+        self.assertEqual(coins_before, get_coins())
+        self.assertEqual(txids_before, set(alice.db.list_transactions()))

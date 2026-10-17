@@ -1665,7 +1665,8 @@ class LNWallet(Logger):
             opening_base_fee_msat: Optional[int] = None,
             password=None):
         self.wallet.unlock(password)
-        coins = self.wallet.get_spendable_coins(None)
+        # do not spend outputs of local txs, they may be removed (e.g. placeholder funding txs)
+        coins = self.wallet.get_spendable_coins(None, nonlocal_only=True)
         node_id = peer.pubkey
         fee_policy = FeePolicy(self.config.FEE_POLICY)
         funding_tx = self.mktx_for_open_channel(
@@ -1705,6 +1706,10 @@ class LNWallet(Logger):
                 _("Requested channel capacity is over maximum.")
                 + f"\n{funding_sat} sat > {self.config.LIGHTNING_MAX_FUNDING_SAT} sat"
             )
+        # reserve the coins before the first await. replaced by the final funding tx
+        placeholder_txid = funding_tx.txid()
+        if not self.wallet.adb.add_transaction(funding_tx):
+            raise Exception('funding tx conflicts with wallet history')
         coro = peer.channel_establishment_flow(
             funding_tx=funding_tx,
             funding_sat=funding_sat,
@@ -1713,7 +1718,11 @@ class LNWallet(Logger):
             zeroconf=zeroconf,
             opening_fee=opening_fee,
             temp_channel_id=crandom.get_rand_bytes(32))
-        chan, funding_tx = await util.wait_for2(coro, LN_P2P_NETWORK_TIMEOUT)
+        try:
+            chan, funding_tx = await util.wait_for2(coro, LN_P2P_NETWORK_TIMEOUT)
+        except BaseException:
+            self.wallet.adb.remove_transaction(placeholder_txid)
+            raise
         util.trigger_callback('channels_updated', self.wallet)
         self.wallet.adb.add_transaction(funding_tx)  # save tx as local into the wallet
         self.wallet.sign_transaction(funding_tx, password)
