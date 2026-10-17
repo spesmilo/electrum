@@ -68,7 +68,7 @@ ItemDelegate {
                     Layout.preferredWidth: implicitWidth
                     horizontalAlignment: Text.AlignRight
                     font.family: FixedFont
-                    text: Config.formatSats(model.amount, false)
+                    text: Config.formatSats(model.amount, false, Config.hideAmounts)
                     visible: model.amount.satsInt != 0
                 }
                 Label {
