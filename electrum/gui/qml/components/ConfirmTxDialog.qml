@@ -29,20 +29,6 @@ ElDialog {
     height: parent.height
     padding: 0
 
-    function updateAmountText() {
-        if (finalizer.valid) {
-            btcValue.text = Config.formatSats(finalizer.effectiveAmount, false)
-            fiatValue.text = Daemon.fx.enabled
-                ? Daemon.fx.fiatValue(finalizer.effectiveAmount, false)
-                : ''
-        } else {
-            btcValue.text = Config.formatSats(finalizer.amount, false)
-            fiatValue.text = Daemon.fx.enabled
-                ? Daemon.fx.fiatValue(finalizer.amount, false)
-                : ''
-        }
-    }
-
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
@@ -79,6 +65,7 @@ ElDialog {
                         Label {
                             id: btcValue
                             Layout.alignment: Qt.AlignRight
+                            text: Config.formatSats(finalizer.valid ? finalizer.effectiveAmount : finalizer.amount, false)
                             font.pixelSize: constants.fontSizeXLarge
                             font.family: FixedFont
                             font.bold: true
@@ -95,6 +82,9 @@ ElDialog {
                             id: fiatValue
                             Layout.alignment: Qt.AlignRight
                             visible: Daemon.fx.enabled
+                            text: Daemon.fx.enabled
+                                ? Daemon.fx.fiatValue(finalizer.valid ? finalizer.effectiveAmount : finalizer.amount, false)
+                                : ''
                             font.pixelSize: constants.fontSizeMedium
                             color: constants.mutedForeground
                         }
@@ -105,16 +95,6 @@ ElDialog {
                             text: Daemon.fx.fiatCurrency
                             font.pixelSize: constants.fontSizeMedium
                             color: constants.mutedForeground
-                        }
-                        Component.onCompleted: updateAmountText()
-                        Connections {
-                            target: finalizer
-                            function onEffectiveAmountChanged() {
-                                updateAmountText()
-                            }
-                            function onValidChanged() {
-                                updateAmountText()
-                            }
                         }
                     }
                 }

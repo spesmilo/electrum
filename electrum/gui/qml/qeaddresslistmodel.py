@@ -116,6 +116,8 @@ class QEAddressCoinListModel(QAbstractListModel, QtEventListener):
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
     _ROLE_RMAP = dict(zip(_ROLE_NAMES, _ROLE_KEYS))
 
+    frozenChanged = pyqtSignal()
+
     def __init__(self, wallet: 'Abstract_Wallet', parent=None):
         super().__init__(parent)
         self.wallet = wallet
@@ -294,3 +296,5 @@ class QEAddressCoinListModel(QAbstractListModel, QtEventListener):
             for address in addresses:
                 self.updateAddress(address)
 
+        if items:
+            self.frozenChanged.emit()
