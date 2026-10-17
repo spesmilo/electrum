@@ -74,7 +74,7 @@ from .lnutil import (
     OnchainChannelBackupStorage, ln_compare_features, IncompatibleLightningFeatures, PaymentFeeBudget,
     NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, GossipForwardingMessage, MIN_FUNDING_SAT,
     MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE, RecvMPPResolution, ReceivedMPPStatus, ReceivedMPPHtlc,
-    PaymentSuccess, ChannelType, ChannelConfig, ChannelKeys, Keypair, ZEROCONF_TIMEOUT,
+    PaymentSuccess, ChannelType, ChannelConfig, ChannelKeys, Keypair,
 )
 from .lnonion import (
     decode_onion_error, OnionFailureCode, OnionRoutingFailure, OnionPacket,
@@ -1004,6 +1004,7 @@ class LNWallet(Logger):
 
     lnwatcher: Optional['LNWatcher']
     MPP_EXPIRY = 120
+    JIT_CHANNEL_TIMEOUT = 3600  # the client has to fulfill the htlc of a JIT channel within this time
     TIMEOUT_SHUTDOWN_FAIL_PENDING_HTLCS = 3  # seconds
     PAYMENT_TIMEOUT = 120
     MPP_SPLIT_PART_FRACTION = 0.2
@@ -1086,11 +1087,6 @@ class LNWallet(Logger):
         #              below the specified expiration delta.
         # htlcs will get settled as soon as the preimage becomes available
         self.dont_expire_htlcs = self.db.get_dict('dont_expire_htlcs')      # type: Dict[str, Optional[int]]
-
-        # k: payment_hash of payments for which we don't want to release the preimage, no matter
-        # how close to expiry. Doesn't prevent htlcs from getting expired or failed if there is no
-        # preimage available. Might be used in combination with dont_expire_htlcs.
-        self.dont_settle_htlcs = self.db.get_dict('dont_settle_htlcs')  # type: Dict[str, None]
 
         # payment_hash -> callback:
         self.hold_invoice_callbacks = {}                # type: Dict[bytes, Callable[[bytes], Awaitable[None]]]
@@ -1266,6 +1262,7 @@ class LNWallet(Logger):
         for coro in [
                 self.reestablish_peers_and_channels(),
                 self.sync_with_remote_watchtower(),
+                self.cleanup_unpaid_jit_channels(),
         ]:
             tg_coro = self.taskgroup.spawn(coro)
             asyncio.run_coroutine_threadsafe(tg_coro, get_asyncio_loop())
@@ -1563,8 +1560,6 @@ class LNWallet(Logger):
         # this will cancel the incoming HTLC
 
         next_chan: Optional[Channel] = None
-        # prevent settling the htlc until the channel opening was successful so we can fail it if needed
-        self.dont_settle_htlcs[payment_hash.hex()] = None
         try:
             assert self.config.ZEROCONF_CHANNEL_SIZE_PERCENT >= 120, "ZEROCONF_CHANNEL_SIZE_PERCENT below min of 120%"
             assert self.config.ZEROCONF_OPENING_FEE_PPM >= 0, f"invalid {self.config.ZEROCONF_OPENING_FEE_PPM=}"
@@ -1584,11 +1579,13 @@ class LNWallet(Logger):
                 opening_base_fee_msat=channel_opening_base_fee_msat,
                 password=password,
             )
+            # marks the channel as JIT channel, see maybe_broadcast_funding_tx and cleanup_unpaid_jit_channels
+            next_chan.storage['jit_payment_hash'] = payment_hash.hex()
             async def wait_for_channel():
                 while not next_chan.is_open():
                     await asyncio.sleep(1)
             await util.wait_for2(wait_for_channel(), LN_P2P_NETWORK_TIMEOUT)
-            self.logger.info(f'JIT channel is open (will forward htlc and await preimage now)')
+            self.logger.info(f'JIT channel is open (will forward htlc now)')
             self.logger.info(f'channel opening fee (sats): {channel_opening_base_fee_msat//1000} + {funding_tx.get_fee()} mining fee')
             next_amount_msat_htlc -= channel_opening_base_fee_msat + funding_tx.get_fee() * 1000
             if next_amount_msat_htlc < 1_000:
@@ -1601,48 +1598,22 @@ class LNWallet(Logger):
                 amount_msat=next_amount_msat_htlc,
                 cltv_abs=next_cltv_abs,
                 onion=next_onion)
-            async def wait_for_preimage():
-                while self.get_preimage(payment_hash) is None:
-                    await asyncio.sleep(1)
-            await util.wait_for2(wait_for_preimage(), LN_P2P_NETWORK_TIMEOUT)
-
-            # We have been paid and can broadcast.
-            # Channel providers should run their own, trusted Electrum server as
-            # we could lose funds here if the server broadcasts the tx but omits it from us
-            first_broadcast_ts = time.time()
-            while time.time() - first_broadcast_ts < ZEROCONF_TIMEOUT * 0.75:
-                if await self.network.try_broadcasting(funding_tx, "jit channel funding"):
-                    break
-                await asyncio.sleep(30)
-                # we cannot rely on success of try_broadcasting to determine broadcasting success
-                # as broadcasting might fail with some harmless error like 'transaction already in mempool'
-                tx_mined_info = self.wallet.adb.get_tx_height(funding_tx.txid())
-                if tx_mined_info.height() > TX_HEIGHT_LOCAL:
-                    self.logger.debug(f"found our jit channel funding tx: {tx_mined_info.height()=}")
-                    break
-            else:
-                raise OnionRoutingFailure(
-                    code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS,
-                    data=b'failed to broadcast funding transaction',
-                )
         except Exception as e:
             self.logger.warning(f"failed to open just in time channel: {repr(e)}")
             if next_chan:
                 await self._cleanup_failed_jit_channel(next_chan)
-            self._preimages.pop(payment_hash.hex(), None)
             if isinstance(e, OnionRoutingFailure):
                 raise
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
-        finally:
-            del self.dont_settle_htlcs[payment_hash.hex()]
 
         htlc_key = serialize_htlc_key(next_chan.get_scid_or_local_alias(), htlc.htlc_id)
         return htlc_key
 
-    async def _cleanup_failed_jit_channel(self, chan: Channel):
+    async def _cleanup_failed_jit_channel(self, chan: Channel) -> bool:
         """
         Removes a just in time channel where we didn't broadcast the funding
         transaction, e.g. when the client didn't release the preimage.
+        Fails the htlcs we offered on it. Returns whether the channel was removed.
         """
         funding_height = chan.get_funding_height()
         if funding_height is not None and funding_height[1] > TX_HEIGHT_LOCAL:
@@ -1652,9 +1623,76 @@ class LNWallet(Logger):
             await util.wait_for2(self.close_channel(chan.channel_id), LN_P2P_NETWORK_TIMEOUT)
         except Exception:
             self.logger.debug(f"sending chan shutdown to failed zeroconf peer failed ", exc_info=True)
+        if self._was_jit_htlc_fulfilled(chan):
+            return False  # fulfilled during shutdown
         chan.set_state(ChannelState.REDEEMED, force=True)
-        self.lnwatcher.adb.remove_transaction(chan.funding_outpoint.txid)
+        adb = self.lnwatcher.adb
+        for prevout_hash, prevout_n in chan.storage.get('funding_inputs', []):
+            # the funding tx, or the placeholder if we were stopped before saving the funding tx
+            spender_txid = adb.db.get_spent_outpoint(prevout_hash, prevout_n)
+            if spender_txid and adb.get_tx_height(spender_txid).height() <= TX_HEIGHT_LOCAL:
+                adb.remove_transaction(spender_txid)
         self.remove_channel(chan.channel_id)
+        # the channel is gone, so the client cannot fulfill them anymore
+        failure = OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
+        for htlc in self._get_pending_htlcs_we_offered(chan):
+            self.htlc_failed(chan, htlc.payment_hash, htlc.htlc_id, error_bytes=None, failure_message=failure)
+        return True
+
+    @staticmethod
+    def _was_jit_htlc_fulfilled(chan: Channel) -> bool:
+        payment_hash = chan.storage.get('jit_payment_hash')
+        return payment_hash is not None and any(
+            htlc.payment_hash.hex() == payment_hash
+            and chan.hm.was_htlc_settled(htlc_id=htlc.htlc_id, htlc_proposer=LOCAL)
+            for direction, htlc in chan.hm.all_htlcs_ever() if direction == SENT)
+
+    @staticmethod
+    def _get_pending_htlcs_we_offered(chan: Channel) -> Sequence[UpdateAddHtlc]:
+        """Not settled, and not irrevocably removed. A failed htlc only fails the incoming htlc
+        once it is irrevocably removed, see htlc_failed."""
+        return [
+            htlc for htlc in chan.hm.get_all_not_irrevocably_removed_htlcs(htlc_proposer=LOCAL)
+            if not chan.hm.was_htlc_settled(htlc_id=htlc.htlc_id, htlc_proposer=LOCAL)
+        ]
+
+    async def cleanup_unpaid_jit_channels(self):
+        """Removes JIT channels whose htlc was failed or not fulfilled in time. Also runs after a restart."""
+        while True:
+            await self._cleanup_unpaid_jit_channels()
+            await asyncio.sleep(60)
+
+    async def _cleanup_unpaid_jit_channels(self):
+        for chan in list(self.channels.values()):
+            if 'jit_payment_hash' not in chan.storage:
+                continue
+            funding_height = chan.get_funding_height()
+            if funding_height is not None and funding_height[1] > TX_HEIGHT_LOCAL:
+                continue  # broadcast
+            if self._was_jit_htlc_fulfilled(chan):
+                continue  # being broadcast
+            was_htlc_sent = chan.hm.get_next_htlc_id(LOCAL) > 0
+            is_failed = was_htlc_sent and not self._get_pending_htlcs_we_offered(chan)
+            is_expired = int(time.time()) - chan.storage['init_timestamp'] > self.JIT_CHANNEL_TIMEOUT
+            if not (is_failed or is_expired):
+                continue
+            self.logger.info(f"removing unpaid JIT channel {chan.get_id_for_log()}")
+            try:
+                await self._cleanup_failed_jit_channel(chan)
+            except Exception:
+                self.logger.exception(f"failed to remove unpaid JIT channel {chan.get_id_for_log()}")
+
+    def maybe_broadcast_funding_tx(self, chan: Channel, payment_hash: bytes) -> None:
+        """Called when the remote fulfills an htlc. Only the JIT payment commits us to broadcast."""
+        if chan.storage.get('jit_payment_hash') != payment_hash.hex():
+            return
+        tx = self.wallet.adb.get_transaction(chan.funding_outpoint.txid)
+        if tx is None:
+            return
+        # We have been paid and can broadcast.
+        # Channel providers should run their own, trusted Electrum server as
+        # we could lose funds here if the server broadcasts the tx but omits it from us
+        self.wallet.txbatcher.add_standalone_tx(tx, 'jit channel funding')
 
     @log_exceptions
     async def open_channel_with_peer(
@@ -1720,13 +1758,14 @@ class LNWallet(Logger):
             temp_channel_id=crandom.get_rand_bytes(32))
         try:
             chan, funding_tx = await util.wait_for2(coro, LN_P2P_NETWORK_TIMEOUT)
+            self.wallet.sign_transaction(funding_tx, password)
         except BaseException:
             self.wallet.adb.remove_transaction(placeholder_txid)
             raise
         util.trigger_callback('channels_updated', self.wallet)
         self.wallet.adb.add_transaction(funding_tx)  # save tx as local into the wallet
-        self.wallet.sign_transaction(funding_tx, password)
         if funding_tx.is_complete() and not zeroconf:
+            self.wallet.txbatcher.add_standalone_tx(funding_tx, 'open_channel')
             await self.network.try_broadcasting(funding_tx, 'open_channel')
         return chan, funding_tx
 
@@ -4342,12 +4381,13 @@ class LNWallet(Logger):
                 # same cltv delta as the JIT route hint, see calc_routing_hints_for_invoice
                 if closest_inc_cltv_abs - cltv_abs < 144:
                     raise OnionRoutingFailure(code=OnionFailureCode.TRAMPOLINE_EXPIRY_TOO_SOON, data=b'')
-                await self.open_channel_just_in_time(
+                htlc_key = await self.open_channel_just_in_time(
                     next_peer=next_peer,
                     next_amount_msat_htlc=amt_to_forward,
                     next_cltv_abs=cltv_abs,
                     payment_hash=payment_hash,
                     next_onion=next_onion)
+                self.active_forwardings[fw_payment_key].append(htlc_key)
                 return
             # split over direct channels. not before JIT, because JIT invoices disable mpp
             next_chans = [chan for chan in next_peer.channels.values() if chan.is_active()]
