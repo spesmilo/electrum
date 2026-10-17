@@ -142,6 +142,7 @@ class TestTxBatcher(ElectrumTestCase):
         wallet = self.create_standard_wallet_from_seed(WALLET_DATA["seed"])
         wallet.start_network(self.network)
         wallet.txbatcher.SLEEP_INTERVAL = 0.01
+        wallet.txbatcher.BROADCAST_RETRY_DELAY = 0.01
         self.network.wallets.append(wallet)
         return wallet
 
@@ -189,6 +190,40 @@ class TestTxBatcher(ElectrumTestCase):
         # check that tx2 is child of tx1
         assert len(tx2.inputs()) == 1
         assert tx2.inputs()[0].prevout.txid.hex() == tx1.txid()
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_standalone_tx(self, mock_save_db):
+        # a standalone tx is rebroadcast while it is local, and forgotten once mined
+        OUTGOING_ADDRESS = 'tb1q7rl9cxr85962ztnsze089zs8ycv52hk43f3m9n'
+        wallet = self._create_wallet()
+        funding_tx = Transaction(WALLET_DATA["funding_tx"])
+        await self.network.try_broadcasting(funding_tx, 'funding')
+        await self.network.next_tx()
+        output = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 10_000)
+        tx = wallet.make_unsigned_transaction(outputs=[output], fee_policy=electrum.fee_policy.FeePolicy('feerate:5000'))
+        wallet.sign_transaction(tx, password=None)
+        # first broadcast attempt fails
+        attempts = []
+        try_broadcasting = self.network.try_broadcasting
+        async def flaky_broadcasting(tx, name):
+            attempts.append(tx.txid())
+            if len(attempts) == 1:
+                return False
+            return await try_broadcasting(tx, name)
+        self.network.try_broadcasting = flaky_broadcasting
+        wallet.txbatcher.add_standalone_tx(tx, 'standalone')
+        self.assertIn(tx.txid(), wallet.db.get_dict('standalone_txs'))
+        tx2 = await self.network.next_tx()
+        self.assertEqual(tx.txid(), tx2.txid())
+        self.assertEqual(attempts, [tx.txid(), tx.txid()])
+        # tx gets mined
+        wallet.adb.receive_tx_callback(tx, tx_height=1)
+        tx_mined_status = wallet.adb.get_tx_height(tx.txid())
+        wallet.adb.add_verified_tx(tx.txid(), dataclasses.replace(tx_mined_status, conf=1))
+        async with timeout_after(10):
+            while tx.txid() in wallet.db.get_dict('standalone_txs'):
+                await asyncio.sleep(0.01)
+        self.assertEqual(len(attempts), 2)
 
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')

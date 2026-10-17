@@ -504,13 +504,6 @@ def _maybe_reveal_preimage_for_htlc(
             until_height=htlc.cltv_abs,
         )
         return None, keep_watching_txo
-    if htlc.payment_hash.hex() in chan.lnworker.dont_settle_htlcs:
-        # we should not reveal the preimage *for now*, but we might still decide to reveal it later
-        keep_watching_txo = KeepWatchingTXO(
-            name=sweep_info_name + "_dont_settle_htlcs",
-            until_height=htlc.cltv_abs,
-        )
-        return None, keep_watching_txo
     preimage = chan.lnworker.get_preimage(htlc.payment_hash)
     if preimage is None:
         keep_watching_txo = KeepWatchingTXO(

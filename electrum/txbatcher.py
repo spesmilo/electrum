@@ -66,6 +66,7 @@
 
 import asyncio
 import threading
+import time
 import copy
 from typing import Dict, Sequence, Optional, TYPE_CHECKING, Mapping, Set, List, Tuple
 
@@ -86,6 +87,8 @@ if TYPE_CHECKING:
 class TxBatcher(Logger):
 
     SLEEP_INTERVAL = 1
+    BROADCAST_RETRY_DELAY = 10  # doubles after each attempt, up to MAX_BROADCAST_RETRY_DELAY
+    MAX_BROADCAST_RETRY_DELAY = 60  # legacy htlc sweeps race the remote
 
     def __init__(self, wallet: 'Abstract_Wallet'):
         Logger.__init__(self)
@@ -95,7 +98,8 @@ class TxBatcher(Logger):
         self.wallet = wallet
         for key, item_storage in self.storage.items():
             self.tx_batches[key] = TxBatch(self.wallet, item_storage)
-        self._legacy_htlcs = {}  # type: Dict[TxOutpoint, SweepInfo]
+        self._standalone_txs = wallet.db.get_dict('standalone_txs')  # type: Dict[str, str]  # txid -> name
+        self._next_broadcast = {}  # type: Dict[str, Tuple[float, int]]  # txid -> (next_attempt_ts, num_attempts)
         self.taskgroup = None  # type: Optional[OldTaskGroup]
         self.password_future = None  # type: Optional[asyncio.Future[Optional[str]]]
 
@@ -105,14 +109,18 @@ class TxBatcher(Logger):
         batch.add_payment_output(output)
 
     @locked
+    def add_standalone_tx(self, tx: Transaction, name: str) -> None:
+        """Broadcast tx until it is mined, or removed from history by a conflicting tx."""
+        self.wallet.adb.add_transaction(tx)
+        self._standalone_txs[tx.txid()] = name
+
+    @locked
     def add_sweep_input(self, key: str, sweep_info: 'SweepInfo') -> None:
         """Can raise BelowDustLimit or NoDynamicFeeEstimates."""
         if sweep_info.txin and sweep_info.txout:
             # detect legacy htlc using name and csv delay
             if sweep_info.name in ['received-htlc', 'offered-htlc'] and sweep_info.csv_delay == 0:
-                if sweep_info.txin.prevout not in self._legacy_htlcs:
-                    self.logger.info(f'received {sweep_info.name}')
-                    self._legacy_htlcs[sweep_info.txin.prevout] = sweep_info
+                self._maybe_redeem_legacy_htlc(sweep_info)
                 return
         fee_policy_name = key
         if not sweep_info.can_be_batched:
@@ -163,15 +171,15 @@ class TxBatcher(Logger):
         for key, batch in self.tx_batches.items():
             await self.taskgroup.spawn(self.run_batch(key, batch))
         async with self.taskgroup as group:
-            await group.spawn(self.redeem_legacy_htlcs())
+            await group.spawn(self.broadcast_standalone_txs())
 
-    async def redeem_legacy_htlcs(self) -> None:
+    async def broadcast_standalone_txs(self) -> None:
         while True:
             await asyncio.sleep(self.SLEEP_INTERVAL)
-            for sweep_info in self._legacy_htlcs.values():
-                await self._maybe_redeem_legacy_htlcs(sweep_info)
+            for txid, name in list(self._standalone_txs.items()):
+                await self._maybe_broadcast_standalone_tx(txid, name)
 
-    async def _maybe_redeem_legacy_htlcs(self, sweep_info: 'SweepInfo') -> None:
+    def _maybe_redeem_legacy_htlc(self, sweep_info: 'SweepInfo') -> None:
         assert sweep_info.csv_delay == 0
         local_height = self.wallet.network.get_local_height()
         wanted_height = sweep_info.our_cltv_abs
@@ -180,17 +188,44 @@ class TxBatcher(Logger):
         outpoint = sweep_info.txin.prevout.to_str()
         prev_txid, index = outpoint.split(':')
         if spender_txid := self.wallet.adb.db.get_spent_outpoint(prev_txid, int(index)):
+            if spender_txid in self._standalone_txs:
+                return
             tx_mined_status = self.wallet.adb.get_tx_height(spender_txid)
             if tx_mined_status.height() > 0:
                 return
             if tx_mined_status.height() not in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:
                 # prevout spent (or spender in mempool), nothing left to do. see also _to_sweep_after() comment.
                 return
-        self.logger.info(f'will broadcast standalone tx {sweep_info.name}')
         tx = PartialTransaction.from_io([sweep_info.txin], [sweep_info.txout], locktime=sweep_info.our_cltv_abs, version=2)
         self.wallet.sign_transaction(tx, password=None, ignore_warnings=True)
-        if await self.wallet.network.try_broadcasting(tx, sweep_info.name):
-            self.wallet.adb.add_transaction(tx)
+        self.add_standalone_tx(tx, sweep_info.name)
+
+    async def _maybe_broadcast_standalone_tx(self, txid: str, name: str) -> None:
+        tx = self.wallet.adb.get_transaction(txid)
+        if tx is None:
+            self.logger.info(f'standalone tx {name} {txid} was removed from history')
+            self._standalone_txs.pop(txid, None)
+            self._next_broadcast.pop(txid, None)
+            return
+        height = self.wallet.adb.get_tx_height(txid).height()
+        if height > 0:
+            self.logger.info(f'standalone tx {name} {txid} is mined')
+            self._standalone_txs.pop(txid, None)
+            self._next_broadcast.pop(txid, None)
+            return
+        if height not in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:
+            # in mempool. if it gets evicted, retry right away
+            self._next_broadcast.pop(txid, None)
+            return
+        if not (self.wallet.network and self.wallet.network.is_connected()):
+            return
+        next_ts, num_attempts = self._next_broadcast.get(txid, (0, 0))
+        if time.time() < next_ts:
+            return
+        delay = min(self.BROADCAST_RETRY_DELAY * 2 ** num_attempts, self.MAX_BROADCAST_RETRY_DELAY)
+        self._next_broadcast[txid] = (time.time() + delay, num_attempts + 1)
+        self.logger.info(f'will broadcast standalone tx {name} {txid}')
+        await self.wallet.network.try_broadcasting(tx, name)
 
     async def get_password(self, txid: str) -> Optional[str]:
         # daemon, android have password in memory

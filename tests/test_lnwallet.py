@@ -9,7 +9,7 @@ from typing import Callable, Optional, Sequence
 
 import electrum_ecc as ecc
 
-from electrum.address_synchronizer import TX_HEIGHT_LOCAL
+from electrum.address_synchronizer import TX_HEIGHT_LOCAL, TX_HEIGHT_UNCONFIRMED
 from electrum import bitcoin, keystore
 from electrum.bitcoin import COIN
 import electrum.trampoline
@@ -225,8 +225,8 @@ class TestLNWallet(ElectrumTestCase):
         funding_tx.txid.return_value = os.urandom(32).hex()
         funding_tx.get_fee = lambda: 250
 
+        next_chan.storage = {}
         wallet.open_channel_with_peer = mock.AsyncMock(return_value=(next_chan, funding_tx))
-        wallet.network.try_broadcasting = mock.AsyncMock(return_value=True)
 
         preimage = os.urandom(32)
         payment_hash = sha256(preimage)
@@ -235,23 +235,19 @@ class TestLNWallet(ElectrumTestCase):
         htlc.htlc_id = 0
         next_peer.send_htlc.return_value = htlc
 
-        task = asyncio.create_task(wallet.open_channel_just_in_time(
+        htlc_key = await wallet.open_channel_just_in_time(
             next_peer=next_peer,
             next_amount_msat_htlc=1000000,
             next_cltv_abs=500,
             payment_hash=payment_hash,
             next_onion=mock.Mock(spec=OnionPacket)
-        ))
-
-        await asyncio.sleep(0.1)
-        wallet.save_preimage(payment_hash, preimage)
-        htlc_key = await task
+        )
         htlc_key_correct = serialize_htlc_key(next_chan.get_scid_or_local_alias(), htlc.htlc_id)
         self.assertEqual(htlc_key, htlc_key_correct)
 
         wallet.open_channel_with_peer.assert_called_once()
         next_peer.send_htlc.assert_called_once()
-        wallet.network.try_broadcasting.assert_called()
+        self.assertEqual(payment_hash.hex(), next_chan.storage['jit_payment_hash'])
 
     async def test_open_channel_just_in_time_failure_channel_open(self):
         """The channel opening failed on the LSP side because the client rejected the incoming channel"""
@@ -273,7 +269,6 @@ class TestLNWallet(ElectrumTestCase):
                 next_onion=mock.Mock(spec=OnionPacket)
             )
 
-        self.assertIsNone(wallet.get_preimage(sha256(preimage)))
         wallet._cleanup_failed_jit_channel.assert_not_called()
 
     async def test_open_channel_just_in_time_failure_send_htlc(self):
@@ -286,6 +281,7 @@ class TestLNWallet(ElectrumTestCase):
         chan = mock.Mock(spec=Channel)
         funding_tx = mock.Mock()
 
+        chan.storage = {}
         wallet.open_channel_with_peer = mock.AsyncMock(return_value=(chan, funding_tx))
         next_peer.send_htlc.side_effect = Exception("couldn't send htlc, peer disconnected")
         preimage = os.urandom(32)
@@ -301,71 +297,32 @@ class TestLNWallet(ElectrumTestCase):
                 next_onion=mock.Mock(spec=OnionPacket)
             )
 
-        self.assertIsNone(wallet.get_preimage(sha256(preimage)))
         wallet._cleanup_failed_jit_channel.assert_called_once_with(chan)
+        self.assertEqual(sha256(preimage).hex(), chan.storage['jit_payment_hash'])
 
-    async def test_open_channel_just_in_time_failure_preimage_timeout(self):
-        """The client never releases the preimage"""
+    async def test_maybe_broadcast_funding_tx(self):
+        """The funding tx of a JIT channel is broadcast when the client fulfills the htlc of the JIT payment"""
         wallet = self.lnwallet_anchors
-        wallet.config.ZEROCONF_MIN_OPENING_FEE = 0
-        wallet.config.OPEN_ZEROCONF_CHANNELS = True
-
-        next_peer = mock.Mock(spec=Peer)
+        jit_payment_hash = os.urandom(32)
         chan = mock.Mock(spec=Channel)
+        chan.funding_outpoint = mock.Mock()
+        chan.funding_outpoint.txid = os.urandom(32).hex()
         funding_tx = mock.Mock()
-
-        wallet.open_channel_with_peer = mock.AsyncMock(return_value=(chan, funding_tx))
-
-        htlc = mock.Mock()
-        next_peer.send_htlc.return_value = htlc
-
-        wallet._cleanup_failed_jit_channel = mock.AsyncMock()
-
-        with mock.patch('electrum.lnworker.LN_P2P_NETWORK_TIMEOUT', 0.01):
-            with self.assertRaises(OnionRoutingFailure):
-                await wallet.open_channel_just_in_time(
-                    next_peer=next_peer,
-                    next_amount_msat_htlc=1000000,
-                    next_cltv_abs=500,
-                    payment_hash=os.urandom(32),
-                    next_onion=mock.Mock(spec=OnionPacket)
-                )
-
-        wallet._cleanup_failed_jit_channel.assert_called_once_with(chan)
-
-    async def test_open_channel_just_in_time_failure_broadcast(self):
-        wallet = self.lnwallet_anchors
-        wallet.config.ZEROCONF_MIN_OPENING_FEE = 0
-        wallet.config.OPEN_ZEROCONF_CHANNELS = True
-
-        next_peer = mock.Mock(spec=Peer)
-        chan = mock.Mock(spec=Channel)
-
-        funding_tx = mock.Mock()
-
-        wallet.open_channel_with_peer = mock.AsyncMock(return_value=(chan, funding_tx))
-
-        preimage = os.urandom(32)
-        wallet.save_preimage(sha256(preimage), preimage)
-
-        wallet.network.try_broadcasting = mock.AsyncMock(return_value=False)
-        wallet.wallet.adb.get_tx_height = mock.Mock(return_value=mock.Mock(height=lambda: TX_HEIGHT_LOCAL))
-
-        wallet._cleanup_failed_jit_channel = mock.AsyncMock()
-
-        with mock.patch('electrum.lnworker.ZEROCONF_TIMEOUT', 0.01), \
-             mock.patch('electrum.lnworker.asyncio.sleep', new_callable=mock.AsyncMock):
-             with self.assertRaises(OnionRoutingFailure):
-                await wallet.open_channel_just_in_time(
-                    next_peer=next_peer,
-                    next_amount_msat_htlc=1000000,
-                    next_cltv_abs=500,
-                    payment_hash=sha256(preimage),
-                    next_onion=mock.Mock(spec=OnionPacket)
-                )
-
-        self.assertIsNone(wallet.get_preimage(sha256(preimage)))
-        wallet._cleanup_failed_jit_channel.assert_called_once_with(chan)
+        wallet.wallet.adb.get_transaction = mock.Mock(return_value=funding_tx)
+        wallet.wallet.txbatcher.add_standalone_tx = mock.Mock()
+        for storage, payment_hash, broadcast in (
+                ({'jit_payment_hash': jit_payment_hash.hex()}, jit_payment_hash, True),
+                ({'jit_payment_hash': jit_payment_hash.hex()}, os.urandom(32), False),  # another htlc
+                ({}, jit_payment_hash, False),  # not a JIT channel
+        ):
+            with self.subTest(storage=storage, broadcast=broadcast):
+                wallet.wallet.txbatcher.add_standalone_tx.reset_mock()
+                chan.storage = storage
+                wallet.maybe_broadcast_funding_tx(chan, payment_hash)
+                if broadcast:
+                    wallet.wallet.txbatcher.add_standalone_tx.assert_called_once_with(funding_tx, 'jit channel funding')
+                else:
+                    wallet.wallet.txbatcher.add_standalone_tx.assert_not_called()
 
     async def test_open_channel_just_in_time_config_disabled(self):
         """open_channel_just_in_time rejects to open a channel if the config is disabled"""
@@ -499,36 +456,111 @@ class TestLNWallet(ElectrumTestCase):
         wallet.open_channel_just_in_time.assert_not_called()
 
         with self.subTest(msg="latest accepted outgoing cltv opens the channel"):
+            wallet.active_forwardings['fw_payment_key'] = []
             await forward(out_cltv_abs=height + NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE - 1)
+            self.assertEqual(['htlc_key'], wallet.active_forwardings['fw_payment_key'])
             wallet.open_channel_just_in_time.assert_awaited_once()
             kwargs = wallet.open_channel_just_in_time.call_args.kwargs
             self.assertEqual(kwargs['next_cltv_abs'], height + NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE)
 
-    async def test_cleanup_failed_jit_channel(self):
-        wallet = self.lnwallet_anchors
-
+    @staticmethod
+    def _mock_jit_chan(*, htlc_state: Optional[str], age: int = 0, payment_hash: bytes = None) -> Channel:
+        """htlc_state of the JIT htlc: None (not sent), 'pending', 'failed', 'fulfilled',
+        or 'failed_uncommitted' (the client sent update_fail_htlc, not yet irrevocably committed)"""
+        payment_hash = payment_hash or os.urandom(32)
         chan = mock.Mock(spec=Channel)
-        chan_id = os.urandom(32).hex()
-        chan.channel_id = chan_id
-        funding_txid = os.urandom(32).hex()
-        chan.funding_outpoint = mock.Mock()
-        chan.funding_outpoint.txid = funding_txid
+        chan.channel_id = os.urandom(32).hex()
+        chan.storage = {'jit_payment_hash': payment_hash.hex(), 'init_timestamp': int(time.time()) - age}
         chan.get_funding_height.return_value = None
+        htlc = mock.Mock()
+        htlc.htlc_id = 0
+        htlc.payment_hash = payment_hash
+        chan.hm = mock.Mock()
+        chan.hm.get_next_htlc_id.return_value = 0 if htlc_state is None else 1
+        chan.hm.all_htlcs_ever.side_effect = lambda: [] if htlc_state is None else [(SENT, htlc)]
+        chan.hm.get_all_not_irrevocably_removed_htlcs.side_effect = lambda **kwargs: (
+            [htlc] if chan.htlc_state in ('pending', 'failed_uncommitted') else [])
+        chan.hm.was_htlc_settled.side_effect = lambda **kwargs: chan.htlc_state == 'fulfilled'
+        chan.hm.was_htlc_failed.side_effect = lambda **kwargs: chan.htlc_state in ('failed', 'failed_uncommitted')
+        chan.htlc_state = htlc_state
+        chan.htlc = htlc
+        return chan
+
+    async def test_cleanup_failed_jit_channel(self):
+        for htlc_state in ('pending', 'failed_uncommitted'):
+            with self.subTest(htlc_state=htlc_state):
+                await self._test_cleanup_failed_jit_channel(htlc_state)
+
+    async def _test_cleanup_failed_jit_channel(self, htlc_state: str):
+        """the incoming htlc gets failed, also if the client failed the JIT htlc but it is not committed yet"""
+        wallet = self.lnwallet_anchors
+        chan = self._mock_jit_chan(htlc_state=htlc_state)
+        prev_txid = os.urandom(32).hex()
+        chan.storage['funding_inputs'] = [[prev_txid, 0]]
+        funding_txid = os.urandom(32).hex()
 
         # close_channel fails with exception
         wallet.close_channel = mock.AsyncMock(side_effect=Exception("peer disconnected"))
         wallet.remove_channel = mock.Mock()
+        wallet.htlc_failed = mock.Mock()
         wallet.lnwatcher = mock.Mock()
         wallet.lnwatcher.stop = mock.AsyncMock()
-        wallet.lnwatcher.adb = mock.Mock()
-        wallet.lnwatcher.adb.remove_transaction = mock.Mock()
+        adb = wallet.lnwatcher.adb = mock.Mock()
+        # the funding tx, or the placeholder if we were stopped before saving the funding tx
+        adb.db.get_spent_outpoint.return_value = funding_txid
+        adb.get_tx_height.return_value = mock.Mock(**{'height.return_value': TX_HEIGHT_LOCAL})
 
-        await wallet._cleanup_failed_jit_channel(chan)
+        self.assertTrue(await wallet._cleanup_failed_jit_channel(chan))
 
-        wallet.close_channel.assert_called_once_with(chan_id)
+        wallet.close_channel.assert_called_once_with(chan.channel_id)
         chan.set_state.assert_called_once_with(ChannelState.REDEEMED, force=True)
-        wallet.lnwatcher.adb.remove_transaction.assert_called_once_with(funding_txid)
-        wallet.remove_channel.assert_called_once_with(chan_id)
+        adb.db.get_spent_outpoint.assert_called_once_with(prev_txid, 0)
+        adb.remove_transaction.assert_called_once_with(funding_txid)
+        wallet.remove_channel.assert_called_once_with(chan.channel_id)
+        wallet.htlc_failed.assert_called_once()
+        self.assertEqual((chan, chan.htlc.payment_hash, chan.htlc.htlc_id), wallet.htlc_failed.call_args.args)
+
+    async def test_cleanup_failed_jit_channel_fulfilled_during_shutdown(self):
+        wallet = self.lnwallet_anchors
+        chan = self._mock_jit_chan(htlc_state='pending')
+        def fulfill(*args):
+            chan.htlc_state = 'fulfilled'
+        wallet.close_channel = mock.AsyncMock(side_effect=fulfill)
+        wallet.remove_channel = mock.Mock()
+        wallet.htlc_failed = mock.Mock()
+
+        self.assertFalse(await wallet._cleanup_failed_jit_channel(chan))
+
+        wallet.close_channel.assert_awaited_once()
+        chan.set_state.assert_not_called()
+        wallet.remove_channel.assert_not_called()
+        wallet.htlc_failed.assert_not_called()
+
+    async def test_cleanup_unpaid_jit_channels(self):
+        """JIT channels are removed if their htlc was failed, or not fulfilled within JIT_CHANNEL_TIMEOUT"""
+        wallet = self.lnwallet_anchors
+        timeout = wallet.JIT_CHANNEL_TIMEOUT
+        expired = self._mock_jit_chan(htlc_state='pending', age=timeout + 1)
+        failed = self._mock_jit_chan(htlc_state='failed')
+        failed_uncommitted = self._mock_jit_chan(htlc_state='failed_uncommitted')  # wait until committed
+        not_sent_expired = self._mock_jit_chan(htlc_state=None, age=timeout + 1)  # e.g. JIT open was cancelled
+        pending = self._mock_jit_chan(htlc_state='pending', age=timeout - 60)
+        not_sent = self._mock_jit_chan(htlc_state=None)  # JIT open in progress
+        fulfilled = self._mock_jit_chan(htlc_state='fulfilled', age=timeout + 1)
+        broadcast = self._mock_jit_chan(htlc_state='pending', age=timeout + 1)
+        broadcast.get_funding_height.return_value = (os.urandom(32).hex(), TX_HEIGHT_UNCONFIRMED, None)
+        not_jit = self._mock_jit_chan(htlc_state='failed', age=timeout + 1)
+        del not_jit.storage['jit_payment_hash']
+        chans = [expired, failed, not_sent_expired, pending, not_sent, fulfilled, broadcast, not_jit, failed_uncommitted]
+        wallet._cleanup_failed_jit_channel = mock.AsyncMock()
+
+        with mock.patch.object(type(wallet), 'channels', new=property(
+                lambda self: {c.channel_id: c for c in chans})):
+            await wallet._cleanup_unpaid_jit_channels()
+
+        self.assertEqual(
+            [mock.call(expired), mock.call(failed), mock.call(not_sent_expired)],
+            wallet._cleanup_failed_jit_channel.await_args_list)
 
     async def test_receive_requires_jit_channel(self):
         wallet = self.lnwallet_anchors
@@ -1120,3 +1152,56 @@ class TestChannelBackup(ToyServerTestCase):
         lnwatcher.callbacks.clear()
         alice.lnworker.subscribe_to_channels()
         self.assertEqual({chan.funding_outpoint.to_str(), cb.funding_outpoint.to_str()}, set(lnwatcher.callbacks))
+
+    async def test_concurrent_channel_openings_use_distinct_coins(self):
+        """The funding tx reserves its coins before the channel establishment flow awaits the peer."""
+        alice = self.create_deterministic_wallet(self.alice_instance)
+        await self.pay_to_address(alice.get_receiving_address(), 1 * COIN)
+        await self.pay_to_address(alice.get_receiving_address(), 1 * COIN)
+        await self.mine_blocks(1)
+        to_nodeid = self.bob.lnworker.node_keypair.pubkey
+        peer = await alice.lnworker.lnpeermgr.add_peer(f"{to_nodeid.hex()}@{self.bob.config.LIGHTNING_LISTEN}")
+        (chan1, tx1), (chan2, tx2) = await asyncio.gather(
+            alice.lnworker.open_channel_with_peer(peer, self.FUNDING_SAT, password=None),
+            alice.lnworker.open_channel_with_peer(peer, self.FUNDING_SAT, password=None),
+        )
+        prevouts1 = {txin.prevout.to_str() for txin in tx1.inputs()}
+        prevouts2 = {txin.prevout.to_str() for txin in tx2.inputs()}
+        self.assertFalse(prevouts1 & prevouts2)
+        self.assertIsNotNone(alice.adb.get_transaction(tx1.txid()))
+        self.assertIsNotNone(alice.adb.get_transaction(tx2.txid()))
+
+    async def test_channel_opening_releases_coins_if_signing_fails(self):
+        alice = self.create_deterministic_wallet(self.alice_instance)
+        await self.pay_to_address(alice.get_receiving_address(), 1 * COIN)
+        await self.mine_blocks(1)
+        get_coins = lambda: {txin.prevout.to_str() for txin in alice.get_spendable_coins(None, nonlocal_only=True)}
+        coins_before = get_coins()
+        to_nodeid = self.bob.lnworker.node_keypair.pubkey
+        peer = await alice.lnworker.lnpeermgr.add_peer(f"{to_nodeid.hex()}@{self.bob.config.LIGHTNING_LISTEN}")
+        async def flow(*, funding_tx, **kwargs):
+            return mock.Mock(spec=Channel), funding_tx
+        with mock.patch.object(peer, 'channel_establishment_flow', side_effect=flow), \
+                mock.patch.object(alice, 'sign_transaction', side_effect=Exception('signing cancelled')):
+            with self.assertRaisesRegex(Exception, 'signing cancelled'):
+                await alice.lnworker.open_channel_with_peer(peer, self.FUNDING_SAT, password=None)
+        self.assertEqual(coins_before, get_coins())
+
+    async def test_failed_channel_opening_releases_coins(self):
+        alice = self.create_deterministic_wallet(self.alice_instance)
+        await self.pay_to_address(alice.get_receiving_address(), 1 * COIN)
+        await self.mine_blocks(1)
+        get_coins = lambda: {txin.prevout.to_str() for txin in alice.get_spendable_coins(None, nonlocal_only=True)}
+        coins_before = get_coins()
+        self.assertTrue(coins_before)
+        txids_before = set(alice.db.list_transactions())
+        to_nodeid = self.bob.lnworker.node_keypair.pubkey
+        peer = await alice.lnworker.lnpeermgr.add_peer(f"{to_nodeid.hex()}@{self.bob.config.LIGHTNING_LISTEN}")
+        async def flow(**kwargs):
+            self.assertEqual(set(), get_coins())
+            raise Exception('peer rejected channel')
+        with mock.patch.object(peer, 'channel_establishment_flow', side_effect=flow):
+            with self.assertRaisesRegex(Exception, 'peer rejected channel'):
+                await alice.lnworker.open_channel_with_peer(peer, self.FUNDING_SAT, password=None)
+        self.assertEqual(coins_before, get_coins())
+        self.assertEqual(txids_before, set(alice.db.list_transactions()))
