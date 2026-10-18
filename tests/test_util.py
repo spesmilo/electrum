@@ -1,4 +1,5 @@
 import asyncio
+import gc
 from datetime import datetime
 from decimal import Decimal
 
@@ -522,4 +523,35 @@ class TestUtil(ElectrumTestCase):
             await asyncio.sleep(0)
         # refs should be cleaned up by now:
         self.assertEqual(0, len(util._running_asyncio_tasks))
+
+    async def test_oldtaskgroup_retrieves_all_task_exceptions(self):
+        # If multiple tasks fail in the same event loop iteration, only the first exception is
+        # propagated, but the others must still be retrieved (and logged), or asyncio logs
+        # "Task exception was never retrieved" when the tasks get garbage collected.
+        async def run_group(wait):
+            evt = asyncio.Event()
+            async def fail(i):
+                await evt.wait()
+                raise ValueError(i)
+            async with util.OldTaskGroup(wait=wait) as group:
+                for i in range(5):
+                    await group.spawn(fail(i))
+                evt.set()
+
+        loop = util.get_running_loop()
+        unretrieved = []
+        loop.set_exception_handler(lambda loop, context: unretrieved.append(context))
+        try:
+            for wait in (all, any):
+                with self.assertLogs(util._logger, level="DEBUG") as logs:
+                    with self.assertRaises(ValueError) as ctx:
+                        await run_group(wait)
+                self.assertEqual((0,), ctx.exception.args)
+                self.assertEqual(4, len(logs.output))
+                for i in range(1, 5):
+                    self.assertIn(f"exception=ValueError({i})", "".join(logs.output))
+                gc.collect()
+                self.assertEqual([], [c['message'] for c in unretrieved])
+        finally:
+            loop.set_exception_handler(None)
 
