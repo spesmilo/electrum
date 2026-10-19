@@ -503,27 +503,27 @@ class Daemon(Logger):
         password: Optional[str],
         *,
         upgrade: bool = False,
-        force_check_password: bool = False,
+        unlock: bool = False,
     ) -> Optional[Abstract_Wallet]:
         """
-        force_check_password: if False, the password arg is only used if it needed to decrypt the storage.
-                              if True, the password arg is always validated.
+        unlock: if False, the password arg is only used if it needed to decrypt the storage.
+                if True, the password arg is always validated, and the wallet is unlocked with it.
         """
         assert password != ''
         path = standardize_path(path)
         wallet_key = self._wallet_key_from_path(path)
         # wizard will be launched if we return
         if wallet := self._wallets.get(wallet_key):
-            if force_check_password:
-                wallet.check_password(password)
+            if unlock:
+                wallet.unlock(password)
             if self.config.get('wallet_path') is None:
                 self.config.CURRENT_WALLET = path
             return wallet
         wallet = self._load_wallet(
-            path, password, upgrade=upgrade, config=self.config, force_check_password=force_check_password)
+            path, password, upgrade=upgrade, config=self.config, unlock=unlock)
         if self.network:
             wallet.start_network(self.network)
-        elif wallet.lnworker:
+        elif wallet.has_lightning():
             # in offline mode, we need to trigger callbacks
             coro = wallet.lnworker.lnwatcher.trigger_callbacks(requires_synchronizer=False)
             asyncio.run_coroutine_threadsafe(coro, self.asyncio_loop)
@@ -542,7 +542,8 @@ class Daemon(Logger):
             *,
             upgrade: bool = False,
             config: SimpleConfig,
-            force_check_password: bool = False,  # if set, always validate password
+            unlock: bool = False,  # if set, always validate password, and unlock the wallet
+            check_only: bool = False,  # only checking the password: don't migrate, don't load lightning
     ) -> Optional[Abstract_Wallet]:
         path = standardize_path(path)
         storage = WalletStorage(path, allow_partial_writes=config.WALLET_PARTIAL_WRITES)
@@ -557,8 +558,14 @@ class Daemon(Logger):
         if db.get_action():
             raise WalletUnfinished(db)
         wallet = Wallet(db, config=config)
-        if force_check_password:
-            wallet.check_password(password)
+        if unlock:
+            wallet.unlock(password)
+        if storage.is_encrypted_with_user_pw() and not check_only:
+            # we just used the password to decrypt the file, so we have it at hand:
+            # this is our chance to move the keystores to the latest KDF. (see #4909)
+            # and lightning can run without the wallet having to be unlocked
+            pw_key = wallet.upgrade_pw_hash_version(password)
+            wallet.load_lightning(password, pw_key=pw_key)
         return wallet
 
     @with_wallet_lock
@@ -716,7 +723,7 @@ class Daemon(Logger):
             #                  hard-to-understand bugs will follow...
             if wallet is None:
                 try:
-                    wallet = self._load_wallet(path, old_password, upgrade=True, config=self.config)
+                    wallet = self._load_wallet(path, old_password, upgrade=True, config=self.config, check_only=True)
                 except util.InvalidPassword:
                     pass
                 except Exception:

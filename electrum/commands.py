@@ -70,7 +70,7 @@ from .wallet import (
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from .mnemonic import Mnemonic
 from .lnutil import (channel_id_from_funding_tx, LnFeatures, SENT, RECEIVED, MIN_FINAL_CLTV_DELTA_ACCEPTED,
-                     PaymentFeeBudget, NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE)
+                     PaymentFeeBudget, NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, LightningLocked)
 from .plugin import run_hook, DeviceMgr, Plugins
 from .version import ELECTRUM_VERSION
 from .simple_config import SimpleConfig
@@ -205,6 +205,8 @@ def command(s):
                     raise UserFacingException(str(e)) from None
             if cmd.requires_lightning and (not wallet or not wallet.has_lightning()):
                 raise UserFacingException('Lightning not enabled in this wallet')
+            if cmd.requires_lightning and cmd.requires_network and not wallet.is_lightning_loaded():
+                raise LightningLocked()
             return await func(*args, **kwargs)
         return func_wrapper
     return decorator
@@ -286,15 +288,23 @@ class Commands(Logger):
         ]
 
     @command('n')
-    async def load_wallet(self, wallet_path=None, password=None):
+    async def load_wallet(self, wallet_path=None, password=None, unlock: bool = False):
         """
         Load the wallet in memory
+
+        arg:bool:unlock:Unlock the wallet, so that lightning can run
         """
-        wallet = self.daemon.load_wallet(wallet_path, password, upgrade=True)
+        try:
+            wallet = self.daemon.load_wallet(wallet_path, password, upgrade=True, unlock=unlock)
+        except InvalidPassword as e:
+            raise UserFacingException(str(e)) from None
         if wallet is None:
             raise UserFacingException('could not load wallet')
         run_hook('load_wallet', wallet, None)
-        return wallet_path
+        if not wallet.is_unlocked() and wallet.has_lightning():
+            # the gui can ask for the password when a channel is force closed (anchors), the daemon cannot
+            return "wallet loaded. Warning: lightning requires the wallet to be unlocked. Run 'unlock', or 'load_wallet --unlock'"
+        return 'wallet loaded'
 
     @command('n')
     async def close_wallet(self, wallet_path=None):
@@ -693,7 +703,7 @@ class Commands(Logger):
             # a single address
             return wallet.export_private_key(address.strip(), password)
         domain = address
-        return [wallet.export_private_key(address, password) for address in domain]
+        return list(wallet.export_private_keys(domain, password))
 
     @command('wp')
     async def getprivatekeyforpath(self, path, password=None, wallet: Abstract_Wallet = None):
@@ -738,7 +748,7 @@ class Commands(Logger):
     async def getbalance(self, wallet: Abstract_Wallet = None):
         """Return the balance of your wallet. """
         c, u, x = wallet.get_balance()
-        l = wallet.lnworker.get_balance() if wallet.lnworker else None
+        l = wallet.lnworker.get_balance() if wallet.has_lightning() else None
         out = {"confirmed": format_satoshis(c)}
         if u:
             out["unconfirmed"] = format_satoshis(u)
@@ -1141,7 +1151,7 @@ class Commands(Logger):
         arg:int:to_height:Only show transactions that confirmed before(exclusive) given block height
         """
         # trigger lnwatcher callbacks for their side effects: setting labels and accounting_addresses
-        if not self.network and wallet.lnworker:
+        if not self.network and wallet.has_lightning():
             await wallet.lnworker.lnwatcher.trigger_callbacks(requires_synchronizer=False)
 
         kwargs = self.get_year_timestamps(year)
@@ -1168,7 +1178,7 @@ class Commands(Logger):
     @command('wl')
     async def lightning_history(self, wallet: Abstract_Wallet = None):
         """ lightning history. """
-        lightning_history = wallet.lnworker.get_lightning_history() if wallet.lnworker else {}
+        lightning_history = wallet.lnworker.get_lightning_history() if wallet.has_lightning() else {}
         sorted_hist= sorted(lightning_history.values(), key=lambda x: x.timestamp)
         return json_normalize([x.to_dict() for x in sorted_hist])
 
@@ -2315,7 +2325,7 @@ class Commands(Logger):
         arg:str:message:Message to send
         """
         assert wallet
-        assert wallet.lnworker
+        assert wallet.has_lightning()
         assert node_id_or_blinded_path_hex
         assert message
 

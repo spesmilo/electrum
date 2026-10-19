@@ -753,7 +753,8 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             menu.addAction(_("Details"), lambda: self.main_window.show_lightning_transaction(tx_item))
             cc = self.add_copy_menu(menu, idx)
             cc.addAction(_("Payment Hash"), lambda: self.place_text_on_clipboard(tx_item['payment_hash'], title="Payment Hash"))
-            cc.addAction(_("Preimage"), lambda: self.place_text_on_clipboard(tx_item['preimage'], title="Preimage"))
+            if tx_item['preimage']:  # not available while the wallet is locked
+                cc.addAction(_("Preimage"), lambda: self.place_text_on_clipboard(tx_item['preimage'], title="Preimage"))
             key = tx_item['payment_hash']
             log = self.wallet.lnworker.logs.get(key)
             if log:
@@ -782,7 +783,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             persistent = QPersistentModelIndex(org_idx.sibling(org_idx.row(), c))
             menu_edit.addAction(_("{}").format(label), lambda p=persistent: self.edit(QModelIndex(p)))
         channel_id = tx_item.get('channel_id')
-        if channel_id and self.wallet.lnworker and (chan := self.wallet.lnworker.get_channel_by_id(bytes.fromhex(channel_id))):
+        if channel_id and self.wallet.has_lightning() and (chan := self.wallet.lnworker.get_channel_by_id(bytes.fromhex(channel_id))):
             menu.addAction(_("View Channel"), lambda: self.main_window.show_channel_details(chan))
         if is_unconfirmed and tx:
             if tx_details.can_bump:

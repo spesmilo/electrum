@@ -263,7 +263,7 @@ class BalanceDialog(WindowModalDialog):
         vbox.addLayout(grid)
         vbox.addStretch(1)
         buttons = [CloseButton(self)]
-        if self.window.wallet.has_lightning():
+        if self.window.wallet.is_lightning_loaded():
             swap_button = QPushButton(_('Swap'))
             swap_button.clicked.connect(lambda: self.window.run_swap_dialog())
             buttons.insert(0, swap_button)

@@ -46,7 +46,7 @@ class TestWalletPaymentRequests(ElectrumTestCase):
         d = restore_wallet_from_text__for_unittest(text, path=self.wallet1_path, config=self.config)
         wallet1 = d['wallet']  # type: Standard_Wallet
         self.assertIsNotNone(wallet1.lnworker)
-        self.assertTrue(wallet1.has_lightning())
+        self.assertTrue(wallet1.is_lightning_loaded())
         # create payreq
         addr = wallet1.get_unused_address()
         pr_key = wallet1.create_request(amount_sat=10000, message="msg", address=None, exp_delay=86400)
@@ -64,7 +64,7 @@ class TestWalletPaymentRequests(ElectrumTestCase):
         wallet1 = d['wallet']  # type: Standard_Wallet
         wallet1.db.put('stored_height', 1000)
         self.assertIsNotNone(wallet1.lnworker)
-        self.assertTrue(wallet1.has_lightning())
+        self.assertTrue(wallet1.is_lightning_loaded())
         # create payreq
         addr = wallet1.get_unused_address()
         pr_key = wallet1.create_request(amount_sat=10000, message="msg", address=addr, exp_delay=86400)
@@ -95,7 +95,7 @@ class TestWalletPaymentRequests(ElectrumTestCase):
         wallet1 = d['wallet']  # type: Standard_Wallet
         wallet1.db.put('stored_height', 1000)
         self.assertIsNone(wallet1.lnworker)
-        self.assertFalse(wallet1.has_lightning())
+        self.assertFalse(wallet1.is_lightning_loaded())
         # create payreq
         addr = wallet1.get_unused_address()
         pr_key = wallet1.create_request(amount_sat=10000, message="msg", address=addr, exp_delay=86400)
@@ -126,7 +126,7 @@ class TestWalletPaymentRequests(ElectrumTestCase):
         wallet1 = d['wallet']  # type: Standard_Wallet
         wallet1.db.put('stored_height', 1000)
         self.assertIsNotNone(wallet1.lnworker)
-        self.assertTrue(wallet1.has_lightning())
+        self.assertTrue(wallet1.is_lightning_loaded())
         # create payreq
         addr = wallet1.get_unused_address()
         pr_key = wallet1.create_request(amount_sat=10000, message="msg", address=addr, exp_delay=86400)
@@ -155,7 +155,7 @@ class TestWalletPaymentRequests(ElectrumTestCase):
         d = restore_wallet_from_text__for_unittest(text, path=self.wallet1_path, gap_limit=3, config=self.config)
         wallet1 = d['wallet']  # type: Standard_Wallet
         self.assertIsNotNone(wallet1.lnworker)
-        self.assertTrue(wallet1.has_lightning())
+        self.assertTrue(wallet1.is_lightning_loaded())
         # create payreq1
         addr1 = wallet1.get_unused_address()
         pr1_key = wallet1.create_request(amount_sat=10000, message="msg", address=addr1, exp_delay=86400)
@@ -183,7 +183,7 @@ class TestWalletPaymentRequests(ElectrumTestCase):
         d = restore_wallet_from_text__for_unittest(text, path=self.wallet1_path, gap_limit=3, config=self.config)
         wallet1 = d['wallet']  # type: Standard_Wallet
         self.assertIsNotNone(wallet1.lnworker)
-        self.assertTrue(wallet1.has_lightning())
+        self.assertTrue(wallet1.is_lightning_loaded())
         # create payreq1
         addr1 = wallet1.get_unused_address()
         pr1_key = wallet1.create_request(amount_sat=10000, message="msg", address=addr1, exp_delay=86400)

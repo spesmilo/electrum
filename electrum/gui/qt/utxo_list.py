@@ -244,7 +244,7 @@ class UTXOList(MyTreeView):
 
     def can_swap_coins(self, coins):
         # fixme: min and max_amounts are known only after first request
-        if self.wallet.lnworker is None:
+        if not self.wallet.has_lightning():
             return False
         value = sum(x.value_sats() for x in coins)
         min_amount = self.wallet.lnworker.swap_manager.get_min_amount()
@@ -263,7 +263,7 @@ class UTXOList(MyTreeView):
         self.main_window.run_swap_dialog(is_reverse=False, recv_amount_sat_or_max='!', get_coins=lambda *args, **kwargs: coins)
 
     def can_open_channel(self, coins):
-        if self.wallet.lnworker is None or not self.wallet.can_have_lightning():
+        if not self.wallet.has_lightning() or not self.wallet.can_have_lightning():
             return False
         value = sum(x.value_sats() for x in coins)
         return value >= MIN_FUNDING_SAT and value <= self.config.LIGHTNING_MAX_FUNDING_SAT

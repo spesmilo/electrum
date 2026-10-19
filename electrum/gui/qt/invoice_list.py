@@ -96,7 +96,7 @@ class InvoiceList(MyTreeView):
         status_item = model.item(row, self.Columns.STATUS)
         status = self.wallet.get_invoice_status(invoice)
         status_str = invoice.get_status_str(status)
-        if self.wallet.lnworker:
+        if self.wallet.has_lightning():
             log = self.wallet.lnworker.logs.get(key)
             if log and status == PR_INFLIGHT:
                 status_str += '... (%d)'%len(log)
@@ -188,7 +188,7 @@ class InvoiceList(MyTreeView):
                 menu.addAction(_("Pay") + "...", lambda: self.send_tab.do_edit_invoice(invoice))
         if status == PR_FAILED:
             menu.addAction(_("Retry"), lambda: self.send_tab.do_pay_invoice(invoice))
-        if self.wallet.lnworker:
+        if self.wallet.has_lightning():
             log = self.wallet.lnworker.logs.get(key)
             if log:
                 menu.addAction(_("View log"), lambda: self.show_log(key, log))

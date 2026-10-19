@@ -31,7 +31,7 @@ from electrum.lnonion import (
     OnionPacket, OnionRoutingFailure, OnionFailureCode, ProcessedOnionPacket, OnionHopsDataSingle,
 )
 from electrum.mpp_split import SplitConfig, SplitConfigRating
-from electrum.crypto import sha256, pw_encode_with_version_and_mac
+from electrum.crypto import sha256, pw_encode_with_xpub
 from electrum.simple_config import SimpleConfig
 from electrum.transaction import Transaction, TxOutpoint, BCDataStream
 from electrum.util import bfh, UserFacingException
@@ -949,7 +949,7 @@ class TestChannelBackup(ToyServerTestCase):
         # downgrade the backup to v2: no channel_type, payment pubkey instead of privkey
         cb_storage = ImportedChannelBackupStorage.from_encrypted_str(backup, password=alice.get_fingerprint())
         v2_blob = self.serialize_v2_channel_backup(cb_storage)
-        backup_v2 = 'channel_backup:' + pw_encode_with_version_and_mac(v2_blob, alice.get_fingerprint())
+        backup_v2 = 'channel_backup:' + pw_encode_with_xpub(v2_blob, alice.get_fingerprint())
         alice.lnworker.import_channel_backup(backup_v2)
         self.assertEqual(v2_blob.hex(), alice.lnworker.db.get_dict("imported_channel_backups")[chan_id.hex()])
         cb = alice.lnworker.channel_backups[chan_id]
@@ -1081,7 +1081,7 @@ class TestChannelBackup(ToyServerTestCase):
         # downgrade the backup to v2
         cb_storage = ImportedChannelBackupStorage.from_encrypted_str(backup, password=alice.get_fingerprint())
         v2_blob = self.serialize_v2_channel_backup(cb_storage)
-        backup_v2 = 'channel_backup:' + pw_encode_with_version_and_mac(v2_blob, alice.get_fingerprint())
+        backup_v2 = 'channel_backup:' + pw_encode_with_xpub(v2_blob, alice.get_fingerprint())
         alice.lnworker.import_channel_backup(backup_v2)
         self.assertEqual(v2_blob.hex(), alice.lnworker.db.get_dict("imported_channel_backups")[chan_id.hex()])
         cb = alice.lnworker.channel_backups[chan_id]
@@ -1111,7 +1111,7 @@ class TestChannelBackup(ToyServerTestCase):
         backup = alice.lnworker.export_channel_backup(chan.channel_id)
         cb_storage = ImportedChannelBackupStorage.from_encrypted_str(backup, password=alice.get_fingerprint())
         cb_storage = dataclasses.replace(cb_storage, funding_txid=os.urandom(32).hex())
-        alice.lnworker.import_channel_backup('channel_backup:' + pw_encode_with_version_and_mac(cb_storage.to_bytes(), alice.get_fingerprint()))
+        alice.lnworker.import_channel_backup('channel_backup:' + pw_encode_with_xpub(cb_storage.to_bytes(), alice.get_fingerprint()))
         cb = alice.lnworker.channel_backups[cb_storage.channel_id()]
         self.assertEqual(chan.get_funding_address(), cb.get_funding_address())
         self.assertEqual({chan.funding_outpoint.to_str(), cb.funding_outpoint.to_str()}, set(lnwatcher.callbacks))

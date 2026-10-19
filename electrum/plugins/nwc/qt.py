@@ -22,7 +22,7 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 from functools import partial
 from datetime import datetime
 from decimal import Decimal
@@ -44,21 +44,11 @@ from electrum.gui.common_qt.util import paintQR
 
 from .nwcserver import NWCServerPlugin
 
-if TYPE_CHECKING:
-    from electrum.wallet import Abstract_Wallet
-    from electrum.gui.qt.main_window import ElectrumWindow
-
 
 class Plugin(NWCServerPlugin):
     def __init__(self, *args):
         NWCServerPlugin.__init__(self, *args)
         self._init_qt_received = False
-
-    @hook
-    def load_wallet(self, wallet: 'Abstract_Wallet', window: 'ElectrumWindow'):
-        if not wallet.has_lightning():
-            return
-        self.start_plugin(wallet)
 
     @hook
     def init_menubar(self, window):

@@ -15,7 +15,7 @@ except ImportError:  # only use vendored lib as fallback, to allow Linux distros
 
 from electrum.gui import BaseElectrumGui
 from electrum.bip21 import parse_bip21_URI
-from electrum.util import format_time
+from electrum.util import format_time, InvalidPassword
 from electrum.util import EventListener, event_listener
 from electrum.bitcoin import is_address, address_to_script
 from electrum.transaction import PartialTxOutput
@@ -71,6 +71,16 @@ class ElectrumGui(BaseElectrumGui, EventListener):
             password = getpass.getpass('Password:', stream=None)
         del storage
         self.wallet = self.daemon.load_wallet(config.get_wallet_path(), password)
+        if self.wallet.has_lightning() and not self.wallet.is_lightning_loaded():
+            # lightning needs the password. leave it empty to run without lightning
+            while password := getpass.getpass('Enter your password to run lightning:', stream=None):
+                try:
+                    self.wallet.check_password(password)
+                except InvalidPassword:
+                    print('Invalid password')
+                    continue
+                self.wallet.load_lightning(password)
+                break
         self.contacts = self.wallet.contacts
 
         locale.setlocale(locale.LC_ALL, '')
@@ -338,7 +348,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         self.print_list(2, x, sorted(messages), fmt % ("Outpoint", "Description", "Balance"))
 
     def print_channels(self):
-        if not self.wallet.lnworker:
+        if not self.wallet.has_lightning():
             return
         fmt = "%-35s  %-10s  %-30s"
         channels = self.wallet.lnworker.get_channel_objects()
@@ -571,7 +581,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
                 self.show_message(_('No more unused address'))
                 return
         else:
-            if not self.wallet.has_lightning():
+            if not self.wallet.is_lightning_loaded():
                 self.show_message(_('Lightning is disabled on this wallet'))
                 return
             address = None

@@ -26,7 +26,7 @@ from electrum.bip32 import (BIP32Node, convert_bip32_intpath_to_strpath,
                             xpub_from_xprv, xpub_type, is_xprv, is_bip32_derivation,
                             is_xpub, convert_bip32_strpath_to_intpath,
                             normalize_bip32_derivation, is_all_public_derivation)
-from electrum.crypto import sha256d, SUPPORTED_PW_HASH_VERSIONS
+from electrum.crypto import sha256d, SUPPORTED_PW_HASH_VERSIONS, PasswordKey, make_pw_salt
 from electrum import crypto, constants
 from electrum.util import bfh, InvalidPassword
 from electrum.storage import WalletStorage
@@ -34,6 +34,12 @@ from electrum.keystore import xtype_from_derivation
 
 from . import ElectrumTestCase
 from . import FAST_TESTS
+
+
+def _make_pw_key(password: str, *, version: int) -> PasswordKey:
+    """Builds a PasswordKey with fresh parameters for the given pw hash version."""
+    salt = b'' if version == 1 else make_pw_salt()
+    return PasswordKey(password, version=version, salt=salt)
 
 
 def needs_test_with_all_aes_implementations(func):
@@ -299,25 +305,24 @@ class Test_bitcoin(ElectrumTestCase):
         payload = u'\u66f4\u7a33\u5b9a\u7684\u4ea4\u6613\u5e73\u53f0'
         password = u'secret'
         for version in SUPPORTED_PW_HASH_VERSIONS:
-            enc = crypto.pw_encode(payload, password, version=version)
-            dec = crypto.pw_decode(enc, password, version=version)
+            pw_key = _make_pw_key(password, version=version)
+            enc = crypto.pw_encode(payload, pw_key)
+            dec = crypto.pw_decode(enc, pw_key)
             self.assertEqual(dec, payload)
 
     @needs_test_with_all_aes_implementations
     def test_aes_encode_without_password(self):
         """When not passed a password, pw_encode is noop on the payload."""
         payload = u'\u66f4\u7a33\u5b9a\u7684\u4ea4\u6613\u5e73\u53f0'
-        for version in SUPPORTED_PW_HASH_VERSIONS:
-            enc = crypto.pw_encode(payload, None, version=version)
-            self.assertEqual(payload, enc)
+        enc = crypto.pw_encode(payload, None)
+        self.assertEqual(payload, enc)
 
     @needs_test_with_all_aes_implementations
     def test_aes_deencode_without_password(self):
         """When not passed a password, pw_decode is noop on the payload."""
         payload = u'\u66f4\u7a33\u5b9a\u7684\u4ea4\u6613\u5e73\u53f0'
-        for version in SUPPORTED_PW_HASH_VERSIONS:
-            enc = crypto.pw_decode(payload, None, version=version)
-            self.assertEqual(payload, enc)
+        enc = crypto.pw_decode(payload, None)
+        self.assertEqual(payload, enc)
 
     @needs_test_with_all_aes_implementations
     def test_aes_decode_with_invalid_password(self):
@@ -326,14 +331,16 @@ class Test_bitcoin(ElectrumTestCase):
         password = u"uber secret"
         wrong_password = u"not the password"
         for version in SUPPORTED_PW_HASH_VERSIONS:
-            enc = crypto.pw_encode(payload, password, version=version)
+            pw_key = _make_pw_key(password, version=version)
+            enc = crypto.pw_encode(payload, pw_key)
+            wrong_pw_key = PasswordKey(wrong_password, version=version, salt=pw_key.salt)
             with self.assertRaises(InvalidPassword):
-                crypto.pw_decode(enc, wrong_password, version=version)
+                crypto.pw_decode(enc, wrong_pw_key)
         # sometimes the PKCS7 padding gets removed cleanly,
         # but then UnicodeDecodeError gets raised (internally):
         enc = 'smJ7j6ccr8LnMOlx98s/ajgikv9s3R1PQuG3GyyIMmo='
         with self.assertRaises(InvalidPassword):
-            crypto.pw_decode(enc, wrong_password, version=1)
+            crypto.pw_decode(enc, PasswordKey(wrong_password, version=1))
 
     @needs_test_with_all_chacha20_implementations
     def test_chacha20_poly1305_encrypt__with_associated_data(self):

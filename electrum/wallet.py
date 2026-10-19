@@ -50,6 +50,7 @@ from . import util, keystore, transaction, bitcoin, coinchooser, bip32, descript
 from . import constants
 from . import crandom
 from . import crypto
+from .crypto import pw_encode, PasswordKey
 from .i18n import _
 from .bip32 import BIP32Node, convert_bip32_intpath_to_strpath, convert_bip32_strpath_to_intpath
 from .logging import get_logger, Logger
@@ -81,7 +82,7 @@ from .invoices import BaseInvoice, Invoice, Request, PR_PAID, PR_UNPAID, PR_EXPI
 from .contacts import Contacts
 from .mnemonic import Mnemonic
 from .lnworker import LNWallet
-from .lnutil import MIN_FUNDING_SAT, RECEIVED, SENT
+from .lnutil import MIN_FUNDING_SAT, RECEIVED, SENT, PW_KEY_MAGIC, LightningLocked
 from .lntransport import extract_nodeid
 from .descriptor import Descriptor
 from .txbatcher import TxBatcher
@@ -422,7 +423,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         # load addresses needs to be called before constructor for sanity checks
         db.load_addresses(self.wallet_type)
         self.keystore = None  # type: Optional[KeyStore]  # will be set by load_keystore
-        self._password_in_memory = None  # see self.unlock
         Logger.__init__(self)
 
         self.network = None
@@ -479,6 +479,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def _init_lnworker(self):
         self.lnworker = None
 
+    def load_lightning(self, password: Optional[str], *, pw_key: Optional[PasswordKey] = None) -> None:
+        pass
+
     async def main_loop(self):
         self.logger.info(f"starting taskgroup ({hex(id(self.taskgroup))}).")
         try:
@@ -516,10 +519,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         new_storage.pubkey = self.storage.pubkey
 
         new_db = WalletDB(self.db.dump(), storage=new_storage, upgrade=True)
-        if self.lnworker:
+        if self.has_lightning():
             channel_backups = new_db.get_dict('imported_channel_backups')
             for chan_id, chan in self.lnworker.channels.items():
-                channel_backups[chan_id.hex()] = self.lnworker.create_channel_backup(chan_id).to_bytes().hex()
+                cb_blob = self.lnworker.create_channel_backup(chan_id).to_bytes().hex()
+                channel_backups[chan_id.hex()] = pw_encode(cb_blob, self.lnworker.pw_key)
             new_db.put('channels', None)
         new_db.set_modified(True)
         new_db.write()
@@ -528,7 +532,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def get_startup_warnings(self) -> Sequence[WalletWarning]:
         """Warnings that should be shown to the user once, when the wallet is opened in a GUI."""
         warnings = []  # type: List[WalletWarning]
-        if self.lnworker:
+        if self.has_lightning():
             warnings += self.lnworker.get_lightning_startup_warnings()
         acknowledged = self.db.get('acknowledged_warnings', [])
         return [warning for warning in warnings if warning.key not in acknowledged or warning.show_once is False]
@@ -544,8 +548,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def has_lightning(self) -> bool:
         return bool(self.lnworker)
 
+    def is_lightning_loaded(self) -> bool:
+        # lnworker exists even while its secrets are encrypted, but cannot run then
+        return self.has_lightning() and self.lnworker.has_secrets()
+
     def has_channels(self):
-        return self.lnworker is not None and len(self.lnworker._channels) > 0
+        return self.has_lightning() and len(self.lnworker._channels) > 0
 
     def can_have_lightning(self) -> bool:
         """ whether this wallet can create new channels """
@@ -571,10 +579,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         assert self.can_have_lightning()
         assert self.db.get('lightning_xprv') is None
         assert self.db.get('lightning_privkey2') is None
+        pw_key = self.upgrade_pw_hash_version(password)
+        pw_key = pw_key and pw_key.child(PW_KEY_MAGIC)
         if self.can_have_deterministic_lightning():
             assert isinstance(self.keystore, keystore.BIP32_KeyStore)
             ln_xprv = self.keystore.get_lightning_xprv(password)
-            self.db.put('lightning_xprv', ln_xprv)
+            self.db.put('lightning_xprv', pw_encode(ln_xprv, pw_key))
         else:
             # bip39 seeds and imported zprv.
             # also, watching-only and hw wallets, if the user disables anchors.
@@ -582,8 +592,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             seed = crandom.get_rand_bytes(32)
             node = BIP32Node.from_rootseed(seed, xtype='standard')
             ln_xprv = node.to_xprv()
-            self.db.put('lightning_privkey2', ln_xprv)
-        self.lnworker = LNWallet(self, ln_xprv)
+            self.db.put('lightning_privkey2', pw_encode(ln_xprv, pw_key))
+        self.lnworker = LNWallet(self)
+        self.lnworker.load_secrets(pw_key)
         self.save_db()
         if self.network:
             self._start_network_lightning()
@@ -638,7 +649,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             self.save_db()
         # fire triggers
         if status_changed or up_to_date:  # suppress False->False transition, as it is spammy
-            if self.lnworker:
+            if self.has_lightning():
                 await self.lnworker.lnwatcher.trigger_callbacks()
             util.trigger_callback('wallet_updated', self)
             util.trigger_callback('status')
@@ -706,16 +717,17 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             assert network.config is self.config
             asyncio.run_coroutine_threadsafe(self.main_loop(), self.network.asyncio_loop)
             self.adb.start_network(network)
-            if self.lnworker:
+            if self.is_lightning_loaded():
                 self._start_network_lightning()
 
     def _start_network_lightning(self):
-        assert self.lnworker
+        assert self.has_lightning()
         assert self.lnworker.network is None, 'lnworker network already initialized'
         self.lnworker.start_network(self.network)
         # only start gossiping when we already have channels
         if self.db.get('channels'):
             self.network.start_gossip()
+        run_hook('lightning_loaded', self)
 
     @abstractmethod
     def load_keystore(self) -> None:
@@ -879,17 +891,23 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         pass
 
     def export_private_key(self, address: str, password: Optional[str]) -> str:
+        [serialized_privkey] = self.export_private_keys([address], password)
+        return serialized_privkey
+
+    def export_private_keys(self, addresses: Sequence[str], password: Optional[str]) -> Iterable[str]:
         if self.is_watching_only():
             raise UserFacingException(_("This is a watching-only wallet"))
-        if not is_address(address):
-            raise UserFacingException(_('Invalid bitcoin address: {}').format(address))
-        if not self.is_mine(address):
-            raise UserFacingException(_('Address not in wallet: {}').format(address))
-        index = self.get_address_index(address)
-        pk, compressed = self.keystore.get_private_key(index, password)
-        txin_type = self.get_txin_type(address)
-        serialized_privkey = bitcoin.serialize_privkey(pk, compressed, txin_type)
-        return serialized_privkey
+        for address in addresses:
+            if not is_address(address):
+                raise UserFacingException(_('Invalid bitcoin address: {}').format(address))
+            if not self.is_mine(address):
+                raise UserFacingException(_('Address not in wallet: {}').format(address))
+        pw_key = self.keystore.get_pw_key(password)  # run the KDF once, not once per key
+        for address in addresses:
+            index = self.get_address_index(address)
+            pk, compressed = self.keystore._get_private_key(index, pw_key)
+            txin_type = self.get_txin_type(address)
+            yield bitcoin.serialize_privkey(pk, compressed, txin_type)
 
     def export_private_key_for_path(self, path: Union[Sequence[int], str], password: Optional[str]) -> str:
         raise UserFacingException("this wallet is not deterministic")
@@ -903,7 +921,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return {}
 
     def is_lightning_funding_tx(self, txid: Optional[str]) -> bool:
-        if not self.lnworker or txid is None:
+        if not self.has_lightning() or txid is None:
             return False
         if any([chan.funding_outpoint.txid == txid
                 for chan in self.lnworker.channels.values()]):
@@ -914,10 +932,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return False
 
     def get_swaps_by_claim_tx(self, tx: Transaction) -> Iterable['SwapData']:
-        return self.lnworker.swap_manager.get_swaps_by_claim_tx(tx) if self.lnworker else []
+        return self.lnworker.swap_manager.get_swaps_by_claim_tx(tx) if self.has_lightning() else []
 
     def get_swaps_by_funding_tx(self, tx: Transaction) -> Iterable['SwapData']:
-        return self.lnworker.swap_manager.get_swaps_by_funding_tx(tx) if self.lnworker else []
+        return self.lnworker.swap_manager.get_swaps_by_funding_tx(tx) if self.has_lightning() else []
 
     def is_accounting_address(self, addr):
         """
@@ -1125,7 +1143,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return self.adb.get_balance(domain, **kwargs)
 
     def anchor_reserve(self) -> int:
-        if self.lnworker is None or not isinstance(self.lnworker, LNWallet):
+        if not self.has_lightning() or not isinstance(self.lnworker, LNWallet):
             return 0
         if not self.lnworker.has_anchor_channels():
             return 0
@@ -1250,7 +1268,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 and (from_height is not None or to_height is not None):
             raise UserFacingException('timestamp and block height based filtering cannot be used together')
         # call lnworker first, because it adds accounting addresses
-        groups = self.lnworker.get_groups_for_onchain_history() if self.lnworker else {}
+        groups = self.lnworker.get_groups_for_onchain_history() if self.has_lightning() else {}
         if domain is None:
             domain = self.get_addresses()
             domain += list(self._accounting_addresses)
@@ -1485,7 +1503,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             transactions_tmp[txid]['lightning'] = False
 
         # add lightning_transactions
-        lightning_history = self.lnworker.get_lightning_history() if self.lnworker and include_lightning else {}
+        lightning_history = self.lnworker.get_lightning_history() if self.has_lightning() and include_lightning else {}
         for tx_item in lightning_history.values():
             key = tx_item.payment_hash or 'ln:' + tx_item.group_id
             transactions_tmp[key] = tx_item.to_dict()
@@ -2112,7 +2130,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 fee_estimator_vb=fee_estimator,
                 dust_threshold=self.dust_threshold(),
                 BIP69_sort=BIP69_sort)
-            if send_change_to_lightning and self.lnworker and self.lnworker.swap_manager.is_initialized.is_set():
+            if send_change_to_lightning and self.has_lightning() and self.lnworker.swap_manager.is_initialized.is_set():
                 sm = self.lnworker.swap_manager
                 change = tx.get_change_outputs()
                 if len(change) == 1:
@@ -2577,7 +2595,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if self.is_billing_address(txout.address):
             return False
         # submarine swap funding outputs must not be decreased
-        if self.lnworker and self.lnworker.swap_manager.is_lockup_address_for_a_swap(txout.address):
+        if self.has_lightning() and self.lnworker.swap_manager.is_lockup_address_for_a_swap(txout.address):
             return False
         return True
 
@@ -2930,7 +2948,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if isinstance(invoice, Invoice) and invoice.get_id() in self._paid_invoice_keys_cache:
             return PR_PAID
         # lightning invoices can be paid onchain
-        if invoice.is_lightning() and self.lnworker:
+        if invoice.is_lightning() and self.has_lightning():
             status = self.lnworker.get_invoice_status(invoice)
             if status != PR_UNPAID:
                 return self.check_expired_status(invoice, status)
@@ -2962,7 +2980,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         # filter out expired
         reqs = [req for req in reqs if self.get_invoice_status(req) != PR_EXPIRED]
         # filter out paid-with-lightning
-        if self.lnworker:
+        if self.has_lightning():
             reqs = [req for req in reqs
                     if not req.is_lightning() or self.lnworker.get_invoice_status(req) == PR_UNPAID]
         if not reqs:
@@ -2991,7 +3009,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if x.is_lightning():
             d['rhash'] = x.rhash
             d['lightning_invoice'] = self.get_bolt11_invoice(x)
-            if self.lnworker:
+            if self.is_lightning_loaded():
                 if status == PR_UNPAID:
                     d['can_receive'] = self.lnworker.can_receive_invoice(x)
                 elif status == PR_PAID and (preimage := self.lnworker.get_preimage(x.payment_hash)):
@@ -3002,7 +3020,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             # if request was paid onchain, add relevant fields
             # note: addr is reused when getting paid on LN! so we check for that.
             _, conf, tx_hashes = self._is_onchain_invoice_paid(x)
-            if not x.is_lightning() or not self.lnworker or self.lnworker.get_invoice_status(x) != PR_PAID:
+            if not x.is_lightning() or not self.has_lightning() or self.lnworker.get_invoice_status(x) != PR_PAID:
                 if conf is not None:
                     d['confirmations'] = conf
                 d['tx_hashes'] = tx_hashes
@@ -3016,9 +3034,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         d['invoice_id'] = d.pop('id')
         if x.is_lightning():
             d['lightning_invoice'] = x.lightning_invoice
-            if self.lnworker and status == PR_UNPAID:
+            if self.has_lightning() and status == PR_UNPAID:
                 d['can_pay'] = self.lnworker.can_pay_invoice(x)
-            if self.lnworker and status == PR_PAID:
+            if self.is_lightning_loaded() and status == PR_PAID:
                 payment_hash = bytes.fromhex(d['invoice_id'])
                 preimage = self.lnworker.get_preimage(payment_hash)
                 d['preimage'] = preimage.hex() if preimage else None
@@ -3067,7 +3085,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             util.trigger_callback('invoice_status', self, key, status)
 
     def get_bolt11_invoice(self, req: Request) -> str:
-        if not self.lnworker:
+        if not self.is_lightning_loaded():  # signing needs our node key
             return ''
         if (payment_hash := req.payment_hash) is None:  # e.g. req might have been generated before enabling LN
             return ''
@@ -3093,6 +3111,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         timestamp = int(Request._get_cur_time())
         if address is None:
             assert self.has_lightning()
+            if not self.is_lightning_loaded():
+                raise LightningLocked()
             payment_hash = self.lnworker.create_payment_info(
                 amount_msat=amount_msat,
                 exp_delay=exp_delay,
@@ -3229,16 +3249,19 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def may_have_password(cls):
         return True
 
-    def check_password(self, password: Optional[str]) -> None:
-        """Raises an InvalidPassword exception on invalid password"""
+    def check_password(self, password: Optional[str]) -> Optional[crypto.PasswordKey]:
+        """Raises an InvalidPassword exception on invalid password.
+        Returns the key derived from it, if the keystore is encrypted."""
         if not self.has_password():
             if password is not None:
                 raise InvalidPassword("password given but wallet has no password")
             return
+        pw_key = None
         if self.has_keystore_encryption():
-            self.keystore.check_password(password)
+            pw_key = self.keystore.check_password(password)
         if self.has_storage_encryption():
             self.storage.check_password(password)
+        return pw_key
 
     def update_password(self, old_pw, new_pw, *, encrypt_storage: bool = True, xpub_encrypt: bool = False):
         if old_pw is None and self.has_password():
@@ -3259,18 +3282,58 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         #       Hardware_KeyStore.may_have_password() == False.
         #       If these were not the case,
         #       extra care would need to be taken when encrypting keystores.
-        self._update_password_for_keystore(old_pw, new_pw)
-        encrypt_keystore = self.can_have_keystore_encryption()
-        self.db.set_keystore_encryption(bool(new_pw) and encrypt_keystore)
+        # All the secrets of a wallet are encrypted with the same key, so we derive the
+        # old ones before replacing the parameters they come from, and then re-encrypt
+        # everything with the new key. (see #4909)
+        keystores = [ks for ks in self.get_keystores() if ks.may_have_password()]
+        old_pw_keys = [ks.get_pw_key(old_pw) for ks in keystores]
+        old_db_pw_key = self.db.get_pw_key(old_pw)
+        with self.db.lock:  # FIXME: use write_batch once new_storage_api is merged
+            # without a software keystore (hw device, watching-only), nothing is encrypted, lightning included
+            new_pw_key = self.db.set_new_pw_params(new_pw if self.can_have_keystore_encryption() else None)
+            for ks, old_pw_key in zip(keystores, old_pw_keys):
+                ks.reencrypt_secrets(old_pw_key, new_pw_key)
+            if keystores:
+                self.save_keystore()
+            self.db.reencrypt_lightning_secrets(old_db_pw_key, new_pw_key)  # the lightning secrets
+            if self.has_lightning():
+                self.lnworker.pw_key = new_pw_key and new_pw_key.child(PW_KEY_MAGIC)
+            encrypt_keystore = self.can_have_keystore_encryption()
+            self.db.set_keystore_encryption(bool(new_pw) and encrypt_keystore)
         # save changes. force full rewrite to rm remnants of old password
         if self.storage and self.storage.file_exists():
             self.db.write_and_force_consolidation()
         # if wallet was previously unlocked, reset password_in_memory
         self.lock_wallet()
 
-    @abstractmethod
-    def _update_password_for_keystore(self, old_pw: Optional[str], new_pw: Optional[str]) -> None:
-        pass
+    def upgrade_pw_hash_version(self, password: Optional[str]) -> Optional[PasswordKey]:
+        """Re-encrypts our secrets using the latest pw hash version, and returns the key
+        they are encrypted with (None if the wallet has no password).
+
+        All the secrets of a wallet share a single salt, stored in the db: those of its
+        keystores, and the lightning secrets. So they are migrated together, the first
+        time we have the password without having to ask the user for it: when opening a
+        wallet whose file is encrypted, or when starting lightning. The migration is
+        one-way. (see #4909)
+        """
+        if not password or not self.has_keystore_encryption():
+            return None  # without a software keystore, nothing is encrypted
+        if pw_key := self.db.get_pw_key(password):
+            return pw_key  # already migrated
+        self.logger.info(f"upgrading secrets to pw_hash_version={crypto.PW_HASH_VERSION_LATEST}")
+        keystores = [k for k in self.get_keystores() if k.may_have_password()]
+        old_pw_keys = [k.get_pw_key(password) for k in keystores]
+        with self.db.lock:  # FIXME: use write_batch once new_storage_api is merged
+            pw_key = self.db.set_new_pw_params(password)
+            for ks, old_pw_key in zip(keystores, old_pw_keys):
+                ks.reencrypt_secrets(old_pw_key, pw_key)
+            if keystores:
+                self.save_keystore()
+            self.db.reencrypt_lightning_secrets(None, pw_key)  # the lightning secrets were in plaintext
+        # save changes. force full rewrite to rm remnants of the old ciphertexts
+        if self.storage and self.storage.file_exists():
+            self.db.write_and_force_consolidation()
+        return pw_key
 
     def sign_message(self, *, address: str, message: str, password, strip_inputs: bool = True) -> bytes:
         """Caller must handle UserFacingException."""
@@ -3603,7 +3666,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             self.lnworker and len([chan for chan in self.lnworker.channels.values() if chan.is_open()]) > 0
         )
         lightning_online = self.lnworker and self.lnworker.lnpeermgr.num_peers() > 0
-        num_sats_can_receive = self.lnworker.num_sats_can_receive() if self.lnworker else 0
+        num_sats_can_receive = self.lnworker.num_sats_can_receive() if self.has_lightning() else 0
         can_receive_lightning = self.lnworker and num_sats_can_receive > 0 and amount_sat <= num_sats_can_receive
         can_get_zeroconf_channel = self.lnworker and self.lnworker.can_get_zeroconf_channel()
         status = self.get_invoice_status(req)
@@ -3681,24 +3744,19 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def unlock(self, password: Optional[str]) -> None:
         self.logger.info(f'unlocking wallet')
         password = password or None
-        self.check_password(password)
-        self._password_in_memory = password
+        pw_key = self.check_password(password)
+        self.db.set_unlocked_password(password, pw_key)
+        self.load_lightning(password)
 
     def lock_wallet(self):
-        self._password_in_memory = None
+        self.db.set_unlocked_password(None, None)
 
     def get_unlocked_password(self) -> Optional[str]:
-        pw = self._password_in_memory
-        if not self.is_unlocked():
-            return None
-        try:
-            self.check_password(pw)
-        except InvalidPassword as e:
-            raise Exception("inconsistent _password_in_memory") from e
-        return pw
+        # no check_password here: unlock() checked it, and that runs the KDF
+        return self.db.get_unlocked_password()
 
     def is_unlocked(self) -> bool:
-        return self._password_in_memory is not None or not self.has_password()
+        return self.db.get_unlocked_password() is not None or not self.has_password()
 
     def get_text_not_enough_funds_mentioning_frozen(
             self,
@@ -3878,11 +3936,6 @@ class Simple_Wallet(Abstract_Wallet):
 
     def is_watching_only(self):
         return self.keystore.is_watching_only()
-
-    def _update_password_for_keystore(self, old_pw, new_pw):
-        if self.keystore and self.keystore.may_have_password():
-            self.keystore.update_password(old_pw, new_pw)
-            self.save_keystore()
 
     def save_keystore(self):
         self.db.put('keystore', self.keystore.dump())
@@ -4137,7 +4190,29 @@ class Deterministic_Wallet(Abstract_Wallet):
         ln_xprv = self.db.get('lightning_xprv') or self.db.get('lightning_privkey2')
         # lnworker can only be initialized once receiving addresses are available
         # therefore we instantiate lnworker in DeterministicWallet
-        self.lnworker = LNWallet(self, ln_xprv) if ln_xprv else None
+        self.lnworker = LNWallet(self) if ln_xprv else None
+        # lightning secrets are only encrypted along with a software keystore, so
+        # without one we can load them now, even if the file is encrypted. (see #4909)
+        if not self.has_keystore_encryption():
+            self.load_lightning(None)
+
+    def load_lightning(self, password: Optional[str], *, pw_key: Optional[PasswordKey] = None) -> None:
+        """Decrypts the lightning secrets with the given password, and starts lightning.
+        pw_key: the result of upgrade_pw_hash_version, if the caller already has it.
+
+        Lightning has to sign without asking the user, so it can only run once we have
+        the password. If the wallet file is encrypted we already have it when the file is
+        opened; otherwise we have to wait for the wallet to be unlocked. Until then,
+        lnworker only gives access to public data. (see #4909)
+        """
+        if not self.has_lightning() or self.is_lightning_loaded():
+            return
+        # if the secrets are still in plaintext, this encrypts them, now that we have
+        # the password
+        pw_key = pw_key or self.upgrade_pw_hash_version(password)
+        self.lnworker.load_secrets(pw_key and pw_key.child(PW_KEY_MAGIC))
+        if self.network:
+            self._start_network_lightning()
 
     def has_seed(self):
         return self.keystore.has_seed()
@@ -4347,8 +4422,15 @@ class Deterministic_Wallet(Abstract_Wallet):
     def enable_keystore(self, keystore: KeyStore, is_hardware_keystore: bool, password) -> None:
         assert self.can_enable_disable_keystore(keystore)
         if not is_hardware_keystore and self.storage.is_encrypted_with_user_pw():
-            keystore.update_password(None, password)
+            # its secrets are encrypted with the key of the wallet, like ours
             self.db.put('use_encryption', True)
+            pw_key = self.db.get_or_create_pw_key(password)
+            keystore.reencrypt_secrets(None, pw_key)
+            # so are the lightning secrets now: they were in plaintext, see upgrade_pw_hash_version
+            with self.db.lock:  # LNWallet may write pw_key
+                self.db.reencrypt_lightning_secrets(None, pw_key)
+                if self.has_lightning():
+                    self.lnworker.pw_key = pw_key.child(PW_KEY_MAGIC)
         self._update_keystore(keystore)
 
     def disable_keystore(self, keystore: KeyStore) -> None:
@@ -4404,6 +4486,7 @@ class Standard_Wallet(Simple_Wallet, Deterministic_Wallet):
     def _update_keystore(self, keystore):
         if self.keystore.get_master_public_key() != keystore.get_master_public_key():
             raise Exception("mismatching xpubs")
+        keystore.db = self.db
         self.keystore = keystore
         self.save_keystore()
 
@@ -4464,6 +4547,7 @@ class Multisig_Wallet(Deterministic_Wallet):
                 break
         else:
             raise Exception('keystore not found')
+        keystore.db = self.db
         self.keystores[name] = keystore
         self.keystore = keystore
         self.save_keystore()
@@ -4471,18 +4555,14 @@ class Multisig_Wallet(Deterministic_Wallet):
     def can_have_keystore_encryption(self):
         return any([k.may_have_password() for k in self.get_keystores()])
 
-    def _update_password_for_keystore(self, old_pw, new_pw):
-        for name, keystore in self.keystores.items():
-            if keystore.may_have_password():
-                keystore.update_password(old_pw, new_pw)
-                self.db.put(name, keystore.dump())
-
     def check_password(self, password):
+        pw_key = None
         for name, keystore in self.keystores.items():
             if keystore.may_have_password():
-                keystore.check_password(password)
+                pw_key = keystore.check_password(password)
         if self.has_storage_encryption():
             self.storage.check_password(password)
+        return pw_key
 
     def get_available_storage_encryption_versions(self) -> Sequence[StorageEncryptionVersion]:
         # multisig wallets are not offered hw device encryption
@@ -4564,11 +4644,13 @@ def create_new_wallet(
     db = WalletDB('', storage=storage, upgrade=True)
     seed = Mnemonic('en').make_seed(seed_type=seed_type)
     k = keystore.from_seed(seed, passphrase=passphrase)
-    k.update_password(None, password)
+    if k.can_have_deterministic_lightning_xprv():
+        db.put('lightning_xprv', k.get_lightning_xprv(None))
+    pw_key = db.get_or_create_pw_key(password)
+    k.reencrypt_secrets(None, pw_key)
     db.put('keystore', k.dump())
     db.put('wallet_type', 'standard')
-    if k.can_have_deterministic_lightning_xprv():
-        db.put('lightning_xprv', k.get_lightning_xprv(password))
+    db.reencrypt_lightning_secrets(None, pw_key)  # encrypts the lightning secrets
     if gap_limit is not None:
         db.put('gap_limit', gap_limit)
     if gap_limit_for_change is not None:
@@ -4623,7 +4705,7 @@ def restore_wallet_from_text(
         # FIXME tell user about bad_inputs
         if not good_inputs:
             raise UserFacingException("None of the given privkeys can be imported")
-        k.update_password(None, password)
+        k.reencrypt_secrets(None, db.get_or_create_pw_key(password))
         db.put('keystore', k.dump())
         wallet = Imported_Wallet(db, config=config)
         wallet._add_imported_addresses(good_inputs)
@@ -4636,10 +4718,12 @@ def restore_wallet_from_text(
                 db.put('lightning_xprv', k.get_lightning_xprv(None))
         else:
             raise UserFacingException("Seed or key not recognized")
+        pw_key = db.get_or_create_pw_key(password)
         if not k.is_watching_only():
-            k.update_password(None, password)
+            k.reencrypt_secrets(None, pw_key)
         db.put('keystore', k.dump())
         db.put('wallet_type', 'standard')
+        db.reencrypt_lightning_secrets(None, pw_key)  # encrypts the lightning secrets
         if gap_limit is not None:
             db.put('gap_limit', gap_limit)
         if gap_limit_for_change is not None:

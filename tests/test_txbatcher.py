@@ -66,15 +66,16 @@ SWAPDATA = SwapData(
     onchain_amount=198694,
     lightning_amount=200000,
     redeem_script=bytes.fromhex('8201208763a914d7a62ef0270960fe23f0f351b28caadab62c21838821030bfd61153816df786036ea293edce851d3a4b9f4a1c66bdc1a17f00ffef3d6b167750334ef24b1752102fc8128f17f9e666ea281c702171ab16c1dd2a4337b71f08970f5aa10c608a93268ac'),
-    preimage=bytes.fromhex('f1939b5723155713855d7ebea6e174f77d41d669269e7f138856c3de190e7a36'),
+    preimage='f1939b5723155713855d7ebea6e174f77d41d669269e7f138856c3de190e7a36',  # no password: stored in plaintext
     prepay_hash=None,
-    privkey=bytes.fromhex('58fd0018a9a2737d1d6b81d380df96bf0c858473a9592015508a270a7c9b1d8d'),
+    privkey='58fd0018a9a2737d1d6b81d380df96bf0c858473a9592015508a270a7c9b1d8d',
     lockup_address='tb1q2pvugjl4w56rqw4c7zg0q6mmmev0t5jjy3qzg7sl766phh9fxjxsrtl77t',
     claim_to_output=None,
     funding_txid='897eea7f53e917323e7472d7a2e3099173f7836c57f1b6850f5cbdfe8085dbf9',
     spending_txid=None,
     is_redeemed=False,
 )
+SWAPDATA.unlock(None)
 
 txin = PartialTxInput(
     prevout=TxOutpoint(txid=bytes.fromhex(SWAPDATA.funding_txid), out_idx=0),

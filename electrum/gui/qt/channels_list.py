@@ -295,7 +295,7 @@ class ChannelsList(MyTreeView):
                 self.model().item(row, column).setData(v, QtCore.Qt.ItemDataRole.DisplayRole)
             items = [self.model().item(row, column) for column in self.Columns]
             self._update_chan_frozen_bg(chan=chan, items=items)
-        if wallet.lnworker:
+        if wallet.has_lightning():
             self.update_can_send(wallet.lnworker)
 
     @QtCore.pyqtSlot()
@@ -309,7 +309,7 @@ class ChannelsList(MyTreeView):
         self.model().clear()
         self.update_headers(self.headers)
         self.set_visibility_of_columns()
-        if not wallet.lnworker:
+        if not wallet.has_lightning():
             return
         self.update_can_send(wallet.lnworker)
         channels = wallet.lnworker.get_channel_objects()
@@ -366,7 +366,7 @@ class ChannelsList(MyTreeView):
         menu.addAction(_("Import channel backup"), lambda: self.main_window.do_process_from_text_channel_backup())
         # only enable menu if has LN. Or we could selectively enable menu items?
         #     and maybe add item "main_window.init_lightning_dialog()" when applicable
-        menu.setEnabled(self.wallet.has_lightning())
+        menu.setEnabled(self.wallet.is_lightning_loaded())
         self.new_channel_button = EnterButton(_('New Channel'), self.main_window.new_channel_dialog)
         if not self.wallet.can_have_lightning():
             self.new_channel_button.setEnabled(False)

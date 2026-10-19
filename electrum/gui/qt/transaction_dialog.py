@@ -187,7 +187,7 @@ class TxInOutWidget(QWidget):
 
         def addr_text_format(addr: str) -> QTextCharFormat:
             nonlocal tf_used_recv, tf_used_change, tf_used_2fa, tf_used_swap, tf_used_accounting
-            sm = self.wallet.lnworker.swap_manager if self.wallet.lnworker else None
+            sm = self.wallet.lnworker.swap_manager if self.wallet.has_lightning() else None
             if self.wallet.is_mine(addr):
                 if self.wallet.is_change(addr):
                     tf_used_change = True
@@ -847,7 +847,7 @@ class TxDialog(QDialog, MessageBoxMixin):
             tx_item_fiat = self.wallet.get_tx_item_fiat(
                 tx_hash=txid, amount_sat=abs(amount), fx=fx, tx_fee=fee)
 
-        if self.wallet.lnworker and txid:
+        if self.wallet.has_lightning() and txid:
             # if it is a group, collect ln amount
             full_history = self.wallet.get_full_history()
             item = full_history.get('group:' + txid)
