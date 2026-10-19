@@ -89,7 +89,7 @@ class Plugin(ColdcardPlugin, QtPluginBase):
             selected_keystore = coldcard_keystores[index]
             client = self.get_client(selected_keystore, force_pair=True, allow_user_interaction=False)
             if client is None:
-                main_window.show_error("{} not connected.").format(selected_keystore.label)
+                main_window.show_error(_("{} not connected.").format(selected_keystore.label))
                 return
 
             wallet = main_window.wallet
