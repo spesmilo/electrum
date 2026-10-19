@@ -2070,6 +2070,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     base_tx.add_info_from_wallet(self)
                 else:
                     # don't cast PartialTransaction, because it removes make_witness
+                    base_tx = copy.deepcopy(base_tx)  # don't mutate callers tx
                     base_tx.remove_signatures()
                 base_tx_fee = base_tx.get_fee()  # FIXME could be None if some inputs are non-ismine
                 base_feerate = Decimal(base_tx_fee) / base_tx_size
