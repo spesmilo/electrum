@@ -76,6 +76,7 @@ from electrum.wallet_db import WalletRequiresSplit, WalletRequiresUpgrade, Walle
 from electrum.storage import StorageReadWriteError
 from electrum.gui import BaseElectrumGui
 from electrum.simple_config import SimpleConfig
+from electrum.storage import WalletStorage
 from electrum.wizard import WizardViewState
 from electrum.keystore import load_keystore
 from electrum.bip32 import is_xprv
@@ -339,6 +340,76 @@ class ElectrumGui(BaseElectrumGui, Logger):
         # Use a signal as can be called from daemon thread
         self.app.new_window_signal.emit(path, uri)
 
+    def open_wallets(self, paths: Sequence[str], *, parent: ElectrumWindow) -> None:
+        # Passwords only live for this selection, and are never written to config.
+        passwords: list[str] = []
+        for path in paths:
+            should_open, wizard_password = self._try_open_wallet_with_cached_passwords(path, passwords, parent)
+            if not should_open:
+                # Cancel must escape the batch without prompting for every remaining wallet.
+                break
+            if wizard_password is None:
+                self.start_new_window(path, uri=None)
+            else:
+                self.start_new_window(path, uri=None, wizard_password=wizard_password)
+
+    def _try_open_wallet_with_cached_passwords(
+            self, path: str, passwords: list[str], parent: ElectrumWindow,
+    ) -> tuple[bool, str | None]:
+        if self.daemon.get_wallet(path):
+            return True, None
+        try:
+            self.daemon.load_wallet(path, None)
+            return True, None
+        except InvalidPassword:
+            pass
+        except Exception:
+            # Split/upgrade/incomplete wallets still need the normal wizard.
+            return True, None
+
+        if self._wallet_needs_hardware_unlock(path):
+            return True, None
+
+        for password in passwords:
+            try:
+                self.daemon.load_wallet(path, password)
+                return True, None
+            except InvalidPassword:
+                continue
+            except WalletRequiresUpgrade:
+                # Decryption succeeded; the wizard still needs to confirm the upgrade.
+                return True, password
+            except Exception:
+                return True, None
+
+        while True:
+            password = parent.password_dialog(
+                msg=_('Enter password for wallet {}').format(os.path.basename(path)), parent=parent)
+            if password is None:
+                return False, None
+            if not password:
+                parent.show_error(_('Password cannot be empty'))
+                continue
+            # A password rejected here might unlock another wallet in this selection.
+            if password not in passwords:
+                passwords.append(password)
+            try:
+                self.daemon.load_wallet(path, password)
+            except InvalidPassword as exc:
+                parent.show_error(str(exc))
+            except WalletRequiresUpgrade:
+                return True, password
+            except Exception:
+                # The wizard handles exceptional wallet formats, including upgrades.
+                return True, None
+            else:
+                return True, None
+
+    @staticmethod
+    def _wallet_needs_hardware_unlock(path: str) -> bool:
+        # A hardware-encrypted file cannot be unlocked using a typed wallet password.
+        return os.path.isfile(path) and WalletStorage(path).is_encrypted_with_hw_device()
+
     def show_lightning_dialog(self):
         if not self.daemon.network.has_channel_db():
             return
@@ -393,6 +464,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
             *,
             app_is_starting: bool = False,
             force_wizard: bool = False,
+            wizard_password: str | None = None,
     ) -> Optional[ElectrumWindow]:
         """Raises the window for the wallet if it is open.
         Otherwise, opens the wallet and creates a new window for it.
@@ -439,7 +511,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         # a different wallet.
         try:
             if not wallet:
-                wallet = self._start_wizard_to_select_or_create_wallet(path)
+                wallet = self._start_wizard_to_select_or_create_wallet(path, initial_password=wizard_password)
             if not wallet:
                 return
             window = self.get_window_for_wallet(wallet)
@@ -481,8 +553,11 @@ class ElectrumGui(BaseElectrumGui, Logger):
             window.send_tab.set_payment_identifier(uri)
         return window
 
-    def _start_wizard_to_select_or_create_wallet(self, path) -> Optional[Abstract_Wallet]:
+    def _start_wizard_to_select_or_create_wallet(
+            self, path: str, *, initial_password: str | None = None,
+    ) -> Optional[Abstract_Wallet]:
         wizard = QENewWalletWizard(self.config, self.app, self.plugins, self.daemon, path)
+        wizard.initial_password = initial_password
         result = wizard.exec()
         # TODO: use dialog.open() instead to avoid new event loop spawn?
         self.logger.info(f'wizard dialog exec result={result}')
