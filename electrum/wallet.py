@@ -547,6 +547,23 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def has_channels(self):
         return self.lnworker is not None and len(self.lnworker._channels) > 0
 
+    def lightning_needs_keystore(self) -> bool:
+        """Whether lightning needs the keystore to keep functioning, i.e. whether
+        the keystore must not be disabled (made watching-only).
+
+        lnworker itself only needs lightning_xprv (or lightning_privkey2), not the keystore.
+        However, a watching-only wallet does not sign transactions (see sign_transaction),
+        so it could not sweep the outputs of force-closed channels (incl. penalty txs),
+        nor claim or refund submarine swaps. Anchor channels also need wallet coins for fees.
+        """
+        if not self.lnworker:
+            return False
+        if any(not chan.is_redeemed() for chan in self.lnworker.channels.values()):
+            return True
+        if self.lnworker.swap_manager.get_pending_swaps():
+            return True
+        return False
+
     def can_have_lightning(self) -> bool:
         """ whether this wallet can create new channels """
         # we want static_remotekey to be a wallet address
@@ -4346,15 +4363,29 @@ class Deterministic_Wallet(Abstract_Wallet):
 
     def enable_keystore(self, keystore: KeyStore, is_hardware_keystore: bool, password) -> None:
         assert self.can_enable_disable_keystore(keystore)
-        if not is_hardware_keystore and self.storage.is_encrypted_with_user_pw():
-            keystore.update_password(None, password)
-            self.db.put('use_encryption', True)
+        mpk = keystore.get_master_public_key()
+        target = next((k for k in self.get_keystores() if k.get_master_public_key() == mpk), None)
+        if target is None:
+            raise Exception("mismatching xpubs: keystore not found in wallet")
+        if not target.is_watching_only():
+            # e.g. replacing a keystore that has a seed would remove the seed from the wallet file
+            raise Exception("keystore to be replaced is not watching-only")
+        if not is_hardware_keystore:
+            if self.storage.is_encrypted_with_user_pw() or self.has_keystore_encryption():
+                self.check_password(password)
+                keystore.update_password(None, password)
+                self.db.set_keystore_encryption(True)
+            else:
+                # the wallet has no password.
+                self.db.set_keystore_encryption(False)
         self._update_keystore(keystore)
+        self.save_db()
 
     def disable_keystore(self, keystore: KeyStore) -> None:
         assert self.can_enable_disable_keystore(keystore)
-        assert not self.has_channels()
         assert keystore in self.get_keystores()
+        if self.lightning_needs_keystore():
+            raise Exception("cannot disable keystore: needed by lightning")
         if hasattr(keystore, 'thread') and keystore.thread:
             keystore.thread.stop()
         if self.storage.is_encrypted_with_hw_device():
@@ -4362,6 +4393,15 @@ class Deterministic_Wallet(Abstract_Wallet):
             self.update_password(password, None, encrypt_storage=False)
         new = keystore.watching_only_keystore()
         self._update_keystore(new)
+        if not self.can_have_keystore_encryption():
+            # no keystore left that can be encrypted. Without storage encryption,
+            # the wallet no longer has a password.
+            self.db.set_keystore_encryption(False)
+        if not self.has_password():
+            self.lock_wallet()  # clear in memory password
+        # save changes. force full rewrite to rm remnants of the seed
+        if self.storage and self.storage.file_exists():
+            self.db.write_and_force_consolidation()
 
 
 class Standard_Wallet(Simple_Wallet, Deterministic_Wallet):
@@ -4465,7 +4505,7 @@ class Multisig_Wallet(Deterministic_Wallet):
         else:
             raise Exception('keystore not found')
         self.keystores[name] = keystore
-        self.keystore = keystore
+        self.keystore = self.keystores['x1']
         self.save_keystore()
 
     def can_have_keystore_encryption(self):
