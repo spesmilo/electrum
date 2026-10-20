@@ -1533,7 +1533,7 @@ class WalletDBUpgrader(Logger):
         and that has the same fields for LOCAL and for REMOTE.
         """
         from .bip32 import BIP32Node
-        from .lnutil import (DERIVED_LOCAL_BASEPOINTS, LnKeyFamily, generate_keypair,
+        from .lnutil import (LnKeyFamily, generate_keypair,
                              derive_payment_basepoint, get_per_commitment_point_from_seed)
         if not self._is_upgrade_method_needed(73, 73):
             return
@@ -1559,6 +1559,11 @@ class WalletDBUpgrader(Logger):
                     f"You must check out the '4.8.2' tag, and close+delete this channel."
                 )
             node = BIP32Node.from_rootseed(bfh(channel_seed), xtype='standard')
+            DERIVED_LOCAL_BASEPOINTS = {
+                'htlc_basepoint': LnKeyFamily.HTLC_BASE,
+                'delayed_basepoint': LnKeyFamily.DELAY_BASE,
+                'revocation_basepoint': LnKeyFamily.REVOCATION_BASE,
+            }
             for name, key_family in DERIVED_LOCAL_BASEPOINTS.items():
                 keypair = generate_keypair(node, key_family)
                 check(channel_id, name, keypair.privkey, local_config[name].pop('privkey'))
