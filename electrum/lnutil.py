@@ -509,6 +509,8 @@ class ImportedChannelBackupStorage(ChannelBackupStorage):
         else:
             assert len(self.local_payment_basepoint) == 33  # pubkey
             assert self.channel_type == ChannelType.OPTION_STATIC_REMOTEKEY
+            # note: for SRK chans, this must NOT be a privkey, as it corresponds to a change addr of the wallet,
+            #       and hence (combined with xpub) would give access to full onchain wallet (as we use non-hardened bip32 derivs).
             vds.write_bytes(self.local_payment_basepoint, 33)
         vds.write_bytes(self.multisig_funding_privkey, 32)
         return bytes(vds.input)
