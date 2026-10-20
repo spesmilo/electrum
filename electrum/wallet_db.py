@@ -1541,7 +1541,13 @@ class WalletDBUpgrader(Logger):
         for channel_id, c in self.data.get('channels', {}).items():
             local_config = c['local_config']
             remote_config = c['remote_config']
-            channel_seed = local_config.pop('channel_seed')
+            channel_seed = local_config.pop('channel_seed', None)
+            if channel_seed is None:
+                raise WalletFileException(
+                    f"Cannot upgrade this wallet: it contains a LN channel ({channel_id}) that lacks a channel_seed. "
+                    f"This can only happen for channels created from unreleased development git commits (before 2020 April, before 4.0). "
+                    f"You must check out the '4.8.2' tag, and close+delete this channel."
+                )
             node = BIP32Node.from_rootseed(bfh(channel_seed), xtype='standard')
             for name, key_family in DERIVED_LOCAL_BASEPOINTS.items():
                 keypair = generate_keypair(node, key_family)
