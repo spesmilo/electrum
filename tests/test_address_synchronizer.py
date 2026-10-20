@@ -125,6 +125,20 @@ class TestAddressSynchronizerSignatures(ElectrumTestCase):
         self._receive(signed_tx)
         self.assertEqual(signed_tx.wtxid(), self.adb.db.get_transaction(unsigned_tx.txid()).wtxid())
 
+    async def test_history_update_with_invalid_tx(self):
+        addr = hash_to_segwit_addr(bytes([2]) * 20, witver=0)
+        funding_tx = make_tx(['00' * 32 + ':1'], [(addr, 100_000)])
+        tx = make_tx([funding_tx.txid() + ':0'], [(ADDR_OTHER, 90_000)], witness=b'bad')
+        other_funding_tx = make_tx(['00' * 32 + ':2'], [(addr, 50_000)])
+        for t in (funding_tx, tx, other_funding_tx):
+            self._receive(t)  # not related to our addresses yet
+        self.adb.add_address(addr)
+        hist = [(t.txid(), TX_HEIGHT_UNCONFIRMED) for t in (tx, funding_tx, other_funding_tx)]
+        self.adb.receive_history_callback(addr, hist, {})
+        self.assertIsNone(self.adb.db.get_transaction(tx.txid()))
+        self.assertEqual([addr], self.adb.db.get_txo_addresses(funding_tx.txid()))
+        self.assertEqual([addr], self.adb.db.get_txo_addresses(other_funding_tx.txid()))
+
     async def test_verified_tx_is_not_checked(self):
         self._receive(self.funding_tx)
         tx = make_tx([self.funding_outpoint], [(ADDR_OTHER, 90_000)], witness=b'bad')

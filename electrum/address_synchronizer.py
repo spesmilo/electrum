@@ -534,7 +534,13 @@ class AddressSynchronizer(Logger, EventListener):
             tx = self.db.get_transaction(tx_hash)
             if tx is None:
                 continue
-            self.add_transaction(tx, allow_unrelated=True, is_new=False)
+            try:
+                self.add_transaction(tx, allow_unrelated=True, is_new=False)
+            except InvalidTxSignature:
+                # do not disconnect here, because the invalid tx may have been sent by another server.
+                # _request_missing_txs will ask the current server for it
+                self.logger.warning(f"removed tx with invalid signature: {tx_hash}")
+                continue
             # if we already had this tx, see if its height changed (e.g. local->unconfirmed)
             old_height = old_hist.get(tx_hash, None)
             if old_height is not None and old_height != tx_height:
