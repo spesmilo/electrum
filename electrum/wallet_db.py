@@ -132,6 +132,16 @@ for key in [
 
 
 class WalletDBUpgrader(Logger):
+    """
+    note: each DB upgrade (migration) should be as self-contained as practical.
+      The more a given convert_version_* depends on from outside the module,
+      the more likely future code changes break that specific DB upgrade.
+      - example:
+          invoices.py might have a global dict pr_expiration_values = {10*60: _('10 minutes'), 60*60: _('1 hour'), ...}.
+          Such a dict could change in future code, so if a given DB upgrade needs to reference it,
+          it is more robust to inline and duplicate it inside the migration code.
+    """
+
     def __init__(self, data: dict):
         Logger.__init__(self)
         self.data = data
@@ -1523,7 +1533,7 @@ class WalletDBUpgrader(Logger):
         and that has the same fields for LOCAL and for REMOTE.
         """
         from .bip32 import BIP32Node
-        from .lnutil import (DERIVED_LOCAL_BASEPOINTS, LnKeyFamily, generate_keypair,
+        from .lnutil import (LnKeyFamily, generate_keypair,
                              derive_payment_basepoint, get_per_commitment_point_from_seed)
         if not self._is_upgrade_method_needed(73, 73):
             return
@@ -1541,8 +1551,19 @@ class WalletDBUpgrader(Logger):
         for channel_id, c in self.data.get('channels', {}).items():
             local_config = c['local_config']
             remote_config = c['remote_config']
-            channel_seed = local_config.pop('channel_seed')
+            channel_seed = local_config.pop('channel_seed', None)
+            if channel_seed is None:
+                raise WalletFileException(
+                    f"Cannot upgrade this wallet: it contains a LN channel ({channel_id}) that lacks a channel_seed. "
+                    f"This can only happen for channels created from unreleased development git commits (before 2020 April, before 4.0). "
+                    f"You must check out the '4.8.2' tag, and close+delete this channel."
+                )
             node = BIP32Node.from_rootseed(bfh(channel_seed), xtype='standard')
+            DERIVED_LOCAL_BASEPOINTS = {
+                'htlc_basepoint': LnKeyFamily.HTLC_BASE,
+                'delayed_basepoint': LnKeyFamily.DELAY_BASE,
+                'revocation_basepoint': LnKeyFamily.REVOCATION_BASE,
+            }
             for name, key_family in DERIVED_LOCAL_BASEPOINTS.items():
                 keypair = generate_keypair(node, key_family)
                 check(channel_id, name, keypair.privkey, local_config[name].pop('privkey'))
