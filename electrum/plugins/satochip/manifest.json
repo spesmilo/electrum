@@ -5,5 +5,9 @@
   "requires": [["smartcard","pypi.org/project/pyscard/"]],
   "registers_keystore": ["hardware", "satochip", "Satochip wallet"],
   "icon":"satochip.png",
-  "available_for": ["qt"]
+  "available_for": ["qt"],
+  "author": "Toporin",
+  "license": "MIT",
+  "version": "0.1",
+  "min_electrum_version": "4.8.0"
 }
