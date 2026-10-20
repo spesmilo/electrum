@@ -4,7 +4,8 @@ from electrum import SimpleConfig
 from electrum.address_synchronizer import AddressSynchronizer, TX_HEIGHT_UNCONFIRMED
 from electrum.bitcoin import construct_witness, hash_to_segwit_addr
 from electrum.transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput, TxOutpoint
-from electrum.util import InvalidTxSignature, bfh
+from electrum.util import InvalidTxSignature, TxMinedInfo, bfh
+from electrum.synchronizer import Synchronizer
 from electrum.wallet_db import WalletDB
 
 from . import ElectrumTestCase
@@ -122,3 +123,69 @@ class TestAddressSynchronizerSignatures(ElectrumTestCase):
         self.assertFalse(self.adb.db.get_transaction(unsigned_tx.txid()).is_complete())
         self._receive(signed_tx)
         self.assertEqual(signed_tx.wtxid(), self.adb.db.get_transaction(unsigned_tx.txid()).wtxid())
+
+    async def test_verified_tx_is_not_checked(self):
+        self._receive(self.funding_tx)
+        tx = make_tx([self.funding_outpoint], [(ADDR_OTHER, 90_000)], witness=b'bad')
+        self.adb.add_verified_tx(tx.txid(), TxMinedInfo(height=100, timestamp=0, txpos=1, header_hash='00' * 32))
+        self.adb.receive_tx_callback(tx, 100)
+        self.assertIsNotNone(self.adb.db.get_transaction(tx.txid()))
+        self.assertEqual([], self.verify_calls)
+
+    async def test_tx_claimed_mined_is_added_once_verified(self):
+        self._receive(self.funding_tx)
+        tx = make_tx([self.funding_outpoint], [(ADDR_OTHER, 90_000)], witness=b'bad')
+        self.adb.add_unverified_or_unconfirmed_tx(tx.txid(), 100)
+        self.adb.receive_tx_callback(tx, 100)
+        self.assertIsNone(self.adb.db.get_transaction(tx.txid()))
+        self.adb.add_verified_tx(tx.txid(), TxMinedInfo(height=100, timestamp=0, txpos=1, header_hash='00' * 32))
+        self.assertIsNotNone(self.adb.db.get_transaction(tx.txid()))
+        self.assertEqual([], self.verify_calls)
+
+    async def test_tx_claimed_mined_is_checked_if_not_at_height(self):
+        self._receive(self.funding_tx)
+        tx = make_tx([self.funding_outpoint], [(ADDR_OTHER, 90_000)], witness=b'bad')
+        self.adb.add_unverified_or_unconfirmed_tx(tx.txid(), 100)
+        self.adb.receive_tx_callback(tx, 100)
+        with self.assertRaises(InvalidTxSignature):
+            self.adb.remove_unverified_tx(tx.txid(), 100)
+        self.assertIsNone(self.adb.db.get_transaction(tx.txid()))
+        self.assertEqual([(tx.txid(), [0])], self.verify_calls)
+
+    async def test_tx_claimed_mined_then_unconfirmed_is_checked(self):
+        self._receive(self.funding_tx)
+        tx = make_tx([self.funding_outpoint], [(ADDR_OTHER, 90_000)], witness=b'bad')
+        self.adb.add_unverified_or_unconfirmed_tx(tx.txid(), 100)
+        self.adb.receive_tx_callback(tx, 100)
+        # still held, until the verifier does not find it at height 100
+        self.adb.add_unverified_or_unconfirmed_tx(tx.txid(), TX_HEIGHT_UNCONFIRMED)
+        self.assertTrue(self.adb.is_held_tx(tx.txid()))
+        with self.assertRaises(InvalidTxSignature):
+            self.adb.remove_unverified_tx(tx.txid(), 100)
+        self.adb.add_verified_tx(tx.txid(), TxMinedInfo(height=100, timestamp=0, txpos=1, header_hash='00' * 32))
+        self.assertIsNone(self.adb.db.get_transaction(tx.txid()))
+
+    def _make_synchronizer(self) -> Synchronizer:
+        sync = Synchronizer.__new__(Synchronizer)
+        sync.adb = self.adb
+        Synchronizer._reset(sync)
+        return sync
+
+    async def test_held_tx_is_not_requested_again(self):
+        tx = make_tx([self.funding_outpoint], [(ADDR_OTHER, 90_000)])
+        self.adb.add_unverified_or_unconfirmed_tx(tx.txid(), 100)
+        sync = self._make_synchronizer()
+        self.adb.receive_tx_callback(tx, 100)
+        await sync._request_missing_txs([(tx.txid(), 100)])
+        self.assertEqual({}, sync.requested_tx)
+
+    async def test_held_txs_are_dropped_on_server_switch(self):
+        self._receive(self.funding_tx)
+        tx = make_tx([self.funding_outpoint], [(ADDR_OTHER, 90_000)])
+        self.adb.add_unverified_or_unconfirmed_tx(tx.txid(), 100)
+        sync = self._make_synchronizer()
+        self.adb.receive_tx_callback(tx, 100)
+        Synchronizer._reset(sync)
+        self.assertFalse(self.adb.is_held_tx(tx.txid()))
+        self.adb.add_verified_tx(tx.txid(), TxMinedInfo(height=100, timestamp=0, txpos=1, header_hash='00' * 32))
+        self.assertIsNone(self.adb.db.get_transaction(tx.txid()))

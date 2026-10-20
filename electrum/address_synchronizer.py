@@ -93,6 +93,8 @@ class AddressSynchronizer(Logger, EventListener):
         self.future_tx = {}  # type: Dict[str, int]  # txid -> wanted (abs) height
         # Txs the server claims are mined but still pending verification:
         self.unverified_tx = defaultdict(int)  # type: Dict[str, int]  # txid -> height. Access with self.lock.
+        # Txs received from the server that it claims are mined, held until verified:
+        self._held_txs = {}  # type: Dict[str, Transaction]  # txid -> tx. Access with self.lock.
         # Txs the server claims are in the mempool:
         self.unconfirmed_tx = defaultdict(int)  # type: Dict[str, int]  # txid -> height. Access with self.lock.
         # thread local storage for caching stuff
@@ -395,6 +397,8 @@ class AddressSynchronizer(Logger, EventListener):
             return True
         if isinstance(tx, PartialTransaction):
             tx = Transaction(tx.serialize())  # input addresses from our db, not from the psbt
+        if self.db.is_in_verified_tx(tx.txid()):
+            return True  # mined
         prev_txs = {}
         for txin_idx in txin_idxs:
             txin = tx.inputs()[txin_idx]
@@ -476,7 +480,13 @@ class AddressSynchronizer(Logger, EventListener):
         txid = tx.txid()
         assert txid is not None
         self.add_unverified_or_unconfirmed_tx(txid, tx_height)
-        self.add_transaction(tx, allow_unrelated=True)
+        with self.lock:
+            if txid in self.unverified_tx:
+                # the server claims tx is mined: add it once verified, so that its signatures need not be checked
+                self._held_txs[txid] = tx
+                return
+            self._held_txs.pop(txid, None)
+            self.add_transaction(tx, allow_unrelated=True)
 
     def receive_history_callback(self, addr: str, hist, tx_fees: Dict[str, int]):
         with self.lock:
@@ -677,13 +687,29 @@ class AddressSynchronizer(Logger, EventListener):
             new_height = self.unverified_tx.get(tx_hash)
             if new_height == tx_height:
                 self.unverified_tx.pop(tx_hash, None)
+                self._add_held_tx(tx_hash)
 
     def add_verified_tx(self, tx_hash: str, info: TxMinedInfo):
         # Remove from the unverified map and add to the verified map
         with self.lock:
             self.unverified_tx.pop(tx_hash, None)
             self.db.add_verified_tx(tx_hash, info)
+            self._add_held_tx(tx_hash)
         util.trigger_callback('adb_added_verified_tx', self, tx_hash)
+
+    def _add_held_tx(self, tx_hash: str) -> None:
+        tx = self._held_txs.pop(tx_hash, None)
+        if tx is not None:
+            self.add_transaction(tx, allow_unrelated=True)
+
+    @with_lock
+    def is_held_tx(self, tx_hash: str) -> bool:
+        # not if the server no longer claims it is mined
+        return tx_hash in self._held_txs and tx_hash in self.unverified_tx
+
+    @with_lock
+    def clear_held_txs(self) -> None:
+        self._held_txs.clear()
 
     def get_unverified_txs(self) -> Dict[str, int]:
         '''Returns a map from tx hash to transaction height'''
