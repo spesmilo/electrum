@@ -85,7 +85,6 @@ class QRDialog(WindowModalDialog):
             show_text=False,
             help_text=None,
             show_copy_text_btn=False,
-            show_cancel_btn=False,
             config: SimpleConfig,
     ):
         WindowModalDialog.__init__(self, parent, title)
@@ -139,21 +138,10 @@ class QRDialog(WindowModalDialog):
         hbox.addWidget(b)
         b.clicked.connect(print_qr)
 
-        if show_cancel_btn:
-            b = QPushButton(_("Ok"))
-            hbox.addWidget(b)
-            b.clicked.connect(self.accept)
-            b.setDefault(True)
-
-            b = QPushButton(_("Cancel"))
-            hbox.addWidget(b)
-            b.clicked.connect(self.reject)
-            b.setDefault(True)
-        else:
-            b = QPushButton(_("Close"))
-            hbox.addWidget(b)
-            b.clicked.connect(self.accept)
-            b.setDefault(True)
+        b = QPushButton(_("Close"))
+        hbox.addWidget(b)
+        b.clicked.connect(self.accept)
+        b.setDefault(True)
 
         vbox.addLayout(hbox)
         self.setLayout(vbox)
