@@ -155,13 +155,13 @@ class ChannelConfig(StoredObject):
     announcement_bitcoin_sig: bytes
     # signatures for this side's latest ctx and its htlc txs: for LOCAL, the ones the
     # remote sent us; for REMOTE, the ones we sent them.
-    current_commitment_signature: bytes
+    current_commitment_signature: bytes | None
     current_htlc_signatures: bytes
     # per-commitment points of this side's oldest unrevoked ctx, and of the next one.
     # ours are derivable from the channel seed; we keep them so that both configs can be
     # described, and sent to a peer that backs up our channel, in the same way.
-    current_per_commitment_point: bytes
-    next_per_commitment_point: bytes
+    current_per_commitment_point: bytes | None
+    next_per_commitment_point: bytes | None
 
     def __post_init__(self):
         # keypairs are stored as dicts, and bytes as hex
