@@ -24,7 +24,7 @@ ckcc-protocol>=0.7.7
 bitbox02>=7.0.0
 
 # device plugin: satochip
-pyscard>=2.0.7
+pyscard>=2.3.0
 pysatochip>=0.18.6
 
 # device plugin: jade
