@@ -132,6 +132,16 @@ for key in [
 
 
 class WalletDBUpgrader(Logger):
+    """
+    note: each DB upgrade (migration) should be as self-contained as practical.
+      The more a given convert_version_* depends on from outside the module,
+      the more likely future code changes break that specific DB upgrade.
+      - example:
+          invoices.py might have a global dict pr_expiration_values = {10*60: _('10 minutes'), 60*60: _('1 hour'), ...}.
+          Such a dict could change in future code, so if a given DB upgrade needs to reference it,
+          it is more robust to inline and duplicate it inside the migration code.
+    """
+
     def __init__(self, data: dict):
         Logger.__init__(self)
         self.data = data
