@@ -22,6 +22,14 @@ RUN sed -e 's#https://#http://#' /etc/apt/sources.list > /tmp/sources.list.boots
     rm -f /tmp/sources.list.bootstrap && \
     rm -rf /var/lib/apt/lists/*
 
+# distrust the compromised eMudhra "emSign ECC Root CA - G3" (see https://bugs.debian.org/1151413).
+# - bullseye is EOL and won't get a fixed ca-certificates. The first check fails once the base image
+#   is bumped to one whose pinned snapshot has a fixed ca-certificates: rm this then
+RUN test -e /etc/ssl/certs/emSign_ECC_Root_CA_-_G3.pem \
+    && sed -i 's#^mozilla/emSign_ECC_Root_CA_-_G3.crt$#!&#' /etc/ca-certificates.conf \
+    && update-ca-certificates \
+    && test ! -e /etc/ssl/certs/emSign_ECC_Root_CA_-_G3.pem
+
 RUN apt-get update -q && \
     apt-get install -qy --allow-downgrades \
         sudo \
