@@ -6,8 +6,8 @@ macholib==1.16.4 \
     --hash=sha256:f408c93ab2e995cd2c46e34fe328b130404be143469e41bc366c807448979362
 packaging==26.2 \
     --hash=sha256:ff452ff5a3e828ce110190feff1178bb1f2ea2281fa2075aadb987c2fb221661
-pip==25.1.1 \
-    --hash=sha256:3de45d411d308d5054c2168185d8da7f9a2cd753dbac8acbfa88a8909ecd9077
+pip==26.2.2 \
+    --hash=sha256:3a8e5c800492787f33a4114ef54444546c340df428974ebba17e0fd47e11af2f
 pyinstaller-hooks-contrib==2025.4 \
     --hash=sha256:5ce1afd1997b03e70f546207031cfdf2782030aabacc102190677059e2856446
 setuptools==80.9.0 \
