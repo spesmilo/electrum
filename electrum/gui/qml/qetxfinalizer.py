@@ -457,11 +457,13 @@ class QETxFinalizer(TxFeeSlider, AuthMixin, SubmarineSwapMixin):
 
         self.swapAvailabilityChanged.connect(self.on_swap_availability_changed, Qt.ConnectionType.QueuedConnection)
 
+        self.register_callbacks()
         self.destroyed.connect(lambda: self.on_destroy())
 
     def on_destroy(self):
         self._logger.debug('on_destroy')
         self.swap_transport_cleanup()
+        self.unregister_callbacks()
 
     def on_wallet_changed(self):
         self.set_wallet_for_swap(self._wallet.wallet if self._wallet else None)
