@@ -174,6 +174,7 @@ class opcodes(IntEnum):
     OP_HASH256 = 0xaa
     OP_CODESEPARATOR = 0xab
     OP_CHECKSIG = 0xac
+    OP_CHECKSIGADD = 0xba  # BIP 342 (Tapscript)
     OP_CHECKSIGVERIFY = 0xad
     OP_CHECKMULTISIG = 0xae
     OP_CHECKMULTISIGVERIFY = 0xaf
