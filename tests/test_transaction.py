@@ -1,14 +1,17 @@
+import json
+import os
 from typing import NamedTuple, Union
 
 from electrum import transaction, bitcoin
 from electrum.transaction import (convert_raw_tx_to_hex, tx_from_any, Transaction,
                                   PartialTransaction, TxOutpoint, PartialTxInput,
                                   PartialTxOutput, Sighash, match_script_against_template,
-                                  SCRIPTPUBKEY_TEMPLATE_ANYSEGWIT)
+                                  SCRIPTPUBKEY_TEMPLATE_ANYSEGWIT, script_GetOp)
 from electrum.util import bfh
+from electrum.crypto import sha256d
 from electrum.bitcoin import (deserialize_privkey, opcodes,
                               construct_script, construct_witness)
-from electrum.ecc import ECPrivkey
+from electrum.ecc import ECPrivkey, der_sig_from_r_and_s
 from electrum import descriptor
 
 from .test_bitcoin import disable_ecdsa_r_value_grinding
@@ -1006,3 +1009,47 @@ class TestSighashTypes(ElectrumTestCase):
         self.assertEqual('30440220525406a1482936d5a21888260dc165497a90a15669636d8edca6b9fe490d309c022032af0c646a34a44d1f4576bf6a4a74b67940f8faa84c7df9abe12a01a11e2b4783',
                          sig)
         self._assert_sig_verifies(tx, privkey, sig)
+
+
+class TestSighashLegacy(ElectrumTestCase):
+
+    def test_bitcoin_core_vectors(self):
+        # file identical to https://github.com/bitcoin/bitcoin/blob/v27.0/src/test/data/sighash.json
+        test_vector_file = os.path.join(os.path.dirname(__file__), "sighash-vectors.json")
+        with open(test_vector_file, "r") as f:
+            vectors = [v for v in json.load(f)]
+        vectors = vectors[1:]  # drop header
+        self.assertEqual(500, len(vectors))
+        for raw_tx, script, txin_index, hash_type, expected_sighash in vectors:
+            with self.subTest(raw_tx=raw_tx, txin_index=txin_index, hash_type=hash_type):
+                tx = PartialTransaction.from_tx(Transaction(raw_tx))
+                txin = tx.inputs()[txin_index]
+                self.assertFalse(txin.is_segwit())
+                # legacy sighash removes OP_CODESEPARATOR from the scriptCode
+                script = bfh(script)
+                script_code = b""
+                start = 0
+                for op, _, end in script_GetOp(script):
+                    if op != opcodes.OP_CODESEPARATOR:
+                        script_code += script[start:end]
+                    start = end
+                tx.get_preimage_script = lambda txin, script_code=script_code: script_code.hex()
+                pre_hash = tx.serialize_preimage(txin_index, sighash=hash_type & 0xffffffff, strict=False)
+                self.assertEqual(expected_sighash, sha256d(bfh(pre_hash))[::-1].hex())
+
+    def test_verify_sighash_single_without_output(self):
+        # legacy SIGHASH_SINGLE signs the hash 1 if there is no output with the index of the input
+        privkey = ECPrivkey(bfh('730fff80e1413068a05b57d6a58261f07551163369787f349438ea38ca80fac6'))
+        pubkey = privkey.get_public_key_bytes(compressed=True)
+        txins = [PartialTxInput(prevout=TxOutpoint(txid=bytes([i]) * 32, out_idx=0)) for i in range(2)]
+        for txin in txins:
+            txin.script_descriptor = descriptor.get_singlesig_descriptor_from_legacy_leaf(
+                pubkey=pubkey.hex(), script_type='p2pkh')
+        txout = PartialTxOutput(scriptpubkey=bfh('76a914389ffce9cd9ae88dcc0631e88a821ffdbe9bfe2688ac'), value=1000)
+        tx = PartialTransaction.from_io(inputs=txins, outputs=[txout], locktime=0, version=1, BIP69_sort=False)
+        msg_hash = (1).to_bytes(32, byteorder="little")
+        sig = privkey.sign(msg_hash, sigencode=der_sig_from_r_and_s) + bytes([Sighash.SINGLE])
+        self.assertTrue(tx.verify_sig_for_txin(txin_index=1, pubkey_bytes=pubkey, sig=sig))
+        self.assertFalse(tx.verify_sig_for_txin(txin_index=0, pubkey_bytes=pubkey, sig=sig))
+        with self.assertRaisesRegex(Exception, "without a corresponding output"):
+            tx.serialize_preimage(1, sighash=Sighash.SINGLE)
