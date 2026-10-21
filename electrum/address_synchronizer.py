@@ -27,12 +27,14 @@ import dataclasses
 import threading
 import itertools
 from collections import defaultdict
-from typing import TYPE_CHECKING, Dict, Optional, Set, Tuple, NamedTuple, Sequence, List
+from typing import TYPE_CHECKING, Dict, Optional, Set, Tuple, NamedTuple, Sequence, List, Callable, Iterable
 
 from .crypto import sha256
 from . import bitcoin, util
 from .bitcoin import COINBASE_MATURITY
-from .util import profiler, bfh, TxMinedInfo, UnrelatedTransactionException, with_lock, OldTaskGroup
+from .util import (
+    profiler, bfh, TxMinedInfo, UnrelatedTransactionException, InvalidTxSignature, with_lock, OldTaskGroup,
+)
 from .transaction import Transaction, TxOutput, TxInput, PartialTxInput, TxOutpoint, PartialTransaction, tx_from_any
 from .synchronizer import Synchronizer
 from .verifier import SPV
@@ -82,7 +84,11 @@ class AddressSynchronizer(Logger, EventListener):
     synchronizer: Optional['Synchronizer']
     verifier: Optional['SPV']
 
-    def __init__(self, db: 'WalletDB', config: 'SimpleConfig', *, name: str | None = None):
+    def __init__(
+            self, db: 'WalletDB', config: 'SimpleConfig', *,
+            verify_txins: Optional[Callable[[Transaction, Dict[int, Transaction]], bool]],
+            name: str | None = None,
+    ):
         self.db = db
         self.config = config
         self.name = name
@@ -92,6 +98,8 @@ class AddressSynchronizer(Logger, EventListener):
         self.synchronizer = None
         self.verifier = None
         self.lock = threading.RLock()
+        # (tx, {txin_idx: prev_tx}) -> whether these txins are validly signed
+        self.verify_txins = None  # type: Optional[Callable[[Transaction, Dict[int, Transaction]], bool]]
         self.future_tx = {}  # type: Dict[str, int]  # txid -> wanted (abs) height
         # Txs the server claims are mined but still pending verification:
         self.unverified_tx = defaultdict(int)  # type: Dict[str, int]  # txid -> height. Access with self.lock.
@@ -104,6 +112,8 @@ class AddressSynchronizer(Logger, EventListener):
         self._get_utxos_cache = {}
 
         self.load_and_cleanup()
+        # set after load_and_cleanup, as the wallet is not fully constructed yet
+        self.verify_txins = verify_txins
 
     @with_lock
     def invalidate_cache(self):
@@ -308,6 +318,14 @@ class AddressSynchronizer(Logger, EventListener):
                 is_for_me = any([self.is_mine(txo.address) for txo in tx.outputs()])
                 if not is_mine and not is_for_me:
                     raise UnrelatedTransactionException()
+            # check signatures of inputs spending our coins
+            stored_tx = self.db.get_transaction(tx_hash)
+            is_new_witness = stored_tx is None or isinstance(stored_tx, PartialTransaction)
+            checked_tx = tx if is_new_witness else stored_tx  # db keeps a complete tx
+            if not self._are_new_inputs_valid(checked_tx, range(len(tx.inputs())), is_new_witness=is_new_witness):
+                if not is_new_witness:
+                    self.remove_transaction(tx_hash)
+                raise InvalidTxSignature()
             # Find all conflicting transactions.
             # In case of a conflict,
             #     1. confirmed > mempool > local
@@ -368,10 +386,16 @@ class AddressSynchronizer(Logger, EventListener):
                     # give v to txi that spends me
                     next_tx = self.db.get_spent_outpoint(tx_hash, n)
                     if next_tx is not None:
+                        spender_tx = self.db.get_transaction(next_tx)
+                        txin_idx = spender_tx.get_input_idx_that_spent_prevout(TxOutpoint.from_str(ser)) if spender_tx else None
+                        if txin_idx is not None and not self._are_new_inputs_valid(
+                                spender_tx, [txin_idx], prev_tx=tx, is_new_witness=False):
+                            self.logger.warning(f"removing tx with invalid signature: {next_tx}")
+                            self.remove_transaction(next_tx)
+                            continue
                         is_new_txi = self.db.add_txi_addr(next_tx, addr, ser, v)
                         self._add_tx_to_local_history(next_tx)
                         if is_new_txi:
-                            spender_tx = self.db.get_transaction(next_tx)
                             assert spender_tx
                             util.trigger_callback('adb_updated_tx', self, next_tx, spender_tx)
             # add to local history
@@ -385,6 +409,31 @@ class AddressSynchronizer(Logger, EventListener):
                 # adb_updated_tx: we learned of more is_mine inputs of an already known tx
                 util.trigger_callback('adb_updated_tx', self, tx_hash, tx)
             return True
+
+    def _are_new_inputs_valid(
+            self, tx: Transaction, txin_idxs: Iterable[int], *, prev_tx: Transaction = None, is_new_witness: bool,
+    ) -> bool:
+        """Checks the signatures of txins spending our coins.
+        If is_new_witness (tx will replace the stored one), txins already linked to our coins are checked too."""
+        if self.verify_txins is None or not tx.is_complete():
+            return True
+        if isinstance(tx, PartialTransaction):
+            tx = Transaction(tx.serialize())  # input addresses from our db, not from the psbt
+        prev_txs = {}
+        for txin_idx in txin_idxs:
+            txin = tx.inputs()[txin_idx]
+            if txin.is_coinbase_input():
+                continue
+            addr = self.get_txin_address(txin)
+            if not self.is_mine(addr):
+                continue
+            txin_prev_tx = prev_tx or self.db.get_transaction(txin.prevout.txid.hex())
+            if txin_prev_tx is None:
+                continue  # checked when prev_tx is added
+            if not is_new_witness and txin.prevout.to_str() in dict(self.db.get_txi_addr(tx.txid(), addr)):
+                continue
+            prev_txs[txin_idx] = txin_prev_tx
+        return not prev_txs or self.verify_txins(tx, prev_txs)
 
     @with_lock
     def remove_transaction(self, tx_hash: str) -> None:
