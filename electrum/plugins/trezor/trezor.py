@@ -522,7 +522,7 @@ class TrezorPlugin(HW_PluginBase):
     # insert trezor pages in new wallet wizard
     def extend_wizard(self, wizard: 'NewWalletWizard'):
         def _after_pairing(d: dict) -> str:
-            if d['wallet_exists']:
+            if d.get('wallet_exists'):
                 return 'trezor_unlock'
 
             if not d['trezor_initialized']:
