@@ -27,7 +27,6 @@ RUN apt -y update -qq \
     curl \
     wget \
     unzip \
-    ca-certificates \
     python3 \
     && apt -y autoremove
 
