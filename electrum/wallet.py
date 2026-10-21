@@ -40,7 +40,7 @@ from functools import partial
 from collections import defaultdict
 from numbers import Number
 from decimal import Decimal
-from typing import TYPE_CHECKING, List, Optional, Tuple, Union, NamedTuple, Sequence, Dict, Any, Set, Iterable
+from typing import TYPE_CHECKING, List, Optional, Tuple, Union, NamedTuple, Sequence, Dict, Any, Set, Iterable, Mapping
 from abc import ABC, abstractmethod
 import itertools
 import threading
@@ -61,7 +61,7 @@ from .util import (NotEnoughFunds, UserCancelled, profiler, OldTaskGroup, ignore
 from .simple_config import SimpleConfig, FEE_RATIO_HIGH_WARNING, FEERATE_WARNING_HIGH_FEE
 from .bitcoin import COIN, TYPE_ADDRESS
 from .bitcoin import is_address, address_to_script, is_minikey, relayfee, dust_threshold
-from .bitcoin import DummyAddress, DummyAddressUsedInTxException
+from .bitcoin import DummyAddress, DummyAddressUsedInTxException, construct_witness
 from .crypto import sha256d
 from . import keystore
 from .keystore import (load_keystore, Hardware_KeyStore, KeyStore, KeyStoreWithMPK,
@@ -71,7 +71,7 @@ from .storage import StorageEncryptionVersion, WalletStorage
 from .wallet_db import WalletDB
 from . import transaction, bitcoin, coinchooser, paymentrequest, ecc, bip32
 from .transaction import (Transaction, TxInput, UnknownTxinType, TxOutput,
-                          PartialTransaction, PartialTxInput, PartialTxOutput, TxOutpoint, Sighash)
+                          PartialTransaction, PartialTxInput, PartialTxOutput, TxOutpoint, Sighash, script_GetOp)
 from .plugin import run_hook
 from .address_synchronizer import (AddressSynchronizer, TX_HEIGHT_LOCAL,
                                    TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_FUTURE, TX_TIMESTAMP_INF)
@@ -86,7 +86,7 @@ from .paymentrequest import PaymentRequest
 from .util import read_json_file, write_json_file, UserFacingException, FileImportFailed
 from .util import EventListener, event_listener
 from . import descriptor
-from .descriptor import Descriptor
+from .descriptor import Descriptor, MissingSolutionPiece
 
 if TYPE_CHECKING:
     from .network import Network
@@ -400,7 +400,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         Logger.__init__(self)
 
         self.network = None
-        self.adb = AddressSynchronizer(db, config, name=self.diagnostic_name())
+        self.adb = AddressSynchronizer(
+            db, config, verify_txins=self._verify_txin_signatures, name=self.diagnostic_name())
         for addr in self.get_addresses():
             self.adb.add_address(addr)
         self.lock = self.adb.lock
@@ -2299,6 +2300,55 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         # submarine swap funding outputs must not be decreased
         if self.lnworker and self.lnworker.swap_manager.is_lockup_address_for_a_swap(txout.address):
             return False
+        return True
+
+    def _verify_txin_signatures(self, tx: Transaction, prev_txs: Mapping[int, Transaction]) -> bool:
+        if isinstance(tx, PartialTransaction):
+            tx = Transaction(tx.serialize())
+        ptx = PartialTransaction.from_tx(tx)
+        bip143_shared_txdigest_fields = ptx._calc_bip143_shared_txdigest_fields()
+        for txin_idx, prev_tx in prev_txs.items():
+            ptxin = ptx.inputs()[txin_idx]
+            prev_txout = prev_tx.outputs()[ptxin.prevout.out_idx]
+            ptxin.witness_utxo = prev_txout  # value and address, also if prev_tx is unsigned
+            ptxin.script_descriptor = self.get_script_descriptor_for_address(prev_txout.address)
+            if not ptxin.script_descriptor:
+                continue  # cannot verify, e.g. watch-only imported address
+            txin = tx.inputs()[txin_idx]
+            try:
+                items = txin.witness_elements() + [x[1] for x in script_GetOp(txin.script_sig or b'')]
+                sigs = [x for x in items if x and x[0] == 0x30 and 9 <= len(x) <= 73]
+                pubkeys = ptxin.pubkeys
+                if len(pubkeys) > 1:  # multisig: sigs are in script order
+                    script = ptxin.witness_script or ptxin.redeem_script
+                    pubkeys = [x[1] for x in script_GetOp(script) if x[1] in pubkeys]
+            except Exception:
+                return False
+            # like OP_CHECKMULTISIG: at most one verification per pubkey
+            sigs_iter = iter(sigs)
+            sig = next(sigs_iter, None)
+            for pubkey in pubkeys:
+                if sig is None:
+                    break
+                try:
+                    ptxin.sighash = sig[-1]  # legacy inputs: only SIGHASH_ALL is supported
+                    pre_hash = sha256d(bfh(ptx.serialize_preimage(
+                        txin_idx, bip143_shared_txdigest_fields=bip143_shared_txdigest_fields)))
+                    sig_string = ecc.sig_string_from_der_sig(sig[:-1])
+                    is_valid = ecc.ECPubkey(pubkey).verify_message_hash(sig_string, pre_hash)
+                except Exception:
+                    is_valid = False
+                if is_valid:
+                    ptxin.part_sigs[pubkey] = sig
+                    sig = next(sigs_iter, None)
+            # the scriptSig and witness must be exactly what we would produce
+            try:
+                script_sig = bfh(Transaction.input_script(ptxin))
+                witness = bfh(Transaction.serialize_witness(ptxin))
+            except MissingSolutionPiece:
+                return False
+            if script_sig != (txin.script_sig or b'') or witness != (txin.witness or bfh(construct_witness([]))):
+                return False
         return True
 
     def cpfp(self, tx: Transaction, fee: int) -> Optional[PartialTransaction]:

@@ -6,7 +6,7 @@ from typing import Sequence
 import asyncio
 import copy
 
-from electrum import storage, bitcoin, keystore, bip32, slip39, wallet
+from electrum import storage, bitcoin, keystore, bip32, slip39, wallet, ecc
 from electrum import Transaction
 from electrum import SimpleConfig
 from electrum import util
@@ -15,7 +15,9 @@ from electrum.wallet import (sweep, Multisig_Wallet, Standard_Wallet, Imported_W
                              restore_wallet_from_text, Abstract_Wallet, CannotBumpFee, BumpFeeStrategy,
                              TransactionPotentiallyDangerousException, TransactionDangerousException,
                              TxSighashRiskLevel)
-from electrum.util import bfh, NotEnoughFunds, UnrelatedTransactionException, UserFacingException, TxMinedInfo
+from electrum.util import (
+    bfh, NotEnoughFunds, UnrelatedTransactionException, UserFacingException, TxMinedInfo, InvalidTxSignature,
+)
 from electrum.transaction import Transaction, PartialTxOutput, tx_from_any, Sighash
 from electrum.mnemonic import calc_seed_type
 from electrum.network import Network
@@ -1073,6 +1075,15 @@ class TestWalletSending(ElectrumTestCase):
         self.assertEqual(tx.wtxid(), tx_copy.wtxid())
         self.assertEqual(txid, tx_copy.txid())
 
+        # signatures must be in the order of pubkeys
+        items = tx_copy.inputs()[0].witness_elements()
+        swapped_items = [items[0], items[2], items[1], items[3]]
+        swapped_tx = Transaction(str(tx_copy).replace(
+            bitcoin.construct_witness(items), bitcoin.construct_witness(swapped_items)))
+        self.assertEqual(txid, swapped_tx.txid())
+        with self.assertRaises(InvalidTxSignature):
+            wallet1a.adb.receive_tx_callback(swapped_tx, TX_HEIGHT_UNCONFIRMED)
+
         wallet1a.adb.receive_tx_callback(tx, TX_HEIGHT_UNCONFIRMED)
         wallet2a.adb.receive_tx_callback(tx, TX_HEIGHT_UNCONFIRMED)
 
@@ -2095,6 +2106,71 @@ class TestWalletSending(ElectrumTestCase):
                          str(tx3))
         wallet.adb.receive_tx_callback(tx3, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 197_000, 0), wallet.get_balance())
+
+    def _funded_wallet_setup(self):
+        mywallet = self.create_standard_wallet_from_seed(
+            'response era cable net spike again observe dumb wage wonder sail tortoise',
+            config=self.config)
+        # bootstrap wallet (incoming funding_tx0): for 500k sat
+        funding_tx = Transaction('02000000000101013548c9019890e27ce9e58766de05f18ea40ede70751fb6cd7a3a1715ece0a30100000000fdffffff0220a1070000000000160014542266519a44eb9b903761d40c6fe1055d33fa05485a080000000000160014bc69f7d82c403a9f35dfb6d1a4531d6b19cab0e3024730440220346b200f21c3024e1d51fb4ecddbdbd68bd24ae7b9dfd501519f6dcbeb7c052402200617e3ce7b0eb308e30caf23894fb0388b68fb1c15dd0681dd13ae5e735f148101210360d0c9ef15b8b6a16912d341ad218a4e4e4e07e9347f4a2dbc7ca8d974f8bc9ec1ad2600')
+        mywallet.adb.receive_tx_callback(funding_tx, TX_HEIGHT_UNCONFIRMED)
+
+        def make_tx(addr) -> Transaction:
+            tx = mywallet.make_unsigned_transaction(
+                coins=mywallet.get_spendable_coins(domain=None),
+                outputs=[PartialTxOutput.from_address_and_value(addr, 30_000)],
+                fee=200,
+            )
+            mywallet.sign_transaction(tx, password=None)
+            return Transaction(tx.serialize())
+
+        external_addr = "tb1qtzhwpufqr5dwztdaysfqnwlf9m29uwdkq8zm9w"
+        return mywallet, make_tx, external_addr
+
+    def _unsigned_parent_and_signed_child(self):
+        mywallet, make_tx, external_addr = self._funded_wallet_setup()
+        parent_tx = mywallet.make_unsigned_transaction(
+            coins=mywallet.get_spendable_coins(domain=None),
+            outputs=[PartialTxOutput.from_address_and_value(external_addr, 30_000)],
+            fee=200,
+        )
+        mywallet.adb.add_transaction(parent_tx)
+        coins = [c for c in mywallet.get_spendable_coins(domain=None, nonlocal_only=False, confirmed_only=False)
+                 if c.prevout.txid.hex() == parent_tx.txid()]
+        self.assertEqual(1, len(coins))
+        child_tx = mywallet.make_unsigned_transaction(
+            coins=coins, outputs=[PartialTxOutput.from_address_and_value(external_addr, '!')],
+            fee=200,
+        )
+        mywallet.sign_transaction(child_tx, password=None)
+        self.assertFalse(parent_tx.is_complete())
+        self.assertTrue(child_tx.is_complete())
+        return mywallet, parent_tx, child_tx
+
+    async def test_signed_child_of_unsigned_parent(self):
+        mywallet, parent_tx, child_tx = self._unsigned_parent_and_signed_child()
+        mywallet.adb.add_transaction(child_tx)
+        self.assertIsNotNone(mywallet.db.get_transaction(child_tx.txid()))
+
+    async def test_signed_child_of_unsigned_parent_before_parent(self):
+        mywallet, parent_tx, child_tx = self._unsigned_parent_and_signed_child()
+        mywallet.adb.remove_transaction(parent_tx.txid())
+        mywallet.adb.add_transaction(child_tx)
+        mywallet.adb.add_transaction(parent_tx)
+        self.assertIsNotNone(mywallet.db.get_transaction(child_tx.txid()))
+        self.assertEqual(1, len(mywallet.db.get_txi_addresses(child_tx.txid())))
+
+    async def test_tx_with_huge_witness(self):
+        mywallet, make_tx, external_addr = self._funded_wallet_setup()
+        tx = make_tx(external_addr)
+        sig, pubkey = tx.inputs()[0].witness_elements()
+        tx.inputs()[0].witness = bfh(bitcoin.construct_witness([sig] * 1000 + [pubkey]))
+        tx = Transaction(tx.serialize_to_network())
+        with mock.patch.object(ecc.ECPubkey, 'verify_message_hash', autospec=True,
+                               side_effect=ecc.ECPubkey.verify_message_hash) as verify_sig:
+            with self.assertRaises(InvalidTxSignature):
+                mywallet.adb.receive_tx_callback(tx, TX_HEIGHT_UNCONFIRMED)
+        self.assertLessEqual(verify_sig.call_count, 1)
 
     async def test_join_psbts__merge_duplicate_outputs(self):
         """txos paying to the same address might be merged into a single output with a larger value"""
