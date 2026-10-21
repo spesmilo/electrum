@@ -443,15 +443,22 @@ class TxInput:
             d['witness'] = [x.hex() for x in self.witness_elements()]
         return d
 
-    def serialize_to_network(self, *, script_sig: bytes | None = None) -> bytes:
+    def serialize_to_network(
+        self,
+        *,
+        script_sig: bytes | None = None,
+        nsequence: int | None = None,
+    ) -> bytes:
         if script_sig is None:
             script_sig = self.script_sig
+        if nsequence is None:
+            nsequence = self.nsequence
         # Prev hash and index
         s = self.prevout.serialize_to_network()
         # Script length, script, sequence
         s += var_int(len(script_sig))
         s += script_sig
-        s += int.to_bytes(self.nsequence, length=4, byteorder="little", signed=False)
+        s += int.to_bytes(nsequence, length=4, byteorder="little", signed=False)
         return s
 
     def witness_elements(self) -> Sequence[bytes]:
@@ -1057,6 +1064,7 @@ class Transaction:
         *,
         sighash: Optional[int] = None,
         sighash_cache: SighashCache | None = None,
+        strict: bool = True,  # enforce policy/standardness
     ) -> bytes:
         nVersion = int.to_bytes(self.version, length=4, byteorder="little", signed=True)
         nLocktime = int.to_bytes(self.locktime, length=4, byteorder="little", signed=False)
@@ -1069,7 +1077,9 @@ class Transaction:
             if sighash is None:
                 sighash = Sighash.DEFAULT if txin.is_taproot() else Sighash.ALL
         assert sighash is not None
-        if not Sighash.is_valid(sighash, is_taproot=txin.is_taproot()):
+        if (strict or txin.is_taproot()) and not Sighash.is_valid(sighash, is_taproot=txin.is_taproot()):
+            # Undefined sighashes for legacy and segwit are non-standard but consensus-valid.
+            # Undefined sighashes for taproot are invalid by consensus.
             raise Exception(f"SIGHASH_FLAG ({sighash}) not supported!")
         if sighash_cache is None:
             sighash_cache = SighashCache()
@@ -1137,13 +1147,28 @@ class Transaction:
                 preimage = nVersion + hashPrevouts + hashSequence + outpoint + scriptCode + amount + nSequence + hashOutputs + nLocktime + nHashType
                 return preimage
         else:  # legacy sighash (pre-segwit)
-            if sighash != Sighash.ALL:
-                raise Exception(f"SIGHASH_FLAG ({sighash}) not supported! (for legacy sighash)")
+            # see https://github.com/bitcoin/bitcoin/blob/f86c614e69256b9814c27b0dd096ee46daa71aa3/src/script/interpreter.cpp#L1338
+            base_sighash = sighash & 0x1f
+            if base_sighash == Sighash.SINGLE and txin_index >= len(outputs):
+                raise Exception("Using SIGHASH_SINGLE without a corresponding output")
             preimage_script = txin.get_scriptcode_for_sighash()
-            txins = var_int(len(inputs)) + b"".join(
-                txin.serialize_to_network(script_sig=preimage_script if txin_index==k else b"")
-                for k, txin in enumerate(inputs))
-            txouts = var_int(len(outputs)) + b"".join(o.serialize_to_network() for o in outputs)
+            def serialize_txin(k: int, txin_k: TxInput) -> bytes:
+                if k == txin_index:
+                    return txin_k.serialize_to_network(script_sig=preimage_script)
+                else:
+                    nsequence = 0 if base_sighash in (Sighash.NONE, Sighash.SINGLE) else txin_k.nsequence
+                    return txin_k.serialize_to_network(script_sig=b"", nsequence=nsequence)
+            if sighash & Sighash.ANYONECANPAY:
+                txins = var_int(1) + serialize_txin(txin_index, txin)
+            else:
+                txins = var_int(len(inputs)) + b"".join(serialize_txin(k, txin_k) for k, txin_k in enumerate(inputs))
+            if base_sighash == Sighash.NONE:
+                txouts = var_int(0)
+            elif base_sighash == Sighash.SINGLE:
+                blank_txout = int.to_bytes(2**64 - 1, length=8, byteorder="little", signed=False) + var_int(0)
+                txouts = var_int(txin_index + 1) + blank_txout * txin_index + outputs[txin_index].serialize_to_network()
+            else:
+                txouts = var_int(len(outputs)) + b"".join(o.serialize_to_network() for o in outputs)
             nHashType = int.to_bytes(sighash, length=4, byteorder="little", signed=False)
             preimage = nVersion + txins + txouts + nLocktime + nHashType
             return preimage
@@ -1156,15 +1181,20 @@ class Transaction:
         pubkey_bytes: bytes,
         sig: bytes,
         sighash_cache: SighashCache | None = None,
+        strict: bool = True,  # enforce policy/standardness
     ) -> bool:
         txin = self.inputs()[txin_index]
         if txin.is_taproot():
             raise Exception("not implemented")  # TODO
         else:
             der_sig, sighash = sig[:-1], sig[-1]
-            pre_hash = self.serialize_preimage(txin_index, sighash=sighash, sighash_cache=sighash_cache)
+            if not txin.is_segwit() and sighash & 0x1f == Sighash.SINGLE and txin_index >= len(self.outputs()):
+                msg_hash = (1).to_bytes(32, byteorder="little")  # legacy consensus quirk
+            else:
+                pre_hash = self.serialize_preimage(
+                    txin_index, sighash=sighash, sighash_cache=sighash_cache, strict=strict)
+                msg_hash = sha256d(pre_hash)
             pubkey = ecc.ECPubkey(pubkey_bytes)
-            msg_hash = sha256d(pre_hash)
             sig64 = ecc.ecdsa_sig64_from_der_sig(der_sig)
             return pubkey.ecdsa_verify(sig64, msg_hash)
 
