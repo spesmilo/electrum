@@ -19,8 +19,8 @@ class PyparsingRecipePinned(PyparsingRecipe):
     hostpython_prerequisites = [
         HashPinnedDependency(package="setuptools==80.9.0",
                              hashes=['sha256:062d34222ad13e0cc312a4c02d73f059e86a4acbfbdea8f8f76b28c99f306922']),
-        HashPinnedDependency(package="pip==24.0",
-                             hashes=['sha256:ba0d021a166865d2265246961bec0152ff124de910c5cc39f1156ce3fa7c69dc']),
+        HashPinnedDependency(package="pip==26.2.1",
+                             hashes=['sha256:71138adf1f4ca900cdb7d289c21b7494329f2332b6d85f0e1c42108c0384ed3e']),
     ]
 
 
