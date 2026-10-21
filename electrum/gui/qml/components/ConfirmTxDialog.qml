@@ -218,7 +218,7 @@ ElDialog {
                             id: cb_send_change_to_lightning
                             Layout.fillWidth: true
                             visible: finalizer.txOptions & TxFinalizer.TxOptions.SEND_CHANGE_TO_LIGHTNING
-                                && Daemon.currentWallet.isLightning && Daemon.currentWallet.lightningCanReceive.satsInt > 0
+                                && Daemon.currentWallet.isLightning && Daemon.currentWallet.lightningCanReceive.satsInt > Config.minSwapAmount
                             text: Config.shortDescFor('WALLET_SEND_CHANGE_TO_LIGHTNING')
                             onCheckedChanged: {
                                 if (activeFocus) {

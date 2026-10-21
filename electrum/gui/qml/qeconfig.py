@@ -361,6 +361,12 @@ class QEConfig(AuthMixin, QObject):
             self.config.WALLET_SEND_CHANGE_TO_LIGHTNING = sendChangeToLightning
             self.sendChangeToLightningChanged.emit()
 
+    minSwapAmountChanged = pyqtSignal()
+    @pyqtProperty('quint64', notify=minSwapAmountChanged)
+    def minSwapAmount(self):
+        from electrum.submarine_swaps import MIN_SWAP_AMOUNT_SAT
+        return MIN_SWAP_AMOUNT_SAT
+
     @pyqtSlot('qint64', result=str)
     @pyqtSlot(QEAmount, result=str)
     def formatSatsForEditing(self, satoshis):
