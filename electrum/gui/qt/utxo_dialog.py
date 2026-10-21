@@ -24,7 +24,6 @@
 # SOFTWARE.
 
 from typing import TYPE_CHECKING
-import copy
 
 from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtGui import QTextCharFormat, QFont
@@ -86,7 +85,7 @@ class UTXODialog(WindowModalDialog):
         txid = self.utxo.prevout.txid.hex()
         parents = self.wallet.get_tx_parents(txid)
         num_parents = len(parents)
-        parents_copy = copy.deepcopy(parents)
+        parents_copy = dict(parents)
         cursor = self.parents_list.textCursor()
         ext = QTextCharFormat()
 
