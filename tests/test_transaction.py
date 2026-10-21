@@ -1151,8 +1151,7 @@ class TestSighashBIP143(ElectrumTestCase):
 class TestSighashLegacy(ElectrumTestCase):
 
     def test_bitcoin_core_vectors(self):
-        # file identical to https://github.com/bitcoin/bitcoin/blob/v27.0/src/test/data/sighash.json
-        test_vector_file = os.path.join(os.path.dirname(__file__), "sighash-vectors.json")
+        test_vector_file = os.path.join(os.path.dirname(__file__), "bitcoin-core-vectors", "sighash.json")
         with open(test_vector_file, "r") as f:
             vectors = [v for v in json.load(f)]
         vectors = vectors[1:]  # drop header
