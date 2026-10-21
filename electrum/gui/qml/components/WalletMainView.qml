@@ -658,10 +658,11 @@ Item {
                 onSwapStart: {
                     _swapwaitdialog = app.messageDialog.createObject(mainView, {
                         title: qsTr('Please wait...'),
-                        text: [qsTr('waiting for lightning invoice'), ''].join('\n\n'),
+                        text: [qsTr('Requesting Submarine Swap for change...'), ''].join('\n\n'),
                         iconSource: Qt.resolvedUrl('../../icons/info.png'),
                         buttonText: qsTr('Cancel'),
-                        buttonIcon: Qt.resolvedUrl('../../icons/closebutton.png')
+                        buttonIcon: Qt.resolvedUrl('../../icons/closebutton.png'),
+                        canClose: false
                     })
                     _swapwaitdialog.accepted.connect(function() {
                         cancelSwap()
