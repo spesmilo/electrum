@@ -1113,6 +1113,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 self._last_full_history = self.get_onchain_history()
             result = {}  # type: Dict[str, Tuple[List[str], List[str]]]
             spent_coins = {}  # addr -> _get_spent_coins(addr)
+            num_uncles = defaultdict(int)  # addr -> number of funding txs of spent_coins[addr] added to todo
             todo = [txid]
             while todo:
                 _txid = todo.pop()
@@ -1133,8 +1134,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     keys, funding_txids = spent_coins[addr]
                     n = bisect.bisect_left(keys, key)  # number of coins spent before _txid (0 if unmined)
                     uncles += funding_txids[:n]
+                    # the uncles of earlier spends from addr are a prefix of these, add them to todo only once
+                    todo.extend(x for x in funding_txids[num_uncles[addr]:n] if x in self._last_full_history)
+                    num_uncles[addr] = max(num_uncles[addr], n)
                 result[_txid] = parents, uncles
-                todo.extend(x for x in parents + uncles if x in self._last_full_history and x not in result)
+                todo.extend(x for x in parents if x in self._last_full_history and x not in result)
             return result
 
     def get_balance(self, **kwargs):
