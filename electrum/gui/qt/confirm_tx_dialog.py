@@ -547,7 +547,7 @@ class TxEditor(WindowModalDialog, SubmarineSwapMixin, Logger):
             tooltip='\n'.join([
                 _('In some cases, use up to 3 change addresses in order to break '
                   'up large coin amounts and obfuscate the recipient address.'),
-                _('This may result in higher transactions fees.')
+                _('This may result in higher transaction fees.')
             ]))
         self.use_multi_change_menu.setEnabled(self.wallet.use_change)
         if self.context == TxEditorContext.PAYMENT:
