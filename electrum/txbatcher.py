@@ -405,10 +405,10 @@ class TxBatch(Logger):
             return None
         prev_txid, index = self._prevout.split(':')
         txid = self.wallet.adb.db.get_spent_outpoint(prev_txid, int(index))
-        tx = self.wallet.adb.get_transaction(txid) if txid else None
-        if not tx:
+        wallet_tx = self.wallet.adb.get_transaction(txid) if txid else None
+        if not wallet_tx:
             return None
-        tx = PartialTransaction.from_tx(tx)
+        tx = PartialTransaction.from_tx(wallet_tx)  # strips witness (hence rebroadcasting wallet_tx below)
         tx.add_info_from_wallet(self.wallet)  # this sets is_change
 
         if self.is_mine(txid):
@@ -428,8 +428,7 @@ class TxBatch(Logger):
             # this may happen if our Electrum server is unresponsive
             # server could also be lying to us. Rebroadcasting might
             # help, if we have switched to another server.
-            # FIXME: this always fails, as tx is unsigned (from_tx strips witnesses)
-            await self.wallet.network.try_broadcasting(tx, 'batch')
+            await self.wallet.network.try_broadcasting(wallet_tx, 'batch')
 
         return self._base_tx
 
@@ -460,15 +459,15 @@ class TxBatch(Logger):
             return
 
         # add tx to wallet, in order to reserve utxos
-        # note: This saves the tx as local *unsigned*.
-        #       It will transition to local and signed, after we broadcast
-        #       the signed tx and get it back via the Synchronizer dance.
+        # note: This saves the tx as local *unsigned*. It is replaced by the signed tx below.
         #       This is a no-op if tx replaces a tx that is in the mempool.
         self.wallet.adb.add_transaction(tx)
         # await password
         if not await self.sign_transaction(tx):
             self.wallet.adb.remove_transaction(tx.txid())
             return
+        # save the signed tx, so that find_base_tx can rebroadcast it
+        self.wallet.adb.add_transaction(tx)
 
         # save local base_tx
         self._new_base_tx(tx)
