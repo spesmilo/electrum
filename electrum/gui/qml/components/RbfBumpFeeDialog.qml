@@ -141,7 +141,7 @@ ElDialog {
 
                         ElCheckBox {
                             Layout.fillWidth: true
-                            text: qsTr('Enable output value rounding')
+                            text: Config.shortDescFor('WALLET_COIN_CHOOSER_OUTPUT_ROUNDING')
                             onCheckedChanged: {
                                 if (activeFocus) {
                                     Config.outputValueRounding = checked
@@ -154,9 +154,8 @@ ElDialog {
                         }
 
                         HelpButton {
-                            heading: qsTr('Enable output value rounding')
-                            helptext: qsTr('In some cases, use up to 3 change addresses in order to break up large coin amounts and obfuscate the recipient address.')
-                                    + ' ' + qsTr('This may result in higher transactions fees.')
+                            heading: Config.shortDescFor('WALLET_COIN_CHOOSER_OUTPUT_ROUNDING')
+                            helptext: Config.longDescFor('WALLET_COIN_CHOOSER_OUTPUT_ROUNDING')
                         }
                     }
                 }
