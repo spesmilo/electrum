@@ -428,6 +428,10 @@ class TxBatch(Logger):
 
     async def run_iteration(self) -> None:
         base_tx = await self.find_base_tx()
+        if base_tx and base_tx.txid() != self._batch_txids[-1]:
+            # FIXME: this might get stuck forever if base_tx legitimately doesn't get accepted
+            self.logger.debug(f'waiting for latest base_tx: {self._batch_txids[-1]}', only_once=True)
+            return
         try:
             tx = self.create_next_transaction(base_tx)
         except NoDynamicFeeEstimates:
