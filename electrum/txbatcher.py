@@ -83,6 +83,9 @@ if TYPE_CHECKING:
     from .wallet import Abstract_Wallet
 
 
+class TxBatchFailure(Exception): pass
+
+
 class TxBatcher(Logger):
 
     SLEEP_INTERVAL = 1
@@ -259,6 +262,9 @@ class TxBatch(Logger):
                 continue
             try:
                 await self.run_iteration()
+            except TxBatchFailure as e:
+                self.logger.warning(str(e))
+                break
             except Exception as e:
                 self.logger.exception(f'TxBatch error: {repr(e)}')
                 break
@@ -427,6 +433,8 @@ class TxBatch(Logger):
         return self._base_tx
 
     async def run_iteration(self) -> None:
+        if self._parent_tx and not self.wallet.adb.get_transaction(self._parent_tx.txid()):
+            raise TxBatchFailure(f"parent tx missing, dropping batch {len(self.batch_inputs)=}, {len(self.batch_payments)=}")
         base_tx = await self.find_base_tx()
         if base_tx and base_tx.txid() != self._batch_txids[-1]:
             # FIXME: this might get stuck forever if base_tx legitimately doesn't get accepted
