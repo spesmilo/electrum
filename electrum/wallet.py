@@ -2849,7 +2849,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         # find out if we are replacing a txbatcher transaction
         prevout_str = tx.inputs()[0].prevout.to_str()
         batch = self.txbatcher.find_batch_by_prevout(prevout_str)
-        if batch:
+        # do not sign sweep inputs for a tx that pays outputs not in the batch,
+        # e.g. a fee bump of a replacement made by someone else
+        if batch and batch.has_only_batch_outputs(tx):
             batch.add_sweep_info_to_tx(tx)
 
         # sign with make_witness

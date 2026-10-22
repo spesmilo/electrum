@@ -289,7 +289,7 @@ class TestTxBatcher(ElectrumTestCase):
         # without the sweep input, the txout is not a batch output
         tx1_without_sweep = PartialTransaction.from_io(
             [txin for txin in tx1.inputs() if txin.prevout != sweep_info.txin.prevout], tx1.outputs())
-        self.assertFalse(batch._has_only_batch_outputs(tx1_without_sweep))
+        self.assertFalse(batch.has_only_batch_outputs(tx1_without_sweep))
 
         # tx1 is replaced by a fee bump that spends the sweep input: it becomes the base tx
         tx1_bumped = wallet.make_unsigned_transaction(outputs=[], fee_policy=FeePolicy('feerate:10000'), base_tx=tx1)

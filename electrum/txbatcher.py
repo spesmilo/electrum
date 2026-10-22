@@ -327,7 +327,7 @@ class TxBatch(Logger):
         return to_pay
 
     @locked
-    def _has_only_batch_outputs(self, tx: PartialTransaction) -> bool:
+    def has_only_batch_outputs(self, tx: PartialTransaction) -> bool:
         """Whether all outputs of tx are ours, batch payments, or txouts of the sweep inputs it spends."""
         prevouts = set(txin.prevout for txin in tx.inputs())
         expected = list(self.batch_payments)
@@ -423,7 +423,7 @@ class TxBatch(Logger):
             if self._base_tx is None:
                 self.logger.info(f'found base_tx {txid}')
             self._base_tx = tx
-        elif self._has_only_batch_outputs(tx):
+        elif self.has_only_batch_outputs(tx):
             self.logger.info(f'base tx was replaced by {tx.txid()}')
             self._new_base_tx(tx)
         else:
