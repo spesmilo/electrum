@@ -428,6 +428,7 @@ class TxBatch(Logger):
             # this may happen if our Electrum server is unresponsive
             # server could also be lying to us. Rebroadcasting might
             # help, if we have switched to another server.
+            # FIXME: this always fails, as tx is unsigned (from_tx strips witnesses)
             await self.wallet.network.try_broadcasting(tx, 'batch')
 
         return self._base_tx
@@ -462,6 +463,7 @@ class TxBatch(Logger):
         # note: This saves the tx as local *unsigned*.
         #       It will transition to local and signed, after we broadcast
         #       the signed tx and get it back via the Synchronizer dance.
+        #       This is a no-op if tx replaces a tx that is in the mempool.
         self.wallet.adb.add_transaction(tx)
         # await password
         if not await self.sign_transaction(tx):
