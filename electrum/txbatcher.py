@@ -83,6 +83,9 @@ if TYPE_CHECKING:
     from .wallet import Abstract_Wallet
 
 
+class TxBatchFailure(Exception): pass
+
+
 class TxBatcher(Logger):
 
     SLEEP_INTERVAL = 1
@@ -259,6 +262,9 @@ class TxBatch(Logger):
                 continue
             try:
                 await self.run_iteration()
+            except TxBatchFailure as e:
+                self.logger.warning(str(e))
+                break
             except Exception as e:
                 self.logger.exception(f'TxBatch error: {repr(e)}')
                 break
@@ -325,6 +331,20 @@ class TxBatch(Logger):
             else:
                 outputs.remove(x)
         return to_pay
+
+    @locked
+    def has_only_batch_outputs(self, tx: PartialTransaction) -> bool:
+        """Whether all outputs of tx are ours, batch payments, or txouts of the sweep inputs it spends."""
+        prevouts = set(txin.prevout for txin in tx.inputs())
+        expected = list(self.batch_payments)
+        expected += [s.txout for p, s in self.batch_inputs.items() if s.txout and p in prevouts]
+        for txout in tx.outputs():
+            if self.wallet.is_mine(txout.address):
+                continue
+            if txout not in expected:
+                return False
+            expected.remove(txout)
+        return True
 
     @locked
     def _to_sweep_after(self, tx: Optional[PartialTransaction]) -> Dict[TxOutpoint, SweepInfo]:
@@ -399,19 +419,23 @@ class TxBatch(Logger):
             return None
         prev_txid, index = self._prevout.split(':')
         txid = self.wallet.adb.db.get_spent_outpoint(prev_txid, int(index))
-        tx = self.wallet.adb.get_transaction(txid) if txid else None
-        if not tx:
+        wallet_tx = self.wallet.adb.get_transaction(txid) if txid else None
+        if not wallet_tx:
             return None
-        tx = PartialTransaction.from_tx(tx)
+        tx = PartialTransaction.from_tx(wallet_tx)  # strips witness (hence rebroadcasting wallet_tx below)
         tx.add_info_from_wallet(self.wallet)  # this sets is_change
 
         if self.is_mine(txid):
             if self._base_tx is None:
                 self.logger.info(f'found base_tx {txid}')
             self._base_tx = tx
-        else:
+        elif self.has_only_batch_outputs(tx):
             self.logger.info(f'base tx was replaced by {tx.txid()}')
             self._new_base_tx(tx)
+        else:
+            # do not replace it: our replacement would pay its outputs
+            self.logger.info(f'base tx was replaced by {tx.txid()}, which has outputs not in batch')
+            self._start_new_batch(tx)
         # if tx is confirmed or local, we will start a new batch
         tx_mined_status = self.wallet.adb.get_tx_height(txid)
         if tx_mined_status.conf > 0:
@@ -422,12 +446,18 @@ class TxBatch(Logger):
             # this may happen if our Electrum server is unresponsive
             # server could also be lying to us. Rebroadcasting might
             # help, if we have switched to another server.
-            await self.wallet.network.try_broadcasting(tx, 'batch')
+            await self.wallet.network.try_broadcasting(wallet_tx, 'batch')
 
         return self._base_tx
 
     async def run_iteration(self) -> None:
+        if self._parent_tx and not self.wallet.adb.get_transaction(self._parent_tx.txid()):
+            raise TxBatchFailure(f"parent tx missing, dropping batch {len(self.batch_inputs)=}, {len(self.batch_payments)=}")
         base_tx = await self.find_base_tx()
+        if base_tx and base_tx.txid() != self._batch_txids[-1]:
+            # FIXME: this might get stuck forever if base_tx legitimately doesn't get accepted
+            self.logger.debug(f'waiting for latest base_tx: {self._batch_txids[-1]}', only_once=True)
+            return
         try:
             tx = self.create_next_transaction(base_tx)
         except NoDynamicFeeEstimates:
@@ -447,14 +477,15 @@ class TxBatch(Logger):
             return
 
         # add tx to wallet, in order to reserve utxos
-        # note: This saves the tx as local *unsigned*.
-        #       It will transition to local and signed, after we broadcast
-        #       the signed tx and get it back via the Synchronizer dance.
+        # note: This saves the tx as local *unsigned*. It is replaced by the signed tx below.
+        #       This is a no-op if tx replaces a tx that is in the mempool.
         self.wallet.adb.add_transaction(tx)
         # await password
         if not await self.sign_transaction(tx):
             self.wallet.adb.remove_transaction(tx.txid())
             return
+        # save the signed tx, so that find_base_tx can rebroadcast it
+        self.wallet.adb.add_transaction(tx)
 
         # save local base_tx
         self._new_base_tx(tx)
@@ -564,7 +595,7 @@ class TxBatch(Logger):
                 outputs.append(sweep_info.txout)
         self.logger.info(f'locktime: {locktime}')
         outputs += to_pay
-        inputs += self._create_inputs_from_tx_change(self._parent_tx) if self._parent_tx else []
+        inputs += self._create_inputs_from_tx_change(self._parent_tx, base_tx) if self._parent_tx else []
         # create tx
         coins = self.wallet.get_spendable_coins(nonlocal_only=True)
         tx = self.wallet.make_unsigned_transaction(
@@ -609,11 +640,23 @@ class TxBatch(Logger):
             self.logger.info(f'starting new batch because current base tx does not have change')
             self._start_new_batch(tx)
 
-    def _create_inputs_from_tx_change(self, parent_tx: PartialTransaction) -> List[PartialTxInput]:
+    def _create_inputs_from_tx_change(
+            self, parent_tx: PartialTransaction, base_tx: Optional[PartialTransaction],
+    ) -> List[PartialTxInput]:
         inputs = []
-        for o in parent_tx.get_change_outputs():
+        parent_txid = bytes.fromhex(parent_tx.txid())
+        base_prevouts = set(txin.prevout for txin in base_tx.inputs()) if base_tx else set()
+        for index, o in enumerate(parent_tx.outputs()):
+            if not o.is_change:
+                continue
+            wanted = TxOutpoint(parent_txid, index)
+            if wanted in base_prevouts:
+                continue
             coins = self.wallet.adb.get_addr_utxo(o.address)
-            inputs += list(coins.values())
+            if utxo := coins.get(wanted):
+                inputs.append(utxo)
+            else:
+                raise Exception('parent_tx outpoint not in adb')
         for txin in inputs:
             txin.nsequence = 0xffffffff - 2
         return inputs

@@ -189,6 +189,11 @@ class UnrelatedTransactionException(AddTransactionException):
         return _("Transaction is unrelated to this wallet.")
 
 
+class InvalidTxSignature(AddTransactionException):
+    def __str__(self):
+        return _("Transaction has an invalid signature.")
+
+
 class FileImportFailed(Exception):
     def __init__(self, message=''):
         self.message = str(message)

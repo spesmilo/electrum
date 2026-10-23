@@ -17,7 +17,9 @@ from electrum.wallet import (sweep, sweep_preparations, Multisig_Wallet, Standar
                              TransactionPotentiallyDangerousException,
                              TransactionDangerousException,
                              TxSighashRiskLevel, CannotDoubleSpendTx)
-from electrum.util import bfh, NotEnoughFunds, UnrelatedTransactionException, UserFacingException, TxMinedInfo
+from electrum.util import (
+    bfh, NotEnoughFunds, UnrelatedTransactionException, UserFacingException, TxMinedInfo, InvalidTxSignature,
+)
 from electrum.fee_policy import FixedFeePolicy
 from electrum.transaction import Transaction, PartialTxOutput, tx_from_any, Sighash
 from electrum.mnemonic import calc_seed_type
@@ -1075,6 +1077,15 @@ class TestWalletSending(ElectrumTestCase):
         self.assertEqual(tx.wtxid(), tx_copy.wtxid())
         self.assertEqual(txid, tx_copy.txid())
 
+        # signatures must be in the order of pubkeys
+        items = tx_copy.inputs()[0].witness_elements()
+        swapped_items = [items[0], items[2], items[1], items[3]]
+        swapped_tx = Transaction(str(tx_copy).replace(
+            bitcoin.construct_witness(items).hex(), bitcoin.construct_witness(swapped_items).hex()))
+        self.assertEqual(txid, swapped_tx.txid())
+        with self.assertRaises(InvalidTxSignature):
+            wallet1a.adb.receive_tx_callback(swapped_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+
         wallet1a.adb.receive_tx_callback(tx, tx_height=TX_HEIGHT_UNCONFIRMED)
         wallet2a.adb.receive_tx_callback(tx, tx_height=TX_HEIGHT_UNCONFIRMED)
 
@@ -1503,7 +1514,7 @@ class TestWalletSending(ElectrumTestCase):
         self.assertEqual('dd0bf0d1563cd588b4c93cc1a9623c051ddb1c4f4581cf8ef43cfd27f031f246', funding_txid)
         wallet.adb.receive_tx_callback(funding_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
 
-        orig_rbf_tx = Transaction("0200000000010146f231f027fd3cf48ecf81454f1cdb1d053c62a9c13cc9b488d53c56d1f00bdd01000000000100000002c8af000000000000160014999a95482213a896c72a251b6cc9f3d137b0a45850c3000000000000160014ea76d391236726af7d7a9c10abe600129154eb5a02473044022076d298537b524a926a8fadad0e9ded5868c8f4cf29246048f76f00eb4afa56310220739ad9e0417e97ce03fad98a454b4977972c2805cef37bfa822c6d6c56737c870121024196fb7b766ac987a08b69a5e108feae8513b7e72bc9e47899e27b36100f2af4d48a1d00")
+        orig_rbf_tx = Transaction("0200000000010146f231f027fd3cf48ecf81454f1cdb1d053c62a9c13cc9b488d53c56d1f00bdd01000000000100000002c8af000000000000160014999a95482213a896c72a251b6cc9f3d137b0a45850c3000000000000160014ea76d391236726af7d7a9c10abe600129154eb5a02473044022076886c7d024af73bb6535f75f0bfd5a99c62453573861bbf1912c1e6b115b92402206a913b883291690a1f6bb46834a9b8d5a5baf2d5acdfd6e28825458c3cef00bb0121024196fb7b766ac987a08b69a5e108feae8513b7e72bc9e47899e27b36100f2af4d48a1d00")
         orig_rbf_txid = orig_rbf_tx.txid()
         self.assertEqual('726f97590389fbef8570609eb2f8640464edb8ef44c30e48f4082b0191fa699c', orig_rbf_txid)
         self.assertEqual(orig_rbf_tx.get_block_based_relative_locktime(), 1)
@@ -2290,6 +2301,7 @@ class TestWalletSending(ElectrumTestCase):
                          str(tx1))
         wallet.adb.receive_tx_callback(tx1, tx_height=TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 298_000, 0), wallet.get_balance())
+        tx1_raw = str(tx1)  # make_unsigned_transaction mutates base_tx
 
         # second payment to dest_addr  (merged)
         outputs2 = [PartialTxOutput.from_address_and_value(dest_addr, 100_000)]
@@ -2306,7 +2318,7 @@ class TestWalletSending(ElectrumTestCase):
         self.assertEqual((0, 197_000, 0), wallet.get_balance())
 
         # remove tx2 from wallet, by replacing it with tx1
-        wallet.adb.receive_tx_callback(tx1, tx_height=TX_HEIGHT_UNCONFIRMED)
+        wallet.adb.receive_tx_callback(tx_from_any(tx1_raw), tx_height=TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 298_000, 0), wallet.get_balance())
 
         # second payment to dest_addr  (not merged, just duplicate outputs)
@@ -2382,6 +2394,73 @@ class TestWalletSending(ElectrumTestCase):
         self.assertIn(output2, outgoing_tx2.outputs())
         self.assertEqual('02000000000102ab99cf51f3e219735c49491a9ecf354517a215a2b462227df7e7624188a7ff830000000000fdffffff417bbd802768510a0c641fc79af6e691a01fd10f37b84162f253b594e5cb87c50100000000fdffffff032c4c0000000000001600144e1b662f616fe134430054e29295ea6e5c18f17330750000000000001600142266c890fad71396f106319368107d5b2a1146fe307500000000000016001476efaaa243327bf3a2c0f5380cb3914099448cec02473044022033f8ddcb07ad7e06cef417208a5244507157cccdd6817029e968ec60a2395add02200720eb6a7c8cea86b470398ce75d69abcc66624a2253b18ea81cd1566eb5132c0121029b1a61d66896486ab893741b38dbafb9673b91a82237d6e4ca0da3cda7cbeb7c0247304402205e00156d74bcd85ed26ee9d0bdbd72890656881e25c04b2ac94f1c6b91f1176f02205f94d055e6385b48fbd3ac1a2dc2f57a640f4b33740cd9fb9e0fc20eb0cf5dcb012102c1ed648e71f15643950b444b864ab784b9d0e31e6ca6ec7d849d3dda4d98da0501093d00',
                          str(outgoing_tx2))
+
+    def _funded_wallet_setup(self):
+        wallet_faucet = self._create_cause_carbon_wallet()[0]
+        mywallet = self.create_standard_wallet_from_seed(
+            'response era cable net spike again observe dumb wage wonder sail tortoise',
+            config=self.config)
+        funding_tx = wallet_faucet.make_unsigned_transaction(
+            outputs=[PartialTxOutput.from_address_and_value(mywallet.get_receiving_address(), 40_000)],
+            fee_policy=FixedFeePolicy(200), locktime=4_000_000, rbf=True,
+        )
+        wallet_faucet.sign_transaction(funding_tx, password=None)
+        mywallet.adb.receive_tx_callback(funding_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+
+        def make_tx(addr) -> Transaction:
+            tx = mywallet.make_unsigned_transaction(
+                outputs=[PartialTxOutput.from_address_and_value(addr, 30_000)],
+                fee_policy=FixedFeePolicy(200), locktime=4_000_001, rbf=True,
+            )
+            mywallet.sign_transaction(tx, password=None)
+            return Transaction(tx.serialize())
+
+        external_addr = wallet_faucet.get_receiving_addresses()[0]
+        return mywallet, make_tx, external_addr
+
+    def _unsigned_parent_and_signed_child(self):
+        mywallet, make_tx, external_addr = self._funded_wallet_setup()
+        parent_tx = mywallet.make_unsigned_transaction(
+            outputs=[PartialTxOutput.from_address_and_value(external_addr, 30_000)],
+            fee_policy=FixedFeePolicy(200), locktime=4_000_001, rbf=True,
+        )
+        mywallet.adb.add_transaction(parent_tx)
+        coins = [c for c in mywallet.get_spendable_coins(domain=None, nonlocal_only=False, confirmed_only=False)
+                 if c.prevout.txid.hex() == parent_tx.txid()]
+        self.assertEqual(1, len(coins))
+        child_tx = mywallet.make_unsigned_transaction(
+            coins=coins, outputs=[PartialTxOutput.from_address_and_value(external_addr, '!')],
+            fee_policy=FixedFeePolicy(200), locktime=4_000_001, rbf=True,
+        )
+        mywallet.sign_transaction(child_tx, password=None)
+        self.assertFalse(parent_tx.is_complete())
+        self.assertTrue(child_tx.is_complete())
+        return mywallet, parent_tx, child_tx
+
+    async def test_signed_child_of_unsigned_parent(self):
+        mywallet, parent_tx, child_tx = self._unsigned_parent_and_signed_child()
+        mywallet.adb.add_transaction(child_tx)
+        self.assertIsNotNone(mywallet.db.get_transaction(child_tx.txid()))
+
+    async def test_signed_child_of_unsigned_parent_before_parent(self):
+        mywallet, parent_tx, child_tx = self._unsigned_parent_and_signed_child()
+        mywallet.adb.remove_transaction(parent_tx.txid())
+        mywallet.adb.add_transaction(child_tx)
+        mywallet.adb.add_transaction(parent_tx)
+        self.assertIsNotNone(mywallet.db.get_transaction(child_tx.txid()))
+        self.assertEqual(1, len(mywallet.db.get_txi_addresses(child_tx.txid())))
+
+    async def test_tx_with_huge_witness(self):
+        mywallet, make_tx, external_addr = self._funded_wallet_setup()
+        tx = make_tx(external_addr)
+        sig, pubkey = tx.inputs()[0].witness_elements()
+        tx.inputs()[0].witness = bitcoin.construct_witness([sig] * 1000 + [pubkey])
+        tx = Transaction(tx.serialize_to_network())
+        with mock.patch.object(Transaction, 'verify_sig_for_txin', autospec=True,
+                               side_effect=Transaction.verify_sig_for_txin) as verify_sig:
+            with self.assertRaises(InvalidTxSignature):
+                mywallet.adb.receive_tx_callback(tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+        self.assertLessEqual(verify_sig.call_count, 1)
 
     async def test_join_psbts__merge_duplicate_outputs(self):
         """txos paying to the same address might be merged into a single output with a larger value"""
