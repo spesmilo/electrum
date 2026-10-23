@@ -60,7 +60,9 @@ from .util import (
     OnchainHistoryItem, read_json_file, write_json_file, UserFacingException, FileImportFailed, EventListener,
     event_listener, is_hex_str,
 )
-from .bitcoin import COIN, is_address, is_minikey, relayfee, dust_threshold, DummyAddress, DummyAddressUsedInTxException
+from .bitcoin import (
+    COIN, is_address, is_minikey, relayfee, dust_threshold, DummyAddress, DummyAddressUsedInTxException, construct_witness,
+)
 from .keystore import (
     load_keystore, Hardware_KeyStore, KeyStore, KeyStoreWithMPK, AddressIndexGeneric, CannotDerivePubkey
 )
@@ -70,7 +72,8 @@ from .stored_dict import StorageEncryptionVersion
 from .storage import  WalletStorage
 from .wallet_db import WalletDB
 from .transaction import (
-    Transaction, TxInput, TxOutput, PartialTransaction, PartialTxInput, PartialTxOutput, TxOutpoint, Sighash
+    Transaction, TxInput, TxOutput, PartialTransaction, PartialTxInput, PartialTxOutput, TxOutpoint, Sighash,
+    script_GetOp, SighashCache,
 )
 from .plugin import run_hook
 from .address_synchronizer import (
@@ -83,7 +86,7 @@ from .mnemonic import Mnemonic
 from .lnworker import LNWallet
 from .lnutil import MIN_FUNDING_SAT, RECEIVED, SENT
 from .lntransport import extract_nodeid
-from .descriptor import Descriptor
+from .descriptor import Descriptor, MissingSolutionPiece
 from .txbatcher import TxBatcher
 from .submarine_swaps import MIN_SWAP_AMOUNT_SAT
 
@@ -426,7 +429,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         Logger.__init__(self)
 
         self.network = None
-        self.adb = AddressSynchronizer(db, config, name=self.diagnostic_name())
+        self.adb = AddressSynchronizer(
+            db, config, verify_txins=self._verify_txin_signatures, name=self.diagnostic_name())
         for addr in self.get_addresses():
             self.adb.add_address(addr)
         self.lock = self.adb.lock
@@ -2604,6 +2608,52 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if not is_dscancel and self.is_lightning_funding_tx(tx.txid()):
             return False
         return tx.is_rbf_enabled()
+
+    def _verify_txin_signatures(self, tx: Transaction, prev_txs: Mapping[int, Transaction]) -> bool:
+        if isinstance(tx, PartialTransaction):
+            tx = Transaction(tx.serialize())
+        ptx = PartialTransaction.from_tx(tx)
+        sighash_cache = SighashCache()
+        for txin_idx, prev_tx in prev_txs.items():
+            ptxin = ptx.inputs()[txin_idx]
+            prev_txout = prev_tx.outputs()[ptxin.prevout.out_idx]
+            ptxin.witness_utxo = prev_txout  # value and address, also if prev_tx is unsigned
+            ptxin.script_descriptor = self.get_script_descriptor_for_address(prev_txout.address)
+            if not ptxin.script_descriptor:
+                continue  # cannot verify, e.g. watch-only imported address
+            txin = tx.inputs()[txin_idx]
+            try:
+                items = txin.witness_elements() + [x[1] for x in script_GetOp(txin.script_sig or b'')]
+                sigs = [x for x in items if x and x[0] == 0x30 and 9 <= len(x) <= 73]
+                pubkeys = ptxin.pubkeys
+                if len(pubkeys) > 1:  # multisig: sigs are in script order
+                    script = ptxin.witness_script or ptxin.redeem_script
+                    pubkeys = [x[1] for x in script_GetOp(script) if x[1] in pubkeys]
+            except Exception:
+                return False
+            # like OP_CHECKMULTISIG: at most one verification per pubkey
+            sigs_iter = iter(sigs)
+            sig = next(sigs_iter, None)
+            for pubkey in pubkeys:
+                if sig is None:
+                    break
+                try:
+                    is_valid = ptx.verify_sig_for_txin(
+                        txin_index=txin_idx, pubkey_bytes=pubkey, sig=sig, sighash_cache=sighash_cache)
+                except Exception:
+                    is_valid = False
+                if is_valid:
+                    ptxin.sigs_ecdsa[pubkey] = sig
+                    sig = next(sigs_iter, None)
+            # the scriptSig and witness must be exactly what we would produce
+            try:
+                script_sig = Transaction.input_script(ptxin)
+                witness = Transaction.serialize_witness(ptxin)
+            except MissingSolutionPiece:
+                return False
+            if script_sig != (txin.script_sig or b'') or witness != (txin.witness or construct_witness([])):
+                return False
+        return True
 
     def cpfp(self, tx: Transaction, fee: int) -> Optional[PartialTransaction]:
         assert tx

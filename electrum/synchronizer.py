@@ -153,6 +153,8 @@ class Synchronizer(SynchronizerBase):
         self.requested_tx = set()  # type: Set[str]
         self.requested_histories = set()
         self._stale_histories = dict()  # type: Dict[str, asyncio.Task]
+        # held txs were received from the previous server
+        self.adb.clear_held_txs()
 
     def diagnostic_name(self):
         return self.adb.diagnostic_name()
@@ -241,6 +243,8 @@ class Synchronizer(SynchronizerBase):
             tx = self.adb.db.get_transaction(tx_hash)
             if tx and not isinstance(tx, PartialTransaction):
                 continue  # already have complete tx
+            if self.adb.is_held_tx(tx_hash):
+                continue  # added once verified
             transaction_hashes.append(tx_hash)
             # note: tx_height might change by the time we get the raw_tx
             self.requested_tx.add(tx_hash)
