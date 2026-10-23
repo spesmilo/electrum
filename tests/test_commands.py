@@ -204,6 +204,17 @@ class TestCommands(ElectrumTestCase):
         self.assertEqual(format_satoshis(Decimal(123.789)), "0.00000124")
         self.assertEqual(format_satoshis(41754.681), "0.00041755")
 
+    def test_satoshis(self):
+        satoshis = electrum.commands.satoshis
+        self.assertEqual(satoshis(None), None)
+        self.assertEqual(satoshis("0.00000001"), 1)
+        self.assertEqual(satoshis("0.000123450"), 12345)
+        self.assertEqual(satoshis(0.002), 200000)
+        # sub-satoshi amounts are rejected, not truncated
+        for amount in ("0.000123456", "0.000000001", 0.000000019):
+            with self.subTest(amount=amount), self.assertRaises(UserFacingException):
+                satoshis(amount)
+
 
 class TestCommandsTestnet(ElectrumTestCase):
     TESTNET = True
@@ -341,6 +352,13 @@ class TestCommandsTestnet(ElectrumTestCase):
         self.assertTrue(txout in tx.outputs())
         self.assertEqual("02000000000101a0a8800d2d6bb0a4a8b93b793f39439c4139a40d30e634cf5cd601e5391de6ed0100000000fdffffff0240e2010000000000160014810480bbaf62145abf945ebe5f657c665a3a3732462b060000000000160014a5103285eb519f826520a9f7d3227e1eaa7ec5f802473044022057a6f4b1ec63336c7d0ba233e785ec9f2e2d9c2d67617a50e069f4498ee6a3b7022032fb331e0bef06f46e9cb77bfe94413142653c4912516835e941fa7f170c1a53012103001b55f19541faaf7e6d57dd1bdb9fdc37725fc500e12f2418cc11e0aed4154978181e00",
                          tx_str)
+
+        with self.assertRaises(UserFacingException):
+            await cmds.payto(
+                destination="tb1qsyzgpwa0vg2940u5t6l97etuvedr5dejpf9tdy",
+                amount="0.000123456",
+                feerate=50,
+                wallet=wallet)
 
     async def test_payto__confirmed_only(self):
         """test that payto respects 'confirmed_only' config var"""
@@ -623,7 +641,7 @@ class TestCommandsTestnet(ElectrumTestCase):
         with (mock.patch.object(wallet.lnworker, 'num_sats_can_receive', return_value=1000000)):
             result = await cmds.add_hold_invoice(
                 payment_hash=payment_hash,
-                amount=Decimal(0.0001),
+                amount=Decimal("0.0001"),
                 memo="test",
                 expiry=3500,
                 wallet=wallet,
@@ -665,7 +683,7 @@ class TestCommandsTestnet(ElectrumTestCase):
         with mock.patch.object(wallet.lnworker, 'num_sats_can_receive', return_value=1000000):
             await cmds.add_hold_invoice(
                 payment_hash=payment_hash,
-                amount=Decimal(0.0001),
+                amount=Decimal("0.0001"),
                 wallet=wallet,
             )
 
