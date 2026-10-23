@@ -1763,7 +1763,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if label := self._default_labels.get(tx_hash):
             return label
         labels = []
-        tx = self.adb.get_transaction(tx_hash)
+        tx = self.db.get_transaction(tx_hash)
         if tx:
             for txin in tx.inputs():
                 outpoint = txin.prevout.to_str()

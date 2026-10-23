@@ -1156,7 +1156,7 @@ class Commands(Logger):
             fx = None
         for item in out:
             if show_addresses:
-                tx = wallet.db.get_transaction(item['txid'])
+                tx = wallet.adb.get_transaction(item['txid'])
                 item['inputs'] = list(map(lambda x: x.to_json(), tx.inputs()))
                 item['outputs'] = list(map(lambda x: {'address': x.get_ui_address_str(), 'value_sat': x.value},
                                            tx.outputs()))
