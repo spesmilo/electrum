@@ -1458,11 +1458,24 @@ class OldTaskGroup(aiorpcx.TaskGroup):
             finally:
                 if exc:
                     await self.cancel_remaining()
+                    # before super().join(), which would silently swallow the next failed task
+                    self._discard_exceptions_of_done_tasks()
                 await super().join()
         else:
-            await super().join()
+            try:
+                await super().join()
+            finally:
+                self._discard_exceptions_of_done_tasks()
             if self.completed:
                 self.completed.result()
+
+    def _discard_exceptions_of_done_tasks(self):
+        # Only the first exception is propagated, but other tasks might have failed too,
+        # e.g. if they finished in the same event loop iteration, or raised while being cancelled.
+        # Retrieve their exceptions, otherwise asyncio logs "Task exception was never retrieved".
+        for task in self._done:
+            if not task.cancelled() and task.exception() is not None:
+                _logger.debug(f"OldTaskGroup: discarding exception of {task!r}")
 
 
 # We monkey-patch aiorpcx TimeoutAfter (used by timeout_after and ignore_after API),
