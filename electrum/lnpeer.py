@@ -1329,11 +1329,8 @@ class Peer(Logger, EventListener):
         if channel_opening_fee:  # just-in-time channel opening
             assert is_zeroconf
             # the opening fee consists of the fee configured by the LSP + mining fees of the funding tx
+            # it is checked against the payment amount in _check_accepted_final_htlc
             channel_opening_fee_sat = channel_opening_fee // 1000
-            if channel_opening_fee_sat > funding_sat * 0.1:
-                # TODO: if there will be some discovery channel where LSPs announce their fees
-                #  we should compare against the fees they announced here.
-                raise Exception(f"{channel_opening_fee_sat=} exceeding fee limit, rejecting channel ({funding_sat=})")
             self.logger.info(f"just-in-time channel: {channel_opening_fee_sat=}")
 
         if channel_type & ChannelType.OPTION_ANCHORS:
@@ -2176,6 +2173,12 @@ class Peer(Logger, EventListener):
 
         if chan.jit_opening_fee:
             channel_opening_fee = chan.jit_opening_fee
+            # not funding_sat: the LSP chooses it
+            if channel_opening_fee > total_msat // 10:
+                # TODO: if there will be some discovery channel where LSPs announce their fees
+                #  we should compare against the fees they announced here.
+                log_fail_reason(f"{channel_opening_fee=} exceeding fee limit ({total_msat=})")
+                raise exc_incorrect_or_unknown_pd
             total_msat -= channel_opening_fee
             amt_to_forward -= channel_opening_fee
         else:
