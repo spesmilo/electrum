@@ -15,6 +15,7 @@
 #
 # env vars:
 # - ELECBUILD_NOCACHE: if set, forces rebuild of docker images
+# - INCLUDE_MACOS_ARM64: set to 1 to require, compare, and sign the ARM DMG too
 #
 # "uploadserver" is set in /etc/hosts
 #
@@ -178,17 +179,27 @@ done
 # the macos binary is built on a separate machine.
 # the file that needs to be copied over is the codesigned release binary (regardless of builder role)
 dmg="electrum-$VERSION.dmg"
-if ! test -f "dist/$dmg"; then
-    if [ ! -z "$RELEASEMANAGER" ] ; then  # RM
-        fail "dmg is missing, aborting. Please build and codesign the dmg on a mac and copy it over."
-    else  # other builders
-        fail "dmg is missing, aborting. Please build the unsigned dmg on a mac, compare it with file built by RM, and if matches, copy RM's dmg."
-    fi
+dmgs=("$dmg")
+if [ "${INCLUDE_MACOS_ARM64:-0}" == 1 ]; then
+    dmgs+=("electrum-$VERSION-arm64.dmg")
 fi
+for mac_dmg in "${dmgs[@]}"; do
+    if ! test -f "dist/$mac_dmg"; then
+        if [ ! -z "$RELEASEMANAGER" ] ; then  # RM
+            fail "$mac_dmg is missing, aborting. Please build and codesign the dmg on a mac and copy it over."
+        else  # other builders
+            fail "$mac_dmg is missing, aborting. Please build the unsigned dmg on a mac, compare it with file built by RM, and if matches, copy RM's dmg."
+        fi
+    fi
+done
 
 # now that we have all binaries, if we are the RM, sign them.
 if [ ! -z "$RELEASEMANAGER" ] ; then
-    if test -f "dist/$dmg.asc"; then
+    packages_signed=1
+    for mac_dmg in "${dmgs[@]}"; do
+        test -f "dist/$mac_dmg.$GPGUSER.asc" || packages_signed=0
+    done
+    if [ "$packages_signed" == 1 ]; then
         info "packages are already signed"
     else
         info "signing packages"
@@ -238,7 +249,7 @@ if [ -z "$RELEASEMANAGER" ] ; then
             "$apk1"
             "$apk2"
             "$apk3"
-            "$dmg"
+            "${dmgs[@]}"
         )
 
         for filename in "${FILES_TO_DOWNLOAD[@]}"; do
@@ -269,7 +280,9 @@ EOF
     test -f "$apk1"       || fail "apk1 not found among sftp downloads"
     test -f "$apk2"       || fail "apk2 not found among sftp downloads"
     test -f "$apk3"       || fail "apk3 not found among sftp downloads"
-    test -f "$dmg"        || fail "dmg not found among sftp downloads"
+    for mac_dmg in "${dmgs[@]}"; do
+        test -f "$mac_dmg" || fail "$mac_dmg not found among downloads"
+    done
     test -f "$PROJECT_ROOT/dist/$tarball"    || fail "tarball not found among built files"
     test -f "$PROJECT_ROOT/dist/$srctarball" || fail "srctarball not found among built files"
     test -f "$PROJECT_ROOT/dist/$appimage"   || fail "appimage not found among built files"
@@ -279,7 +292,9 @@ EOF
     test -f "$PROJECT_ROOT/dist/$apk1"       || fail "apk1 not found among built files"
     test -f "$PROJECT_ROOT/dist/$apk2"       || fail "apk2 not found among built files"
     test -f "$PROJECT_ROOT/dist/$apk3"       || fail "apk3 not found among built files"
-    test -f "$PROJECT_ROOT/dist/$dmg"        || fail "dmg not found among built files"
+    for mac_dmg in "${dmgs[@]}"; do
+        test -f "$PROJECT_ROOT/dist/$mac_dmg" || fail "$mac_dmg not found among built files"
+    done
     # compare downloaded binaries against ones we built
     cmp --silent "$tarball"    "$PROJECT_ROOT/dist/$tarball"    || fail "files are different. tarball."
     cmp --silent "$srctarball" "$PROJECT_ROOT/dist/$srctarball" || fail "files are different. srctarball."
@@ -290,11 +305,13 @@ EOF
     "$CONTRIB/android/apkdiff.py" "$apk1" "$PROJECT_ROOT/dist/$apk1" || fail "files are different. android."
     "$CONTRIB/android/apkdiff.py" "$apk2" "$PROJECT_ROOT/dist/$apk2" || fail "files are different. android."
     "$CONTRIB/android/apkdiff.py" "$apk3" "$PROJECT_ROOT/dist/$apk3" || fail "files are different. android."
-    cmp --silent "$dmg" "$PROJECT_ROOT/dist/$dmg" || fail "files are different. macos."
+    for mac_dmg in "${dmgs[@]}"; do
+        cmp --silent "$mac_dmg" "$PROJECT_ROOT/dist/$mac_dmg" || fail "files are different: $mac_dmg"
+    done
     # all files matched. sign them.
     rm -rf "$PROJECT_ROOT/dist/sigs/"
     mkdir --parents "$PROJECT_ROOT/dist/sigs/"
-    for fname in "$tarball" "$srctarball" "$appimage" "$win1" "$win2" "$win3" "$apk1" "$apk2" "$apk3" "$dmg" ; do
+    for fname in "$tarball" "$srctarball" "$appimage" "$win1" "$win2" "$win3" "$apk1" "$apk2" "$apk3" "${dmgs[@]}" ; do
         signame="$fname.$GPGUSER.asc"
         gpg --sign --armor --detach $PUBKEY --output "$PROJECT_ROOT/dist/sigs/$signame" "$fname"
     done
@@ -322,7 +339,9 @@ else
     test -f "$PROJECT_ROOT/dist/$apk1"       || fail "apk1 not found among built files"
     test -f "$PROJECT_ROOT/dist/$apk2"       || fail "apk2 not found among built files"
     test -f "$PROJECT_ROOT/dist/$apk3"       || fail "apk3 not found among built files"
-    test -f "$PROJECT_ROOT/dist/$dmg"        || fail "dmg not found among built files"
+    for mac_dmg in "${dmgs[@]}"; do
+        test -f "$PROJECT_ROOT/dist/$mac_dmg" || fail "$mac_dmg not found among built files"
+    done
 
     if [ "$REV" != "$VERSION" ]; then
         fail "versions differ, not uploading"
