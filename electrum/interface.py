@@ -1143,6 +1143,8 @@ class Interface(Logger):
         await self.session.subscribe('blockchain.headers.subscribe', [], header_queue)
         while True:
             item = await header_queue.get()
+            if not header_queue.empty():
+                continue  # skip stale notifications
             # parse response
             assert len(item) == 1
             resp_header = item[0]
