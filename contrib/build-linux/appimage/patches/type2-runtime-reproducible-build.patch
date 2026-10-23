@@ -90,12 +90,12 @@ index 0e21cdb..5237079 100755
  /usr/bin/install -c -m 644 ./*.h '/usr/local/include/squashfuse'
  popd
 diff --git a/scripts/docker/Dockerfile b/scripts/docker/Dockerfile
-index 07b6533..61b9b7d 100644
+index 07b6533..3041908 100644
 --- a/scripts/docker/Dockerfile
 +++ b/scripts/docker/Dockerfile
 @@ -1,13 +1,35 @@
 -FROM alpine:3.21
-+FROM alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
++FROM alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a
 
  # includes dependencies from https://git.alpinelinux.org/aports/tree/main/fuse3/APKBUILD
  RUN apk add --no-cache \
@@ -120,7 +120,7 @@ index 07b6533..61b9b7d 100644
 +    zlib-dev=1.3.2-r1 \
 +    zlib-static=1.3.2-r1 \
 +    clang22=22.1.3-r2 \
-+    musl-dev=1.2.6-r2 \
++    musl-dev=1.2.6-r3 \
 +    mimalloc2-dev=2.2.7-r0
 
  COPY scripts/common/install-dependencies.sh /tmp/scripts/common/install-dependencies.sh
