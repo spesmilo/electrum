@@ -66,6 +66,12 @@
         "s": "50002",
         "version": "1.4.2"
     },
+    "2jkyxd3c64dbs7sgcvz3uvtbicwgy52cir6c7tztontgxeb6cumhloqd.onion": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4.2"
+    },
     "37.205.9.165": {
         "pruning": "-",
         "s": "50002",
@@ -374,6 +380,12 @@
     "node.degga.net": {
         "pruning": "-",
         "s": "50002",
+        "version": "1.4.2"
+    },
+    "node.xrpc.cl": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
         "version": "1.4.2"
     },
     "node1.btccuracao.com": {
