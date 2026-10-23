@@ -1,3 +1,65 @@
+# Release 4.8.3 (October 23, 2026) (security update)
+ * Security fixes for reports received from:
+   - dannydeezy
+   - tokenistq
+   - Raju-K12
+   - Amadeus29
+ * General:
+   - new: add mempool.space as an exchange rate provider (#10985)
+   - new: dnssec: add KSK-2024 root trust anchor (#10996)
+   - changed: exchange rate module cleanup and hardening (#10990)
+   - fix: prevent network requests from going through the Qt library (#10971)
+   - fix: dnssec: cleanup and bugfixes (#11002)
+ * Onchain / Wallet:
+   - new: transaction: support all sighash types in legacy preimage (#11069)
+   - changed: wallet: small performance improvement for get_history (#11068)
+   - fix: stop signing a txin if it already has a witness (#10981)
+   - fix: treat native segwit inputs with a non-empty witness as complete (#10987)
+   - fix: descriptor: reject trailing characters after the closing parenthesis (#10948)
+   - fix: bip32: stricter child index string parsing (#10999)
+   - fix: several fixes for enabling and disabling a keystore (#11051, #11063)
+ * Qt GUI (desktop):
+   - changed: improve the messages shown by the "Send change to lightning" option (#10975)
+   - fix: exception when disabling the "Submarine Payments" option in the max-spend transaction dialog (#11035)
+ * QML GUI & Android:
+   - new: allow manual input of the payment destination in the send/QR scanning view (#11041)
+   - changed: use calendar-based transaction history sections (#10991)
+   - changed: update the build from Java 17 to 21, remove androidx dependencies (including transitive ones) (#11033)
+   - fix: fee slider crash when the wallet is closed (#11029)
+   - fix: exceptions occurring with transactions that don't yet have a txid (#11028)
+   - fix: patch Qt to solve an occasional crash of the Android app (#11043)
+   - fix: misplaced notification toasts (#11044)
+   - fix: show the Electrum logo as the notification icon instead of a white disc, remove plyer dependency (#11038)
+   - fix: stale channel bar (#11049)
+ * GUIs:
+   - new: barcode scanning with QtMultimedia and zxing-cpp QR recognition (#10955)
+   - changed: disable rich-text string rendering by default (#10972)
+   - fix: wizard: redirect the user to the 2FA wallet wizard when they enter a 2FA seed in the standard wallet wizard (#10982)
+ * Lightning:
+   - changed: bolt11: stricter invoice parsing, module cleanup (#10940, #10970)
+   - changed: refactor the data structure for channel configuration (#10994)
+   - fix: race condition causing wallets to miss onchain (OP_RETURN) channel backups (#10984)
+   - fix: additional checks on incoming htlcs before opening an (experimental) just-in-time channel (#11001)
+   - fix: charge the fee for the outgoing channel during (experimental) trampoline forwarding, additional checks (#11011)
+   - fix: stop waiting for the CSV delay when claiming revoked htlcs (#11015)
+   - fix: sign pending ctx updates during shutdown (#11036)
+ * Submarine swaps:
+   - fix: stop waiting for timeout in NostrTransport exit methods (#11062)
+ * Plugins:
+   - changed: stricter validation of plugin metadata (#11025)
+   - fix: load zip plugins from the bytes whose signature was verified (#10874)
+ * CLI/RPC:
+   - new: dscancel: double-spend cancel command (#11005)
+   - changed: show clear errors for malformed CLI argument types instead of an opaque traceback (#11006)
+   - fix: getprivatekeys: returned error message now shows the full invalid address (#11020)
+   - fix: list_channels: inverted active filter, add capacity to the return value (#11032)
+ * Hardware wallets:
+   - changed: jade: make the plugin compatible with cbor2 6.x (#11042)
+   - fix: coldcard: error message when the device is not connected (983a561)
+ * Dependencies:
+   - fix: bump certifi and pip to distrust revoked eMudhra/emSign cert (#11066)
+
+
 # Release 4.8.2 (September 11, 2026) (security update)
  * Security fixes for reports received from:
    - l0rinc
