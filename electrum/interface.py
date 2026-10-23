@@ -1143,6 +1143,8 @@ class Interface(Logger):
         await self.session.subscribe('blockchain.headers.subscribe', [], header_queue)
         while True:
             item = await header_queue.get()
+            while not header_queue.empty():  # skip stale notifications, only the latest tip matters
+                item = header_queue.get_nowait()
             # parse response
             assert len(item) == 1
             resp_header = item[0]
