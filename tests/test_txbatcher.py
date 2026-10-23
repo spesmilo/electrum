@@ -202,7 +202,7 @@ class TestTxBatcher(ElectrumTestCase):
     async def test_batch_payments__parent_replaced_in_mempool(self, mock_save_db):
         # output 1:     tx1(o1)
         # output 2:     tx1'(o1,o2)     broadcast, but the server has not told us yet
-        # output 3:     not paid
+        # output 3:     tx1''(o1,o2,o3)
         #
         # adb still has tx1, so txbatcher creates a child of tx1, which cannot be broadcast.
         # when we learn about tx1', txbatcher must not pay o2 again.
@@ -238,8 +238,12 @@ class TestTxBatcher(ElectrumTestCase):
         wallet.adb.receive_tx_callback(tx1_prime, tx_height=TX_HEIGHT_UNCONFIRMED)
         assert wallet.adb.get_transaction(tx1.txid()) is None
         # txbatcher must not pay o2 again
-        await asyncio.sleep(10 * wallet.txbatcher.SLEEP_INTERVAL)
-        assert self.network._tx_queue.empty()
+        # txbatcher creates tx2, child of tx1', paying only o3
+        tx1_prime_prime = await self.network.next_tx()
+        assert output2 in tx1_prime_prime.outputs()
+        assert output3 in tx1_prime_prime.outputs()
+        # tx1_prime_prime and tx1_prime spend the same input
+        assert tx1_prime_prime.inputs()[0].prevout == tx1_prime.inputs()[0].prevout
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_rbf_batching__cannot_batch_as_would_need_to_use_ismine_outputs_of_basetx(self, mock_save_db):
