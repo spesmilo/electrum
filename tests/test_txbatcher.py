@@ -192,6 +192,49 @@ class TestTxBatcher(ElectrumTestCase):
 
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_batch_payments__parent_replaced_in_mempool(self, mock_save_db):
+        # output 1:     tx1(o1)
+        # output 2:     tx1'(o1,o2)     broadcast, but the server has not told us yet
+        # output 3:     not paid
+        #
+        # adb still has tx1, so txbatcher creates a child of tx1, which cannot be broadcast.
+        # when we learn about tx1', txbatcher must not pay o2 again.
+        OUTGOING_ADDRESS = 'tb1q7rl9cxr85962ztnsze089zs8ycv52hk43f3m9n'
+        wallet = self._create_wallet()
+        funding_tx = Transaction(WALLET_DATA["funding_tx"])
+        await self.network.try_broadcasting(funding_tx, 'funding')
+        await self.network.next_tx()
+        output1 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 10_000)
+        wallet.txbatcher.add_payment_output('default', output1)
+        tx1 = await self.network.next_tx()
+        # the server lags behind the mempool
+        broadcast = self.network.try_broadcasting
+        async def try_broadcasting_lagging(tx, name):
+            self.network._tx_queue.put_nowait(tx)
+            return tx.txid()
+        self.network.try_broadcasting = try_broadcasting_lagging
+        output2 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 20_000)
+        wallet.txbatcher.add_payment_output('default', output2)
+        tx1_prime = await self.network.next_tx()
+        assert output2 in tx1_prime.outputs()
+        assert wallet.adb.get_transaction(tx1.txid()) is not None
+        assert wallet.adb.get_transaction(tx1_prime.txid()) is None
+        # the mempool rejects transactions that conflict with tx1', or spend from tx1
+        async def try_broadcasting_rejected(tx, name):
+            return None
+        self.network.try_broadcasting = try_broadcasting_rejected
+        output3 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 30_000)
+        wallet.txbatcher.add_payment_output('default', output3)
+        await asyncio.sleep(10 * wallet.txbatcher.SLEEP_INTERVAL)
+        # the server tells us about tx1'
+        self.network.try_broadcasting = broadcast
+        wallet.adb.receive_tx_callback(tx1_prime, tx_height=TX_HEIGHT_UNCONFIRMED)
+        assert wallet.adb.get_transaction(tx1.txid()) is None
+        # txbatcher must not pay o2 again
+        await asyncio.sleep(10 * wallet.txbatcher.SLEEP_INTERVAL)
+        assert self.network._tx_queue.empty()
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_rbf_batching__cannot_batch_as_would_need_to_use_ismine_outputs_of_basetx(self, mock_save_db):
         """Wallet history contains unconf tx1 that spends all its coins to two ismine outputs,
         one 'recv' address (20k sats) and one 'change' (80k sats).
