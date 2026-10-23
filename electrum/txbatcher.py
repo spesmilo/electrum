@@ -327,6 +327,20 @@ class TxBatch(Logger):
         return to_pay
 
     @locked
+    def has_only_batch_outputs(self, tx: PartialTransaction) -> bool:
+        """Whether all outputs of tx are ours, batch payments, or txouts of the sweep inputs it spends."""
+        prevouts = set(txin.prevout for txin in tx.inputs())
+        expected = list(self.batch_payments)
+        expected += [s.txout for p, s in self.batch_inputs.items() if s.txout and p in prevouts]
+        for txout in tx.outputs():
+            if self.wallet.is_mine(txout.address):
+                continue
+            if txout not in expected:
+                return False
+            expected.remove(txout)
+        return True
+
+    @locked
     def _to_sweep_after(self, tx: Optional[PartialTransaction]) -> Dict[TxOutpoint, SweepInfo]:
         tx_prevouts = set(txin.prevout for txin in tx.inputs()) if tx else set()
         result = []  # type: list[tuple[TxOutpoint, SweepInfo]]
@@ -409,9 +423,13 @@ class TxBatch(Logger):
             if self._base_tx is None:
                 self.logger.info(f'found base_tx {txid}')
             self._base_tx = tx
-        else:
+        elif self.has_only_batch_outputs(tx):
             self.logger.info(f'base tx was replaced by {tx.txid()}')
             self._new_base_tx(tx)
+        else:
+            # do not replace it: our replacement would pay its outputs
+            self.logger.info(f'base tx was replaced by {tx.txid()}, which has outputs not in batch')
+            self._start_new_batch(tx)
         # if tx is confirmed or local, we will start a new batch
         tx_mined_status = self.wallet.adb.get_tx_height(txid)
         if tx_mined_status.conf > 0:
