@@ -24,6 +24,7 @@
 from unicodedata import normalize
 import hashlib
 import re
+import string
 import copy
 from typing import Tuple, TYPE_CHECKING, Union, Sequence, Optional, Dict, List, NamedTuple, Any, Type
 from functools import wraps
@@ -44,7 +45,7 @@ from . import crypto
 from .crypto import (pw_decode, pw_encode, sha256, sha256d, PW_HASH_VERSION_LATEST,
                      SUPPORTED_PW_HASH_VERSIONS, UnsupportedPasswordHashVersion, hash_160,
                      CiphertextFormatError)
-from .util import (InvalidPassword, WalletFileException,
+from .util import (InvalidPassword, WalletFileException, UserFacingException,
                    BitcoinException, bfh, inv_dict, is_hex_str)
 from .mnemonic import Mnemonic, Wordlist, calc_seed_type, is_seed
 from .plugin import run_hook
@@ -747,6 +748,13 @@ class BIP32_KeyStore(Xpub, Deterministic_KeyStore):
         node = rootnode.subkey_at_private_derivation("m/67'/")
         return node.to_xprv()
 
+
+def _is_old_hex_seed(text: Any) -> bool:
+    # Unlike is_hex_str, this allows an odd length: mn_decode returns 9 hex digits
+    # for a word triple worth 2**32 or more, which mn_encode never produces (#11045).
+    return isinstance(text, str) and all(c in string.hexdigits for c in text)
+
+
 class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
 
     type = 'old'
@@ -761,10 +769,10 @@ class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
         return Old_KeyStore({'mpk': self.mpk})
 
     def _get_hex_seed(self, password) -> str:
-        if not is_hex_str(self.seed) and password is None:
+        if not _is_old_hex_seed(self.seed) and password is None:
             raise InvalidPassword()
         hex_str = pw_decode(self.seed, password, version=self.pw_hash_version)
-        assert is_hex_str(hex_str), f"expected hex str, got {type(hex_str)} with {len(hex_str)=}"
+        assert _is_old_hex_seed(hex_str), f"expected hex str, got {type(hex_str)} with {len(hex_str)=}"
         return hex_str
 
     def dump(self):
@@ -803,6 +811,9 @@ class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
     def get_seed(self, password):
         from . import old_mnemonic
         hex_seed = self._get_hex_seed(password)
+        if len(hex_seed) % 8 != 0:
+            raise UserFacingException(
+                "This seed cannot be shown as words. Keep the seed phrase the wallet was restored from.")
         return ' '.join(old_mnemonic.mn_encode(hex_seed))
 
     @classmethod
@@ -813,7 +824,7 @@ class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
 
     @classmethod
     def stretch_key(cls, hex_seed: str) -> int:
-        assert is_hex_str(hex_seed), f"expected hex str, got {type(hex_seed)} with {len(hex_seed)=}"
+        assert _is_old_hex_seed(hex_seed), f"expected hex str, got {type(hex_seed)} with {len(hex_seed)=}"
         encoded_hex_seed = hex_seed.encode('ascii')
         x = encoded_hex_seed
         for i in range(100000):
