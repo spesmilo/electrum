@@ -484,25 +484,12 @@ class PaymentIdentifier(Logger):
         except Exception as e:
             pass
         try:
-            m = re.match('^' + RE_SCRIPT_FN + '$', x)
-            script = self.parse_script(str(m.group(1)))
+            script = parse_script(x)
             return script, False
         except Exception as e:
             pass
 
         return None, False
-
-    @staticmethod
-    def parse_script(x: str) -> bytes:
-        script = bytearray()
-        for word in x.split():
-            if word[0:3] == 'OP_':
-                opcode_int = opcodes[word]
-                script += construct_script([opcode_int])
-            else:
-                bytes.fromhex(word)  # to test it is hex data
-                script += construct_script([word])
-        return bytes(script)
 
     def parse_amount(self, x: str) -> Union[str, int]:
         x = x.strip()
@@ -644,6 +631,27 @@ def invoice_from_payment_identifier(
         )
 
 
+def parse_script(text: str) -> Optional[bytes]:
+    """Parse an output script written as 'script(...)', e.g. 'script(OP_RETURN 48656c6c6f)'."""
+    m = re.match('^' + RE_SCRIPT_FN + '$', text.strip())
+    if not m:
+        return None
+    script = bytearray()
+    try:
+        for word in m.group(1).split():
+            if word[0:3] == 'OP_':
+                opcode_int = opcodes[word]
+                script += construct_script([opcode_int])
+            else:
+                bytes.fromhex(word)  # to test it is hex data
+                script += construct_script([word])
+    except Exception as e:
+        raise ValueError(f"Invalid script: {m.group(1)!r}") from e
+    if not script:
+        raise ValueError("Empty script")
+    return bytes(script)
+
+
 def script_to_string(script: bytes) -> str:
     """Convert script bytes to human-readable string for PI"""
     words = []
@@ -655,7 +663,7 @@ def script_to_string(script: bytes) -> str:
         else:  # empty push
             words.append(opcodes.OP_0.name)
     s = ' '.join(words)
-    assert PaymentIdentifier.parse_script(s) == script, f"{s} != {script.hex()}"
+    assert not script or parse_script(f'script({s})') == script, f"{s} != {script.hex()}"
     return s
 
 
