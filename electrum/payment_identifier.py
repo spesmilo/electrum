@@ -512,9 +512,14 @@ class PaymentIdentifier(Logger):
             return x
         p = pow(10, self.config.BTC_AMOUNTS_DECIMAL_POINT)
         try:
-            return int(p * Decimal(x))
+            amount = p * Decimal(x)
         except InvalidOperation:
             raise Exception("Invalid amount")
+        if not amount.is_finite():
+            raise Exception("Invalid amount")
+        if amount != amount.to_integral_value():
+            raise Exception("Amount has too many decimals")
+        return int(amount)
 
     def parse_address(self, line: str):
         r = line.strip()
