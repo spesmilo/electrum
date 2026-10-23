@@ -564,7 +564,7 @@ class TxBatch(Logger):
                 outputs.append(sweep_info.txout)
         self.logger.info(f'locktime: {locktime}')
         outputs += to_pay
-        inputs += self._create_inputs_from_tx_change(self._parent_tx) if self._parent_tx else []
+        inputs += self._create_inputs_from_tx_change(self._parent_tx, base_tx) if self._parent_tx else []
         # create tx
         coins = self.wallet.get_spendable_coins(nonlocal_only=True)
         tx = self.wallet.make_unsigned_transaction(
@@ -609,11 +609,23 @@ class TxBatch(Logger):
             self.logger.info(f'starting new batch because current base tx does not have change')
             self._start_new_batch(tx)
 
-    def _create_inputs_from_tx_change(self, parent_tx: PartialTransaction) -> List[PartialTxInput]:
+    def _create_inputs_from_tx_change(
+            self, parent_tx: PartialTransaction, base_tx: Optional[PartialTransaction],
+    ) -> List[PartialTxInput]:
         inputs = []
-        for o in parent_tx.get_change_outputs():
+        parent_txid = bytes.fromhex(parent_tx.txid())
+        base_prevouts = set(txin.prevout for txin in base_tx.inputs()) if base_tx else set()
+        for index, o in enumerate(parent_tx.outputs()):
+            if not o.is_change:
+                continue
+            wanted = TxOutpoint(parent_txid, index)
+            if wanted in base_prevouts:
+                continue
             coins = self.wallet.adb.get_addr_utxo(o.address)
-            inputs += list(coins.values())
+            if utxo := coins.get(wanted):
+                inputs.append(utxo)
+            else:
+                raise Exception('parent_tx outpoint not in adb')
         for txin in inputs:
             txin.nsequence = 0xffffffff - 2
         return inputs

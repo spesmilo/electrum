@@ -189,6 +189,13 @@ class TestTxBatcher(ElectrumTestCase):
         # check that tx2 is child of tx1
         assert len(tx2.inputs()) == 1
         assert tx2.inputs()[0].prevout.txid.hex() == tx1.txid()
+        # payment 3 -> tx2'(o2, o3), still child of tx1
+        output3 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 30_000)
+        wallet.txbatcher.add_payment_output('default', output3)
+        tx2_prime = await self.network.next_tx()
+        assert output2 in tx2_prime.outputs()
+        assert output3 in tx2_prime.outputs()
+        assert tx2_prime.inputs()[0].prevout.txid.hex() == tx1.txid()
 
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
