@@ -23,6 +23,7 @@ if not cmdline_name:
 hiddenimports = []
 hiddenimports += collect_submodules('pkg_resources')  # workaround for https://github.com/pypa/setuptools/issues/1963
 hiddenimports += collect_submodules(f"{PYPKG}.plugins")
+hiddenimports += collect_submodules('smartcard')  # pyscard, used by the satochip plugin
 
 
 binaries = []
