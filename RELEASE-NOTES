@@ -4,6 +4,9 @@
    - tokenistq
    - Raju-K12
    - Amadeus29
+ * security fixes and disclosures:
+   - (sev-high) Malicious server can replace a just-broadcast tx and try to trick user into RBF-ing it
+     - see https://github.com/spesmilo/electrum/security/advisories/GHSA-6jp4-8v48-cc5v
  * General:
    - new: add mempool.space as an exchange rate provider (#10985)
    - new: dnssec: add KSK-2024 root trust anchor (#10996)
