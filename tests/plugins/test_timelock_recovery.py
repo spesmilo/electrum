@@ -22,7 +22,7 @@ class TestTimelockRecovery(ElectrumTestCase):
         super(TestTimelockRecovery, self).setUp()
         self.config = SimpleConfig({'electrum_path': self.electrum_path})
 
-        self.wallet_path = os.path.join(self.electrum_path, "timelock_recovery_wallet")
+        self.wallet_path = os.path.join(self.config.get_datadir_wallet_path(), "timelock_recovery_wallet")
 
         self._saved_stdout = sys.stdout
         self._stdout_buffer = StringIO()
