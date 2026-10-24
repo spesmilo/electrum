@@ -281,8 +281,12 @@ class NodeInfo(NamedTuple):
                 addresses.append((host, port))
             elif atype == 5:  # dns hostname
                 len_hostname = int.from_bytes(read(1), 'big')
-                host = read(len_hostname).decode('ascii')
+                host_bytes = read(len_hostname)
                 port = int.from_bytes(read(2), 'big')
+                try:
+                    host = host_bytes.decode('ascii')
+                except UnicodeDecodeError:
+                    continue
                 if not NodeInfo.invalid_announcement_hostname(host) and port > 0:
                     addresses.append((host, port))
             else:
