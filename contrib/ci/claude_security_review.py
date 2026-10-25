@@ -59,19 +59,10 @@ def git(*args: str) -> str:
 
 
 def fetch_base_branch(base: str) -> None:
-    try:
-        git("fetch", "origin", base, "--depth=1")
-    except subprocess.CalledProcessError:
-        git("fetch", "origin", base)
-    # Shallow CI clones may lack the history needed for three-dot diff
-    # (merge-base computation). Unshallow if the merge-base is unreachable.
-    try:
-        git("merge-base", f"origin/{base}", "HEAD")
-    except subprocess.CalledProcessError:
-        try:
-            git("fetch", "--unshallow")
-        except subprocess.CalledProcessError:
-            pass  # already a full clone
+    # The trusted checkout uses fetch-depth: 0. Keep its full history:
+    # --depth=1 would make even that checkout shallow and could hide the
+    # merge-base with a PR branch that diverged before the current tip.
+    git("fetch", "origin", base)
 
 
 def fetch_pr_head(pr: str) -> str:
