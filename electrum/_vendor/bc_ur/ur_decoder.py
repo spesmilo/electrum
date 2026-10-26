@@ -5,7 +5,7 @@
 # Licensed under the "BSD-2-Clause Plus Patent License"
 #
 
-from typing import Optional, List, Set, FrozenSet, Tuple, Union
+from typing import Optional, List, FrozenSet, Tuple, Union
 
 from .ur import UR
 from .fountain_encoder import Part as FountainEncoderPart
@@ -145,8 +145,8 @@ class URDecoder:
     def expected_part_count(self) -> int:
         return self.fountain_decoder.expected_part_count()
 
-    def received_part_indexes(self) -> Set[int]:
-        return self.fountain_decoder.received_part_indexes
+    def independent_part_count(self) -> int:
+        return self.fountain_decoder.independent_part_count()
 
     def last_part_indexes(self) -> Optional[FrozenSet[int]]:
         return self.fountain_decoder.last_part_indexes

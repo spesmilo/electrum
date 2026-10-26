@@ -63,12 +63,6 @@ def xor_into(target: MutableSequence[int], source: bytes) -> None:
         target[i] ^= source[i]
 
 
-def xor_with(a: bytearray, b: bytes) -> bytearray:
-    target = a
-    xor_into(target, b)
-    return target
-
-
 def take_first(s: AnyStr, count: int) -> AnyStr:
     return s[0:count]
 

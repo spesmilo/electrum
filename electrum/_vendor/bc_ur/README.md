@@ -12,6 +12,10 @@ Modifications:
 - use Electrum's `cbor` module for CBOR, and `zlib.crc32`
 - fountain_encoder.Part: validated on construction (strict types, uint32 checksum, bounds and
   consistency checks for untrusted input: seq_len, message_len, fragment length)
+- FountainDecoder: Gauss-Jordan elimination over GF(2) instead of the reference implementation's
+  "peeling" decoder, so that it decodes as soon as the received parts determine the message.
+  It reports progress as independent_part_count() instead of received_part_indexes,
+  estimated_percent_complete() is exact, and the helpers only used for peeling are removed.
 - FountainEncoder.next_part: seq_num wraps at 2**32, as in the reference implementation (was % MAX_UINT32)
 - FountainEncoder: support `bytes` messages
 - `Part` classes are frozen dataclasses, the decoder's `Part` is no longer nested in `FountainDecoder`,

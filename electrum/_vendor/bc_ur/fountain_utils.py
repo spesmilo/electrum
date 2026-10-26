@@ -5,7 +5,7 @@
 # Licensed under the "BSD-2-Clause Plus Patent License"
 #
 
-from typing import List, Set, FrozenSet, AbstractSet, Container
+from typing import List, Set
 
 from .random_sampler import RandomSampler
 from .utils import int_to_bytes
@@ -49,15 +49,3 @@ def choose_fragments(seq_num: int, seq_len: int, checksum: int) -> Set[int]:
             indexes.append(i)
         shuffled_indexes = shuffled(indexes, rng)
         return set(shuffled_indexes[0:degree])
-
-
-def contains(set_or_list: Container[int], el: int) -> bool:
-    return el in set_or_list
-
-
-def is_strict_subset(a: FrozenSet[int], b: FrozenSet[int]) -> bool:
-    return a.issubset(b)
-
-
-def set_difference(a: FrozenSet[int], b: AbstractSet[int]) -> FrozenSet[int]:
-    return a.difference(b)
