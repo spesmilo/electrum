@@ -83,8 +83,6 @@ RUN apt-get update -q && \
         libc6 \
         libc-dev-bin \
         libx11-dev \
-        libegl1 \
-        libgl1 \
         libxrandr2 \
         desktop-file-utils \
         && \

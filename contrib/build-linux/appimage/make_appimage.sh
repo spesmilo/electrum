@@ -246,6 +246,13 @@ for component in Concurrent Qml Quick ; do
     rm -rf "$PYDIR"/site-packages/PyQt6/Qt${component}*
     rm -rf "$PYDIR"/site-packages/PyQt6/bindings/Qt${component}*
 done
+# Only libQt6Quick and the Qml libraries it links to are needed, not e.g. QuickControls2 or Quick3D.
+for lib in "$PYDIR"/site-packages/PyQt6/Qt6/lib/libQt6*{Qml,Quick}* ; do
+    case "$(basename "$lib")" in
+        libQt6Quick.so*|libQt6Qml.so*|libQt6QmlMeta.so*|libQt6QmlModels.so*|libQt6QmlWorkerScript.so*) ;;
+        *) rm -rf "$lib" ;;
+    esac
+done
 rm -rf "$PYDIR"/site-packages/PyQt6/Qt.so
 
 # these are deleted as they were not deterministic; and are not needed anyway
