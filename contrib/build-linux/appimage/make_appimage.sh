@@ -92,8 +92,7 @@ cp -f "$DLL_TARGET_DIR"/libsecp256k1.so.* "$APPDIR/usr/lib/" || fail "Could not 
 if [ -f "$DLL_TARGET_DIR/libZXing.so" ]; then
     info "zxing-cpp already built, skipping"
 else
-    # Bullseye's default GCC lacks the required C++20 support.
-    CC=clang-16 CXX=clang++-16 "$CONTRIB"/make_zxing.sh || fail "Could not build zxing-cpp"
+    "$CONTRIB"/make_zxing.sh || fail "Could not build zxing-cpp"
 fi
 cp -f "$DLL_TARGET_DIR/libZXing.so" "$APPDIR/usr/lib/" || fail "Could not copy zxing-cpp to its destination"
 
