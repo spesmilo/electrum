@@ -2,33 +2,18 @@
 # from https://docs.appimage.org/introduction/concepts.html :
 # "[AppImages] should be built on the oldest possible system, allowing them to run on newer system[s]"
 
-FROM debian:bullseye@sha256:cf48c31af360e1c0a0aedd33aae4d928b68c2cdf093f1612650eb1ff434d1c34
+FROM debian:bookworm@sha256:f9c4778ec75d6b054367315b1eb4f3992ee5866b50de6d591a33e8904cba3f17
 
 ENV LC_ALL=C.UTF-8 LANG=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
 
+# need ca-certificates before using snapshot packages
+RUN apt update -qq > /dev/null && apt install -qq --yes --no-install-recommends \
+    ca-certificates
+
 # pin the distro packages
 COPY apt.sources.list /etc/apt/sources.list
 COPY apt.preferences /etc/apt/preferences.d/snapshot
-
-# fetch ca-certificates via http first so the snapshot packages below can be fetched via https
-# FIXME: could be simplified back to the below when bumping the base image:
-# https://github.com/spesmilo/electrum/blob/722f70238d8f719c0fa64940c5dd9c892782f8da/contrib/build-linux/appimage/Dockerfile#L10-L12
-RUN sed -e 's#https://#http://#' /etc/apt/sources.list > /tmp/sources.list.bootstrap && \
-    apt-get -o Dir::Etc::SourceList=/tmp/sources.list.bootstrap update -q && \
-    apt-get -o Dir::Etc::SourceList=/tmp/sources.list.bootstrap install -qy --allow-downgrades --no-install-recommends \
-        ca-certificates \
-        && \
-    rm -f /tmp/sources.list.bootstrap && \
-    rm -rf /var/lib/apt/lists/*
-
-# distrust the compromised eMudhra "emSign ECC Root CA - G3" (see https://bugs.debian.org/1151413).
-# - bullseye is EOL and won't get a fixed ca-certificates. The first check fails once the base image
-#   is bumped to one whose pinned snapshot has a fixed ca-certificates: rm this then
-RUN test -e /etc/ssl/certs/emSign_ECC_Root_CA_-_G3.pem \
-    && sed -i 's#^mozilla/emSign_ECC_Root_CA_-_G3.crt$#!&#' /etc/ca-certificates.conf \
-    && update-ca-certificates \
-    && test ! -e /etc/ssl/certs/emSign_ECC_Root_CA_-_G3.pem
 
 RUN apt-get update -q && \
     apt-get install -qy --allow-downgrades \
@@ -38,7 +23,7 @@ RUN apt-get update -q && \
         python3 \
         make \
         cmake \
-        clang-16 \
+        g++ \
         autotools-dev \
         autoconf \
         libtool \
@@ -46,7 +31,7 @@ RUN apt-get update -q && \
         pkg-config \
         xz-utils \
         libssl-dev \
-        libssl1.1 \
+        libssl3 \
         openssl \
         zlib1g-dev \
         libffi-dev \
