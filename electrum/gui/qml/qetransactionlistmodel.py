@@ -87,6 +87,30 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
         if wallet == self.wallet:
             self.initModel(True)  # TODO: be less dramatic
 
+    @qt_event_listener
+    def on_event_new_transaction(self, wallet, tx):
+        if wallet == self.wallet:
+            self.setDirty()  # assuming wallet.is_up_to_date triggers after
+
+    @qt_event_listener
+    def on_event_removed_transaction(self, wallet, tx):
+        if wallet == self.wallet:
+            self.setDirty()
+
+    @qt_event_listener
+    def on_event_adb_tx_height_changed(self, adb, txid, old_height, new_height):
+        if adb == self.wallet.adb:
+            self._logger.debug(f'tx_height_changed {txid}. {old_height} -> {new_height}')
+            self.setDirty()  # assuming wallet.is_up_to_date triggers after
+
+    @qt_event_listener
+    def on_event_wallet_updated(self, wallet):
+        if wallet == self.wallet:
+            if self.include_lightning:
+                self.setDirty()  # lightning history changes don't come with tx events, see #9856
+            if wallet.is_up_to_date():
+                self.initModel()  # refresh if dirty
+
     def rowCount(self, index):
         return len(self.tx_history)
 
