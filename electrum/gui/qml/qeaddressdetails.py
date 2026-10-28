@@ -143,6 +143,8 @@ class QEAddressDetails(AuthMixin, QObject):
         assert self.canDelete
         try:
             self._wallet.wallet.delete_address(self._address)
+            # explicit mark-dirty, as delete_address is not guaranteed to trigger adb_removed_tx callback.
+            # (e.g. when the removed address shares a tx with another imported address)
             self._wallet.historyModel.setDirty()
         except UserFacingException as e:
             self.addressDeleteFailed.emit(str(e))
@@ -166,5 +168,5 @@ class QEAddressDetails(AuthMixin, QObject):
         if self._wallet.derivationPrefix:
             self._derivationPath = self._derivationPath.replace('m', self._wallet.derivationPrefix)
         self._numtx = self._wallet.wallet.adb.get_address_history_len(self._address)
-        self._candelete = self.wallet.wallet.can_delete_address()
+        self._candelete = self._wallet.wallet.can_delete_address()
         self.detailsChanged.emit()

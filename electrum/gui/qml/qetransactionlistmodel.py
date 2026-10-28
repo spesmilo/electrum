@@ -7,6 +7,7 @@ from PyQt6.QtCore import Qt, QAbstractListModel, QModelIndex, QLocale
 from electrum.logging import get_logger
 from electrum.util import Satoshis, TxMinedInfo
 from electrum.address_synchronizer import TX_HEIGHT_FUTURE, TX_HEIGHT_LOCAL
+from electrum.invoices import PR_PAID
 
 from electrum.gui.common_qt.util import QtEventListener, qt_event_listener
 
@@ -110,6 +111,20 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
                 self.setDirty()  # lightning history changes don't come with tx events, see #9856
             if wallet.is_up_to_date():
                 self.initModel()  # refresh if dirty
+
+    @qt_event_listener
+    def on_event_payment_succeeded(self, wallet, key):
+        # only on include_lightning, as the payment_succeeded callback is lightning only
+        if wallet == self.wallet and self.include_lightning:
+            # TODO: we can probably just add the payment instead of recreating the whole history (expensive)
+            self.initModel(True)
+
+    @qt_event_listener
+    def on_event_request_status(self, wallet, key, status):
+        # only on include_lightning, as the new_transaction callback already handles on-chain
+        if wallet == self.wallet and status == PR_PAID and self.include_lightning:
+            # TODO: we can probably just add the payment instead of recreating the whole history (expensive)
+            self.initModel(True)
 
     def rowCount(self, index):
         return len(self.tx_history)

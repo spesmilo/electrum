@@ -188,12 +188,6 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         if wallet == self.wallet:
             self._logger.debug('request status %d for key %s' % (status, key))
             self.requestStatusChanged.emit(key, status)
-            if status == PR_PAID:
-                # might be new incoming LN payment, update history
-                # TODO: only update if it was paid over lightning,
-                # and even then, we can probably just add the payment instead
-                # of recreating the whole history (expensive)
-                self.historyModel.initModel(True)
 
     @event_listener
     def on_event_invoice_status(self, wallet, key, status):
@@ -242,7 +236,6 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def on_event_payment_succeeded(self, wallet, key):
         if wallet == self.wallet:
             self.paymentSucceeded.emit(key)
-            self.historyModel.initModel(True)  # TODO: be less dramatic
 
     @event_listener
     def on_event_payment_failed(self, wallet, key, reason):
