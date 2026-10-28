@@ -307,4 +307,12 @@ Pane {
     Component.onCompleted: {
         Daemon.currentWallet.addressCoinModel.initModel()
     }
+
+    StackView.onVisibleChanged: {
+        // refresh model if Addresses becomes visible again and the model is dirty,
+        // e.g. after a tx was removed in a TxDetails page opened from here.
+        if (StackView.visible) {
+            Daemon.currentWallet.addressCoinModel.initModel()
+        }
+    }
 }
