@@ -306,35 +306,35 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     @pyqtProperty(QETransactionListModel, notify=historyModelChanged)
     def historyModel(self):
         if self._historyModel is None:
-            self._historyModel = QETransactionListModel(self.wallet)
+            self._historyModel = QETransactionListModel(self.wallet, parent=self)
         return self._historyModel
 
     addressCoinModelChanged = pyqtSignal()
     @pyqtProperty(QEAddressCoinListModel, notify=addressCoinModelChanged)
     def addressCoinModel(self):
         if self._addressCoinModel is None:
-            self._addressCoinModel = QEAddressCoinListModel(self.wallet)
+            self._addressCoinModel = QEAddressCoinListModel(self.wallet, parent=self)
         return self._addressCoinModel
 
     requestModelChanged = pyqtSignal()
     @pyqtProperty(QERequestListModel, notify=requestModelChanged)
     def requestModel(self):
         if self._requestModel is None:
-            self._requestModel = QERequestListModel(self.wallet)
+            self._requestModel = QERequestListModel(self.wallet, parent=self)
         return self._requestModel
 
     invoiceModelChanged = pyqtSignal()
     @pyqtProperty(QEInvoiceListModel, notify=invoiceModelChanged)
     def invoiceModel(self):
         if self._invoiceModel is None:
-            self._invoiceModel = QEInvoiceListModel(self.wallet)
+            self._invoiceModel = QEInvoiceListModel(self.wallet, parent=self)
         return self._invoiceModel
 
     channelModelChanged = pyqtSignal()
     @pyqtProperty(QEChannelListModel, notify=channelModelChanged)
     def channelModel(self):
         if self._channelModel is None:
-            self._channelModel = QEChannelListModel(self.wallet)
+            self._channelModel = QEChannelListModel(self.wallet, parent=self)
         return self._channelModel
 
     nameChanged = pyqtSignal()
