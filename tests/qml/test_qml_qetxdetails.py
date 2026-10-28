@@ -4,6 +4,7 @@ from electrum import SimpleConfig
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
 from electrum.bitcoin import address_to_script
 from electrum.fee_policy import FixedFeePolicy
+from electrum.gui.qml.qeconfig import QEConfig
 from electrum.gui.qml.qetxdetails import QETxDetails
 from electrum.gui.qml.qewallet import QEWallet
 from electrum.transaction import PartialTxOutput, Transaction
@@ -40,6 +41,10 @@ class TestTxDetails(ElectrumTestCase):
     async def test_remove_saved_tx_with_legacy_inputs(self):
         # see #9004, #8775
         config = SimpleConfig({'electrum_path': self.electrum_path})
+        # QEWallet connects to the QEConfig singleton. replace any instance left by other tests, restore it afterwards
+        self.addCleanup(setattr, QEConfig, 'instance', QEConfig.instance)
+        QEConfig.instance = None
+        QEConfig(config)
         wallet, tx = self._create_wallet_and_unsigned_tx_with_legacy_input(config)
 
         qewallet = QEWallet(wallet)

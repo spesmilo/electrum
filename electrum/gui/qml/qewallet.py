@@ -31,6 +31,7 @@ from .qechannellistmodel import QEChannelListModel
 from .qeinvoicelistmodel import QEInvoiceListModel, QERequestListModel
 from .qetransactionlistmodel import QETransactionListModel
 from .qetypes import QEAmount
+from .qeconfig import QEConfig
 
 if TYPE_CHECKING:
     from electrum.wallet import Abstract_Wallet
@@ -129,6 +130,8 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         self.sync_progress_timer.setInterval(2000)
         self.sync_progress_timer.timeout.connect(self.update_sync_progress)
 
+        QEConfig.instance.freezeReusedAddressUtxosChanged.connect(self._update_balances)
+
         # post-construction init in GUI thread
         # QMetaObject.invokeMethod(self, 'qt_init', Qt.QueuedConnection)
 
@@ -140,6 +143,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         self.register_callbacks()
         self.destroyed.connect(lambda: self.on_destroy())
         self.synchronizing = not wallet.is_up_to_date()
+        self._update_balances()
 
     synchronizingChanged = pyqtSignal()
     @pyqtProperty(bool, notify=synchronizingChanged)
@@ -212,7 +216,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             if self.wallet.is_up_to_date():
                 # don't update during sync as this recomputes the balance on each new tx, blocking the UI thread.
                 # on_event_wallet_updated emits balanceChanged once we are up-to-date.
-                self.balanceChanged.emit()
+                self._update_balances()
 
     @qt_event_listener
     def on_event_adb_tx_height_changed(self, adb, txid, old_height, new_height):
@@ -229,28 +233,28 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             if self._addressCoinModel is not None:
                 self._addressCoinModel.setDirty()
             self.historyModel.setDirty()
-            self.balanceChanged.emit()
+            self._update_balances()
 
     @qt_event_listener
     def on_event_wallet_updated(self, wallet):
         if wallet == self.wallet:
             self._logger.debug('wallet_updated')
-            self.balanceChanged.emit()
+            self._update_balances()
             self.historyModel.setDirty()
             self.synchronizing = not wallet.is_up_to_date()
             if not self.synchronizing:
                 self.historyModel.initModel()  # refresh if dirty
 
-    @event_listener
+    @qt_event_listener
     def on_event_channel(self, wallet, channel):
         if wallet == self.wallet:
-            self.balanceChanged.emit()
+            self._update_balances()
             self.peersUpdated.emit()
 
-    @event_listener
+    @qt_event_listener
     def on_event_channels_updated(self, wallet):
         if wallet == self.wallet:
-            self.balanceChanged.emit()
+            self._update_balances()
             self.peersUpdated.emit()
 
     @qt_event_listener
@@ -318,6 +322,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def addressCoinModel(self):
         if self._addressCoinModel is None:
             self._addressCoinModel = QEAddressCoinListModel(self.wallet)
+            self._addressCoinModel.frozenChanged.connect(self._update_balances)
         return self._addressCoinModel
 
     requestModelChanged = pyqtSignal()
@@ -467,51 +472,57 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def canGetZeroconfChannel(self) -> bool:
         return self.wallet.lnworker and self.wallet.lnworker.can_get_zeroconf_channel()
 
-    @pyqtProperty(QEAmount, notify=balanceChanged)
-    def frozenBalance(self):
+    @pyqtSlot()
+    def requestUpdateBalances(self):
+        self._update_balances()
+
+    def _update_balances(self):
+        """refresh the balance amounts in place, then emit balanceChanged.
+           The getters only return them, so reading them (e.g. in a binding) doesn't emit valueChanged."""
+        c, u, x = self.wallet.get_balance()
+        self._confirmedbalance.satsInt = c+x
+        self._unconfirmedbalance.satsInt = u
         c, u, x = self.wallet.get_frozen_balance()
         self._frozenbalance.satsInt = c+x
+        if self.isLightning:
+            lnworker = self.wallet.lnworker
+            self._lightningbalance.msatsInt = int(lnworker.get_balance() * 1000)
+            self._lightningbalancefrozen.msatsInt = int(lnworker.get_balance(frozen=True) * 1000)
+            self._lightningcansend.msatsInt = int(lnworker.num_sats_can_send() * 1000)
+            self._lightningcanreceive.msatsInt = int(lnworker.num_sats_can_receive() * 1000)
+        self._totalbalance.msatsInt = self._confirmedbalance.msatsInt + self._lightningbalance.msatsInt
+        self.balanceChanged.emit()
+
+    @pyqtProperty(QEAmount, notify=balanceChanged)
+    def frozenBalance(self):
         return self._frozenbalance
 
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def unconfirmedBalance(self):
-        self._unconfirmedbalance.satsInt = self.wallet.get_balance()[1]
         return self._unconfirmedbalance
 
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def confirmedBalance(self):
-        c, u, x = self.wallet.get_balance()
-        self._confirmedbalance.satsInt = c+x
         return self._confirmedbalance
 
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def lightningBalance(self):
-        if self.isLightning:
-            self._lightningbalance.satsInt = int(self.wallet.lnworker.get_balance())
         return self._lightningbalance
 
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def lightningBalanceFrozen(self):
-        if self.isLightning:
-            self._lightningbalancefrozen.satsInt = int(self.wallet.lnworker.get_balance(frozen=True))
         return self._lightningbalancefrozen
 
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def totalBalance(self):
-        total = self.confirmedBalance.satsInt + self.lightningBalance.satsInt
-        self._totalbalance.satsInt = total
         return self._totalbalance
 
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def lightningCanSend(self):
-        if self.isLightning:
-            self._lightningcansend.satsInt = int(self.wallet.lnworker.num_sats_can_send())
         return self._lightningcansend
 
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def lightningCanReceive(self):
-        if self.isLightning:
-            self._lightningcanreceive.satsInt = int(self.wallet.lnworker.num_sats_can_receive())
         return self._lightningcanreceive
 
     @pyqtProperty(bool, notify=balanceChanged)
@@ -710,7 +721,6 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def createRequest(self, amount: QEAmount, message: str, expiration: int, lightning: bool = False, reuse_address: bool = False):
         self.deleteExpiredRequests()
         try:
-            amount = amount.satsInt
             if not lightning:
                 addr = self.wallet.get_unused_address()
                 if addr is None:
@@ -727,7 +737,14 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             else:
                 addr = None
 
-            key = self.wallet.create_request(amount, message, expiration, addr)
+            if lightning:
+                amount_msat = None if amount.msatsInt == 0 else amount.msatsInt
+                key = self.wallet.create_request(amount_msat=amount_msat, message=message, exp_delay=expiration)
+            else:
+                amount_sat = None if amount.satsInt == 0 else amount.satsInt
+                # GUI should not allow msat precision, but assert here to be sure
+                assert amount.satsInt * 1000 == amount.msatsInt, 'onchain createRequest should not have msat precision'
+                key = self.wallet.create_request(amount_sat=amount_sat, message=message, exp_delay=expiration, address=addr)
         except InvoiceError as e:
             self.requestCreateError.emit(_('Error creating payment request') + ':\n' + str(e))
             return
