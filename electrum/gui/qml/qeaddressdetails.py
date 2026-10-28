@@ -116,8 +116,12 @@ class QEAddressDetails(AuthMixin, QObject):
     @pyqtProperty(QETransactionListModel, notify=historyModelChanged)
     def historyModel(self):
         if self._historyModel is None:
-            self._historyModel = QETransactionListModel(self._wallet.wallet,
-                                                        onchain_domain=[self._address], include_lightning=False)
+            self._historyModel = QETransactionListModel(
+                self._wallet.wallet,
+                parent=self,
+                onchain_domain=[self._address],
+                include_lightning=False,
+            )
         return self._historyModel
 
     @pyqtSlot()
