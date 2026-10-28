@@ -9,6 +9,7 @@ TextHighlightPane {
     id: root
 
     property variant model
+    property bool allowClickAddress: true
     property int idx: -1
 
     property string _suffix: model.is_mine || model.is_change
@@ -81,6 +82,14 @@ TextHighlightPane {
                             ? constants.colorAddressAccounting
                             : Material.foreground
                 wrapMode: Text.WrapAnywhere
+                TapHandler {
+                    enabled: allowClickAddress && model.is_mine
+                    onTapped: {
+                        app.stack.push(Qt.resolvedUrl('../AddressDetails.qml'), {
+                            address: model.address
+                        })
+                    }
+                }
             }
         }
 
