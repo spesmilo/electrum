@@ -206,8 +206,6 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         if wallet == self.wallet:
             self._logger.debug(f'new transaction {tx.txid()}')
             self.add_tx_notification(tx)
-            if self._addressCoinModel is not None:  # only setDirty if it was already initialized
-                self._addressCoinModel.setDirty()
             self.historyModel.setDirty()  # assuming wallet.is_up_to_date triggers after
             if self.wallet.is_up_to_date():
                 # don't update during sync as this recomputes the balance on each new tx, blocking the UI thread.
@@ -226,8 +224,6 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         # is deleted along with multiple associated txs
         if wallet == self.wallet:
             self._logger.info(f'removed transaction {tx.txid()}')
-            if self._addressCoinModel is not None:
-                self._addressCoinModel.setDirty()
             self.historyModel.setDirty()
             self.balanceChanged.emit()
 

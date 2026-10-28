@@ -138,6 +138,16 @@ class QEAddressCoinListModel(QAbstractListModel, QtEventListener):
         if wallet == self.wallet:
             self.setDirty()
 
+    @qt_event_listener
+    def on_event_removed_transaction(self, wallet, tx):
+        if self.wallet == wallet:
+            self.setDirty()
+
+    @qt_event_listener
+    def on_event_new_transaction(self, wallet, tx):
+        if self.wallet == wallet:
+            self.setDirty()
+
     def rowCount(self, index):
         return len(self._items)
 
