@@ -808,6 +808,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     changed = True
         if changed:
             run_hook('set_label', self, name, text)
+            util.trigger_callback('label_changed', self, name, text)
         return changed
 
     def import_labels(self, path):

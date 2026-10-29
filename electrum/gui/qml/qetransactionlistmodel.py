@@ -89,6 +89,11 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
             self.initModel(True)  # TODO: be less dramatic
 
     @qt_event_listener
+    def on_event_label_changed(self, wallet: 'Abstract_Wallet', key: str, label: str | None):
+        if wallet == self.wallet:
+            self.updateTxLabel(key, label or '')
+
+    @qt_event_listener
     def on_event_new_transaction(self, wallet, tx):
         if wallet == self.wallet:
             self.setDirty()  # assuming wallet.is_up_to_date triggers after
