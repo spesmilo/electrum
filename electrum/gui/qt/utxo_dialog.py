@@ -77,13 +77,14 @@ class UTXODialog(WindowModalDialog):
         vbox.addLayout(legend_hbox)
         vbox.addLayout(Buttons(CloseButton(self)))
         self.setLayout(vbox)
+        self.parents = self.wallet.get_tx_parents(self.utxo.prevout.txid.hex())
         self.update()
         self.main_window.labels_changed_signal.connect(self.update)
 
     def update(self):
 
         txid = self.utxo.prevout.txid.hex()
-        parents = self.wallet.get_tx_parents(txid)
+        parents = self.parents
         num_parents = len(parents)
         parents_copy = dict(parents)
         cursor = self.parents_list.textCursor()
