@@ -7,6 +7,7 @@ from PyQt6.QtCore import Qt, QAbstractListModel, QModelIndex, QLocale
 from electrum.logging import get_logger
 from electrum.util import Satoshis, TxMinedInfo
 from electrum.address_synchronizer import TX_HEIGHT_FUTURE, TX_HEIGHT_LOCAL
+from electrum.invoices import PR_PAID
 
 from electrum.gui.common_qt.util import QtEventListener, qt_event_listener
 
@@ -86,6 +87,44 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
     def on_event_labels_received(self, wallet, labels):
         if wallet == self.wallet:
             self.initModel(True)  # TODO: be less dramatic
+
+    @qt_event_listener
+    def on_event_new_transaction(self, wallet, tx):
+        if wallet == self.wallet:
+            self.setDirty()  # assuming wallet.is_up_to_date triggers after
+
+    @qt_event_listener
+    def on_event_removed_transaction(self, wallet, tx):
+        if wallet == self.wallet:
+            self.setDirty()
+
+    @qt_event_listener
+    def on_event_adb_tx_height_changed(self, adb, txid, old_height, new_height):
+        if adb == self.wallet.adb:
+            self._logger.debug(f'tx_height_changed {txid}. {old_height} -> {new_height}')
+            self.setDirty()  # assuming wallet.is_up_to_date triggers after
+
+    @qt_event_listener
+    def on_event_wallet_updated(self, wallet):
+        if wallet == self.wallet:
+            if self.include_lightning:
+                self.setDirty()  # lightning history changes don't come with tx events, see #9856
+            if wallet.is_up_to_date():
+                self.initModel()  # refresh if dirty
+
+    @qt_event_listener
+    def on_event_payment_succeeded(self, wallet, key):
+        # only on include_lightning, as the payment_succeeded callback is lightning only
+        if wallet == self.wallet and self.include_lightning:
+            # TODO: we can probably just add the payment instead of recreating the whole history (expensive)
+            self.initModel(True)
+
+    @qt_event_listener
+    def on_event_request_status(self, wallet, key, status):
+        # only on include_lightning, as the new_transaction callback already handles on-chain
+        if wallet == self.wallet and status == PR_PAID and self.include_lightning:
+            # TODO: we can probably just add the payment instead of recreating the whole history (expensive)
+            self.initModel(True)
 
     def rowCount(self, index):
         return len(self.tx_history)
