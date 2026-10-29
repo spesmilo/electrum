@@ -3,9 +3,14 @@ from unittest.mock import patch
 
 from PyQt6.QtCore import Qt
 
+from electrum import SimpleConfig
+from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
+from electrum.fee_policy import FixedFeePolicy
 from electrum.gui.qml.qetransactionlistmodel import QETransactionListModel
+from electrum.transaction import PartialTxOutput, Transaction
+from electrum.util import TxMinedInfo
 
-from .. import ElectrumTestCase
+from .. import ElectrumTestCase, restore_wallet_from_text__for_unittest
 
 
 class TestQETransactionListModel(ElectrumTestCase):
@@ -110,3 +115,22 @@ class TestQETransactionListModel(ElectrumTestCase):
         result = f('unknown_section', test_date)
         self.assertEqual(result, '2023-06-15 14:30')
 
+    async def test_tx_verified_before_we_have_the_signed_tx(self):
+        # see #10098
+        config = SimpleConfig({'electrum_path': self.electrum_path})
+        wallet = restore_wallet_from_text__for_unittest(
+            'bitter grass shiver impose acquire brush forget axis eager alone wine silver', path=None, config=config)['wallet']
+        # one dummy input, one output of 100000 sat to the first receiving address
+        funding_tx = Transaction('020000000111111111111111111111111111111111111111111111111111111111111111110000000000fdffffff01a0860100000000001600148a28bddb7f61864bdcf58b2ad13d5aeb3abc3c4200000000')
+        wallet.adb.receive_tx_callback(funding_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+        # an unsigned tx saved as local, e.g. by the txbatcher
+        tx = wallet.make_unsigned_transaction(
+            outputs=[PartialTxOutput.from_address_and_value(wallet.get_receiving_addresses()[1], 50_000)],
+            fee_policy=FixedFeePolicy(1000))
+        wallet.adb.add_transaction(tx)
+        model = QETransactionListModel(wallet)
+        model.unregister_callbacks()  # we deliver the 'verified' event ourselves, below
+        # the signed tx got mined, and SPV finishes before we download it
+        wallet.adb.add_verified_tx(tx.txid(), TxMinedInfo(_height=100, conf=1, timestamp=1700000000, txpos=1, header_hash='00' * 32))
+        model.on_tx_verified(tx.txid(), wallet.adb.get_tx_height(tx.txid()))
+        self.assertEqual('local', model.tx_history[model._tx_positions[tx.txid()]]['section'])

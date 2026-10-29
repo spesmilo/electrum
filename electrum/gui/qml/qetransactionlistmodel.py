@@ -291,8 +291,12 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
         tx['height'] = info.height()
         tx['confirmations'] = info.conf
         tx['timestamp'] = info.timestamp
-        tx['section'] = self.get_section_by_timestamp(info.timestamp)
-        tx['date'] = self.format_date_by_section(tx['section'], datetime.fromtimestamp(info.timestamp))
+        if info.timestamp:
+            tx['section'] = self.get_section_by_timestamp(info.timestamp)
+            tx['date'] = self.format_date_by_section(tx['section'], datetime.fromtimestamp(info.timestamp))
+        else:  # SPV can finish before we have the signed tx; adb then reports it as local
+            tx['section'] = 'local' if info.is_local_like() else 'mempool'
+            _, tx['date'] = self.wallet.get_tx_status(txid, tx_mined_info=info)
         index = self.index(i, 0)
         roles = [self._ROLE_RMAP[x] for x in ['section', 'height', 'confirmations', 'timestamp', 'date']]
         self.dataChanged.emit(index, index, roles)
