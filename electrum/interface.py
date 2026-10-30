@@ -121,8 +121,8 @@ def assert_hash256_str(val: Any) -> None:
         raise RequestCorrupted(f'{val!r} should be a hash256 str')
 
 
-def assert_hex_str(val: Any) -> None:
-    if not is_hex_str(val):
+def assert_hex_str(val: Any, *, allow_odd_len: bool = False) -> None:
+    if not is_hex_str(val, allow_odd_len=allow_odd_len):
         raise RequestCorrupted(f'{val!r} should be a hex str')
 
 
