@@ -3395,5 +3395,11 @@ class Peer(Logger, EventListener):
         return processed_onion
 
     def on_onion_message(self, payload):
+        # TODO implement proper rate-limiting of onion messages.
+        #      ref https://delvingbitcoin.org/t/onion-message-jamming-in-the-lightning-network/2414/1
+        #      For now, for simplicity, we only process onion messages if payment-forwarding is enabled.
+        if not self.features.supports(LnFeatures.OPTION_ONION_MESSAGE_OPT):
+            return
+        assert self.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS
         if hasattr(self.lnworker, 'onion_message_manager'):  # only on LNWallet
             self.lnworker.onion_message_manager.on_onion_message(payload)
