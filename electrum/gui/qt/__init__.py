@@ -73,6 +73,7 @@ from electrum.util import (UserCancelled, profiler, send_exception_to_crash_repo
                            standardize_path, UserFacingException)
 from electrum.wallet import Wallet, Abstract_Wallet
 from electrum.wallet_db import WalletRequiresSplit, WalletRequiresUpgrade, WalletUnfinished
+from electrum.storage import StorageReadWriteError
 from electrum.gui import BaseElectrumGui
 from electrum.simple_config import SimpleConfig
 from electrum.wizard import WizardViewState
@@ -403,7 +404,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
             return None
 
         def __handle_wallet_loading_exc(exc: Exception, pos):
-            if isinstance(exc, UserFacingException) \
+            if isinstance(exc, (UserFacingException, StorageReadWriteError)) \
                     or isinstance(exc, WalletFileException) and not exc.should_report_crash:
                 self.logger.exception(f"{pos=}")
                 custom_message_box(icon=QMessageBox.Icon.Warning,
