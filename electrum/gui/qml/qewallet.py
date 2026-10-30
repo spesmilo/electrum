@@ -816,12 +816,6 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
         self.dataChanged.emit()
 
-    @pyqtSlot(str, result='QVariantList')
-    def getSerializedTx(self, txid):
-        tx = self.wallet.db.get_transaction(txid)
-        txqr = tx.to_qr_data()
-        return [str(tx), txqr[0], txqr[1]]
-
     @pyqtSlot(result='QVariantMap')
     def getBalancesForPiechart(self):
         p_bal = self.wallet.get_balances_for_piechart()

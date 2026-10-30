@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Layouts
 import QtMultimedia
 import QtQml
 
@@ -77,6 +78,26 @@ Item {
                     height: (parent.height - parent.width) / 2
                     anchors.bottom: parent.bottom
                     color: Qt.rgba(0,0,0,0.5)
+
+                    ColumnLayout {
+                        visible: qr.urInProgress
+                        anchors.centerIn: parent
+                        width: parent.width - 2 * constants.paddingXXLarge
+                        Label {
+                            Layout.fillWidth: true
+                            wrapMode: Text.Wrap
+                            horizontalAlignment: Text.AlignHCenter
+                            text: qsTr('Scanning animated QR code: %1 of %2 parts')
+                                .arg(qr.urPartsReceived).arg(qr.urPartsTotal)
+                            color: 'white'
+                        }
+                        ProgressBar {
+                            Layout.fillWidth: true
+                            from: 0
+                            to: qr.urPartsTotal
+                            value: qr.urPartsReceived
+                        }
+                    }
                 }
                 InfoTextArea {
                     visible: scanner.hint

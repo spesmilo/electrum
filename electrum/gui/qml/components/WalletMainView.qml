@@ -53,15 +53,9 @@ Item {
 
     function showExport(data, helptext) {
         var dialog = exportTxDialog.createObject(app, {
-            text: data[0],
-            text_qr: data[1],
+            psbt: data.psbt,
             text_help: helptext,
-            text_warn: data[2]
-                ? ''
-                : [qsTr('Warning: Some data (prev txs / "full utxos") was left out of the QR code as it would not fit.'),
-                   qsTr('This might cause issues if signing offline.'),
-                   qsTr('As a workaround, copy to clipboard or use the Share option instead.')].join(' '),
-            tx_label: data[3]
+            tx_label: data.label
         })
         dialog.open()
     }
