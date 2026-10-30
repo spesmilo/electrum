@@ -2081,7 +2081,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         try:
             seed = keystore.get_seed(password)
             passphrase = keystore.get_passphrase(password)
-        except BaseException as e:
+        except UserFacingException as e:
+            self.show_error(str(e))
+            return
+        except Exception as e:
             self.show_error(repr(e))
             return
         from .seed_dialog import SeedDialog

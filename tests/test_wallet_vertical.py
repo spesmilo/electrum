@@ -19,10 +19,11 @@ from electrum.wallet import (sweep, sweep_preparations, Multisig_Wallet, Standar
                              TxSighashRiskLevel, CannotDoubleSpendTx)
 from electrum.util import (
     bfh, NotEnoughFunds, UnrelatedTransactionException, UserFacingException, TxMinedInfo, InvalidTxSignature,
+    InvalidPassword,
 )
 from electrum.fee_policy import FixedFeePolicy
 from electrum.transaction import Transaction, PartialTxOutput, tx_from_any, Sighash
-from electrum.mnemonic import calc_seed_type
+from electrum.mnemonic import calc_seed_type, is_old_seed
 from electrum.network import Network
 
 from electrum.plugins.trustedcoin import trustedcoin
@@ -179,6 +180,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
         for seed_to_restore_from in (seed_words, seed_hex):
             with self.subTest(seed_to_restore_from=seed_to_restore_from):
                 self.assertEqual(calc_seed_type(seed_to_restore_from), 'old')
+                self.assertTrue(is_old_seed(seed_to_restore_from))
 
                 ks = keystore.from_seed(seed_to_restore_from, passphrase='', for_multisig=False)
 
@@ -195,6 +197,52 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
 
                 self.assertEqual(w.get_receiving_addresses()[0], '1FJEEB8ihPMbzs2SkLmr37dHyRFzakqUmo')
                 self.assertEqual(w.get_change_addresses()[0], '1KRW8pH6HFHZh889VDq6fEKvmrsmApwNfe')
+
+    async def test_electrum_seed_old_odd_length_hex(self):
+        """
+        "early given" is a technically invalid "old" electrum seed, which maps to 33 hex chars (ref #3149).
+        We never generated such seeds, however "old" seeds do not have a checksum, and some users
+        constructed their seed manually by hand-picking words. Not all selection of words conform to the expected rules,
+        so some hand-constructed old seeds are ~invalid, however we have grandfathered them in...
+        (The "bond decay curtain" word-triple decodes to 9 hex digits, instead of the expected 8)
+        """
+        seed_words = 'early given garden bond decay curtain companion random storm chair learn lust'
+        seed_hex = '976741d01001ab4b7a17d6ce83a1bca93'
+        self.assertEqual(calc_seed_type(seed_words), 'old')
+        self.assertTrue(is_old_seed(seed_words))
+        self.assertFalse(is_old_seed(seed_hex))  # normally the hex-seed we would also accept, but reject 33-len monsters
+
+        ks = keystore.from_seed(seed_words, passphrase='', for_multisig=False)
+
+        WalletIntegrityHelper.check_seeded_keystore_sanity(self, ks)
+        self.assertTrue(isinstance(ks, keystore.Old_KeyStore))
+
+        self.assertEqual(ks.mpk, '8ecdca16d021e997c2d01fc14d95de1ef4baf28ee2425e67646a769f45f2d8174ecf5e930b600b969dec9e0ceecc01e5cd2b7aea7d70bf2b37ee9a849f90254f')
+        self.assertEqual(ks.seed, seed_hex)
+        with self.assertRaises(UserFacingException):
+            ks.get_seed(password=None)
+
+        w = WalletIntegrityHelper.create_standard_wallet(ks, config=self.config)
+        self.assertEqual(w.txin_type, 'p2pkh')
+
+        self.assertEqual(w.get_receiving_addresses()[0], '1BjZwfcsFcS6NKiLTWZrSCb7AQTiNDtzgK')
+        self.assertEqual(w.get_change_addresses()[0], '14dEHoXTPk67jws7FtsVHfnhVpeonDdXRc')
+
+    async def test_electrum_seed_old_odd_length_hex_encrypted_keystore(self):
+        # keystore of the seed above, as stored by Electrum 4.2.1 with password "secret"
+        ks = keystore.Old_KeyStore({
+            'mpk': '8ecdca16d021e997c2d01fc14d95de1ef4baf28ee2425e67646a769f45f2d8174ecf5e930b600b969dec9e0ceecc01e5cd2b7aea7d70bf2b37ee9a849f90254f',
+            'pw_hash_version': 1,
+            'seed': 'oE+29vgAfW2fxsEeZywAp9nZRZ5+eiBTYwRAZwUL6F6wO1rfKRXai4b+83zupmeFqn8jCvBGJO2+WM+IkGvbfg==',
+            'seed_type': 'old',
+            'type': 'old',
+        })
+        with self.assertRaises(InvalidPassword):
+            ks.check_password(None)
+        ks.check_password('secret')
+        pk, compressed = ks.get_private_key((0, 0), 'secret')
+        self.assertEqual('p2pkh:5KT6sPpomFjbRtkgTH3p58trKTJ7NJ79mdmWzNoyWswkapLiiLH',
+                         bitcoin.serialize_privkey(pk, compressed, 'p2pkh'))
 
     async def test_electrum_seed_2fa_legacy_pre27_25words(self):
         # pre-version-2.7 2fa seed, containing 25 words
