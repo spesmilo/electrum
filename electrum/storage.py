@@ -77,7 +77,10 @@ class WalletStorage(Logger):
             raise StorageReadWriteError(e) from e
         if self.file_exists():
             with open(self.path, "rb") as f:
-                self.raw = f.read().decode("utf-8")
+                try:
+                    self.raw = f.read().decode("utf-8")
+                except UnicodeDecodeError as e:
+                    raise WalletFileException("Cannot read wallet file. (not an Electrum wallet file?)") from e
                 self.pos = f.seek(0, os.SEEK_END)
                 self.init_pos = self.pos
             self._encryption_version = self._init_encryption_version()

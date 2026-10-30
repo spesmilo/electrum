@@ -71,6 +71,12 @@ class TestWalletStorage(WalletTestCase):
         self.assertEqual("b", db.get("a"))
         self.assertEqual("d", db.get("c"))
 
+    def test_read_file_that_is_not_utf8(self):
+        with open(self.wallet_path, "wb") as f:
+            f.write(b"SQLite format 3\x00\xd8")
+        with self.assertRaises(util.WalletFileException):
+            WalletStorage(self.wallet_path)
+
     def test_write_dictionary_to_file(self):
 
         storage = WalletStorage(self.wallet_path)
