@@ -23,7 +23,7 @@ from electrum.lnutil import (LnFeatures, Keypair, MIN_FINAL_CLTV_DELTA_ACCEPTED,
                              MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE)
 from electrum.onion_message import (
     create_blinded_path, OnionMessageManager, NoRouteFound, Timeout,
-    create_route_to_introduction_point, get_blinded_paths_to_me, NoOnionMessagePeers, MAX_DUMMY_HOPS
+    create_route_to_introduction_point, get_blinded_paths_to_me, NoOnionMessagePeers
 )
 from electrum.util import bfh, read_json_file, OldTaskGroup, get_asyncio_loop
 from electrum.logging import console_stderr_handler
@@ -537,7 +537,7 @@ class TestOnionMessageManager(ElectrumTestCase):
     def _onion_message_to_dave_with_dummy_hops(self, dummy_hops: int) -> dict:
         session_key = os.urandom(32)
         blinded_path = create_blinded_path(
-            session_key, [self.dave.pubkey], {'path_id': {'data': b'dummy_hops_test'}}, dummy_hops=dummy_hops)
+            session_key, [self.dave.pubkey] * (dummy_hops + 1), {'path_id': {'data': b'dummy_hops_test'}})
         hops_data = []
         for i, hop in enumerate(blinded_path['path']):
             payload = {'encrypted_recipient_data': {'encrypted_recipient_data': hop['encrypted_recipient_data']}}
@@ -553,12 +553,12 @@ class TestOnionMessageManager(ElectrumTestCase):
         }
 
     async def test_receive_dummy_hops(self):
-        payload = self._onion_message_to_dave_with_dummy_hops(MAX_DUMMY_HOPS)
+        payload = self._onion_message_to_dave_with_dummy_hops(OnionMessageManager.MAX_DUMMY_HOPS)
         received = await self._receive_mutated_onion_message(lambda _: payload)
         self.assertEqual(1, len(received))
 
     async def test_receive_too_many_dummy_hops_is_dropped(self):
-        payload = self._onion_message_to_dave_with_dummy_hops(MAX_DUMMY_HOPS + 1)
+        payload = self._onion_message_to_dave_with_dummy_hops(OnionMessageManager.MAX_DUMMY_HOPS + 1)
         received = await self._receive_mutated_onion_message(lambda _: payload)
         self.assertEqual([], received)
 
