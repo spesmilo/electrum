@@ -22,12 +22,10 @@ jobs:
     name: "security review: Claude Code"
     runs-on: ubuntu-24.04
 
-    # - Auto-run only for maintainers (and their forks), via "pull_request_target" trigger.
-    # - Re external contributor PRs: the "workflow_dispatch" trigger (web UI, "Actions" tab) can be used manually.
-    #   So we can first review if their PR modifies the Python script this task calls
-    #   (they could attempt to exfiltrate the api key through the script). (see #10801)
-    #   - FIXME vulnerable to a TOCTOU race: attacker could force-push just after maintainer button click
-    #     so the workflow git pulling the PR HEAD is not safe.
+    # - Auto-run only for maintainers (and their forks), via pull_request_target.
+    # - For external contributors, a maintainer can dispatch this job manually.
+    # - All executable code and dependencies come from the trusted base commit.
+    #   The contributor's PR is fetched only as immutable diff data.
     if: |
       github.event_name == 'workflow_dispatch' ||
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association)
@@ -36,10 +34,12 @@ jobs:
       LD_LIBRARY_PATH: contrib/_saved_secp256k1_build/
       ELECTRUM_ECC_DONT_COMPILE: "1"
     steps:
-      - name: Checkout PR head
+      - name: Checkout trusted base commit
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
-          ref: refs/pull/${{ github.event.pull_request.number || inputs.pr_number }}/head
+          # Never execute the contributor's copy of the reviewer or install its dependencies.
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Setup Node

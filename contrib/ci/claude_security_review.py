@@ -59,27 +59,32 @@ def git(*args: str) -> str:
 
 
 def fetch_base_branch(base: str) -> None:
-    try:
-        git("fetch", "origin", base, "--depth=1")
-    except subprocess.CalledProcessError:
-        git("fetch", "origin", base)
-    # Shallow CI clones may lack the history needed for three-dot diff
-    # (merge-base computation). Unshallow if the merge-base is unreachable.
-    try:
-        git("merge-base", f"origin/{base}", "HEAD")
-    except subprocess.CalledProcessError:
-        try:
-            git("fetch", "--unshallow")
-        except subprocess.CalledProcessError:
-            pass  # already a full clone
+    # The trusted checkout uses fetch-depth: 0. Keep its full history:
+    # --depth=1 would make even that checkout shallow and could hide the
+    # merge-base with a PR branch that diverged before the current tip.
+    git("fetch", "origin", base)
 
 
-def get_pr_diff(base: str) -> str:
-    return git("diff", f"origin/{base}...HEAD")
+def fetch_pr_head(pr: str) -> str:
+    """Fetch a PR for data-only review, without checking out or executing its files."""
+    if not re.fullmatch(r"[1-9][0-9]*", pr):
+        raise ValueError("PR_NUMBER must be a positive decimal integer")
+
+    git("fetch", "origin", f"refs/pull/{pr}/head")
+    # Capture exactly one commit SHA. A later force-push cannot change the
+    # diff under review or substitute executable code into the base checkout.
+    head_sha = git("rev-parse", "FETCH_HEAD").strip()
+    if not re.fullmatch(r"[0-9a-f]{40}", head_sha):
+        raise ValueError("Could not resolve an immutable PR head commit")
+    return head_sha
 
 
-def get_commit_messages(base: str) -> str:
-    return git("log", f"origin/{base}..HEAD")
+def get_pr_diff(base: str, head_sha: str) -> str:
+    return git("diff", f"origin/{base}...{head_sha}")
+
+
+def get_commit_messages(base: str, head_sha: str) -> str:
+    return git("log", f"origin/{base}..{head_sha}")
 
 
 def changed_files_from_diff(diff: str) -> str:
@@ -111,7 +116,11 @@ def run_claude(user_prompt: str, system_prompt: str) -> tuple[str, list[str]] | 
     cmd = [
         "claude",
         "-p",
-        "--dangerously-skip-permissions",
+        # This is a diff-only review. Contributor-controlled text must not
+        # gain a command runner, filesystem tools or inherited MCP servers.
+        "--tools", "",
+        "--strict-mcp-config",
+        "--disable-slash-commands",
         "--model", CLAUDE_MODEL,
         "--effort", CLAUDE_EFFORT,
         "--output-format", "stream-json",
@@ -270,16 +279,18 @@ def main() -> int:
     base_branch = os.environ.get("BASE_BRANCH", "master").strip()
     print(f"PR #{pr} -> base branch: {base_branch}")
 
-    print("\nFetching base branch...")
+    print("\nFetching trusted base branch and immutable PR head...")
     try:
         fetch_base_branch(base_branch)
-    except subprocess.CalledProcessError as exc:
-        print(f"ERROR: git fetch failed: {exc}")
+        head_sha = fetch_pr_head(pr)
+    except (subprocess.CalledProcessError, ValueError) as exc:
+        print(f"ERROR: git fetch or PR validation failed: {exc}")
         return 2
 
+    print(f"Reviewing PR #{pr} at commit {head_sha}")
     print("Computing diff...")
     try:
-        diff = get_pr_diff(base_branch)
+        diff = get_pr_diff(base_branch, head_sha)
     except subprocess.CalledProcessError as exc:
         print(f"ERROR: git diff failed: {exc}")
         return 2
@@ -289,7 +300,7 @@ def main() -> int:
         return 0
 
     try:
-        commit_messages = get_commit_messages(base_branch)
+        commit_messages = get_commit_messages(base_branch, head_sha)
     except subprocess.CalledProcessError as exc:
         print(f"ERROR: git log failed: {exc}")
         return 2
