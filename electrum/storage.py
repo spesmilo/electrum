@@ -33,6 +33,7 @@ from typing import Optional
 import electrum_ecc as ecc
 
 from . import crypto
+from .i18n import _
 from .util import (profiler, InvalidPassword, WalletFileException, bfh, standardize_path,
                    test_read_write_permissions, os_chmod)
 
@@ -80,7 +81,7 @@ class WalletStorage(Logger):
                 try:
                     self.raw = f.read().decode("utf-8")
                 except UnicodeDecodeError as e:
-                    raise WalletFileException("Cannot read wallet file. (not an Electrum wallet file?)") from e
+                    raise WalletFileException(_("Cannot read wallet file. (not an Electrum wallet file?)")) from e
                 self.pos = f.seek(0, os.SEEK_END)
                 self.init_pos = self.pos
             self._encryption_version = self._init_encryption_version()

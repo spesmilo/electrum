@@ -4634,7 +4634,7 @@ class Wallet(object):
             return Multisig_Wallet
         if wallet_type in wallet_constructors:
             return wallet_constructors[wallet_type]
-        raise WalletFileException("Unknown wallet type: " + str(wallet_type))
+        raise WalletFileException(_("Unknown wallet type: {}").format(wallet_type))
 
 
 def create_new_wallet(

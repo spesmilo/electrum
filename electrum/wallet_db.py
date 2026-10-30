@@ -356,7 +356,7 @@ class WalletDBUpgrader(Logger):
                     d['seed'] = seed
                 self.put(key, d)
         else:
-            raise WalletFileException('Unable to tell wallet type. Is this even a wallet file?')
+            raise WalletFileException(_('Unable to tell wallet type. Is this even a wallet file?'))
         # remove junk
         self.put('master_public_key', None)
         self.put('master_public_keys', None)
