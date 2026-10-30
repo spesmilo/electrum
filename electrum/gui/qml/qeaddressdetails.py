@@ -3,13 +3,15 @@ from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QVariant
 from electrum.logging import get_logger
 from electrum.util import UserFacingException
 
+from electrum.gui.common_qt.util import QtEventListener, qt_event_listener
+
 from .auth import auth_protect, AuthMixin
 from .qetransactionlistmodel import QETransactionListModel
 from .qetypes import QEAmount
 from .qewallet import QEWallet
 
 
-class QEAddressDetails(AuthMixin, QObject):
+class QEAddressDetails(AuthMixin, QObject, QtEventListener):
     _logger = get_logger(__name__)
 
     detailsChanged = pyqtSignal()
@@ -33,6 +35,21 @@ class QEAddressDetails(AuthMixin, QObject):
         self._candelete = False
 
         self._historyModel = None
+
+        self.register_callbacks()
+        self.destroyed.connect(lambda: self.on_destroy())
+
+    def on_destroy(self):
+        self.unregister_callbacks()
+
+    @qt_event_listener
+    def on_event_label_changed(self, wallet, name, text):
+        if self._wallet and self._wallet.wallet == wallet and self._address == name:
+            if text is None:  # label cleared, fall back to derived label
+                text = wallet.get_label_for_address(self._address) or ''
+            if text != self._label:
+                self._label = text
+                self.labelChanged.emit()
 
     walletChanged = pyqtSignal()
     @pyqtProperty(QVariant, notify=walletChanged)

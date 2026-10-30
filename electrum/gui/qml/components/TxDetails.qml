@@ -15,9 +15,7 @@ Pane {
 
     property string txid
     property string rawtx
-    property alias label: txdetails.label
 
-    signal detailsChanged
     signal closed
 
     function close() {
@@ -496,7 +494,6 @@ Pane {
     TxDetails {
         id: txdetails
         wallet: Daemon.currentWallet
-        onLabelChanged: root.detailsChanged()
         onConfirmRemoveLocalTx: (message) => {
             var dialog = app.messageDialog.createObject(app, { text: message, yesno: true })
             dialog.accepted.connect(function() {

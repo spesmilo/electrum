@@ -13,9 +13,6 @@ Pane {
     height: parent.height
 
     property string key
-    property alias label: lnpaymentdetails.label
-
-    signal detailsChanged
 
     Flickable {
         anchors.fill: parent
@@ -216,7 +213,6 @@ Pane {
         id: lnpaymentdetails
         wallet: Daemon.currentWallet
         key: root.key
-        onLabelChanged: root.detailsChanged()
     }
 
 }

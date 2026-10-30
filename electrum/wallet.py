@@ -784,29 +784,31 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def is_deterministic(self) -> bool:
         return self.keystore.is_deterministic()
 
-    def _set_label(self, key: str, value: Optional[str]) -> None:
+    def _normalize_label(self, text):
+        return text.replace("\n", " ") if text else None
+
+    def _set_label(self, key: str, value: Optional[str]) -> bool:
+        """update label without triggering set_label hook"""
+        changed = False
+        if not key:
+            return False
+        value = self._normalize_label(value)
         with self.lock:
+            old = self._labels.get(key)
             if value is None:
-                self._labels.pop(key, None)
-            else:
+                if old is not None:
+                    self._labels.pop(key, None)
+                    changed = True
+            elif value != old:
                 self._labels[key] = value
+                changed = True
+        if changed:
+            util.trigger_callback('label_changed', self, key, value)
+        return changed
 
     def set_label(self, name: str, text: str | None = None) -> bool:
-        if not name:
-            return False
-        changed = False
-        with self.lock:
-            old_text = self._labels.get(name)
-            if text:
-                text = text.replace("\n", " ")
-                if old_text != text:
-                    self._labels[name] = text
-                    changed = True
-            else:
-                if old_text is not None:
-                    self._labels.pop(name)
-                    changed = True
-        if changed:
+        text = self._normalize_label(text)
+        if changed := self._set_label(name, text):
             run_hook('set_label', self, name, text)
         return changed
 
@@ -1741,7 +1743,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def get_label_for_address(self, addr: str) -> str:
         label = self._labels.get(addr) or ''
         if not label and (request := self.get_request_by_addr(addr)):
-            label = request.get_message()
+            label = request.get_message() or ''
         return label
 
     def set_default_label(self, key: str, value: str):
@@ -1794,6 +1796,18 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         #if not labels and self.lnworker and (label:= self.lnworker.get_label_for_txid(tx_hash)):
         #    labels.append(label)
         return ', '.join(labels)
+
+    def get_txids_with_label_derived_from(self, key: str) -> Set[str]:
+        """Returns the txids whose default label (see _get_default_label_for_txid)
+        can depend on the label of key, where key is an address or an outpoint.
+        """
+        if is_address(key):
+            return set(self.adb.get_address_history(key).keys())
+        if ':' in key:
+            txid, n = key.split(':', 1)
+            spender = self.db.get_spent_outpoint(txid, n)
+            return {txid, spender} if spender else {txid}
+        return set()
 
     def _get_default_label_for_rhash(self, rhash: str) -> str:
         req = self.get_request(rhash)
