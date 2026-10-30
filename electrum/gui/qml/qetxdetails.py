@@ -339,6 +339,7 @@ class QETxDetails(QObject, QtEventListener):
 
         self._inputs = list(map(lambda x: {
             'short_id': x.prevout.short_name(),
+            'prevout_txid': x.prevout.txid.hex() if self._wallet.wallet.db.get_transaction(x.prevout.txid.hex()) is not None else None,
             'value': x.value_sats(),
             'address': x.address,
             'is_mine': self._wallet.wallet.is_mine(x.address),

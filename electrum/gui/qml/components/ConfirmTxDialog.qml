@@ -240,7 +240,7 @@ ElDialog {
                         visible: finalizer.valid
                         backgroundColor: constants.darkerDialogBackground
 
-                        allowClickAddress: false
+                        allowClick: false
 
                         idx: index
                         model: modelData
