@@ -13,6 +13,7 @@ from electrum.gui.common_qt.util import QtEventListener, qt_event_listener
 
 from .qetypes import QEAmount
 
+
 if TYPE_CHECKING:
     from electrum.wallet import Abstract_Wallet
 
@@ -37,7 +38,7 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
         self.include_lightning = include_lightning
 
         self.tx_history: list[dict] = []
-        self._tx_positions: dict[str, int] = {}  # txid -> row index in tx_history
+        self._tx_positions: dict[str, int] = {}  # txid/payment_hash -> row index in tx_history
 
         self.register_callbacks()
         self.destroyed.connect(lambda: self.on_destroy())
@@ -84,14 +85,21 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
             self.dataChanged.emit(index, index, roles)
 
     @qt_event_listener
-    def on_event_labels_received(self, wallet, labels):
-        if wallet == self.wallet:
-            self.initModel(True)  # TODO: be less dramatic
-
-    @qt_event_listener
     def on_event_label_changed(self, wallet: 'Abstract_Wallet', key: str, label: str | None):
-        if wallet == self.wallet:
-            self.updateTxLabel(key, label or '')
+        if wallet != self.wallet:
+            return
+        if (i := self._tx_positions.get(key)) is None:
+            # not a row key, but rows may have a label derived from it (e.g. an address label)
+            for txid in self.wallet.get_txids_with_label_derived_from(key):
+                if txid in self._tx_positions:
+                    self.updateTxLabel(txid, self.wallet.get_label_for_txid(txid) or '')
+            return
+        if label is None:  # label cleared, fall back to derived label
+            if self.tx_history[i]['lightning']:
+                label = self.wallet.get_label_for_rhash(key)
+            else:
+                label = self.wallet.get_label_for_txid(key)
+        self.updateTxLabel(key, label or '')
 
     @qt_event_listener
     def on_event_new_transaction(self, wallet, tx):
@@ -273,15 +281,20 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
             onchain_domain=self.onchain_domain,
             include_lightning=self.include_lightning,
         )
-        txs = []
-        for key, tx in history.items():
-            txs.append(self.tx_to_model(tx))
 
         self.clear()
+
+        txs = []
+        for i, (key, tx) in enumerate(reversed(history.items())):
+            m = self.tx_to_model(tx)
+            txs.append(m)
+            if 'txid' in m:
+                self._tx_positions[m['txid']] = i
+            elif 'payment_hash' in m:
+                self._tx_positions[m['payment_hash']] = i
+
         self.beginInsertRows(QModelIndex(), 0, len(txs) - 1)
         self.tx_history = txs
-        self.tx_history.reverse()
-        self._tx_positions = {tx['txid']: i for i, tx in enumerate(self.tx_history) if 'txid' in tx}
         self.endInsertRows()
 
         self.countChanged.emit()
@@ -322,12 +335,14 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
 
     @pyqtSlot(str, str)
     def updateTxLabel(self, key, label):
-        for i, tx in enumerate(self.tx_history):
-            if tx['key'] == key:
-                tx['label'] = label
-                index = self.index(i, 0)
-                self.dataChanged.emit(index, index, [self._ROLE_RMAP['label']])
-                return
+        if (i := self._tx_positions.get(key)) is None:
+            return
+
+        tx = self.tx_history[i]
+        tx['label'] = label
+
+        index = self.index(i, 0)
+        self.dataChanged.emit(index, index, [self._ROLE_RMAP['label']])
 
     @pyqtSlot(int)
     def updateBlockchainHeight(self, height):
