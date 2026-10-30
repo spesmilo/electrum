@@ -195,6 +195,9 @@ android.manifest.intent_filters = contrib/android/bitcoin_intent.xml
 # (str) launchMode to set for the main activity
 android.manifest.launch_mode = singleTask
 
+# (str) File with extra arguments to add to the <application> tag of AndroidManifest.xml
+android.extra_manifest_application_arguments = contrib/android/extra_manifest_application_arguments.xml
+
 # (list) Android additional libraries to copy into libs/armeabi
 #android.add_libs_armeabi = lib/android/*.so
 
