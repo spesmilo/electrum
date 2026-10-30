@@ -180,6 +180,8 @@ ElDialog {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
 
+                        allowClick: false
+
                         idx: index
                         model: modelData
                     }
