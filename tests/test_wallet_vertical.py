@@ -23,7 +23,7 @@ from electrum.util import (
 )
 from electrum.fee_policy import FixedFeePolicy
 from electrum.transaction import Transaction, PartialTxOutput, tx_from_any, Sighash
-from electrum.mnemonic import calc_seed_type
+from electrum.mnemonic import calc_seed_type, is_old_seed
 from electrum.network import Network
 
 from electrum.plugins.trustedcoin import trustedcoin
@@ -180,6 +180,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
         for seed_to_restore_from in (seed_words, seed_hex):
             with self.subTest(seed_to_restore_from=seed_to_restore_from):
                 self.assertEqual(calc_seed_type(seed_to_restore_from), 'old')
+                self.assertTrue(is_old_seed(seed_to_restore_from))
 
                 ks = keystore.from_seed(seed_to_restore_from, passphrase='', for_multisig=False)
 
@@ -198,10 +199,18 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
                 self.assertEqual(w.get_change_addresses()[0], '1KRW8pH6HFHZh889VDq6fEKvmrsmApwNfe')
 
     async def test_electrum_seed_old_odd_length_hex(self):
-        # "bond decay curtain" decodes to 9 hex digits, see #11045. Expected values are from Electrum 4.2.1.
+        """
+        "early given" is a technically invalid "old" electrum seed, which maps to 33 hex chars (ref #3149).
+        We never generated such seeds, however "old" seeds do not have a checksum, and some users
+        constructed their seed manually by hand-picking words. Not all selection of words conform to the expected rules,
+        so some hand-constructed old seeds are ~invalid, however we have grandfathered them in...
+        (The "bond decay curtain" word-triple decodes to 9 hex digits, instead of the expected 8)
+        """
         seed_words = 'early given garden bond decay curtain companion random storm chair learn lust'
         seed_hex = '976741d01001ab4b7a17d6ce83a1bca93'
         self.assertEqual(calc_seed_type(seed_words), 'old')
+        self.assertTrue(is_old_seed(seed_words))
+        self.assertFalse(is_old_seed(seed_hex))  # normally the hex-seed we would also accept, but reject 33-len monsters
 
         ks = keystore.from_seed(seed_words, passphrase='', for_multisig=False)
 
