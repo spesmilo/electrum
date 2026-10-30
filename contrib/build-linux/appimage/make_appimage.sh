@@ -20,8 +20,8 @@ git -C "$PROJECT_ROOT" rev-parse 2>/dev/null || fail "Building outside a git clo
 export GCC_STRIP_BINARIES="1"
 
 # pinned versions
-PYTHON_VERSION=3.12.14
-PY_VER_MAJOR="3.12"  # as it appears in fs paths
+PYTHON_VERSION=3.14.10
+PY_VER_MAJOR="3.14"  # as it appears in fs paths
 PKG2APPIMAGE_COMMIT="a9c85b7e61a3a883f4a35c41c5decb5af88b6b5d"
 
 VERSION=$(git describe --tags --dirty --always)
@@ -44,7 +44,7 @@ verify_hash "$CACHEDIR/appimagetool" "46fdd785094c7f6e545b61afcfb0f3d98d8eab243f
 # appimagetool tags a new release (see https://github.com/AppImage/appimagetool/pull/47)
 
 download_if_not_exist "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tar.xz"
-verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "5c8462af5790baf43a321a1559dbe0db06d1be4300fb85fb53c40060668e548a"
+verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "de414a57119abef52784d8993e341d53aed635fc2b05c2607d9f98a2c5b72032"
 
 
 
@@ -92,8 +92,7 @@ cp -f "$DLL_TARGET_DIR"/libsecp256k1.so.* "$APPDIR/usr/lib/" || fail "Could not 
 if [ -f "$DLL_TARGET_DIR/libZXing.so" ]; then
     info "zxing-cpp already built, skipping"
 else
-    # Bullseye's default GCC lacks the required C++20 support.
-    CC=clang-16 CXX=clang++-16 "$CONTRIB"/make_zxing.sh || fail "Could not build zxing-cpp"
+    "$CONTRIB"/make_zxing.sh || fail "Could not build zxing-cpp"
 fi
 cp -f "$DLL_TARGET_DIR/libZXing.so" "$APPDIR/usr/lib/" || fail "Could not copy zxing-cpp to its destination"
 
