@@ -54,6 +54,10 @@ files = {
     "apk_x86_64": f"Electrum-{version_android}-x86_64-release.apk",
 }
 
+# Match the optional ARM artifact set used by release.sh.
+if os.environ.get("INCLUDE_MACOS_ARM64", "0") == "1":
+    files["mac_arm64"] = f"electrum-{version_mac}-arm64.dmg"
+
 # default signers
 signers = ['ThomasV', 'sombernight_releasekey']
 
