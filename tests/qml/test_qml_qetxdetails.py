@@ -9,6 +9,7 @@ from electrum.gui.qml.qewallet import QEWallet
 from electrum.transaction import PartialTxOutput, Transaction
 
 from .. import ElectrumTestCase, restore_wallet_from_text__for_unittest
+from .qt_util import create_qcoreapplication, delete_qobject
 
 
 class TestTxDetails(ElectrumTestCase):
@@ -19,6 +20,7 @@ class TestTxDetails(ElectrumTestCase):
         super().setUpClass()
         # free the QObjects (and the wallets they hold) before other tests check for lingering wallets
         cls.addClassCleanup(gc.collect)
+        create_qcoreapplication(cls)
 
     def _create_wallet_and_unsigned_tx_with_legacy_input(self, config):
         wallet = restore_wallet_from_text__for_unittest(
@@ -43,8 +45,10 @@ class TestTxDetails(ElectrumTestCase):
         wallet, tx = self._create_wallet_and_unsigned_tx_with_legacy_input(config)
 
         qewallet = QEWallet(wallet)
+        self.addCleanup(delete_qobject, qewallet)
         self.addCleanup(qewallet.unregister_callbacks)
         txdetails = QETxDetails()
+        self.addCleanup(delete_qobject, txdetails)
         self.addCleanup(txdetails.unregister_callbacks)
         txdetails.wallet = qewallet
         txdetails.rawtx = tx.serialize()
