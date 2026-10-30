@@ -103,6 +103,7 @@ class ToyServerTestCase(ElectrumTestCase):
             wallet.start_network(instance.network)
         wallet.basename = lambda: name  # for objects created later on, e.g. peers
         wallet.txbatcher.SLEEP_INTERVAL *= self.TIME_STEP
+        wallet.txbatcher.BROADCAST_RETRY_DELAY *= self.TIME_STEP
         instance.wallets.append(wallet)
         return wallet
 
