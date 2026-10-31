@@ -16,6 +16,7 @@ ElDialog {
     property bool confirmPassword: false
     property string infotext
     property string errorMessage
+    readonly property int minimumPasswordLength: 6
 
     signal passwordEntered(string password)
 
@@ -81,9 +82,19 @@ ElDialog {
             Label {
                 Layout.maximumWidth: parent.width
                 Layout.alignment: Qt.AlignHCenter
-                text: errorMessage
+                text: {
+                    if (errorMessage)
+                        return errorMessage
+                    if (!confirmPassword)
+                        return ''
+                    if (pw_1.text.length > 0 && pw_1.text.length < minimumPasswordLength)
+                        return qsTr('Password must be at least %1 characters.').arg(minimumPasswordLength)
+                    if (pw_2.text.length > 0 && pw_1.text !== pw_2.text)
+                        return qsTr("Passwords don't match")
+                    return ''
+                }
                 wrapMode: Text.Wrap
-                visible: errorMessage
+                visible: text !== ''
                 color: constants.colorError
                 font.pixelSize: constants.fontSizeLarge
             }
@@ -96,7 +107,9 @@ ElDialog {
                 Layout.fillWidth: true
                 text: qsTr("Ok")
                 icon.source: '../../icons/confirmed.png'
-                enabled: confirmPassword ? pw_1.text.length >= 6 && pw_1.text == pw_2.text : true
+                enabled: confirmPassword
+                    ? pw_1.text.length >= minimumPasswordLength && pw_1.text == pw_2.text
+                    : true
                 onClicked: {
                     passwordEntered(pw_1.text)
                 }
