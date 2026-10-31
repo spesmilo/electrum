@@ -5,7 +5,7 @@ import QtQuick.Controls
 import "../controls"
 
 WizardComponent {
-    valid: true
+    valid: pc.valid
     title: qsTr('Proxy')
 
     function apply() {
@@ -20,6 +20,10 @@ WizardComponent {
             id: pc
             Layout.fillWidth: true
             proxy_enabled: false
+
+            Component.onCompleted: {
+                pc.doh_endpoint = Network.proxy['doh_endpoint']
+            }
         }
     }
 }
