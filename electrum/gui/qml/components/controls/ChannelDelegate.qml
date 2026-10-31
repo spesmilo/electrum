@@ -94,12 +94,13 @@ ItemDelegate {
             }
 
             Label {
-                text: Config.formatSats(model.capacity)
+                text: Config.formatSats(model.capacity, false, Config.hideAmounts)
                 font.family: FixedFont
                 color: _closed ? constants.mutedForeground : Material.foreground
             }
 
             Label {
+                visible: !Config.hideAmounts
                 text: Config.baseUnit
                 color: _closed ? constants.mutedForeground : Material.accentColor
             }
