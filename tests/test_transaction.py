@@ -943,6 +943,14 @@ class TestSighashTypes(ElectrumTestCase):
     txout1 = PartialTxOutput(scriptpubkey=bfh('76a914389ffce9cd9ae88dcc0631e88a821ffdbe9bfe2688ac'), value=900000000)
     txout2 = PartialTxOutput(scriptpubkey=bfh('76a9147480a33f950689af511e6e84c138dbbd3c3ee41588ac'), value=87000000)
 
+    def _assert_sig_verifies(self, tx: PartialTransaction, privkey: bytes, sig: str):
+        pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
+        self.assertTrue(tx.verify_sig_for_txin(txin_index=0, pubkey_bytes=pubkey, sig=bfh(sig)))
+        # the sighash byte is signed too: the same signature with another sighash is invalid
+        other_sighash = Sighash.NONE if bfh(sig)[-1] == Sighash.ALL else Sighash.ALL
+        bad_sig = bfh(sig)[:-1] + bytes([other_sighash])
+        self.assertFalse(tx.verify_sig_for_txin(txin_index=0, pubkey_bytes=pubkey, sig=bad_sig))
+
     def test_check_sighash_types_sighash_all(self):
         self.txin.sighash=Sighash.ALL
         privkey = bfh('730fff80e1413068a05b57d6a58261f07551163369787f349438ea38ca80fac6')
@@ -950,6 +958,7 @@ class TestSighashTypes(ElectrumTestCase):
         sig = tx.sign_txin(0,privkey)
         self.assertEqual('304402206ac44d672dac41f9b00e28f4df20c52eeb087207e8d758d76d92c6fab3b73e2b0220367750dbbe19290069cba53d096f44530e4f98acaa594810388cf7409a1870ce01',
                         sig)
+        self._assert_sig_verifies(tx, privkey, sig)
 
     def test_check_sighash_types_sighash_none(self):
         self.txin.sighash=Sighash.NONE
@@ -958,6 +967,7 @@ class TestSighashTypes(ElectrumTestCase):
         sig = tx.sign_txin(0,privkey)
         self.assertEqual('3044022068c7946a43232757cbdf9176f009a928e1cd9a1a8c212f15c1e11ac9f2925d9002205b75f937ff2f9f3c1246e547e54f62e027f64eefa2695578cc6432cdabce271502',
                         sig)
+        self._assert_sig_verifies(tx, privkey, sig)
 
     def test_check_sighash_types_sighash_single(self):
         self.txin.sighash=Sighash.SINGLE
@@ -966,6 +976,7 @@ class TestSighashTypes(ElectrumTestCase):
         sig = tx.sign_txin(0,privkey)
         self.assertEqual('3044022059ebf56d98010a932cf8ecfec54c48e6139ed6adb0728c09cbe1e4fa0915302e022007cd986c8fa870ff5d2b3a89139c9fe7e499259875357e20fcbb15571c76795403',
                         sig)
+        self._assert_sig_verifies(tx, privkey, sig)
 
     @disable_ecdsa_r_value_grinding
     def test_check_sighash_types_sighash_all_anyonecanpay(self):
@@ -975,6 +986,7 @@ class TestSighashTypes(ElectrumTestCase):
         sig = tx.sign_txin(0,privkey)
         self.assertEqual('3045022100fbefd94bd0a488d50b79102b5dad4ab6ced30c4069f1eaa69a4b5a763414067e02203156c6a5c9cf88f91265f5a942e96213afae16d83321c8b31bb342142a14d16381',
                          sig)
+        self._assert_sig_verifies(tx, privkey, sig)
 
     @disable_ecdsa_r_value_grinding
     def test_check_sighash_types_sighash_none_anyonecanpay(self):
@@ -984,6 +996,7 @@ class TestSighashTypes(ElectrumTestCase):
         sig = tx.sign_txin(0,privkey)
         self.assertEqual('3045022100a5263ea0553ba89221984bd7f0b13613db16e7a70c549a86de0cc0444141a407022005c360ef0ae5a5d4f9f2f87a56c1546cc8268cab08c73501d6b3be2e1e1a8a0882',
                          sig)
+        self._assert_sig_verifies(tx, privkey, sig)
 
     def test_check_sighash_types_sighash_single_anyonecanpay(self):
         self.txin.sighash=Sighash.SINGLE|Sighash.ANYONECANPAY
@@ -992,3 +1005,4 @@ class TestSighashTypes(ElectrumTestCase):
         sig = tx.sign_txin(0,privkey)
         self.assertEqual('30440220525406a1482936d5a21888260dc165497a90a15669636d8edca6b9fe490d309c022032af0c646a34a44d1f4576bf6a4a74b67940f8faa84c7df9abe12a01a11e2b4783',
                          sig)
+        self._assert_sig_verifies(tx, privkey, sig)

@@ -2086,13 +2086,15 @@ class PartialTransaction(Transaction):
         self.invalidate_ser_cache()
 
     def serialize_preimage(self, txin_index: int, *,
+                           sighash: Optional[int] = None,
                            bip143_shared_txdigest_fields: BIP143SharedTxDigestFields = None) -> str:
         nVersion = int_to_hex(self.version, 4)
         nLocktime = int_to_hex(self.locktime, 4)
         inputs = self.inputs()
         outputs = self.outputs()
         txin = inputs[txin_index]
-        sighash = txin.sighash if txin.sighash is not None else Sighash.ALL
+        if sighash is None:
+            sighash = txin.sighash if txin.sighash is not None else Sighash.ALL
         if not Sighash.is_valid(sighash):
             raise Exception(f"SIGHASH_FLAG ({sighash}) not supported!")
         nHashType = int_to_hex(sighash, 4)
@@ -2156,6 +2158,24 @@ class PartialTransaction(Transaction):
         sig = privkey.sign_transaction(pre_hash)
         sig = sig.hex() + Sighash.to_sigbytes(sighash).hex()
         return sig
+
+    def verify_sig_for_txin(
+            self,
+            *,
+            txin_index: int,
+            pubkey_bytes: bytes,
+            sig: bytes,
+            bip143_shared_txdigest_fields: BIP143SharedTxDigestFields = None,
+    ) -> bool:
+        """Returns whether sig is a valid signature by pubkey_bytes for the input at txin_index.
+        sig is a DER-encoded ECDSA signature followed by the sighash byte.
+        """
+        der_sig, sighash = sig[:-1], sig[-1]
+        pre_hash = sha256d(bfh(self.serialize_preimage(
+            txin_index, sighash=sighash, bip143_shared_txdigest_fields=bip143_shared_txdigest_fields)))
+        pubkey = ecc.ECPubkey(pubkey_bytes)
+        sig_string = ecc.sig_string_from_der_sig(der_sig)
+        return pubkey.verify_message_hash(sig_string, pre_hash)
 
     def is_complete(self) -> bool:
         return all([txin.is_complete() for txin in self.inputs()])
