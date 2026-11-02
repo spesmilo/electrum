@@ -670,8 +670,10 @@ class AddressSynchronizer(Logger, EventListener):
         else:
             with self.lock:
                 if tx_height > 0:
+                    self.unconfirmed_tx.pop(tx_hash, None)
                     self.unverified_tx[tx_hash] = tx_height
                 else:
+                    self.unverified_tx.pop(tx_hash, None)
                     self.unconfirmed_tx[tx_hash] = tx_height
 
     def remove_unverified_tx(self, tx_hash: str, tx_height: int) -> None:
