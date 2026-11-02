@@ -1790,6 +1790,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         'new_fee_rate' is the target min rate in sat/vbyte
         'coins' is a list of UTXOs we can choose from as potential new inputs to be added
         """
+        raise CannotBumpFee(_('RBF is disabled in this version of Electrum, see CVE-2026-117601'))
         txid = txid or tx.txid()
         assert txid
         assert tx.txid() in (None, txid)
