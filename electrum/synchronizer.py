@@ -143,9 +143,11 @@ class Synchronizer(SynchronizerBase):
     def _reset(self):
         super()._reset()
         self._init_done = False
-        self.requested_tx = {}
+        self.requested_tx = set()  # type: Set[str]
         self.requested_histories = set()
         self._stale_histories = dict()  # type: Dict[str, asyncio.Task]
+        # held txs were received from the previous server
+        self.adb.clear_held_txs()
 
     def diagnostic_name(self):
         return self.adb.diagnostic_name()
@@ -208,14 +210,17 @@ class Synchronizer(SynchronizerBase):
     async def _request_missing_txs(self, hist, *, allow_server_not_finding_tx=False):
         # "hist" is a list of [tx_hash, tx_height] lists
         transaction_hashes = []
-        for tx_hash, tx_height in hist:
+        for tx_hash, _tx_height in hist:
             if tx_hash in self.requested_tx:
                 continue
             tx = self.adb.db.get_transaction(tx_hash)
             if tx and not isinstance(tx, PartialTransaction):
                 continue  # already have complete tx
+            if self.adb.is_held_tx(tx_hash):
+                continue  # added once verified
             transaction_hashes.append(tx_hash)
-            self.requested_tx[tx_hash] = tx_height
+            # note: tx_height might change by the time we get the raw_tx
+            self.requested_tx.add(tx_hash)
 
         if not transaction_hashes: return
         async with OldTaskGroup() as group:
@@ -230,7 +235,7 @@ class Synchronizer(SynchronizerBase):
         except RPCError as e:
             # most likely, "No such mempool or blockchain transaction"
             if allow_server_not_finding_tx:
-                self.requested_tx.pop(tx_hash)
+                self.requested_tx.remove(tx_hash)
                 return
             else:
                 raise
@@ -239,9 +244,9 @@ class Synchronizer(SynchronizerBase):
         tx = Transaction(raw_tx)
         if tx_hash != tx.txid():
             raise SynchronizerFailure(f"received tx does not match expected txid ({tx_hash} != {tx.txid()})")
-        tx_height = self.requested_tx.pop(tx_hash)
-        self.adb.receive_tx_callback(tx, tx_height)
-        self.logger.info(f"received tx {tx_hash} height: {tx_height} bytes: {len(raw_tx)}")
+        self.requested_tx.remove(tx_hash)
+        self.adb.receive_tx_callback(tx)
+        self.logger.info(f"received tx {tx_hash}. bytes: {len(raw_tx)}")
 
     async def main(self):
         self.adb.up_to_date_changed()

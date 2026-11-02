@@ -350,15 +350,17 @@ class TxInput:
             d['witness'] = self.witness.hex()
         return d
 
-    def serialize_to_network(self, *, script_sig: bytes = None) -> bytes:
+    def serialize_to_network(self, *, script_sig: bytes = None, nsequence: int = None) -> bytes:
         if script_sig is None:
             script_sig = self.script_sig
+        if nsequence is None:
+            nsequence = self.nsequence
         # Prev hash and index
         s = self.prevout.serialize_to_network()
         # Script length, script, sequence
         s += bytes.fromhex(var_int(len(script_sig)))
         s += script_sig
-        s += bytes.fromhex(int_to_hex(self.nsequence, 4))
+        s += bytes.fromhex(int_to_hex(nsequence, 4))
         return s
 
     def witness_elements(self) -> Sequence[bytes]:
@@ -2086,14 +2088,19 @@ class PartialTransaction(Transaction):
         self.invalidate_ser_cache()
 
     def serialize_preimage(self, txin_index: int, *,
-                           bip143_shared_txdigest_fields: BIP143SharedTxDigestFields = None) -> str:
+                           sighash: Optional[int] = None,
+                           bip143_shared_txdigest_fields: BIP143SharedTxDigestFields = None,
+                           strict: bool = True,  # enforce policy/standardness
+                           ) -> str:
         nVersion = int_to_hex(self.version, 4)
         nLocktime = int_to_hex(self.locktime, 4)
         inputs = self.inputs()
         outputs = self.outputs()
         txin = inputs[txin_index]
-        sighash = txin.sighash if txin.sighash is not None else Sighash.ALL
-        if not Sighash.is_valid(sighash):
+        if sighash is None:
+            sighash = txin.sighash if txin.sighash is not None else Sighash.ALL
+        if strict and not Sighash.is_valid(sighash):
+            # Undefined sighashes for legacy and segwit are non-standard but consensus-valid.
             raise Exception(f"SIGHASH_FLAG ({sighash}) not supported!")
         nHashType = int_to_hex(sighash, 4)
         preimage_script = self.get_preimage_script(txin)
@@ -2119,12 +2126,28 @@ class PartialTransaction(Transaction):
             amount = int_to_hex(txin.value_sats(), 8)
             nSequence = int_to_hex(txin.nsequence, 4)
             preimage = nVersion + hashPrevouts + hashSequence + outpoint + scriptCode + amount + nSequence + hashOutputs + nLocktime + nHashType
-        else:
-            if sighash != Sighash.ALL:
-                raise Exception(f"SIGHASH_FLAG ({sighash}) not supported! (for legacy sighash)")
-            txins = var_int(len(inputs)) + ''.join(txin.serialize_to_network(script_sig=bfh(preimage_script) if txin_index==k else b"").hex()
-                                                   for k, txin in enumerate(inputs))
-            txouts = var_int(len(outputs)) + ''.join(o.serialize_to_network().hex() for o in outputs)
+        else:  # legacy sighash (pre-segwit)
+            # see https://github.com/bitcoin/bitcoin/blob/f86c614e69256b9814c27b0dd096ee46daa71aa3/src/script/interpreter.cpp#L1338
+            base_sighash = sighash & 0x1f
+            if base_sighash == Sighash.SINGLE and txin_index >= len(outputs):
+                raise Exception("Using SIGHASH_SINGLE without a corresponding output")
+            def serialize_txin(k: int, txin_k: TxInput) -> str:
+                if k == txin_index:
+                    return txin_k.serialize_to_network(script_sig=bfh(preimage_script)).hex()
+                else:
+                    nsequence = 0 if base_sighash in (Sighash.NONE, Sighash.SINGLE) else txin_k.nsequence
+                    return txin_k.serialize_to_network(script_sig=b"", nsequence=nsequence).hex()
+            if sighash & Sighash.ANYONECANPAY:
+                txins = var_int(1) + serialize_txin(txin_index, txin)
+            else:
+                txins = var_int(len(inputs)) + ''.join(serialize_txin(k, txin_k) for k, txin_k in enumerate(inputs))
+            if base_sighash == Sighash.NONE:
+                txouts = var_int(0)
+            elif base_sighash == Sighash.SINGLE:
+                blank_txout = int_to_hex(2**64 - 1, 8) + var_int(0)
+                txouts = var_int(txin_index + 1) + blank_txout * txin_index + outputs[txin_index].serialize_to_network().hex()
+            else:
+                txouts = var_int(len(outputs)) + ''.join(o.serialize_to_network().hex() for o in outputs)
             preimage = nVersion + txins + txouts + nLocktime + nHashType
         return preimage
 
@@ -2156,6 +2179,30 @@ class PartialTransaction(Transaction):
         sig = privkey.sign_transaction(pre_hash)
         sig = sig.hex() + Sighash.to_sigbytes(sighash).hex()
         return sig
+
+    def verify_sig_for_txin(
+            self,
+            *,
+            txin_index: int,
+            pubkey_bytes: bytes,
+            sig: bytes,
+            bip143_shared_txdigest_fields: BIP143SharedTxDigestFields = None,
+            strict: bool = True,  # enforce policy/standardness
+    ) -> bool:
+        """Returns whether sig is a valid signature by pubkey_bytes for the input at txin_index.
+        sig is a DER-encoded ECDSA signature followed by the sighash byte.
+        """
+        txin = self.inputs()[txin_index]
+        der_sig, sighash = sig[:-1], sig[-1]
+        if not txin.is_segwit() and sighash & 0x1f == Sighash.SINGLE and txin_index >= len(self.outputs()):
+            msg_hash = (1).to_bytes(32, byteorder="little")  # legacy consensus quirk
+        else:
+            msg_hash = sha256d(bfh(self.serialize_preimage(
+                txin_index, sighash=sighash, bip143_shared_txdigest_fields=bip143_shared_txdigest_fields,
+                strict=strict)))
+        pubkey = ecc.ECPubkey(pubkey_bytes)
+        sig_string = ecc.sig_string_from_der_sig(der_sig)
+        return pubkey.verify_message_hash(sig_string, msg_hash)
 
     def is_complete(self) -> bool:
         return all([txin.is_complete() for txin in self.inputs()])

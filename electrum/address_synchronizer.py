@@ -25,12 +25,14 @@ import asyncio
 import threading
 import itertools
 from collections import defaultdict
-from typing import TYPE_CHECKING, Dict, Optional, Set, Tuple, NamedTuple, Sequence, List
+from typing import TYPE_CHECKING, Dict, Optional, Set, Tuple, NamedTuple, Sequence, List, Callable, Iterable
 
 from .crypto import sha256
 from . import bitcoin, util
 from .bitcoin import COINBASE_MATURITY
-from .util import profiler, bfh, TxMinedInfo, UnrelatedTransactionException, with_lock, OldTaskGroup
+from .util import (
+    profiler, bfh, TxMinedInfo, UnrelatedTransactionException, InvalidTxSignature, with_lock, OldTaskGroup,
+)
 from .transaction import Transaction, TxOutput, TxInput, PartialTxInput, TxOutpoint, PartialTransaction
 from .synchronizer import Synchronizer
 from .verifier import SPV
@@ -70,7 +72,11 @@ class AddressSynchronizer(Logger, EventListener):
     synchronizer: Optional['Synchronizer']
     verifier: Optional['SPV']
 
-    def __init__(self, db: 'WalletDB', config: 'SimpleConfig', *, name: str = None):
+    def __init__(
+            self, db: 'WalletDB', config: 'SimpleConfig', *,
+            verify_txins: Optional[Callable[[Transaction, Dict[int, Transaction]], bool]],
+            name: str = None,
+    ):
         self.db = db
         self.config = config
         self.name = name
@@ -82,9 +88,13 @@ class AddressSynchronizer(Logger, EventListener):
         # locks: if you need to take multiple ones, acquire them in the order they are defined here!
         self.lock = threading.RLock()
         self.transaction_lock = threading.RLock()
+        # (tx, {txin_idx: prev_tx}) -> whether these txins are validly signed
+        self.verify_txins = None  # type: Optional[Callable[[Transaction, Dict[int, Transaction]], bool]]
         self.future_tx = {}  # type: Dict[str, int]  # txid -> wanted (abs) height
         # Txs the server claims are mined but still pending verification:
         self.unverified_tx = defaultdict(int)  # type: Dict[str, int]  # txid -> height. Access with self.lock.
+        # Txs received from the server that it claims are mined, held until verified:
+        self._held_txs = {}  # type: Dict[str, Transaction]  # txid -> tx. Access with self.lock.
         # Txs the server claims are in the mempool:
         self.unconfirmed_tx = defaultdict(int)  # type: Dict[str, int]  # txid -> height. Access with self.lock.
         # thread local storage for caching stuff
@@ -93,6 +103,8 @@ class AddressSynchronizer(Logger, EventListener):
         self._get_balance_cache = {}
 
         self.load_and_cleanup()
+        # set after load_and_cleanup, as the wallet is not fully constructed yet
+        self.verify_txins = verify_txins
 
     def diagnostic_name(self):
         return self.name or ""
@@ -292,6 +304,14 @@ class AddressSynchronizer(Logger, EventListener):
                 is_for_me = any([self.is_mine(txo.address) for txo in tx.outputs()])
                 if not is_mine and not is_for_me:
                     raise UnrelatedTransactionException()
+            # check signatures of inputs spending our coins
+            stored_tx = self.db.get_transaction(tx_hash)
+            is_new_witness = stored_tx is None or isinstance(stored_tx, PartialTransaction)
+            checked_tx = tx if is_new_witness else stored_tx  # db keeps a complete tx
+            if not self._are_new_inputs_valid(checked_tx, range(len(tx.inputs())), is_new_witness=is_new_witness):
+                if not is_new_witness:
+                    self.remove_transaction(tx_hash)
+                raise InvalidTxSignature()
             # Find all conflicting transactions.
             # In case of a conflict,
             #     1. confirmed > mempool > local
@@ -350,6 +370,13 @@ class AddressSynchronizer(Logger, EventListener):
                     # give v to txi that spends me
                     next_tx = self.db.get_spent_outpoint(tx_hash, n)
                     if next_tx is not None:
+                        spender_tx = self.db.get_transaction(next_tx)
+                        txin_idx = spender_tx.get_input_idx_that_spent_prevout(TxOutpoint.from_str(ser)) if spender_tx else None
+                        if txin_idx is not None and not self._are_new_inputs_valid(
+                                spender_tx, [txin_idx], prev_tx=tx, is_new_witness=False):
+                            self.logger.warning(f"removing tx with invalid signature: {next_tx}")
+                            self.remove_transaction(next_tx)
+                            continue
                         self.db.add_txi_addr(next_tx, addr, ser, v)
                         self._add_tx_to_local_history(next_tx)
             # add to local history
@@ -360,6 +387,33 @@ class AddressSynchronizer(Logger, EventListener):
             if is_new:
                 util.trigger_callback('adb_added_tx', self, tx_hash, tx)
             return True
+
+    def _are_new_inputs_valid(
+            self, tx: Transaction, txin_idxs: Iterable[int], *, prev_tx: Transaction = None, is_new_witness: bool,
+    ) -> bool:
+        """Checks the signatures of txins spending our coins.
+        If is_new_witness (tx will replace the stored one), txins already linked to our coins are checked too."""
+        if self.verify_txins is None or not tx.is_complete():
+            return True
+        if isinstance(tx, PartialTransaction):
+            tx = Transaction(tx.serialize())  # input addresses from our db, not from the psbt
+        if self.db.is_in_verified_tx(tx.txid()):
+            return True  # mined
+        prev_txs = {}
+        for txin_idx in txin_idxs:
+            txin = tx.inputs()[txin_idx]
+            if txin.is_coinbase_input():
+                continue
+            addr = self.get_txin_address(txin)
+            if not self.is_mine(addr):
+                continue
+            txin_prev_tx = prev_tx or self.db.get_transaction(txin.prevout.txid.hex())
+            if txin_prev_tx is None:
+                continue  # checked when prev_tx is added
+            if not is_new_witness and txin.prevout.to_str() in dict(self.db.get_txi_addr(tx.txid(), addr)):
+                continue
+            prev_txs[txin_idx] = txin_prev_tx
+        return not prev_txs or self.verify_txins(tx, prev_txs)
 
     def remove_transaction(self, tx_hash: str) -> None:
         """Removes a transaction AND all its dependents/children
@@ -422,10 +476,18 @@ class AddressSynchronizer(Logger, EventListener):
                 children |= self.get_depending_transactions(other_hash)
             return children
 
-    def receive_tx_callback(self, tx: Transaction, tx_height: int) -> None:
+    @with_lock
+    def receive_tx_callback(self, tx: Transaction, tx_height: Optional[int] = None) -> None:
         txid = tx.txid()
         assert txid is not None
-        self.add_unverified_or_unconfirmed_tx(txid, tx_height)
+        if tx_height is not None:
+            # note: tx_height is only set by the unit tests: to inject a tx into the history
+            self.add_unverified_or_unconfirmed_tx(txid, tx_height)
+        elif txid in self.unverified_tx:
+            # the server claims tx is mined: add it once verified, so that its signatures need not be checked
+            self._held_txs[txid] = tx
+            return
+        self._held_txs.pop(txid, None)
         self.add_transaction(tx, allow_unrelated=True)
 
     def receive_history_callback(self, addr: str, hist, tx_fees: Dict[str, int]):
@@ -448,7 +510,13 @@ class AddressSynchronizer(Logger, EventListener):
             tx = self.db.get_transaction(tx_hash)
             if tx is None:
                 continue
-            self.add_transaction(tx, allow_unrelated=True, is_new=False)
+            try:
+                self.add_transaction(tx, allow_unrelated=True, is_new=False)
+            except InvalidTxSignature:
+                # do not disconnect here, because the invalid tx may have been sent by another server.
+                # _request_missing_txs will ask the current server for it
+                self.logger.warning(f"removed tx with invalid signature: {tx_hash}")
+                continue
             # if we already had this tx, see if its height changed (e.g. local->unconfirmed)
             old_height = old_hist.get(tx_hash, None)
             if old_height is not None and old_height != tx_height:
@@ -606,7 +674,7 @@ class AddressSynchronizer(Logger, EventListener):
         assert self.is_mine(addr), "address needs to be is_mine to be watched"
         await self._address_history_changed_events[addr].wait()
 
-    def add_unverified_or_unconfirmed_tx(self, tx_hash, tx_height):
+    def add_unverified_or_unconfirmed_tx(self, tx_hash: str, tx_height: int) -> None:
         if self.db.is_in_verified_tx(tx_hash):
             if tx_height <= 0:
                 # tx was previously SPV-verified but now in mempool (probably reorg)
@@ -618,22 +686,40 @@ class AddressSynchronizer(Logger, EventListener):
         else:
             with self.lock:
                 if tx_height > 0:
+                    self.unconfirmed_tx.pop(tx_hash, None)
                     self.unverified_tx[tx_hash] = tx_height
                 else:
+                    self.unverified_tx.pop(tx_hash, None)
                     self.unconfirmed_tx[tx_hash] = tx_height
 
-    def remove_unverified_tx(self, tx_hash, tx_height):
+    def remove_unverified_tx(self, tx_hash: str, tx_height: int) -> None:
         with self.lock:
             new_height = self.unverified_tx.get(tx_hash)
             if new_height == tx_height:
                 self.unverified_tx.pop(tx_hash, None)
+                self._add_held_tx(tx_hash)
 
     def add_verified_tx(self, tx_hash: str, info: TxMinedInfo):
         # Remove from the unverified map and add to the verified map
         with self.lock:
             self.unverified_tx.pop(tx_hash, None)
             self.db.add_verified_tx(tx_hash, info)
+            self._add_held_tx(tx_hash)
         util.trigger_callback('adb_added_verified_tx', self, tx_hash)
+
+    def _add_held_tx(self, tx_hash: str) -> None:
+        tx = self._held_txs.pop(tx_hash, None)
+        if tx is not None:
+            self.add_transaction(tx, allow_unrelated=True)
+
+    @with_lock
+    def is_held_tx(self, tx_hash: str) -> bool:
+        # not if the server no longer claims it is mined
+        return tx_hash in self._held_txs and tx_hash in self.unverified_tx
+
+    @with_lock
+    def clear_held_txs(self) -> None:
+        self._held_txs.clear()
 
     def get_unverified_txs(self) -> Dict[str, int]:
         '''Returns a map from tx hash to transaction height'''

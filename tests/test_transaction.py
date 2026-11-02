@@ -1,14 +1,17 @@
+import json
+import os
 from typing import NamedTuple, Union
 
 from electrum import transaction, bitcoin
 from electrum.transaction import (convert_raw_tx_to_hex, tx_from_any, Transaction,
                                   PartialTransaction, TxOutpoint, PartialTxInput,
                                   PartialTxOutput, Sighash, match_script_against_template,
-                                  SCRIPTPUBKEY_TEMPLATE_ANYSEGWIT)
+                                  SCRIPTPUBKEY_TEMPLATE_ANYSEGWIT, script_GetOp)
 from electrum.util import bfh
+from electrum.crypto import sha256d
 from electrum.bitcoin import (deserialize_privkey, opcodes,
                               construct_script, construct_witness)
-from electrum.ecc import ECPrivkey
+from electrum.ecc import ECPrivkey, der_sig_from_r_and_s
 from electrum import descriptor
 
 from .test_bitcoin import disable_ecdsa_r_value_grinding
@@ -943,6 +946,14 @@ class TestSighashTypes(ElectrumTestCase):
     txout1 = PartialTxOutput(scriptpubkey=bfh('76a914389ffce9cd9ae88dcc0631e88a821ffdbe9bfe2688ac'), value=900000000)
     txout2 = PartialTxOutput(scriptpubkey=bfh('76a9147480a33f950689af511e6e84c138dbbd3c3ee41588ac'), value=87000000)
 
+    def _assert_sig_verifies(self, tx: PartialTransaction, privkey: bytes, sig: str):
+        pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
+        self.assertTrue(tx.verify_sig_for_txin(txin_index=0, pubkey_bytes=pubkey, sig=bfh(sig)))
+        # the sighash byte is signed too: the same signature with another sighash is invalid
+        other_sighash = Sighash.NONE if bfh(sig)[-1] == Sighash.ALL else Sighash.ALL
+        bad_sig = bfh(sig)[:-1] + bytes([other_sighash])
+        self.assertFalse(tx.verify_sig_for_txin(txin_index=0, pubkey_bytes=pubkey, sig=bad_sig))
+
     def test_check_sighash_types_sighash_all(self):
         self.txin.sighash=Sighash.ALL
         privkey = bfh('730fff80e1413068a05b57d6a58261f07551163369787f349438ea38ca80fac6')
@@ -950,6 +961,7 @@ class TestSighashTypes(ElectrumTestCase):
         sig = tx.sign_txin(0,privkey)
         self.assertEqual('304402206ac44d672dac41f9b00e28f4df20c52eeb087207e8d758d76d92c6fab3b73e2b0220367750dbbe19290069cba53d096f44530e4f98acaa594810388cf7409a1870ce01',
                         sig)
+        self._assert_sig_verifies(tx, privkey, sig)
 
     def test_check_sighash_types_sighash_none(self):
         self.txin.sighash=Sighash.NONE
@@ -958,6 +970,7 @@ class TestSighashTypes(ElectrumTestCase):
         sig = tx.sign_txin(0,privkey)
         self.assertEqual('3044022068c7946a43232757cbdf9176f009a928e1cd9a1a8c212f15c1e11ac9f2925d9002205b75f937ff2f9f3c1246e547e54f62e027f64eefa2695578cc6432cdabce271502',
                         sig)
+        self._assert_sig_verifies(tx, privkey, sig)
 
     def test_check_sighash_types_sighash_single(self):
         self.txin.sighash=Sighash.SINGLE
@@ -966,6 +979,7 @@ class TestSighashTypes(ElectrumTestCase):
         sig = tx.sign_txin(0,privkey)
         self.assertEqual('3044022059ebf56d98010a932cf8ecfec54c48e6139ed6adb0728c09cbe1e4fa0915302e022007cd986c8fa870ff5d2b3a89139c9fe7e499259875357e20fcbb15571c76795403',
                         sig)
+        self._assert_sig_verifies(tx, privkey, sig)
 
     @disable_ecdsa_r_value_grinding
     def test_check_sighash_types_sighash_all_anyonecanpay(self):
@@ -975,6 +989,7 @@ class TestSighashTypes(ElectrumTestCase):
         sig = tx.sign_txin(0,privkey)
         self.assertEqual('3045022100fbefd94bd0a488d50b79102b5dad4ab6ced30c4069f1eaa69a4b5a763414067e02203156c6a5c9cf88f91265f5a942e96213afae16d83321c8b31bb342142a14d16381',
                          sig)
+        self._assert_sig_verifies(tx, privkey, sig)
 
     @disable_ecdsa_r_value_grinding
     def test_check_sighash_types_sighash_none_anyonecanpay(self):
@@ -984,6 +999,7 @@ class TestSighashTypes(ElectrumTestCase):
         sig = tx.sign_txin(0,privkey)
         self.assertEqual('3045022100a5263ea0553ba89221984bd7f0b13613db16e7a70c549a86de0cc0444141a407022005c360ef0ae5a5d4f9f2f87a56c1546cc8268cab08c73501d6b3be2e1e1a8a0882',
                          sig)
+        self._assert_sig_verifies(tx, privkey, sig)
 
     def test_check_sighash_types_sighash_single_anyonecanpay(self):
         self.txin.sighash=Sighash.SINGLE|Sighash.ANYONECANPAY
@@ -992,3 +1008,48 @@ class TestSighashTypes(ElectrumTestCase):
         sig = tx.sign_txin(0,privkey)
         self.assertEqual('30440220525406a1482936d5a21888260dc165497a90a15669636d8edca6b9fe490d309c022032af0c646a34a44d1f4576bf6a4a74b67940f8faa84c7df9abe12a01a11e2b4783',
                          sig)
+        self._assert_sig_verifies(tx, privkey, sig)
+
+
+class TestSighashLegacy(ElectrumTestCase):
+
+    def test_bitcoin_core_vectors(self):
+        # file identical to https://github.com/bitcoin/bitcoin/blob/v27.0/src/test/data/sighash.json
+        test_vector_file = os.path.join(os.path.dirname(__file__), "sighash-vectors.json")
+        with open(test_vector_file, "r") as f:
+            vectors = [v for v in json.load(f)]
+        vectors = vectors[1:]  # drop header
+        self.assertEqual(500, len(vectors))
+        for raw_tx, script, txin_index, hash_type, expected_sighash in vectors:
+            with self.subTest(raw_tx=raw_tx, txin_index=txin_index, hash_type=hash_type):
+                tx = PartialTransaction.from_tx(Transaction(raw_tx))
+                txin = tx.inputs()[txin_index]
+                self.assertFalse(txin.is_segwit())
+                # legacy sighash removes OP_CODESEPARATOR from the scriptCode
+                script = bfh(script)
+                script_code = b""
+                start = 0
+                for op, _, end in script_GetOp(script):
+                    if op != opcodes.OP_CODESEPARATOR:
+                        script_code += script[start:end]
+                    start = end
+                tx.get_preimage_script = lambda txin, script_code=script_code: script_code.hex()
+                pre_hash = tx.serialize_preimage(txin_index, sighash=hash_type & 0xffffffff, strict=False)
+                self.assertEqual(expected_sighash, sha256d(bfh(pre_hash))[::-1].hex())
+
+    def test_verify_sighash_single_without_output(self):
+        # legacy SIGHASH_SINGLE signs the hash 1 if there is no output with the index of the input
+        privkey = ECPrivkey(bfh('730fff80e1413068a05b57d6a58261f07551163369787f349438ea38ca80fac6'))
+        pubkey = privkey.get_public_key_bytes(compressed=True)
+        txins = [PartialTxInput(prevout=TxOutpoint(txid=bytes([i]) * 32, out_idx=0)) for i in range(2)]
+        for txin in txins:
+            txin.script_descriptor = descriptor.get_singlesig_descriptor_from_legacy_leaf(
+                pubkey=pubkey.hex(), script_type='p2pkh')
+        txout = PartialTxOutput(scriptpubkey=bfh('76a914389ffce9cd9ae88dcc0631e88a821ffdbe9bfe2688ac'), value=1000)
+        tx = PartialTransaction.from_io(inputs=txins, outputs=[txout], locktime=0, version=1, BIP69_sort=False)
+        msg_hash = (1).to_bytes(32, byteorder="little")
+        sig = privkey.sign(msg_hash, sigencode=der_sig_from_r_and_s) + bytes([Sighash.SINGLE])
+        self.assertTrue(tx.verify_sig_for_txin(txin_index=1, pubkey_bytes=pubkey, sig=sig))
+        self.assertFalse(tx.verify_sig_for_txin(txin_index=0, pubkey_bytes=pubkey, sig=sig))
+        with self.assertRaisesRegex(Exception, "without a corresponding output"):
+            tx.serialize_preimage(1, sighash=Sighash.SINGLE)

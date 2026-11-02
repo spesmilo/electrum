@@ -325,7 +325,9 @@ class WatchTower(LNWatcher):
     LOGGING_SHORTCUT = 'W'
 
     def __init__(self, network: 'Network'):
-        adb = AddressSynchronizer(WalletDB('', storage=None, upgrade=True), network.config, name=self.diagnostic_name())
+        # the watchtower has no keys: it cannot verify signatures
+        adb = AddressSynchronizer(
+            WalletDB('', storage=None, upgrade=True), network.config, verify_txins=None, name=self.diagnostic_name())
         adb.start_network(network)
         LNWatcher.__init__(self, adb, network)
         self.network = network
