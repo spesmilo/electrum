@@ -1,13 +1,15 @@
 import asyncio
 import gc
 import weakref
+from unittest import mock
 
 from electrum import keystore, SimpleConfig, util
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
 from electrum.fee_policy import FixedFeePolicy
+from electrum.lnworker import LNWallet
 from electrum.commands import Commands
 from electrum.transaction import Transaction, PartialTxOutput, tx_from_any
-from electrum.util import NotEnoughFunds, UserFacingException
+from electrum.util import NotEnoughFunds, TxMinedInfo, UserFacingException
 
 from . import ElectrumTestCase
 from .test_wallet_vertical import WalletIntegrityHelper
@@ -209,6 +211,70 @@ class TestCoinFilter(ElectrumTestCase):
             wallet.get_spendable_balance_sat(ignore_coin_control=True))
         # ...while the user-facing balance does reflect the selection
         self.assertEqual(5_000_000, wallet.get_spendable_balance_sat())
+
+    # anchor reserve
+
+    def _fake_anchor_channels(self, wallet):
+        """anchor_reserve() is non-zero iff the lnworker has anchor channels."""
+        wallet.lnworker = mock.Mock(spec=LNWallet)
+        wallet.lnworker.has_anchor_channels.return_value = True
+        self.assertEqual(self.config.LN_UTXO_RESERVE, wallet.anchor_reserve())
+
+    def _confirm(self, wallet, outpoint: str, *, height=1_000_000):
+        """SPV-verify the funding tx of `outpoint`, so the coin counts as confirmed."""
+        wallet.adb.db.put('stored_height', height + 100)
+        wallet.adb.add_verified_tx(outpoint.split(':')[0], TxMinedInfo(
+            _height=height, timestamp=1_700_000_000, txpos=0, header_hash='01' * 32))
+
+    def _assert_is_max_spendable(self, wallet, amount: int):
+        """`amount` is exactly what the tx builder lets us send (at fee 0). That is
+        the ground truth get_spendable_balance_sat() must agree with."""
+        def build(value):
+            return wallet.make_unsigned_transaction(
+                outputs=[PartialTxOutput.from_address_and_value(OTHER_ADDR, value)],
+                fee_policy=FixedFeePolicy(0),
+            )
+        build(amount)
+        with self.assertRaises(NotEnoughFunds):
+            build(amount + 1)
+
+    async def test_reserve_is_deducted_without_selection(self):
+        wallet = self.create_wallet()
+        self._fake_anchor_channels(wallet)
+        reserve = wallet.anchor_reserve()
+        self.assertEqual(15_000_000 - reserve, wallet.get_spendable_balance_sat())
+        self.assertEqual(15_000_000, wallet.get_spendable_balance_sat(deduct_anchor_reserve=False))
+        self._assert_is_max_spendable(wallet, 15_000_000 - reserve)
+
+    async def test_reserve_is_covered_by_unselected_coins(self):
+        """The reserve is a wallet-wide requirement. If the coins outside the
+        selection already cover it, the whole selection is spendable."""
+        wallet = self.create_wallet()
+        self._fake_anchor_channels(wallet)
+        wallet.coinfilter.select_coins([UTXO1])  # 5M selected, 10M left >= reserve
+        self.assertEqual(5_000_000, wallet.get_spendable_balance_sat())
+        self._assert_is_max_spendable(wallet, 5_000_000)
+
+    async def test_reserve_shortfall_is_deducted_from_selection(self):
+        """...and if they only cover part of it, only the shortfall is deducted."""
+        wallet = self.create_wallet()
+        self._fake_anchor_channels(wallet)
+        self.config.LN_UTXO_RESERVE = 6_000_000
+        wallet.coinfilter.select_coins([UTXO2])  # 10M selected, 5M left < reserve
+        self.assertEqual(9_000_000, wallet.get_spendable_balance_sat())
+        self._assert_is_max_spendable(wallet, 9_000_000)
+
+    async def test_reserve_is_covered_by_unconfirmed_coin(self):
+        """Same for confirmed_only: an unconfirmed coin still counts towards the reserve."""
+        wallet = self.create_wallet()
+        self._fake_anchor_channels(wallet)
+        self._confirm(wallet, UTXO1)  # 5M confirmed, 10M unconfirmed
+        self.assertEqual({UTXO1}, self.outpoints(wallet.get_spendable_coins(confirmed_only=True)))
+        self.assertEqual(5_000_000, wallet.get_spendable_balance_sat(confirmed_only=True))
+        # also via the setting, which is what the default call defers to
+        self.config.WALLET_SPEND_CONFIRMED_ONLY = True
+        self.assertEqual(5_000_000, wallet.get_spendable_balance_sat())
+        self._assert_is_max_spendable(wallet, 5_000_000)
 
     # write-time validation
 

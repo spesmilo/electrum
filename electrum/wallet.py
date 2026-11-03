@@ -1166,8 +1166,15 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     ) -> int:
         anchor_reserve = self.anchor_reserve() if deduct_anchor_reserve else 0
         spendable_coins = self.get_spendable_coins(**kwargs)
-        oc_balance = sum([coin.value_sats() for coin in spendable_coins]) - anchor_reserve
-        return max(0, oc_balance)
+        spendable_balance = sum([coin.value_sats() for coin in spendable_coins])
+        if not anchor_reserve:
+            return spendable_balance
+        # the reserve is a wallet-wide requirement, so measure it against the same coin set
+        # as should_keep_reserve_utxo.
+        all_spendable_coins = self.get_spendable_coins(
+            nonlocal_only=False, confirmed_only=False, ignore_coin_control=True)
+        all_spendable_balance = sum([coin.value_sats() for coin in all_spendable_coins])
+        return max(0, min(spendable_balance, all_spendable_balance - anchor_reserve))
 
     def get_addr_balance(self, address) -> tuple[int, int, int]:
         return self.adb.get_balance([address])
