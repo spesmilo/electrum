@@ -9,8 +9,8 @@
 # - downloads binaries built by the release manager (from airlock if SFTPUSER, else from website),
 #   compares and signs them,
 # - and then uploads sigs (if SFTPUSER), else they can be submitted as PR to spesmilo/electrum-signatures
-# Note: the .dmg should be built separately beforehand and copied into dist/
-#       (as it is built on a separate machine)
+# Note: the two .dmg files should be built separately beforehand and copied into dist/
+#       (as they are built on a separate machine)
 #
 #
 # env vars:
@@ -175,20 +175,23 @@ do
     fi
 done
 
-# the macos binary is built on a separate machine.
-# the file that needs to be copied over is the codesigned release binary (regardless of builder role)
-dmg="electrum-$VERSION.dmg"
-if ! test -f "dist/$dmg"; then
-    if [ ! -z "$RELEASEMANAGER" ] ; then  # RM
-        fail "dmg is missing, aborting. Please build and codesign the dmg on a mac and copy it over."
-    else  # other builders
-        fail "dmg is missing, aborting. Please build the unsigned dmg on a mac, compare it with file built by RM, and if matches, copy RM's dmg."
+# the macos binaries are built on a separate machine.
+# the files that need to be copied over are the codesigned release binaries (regardless of builder role)
+dmg1="electrum-$VERSION-x86_64.dmg"
+dmg2="electrum-$VERSION-arm64.dmg"
+for dmg in "$dmg1" "$dmg2"; do
+    if ! test -f "dist/$dmg"; then
+        if [ ! -z "$RELEASEMANAGER" ] ; then  # RM
+            fail "$dmg is missing, aborting. Please build and codesign the dmgs on a mac and copy them over."
+        else  # other builders
+            fail "$dmg is missing, aborting. Please build the unsigned dmgs on a mac, compare them with the files built by RM, and if they match, copy RM's dmgs."
+        fi
     fi
-fi
+done
 
 # now that we have all binaries, if we are the RM, sign them.
 if [ ! -z "$RELEASEMANAGER" ] ; then
-    if test -f "dist/$dmg.asc"; then
+    if test -f "dist/$dmg1.asc"; then
         info "packages are already signed"
     else
         info "signing packages"
@@ -238,7 +241,8 @@ if [ -z "$RELEASEMANAGER" ] ; then
             "$apk1"
             "$apk2"
             "$apk3"
-            "$dmg"
+            "$dmg1"
+            "$dmg2"
         )
 
         for filename in "${FILES_TO_DOWNLOAD[@]}"; do
@@ -269,7 +273,8 @@ EOF
     test -f "$apk1"       || fail "apk1 not found among sftp downloads"
     test -f "$apk2"       || fail "apk2 not found among sftp downloads"
     test -f "$apk3"       || fail "apk3 not found among sftp downloads"
-    test -f "$dmg"        || fail "dmg not found among sftp downloads"
+    test -f "$dmg1"       || fail "dmg1 not found among sftp downloads"
+    test -f "$dmg2"       || fail "dmg2 not found among sftp downloads"
     test -f "$PROJECT_ROOT/dist/$tarball"    || fail "tarball not found among built files"
     test -f "$PROJECT_ROOT/dist/$srctarball" || fail "srctarball not found among built files"
     test -f "$PROJECT_ROOT/dist/$appimage"   || fail "appimage not found among built files"
@@ -279,7 +284,8 @@ EOF
     test -f "$PROJECT_ROOT/dist/$apk1"       || fail "apk1 not found among built files"
     test -f "$PROJECT_ROOT/dist/$apk2"       || fail "apk2 not found among built files"
     test -f "$PROJECT_ROOT/dist/$apk3"       || fail "apk3 not found among built files"
-    test -f "$PROJECT_ROOT/dist/$dmg"        || fail "dmg not found among built files"
+    test -f "$PROJECT_ROOT/dist/$dmg1"       || fail "dmg1 not found among built files"
+    test -f "$PROJECT_ROOT/dist/$dmg2"       || fail "dmg2 not found among built files"
     # compare downloaded binaries against ones we built
     cmp --silent "$tarball"    "$PROJECT_ROOT/dist/$tarball"    || fail "files are different. tarball."
     cmp --silent "$srctarball" "$PROJECT_ROOT/dist/$srctarball" || fail "files are different. srctarball."
@@ -290,11 +296,12 @@ EOF
     "$CONTRIB/android/apkdiff.py" "$apk1" "$PROJECT_ROOT/dist/$apk1" || fail "files are different. android."
     "$CONTRIB/android/apkdiff.py" "$apk2" "$PROJECT_ROOT/dist/$apk2" || fail "files are different. android."
     "$CONTRIB/android/apkdiff.py" "$apk3" "$PROJECT_ROOT/dist/$apk3" || fail "files are different. android."
-    cmp --silent "$dmg" "$PROJECT_ROOT/dist/$dmg" || fail "files are different. macos."
+    cmp --silent "$dmg1" "$PROJECT_ROOT/dist/$dmg1" || fail "files are different. macos x86_64."
+    cmp --silent "$dmg2" "$PROJECT_ROOT/dist/$dmg2" || fail "files are different. macos arm64."
     # all files matched. sign them.
     rm -rf "$PROJECT_ROOT/dist/sigs/"
     mkdir --parents "$PROJECT_ROOT/dist/sigs/"
-    for fname in "$tarball" "$srctarball" "$appimage" "$win1" "$win2" "$win3" "$apk1" "$apk2" "$apk3" "$dmg" ; do
+    for fname in "$tarball" "$srctarball" "$appimage" "$win1" "$win2" "$win3" "$apk1" "$apk2" "$apk3" "$dmg1" "$dmg2" ; do
         signame="$fname.$GPGUSER.asc"
         gpg --sign --armor --detach $PUBKEY --output "$PROJECT_ROOT/dist/sigs/$signame" "$fname"
     done
@@ -322,7 +329,8 @@ else
     test -f "$PROJECT_ROOT/dist/$apk1"       || fail "apk1 not found among built files"
     test -f "$PROJECT_ROOT/dist/$apk2"       || fail "apk2 not found among built files"
     test -f "$PROJECT_ROOT/dist/$apk3"       || fail "apk3 not found among built files"
-    test -f "$PROJECT_ROOT/dist/$dmg"        || fail "dmg not found among built files"
+    test -f "$PROJECT_ROOT/dist/$dmg1"       || fail "dmg1 not found among built files"
+    test -f "$PROJECT_ROOT/dist/$dmg2"       || fail "dmg2 not found among built files"
 
     if [ "$REV" != "$VERSION" ]; then
         fail "versions differ, not uploading"
