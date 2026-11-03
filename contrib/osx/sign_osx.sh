@@ -57,16 +57,24 @@ function DoCodeSign { # ARGS: infoName fileOrDirName
 # note: no --dirty, as we have dirtied electrum/locale/ ourselves.
 VERSION=$(git describe --tags --always --abbrev=10)
 
-DoCodeSign "app bundle" "dist/${PACKAGE}.app"
+# make_osx.sh builds one app per architecture, in dist/<arch>/
+for arch in x86_64 arm64; do
+    app="dist/$arch/${PACKAGE}.app"
+    dmg="dist/electrum-${VERSION}-${arch}.dmg"
+    [ -d "$app" ] || fail "$app not found. Run make_osx.sh first."
 
-if [ ! -z "$APPLE_ID_USER" ]; then
-    info "Notarizing .app with Apple's central server..."
-    "${CONTRIB_OSX}/notarize_app.sh" "dist/${PACKAGE}.app" || fail "Could not notarize binary."
-else
-    warn "AppleID details not set! Skipping Apple notarization."
-fi
+    DoCodeSign "app bundle ($arch)" "$app"
 
-info "Creating .DMG"
-hdiutil create -fs HFS+ -volname "$PACKAGE" -srcfolder "dist/$PACKAGE.app" "dist/electrum-$VERSION.dmg" || fail "Could not create .DMG"
+    if [ ! -z "$APPLE_ID_USER" ]; then
+        info "Notarizing $app with Apple's central server..."
+        "${CONTRIB_OSX}/notarize_app.sh" "$app" || fail "Could not notarize binary."
+    else
+        warn "AppleID details not set! Skipping Apple notarization."
+    fi
 
-DoCodeSign ".DMG" "dist/electrum-${VERSION}.dmg"
+    info "Creating .DMG ($arch)"
+    rm -f "$dmg"  # left over by an earlier, failed run
+    hdiutil create -fs HFS+ -volname "$PACKAGE" -srcfolder "$app" "$dmg" || fail "Could not create .DMG"
+
+    DoCodeSign ".DMG ($arch)" "$dmg"
+done
