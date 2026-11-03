@@ -1,10 +1,10 @@
 Building macOS binaries
 =======================
 
-✓ _This binary should be reproducible, meaning you should be able to generate
+✓ _These binaries should be reproducible, meaning you should be able to generate
    binaries that match the official releases._
 
-- _Minimum supported target system (i.e. what end-users need): macOS 11_
+- _Minimum supported target system (i.e. what end-users need): macOS 12_
 
 This guide explains how to build Electrum binaries for macOS systems.
 
@@ -13,13 +13,12 @@ This guide explains how to build Electrum binaries for macOS systems.
 
 This needs to be done on a system running macOS or OS X.
 
-The script is only tested on Intel-based (x86_64) Macs, and the binary built
-targets `x86_64` currently.
+The script is only tested on Intel-based (x86_64) Macs, and the built binaries
+target `x86_64` and `arm64`.
 
 Notes about compatibility with different macOS versions:
-- In general the binary is not guaranteed to run on an older version of macOS
-  than what the build machine has. This is due to bundling the compiled Python into
-  the [PyInstaller binary](https://github.com/pyinstaller/pyinstaller/issues/1191).
+- The minimum supported macOS version is defined by `MACOSX_DEPLOYMENT_TARGET`
+  in `make_osx.sh`.
 - The [bundled version of Qt](https://github.com/spesmilo/electrum/issues/3685) also
   imposes a minimum supported macOS version.
 - If you want to build binaries that conform to the macOS "Gatekeeper", so as to
@@ -34,42 +33,40 @@ Notes about compatibility with different macOS versions:
     [was deprecated](https://developer.apple.com/news/?id=y5mjxqmn) by Apple.
     `notarytool` requires Xcode 13+, and that in turn requires macOS 11.3+.
 
-We currently build the release binaries on macOS 11.7.10, and these seem to run on
-11 or newer.
+We currently build the release binaries on macOS 15, and these seem to run on
+12 or newer.
 
 
 #### Notes about reproducibility
 
-- We recommend creating a VM with a macOS guest, e.g. using VirtualBox,
-  and building there.
-- The guest should run macOS 11.7.10 (that specific version).
+- We recommend creating a VM with a macOS guest, e.g. using
+  [OSX-KVM](https://github.com/kholia/OSX-KVM), and building there.
+- The guest should run macOS 15 (15.3 or later).
 - The unix username should be `vagrant`, and `electrum` should be cloned directly
   to the user's home dir: `/Users/vagrant/electrum`.
 - Builders need to use the same version of Xcode; and note that
   full Xcode and Xcode commandline tools differ!
-  We use the Xcode CLI tools as installed by brew. (version 13.2)
+  We use the Xcode CLI tools. (version 16.4)
 
   Sanity checks:
     ```
     $ sw_vers
-    ProductName:	macOS
-    ProductVersion:	11.7.10
-    BuildVersion:	20G1427
+    ProductName:		macOS
+    ProductVersion:		15.8.2
+    BuildVersion:		24H232
     $ xcode-select -p
     /Library/Developer/CommandLineTools
     $ xcrun --show-sdk-path
     /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
     $ pkgutil --pkg-info=com.apple.pkg.CLTools_Executables
     package-id: com.apple.pkg.CLTools_Executables
-    version: 13.2.0.0.1.1638488800
+    version: 16.4.0.0.1.1747106510
     volume: /
     location: /
     install-time: XXXXXXXXXX
-    groups: com.apple.FindSystemFiles.pkg-group
     $ gcc --version
-    Configured with: --prefix=/Library/Developer/CommandLineTools/usr --with-gxx-include-dir=/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/4.2.1
-    Apple clang version 13.0.0 (clang-1300.0.29.30)
-    Target: x86_64-apple-darwin20.6.0
+    Apple clang version 17.0.0 (clang-1700.0.13.5)
+    Target: x86_64-apple-darwin24.6.0
     Thread model: posix
     InstalledDir: /Library/Developer/CommandLineTools/usr/bin
     ```
@@ -80,11 +77,29 @@ We currently build the release binaries on macOS 11.7.10, and these seem to run 
   (or run e.g. `git clean -ffxd` to rm all local changes).
 
 
-#### 1. Install brew
+#### Tips for the OSX-KVM VM setup
 
-Install [`brew`](https://brew.sh/).
+- The virt-manager application provides a convenient GUI for managing the VM.
+- If the installer asks to connect a Bluetooth keyboard or doesn't react to keyboard input,
+  remove the `ports="..."` attribute from the `qemu-xhci` controller.
+- If the installer freezes (vCPU threads at 100%, no disk I/O), install with 1 vCPU
+  and add more afterwards.
+- You can remove the `BaseSystem.img` installer disk from the VM once macOS is installed.
+- SSH: enable System Settings > General > Sharing > Remote Login, and forward a host port
+  to the guest's port 22, e.g. `-netdev user,id=net0,hostfwd=tcp::2222-:22` as in
+  `OpenCore-Boot.sh`, then `ssh -p 2222 vagrant@localhost`.
+- The `PerfPowerServices` daemon can get stuck in a busy loop and keep a core at 100%.
+  Suspending it at every boot from root's crontab (`sudo crontab -e`)
+  works as a hack to stop this:
+  `@reboot sleep 60; /usr/bin/pkill -STOP -f '^/usr/libexec/PerfPowerServices( |$)'`
 
-Let brew install the Xcode CLI tools.
+
+#### 1. Install the Xcode CLI tools
+
+    touch /tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
+    softwareupdate --list        # note the "Label:" of "Command Line Tools for Xcode 16.4"
+    sudo softwareupdate --install "<that label>"
+    rm /tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
 
 
 #### 2. Build Electrum
@@ -92,7 +107,8 @@ Let brew install the Xcode CLI tools.
     cd electrum
     ./contrib/osx/make_osx.sh
 
-This creates both a folder named Electrum.app and the .dmg file (both unsigned).
+This creates an unsigned `Electrum.app` folder and `.dmg` file for each built
+architecture.
 
 ##### 2.1. For release binaries, here be dragons
 
@@ -110,16 +126,17 @@ also run the `sign_osx.sh` script:
 
 ## Verifying reproducibility and comparing against official binary
 
-Every user can verify that the official binary was created from the source code in this
+Every user can verify that the official binaries were created from the source code in this
 repository.
 
-1. Build your own binary as described above.
-2. Use the provided `compare_dmg` script to compare the binary you built with
-   the official release binary.
+1. Build your own binaries as described above.
+2. Use the provided `compare_dmg` script to compare the binaries you built with
+   the official release binaries.
     ```
-    $ ./contrib/osx/compare_dmg dist/electrum-*.dmg electrum_dmg_official_release.dmg
+    $ ./contrib/osx/compare_dmg dist/electrum-$VERSION-x86_64-unsigned.dmg electrum-$VERSION-x86_64.dmg
+    $ ./contrib/osx/compare_dmg dist/electrum-$VERSION-arm64-unsigned.dmg electrum-$VERSION-arm64.dmg
     ```
-   The `compare_dmg` script is mostly only needed as the official release binary is
+   The `compare_dmg` script is mostly only needed as the official release binaries are
    codesigned and notarized. Otherwise, the built `.app` bundles should be byte-identical.
    (Note that we are using `hdutil` to create the `.dmg`, and its output is not
    deterministic, but we cannot compare the `.dmg` files directly anyway as they contain
@@ -252,9 +269,9 @@ After `sign_osx.sh` finished, you will have a new `*.dmg` inside `electrum/dist`
 
 #### To compare the unsigned executable with the self-signed executable:
 
-Running `compare_dmg` with `IS_NOTARIZED=false` should succeed:
+Running `compare_dmg` should succeed:
 
-`$ IS_NOTARIZED=false ./electrum/contrib/osx/compare_dmg <unsigned executable> <self-signed executable>`
+`$ ./electrum/contrib/osx/compare_dmg <unsigned executable> <self-signed executable>`
 
 
 ### Historical issues codesigning with production cert
