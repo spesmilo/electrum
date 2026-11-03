@@ -90,6 +90,7 @@ Pane {
                         inputMethodHints: Qt.ImhNoPredictiveText
 
                         onTextChanged: listview.filterModel.filterText = text
+                        Component.onCompleted: text = listview.filterModel.filterText || ''
 
                         Image {
                             anchors.right: parent.right
