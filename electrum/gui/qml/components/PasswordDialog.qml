@@ -17,7 +17,13 @@ ElDialog {
     property string infotext
     property string errorMessage
 
+    // Ignore Ok once closing has started.
+    property bool _closing: false
+
     signal passwordEntered(string password)
+
+    onAboutToShow: _closing = false
+    onAboutToHide: _closing = true
 
     anchors.centerIn: parent
     width: parent.width * 4/5
@@ -98,6 +104,8 @@ ElDialog {
                 icon.source: '../../icons/confirmed.png'
                 enabled: confirmPassword ? pw_1.text.length >= 6 && pw_1.text == pw_2.text : true
                 onClicked: {
+                    if (passworddialog._closing)
+                        return
                     passwordEntered(pw_1.text)
                 }
             }
