@@ -22,7 +22,7 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
     _logger = get_logger(__name__)
 
     # define listmodel rolemap
-    _ROLE_NAMES=('name', 'address', 'is_connected', 'is_primary', 'is_tor', 'is_bookmarked', 'chain', 'height')
+    _ROLE_NAMES=('name', 'address', 'is_connected', 'is_primary', 'is_tor', 'is_bookmarked', 'is_lagging', 'chain', 'height')
     _ROLE_KEYS = range(Qt.ItemDataRole.UserRole, Qt.ItemDataRole.UserRole + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
     _ROLE_RMAP = dict(zip(_ROLE_NAMES, _ROLE_KEYS))
@@ -103,6 +103,9 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
                     'chain': name,
                     'is_primary': i == self.network.interface,
                     'is_connected': True,
+                    # more than 1 block behind the chain it is on. Network._server_is_lagging
+                    # applies the same threshold to the main interface, relative to the local height.
+                    'is_lagging': (b.height() - i.tip) > 1,
                     'is_tor': i.server.host.endswith('.onion'),
                     'is_bookmarked': self.network.is_server_bookmarked(i.server),
                     'name': str(i.server),
@@ -119,6 +122,7 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
                 'height': 0,
                 'is_primary': False,
                 'is_connected': False,
+                'is_lagging': False,
                 'is_tor': s.host.endswith('.onion'),
                 'is_bookmarked': self.network.is_server_bookmarked(s),
                 'name': str(s),

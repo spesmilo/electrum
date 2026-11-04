@@ -104,6 +104,7 @@ class TestQEServerListModel(QETestCase):
         self.assertEqual([role(proxy, r, 'is_connected') for r in range(5)], [True, True, True, False, False])
         self.assertEqual([role(proxy, r, 'is_primary') for r in range(5)], [False, True, False, False, False])
         self.assertEqual([role(proxy, r, 'is_bookmarked') for r in range(5)], [False] * 5)
+        self.assertEqual([role(proxy, r, 'is_lagging') for r in range(5)], [False] * 5)
         self.assertEqual(role(proxy, 0, 'address'), 'c:50002')
         self.assertEqual(role(proxy, 3, 'address'), 'x:50002')
         self.assertEqual(proxy.roleNames(), model.roleNames())
@@ -282,3 +283,19 @@ class TestQEServerListModel(QETestCase):
         # rebuild from scratch keeps the role
         model.initModel()
         self.assertEqual([role(proxy, r, 'is_bookmarked') for r in range(5)], [False, True, False, False, False])
+
+    @qt_test
+    def test_lagging_server(self):
+        net = self._default_network()
+        # chain height is 100: a tip more than 1 block behind is lagging
+        net.chains['main'][1].tip = 98  # 'b'
+        model, proxy = self._make(net)
+        self.assertEqual([role(model, r, 'is_lagging') for r in range(5)], [False, True, False, False, False])
+
+        receiver = QEventReceiver(model.dataChanged)
+        net.chains['main'][1].tip = 99  # one block behind is fine
+        model.updateModel()
+        self.assertEqual(role(model, 1, 'is_lagging'), False)
+        changed = receiver.receivedForSignal(model.dataChanged)
+        self.assertEqual(len(changed), 1)
+        self.assertEqual(set(changed[0][1][2]), {model._ROLE_RMAP[n] for n in ('is_lagging', 'height')})

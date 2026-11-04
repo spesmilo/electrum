@@ -42,7 +42,9 @@ ItemDelegate {
             Layout.preferredWidth: constants.iconSizeMedium
             Layout.preferredHeight: constants.iconSizeMedium
             Image {
-                source: '../../../icons/status_connected.png'
+                source: model.is_lagging
+                    ? '../../../icons/status_lagging.png'
+                    : '../../../icons/status_connected.png'
                 width: constants.iconSizeMedium
                 height: constants.iconSizeMedium
                 visible: model.is_connected
