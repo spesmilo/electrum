@@ -5,12 +5,12 @@ from PyQt6.QtCore import Qt, QAbstractListModel, QModelIndex
 
 from electrum.logging import get_logger
 from electrum.util import Satoshis
+from electrum.bitcoin import is_address
 
 from electrum.gui.common_qt.util import QtEventListener, qt_event_listener
 
 from .qeconfig import QEConfig
 from .qetypes import QEAmount
-
 
 if TYPE_CHECKING:
     from electrum.wallet import Abstract_Wallet
@@ -120,6 +120,8 @@ class QEAddressCoinListModel(QAbstractListModel, QtEventListener):
         super().__init__(parent)
         self.wallet = wallet
         self._items = []
+        self._address_positions: dict[str, int] = {}  # address -> row index in _items
+        self._coin_positions: dict[str, list[int]] = {}  # funding txid -> row indices of its coins in _items
         self._filterModel = None
 
         self.register_callbacks()
@@ -134,11 +136,6 @@ class QEAddressCoinListModel(QAbstractListModel, QtEventListener):
         self.unregister_callbacks()
 
     @qt_event_listener
-    def on_event_labels_received(self, wallet, labels):
-        if wallet == self.wallet:
-            self.setDirty()
-
-    @qt_event_listener
     def on_event_removed_transaction(self, wallet, tx):
         if self.wallet == wallet:
             self.setDirty()
@@ -147,6 +144,16 @@ class QEAddressCoinListModel(QAbstractListModel, QtEventListener):
     def on_event_new_transaction(self, wallet, tx):
         if self.wallet == wallet:
             self.setDirty()
+
+    @qt_event_listener
+    def on_event_label_changed(self, wallet, name, text):
+        if self.wallet == wallet:
+            if self.wallet.is_mine(name):
+                self.updateAddress(name)
+            # a coin shows the label of its funding tx: name itself, or a tx whose label derives
+            # from name (e.g. via one of its output addresses, or an outpoint it creates or spends)
+            txids = {name} | self.wallet.get_txids_with_label_derived_from(name)
+            self.updateCoin(txids=txids)
 
     def rowCount(self, index):
         return len(self._items)
@@ -170,7 +177,17 @@ class QEAddressCoinListModel(QAbstractListModel, QtEventListener):
     def clear(self):
         self.beginResetModel()
         self._items = []
+        self._update_positions()
         self.endResetModel()
+
+    def _update_positions(self):
+        self._address_positions = {}
+        self._coin_positions = {}
+        for i, item in enumerate(self._items):
+            if item.get('outpoint'):
+                self._coin_positions.setdefault(item['txid'], []).append(i)
+            else:
+                self._address_positions[item['address']] = i
 
     def addr_to_model(self, addrtype: str, addridx: int, address: str):
         c, u, x = self.wallet.get_addr_balance(address)
@@ -238,6 +255,7 @@ class QEAddressCoinListModel(QAbstractListModel, QtEventListener):
         else:
             for i, address in enumerate(r_addresses):
                 insert_address('imported', address, i)
+        self._update_positions()
         self.endInsertRows()
 
         self._dirty = False
@@ -247,13 +265,11 @@ class QEAddressCoinListModel(QAbstractListModel, QtEventListener):
 
     @pyqtSlot(str)
     def updateAddress(self, address):
-        for i, a in enumerate(self._items):
-            if a['address'] == address:
-                self.do_update(i, a)
-                return
+        if (i := self._address_positions.get(address)) is not None:
+            self.do_update(i, self._items[i])
 
     @pyqtSlot(str)
-    def deleteAddress(self, address):
+    def deleteAddress(self, address: str):
         first = -1
         last = -1
         for i, a in enumerate(self._items):
@@ -265,13 +281,16 @@ class QEAddressCoinListModel(QAbstractListModel, QtEventListener):
             return
         self.beginRemoveRows(QModelIndex(), first, last)
         self._items = self._items[0:first] + self._items[last+1:]
+        self._update_positions()
         self.endRemoveRows()
 
-    def updateCoin(self, outpoint):
-        for i, a in enumerate(self._items):
-            if a.get('outpoint') == outpoint:
-                self.do_update(i, a)
-                return
+    def updateCoin(self, *, outpoint: str = None, txids: set[str] = None):
+        if outpoint is not None:
+            txids = {outpoint.split(':')[0]}
+        for txid in txids:
+            for i in self._coin_positions.get(txid, []):
+                if outpoint is None or self._items[i]['outpoint'] == outpoint:
+                    self.do_update(i, self._items[i])
 
     def do_update(self, modelindex, modelitem):
         mi = self.createIndex(modelindex, 0)
@@ -297,7 +316,7 @@ class QEAddressCoinListModel(QAbstractListModel, QtEventListener):
         if len(coins):
             self.wallet.set_frozen_state_of_coins(coins, freeze)
             for coin in coins:
-                self.updateCoin(coin)
+                self.updateCoin(outpoint=coin)
         addresses = list(filter(lambda x: ':' not in x, items))
         if len(addresses):
             self.wallet.set_frozen_state_of_addresses(addresses, freeze)

@@ -5,7 +5,12 @@ import unittest
 from functools import wraps, partial
 from unittest import SkipTest
 
-from PyQt6.QtCore import QCoreApplication, QMetaObject, Qt, pyqtSlot, QObject
+from PyQt6 import sip
+from PyQt6.QtCore import QCoreApplication, QEvent, QMetaObject, Qt, pyqtSlot, QObject
+
+from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
+from electrum.bitcoin import address_to_script
+from electrum.transaction import Transaction
 
 
 class TestQCoreApplication(QCoreApplication):
@@ -100,3 +105,37 @@ def qt_test(func):
         finally:
             self._testcase_event.set()
     return decorator
+
+
+def create_qcoreapplication(testcase_cls: type[unittest.TestCase]) -> None:
+    """Creates a QCoreApplication for a test class that uses QObjects without
+    running a Qt event loop, unless there is one already.
+    Without one, deleted QObjects never free PyQt's slot proxies, see delete_qobject.
+    """
+    if QCoreApplication.instance() is None:
+        saved_locale = locale.setlocale(locale.LC_ALL)
+        app = QCoreApplication([])
+        locale.setlocale(locale.LC_ALL, saved_locale)  # changed by QCoreApplication
+        testcase_cls.addClassCleanup(sip.delete, app)
+
+
+def delete_qobject(obj: QObject) -> None:
+    # delete explicitly: if the GC deletes it, its destroyed handler might run on a half-cleared object
+    sip.delete(obj)
+    # free PyQt's slot proxies of the deleted object, they hold references to it (and so e.g. to a wallet).
+    # The proxies only get scheduled for deletion by a posted event, hence the two calls.
+    QCoreApplication.sendPostedEvents()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete.value)
+
+
+def receive_incoming_tx(wallet, prevout_byte: str, outputs: list[tuple[str, int]]) -> str:
+    """Adds an unconfirmed tx with one dummy (not ismine) input to the wallet, returns its txid."""
+    outs = ''
+    for addr, value in outputs:
+        spk = address_to_script(addr)
+        outs += value.to_bytes(8, 'little').hex() + bytes([len(spk)]).hex() + spk.hex()
+    tx = Transaction(
+        '02000000' + '01' + prevout_byte * 32 + '00000000' + '00' + 'fdffffff'
+        + f'{len(outputs):02x}' + outs + '00000000')
+    wallet.adb.receive_tx_callback(tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+    return tx.txid()
