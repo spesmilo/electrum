@@ -1921,6 +1921,8 @@ class Commands(Logger):
                 'remote_reserve': chan.config[LOCAL].reserve_sat,
                 'local_unsettled_sent': chan.balance_tied_up_in_htlcs_by_direction(LOCAL, direction=SENT) // 1000,
                 'remote_unsettled_sent': chan.balance_tied_up_in_htlcs_by_direction(REMOTE, direction=SENT) // 1000,
+                'frozen_for_sending': chan.is_frozen_for_sending(),
+                'frozen_for_receiving': chan.is_frozen_for_receiving(),
             } for chan in wallet.lnworker.channels.values() if _filter(chan)
         ]
 
@@ -2010,6 +2012,61 @@ class Commands(Logger):
         if not chan.can_be_deleted():
             raise UserFacingException(f'Cannot delete channel backup {channel_point}')
         wallet.lnworker.remove_channel_backup(chan_id)
+
+    def _set_channel_frozen(
+            self, wallet: Abstract_Wallet, channel_point: str, *, sending: bool, receiving: bool, value: bool,
+    ) -> dict:
+        txid, index = channel_point.split(':')
+        chan_id, _ = channel_id_from_funding_tx(txid, int(index))
+        if chan_id not in wallet.lnworker.channels:
+            raise UserFacingException(f'Unknown channel {channel_point}')
+        chan = wallet.lnworker.channels[chan_id]
+        if chan.is_backup():
+            raise UserFacingException(f'{channel_point} is a channel backup')
+        if not sending and not receiving:
+            sending = receiving = True
+        if sending:
+            if wallet.lnworker.uses_trampoline() and not wallet.lnworker.is_trampoline_peer(chan.node_id):
+                # such channels are implicitly frozen for sending, see Channel.is_frozen_for_sending
+                from .gui.messages import MSG_NON_TRAMPOLINE_CHANNEL_FROZEN_WITHOUT_GOSSIP
+                raise UserFacingException(MSG_NON_TRAMPOLINE_CHANNEL_FROZEN_WITHOUT_GOSSIP)
+            chan.set_frozen_for_sending(value)
+        if receiving:
+            chan.set_frozen_for_receiving(value)
+        return {
+            'frozen_for_sending': chan.is_frozen_for_sending(),
+            'frozen_for_receiving': chan.is_frozen_for_receiving(),
+        }
+
+    @command('wl')
+    async def freeze_channel(self, channel_point, sending=False, receiving=False, wallet: Abstract_Wallet = None):
+        """
+        Freeze a lightning channel, so that it is not used for new payments.
+        Freezes both directions, unless --sending or --receiving is given.
+        Note that incoming HTLCs are not rejected: a channel frozen for receiving
+        is only left out of the routing hints of new invoices.
+
+        Returns the resulting frozen state of the channel.
+
+        arg:str:channel_point:channel point
+        arg:bool:sending:only freeze for sending
+        arg:bool:receiving:only freeze for receiving
+        """
+        return self._set_channel_frozen(wallet, channel_point, sending=sending, receiving=receiving, value=True)
+
+    @command('wl')
+    async def unfreeze_channel(self, channel_point, sending=False, receiving=False, wallet: Abstract_Wallet = None):
+        """
+        Unfreeze a lightning channel, so that it is used again for new payments.
+        Unfreezes both directions, unless --sending or --receiving is given.
+
+        Returns the resulting frozen state of the channel.
+
+        arg:str:channel_point:channel point
+        arg:bool:sending:only unfreeze for sending
+        arg:bool:receiving:only unfreeze for receiving
+        """
+        return self._set_channel_frozen(wallet, channel_point, sending=sending, receiving=receiving, value=False)
 
     @command('wnpl')
     async def request_force_close(self, channel_point, connection_string=None, password=None, wallet: Abstract_Wallet = None):
