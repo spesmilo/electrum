@@ -48,12 +48,16 @@ class FakeNetwork:
         self.interface = None
         self.chains = {}  # chain_id -> list of FakeInterface
         self.disconnected = []  # list of FakeServerAddr
+        self.bookmarks = set()  # set of str(FakeServerAddr)
 
     def get_blockchains(self):
         return self.chains
 
     def get_disconnected_server_addrs(self):
         return self.disconnected
+
+    def is_server_bookmarked(self, server):
+        return str(server) in self.bookmarks
 
     def add_chain(self, chain_id, name, interfaces):
         blockchain = FakeBlockchain(name)
@@ -99,6 +103,7 @@ class TestQEServerListModel(QETestCase):
         self.assertEqual([role(proxy, r, 'chain') for r in range(5)], ['forkchain', 'mainchain', 'mainchain', '', ''])
         self.assertEqual([role(proxy, r, 'is_connected') for r in range(5)], [True, True, True, False, False])
         self.assertEqual([role(proxy, r, 'is_primary') for r in range(5)], [False, True, False, False, False])
+        self.assertEqual([role(proxy, r, 'is_bookmarked') for r in range(5)], [False] * 5)
         self.assertEqual(role(proxy, 0, 'address'), 'c:50002')
         self.assertEqual(role(proxy, 3, 'address'), 'x:50002')
         self.assertEqual(proxy.roleNames(), model.roleNames())
@@ -231,3 +236,49 @@ class TestQEServerListModel(QETestCase):
         model.initModel()
         self.assertEqual(len(receiver.receivedForSignal(model.modelReset)), 1)
         self.assertEqual(names(proxy), ['c:50002:s', 'a:50002:s', 'b:50002:s', 'x:50002:s', 'y:50002:s'])
+
+    @qt_test
+    def test_bookmark_toggle_updates_in_place_and_resorts(self):
+        net = self._default_network()
+        model, proxy = self._make(net)
+        receiver = QEventReceiver(model.dataChanged, model.modelReset, model.rowsInserted, model.rowsRemoved)
+
+        # bookmark 'y'
+        net.bookmarks.add('y:50002:s')
+        model.updateModel()
+
+        changed = receiver.receivedForSignal(model.dataChanged)
+        self.assertEqual(len(changed), 1)
+        top_left, bottom_right, roles = changed[0][1]
+        self.assertEqual((top_left.row(), bottom_right.row()), (4, 4))
+        self.assertEqual(list(roles), [model._ROLE_RMAP['is_bookmarked']])
+        self.assertEqual(len(receiver.receivedForSignal(model.modelReset)), 0)
+        self.assertEqual(len(receiver.receivedForSignal(model.rowsInserted)), 0)
+        self.assertEqual(len(receiver.receivedForSignal(model.rowsRemoved)), 0)
+        # source row stays where it was, proxy moves it to the top of the disconnected group
+        self.assertEqual(names(model), ['a:50002:s', 'b:50002:s', 'c:50002:s', 'x:50002:s', 'y:50002:s'])
+        self.assertEqual(names(proxy), ['c:50002:s', 'a:50002:s', 'b:50002:s', 'y:50002:s', 'x:50002:s'])
+        self.assertEqual([role(proxy, r, 'is_bookmarked') for r in range(5)], [False, False, False, True, False])
+
+        # remove the bookmark again
+        receiver.clear()
+        net.bookmarks.clear()
+        model.updateModel()
+        self.assertEqual(len(receiver.receivedForSignal(model.dataChanged)), 1)
+        self.assertEqual(names(proxy), ['c:50002:s', 'a:50002:s', 'b:50002:s', 'x:50002:s', 'y:50002:s'])
+        self.assertEqual([role(proxy, r, 'is_bookmarked') for r in range(5)], [False] * 5)
+
+    @qt_test
+    def test_bookmarked_connected_server(self):
+        net = self._default_network()
+        net.bookmarks.add('b:50002:s')
+        model, proxy = self._make(net)
+
+        self.assertEqual(role(model, 1, 'is_bookmarked'), True)
+        # bookmarked server sorts first within its chain group, chain grouping unaffected
+        self.assertEqual(names(proxy), ['c:50002:s', 'b:50002:s', 'a:50002:s', 'x:50002:s', 'y:50002:s'])
+        self.assertEqual([role(proxy, r, 'chain') for r in range(5)], ['forkchain', 'mainchain', 'mainchain', '', ''])
+
+        # rebuild from scratch keeps the role
+        model.initModel()
+        self.assertEqual([role(proxy, r, 'is_bookmarked') for r in range(5)], [False, True, False, False, False])

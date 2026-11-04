@@ -22,7 +22,7 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
     _logger = get_logger(__name__)
 
     # define listmodel rolemap
-    _ROLE_NAMES=('name', 'address', 'is_connected', 'is_primary', 'is_tor', 'chain', 'height')
+    _ROLE_NAMES=('name', 'address', 'is_connected', 'is_primary', 'is_tor', 'is_bookmarked', 'chain', 'height')
     _ROLE_KEYS = range(Qt.ItemDataRole.UserRole, Qt.ItemDataRole.UserRole + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
     _ROLE_RMAP = dict(zip(_ROLE_NAMES, _ROLE_KEYS))
@@ -104,6 +104,7 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
                     'is_primary': i == self.network.interface,
                     'is_connected': True,
                     'is_tor': i.server.host.endswith('.onion'),
+                    'is_bookmarked': self.network.is_server_bookmarked(i.server),
                     'name': str(i.server),
                     'address': i.server.to_friendly_name(),
                     'height': i.tip,
@@ -119,6 +120,7 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
                 'is_primary': False,
                 'is_connected': False,
                 'is_tor': s.host.endswith('.onion'),
+                'is_bookmarked': self.network.is_server_bookmarked(s),
                 'name': str(s),
                 'address': s.to_friendly_name(),
             }
@@ -176,8 +178,11 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
 class QEServerListSortModel(QSortFilterProxyModel):
     """Presents QEServerListModel with connected servers first, grouped by chain,
     and disconnected servers last, so the view can use ListView.section on 'chain'.
+    Within a group bookmarked servers come first, then alphabetically by name.
 
-    Within a group the source model order is kept (QSortFilterProxyModel sorts stable).
+    The name tiebreaker keeps the order deterministic: on dataChanged the proxy
+    reinserts a row before rows with an equal key, which would otherwise leave
+    e.g. an unbookmarked server at the top of its group.
     """
     _logger = get_logger(__name__)
 
@@ -189,7 +194,7 @@ class QEServerListSortModel(QSortFilterProxyModel):
 
     def _sort_key(self, source_index: QModelIndex):
         server = self.sourceModel()._servers[source_index.row()]
-        return not server['is_connected'], server['chain']
+        return not server['is_connected'], server['chain'], not server['is_bookmarked'], server['name']
 
     def lessThan(self, left: QModelIndex, right: QModelIndex) -> bool:
         return self._sort_key(left) < self._sort_key(right)

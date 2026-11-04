@@ -102,6 +102,7 @@ Item {
                 ElListView {
                     id: serversListView
                     anchors.fill: parent
+                    exclusionZone: 0
                     model: Network.serverListModel
                     delegate: ServerDelegate {
                         onClicked: {

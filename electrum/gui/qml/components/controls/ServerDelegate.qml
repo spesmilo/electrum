@@ -16,14 +16,14 @@ ItemDelegate {
             left: parent.left
             right: parent.right
             leftMargin: constants.paddingXLarge
-            rightMargin: constants.paddingSmall
+            rightMargin: constants.paddingSmall + (root.ListView.view.rightExclusionZone || 0)
         }
 
-        columns: 3
+        columns: 4
 
         // topmargin
         Rectangle {
-            Layout.columnSpan: 3
+            Layout.columnSpan: 4
             Layout.preferredHeight: constants.paddingSmall
             color: 'transparent'
         }
@@ -51,11 +51,29 @@ ItemDelegate {
         Label {
             Layout.fillWidth: true
             text: model.address
+            wrapMode: Text.Wrap
+        }
+        Item {
+            Layout.preferredWidth: constants.iconSizeLarge
+            Layout.preferredHeight: constants.iconSizeLarge
+            Image {
+                anchors.centerIn: parent
+                width: constants.iconSizeMedium
+                height: constants.iconSizeMedium
+                source: model.is_bookmarked
+                    ? '../../../icons/bookmark.png'
+                    : '../../../icons/bookmark_add.png'
+                opacity: model.is_bookmarked ? 1.0 : 0.4
+            }
+            MouseArea {
+                anchors.fill: parent
+                onClicked: Network.setServerBookmark(model.name, !model.is_bookmarked)
+            }
         }
 
         // bottommargin
         Rectangle {
-            Layout.columnSpan: 3
+            Layout.columnSpan: 4
             Layout.preferredHeight: constants.paddingSmall
             color: 'transparent'
         }

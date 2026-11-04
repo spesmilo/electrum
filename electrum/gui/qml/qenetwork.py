@@ -213,6 +213,18 @@ class QENetwork(QObject, QtEventListener):
     def isValidServerAddress(self, server: str) -> bool:
         return ServerAddr.from_str_with_inference(server) is not None
 
+    @pyqtSlot(str, bool)
+    def setServerBookmark(self, server_str: str, bookmarked: bool):
+        # server_str is the 'name' role of QEServerListModel, i.e. str(ServerAddr)
+        try:
+            server = ServerAddr.from_str(server_str)
+        except ValueError:
+            self._logger.warning(f'setServerBookmark: invalid server address {server_str!r}')
+            return
+        self.network.set_server_bookmark(server, add=bookmarked)
+        if self._serverListModel is not None:
+            self._serverListModel.updateModel()
+
     @pyqtSlot(str, bool, bool)
     def setServerParameters(self, server_str: str, auto_connect: bool, one_server: bool):
         net_params = self.network.get_parameters()
