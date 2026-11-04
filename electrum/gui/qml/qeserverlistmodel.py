@@ -45,7 +45,7 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
     @qt_event_listener
     def on_event_default_server_changed(self):
         self._logger.info(f'default server changed')
-        self.initModel()
+        self.updatePrimary()
 
     def rowCount(self, index):
         return len(self._servers)
@@ -81,6 +81,23 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
             self._chaintips = n_chains
             self.chaintipsChanged.emit()
         return chains
+
+    def _is_primary(self, server: dict) -> bool:
+        interface = self.network.interface
+        if interface is None or not server['is_connected']:
+            return False
+        return server['name'] == str(interface.server)
+
+    @pyqtSlot()
+    def updatePrimary(self):
+        role = self._ROLE_RMAP['is_primary']
+        for row, server in enumerate(self._servers):
+            is_primary = self._is_primary(server)
+            if server['is_primary'] == is_primary:
+                continue
+            server['is_primary'] = is_primary
+            idx = self.index(row, 0)
+            self.dataChanged.emit(idx, idx, [role])
 
     @pyqtSlot()
     def initModel(self):
