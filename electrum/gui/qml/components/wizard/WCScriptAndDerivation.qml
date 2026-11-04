@@ -220,7 +220,9 @@ WizardComponent {
 
     Component {
         id: bip39recoveryDialog
-        BIP39RecoveryDialog { }
+        BIP39RecoveryDialog {
+            onClosed: destroy()
+        }
     }
 
     Component.onCompleted: {
