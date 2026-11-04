@@ -116,7 +116,7 @@ Item {
                         required property string section
                         Label {
                             text: section
-                                ? serversListView.model.chaintips > 1
+                                ? Network.chaintips > 1
                                     ? qsTr('Connected @%1').arg(section)
                                     : qsTr('Connected')
                                 : qsTr('Other known servers')

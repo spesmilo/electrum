@@ -12,7 +12,7 @@ from electrum.util import event_listener
 from electrum.gui.common_qt.util import QtEventListener
 
 from .qeconfig import QEConfig
-from .qeserverlistmodel import QEServerListModel
+from .qeserverlistmodel import QEServerListModel, QEServerListSortModel
 
 if TYPE_CHECKING:
     from electrum.network import Network
@@ -56,6 +56,7 @@ class QENetwork(QObject, QtEventListener):
         assert network, "--offline is not yet implemented for this GUI"  # TODO
         self.network = network
         self._serverListModel = None
+        self._serverListSortModel = None
         self._height = network.get_local_height()  # init here, update event can take a while
         self._server_height = network.get_server_height()  # init here, update event can take a while
         self.register_callbacks()
@@ -303,11 +304,12 @@ class QENetwork(QObject, QtEventListener):
         }
 
     serverListModelChanged = pyqtSignal()
-    @pyqtProperty(QEServerListModel, notify=serverListModelChanged)
+    @pyqtProperty(QEServerListSortModel, notify=serverListModelChanged)
     def serverListModel(self):
-        if self._serverListModel is None:
+        if self._serverListSortModel is None:
             self._serverListModel = QEServerListModel(self.network)
-        return self._serverListModel
+            self._serverListSortModel = QEServerListSortModel(self._serverListModel)
+        return self._serverListSortModel
 
     @pyqtSlot()
     def probeTor(self):

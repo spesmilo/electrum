@@ -1,7 +1,7 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Dict, Any
 
-from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot
-from PyQt6.QtCore import Qt, QAbstractListModel, QModelIndex
+from PyQt6.QtCore import pyqtSlot
+from PyQt6.QtCore import Qt, QAbstractListModel, QModelIndex, QSortFilterProxyModel
 
 from electrum.logging import get_logger
 from electrum.util import Satoshis
@@ -13,6 +13,12 @@ if TYPE_CHECKING:
 
 
 class QEServerListModel(QAbstractListModel, QtEventListener):
+    """List of known servers, connected and disconnected.
+
+    Rows are updated in place and keep their position in this model; the view should
+    use QEServerListSortModel to get connected servers grouped by chain first and
+    disconnected servers last.
+    """
     _logger = get_logger(__name__)
 
     # define listmodel rolemap
@@ -24,8 +30,7 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
     def __init__(self, network: 'Network', parent=None):
         super().__init__(parent)
 
-        self._chaintips = 0
-        self._servers = []
+        self._servers = []  # type: List[Dict[str, Any]]
 
         self.network = network
         self.initModel()
@@ -34,13 +39,8 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
 
     @qt_event_listener
     def on_event_network_updated(self):
-        self._logger.info(f'network updated')
-        self.initModel()
-
-    @qt_event_listener
-    def on_event_blockchain_updated(self):
-        self._logger.info(f'blockchain updated')
-        self.initModel()
+        self._logger.debug(f'network updated')
+        self.updateModel()
 
     @qt_event_listener
     def on_event_default_server_changed(self):
@@ -69,19 +69,6 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
         self._servers = []
         self.endResetModel()
 
-    chaintipsChanged = pyqtSignal()
-    @pyqtProperty(int, notify=chaintipsChanged)
-    def chaintips(self):
-        return self._chaintips
-
-    def get_chains(self):
-        chains = self.network.get_blockchains()
-        n_chains = len(chains)
-        if n_chains != self._chaintips:
-            self._chaintips = n_chains
-            self.chaintipsChanged.emit()
-        return chains
-
     def _is_primary(self, server: dict) -> bool:
         interface = self.network.interface
         if interface is None or not server['is_connected']:
@@ -99,33 +86,27 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
             idx = self.index(row, 0)
             self.dataChanged.emit(idx, idx, [role])
 
-    @pyqtSlot()
-    def initModel(self):
-        self.clear()
-
+    def _build_servers(self) -> List[Dict[str, Any]]:
+        """Collect the current server state from the network as a list of row dicts."""
         servers = []
 
-        chains = self.get_chains()
-
-        for chain_id, interfaces in chains.items():
-            self._logger.debug(f'chain {chain_id} has {len(interfaces)} interfaces')
-            b = self.network.bc_mgr.blockchains.get(chain_id)
-            if b is None:
-                continue
+        for chain_id, interfaces in self.network.get_blockchains().items():
+            b = interfaces[0].blockchain
 
             name = b.get_name()
 
-            self._logger.debug(f'chain {chain_id} has name={name}, max_forkpoint=@{b.get_max_forkpoint()}, height={b.height()}')
+            self._logger.debug(f'chain {chain_id} has name={name}, max_forkpoint=@{b.get_max_forkpoint()}, '
+                               f'height={b.height()}, interfaces={len(interfaces)}')
 
             for i in interfaces:
                 server = {
                     'chain': name,
-                    'chain_height': b.height(),
                     'is_primary': i == self.network.interface,
                     'is_connected': True,
+                    'is_tor': i.server.host.endswith('.onion'),
                     'name': str(i.server),
                     'address': i.server.to_friendly_name(),
-                    'height': i.tip
+                    'height': i.tip,
                 }
 
                 servers.append(server)
@@ -134,16 +115,81 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
         for s in self.network.get_disconnected_server_addrs():
             server = {
                 'chain': '',
-                'chain_height': 0,
                 'height': 0,
                 'is_primary': False,
                 'is_connected': False,
-                'name': s.to_friendly_name()
+                'is_tor': s.host.endswith('.onion'),
+                'name': str(s),
+                'address': s.to_friendly_name(),
             }
-            server['address'] = server['name']
 
             servers.append(server)
 
-        self.beginInsertRows(QModelIndex(), 0, len(servers) - 1)
-        self._servers = servers
-        self.endInsertRows()
+        return servers
+
+    @pyqtSlot()
+    def updateModel(self):
+        """Bring the model in sync with the network, updating rows in place.
+
+        Existing rows keep their position: changed roles are signalled through
+        dataChanged, vanished servers are removed and new servers are appended.
+        """
+        new_servers = self._build_servers()
+        new_by_name = {}
+        for server in new_servers:
+            new_by_name.setdefault(server['name'], server)
+
+        # remove rows for servers that are gone
+        for row in reversed(range(len(self._servers))):
+            if self._servers[row]['name'] in new_by_name:
+                continue
+            self.beginRemoveRows(QModelIndex(), row, row)
+            del self._servers[row]
+            self.endRemoveRows()
+
+        # update rows for servers that are still there
+        existing = {server['name']: row for row, server in enumerate(self._servers)}
+        for name, row in existing.items():
+            current = self._servers[row]
+            new = new_by_name[name]
+            changed_roles = [self._ROLE_RMAP[k] for k in self._ROLE_NAMES if current.get(k) != new.get(k)]
+            if not changed_roles:
+                continue
+            current.update(new)
+            idx = self.index(row, 0)
+            self.dataChanged.emit(idx, idx, changed_roles)
+
+        # append rows for new servers
+        to_add = [server for name, server in new_by_name.items() if name not in existing]
+        if to_add:
+            first = len(self._servers)
+            self.beginInsertRows(QModelIndex(), first, first + len(to_add) - 1)
+            self._servers.extend(to_add)
+            self.endInsertRows()
+
+    @pyqtSlot()
+    def initModel(self):
+        self.clear()
+        self.updateModel()
+
+
+class QEServerListSortModel(QSortFilterProxyModel):
+    """Presents QEServerListModel with connected servers first, grouped by chain,
+    and disconnected servers last, so the view can use ListView.section on 'chain'.
+
+    Within a group the source model order is kept (QSortFilterProxyModel sorts stable).
+    """
+    _logger = get_logger(__name__)
+
+    def __init__(self, source: QEServerListModel, parent=None):
+        super().__init__(parent)
+        self.setSourceModel(source)
+        self.setDynamicSortFilter(True)
+        self.sort(0)
+
+    def _sort_key(self, source_index: QModelIndex):
+        server = self.sourceModel()._servers[source_index.row()]
+        return not server['is_connected'], server['chain']
+
+    def lessThan(self, left: QModelIndex, right: QModelIndex) -> bool:
+        return self._sort_key(left) < self._sort_key(right)
