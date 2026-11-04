@@ -246,6 +246,41 @@ class TestTxBatcher(ElectrumTestCase):
         assert tx1_prime_prime.inputs()[0].prevout == tx1_prime.inputs()[0].prevout
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_batch_sweep__broadcast_failed_but_relayed(self, mock_save_db):
+        # sweep:        tx1(s)          pays nothing, has change
+        # output 2:     tx1'(s,o2)      broadcast fails, but the tx was relayed
+        # output 2:     tx2(tx1|o2)
+        #
+        # txbatcher starts a new batch from tx1. tx2 must be a child of tx1,
+        # else o2 is paid twice if tx1' gets mined
+        OUTGOING_ADDRESS = 'tb1q7rl9cxr85962ztnsze089zs8ycv52hk43f3m9n'
+        wallet = self._create_wallet()
+        funding_tx = Transaction(WALLET_DATA["funding_tx"])
+        await self.network.try_broadcasting(funding_tx, 'funding')
+        await self.network.next_tx()
+        wallet.adb.db.transactions[SWAPDATA.funding_txid] = tx = Transaction(SWAP_FUNDING_TX)
+        wallet.adb.receive_tx_callback(tx, tx_height=1)
+        tx_mined_status = wallet.adb.get_tx_height(tx.txid())
+        wallet.adb.add_verified_tx(tx.txid(), dataclasses.replace(tx_mined_status, conf=1))
+        wallet.txbatcher.add_sweep_input('default', SWAP_SWEEP_INFO)
+        tx1 = await self.network.next_tx()
+        assert tx1.has_change()
+        # broadcast times out, but the tx was relayed
+        broadcast = self.network.try_broadcasting
+        async def try_broadcasting_relayed(tx, name):
+            self.network.try_broadcasting = broadcast
+            self.network._tx_queue.put_nowait(tx)
+            return False
+        self.network.try_broadcasting = try_broadcasting_relayed
+        output2 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 20_000)
+        wallet.txbatcher.add_payment_output('default', output2)
+        tx1_prime = await self.network.next_tx()
+        assert output2 in tx1_prime.outputs()
+        tx2 = await self.network.next_tx()
+        assert output2 in tx2.outputs()
+        assert tx1.txid() in [txin.prevout.txid.hex() for txin in tx2.inputs()]
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_rbf_batching__cannot_batch_as_would_need_to_use_ismine_outputs_of_basetx(self, mock_save_db):
         """Wallet history contains unconf tx1 that spends all its coins to two ismine outputs,
         one 'recv' address (20k sats) and one 'change' (80k sats).

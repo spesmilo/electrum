@@ -621,8 +621,9 @@ class TxBatch(Logger):
 
     @locked
     def _start_new_batch(self, tx: Optional[PartialTransaction]) -> None:
-        use_change = tx and tx.has_change() and any([txout in self.batch_payments for txout in tx.outputs()])
-        self.batch_payments = self._to_pay_after(tx)
+        to_pay = self._to_pay_after(tx)
+        use_change = tx and tx.has_change() and bool(to_pay)
+        self.batch_payments = to_pay
         self.batch_inputs = self._to_sweep_after(tx)
         self._batch_txids.clear()
         self._base_tx = None
