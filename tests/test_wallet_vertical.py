@@ -22,7 +22,7 @@ from electrum.util import (
     InvalidPassword,
 )
 from electrum.fee_policy import FixedFeePolicy
-from electrum.transaction import Transaction, PartialTxOutput, tx_from_any, Sighash
+from electrum.transaction import Transaction, PartialTxOutput, TxOutpoint, tx_from_any, Sighash
 from electrum.mnemonic import calc_seed_type, is_old_seed
 from electrum.network import Network
 
@@ -2509,6 +2509,68 @@ class TestWalletSending(ElectrumTestCase):
             with self.assertRaises(InvalidTxSignature):
                 mywallet.adb.receive_tx_callback(tx, tx_height=TX_HEIGHT_UNCONFIRMED)
         self.assertLessEqual(verify_sig.call_count, 1)
+
+    def _wallet_with_stored_invalid_tx(self):
+        mywallet, _, external_addr = self._funded_wallet_setup()
+
+        def make_tx(amount) -> Transaction:
+            tx = mywallet.make_unsigned_transaction(
+                outputs=[PartialTxOutput.from_address_and_value(external_addr, amount)],
+                fee_policy=FixedFeePolicy(200), locktime=4_000_001, rbf=True,
+            )
+            mywallet.sign_transaction(tx, password=None)
+            return Transaction(tx.serialize())
+
+        valid_tx = make_tx(10_000)
+        mywallet.adb.receive_tx_callback(valid_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+        invalid_tx = make_tx(10_000)
+        self.assertEqual(valid_tx.txid(), invalid_tx.inputs()[0].prevout.txid.hex())
+        pubkey = invalid_tx.inputs()[0].witness_elements()[1]
+        other_sig = valid_tx.inputs()[0].witness_elements()[0]
+        invalid_tx.inputs()[0].witness = bitcoin.construct_witness([other_sig, pubkey])
+        invalid_tx = Transaction(invalid_tx.serialize_to_network())
+        # stored without checking signatures, as before 4.8.3
+        mywallet.adb.verify_txins = None
+        mywallet.adb.receive_tx_callback(invalid_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+        child_tx = make_tx('!')
+        self.assertEqual(invalid_tx.txid(), child_tx.inputs()[0].prevout.txid.hex())
+        mywallet.adb.receive_tx_callback(child_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+        return mywallet, valid_tx, invalid_tx, child_tx
+
+    def _reopen(self, wallet):
+        return Standard_Wallet(WalletDB(wallet.db.dump(), storage=None, upgrade=False), config=self.config)
+
+    async def test_stored_tx_with_invalid_signature_is_removed_on_open(self):
+        mywallet, valid_tx, invalid_tx, child_tx = self._wallet_with_stored_invalid_tx()
+        wallet = self._reopen(mywallet)
+        self.assertIsNotNone(wallet.db.get_transaction(valid_tx.txid()))
+        self.assertIsNone(wallet.db.get_transaction(invalid_tx.txid()))
+        self.assertIsNone(wallet.db.get_transaction(child_tx.txid()))
+
+    async def test_stored_tx_claimed_mined_with_invalid_signature(self):
+        mywallet, valid_tx, invalid_tx, child_tx = self._wallet_with_stored_invalid_tx()
+        addr = mywallet.adb.get_txin_address(invalid_tx.inputs()[0])
+        mywallet.db.set_addr_history(addr, [(valid_tx.txid(), TX_HEIGHT_UNCONFIRMED), (invalid_tx.txid(), 100)])
+        wallet = self._reopen(mywallet)
+        self.assertIsNone(wallet.db.get_transaction(invalid_tx.txid()))
+        # received again from the server, it is held until SPV-verified
+        wallet.adb.receive_tx_callback(invalid_tx)
+        self.assertTrue(wallet.adb.is_held_tx(invalid_tx.txid()))
+        wallet.adb.add_verified_tx(invalid_tx.txid(), TxMinedInfo(_height=100, timestamp=0, txpos=1, header_hash='00' * 32))
+        self.assertIsNotNone(wallet.db.get_transaction(invalid_tx.txid()))
+
+    async def test_stored_tx_spending_missing_output(self):
+        mywallet, make_tx, external_addr = self._funded_wallet_setup()
+        parent_tx = make_tx(external_addr)
+        child_tx = make_tx(external_addr)
+        child_tx.inputs()[0].prevout = TxOutpoint(bfh(parent_tx.txid()), 99)
+        child_tx = Transaction(child_tx.serialize_to_network())
+        # received before its parent, so not checked
+        mywallet.adb.receive_tx_callback(child_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+        mywallet.adb.receive_tx_callback(parent_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+        wallet = self._reopen(mywallet)
+        self.assertIsNotNone(wallet.db.get_transaction(child_tx.txid()))
+        self.assertTrue(wallet.adb.add_transaction(child_tx, allow_unrelated=True, is_new=False))
 
     async def test_join_psbts__merge_duplicate_outputs(self):
         """txos paying to the same address might be merged into a single output with a larger value"""

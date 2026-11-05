@@ -178,6 +178,19 @@ class TestAddressSynchronizerSignatures(ElectrumTestCase):
         self.adb.add_verified_tx(tx.txid(), TxMinedInfo(_height=100, timestamp=0, txpos=1, header_hash='00' * 32))
         self.assertIsNone(self.adb.db.get_transaction(tx.txid()))
 
+    async def test_depending_transactions_of_doubled_chain(self):
+        self._receive(self.funding_tx)
+        prevouts = [self.funding_outpoint]
+        chain = []
+        for _ in range(16):
+            tx = make_tx(prevouts, [(ADDR_MINE, 1000), (ADDR_MINE, 1000)])
+            self._receive(tx)
+            chain.append(tx.txid())
+            prevouts = [tx.txid() + ':0', tx.txid() + ':1']  # each tx spends both outputs of the previous
+        with mock.patch.object(self.adb.db, 'get_spent_outpoints', wraps=self.adb.db.get_spent_outpoints) as spy:
+            self.assertEqual(set(chain), self.adb.get_depending_transactions(self.funding_tx.txid()))
+        self.assertLessEqual(spy.call_count, len(chain) + 1)
+
     def _make_synchronizer(self) -> Synchronizer:
         sync = Synchronizer.__new__(Synchronizer)
         sync.adb = self.adb

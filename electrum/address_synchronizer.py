@@ -179,7 +179,7 @@ class AddressSynchronizer(Logger, EventListener):
             if prevout_n in d:
                 return addr
         tx = self.db.get_transaction(prevout_hash)
-        if tx:
+        if tx and prevout_n < len(tx.outputs()):
             return tx.outputs()[prevout_n].address
         return None
 
@@ -493,10 +493,14 @@ class AddressSynchronizer(Logger, EventListener):
     def get_depending_transactions(self, tx_hash: str) -> Set[str]:
         """Returns all (grand-)children of tx_hash in this wallet."""
         children = set()
-        for n in self.db.get_spent_outpoints(tx_hash):
-            other_hash = self.db.get_spent_outpoint(tx_hash, n)
-            children.add(other_hash)
-            children |= self.get_depending_transactions(other_hash)
+        to_visit = [tx_hash]
+        while to_visit:
+            txid = to_visit.pop()
+            for n in self.db.get_spent_outpoints(txid):
+                other_hash = self.db.get_spent_outpoint(txid, n)
+                if other_hash not in children:
+                    children.add(other_hash)
+                    to_visit.append(other_hash)
         return children
 
     @with_lock

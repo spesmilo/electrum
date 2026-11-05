@@ -458,6 +458,13 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self._freeze_lock = threading.RLock()  # for mutating/iterating frozen_{addresses,coins}
 
         self.load_keystore()
+        # txs stored before 4.8.3 were added without checking their signatures
+        for txid in self.db.list_transactions():
+            if self.db.is_in_verified_tx(txid) or not (tx := self.db.get_transaction(txid)):
+                continue
+            if not self.adb._are_new_inputs_valid(tx, range(len(tx.inputs())), is_new_witness=True):
+                self.adb.remove_transaction(txid)
+        self.adb.load_unverified_transactions()  # restore the heights of removed txs
         self.txbatcher = TxBatcher(self)
         self._init_lnworker()
         self._init_requests_rhash_index()
