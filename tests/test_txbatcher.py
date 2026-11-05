@@ -12,6 +12,7 @@ from electrum import util
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
 from electrum.transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput, TxOutpoint
 from electrum.logging import console_stderr_handler, Logger
+from electrum.interface import TxBroadcastServerReturnedError, RequestTimedOut
 from electrum.submarine_swaps import SwapManager, SwapData
 from electrum.lnsweep import SweepInfo, sweep_ctx_anchor
 from electrum.fee_policy import FeeTimeEstimates, FeePolicy
@@ -31,8 +32,14 @@ class MockNetwork(Logger):
         self.interface = None
         self.relay_fee = 1000
         self.wallets = []
-        self._tx_queue = asyncio.Queue()
+        self._tx_queue = asyncio.Queue()  # txs relayed to the bitcoin network
         self.local_height = 42
+        # 'ok', 'rejected' (not relayed), or 'timeout' (relayed, but we get an error)
+        self.broadcast_outcomes = []  # outcomes of the next broadcasts
+        self.default_broadcast_outcome = 'ok'
+        # if set, the server sends relayed txs to the wallets only in sync()
+        self.sync_delay = False
+        self._unsynced = []
 
     def get_local_height(self):
         return self.local_height
@@ -43,11 +50,29 @@ class MockNetwork(Logger):
                 return True
         return BlockchainMock()
 
-    async def try_broadcasting(self, tx, name):
-        for w in self.wallets:
-            w.adb.receive_tx_callback(tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+    async def broadcast_transaction(self, tx, *, timeout=None):
+        outcome = self.broadcast_outcomes.pop(0) if self.broadcast_outcomes else self.default_broadcast_outcome
+        if outcome == 'rejected':
+            raise TxBroadcastServerReturnedError('rejected')
         self._tx_queue.put_nowait(tx)
-        return tx.txid()
+        self._unsynced.append(tx)
+        if not self.sync_delay:
+            self.sync()
+        if outcome == 'timeout':
+            raise RequestTimedOut()
+
+    async def try_broadcasting(self, tx, name):
+        try:
+            await self.broadcast_transaction(tx)
+        except Exception:
+            return False
+        return True
+
+    def sync(self):
+        for tx in self._unsynced:
+            for w in self.wallets:
+                w.adb.receive_tx_callback(tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+        self._unsynced.clear()
 
     async def next_tx(self):
         tx = await util.wait_for2(self._tx_queue.get(), timeout=10)
@@ -231,11 +256,7 @@ class TestTxBatcher(ElectrumTestCase):
         wallet.txbatcher.add_payment_output('default', output1)
         tx1 = await self.network.next_tx()
         # the server lags behind the mempool
-        broadcast = self.network.try_broadcasting
-        async def try_broadcasting_lagging(tx, name):
-            self.network._tx_queue.put_nowait(tx)
-            return tx.txid()
-        self.network.try_broadcasting = try_broadcasting_lagging
+        self.network.sync_delay = True
         output2 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 20_000)
         wallet.txbatcher.add_payment_output('default', output2)
         tx1_prime = await self.network.next_tx()
@@ -243,15 +264,14 @@ class TestTxBatcher(ElectrumTestCase):
         assert wallet.adb.get_transaction(tx1.txid()) is not None
         assert wallet.adb.get_transaction(tx1_prime.txid()) is None
         # the mempool rejects transactions that conflict with tx1', or spend from tx1
-        async def try_broadcasting_rejected(tx, name):
-            return None
-        self.network.try_broadcasting = try_broadcasting_rejected
+        self.network.default_broadcast_outcome = 'rejected'
         output3 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 30_000)
         wallet.txbatcher.add_payment_output('default', output3)
         await asyncio.sleep(10 * wallet.txbatcher.SLEEP_INTERVAL)
         # the server tells us about tx1'
-        self.network.try_broadcasting = broadcast
-        wallet.adb.receive_tx_callback(tx1_prime, tx_height=TX_HEIGHT_UNCONFIRMED)
+        self.network.default_broadcast_outcome = 'ok'
+        self.network.sync_delay = False
+        self.network.sync()
         assert wallet.adb.get_transaction(tx1.txid()) is None
         # txbatcher must not pay o2 again
         # txbatcher creates tx2, child of tx1', paying only o3
