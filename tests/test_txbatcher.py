@@ -714,6 +714,54 @@ class TestTxBatcher(ElectrumTestCase):
         self.assertIn(output1, tx1_prime_prime.outputs())
         self.assertEqual(tx1.inputs()[0].prevout, tx1_prime_prime.inputs()[0].prevout)
 
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_build_exception_keeps_batch(self, mock_save_db):
+        # an exception while creating a tx neither drops the batch nor its base tx:
+        # the tx is created again at the next block
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        await self._fund_wallet(wallet)
+        output1 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 10_000)
+        wallet.txbatcher.add_payment_output('default', output1)
+        batch = wallet.txbatcher.tx_batches['default']
+        with mock.patch.object(batch, 'create_next_transaction', side_effect=Exception('test')):
+            await batch.run_iteration()
+        await batch.run_iteration()
+        self.assertTrue(self.network._tx_queue.empty())
+        self.network.local_height += 1
+        await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        self.assertIn(output1, tx1.outputs())
+        # with a base tx
+        output2 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 20_000)
+        wallet.txbatcher.add_payment_output('default', output2)
+        with mock.patch.object(batch, 'create_next_transaction', side_effect=Exception('test')):
+            await batch.run_iteration()
+        self.assertEqual([tx1.txid()], batch._batch_txids)
+        self.network.local_height += 1
+        await batch.run_iteration()
+        tx1_prime = await self.network.next_tx()
+        self.assertIn(output2, tx1_prime.outputs())
+        self.assertEqual(tx1.inputs()[0].prevout, tx1_prime.inputs()[0].prevout)
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_future_tx_failure_does_not_block_ready_outputs(self, mock_save_db):
+        # add_future_tx, which only creates a tx for display, raises for a sweep that is not ready yet
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        await self._fund_wallet(wallet)
+        add_swap_funding_tx(wallet)
+        later_sweep = SWAP_SWEEP_INFO._replace(our_cltv_abs=self.network.local_height + 100)
+        wallet.txbatcher.add_sweep_input('default', later_sweep)
+        output1 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 10_000)
+        wallet.txbatcher.add_payment_output('default', output1)
+        batch = wallet.txbatcher.tx_batches['default']
+        with mock.patch.object(wallet, 'add_future_tx', side_effect=util.NotEnoughFunds()):
+            await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        self.assertIn(output1, tx1.outputs())
+        self.assertNotIn(later_sweep.txin.prevout, [txin.prevout for txin in tx1.inputs()])
+
     async def _make_replacement_without_change(self):
         """tx1(s,c,o1,o2) is replaced by F(s,c,o1), which we did not create and which has no change.
         Returns the wallet, its batch, tx1, F, o1 and o2. The batch is driven manually."""
