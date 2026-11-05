@@ -2,6 +2,7 @@ import logging
 from unittest import mock
 import asyncio
 import dataclasses
+import copy
 
 from aiorpcx import timeout_after
 
@@ -9,7 +10,7 @@ import electrum.fee_policy
 from electrum import keystore, wallet, lnutil
 from electrum import SimpleConfig
 from electrum import util
-from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
+from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_LOCAL
 from electrum.transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput, TxOutpoint, TxInput
 from electrum.bitcoin import construct_witness
 from electrum.logging import console_stderr_handler, Logger
@@ -17,6 +18,8 @@ from electrum.interface import TxBroadcastServerReturnedError, RequestTimedOut
 from electrum.submarine_swaps import SwapManager, SwapData
 from electrum.lnsweep import SweepInfo, sweep_ctx_anchor
 from electrum.fee_policy import FeeTimeEstimates, FeePolicy
+from electrum.script_interpreter import verify_transaction
+from electrum.txbatcher import TxBatch
 
 from . import ElectrumTestCase
 from .test_wallet_vertical import WalletIntegrityHelper, read_test_vector
@@ -313,6 +316,82 @@ class TestTxBatcher(ElectrumTestCase):
         tx2 = await self.network.next_tx()
         assert output2 in tx2.outputs()
         assert tx1.txid() in [txin.prevout.txid.hex() for txin in tx2.inputs()]
+
+    async def _make_replacement_without_change(self):
+        """tx1(s,o1,o2) is replaced by F(s,o1), which we did not create and which has no change.
+        Returns the wallet, its batch, tx1, F, o1 and o2. The batch is driven manually."""
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        await self._fund_wallet(wallet)
+        add_swap_funding_tx(wallet)
+        output1 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 10_000)
+        output2 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 20_000)
+        wallet.txbatcher.add_sweep_input('default', SWAP_SWEEP_INFO)
+        wallet.txbatcher.add_payment_output('default', output1)
+        wallet.txbatcher.add_payment_output('default', output2)
+        batch = wallet.txbatcher.tx_batches['default']
+        await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        assert output1 in tx1.outputs() and output2 in tx1.outputs() and tx1.has_change()
+        assert tx1.inputs()[0].prevout == SWAP_SWEEP_INFO.txin.prevout
+        # F: same input as tx1, only o1, validly signed
+        replacement = copy.deepcopy(tx1)
+        replacement._outputs = [output1]
+        replacement.remove_signatures()
+        replacement.invalidate_ser_cache()
+        wallet.sign_transaction(replacement, password=None)
+        replacement = Transaction(replacement.serialize())
+        verify_transaction(replacement, [Transaction(SWAP_FUNDING_TX).outputs()[0]])
+        wallet.adb.receive_tx_callback(replacement, tx_height=TX_HEIGHT_UNCONFIRMED)
+        assert wallet.adb.get_transaction(tx1.txid()) is None
+        return wallet, batch, tx1, replacement, output1, output2
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_batch__replacement_without_change_waits_until_mined(self, mock_save_db):
+        # tx1 might still get mined: txbatcher must not pay o2 with a tx that does not conflict with tx1.
+        wallet, batch, tx1, replacement, output1, output2 = await self._make_replacement_without_change()
+        # F is not mined, so we must wait
+        await batch.run_iteration()
+        assert self.network._tx_queue.empty()
+        # F gets mined: tx1 can no longer be mined
+        mine_tx(wallet, replacement)
+        await batch.run_iteration()
+        tx2 = await self.network.next_tx()
+        assert output1 not in tx2.outputs()
+        assert output2 in tx2.outputs()
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_batch__replacement_without_change_waits_after_restart(self, mock_save_db):
+        # same, but Electrum restarts, and the batch runs before o2 is added again: it must still wait
+        wallet, batch, tx1, replacement, output1, output2 = await self._make_replacement_without_change()
+        batch = TxBatch(wallet, batch.storage)
+        await batch.run_iteration()
+        batch.add_payment_output(output2)
+        await batch.run_iteration()
+        self.assertTrue(self.network._tx_queue.empty())
+        # F gets mined
+        mine_tx(wallet, replacement)
+        await batch.run_iteration()
+        tx2 = await self.network.next_tx()
+        self.assertNotIn(output1, tx2.outputs())
+        self.assertIn(output2, tx2.outputs())
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_batch__replacement_without_change_becomes_local(self, mock_save_db):
+        # the server drops F, which becomes LOCAL: it is removed from adb, and the next tx spends s again
+        wallet, batch, tx1, replacement, output1, output2 = await self._make_replacement_without_change()
+        await batch.run_iteration()
+        self.assertTrue(self.network._tx_queue.empty())
+        # what receive_history_callback does when the server drops a tx
+        wallet.adb.unconfirmed_tx.pop(replacement.txid())
+        wallet.adb.invalidate_cache()
+        self.assertEqual(TX_HEIGHT_LOCAL, wallet.adb.get_tx_height(replacement.txid()).height())
+        await batch.run_iteration()
+        tx2 = await self.network.next_tx()
+        self.assertIsNone(wallet.adb.get_transaction(replacement.txid()))
+        self.assertIn(output1, tx2.outputs())
+        self.assertIn(output2, tx2.outputs())
+        self.assertEqual(SWAP_SWEEP_INFO.txin.prevout, tx2.inputs()[0].prevout)
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_rbf_batching__cannot_batch_as_would_need_to_use_ismine_outputs_of_basetx(self, mock_save_db):
