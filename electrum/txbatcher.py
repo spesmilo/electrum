@@ -429,22 +429,31 @@ class TxBatch(Logger):
         tx = PartialTransaction.from_tx(wallet_tx)  # strips witness (hence rebroadcasting wallet_tx below)
         tx.add_info_from_wallet(self.wallet)  # this sets is_change
 
+        tx_mined_status = self.wallet.adb.get_tx_height(txid)
+        if tx_mined_status.conf > 0:
+            self.logger.info(f'base tx confirmed {txid}')
+            self._clear_unconfirmed_sweeps(tx)
+            self._start_new_batch(tx)
+            return None
         if self.is_mine(txid):
             if self._base_tx is None:
                 self.logger.info(f'found base_tx {txid}')
             self._base_tx = tx
+        elif tx_mined_status.height() == TX_HEIGHT_LOCAL:
+            # not in the mempool: its inputs can be spent again
+            self.logger.info(f'removing {txid}, which replaced our base tx and is local')
+            self.wallet.adb.remove_transaction(txid)
+            return None
+        elif not tx.has_change():
+            # our next tx would not conflict with the tx it replaced
+            self.logger.info(f'base tx was replaced by {txid}, which has no change. waiting until it is mined', only_once=True)
+            return tx
         elif self.has_only_batch_outputs(tx):
             self.logger.info(f'base tx was replaced by {tx.txid()}')
             self._new_base_tx(tx)
         else:
             # do not replace it: our replacement would pay its outputs
             self.logger.info(f'base tx was replaced by {tx.txid()}, which has outputs not in batch')
-            self._start_new_batch(tx)
-        # if tx is confirmed or local, we will start a new batch
-        tx_mined_status = self.wallet.adb.get_tx_height(txid)
-        if tx_mined_status.conf > 0:
-            self.logger.info(f'base tx confirmed {txid}')
-            self._clear_unconfirmed_sweeps(tx)
             self._start_new_batch(tx)
         if tx_mined_status.height() in [TX_HEIGHT_LOCAL]:
             # this may happen if our Electrum server is unresponsive
