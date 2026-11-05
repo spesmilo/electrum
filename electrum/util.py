@@ -189,9 +189,19 @@ class UnrelatedTransactionException(AddTransactionException):
         return _("Transaction is unrelated to this wallet.")
 
 
-class InvalidTxSignature(AddTransactionException):
+class UnverifiedTxSignature(AddTransactionException):
+    """An input of the tx that spends one of our coins did not pass script verification."""
+
+
+class InvalidTxSignature(UnverifiedTxSignature):
     def __str__(self):
         return _("Transaction has an invalid signature.")
+
+
+class UnverifiableTxSignature(UnverifiedTxSignature):
+    """We could not determine whether the signatures are valid. This is NOT proof that the tx is invalid."""
+    def __str__(self):
+        return _("The signatures of this transaction cannot be verified.")
 
 
 class FileImportFailed(Exception):
