@@ -1196,6 +1196,16 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         utxos = [utxo for utxo in utxos if not self.is_frozen_coin(utxo)]
         return utxos
 
+    def get_prevout_utxo(self, prevout: TxOutpoint) -> Optional[PartialTxInput]:
+        """Our unspent coin at prevout, even if it is not spendable."""
+        tx = self.adb.get_transaction(prevout.txid.hex())
+        if not tx or prevout.out_idx >= len(tx.outputs()):
+            return None
+        address = tx.outputs()[prevout.out_idx].address
+        if not self.is_mine(address):
+            return None
+        return self.adb.get_addr_utxo(address).get(prevout)
+
     @abstractmethod
     def get_receiving_addresses(self, *, slice_start=None, slice_stop=None) -> Sequence[str]:
         pass
@@ -2871,8 +2881,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             raise TransactionPotentiallyDangerousException('Not signing transaction:\n' + sh_danger.get_long_message())
 
         # find out if we are replacing a txbatcher transaction
-        prevout_str = tx.inputs()[0].prevout.to_str()
-        batch = self.txbatcher.find_batch_by_prevout(prevout_str)
+        batch = self.txbatcher.find_batch_by_tx(tx)
         # do not sign sweep inputs for a tx that pays outputs not in the batch,
         # e.g. a fee bump of a replacement made by someone else
         if batch and batch.has_only_batch_outputs(tx):
