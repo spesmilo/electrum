@@ -261,7 +261,7 @@ class TxBatch(Logger):
         self._base_tx = None  # type: Optional[PartialTransaction]   # current batch tx. last element of batch_txids
         self._unconfirmed_sweeps = set()  # type: Set[TxOutpoint]  # inputs we are sweeping (until spending tx is confirmed)
         self._broadcast_heights = {}  # type: Dict[str, int]  # txid -> height of our last broadcast
-        self._retry_height = 0  # do not replace the base tx before that height
+        self._retry_height = 0  # do not create a tx before that height
 
     @property
     def fee_policy(self) -> FeePolicy:
@@ -504,7 +504,7 @@ class TxBatch(Logger):
             self.logger.info(f'base tx {base_tx.txid()} has children: starting new batch')
             self._start_new_batch(base_tx)
             return
-        if base_tx and self.wallet.adb.get_local_height() < self._retry_height:
+        if self.wallet.adb.get_local_height() < self._retry_height:
             return
         try:
             tx = self.create_next_transaction(base_tx)
@@ -514,13 +514,10 @@ class TxBatch(Logger):
         except TxBatchFailure:
             raise
         except Exception as e:
-            if base_tx:
-                self.logger.exception(f'Cannot create batch transaction: {repr(e)}')
-                self._start_new_batch(base_tx)
-                return
-            else:
-                # will be caught by txBatcher
-                raise
+            # nothing was broadcast: keep the batch, and try again at the next block
+            self.logger.exception(f'Cannot create batch transaction: {repr(e)}')
+            self._retry_height = self.wallet.adb.get_local_height() + 1
+            return
 
         if tx is None:
             # nothing to do
@@ -583,7 +580,10 @@ class TxBatch(Logger):
             if can_broadcast:
                 to_sweep_now.append(v)
             else:
-                self.wallet.add_future_tx(v, wanted_height)
+                try:
+                    self.wallet.add_future_tx(v, wanted_height)
+                except NotEnoughFunds as e:  # only for display
+                    self.logger.info(f'cannot add future tx for {v.name}: {e!r}')
         while True:
             if not to_pay and not to_sweep_now and not self._should_bump_fee(base_tx):
                 return None
