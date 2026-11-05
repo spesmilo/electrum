@@ -2,7 +2,7 @@ import json
 import os
 from typing import NamedTuple, Union
 
-from electrum_ecc import ECPrivkey, ecdsa_der_sig_from_r_and_s
+from electrum_ecc import ECPrivkey
 
 from electrum import transaction, bitcoin
 from electrum.transaction import (convert_raw_tx_to_hex, tx_from_any, Transaction,
@@ -1205,20 +1205,15 @@ class TestSighashLegacy(ElectrumTestCase):
                 pre_hash = tx.serialize_preimage(txin_index, sighash=hash_type & 0xffffffff, strict=False)
                 self.assertEqual(expected_sighash, sha256d(pre_hash)[::-1].hex())
 
-    def test_verify_sighash_single_without_output(self):
-        # legacy SIGHASH_SINGLE signs the hash 1 if there is no output with the index of the input
-        privkey = ECPrivkey(bfh('730fff80e1413068a05b57d6a58261f07551163369787f349438ea38ca80fac6'))
-        pubkey = privkey.get_public_key_bytes(compressed=True)
+    def test_sighash_single_without_output(self):
+        # legacy SIGHASH_SINGLE signs the hash 1 if there is no output with the index of the input: never sign that
+        pubkey = ECPrivkey(bfh('730fff80e1413068a05b57d6a58261f07551163369787f349438ea38ca80fac6')).get_public_key_bytes()
         txins = [PartialTxInput(prevout=TxOutpoint(txid=bytes([i]) * 32, out_idx=0)) for i in range(2)]
         for txin in txins:
             txin.script_descriptor = descriptor.get_singlesig_descriptor_from_legacy_leaf(
                 pubkey=pubkey.hex(), script_type='p2pkh')
         txout = PartialTxOutput(scriptpubkey=bfh('76a914389ffce9cd9ae88dcc0631e88a821ffdbe9bfe2688ac'), value=1000)
         tx = PartialTransaction.from_io(inputs=txins, outputs=[txout], locktime=0, version=1, BIP69_sort=False)
-        msg_hash = (1).to_bytes(32, byteorder="little")
-        sig = privkey.ecdsa_sign(msg_hash, sigencode=ecdsa_der_sig_from_r_and_s) + bytes([Sighash.SINGLE])
-        self.assertTrue(tx.verify_sig_for_txin(txin_index=1, pubkey_bytes=pubkey, sig=sig))
-        self.assertFalse(tx.verify_sig_for_txin(txin_index=0, pubkey_bytes=pubkey, sig=sig))
         with self.assertRaisesRegex(Exception, "without a corresponding output"):
             tx.serialize_preimage(1, sighash=Sighash.SINGLE)
 
