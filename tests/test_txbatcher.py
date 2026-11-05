@@ -114,6 +114,22 @@ ANCHOR_SWEEP_INFO = SweepInfo(
 )
 
 
+OUTGOING_ADDRESS = 'tb1q7rl9cxr85962ztnsze089zs8ycv52hk43f3m9n'
+
+
+def mine_tx(wallet, tx: Transaction) -> None:
+    """Adds tx to the history of wallet, mined and verified."""
+    wallet.adb.receive_tx_callback(tx, tx_height=1)
+    tx_mined_status = wallet.adb.get_tx_height(tx.txid())
+    wallet.adb.add_verified_tx(tx.txid(), dataclasses.replace(tx_mined_status, conf=1))
+
+
+def add_swap_funding_tx(wallet) -> None:
+    """Adds the swap funding tx, mined: SWAP_SWEEP_INFO spends it."""
+    wallet.adb.db.transactions[SWAPDATA.funding_txid] = tx = Transaction(SWAP_FUNDING_TX)
+    mine_tx(wallet, tx)
+
+
 class TestTxBatcher(ElectrumTestCase):
 
     TESTNET = True
@@ -145,6 +161,14 @@ class TestTxBatcher(ElectrumTestCase):
         self.network.wallets.append(wallet)
         return wallet
 
+    async def _fund_wallet(self, wallet) -> Transaction:
+        """Broadcasts the funding tx, and mines it."""
+        funding_tx = Transaction(WALLET_DATA["funding_tx"])
+        await self.network.try_broadcasting(funding_tx, 'funding')
+        await self.network.next_tx()
+        mine_tx(wallet, funding_tx)
+        return funding_tx
+
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_batch_payments(self, mock_save_db):
         # output 1:     tx1(o1) ---------------
@@ -155,12 +179,9 @@ class TestTxBatcher(ElectrumTestCase):
         # tx1 gets mined
         # txbatcher creates a new transaction tx2, child of tx1
         #
-        OUTGOING_ADDRESS = 'tb1q7rl9cxr85962ztnsze089zs8ycv52hk43f3m9n'
         wallet = self._create_wallet()
         # fund wallet
-        funding_tx = Transaction(WALLET_DATA["funding_tx"])
-        await self.network.try_broadcasting(funding_tx, 'funding')
-        await self.network.next_tx()
+        funding_tx = await self._fund_wallet(wallet)
         assert wallet.adb.get_transaction(funding_tx.txid()) is not None
         self.logger.info(f'wallet balance {wallet.get_balance()}')
         # payment 1 -> tx1(output1)
@@ -177,9 +198,7 @@ class TestTxBatcher(ElectrumTestCase):
         assert output1 in tx1_prime.outputs()
         assert output2 in tx1_prime.outputs()
         # tx1 gets confirmed, tx2 gets removed
-        wallet.adb.receive_tx_callback(tx1, tx_height=1)
-        tx_mined_status = wallet.adb.get_tx_height(tx1.txid())
-        wallet.adb.add_verified_tx(tx1.txid(), dataclasses.replace(tx_mined_status, conf=1))
+        mine_tx(wallet, tx1)
         assert wallet.adb.get_transaction(tx1.txid()) is not None
         assert wallet.adb.get_transaction(tx1_prime.txid()) is None
         # txbatcher creates tx2
@@ -206,11 +225,8 @@ class TestTxBatcher(ElectrumTestCase):
         #
         # adb still has tx1, so txbatcher creates a child of tx1, which cannot be broadcast.
         # when we learn about tx1', txbatcher must not pay o2 again.
-        OUTGOING_ADDRESS = 'tb1q7rl9cxr85962ztnsze089zs8ycv52hk43f3m9n'
         wallet = self._create_wallet()
-        funding_tx = Transaction(WALLET_DATA["funding_tx"])
-        await self.network.try_broadcasting(funding_tx, 'funding')
-        await self.network.next_tx()
+        await self._fund_wallet(wallet)
         output1 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 10_000)
         wallet.txbatcher.add_payment_output('default', output1)
         tx1 = await self.network.next_tx()
@@ -254,9 +270,7 @@ class TestTxBatcher(ElectrumTestCase):
         """
         wallet = self._create_wallet()
         # fund wallet
-        funding_tx = Transaction(WALLET_DATA['funding_tx'])
-        await self.network.try_broadcasting(funding_tx, 'funding')
-        await self.network.next_tx()
+        funding_tx = await self._fund_wallet(wallet)
         assert wallet.adb.get_transaction(funding_tx.txid()) is not None
         self.logger.info(f'wallet balance1 {wallet.get_balance()}')
 
@@ -274,9 +288,7 @@ class TestTxBatcher(ElectrumTestCase):
         await asyncio.sleep(wallet.txbatcher.SLEEP_INTERVAL)
 
         # tx1 gets confirmed
-        wallet.adb.receive_tx_callback(tx1, tx_height=1)
-        tx_mined_status = wallet.adb.get_tx_height(tx1.txid())
-        wallet.adb.add_verified_tx(tx1.txid(), dataclasses.replace(tx_mined_status, conf=1))
+        mine_tx(wallet, tx1)
 
         tx2 = await self.network.next_tx()
         assert len(tx2.outputs()) == 2
@@ -289,10 +301,8 @@ class TestTxBatcher(ElectrumTestCase):
         """
         wallet = self._create_wallet()
         # fund wallet
-        funding_tx = Transaction(WALLET_DATA['funding_tx'])
-        await self.network.try_broadcasting(funding_tx, 'funding')
-        await self.network.next_tx()
-        output1 = PartialTxOutput.from_address_and_value('tb1q7rl9cxr85962ztnsze089zs8ycv52hk43f3m9n', 10_000)
+        await self._fund_wallet(wallet)
+        output1 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 10_000)
         wallet.txbatcher.add_payment_output('default', output1)
         tx1 = await self.network.next_tx()
         batch = wallet.txbatcher.tx_batches['default']
@@ -312,7 +322,7 @@ class TestTxBatcher(ElectrumTestCase):
 
         # the next payment does not replace tx1_other, so output_other is not paid by us,
         # and output1, paid by tx1_other, is not paid again
-        output2 = PartialTxOutput.from_address_and_value('tb1q7rl9cxr85962ztnsze089zs8ycv52hk43f3m9n', 20_000)
+        output2 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 20_000)
         wallet.txbatcher.add_payment_output('default', output2)
         tx2 = await self.network.next_tx()
         self.assertIn(output2, tx2.outputs())
@@ -325,13 +335,8 @@ class TestTxBatcher(ElectrumTestCase):
         """The txout of a sweep input is a batch output of a replacement only if it spends that input."""
         wallet = self._create_wallet()
         # fund wallet
-        funding_tx = Transaction(WALLET_DATA['funding_tx'])
-        await self.network.try_broadcasting(funding_tx, 'funding')
-        await self.network.next_tx()
-        wallet.adb.db.transactions[SWAPDATA.funding_txid] = tx = Transaction(SWAP_FUNDING_TX)
-        wallet.adb.receive_tx_callback(tx, tx_height=1)
-        tx_mined_status = wallet.adb.get_tx_height(tx.txid())
-        wallet.adb.add_verified_tx(tx.txid(), dataclasses.replace(tx_mined_status, conf=1))
+        await self._fund_wallet(wallet)
+        add_swap_funding_tx(wallet)
         # a sweep input paired with an output, like a first-stage htlc tx
         sweep_txout = PartialTxOutput.from_address_and_value('tb1qy6xmdj96v5dzt3j08hgc05yk3kltqsnmw4r6ry', SWAPDATA.onchain_amount)
         sweep_info = SWAP_SWEEP_INFO._replace(txout=sweep_txout)
@@ -357,10 +362,7 @@ class TestTxBatcher(ElectrumTestCase):
         self.maxDiff = None
         # create wallet
         wallet = self._create_wallet()
-        wallet.adb.db.transactions[SWAPDATA.funding_txid] = tx = Transaction(SWAP_FUNDING_TX)
-        wallet.adb.receive_tx_callback(tx, tx_height=1)
-        tx_mined_status = wallet.adb.get_tx_height(tx.txid())
-        wallet.adb.add_verified_tx(tx.txid(), dataclasses.replace(tx_mined_status, conf=1))
+        add_swap_funding_tx(wallet)
         wallet.txbatcher.add_sweep_input('default', SWAP_SWEEP_INFO)
         tx = await self.network.next_tx()
         txid = tx.txid()
@@ -382,10 +384,7 @@ class TestTxBatcher(ElectrumTestCase):
         """
         wallet = self._create_wallet()
         wallet.use_change = False
-        wallet.adb.db.transactions[SWAPDATA.funding_txid] = tx = Transaction(SWAP_FUNDING_TX)
-        wallet.adb.receive_tx_callback(tx, tx_height=1)
-        tx_mined_status = wallet.adb.get_tx_height(tx.txid())
-        wallet.adb.add_verified_tx(tx.txid(), dataclasses.replace(tx_mined_status, conf=1))
+        add_swap_funding_tx(wallet)
         # sweep-only batch: the swept funds end up in the (forced) change output
         wallet.txbatcher.add_sweep_input('default', SWAP_SWEEP_INFO)
         tx = await self.network.next_tx()
@@ -412,14 +411,9 @@ class TestTxBatcher(ElectrumTestCase):
         wallet.use_change = False
         wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
         # fund wallet
-        funding_tx = Transaction(WALLET_DATA['funding_tx'])
-        await self.network.try_broadcasting(funding_tx, 'funding')
-        await self.network.next_tx()
+        await self._fund_wallet(wallet)
         # add the swap funding tx
-        wallet.adb.db.transactions[SWAPDATA.funding_txid] = tx = Transaction(SWAP_FUNDING_TX)
-        wallet.adb.receive_tx_callback(tx, tx_height=1)
-        tx_mined_status = wallet.adb.get_tx_height(tx.txid())
-        wallet.adb.add_verified_tx(tx.txid(), dataclasses.replace(tx_mined_status, conf=1))
+        add_swap_funding_tx(wallet)
         # the batch contains both a sweep input and a payment output
         wallet.txbatcher.add_sweep_input('default', SWAP_SWEEP_INFO)
         output1 = PartialTxOutput.from_address_and_value("tb1qyfnv3y866ufedugxxxfksyratv4pz3h78g9dad", 20_000)
@@ -455,9 +449,7 @@ class TestTxBatcher(ElectrumTestCase):
         self.assertFalse(to_sweep_high_fee)
 
         # after the ctx is confirmed the anchor claim shouldn't be broadcast anymore
-        wallet.adb.receive_tx_callback(anchor_chan_ctx, tx_height=1)
-        tx_mined_status = wallet.adb.get_tx_height(anchor_chan_ctx.txid())
-        wallet.adb.add_verified_tx(anchor_chan_ctx.txid(), dataclasses.replace(tx_mined_status, conf=1))
+        mine_tx(wallet, anchor_chan_ctx)
         self.assertIn(anchor_txin.prevout, anchor_batch.batch_inputs)
         to_sweep_ctx_conf = anchor_batch._to_sweep_after(tx=None)
         self.assertFalse(to_sweep_ctx_conf)
@@ -523,10 +515,7 @@ class TestTxBatcher(ElectrumTestCase):
     async def test_to_sweep_after_keeps_expired_input_of_current_batch_tx(self, mock_save_db):
         """We don't drop an expired sweep if the current batch tx already spends it"""
         wallet = self._create_wallet()
-        wallet.adb.db.transactions[SWAPDATA.funding_txid] = tx = Transaction(SWAP_FUNDING_TX)
-        wallet.adb.receive_tx_callback(tx, tx_height=1)
-        tx_mined_status = wallet.adb.get_tx_height(tx.txid())
-        wallet.adb.add_verified_tx(tx.txid(), dataclasses.replace(tx_mined_status, conf=1))
+        add_swap_funding_tx(wallet)
         sweep_info = SWAP_SWEEP_INFO._replace(expiry_height=self.network.local_height + 1)
         wallet.txbatcher.add_sweep_input('default', sweep_info)
         batch = wallet.txbatcher.tx_batches['default']
