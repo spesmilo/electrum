@@ -158,9 +158,11 @@ Pane {
     Connections {
         target: Daemon
         function onWalletLoaded() {
-            listview.reuseItems = false  // flush the reuseItems delegate instance pool
+            // flush the reuseItems delegate instance pool
+            listview.reuseItems = false
+            listview.forceLayout()
             listview.positionViewAtBeginning()
-            listview.reuseItems = true  // re-enable delegate instance reuse
+            listview.reuseItems = true
         }
     }
 
