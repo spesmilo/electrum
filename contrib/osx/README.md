@@ -123,11 +123,12 @@ For a release that includes both architectures, build and sign each on its
 native builder using separate checkouts. `sign_osx.sh` detects the app's
 architecture and keeps `-arm64` in the signed DMG filename. Copy both signed
 DMGs to the release machine's `dist` directory, then set
-`INCLUDE_MACOS_ARM64=1` for `release.sh` and `release_www.sh`. This includes the
-ARM DMG in download, comparison, and signature checks. The website template
-can use `##link_mac_arm64##` and `##sigs_mac_arm64##` to link it. Without this
-opt-in, the existing Intel release artifact set is unchanged. Signing,
-notarization, and production publication still run through the release manager.
+`INCLUDE_MACOS_ARM64=1` for `release.sh`, `add_cosigner`, and `release_www.sh`.
+This includes the ARM DMG in download, comparison, and signature checks. The
+website template can use `##link_mac_arm64##` and `##sigs_mac_arm64##` to link
+it. Without this opt-in, the existing Intel release artifact set is unchanged.
+Signing, notarization, and production publication still run through the release
+manager.
 
 ##### 2.1. For release binaries, here be dragons
 
