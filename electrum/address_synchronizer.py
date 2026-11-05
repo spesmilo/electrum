@@ -493,10 +493,15 @@ class AddressSynchronizer(Logger, EventListener):
     def get_depending_transactions(self, tx_hash: str) -> Set[str]:
         """Returns all (grand-)children of tx_hash in this wallet."""
         children = set()
-        for n in self.db.get_spent_outpoints(tx_hash):
-            other_hash = self.db.get_spent_outpoint(tx_hash, n)
-            children.add(other_hash)
-            children |= self.get_depending_transactions(other_hash)
+        to_visit = [tx_hash]
+        while to_visit:
+            txid = to_visit.pop()
+            for n in self.db.get_spent_outpoints(txid):
+                other_hash = self.db.get_spent_outpoint(txid, n)
+                assert other_hash is not None
+                if other_hash not in children:
+                    children.add(other_hash)
+                    to_visit.append(other_hash)
         return children
 
     @with_lock
