@@ -1,0 +1,179 @@
+{
+    "comment": "test vector for using blinded routes",
+    "generate": {
+        "comment": "This section contains test data for creating a blinded route. This route is the concatenation of two blinded routes: one from Dave to Eve and one from Bob to Carol.",
+        "hops": [
+            {
+                "comment": "Bob creates a Bob -> Carol route with the following session_key and concatenates it with the Dave -> Eve route.",
+                "session_key": "0202020202020202020202020202020202020202020202020202020202020202",
+                "alias": "Bob",
+                "node_id": "0324653eac434488002cc06bbfb7f10fe18991e35f9fe4302dbea6d2353dc0ab1c",
+                "tlvs": {
+                    "padding": "0000000000000000000000000000000000000000000000000000",
+                    "short_channel_id": "0x0x1729",
+                    "payment_relay": {
+                        "cltv_expiry_delta": 36,
+                        "fee_proportional_millionths": 150,
+                        "fee_base_msat": 10000
+                    },
+                    "payment_constraints": {
+                        "max_cltv_expiry": 748005,
+                        "htlc_minimum_msat": 1500
+                    },
+                    "allowed_features": {
+                        "features": []
+                    },
+                    "unknown_tag_561": "123456"
+                },
+                "encoded_tlvs": "011a0000000000000000000000000000000000000000000000000000020800000000000006c10a0800240000009627100c06000b69e505dc0e00fd023103123456",
+                "path_privkey": "0202020202020202020202020202020202020202020202020202020202020202",
+                "path_key": "024d4b6cd1361032ca9bd2aeb9d900aa4d45d9ead80ac9423374c451a7254d0766",
+                "shared_secret": "76771bab0cc3d0de6e6f60147fd7c9c7249a5ced3d0612bdfaeec3b15452229d",
+                "rho": "ba217b23c0978d84c4a19be8a9ff64bc1b40ed0d7ecf59521567a5b3a9a1dd48",
+                "encrypted_data": "cd4100ff9c09ed28102b210ac73aa12d63e90852cebc496c49f57c49982088b49f2e70b99287fdee0aa58aa39913ab405813b999f66783aa2fe637b3cda91ffc0913c30324e2c6ce327e045183e4bffecb",
+                "blinded_node_id": "03da173ad2aee2f701f17e59fbd16cb708906d69838a5f088e8123fb36e89a2c25"
+            },
+            {
+                "comment": "Notice the next_path_key_override tlv in Carol's payload, indicating that Bob concatenated his route with another blinded route starting at Dave.",
+                "alias": "Carol",
+                "node_id": "027f31ebc5462c1fdce1b737ecff52d37d75dea43ce11c74d25aa297165faa2007",
+                "tlvs": {
+                    "short_channel_id": "0x0x1105",
+                    "next_path_key_override": "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f",
+                    "payment_relay": {
+                        "cltv_expiry_delta": 48,
+                        "fee_proportional_millionths": 100,
+                        "fee_base_msat": 500
+                    },
+                    "payment_constraints": {
+                        "max_cltv_expiry": 747969,
+                        "htlc_minimum_msat": 1500
+                    },
+                    "allowed_features": {
+                        "features": []
+                    }
+                },
+                "encoded_tlvs": "020800000000000004510821031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f0a0800300000006401f40c06000b69c105dc0e00",
+                "path_privkey": "0a2aa791ac81265c139237b2b84564f6000b1d4d0e68d4b9cc97c5536c9b61c1",
+                "path_key": "034e09f450a80c3d252b258aba0a61215bf60dda3b0dc78ffb0736ea1259dfd8a0",
+                "shared_secret": "dc91516ec6b530a3d641c01f29b36ed4dc29a74e063258278c0eeed50313d9b8",
+                "rho": "d1e62bae1a8e169da08e6204997b60b1a7971e0f246814c648125c35660f5416",
+                "encrypted_data": "cc0f16524fd7f8bb0b1d8d40ad71709ef140174c76faa574cac401bb8992fef76c4d004aa485dd599ed1cf2715f57ff62da5aaec5d7b10d59b04d8a9d77e472b9b3ecc2179334e411be22fa4c02b467c7e",
+                "blinded_node_id": "02e466727716f044290abf91a14a6d90e87487da160c2a3cbd0d465d7a78eb83a7"
+            },
+            {
+                "comment": "Eve creates a Dave -> Eve blinded route using the following session_key.",
+                "session_key": "0101010101010101010101010101010101010101010101010101010101010101",
+                "alias": "Dave",
+                "node_id": "032c0b7cf95324a07d05398b240174dc0c2be444d96b159aa6c7f7b1e668680991",
+                "tlvs": {
+                    "padding": "0000000000000000000000000000000000000000000000000000000000000000000000",
+                    "short_channel_id": "0x0x561",
+                    "payment_relay": {
+                        "cltv_expiry_delta": 144,
+                        "fee_proportional_millionths": 250
+                    },
+                    "payment_constraints": {
+                        "max_cltv_expiry": 747921,
+                        "htlc_minimum_msat": 1500
+                    },
+                    "allowed_features": {
+                        "features": []
+                    }
+                },
+                "encoded_tlvs": "01230000000000000000000000000000000000000000000000000000000000000000000000020800000000000002310a060090000000fa0c06000b699105dc0e00",
+                "path_privkey": "0101010101010101010101010101010101010101010101010101010101010101",
+                "path_key": "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f",
+                "shared_secret": "dc46f3d1d99a536300f17bc0512376cc24b9502c5d30144674bfaa4b923d9057",
+                "rho": "393aa55d35c9e207a8f28180b81628a31dff558c84959cdc73130f8c321d6a06",
+                "encrypted_data": "0fa0a72cff3b64a3d6e1e4903cf8c8b0a17144aeb249dcb86561adee1f679ee8db3e561d9c43815fd4bcebf6f58c546da0cd8a9bf5cebd0d554802f6c0255e28e4a27343f761fe518cd897463187991105",
+                "blinded_node_id": "036861b366f284f0a11738ffbf7eda46241a8977592878fe3175ae1d1e4754eccf"
+            },
+            {
+                "comment": "Eve is the final recipient, so she included a path_id in her own payload to verify that the route is used when she expects it.",
+                "alias": "Eve",
+                "node_id": "02edabbd16b41c8371b92ef2f04c1185b4f03b6dcd52ba9b78d9d7c89c8f221145",
+                "tlvs": {
+                    "padding": "0000000000000000000000000000000000000000000000000000",
+                    "path_id": "deadbeef",
+                    "payment_constraints": {
+                        "max_cltv_expiry": 747777,
+                        "htlc_minimum_msat": 1500
+                    },
+                    "allowed_features": {
+                        "features": [113]
+                    },
+                    "unknown_tag_65535": "06c1"
+                },
+                "encoded_tlvs": "011a00000000000000000000000000000000000000000000000000000604deadbeef0c06000b690105dc0e0f020000000000000000000000000000fdffff0206c1",
+                "path_privkey": "62e8bcd6b5f7affe29bec4f0515aab2eebd1ce848f4746a9638aa14e3024fb1b",
+                "path_key": "03e09038ee76e50f444b19abf0a555e8697e035f62937168b80adf0931b31ce52a",
+                "shared_secret": "352a706b194c2b6d0a04ba1f617383fb816dc5f8f9ac0b60dd19c9ae3b517289",
+                "rho": "719d0307340b1c68b79865111f0de6e97b093a30bc603cebd1beb9eef116f2d8",
+                "encrypted_data": "da1a7e5f7881219884beae6ae68971de73bab4c3055d9865b1afb60724a2e4d3f0489ad884f7f3f77149209f0df51efd6b276294a02e3949c7254fbc8b5cab58212d9a78983e1cf86fe218b30c4ca8f6d8",
+                "blinded_node_id": "021982a48086cb8984427d3727fe35a03d396b234f0701f5249daa12e8105c8dae"
+            }
+        ]
+    },
+    "route": {
+        "comment": "This section contains the resulting blinded route, which can then be used inside onion messages or payments.",
+        "first_node_id": "0324653eac434488002cc06bbfb7f10fe18991e35f9fe4302dbea6d2353dc0ab1c",
+        "first_path_key": "024d4b6cd1361032ca9bd2aeb9d900aa4d45d9ead80ac9423374c451a7254d0766",
+        "hops": [
+            {
+                "blinded_node_id": "03da173ad2aee2f701f17e59fbd16cb708906d69838a5f088e8123fb36e89a2c25",
+                "encrypted_data": "cd4100ff9c09ed28102b210ac73aa12d63e90852cebc496c49f57c49982088b49f2e70b99287fdee0aa58aa39913ab405813b999f66783aa2fe637b3cda91ffc0913c30324e2c6ce327e045183e4bffecb"
+            },
+            {
+                "blinded_node_id": "02e466727716f044290abf91a14a6d90e87487da160c2a3cbd0d465d7a78eb83a7",
+                "encrypted_data": "cc0f16524fd7f8bb0b1d8d40ad71709ef140174c76faa574cac401bb8992fef76c4d004aa485dd599ed1cf2715f57ff62da5aaec5d7b10d59b04d8a9d77e472b9b3ecc2179334e411be22fa4c02b467c7e"
+            },
+            {
+                "blinded_node_id": "036861b366f284f0a11738ffbf7eda46241a8977592878fe3175ae1d1e4754eccf",
+                "encrypted_data": "0fa0a72cff3b64a3d6e1e4903cf8c8b0a17144aeb249dcb86561adee1f679ee8db3e561d9c43815fd4bcebf6f58c546da0cd8a9bf5cebd0d554802f6c0255e28e4a27343f761fe518cd897463187991105"
+            },
+            {
+                "blinded_node_id": "021982a48086cb8984427d3727fe35a03d396b234f0701f5249daa12e8105c8dae",
+                "encrypted_data": "da1a7e5f7881219884beae6ae68971de73bab4c3055d9865b1afb60724a2e4d3f0489ad884f7f3f77149209f0df51efd6b276294a02e3949c7254fbc8b5cab58212d9a78983e1cf86fe218b30c4ca8f6d8"
+            }
+        ]
+    },
+    "unblind": {
+        "comment": "This section contains test data for unblinding the route at each intermediate hop.",
+        "hops": [
+            {
+                "alias": "Bob",
+                "node_privkey": "4242424242424242424242424242424242424242424242424242424242424242",
+                "path_key": "024d4b6cd1361032ca9bd2aeb9d900aa4d45d9ead80ac9423374c451a7254d0766",
+                "blinded_privkey": "d12fec0332c3e9d224789a17ebd93595f37d37bd8ef8bd3d2e6ce50acb9e554f",
+                "decrypted_data": "011a0000000000000000000000000000000000000000000000000000020800000000000006c10a0800240000009627100c06000b69e505dc0e00fd023103123456",
+                "next_path_key": "034e09f450a80c3d252b258aba0a61215bf60dda3b0dc78ffb0736ea1259dfd8a0"
+            },
+            {
+                "alias": "Carol",
+                "node_privkey": "4343434343434343434343434343434343434343434343434343434343434343",
+                "path_key": "034e09f450a80c3d252b258aba0a61215bf60dda3b0dc78ffb0736ea1259dfd8a0",
+                "blinded_privkey": "bfa697fbbc8bbc43ca076e6dd60d306038a32af216b9dc6fc4e59e5ae28823c1",
+                "decrypted_data": "020800000000000004510821031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f0a0800300000006401f40c06000b69c105dc0e00",
+                "next_path_key": "03af5ccc91851cb294e3a364ce63347709a08cdffa58c672e9a5c587ddd1bbca60",
+                "next_path_key_override": "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"
+            },
+            {
+                "alias": "Dave",
+                "node_privkey": "4444444444444444444444444444444444444444444444444444444444444444",
+                "path_key": "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f",
+                "blinded_privkey": "cebc115c7fce4c295dc396dea6c79115b289b8ceeceea2ed61cf31428d88fc4e",
+                "decrypted_data": "01230000000000000000000000000000000000000000000000000000000000000000000000020800000000000002310a060090000000fa0c06000b699105dc0e00",
+                "next_path_key": "03e09038ee76e50f444b19abf0a555e8697e035f62937168b80adf0931b31ce52a"
+            },
+            {
+                "alias": "Eve",
+                "node_privkey": "4545454545454545454545454545454545454545454545454545454545454545",
+                "path_key": "03e09038ee76e50f444b19abf0a555e8697e035f62937168b80adf0931b31ce52a",
+                "blinded_privkey": "ff4e07da8d92838bedd019ce532eb990ed73b574e54a67862a1df81b40c0d2af",
+                "decrypted_data": "011a00000000000000000000000000000000000000000000000000000604deadbeef0c06000b690105dc0e0f020000000000000000000000000000fdffff0206c1",
+                "next_path_key": "038fc6859a402b96ce4998c537c823d6ab94d1598fca02c788ba5dd79fbae83589"
+            }
+        ]
+    }
+}

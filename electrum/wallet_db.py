@@ -72,7 +72,7 @@ class WalletUnfinished(WalletFileException):
 # seed_version is now used for the version of the wallet file
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 74     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 75     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -274,6 +274,7 @@ class WalletDBUpgrader(Logger):
         self._convert_version_72()
         self._convert_version_73()
         self._convert_version_74()
+        self._convert_version_75()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
     def _convert_wallet_type(self):
@@ -1591,6 +1592,17 @@ class WalletDBUpgrader(Logger):
             local_config['current_per_commitment_point'] = get_per_commitment_point_from_seed(secret_seed, ctn).hex()
             local_config['next_per_commitment_point'] = get_per_commitment_point_from_seed(secret_seed, ctn + 1).hex()
         self.data['seed_version'] = 74
+
+    def _convert_version_75(self):
+        """
+        Addition of `path_key` field to lnutil.UpdateAddHtlc.
+        Doesn't need any specific upgrade as UpdateAddHtlc.from_tuple() has None default arg for `path_key`.
+        This just bumps the seed_version to prevent cryptic errors when the user tries to open a db with blinded
+        htlcs in an older Electrum version.
+        """
+        if not self._is_upgrade_method_needed(74, 74):
+            return
+        self.data['seed_version'] = 75
 
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):
