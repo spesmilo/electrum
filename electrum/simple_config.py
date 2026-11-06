@@ -24,6 +24,7 @@ _logger = get_logger(__name__)
 
 FINAL_CONFIG_VERSION = 3
 
+_RUNNING_UNITTESTS = False
 
 _config_var_from_key = {}  # type: Dict[str, 'ConfigVar']
 
@@ -236,6 +237,9 @@ class SimpleConfig(Logger):
         # Otherwise use the user's default data directory.
         path = self.get('electrum_path') or self.user_dir()
         make_dir(path, allow_symlink=False)
+        if _RUNNING_UNITTESTS:
+            path = os.path.join(path, "unittests")
+            make_dir(path, allow_symlink=False)
         return path
 
     @classmethod
