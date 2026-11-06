@@ -444,6 +444,44 @@ class TestLNWallet(ElectrumTestCase):
             self.assertEqual(kwargs['next_amount_msat_htlc'], next_amount_msat)
             self.assertEqual(kwargs['next_cltv_abs'], next_cltv_abs)
 
+    def test_jit_opening_fee_checked_against_payment_amount(self):
+        """the LSP chooses the funding amount of a just-in-time channel,
+        so the opening fee must be compared to the payment amount"""
+        total_msat = 100_000_000
+        chan = mock.Mock(spec=Channel)
+
+        def check(*, jit_opening_fee: int):
+            chan.jit_opening_fee = jit_opening_fee
+            htlc = UpdateAddHtlc(
+                amount_msat=total_msat - jit_opening_fee,
+                payment_hash=os.urandom(32),
+                cltv_abs=500,
+                htlc_id=0,
+                timestamp=int(time.time()))
+            processed_onion = ProcessedOnionPacket(
+                are_we_final=True,
+                hop_data=OnionHopsDataSingle(payload={
+                    'amt_to_forward': {'amt_to_forward': total_msat},
+                    'outgoing_cltv_value': {'outgoing_cltv_value': 500},
+                    'payment_data': {'payment_secret': os.urandom(32), 'total_msat': total_msat},
+                }),
+                next_packet=None,
+                trampoline_onion_packet=None)
+            return Peer._check_accepted_final_htlc(
+                chan=chan,
+                htlc=htlc,
+                processed_onion=processed_onion,
+                log_fail_reason=lambda reason: None)
+
+        _, total_minus_fee, fee, _ = check(jit_opening_fee=total_msat // 10)
+        self.assertEqual(total_msat // 10, fee)
+        self.assertEqual(total_msat - fee, total_minus_fee)
+        for jit_opening_fee in (total_msat // 10 + 1, total_msat - 1000):
+            with self.subTest(jit_opening_fee=jit_opening_fee):
+                with self.assertRaises(OnionRoutingFailure) as ctx:
+                    check(jit_opening_fee=jit_opening_fee)
+                self.assertEqual(OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, ctx.exception.code)
+
     async def test_maybe_forward_trampoline_jit_checks_outgoing_cltv(self):
         """the outgoing cltv of a trampoline forward to a just-in-time channel is chosen by the sender.
         It must be checked before creating the onion, so that the incoming htlcs get failed"""
