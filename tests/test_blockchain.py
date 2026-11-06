@@ -382,6 +382,16 @@ class TestBlockchain(ElectrumTestCase):
         self.assertEqual([chain_u], self.get_chains_that_contain_header_helper(self.HEADERS['O']))
         self.assertEqual([chain_z, chain_l], self.get_chains_that_contain_header_helper(self.HEADERS['I']))
 
+        # The swaps moved the best chain behind chain_u in bc_mgr.blockchains. chain_u contains A..F
+        # only through its parent. check_header must return the chain that has the header itself, see #11112
+        self.assertEqual([chain_u, chain_z, chain_l], list(self.bc_mgr.blockchains.values()))
+        self.assertEqual(chain_z, self.bc_mgr.check_header(self.HEADERS['A']))
+        self.assertEqual(chain_z, self.bc_mgr.check_header(self.HEADERS['F']))
+        self.assertEqual(chain_z, self.bc_mgr.check_header(self.HEADERS['I']))
+        self.assertEqual(chain_u, self.bc_mgr.check_header(self.HEADERS['O']))
+        self.assertEqual(chain_l, self.bc_mgr.check_header(self.HEADERS['K']))
+        self.assertEqual(None, self.bc_mgr.check_header(self.HEADERS['R']))
+
     def test_target_to_bits(self):
         # https://github.com/bitcoin/bitcoin/blob/7fcf53f7b4524572d1d0c9a5fdc388e87eb02416/src/arith_uint256.h#L269
         self.assertEqual(0x05123456, Blockchain.target_to_bits(0x1234560000))
