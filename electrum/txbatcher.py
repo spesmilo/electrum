@@ -171,7 +171,7 @@ class TxBatcher(Logger):
     async def redeem_legacy_htlcs(self) -> None:
         while True:
             await asyncio.sleep(self.SLEEP_INTERVAL)
-            for sweep_info in self._legacy_htlcs.values():
+            for sweep_info in list(self._legacy_htlcs.values()):
                 await self._maybe_redeem_legacy_htlcs(sweep_info)
 
     async def _maybe_redeem_legacy_htlcs(self, sweep_info: 'SweepInfo') -> None:
