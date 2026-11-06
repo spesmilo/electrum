@@ -1,17 +1,22 @@
 import asyncio
 import tempfile
+import threading
 import unittest
+from types import SimpleNamespace
 from typing import List
 
 from electrum import constants
 from electrum.simple_config import SimpleConfig
 from electrum.blockchain import BlockchainManager
 from electrum.interface import Interface, ServerAddr, ChainResolutionMode
+from electrum.network import Network
 from electrum.crypto import sha256
+from electrum.logging import Logger
 from electrum.util import OldTaskGroup
 from electrum import util
 
 from . import ElectrumTestCase
+from . import test_blockchain
 
 
 CRM = ChainResolutionMode
@@ -54,14 +59,34 @@ class MockBlockchain:
         return self
 
 
-class MockNetwork:
+class MockNetwork(Logger):
 
     def __init__(self, config: SimpleConfig):
+        Logger.__init__(self)
         self.config = config
         self.bc_mgr = BlockchainManager.from_config(config)
         self.asyncio_loop = util.get_asyncio_loop()
         self.taskgroup = OldTaskGroup()
         self.proxy = None
+        self.bhi_lock = asyncio.Lock()
+        # for switch_lagging_interface
+        self.auto_connect = True
+        self.interface = None
+        self.interfaces = {}
+        self.interfaces_lock = threading.Lock()
+        self.default_server = None
+        self._blockchain = self.bc_mgr.get_best_chain()
+
+    blockchain = Network.blockchain
+    get_server_height = Network.get_server_height
+    get_local_height = Network.get_local_height
+    _server_is_lagging = Network._server_is_lagging
+    switch_lagging_interface = Network.switch_lagging_interface
+
+    async def switch_to_interface(self, server: ServerAddr):
+        self.default_server = server
+        self.interface = self.interfaces[server]
+
 
 class MockInterface(Interface):
     def __init__(self, config: SimpleConfig):
@@ -263,6 +288,34 @@ class TestHeaderChainResolution(ElectrumTestCase):
         self.assertEqual((CRM.CATCHUP, 14), res)
         self.assertEqual(ifa.q.qsize(), 0)
         self.assertEqual(len(ifa.bc_mgr.blockchains), 2)
+
+    async def test_switch_away_from_server_stuck_below_reorg(self):
+        """The main server is stuck below the forkpoint of a reorg (#11112).
+        The reorg turns the chain object of the main interface into the losing branch,
+        whose tip no server is on. We should still switch to a server at the tip of the best chain.
+        """
+        headers = test_blockchain.TestBlockchain.HEADERS
+        network = self.interface.network
+        chain = network.bc_mgr.get_best_chain()
+        for name in "ABCDEFOPQ":
+            chain.save_header(headers[name])
+        stuck_iface = SimpleNamespace(
+            server=ServerAddr.from_str('stuck-server:50000:t'), tip=5, tip_header=headers['F'], blockchain=chain)
+        network.interface = stuck_iface
+        network.default_server = stuck_iface.server
+        # reorg: the fork G..J becomes the best chain, chain is left with O..Q
+        fork = chain.fork(headers['G'])
+        for name in "HIJ":
+            fork.save_header(headers[name])
+        self.assertEqual(fork, network.bc_mgr.get_best_chain())
+        self.assertEqual((6, 8), (chain.forkpoint, chain.height()))
+        good_iface = SimpleNamespace(
+            server=ServerAddr.from_str('good-server:50000:t'), tip=9, tip_header=headers['J'], blockchain=fork)
+        network.interfaces = {iface.server: iface for iface in (stuck_iface, good_iface)}
+
+        await network.switch_lagging_interface()
+        self.assertEqual(fork, stuck_iface.blockchain)
+        self.assertEqual(good_iface, network.interface)
 
 
 if __name__ == "__main__":

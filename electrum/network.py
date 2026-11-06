@@ -840,6 +840,16 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
     async def switch_lagging_interface(self):
         """If auto_connect and lagging, switch interface (only within fork)."""
+        # If the main server is behind the forkpoint of a reorg (e.g. it is stuck), the reorg turned
+        # the chain object of the main interface into the losing branch. Look up its chain again.
+        # (Not while a header sync is running: that uses interface.blockchain across awaits.)
+        iface = self.interface
+        if iface and iface.tip_header and not self.bhi_lock.locked():
+            chain = self.bc_mgr.check_header(iface.tip_header)
+            if chain and chain != iface.blockchain:
+                self.logger.info(f"updated chain of main interface. {chain.forkpoint=}, {chain.height()=}")
+                iface.blockchain = chain
+                util.trigger_callback('blockchain_updated')
         if self.auto_connect and await self._server_is_lagging():
             # switch to one that has the correct header (not height)
             best_header = self.blockchain().header_at_tip()
