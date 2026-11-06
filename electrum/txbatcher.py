@@ -506,6 +506,10 @@ class TxBatch(Logger):
             return
         if self.wallet.adb.get_local_height() < self._retry_height:
             return
+        if base_tx and not all(self.wallet.is_mine(txin.address) or txin.prevout in self.batch_inputs for txin in base_tx.inputs()):
+            # e.g. after a restart, before the sweep inputs are added again
+            self.logger.info(f'cannot sign all inputs of {base_tx.txid()}: not replacing it', only_once=True)
+            return
         try:
             tx = self.create_next_transaction(base_tx)
         except NoDynamicFeeEstimates:

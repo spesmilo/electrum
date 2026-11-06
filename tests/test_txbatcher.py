@@ -752,6 +752,30 @@ class TestTxBatcher(ElectrumTestCase):
         self.assertIn(output1, tx1.outputs())
         self.assertNotIn(later_sweep.txin.prevout, [txin.prevout for txin in tx1.inputs()])
 
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_restart_before_sweep_is_added_again(self, mock_save_db):
+        # after a restart, the sweep info of the input of tx1 is unknown until the caller adds it again:
+        # tx1 must not be replaced before that, as we could not sign its input
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        add_swap_funding_tx(wallet)
+        wallet.txbatcher.add_sweep_input('default', SWAP_SWEEP_INFO)
+        batch = wallet.txbatcher.tx_batches['default']
+        await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        # restart, and fees rise
+        batch = TxBatch(wallet, batch.storage)
+        wallet.txbatcher.tx_batches['default'] = batch
+        wallet.config.FEE_POLICY = 'feerate:10000'
+        await batch.run_iteration()
+        self.assertTrue(self.network._tx_queue.empty())
+        # the caller adds the sweep again
+        batch.add_sweep_input(SWAP_SWEEP_INFO)
+        await batch.run_iteration()
+        tx1_prime = await self.network.next_tx()
+        self.assertNotEqual(tx1.txid(), tx1_prime.txid())
+        self.assertEqual(tx1.inputs()[0].prevout, tx1_prime.inputs()[0].prevout)
+
     async def _make_replacement_without_change(self):
         """tx1(s,c,o1,o2) is replaced by F(s,c,o1), which we did not create and which has no change.
         Returns the wallet, its batch, tx1, F, o1 and o2. The batch is driven manually."""
