@@ -88,7 +88,7 @@ class TimelockRecoveryContext:
             for output in self.outputs
         ]
         return self.wallet.make_unsigned_transaction(
-            coins=self.wallet.get_spendable_coins(confirmed_only=False),
+            coins=self.wallet.get_spendable_coins(confirmed_only=False, ignore_coin_control=True),
             outputs=alert_tx_outputs,
             fee_policy=fee_policy,
             is_sweep=False,

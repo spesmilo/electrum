@@ -155,6 +155,12 @@ class QEAddressCoinListModel(QAbstractListModel, QtEventListener):
             txids = {name} | self.wallet.get_txids_with_label_derived_from(name)
             self.updateCoin(txids=txids)
 
+    @qt_event_listener
+    def on_event_frozen_state_changed(self, wallet, addresses, outpoints):
+        # the 'held' role of both addresses and coins depends on the frozen state
+        if wallet == self.wallet:
+            self.setDirty()
+
     def rowCount(self, index):
         return len(self._items)
 
