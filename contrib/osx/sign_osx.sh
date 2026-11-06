@@ -61,6 +61,12 @@ function DoCodeSignMaybe { # ARGS: infoName fileOrDirName
 
 # note: no --dirty, as we have dirtied electrum/locale/ ourselves.
 VERSION=$(git describe --tags --always)
+APP_ARCH=$(lipo -archs "dist/${PACKAGE}.app/Contents/MacOS/run_electrum")
+case "$APP_ARCH" in
+    x86_64) ARCH_SUFFIX="" ;;
+    arm64) ARCH_SUFFIX="-arm64" ;;
+    *) fail "Unsupported app architecture: $APP_ARCH" ;;
+esac
 
 DoCodeSignMaybe "app bundle" "dist/${PACKAGE}.app"
 
@@ -74,6 +80,6 @@ if [ ! -z "$CODESIGN_CERT" ]; then
 fi
 
 info "Creating .DMG"
-hdiutil create -fs HFS+ -volname $PACKAGE -srcfolder dist/$PACKAGE.app dist/electrum-$VERSION.dmg || fail "Could not create .DMG"
+hdiutil create -fs HFS+ -volname $PACKAGE -srcfolder dist/$PACKAGE.app dist/electrum-$VERSION$ARCH_SUFFIX.dmg || fail "Could not create .DMG"
 
-DoCodeSignMaybe ".DMG" "dist/electrum-${VERSION}.dmg"
+DoCodeSignMaybe ".DMG" "dist/electrum-${VERSION}${ARCH_SUFFIX}.dmg"

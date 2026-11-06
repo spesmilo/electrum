@@ -17,7 +17,6 @@ CP=gcp
 
 UNSIGNED="$1"
 SIGNATURE="$2"
-ARCH=x86_64
 OUTDIR="/tmp/electrum_compare_dmg/signed_app"
 
 if [ -z "$UNSIGNED" ]; then
@@ -29,6 +28,15 @@ if [ -z "$SIGNATURE" ]; then
     echo "usage: $0 <unsigned app> <path to mac_extracted_sigs.tar.gz>"
     exit 1
 fi
+
+ARCH=$(lipo -archs "${UNSIGNED}/Contents/MacOS/run_electrum")
+case "$ARCH" in
+    x86_64|arm64) ;;
+    *)
+        echo "Unsupported app architecture: $ARCH"
+        exit 1
+        ;;
+esac
 
 rm -rf ${OUTDIR} && mkdir -p ${OUTDIR}
 ${CP} -rf ${UNSIGNED} ${OUTDIR}

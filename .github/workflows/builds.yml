@@ -10,7 +10,7 @@ on:
         required: true
         default: 'all'
         type: choice
-        options: [all, windows, android, appimage, tarball]
+        options: [all, windows, android, appimage, tarball, macos]
       android_arch:
         description: 'Android architecture (when running android)'
         required: false
@@ -29,6 +29,10 @@ env:
   ARTIFACT_RETENTION: '14'
 
 jobs:
+  macos:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'all' || inputs.target == 'macos' }}
+    uses: ./.github/workflows/build-macos.yml
+
   windows:
     name: "build: Windows"
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'all' || inputs.target == 'windows' }}
