@@ -206,13 +206,16 @@ class BlockchainManager(Logger):
         return self.blockchains[constants.net.GENESIS]
 
     def check_header(self, header: dict) -> Optional['Blockchain']:
-        """Returns any Blockchain that contains header, or None."""
+        """Returns the Blockchain that contains header, or None.
+        Chains that fork off at greater-height-than the header also contain it, via their parent.
+        Those are never returned: callers fork from the returned chain, or assign it to an interface.
+        """
         if type(header) is not dict:
             return None
         with self.blockchains_lock:
             chains = list(self.blockchains.values())
         for b in chains:
-            if b.check_header(header):
+            if b.check_header(header) and b.forkpoint <= header['block_height']:
                 return b
         return None
 
@@ -317,7 +320,7 @@ class Blockchain(Logger):
 
     def check_header(self, header: dict) -> bool:
         header_hash = hash_header(header)
-        height = header.get('block_height')
+        height = header['block_height']
         return self.check_hash(height, header_hash)
 
     def check_hash(self, height: int, header_hash: str) -> bool:
@@ -333,7 +336,7 @@ class Blockchain(Logger):
     def fork(parent, header: dict) -> 'Blockchain':
         if not parent.can_connect(header, check_height=False):
             raise Exception("forking header does not connect to parent chain")
-        forkpoint = header.get('block_height')
+        forkpoint = header['block_height']
         self = Blockchain(
             bc_mgr=parent.bc_mgr,
             forkpoint=forkpoint,
