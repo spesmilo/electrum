@@ -168,7 +168,7 @@ def is_valid_host(ph: str):
 
 
 def is_valid_doh_endpoint(url: str) -> bool:
-    """DNS-over-HTTPS endpoint URL. Plain http is only allowed for private/local hosts."""
+    """DNS-over-HTTPS endpoint URL. Plain http is only allowed for private/local and .onion hosts."""
     if not url or any(c.isspace() for c in url):
         return False
     try:
@@ -181,7 +181,7 @@ def is_valid_doh_endpoint(url: str) -> bool:
     if parsed.scheme == 'https':
         return True
     if parsed.scheme == 'http':
-        return is_private_netaddress(hostname)
+        return is_private_netaddress(hostname) or hostname.endswith('.onion')
     return False
 
 

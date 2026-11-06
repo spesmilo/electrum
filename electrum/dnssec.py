@@ -165,12 +165,6 @@ def _system_nameservers() -> Sequence[str]:
         return []
 
 
-def _make_transport(proxy: Optional['ProxySettings']) -> DNSTransport:
-    if proxy is not None and proxy.enabled and proxy.doh_endpoint:
-        return DoHTransport(proxy.doh_endpoint)
-    return LocalTransport()
-
-
 async def _query_signed(transport: DNSTransport, sub, _type) -> Tuple[dns.rrset.RRset, dns.rrset.RRset]:
     """Returns the (not yet validated) rrset and its rrsig."""
     name = dns.name.from_text(sub)
@@ -265,8 +259,6 @@ async def _resolve_unvalidated(transport: DNSTransport, url, rtype) -> dns.rrset
 async def query(
     url: str,
     rtype: dns.rdatatype.RdataType,
-    *,
-    proxy: Optional['ProxySettings'] = None,
 ) -> Tuple[dns.rrset.RRset, bool]:
     """Try to do DNS resolution, including DNSSEC.
     'validated' shows whether the DNSSEC checks passed. DNS is completely INSECURE without DNSSEC,
@@ -278,11 +270,11 @@ async def query(
     Tor's RESOLVE extension supports neither TXT nor DNSSEC). The DoH endpoint is taken
     from ProxySettings.doh_endpoint.
     """
-    if proxy is None:
-        from .network import Network
-        network = Network.get_instance()
-        proxy = network.proxy if network else None
-    transport = _make_transport(proxy)
+    from .network import Network
+    network = Network.get_instance()
+    proxy: Optional[ProxySettings] = network.proxy if network else None
+    transport = DoHTransport(proxy.doh_endpoint) if proxy is not None and proxy.enabled and proxy.doh_endpoint \
+        else LocalTransport()
     try:
         out = await _get_and_validate(transport, url, rtype)
         validated = True
