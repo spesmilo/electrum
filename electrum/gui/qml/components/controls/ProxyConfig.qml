@@ -13,6 +13,11 @@ Item {
     property alias proxy_port: port.text
     property alias username: username_tf.text
     property alias password: password_tf.text
+    property alias doh_endpoint: doh_endpoint_tf.text
+
+    property bool valid: proxy_enabled
+        ? address.acceptableInput && port.acceptableInput && doh_endpoint_tf.valid
+        : true
 
     property var proxy_type_map:  [
         { text: qsTr('SOCKS5/TOR'), value: 'socks5' },
@@ -30,6 +35,7 @@ Item {
         p['port'] = pc.proxy_port
         p['user'] = pc.username
         p['password'] = pc.password
+        p['doh_endpoint'] = pc.doh_endpoint
         return p
     }
 
@@ -54,7 +60,6 @@ Item {
         }
 
         ColumnLayout {
-            // columns: 2
             Layout.fillWidth: true
             spacing: constants.paddingSmall
 
@@ -76,6 +81,10 @@ Item {
                     enabled: proxy_enabled_cb.checked
                     inputMethodHints: Qt.ImhDigitsOnly
                     placeholderText: qsTr("Port")
+                    validator: IntValidator { bottom: 1; top: 65535 }
+                    color: enabled
+                        ? acceptableInput ? Material.foreground : constants.colorError
+                        : Material.hintTextColor
                 }
             }
 
@@ -98,6 +107,25 @@ Item {
                 id: password_tf
                 enabled: proxy_enabled_cb.checked
                 placeholderText: qsTr("Password")
+            }
+
+            Label {
+                Layout.topMargin: constants.paddingLarge
+                text: qsTr("Name lookups")
+                enabled: doh_endpoint_tf.enabled
+            }
+
+            TextField {
+                id: doh_endpoint_tf
+                Layout.fillWidth: true
+                Layout.rightMargin: constants.paddingLarge
+                enabled: proxy_enabled_cb.checked
+                inputMethodHints: Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
+                placeholderText: qsTr("DoH endpoint")
+                property bool valid: Network.isValidDohEndpoint(text)
+                color: enabled
+                    ? valid ? Material.foreground : constants.colorError
+                    : Material.hintTextColor
             }
         }
 
