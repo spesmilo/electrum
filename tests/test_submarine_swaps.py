@@ -91,6 +91,7 @@ class TestSwapClaim(ToyServerTestCase):
         await self.wallet.txbatcher.taskgroup.cancel_remaining()
         self.wallet.txbatcher = TxBatcher(self.wallet)
         self.wallet.txbatcher.SLEEP_INTERVAL *= self.TIME_STEP
+        self.wallet.txbatcher.BROADCAST_RETRY_DELAY *= self.TIME_STEP
         await self.wallet.taskgroup.spawn(self.wallet.txbatcher.run())
         await self.sync()
 

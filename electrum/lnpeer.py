@@ -2342,7 +2342,6 @@ class Peer(Logger, EventListener):
         # get payment hash of any htlc in the set (they are all the same)
         payment_hash = htlc_set.get_payment_hash()
         assert payment_hash is not None, htlc_set
-        assert payment_hash.hex() not in self.lnworker.dont_settle_htlcs
         self.lnworker.dont_expire_htlcs.pop(payment_hash.hex(), None)  # htlcs wont get expired anymore
         for mpp_htlc in list(htlc_set.htlcs):
             htlc_id = mpp_htlc.htlc.htlc_id
@@ -3253,10 +3252,9 @@ class Peer(Logger, EventListener):
             return None, None, None
 
         preimage = self.lnworker.get_preimage(payment_hash)
-        settling_blocked = preimage is not None and payment_hash.hex() in self.lnworker.dont_settle_htlcs
         waiting_for_preimage = preimage is None and payment_hash.hex() in self.lnworker.dont_expire_htlcs
-        if settling_blocked or waiting_for_preimage:
-            # used by hold invoice cli and JIT channels to prevent the htlcs from getting fulfilled automatically
+        if waiting_for_preimage:
+            # used by hold invoice cli to prevent the htlcs from getting failed automatically
             return None, None, None
 
         hold_invoice_callback = self.lnworker.hold_invoice_callbacks.get(payment_hash)
@@ -3340,8 +3338,6 @@ class Peer(Logger, EventListener):
                 self.lnworker.set_mpp_resolution(payment_key, RecvMPPResolution.FAILED)
                 return error_bytes or failure_message, None, None
             payment_hash = mpp_set.get_payment_hash()
-            if payment_hash.hex() in self.lnworker.dont_settle_htlcs:
-                return None, None, None
             preimage = self.lnworker.get_preimage(payment_hash)
             return None, preimage, None
 

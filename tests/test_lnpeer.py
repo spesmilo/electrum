@@ -2079,7 +2079,8 @@ class TestPeerDirect(TestPeer):
         for i in range(10):
             lnaddr, pay_req = self.prepare_invoice(bob_w)
             # prevent bob from settling so that htlc switch will have to iterate through all pending htlcs
-            bob_w.dont_settle_htlcs[pay_req.rhash] = None
+            del bob_w._preimages[pay_req.rhash]
+            bob_w.dont_expire_htlcs[pay_req.rhash] = None
             invoices.append((lnaddr, pay_req))
         self.assertEqual(len(invoices), 10, msg=len(invoices))
 
@@ -3051,82 +3052,6 @@ class TestPeerForwarding(TestPeer):
             self.assertTrue(
                 any('bob->carol' in msg and 'on_update_fail_malformed_htlc' in msg for msg in logs.output)
             )
-
-    async def test_dont_settle_htlcs_receiver_and_forwarder(self):
-        """
-        Test that the receiver and forwarder doesn't settle htlcs once they get the preimage if the payment
-        hash is in LNWallet.dont_settle_htlcs. E.g. the forwarder could be a just-in-time channel provider.
-        Alice -> Bob -> Carol. Carol and Bob shouldn't release the preimage.
-        """
-        async def run_test(test_trampoline):
-            graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['line_graph'])
-            peers = graph.peers.values()
-
-            if test_trampoline:
-                # trampoline forwarder
-                graph.workers['bob'].config.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS = True
-                electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
-                    graph.workers['bob'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['bob'].node_keypair.pubkey),
-                }
-                # trampoline users
-                await self._activate_trampoline(graph.workers['carol'])
-                await self._activate_trampoline(graph.workers['alice'])
-
-            lnaddr, pay_req = self.prepare_invoice(graph.workers['carol'], include_routing_hints=True)
-            # test both receiver (carol) and forwarder (bob)
-            graph.workers['bob'].dont_settle_htlcs[lnaddr.paymenthash.hex()] = None
-            graph.workers['carol'].dont_settle_htlcs[lnaddr.paymenthash.hex()] = None
-
-            payment_successful = asyncio.Event()
-            async def pay():
-                self.assertEqual(PR_UNPAID, graph.workers['carol'].get_payment_status(lnaddr.paymenthash, direction=RECEIVED))
-                result, log = await graph.workers['alice'].pay_invoice(pay_req)
-                self.assertEqual(PR_PAID, graph.workers['carol'].get_payment_status(lnaddr.paymenthash, direction=RECEIVED))
-                self.assertTrue(result)
-                payment_successful.set()
-
-            async def check_doesnt_settle():
-                while not graph.workers['carol'].received_mpp_htlcs:
-                    await asyncio.sleep(0.1)  # wait until carol received the htlcs
-
-                await asyncio.sleep(0.2)  # give carol time to accidentally release the preimage
-                self.assertEqual(PR_UNPAID, graph.workers['carol'].get_payment_status(lnaddr.paymenthash, direction=RECEIVED))
-                self.assertIsNone(graph.workers['bob'].get_preimage(lnaddr.paymenthash), "bob got preimage from carol")
-                # now allow carol to release the preimage to bob
-                del graph.workers['carol'].dont_settle_htlcs[lnaddr.paymenthash.hex()]
-
-                # wait for carol to release the preimage to bob
-                while not graph.workers['bob'].get_preimage(lnaddr.paymenthash):
-                    await asyncio.sleep(0.1)
-
-                # give bob some time to settle the htlcs to alice (this would complete the payment)
-                await asyncio.sleep(0.2)
-                self.assertIsNone(graph.workers['alice'].get_preimage(lnaddr.paymenthash), "alice got preimage from bob")
-                self.assertFalse(payment_successful.is_set(), "bob released preimage")
-
-                # now allow bob to settle the htlcs
-                del graph.workers['bob'].dont_settle_htlcs[lnaddr.paymenthash.hex()]
-                await payment_successful.wait()
-                raise PaymentDone()
-
-            async def f():
-                async with OldTaskGroup() as group:
-                    for peer in peers:
-                        await group.spawn(peer._message_loop())
-                        await group.spawn(peer.htlc_switch())
-                    for peer in peers:
-                        await peer.initialized
-
-                    await group.spawn(pay())
-                    await group.spawn(check_doesnt_settle())
-                    # stop the taskgroup if anything takes too long
-                    await group.spawn(asyncio.wait_for(asyncio.sleep(4), timeout=3))
-
-            await f()
-
-        for trampoline in (False, True):
-            with self.assertRaises(PaymentDone):
-                await run_test(trampoline)
 
 
 class TestPeerDirectNoAnchors(TestPeerDirect):
