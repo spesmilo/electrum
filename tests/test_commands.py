@@ -993,3 +993,135 @@ class TestCommandsTestnet(ElectrumTestCase):
         result = await cmds.delete_channel_backup(self._CHANNEL_POINT, wallet=w)
         self.assertIsNone(result)
         w.lnworker.remove_channel_backup.assert_called_once_with(chan_id)
+
+    @staticmethod
+    def _mock_channel_for_freeze(*, frozen_for_sending: bool = False, frozen_for_receiving: bool = False) -> mock.Mock:
+        chan = mock.Mock()
+        chan.is_backup.return_value = False
+        chan.node_id = bytes(33)
+        # emulate the stored flags
+        state = {'sending': frozen_for_sending, 'receiving': frozen_for_receiving}
+        chan.set_frozen_for_sending.side_effect = lambda b: state.__setitem__('sending', bool(b))
+        chan.set_frozen_for_receiving.side_effect = lambda b: state.__setitem__('receiving', bool(b))
+        chan.is_frozen_for_sending.side_effect = lambda: state['sending']
+        chan.is_frozen_for_receiving.side_effect = lambda: state['receiving']
+        return chan
+
+    def _mock_lnworker_for_freeze(self, w, chan, *, uses_trampoline: bool = False, is_trampoline_peer: bool = True):
+        self.mock_lnworker(w, {self._chan_id_for(self._CHANNEL_POINT): chan} if chan else None)
+        w.lnworker.uses_trampoline.return_value = uses_trampoline
+        w.lnworker.is_trampoline_peer.return_value = is_trampoline_peer
+
+    async def test_freeze_channel(self):
+        w = restore_wallet_from_text__for_unittest(
+            'disagree rug lemon bean unaware square alone beach tennis exhibit fix mimic',
+            path=None,
+            config=self.config)['wallet']
+        cmds = Commands(config=self.config)
+
+        # no such channel
+        self._mock_lnworker_for_freeze(w, None)
+        with self.assertRaises(UserFacingException):
+            await cmds.freeze_channel(self._CHANNEL_POINT, wallet=w)
+
+        # channel backup
+        chan = self._mock_channel_for_freeze()
+        chan.is_backup.return_value = True
+        self._mock_lnworker_for_freeze(w, chan)
+        with self.assertRaises(UserFacingException):
+            await cmds.freeze_channel(self._CHANNEL_POINT, wallet=w)
+        chan.set_frozen_for_sending.assert_not_called()
+        chan.set_frozen_for_receiving.assert_not_called()
+
+        # default: both directions
+        chan = self._mock_channel_for_freeze()
+        self._mock_lnworker_for_freeze(w, chan)
+        result = await cmds.freeze_channel(self._CHANNEL_POINT, wallet=w)
+        self.assertEqual({'frozen_for_sending': True, 'frozen_for_receiving': True}, result)
+        chan.set_frozen_for_sending.assert_called_once_with(True)
+        chan.set_frozen_for_receiving.assert_called_once_with(True)
+
+        # only sending
+        chan = self._mock_channel_for_freeze()
+        self._mock_lnworker_for_freeze(w, chan)
+        result = await cmds.freeze_channel(self._CHANNEL_POINT, sending=True, wallet=w)
+        self.assertEqual({'frozen_for_sending': True, 'frozen_for_receiving': False}, result)
+        chan.set_frozen_for_sending.assert_called_once_with(True)
+        chan.set_frozen_for_receiving.assert_not_called()
+
+        # only receiving
+        chan = self._mock_channel_for_freeze()
+        self._mock_lnworker_for_freeze(w, chan)
+        result = await cmds.freeze_channel(self._CHANNEL_POINT, receiving=True, wallet=w)
+        self.assertEqual({'frozen_for_sending': False, 'frozen_for_receiving': True}, result)
+        chan.set_frozen_for_sending.assert_not_called()
+        chan.set_frozen_for_receiving.assert_called_once_with(True)
+
+        # trampoline mode, channel with non-trampoline peer: cannot freeze for sending
+        chan = self._mock_channel_for_freeze()
+        self._mock_lnworker_for_freeze(w, chan, uses_trampoline=True, is_trampoline_peer=False)
+        with self.assertRaises(UserFacingException):
+            await cmds.freeze_channel(self._CHANNEL_POINT, wallet=w)
+        chan.set_frozen_for_sending.assert_not_called()
+        chan.set_frozen_for_receiving.assert_not_called()
+        # ...but freezing for receiving is fine
+        result = await cmds.freeze_channel(self._CHANNEL_POINT, receiving=True, wallet=w)
+        self.assertTrue(result['frozen_for_receiving'])
+        chan.set_frozen_for_receiving.assert_called_once_with(True)
+        # trampoline mode, channel with trampoline peer: fine
+        chan = self._mock_channel_for_freeze()
+        self._mock_lnworker_for_freeze(w, chan, uses_trampoline=True, is_trampoline_peer=True)
+        result = await cmds.freeze_channel(self._CHANNEL_POINT, wallet=w)
+        self.assertEqual({'frozen_for_sending': True, 'frozen_for_receiving': True}, result)
+
+    async def test_unfreeze_channel(self):
+        w = restore_wallet_from_text__for_unittest(
+            'disagree rug lemon bean unaware square alone beach tennis exhibit fix mimic',
+            path=None,
+            config=self.config)['wallet']
+        cmds = Commands(config=self.config)
+
+        # no such channel
+        self._mock_lnworker_for_freeze(w, None)
+        with self.assertRaises(UserFacingException):
+            await cmds.unfreeze_channel(self._CHANNEL_POINT, wallet=w)
+
+        # default: both directions
+        chan = self._mock_channel_for_freeze(frozen_for_sending=True, frozen_for_receiving=True)
+        self._mock_lnworker_for_freeze(w, chan)
+        result = await cmds.unfreeze_channel(self._CHANNEL_POINT, wallet=w)
+        self.assertEqual({'frozen_for_sending': False, 'frozen_for_receiving': False}, result)
+        chan.set_frozen_for_sending.assert_called_once_with(False)
+        chan.set_frozen_for_receiving.assert_called_once_with(False)
+
+        # only receiving
+        chan = self._mock_channel_for_freeze(frozen_for_sending=True, frozen_for_receiving=True)
+        self._mock_lnworker_for_freeze(w, chan)
+        result = await cmds.unfreeze_channel(self._CHANNEL_POINT, receiving=True, wallet=w)
+        self.assertEqual({'frozen_for_sending': True, 'frozen_for_receiving': False}, result)
+        chan.set_frozen_for_sending.assert_not_called()
+        chan.set_frozen_for_receiving.assert_called_once_with(False)
+
+        # trampoline mode, channel with non-trampoline peer: sending stays frozen
+        chan = self._mock_channel_for_freeze(frozen_for_sending=True, frozen_for_receiving=True)
+        self._mock_lnworker_for_freeze(w, chan, uses_trampoline=True, is_trampoline_peer=False)
+        with self.assertRaises(UserFacingException):
+            await cmds.unfreeze_channel(self._CHANNEL_POINT, sending=True, wallet=w)
+        chan.set_frozen_for_sending.assert_not_called()
+
+    async def test_list_channels_frozen_state(self):
+        w = restore_wallet_from_text__for_unittest(
+            'disagree rug lemon bean unaware square alone beach tennis exhibit fix mimic',
+            path=None,
+            config=self.config)['wallet']
+        cmds = Commands(config=self.config)
+        chan = mock.MagicMock()
+        chan.short_channel_id = None
+        chan.get_closing_height.return_value = None
+        chan.is_frozen_for_sending.return_value = True
+        chan.is_frozen_for_receiving.return_value = False
+        self.mock_lnworker(w, {self._chan_id_for(self._CHANNEL_POINT): chan})
+        result = await cmds.list_channels(wallet=w)
+        self.assertEqual(1, len(result))
+        self.assertIs(True, result[0]['frozen_for_sending'])
+        self.assertIs(False, result[0]['frozen_for_receiving'])
