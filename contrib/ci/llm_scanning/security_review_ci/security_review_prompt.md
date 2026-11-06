@@ -38,29 +38,17 @@ at the severity of the hidden change itself -- these are easy for human
 reviewers to miss. Explicitly note in the finding that the change was concealed
 inside a commit claiming to be a pure code move.
 
-## Severity Definitions
+## Threat model and severity
 
-### CRITICAL
-Issues that could directly cause loss of funds, exposure of private keys, remote code execution, denial of service, or phishing:
-- Private key, seed phrase, or wallet password leaked (to logs, error messages, network, disk in cleartext)
-- Cryptographic flaws: weak/predictable randomness, broken key derivation, nonce reuse, custom crypto primitives
-- Authentication or authorization bypass in JSON-RPC, wallet password checks, or plugin system
-- Transaction integrity: amount/fee manipulation, signature bypass, double-spend vectors
-- Lightning channel state corruption that could cause force-close fund loss
-- Denial of service: unbounded allocations, algorithmic complexity attacks, resource exhaustion from malicious server responses or peer messages, unbound loops or reads driven by untrusted input
-- Phishing vectors: untrusted strings from servers/peers displayed to users in error messages, dialogs, transaction descriptions, or notifications without sanitization -- an attacker-controlled server could craft messages that trick users into sending funds, revealing credentials, or taking dangerous actions
-- Obvious regressions: changes that clearly break existing functionality -- e.g. uncaught exceptions propagating to the user, broken control flow that makes a feature non-functional, or incorrect argument handling that would reliably crash at runtime
+The Electrum threat model above says what is untrusted, which boundaries must hold, and how to rate
+severity. Use it for this review. It is also used for scans of the whole repository, so for a pull request
+apply these additions:
 
-### HIGH
-Issues that could be exploited with moderate effort or lead to significant damage:
-- Command injection, path traversal, or injection attacks (SQL, LDAP, XML)
-- Unsafe deserialization of data from network peers, Electrum servers, or untrusted files
-- Race conditions in wallet state, Lightning channel state machine, HTLC handling, or concurrent RPC
-- Integer overflow/underflow in financial calculations (amounts, fees, change outputs)
-- Insufficient validation of network protocol messages (Electrum protocol, Lightning BOLT messages, Nostr)
-- Hardcoded secrets, credentials, API keys, or debug backdoors
-- TOCTOU (time-of-check-time-of-use) vulnerabilities in file or wallet operations
-- Privacy leaks: unnecessary exposure of addresses, balances, transaction history, or wallet fingerprints to servers, peers, or third parties -- includes address reuse, unneeded network requests that correlate addresses, and identifiable user fingerprints.
+- An obvious regression is high: a change that clearly breaks existing functionality, such as an uncaught
+  exception reaching the user, broken control flow that makes a feature unusable, or argument handling that
+  reliably crashes at runtime.
+- A finding does not need a reproducer. You can run the unit tests to confirm one, but do not set up the
+  regtest network from "How to exercise it": `bitcoind` and ElectrumX are not installed in this job.
 
 ## Output Format
 
@@ -95,9 +83,10 @@ VERDICT: PASS
 ```
 
 Rules:
+- Report only **Critical** and **High** findings.
 - `VERDICT: FAIL` if ANY **Critical** or **High** severity issues were found
 - `VERDICT: PASS` if no Critical or High severity issues were found
-- If the diff contains no security-relevant changes (documentation, comments, tests, locale files only), output:
+- If the diff contains no security-relevant changes (documentation, comments, tests only), output:
 
 ```
 No security-relevant changes detected in this diff.
