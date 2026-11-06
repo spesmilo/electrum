@@ -1,6 +1,6 @@
 # based on https://github.com/kivy/python-for-android/blob/master/Dockerfile
 
-FROM debian:trixie@sha256:a3b5f4f0286249a124bfe9845b3aec0f88de32ff31dd8d7e1b945f9f98d116b0
+FROM debian:trixie@sha256:bfc36aecdece0387418759dba474aa856c026ca8087da3606b41b90ab0509c99
 
 ENV DEBIAN_FRONTEND=noninteractive
 

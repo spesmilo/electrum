@@ -2,7 +2,7 @@
 # from https://docs.appimage.org/introduction/concepts.html :
 # "[AppImages] should be built on the oldest possible system, allowing them to run on newer system[s]"
 
-FROM debian:bookworm@sha256:f9c4778ec75d6b054367315b1eb4f3992ee5866b50de6d591a33e8904cba3f17
+FROM debian:bookworm@sha256:366a6da5efcceffbaa19c560a101b97b87a1a9664eeeac8bc3d24395ddbf14f3
 
 ENV LC_ALL=C.UTF-8 LANG=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
