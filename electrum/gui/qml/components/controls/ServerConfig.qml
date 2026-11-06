@@ -102,6 +102,7 @@ Item {
                 ElListView {
                     id: serversListView
                     anchors.fill: parent
+                    exclusionZone: 0
                     model: Network.serverListModel
                     delegate: ServerDelegate {
                         onClicked: {
@@ -116,7 +117,7 @@ Item {
                         required property string section
                         Label {
                             text: section
-                                ? serversListView.model.chaintips > 1
+                                ? Network.chaintips > 1
                                     ? qsTr('Connected @%1').arg(section)
                                     : qsTr('Connected')
                                 : qsTr('Other known servers')
