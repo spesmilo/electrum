@@ -19,9 +19,9 @@ CRM = ChainResolutionMode
 
 class MockBlockchain:
 
-    def __init__(self, headers: List[str], bc_mgr: 'BlockchainManager'):
+    def __init__(self, headers: List[str], bc_mgr: 'BlockchainManager', *, forkpoint: int = 0):
         self._headers = headers
-        self.forkpoint = len(headers)
+        self.forkpoint = forkpoint
         self.bc_mgr = bc_mgr
 
     def height(self) -> int:
@@ -46,7 +46,7 @@ class MockBlockchain:
         if not parent.can_connect(header, check_height=False):
             raise Exception("forking header does not connect to parent chain")
         forkpoint = header.get('block_height')
-        self = MockBlockchain(parent._headers[:forkpoint], parent.bc_mgr)
+        self = MockBlockchain(parent._headers[:forkpoint], parent.bc_mgr, forkpoint=forkpoint)
         self.save_header(header)
         chain_id = header['mock']['id']
         with self.bc_mgr.blockchains_lock:
@@ -201,7 +201,7 @@ class TestHeaderChainResolution(ElectrumTestCase):
         ifa.blockchain = MockBlockchain(["00a", "01a", "02a", "03a", "04a", "05a", "06a", "07a", "08a", "09a", "10a", "11a", "12a"], ifa.bc_mgr)
         ifa.bc_mgr.blockchains = {
             "00a": ifa.blockchain,
-            "03b": MockBlockchain(["00a", "01a", "02a", "03b", "04b"], ifa.bc_mgr),
+            "03b": MockBlockchain(["00a", "01a", "02a", "03b", "04b"], ifa.bc_mgr, forkpoint=3),
         }
         ifa.q.put_nowait({'block_height': 8, 'mock': {CRM.CATCHUP:1, 'id': '08b', 'prev_id': '07b'}})
         ifa.q.put_nowait({'block_height': 7, 'mock': {CRM.BACKWARD:1, 'id': '07b', 'prev_id': '06b'}})
@@ -248,7 +248,7 @@ class TestHeaderChainResolution(ElectrumTestCase):
         ifa.blockchain = MockBlockchain(["00a", "01a", "02a", "03a", "04a", "05a", "06a", "07a", "08a", "09a", "10a", "11a", "12a", "13a", "14a"], ifa.bc_mgr)
         ifa.bc_mgr.blockchains = {
             "00a": ifa.blockchain,
-            "07b": MockBlockchain(["00a", "01a", "02a", "03a", "04a", "05a", "06a", "07b", "08b", "09b", "10b"], ifa.bc_mgr),
+            "07b": MockBlockchain(["00a", "01a", "02a", "03a", "04a", "05a", "06a", "07b", "08b", "09b", "10b"], ifa.bc_mgr, forkpoint=7),
         }
         ifa.q.put_nowait({'block_height': 20, 'mock': {CRM.CATCHUP:1, 'id': '20b', 'prev_id': '19b'}})
         ifa.q.put_nowait({'block_height': 15, 'mock': {CRM.BACKWARD:1, 'id': '15b', 'prev_id': '14b'}})
