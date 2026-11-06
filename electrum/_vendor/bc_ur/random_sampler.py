@@ -1,0 +1,73 @@
+#
+# random_sampler.py
+#
+# Copyright (C) 2020 Foundation Devices, Inc.
+# Licensed under the "BSD-2-Clause Plus Patent License"
+#
+
+from typing import List, Sequence, Callable
+
+
+class RandomSampler:
+
+    def __init__(self, probs: Sequence[float]) -> None:
+        for p in probs:
+            assert p > 0
+
+        # Normalize given probabilities
+        # note: The spec requires naive left-to-right summation. The builtin sum()
+        #       uses compensated summation for floats since python 3.12, which can
+        #       differ in the last bits, and hence produce different alias tables.
+        total = 0.0
+        for p in probs:
+            total += p
+        assert total > 0
+
+        n = len(probs)
+
+        P = []
+        for p in probs:
+            P.append((p * float(n)) / total)
+
+        S = []
+        L = []
+
+        # Set separate index lists for small and large probabilities:
+        for i in reversed(range(0, n)):
+            # at variance from Schwarz, we reverse the index order
+            if P[i] < 1:
+                S.append(i)
+            else:
+                L.append(i)
+
+        # Work through index lists
+        _probs: List[float] = [0] * n
+        _aliases = [0] * n
+
+        while len(S) > 0 and len(L) > 0:
+            a = S.pop()  # Schwarz's l
+            g = L.pop()  # Schwarz's g
+            _probs[a] = P[a]
+            _aliases[a] = g
+            P[g] += P[a] - 1
+            if P[g] < 1:
+                S.append(g)
+            else:
+                L.append(g)
+
+        while len(L) > 0:
+            _probs[L.pop()] = 1
+
+        while len(S) > 0:
+            # can only happen through numeric instability
+            _probs[S.pop()] = 1
+
+        self.probs = _probs
+        self.aliases = _aliases
+
+    def next(self, rng_func: Callable[[], float]) -> int:
+        r1 = rng_func()
+        r2 = rng_func()
+        n = len(self.probs)
+        i = int(float(n) * r1)
+        return i if r2 < self.probs[i] else self.aliases[i]
