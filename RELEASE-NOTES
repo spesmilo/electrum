@@ -1,3 +1,35 @@
+# Release 4.8.4 - "15th Anniversary Edition :)" (November 6, 2026) (security update)
+ * Security fixes for reports received from:
+   - Felipe Knorr Kuhn (knorrium)
+   - muntedcrocodile
+   - haoxucu
+ * security fixes and disclosures:
+   - lightning: onion messages:
+      - malformed incoming onion messages of arbitrary origin could make Electrum disconnect from its channel peer
+ * Onchain / Wallet:
+   - fix: restoring pre-2.0 seeds that decode to an odd-length hex string (broken since 4.6.1) (#11047)
+   - fix: slow child tx computation (e.g. when removing a local tx), RecursionError on long tx chains (#11117)
+ * Qt GUI (desktop):
+   - fix: Coins tab freezing in large wallets due to slow parent tx computation (#11091)
+   - fix: show a clear error instead of a crash report when opening a file that is not a wallet or cannot be read (#11094, #11096)
+   - fix: spinner getting stuck in send tab (#11114)
+ * QML GUI & Android:
+   - new: tap transaction inputs to open the address or the funding transaction (#11087)
+   - new: address history page (#10749)
+   - changed: stop opting out of native heap pointer tagging (spesmilo/python-for-android/4cd8623)
+   - changed: cleanup: remove unused kivy launcher functionality (spesmilo/python-for-android/09f4e21)
+   - fix: don't crash when tx not found in transaction details view (#11037)
+   - fix: restore active search text when opening Addresses page (#11106)
+   - fix: stale UTXOs in coin/address list (#11086, #11088)
+   - fix: crash when tapping OK while the password dialog is closing (#11104)
+ * Lightning:
+   - changed: drop incoming onion messages until we implement an actual use case (#11123)
+   - fix: refuse channel announcements with two equal node IDs (#11095)
+   - fix: handle invalid onion messages gracefully (#11123)
+ * Contrib:
+   - fix: AppImage not working on Wayland, reduce binary size (#11079)
+
+
 # Release 4.8.3 (October 23, 2026) (security update)
  * Security fixes for reports received from:
    - dannydeezy
