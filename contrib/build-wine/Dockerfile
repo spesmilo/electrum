@@ -1,4 +1,4 @@
-FROM debian:trixie@sha256:13f29b6806e531c3ff3b565bb6eed73f2132506c8c9d41bb996065ca20fb27f2
+FROM debian:trixie@sha256:bfc36aecdece0387418759dba474aa856c026ca8087da3606b41b90ab0509c99
 
 # need ca-certificates before using snapshot packages
 RUN apt update -qq > /dev/null && apt install -qq --yes --no-install-recommends \
