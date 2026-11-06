@@ -365,6 +365,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.lock_fields(lock_recipient=False, lock_amount=False, lock_max=True, lock_description=False)
         self.max_button.setChecked(False)
         self.payto_e.do_clear()
+        self.spinner.setVisible(False)
         for w in [self.comment_e, self.comment_label]:
             w.setVisible(False)
         for w in [self.message_e, self.amount_e, self.fiat_send_e, self.comment_e]:
@@ -411,6 +412,12 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         pi = self.payto_e.payment_identifier
 
         self.clear_button.setEnabled(True)
+
+        if pi is None:  # the recipient is being edited, PayToEdit sets the payment identifier later
+            self.save_button.setEnabled(False)
+            self.send_button.setEnabled(False)
+            self.max_button.setEnabled(False)
+            return
 
         if pi.is_multiline():
             self.lock_fields(lock_recipient=False, lock_amount=True, lock_max=True, lock_description=False)
@@ -481,8 +488,11 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         return pi.is_valid() and not pi.is_error() and (self.wallet.has_lightning() or pi.is_onchain())
 
     def _handle_payment_identifier(self):
+        self.spinner.setVisible(False)  # resolve for previous PI is stale now
         self.update_fields()
 
+        if self.payto_e.payment_identifier is None:
+            return
         if not self.payto_e.payment_identifier.is_valid():
             self.logger.debug(f'PI error: {self.payto_e.payment_identifier.error}')
             return

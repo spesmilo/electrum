@@ -26,14 +26,15 @@
 from functools import partial
 from typing import Optional, TYPE_CHECKING, Union
 
-from PyQt6.QtCore import Qt, QTimer, QSize, QStringListModel
+from PyQt6.QtCore import Qt, QTimer, QSize, QModelIndex
 from PyQt6.QtCore import pyqtSignal
-from PyQt6.QtGui import QFontMetrics, QFont, QContextMenuEvent
+from PyQt6.QtGui import QFontMetrics, QFont, QContextMenuEvent, QStandardItem, QStandardItemModel
 from PyQt6.QtWidgets import QTextEdit, QWidget, QLineEdit, QStackedLayout, QCompleter
 
 from electrum.payment_identifier import PaymentIdentifier
 from electrum.logging import Logger
-from electrum.util import EventListener, event_listener
+
+from electrum.gui.common_qt.util import QtEventListener, qt_event_listener
 
 from . import util
 from .util import MONOSPACE_FONT, GenericInputHandler, ColorScheme, add_input_actions_to_context_menu
@@ -95,7 +96,16 @@ class ResizingTextEdit(QTextEdit):
         return QSize(0, self.minimumHeight())
 
 
-class PayToEdit(QWidget, Logger, GenericInputHandler, EventListener):
+class ContactCompleter(QCompleter):
+    """Shows contacts as 'name <key>', but completes to the key, which is the payment identifier."""
+
+    ROLE_CONTACT_KEY = Qt.ItemDataRole.UserRole + 100
+
+    def pathFromIndex(self, index: QModelIndex) -> str:
+        return index.data(self.ROLE_CONTACT_KEY)  # returns 'alice@example.com'
+
+
+class PayToEdit(QWidget, Logger, GenericInputHandler, QtEventListener):
     paymentIdentifierChanged = pyqtSignal()
     textChanged = pyqtSignal()
 
@@ -136,12 +146,11 @@ class PayToEdit(QWidget, Logger, GenericInputHandler, EventListener):
         self.text_edit.textReallyChanged.connect(text_edit_changed)
         self.text_edit.resized.connect(text_edit_resized)
 
-        def on_completed(item: str):
-            text = self._completer_contacts[1][self._completer_contacts[0].index(item)]
-            self.try_payment_identifier(text)
+        def on_completed(key: str):
+            self.try_payment_identifier(key)
             self.completer.popup().hide()
 
-        self.completer = QCompleter()
+        self.completer = ContactCompleter()
         self.completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
         self.completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self.completer.setFilterMode(Qt.MatchFlag.MatchContains)
@@ -212,17 +221,18 @@ class PayToEdit(QWidget, Logger, GenericInputHandler, EventListener):
         add_input_actions_to_context_menu(self, m)
         m.exec(e.globalPos())
 
-    @event_listener
+    @qt_event_listener
     def on_event_contacts_updated(self):
         self.update_completer()
 
     def update_completer(self):
-        self._completer_contacts = [], []
+        model = QStandardItemModel()
         for k, v in self.send_tab.wallet.contacts.items():
-            self._completer_contacts[0].append(f'{v[1]} <{k}>')
-            self._completer_contacts[1].append(k)
+            item = QStandardItem(f'{v[1]} <{k}>')  # 'Alice <alice@example.com>'
+            item.setData(k, ContactCompleter.ROLE_CONTACT_KEY)  # 'alice@example.com'
+            model.appendRow(item)
 
-        self.completer.setModel(QStringListModel(self._completer_contacts[0]))
+        self.completer.setModel(model)
 
     @property
     def multiline(self):
@@ -326,6 +336,16 @@ class PayToEdit(QWidget, Logger, GenericInputHandler, EventListener):
             # but a user friendly representation.
             return
 
+        if self.payment_identifier and self.payment_identifier.text != self._text.strip():
+            # reset previous payment identifier so we don't pay a stale PI
+            self.payment_identifier = None
+            self.paymentIdentifierChanged.emit()
+
+        if self.completer.popup().isVisible():
+            # don't resolve/set pi while user is still picking the contact in the completer
+            self.edit_timer.start()
+            return
+
         # pushback timer if timer active or PI needs resolving
         pi = PaymentIdentifier(self.send_tab.wallet, self._text)
         if not pi.is_valid() or pi.need_resolve() or self.edit_timer.isActive():
@@ -334,5 +354,9 @@ class PayToEdit(QWidget, Logger, GenericInputHandler, EventListener):
             self.set_payment_identifier(self._text)
 
     def _on_edit_timer(self) -> None:
+        if self.completer.popup().isVisible():
+            # user is still picking a contact in the completer
+            self.edit_timer.start()  # loop so the PI gets taken once the completer closes
+            return
         if not self.isFrozen():
             self.set_payment_identifier(self._text)
