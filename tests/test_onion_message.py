@@ -489,6 +489,79 @@ class TestOnionMessageManager(ElectrumTestCase):
             await t.stop()
             await lnw.stop()
 
+    async def _receive_mutated_onion_message(self, mutate) -> list:
+        """feed a (possibly mutated) onion_message to dave, return received unsolicited messages.
+        on_onion_message must not raise, as that would disconnect the peer relaying the message."""
+        n = MockNetwork(config=self.config)
+        lnw = self.create_mock_lnwallet(name='dave')
+        lnw.node_keypair = self.dave
+
+        t = OnionMessageManager(lnw)
+        t.start_network(network=n)
+
+        received = []
+        t.on_onion_message_received_unsolicited = lambda *args, **kwargs: received.append(args)
+        packet = bfh(test_vectors['decrypt']['hops'][3]['onion_message'])
+        message_type, payload = decode_msg(packet)
+        try:
+            t.on_onion_message(mutate(dict(payload)))
+        finally:
+            await asyncio.sleep(TIME_STEP)
+
+            self.logger.debug('stopping manager')
+            await t.stop()
+            await lnw.stop()
+        return received
+
+    async def test_receive_valid(self):
+        received = await self._receive_mutated_onion_message(lambda payload: payload)
+        self.assertEqual(1, len(received))
+
+    async def test_receive_bad_mac_is_dropped(self):
+        def flip_last_byte(payload):
+            packet = bytearray(payload['onion_message_packet'])
+            packet[-1] ^= 1
+            payload['onion_message_packet'] = bytes(packet)
+            return payload
+        received = await self._receive_mutated_onion_message(flip_last_byte)
+        self.assertEqual([], received)
+
+    async def test_receive_short_packet_is_dropped(self):
+        def truncate(payload):
+            payload['onion_message_packet'] = b'\x00' * 10
+            payload['len'] = 10
+            return payload
+        received = await self._receive_mutated_onion_message(truncate)
+        self.assertEqual([], received)
+
+    def _onion_message_to_dave_with_dummy_hops(self, dummy_hops: int) -> dict:
+        session_key = os.urandom(32)
+        blinded_path = create_blinded_path(
+            session_key, [self.dave.pubkey] * (dummy_hops + 1), {'path_id': {'data': b'dummy_hops_test'}})
+        hops_data = []
+        for i, hop in enumerate(blinded_path['path']):
+            payload = {'encrypted_recipient_data': {'encrypted_recipient_data': hop['encrypted_recipient_data']}}
+            if i == len(blinded_path['path']) - 1:
+                payload['message'] = {'text': b'hello'}
+            hops_data.append(OnionHopsDataSingle(tlv_stream_name='onionmsg_tlv', payload=payload))
+        blinded_node_ids = [hop['blinded_node_id'] for hop in blinded_path['path']]
+        packet = new_onion_packet(blinded_node_ids, os.urandom(32), hops_data, onion_message=True).to_bytes()
+        return {
+            'path_key': blinded_path['first_path_key'],
+            'len': len(packet),
+            'onion_message_packet': packet,
+        }
+
+    async def test_receive_dummy_hops(self):
+        payload = self._onion_message_to_dave_with_dummy_hops(OnionMessageManager.MAX_DUMMY_HOPS)
+        received = await self._receive_mutated_onion_message(lambda _: payload)
+        self.assertEqual(1, len(received))
+
+    async def test_receive_too_many_dummy_hops_is_dropped(self):
+        payload = self._onion_message_to_dave_with_dummy_hops(OnionMessageManager.MAX_DUMMY_HOPS + 1)
+        received = await self._receive_mutated_onion_message(lambda _: payload)
+        self.assertEqual([], received)
+
 
 class TestOnionMessageUtils(TestPeer):
 
