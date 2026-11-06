@@ -56,6 +56,7 @@ from .util import (
 from . import bitcoin
 from .bitcoin import is_address,  hash_160, COIN
 from .bip32 import BIP32Node
+from .payment_identifier import parse_script
 from .transaction import (
     Transaction, multisig_script, PartialTransaction, PartialTxOutput, tx_from_any, PartialTxInput, TxOutpoint,
     convert_raw_tx_to_hex
@@ -968,7 +969,7 @@ class Commands(Logger):
                     unsigned=False, rbf=True, password=None, locktime=None, addtransaction=False, wallet: Abstract_Wallet = None):
         """Create an on-chain transaction.
 
-        arg:str:destination:Bitcoin address, contact or alias
+        arg:str:destination:Bitcoin address, contact or alias, or an output script as script(...), e.g. script(OP_RETURN 48656c6c6f)
         arg:decimal_or_max:amount:Amount to be sent (in BTC). Type '!' to send the maximum available.
         arg:decimal:fee:Transaction fee (absolute, in BTC)
         arg:decimal:feerate:Transaction fee rate (in sat/vbyte)
@@ -1000,7 +1001,7 @@ class Commands(Logger):
                         unsigned=False, rbf=True, password=None, locktime=None, addtransaction=False, wallet: Abstract_Wallet = None):
         """Create a multi-output transaction.
 
-        arg:json:outputs:json list of ["address", "amount in BTC"]
+        arg:json:outputs:json list of ["address", "amount in BTC"]; "address" can also be script(...)
         arg:bool:rbf:Whether to signal opt-in Replace-By-Fee in the transaction (true/false)
         arg:decimal:fee:Transaction fee (absolute, in BTC)
         arg:decimal:feerate:Transaction fee rate (in sat/vbyte)
@@ -1020,8 +1021,15 @@ class Commands(Logger):
             domain_addr = await asyncio.gather(*resolvers)
         final_outputs = []
         for address, amount in outputs:
-            address = await self._resolver(address, wallet)
             amount_sat = satoshis_or_max(amount)
+            try:
+                scriptpubkey = parse_script(address)
+            except ValueError as e:
+                raise UserFacingException(str(e)) from e
+            if scriptpubkey is not None:
+                final_outputs.append(PartialTxOutput(scriptpubkey=scriptpubkey, value=amount_sat))
+                continue
+            address = await self._resolver(address, wallet)
             final_outputs.append(PartialTxOutput.from_address_and_value(address, amount_sat))
         coins = wallet.get_spendable_coins(domain_addr)
         if domain_coins is not None:
