@@ -252,6 +252,25 @@ class TestCommandsTestnet(ElectrumTestCase):
             for xkey2, xtype2 in xprvs:
                 self.assertEqual(xkey2, await cmds.convert_xkey(xkey1, xtype2))
 
+    async def test_getmasterprivate(self):
+        cmds = Commands(config=self.config)
+        wallet = restore_wallet_from_text__for_unittest(
+            'disagree rug lemon bean unaware square alone beach tennis exhibit fix mimic',
+            path=None, config=self.config)['wallet']
+        self.assertEqual(
+            "vprv9FsHmuR8BMvaPvAedyorBKVJTEXysZCBQmRibvSCEa8kZ2dsQfttCn2xpPeN1DEKzvnKeRaPNaHrDvBQRA7cTftcnkFSCigZZ5XgWnr1j58",
+            await cmds.getmasterprivate(wallet=wallet))
+        for text in (
+            wallet.get_master_public_key(),  # watching-only
+            'powerful random nobody notice nothing important anyway look away hidden message over',  # old seed
+            'p2wpkh:cVtE728tULSA4gut4QWxo218q6PRsXHQAv84SXix83cuvScvGd1H',  # imported private key
+            'tb1qyla7xurmc4l9hd3adu2hx0kgscndsxy2snf2gg',  # imported address
+        ):
+            other_wallet = restore_wallet_from_text__for_unittest(text, path=None, config=self.config)['wallet']
+            with self.subTest(wallet_type=type(other_wallet.keystore).__name__):
+                with self.assertRaisesRegex(UserFacingException, "does not have a master private key"):
+                    await cmds.getmasterprivate(wallet=other_wallet)
+
     async def test_serialize(self):
         cmds = Commands(config=self.config)
         jsontx = {
