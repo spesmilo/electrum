@@ -27,7 +27,7 @@ import os
 import time
 import datetime
 from datetime import date
-from typing import TYPE_CHECKING, Tuple, Dict, Any
+from typing import TYPE_CHECKING, Tuple, Dict, Any, Optional
 import threading
 import enum
 from decimal import Decimal
@@ -247,6 +247,7 @@ class HistoryModel(CustomModel, Logger):
         self.view = None  # type: HistoryList
         self.transactions = OrderedDictWithIndex()
         self.tx_status_cache = {}  # type: Dict[str, Tuple[int, str]]
+        self._last_history_sig = None  # type: Optional[Tuple[int, Tuple[str, ...]]]
 
     def set_view(self, history_list: 'HistoryList'):
         # FIXME HistoryModel and HistoryList mutually depend on each other.
@@ -302,6 +303,14 @@ class HistoryModel(CustomModel, Logger):
             onchain_domain=self.get_domain(),
             include_lightning=self.should_include_lightning_payments(),
         )
+        if not self.should_show_fiat():
+            # Skip the rebuild of the history model when the wallet history did not
+            # change since the last refresh; rebuilding is expensive for large histories
+            # and caused freezes (see https://github.com/spesmilo/electrum/issues/6625).
+            history_sig = (len(transactions), tuple(transactions.keys()))
+            if history_sig == self._last_history_sig:
+                return
+            self._last_history_sig = history_sig
         old_length = self._root.childCount()
         if old_length != 0:
             self.beginRemoveRows(QModelIndex(), 0, old_length)
