@@ -155,13 +155,13 @@ class ChannelConfig(StoredObject):
     announcement_bitcoin_sig: bytes
     # signatures for this side's latest ctx and its htlc txs: for LOCAL, the ones the
     # remote sent us; for REMOTE, the ones we sent them.
-    current_commitment_signature: bytes
+    current_commitment_signature: bytes | None
     current_htlc_signatures: bytes
     # per-commitment points of this side's oldest unrevoked ctx, and of the next one.
     # ours are derivable from the channel seed; we keep them so that both configs can be
     # described, and sent to a peer that backs up our channel, in the same way.
-    current_per_commitment_point: bytes
-    next_per_commitment_point: bytes
+    current_per_commitment_point: bytes | None
+    next_per_commitment_point: bytes | None
 
     def __post_init__(self):
         # keypairs are stored as dicts, and bytes as hex
@@ -509,6 +509,8 @@ class ImportedChannelBackupStorage(ChannelBackupStorage):
         else:
             assert len(self.local_payment_basepoint) == 33  # pubkey
             assert self.channel_type == ChannelType.OPTION_STATIC_REMOTEKEY
+            # note: for SRK chans, this must NOT be a privkey, as it corresponds to a change addr of the wallet,
+            #       and hence (combined with xpub) would give access to full onchain wallet (as we use non-hardened bip32 derivs).
             vds.write_bytes(self.local_payment_basepoint, 33)
         vds.write_bytes(self.multisig_funding_privkey, 32)
         return bytes(vds.input)

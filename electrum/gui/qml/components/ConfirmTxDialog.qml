@@ -184,7 +184,7 @@ ElDialog {
                         HelpButton {
                             heading: qsTr('Use multiple change addresses')
                             helptext: [qsTr('In some cases, use up to 3 change addresses in order to break up large coin amounts and obfuscate the recipient address.'),
-                                       qsTr('This may result in higher transactions fees.')].join(' ')
+                                       qsTr('This may result in higher transaction fees.')].join(' ')
                         }
 
                         ElCheckBox {
@@ -239,6 +239,8 @@ ElDialog {
                         Layout.fillWidth: true
                         visible: finalizer.valid
                         backgroundColor: constants.darkerDialogBackground
+
+                        allowClick: false
 
                         idx: index
                         model: modelData

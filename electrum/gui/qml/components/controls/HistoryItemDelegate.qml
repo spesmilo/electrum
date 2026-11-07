@@ -44,17 +44,9 @@ Item {
 
             onClicked: {
                 if (model.lightning) {
-                    var page = app.stack.push(Qt.resolvedUrl('../LightningPaymentDetails.qml'), {'key': model.key})
-                    page.detailsChanged.connect(function() {
-                        // update listmodel when details change
-                        visualModel.model.updateTxLabel(model.key, page.label)
-                    })
+                    app.stack.push(Qt.resolvedUrl('../LightningPaymentDetails.qml'), {'key': model.key})
                 } else {
-                    var page = app.stack.push(Qt.resolvedUrl('../TxDetails.qml'), {'txid': model.key})
-                    page.detailsChanged.connect(function() {
-                        // update listmodel when details change
-                        visualModel.model.updateTxLabel(model.key, page.label)
-                    })
+                    app.stack.push(Qt.resolvedUrl('../TxDetails.qml'), {'txid': model.key})
                 }
             }
 

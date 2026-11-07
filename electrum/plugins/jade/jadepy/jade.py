@@ -2089,6 +2089,15 @@ class JadeInterface:
         logger.debug("Received: {} bytes".format(len(bytes_)))
         return bytes_
 
+    def readable(self):
+        return True  # Act like a file-like object
+
+    def writable(self):
+        return True  # Act like a file-like object
+
+    def seekable(self):
+        return False  # Act like a file-like object
+
     def read_cbor_message(self):
         """
         Try to read a single cbor (response) message from the underlying interface.
@@ -2104,7 +2113,11 @@ class JadeInterface:
         while True:
             # 'self' is sufficiently 'file-like' to act as a load source.
             # Throws EOFError on end of stream/timeout/lost-connection etc.
-            message = cbor.load(self)
+            try:
+                message = cbor.load(self)
+            except cbor.CBORDecodeEOF as e:
+                # cbor2 >= 6 no longer derives CBORDecodeEOF from EOFError
+                raise EOFError(str(e)) from e
 
             if isinstance(message, collections.abc.Mapping):
                 # A message response (to a prior request)

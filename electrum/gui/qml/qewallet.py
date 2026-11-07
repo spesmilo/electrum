@@ -188,12 +188,6 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         if wallet == self.wallet:
             self._logger.debug('request status %d for key %s' % (status, key))
             self.requestStatusChanged.emit(key, status)
-            if status == PR_PAID:
-                # might be new incoming LN payment, update history
-                # TODO: only update if it was paid over lightning,
-                # and even then, we can probably just add the payment instead
-                # of recreating the whole history (expensive)
-                self.historyModel.initModel(True)
 
     @event_listener
     def on_event_invoice_status(self, wallet, key, status):
@@ -206,19 +200,10 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         if wallet == self.wallet:
             self._logger.debug(f'new transaction {tx.txid()}')
             self.add_tx_notification(tx)
-            if self._addressCoinModel is not None:  # only setDirty if it was already initialized
-                self._addressCoinModel.setDirty()
-            self.historyModel.setDirty()  # assuming wallet.is_up_to_date triggers after
             if self.wallet.is_up_to_date():
                 # don't update during sync as this recomputes the balance on each new tx, blocking the UI thread.
                 # on_event_wallet_updated emits balanceChanged once we are up-to-date.
                 self.balanceChanged.emit()
-
-    @qt_event_listener
-    def on_event_adb_tx_height_changed(self, adb, txid, old_height, new_height):
-        if adb == self.wallet.adb:
-            self._logger.debug(f'tx_height_changed {txid}. {old_height} -> {new_height}')
-            self.historyModel.setDirty()  # assuming wallet.is_up_to_date triggers after
 
     @qt_event_listener
     def on_event_removed_transaction(self, wallet, tx):
@@ -226,9 +211,6 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         # is deleted along with multiple associated txs
         if wallet == self.wallet:
             self._logger.info(f'removed transaction {tx.txid()}')
-            if self._addressCoinModel is not None:
-                self._addressCoinModel.setDirty()
-            self.historyModel.setDirty()
             self.balanceChanged.emit()
 
     @qt_event_listener
@@ -236,10 +218,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         if wallet == self.wallet:
             self._logger.debug('wallet_updated')
             self.balanceChanged.emit()
-            self.historyModel.setDirty()
             self.synchronizing = not wallet.is_up_to_date()
-            if not self.synchronizing:
-                self.historyModel.initModel()  # refresh if dirty
 
     @event_listener
     def on_event_channel(self, wallet, channel):
@@ -257,7 +236,6 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def on_event_payment_succeeded(self, wallet, key):
         if wallet == self.wallet:
             self.paymentSucceeded.emit(key)
-            self.historyModel.initModel(True)  # TODO: be less dramatic
 
     @event_listener
     def on_event_payment_failed(self, wallet, key, reason):
@@ -310,35 +288,35 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     @pyqtProperty(QETransactionListModel, notify=historyModelChanged)
     def historyModel(self):
         if self._historyModel is None:
-            self._historyModel = QETransactionListModel(self.wallet)
+            self._historyModel = QETransactionListModel(self.wallet, parent=self)
         return self._historyModel
 
     addressCoinModelChanged = pyqtSignal()
     @pyqtProperty(QEAddressCoinListModel, notify=addressCoinModelChanged)
     def addressCoinModel(self):
         if self._addressCoinModel is None:
-            self._addressCoinModel = QEAddressCoinListModel(self.wallet)
+            self._addressCoinModel = QEAddressCoinListModel(self.wallet, parent=self)
         return self._addressCoinModel
 
     requestModelChanged = pyqtSignal()
     @pyqtProperty(QERequestListModel, notify=requestModelChanged)
     def requestModel(self):
         if self._requestModel is None:
-            self._requestModel = QERequestListModel(self.wallet)
+            self._requestModel = QERequestListModel(self.wallet, parent=self)
         return self._requestModel
 
     invoiceModelChanged = pyqtSignal()
     @pyqtProperty(QEInvoiceListModel, notify=invoiceModelChanged)
     def invoiceModel(self):
         if self._invoiceModel is None:
-            self._invoiceModel = QEInvoiceListModel(self.wallet)
+            self._invoiceModel = QEInvoiceListModel(self.wallet, parent=self)
         return self._invoiceModel
 
     channelModelChanged = pyqtSignal()
     @pyqtProperty(QEChannelListModel, notify=channelModelChanged)
     def channelModel(self):
         if self._channelModel is None:
-            self._channelModel = QEChannelListModel(self.wallet)
+            self._channelModel = QEChannelListModel(self.wallet, parent=self)
         return self._channelModel
 
     nameChanged = pyqtSignal()

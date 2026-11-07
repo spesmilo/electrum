@@ -189,6 +189,11 @@ class UnrelatedTransactionException(AddTransactionException):
         return _("Transaction is unrelated to this wallet.")
 
 
+class InvalidTxSignature(AddTransactionException):
+    def __str__(self):
+        return _("Transaction has an invalid signature.")
+
+
 class FileImportFailed(Exception):
     def __init__(self, message=''):
         self.message = str(message)
@@ -768,8 +773,11 @@ def is_hash256_str(text: Any) -> bool:
     return is_hex_str(text)
 
 
-def is_hex_str(text: Any) -> bool:
-    if not isinstance(text, str): return False
+def is_hex_str(text: Any, *, allow_odd_len: bool = False) -> bool:
+    if not isinstance(text, str):
+        return False
+    if allow_odd_len and len(text) % 2 == 1:
+        return is_hex_str("0" + text, allow_odd_len=False)
     try:
         b = bytes.fromhex(text)
     except Exception:
@@ -1458,11 +1466,24 @@ class OldTaskGroup(aiorpcx.TaskGroup):
             finally:
                 if exc:
                     await self.cancel_remaining()
+                    # before super().join(), which would silently swallow the next failed task
+                    self._discard_exceptions_of_done_tasks()
                 await super().join()
         else:
-            await super().join()
+            try:
+                await super().join()
+            finally:
+                self._discard_exceptions_of_done_tasks()
             if self.completed:
                 self.completed.result()
+
+    def _discard_exceptions_of_done_tasks(self):
+        # Only the first exception is propagated, but other tasks might have failed too,
+        # e.g. if they finished in the same event loop iteration, or raised while being cancelled.
+        # Retrieve their exceptions, otherwise asyncio logs "Task exception was never retrieved".
+        for task in self._done:
+            if not task.cancelled() and task.exception() is not None:
+                _logger.debug(f"OldTaskGroup: discarding exception of {task!r}")
 
 
 # We monkey-patch aiorpcx TimeoutAfter (used by timeout_after and ignore_after API),

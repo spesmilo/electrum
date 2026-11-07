@@ -18,6 +18,9 @@ Pane {
         vertical: false
     }
 
+    property string forAddress
+    property QtObject backingModel: Daemon.currentWallet.historyModel
+
     ElListView {
         id: listview
         width: parent.width
@@ -32,7 +35,8 @@ Pane {
 
         header: Item {
             width: parent.width
-            height: headerLayout.height
+            height: forAddress ? 0 : headerLayout.height
+            visible: !forAddress
             ColumnLayout {
                 id: headerLayout
                 anchors.centerIn: parent
@@ -72,7 +76,7 @@ Pane {
 
         DelegateModel {
             id: visualModel
-            model: Daemon.currentWallet.historyModel
+            model: backingModel
 
             groups: [
                 DelegateModelGroup { name: 'today'; includeByDefault: false },
@@ -88,7 +92,7 @@ Pane {
         ScrollIndicator.vertical: ScrollIndicator { }
 
         Label {
-            visible: Daemon.currentWallet.historyModel.count == 0 && !Daemon.currentWallet.synchronizing
+            visible: !forAddress && Daemon.currentWallet.historyModel.count == 0 && !Daemon.currentWallet.synchronizing
             anchors.centerIn: parent
             width: listview.width * 4/5
             font.pixelSize: constants.fontSizeXXLarge
@@ -146,24 +150,27 @@ Pane {
     Connections {
         target: Network
         function onHeightChanged(height) {
-            Daemon.currentWallet.historyModel.updateBlockchainHeight(height)
+            if (backingModel)
+                backingModel.updateBlockchainHeight(height)
         }
     }
 
     Connections {
         target: Daemon
         function onWalletLoaded() {
-            listview.reuseItems = false  // flush the reuseItems delegate instance pool
+            // flush the reuseItems delegate instance pool
+            listview.reuseItems = false
+            listview.forceLayout()
             listview.positionViewAtBeginning()
-            listview.reuseItems = true  // re-enable delegate instance reuse
+            listview.reuseItems = true
         }
     }
 
     StackView.onVisibleChanged: {
         // refresh model if History becomes visible and the model is dirty.
-        if (StackView.visible) {
+        if (StackView.visible && backingModel) {
             listview.reuseItems = false
-            Daemon.currentWallet.historyModel.initModel(false)
+            backingModel.initModel()
             listview.reuseItems = true
         }
     }

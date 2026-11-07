@@ -9,6 +9,7 @@ TextHighlightPane {
     id: root
 
     property variant model
+    property bool allowClick: true
     property int idx: -1
 
     property string _suffix: model.is_mine || model.is_change
@@ -34,6 +35,14 @@ TextHighlightPane {
                 Layout.fillWidth: true
                 text: model.short_id
                 font.family: FixedFont
+                TapHandler {
+                    enabled: allowClick && Boolean(model.prevout_txid) // only set if we have tx
+                    onTapped: {
+                        app.stack.push(Qt.resolvedUrl('../TxDetails.qml'), {
+                            txid: model.prevout_txid
+                        })
+                    }
+                }
             }
             Label {
                 id: txin_value
@@ -81,6 +90,14 @@ TextHighlightPane {
                             ? constants.colorAddressAccounting
                             : Material.foreground
                 wrapMode: Text.WrapAnywhere
+                TapHandler {
+                    enabled: allowClick && model.is_mine
+                    onTapped: {
+                        app.stack.push(Qt.resolvedUrl('../AddressDetails.qml'), {
+                            address: model.address
+                        })
+                    }
+                }
             }
         }
 

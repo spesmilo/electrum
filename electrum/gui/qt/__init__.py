@@ -73,6 +73,7 @@ from electrum.util import (UserCancelled, profiler, send_exception_to_crash_repo
                            standardize_path, UserFacingException)
 from electrum.wallet import Wallet, Abstract_Wallet
 from electrum.wallet_db import WalletRequiresSplit, WalletRequiresUpgrade, WalletUnfinished
+from electrum.storage import StorageReadWriteError
 from electrum.gui import BaseElectrumGui
 from electrum.simple_config import SimpleConfig
 from electrum.wizard import WizardViewState
@@ -298,11 +299,13 @@ class ElectrumGui(BaseElectrumGui, Logger):
             return
         self._cleaned_up = True
         self.app.new_window_signal.disconnect()
+        # it is safe to remove the filters, even if they weren't installed
         self.app.removeEventFilter(self.open_file_efilter)
         self.open_file_efilter = None
-        # it is save to remove the filter, even if it has not been installed
         self.app.removeEventFilter(self.screenshot_protection_efilter)
         self.screenshot_protection_efilter = None
+        self.app.removeEventFilter(self.efilter_no_rich_text)
+        self.efilter_no_rich_text = None
         # If there are still some open windows, try to clean them up.
         for window in list(self.windows):
             window.close()
@@ -401,7 +404,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
             return None
 
         def __handle_wallet_loading_exc(exc: Exception, pos):
-            if isinstance(exc, UserFacingException) \
+            if isinstance(exc, (UserFacingException, StorageReadWriteError)) \
                     or isinstance(exc, WalletFileException) and not exc.should_report_crash:
                 self.logger.exception(f"{pos=}")
                 custom_message_box(icon=QMessageBox.Icon.Warning,

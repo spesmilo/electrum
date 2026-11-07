@@ -172,6 +172,9 @@ class QEAppController(BaseCrashReporter, QObject):
                 os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "icons", "electrum.png",
             )
         try:
+            if self.isAndroid():
+                self._notify_android('Electrum', message, large_icon=icon)
+                return
             # TODO: lazy load not in UI thread please
             global notification
             if not notification:
@@ -181,6 +184,43 @@ class QEAppController(BaseCrashReporter, QObject):
             self.logger.warning('Notification: needs plyer; `python3 -m pip install plyer`')
         except Exception as e:
             self.logger.error(repr(e))
+
+    def _notify_android(self, title: str, message: str, *, large_icon: str):
+        # Not using plyer here, as it uses the launcher icon as small icon. Android only
+        # uses the alpha channel of the small icon, so our opaque adaptive launcher icon
+        # is shown as a blank disc.
+        jContext = autoclass('android.content.Context')
+        jNotificationManager = autoclass('android.app.NotificationManager')
+        jNotificationChannel = autoclass('android.app.NotificationChannel')
+        jNotificationBuilder = autoclass('android.app.Notification$Builder')
+        jPendingIntent = autoclass('android.app.PendingIntent')
+        jBitmapFactory = autoclass('android.graphics.BitmapFactory')
+
+        package_name = jpythonActivity.getPackageName()
+        channel_id = package_name  # same channel id as plyer used, keeps user's channel settings
+        nm = cast(jNotificationManager, jpythonActivity.getSystemService(jContext.NOTIFICATION_SERVICE))
+        nm.createNotificationChannel(
+            jNotificationChannel(channel_id, jString(title), jNotificationManager.IMPORTANCE_DEFAULT))
+
+        # electrum_light_icon.png is added to res/drawable by android.add_resources in buildozer_qml.spec
+        small_icon = jpythonActivity.getResources().getIdentifier('electrum_light_icon', 'drawable', package_name)
+        if not small_icon:  # not packaged as expected, fall back to app icon
+            self.logger.warning('Notification icon not found')
+            small_icon = jpythonActivity.getApplicationInfo().icon
+
+        builder = jNotificationBuilder(jpythonActivity, channel_id)
+        builder.setSmallIcon(small_icon)
+        builder.setContentTitle(jString(title))
+        builder.setContentText(jString(message))
+        bitmap = jBitmapFactory.decodeFile(large_icon)
+        if bitmap is not None:
+            builder.setLargeIcon(bitmap)
+        launch_intent = jpythonActivity.getPackageManager().getLaunchIntentForPackage(package_name)
+        if launch_intent is not None:
+            builder.setContentIntent(
+                jPendingIntent.getActivity(jpythonActivity, 0, launch_intent, jPendingIntent.FLAG_IMMUTABLE))
+        builder.setAutoCancel(True)
+        nm.notify(0, builder.build())
 
     def bindIntent(self):
         if not self.isAndroid():

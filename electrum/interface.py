@@ -121,8 +121,8 @@ def assert_hash256_str(val: Any) -> None:
         raise RequestCorrupted(f'{val!r} should be a hash256 str')
 
 
-def assert_hex_str(val: Any) -> None:
-    if not is_hex_str(val):
+def assert_hex_str(val: Any, *, allow_odd_len: bool = False) -> None:
+    if not is_hex_str(val, allow_odd_len=allow_odd_len):
         raise RequestCorrupted(f'{val!r} should be a hex str')
 
 
@@ -1143,6 +1143,8 @@ class Interface(Logger):
         await self.session.subscribe('blockchain.headers.subscribe', [], header_queue)
         while True:
             item = await header_queue.get()
+            if not header_queue.empty():
+                continue  # skip stale notifications
             # parse response
             assert len(item) == 1
             resp_header = item[0]

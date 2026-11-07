@@ -75,7 +75,6 @@ requirements =
     python3,
     android,
     openssl,
-    plyer,
     libffi,
     libsecp256k1,
     pycryptodomex,
@@ -161,8 +160,9 @@ android.add_jars = .buildozer/android/platform/*/build/libs_collections/Electrum
 # directory containing the files)
 android.add_src = electrum/gui/qml/java_classes/
 
-android.gradle_dependencies =
-    androidx.core:core:1.16.0
+# (bool) Enable AndroidX support. We don't use any androidx packages, keep it
+# disabled so gradle fails the build if one gets pulled in.
+android.enable_androidx = False
 
 android.add_activities = org.electrum.biometry.BiometricActivity
 
@@ -176,6 +176,7 @@ android.add_activities = org.electrum.biometry.BiometricActivity
 # 3) A directory, here 'legal_resources' must contain one or more directories,
 # each of a resource kind:  drawable, xml, etc...
 # android.add_resources = legal_resources
+android.add_resources = electrum/gui/icons/electrum_light_icon.png:drawable
 
 # (str) python-for-android branch to use, if not master, useful to try
 # not yet merged features.

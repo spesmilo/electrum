@@ -1939,15 +1939,17 @@ class NostrTransport(SwapServerTransport):
         return self
 
     def __exit__(self, ex_type, ex, tb):
-        fut = asyncio.run_coroutine_threadsafe(self.stop(), self.network.asyncio_loop)
-        fut.result(timeout=5)
+        self.destroy()
 
     async def __aenter__(self):
         self._main_loop_task = asyncio.create_task(self.main_loop())
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await wait_for2(self.stop(), timeout=5)
+        try:  # shield so stop() doesn't get canceled on timeout
+            await wait_for2(asyncio.shield(self.stop()), timeout=5)
+        except asyncio.TimeoutError:
+            self.logger.debug("nostr transport shutdown is slow")
 
     def destroy(self):
         super().destroy()

@@ -89,6 +89,7 @@ def create_blinded_path(
     # dummy hops could be inserted anywhere in the path, but for compatibility just add them at the end
     # because blinded paths are usually constructed towards ourselves, and we know we can handle dummy hops.
     if dummy_hops:
+        assert dummy_hops <= OnionMessageManager.MAX_DUMMY_HOPS, f"insane dummy hop count: {dummy_hops}"
         logger.debug(f'adding {dummy_hops} dummy hops at the end')
         path += [path[-1]] * dummy_hops
 
@@ -543,6 +544,7 @@ class OnionMessageManager(Logger):
     FORWARD_RETRY_TIMEOUT = 4
     FORWARD_RETRY_DELAY = 2
     FORWARD_MAX_QUEUE = 3
+    MAX_DUMMY_HOPS = 10
 
     class Request:
         def __init__(self, *, payload: dict, node_id_or_blinded_paths: Union[bytes, Sequence[bytes]]):
@@ -805,7 +807,9 @@ class OnionMessageManager(Logger):
             recipient_data: dict,
             onion_packet: OnionPacket,
             blinding: bytes,
-            shared_secret: bytes
+            shared_secret: bytes,
+            *,
+            num_dummy_hops: int = 0,
     ) -> None:
         if recipient_data.get('path_id'):
             self.logger.error('cannot forward onion_message, path_id in encrypted_data_tlv')
@@ -845,28 +849,29 @@ class OnionMessageManager(Logger):
             next_path_key = next_public_key_int.get_public_key_bytes()
 
         if is_dummy_hop:
-            self.process_onion_message_packet(next_path_key, onion_packet)
+            if num_dummy_hops >= self.MAX_DUMMY_HOPS:
+                self.logger.info('onion_message dropped (too many dummy hops)')
+                return
+            self.process_onion_message_packet(next_path_key, onion_packet, num_dummy_hops=num_dummy_hops + 1)
             return
 
         self.submit_forward(onion_packet=onion_packet, blinding=next_path_key, node_id=next_node_id)
 
     def on_onion_message(self, payload: dict) -> None:
         """handle arriving onion_message."""
-        path_key = payload.get('path_key')
-        if not path_key:
-            self.logger.error('missing path_key')
-            return
-        packet = payload.get('onion_message_packet')
-        if payload.get('len', 0) != len(packet):
-            self.logger.error('invalid/missing length')
-            return
-
         self.logger.debug('handling onion message')
+        # The onion was constructed by a remote sender, not by the peer relaying it to us.
+        # Any parsing/decryption failure must only drop the message, never propagate up
+        # to Peer, where it would disconnect the (honest) relaying peer.
+        try:
+            onion_packet = OnionPacket.from_bytes(payload['onion_message_packet'])
+            self.process_onion_message_packet(payload['path_key'], onion_packet)
+        except Exception as e:
+            self.logger.info(f'dropping invalid onion message: {e!r}')
 
-        onion_packet = OnionPacket.from_bytes(packet)
-        self.process_onion_message_packet(path_key, onion_packet)
-
-    def process_onion_message_packet(self, blinding: bytes, onion_packet: OnionPacket) -> None:
+    def process_onion_message_packet(
+        self, blinding: bytes, onion_packet: OnionPacket, *, num_dummy_hops: int = 0,
+    ) -> None:
         our_privkey = blinding_privkey(self.lnwallet.node_keypair.privkey, blinding)
         processed_onion_packet = process_onion_packet(onion_packet, our_privkey, tlv_stream_name='onionmsg_tlv')
         payload = processed_onion_packet.hop_data.payload
@@ -890,4 +895,6 @@ class OnionMessageManager(Logger):
         if processed_onion_packet.are_we_final:
             self.on_onion_message_received(recipient_data, payload)
         else:
-            self.on_onion_message_forward(recipient_data, processed_onion_packet.next_packet, blinding, shared_secret)
+            self.on_onion_message_forward(
+                recipient_data, processed_onion_packet.next_packet, blinding, shared_secret,
+                num_dummy_hops=num_dummy_hops)

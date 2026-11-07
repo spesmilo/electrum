@@ -15,9 +15,7 @@ Pane {
 
     property string txid
     property string rawtx
-    property alias label: txdetails.label
 
-    signal detailsChanged
     signal closed
 
     function close() {
@@ -59,9 +57,13 @@ Pane {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
                         Layout.bottomMargin: constants.paddingLarge
-                        visible: txdetails.warning
-                        text: txdetails.warning
-                        iconStyle: InfoTextArea.IconStyle.Warn
+                        visible: txdetails.error || txdetails.warning
+                        text: txdetails.error
+                            ? txdetails.error
+                            : txdetails.warning
+                        iconStyle: txdetails.error
+                            ? InfoTextArea.IconStyle.Error
+                            : InfoTextArea.IconStyle.Warn
                     }
 
                     InfoTextArea {
@@ -69,7 +71,7 @@ Pane {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
                         Layout.bottomMargin: constants.paddingLarge
-                        visible: (txdetails.isUnrelated || !txdetails.isMined) && !broadcastinfo.visible
+                        visible: (txdetails.isUnrelated || !txdetails.isMined) && !broadcastinfo.visible && !txdetails.error
                         text: txdetails.isUnrelated
                             ? qsTr('Transaction is unrelated to this wallet.')
                             : txdetails.isRemoved ? qsTr('This transaction has been replaced or removed and is no longer valid')
@@ -173,12 +175,14 @@ Pane {
 
                     Label {
                         Layout.fillWidth: true
+                        visible: !txdetails.error
                         text: qsTr('Status')
                         color: Material.accentColor
                     }
 
                     Label {
                         Layout.fillWidth: true
+                        visible: !txdetails.error
                         text: txdetails.status
                     }
 
@@ -207,7 +211,7 @@ Pane {
                     Label {
                         Layout.columnSpan: 2
                         Layout.topMargin: constants.paddingSmall
-                        visible: !txdetails.isUnrelated
+                        visible: !txdetails.error && !txdetails.isUnrelated
                         text: qsTr('Label')
                         color: Material.accentColor
                     }
@@ -220,7 +224,7 @@ Pane {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
 
-                        visible: !txdetails.isUnrelated
+                        visible: !txdetails.error && !txdetails.isUnrelated
 
                         RowLayout {
                             width: parent.width
@@ -268,6 +272,7 @@ Pane {
 
                     Heading {
                         Layout.columnSpan: 2
+                        visible: !txdetails.error
                         text: qsTr('Technical properties')
                     }
 
@@ -285,6 +290,7 @@ Pane {
                     Label {
                         Layout.columnSpan: 2
                         Layout.topMargin: constants.paddingSmall
+                        visible: !txdetails.error
                         text: qsTr('Transaction ID')
                         color: Material.accentColor
                     }
@@ -292,6 +298,7 @@ Pane {
                     TextHighlightPane {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
+                        visible: !txdetails.error
 
                         RowLayout {
                             width: parent.width
@@ -320,13 +327,13 @@ Pane {
                         id: inputs_label
                         Layout.columnSpan: 2
                         Layout.topMargin: constants.paddingMedium
-
+                        visible: !txdetails.error
                         labelText: qsTr('Inputs (%1)').arg(txdetails.inputs.length)
                         color: Material.accentColor
                     }
 
                     Repeater {
-                        model: inputs_label.collapsed
+                        model: txdetails.error || inputs_label.collapsed
                             ? undefined
                             : txdetails.inputs
                         delegate: TxInput {
@@ -342,13 +349,14 @@ Pane {
                         id: outputs_label
                         Layout.columnSpan: 2
                         Layout.topMargin: constants.paddingMedium
+                        visible: !txdetails.error
 
                         labelText: qsTr('Outputs (%1)').arg(txdetails.outputs.length)
                         color: Material.accentColor
                     }
 
                     Repeater {
-                        model: outputs_label.collapsed
+                        model: txdetails.error || outputs_label.collapsed
                             ? undefined
                             : txdetails.outputs
                         delegate: TxOutput {
@@ -433,6 +441,7 @@ Pane {
                 Layout.preferredWidth: 1
                 icon.source: '../../icons/qrcode_white.png'
                 text: qsTr('Share...')
+                visible: !txdetails.error
                 enabled: !txdetails.isUnrelated && !txdetails.isRemoved
                 onClicked: {
                     var msg = ''
@@ -485,7 +494,6 @@ Pane {
     TxDetails {
         id: txdetails
         wallet: Daemon.currentWallet
-        onLabelChanged: root.detailsChanged()
         onConfirmRemoveLocalTx: (message) => {
             var dialog = app.messageDialog.createObject(app, { text: message, yesno: true })
             dialog.accepted.connect(function() {

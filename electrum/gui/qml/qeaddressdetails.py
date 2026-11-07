@@ -3,13 +3,15 @@ from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QVariant
 from electrum.logging import get_logger
 from electrum.util import UserFacingException
 
+from electrum.gui.common_qt.util import QtEventListener, qt_event_listener
+
 from .auth import auth_protect, AuthMixin
 from .qetransactionlistmodel import QETransactionListModel
 from .qetypes import QEAmount
 from .qewallet import QEWallet
 
 
-class QEAddressDetails(AuthMixin, QObject):
+class QEAddressDetails(AuthMixin, QObject, QtEventListener):
     _logger = get_logger(__name__)
 
     detailsChanged = pyqtSignal()
@@ -33,6 +35,21 @@ class QEAddressDetails(AuthMixin, QObject):
         self._candelete = False
 
         self._historyModel = None
+
+        self.register_callbacks()
+        self.destroyed.connect(lambda: self.on_destroy())
+
+    def on_destroy(self):
+        self.unregister_callbacks()
+
+    @qt_event_listener
+    def on_event_label_changed(self, wallet, name, text):
+        if self._wallet and self._wallet.wallet == wallet and self._address == name:
+            if text is None:  # label cleared, fall back to derived label
+                text = wallet.get_label_for_address(self._address) or ''
+            if text != self._label:
+                self._label = text
+                self.labelChanged.emit()
 
     walletChanged = pyqtSignal()
     @pyqtProperty(QVariant, notify=walletChanged)
@@ -116,8 +133,12 @@ class QEAddressDetails(AuthMixin, QObject):
     @pyqtProperty(QETransactionListModel, notify=historyModelChanged)
     def historyModel(self):
         if self._historyModel is None:
-            self._historyModel = QETransactionListModel(self._wallet.wallet,
-                                                        onchain_domain=[self._address], include_lightning=False)
+            self._historyModel = QETransactionListModel(
+                self._wallet.wallet,
+                parent=self,
+                onchain_domain=[self._address],
+                include_lightning=False,
+            )
         return self._historyModel
 
     @pyqtSlot()
@@ -139,6 +160,8 @@ class QEAddressDetails(AuthMixin, QObject):
         assert self.canDelete
         try:
             self._wallet.wallet.delete_address(self._address)
+            # explicit mark-dirty, as delete_address is not guaranteed to trigger adb_removed_tx callback.
+            # (e.g. when the removed address shares a tx with another imported address)
             self._wallet.historyModel.setDirty()
         except UserFacingException as e:
             self.addressDeleteFailed.emit(str(e))
@@ -162,5 +185,5 @@ class QEAddressDetails(AuthMixin, QObject):
         if self._wallet.derivationPrefix:
             self._derivationPath = self._derivationPath.replace('m', self._wallet.derivationPrefix)
         self._numtx = self._wallet.wallet.adb.get_address_history_len(self._address)
-        self._candelete = self.wallet.wallet.can_delete_address()
+        self._candelete = self._wallet.wallet.can_delete_address()
         self.detailsChanged.emit()

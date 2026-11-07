@@ -1156,7 +1156,7 @@ class Commands(Logger):
             fx = None
         for item in out:
             if show_addresses:
-                tx = wallet.db.get_transaction(item['txid'])
+                tx = wallet.adb.get_transaction(item['txid'])
                 item['inputs'] = list(map(lambda x: x.to_json(), tx.inputs()))
                 item['outputs'] = list(map(lambda x: {'address': x.get_ui_address_str(), 'value_sat': x.value},
                                            tx.outputs()))
@@ -1897,7 +1897,7 @@ class Commands(Logger):
                 return False
             if private and chan.is_public():
                 return False
-            if active and not chan.is_redeemed():
+            if active and chan.is_redeemed():
                 return False
             if open and not chan.is_open():
                 return False
@@ -1912,6 +1912,7 @@ class Commands(Logger):
                 'state': chan.get_state().name,
                 'peer_state': chan.peer_state.name,
                 'remote_pubkey': chan.node_id.hex(),
+                'capacity': chan.get_capacity(),
                 'local_balance': chan.balance(LOCAL)//1000,
                 'remote_balance': chan.balance(REMOTE)//1000,
                 'local_ctn': chan.get_latest_ctn(LOCAL),

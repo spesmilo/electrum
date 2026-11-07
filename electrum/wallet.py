@@ -27,6 +27,7 @@
 #   - Multisig_Wallet: several HD keystores, M-of-N OP_CHECKMULTISIG scripts
 
 import os
+import bisect
 import random
 import time
 import copy
@@ -60,7 +61,9 @@ from .util import (
     OnchainHistoryItem, read_json_file, write_json_file, UserFacingException, FileImportFailed, EventListener,
     event_listener, is_hex_str,
 )
-from .bitcoin import COIN, is_address, is_minikey, relayfee, dust_threshold, DummyAddress, DummyAddressUsedInTxException
+from .bitcoin import (
+    COIN, is_address, is_minikey, relayfee, dust_threshold, DummyAddress, DummyAddressUsedInTxException, construct_witness,
+)
 from .keystore import (
     load_keystore, Hardware_KeyStore, KeyStore, KeyStoreWithMPK, AddressIndexGeneric, CannotDerivePubkey
 )
@@ -70,7 +73,8 @@ from .stored_dict import StorageEncryptionVersion
 from .storage import  WalletStorage
 from .wallet_db import WalletDB
 from .transaction import (
-    Transaction, TxInput, TxOutput, PartialTransaction, PartialTxInput, PartialTxOutput, TxOutpoint, Sighash
+    Transaction, TxInput, TxOutput, PartialTransaction, PartialTxInput, PartialTxOutput, TxOutpoint, Sighash,
+    script_GetOp, SighashCache,
 )
 from .plugin import run_hook
 from .address_synchronizer import (
@@ -83,7 +87,7 @@ from .mnemonic import Mnemonic
 from .lnworker import LNWallet
 from .lnutil import MIN_FUNDING_SAT, RECEIVED, SENT
 from .lntransport import extract_nodeid
-from .descriptor import Descriptor
+from .descriptor import Descriptor, MissingSolutionPiece
 from .txbatcher import TxBatcher
 from .submarine_swaps import MIN_SWAP_AMOUNT_SAT
 
@@ -426,12 +430,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         Logger.__init__(self)
 
         self.network = None
-        self.adb = AddressSynchronizer(db, config, name=self.diagnostic_name())
+        self.adb = AddressSynchronizer(
+            db, config, verify_txins=self._verify_txin_signatures, name=self.diagnostic_name())
         for addr in self.get_addresses():
             self.adb.add_address(addr)
         self.lock = self.adb.lock
         self._last_full_history = None
-        self._tx_parents_cache = {}
         self._paid_invoice_keys_cache = set()  # type: Set[str]
         self._coin_price_cache = {}
         self._default_labels = {}
@@ -547,6 +551,23 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def has_channels(self):
         return self.lnworker is not None and len(self.lnworker._channels) > 0
 
+    def lightning_needs_keystore(self) -> bool:
+        """Whether lightning needs the keystore to keep functioning, i.e. whether
+        the keystore must not be disabled (made watching-only).
+
+        lnworker itself only needs lightning_xprv (or lightning_privkey2), not the keystore.
+        However, a watching-only wallet does not sign transactions (see sign_transaction),
+        so it could not sweep the outputs of force-closed channels (incl. penalty txs),
+        nor claim or refund submarine swaps. Anchor channels also need wallet coins for fees.
+        """
+        if not self.lnworker:
+            return False
+        if any(not chan.is_redeemed() for chan in self.lnworker.channels.values()):
+            return True
+        if self.lnworker.swap_manager.get_pending_swaps():
+            return True
+        return False
+
     def can_have_lightning(self) -> bool:
         """ whether this wallet can create new channels """
         # we want static_remotekey to be a wallet address
@@ -620,7 +641,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def clear_tx_parents_cache(self):
         with self.lock:
-            self._tx_parents_cache.clear()
             self._num_parents.clear()
             self._last_full_history = None
 
@@ -763,29 +783,31 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def is_deterministic(self) -> bool:
         return self.keystore.is_deterministic()
 
-    def _set_label(self, key: str, value: Optional[str]) -> None:
+    def _normalize_label(self, text):
+        return text.replace("\n", " ") if text else None
+
+    def _set_label(self, key: str, value: Optional[str]) -> bool:
+        """update label without triggering set_label hook"""
+        changed = False
+        if not key:
+            return False
+        value = self._normalize_label(value)
         with self.lock:
+            old = self._labels.get(key)
             if value is None:
-                self._labels.pop(key, None)
-            else:
+                if old is not None:
+                    self._labels.pop(key, None)
+                    changed = True
+            elif value != old:
                 self._labels[key] = value
+                changed = True
+        if changed:
+            util.trigger_callback('label_changed', self, key, value)
+        return changed
 
     def set_label(self, name: str, text: str | None = None) -> bool:
-        if not name:
-            return False
-        changed = False
-        with self.lock:
-            old_text = self._labels.get(name)
-            if text:
-                text = text.replace("\n", " ")
-                if old_text != text:
-                    self._labels[name] = text
-                    changed = True
-            else:
-                if old_text is not None:
-                    self._labels.pop(name)
-                    changed = True
-        if changed:
+        text = self._normalize_label(text)
+        if changed := self._set_label(name, text):
             run_hook('set_label', self, name, text)
         return changed
 
@@ -1070,51 +1092,55 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def get_tx_parents(self, txid: str) -> Dict[str, Tuple[List[str], List[str]]]:
         """
-        returns a flat dict:
-        txid -> list of parent txids
+        returns a flat dict, for txid and its ancestors in the wallet history:
+        txid -> (list of parent txids, list of uncle txids)
+        uncles are the txs that funded other coins of an input address,
+        if those coins were spent by a mined tx before txid (address reuse)
         """
+
+        def _get_spent_coins(addr_: str) -> Tuple[List[Tuple[int, int]], List[str]]:
+            """Returns the coins of addr that were spent by a mined tx, in the order they were spent:
+            the (height, txpos) of the spending txs, and the txids that funded the coins.
+            """
+            received, sent = self.adb.get_addr_io(addr_)
+            spends = sorted(
+                ((height, txpos), prevout_str.split(':')[0])
+                for prevout_str, (spending_txid, height, txpos) in sent.items()
+                if height > 0
+            )
+            return [key_ for key_, _ in spends], [txid_ for _, txid_ in spends]
+
         with self.lock:
             if self._last_full_history is None:
                 self._last_full_history = self.get_onchain_history()
-                # populate cache in chronological order (confirmed tx only)
-                # todo: get_full_history should return unconfirmed tx topologically sorted
-                for _txid, tx_item in self._last_full_history.items():
-                    if tx_item.tx_mined_status.height() > 0:
-                        self.get_tx_parents(_txid)
-
-            result = self._tx_parents_cache.get(txid, None)
-            if result is not None:
-                return result
-            result = {}   # type: Dict[str, Tuple[List[str], List[str]]]
-            parents = []  # type: List[str]
-            uncles = []   # type: List[str]
-            tx = self.adb.get_transaction(txid)
-            assert tx, f"cannot find {txid} in db"
-            for i, txin in enumerate(tx.inputs()):
-                _txid = txin.prevout.txid.hex()
-                parents.append(_txid)
-                # detect address reuse
-                addr = self.adb.get_txin_address(txin)
-                if addr is None:
+            result = {}  # type: Dict[str, Tuple[List[str], List[str]]]
+            spent_coins = {}  # addr -> _get_spent_coins(addr)
+            num_uncles = defaultdict(int)  # addr -> number of funding txs of spent_coins[addr] added to todo
+            todo = [txid]
+            while todo:
+                _txid = todo.pop()
+                if _txid in result:
                     continue
-                received, sent = self.adb.get_addr_io(addr)
-                if len(sent) > 1:
-                    my_txid, my_height, my_pos = sent[txin.prevout.to_str()]
-                    assert my_txid == txid
-                    for k, v in sent.items():
-                        if k != txin.prevout.to_str():
-                            reuse_txid, reuse_height, reuse_pos = v
-                            if reuse_height <= 0:  # exclude not-yet-mined (we need topological ordering)
-                                continue
-                            if (reuse_height, reuse_pos) < (my_height, my_pos):
-                                uncle_txid, uncle_index = k.split(':')
-                                uncles.append(uncle_txid)
-
-            for _txid in parents + uncles:
-                if _txid in self._last_full_history.keys():
-                    result.update(self.get_tx_parents(_txid))
-            result[txid] = parents, uncles
-            self._tx_parents_cache[txid] = result
+                tx = self.db.get_transaction(_txid)
+                assert tx, f"cannot find {_txid} in db"
+                tx_mined_info = self.adb.get_tx_height(_txid)
+                key = tx_mined_info.height(), tx_mined_info.txpos if tx_mined_info.txpos is not None else -1
+                parents = [txin.prevout.txid.hex() for txin in tx.inputs()]
+                uncles = []  # type: List[str]
+                for txin in tx.inputs():
+                    addr = self.adb.get_txin_address(txin)
+                    if addr is None:
+                        continue
+                    if addr not in spent_coins:
+                        spent_coins[addr] = _get_spent_coins(addr)
+                    keys, funding_txids = spent_coins[addr]
+                    n = bisect.bisect_left(keys, key)  # number of coins spent before _txid (0 if unmined)
+                    uncles += funding_txids[:n]
+                    # the uncles of earlier spends from addr are a prefix of these, add them to todo only once
+                    todo.extend(x for x in funding_txids[num_uncles[addr]:n] if x in self._last_full_history)
+                    num_uncles[addr] = max(num_uncles[addr], n)
+                result[_txid] = parents, uncles
+                todo.extend(x for x in parents if x in self._last_full_history and x not in result)
             return result
 
     def get_balance(self, **kwargs):
@@ -1720,7 +1746,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def get_label_for_address(self, addr: str) -> str:
         label = self._labels.get(addr) or ''
         if not label and (request := self.get_request_by_addr(addr)):
-            label = request.get_message()
+            label = request.get_message() or ''
         return label
 
     def set_default_label(self, key: str, value: str):
@@ -1746,7 +1772,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if label := self._default_labels.get(tx_hash):
             return label
         labels = []
-        tx = self.adb.get_transaction(tx_hash)
+        tx = self.db.get_transaction(tx_hash)
         if tx:
             for txin in tx.inputs():
                 outpoint = txin.prevout.to_str()
@@ -1773,6 +1799,18 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         #if not labels and self.lnworker and (label:= self.lnworker.get_label_for_txid(tx_hash)):
         #    labels.append(label)
         return ', '.join(labels)
+
+    def get_txids_with_label_derived_from(self, key: str) -> Set[str]:
+        """Returns the txids whose default label (see _get_default_label_for_txid)
+        can depend on the label of key, where key is an address or an outpoint.
+        """
+        if is_address(key):
+            return set(self.adb.get_address_history(key).keys())
+        if ':' in key:
+            txid, n = key.split(':', 1)
+            spender = self.db.get_spent_outpoint(txid, n)
+            return {txid, spender} if spender else {txid}
+        return set()
 
     def _get_default_label_for_rhash(self, rhash: str) -> str:
         req = self.get_request(rhash)
@@ -2070,6 +2108,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     base_tx.add_info_from_wallet(self)
                 else:
                     # don't cast PartialTransaction, because it removes make_witness
+                    base_tx = copy.deepcopy(base_tx)  # don't mutate callers tx
                     base_tx.remove_signatures()
                 base_tx_fee = base_tx.get_fee()  # FIXME could be None if some inputs are non-ismine
                 base_feerate = Decimal(base_tx_fee) / base_tx_size
@@ -2587,6 +2626,52 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             return False
         return tx.is_rbf_enabled()
 
+    def _verify_txin_signatures(self, tx: Transaction, prev_txs: Mapping[int, Transaction]) -> bool:
+        if isinstance(tx, PartialTransaction):
+            tx = Transaction(tx.serialize())
+        ptx = PartialTransaction.from_tx(tx)
+        sighash_cache = SighashCache()
+        for txin_idx, prev_tx in prev_txs.items():
+            ptxin = ptx.inputs()[txin_idx]
+            prev_txout = prev_tx.outputs()[ptxin.prevout.out_idx]
+            ptxin.witness_utxo = prev_txout  # value and address, also if prev_tx is unsigned
+            ptxin.script_descriptor = self.get_script_descriptor_for_address(prev_txout.address)
+            if not ptxin.script_descriptor:
+                continue  # cannot verify, e.g. watch-only imported address
+            txin = tx.inputs()[txin_idx]
+            try:
+                items = txin.witness_elements() + [x[1] for x in script_GetOp(txin.script_sig or b'')]
+                sigs = [x for x in items if x and x[0] == 0x30 and 9 <= len(x) <= 73]
+                pubkeys = ptxin.pubkeys
+                if len(pubkeys) > 1:  # multisig: sigs are in script order
+                    script = ptxin.witness_script or ptxin.redeem_script
+                    pubkeys = [x[1] for x in script_GetOp(script) if x[1] in pubkeys]
+            except Exception:
+                return False
+            # like OP_CHECKMULTISIG: at most one verification per pubkey
+            sigs_iter = iter(sigs)
+            sig = next(sigs_iter, None)
+            for pubkey in pubkeys:
+                if sig is None:
+                    break
+                try:
+                    is_valid = ptx.verify_sig_for_txin(
+                        txin_index=txin_idx, pubkey_bytes=pubkey, sig=sig, sighash_cache=sighash_cache)
+                except Exception:
+                    is_valid = False
+                if is_valid:
+                    ptxin.sigs_ecdsa[pubkey] = sig
+                    sig = next(sigs_iter, None)
+            # the scriptSig and witness must be exactly what we would produce
+            try:
+                script_sig = Transaction.input_script(ptxin)
+                witness = Transaction.serialize_witness(ptxin)
+            except MissingSolutionPiece:
+                return False
+            if script_sig != (txin.script_sig or b'') or witness != (txin.witness or construct_witness([])):
+                return False
+        return True
+
     def cpfp(self, tx: Transaction, fee: int) -> Optional[PartialTransaction]:
         assert tx
         txid = tx.txid()
@@ -2831,7 +2916,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         # find out if we are replacing a txbatcher transaction
         prevout_str = tx.inputs()[0].prevout.to_str()
         batch = self.txbatcher.find_batch_by_prevout(prevout_str)
-        if batch:
+        # do not sign sweep inputs for a tx that pays outputs not in the batch,
+        # e.g. a fee bump of a replacement made by someone else
+        if batch and batch.has_only_batch_outputs(tx):
             batch.add_sweep_info_to_tx(tx)
 
         # sign with make_witness
@@ -4346,15 +4433,29 @@ class Deterministic_Wallet(Abstract_Wallet):
 
     def enable_keystore(self, keystore: KeyStore, is_hardware_keystore: bool, password) -> None:
         assert self.can_enable_disable_keystore(keystore)
-        if not is_hardware_keystore and self.storage.is_encrypted_with_user_pw():
-            keystore.update_password(None, password)
-            self.db.put('use_encryption', True)
+        mpk = keystore.get_master_public_key()
+        target = next((k for k in self.get_keystores() if k.get_master_public_key() == mpk), None)
+        if target is None:
+            raise Exception("mismatching xpubs: keystore not found in wallet")
+        if not target.is_watching_only():
+            # e.g. replacing a keystore that has a seed would remove the seed from the wallet file
+            raise Exception("keystore to be replaced is not watching-only")
+        if not is_hardware_keystore:
+            if self.storage.is_encrypted_with_user_pw() or self.has_keystore_encryption():
+                self.check_password(password)
+                keystore.update_password(None, password)
+                self.db.set_keystore_encryption(True)
+            else:
+                # the wallet has no password.
+                self.db.set_keystore_encryption(False)
         self._update_keystore(keystore)
+        self.save_db()
 
     def disable_keystore(self, keystore: KeyStore) -> None:
         assert self.can_enable_disable_keystore(keystore)
-        assert not self.has_channels()
         assert keystore in self.get_keystores()
+        if self.lightning_needs_keystore():
+            raise Exception("cannot disable keystore: needed by lightning")
         if hasattr(keystore, 'thread') and keystore.thread:
             keystore.thread.stop()
         if self.storage.is_encrypted_with_hw_device():
@@ -4362,6 +4463,15 @@ class Deterministic_Wallet(Abstract_Wallet):
             self.update_password(password, None, encrypt_storage=False)
         new = keystore.watching_only_keystore()
         self._update_keystore(new)
+        if not self.can_have_keystore_encryption():
+            # no keystore left that can be encrypted. Without storage encryption,
+            # the wallet no longer has a password.
+            self.db.set_keystore_encryption(False)
+        if not self.has_password():
+            self.lock_wallet()  # clear in memory password
+        # save changes. force full rewrite to rm remnants of the seed
+        if self.storage and self.storage.file_exists():
+            self.db.write_and_force_consolidation()
 
 
 class Standard_Wallet(Simple_Wallet, Deterministic_Wallet):
@@ -4465,7 +4575,7 @@ class Multisig_Wallet(Deterministic_Wallet):
         else:
             raise Exception('keystore not found')
         self.keystores[name] = keystore
-        self.keystore = keystore
+        self.keystore = self.keystores['x1']
         self.save_keystore()
 
     def can_have_keystore_encryption(self):
@@ -4541,7 +4651,7 @@ class Wallet(object):
             return Multisig_Wallet
         if wallet_type in wallet_constructors:
             return wallet_constructors[wallet_type]
-        raise WalletFileException("Unknown wallet type: " + str(wallet_type))
+        raise WalletFileException(_("Unknown wallet type: {}").format(wallet_type))
 
 
 def create_new_wallet(

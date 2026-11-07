@@ -68,7 +68,8 @@ class WatchTower(Logger, EventListener):
         Logger.__init__(self)
         self.config = network.config
         wallet_db = WalletDB('', storage=None, upgrade=True)
-        self.adb = AddressSynchronizer(wallet_db, self.config, name=self.diagnostic_name())
+        # the watchtower has no keys: it cannot verify signatures
+        self.adb = AddressSynchronizer(wallet_db, self.config, verify_txins=None, name=self.diagnostic_name())
         self.adb.start_network(network)
         self.callbacks = {}  # outpoint -> lambda function
         self.register_callbacks()

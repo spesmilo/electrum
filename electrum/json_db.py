@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING, Optional, Sequence, List, Union, Dict, Any
 import jsonpatch
 import jsonpointer
 
-from . import util
+from .i18n import _
 from .util import WalletFileException, profiler, sticky_property
 from .logging import Logger
 from .stored_dict import StoredDict, _FLEX_KEY, registered_names, registered_keys, _convert_dict_key, _convert_dict_value
@@ -128,9 +128,9 @@ class JsonDB(Logger):
                 data, patches = r, []
                 self.set_modified(True)
             else:
-                raise WalletFileException("Cannot read wallet file. (parsing failed)")
+                raise WalletFileException(_("Cannot read wallet file") + " (parsing failed)")
         if not isinstance(data, dict):
-            raise WalletFileException("Malformed wallet file (not dict)")
+            raise WalletFileException(_("Malformed wallet file") + " (not dict)")
         if patches:
             # apply patches
             self.logger.info('found %d patches'%len(patches))

@@ -8,6 +8,8 @@ util = load_source('util', os.path.join(os.path.dirname(os.path.dirname(__file__
 assert Qt6Recipe._version == "6.10.2"
 assert Qt6Recipe.depends == ['python3', 'hostqt6', 'ffmpeg_qt']
 assert Qt6Recipe.python_depends == []
+assert Qt6Recipe.patches == ['main-lib-abi-suffix.patch', 'compat-windowinsets.patch',
+                             'qtmultimedia-aaudio-api26.patch', 'deadlock-protector-no-fatal.patch']
 
 
 class Qt6RecipePinned(util.InheritedRecipeMixin, Qt6Recipe):

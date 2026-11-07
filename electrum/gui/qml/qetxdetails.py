@@ -37,6 +37,7 @@ class QETxDetails(QObject, QtEventListener):
         self._txid = ''
         self._rawtx = ''
         self._label = ''
+        self._error = ''
 
         self._tx = None  # type: Optional[Transaction]
 
@@ -80,13 +81,20 @@ class QETxDetails(QObject, QtEventListener):
     def on_event_verified(self, wallet, txid, info):
         if wallet == self._wallet.wallet and txid == self._txid:
             self._logger.debug(f'verified event for our txid {txid}')
-            self.update()
+            self.update(from_txid=self._tx is None)
 
     @qt_event_listener
     def on_event_new_transaction(self, wallet, tx):
         if wallet == self._wallet.wallet and tx.txid() == self._txid:
             self._logger.debug(f'new_transaction event for our txid {self._txid}')
-            self.update()
+            self.update(from_txid=self._tx is None)
+
+    @qt_event_listener
+    def on_event_adb_added_tx(self, adb, tx_hash, tx):
+        # avoid staying on 'tx not found' for txs that don't touch the wallet
+        if self._tx is None and adb == self._wallet.wallet.adb and tx_hash == self._txid:
+            self._logger.debug(f'adb_added_tx event for our txid {tx_hash}')
+            self.update(from_txid=True)
 
     @qt_event_listener
     def on_event_removed_transaction(self, wallet, tx):
@@ -139,13 +147,19 @@ class QETxDetails(QObject, QtEventListener):
             if not rawtx:
                 return
             try:
+                self._error = ''
                 self._tx = tx_from_any(rawtx, deserialize=True)
+            except Exception as e:
+                self._logger.error(repr(e))
+                self._tx = None
+                self._txid = ''
+                self.txidChanged.emit()
+                self._error = _('Invalid transaction')
+                self.detailsChanged.emit()
+            else:
                 self._txid = self._tx.txid()
                 self.txidChanged.emit()
                 self.update()
-            except Exception as e:
-                self._tx = None
-                self._logger.error(repr(e))
 
     labelChanged = pyqtSignal()
     @pyqtProperty(str, notify=labelChanged)
@@ -166,6 +180,10 @@ class QETxDetails(QObject, QtEventListener):
     @pyqtProperty(str, notify=detailsChanged)
     def warning(self):
         return self._sighash_danger.get_long_message()
+
+    @pyqtProperty(str, notify=detailsChanged)
+    def error(self):
+        return self._error
 
     @pyqtProperty(QEAmount, notify=detailsChanged)
     def amount(self):
@@ -298,9 +316,18 @@ class QETxDetails(QObject, QtEventListener):
 
         if from_txid:
             self._tx = self._wallet.wallet.db.get_transaction(self._txid)
-            assert self._tx is not None, f'unknown txid "{self._txid}"'
+            if self._tx is None:
+                self._error = _('Transaction not found')
+                self.detailsChanged.emit()
+                return
+        elif (txid := self._tx.txid()) != self._txid:
+            # a tx with legacy inputs only gets a txid once it is fully signed
+            self._txid = txid
+            self.txidChanged.emit()
+            if txid and self._label:  # entered while the txid was unknown, so not saved yet
+                self._wallet.wallet.set_label(txid, self._label)
 
-        #self._logger.debug(repr(self._tx.to_json()))
+        self._error = ''
 
         self._logger.debug('adding info from wallet')
         self._tx.add_info_from_wallet(self._wallet.wallet)
@@ -312,6 +339,7 @@ class QETxDetails(QObject, QtEventListener):
 
         self._inputs = list(map(lambda x: {
             'short_id': x.prevout.short_name(),
+            'prevout_txid': x.prevout.txid.hex() if self._wallet.wallet.db.get_transaction(x.prevout.txid.hex()) is not None else None,
             'value': x.value_sats(),
             'address': x.address,
             'is_mine': self._wallet.wallet.is_mine(x.address),
@@ -366,7 +394,7 @@ class QETxDetails(QObject, QtEventListener):
             if isinstance(self._tx, PartialTransaction):
                 self._sighash_danger = self._wallet.wallet.check_sighash(self._tx)
 
-        if self._wallet.wallet.lnworker:
+        if self._wallet.wallet.lnworker and self._txid:  # no txid yet for an unsigned tx with legacy inputs
             # Calling wallet.get_full_history here is inefficient.
             # We should probably pass the tx_item to the constructor.
             full_history = self._wallet.wallet.get_full_history()

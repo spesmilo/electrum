@@ -375,6 +375,7 @@ def create_trampoline_route(
         budget=budget,
         amount_msat_for_dest=amount_msat,
         cltv_delta_for_dest=min_final_cltv_delta,
+        we_are_forwarding=False,
     ):
         raise FeeBudgetExceeded(f"route exceeds budget: budget: {budget}")
     return route

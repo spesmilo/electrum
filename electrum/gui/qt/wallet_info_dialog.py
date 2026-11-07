@@ -153,12 +153,12 @@ class WalletInfoDialog(WindowModalDialog):
                 if wallet.can_enable_disable_keystore(ks):
                     ks_buttons = []
                     if not ks.is_watching_only():
-                        rm_keystore_button = QPushButton('Disable keystore')
+                        rm_keystore_button = QPushButton(_('Disable keystore'))
                         rm_keystore_button.clicked.connect(partial(self.disable_keystore, ks))
                         ks_buttons.insert(0, rm_keystore_button)
                     else:
-                        add_keystore_button = QPushButton('Enable Keystore')
-                        add_keystore_button.clicked.connect(self.enable_keystore)
+                        add_keystore_button = QPushButton(_('Enable keystore'))
+                        add_keystore_button.clicked.connect(partial(self.enable_keystore, ks))
                         ks_buttons.insert(0, add_keystore_button)
                     ks_vbox.addLayout(Buttons(*ks_buttons))
                 tab_label = _("Cosigner") + f' {idx+1}' if len(keystores) > 1 else _("Keystore")
@@ -180,20 +180,30 @@ class WalletInfoDialog(WindowModalDialog):
         self.setLayout(vbox)
 
     def disable_keystore(self, keystore):
-        if self.wallet.has_channels():
-            self.window.show_message(_('Cannot disable keystore: You have active lightning channels'))
+        if self.wallet.lightning_needs_keystore():
+            self.window.show_message(' '.join([
+                _('Cannot disable keystore: you have lightning channels that are not fully closed, or pending submarine swaps.'),
+                _('Lightning needs the keystore to sign transactions, e.g. to sweep funds after a channel was force-closed.'),
+            ]))
             return
 
         msg = _('Disable keystore? This will make the keystore watching-only.')
         if self.wallet.storage.is_encrypted_with_hw_device():
             msg += '\n\n' + _('Note that this will disable wallet file encryption, because it uses your hardware wallet device.')
+        other_keystores = [k for k in self.wallet.get_keystores() if k is not keystore]
+        if (self.wallet.has_keystore_encryption() and not self.wallet.storage.is_encrypted_with_user_pw()
+                and not any(k.may_have_password() for k in other_keystores)):
+            msg += '\n\n' + ' '.join([
+                _('Note that this will remove the wallet password, because it only protects this keystore.'),
+                _('If you enable the keystore again later, set a new password to protect it.'),
+            ])
         if not self.window.question(msg):
             return
         self.accept()
         self.wallet.disable_keystore(keystore)
         self.window.gui_object.reload_windows()
 
-    def enable_keystore(self, b: bool):
+    def enable_keystore(self, target_keystore):
         v = WizardViewState('keystore_type', {'wallet_type': self.window.wallet.wallet_type}, {})
         dialog = QEKeystoreWizard(config=self.window.config, app=self.window.gui_object.app,
                                   plugins=self.window.gui_object.plugins, start_viewstate=v)
@@ -201,11 +211,8 @@ class WalletInfoDialog(WindowModalDialog):
         if not result:
             return
         keystore, is_hardware = result
-        for k in self.wallet.get_keystores():
-            if k.get_master_public_key() == keystore.get_master_public_key():
-                break
-        else:
-            self.window.show_error(_('Keystore not found in this wallet'))
+        if keystore.get_master_public_key() != target_keystore.get_master_public_key():
+            self.window.show_error(_('The provided seed or hardware device does not match this keystore.'))
             return
         self._enable_keystore(keystore, is_hardware)
 

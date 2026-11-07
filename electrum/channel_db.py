@@ -78,7 +78,8 @@ class ChannelInfo(NamedTuple):
         channel_id = payload['short_channel_id']
         node_id_1 = payload['node_id_1']
         node_id_2 = payload['node_id_2']
-        assert list(sorted([node_id_1, node_id_2])) == [node_id_1, node_id_2]
+        if not node_id_1 < node_id_2:  # also rejects node_id_1 == node_id_2
+            raise InvalidGossipMsg('node_id_1 is not lexicographically less than node_id_2')
         capacity_sat = None
         return ChannelInfo(
             short_channel_id = ShortChannelID.normalize(channel_id),
@@ -487,6 +488,9 @@ class ChannelDB(SqlDB):
             except IncompatibleOrInsaneFeatures as e:
                 self.logger.info(f"unknown or insane feature bits: {e!r}")
                 continue
+            except InvalidGossipMsg as e:
+                self.logger.info(f"invalid channel announcement for {short_channel_id}: {e!r}")
+                continue
             if trusted:
                 added += 1
                 self.add_verified_channel_info(msg)
@@ -863,6 +867,8 @@ class ChannelDB(SqlDB):
             except IncompatibleOrInsaneFeatures:
                 continue
             except FailedToParseMsg:
+                continue
+            except InvalidGossipMsg:
                 continue
             self._channels[ShortChannelID.normalize(short_channel_id)] = ci
         c.execute("""SELECT * FROM node_info""")
