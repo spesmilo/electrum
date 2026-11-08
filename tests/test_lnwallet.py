@@ -728,6 +728,59 @@ class TestLNWallet(ElectrumTestCase):
             failure_msg=OnionRoutingFailure(code=OnionFailureCode.FEE_INSUFFICIENT, data=failure_data))
         self.assertTrue(path_finder._is_edge_blacklisted(chan_cd.short_channel_id, now=now))
 
+    async def test_known_channel_update_from_failed_htlc(self):
+        # a TEMPORARY_CHANNEL_FAILURE usually carries the very same channel_update we
+        # already have in the db, so add_channel_update returns UpdateStatus.DEPRECATED
+        # (not UNCHANGED, as the timestamp is not newer). this is still just a liquidity
+        # issue: the channel must not get blacklisted, only a liquidity hint is recorded.
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice_w = graph.workers['alice']
+        path_finder = alice_w.network.path_finder
+        amount_msat = 100_000_000
+        chan_bd = graph.channels[('bob', 'dave')][0]
+        chan_ann = decode_msg(chan_bd.construct_channel_announcement_without_sigs()[0])[1]
+        alice_w.channel_db.add_channel_announcements(chan_ann, trusted=True)
+        chan_upd_raw = chan_bd.get_outgoing_gossip_channel_update()
+        self.assertEqual(UpdateStatus.GOOD, alice_w.channel_db.add_channel_update(decode_msg(chan_upd_raw)[1], verify=False))
+        self.assertEqual(UpdateStatus.DEPRECATED, alice_w.channel_db.add_channel_update(decode_msg(chan_upd_raw)[1], verify=False))
+        route = [
+            RouteEdge(
+                start_node=graph.workers[a].node_keypair.pubkey,
+                end_node=graph.workers[b].node_keypair.pubkey,
+                short_channel_id=graph.channels[(a, b)][0].short_channel_id,
+                fee_base_msat=0, fee_proportional_millionths=0, cltv_delta=10, node_features=0,
+            ) for a, b in [('alice', 'bob'), ('bob', 'dave')]
+        ]
+        failure_data = len(chan_upd_raw).to_bytes(2, 'big') + chan_upd_raw
+        alice_w.handle_error_code_from_failed_htlc(
+            route=route, sender_idx=0, amount_msat=amount_msat,
+            failure_msg=OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=failure_data))
+        self.assertFalse(path_finder._is_edge_blacklisted(chan_bd.short_channel_id, now=int(time.time())))
+        hint_bd = path_finder.liquidity_hints.get_hint(chan_bd.short_channel_id)
+        pubkey_b = graph.workers['bob'].node_keypair.pubkey
+        pubkey_d = graph.workers['dave'].node_keypair.pubkey
+        self.assertEqual(amount_msat, hint_bd.cannot_send(pubkey_b < pubkey_d))
+
+        # a non-liquidity failure with an update we already know still gets blacklisted
+        chan_cd = graph.channels[('carol', 'dave')][0]
+        chan_ann = decode_msg(chan_cd.construct_channel_announcement_without_sigs()[0])[1]
+        alice_w.channel_db.add_channel_announcements(chan_ann, trusted=True)
+        chan_upd_raw = chan_cd.get_outgoing_gossip_channel_update()
+        self.assertEqual(UpdateStatus.GOOD, alice_w.channel_db.add_channel_update(decode_msg(chan_upd_raw)[1], verify=False))
+        route_c = [
+            RouteEdge(
+                start_node=graph.workers[a].node_keypair.pubkey,
+                end_node=graph.workers[b].node_keypair.pubkey,
+                short_channel_id=graph.channels[(a, b)][0].short_channel_id,
+                fee_base_msat=0, fee_proportional_millionths=0, cltv_delta=10, node_features=0,
+            ) for a, b in [('alice', 'carol'), ('carol', 'dave')]
+        ]
+        failure_data = amount_msat.to_bytes(8, 'big') + len(chan_upd_raw).to_bytes(2, 'big') + chan_upd_raw
+        alice_w.handle_error_code_from_failed_htlc(
+            route=route_c, sender_idx=0, amount_msat=amount_msat,
+            failure_msg=OnionRoutingFailure(code=OnionFailureCode.FEE_INSUFFICIENT, data=failure_data))
+        self.assertTrue(path_finder._is_edge_blacklisted(chan_cd.short_channel_id, now=int(time.time())))
+
     async def test_missing_channel_update_from_failed_htlc(self):
         # the channel_update in UPDATE-type failure messages is optional, nodes
         # omitting it set the channel_update len field to zero:
