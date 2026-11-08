@@ -698,8 +698,10 @@ class Peer(Logger, EventListener):
             except asyncio.TimeoutError as e:
                 raise GracefulDisconnect("query_channel_range timed out") from e
             self.logger.info('Received {} channel ids. (complete: {})'.format(len(ids), complete))
-            await self.lnworker.add_new_ids(ids)
-            self.request_gossip(int(time.time()))
+            await self.lnworker.channel_db.data_loaded.wait()
+            await self.lnworker.on_channel_range_reply(self.pubkey, ids)
+            await self.lnworker.add_new_ids(ids, skip_recently_orphaned=True)
+            self.request_gossip(self.lnworker.get_gossip_timestamp_filter_start())
             while True:
                 todo = self.lnworker.get_ids_to_query()
                 if not todo:

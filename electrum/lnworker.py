@@ -662,6 +662,18 @@ class LNGossip(Logger):
     independently of the active LNWallets. LNGossip keeps a curated batch of gossip in _forwarding_gossip
     that is fetched by the LNWallets for regular forwarding."""
     max_age = 14*24*3600
+    # After downtime we ask some of our peers to resend the gossip we missed. The backlog
+    # starts a bit before the newest update we know of, as peers receive gossip at different times.
+    GOSSIP_BACKLOG_MARGIN = 2 * 3600  # seconds
+    # peers mostly resend the same updates, so limit how many of them we ask, to save traffic
+    GOSSIP_BACKLOG_NUM_PEERS = 2
+    # Peers disagree a lot about which channels exist, and channels only leave our db once their
+    # policies are old. We consider a channel gone if fewer than a majority of peers still list it.
+    CHANNEL_RANGE_NUM_PEERS = NUM_PEERS_TARGET
+    CHANNEL_RANGE_MIN_PEER_COVERAGE = 0.9  # peers that do not know this share of our channels do not vote
+    CHANNEL_RANGE_MIN_CHANNEL_AGE = 144  # blocks. a new channel might not have reached all peers yet
+    CHANNEL_RANGE_RECENT_POLICY_AGE = 24 * 3600  # a channel that got updated recently is likely alive
+    CHANNEL_RANGE_MAX_REMOVED_FRACTION = 0.1  # sanity check, against peers with a broken view
 
     def __init__(self, config: 'SimpleConfig'):
         self.config = config
@@ -675,6 +687,14 @@ class LNGossip(Logger):
         self.unknown_ids = set()
         self._forwarding_gossip = []  # type: List[GossipForwardingMessage]
         self._last_gossip_batch_ts = 0  # type: int
+        self._num_gossip_backlog_requests = 0  # type: int
+        self._gossip_backlog_ts_is_set = False  # type: bool
+        self._gossip_backlog_latest_ts = None  # type: Optional[int]
+        self._channel_range_counts = None  # type: Optional[Dict[ShortChannelID, int]]
+        self._channel_range_max_height = 0  # type: int
+        self._channel_range_db_is_fresh = False  # type: bool
+        self._channel_range_peers = set()  # type: Set[bytes]
+        self._channel_range_done = False  # type: bool
         self._forwarding_gossip_lock = asyncio.Lock()
         self.gossip_request_semaphore = asyncio.Semaphore(5)
         # statistics
@@ -746,9 +766,75 @@ class LNGossip(Logger):
         async with self._forwarding_gossip_lock:
             return self._forwarding_gossip, self._last_gossip_batch_ts
 
-    async def add_new_ids(self, ids: Iterable[bytes]):
+    def get_gossip_timestamp_filter_start(self) -> int:
+        """Returns the first_timestamp to use in the gossip_timestamp_filter for a new peer.
+
+        `get_ids_to_query` only requests channels we do not know about yet, so without asking
+        for the backlog the policies of known channels stay stale after being offline, until
+        they happen to change again.
+        """
+        now = int(time.time())
+        if not self._gossip_backlog_ts_is_set:
+            # only look at this once: gossip from the first peer must not move the start for the next one
+            self._gossip_backlog_ts_is_set = True
+            self._gossip_backlog_latest_ts = self.channel_db.get_latest_policy_timestamp()
+        latest_ts = self._gossip_backlog_latest_ts
+        if latest_ts is None:
+            return now  # no policies: the channels get queried in full, as they are not known
+        if self._num_gossip_backlog_requests >= self.GOSSIP_BACKLOG_NUM_PEERS:
+            return now
+        self._num_gossip_backlog_requests += 1
+        return max(latest_ts - self.GOSSIP_BACKLOG_MARGIN, now - self.max_age)
+
+    async def on_channel_range_reply(self, peer_node_id: bytes, ids: Iterable[bytes]) -> None:
+        """Removes the channels listed by fewer than a majority of the first few peers of this session.
+
+        The decision is taken only once per session, so that further peers do not move the bar.
+        Only channels we already know of when the first reply arrives are considered, and nothing
+        gets removed if we were offline for long, as then recent updates cannot protect live channels.
+        """
+        if self._channel_range_done or peer_node_id in self._channel_range_peers:
+            return
+        if self._channel_range_counts is None:
+            self._channel_range_counts = {scid: 0 for scid in self.channel_db.get_channel_ids()}
+            self._channel_range_max_height = self.network.get_local_height() - self.CHANNEL_RANGE_MIN_CHANNEL_AGE
+            latest_ts = self.channel_db.get_latest_policy_timestamp()
+            self._channel_range_db_is_fresh = (
+                latest_ts is not None and latest_ts > int(time.time()) - self.CHANNEL_RANGE_RECENT_POLICY_AGE)
+        counts = self._channel_range_counts
+        ids = set(ids)
+        listed = [short_channel_id for short_channel_id in counts if short_channel_id in ids]
+        if len(listed) < self.CHANNEL_RANGE_MIN_PEER_COVERAGE * len(counts):
+            self.logger.info(f"peer lists only {len(listed)} of our {len(counts)} channels. ignoring its channel range")
+            return
+        self._channel_range_peers.add(peer_node_id)
+        for short_channel_id in listed:
+            counts[short_channel_id] += 1
+        if len(self._channel_range_peers) < self.CHANNEL_RANGE_NUM_PEERS:
+            return
+        self._channel_range_done = True
+        self._channel_range_counts = None
+        if not self._channel_range_db_is_fresh:
+            return
+        majority = self.CHANNEL_RANGE_NUM_PEERS // 2 + 1
+        recent_ts = int(time.time()) - self.CHANNEL_RANGE_RECENT_POLICY_AGE
+        absent = {
+            short_channel_id for short_channel_id, count in counts.items()
+            if count < majority
+            and short_channel_id.block_height <= self._channel_range_max_height
+            and not self.channel_db.has_policy_newer_than(short_channel_id, recent_ts)
+        }
+        if len(absent) > self.CHANNEL_RANGE_MAX_REMOVED_FRACTION * len(counts):
+            self.logger.warning(f"not removing {len(absent)} of {len(counts)} channels absent from peers: too many")
+            return
+        if absent:
+            await run_in_thread(partial(self.channel_db.remove_channels_absent_from_peers, absent))
+
+    async def add_new_ids(self, ids: Iterable[bytes], *, skip_recently_orphaned: bool = False):
         known = self.channel_db.get_channel_ids()
         new = set(ids) - set(known)
+        if skip_recently_orphaned:
+            new -= self.channel_db.get_recently_orphaned_channel_ids()
         self.unknown_ids.update(new)
         util.trigger_callback('unknown_channels', len(self.unknown_ids))
         util.trigger_callback('gossip_peers', self.lnpeermgr.num_peers())
@@ -2606,6 +2692,7 @@ class LNWallet(Logger):
                     # already selected as inflight, or all parts would take the same path.
                     # (the real accounting happens in pay_to_route, so this is undone below)
                     counted_inflight_routes = []
+                    path_finder = self.network.path_finder
                     try:
                         for (chan_id, _), part_amounts_msat in sc.config.items():
                             for part_amount_msat in part_amounts_msat:
@@ -2644,12 +2731,12 @@ class LNWallet(Logger):
                                     trampoline_route=None,
                                 )
                                 routes.append((shi, paysession.min_final_cltv_delta, fwd_trampoline_onion))
-                                if not is_direct_path:
-                                    self.network.path_finder.update_num_inflight_htlcs(route, add_htlcs=True)
+                                if not is_direct_path and path_finder:
+                                    path_finder.update_num_inflight_htlcs(route, add_htlcs=True)
                                     counted_inflight_routes.append(route)
                     finally:
                         for route in counted_inflight_routes:
-                            self.network.path_finder.update_num_inflight_htlcs(route, add_htlcs=False)
+                            path_finder.update_num_inflight_htlcs(route, add_htlcs=False)
             except NoPathFound:
                 continue
             except FeeBudgetExceeded as e:
