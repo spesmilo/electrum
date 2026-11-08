@@ -2335,10 +2335,10 @@ class LNWallet(Logger):
             blacklist = not handled
         elif r == UpdateStatus.EXPIRED:
             blacklist = True
-        elif r == UpdateStatus.DEPRECATED:
-            self.logger.info(f'channel update is not more recent.')
-            blacklist = True
-        elif r == UpdateStatus.UNCHANGED:
+        elif r in (UpdateStatus.DEPRECATED, UpdateStatus.UNCHANGED):
+            # note: DEPRECATED is what we get for the common case of the error carrying
+            #       the very same channel_update we already have in our db.
+            self.logger.info(f'channel update is not more recent or did not change anything.')
             if failure_msg.code == OnionFailureCode.TEMPORARY_CHANNEL_FAILURE:
                 # the sent htlc might have exceeded the channel's liquidity, no need to blacklist,
                 # we record liquidity hints and can attempt again with a smaller htlc
