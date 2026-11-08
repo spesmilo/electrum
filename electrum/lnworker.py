@@ -2332,6 +2332,8 @@ class LNWallet(Logger):
                 # a mobile phone with the app closed. So we cache this with a short TTL.
                 cache_ttl = self.channel_db.PRIVATE_CHAN_UPD_CACHE_TTL_SHORT
             handled = self.channel_db.add_channel_update_for_private_channel(payload, start_node_id, cache_ttl=cache_ttl)
+            if not handled and self._failed_route_used_outdated_policy(payload, route=route, sender_idx=sender_idx):
+                handled = True
             blacklist = not handled
         elif r == UpdateStatus.EXPIRED:
             blacklist = True
@@ -2343,11 +2345,33 @@ class LNWallet(Logger):
                 # the sent htlc might have exceeded the channel's liquidity, no need to blacklist,
                 # we record liquidity hints and can attempt again with a smaller htlc
                 handled = True
+            elif (r == UpdateStatus.DEPRECATED
+                    and self._failed_route_used_outdated_policy(payload, route=route, sender_idx=sender_idx)):
+                # we already know this update, e.g. from another part of the same payment
+                handled = True
             else:
                 blacklist = True
         else:
             raise Exception(f"unexpected chan upd UpdateStatus: {r}")
         return blacklist, handled
+
+    def _failed_route_used_outdated_policy(
+        self, payload: dict, *,
+        route: LNPaymentRoute,
+        sender_idx: int,
+    ) -> bool:
+        """Returns whether the channel_update of a failure is what we believe to be the current
+        policy of the channel, but the route was created with different parameters.
+        (if so, the next route will work with the policy we have now, no need to avoid the channel)
+        """
+        edge = route[sender_idx + 1]
+        policy = self.channel_db.get_policy_for_node(edge.short_channel_id, route[sender_idx].node_id)
+        if policy is None:
+            return False
+        update_params = payload['fee_base_msat'], payload['fee_proportional_millionths'], payload['cltv_expiry_delta']
+        policy_params = policy.fee_base_msat, policy.fee_proportional_millionths, policy.cltv_delta
+        route_params = edge.fee_base_msat, edge.fee_proportional_millionths, edge.cltv_delta
+        return update_params == policy_params and route_params != policy_params
 
     @classmethod
     def _decode_channel_update_msg(cls, chan_upd_msg: bytes) -> Optional[Dict[str, Any]]:
