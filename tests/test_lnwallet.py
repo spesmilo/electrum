@@ -15,6 +15,7 @@ from electrum.bitcoin import COIN
 import electrum.trampoline
 from electrum.channel_db import UpdateStatus
 from electrum.lnutil import (
+    NoPathFound,
     RECEIVED, SENT, MIN_FINAL_CLTV_DELTA_ACCEPTED, serialize_htlc_key, LnFeatures, HTLCOwner, PaymentFailure,
     LOCAL, REMOTE, ImportedChannelBackupStorage, make_commitment_output_to_anchor_address, UpdateAddHtlc,
     NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE,
@@ -699,6 +700,60 @@ class TestLNWallet(ElectrumTestCase):
         self.assertEqual(len(routes[0][0].route), seen[1])
         # the temporary accounting is undone: the real one happens in pay_to_route
         self.assertEqual(0, num_inflight())
+
+    async def test_mpp_parts_inflight_accounting_is_undone_on_failure(self):
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice_w, dave_w = graph.workers['alice'], graph.workers['dave']
+        dave_w.features |= LnFeatures.BASIC_MPP_OPT
+        amount_to_pay = 200_000_000
+        lnaddr, _pay_req = lnhelpers.prepare_invoice(dave_w, include_routing_hints=True, amount_msat=amount_to_pay)
+        bob_chan = graph.channels[('alice', 'bob')][0]
+        split_config = SplitConfig({(bob_chan.channel_id, bob_chan.node_id): [amount_to_pay // 2, amount_to_pay // 2]})
+        alice_w.suggest_payment_splits = lambda **kwargs: [SplitConfigRating(config=split_config, rating=0)]
+        hints = alice_w.network.path_finder.liquidity_hints
+        orig = alice_w.create_route_for_single_htlc
+        calls = []
+        def wrapped(**kwargs):
+            calls.append(1)
+            if len(calls) == 2:
+                raise NoPathFound()
+            return orig(**kwargs)
+        alice_w.create_route_for_single_htlc = wrapped
+        with self.assertRaises(NoPathFound):
+            await alice_w.create_routes_from_invoice(amount_to_pay, decoded_invoice=lnaddr)
+        self.assertEqual(2, len(calls))
+        self.assertEqual(0, sum(h.num_inflight_htlcs(True) + h.num_inflight_htlcs(False) for h in hints._liquidity_hints.values()))
+
+    async def test_mpp_parts_inflight_accounting_keeps_real_inflight_htlcs(self):
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice_w, dave_w = graph.workers['alice'], graph.workers['dave']
+        dave_w.features |= LnFeatures.BASIC_MPP_OPT
+        amount_to_pay = 200_000_000
+        lnaddr, _pay_req = lnhelpers.prepare_invoice(dave_w, include_routing_hints=True, amount_msat=amount_to_pay)
+        bob_chan = graph.channels[('alice', 'bob')][0]
+        split_config = SplitConfig({(bob_chan.channel_id, bob_chan.node_id): [amount_to_pay // 2, amount_to_pay // 2]})
+        alice_w.suggest_payment_splits = lambda **kwargs: [SplitConfigRating(config=split_config, rating=0)]
+        hints = alice_w.network.path_finder.liquidity_hints
+        hints.add_htlc(alice_w.node_keypair.pubkey, graph.workers['bob'].node_keypair.pubkey, bob_chan.short_channel_id)
+        await alice_w.create_routes_from_invoice(amount_to_pay, decoded_invoice=lnaddr)
+        self.assertEqual(1, sum(h.num_inflight_htlcs(True) + h.num_inflight_htlcs(False) for h in hints._liquidity_hints.values()))
+
+    async def test_direct_payment_does_not_need_path_finder(self):
+        # e.g. in trampoline mode there is no path finder
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['single_chan'])
+        alice_w, bob_w = graph.workers['alice'], graph.workers['bob']
+        bob_w.features |= LnFeatures.BASIC_MPP_OPT
+        amount_to_pay = 100_000_000
+        lnaddr, _pay_req = lnhelpers.prepare_invoice(bob_w, amount_msat=amount_to_pay)
+        chan = graph.channels[('alice', 'bob')][0]
+        split_config = SplitConfig({(chan.channel_id, chan.node_id): [amount_to_pay // 2, amount_to_pay // 2]})
+        alice_w.suggest_payment_splits = lambda **kwargs: [SplitConfigRating(config=split_config, rating=0)]
+        path_finder, alice_w.network.path_finder = alice_w.network.path_finder, None
+        try:
+            routes = await alice_w.create_routes_from_invoice(amount_to_pay, decoded_invoice=lnaddr)
+        finally:
+            alice_w.network.path_finder = path_finder
+        self.assertEqual(2, len(routes))
 
     async def test_unchanged_channel_update_from_failed_htlc(self):
         # a TEMPORARY_CHANNEL_FAILURE carrying a channel update identical to what we
