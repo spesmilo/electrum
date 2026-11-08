@@ -2578,43 +2578,54 @@ class LNWallet(Logger):
                 else:
                     # We atomically loop through a split configuration. If there was
                     # a failure to find a path for a single part, we try the next configuration
-                    for (chan_id, _), part_amounts_msat in sc.config.items():
-                        for part_amount_msat in part_amounts_msat:
-                            channel = self._channels[chan_id]
-                            if is_direct_path:
-                                route = self.create_direct_route(
+                    # None of the htlcs are sent yet, so for path-finding count the routes we
+                    # already selected as inflight, or all parts would take the same path.
+                    # (the real accounting happens in pay_to_route, so this is undone below)
+                    counted_inflight_routes = []
+                    try:
+                        for (chan_id, _), part_amounts_msat in sc.config.items():
+                            for part_amount_msat in part_amounts_msat:
+                                channel = self._channels[chan_id]
+                                if is_direct_path:
+                                    route = self.create_direct_route(
+                                        amount_msat=part_amount_msat,
+                                        channel=channel,
+                                    )
+                                else:
+                                    assert not self.uses_trampoline()
+                                    route = await run_in_thread(partial(
+                                        self.create_route_for_single_htlc,
+                                        amount_msat=part_amount_msat,
+                                        invoice_pubkey=paysession.invoice_pubkey,
+                                        r_tags=paysession.r_tags,
+                                        invoice_features=paysession.invoice_features,
+                                        my_sending_channels=[channel] if is_mpp else my_active_channels,
+                                        full_path=full_path,
+                                    ))
+                                if not is_route_within_budget(
+                                        route, budget=budget._replace(fee_msat=budget.fee_msat // sc.config.number_parts()),
+                                        amount_msat_for_dest=part_amount_msat,
+                                        cltv_delta_for_dest=paysession.min_final_cltv_delta,
+                                        we_are_forwarding=we_are_forwarding):
+                                    self.logger.info(f"rejecting route (exceeds budget): {route=}. {budget=}")
+                                    raise FeeBudgetExceeded()
+                                shi = SentHtlcInfo(
+                                    route=route,
+                                    payment_secret_orig=paysession.payment_secret,
+                                    payment_secret_bucket=paysession.payment_secret,
                                     amount_msat=part_amount_msat,
-                                    channel=channel,
+                                    bucket_msat=paysession.amount_to_pay,
+                                    amount_receiver_msat=part_amount_msat,
+                                    trampoline_fee_level=None,
+                                    trampoline_route=None,
                                 )
-                            else:
-                                assert not self.uses_trampoline()
-                                route = await run_in_thread(partial(
-                                    self.create_route_for_single_htlc,
-                                    amount_msat=part_amount_msat,
-                                    invoice_pubkey=paysession.invoice_pubkey,
-                                    r_tags=paysession.r_tags,
-                                    invoice_features=paysession.invoice_features,
-                                    my_sending_channels=[channel] if is_mpp else my_active_channels,
-                                    full_path=full_path,
-                                ))
-                            if not is_route_within_budget(
-                                    route, budget=budget._replace(fee_msat=budget.fee_msat // sc.config.number_parts()),
-                                    amount_msat_for_dest=part_amount_msat,
-                                    cltv_delta_for_dest=paysession.min_final_cltv_delta,
-                                    we_are_forwarding=we_are_forwarding):
-                                self.logger.info(f"rejecting route (exceeds budget): {route=}. {budget=}")
-                                raise FeeBudgetExceeded()
-                            shi = SentHtlcInfo(
-                                route=route,
-                                payment_secret_orig=paysession.payment_secret,
-                                payment_secret_bucket=paysession.payment_secret,
-                                amount_msat=part_amount_msat,
-                                bucket_msat=paysession.amount_to_pay,
-                                amount_receiver_msat=part_amount_msat,
-                                trampoline_fee_level=None,
-                                trampoline_route=None,
-                            )
-                            routes.append((shi, paysession.min_final_cltv_delta, fwd_trampoline_onion))
+                                routes.append((shi, paysession.min_final_cltv_delta, fwd_trampoline_onion))
+                                if not is_direct_path:
+                                    self.network.path_finder.update_num_inflight_htlcs(route, add_htlcs=True)
+                                    counted_inflight_routes.append(route)
+                    finally:
+                        for route in counted_inflight_routes:
+                            self.network.path_finder.update_num_inflight_htlcs(route, add_htlcs=False)
             except NoPathFound:
                 continue
             except FeeBudgetExceeded as e:
