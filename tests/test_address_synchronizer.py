@@ -4,7 +4,7 @@ from unittest import mock
 import electrum_ecc as ecc
 
 from electrum import SimpleConfig, bitcoin, descriptor, keystore
-from electrum.address_synchronizer import AddressSynchronizer, TX_HEIGHT_UNCONFIRMED
+from electrum.address_synchronizer import AddressSynchronizer, TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_LOCAL
 from electrum.bitcoin import construct_witness, hash_to_segwit_addr
 from electrum.fee_policy import FixedFeePolicy
 from electrum.transaction import (
@@ -98,6 +98,28 @@ class TestAddressSynchronizerScripts(ElectrumTestCase):
             self._receive(self.fake_tx)
         self.assertFalse(self._has(self.fake_tx))
         # the conflicting tx was not removed
+        self.assertTrue(self._has(self.tx))
+
+    async def test_replace_mempool(self):
+        local_tx = spend(self.funding_tx, [(ADDR_OTHER, 80_000)])
+        self._receive(self.funding_tx)
+        self._receive(self.tx)
+        self.assertFalse(self.adb.add_transaction(local_tx))
+        self.assertTrue(self._has(self.tx))
+        # reported as mined, not verified yet
+        self.adb.add_unverified_or_unconfirmed_tx(self.tx.txid(), 100)
+        self.assertFalse(self.adb.add_transaction(local_tx, replace_mempool=True))
+        self.assertTrue(self._has(self.tx))
+        self.adb.add_unverified_or_unconfirmed_tx(self.tx.txid(), TX_HEIGHT_UNCONFIRMED)
+        self.assertTrue(self.adb.add_transaction(local_tx, replace_mempool=True))
+        self.assertFalse(self._has(self.tx))
+        self.assertEqual(TX_HEIGHT_LOCAL, self.adb.get_tx_height(local_tx.txid()).height())
+        # a mined tx is not displaced
+        self.adb.db.put('stored_height', 100)
+        self.adb.add_verified_tx(self.tx.txid(), mined_info(100))
+        self.adb.receive_tx_callback(self.tx, tx_height=100)
+        self.assertFalse(self._has(local_tx))
+        self.assertFalse(self.adb.add_transaction(local_tx, replace_mempool=True))
         self.assertTrue(self._has(self.tx))
 
     async def test_invalid_tx_before_parent(self):
