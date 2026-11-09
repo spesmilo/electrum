@@ -50,7 +50,7 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
 
     @qt_event_listener
     def on_event_channel(self, wallet, channel):
-        if wallet == self.wallet:
+        if wallet == self.wallet and self.wallet.lnworker:
             self.on_channel_updated(channel)
 
     @qt_event_listener
