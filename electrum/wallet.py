@@ -452,6 +452,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self._num_parents          = db.get_dict('num_parents')
 
         self._freeze_lock = threading.RLock()  # for mutating/iterating frozen_{addresses,coins}
+        self._reserved_coins = set()  # type: Set[TxOutpoint]  # coins of a tx being signed, not in adb yet
 
         self.load_keystore()
         self.txbatcher = TxBatcher(self)
@@ -1184,6 +1185,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     ) -> Sequence[PartialTxInput]:
         with self._freeze_lock:
             frozen_addresses = self._frozen_addresses.copy()
+            reserved_coins = self._reserved_coins.copy()
         if confirmed_only is None:
             confirmed_only = self.config.WALLET_SPEND_CONFIRMED_ONLY
         utxos = self.get_utxos(
@@ -1193,7 +1195,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             confirmed_funding_only=confirmed_only,
             nonlocal_only=nonlocal_only,
         )
-        utxos = [utxo for utxo in utxos if not self.is_frozen_coin(utxo)]
+        utxos = [utxo for utxo in utxos if not self.is_frozen_coin(utxo) and utxo.prevout not in reserved_coins]
         return utxos
 
     def get_prevout_utxo(self, prevout: TxOutpoint) -> Optional[PartialTxInput]:
@@ -2323,6 +2325,14 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 self.save_db()
             return True
         return False
+
+    def set_reserved_state_of_coins(self, prevouts: Iterable[TxOutpoint], reserved: bool) -> None:
+        """Reserved coins are not spendable. Not persisted."""
+        with self._freeze_lock:
+            if reserved:
+                self._reserved_coins.update(prevouts)
+            else:
+                self._reserved_coins.difference_update(prevouts)
 
     def set_frozen_state_of_coins(
         self,
