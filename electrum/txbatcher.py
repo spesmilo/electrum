@@ -493,19 +493,19 @@ class TxBatch(Logger):
             # nothing to do
             return
 
-        # add tx to wallet, in order to reserve utxos
-        # note: This saves the tx as local *unsigned*. It is replaced by the signed tx below.
-        #       This is a no-op if tx replaces a tx that is in the mempool.
-        self.wallet.adb.add_transaction(tx)
-        # await password
-        if not await self.sign_transaction(tx):
-            self.wallet.adb.remove_transaction(tx.txid())
-            return
-        # save the signed tx, so that find_base_tx can rebroadcast it
-        self.wallet.adb.add_transaction(tx)
-
-        # save local base_tx
-        self._new_base_tx(tx)
+        # reserve its coins until it is in adb: adding it now would evict a LOCAL base_tx
+        prevouts = [txin.prevout for txin in tx.inputs()]
+        self.wallet.set_reserved_state_of_coins(prevouts, True)
+        try:
+            # await password
+            if not await self.sign_transaction(tx):
+                return
+            # save the signed tx, so that find_base_tx can rebroadcast it
+            self.wallet.adb.add_transaction(tx)
+            # save local base_tx
+            self._new_base_tx(tx)
+        finally:
+            self.wallet.set_reserved_state_of_coins(prevouts, False)
 
         if not await self.wallet.network.try_broadcasting(tx, 'batch'):
             self.logger.info(f'cannot broadcast tx {tx.txid()}')

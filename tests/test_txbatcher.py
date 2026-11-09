@@ -377,6 +377,50 @@ class TestTxBatcher(ElectrumTestCase):
         self.assertIn(output2, tx2.outputs())
         self.assertNotIn(output1, tx2.outputs())
 
+    async def _make_local_batch_tx(self):
+        """Returns a wallet and its batch, whose tx1 pays o1 and was rejected by the server, so it is LOCAL."""
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        await self._fund_wallet(wallet)
+        self.network.default_broadcast_outcome = 'rejected'
+        output1 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 10_000)
+        wallet.txbatcher.add_payment_output('default', output1)
+        batch = wallet.txbatcher.tx_batches['default']
+        await batch.run_iteration()
+        tx1 = batch._base_tx
+        self.assertEqual(TX_HEIGHT_LOCAL, wallet.adb.get_tx_height(tx1.txid()).height())
+        return wallet, batch, tx1
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_cancelled_replacement_keeps_local_base(self, mock_save_db):
+        # the password is not entered for the replacement of tx1, which is LOCAL
+        wallet, batch, tx1 = await self._make_local_batch_tx()
+        output2 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 20_000)
+        wallet.txbatcher.add_payment_output('default', output2)
+        with mock.patch.object(batch, 'sign_transaction', mock.AsyncMock(return_value=None)):
+            await batch.run_iteration()
+        self.assertIsNotNone(wallet.adb.get_transaction(tx1.txid()))
+        self.assertEqual(tx1.txid(), (await batch.find_base_tx()).txid())
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_coins_reserved_while_signing(self, mock_save_db):
+        # while we wait for the password, the coins of tx1 are not spendable, and tx1 is not stored
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        await self._fund_wallet(wallet)
+        output1 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 10_000)
+        wallet.txbatcher.add_payment_output('default', output1)
+        batch = wallet.txbatcher.tx_batches['default']
+        coins = [c.prevout for c in wallet.get_spendable_coins()]
+        async def sign_transaction(tx):
+            self.assertIsNone(wallet.adb.get_transaction(tx.txid()))
+            spendable = [c.prevout for c in wallet.get_spendable_coins()]
+            self.assertTrue(all(txin.prevout not in spendable for txin in tx.inputs()))
+            return None  # the password is not entered
+        with mock.patch.object(batch, 'sign_transaction', sign_transaction):
+            await batch.run_iteration()
+        self.assertEqual(coins, [c.prevout for c in wallet.get_spendable_coins()])
+
     async def _make_replacement_without_change(self):
         """tx1(s,o1,o2) is replaced by F(s,o1), which we did not create and which has no change.
         Returns the wallet, its batch, tx1, F, o1 and o2. The batch is driven manually."""
