@@ -313,6 +313,7 @@ class QEDaemon(AuthMixin, QObject):
         # TODO walletLoaded signal is confusing
         self.walletLoaded.emit(None, None)
 
+        wallet.deleteLater()
         if not self.daemon.delete_wallet(path):
             self.walletDeleteError.emit('error', _('Problem deleting wallet'))
             return
@@ -363,6 +364,7 @@ class QEDaemon(AuthMixin, QObject):
         if old_path == new_path:
             return
         self._current_wallet = None
+        wallet.deleteLater()
         self.daemon.stop_wallet(old_path)
         try:
             self.daemon.rename_wallet_file(old_path, new_path)
