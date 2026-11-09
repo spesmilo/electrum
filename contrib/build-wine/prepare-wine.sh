@@ -4,7 +4,7 @@ PYINSTALLER_REPO="https://github.com/pyinstaller/pyinstaller.git"
 PYINSTALLER_COMMIT="7c5dcd97a7679c5f3b04c43a0aae0ffeabe7462b"
 # ^ tag "v6.15.0"
 
-PYTHON_VERSION=3.12.10
+PYTHON_VERSION=3.14.10
 
 
 # Let's begin!
@@ -40,20 +40,20 @@ info "Installing Python."
     pushd "$PYTHON_DOWNLOADS"
     if [ "$WIN_ARCH" = "win32" ] ; then
         sha256sum -c - << EOF
-7c2e1ca376f1a5007989af46241598f84a51fc19522aa23804859a44a251cb9c  core.msi
-14f2edfc7fde03d2f85fc7c9040aa7076505cba341a22215a956c556266b1cb8  dev.msi
-e5955351e72aa30bdd9bec18f7278e427ef50a2e93ace2ee57fa6b48760642b3  exe.msi
-e7d656a11df18e6868fdd05127b7e87c0fb0b24e22aef28a70d5a169de76e563  lib.msi
-7737dc9f406c6e2c0f8d06da7b9a5551885506fbdd6b3cbfa74bb8a3ba7df13d  pip.msi
+b22517eb15e621a3b35e642c2f4be8b348c07ea2f2b607520cceb9dfad23ed32  core.msi
+1a59029e104fb3d3dc4b95c2655c252067eb9aaeb066c130bdc5054d99eefd6d  dev.msi
+e1365f93fc1b5a5acd6dca3a9d8eb2b5391952227f40ef01ff6cba9672ba453d  exe.msi
+c6b62c71e8dbdbae09eb28d437549f1e881a0ebeff10d032c16065e2ba25364f  lib.msi
+799fe09be0116c7607450626db19496fd82a7ff2a29fefb1d182c454e535e909  pip.msi
 EOF
         test $? -eq 0 || fail "unexpected hash for CPython parts"
     elif [ "$WIN_ARCH" = "win64" ] ; then
         sha256sum -c - << EOF
-0075fe3c252b2af487443a7fbf666c8055e2d111ce7a75de7df0a5d45efb8794  core.msi
-77b151b8d36f8bb4cde20ee6f0ff0681a2f88b2072ceac6abaa8e173f5a1eb78  dev.msi
-64bef9bfc893cce8c697020fd4564a4e62c7f06e8f4b8ac3c5dfec37bdc56458  exe.msi
-699b862a3a0330114f8ddae9b92e394b4ee93341ba90e19710982cae62cd4079  lib.msi
-c508f2cbc48506a8ef518cb792c384bfa3634beae65cbfb2cf5f2a4ec1fca157  pip.msi
+c281a45a6f32d09f5964c6c46e9438ac11a578949ae50b486f8a7e3077190171  core.msi
+cae457dd9581e8546c942ddcb370c183b1b7e77d53bb8d190a6f7daece3d8a2a  dev.msi
+020fe726f23828d705fea820613f7f6806d94a25fa765ad1cd3edd6d4c8a118a  exe.msi
+b1af18657af9de511c8c66dfc5ab8e89965c95339cc759c3d0733a8eab6a14fc  lib.msi
+ace2b7d2c6fcda57c19947128a1ee7e1a8e4a585ca4e6a4ba25401bb9db69d35  pip.msi
 EOF
         test $? -eq 0 || fail "unexpected hash for CPython parts"
     else
