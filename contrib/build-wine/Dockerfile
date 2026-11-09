@@ -17,7 +17,6 @@ RUN dpkg --add-architecture i386 && \
         lsb-release \
         wget \
         gnupg2 \
-        dirmngr \
         python3 \
         git \
         p7zip-full \
