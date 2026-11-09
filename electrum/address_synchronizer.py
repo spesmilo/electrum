@@ -300,12 +300,13 @@ class AddressSynchronizer(Logger, EventListener):
                 txin.set_mined_info(self.get_tx_height(txin.prevout.txid.hex()))
         return tx
 
-    def add_transaction(self, tx: Transaction, *, allow_unrelated=False, is_new=True) -> bool:
+    def add_transaction(self, tx: Transaction, *, allow_unrelated=False, is_new=True, replace_mempool=False) -> bool:
         """
         Returns whether the tx was successfully added to the wallet history.
         Note that a transaction may need to be added several times, if our
         list of addresses has increased. This will return True even if the
         transaction was already in self.db.
+        If replace_mempool is set, a local tx displaces conflicting txns that the server reports as unmined.
         """
         assert tx, tx
         # note: tx.is_complete() is not necessarily True; tx might be partial
@@ -358,7 +359,9 @@ class AddressSynchronizer(Logger, EventListener):
                 if existing_confirmed_txn and tx_height <= 0:
                     # this is a non-confirmed tx that conflicts with confirmed txns; drop.
                     return False
-                if existing_mempool_txn and tx_height == TX_HEIGHT_LOCAL:
+                # before SPV, height() is 0 for a tx reported as mined
+                reported_mined = any(self.get_tx_height(tx_hash2)._height > 0 for tx_hash2 in conflicting_txns)
+                if existing_mempool_txn and tx_height == TX_HEIGHT_LOCAL and (not replace_mempool or reported_mined):
                     # this is a local tx that conflicts with non-local txns; drop.
                     return False
                 # keep this txn and remove all conflicting

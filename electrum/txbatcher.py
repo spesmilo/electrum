@@ -35,16 +35,15 @@
 # Note that we do not persist older batches. We only persist the current batch in self.batch_txids.
 # Thus, if we need to broadcast tx2 or tx2', then self.batch_txids is reset, and the old batch is forgotten.
 #
-# If we cannot RBF a transaction (because the server returns an error), then we create a new batch,
-# as if the transaction had been mined.
-#   if cannot_rbf(tx1)  -> broadcast tx2(tx1,o2). The new base is now tx2(tx,o2)
-#   if cannot_rbf(tx1') -> broadcast tx3(tx1'|o3)
+# A replacement is added to adb once the server has accepted it. Else, its predecessor remains
+# our latest tx, and we create a new replacement at the next block.
+# A tx without predecessor is added to adb whatever the server answers, and rebroadcast once per block.
 #
 #
 # Notes:
 #
 # 1. CPFP:
-# When a batch is forgotten but not mined (because the server returned an error), we no longer bump its fee.
+# When a batch is forgotten but not mined, we no longer bump its fee.
 # However, the current code does not treat the next batch as a CPFP when computing the fee.
 #
 # 2. Reorgs:
@@ -254,6 +253,8 @@ class TxBatch(Logger):
         self._fee_policy_name = storage.get('fee_policy_name', 'default')  # type: str
         self._base_tx = None  # type: Optional[PartialTransaction]   # current batch tx. last element of batch_txids
         self._unconfirmed_sweeps = set()  # type: Set[TxOutpoint]  # inputs we are sweeping (until spending tx is confirmed)
+        self._broadcast_heights = {}  # type: Dict[str, int]  # txid -> height of our last broadcast
+        self._retry_height = 0  # do not replace the base tx before that height
 
     @property
     def fee_policy(self) -> FeePolicy:
@@ -485,7 +486,7 @@ class TxBatch(Logger):
             # this may happen if our Electrum server is unresponsive
             # server could also be lying to us. Rebroadcasting might
             # help, if we have switched to another server.
-            await self.wallet.network.try_broadcasting(wallet_tx, 'batch')
+            await self._rebroadcast(wallet_tx)
 
         return self._base_tx
 
@@ -493,9 +494,9 @@ class TxBatch(Logger):
         if (parent_txid := self._get_parent_txid()) and not self.wallet.adb.get_transaction(parent_txid):
             raise TxBatchFailure(f"parent tx missing, dropping batch {len(self.batch_inputs)=}, {len(self.batch_payments)=}")
         base_tx = await self.find_base_tx()
-        if base_tx and base_tx.txid() not in self._batch_txids[-1:]:
-            # FIXME: this might get stuck forever if base_tx legitimately doesn't get accepted
-            self.logger.debug(f'waiting for {base_tx.txid()}', only_once=True)
+        if base_tx and not self.is_mine(base_tx.txid()):
+            return  # waiting until it is mined
+        if base_tx and self.wallet.adb.get_local_height() < self._retry_height:
             return
         try:
             tx = self.create_next_transaction(base_tx)
@@ -517,48 +518,36 @@ class TxBatch(Logger):
             # nothing to do
             return
 
-        # reserve its coins until it is in adb: adding it now would evict a LOCAL base_tx
+        # reserve its coins until it is in adb
         prevouts = [txin.prevout for txin in tx.inputs()]
         self.wallet.set_reserved_state_of_coins(prevouts, True)
         try:
             # await password
             if not await self.sign_transaction(tx):
                 return
-            # save the signed tx, so that find_base_tx can rebroadcast it
-            self.wallet.adb.add_transaction(tx)
+            accepted = await self._broadcast(tx)
+            if base_tx and not accepted:
+                # base_tx stays in adb: our next tx conflicts with tx, even if tx was relayed
+                self._retry_height = self.wallet.adb.get_local_height() + 1
+                return
+            # once accepted by the server, tx displaces its predecessor
+            if not self.wallet.adb.add_transaction(tx, replace_mempool=accepted):
+                # a conflicting tx was reported as mined
+                self._retry_height = self.wallet.adb.get_local_height() + 1
+                return
             # save local base_tx
             self._new_base_tx(tx)
         finally:
             self.wallet.set_reserved_state_of_coins(prevouts, False)
 
-        if not await self.wallet.network.try_broadcasting(tx, 'batch'):
-            self.logger.info(f'cannot broadcast tx {tx.txid()}')
-            if base_tx:
-                # The most likely cause is that base_tx is not
-                # replaceable. This may be the case if it has children
-                # (because we don't pay enough fees to replace them)
-                # or if we are trying to sweep unconfirmed inputs
-                # (replacement-adds-unconfirmed error)
+    async def _broadcast(self, tx: Transaction) -> bool:
+        self._broadcast_heights[tx.txid()] = self.wallet.adb.get_local_height()
+        return await self.wallet.network.try_broadcasting(tx, 'batch')
 
-                # it is OK to remove the transaction, because
-                # create_next_transaction will create a new tx that is
-                # incompatible with the one we remove here, so we
-                # cannot double pay.
-                self.wallet.adb.remove_transaction(tx.txid())
-                self.logger.info(f'starting new batch because could not broadcast')
-                self._start_new_batch(base_tx)
-            else:
-                # it is dangerous to remove the transaction if there
-                # is no base_tx. Indeed, the transaction might have
-                # been broadcast. So, we just keep the transaction as
-                # local, and we will try to rebroadcast it later (see
-                # above).
-                #
-                # FIXME: it should be possible to ensure that
-                # create_next_transaction creates transactions that
-                # spend the same coins, using self._prevout. This
-                # would make them incompatible, and safe to broadcast.
-                pass
+    async def _rebroadcast(self, tx: Transaction) -> None:
+        """Broadcasts tx at most once per block."""
+        if tx.is_complete() and self._broadcast_heights.get(tx.txid()) != self.wallet.adb.get_local_height():
+            await self._broadcast(tx)
 
     async def sign_transaction(self, tx: PartialTransaction) -> Optional[PartialTransaction]:
         tx.add_info_from_wallet(self.wallet)  # this adds input amounts
@@ -674,6 +663,8 @@ class TxBatch(Logger):
         self.batch_payments = to_pay
         self.batch_inputs = self._to_sweep_after(tx)
         self._batch_txids.clear()
+        self._broadcast_heights.clear()
+        self._retry_height = 0
         self._base_tx = None
         if tx and tx.has_change() and to_pay:
             # chain to tx: our next tx spends its change, so that it conflicts with a replacement of tx
