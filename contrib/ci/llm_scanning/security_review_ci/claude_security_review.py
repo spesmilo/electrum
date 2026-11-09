@@ -34,6 +34,8 @@ import urllib.request
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROMPT_FILE = os.path.join(SCRIPT_DIR, "security_review_prompt.md")
+# also read by Anthropic's OSS Scanner
+THREAT_MODEL_FILE = os.path.join(SCRIPT_DIR, "..", "threat_model.md")
 
 MAX_DIFF_CHARS = 800_000
 CLAUDE_TIMEOUT_SECONDS = 60 * 60
@@ -89,8 +91,11 @@ def changed_files_from_diff(diff: str) -> str:
 
 
 def read_system_prompt() -> str:
+    with open(THREAT_MODEL_FILE) as f:
+        threat_model = f.read()
     with open(PROMPT_FILE) as f:
-        return f.read()
+        review_prompt = f.read()
+    return f"{threat_model}\n\n{review_prompt}"
 
 
 def build_user_prompt(diff: str, changed_files: str, commit_messages: str) -> str:

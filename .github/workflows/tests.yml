@@ -51,7 +51,7 @@ jobs:
         with:
           python-version: "3.10"
       - name: Run ban_unicode
-        run: ./contrib/ban_unicode.py
+        run: ./contrib/ci/ban_unicode.py
 
   # unittests using the 'latest' runtime python-dependencies
   unittests:

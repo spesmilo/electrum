@@ -93,4 +93,4 @@ jobs:
           # needs to be set in the GitHub repository settings
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # can be enabled to make claude comment on PRs
-        run: python3 contrib/ci/claude_security_review.py
+        run: python3 contrib/ci/llm_scanning/security_review_ci/claude_security_review.py
