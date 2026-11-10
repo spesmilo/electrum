@@ -41,11 +41,22 @@ from .channel_db import ChannelDB, Policy, NodeInfo
 if TYPE_CHECKING:
     from .lnchannel import Channel
 
-DEFAULT_PENALTY_BASE_MSAT = 500  # how much base fee we apply for unknown sending capability of a channel
+# How much base fee we apply for unknown sending capability of a channel. As this is applied to every channel
+# of a path (except our own), it is also the cost of an extra hop, and makes shorter paths preferred, as every
+# channel is a chance to fail. It is 0.1% of the amount (like the attempt cost of LND), but not less than
+# DEFAULT_PENALTY_BASE_MSAT and not more than MAX_PENALTY_BASE_MSAT: relative to the amount, it stays small
+# compared to the fees and the fee budget of small payments.
+DEFAULT_PENALTY_BASE_MSAT = 500
+MAX_PENALTY_BASE_MSAT = 5000
+PENALTY_BASE_MILLIONTHS = 1000
 DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH = 100  # how much relative fee we apply for unknown sending capability of a channel
 HINT_DURATION = 3600  # how long (in seconds) a liquidity hint remains valid
 # a parallel channel of a node pair that failed to forward an amount gets this many times the default penalty
 PAIR_FAILURE_PENALTY_FACTOR = 10
+
+
+def penalty_base_msat(amount_msat: int) -> int:
+    return min(max(amount_msat * PENALTY_BASE_MILLIONTHS // 1_000_000, DEFAULT_PENALTY_BASE_MSAT), MAX_PENALTY_BASE_MSAT)
 
 
 # fee_base_msat, fee_proportional_millionths, cltv_delta of a channel direction
@@ -424,7 +435,7 @@ class LiquidityHintMgr:
         from. There is a competition between low-fee channels and channels where
         we know with some certainty that they can support a payment. The penalty
         ultimately boils down to: how much more fees do we want to pay for
-        certainty of payment success? This can be tuned via DEFAULT_PENALTY_BASE_MSAT
+        certainty of payment success? This can be tuned via penalty_base_msat
         and DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH. A base _and_ relative penalty
         was chosen such that the penalty will be able to compete with the regular
         base and relative fees.
@@ -468,7 +479,7 @@ class LiquidityHintMgr:
                 likely_cannotsend_factor = 2
         if pair_failed:
             likely_cannotsend_factor += PAIR_FAILURE_PENALTY_FACTOR
-        success_fee = fee_for_edge_msat(amount_msat, DEFAULT_PENALTY_BASE_MSAT, DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH)
+        success_fee = fee_for_edge_msat(amount_msat, penalty_base_msat(amount_msat), DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH)
         return success_fee * (1 + num_inflight_htlcs + likely_cannotsend_factor)
 
     @with_lock

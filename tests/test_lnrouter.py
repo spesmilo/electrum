@@ -24,7 +24,7 @@ from electrum.sql_db import sql
 from electrum.lnworker import LNGossip
 from electrum.lnmsg import encode_msg
 from electrum.lnrouter import (PathEdge, LiquidityHintMgr, DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH,
-                               DEFAULT_PENALTY_BASE_MSAT, fee_for_edge_msat, LNPaymentTRoute, TrampolineEdge,
+                               fee_for_edge_msat, LNPaymentTRoute, TrampolineEdge,
                                HINT_DURATION, PAIR_FAILURE_PENALTY_FACTOR, RouteEdge)
 
 from . import ElectrumTestCase
@@ -686,6 +686,39 @@ class Test_LNRouter(ElectrumTestCase):
             nodeA=o, nodeB=w, invoice_amount_msat=1_000_000, penalty_weight=0)
         self.assertEqual([channel(n) for n in (31, 34, 35)], [edge.short_channel_id for edge in path])
 
+    async def test_find_path_prefers_fewer_hops_over_small_fee_savings(self):
+        # every channel of a path is another chance to fail, so a path that is a bit more expensive
+        # but has fewer channels of unknown liquidity should be preferred
+        sender, short_mid, long_mid1, long_mid2, dest = node('p'), node('q'), node('r'), node('s'), node('w')
+        free = (0, 0, 10)
+        self._make_graph([
+            (31, sender, short_mid, free, free),
+            (32, short_mid, dest, (3000, 0, 10), free),  # one hop less, 3 sat more expensive
+            (33, sender, long_mid1, free, free),
+            (34, long_mid1, long_mid2, free, free),
+            (35, long_mid2, dest, free, free),
+        ])
+        path = self.path_finder.find_path_for_payment(nodeA=sender, nodeB=dest, invoice_amount_msat=13_000_000)
+        self.assertEqual([channel(31), channel(32)], [edge.short_channel_id for edge in path])
+
+    async def test_find_path_hop_penalty_is_small_for_small_amounts(self):
+        # for a small payment, the cost of an extra hop must stay small compared to the fees
+        sender, p, q, a1, a2, a3, dest = node('o'), node('p'), node('q'), node('r'), node('s'), node('t'), node('w')
+        free = (0, 0, 10)
+        def fee(sat):
+            return (sat * 1000, 0, 10)
+        self._make_graph([
+            (31, sender, p, free, free),
+            (32, p, q, fee(10), free),  # short path: 11 sat
+            (33, q, dest, fee(1), free),
+            (34, p, a1, fee(1), free),  # long path: 4 sat
+            (35, a1, a2, fee(1), free),
+            (36, a2, a3, fee(1), free),
+            (37, a3, dest, fee(1), free),
+        ])
+        path = self.path_finder.find_path_for_payment(nodeA=sender, nodeB=dest, invoice_amount_msat=1_000_000)
+        self.assertEqual([channel(n) for n in (31, 34, 35, 36, 37)], [edge.short_channel_id for edge in path])
+
     async def test_find_path_does_not_extend_paths_beyond_the_fee_budget(self):
         # path finding does not use the fees alone: a path with fewer channels can cost more in fees.
         # Paths over the fee budget are not extended, so that here the longer path within it is found.
@@ -976,7 +1009,7 @@ class Test_LNRouter(ElectrumTestCase):
 
         # check default penalty
         self.assertEqual(
-            fee_for_edge_msat(amount_to_send, DEFAULT_PENALTY_BASE_MSAT, DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH),
+            1000 + 100,  # 0.1% of the amount + 100 ppm
             liquidity_hints.penalty(node_from, node_to, channel_id, amount_msat=amount_to_send)
         )
         liquidity_hints.update_can_send(node_from, node_to, channel_id, amount_msat=1_000_000)
@@ -990,7 +1023,7 @@ class Test_LNRouter(ElectrumTestCase):
 
         # check penalties
         self.assertEqual(0., liquidity_hints.penalty(node_from, node_to, channel_id, amount_msat=1_000_000))
-        self.assertEqual(650, liquidity_hints.penalty(node_from, node_to, channel_id, amount_msat=1_500_000))
+        self.assertEqual(1650, liquidity_hints.penalty(node_from, node_to, channel_id, amount_msat=1_500_000))  # 0.1% of the amount + 100 ppm
         self.assertEqual(inf, liquidity_hints.penalty(node_from, node_to, channel_id, amount_msat=2_000_000))
 
         # test that we don't overwrite significant info with less significant info
@@ -1008,8 +1041,8 @@ class Test_LNRouter(ElectrumTestCase):
         liquidity_hints.reset_liquidity_hints()
         liquidity_hints.add_htlc(node_from, node_to, channel_id)
         liquidity_hints.get_hint(channel_id)
-        # we have got 600 (attempt) + 600 (inflight) penalty
-        self.assertEqual(1200, liquidity_hints.penalty(node_from, node_to, channel_id, amount_msat=1_000_000))
+        # we have got 1100 (attempt) + 1100 (inflight) penalty
+        self.assertEqual(2200, liquidity_hints.penalty(node_from, node_to, channel_id, amount_msat=1_000_000))
 
     def test_liquidity_hints_of_a_node_pair(self):
         # nodes usually forward over any of their channels to the next node whose policy the htlc
@@ -1052,6 +1085,25 @@ class Test_LNRouter(ElectrumTestCase):
         self.assertEqual(pair_failed(600_000), hints.penalty(a, b, chan_3, amount_msat=600_000, policy=policy))
         hints.reset_liquidity_hints()
         self.assertEqual(default(600_000), hints.penalty(a, b, chan_3, amount_msat=600_000, policy=policy))
+
+    def test_penalty_depends_on_the_amount(self):
+        # 0.1% of the amount, at least 0.5 sat and at most 5 sat, plus 100 ppm
+        hints = LiquidityHintMgr()
+        a, b = node('a'), node('b')
+        self.assertEqual(500 + 10, hints.penalty(a, b, channel(1), amount_msat=100_000))
+        self.assertEqual(2000 + 200, hints.penalty(a, b, channel(1), amount_msat=2_000_000))
+        self.assertEqual(5000 + 2000, hints.penalty(a, b, channel(1), amount_msat=20_000_000))
+
+    def test_penalty_factors_add_up(self):
+        # unknown liquidity (1), an htlc in flight (1), close to the known upper bound (2), failed node pair (10)
+        hints = LiquidityHintMgr()
+        a, b = node('a'), node('b')
+        policy = (1000, 100, 40)
+        hints.update_cannot_send(a, b, channel(2), amount_msat=1_100_000)
+        hints.update_cannot_send(a, b, channel(1), amount_msat=900_000, policy=policy)
+        hints.add_htlc(a, b, channel(2))
+        self.assertEqual((1000 + 100) * (1 + 1 + 2 + 10),
+                         hints.penalty(a, b, channel(2), amount_msat=1_000_000, policy=policy))
 
     def test_liquidity_hints_of_a_node_pair_compare_fees_at_the_amount_sent(self):
         hints = LiquidityHintMgr()
