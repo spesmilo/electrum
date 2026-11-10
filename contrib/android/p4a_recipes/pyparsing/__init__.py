@@ -14,6 +14,7 @@ class PyparsingRecipePinned(PyparsingRecipe):
     #       see https://github.com/kivy/python-for-android/blob/be3de2e28e5a52d5f8949f3969f8a3b7f9eb3cba/pythonforandroid/recipe.py#L983
     #       - but maybe upstream p4a already has a workaround?
     #         see "PyProjectRecipe" from https://github.com/kivy/python-for-android/pull/3007
+    #       # TODO use PyProjectRecipe!
     sha512sum = "1e692f4cdaa6b6e8ca2729d0a3e2ba16d978f1957c538b6de3a4220ec7d996bdbe87c41c43abab851fffa3b0498a05841373e435602917b8c095042e273badb5"
 
     hostpython_prerequisites = [

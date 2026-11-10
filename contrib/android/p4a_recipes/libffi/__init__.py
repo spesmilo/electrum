@@ -12,8 +12,8 @@ assert LibffiRecipe.python_depends == []
 
 
 class LibffiRecipePinned(util.InheritedRecipeMixin, LibffiRecipe):
-    version = "v3.4.8"
-    sha512sum = "064a43ddae005f3d0fa56db4da6071fae93aaae87a755b84888c0cb9c8fa2fe9bb452b3d9a382fab64c442c19d98a20ba15b8be92eba7bf3773815b31fb7824c"
+    version = "v3.8.0"
+    sha512sum = "798302568c6b40742d0b08f3e4c56a6acb33175d222e0dc18fb4ef806d8e7517e8d98f9e18617e6256587eb6fea3f3fd4074bda6359193ba953d0ca92a1dae02"
 
 
 recipe = LibffiRecipePinned()
