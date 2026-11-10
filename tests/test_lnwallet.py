@@ -15,6 +15,7 @@ from electrum.bitcoin import COIN
 import electrum.trampoline
 from electrum.channel_db import UpdateStatus
 from electrum.lnutil import (
+    HtlcLog, ShortChannelID,
     NoPathFound,
     RECEIVED, SENT, MIN_FINAL_CLTV_DELTA_ACCEPTED, serialize_htlc_key, LnFeatures, HTLCOwner, PaymentFailure,
     LOCAL, REMOTE, ImportedChannelBackupStorage, make_commitment_output_to_anchor_address, UpdateAddHtlc,
@@ -809,6 +810,91 @@ class TestLNWallet(ElectrumTestCase):
             route=two_hop_route('carol'), sender_idx=0, amount_msat=amount_msat,
             failure_msg=OnionRoutingFailure(code=OnionFailureCode.FEE_INSUFFICIENT, data=failure_data))
         self.assertTrue(path_finder._is_edge_blacklisted(chan_cd.short_channel_id, now=now))
+
+    async def test_route_is_logged_with_the_source_of_each_policy(self):
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice_w = graph.workers['alice']
+        chan_bd = graph.channels[('bob', 'dave')][0]
+        chan_ann = decode_msg(chan_bd.construct_channel_announcement_without_sigs()[0])[1]
+        alice_w.channel_db.add_channel_announcements(chan_ann, trusted=True)
+        chan_upd = decode_msg(chan_bd.get_outgoing_gossip_channel_update())[1]
+        chan_upd['timestamp'] = int(time.time()) - 3 * 3600
+        self.assertEqual(UpdateStatus.GOOD, alice_w.channel_db.add_channel_update(chan_upd, verify=False))
+        hint_scid = ShortChannelID.from_components(0, 1, 2)
+        pubkey = {name: graph.workers[name].node_keypair.pubkey for name in ('alice', 'bob', 'dave')}
+        payee = bytes.fromhex('03' + '33' * 32)
+        route = [
+            RouteEdge(start_node=pubkey['alice'], end_node=pubkey['bob'], short_channel_id=graph.channels[('alice', 'bob')][0].short_channel_id,
+                      fee_base_msat=7, fee_proportional_millionths=7, cltv_delta=10, node_features=0),
+            RouteEdge(start_node=pubkey['bob'], end_node=pubkey['dave'], short_channel_id=chan_bd.short_channel_id,
+                      fee_base_msat=chan_upd['fee_base_msat'], fee_proportional_millionths=chan_upd['fee_proportional_millionths'],
+                      cltv_delta=chan_upd['cltv_expiry_delta'], node_features=0),
+            RouteEdge(start_node=pubkey['dave'], end_node=payee, short_channel_id=hint_scid,
+                      fee_base_msat=0, fee_proportional_millionths=1000, cltv_delta=40, node_features=0),
+        ]
+        text = alice_w._route_to_str_for_log(route)
+        self.assertIn(f"{pubkey['alice'].hex()[:10]} -[{route[0].short_channel_id} 7+7ppm cltv 10, own channel]->", text)
+        bd = route[1]
+        self.assertIn(f"{pubkey['bob'].hex()[:10]} -[{chan_bd.short_channel_id} {bd.fee_base_msat}+{bd.fee_proportional_millionths}ppm "
+                      f"cltv {bd.cltv_delta}, update 3h old]->", text)
+        self.assertIn(f"{pubkey['dave'].hex()[:10]} -[{hint_scid} 0+1000ppm cltv 40, route hint]->", text)
+        self.assertTrue(text.endswith(payee.hex()[:10]))
+        # fees of the route, not counting our own channel: 1000 msat + 1800 ppm of the forwarded amount, 1000 ppm of 10_000_000
+        from electrum.lnworker import _route_fee_msat
+        route[1].fee_base_msat, route[1].fee_proportional_millionths = 1000, 1800
+        self.assertEqual(10_000 + 1000 + (10_010_000 * 1800 // 1_000_000), _route_fee_msat(route, 10_000_000))
+        # this route uses other parameters than the update in our db, e.g. it was created before we learned it
+        self.assertIn(f"{chan_bd.short_channel_id} 1000+1800ppm cltv {bd.cltv_delta}, route used an older update, db has one 3h old]->",
+                      alice_w._route_to_str_for_log(route))
+
+    async def test_gossip_status_for_log_does_not_touch_the_db_while_it_loads(self):
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice_w = graph.workers['alice']
+        self.assertIn('newest_policy_age=', alice_w._gossip_status_for_log())
+        alice_w.channel_db.data_loaded.clear()
+        try:
+            with mock.patch.object(alice_w.channel_db, 'get_latest_policy_timestamp', side_effect=RuntimeError('dict changed size')):
+                self.assertIn('newest_policy_age=loading', alice_w._gossip_status_for_log())
+        finally:
+            alice_w.channel_db.data_loaded.set()
+
+    async def test_failed_htlc_logs_the_failing_edge_and_the_route(self):
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice_w = graph.workers['alice']
+        route = [
+            RouteEdge(
+                start_node=graph.workers[a].node_keypair.pubkey,
+                end_node=graph.workers[b].node_keypair.pubkey,
+                short_channel_id=graph.channels[(a, b)][0].short_channel_id,
+                fee_base_msat=0, fee_proportional_millionths=0, cltv_delta=10, node_features=0,
+            ) for a, b in [('alice', 'bob'), ('bob', 'dave')]
+        ]
+        htlc_log = HtlcLog(
+            success=False, amount_msat=100_000_000, route=route, sender_idx=0,
+            failure_msg=OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=(0).to_bytes(2, 'big')))
+        paysession = mock.Mock(uses_trampoline=False)
+        with self.assertLogs('electrum', level='INFO') as logs:
+            await alice_w._process_htlc_log(paysession=paysession, htlc_log=htlc_log, is_forwarding_trampoline=False)
+        line = [line for line in logs.output if 'htlc failed at edge' in line]
+        self.assertEqual(1, len(line))
+        self.assertIn(f"htlc failed at edge 2 of 2 (channel {route[1].short_channel_id})", line[0])
+        # the policies used, without their source: our db might have changed since the route was created
+        self.assertIn(f"-[{route[1].short_channel_id} 0+0ppm cltv 10]->", line[0])
+
+    async def test_htlc_failing_at_the_destination_is_logged_as_such(self):
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice_w = graph.workers['alice']
+        route = [RouteEdge(
+            start_node=alice_w.node_keypair.pubkey, end_node=graph.workers['bob'].node_keypair.pubkey,
+            short_channel_id=graph.channels[('alice', 'bob')][0].short_channel_id,
+            fee_base_msat=0, fee_proportional_millionths=0, cltv_delta=10, node_features=0)]
+        htlc_log = HtlcLog(
+            success=False, amount_msat=100_000_000, route=route, sender_idx=0,
+            failure_msg=OnionRoutingFailure(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b''))
+        with self.assertLogs('electrum', level='INFO') as logs:
+            with self.assertRaises(PaymentFailure):
+                await alice_w._process_htlc_log(paysession=mock.Mock(), htlc_log=htlc_log, is_forwarding_trampoline=False)
+        self.assertTrue(any('htlc failed at the destination. route:' in line for line in logs.output), logs.output)
 
     async def test_missing_channel_update_from_failed_htlc(self):
         # the channel_update in UPDATE-type failure messages is optional, nodes
