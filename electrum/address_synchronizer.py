@@ -1198,6 +1198,10 @@ class AddressSynchronizer(Logger, EventListener):
             spender_txid = None
         return spender_txid
 
+    def has_children(self, tx_hash: str) -> bool:
+        """Returns whether an output of tx_hash is spent by a tx that is not local."""
+        return any(self.get_spender(f'{tx_hash}:{n}') for n in self.db.get_spent_outpoints(tx_hash))
+
     def subscribe_to_outputs(self, spender_txid: str):
         spender_tx = self.get_transaction(spender_txid)
         for i, o in enumerate(spender_tx.outputs()):

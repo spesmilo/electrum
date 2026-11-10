@@ -517,6 +517,99 @@ class TestTxBatcher(ElectrumTestCase):
         self.assertEqual(tx1.inputs()[0].prevout, tx1_prime_prime.inputs()[0].prevout)
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_base_tx_with_children_starts_new_batch(self, mock_save_db):
+        # tx1(o1) is in the mempool, and o1, paid to us, is spent by a child: replacing tx1 would evict it.
+        # o2 is paid by tx2(tx1|o2) instead
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        await self._fund_wallet(wallet)
+        output1 = PartialTxOutput.from_address_and_value(wallet.get_receiving_address(), 10_000)
+        wallet.txbatcher.add_payment_output('default', output1)
+        batch = wallet.txbatcher.tx_batches['default']
+        await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        coins = [c for c in wallet.get_spendable_coins() if c.prevout.txid.hex() == tx1.txid() and c.address == output1.address]
+        child = wallet.make_unsigned_transaction(
+            coins=coins, outputs=[PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, '!')], fee_policy=FeePolicy('feerate:2000'))
+        wallet.sign_transaction(child, password=None)
+        wallet.adb.receive_tx_callback(child, tx_height=TX_HEIGHT_UNCONFIRMED)
+        output2 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 20_000)
+        wallet.txbatcher.add_payment_output('default', output2)
+        await batch.run_iteration()
+        await batch.run_iteration()
+        tx2 = await self.network.next_tx()
+        self.assertIn(output2, tx2.outputs())
+        self.assertNotIn(output1, tx2.outputs())
+        self.assertIn(tx1.txid(), [txin.prevout.txid.hex() for txin in tx2.inputs()])
+        self.assertIsNotNone(wallet.adb.get_transaction(tx1.txid()))
+        self.assertIsNotNone(wallet.adb.get_transaction(child.txid()))
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_base_tx_children_seen_after_rejected_replacement(self, mock_save_db):
+        # tx1 pays o1 to an address we watch, and C spends o1, but adb does not know C yet.
+        # tx1', which adds o2, is rejected because of C: tx1 remains our latest tx. When the server
+        # reports C, a new batch chained to tx1 pays o2
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        await self._fund_wallet(wallet)
+        output1 = PartialTxOutput.from_address_and_value(wallet.get_receiving_address(), 50_000)
+        wallet.txbatcher.add_payment_output('default', output1)
+        batch = wallet.txbatcher.tx_batches['default']
+        await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        # C, in the mempool of the server
+        prevout = TxOutpoint(bytes.fromhex(tx1.txid()), tx1.outputs().index(output1))
+        coins = [c for c in wallet.get_utxos() if c.prevout == prevout]
+        child = wallet.make_unsigned_transaction(
+            coins=coins, outputs=[PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 20_000)], fee_policy=batch.fee_policy)
+        wallet.sign_transaction(child, password=None)
+        child = Transaction(child.serialize())
+        self.network.default_broadcast_outcome = 'rejected'
+        output2 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 20_000)
+        wallet.txbatcher.add_payment_output('default', output2)
+        await batch.run_iteration()
+        self.assertIsNone(wallet.adb.get_transaction(self.network.broadcasts[-1]))
+        self.assertIsNotNone(wallet.adb.get_transaction(tx1.txid()))
+        # the server reports C
+        self.network.default_broadcast_outcome = 'ok'
+        wallet.adb.receive_tx_callback(child, tx_height=TX_HEIGHT_UNCONFIRMED)
+        await batch.run_iteration()
+        await batch.run_iteration()
+        tx2 = await self.network.next_tx()
+        self.assertIn(output2, tx2.outputs())
+        self.assertNotIn(output1, tx2.outputs())
+        self.assertIn(tx1.txid(), [txin.prevout.txid.hex() for txin in tx2.inputs()])
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_new_batch_chained_after_restart(self, mock_save_db):
+        # tx1(o1) has a child, so o2 starts a new batch chained to tx1. Electrum restarts before tx2
+        # is created, and o2 is added again: tx2 must still spend the change of tx1
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        await self._fund_wallet(wallet)
+        output1 = PartialTxOutput.from_address_and_value(wallet.get_receiving_address(), 10_000)
+        wallet.txbatcher.add_payment_output('default', output1)
+        batch = wallet.txbatcher.tx_batches['default']
+        await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        coins = [c for c in wallet.get_spendable_coins() if c.prevout.txid.hex() == tx1.txid() and c.address == output1.address]
+        child = wallet.make_unsigned_transaction(
+            coins=coins, outputs=[PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, '!')], fee_policy=FeePolicy('feerate:2000'))
+        wallet.sign_transaction(child, password=None)
+        wallet.adb.receive_tx_callback(child, tx_height=TX_HEIGHT_UNCONFIRMED)
+        output2 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 20_000)
+        wallet.txbatcher.add_payment_output('default', output2)
+        await batch.run_iteration()
+        # restart: payments are not persisted, o2 is added again
+        batch = TxBatch(wallet, batch.storage)
+        self.assertFalse(batch.is_done())
+        batch.add_payment_output(output2)
+        await batch.run_iteration()
+        tx2 = await self.network.next_tx()
+        self.assertIn(output2, tx2.outputs())
+        self.assertEqual(tx1.txid(), tx2.inputs()[0].prevout.txid.hex())
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_replacement_displaced_by_predecessor(self, mock_save_db):
         # the server accepts tx1'(o1,o2), but sends us tx1 again, which displaces tx1'.
         # the next tx is built on tx1, and conflicts with tx1'

@@ -56,6 +56,13 @@
 # In order to generalize that logic to payments, callers would need to pass a unique ID along with
 # the payment output, so that we can prevent paying twice.
 #
+# 4. Children of the base tx:
+# We do not replace a base tx that has children, because the replacement would have to pay
+# for evicting them: we start a new batch instead. We only see children that spend outputs
+# we watch: our own addresses, swap lockup addresses, and outputs watched by lnwatcher.
+# With other callers, a replacement may be rejected because of children we do not see,
+# and what it adds waits until the base tx is mined.
+#
 # - nLocktime/CLTV values (bip-65) and nSequence/CSV values (bip-112) are either explicitly
 #   or implicitly block-height-based everywhere in this file.
 #   SCRIPT execution fails on height vs timestamp confusion, and
@@ -492,6 +499,11 @@ class TxBatch(Logger):
         base_tx = await self.find_base_tx()
         if base_tx and not self.is_mine(base_tx.txid()):
             return  # waiting until it is mined
+        if base_tx and self.wallet.adb.has_children(base_tx.txid()):
+            # replacing it would evict its children
+            self.logger.info(f'base tx {base_tx.txid()} has children: starting new batch')
+            self._start_new_batch(base_tx)
+            return
         if base_tx and self.wallet.adb.get_local_height() < self._retry_height:
             return
         try:
