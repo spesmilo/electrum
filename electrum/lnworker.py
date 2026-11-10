@@ -944,6 +944,27 @@ class LNGossip(Logger):
         return {}
 
 
+def _age_for_log(timestamp: Optional[int], *, now: Optional[int] = None) -> str:
+    if not timestamp:
+        return 'n/a'
+    seconds = max(0, (now or int(time.time())) - timestamp)
+    if seconds < 120:
+        return f'{seconds}s'
+    if seconds < 2 * 3600:
+        return f'{seconds // 60}m'
+    if seconds < 2 * 86400:
+        return f'{seconds // 3600}h'
+    return f'{seconds // 86400}d'
+
+
+def _route_fee_msat(route: 'LNPaymentRoute', amount_msat: int) -> int:
+    """fee for the route, not counting the first channel (ours), as in the onion we create"""
+    amt = amount_msat
+    for edge in reversed(route[1:]):
+        amt += edge.fee_for_edge(amt)
+    return amt - amount_msat
+
+
 class PaySession(Logger):
 
     # how long we wait for another htlc to resolve after receiving a failure for one sent htlc.
@@ -2174,11 +2195,7 @@ class LNWallet(Logger):
             f"r_tags={BOLT11Addr.format_bolt11_routing_info_as_human_readable(r_tags)}. "
             f"{amount_to_pay=} msat. {budget=}")
         if not self.uses_trampoline():
-            self.logger.info(
-                f"gossip_db status. sync progress: {self.network.lngossip.get_sync_progress_estimate()}. "
-                f"num_nodes={self.channel_db.num_nodes}, "
-                f"num_channels={self.channel_db.num_channels}, "
-                f"num_policies={self.channel_db.num_policies}.")
+            self.logger.info(self._gossip_status_for_log())
 
         # when encountering trampoline forwarding difficulties in the legacy case, we
         # sometimes need to fall back to a single trampoline forwarder, at the expense
@@ -2258,6 +2275,8 @@ class LNWallet(Logger):
         or OnionRoutingFailure (if forwarding trampoline).
         """
         if htlc_log.success:
+            if htlc_log.route:
+                self.logger.info(f"htlc succeeded. route: {self._route_to_str_for_log(htlc_log.route, with_source=False)}")
             raise PaymentSuccess()
         # htlc failed
         # if we get a tmp channel failure, it might work to split the amount and try more routes
@@ -2272,6 +2291,11 @@ class LNWallet(Logger):
         self.logger.info(f"UPDATE_FAIL_HTLC. code={repr(code)}. "
                          f"decoded_data={failure_msg.decode_data()}. data={data.hex()!r}")
         self.logger.info(f"error reported by {erring_node_id.hex()}")
+        if not self.uses_trampoline():  # note: with trampoline, sender_idx is about the trampoline route
+            failing_edge = sender_idx + 1
+            where = (f"at edge {failing_edge + 1} of {len(route)} (channel {route[failing_edge].short_channel_id})"
+                     if failing_edge < len(route) else "at the destination")
+            self.logger.info(f"htlc failed {where}. route: {self._route_to_str_for_log(route, with_source=False)}")
         if code == OnionFailureCode.MPP_TIMEOUT:
             raise PaymentFailure(failure_msg.code_name())
         # errors returned by the next trampoline.
@@ -2327,7 +2351,54 @@ class LNWallet(Logger):
         if self.network.path_finder:
             # add inflight htlcs to liquidity hints; removed again in htlc_fulfilled/htlc_failed
             self.network.path_finder.update_num_inflight_htlcs(shi.route, add_htlcs=True)
+        try:
+            # note: with trampoline, the fees of the trampolines are included in the amount
+            fee_msat = shi.amount_msat - shi.amount_receiver_msat + _route_fee_msat(shi.route, shi.amount_msat)
+            self.logger.info(
+                f"sent htlc {htlc.htlc_id} over {chan.get_id_for_log()}: amount={shi.amount_receiver_msat} msat, "
+                f"fee={fee_msat} msat. route: {self._route_to_str_for_log(shi.route)}")
+        except Exception:  # logging must not break the payment
+            self.logger.exception('failed to log the route')
         util.trigger_callback('htlc_added', chan, htlc, SENT)
+
+    def _gossip_status_for_log(self) -> str:
+        db = self.channel_db
+        # note: the db is being written without lock while it loads, so we must not iterate it then
+        newest_policy_age = _age_for_log(db.get_latest_policy_timestamp()) if db.data_loaded.is_set() else 'loading'
+        return (
+            f"gossip_db status. sync progress: {self.network.lngossip.get_sync_progress_estimate()}. "
+            f"num_nodes={db.num_nodes}, num_channels={db.num_channels}, num_policies={db.num_policies}, "
+            f"newest_policy_age={newest_policy_age}.")
+
+    def _route_to_str_for_log(self, route: LNPaymentRoute, *, with_source: bool = True) -> str:
+        """Describes a route in one line: for every channel the fee and cltv delta we used, and where
+        they came from (the age of the channel_update in our gossip db, or the route hint).
+        The source is only meaningful when the route was just created: the db might have changed since.
+        """
+        now = int(time.time())
+        parts = []
+        for edge in route:
+            if not with_source:
+                source = ''
+            elif edge.start_node == self.node_keypair.pubkey:
+                source = 'own channel'
+            elif self.channel_db is None:
+                source = ''
+            else:
+                policy = self.channel_db.get_policy_for_node(edge.short_channel_id, edge.start_node)
+                if policy is None or not policy.timestamp:
+                    source = 'route hint'
+                elif (policy.fee_base_msat, policy.fee_proportional_millionths, policy.cltv_delta) \
+                        != (edge.fee_base_msat, edge.fee_proportional_millionths, edge.cltv_delta):
+                    source = f'route used an older update, db has one {_age_for_log(policy.timestamp, now=now)} old'
+                else:
+                    source = f'update {_age_for_log(policy.timestamp, now=now)} old'
+            parts.append(
+                f"{edge.start_node.hex()[:10]} -[{edge.short_channel_id} "
+                f"{edge.fee_base_msat}+{edge.fee_proportional_millionths}ppm cltv {edge.cltv_delta}"
+                + (f", {source}" if source else "") + "]->")
+        parts.append(route[-1].end_node.hex()[:10] if route else '')
+        return ' '.join(parts)
 
     def handle_error_code_from_failed_htlc(
             self,
