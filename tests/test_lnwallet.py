@@ -16,7 +16,7 @@ import electrum.trampoline
 from electrum.channel_db import UpdateStatus
 from electrum.lnutil import (
     HtlcLog, ShortChannelID,
-    NoPathFound,
+    NoPathFound, FeeBudgetExceeded,
     RECEIVED, SENT, MIN_FINAL_CLTV_DELTA_ACCEPTED, serialize_htlc_key, LnFeatures, HTLCOwner, PaymentFailure,
     LOCAL, REMOTE, ImportedChannelBackupStorage, make_commitment_output_to_anchor_address, UpdateAddHtlc,
     NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE,
@@ -701,6 +701,140 @@ class TestLNWallet(ElectrumTestCase):
         self.assertEqual(len(routes[0][0].route), seen[1])
         # the temporary accounting is undone: the real one happens in pay_to_route
         self.assertEqual(0, num_inflight())
+
+    async def test_route_over_the_fee_budget_is_reported_as_such(self):
+        # path finding only considers paths within the fee budget. When it finds none, it looks for the path
+        # with the lowest fees: if that one exceeds the budget, the payment fails because of the budget,
+        # and not with "no path found".
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice_w, dave_w = graph.workers['alice'], graph.workers['dave']
+        amount_to_pay = 100_000_000
+        lnaddr, _pay_req = lnhelpers.prepare_invoice(dave_w, include_routing_hints=True, amount_msat=amount_to_pay)
+        path_finder = alice_w.network.path_finder
+        orig = path_finder.find_route
+        max_fees = []
+        def wrapped(**kwargs):
+            max_fees.append((kwargs.get('max_fee_msat'), kwargs.get('penalty_weight', 1)))
+            return orig(**kwargs)
+        path_finder.find_route = wrapped
+        # the route hints of the invoice, with a fee of 1 sat
+        r_tags = [[(pubkey, scid, 1000, fee_proportional_millionths, cltv_delta)
+                   for (pubkey, scid, _fee_base_msat, fee_proportional_millionths, cltv_delta) in path]
+                  for path in lnaddr.get_routing_info()]
+        self.assertTrue(r_tags)
+        alice_w.config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS = 0
+        alice_w.config.LIGHTNING_PAYMENT_FEE_CUTOFF_MSAT = 0
+        with mock.patch.object(BOLT11Addr, 'get_routing_info', lambda *args, **kwargs: r_tags):
+            with self.assertRaises(FeeBudgetExceeded):
+                await alice_w.create_routes_from_invoice(amount_to_pay, decoded_invoice=lnaddr)
+            self.assertEqual([(0, 1), (None, 0)], max_fees[:2])
+            self.assertNotIn((0, 0.25), max_fees)  # no other search, as no path is within the budget
+            # with a budget, the first search finds a route within it
+            max_fees.clear()
+            alice_w.config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS = 10_000
+            routes = await alice_w.create_routes_from_invoice(amount_to_pay, decoded_invoice=lnaddr)
+            self.assertEqual(1, len(routes))
+            self.assertEqual([(10_000 * amount_to_pay // 1_000_000, 1)], max_fees)
+
+    async def _create_routes_with_route_hints(self, hops_after_x, *, carol_to_x_fee_msat, budget_msat):
+        """Route hints of the invoice: carol -> x, then the paths from x to dave given as
+        lists of (node after x or None for dave, fee_base_msat) per hop.
+        Returns the channels of the route after ours, and the path finding searches.
+        For 500 sat, the penalty for unknown liquidity is 550 msat per channel."""
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice_w, dave_w = graph.workers['alice'], graph.workers['dave']
+        amount_to_pay = 500_000
+        lnaddr, _pay_req = lnhelpers.prepare_invoice(dave_w, include_routing_hints=True, amount_msat=amount_to_pay)
+        carol = graph.workers['carol'].node_keypair.pubkey
+        x = bytes([2]) + b'x' * 32
+        # channels are numbered from 60 (carol -> x), in the order of the hops
+        paths, number = [], 61
+        for hops_from_x in hops_after_x:
+            path, start = [], x
+            for node_after, fee_base_msat in hops_from_x:
+                path.append((start, ShortChannelID.from_components(0, 0, number), fee_base_msat, 0, 40))
+                start, number = node_after, number + 1
+            paths.append(path)
+        # a route hint starts at its first node and ends at dave: the first one goes from carol over x
+        r_tags = [[(carol, ShortChannelID.from_components(0, 0, 60), carol_to_x_fee_msat, 0, 40)] + paths[0]]
+        r_tags += paths[1:]
+        alice_w.config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS = 0
+        alice_w.config.LIGHTNING_PAYMENT_FEE_CUTOFF_MSAT = budget_msat
+        path_finder = alice_w.network.path_finder
+        orig = path_finder.find_route
+        searches = []
+        def wrapped(**kwargs):
+            searches.append((kwargs.get('max_fee_msat'), kwargs.get('penalty_weight', 1)))
+            return orig(**kwargs)
+        path_finder.find_route = wrapped
+        with mock.patch.object(BOLT11Addr, 'get_routing_info', lambda *args, **kwargs: r_tags):
+            routes = await alice_w.create_routes_from_invoice(amount_to_pay, decoded_invoice=lnaddr)
+        self.assertEqual(1, len(routes))
+        route = routes[0][0].route
+        return [edge.short_channel_id.output_index for edge in route[1:]], searches
+
+    async def test_route_within_the_fee_budget_found_with_lower_penalties_is_used(self):
+        # From x: to dave (2.2 sat), over y (1.9 sat), or over p and q (1.8 sat). With a budget of 32 sat,
+        # path finding reaches x over the direct channel to dave, which is cheaper in fees and penalties,
+        # and finds no path within the budget. The path with the lowest fees (over p and q) is within it,
+        # so path finding is run again with lower penalties, and finds the path over y.
+        y, p, q = (bytes([2]) + bytes([c]) * 32 for c in b'ypq')
+        channels, searches = await self._create_routes_with_route_hints(
+            [[(None, 2200)], [(y, 0), (None, 1900)], [(p, 0), (q, 0), (None, 1800)]],
+            carol_to_x_fee_msat=30_000, budget_msat=32_000)
+        self.assertEqual([60, 62, 63], channels)
+        self.assertEqual([(32_000, 1), (None, 0), (32_000, 0.25)], searches)
+
+    async def test_route_within_the_fee_budget_with_the_lowest_fees_is_used_as_the_last_resort(self):
+        # From x: to dave (2.1 sat), or over p and q (1.9 sat). Even with lower penalties, path finding
+        # reaches x over the direct channel, and the path with the lowest fees is used: its fees are
+        # exactly the budget.
+        p, q = (bytes([2]) + bytes([c]) * 32 for c in b'pq')
+        channels, searches = await self._create_routes_with_route_hints(
+            [[(None, 2100)], [(p, 0), (q, 0), (None, 1900)]],
+            carol_to_x_fee_msat=30_000, budget_msat=31_900)
+        self.assertEqual([60, 62, 63, 64], channels)
+        self.assertEqual([(31_900, 1), (None, 0), (31_900, 0.25)], searches)
+
+    async def test_no_further_search_if_the_budget_left_no_path_out(self):
+        # without route hints, dave cannot be reached at all
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice_w, dave_w = graph.workers['alice'], graph.workers['dave']
+        amount_to_pay = 100_000_000
+        lnaddr, _pay_req = lnhelpers.prepare_invoice(dave_w, include_routing_hints=False, amount_msat=amount_to_pay)
+        path_finder = alice_w.network.path_finder
+        orig = path_finder.find_route
+        searches = []
+        def wrapped(**kwargs):
+            searches.append((kwargs.get('max_fee_msat'), kwargs.get('penalty_weight', 1)))
+            return orig(**kwargs)
+        path_finder.find_route = wrapped
+        with self.assertRaises(NoPathFound):
+            await alice_w.create_routes_from_invoice(amount_to_pay, decoded_invoice=lnaddr)
+        self.assertTrue(searches)
+        self.assertEqual({(amount_to_pay * 10_000 // 1_000_000, 1)}, set(searches))
+
+    async def test_mpp_parts_get_their_share_of_the_fee_budget_in_path_finding(self):
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice_w, dave_w = graph.workers['alice'], graph.workers['dave']
+        dave_w.features |= LnFeatures.BASIC_MPP_OPT
+        amount_to_pay = 200_000_000
+        alice_w.config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS = 10_000
+        alice_w.config.LIGHTNING_PAYMENT_FEE_CUTOFF_MSAT = 0
+        lnaddr, _pay_req = lnhelpers.prepare_invoice(dave_w, include_routing_hints=True, amount_msat=amount_to_pay)
+        bob_chan = graph.channels[('alice', 'bob')][0]
+        split_config = SplitConfig({(bob_chan.channel_id, bob_chan.node_id): [amount_to_pay // 2, amount_to_pay // 2]})
+        alice_w.suggest_payment_splits = lambda **kwargs: [SplitConfigRating(config=split_config, rating=0)]
+        orig = alice_w.create_route_for_single_htlc
+        max_fees = []
+        def wrapped(**kwargs):
+            max_fees.append(kwargs['max_fee_msat'])
+            return orig(**kwargs)
+        alice_w.create_route_for_single_htlc = wrapped
+        routes = await alice_w.create_routes_from_invoice(amount_to_pay, decoded_invoice=lnaddr)
+        self.assertEqual(2, len(routes))
+        budget_msat = amount_to_pay * 10_000 // 1_000_000
+        self.assertEqual([budget_msat // 2, budget_msat // 2], max_fees)
 
     async def test_mpp_parts_inflight_accounting_is_undone_on_failure(self):
         graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])

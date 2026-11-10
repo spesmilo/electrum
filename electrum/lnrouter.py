@@ -574,9 +574,12 @@ class LNPathFinder(Logger):
             my_channels: Dict[ShortChannelID, 'Channel'] = None,
             private_route_edges: Dict[ShortChannelID, RouteEdge] = None,
             now: int,  # unix ts
+            penalty_weight: float = 1,
     ) -> Tuple[float, int]:
         """Heuristic cost (distance metric) of going through a channel.
         Returns (heuristic_cost, fee_for_edge_msat).
+        penalty_weight scales the costs other than the fee. With 0, the cost is the fee,
+        and the other costs only break ties.
         """
         if self._is_edge_blacklisted(short_channel_id, now=now):
             return float('inf'), 0
@@ -641,6 +644,11 @@ class LNPathFinder(Logger):
         liquidity_penalty = self.liquidity_hints.penalty(
             start_node, end_node, short_channel_id, amount_msat=payment_amt_msat,
             policy=(route_edge.fee_base_msat, route_edge.fee_proportional_millionths, route_edge.cltv_delta))
+        if penalty_weight != 1 and liquidity_penalty != inf:
+            # (with a weight of 1e-9, the other costs of a path stay below 1 msat for amounts
+            #  up to about 0.1 BTC; for larger ones, they may outweigh a difference in fees of a few msat)
+            other_costs = (cltv_cost + liquidity_penalty) * (penalty_weight or 1e-9)
+            return fee_msat + other_costs, fee_msat
         overall_cost = fee_msat + cltv_cost + liquidity_penalty
         return overall_cost, fee_msat
 
@@ -653,6 +661,9 @@ class LNPathFinder(Logger):
             my_sending_channels: Dict[ShortChannelID, 'Channel'] = None,
             private_route_edges: Dict[ShortChannelID, RouteEdge] = None,
             node_filter: Optional[Callable[[bytes, Optional[NodeInfo]], bool]] = None,
+            max_fee_msat: Optional[int] = None,
+            penalty_weight: float = 1,
+            search_info: Optional[dict] = None,
     ) -> Dict[bytes, PathEdge]:
         # note: we don't lock self.channel_db, so while the path finding runs,
         #       the underlying graph could potentially change... (not good but maybe ~OK?)
@@ -731,7 +742,16 @@ class LNPathFinder(Logger):
                     my_channels=my_sending_channels,
                     private_route_edges=private_route_edges,
                     now=now,
+                    penalty_weight=penalty_weight,
                 )
+                amount_to_forward_msat = amount_msat + fee_for_edge_msat
+                if max_fee_msat is not None and amount_to_forward_msat - invoice_amount_msat > max_fee_msat:
+                    # The path would exceed the fee budget: don't extend it, so that the node can be
+                    # reached over another path within the budget. Note: as we keep one path per node,
+                    # we can still miss one within the budget, unless the cost is the fee (penalty_weight=0).
+                    if search_info is not None:
+                        search_info['budget_pruned'] = True
+                    continue
                 alt_dist_to_neighbour = distance_from_start[edge_endnode] + edge_cost
                 if alt_dist_to_neighbour < distance_from_start[edge_startnode]:
                     distance_from_start[edge_startnode] = alt_dist_to_neighbour
@@ -739,7 +759,6 @@ class LNPathFinder(Logger):
                         start_node=edge_startnode,
                         end_node=edge_endnode,
                         short_channel_id=ShortChannelID(edge_channel_id))
-                    amount_to_forward_msat = amount_msat + fee_for_edge_msat
                     nodes_to_explore.put((alt_dist_to_neighbour, amount_to_forward_msat, edge_startnode))
             # for circular paths, we already explored the end node, but this
             # is also our start node, so set it to unexplored
@@ -756,9 +775,17 @@ class LNPathFinder(Logger):
             invoice_amount_msat: Optional[int],
             my_sending_channels: Dict[ShortChannelID, 'Channel'] = None,
             private_route_edges: Dict[ShortChannelID, RouteEdge] = None,
-            node_filter: Optional[Callable[[bytes, Optional[NodeInfo]], bool]] = None
+            node_filter: Optional[Callable[[bytes, Optional[NodeInfo]], bool]] = None,
+            max_fee_msat: Optional[int] = None,
+            penalty_weight: float = 1,
+            search_info: Optional[dict] = None,
     ) -> Optional[LNPaymentPath]:
-        """Return a path from nodeA to nodeB."""
+        """Return a path from nodeA to nodeB.
+        With max_fee_msat, paths whose fees (not counting the first channel) exceed it are not considered,
+        and search_info['budget_pruned'] is set if a path was left out because of it.
+        penalty_weight scales the costs other than the fees (liquidity penalties, cltv). With 0, return the
+        path with the lowest fees among channels that can be used, the other costs only breaking ties.
+        """
         assert type(nodeA) is bytes
         assert type(nodeB) is bytes
         assert type(invoice_amount_msat) is int or invoice_amount_msat is None
@@ -771,7 +798,10 @@ class LNPathFinder(Logger):
             invoice_amount_msat=invoice_amount_msat,
             my_sending_channels=my_sending_channels,
             private_route_edges=private_route_edges,
-            node_filter=node_filter)
+            node_filter=node_filter,
+            max_fee_msat=max_fee_msat,
+            penalty_weight=penalty_weight,
+            search_info=search_info)
 
         if nodeA not in previous_hops:
             return None  # no path found
@@ -856,6 +886,9 @@ class LNPathFinder(Logger):
             path: Optional[Sequence[PathEdge]] = None,
             my_sending_channels: Dict[ShortChannelID, 'Channel'] = None,
             private_route_edges: Dict[ShortChannelID, RouteEdge] = None,
+            max_fee_msat: Optional[int] = None,
+            penalty_weight: float = 1,
+            search_info: Optional[dict] = None,
     ) -> Optional[LNPaymentRoute]:
         route = None
         if not path:
@@ -864,7 +897,10 @@ class LNPathFinder(Logger):
                 nodeB=nodeB,
                 invoice_amount_msat=invoice_amount_msat,
                 my_sending_channels=my_sending_channels,
-                private_route_edges=private_route_edges)
+                private_route_edges=private_route_edges,
+                max_fee_msat=max_fee_msat,
+                penalty_weight=penalty_weight,
+                search_info=search_info)
         if path:
             route = self.create_route_from_path(
                 path, my_channels=my_sending_channels, private_route_edges=private_route_edges)

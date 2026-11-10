@@ -2772,6 +2772,8 @@ class LNWallet(Logger):
                     # (the real accounting happens in pay_to_route, so this is undone below)
                     counted_inflight_routes = []
                     path_finder = self.network.path_finder
+                    # each part gets its share of the budget
+                    part_budget = budget._replace(fee_msat=budget.fee_msat // sc.config.number_parts())
                     try:
                         for (chan_id, _), part_amounts_msat in sc.config.items():
                             for part_amount_msat in part_amounts_msat:
@@ -2791,9 +2793,10 @@ class LNWallet(Logger):
                                         invoice_features=paysession.invoice_features,
                                         my_sending_channels=[channel] if is_mpp else my_active_channels,
                                         full_path=full_path,
+                                        max_fee_msat=part_budget.fee_msat,
                                     ))
                                 if not is_route_within_budget(
-                                        route, budget=budget._replace(fee_msat=budget.fee_msat // sc.config.number_parts()),
+                                        route, budget=part_budget,
                                         amount_msat_for_dest=part_amount_msat,
                                         cltv_delta_for_dest=paysession.min_final_cltv_delta,
                                         we_are_forwarding=we_are_forwarding):
@@ -2862,6 +2865,7 @@ class LNWallet(Logger):
             invoice_features: int,
             my_sending_channels: List[Channel],
             full_path: Optional[LNPaymentPath],
+            max_fee_msat: Optional[int] = None,  # fee budget of the route
     ) -> LNPaymentRoute:
 
         my_sending_aliases = set(chan.get_local_scid_alias() for chan in my_sending_channels)
@@ -2910,14 +2914,31 @@ class LNWallet(Logger):
                 private_route_edges[route_edge.short_channel_id] = route_edge
                 start_node = end_node
         # now find a route, end to end: between us and the recipient
+        find_route = partial(
+            self.network.path_finder.find_route,
+            nodeA=self.node_keypair.pubkey,
+            nodeB=invoice_pubkey,
+            invoice_amount_msat=amount_msat,
+            path=full_path,
+            my_sending_channels=my_sending_channels,
+            private_route_edges=private_route_edges)
+        search_info = {}
         try:
-            route = self.network.path_finder.find_route(
-                nodeA=self.node_keypair.pubkey,
-                nodeB=invoice_pubkey,
-                invoice_amount_msat=amount_msat,
-                path=full_path,
-                my_sending_channels=my_sending_channels,
-                private_route_edges=private_route_edges)
+            route = find_route(max_fee_msat=max_fee_msat, search_info=search_info)
+            if not route and search_info.get('budget_pruned'):
+                # (if the budget left no path out, there is none at all)
+                # Path finding keeps one path per node, so it can miss a path within the budget
+                # that costs more in penalties. The path with the lowest fees (the penalties only
+                # breaking ties) tells whether there is one: if it exceeds the budget, so does any
+                # other, and the caller can tell that the budget is the problem.
+                self.logger.info(
+                    f"no path found within the fee budget of {max_fee_msat} msat. "
+                    f"looking for the path with the lowest fees, without the budget")
+                route = find_route(penalty_weight=0)
+                if route and _route_fee_msat(route, amount_msat) <= max_fee_msat:
+                    # there is one: prefer a path that still takes the penalties into account
+                    self.logger.info("it is within the budget. looking again with the penalties weighted 0.25")
+                    route = find_route(max_fee_msat=max_fee_msat, penalty_weight=0.25) or route
         except NoChannelPolicy as e:
             raise NoPathFound() from e
         if not route:

@@ -656,6 +656,115 @@ class Test_LNRouter(ElectrumTestCase):
                     'fee_proportional_millionths': fee_proportional_millionths,
                     'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0}, verify=False)
 
+    async def test_find_path_with_penalty_weight_zero_lets_1_msat_of_fees_outweigh_the_other_costs(self):
+        # 100k sat: the other costs of a channel are about 15k msat, but only break ties
+        o, p, a, b, w = node('o'), node('p'), node('a'), node('b'), node('w')
+        free = (0, 0, 40)
+        self._make_graph([
+            (31, o, p, free, free),
+            (32, p, w, (1000, 0, 40), free),
+            (33, p, a, free, free),
+            (34, a, b, free, free),
+            (35, b, w, (999, 0, 40), free),
+        ])
+        path = self.path_finder.find_path_for_payment(
+            nodeA=o, nodeB=w, invoice_amount_msat=100_000_000, penalty_weight=0)
+        self.assertEqual([channel(n) for n in (31, 33, 34, 35)], [edge.short_channel_id for edge in path])
+
+    async def test_find_path_with_penalty_weight_zero_breaks_ties_with_the_cltv_cost(self):
+        # same fees and channels; the path over a is found first, but has the longer cltv delta
+        o, p, a, b, w = node('o'), node('p'), node('a'), node('b'), node('w')
+        free = (0, 0, 40)
+        self._make_graph([
+            (31, o, p, free, free),
+            (32, p, a, (500, 0, 40), free),
+            (33, a, w, (500, 0, 144), free),
+            (34, p, b, (500, 0, 40), free),
+            (35, b, w, (500, 0, 40), free),
+        ])
+        path = self.path_finder.find_path_for_payment(
+            nodeA=o, nodeB=w, invoice_amount_msat=1_000_000, penalty_weight=0)
+        self.assertEqual([channel(n) for n in (31, 34, 35)], [edge.short_channel_id for edge in path])
+
+    async def test_find_path_does_not_extend_paths_beyond_the_fee_budget(self):
+        # path finding does not use the fees alone: a path with fewer channels can cost more in fees.
+        # Paths over the fee budget are not extended, so that here the longer path within it is found.
+        o, p, q, a1, a2, w = node('o'), node('p'), node('q'), node('r'), node('s'), node('w')
+        free = (0, 0, 40)
+        def fee(sat):
+            return (int(sat * 1000), 0, 40)
+        self._make_graph([
+            (31, o, p, free, free),
+            (32, p, q, fee(20.5), free),  # short path: 20.5 + 30 = 50.5 sat
+            (34, p, a1, fee(19.5), free),  # long path: 19.5 + 30 = 49.5 sat
+            (35, a1, a2, free, free),
+            (36, a2, q, free, free),
+            (37, q, w, fee(30), free),
+        ])
+        amount_msat = 5_000_000
+        def find(max_fee_msat):
+            path = self.path_finder.find_path_for_payment(
+                nodeA=o, nodeB=w, invoice_amount_msat=amount_msat, max_fee_msat=max_fee_msat)
+            return path and [edge.short_channel_id for edge in path]
+        self.assertEqual([channel(n) for n in (31, 32, 37)], find(None))
+        self.assertEqual([channel(n) for n in (31, 34, 35, 36, 37)], find(50_000))
+        self.assertEqual(None, find(49_000))
+
+    async def test_find_path_with_penalty_weight_zero(self):
+        # as path finding keeps one path per node, the search with penalties can miss a path within the
+        # budget: here, x is reached over the direct channel to w, and from p, that path exceeds a budget
+        # of 32 sat, while the one over y does not. The search by fees finds the cheapest path.
+        o, p, x, y, w = node('o'), node('p'), node('x'), node('y'), node('w')
+        free = (0, 0, 40)
+        self._make_graph([
+            (31, o, p, free, free),
+            (32, p, x, (30_000, 0, 40), free),
+            (33, x, w, (3000, 0, 40), free),
+            (34, x, y, free, free),
+            (35, y, w, free, free),
+        ])
+        def find():
+            path = self.path_finder.find_path_for_payment(
+                nodeA=o, nodeB=w, invoice_amount_msat=5_000_000, penalty_weight=0)
+            return [edge.short_channel_id for edge in path]
+        self.assertEqual([channel(n) for n in (31, 32, 34, 35)], find())
+        # channels that cannot send the amount are still excluded
+        self.path_finder.liquidity_hints.update_cannot_send(x, y, channel(34), amount_msat=1_000_000)
+        self.assertEqual([channel(n) for n in (31, 32, 33)], find())
+
+    async def test_find_path_with_penalty_weight_zero_takes_the_lowest_fees(self):
+        o, p, a, b, c, w = node('o'), node('p'), node('a'), node('b'), node('c'), node('w')
+        free = (0, 0, 40)
+        self._make_graph([
+            (31, o, p, free, free),
+            (32, p, w, (1000, 0, 40), free),  # 1 sat
+            (33, p, a, (100, 0, 40), free),  # 0.9 sat, over two more channels
+            (34, a, b, (800, 0, 40), free),
+            (35, b, w, free, free),
+        ])
+        def find():
+            path = self.path_finder.find_path_for_payment(
+                nodeA=o, nodeB=w, invoice_amount_msat=1_000_000, penalty_weight=0)
+            return [edge.short_channel_id for edge in path]
+        self.assertEqual([channel(n) for n in (31, 33, 34, 35)], find())
+
+    async def test_find_path_with_penalty_weight_zero_takes_fewer_channels_with_the_same_fees(self):
+        # both paths from p cost 0.9 sat. The longer one reaches p first in the search,
+        # the shorter one must still be taken.
+        o, p, a, b, c, w = node('o'), node('p'), node('a'), node('b'), node('c'), node('w')
+        free = (0, 0, 40)
+        self._make_graph([
+            (31, o, p, free, free),
+            (33, p, a, (450, 0, 40), free),
+            (34, a, b, (450, 0, 40), free),
+            (35, b, w, free, free),
+            (36, p, c, (100, 0, 40), free),
+            (37, c, w, (800, 0, 40), free),
+        ])
+        path = self.path_finder.find_path_for_payment(
+            nodeA=o, nodeB=w, invoice_amount_msat=1_000_000, penalty_weight=0)
+        self.assertEqual([channel(n) for n in (31, 36, 37)], [edge.short_channel_id for edge in path])
+
     async def test_find_path_tries_parallel_channels_of_a_failed_node_pair_after_other_paths(self):
         s, a, b, c, d = node('s'), node('a'), node('b'), node('c'), node('d')
         free, expensive = (0, 0, 40), (10_000_000, 0, 40)
