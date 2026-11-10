@@ -25,7 +25,7 @@ from electrum.lnworker import LNGossip
 from electrum.lnmsg import encode_msg
 from electrum.lnrouter import (PathEdge, LiquidityHintMgr, DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH,
                                DEFAULT_PENALTY_BASE_MSAT, fee_for_edge_msat, LNPaymentTRoute, TrampolineEdge,
-                               HINT_DURATION)
+                               HINT_DURATION, PAIR_FAILURE_PENALTY_FACTOR, RouteEdge)
 
 from . import ElectrumTestCase
 from .test_bitcoin import needs_test_with_all_chacha20_implementations
@@ -630,6 +630,101 @@ class Test_LNRouter(ElectrumTestCase):
         self.cdb.add_channel_update({'short_channel_id': channel(1), 'message_flags': b'\x00', 'channel_flags': b'\x00', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 1000}, verify=False)
         self.assertEqual(1000, self.cdb.get_latest_policy_timestamp())
 
+    def _make_graph(self, chans):
+        """chans: (number, node_x, node_y, policy from x to y, policy from y to x),
+        a policy being (fee_base_msat, fee_proportional_millionths, cltv_delta)"""
+        class fake_network:
+            config = self.config
+            asyncio_loop = util.get_asyncio_loop()
+            trigger_callback = lambda *args: None
+            register_callback = lambda *args: None
+            interface = None
+        self.cdb = lnrouter.ChannelDB(fake_network())
+        self.cdb.data_loaded.set()
+        self.path_finder = lnrouter.LNPathFinder(self.cdb)
+        for number, x, y, policy_xy, policy_yx in chans:
+            n1, n2 = sorted([x, y])
+            self.cdb.add_channel_announcements({
+                'node_id_1': n1, 'node_id_2': n2, 'bitcoin_key_1': n1, 'bitcoin_key_2': n2,
+                'short_channel_id': channel(number), 'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
+                'len': 0, 'features': b''}, trusted=True)
+            for start, (fee_base_msat, fee_proportional_millionths, cltv_delta) in ((x, policy_xy), (y, policy_yx)):
+                self.cdb.add_channel_update({
+                    'short_channel_id': channel(number), 'message_flags': b'\x00',
+                    'channel_flags': b'\x00' if start == n1 else b'\x01',
+                    'cltv_expiry_delta': cltv_delta, 'htlc_minimum_msat': 1, 'fee_base_msat': fee_base_msat,
+                    'fee_proportional_millionths': fee_proportional_millionths,
+                    'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0}, verify=False)
+
+    async def test_find_path_tries_parallel_channels_of_a_failed_node_pair_after_other_paths(self):
+        s, a, b, c, d = node('s'), node('a'), node('b'), node('c'), node('d')
+        free, expensive = (0, 0, 40), (10_000_000, 0, 40)
+        self._make_graph([
+            (41, s, a, free, free),
+            # parallel channels; only the direction b -> a is expensive (the one that does not count)
+            (42, a, b, free, expensive),
+            (43, a, b, free, expensive),
+            (44, b, d, free, free),
+            (45, a, c, (3000, 0, 40), free),  # the other path is 3 sat more expensive
+            (46, c, d, free, free),
+        ])
+        amount_msat = 1_000_000
+        path = self.path_finder.find_path_for_payment(nodeA=s, nodeB=d, invoice_amount_msat=amount_msat)
+        self.assertEqual(b, path[1].end_node)
+        failing_channel = path[1].short_channel_id
+        route = self.path_finder.create_route_from_path(path)
+        self.path_finder.update_liquidity_hints(route, amount_msat, failing_channel=failing_channel)
+        path = self.path_finder.find_path_for_payment(nodeA=s, nodeB=d, invoice_amount_msat=amount_msat)
+        self.assertEqual([channel(41), channel(45), channel(46)], [edge.short_channel_id for edge in path])
+        # without the other path, the parallel channel is still tried
+        self.path_finder.add_edge_to_blacklist(channel(45))
+        path = self.path_finder.find_path_for_payment(nodeA=s, nodeB=d, invoice_amount_msat=amount_msat)
+        other_channel = ({channel(42), channel(43)} - {failing_channel}).pop()
+        self.assertEqual([channel(41), other_channel, channel(44)], [edge.short_channel_id for edge in path])
+
+    async def test_find_path_uses_the_parallel_route_hint_channel_of_a_failed_node_pair(self):
+        # e.g. a receiver with two channels to a node that forwards only over the requested channel
+        s, a, x, d = node('s'), node('a'), node('x'), node('d')
+        self._make_graph([(41, s, a, (0, 0, 40), (0, 0, 40)), (47, a, x, (0, 0, 40), (0, 0, 40))])
+        hints = {scid: RouteEdge(start_node=x, end_node=d, short_channel_id=scid, fee_base_msat=1000,
+                                 fee_proportional_millionths=100, cltv_delta=40, node_features=0)
+                 for scid in (ShortChannelID.from_components(0, 0, 51), ShortChannelID.from_components(0, 0, 52))}
+        amount_msat = 1_000_000
+        path = self.path_finder.find_path_for_payment(
+            nodeA=s, nodeB=d, invoice_amount_msat=amount_msat, private_route_edges=hints)
+        failing_channel = path[-1].short_channel_id
+        route = self.path_finder.create_route_from_path(path, private_route_edges=hints)
+        self.path_finder.update_liquidity_hints(route, amount_msat, failing_channel=failing_channel)
+        path = self.path_finder.find_path_for_payment(
+            nodeA=s, nodeB=d, invoice_amount_msat=amount_msat, private_route_edges=hints)
+        self.assertIsNotNone(path)
+        self.assertEqual((set(hints) - {failing_channel}).pop(), path[-1].short_channel_id)
+
+    def test_liquidity_hints_of_a_node_pair_from_routes(self):
+        # the policies of the channels of a route are those used for the hints of the node pairs
+        self._make_graph([])
+        hints = self.path_finder.liquidity_hints
+        s, a, b = node('s'), node('a'), node('b')
+        amount_msat = 1_000_000
+        policy, more_expensive = (0, 100, 40), (2000, 100, 40)
+        def route_over(scid, policy):
+            fee_base_msat, fee_proportional_millionths, cltv_delta = policy
+            return [RouteEdge(start_node=s, end_node=a, short_channel_id=channel(41), fee_base_msat=0,
+                              fee_proportional_millionths=0, cltv_delta=40, node_features=0),
+                    RouteEdge(start_node=a, end_node=b, short_channel_id=channel(scid), fee_base_msat=fee_base_msat,
+                              fee_proportional_millionths=fee_proportional_millionths, cltv_delta=cltv_delta,
+                              node_features=0)]
+        default = LiquidityHintMgr().penalty(a, b, channel(49), amount_msat=amount_msat, policy=policy)
+        self.path_finder.update_liquidity_hints(route_over(42, policy), amount_msat, failing_channel=channel(42))
+        self.assertEqual((1 + PAIR_FAILURE_PENALTY_FACTOR) * default,
+                         hints.penalty(a, b, channel(49), amount_msat=amount_msat, policy=policy))
+        # a success over a more expensive channel does not contradict it
+        self.path_finder.update_liquidity_hints(route_over(48, more_expensive), amount_msat)
+        self.assertEqual((1 + PAIR_FAILURE_PENALTY_FACTOR) * default,
+                         hints.penalty(a, b, channel(49), amount_msat=amount_msat, policy=policy))
+        self.path_finder.update_liquidity_hints(route_over(43, policy), amount_msat)
+        self.assertEqual(default, hints.penalty(a, b, channel(49), amount_msat=amount_msat, policy=policy))
+
     async def test_find_path_for_payment(self):
         self.prepare_graph()
         amount_to_send = 100000
@@ -806,6 +901,88 @@ class Test_LNRouter(ElectrumTestCase):
         liquidity_hints.get_hint(channel_id)
         # we have got 600 (attempt) + 600 (inflight) penalty
         self.assertEqual(1200, liquidity_hints.penalty(node_from, node_to, channel_id, amount_msat=1_000_000))
+
+    def test_liquidity_hints_of_a_node_pair(self):
+        # nodes usually forward over any of their channels to the next node whose policy the htlc
+        # satisfies (non-strict forwarding), so a failure to forward from A to B tells us something
+        # about the parallel channels between them that are not more expensive
+        hints = LiquidityHintMgr()
+        a, b = node('a'), node('b')
+        chan_1, chan_2, chan_3 = channel(1), channel(2), channel(3)
+        policy = (1000, 100, 40)  # fee_base_msat, fee_proportional_millionths, cltv_delta
+        cheaper, more_expensive, longer_cltv = (0, 100, 40), (1000, 200, 40), (1000, 100, 41)
+        def default(amount_msat):
+            return LiquidityHintMgr().penalty(a, b, chan_2, amount_msat=amount_msat, policy=policy)
+        def pair_failed(amount_msat):
+            return (1 + PAIR_FAILURE_PENALTY_FACTOR) * default(amount_msat)
+        hints.update_cannot_send(a, b, chan_1, amount_msat=1_000_000, policy=policy)
+        self.assertEqual(inf, hints.penalty(a, b, chan_1, amount_msat=1_000_000, policy=policy))
+        self.assertEqual(pair_failed(1_000_000), hints.penalty(a, b, chan_2, amount_msat=1_000_000, policy=policy))
+        self.assertEqual(pair_failed(2_000_000), hints.penalty(a, b, chan_2, amount_msat=2_000_000, policy=cheaper))
+        self.assertEqual(default(999_999), hints.penalty(a, b, chan_2, amount_msat=999_999, policy=policy))
+        self.assertEqual(default(1_000_000), hints.penalty(a, b, chan_2, amount_msat=1_000_000, policy=more_expensive))
+        self.assertEqual(default(1_000_000), hints.penalty(a, b, chan_2, amount_msat=1_000_000, policy=longer_cltv))
+        self.assertEqual(default(1_000_000), hints.penalty(b, a, chan_2, amount_msat=1_000_000, policy=policy))  # other direction
+        # more failures, of smaller amounts
+        hints.update_cannot_send(a, b, chan_2, amount_msat=500_000, policy=policy)
+        hints.update_cannot_send(a, b, chan_1, amount_msat=800_000, policy=policy)
+        self.assertEqual(pair_failed(600_000), hints.penalty(a, b, chan_3, amount_msat=600_000, policy=policy))
+        # a successful forward contradicts the failure, if it was of at least the failed amount,
+        # over a channel not more expensive than the failed one
+        hints.update_can_send(a, b, chan_1, amount_msat=400_000, policy=policy)
+        self.assertEqual(pair_failed(600_000), hints.penalty(a, b, chan_3, amount_msat=600_000, policy=policy))
+        hints.update_can_send(a, b, chan_1, amount_msat=600_000, policy=more_expensive)
+        self.assertEqual(pair_failed(600_000), hints.penalty(a, b, chan_3, amount_msat=600_000, policy=policy))
+        hints.update_can_send(a, b, chan_1, amount_msat=600_000, policy=policy)
+        self.assertEqual(default(600_000), hints.penalty(a, b, chan_3, amount_msat=600_000, policy=policy))
+        # a failure without the policy of the channel does not say which parallel channels it applies to
+        hints.update_cannot_send(a, b, chan_1, amount_msat=100_000)
+        self.assertEqual(default(600_000), hints.penalty(a, b, chan_3, amount_msat=600_000, policy=policy))
+        # reset
+        hints.update_cannot_send(a, b, chan_1, amount_msat=100_000, policy=policy)
+        self.assertEqual(pair_failed(600_000), hints.penalty(a, b, chan_3, amount_msat=600_000, policy=policy))
+        hints.reset_liquidity_hints()
+        self.assertEqual(default(600_000), hints.penalty(a, b, chan_3, amount_msat=600_000, policy=policy))
+
+    def test_liquidity_hints_of_a_node_pair_compare_fees_at_the_amount_sent(self):
+        hints = LiquidityHintMgr()
+        a, b = node('a'), node('b')
+        high_base, high_proportional = (10_000, 0, 40), (0, 1000, 40)
+        hints.update_cannot_send(a, b, channel(1), amount_msat=1_000_000, policy=high_base)
+        default = LiquidityHintMgr().penalty(a, b, channel(2), amount_msat=1_000_000, policy=high_proportional)
+        # at 1_000_000 msat, high_proportional has the lower fee (1000 msat), at 20_000_000 msat the higher one
+        self.assertEqual((1 + PAIR_FAILURE_PENALTY_FACTOR) * default,
+                         hints.penalty(a, b, channel(2), amount_msat=1_000_000, policy=high_proportional))
+        default = LiquidityHintMgr().penalty(a, b, channel(2), amount_msat=20_000_000, policy=high_proportional)
+        self.assertEqual(default, hints.penalty(a, b, channel(2), amount_msat=20_000_000, policy=high_proportional))
+
+    def test_liquidity_hints_of_a_node_pair_override_an_older_success_of_a_parallel_channel(self):
+        hints = LiquidityHintMgr()
+        a, b = node('a'), node('b')
+        policy = (1000, 100, 40)
+        hints.update_can_send(a, b, channel(2), amount_msat=2_000_000, policy=policy)
+        hints.update_cannot_send(a, b, channel(1), amount_msat=1_000_000, policy=policy)
+        default = LiquidityHintMgr().penalty(a, b, channel(2), amount_msat=1_500_000, policy=policy)
+        self.assertEqual((1 + PAIR_FAILURE_PENALTY_FACTOR) * default,
+                         hints.penalty(a, b, channel(2), amount_msat=1_500_000, policy=policy))
+
+    def test_liquidity_hints_of_a_node_pair_expire(self):
+        hints = LiquidityHintMgr()
+        a, b = node('a'), node('b')
+        policy = (1000, 100, 40)
+        def default(amount_msat):
+            return LiquidityHintMgr().penalty(a, b, channel(2), amount_msat=amount_msat, policy=policy)
+        hints.update_cannot_send(a, b, channel(1), amount_msat=1_000_000, policy=policy)
+        self.assertEqual((1 + PAIR_FAILURE_PENALTY_FACTOR) * default(1_000_000),
+                         hints.penalty(a, b, channel(2), amount_msat=1_000_000, policy=policy))
+        later = int(time.time()) + HINT_DURATION + 1
+        with mock.patch('electrum.lnrouter.now', return_value=later):
+            self.assertEqual(default(1_000_000), hints.penalty(a, b, channel(2), amount_msat=1_000_000, policy=policy))
+            # an expired failure is replaced by a newer one, even of a larger amount
+            hints.update_cannot_send(a, b, channel(1), amount_msat=2_000_000, policy=policy)
+            self.assertEqual(default(1_500_000), hints.penalty(a, b, channel(2), amount_msat=1_500_000, policy=policy))
+            self.assertEqual((1 + PAIR_FAILURE_PENALTY_FACTOR) * default(2_000_000),
+                             hints.penalty(a, b, channel(2), amount_msat=2_000_000, policy=policy))
 
     def test_liquidity_hints_expiry(self):
         liquidity_hints = LiquidityHintMgr()
