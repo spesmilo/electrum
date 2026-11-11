@@ -48,7 +48,6 @@ info "Building $pkgname..."
             || fail "Could not configure $pkgname. Please make sure you have a C compiler installed and try again."
     fi
     make "-j$CPU_COUNT" || fail "Could not build $pkgname"
-    make install || warn "Could not install $pkgname"
     . "$here/$pkgname/libusb/.libs/libusb-1.0.la"
     host_strip "$here/$pkgname/libusb/.libs/$dlname"
     TARGET_NAME="$dlname"
