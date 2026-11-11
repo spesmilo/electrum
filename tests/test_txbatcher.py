@@ -371,6 +371,7 @@ class TestTxBatcher(ElectrumTestCase):
         output2 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 20_000)
         wallet.txbatcher.add_payment_output('default', output2)
         mine_tx(wallet, tx1)
+        # e.g. with coin control, which lists all our coins, held ones included
         coins = [c for c in wallet.get_utxos() if c.prevout.txid.hex() == tx1.txid()]
         other_tx = wallet.make_unsigned_transaction(
             coins=coins, outputs=[PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, '!')], fee_policy=FeePolicy('feerate:2000'))
@@ -506,6 +507,35 @@ class TestTxBatcher(ElectrumTestCase):
         self.assertIn(output1, tx2.outputs())
         self.assertIn(output2, tx2.outputs())
         self.assertEqual(SWAP_SWEEP_INFO.txin.prevout, tx2.inputs()[0].prevout)
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_held_coins_are_not_spendable(self, mock_save_db):
+        # the change of tx1, our base tx, mined or not, and then the change of tx1 as the parent
+        # of a new batch, are not offered to other spenders
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        await self._fund_wallet(wallet)
+        output1 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 10_000)
+        wallet.txbatcher.add_payment_output('default', output1)
+        batch = wallet.txbatcher.tx_batches['default']
+        await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        change = [TxOutpoint(bytes.fromhex(tx1.txid()), i) for i, o in enumerate(tx1.outputs()) if wallet.is_change(o.address)]
+        self.assertEqual(1, len(change))
+        self.assertNotIn(change[0], [c.prevout for c in wallet.get_spendable_coins()])
+        # tx1 is mined while o2 is pending: the new batch is chained to the change of tx1
+        output2 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 20_000)
+        wallet.txbatcher.add_payment_output('default', output2)
+        mine_tx(wallet, tx1)
+        # before the batch notices it
+        self.assertNotIn(change[0], [c.prevout for c in wallet.get_spendable_coins()])
+        await batch.find_base_tx()
+        self.assertEqual(change[0].to_str(), batch.storage['prevout'])
+        self.assertNotIn(change[0], [c.prevout for c in wallet.get_spendable_coins()])
+        await batch.run_iteration()
+        tx2 = await self.network.next_tx()
+        self.assertIn(output2, tx2.outputs())
+        self.assertIn(change[0], [txin.prevout for txin in tx2.inputs()])
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_rbf_batching__cannot_batch_as_would_need_to_use_ismine_outputs_of_basetx(self, mock_save_db):

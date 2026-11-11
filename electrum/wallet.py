@@ -1195,7 +1195,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             confirmed_funding_only=confirmed_only,
             nonlocal_only=nonlocal_only,
         )
-        utxos = [utxo for utxo in utxos if not self.is_frozen_coin(utxo) and utxo.prevout not in reserved_coins]
+        excluded_coins = reserved_coins | self.txbatcher.get_held_coins()
+        utxos = [utxo for utxo in utxos if not self.is_frozen_coin(utxo) and utxo.prevout not in excluded_coins]
         return utxos
 
     def get_prevout_utxo(self, prevout: TxOutpoint) -> Optional[PartialTxInput]:

@@ -140,6 +140,13 @@ class TxBatcher(Logger):
         self.storage.pop(key)
         self.tx_batches.pop(key)
 
+    def get_held_coins(self) -> Set[TxOutpoint]:
+        """Coins that our batches depend on: they must not be spent by others."""
+        coins = set()
+        for batch in list(self.tx_batches.values()):
+            coins |= batch.get_held_coins()
+        return coins
+
     def find_batch_by_tx(self, tx: Transaction) -> Optional['TxBatch']:
         """The batch whose _prevout tx spends."""
         prevouts = set(txin.prevout.to_str() for txin in tx.inputs())
@@ -273,6 +280,17 @@ class TxBatch(Logger):
     def is_mine(self, txid: str) -> bool:
         return txid in self._batch_txids
 
+    def get_held_coins(self) -> Set[TxOutpoint]:
+        """The change of our txs, unless the batch has a sweep of its own, and of the parent tx."""
+        adb = self.wallet.adb
+        coins = {TxOutpoint.from_str(self._prevout)} if self._get_parent_txid() else set()
+        if any(not s.can_be_batched for s in list(self.batch_inputs.values())):
+            return coins  # no payment is ever added: its change can fund other sweeps, e.g. htlc txs
+        for txid in self._batch_txids:
+            if tx := adb.get_transaction(txid):
+                coins |= {TxOutpoint(bytes.fromhex(txid), i) for i, o in enumerate(tx.outputs()) if self.wallet.is_change(o.address)}
+        return coins
+
     @locked
     def add_payment_output(self, output: 'PartialTxOutput') -> None:
         # todo: maybe we should raise NotEnoughFunds here
@@ -321,7 +339,7 @@ class TxBatch(Logger):
     @locked
     def _to_pay_after(self, tx: Optional[PartialTransaction]) -> Sequence[PartialTxOutput]:
         if not tx:
-            return self.batch_payments
+            return list(self.batch_payments)
         # note: the below is equivalent to
         #   to_pay = multiset(self.batch_payments) - multiset(tx.outputs())
         to_pay = []
