@@ -53,6 +53,13 @@ DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH = 100  # how much relative fee we apply f
 HINT_DURATION = 3600  # how long (in seconds) a liquidity hint remains valid
 # a parallel channel of a node pair that failed to forward an amount gets this many times the default penalty
 PAIR_FAILURE_PENALTY_FACTOR = 10
+# When this many different nodes failed to forward an amount to the same node, its inbound liquidity is
+# probably drained (e.g. it receives a lot of payments), and its other incoming channels get this many
+# times the default penalty. For a node that every path goes through, such as the destination, this
+# does not change which path is preferred, as every path gets it once.
+NODE_FAILURE_MIN_SENDERS = 3
+NODE_FAILURE_PENALTY_FACTOR = 10
+_NO_NODE_FAILURES = (0, {})  # read only
 
 
 def penalty_base_msat(amount_msat: int) -> int:
@@ -362,6 +369,9 @@ class LiquidityHintMgr:
         # channels between the two that are not more expensive than the failed one will likely not help either.
         # (node_from, node_to) -> (smallest amount that failed, policy of the channel that failed)
         self._pair_cannot_send: Dict[Tuple[bytes, bytes], Tuple[LiquidAmount, EdgePolicy]] = {}
+        # node_to -> (newest timestamp, {node_from: smallest amount that failed}). The values are replaced,
+        # not changed, as penalty() reads them without the lock.
+        self._node_cannot_receive: Dict[bytes, Tuple[int, Dict[bytes, LiquidAmount]]] = {}
 
     @with_lock
     def get_hint(self, channel_id: ShortChannelID) -> LiquidityHint:
@@ -386,6 +396,11 @@ class LiquidityHintMgr:
             if failed_amount.amount_msat <= amount_msat and (
                     policy is None or is_policy_not_more_expensive(policy, failed_policy, amount_msat=amount_msat)):
                 del self._pair_cannot_send[(node_from, node_to)]
+        # a forward to node_to shows it can receive that amount
+        _, node_failures = self._node_cannot_receive.get(node_to, (0, {}))
+        if node_failures:
+            self._set_node_failures(
+                node_to, {n: failed for n, failed in node_failures.items() if failed.amount_msat > amount_msat})
 
     @with_lock
     def update_cannot_send(
@@ -394,12 +409,26 @@ class LiquidityHintMgr:
     ) -> None:
         hint = self.get_hint(channel_id)
         hint.update_cannot_send(node_from < node_to, amount_msat=amount_msat)
+        _, node_failures = self._node_cannot_receive.get(node_to, (0, {}))
+        failed = node_failures.get(node_from)
+        if failed is None or failed.is_invalid() or amount_msat <= failed.amount_msat:
+            node_failures = {**node_failures, node_from: LiquidAmount.from_amount(amount_msat)}
+        self._set_node_failures(node_to, node_failures)
         if policy is None:
             return
         pair_cannot_send = self._pair_cannot_send.get((node_from, node_to))
         if (pair_cannot_send is None or pair_cannot_send[0].is_invalid()
                 or amount_msat <= pair_cannot_send[0].amount_msat):
             self._pair_cannot_send[(node_from, node_to)] = (LiquidAmount.from_amount(amount_msat), policy)
+
+    def _set_node_failures(self, node_to: bytes, node_failures: Dict[bytes, LiquidAmount]) -> None:
+        # expired failures are dropped here, so that penalty() does not go through them
+        node_failures = {n: failed for n, failed in node_failures.items() if not failed.is_invalid()}
+        if node_failures:
+            newest_ts = max(failed.timestamp for failed in node_failures.values())
+            self._node_cannot_receive[node_to] = (newest_ts, node_failures)
+        else:
+            self._node_cannot_receive.pop(node_to, None)
 
     @with_lock
     def add_htlc(self, node_from: bytes, node_to: bytes, channel_id: ShortChannelID):
@@ -467,6 +496,16 @@ class LiquidityHintMgr:
             failed_amount, failed_policy = pair_cannot_send
             pair_failed = (amount_msat >= failed_amount.amount_msat and not failed_amount.is_invalid()
                            and is_policy_not_more_expensive(policy, failed_policy, amount_msat=amount_msat))
+        node_failed = False
+        newest_ts, node_failures = self._node_cannot_receive.get(node_to, _NO_NODE_FAILURES)
+        if len(node_failures) >= NODE_FAILURE_MIN_SENDERS and now() - newest_ts <= HINT_DURATION:
+            num_failed = 0
+            for failed in node_failures.values():
+                if amount_msat >= failed.amount_msat and not failed.is_invalid():
+                    num_failed += 1
+                    if num_failed == NODE_FAILURE_MIN_SENDERS:
+                        node_failed = True
+                        break
         # below known liquidity interval: free
         if can_send is not None and amount_msat <= can_send and not pair_failed:
             return 0
@@ -479,6 +518,8 @@ class LiquidityHintMgr:
                 likely_cannotsend_factor = 2
         if pair_failed:
             likely_cannotsend_factor += PAIR_FAILURE_PENALTY_FACTOR
+        if node_failed:
+            likely_cannotsend_factor += NODE_FAILURE_PENALTY_FACTOR
         success_fee = fee_for_edge_msat(amount_msat, penalty_base_msat(amount_msat), DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH)
         return success_fee * (1 + num_inflight_htlcs + likely_cannotsend_factor)
 
@@ -489,6 +530,7 @@ class LiquidityHintMgr:
             v._inflight_htlcs_forward = 0
             v._inflight_htlcs_backward = 0
         self._pair_cannot_send = {}
+        self._node_cannot_receive = {}
 
     def __repr__(self):
         string = "liquidity hints:\n"
@@ -497,6 +539,8 @@ class LiquidityHintMgr:
                 string += f"{k}: {v}\n"
         for (node_from, node_to), (amount, policy) in self._pair_cannot_send.items():
             string += f"{node_from.hex()[:10]} -> {node_to.hex()[:10]}: cannot send {amount}, {policy}\n"
+        for node_to, (_, failures) in self._node_cannot_receive.items():
+            string += f"-> {node_to.hex()[:10]}: cannot receive from {len(failures)} nodes\n"
         return string
 
 
