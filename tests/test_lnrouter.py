@@ -702,6 +702,24 @@ class Test_LNRouter(ElectrumTestCase):
         path = self.path_finder.find_path_for_payment(nodeA=sender, nodeB=dest, invoice_amount_msat=13_000_000)
         self.assertEqual([channel(31), channel(32)], [edge.short_channel_id for edge in path])
 
+    async def test_find_path_with_a_higher_penalty_weight_prefers_fewer_channels(self):
+        # 20k sat: the penalty is 7 sat per channel of unknown liquidity
+        o, p, a, b, w = node('o'), node('p'), node('a'), node('b'), node('w')
+        free = (0, 0, 10)
+        self._make_graph([
+            (31, o, p, free, free),
+            (32, p, w, (20_000, 0, 10), free),  # 20 sat, two channels less
+            (33, p, a, free, free),
+            (34, a, b, free, free),
+            (35, b, w, free, free),
+        ])
+        def find(penalty_weight):
+            path = self.path_finder.find_path_for_payment(
+                nodeA=o, nodeB=w, invoice_amount_msat=20_000_000, penalty_weight=penalty_weight)
+            return [edge.short_channel_id for edge in path]
+        self.assertEqual([channel(n) for n in (31, 33, 34, 35)], find(1))
+        self.assertEqual([channel(n) for n in (31, 32)], find(3))
+
     async def test_find_path_hop_penalty_is_small_for_small_amounts(self):
         # for a small payment, the cost of an extra hop must stay small compared to the fees
         sender, p, q, a1, a2, a3, dest = node('o'), node('p'), node('q'), node('r'), node('s'), node('t'), node('w')

@@ -969,6 +969,8 @@ class PaySession(Logger):
 
     # how long we wait for another htlc to resolve after receiving a failure for one sent htlc.
     TIMEOUT_WAIT_FOR_NEXT_RESOLVED_HTLC = 0.5
+    FAILED_HTLCS_PER_PENALTY_WEIGHT = 10  # the weight grows by 1 every this many failed htlcs
+    MAX_PENALTY_WEIGHT = 10
 
     def __init__(
             self,
@@ -1007,6 +1009,7 @@ class PaySession(Logger):
 
         self._amount_inflight = 0  # what we sent in htlcs (that receiver gets, without fees)
         self._nhtlcs_inflight = 0
+        self.num_failed_htlcs = 0
         self.is_active = True  # is still trying to send new htlcs?
 
     def diagnostic_name(self):
@@ -1016,6 +1019,14 @@ class PaySession(Logger):
     @property
     def number_htlcs_inflight(self) -> int:
         return self._nhtlcs_inflight
+
+    def penalty_weight(self) -> float:
+        """Weight of the path finding costs other than fees, i.e. mostly the penalties for unknown liquidity.
+        When cheap paths keep failing, prefer paths with fewer channels of unknown liquidity, even if they
+        cost more: the weight grows by 1 every FAILED_HTLCS_PER_PENALTY_WEIGHT failed htlcs of the payment
+        (each part of a multi-part payment counts). The fee budget still applies.
+        """
+        return min(1 + self.num_failed_htlcs / self.FAILED_HTLCS_PER_PENALTY_WEIGHT, self.MAX_PENALTY_WEIGHT)
 
     def maybe_raise_trampoline_fee(self, htlc_log: HtlcLog):
         if htlc_log.trampoline_fee_level == self.trampoline_fee_level:
@@ -1067,6 +1078,8 @@ class PaySession(Logger):
         htlc_log = await self.sent_htlcs_q.get()
         self._amount_inflight -= htlc_log.amount_msat
         self._nhtlcs_inflight -= 1
+        if not htlc_log.success:
+            self.num_failed_htlcs += 1
         if self._amount_inflight < 0 or self._nhtlcs_inflight < 0:
             raise Exception(f"amount_inflight={self._amount_inflight}, nhtlcs_inflight={self._nhtlcs_inflight}. both should be >= 0 !")
         return htlc_log
@@ -2665,6 +2678,10 @@ class LNWallet(Logger):
         trampoline_features = LnFeatures.VAR_ONION_OPT
         local_height = self.wallet.adb.get_local_height()
         fee_related_error = None  # type: Optional[FeeBudgetExceeded]
+        if not paysession.uses_trampoline and paysession.penalty_weight() != 1:
+            self.logger.info(
+                f"path finding with the penalties weighted {paysession.penalty_weight()}, "
+                f"after {paysession.num_failed_htlcs} failed htlcs")
         if channels:
             my_active_channels = channels
         else:
@@ -2794,6 +2811,7 @@ class LNWallet(Logger):
                                         my_sending_channels=[channel] if is_mpp else my_active_channels,
                                         full_path=full_path,
                                         max_fee_msat=part_budget.fee_msat,
+                                        penalty_weight=paysession.penalty_weight(),
                                     ))
                                 if not is_route_within_budget(
                                         route, budget=part_budget,
@@ -2866,6 +2884,7 @@ class LNWallet(Logger):
             my_sending_channels: List[Channel],
             full_path: Optional[LNPaymentPath],
             max_fee_msat: Optional[int] = None,  # fee budget of the route
+            penalty_weight: float = 1,  # of the costs other than fees, see PaySession.penalty_weight
     ) -> LNPaymentRoute:
 
         my_sending_aliases = set(chan.get_local_scid_alias() for chan in my_sending_channels)
@@ -2924,7 +2943,7 @@ class LNWallet(Logger):
             private_route_edges=private_route_edges)
         search_info = {}
         try:
-            route = find_route(max_fee_msat=max_fee_msat, search_info=search_info)
+            route = find_route(max_fee_msat=max_fee_msat, penalty_weight=penalty_weight, search_info=search_info)
             if not route and search_info.get('budget_pruned'):
                 # (if the budget left no path out, there is none at all)
                 # Path finding keeps one path per node, so it can miss a path within the budget
@@ -2937,8 +2956,9 @@ class LNWallet(Logger):
                 route = find_route(penalty_weight=0)
                 if route and _route_fee_msat(route, amount_msat) <= max_fee_msat:
                     # there is one: prefer a path that still takes the penalties into account
-                    self.logger.info("it is within the budget. looking again with the penalties weighted 0.25")
-                    route = find_route(max_fee_msat=max_fee_msat, penalty_weight=0.25) or route
+                    lower_weight = 0.25 * penalty_weight
+                    self.logger.info(f"it is within the budget. looking again with the penalties weighted {lower_weight}")
+                    route = find_route(max_fee_msat=max_fee_msat, penalty_weight=lower_weight) or route
         except NoChannelPolicy as e:
             raise NoPathFound() from e
         if not route:

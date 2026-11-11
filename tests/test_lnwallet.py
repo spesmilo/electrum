@@ -24,6 +24,7 @@ from electrum.lnutil import (
 from electrum.logging import console_stderr_handler
 from electrum.lnmsg import decode_msg
 from electrum.lnrouter import RouteEdge
+from electrum.lnworker import PaySession
 from electrum.bolt11 import encode_bolt11_invoice, BOLT11Addr
 from electrum.lntransport import LNPeerAddr
 from electrum.invoices import LN_EXPIRY_NEVER, PR_UNPAID, PR_INFLIGHT, Invoice
@@ -736,7 +737,7 @@ class TestLNWallet(ElectrumTestCase):
             self.assertEqual(1, len(routes))
             self.assertEqual([(10_000 * amount_to_pay // 1_000_000, 1)], max_fees)
 
-    async def _create_routes_with_route_hints(self, hops_after_x, *, carol_to_x_fee_msat, budget_msat):
+    async def _create_routes_with_route_hints(self, hops_after_x, *, carol_to_x_fee_msat, budget_msat, penalty_weight=1):
         """Route hints of the invoice: carol -> x, then the paths from x to dave given as
         lists of (node after x or None for dave, fee_base_msat) per hop.
         Returns the channels of the route after ours, and the path finding searches.
@@ -767,7 +768,8 @@ class TestLNWallet(ElectrumTestCase):
             searches.append((kwargs.get('max_fee_msat'), kwargs.get('penalty_weight', 1)))
             return orig(**kwargs)
         path_finder.find_route = wrapped
-        with mock.patch.object(BOLT11Addr, 'get_routing_info', lambda *args, **kwargs: r_tags):
+        with mock.patch.object(BOLT11Addr, 'get_routing_info', lambda *args, **kwargs: r_tags), \
+                mock.patch.object(PaySession, 'penalty_weight', lambda self: penalty_weight):
             routes = await alice_w.create_routes_from_invoice(amount_to_pay, decoded_invoice=lnaddr)
         self.assertEqual(1, len(routes))
         route = routes[0][0].route
@@ -784,6 +786,16 @@ class TestLNWallet(ElectrumTestCase):
             carol_to_x_fee_msat=30_000, budget_msat=32_000)
         self.assertEqual([60, 62, 63], channels)
         self.assertEqual([(32_000, 1), (None, 0), (32_000, 0.25)], searches)
+
+    async def test_route_within_the_fee_budget_found_with_lower_penalties_keeps_the_weight_of_the_payment(self):
+        # after 40 failed htlcs (weight 5), the search with lower penalties still prefers fewer channels:
+        # from x, over y (1 sat) rather than over p and q (0.7 sat)
+        y, p, q = (bytes([2]) + bytes([c]) * 32 for c in b'ypq')
+        channels, searches = await self._create_routes_with_route_hints(
+            [[(None, 2200)], [(y, 0), (None, 1000)], [(p, 0), (q, 0), (None, 700)]],
+            carol_to_x_fee_msat=30_000, budget_msat=32_000, penalty_weight=5)
+        self.assertEqual([60, 62, 63], channels)
+        self.assertEqual([(32_000, 5), (None, 0), (32_000, 1.25)], searches)
 
     async def test_route_within_the_fee_budget_with_the_lowest_fees_is_used_as_the_last_resort(self):
         # From x: to dave (2.1 sat), or over p and q (1.9 sat). Even with lower penalties, path finding
@@ -814,6 +826,45 @@ class TestLNWallet(ElectrumTestCase):
         self.assertTrue(searches)
         self.assertEqual({(amount_to_pay * 10_000 // 1_000_000, 1)}, set(searches))
 
+    def _paysession(self) -> PaySession:
+        return PaySession(
+            payment_hash=bytes(32), payment_secret=bytes(32), initial_trampoline_fee_level=0,
+            invoice_features=0, r_tags=[], min_final_cltv_delta=144, amount_to_pay=1_000_000,
+            invoice_pubkey=bytes(33), uses_trampoline=False)
+
+    def test_penalties_grow_with_the_failed_htlcs_of_a_payment(self):
+        # when cheap paths keep failing, paths with fewer channels of unknown liquidity get preferred
+        paysession = self._paysession()
+        for num_failed, weight in ((0, 1), (5, 1.5), (10, 2), (25, 3.5), (90, 10), (200, 10)):
+            paysession.num_failed_htlcs = num_failed
+            self.assertEqual(weight, paysession.penalty_weight())
+
+    async def test_paysession_counts_failed_htlcs(self):
+        paysession = self._paysession()
+        for success in (False, True, False):
+            paysession._amount_inflight += 1000
+            paysession._nhtlcs_inflight += 1
+            paysession.sent_htlcs_q.put_nowait(HtlcLog(success=success, amount_msat=1000))
+            await paysession.wait_for_one_htlc_to_resolve()
+        self.assertEqual(2, paysession.num_failed_htlcs)
+
+    async def test_path_finding_uses_the_penalty_weight_of_the_payment(self):
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice_w, dave_w = graph.workers['alice'], graph.workers['dave']
+        amount_to_pay = 100_000_000
+        lnaddr, _pay_req = lnhelpers.prepare_invoice(dave_w, include_routing_hints=True, amount_msat=amount_to_pay)
+        path_finder = alice_w.network.path_finder
+        orig = path_finder.find_route
+        weights = []
+        def wrapped(**kwargs):
+            weights.append(kwargs.get('penalty_weight', 1))
+            return orig(**kwargs)
+        path_finder.find_route = wrapped
+        with mock.patch.object(PaySession, 'penalty_weight', lambda self: 3):
+            routes = await alice_w.create_routes_from_invoice(amount_to_pay, decoded_invoice=lnaddr)
+        self.assertEqual(1, len(routes))
+        self.assertEqual([3], weights)
+
     async def test_mpp_parts_get_their_share_of_the_fee_budget_in_path_finding(self):
         graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
         alice_w, dave_w = graph.workers['alice'], graph.workers['dave']
@@ -826,15 +877,18 @@ class TestLNWallet(ElectrumTestCase):
         split_config = SplitConfig({(bob_chan.channel_id, bob_chan.node_id): [amount_to_pay // 2, amount_to_pay // 2]})
         alice_w.suggest_payment_splits = lambda **kwargs: [SplitConfigRating(config=split_config, rating=0)]
         orig = alice_w.create_route_for_single_htlc
-        max_fees = []
+        max_fees, weights = [], []
         def wrapped(**kwargs):
             max_fees.append(kwargs['max_fee_msat'])
+            weights.append(kwargs['penalty_weight'])
             return orig(**kwargs)
         alice_w.create_route_for_single_htlc = wrapped
-        routes = await alice_w.create_routes_from_invoice(amount_to_pay, decoded_invoice=lnaddr)
+        with mock.patch.object(PaySession, 'penalty_weight', lambda self: 3):
+            routes = await alice_w.create_routes_from_invoice(amount_to_pay, decoded_invoice=lnaddr)
         self.assertEqual(2, len(routes))
         budget_msat = amount_to_pay * 10_000 // 1_000_000
         self.assertEqual([budget_msat // 2, budget_msat // 2], max_fees)
+        self.assertEqual([3, 3], weights)  # the penalty weight of the payment, for every part
 
     async def test_mpp_parts_inflight_accounting_is_undone_on_failure(self):
         graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
