@@ -743,13 +743,19 @@ class TestLNWallet(ElectrumTestCase):
         chan_upd_raw = chan_bd.get_outgoing_gossip_channel_update()
         self.assertEqual(UpdateStatus.GOOD, alice_w.channel_db.add_channel_update(decode_msg(chan_upd_raw)[1], verify=False))
         self.assertEqual(UpdateStatus.DEPRECATED, alice_w.channel_db.add_channel_update(decode_msg(chan_upd_raw)[1], verify=False))
+        # the route used the parameters of that update, as it normally does
+        policy_bd = decode_msg(chan_upd_raw)[1]
         route = [
             RouteEdge(
                 start_node=graph.workers[a].node_keypair.pubkey,
                 end_node=graph.workers[b].node_keypair.pubkey,
                 short_channel_id=graph.channels[(a, b)][0].short_channel_id,
-                fee_base_msat=0, fee_proportional_millionths=0, cltv_delta=10, node_features=0,
-            ) for a, b in [('alice', 'bob'), ('bob', 'dave')]
+                fee_base_msat=policy['fee_base_msat'],
+                fee_proportional_millionths=policy['fee_proportional_millionths'],
+                cltv_delta=policy['cltv_expiry_delta'], node_features=0,
+            ) for (a, b), policy in [
+                (('alice', 'bob'), {'fee_base_msat': 0, 'fee_proportional_millionths': 0, 'cltv_expiry_delta': 10}),
+                (('bob', 'dave'), policy_bd)]
         ]
         failure_data = len(chan_upd_raw).to_bytes(2, 'big') + chan_upd_raw
         alice_w.handle_error_code_from_failed_htlc(
