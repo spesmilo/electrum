@@ -672,7 +672,11 @@ class LNGossip(Logger):
     CHANNEL_RANGE_NUM_PEERS = NUM_PEERS_TARGET
     CHANNEL_RANGE_MIN_PEER_COVERAGE = 0.9  # peers that do not know this share of our channels do not vote
     CHANNEL_RANGE_MIN_CHANNEL_AGE = 144  # blocks. a new channel might not have reached all peers yet
-    CHANNEL_RANGE_RECENT_POLICY_AGE = 24 * 3600  # a channel that got updated recently is likely alive
+    # A channel that got updated shortly before our newest policy is likely alive. Only a few hours, as
+    # channels often get updated shortly before they are closed, and peers forget them after 12 blocks.
+    CHANNEL_RANGE_RECENT_POLICY_AGE = 3 * 3600
+    # if our newest policy is older than this, we were offline for long, and we do not remove anything
+    CHANNEL_RANGE_FRESH_DB_AGE = 24 * 3600
     CHANNEL_RANGE_MAX_REMOVED_FRACTION = 0.1  # sanity check, against peers with a broken view
 
     def __init__(self, config: 'SimpleConfig'):
@@ -693,6 +697,7 @@ class LNGossip(Logger):
         self._channel_range_counts = None  # type: Optional[Dict[ShortChannelID, int]]
         self._channel_range_max_height = 0  # type: int
         self._channel_range_db_is_fresh = False  # type: bool
+        self._channel_range_recent_ts = 0  # type: int
         self._channel_range_peers = set()  # type: Set[bytes]
         self._channel_range_done = False  # type: bool
         self._forwarding_gossip_lock = asyncio.Lock()
@@ -777,7 +782,7 @@ class LNGossip(Logger):
         if not self._gossip_backlog_ts_is_set:
             # only look at this once: gossip from the first peer must not move the start for the next one
             self._gossip_backlog_ts_is_set = True
-            self._gossip_backlog_latest_ts = self.channel_db.get_latest_policy_timestamp()
+            self._gossip_backlog_latest_ts = self.channel_db.latest_policy_ts_at_load
         latest_ts = self._gossip_backlog_latest_ts
         if latest_ts is None:
             return now  # no policies: the channels get queried in full, as they are not known
@@ -790,17 +795,20 @@ class LNGossip(Logger):
         """Removes the channels listed by fewer than a majority of the first few peers of this session.
 
         The decision is taken only once per session, so that further peers do not move the bar.
-        Only channels we already know of when the first reply arrives are considered, and nothing
-        gets removed if we were offline for long, as then recent updates cannot protect live channels.
+        Only channels we already know of when the first reply arrives are considered. Channels updated
+        shortly before our newest policy are kept, and nothing gets removed if we were offline for long.
         """
         if self._channel_range_done or peer_node_id in self._channel_range_peers:
             return
         if self._channel_range_counts is None:
             self._channel_range_counts = {scid: 0 for scid in self.channel_db.get_channel_ids()}
             self._channel_range_max_height = self.network.get_local_height() - self.CHANNEL_RANGE_MIN_CHANNEL_AGE
-            latest_ts = self.channel_db.get_latest_policy_timestamp()
+            latest_ts = self.channel_db.latest_policy_ts_at_load
             self._channel_range_db_is_fresh = (
-                latest_ts is not None and latest_ts > int(time.time()) - self.CHANNEL_RANGE_RECENT_POLICY_AGE)
+                latest_ts is not None and latest_ts > int(time.time()) - self.CHANNEL_RANGE_FRESH_DB_AGE)
+            # relative to our newest policy when the db was loaded, before gossip or failed payments
+            # of this session could add newer ones
+            self._channel_range_recent_ts = (latest_ts or 0) - self.CHANNEL_RANGE_RECENT_POLICY_AGE
         counts = self._channel_range_counts
         ids = set(ids)
         listed = [short_channel_id for short_channel_id in counts if short_channel_id in ids]
@@ -817,7 +825,7 @@ class LNGossip(Logger):
         if not self._channel_range_db_is_fresh:
             return
         majority = self.CHANNEL_RANGE_NUM_PEERS // 2 + 1
-        recent_ts = int(time.time()) - self.CHANNEL_RANGE_RECENT_POLICY_AGE
+        recent_ts = self._channel_range_recent_ts
         absent = {
             short_channel_id for short_channel_id, count in counts.items()
             if count < majority

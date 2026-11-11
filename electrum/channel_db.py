@@ -425,6 +425,8 @@ class ChannelDB(SqlDB):
         self.fwd_node_announcements = []  # type: List[GossipForwardingMessage]
 
         self.data_loaded = asyncio.Event()
+        # the newest policy before this session added any, i.e. about when we were last online
+        self.latest_policy_ts_at_load = None  # type: Optional[int]
         self.network = network # only for callback
 
     @classmethod
@@ -980,6 +982,7 @@ class ChannelDB(SqlDB):
         self.logger.info(f'data loaded. {len(self._channels)} chans. {len(self._policies)} policies. '
                          f'{len(self._channels_for_node)} nodes.')
         self.update_counts()
+        self.latest_policy_ts_at_load = self.get_latest_policy_timestamp()
         (nchans_with_0p, nchans_with_1p, nchans_with_2p) = self.get_num_channels_partitioned_by_policy_count()
         self.logger.info(f'num_channels_partitioned_by_policy_count. '
                          f'0p: {nchans_with_0p}, 1p: {nchans_with_1p}, 2p: {nchans_with_2p}')

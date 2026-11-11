@@ -22,6 +22,7 @@ from electrum.simple_config import SimpleConfig
 from electrum.lnpeer import Peer
 from electrum.sql_db import sql
 from electrum.lnworker import LNGossip
+from electrum.lnmsg import encode_msg
 from electrum.lnrouter import (PathEdge, LiquidityHintMgr, DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH,
                                DEFAULT_PENALTY_BASE_MSAT, fee_for_edge_msat, LNPaymentTRoute, TrampolineEdge,
                                HINT_DURATION)
@@ -54,7 +55,7 @@ class TestGossipBacklog(ElectrumTestCase):
     def _lngossip(self, *, latest_ts: Optional[int]):
         return mock.Mock(
             spec=LNGossip,
-            channel_db=mock.Mock(get_latest_policy_timestamp=lambda: latest_ts),
+            channel_db=mock.Mock(latest_policy_ts_at_load=latest_ts),
             max_age=LNGossip.max_age,
             GOSSIP_BACKLOG_MARGIN=LNGossip.GOSSIP_BACKLOG_MARGIN,
             GOSSIP_BACKLOG_NUM_PEERS=LNGossip.GOSSIP_BACKLOG_NUM_PEERS,
@@ -130,13 +131,12 @@ class TestGossipBacklog(ElectrumTestCase):
     def test_backlog_start_does_not_move_within_session(self):
         now = 1_800_000_000
         downtime_start = now - 12 * 3600
-        latest_ts = [downtime_start]
-        g = self._lngossip(latest_ts=None)
-        g.channel_db.get_latest_policy_timestamp = lambda: latest_ts[0]
+        g = self._lngossip(latest_ts=downtime_start)
+        # gossip received from the first peer, or the update of a failed payment, is newer
+        g.channel_db.get_latest_policy_timestamp = lambda: now
         expected = downtime_start - LNGossip.GOSSIP_BACKLOG_MARGIN
         with mock.patch('time.time', return_value=now):
             self.assertEqual(expected, LNGossip.get_gossip_timestamp_filter_start(g))
-            latest_ts[0] = now  # gossip received from the first peer
             self.assertEqual(expected, LNGossip.get_gossip_timestamp_filter_start(g))
 
     def test_backlog_is_not_older_than_max_age(self):
@@ -154,18 +154,24 @@ class TestChannelRangeMajority(ElectrumTestCase):
     def _scid(self, n: int, *, height: int = OLD_HEIGHT) -> ShortChannelID:
         return ShortChannelID.from_components(height, n, 0)
 
-    def _lngossip(self, known, *, local_height: int = 1000, recently_updated=(), latest_policy_ts=None):
+    def _lngossip(self, known, *, local_height: int = 1000, recently_updated=(), latest_policy_ts=None,
+                  policy_timestamps=None):
         removed = []
         if latest_policy_ts is None:
             latest_policy_ts = int(time.time())
+        if policy_timestamps is not None:
+            has_policy_newer_than = lambda scid, ts: policy_timestamps.get(scid, 0) > ts
+        else:
+            has_policy_newer_than = lambda scid, ts: scid in recently_updated
         g = mock.Mock(
             spec=LNGossip,
             logger=mock.Mock(),
             channel_db=mock.Mock(
                 get_channel_ids=lambda: set(known),
                 remove_channels_absent_from_peers=removed.extend,
-                has_policy_newer_than=lambda scid, ts: scid in recently_updated,
+                has_policy_newer_than=has_policy_newer_than,
                 get_latest_policy_timestamp=lambda: latest_policy_ts,
+                latest_policy_ts_at_load=latest_policy_ts,
             ),
             network=mock.Mock(get_local_height=lambda: local_height),
             CHANNEL_RANGE_NUM_PEERS=LNGossip.CHANNEL_RANGE_NUM_PEERS,
@@ -173,7 +179,9 @@ class TestChannelRangeMajority(ElectrumTestCase):
             CHANNEL_RANGE_MAX_REMOVED_FRACTION=LNGossip.CHANNEL_RANGE_MAX_REMOVED_FRACTION,
             CHANNEL_RANGE_MIN_CHANNEL_AGE=LNGossip.CHANNEL_RANGE_MIN_CHANNEL_AGE,
             CHANNEL_RANGE_RECENT_POLICY_AGE=LNGossip.CHANNEL_RANGE_RECENT_POLICY_AGE,
+            CHANNEL_RANGE_FRESH_DB_AGE=LNGossip.CHANNEL_RANGE_FRESH_DB_AGE,
             _channel_range_counts=None,
+            _channel_range_recent_ts=0,
             _channel_range_max_height=0,
             _channel_range_db_is_fresh=False,
             _channel_range_peers=set(),
@@ -255,10 +263,38 @@ class TestChannelRangeMajority(ElectrumTestCase):
         await self._report(g, [(bytes([i]), scids[2:]) for i in range(self.NUM_PEERS)])
         self.assertEqual([scids[1]], removed)
 
+    async def test_channels_updated_shortly_before_our_newest_policy_are_not_removed(self):
+        # we were offline for 8 hours: what counts as recent is relative to our newest policy.
+        # A channel often gets updated shortly before it is closed, so this is a few hours only.
+        now = int(time.time())
+        latest = now - 8 * 3600
+        scids = [self._scid(n) for n in range(30)]
+        policy_timestamps = {scid: latest - 3600 for scid in scids}
+        policy_timestamps[scids[0]] = latest - LNGossip.CHANNEL_RANGE_RECENT_POLICY_AGE + 600
+        policy_timestamps[scids[1]] = latest - LNGossip.CHANNEL_RANGE_RECENT_POLICY_AGE - 600
+        g, removed = self._lngossip(scids, latest_policy_ts=latest, policy_timestamps=policy_timestamps)
+        await self._report(g, [(bytes([i]), scids[2:]) for i in range(self.NUM_PEERS)])
+        self.assertEqual([scids[1]], removed)
+        self.assertEqual(3 * 3600, LNGossip.CHANNEL_RANGE_RECENT_POLICY_AGE)
+        self.assertEqual(24 * 3600, LNGossip.CHANNEL_RANGE_FRESH_DB_AGE)
+
+    async def test_updates_of_this_session_do_not_move_what_counts_as_recent(self):
+        # e.g. the channel_update of a payment that failed before the first reply of a peer
+        now = int(time.time())
+        last_online = now - 8 * 3600
+        scids = [self._scid(n) for n in range(30)]
+        policy_timestamps = {scid: last_online - 3600 for scid in scids}
+        policy_timestamps[scids[0]] = last_online - 2 * 3600
+        g, removed = self._lngossip(scids, latest_policy_ts=last_online, policy_timestamps=policy_timestamps)
+        policy_timestamps[scids[5]] = now - 60
+        g.channel_db.get_latest_policy_timestamp = lambda: now
+        await self._report(g, [(bytes([i]), scids[1:]) for i in range(self.NUM_PEERS)])
+        self.assertEqual([], removed)
+
     async def test_nothing_is_removed_if_our_db_is_outdated(self):
         # after downtime every policy is old, so recent updates cannot protect live channels
         scids = [self._scid(n) for n in range(30)]
-        latest = int(time.time()) - LNGossip.CHANNEL_RANGE_RECENT_POLICY_AGE - 3600
+        latest = int(time.time()) - LNGossip.CHANNEL_RANGE_FRESH_DB_AGE - 3600
         g, removed = self._lngossip(scids, latest_policy_ts=latest)
         await self._report(g, [(bytes([i]), scids[1:]) for i in range(self.NUM_PEERS)])
         self.assertEqual([], removed)
@@ -548,6 +584,41 @@ class Test_LNRouter(ElectrumTestCase):
         self.assertTrue(self.cdb.has_policy_newer_than(channel(1), 500))
         self.assertFalse(self.cdb.has_policy_newer_than(channel(1), 1000))
         self.assertFalse(self.cdb.has_policy_newer_than(channel(999), 0))
+
+    async def test_latest_policy_timestamp_at_load(self):
+        class fake_network:
+            config = self.config
+            asyncio_loop = util.get_asyncio_loop()
+            trigger_callback = lambda *args: None
+            register_callback = lambda *args: None
+            interface = None
+        def add_channel(cdb, number, timestamp):
+            n1, n2 = sorted([node('a'), node('b')])
+            cdb.add_channel_announcements({
+                'node_id_1': n1, 'node_id_2': n2, 'bitcoin_key_1': n1, 'bitcoin_key_2': n2,
+                'short_channel_id': channel(number), 'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
+                'len': 0, 'features': b''}, trusted=True)
+            update = {
+                'short_channel_id': channel(number), 'message_flags': b'\x00', 'channel_flags': b'\x00',
+                'cltv_expiry_delta': 40, 'htlc_minimum_msat': 1, 'fee_base_msat': 0,
+                'fee_proportional_millionths': 0, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
+                'timestamp': timestamp}
+            update['raw'] = encode_msg('channel_update', signature=bytes(64), **update)  # saved to disk
+            cdb.add_channel_update(update, verify=False)
+        cdb = lnrouter.ChannelDB(fake_network())
+        cdb.data_loaded.set()
+        add_channel(cdb, 1, 1_700_000_000)
+        add_channel(cdb, 2, 1_700_001_000)
+        await cdb.load_data()  # returns at once, as loaded; the writes queued before it are done then
+        cdb.stop()
+        await cdb.stopped_event.wait()
+        self.cdb = lnrouter.ChannelDB(fake_network())
+        self.assertIsNone(self.cdb.latest_policy_ts_at_load)
+        await self.cdb.load_data()
+        self.assertEqual(1_700_001_000, self.cdb.latest_policy_ts_at_load)
+        add_channel(self.cdb, 3, 1_700_002_000)
+        self.assertEqual(1_700_002_000, self.cdb.get_latest_policy_timestamp())
+        self.assertEqual(1_700_001_000, self.cdb.latest_policy_ts_at_load)
 
     async def test_get_latest_policy_timestamp(self):
         self.prepare_graph()
