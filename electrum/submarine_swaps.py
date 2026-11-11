@@ -687,14 +687,13 @@ class SwapManager(Logger):
         name = 'swap claim' if swap.is_reverse else 'swap refund'
         # don't attempt to claim too close to the locktime to avoid rbf race against counterparty refund tx
         expiry = swap.locktime - MIN_LOCKTIME_DELTA_FOR_CLAIM if swap.is_reverse and public_preimage is None else None
-        can_be_batched = True
         sweep_info = SweepInfo(
             txin=txin,
             our_cltv_abs=locktime,
             their_cltv_abs=swap.locktime if swap.is_reverse else 0,
             txout=None,
             name=name,
-            can_be_batched=can_be_batched,
+            can_be_batched=False,  # both parties can spend
             dust_override=False,
             expiry_height=expiry,
         )

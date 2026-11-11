@@ -593,7 +593,7 @@ class TestSwapClaim(ToyServerTestCase):
 
         await self.restart_txbatcher()
         await self.sm._claim_swap(swap)
-        batch = self.wallet.txbatcher.tx_batches['swaps']
+        batch = self.wallet.txbatcher.tx_batches[swap._funding_prevout.to_str()]
         self.assertIn(swap._funding_prevout, batch.batch_inputs)
 
         # with the sweep info back, the claim tx can still be replaced, e.g. to bump its fee
