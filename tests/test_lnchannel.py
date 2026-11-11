@@ -42,6 +42,8 @@ from electrum.lnutil import (
 )
 from electrum.logging import console_stderr_handler
 from electrum.lnchannel import ChannelState, Channel
+from electrum.lnworker import PaymentInfo
+from electrum.invoices import PR_PAID, PR_UNPAID, PR_INFLIGHT, LN_EXPIRY_NEVER
 from electrum.util import TxMinedInfo
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
 from electrum.lnsweep import SweepInfo
@@ -915,6 +917,36 @@ class TestChannel(ElectrumTestCase):
         self.assertEqual({}, self.alice_channel.get_payments(status='inflight', direction=RECEIVED))
         self.assertIn(phash, self.bob_channel.get_payments(status='inflight', direction=RECEIVED))
         self.assertEqual({}, self.bob_channel.get_payments(status='inflight', direction=SENT))
+
+    async def test_htlcs_failed_and_fulfilled_by_same_revocation(self):
+        """Bob fails one htlc of a payment and fulfills another one, using a single commitment_signed.
+        Alice must see the payment as paid, without seeing it as failed first.
+        """
+        alice_channel, bob_channel, lnworker = self.alice_channel, self.bob_channel, self.alice_lnwallet
+        lnworker._add_channel(alice_channel)
+        payment_hash = self.htlc.payment_hash
+        htlc2 = alice_channel.add_htlc(dataclasses.replace(self.htlc, htlc_id=None))  # second part of the payment
+        bob_channel.receive_htlc(htlc2)
+        force_state_transition(alice_channel, bob_channel)
+        info = PaymentInfo(
+            payment_hash=payment_hash,
+            amount_msat=2 * self.htlc.amount_msat,
+            direction=SENT,
+            status=PR_UNPAID,
+            min_final_cltv_delta=lnutil.MIN_FINAL_CLTV_DELTA_ACCEPTED,
+            expiry_delay=LN_EXPIRY_NEVER,
+            invoice_features=lnutil.LnFeatures(0),
+        )
+        lnworker.save_payment_info(info)
+        lnworker.set_invoice_status(payment_hash.hex(), PR_INFLIGHT)
+        # bob fails one htlc and settles the other one
+        bob_channel.fail_htlc(self.bobHtlcIndex)
+        alice_channel.receive_fail_htlc(self.aliceHtlcIndex, error_bytes=None)
+        bob_channel.settle_htlc(self.paymentPreimage, htlc2.htlc_id)
+        alice_channel.receive_htlc_settle(self.paymentPreimage, htlc2.htlc_id)
+        with mock.patch.object(lnworker, 'set_invoice_status', wraps=lnworker.set_invoice_status) as set_invoice_status:
+            force_state_transition(bob_channel, alice_channel)
+        set_invoice_status.assert_called_once_with(payment_hash.hex(), PR_PAID)
 
     def test_check_against_config(self):
         """Keys re-derived from our secrets must match the pubkeys in our config."""
