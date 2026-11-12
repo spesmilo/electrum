@@ -536,6 +536,12 @@ class TxBatch(Logger):
         to_sweep_now = []  # type: list[SweepInfo]
         for k, v in to_sweep.items():
             can_broadcast, wanted_height = self._can_broadcast(v, base_tx)
+            if can_broadcast and self.is_dust(v):
+                # fees rose since it was added: lnwatcher adds it again once it is worth sweeping
+                self.logger.info(f'dropping {v.name}: dust at current fees')
+                self.batch_inputs.pop(k)
+                self._unconfirmed_sweeps.discard(k)
+                continue
             if can_broadcast:
                 to_sweep_now.append(v)
             else:
@@ -607,6 +613,7 @@ class TxBatch(Logger):
             locktime=locktime,
             BIP69_sort=False,
             merge_duplicate_outputs=False,
+            require_change=True,  # a new batch can be chained to it
         )
         # this assert will fail if we merge duplicate outputs
         for o in outputs: assert o in tx.outputs()
@@ -633,12 +640,8 @@ class TxBatch(Logger):
     def _new_base_tx(self, tx: PartialTransaction) -> None:
         self._prevout = tx.inputs()[0].prevout.to_str()
         self.storage['prevout'] = self._prevout
-        if tx.has_change():
-            self._batch_txids.append(tx.txid())
-            self._base_tx = tx
-        else:
-            self.logger.info(f'starting new batch because current base tx does not have change')
-            self._start_new_batch(tx)
+        self._batch_txids.append(tx.txid())
+        self._base_tx = tx
 
     def _create_inputs_from_tx_change(
             self, parent_tx: PartialTransaction, base_tx: Optional[PartialTransaction],

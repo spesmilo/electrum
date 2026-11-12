@@ -10,7 +10,8 @@ from electrum import keystore, wallet, lnutil
 from electrum import SimpleConfig
 from electrum import util
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
-from electrum.transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput, TxOutpoint
+from electrum.transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput, TxOutpoint, TxInput
+from electrum.bitcoin import construct_witness
 from electrum.logging import console_stderr_handler, Logger
 from electrum.interface import TxBroadcastServerReturnedError, RequestTimedOut
 from electrum.submarine_swaps import SwapManager, SwapData
@@ -19,8 +20,15 @@ from electrum.fee_policy import FeeTimeEstimates, FeePolicy
 
 from . import ElectrumTestCase
 from .test_wallet_vertical import WalletIntegrityHelper, read_test_vector
+from .test_address_synchronizer import make_tx
 
 WALLET_DATA = read_test_vector('cause_carbon_wallet.json')
+
+
+def make_funding_tx(addr: str, value: int) -> Transaction:
+    """A parent paying to addr. Its own input is not ours, so it is not verified."""
+    txin = TxInput(prevout=TxOutpoint(txid=bytes(range(32)), out_idx=0), script_sig=b'', witness=construct_witness([b'parent']))
+    return make_tx([txin], [(addr, value)])
 
 class MockNetwork(Logger):
 
@@ -83,7 +91,7 @@ class MockNetwork(Logger):
 
 
 SWAP_FUNDING_TX = "01000000000101500e9d67647481864edfb020b5c45e1c40d90f06b0130f9faed1a5149c6d26450000000000ffffffff0226080300000000002200205059c44bf57534303ab8f090f06b7bde58f5d2522440247a1ff6b41bdca9348df312c20100000000160014021d4f3b17921d790e1c022367a5bb078ce4deb402483045022100d41331089a2031396a1db8e4dec6dda9cacefe1288644b92f8e08a23325aa19b02204159230691601f7d726e4e6e0b7124d3377620f400d699a01095f0b0a09ee26a012102d60315c72c0cefd41c6d07883c20b88be3fc37aac7912f0052722a95de0de71600000000"
-SWAP_CLAIM_TX = "02000000000101f9db8580febd5c0f85b6f1576c83f7739109e3a2d772743e3217e9537fea7e89000000000001000000017005030000000000160014b113a47f3718da3fd161339a6681c150fef2cfe30347304402204c6d40103589b1a8177a37a824f0c66a3a7b22bc570b14c9e07965b56f6ace8f02203a35cffe0ab10de00f3e15ecf5aafdd2c7f6c62da11edd9054a1bce7a9e1455c0120f1939b5723155713855d7ebea6e174f77d41d669269e7f138856c3de190e7a366a8201208763a914d7a62ef0270960fe23f0f351b28caadab62c21838821030bfd61153816df786036ea293edce851d3a4b9f4a1c66bdc1a17f00ffef3d6b167750334ef24b1752102fc8128f17f9e666ea281c702171ab16c1dd2a4337b71f08970f5aa10c608a93268ac00000000"
+SWAP_CLAIM_TX = "02000000000101f9db8580febd5c0f85b6f1576c83f7739109e3a2d772743e3217e9537fea7e89000000000001000000017e05030000000000160014b113a47f3718da3fd161339a6681c150fef2cfe30347304402203d82b5b559b2e1dce6e92c5733c0c8db4a2ac32e333c8b37a0215b6e310cc52702207e3dc4599373447285e264dbbff8c86894e224d963991b25d6b6121d0322954e0120f1939b5723155713855d7ebea6e174f77d41d669269e7f138856c3de190e7a366a8201208763a914d7a62ef0270960fe23f0f351b28caadab62c21838821030bfd61153816df786036ea293edce851d3a4b9f4a1c66bdc1a17f00ffef3d6b167750334ef24b1752102fc8128f17f9e666ea281c702171ab16c1dd2a4337b71f08970f5aa10c608a93268ac00000000"
 
 SWAPDATA = SwapData(
     is_reverse=True,
@@ -421,6 +429,32 @@ class TestTxBatcher(ElectrumTestCase):
             if txout == output1:
                 continue
             self.assertTrue(wallet.is_mine(txout.address), f'change sent to {txout.address}')
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_dust_change_gets_another_input(self, mock_save_db):
+        # the change of tx1'(o1,o2) would be dust, and would be dropped: tx1' spends one more coin,
+        # so that it has change, and a new batch can be chained to it
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        await self._fund_wallet(wallet)
+        output1 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 10_000)
+        wallet.txbatcher.add_payment_output('default', output1)
+        batch = wallet.txbatcher.tx_batches['default']
+        await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        funding_tx2 = make_funding_tx(wallet.get_receiving_address(), 200_000)
+        mine_tx(wallet, funding_tx2)
+        # o2 leaves a change of 100 sat in tx1'
+        trial = wallet.make_unsigned_transaction(
+            coins=[], fee_policy=batch.fee_policy, base_tx=tx1, outputs=[PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 1_000)],
+            BIP69_sort=False, merge_duplicate_outputs=False)
+        output2 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 1_000 + trial.get_change_outputs()[0].value - 100)
+        wallet.txbatcher.add_payment_output('default', output2)
+        await batch.run_iteration()
+        tx1_prime = await self.network.next_tx()
+        self.assertIn(output2, tx1_prime.outputs())
+        self.assertIn(funding_tx2.txid(), [txin.prevout.txid.hex() for txin in tx1_prime.inputs()])
+        self.assertTrue(tx1_prime.has_change())
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_batch_sweep_and_payment_with_use_change_disabled(self, mock_save_db):
