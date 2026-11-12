@@ -540,6 +540,12 @@ class TxBatch(Logger):
         to_sweep_now = []  # type: list[SweepInfo]
         for k, v in to_sweep.items():
             can_broadcast, wanted_height = self._can_broadcast(v, base_tx)
+            if can_broadcast and self.is_dust(v):
+                # fees rose since it was added: lnwatcher adds it again once it is worth sweeping
+                self.logger.info(f'dropping {v.name}: dust at current fees')
+                self.batch_inputs.pop(k)
+                self._unconfirmed_sweeps.discard(k)
+                continue
             if can_broadcast:
                 to_sweep_now.append(v)
             else:
