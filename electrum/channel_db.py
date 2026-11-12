@@ -940,11 +940,14 @@ class ChannelDB(SqlDB):
             now: int | None = None,  # unix ts
     ) -> Optional['Policy']:
         channel_info = self.get_channel_info(short_channel_id)
+        # a route hint with a local short_channel_id gets channel updates for its scid alias
+        route_edge = private_route_edges.get(short_channel_id) if private_route_edges else None
+        update_scid = (route_edge and route_edge.onion_short_channel_id) or short_channel_id
         if channel_info is not None:  # publicly announced channel
             policy = self._policies.get((node_id, short_channel_id))
             if policy:
                 return policy
-        elif chan_upd_dict := self._get_channel_update_for_private_channel(node_id, short_channel_id, now=now):
+        elif chan_upd_dict := self._get_channel_update_for_private_channel(node_id, update_scid, now=now):
             return Policy.from_msg(chan_upd_dict)
         # check if it's one of our own channels
         if my_channels:

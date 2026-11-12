@@ -10,11 +10,12 @@ from typing import Callable, Optional, Sequence
 import electrum_ecc as ecc
 
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
-from electrum import bitcoin, keystore
+from electrum import bitcoin, keystore, lnworker
 from electrum.bitcoin import COIN
 import electrum.trampoline
 from electrum.channel_db import UpdateStatus
 from electrum.lnutil import (
+    ShortChannelID, HtlcLog, NoPathFound,
     RECEIVED, SENT, MIN_FINAL_CLTV_DELTA_ACCEPTED, serialize_htlc_key, LnFeatures, HTLCOwner, PaymentFailure,
     LOCAL, REMOTE, ImportedChannelBackupStorage, make_commitment_output_to_anchor_address, UpdateAddHtlc,
     NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE,
@@ -89,6 +90,140 @@ class TestLNWallet(ElectrumTestCase):
                 min_final_cltv_delta=min_final_cltv_delta,
                 exp_delay=exp_delay,
             )
+
+    async def test_route_hints_from_different_nodes_with_the_same_scid_alias(self):
+        # Two nodes may give route hints to the receiver with the same scid alias. Both must be usable,
+        # with the alias in the onion.
+        from electrum.lnonion import calc_hops_data_for_payment
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice_w, dave_w = graph.workers['alice'], graph.workers['dave']
+        amount_to_pay = 100_000_000
+        lnaddr, _pay_req = lnhelpers.prepare_invoice(dave_w, include_routing_hints=False, amount_msat=amount_to_pay)
+        bob = graph.workers['bob'].node_keypair.pubkey
+        carol = graph.workers['carol'].node_keypair.pubkey
+        alias = ShortChannelID.from_components(0, 1234567, 8901)
+        r_tags = [[(bob, alias, 1000, 100, 40)], [(carol, alias, 1000, 100, 40)]]
+        for frozen, expected_hop in (('carol', bob), ('bob', carol)):
+            for chan in alice_w.channels.values():
+                chan.set_frozen_for_sending(chan.node_id == graph.workers[frozen].node_keypair.pubkey)
+            with mock.patch.object(BOLT11Addr, 'get_routing_info', lambda *args, **kwargs: r_tags):
+                routes = await alice_w.create_routes_from_invoice(amount_to_pay, decoded_invoice=lnaddr)
+            self.assertEqual(1, len(routes))
+            route = routes[0][0].route
+            self.assertEqual(expected_hop, route[-1].start_node)
+            # each hint got its own local short_channel_id
+            self.assertNotEqual(alias, route[-1].short_channel_id)
+            self.assertEqual(alias, route[-1].onion_short_channel_id)
+            # what the user sees is the alias
+            self.assertEqual(str(alias), HtlcLog(success=True, amount_msat=amount_to_pay, route=route).formatted_tuple()[1])
+            # the onion has the alias
+            hops_data, _, _ = calc_hops_data_for_payment(
+                route, amount_to_pay, final_cltv_abs=1000, total_msat=amount_to_pay, payment_secret=bytes(32))
+            onion_scids = [hop.payload['short_channel_id']['short_channel_id']
+                           for hop in hops_data if 'short_channel_id' in hop.payload]
+            self.assertEqual([alias], onion_scids)
+
+    async def _routes_with_hints(self, graph, r_tags, *, frozen=None):
+        alice_w, dave_w = graph.workers['alice'], graph.workers['dave']
+        lnaddr, _pay_req = lnhelpers.prepare_invoice(dave_w, include_routing_hints=False, amount_msat=100_000_000)
+        for chan in alice_w.channels.values():
+            chan.set_frozen_for_sending(frozen is not None and chan.node_id == graph.workers[frozen].node_keypair.pubkey)
+        with mock.patch.object(BOLT11Addr, 'get_routing_info', lambda *args, **kwargs: r_tags):
+            return await alice_w.create_routes_from_invoice(100_000_000, decoded_invoice=lnaddr)
+
+    async def test_route_hints_sharing_an_scid_alias_keep_their_blacklist_entry_whatever_their_order(self):
+        # the order of the hints is shuffled for every payment
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice_w = graph.workers['alice']
+        bob = graph.workers['bob'].node_keypair.pubkey
+        carol = graph.workers['carol'].node_keypair.pubkey
+        alias = ShortChannelID.from_components(0, 1234567, 8901)
+        hint_bob, hint_carol = [(bob, alias, 1000, 100, 40)], [(carol, alias, 1000, 100, 40)]
+        route = (await self._routes_with_hints(graph, [hint_bob, hint_carol]))[0][0].route
+        failing = route[-1].start_node
+        other = carol if failing == bob else bob
+        # the node of the hint path finding prefers cannot reach the receiver
+        alice_w.handle_error_code_from_failed_htlc(
+            route=route, sender_idx=0, amount_msat=100_000_000,
+            failure_msg=OnionRoutingFailure(code=OnionFailureCode.UNKNOWN_NEXT_PEER, data=b''))
+        for r_tags in ([hint_carol, hint_bob], [hint_bob, hint_carol]):
+            route = (await self._routes_with_hints(graph, r_tags))[0][0].route
+            self.assertEqual(other, route[-1].start_node)
+
+    async def test_route_hint_from_our_node_does_not_hide_another_one_with_the_same_scid(self):
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice = graph.workers['alice'].node_keypair.pubkey
+        bob = graph.workers['bob'].node_keypair.pubkey
+        alias = ShortChannelID.from_components(0, 1234567, 8901)
+        hint_alice, hint_bob = [(alice, alias, 1000, 100, 40)], [(bob, alias, 1000, 100, 40)]
+        for r_tags in ([hint_alice, hint_bob], [hint_bob, hint_alice]):
+            route = (await self._routes_with_hints(graph, r_tags))[0][0].route
+            self.assertEqual(bob, route[-1].start_node)
+
+    async def test_identical_route_hints_sharing_an_scid_alias_are_one_channel(self):
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice_w = graph.workers['alice']
+        bob = graph.workers['bob'].node_keypair.pubkey
+        carol = graph.workers['carol'].node_keypair.pubkey
+        alias = ShortChannelID.from_components(0, 1234567, 8901)
+        r_tags = [[(bob, alias, 1000, 100, 40)], [(carol, alias, 1000, 100, 40)], [(carol, alias, 1000, 100, 40)]]
+        route = (await self._routes_with_hints(graph, r_tags, frozen='bob'))[0][0].route
+        self.assertEqual(carol, route[-1].start_node)
+        alice_w.network.path_finder.add_edge_to_blacklist(route[-1].short_channel_id)
+        with self.assertRaises(NoPathFound):
+            await self._routes_with_hints(graph, r_tags, frozen='bob')
+
+    async def test_local_scids_of_route_hints_are_not_taken_twice(self):
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        bob = graph.workers['bob'].node_keypair.pubkey
+        carol = graph.workers['carol'].node_keypair.pubkey
+        dave = graph.workers['dave'].node_keypair.pubkey
+        alias = ShortChannelID.from_components(0, 1234567, 8901)
+        hints = [[(bob, alias, 1000, 100, 40)], [(carol, alias, 1000, 100, 40)]]
+        # not one of the invoice: a crafted invoice uses the local id of the hint from bob for another hint
+        local_bob = lnworker.local_scid_for_route_hint(alias, bob, dave, taken=set())
+        r_tags = hints + [[(carol, local_bob, 1000, 100, 40)]]
+        route = (await self._routes_with_hints(graph, r_tags, frozen='carol'))[0][0].route
+        self.assertEqual(bob, route[-1].start_node)
+        # nor one given to another hint (with a collision of the local ids)
+        def colliding(alias, start_node, end_node, *, taken):
+            return next(scid for scid in (ShortChannelID.from_components(0xFFFFFF, 0, i) for i in range(10))
+                        if scid not in taken)
+        with mock.patch.object(lnworker, 'local_scid_for_route_hint', colliding):
+            for frozen, expected_hop in (('carol', bob), ('bob', carol)):
+                route = (await self._routes_with_hints(graph, hints, frozen=frozen))[0][0].route
+                self.assertEqual(expected_hop, route[-1].start_node)
+
+    async def test_channel_update_from_the_node_of_a_route_hint_sharing_an_scid_alias(self):
+        # the node of the second hint names the alias in its channel_update: the update is for that
+        # hint (it must not be taken for another channel, and blacklisted)
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice_w, dave_w = graph.workers['alice'], graph.workers['dave']
+        amount_to_pay = 100_000_000
+        lnaddr, _pay_req = lnhelpers.prepare_invoice(dave_w, include_routing_hints=False, amount_msat=amount_to_pay)
+        bob = graph.workers['bob'].node_keypair.pubkey
+        carol = graph.workers['carol'].node_keypair.pubkey
+        alias = ShortChannelID.from_components(0, 1234567, 8901)
+        r_tags = [[(bob, alias, 1000, 100, 40)], [(carol, alias, 1000, 100, 40)]]
+        for chan in alice_w.channels.values():
+            chan.set_frozen_for_sending(chan.node_id == bob)
+        with mock.patch.object(BOLT11Addr, 'get_routing_info', lambda *args, **kwargs: r_tags):
+            routes = await alice_w.create_routes_from_invoice(amount_to_pay, decoded_invoice=lnaddr)
+        route = routes[0][0].route
+        self.assertEqual(carol, route[-1].start_node)
+        chan_cd = graph.channels[('carol', 'dave')][0]
+        chan_upd_raw = chan_cd.get_outgoing_gossip_channel_update(scid=alias)
+        failure_data = len(chan_upd_raw).to_bytes(2, 'big') + chan_upd_raw
+        alice_w.handle_error_code_from_failed_htlc(
+            route=route, sender_idx=0, amount_msat=amount_to_pay,
+            failure_msg=OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=failure_data))
+        path_finder = alice_w.network.path_finder
+        self.assertFalse(path_finder._is_edge_blacklisted(route[-1].short_channel_id, now=int(time.time())))
+        self.assertIsNotNone(alice_w.channel_db._get_channel_update_for_private_channel(carol, alias))
+        failure_log = HtlcLog(
+            success=False, amount_msat=amount_to_pay, route=route, sender_idx=0,
+            failure_msg=OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=b''))
+        self.assertEqual(str(alias), failure_log.formatted_tuple()[1])
 
     async def test_pay_invoice_rejects_second_attempt_while_first_is_inflight(self):
         """A second attempt to pay an invoice with equal payment hash must be rejected while an earlier attempt is

@@ -25,7 +25,7 @@
 
 import queue
 from collections import defaultdict
-from typing import Sequence, Tuple, Optional, Dict, TYPE_CHECKING, Set, Callable, NamedTuple
+from typing import Sequence, Tuple, Optional, Dict, TYPE_CHECKING, Set, Callable, NamedTuple, Container
 import time
 import threading
 from threading import RLock
@@ -33,6 +33,7 @@ from math import inf
 import dataclasses
 
 from .util import profiler, with_lock, now, repr_dataclass
+from .crypto import sha256
 from .logging import Logger
 from .lnutil import (NUM_MAX_EDGES_IN_PAYMENT_PATH, ShortChannelID, LnFeatures,
                      NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, PaymentFeeBudget)
@@ -44,6 +45,27 @@ if TYPE_CHECKING:
 DEFAULT_PENALTY_BASE_MSAT = 500  # how much base fee we apply for unknown sending capability of a channel
 DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH = 100  # how much relative fee we apply for unknown sending capability of a channel
 HINT_DURATION = 3600  # how long (in seconds) a liquidity hint remains valid
+# Route hints from different nodes may use the same scid alias. Those are different channels, so each of
+# them gets a local short_channel_id in this block height (far beyond the chain) for path finding, the
+# blacklist and liquidity hints; the alias goes into the onion.
+PRIVATE_ROUTE_EDGE_LOCAL_BLOCK = 0xFFFFFF
+
+
+def local_scid_for_route_hint(
+        alias: ShortChannelID, start_node: bytes, end_node: bytes, *, taken: Container[ShortChannelID],
+) -> ShortChannelID:
+    """A local short_channel_id for a route hint whose scid alias other hints use too.
+    It depends on the alias and the nodes only. If it is taken (only a crafted invoice can do that),
+    the next candidate is tried; every try that fails needs another scid in `taken`.
+    """
+    i = 0
+    while True:
+        h = sha256(bytes(alias) + start_node + end_node + i.to_bytes(4, 'big'))
+        scid = ShortChannelID.from_components(
+            PRIVATE_ROUTE_EDGE_LOCAL_BLOCK, int.from_bytes(h[:3], 'big'), int.from_bytes(h[3:5], 'big'))
+        if scid not in taken:
+            return scid
+        i += 1
 
 
 class NoChannelPolicy(Exception):
@@ -85,6 +107,8 @@ class RouteEdge(PathEdge):
     fee_proportional_millionths: int  # for start_node
     cltv_delta: int                   # for start_node
     node_features: int  # note: for end_node!
+    # the scid for the onion, if it differs from short_channel_id (see PRIVATE_ROUTE_EDGE_LOCAL_BLOCK)
+    onion_short_channel_id: Optional[ShortChannelID] = None
 
     def fee_for_edge(self, amount_msat: int) -> int:
         return fee_for_edge_msat(forwarded_amount_msat=amount_msat,
