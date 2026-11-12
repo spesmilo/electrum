@@ -206,7 +206,7 @@ class BlockchainManager(Logger):
         return self.blockchains[constants.net.GENESIS]
 
     def check_header(self, header: dict) -> Optional['Blockchain']:
-        """Returns the Blockchain that contains header, or None.
+        """Returns the most-work Blockchain that contains header, or None.
         Chains that fork off at greater-height-than the header also contain it, via their parent.
         Those are never returned: callers fork from the returned chain, or assign it to an interface.
         """
