@@ -24,7 +24,7 @@ PYTHON_VERSION=3.14.10
 PY_VER_MAJOR="3.14"  # as it appears in fs paths
 PKG2APPIMAGE_COMMIT="a9c85b7e61a3a883f4a35c41c5decb5af88b6b5d"
 
-VERSION=$(git describe --tags --dirty --always)
+VERSION=$(git describe --tags --dirty --always --abbrev=10)
 APPIMAGE="$DISTDIR/electrum-$VERSION-x86_64.AppImage"
 
 rm -rf "$BUILDDIR"

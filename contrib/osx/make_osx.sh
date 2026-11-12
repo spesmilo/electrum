@@ -219,7 +219,7 @@ info "Faking timestamps..."
 find . -exec touch -t '200101220000' {} + || true
 
 # note: no --dirty, as we have dirtied electrum/locale/ ourselves.
-VERSION=$(git describe --tags --always)
+VERSION=$(git describe --tags --always --abbrev=10)
 
 info "Building binary"
 ELECTRUM_VERSION=$VERSION pyinstaller --noconfirm --clean contrib/osx/pyinstaller.spec || fail "Could not build binary"

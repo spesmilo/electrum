@@ -86,7 +86,7 @@ fi
 
 VERSION=$("$CONTRIB"/print_electrum_version.py)
 info "VERSION: $VERSION"
-REV=$(git describe --tags)
+REV=$(git describe --tags --abbrev=10)
 info "REV: $REV"
 COMMIT=$(git rev-parse HEAD)
 

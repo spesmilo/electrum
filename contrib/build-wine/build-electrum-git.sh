@@ -13,7 +13,7 @@ set -e
 
 pushd "$PROJECT_ROOT"
 
-VERSION=$(git describe --tags --dirty --always)
+VERSION=$(git describe --tags --dirty --always --abbrev=10)
 info "Last commit: $VERSION"
 
 info "preparing electrum-locale."
