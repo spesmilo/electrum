@@ -91,6 +91,24 @@ class TestCoinChooser(ElectrumTestCase):
         assert len(tx.outputs()) == 1, f"expected 1 output got {len(tx.outputs())}"
         assert len(tx.inputs()) == 1, f"expected 1 input got {len(tx.inputs())}"
 
+    def test_make_tx_require_change_with_rounding(self):
+        # 574 sat of change, rounded down to 500, is below the dust limit and dropped.
+        # with require_change, the change is not rounded, and kept
+        coin_chooser = CoinChooserPrivacy(enable_output_value_rounding=True)
+        def make_tx(**kwargs):
+            return coin_chooser.make_tx(
+                coins=[],
+                inputs=[self.get_dummy_txin_1_284_474_sat()],
+                outputs=[self.get_dummy_txout_1(1_282_900)],
+                change_addrs=["bc1q2089yvkkyw7yq7m6a7lxt45n35c587hk4sgj7c"],
+                fee_estimator_vb=FixedFeePolicy(1_000).estimate_fee,
+                dust_threshold=546,
+                **kwargs)
+        self.assertEqual(1, len(make_tx().outputs()))
+        tx = make_tx(require_change=True)
+        self.assertEqual(2, len(tx.outputs()))
+        self.assertIn(574, [o.value for o in tx.outputs()])
+
     def test_doesnt_round_output_value_with_zerofee_estimator(self):
         # output value rounding is enabled (as by default)
         coin_chooser = CoinChooserPrivacy(enable_output_value_rounding=True)

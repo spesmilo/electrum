@@ -293,6 +293,7 @@ class CoinChooserBase(Logger):
             fee_estimator_vb: Callable[[int | float | Decimal], int],
             dust_threshold: int,
             BIP69_sort: bool = True,
+            require_change: bool = False,  # if set, coins will be added in order to guarantee presence of a change output
     ) -> PartialTransaction:
         """Select unspent coins to spend to pay outputs.  If the change is
         greater than dust_threshold (after adding the change output to
@@ -326,6 +327,11 @@ class CoinChooserBase(Logger):
         # enough inputs are added so there is always at least a change output created
         # as txs have to have at least 1 output according to consensus rules
         spent_amount = base_tx.output_value() if outputs else dust_threshold
+        change_weight = 0
+        if require_change:
+            self.enable_output_value_rounding = False  # rounding could make the change dust
+            spent_amount = base_tx.output_value() + dust_threshold
+            change_weight = 4 * Transaction.estimated_output_size_for_address(change_addrs[0])
 
         def fee_estimator_w(weight):
             return fee_estimator_vb(Transaction.virtual_size_from_weight(weight))
@@ -344,7 +350,7 @@ class CoinChooserBase(Logger):
             # note re performance: so far this was constant time
             # what follows is linear in len(buckets)
             total_weight = self._get_tx_weight(buckets, base_weight=base_weight)
-            return total_input >= spent_amount + fee_estimator_w(total_weight)
+            return total_input >= spent_amount + fee_estimator_w(total_weight + change_weight)
 
         def tx_from_buckets(buckets):
             return self._construct_tx_from_selected_buckets(

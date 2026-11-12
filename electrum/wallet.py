@@ -2041,6 +2041,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             inputs: Optional[List[PartialTxInput]] = None,
             fee_policy: FeePolicy,
             change_addr: str | None = None,
+            require_change: bool = False,  # the tx has a change output, even if use_change is disabled
             is_sweep: bool = False,  # used by Wallet_2fa subclass
             rbf: bool = True,
             BIP69_sort: Optional[bool] = True,
@@ -2139,6 +2140,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 # output or a swap claim output), and not guaranteed when batching sweeps with payments.
                 if len(txo) == 0 or not all(self.is_mine(self.adb.get_txin_address(txin)) for txin in txi):
                     change_addrs = [self.get_new_sweep_address()]
+            if require_change:
+                change_addrs = change_addrs[0:1] or [self.get_new_sweep_address()]
             tx = coin_chooser.make_tx(
                 coins=coins,
                 inputs=txi,
@@ -2146,7 +2149,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 change_addrs=change_addrs,
                 fee_estimator_vb=fee_estimator,
                 dust_threshold=self.dust_threshold(),
-                BIP69_sort=BIP69_sort)
+                BIP69_sort=BIP69_sort,
+                require_change=require_change)
             if send_change_to_lightning and self.lnworker and self.lnworker.swap_manager.is_initialized.is_set():
                 sm = self.lnworker.swap_manager
                 change = tx.get_change_outputs()
