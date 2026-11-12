@@ -642,6 +642,47 @@ class TestTxBatcher(ElectrumTestCase):
         self.assertEqual(tx1.txid(), tx2.inputs()[0].prevout.txid.hex())
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_local_ancestors_are_rebroadcast(self, mock_save_db):
+        # tx1 has a child, so tx2 is chained to tx1. tx2 has a child, so tx3 is chained to tx2.
+        # tx1, tx2 and tx3 drop out of the mempool: they are rebroadcast, parents first
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        await self._fund_wallet(wallet)
+        addr1, addr2 = wallet.get_receiving_addresses()[0:2]
+
+        def spend_output(tx, address):
+            coins = [c for c in wallet.get_spendable_coins() if c.prevout.txid.hex() == tx.txid() and c.address == address]
+            child = wallet.make_unsigned_transaction(
+                coins=coins, outputs=[PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, '!')], fee_policy=FeePolicy('feerate:2000'))
+            wallet.sign_transaction(child, password=None)
+            wallet.adb.receive_tx_callback(child, tx_height=TX_HEIGHT_UNCONFIRMED)
+
+        wallet.txbatcher.add_payment_output('default', PartialTxOutput.from_address_and_value(addr1, 10_000))
+        batch = wallet.txbatcher.tx_batches['default']
+        await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        spend_output(tx1, addr1)
+        wallet.txbatcher.add_payment_output('default', PartialTxOutput.from_address_and_value(addr2, 20_000))
+        await batch.run_iteration()
+        await batch.run_iteration()
+        tx2 = await self.network.next_tx()
+        self.assertIn(tx1.txid(), [txin.prevout.txid.hex() for txin in tx2.inputs()])
+        spend_output(tx2, addr2)
+        wallet.txbatcher.add_payment_output('default', PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 30_000))
+        await batch.run_iteration()
+        await batch.run_iteration()
+        tx3 = await self.network.next_tx()
+        self.assertIn(tx2.txid(), [txin.prevout.txid.hex() for txin in tx3.inputs()])
+        # tx1, tx2 and tx3 drop out of the mempool
+        for tx in [tx1, tx2, tx3]:
+            wallet.adb.unconfirmed_tx.pop(tx.txid())
+        wallet.adb.invalidate_cache()
+        n = len(self.network.broadcasts)
+        self.network.local_height += 1
+        await batch.run_iteration()
+        self.assertEqual([tx1.txid(), tx2.txid(), tx3.txid()], self.network.broadcasts[n:])
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_replacement_displaced_by_predecessor(self, mock_save_db):
         # the server accepts tx1'(o1,o2), but sends us tx1 again, which displaces tx1'.
         # the next tx is built on tx1, and conflicts with tx1'

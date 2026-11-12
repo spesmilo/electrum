@@ -489,13 +489,16 @@ class TxBatch(Logger):
             # this may happen if our Electrum server is unresponsive
             # server could also be lying to us. Rebroadcasting might
             # help, if we have switched to another server.
-            await self._rebroadcast(wallet_tx)
+            await self._rebroadcast_with_ancestors(txid)
 
         return self._base_tx
 
     async def run_iteration(self) -> None:
         if (parent_txid := self._get_parent_txid()) and not self.wallet.adb.get_transaction(parent_txid):
             raise TxBatchFailure(f"parent tx missing, dropping batch {len(self.batch_inputs)=}, {len(self.batch_payments)=}")
+        if parent_txid:
+            # no longer bumped, but our next tx spends its change
+            await self._rebroadcast_with_ancestors(parent_txid)
         base_tx = await self.find_base_tx()
         if base_tx and not self.is_mine(base_tx.txid()):
             return  # waiting until it is mined
@@ -557,6 +560,25 @@ class TxBatch(Logger):
         """Broadcasts tx at most once per block."""
         if tx.is_complete() and self._broadcast_heights.get(tx.txid()) != self.wallet.adb.get_local_height():
             await self._broadcast(tx)
+
+    async def _rebroadcast_with_ancestors(self, txid: str) -> None:
+        """Rebroadcasts the local txs among txid and its ancestors, parents first."""
+        adb = self.wallet.adb
+        seen = set()
+        chain = []
+        def visit(txid_: str) -> None:
+            if txid_ in seen:
+                return
+            seen.add(txid_)
+            tx = adb.get_transaction(txid_)
+            if not tx or adb.get_tx_height(txid_).height() != TX_HEIGHT_LOCAL:
+                return
+            for txin in tx.inputs():
+                visit(txin.prevout.txid.hex())
+            chain.append(tx)
+        visit(txid)
+        for tx in chain:
+            await self._rebroadcast(tx)
 
     async def sign_transaction(self, tx: PartialTransaction) -> Optional[PartialTransaction]:
         tx.add_info_from_wallet(self.wallet)  # this adds input amounts
