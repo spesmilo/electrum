@@ -1,6 +1,7 @@
 #
 # BitBox02 Electrum plugin code.
 #
+from functools import wraps, partial
 
 import hid
 from typing import TYPE_CHECKING, Dict, Tuple, Optional, List, Any, Callable
@@ -41,7 +42,30 @@ except ImportError as e:
     requirements_ok = False
 
 
+def with_paired_device(func=None, do_pair: bool = True):
+    """decorator for Client methods, check connection/pairing preconditions for communicating with device,
+       optionally triggering pairing steps."""
+    if func is None:
+        return partial(with_paired_device, do_pair=do_pair)
+
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        if self.bitbox02_device is None:
+            if do_pair:
+                _logger.info(f'{str(self)}.{func.__name__}: pairing device')
+                self.pairing_dialog()
+            if self.bitbox02_device is None:
+                _logger.error(f'{str(self)}.{func.__name__}: error: device not paired')
+                raise BitBox02NotPaired("Need to setup communication first before attempting any BitBox02 calls")
+        return func(self, *args, **kwargs)
+    return wrapper
+
+
 class BitBox02NotInitialized(UserFacingException):
+    pass
+
+
+class BitBox02NotPaired(UserFacingException):
     pass
 
 
@@ -202,31 +226,17 @@ class BitBox02Client(HardwareClientBase):
         return bitbox02.btc.BTC
 
     @runs_in_hwd_thread
+    @with_paired_device
     def get_password_for_storage_encryption(self) -> str:
-        if self.bitbox02_device is None:
-            self.pairing_dialog()
-
-        if self.bitbox02_device is None:
-            raise Exception(
-                "Need to setup communication first before attempting any BitBox02 calls"
-            )
-
         derivation = get_derivation_used_for_hw_device_encryption()
         derivation_list = bip32.convert_bip32_strpath_to_intpath(derivation)
         xpub = self.bitbox02_device.electrum_encryption_key(derivation_list)
-        node = bip32.BIP32Node.from_xkey(xpub, net = constants.BitcoinMainnet()).subkey_at_public_derivation(())
+        node = bip32.BIP32Node.from_xkey(xpub, net=constants.BitcoinMainnet()).subkey_at_public_derivation(())
         return node.eckey.get_public_key_bytes(compressed=True).hex()
 
     @runs_in_hwd_thread
+    @with_paired_device
     def get_xpub(self, bip32_path: str, xtype: str, *, display: bool = False) -> str:
-        if self.bitbox02_device is None:
-            self.pairing_dialog()
-
-        if self.bitbox02_device is None:
-            raise Exception(
-                "Need to setup communication first before attempting any BitBox02 calls"
-            )
-
         self.fail_if_not_initialized()
 
         xpub_keypath = bip32.convert_bip32_strpath_to_intpath(bip32_path)
@@ -275,12 +285,8 @@ class BitBox02Client(HardwareClientBase):
         )
 
     @runs_in_hwd_thread
+    @with_paired_device(do_pair=False)
     def request_root_fingerprint_from_device(self) -> str:
-        if self.bitbox02_device is None:
-            raise Exception(
-                "Need to setup communication first before attempting any BitBox02 calls"
-            )
-
         return self.bitbox02_device.root_fingerprint().hex()
 
     def is_pairable(self) -> bool:
@@ -289,6 +295,7 @@ class BitBox02Client(HardwareClientBase):
         return True
 
     @runs_in_hwd_thread
+    @with_paired_device(do_pair=False)
     def btc_multisig_config(
         self, coin, bip32_path: List[int], wallet: Multisig_Wallet, xtype: str,
     ):
@@ -298,10 +305,6 @@ class BitBox02Client(HardwareClientBase):
         xtype: 'p2wsh' | 'p2wsh-p2sh'
         """
         assert xtype in ("p2wsh", "p2wsh-p2sh")
-        if self.bitbox02_device is None:
-            raise Exception(
-                "Need to setup communication first before attempting any BitBox02 calls"
-            )
         account_keypath = bip32_path[:-2]
         xpubs = wallet.get_master_public_keys()
         our_xpub = self.get_xpub(
@@ -339,15 +342,10 @@ class BitBox02Client(HardwareClientBase):
         return multisig_config
 
     @runs_in_hwd_thread
+    @with_paired_device(do_pair=False)
     def show_address(
         self, bip32_path: str, address_type: str, wallet: Deterministic_Wallet
     ) -> str:
-
-        if self.bitbox02_device is None:
-            raise Exception(
-                "Need to setup communication first before attempting any BitBox02 calls"
-            )
-
         address_keypath = bip32.convert_bip32_strpath_to_intpath(bip32_path)
         coin_network = self.coin_network_from_electrum_network()
 
@@ -384,6 +382,7 @@ class BitBox02Client(HardwareClientBase):
         return bitbox02.btc.TBTC if constants.net.TESTNET else bitbox02.btc.BTC
 
     @runs_in_hwd_thread
+    @with_paired_device(do_pair=False)
     def sign_transaction(
         self,
         keystore: Hardware_KeyStore,
@@ -392,11 +391,6 @@ class BitBox02Client(HardwareClientBase):
     ):
         if tx.is_complete():
             return
-
-        if self.bitbox02_device is None:
-            raise Exception(
-                "Need to setup communication first before attempting any BitBox02 calls"
-            )
 
         coin = self._get_coin()
         tx_script_type = None
@@ -541,12 +535,8 @@ class BitBox02Client(HardwareClientBase):
         signatures = [ecc.ecdsa_der_sig_from_ecdsa_sig64(x[1]) + sighash for x in sigs]
         tx.update_signatures(signatures)
 
+    @with_paired_device(do_pair=False)
     def sign_message(self, keypath: str, message: bytes, script_type: str) -> bytes:
-        if self.bitbox02_device is None:
-            raise Exception(
-                "Need to setup communication first before attempting any BitBox02 calls"
-            )
-
         try:
             simple_type = {
                 "p2wpkh-p2sh":bitbox02.btc.BTCScriptConfig.P2WPKH_P2SH,
