@@ -281,11 +281,18 @@ class TxBatch(Logger):
         """Can raise NoDynamicFeeEstimates."""
         if sweep_info.dust_override:
             return False
-        if sweep_info.txout is not None:
+        if sweep_info.name == 'offered-htlc':
+            # always swept: htlc-timeout tx must be mined for a forwarded htlc to be failed upstream
             return False
-        value = sweep_info.txin.value_sats()
         witness_size = len(sweep_info.txin.make_witness(71*b'\x00'))
         tx_size_vbytes = 84 + witness_size//4     # assumes no batching, sweep to p2wpkh
+        if sweep_info.txout is None:
+            value = sweep_info.txin.value_sats()
+        else:
+            # zero-fee htlc tx: a p2wpkh input of ours pays its fee
+            value = sweep_info.txout.value
+            # wallet input (68 bytes) AND extra output are added to our size estimate
+            tx_size_vbytes += 68 + Transaction.estimated_output_size_for_script(sweep_info.txout.scriptpubkey)
         fee = self.fee_policy.estimate_fee(tx_size_vbytes, network=self.wallet.network)
         is_dust = value - fee <= dust_threshold()
         self.logger.info(f'{sweep_info.name} size = {tx_size_vbytes}: {is_dust=}')
