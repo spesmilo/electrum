@@ -981,6 +981,9 @@ class PaySession(Logger):
             self._sent_buckets[bkey] = amount_sent, amount_failed
             if amount_sent != amount_failed:
                 self.logger.info('bucket still active...')
+                # No HtlcLog will be queued for this htlc (the last failing part of the bucket will)
+                # but it must be taken out of the in-flight count here
+                self._nhtlcs_inflight -= 1
                 return None
             self.logger.info('bucket failed')
             return amount_sent
@@ -3351,19 +3354,18 @@ class LNWallet(Logger):
                 sender_idx = None
             self.logger.info(f"htlc_failed {failure_message}")
             amount_receiver_msat = paysession.on_htlc_fail_get_fail_amt_to_propagate(shi)
-            if amount_receiver_msat is None:
-                return
-            if shi.trampoline_route:
-                route = shi.trampoline_route
-            htlc_log = HtlcLog(
-                success=False,
-                route=route,
-                amount_msat=amount_receiver_msat,
-                error_bytes=error_bytes,
-                failure_msg=failure_message,
-                sender_idx=sender_idx,
-                trampoline_fee_level=shi.trampoline_fee_level)
-            q.put_nowait(htlc_log)
+            if amount_receiver_msat is not None:
+                if shi.trampoline_route:
+                    route = shi.trampoline_route
+                htlc_log = HtlcLog(
+                    success=False,
+                    route=route,
+                    amount_msat=amount_receiver_msat,
+                    error_bytes=error_bytes,
+                    failure_msg=failure_message,
+                    sender_idx=sender_idx,
+                    trampoline_fee_level=shi.trampoline_fee_level)
+                q.put_nowait(htlc_log)
             if paysession.can_be_deleted():
                 self._paysessions.pop(payment_okey)
                 paysession_active = False
@@ -3382,9 +3384,16 @@ class LNWallet(Logger):
             fw_htlcs = self.active_forwardings[fw_key]
             can_forward_failure = (len(fw_htlcs) == 0) and not paysession_active
             if can_forward_failure:
-                self.logger.info(f'htlc_failed: save_forwarding_failure (phash={payment_hash.hex()})')
-                self.save_forwarding_failure(fw_key, error_bytes=error_bytes, failure_message=failure_message)
-                self.notify_upstream_peer(htlc_key)
+                if self.get_preimage(payment_hash) is not None:
+                    # We know the preimage (e.g. another htlc of this MPP/bucketed forwarding was
+                    # fulfilled downstream), so we must NOT fail the incoming htlcs back. Just wake
+                    # the upstream peer so it settles the incoming set using the preimage.
+                    self.logger.info(f'htlc_failed: have preimage, not failing upstream (phash={payment_hash.hex()})')
+                    self.notify_upstream_peer(htlc_key)
+                else:
+                    self.logger.info(f'htlc_failed: save_forwarding_failure (phash={payment_hash.hex()})')
+                    self.save_forwarding_failure(fw_key, error_bytes=error_bytes, failure_message=failure_message)
+                    self.notify_upstream_peer(htlc_key)
             else:
                 self.logger.info(f'htlc_failed: waiting for other htlcs to fail (phash={payment_hash.hex()})')
 

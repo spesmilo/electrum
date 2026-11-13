@@ -3334,15 +3334,20 @@ class Peer(Logger, EventListener):
             # this is an ongoing forwarding, or a set that has not yet been fully settled (and removed).
             # note the htlcs in SETTLING will not get failed automatically,
             # even if timeout comes close, so either a forwarding failure or preimage has to be set
+            payment_hash = mpp_set.get_payment_hash()
+            preimage = self.lnworker.get_preimage(payment_hash)
+            if preimage is not None and payment_hash.hex() not in self.lnworker.dont_settle_htlcs:
+                # If we know the preimage, settle the set, even if a forwarding failure was also
+                # recorded (e.g. a bucketed/MPP forward where one part was fulfilled downstream and
+                # another failed).
+                return None, preimage, None
             error_bytes, failure_message = self.lnworker.get_forwarding_failure(payment_key)
             if error_bytes or failure_message:
                 # this was a forwarding set and it failed
                 self.lnworker.set_mpp_resolution(payment_key, RecvMPPResolution.FAILED)
                 return error_bytes or failure_message, None, None
-            payment_hash = mpp_set.get_payment_hash()
             if payment_hash.hex() in self.lnworker.dont_settle_htlcs:
                 return None, None, None
-            preimage = self.lnworker.get_preimage(payment_hash)
             return None, preimage, None
 
         return None
