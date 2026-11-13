@@ -643,7 +643,8 @@ class TxBatch(Logger):
         self.logger.info(f'locktime: {locktime}')
         outputs += to_pay
         # create tx
-        coins = self.wallet.get_spendable_coins(nonlocal_only=True)
+        # a replacement that adds an unconfirmed coin is rejected by Bitcoin Core v30 and older (BIP125 rule 2)
+        coins = self.wallet.get_spendable_coins(nonlocal_only=True, confirmed_only=True if base_tx else None)
         inputs += [self._create_input_from_prevout(coins)] if self._get_parent_txid() or (base_tx is None and self.batch_payments) else []
         tx = self.wallet.make_unsigned_transaction(
             coins=coins,
@@ -686,16 +687,16 @@ class TxBatch(Logger):
     def _new_base_tx(self, tx: PartialTransaction) -> None:
         prevouts = [txin.prevout for txin in tx.inputs()]
         if self._prevout is None or TxOutpoint.from_str(self._prevout) not in prevouts:
-            # tx does not spend _prevout: with payments, a coin of ours, which we can spend again,
+            # tx does not spend _prevout: with payments, a confirmed coin of ours, which cannot vanish,
             # else its first input, a sweep input
-            ours = [txin.prevout for txin in tx.inputs() if self.batch_payments and self.wallet.is_mine(txin.address)]
-            self._prevout = (ours or prevouts)[0].to_str()
+            confirmed = [txin.prevout for txin in tx.inputs() if self.batch_payments and (txin.block_height or 0) > 0 and self.wallet.is_mine(txin.address)]
+            self._prevout = (confirmed or prevouts)[0].to_str()
         self.storage['prevout'] = self._prevout
         self._batch_txids.append(tx.txid())
         self._base_tx = tx
 
     def _create_input_from_prevout(self, coins: Sequence[PartialTxInput]) -> PartialTxInput:
-        """An input of ours. Our replacements keep it."""
+        """An input that cannot vanish with the tx that created it. Our replacements keep it."""
         if self._prevout:
             # the first input of our last batch tx, which is gone, or the change of the parent tx:
             # spend it, so that payments cannot be made twice
@@ -703,9 +704,11 @@ class TxBatch(Logger):
             if coin is None:
                 raise TxBatchFailure(f'cannot spend {self._prevout}, dropping batch')
         else:
-            if not coins:
+            # a coin we received unconfirmed could vanish, as its sender can replace the tx that created it
+            confirmed = [c for c in coins if c.block_height > 0]
+            if not confirmed:
                 raise NotEnoughFunds()
-            coin = max(coins, key=lambda c: c.value_sats())
+            coin = max(confirmed, key=lambda c: c.value_sats())
         coin.nsequence = 0xffffffff - 2
         return coin
 
