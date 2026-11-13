@@ -14,7 +14,7 @@ from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtQml import qmlRegisterType, QQmlApplicationEngine
 
 import electrum
-from electrum import version, constants
+from electrum import version, constants, platform
 from electrum.i18n import _
 from electrum.logging import Logger, get_logger
 from electrum.bip21 import BITCOIN_BIP21_URI_SCHEME, LIGHTNING_URI_SCHEME
@@ -54,7 +54,7 @@ if TYPE_CHECKING:
     from electrum.daemon import Daemon
     from electrum.plugin import Plugins
 
-if 'ANDROID_DATA' in os.environ:
+if platform.is_android():
     from jnius import autoclass, cast
     from android import activity, permissions
 
@@ -386,7 +386,7 @@ class QEAppController(BaseCrashReporter, QObject):
 
     @pyqtSlot(result=bool)
     def isAndroid(self):
-        return 'ANDROID_DATA' in os.environ
+        return platform.is_android()
 
     @pyqtSlot(result='QVariantMap')
     def crashData(self):

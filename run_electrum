@@ -39,7 +39,6 @@ import warnings
 import asyncio
 from typing import TYPE_CHECKING, Optional, Dict
 
-
 script_dir = os.path.dirname(os.path.realpath(__file__))
 is_pyinstaller = getattr(sys, 'frozen', False)
 is_android = 'ANDROID_DATA' in os.environ
@@ -92,9 +91,7 @@ def check_imports():
 
 if not is_android:
     check_imports()
-
-
-if is_android:
+else:
     # hack to make pycryptodomex work on Android
     # from https://github.com/kivy/python-for-android/issues/1866#issuecomment-927157780
     import ctypes
@@ -126,7 +123,7 @@ from electrum.commands import get_parser, get_simple_parser, known_commands, Com
 from electrum import daemon
 from electrum.util import create_and_start_event_loop, UserFacingException, JsonRPCError
 from electrum.i18n import set_language
-from electrum import constants
+from electrum import constants, platform
 
 if TYPE_CHECKING:
     import threading
@@ -395,7 +392,7 @@ def main():
             sys.argv[i] = prompt_password('Enter argument (will not echo):', confirm=False)
 
     # config is an object passed to the various constructors (wallet, interface, gui)
-    if is_android:
+    if platform.is_android():
         import importlib.util
         config_options = {
             'verbosity': '*' if util.is_android_debug_apk() else '',

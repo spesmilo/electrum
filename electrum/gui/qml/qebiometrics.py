@@ -4,7 +4,7 @@ from typing import Optional, TYPE_CHECKING
 
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot, pyqtProperty, QMetaObject, Qt
 
-from electrum import crandom
+from electrum import crandom, platform
 from electrum.i18n import _
 from electrum.logging import get_logger
 from electrum.base_crash_reporter import send_exception_to_crash_reporter
@@ -25,7 +25,7 @@ jPythonActivity = None
 jIntent = None
 jString = None
 
-if 'ANDROID_DATA' in os.environ:
+if platform.is_android():
     from jnius import autoclass, JavaException
     from android import activity
     try:
@@ -59,7 +59,7 @@ class QEBiometrics(AuthMixin, QObject):
 
     @pyqtProperty(bool, constant=True)
     def isAvailable(self) -> bool:
-        if 'ANDROID_DATA' not in os.environ or jBiometricHelper is None:
+        if not platform.is_android() or jBiometricHelper is None:
             return False
         try:
             return jBiometricHelper.isAvailable(jPythonActivity)

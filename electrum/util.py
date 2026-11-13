@@ -72,7 +72,7 @@ import dns.asyncresolver
 
 from .i18n import _
 from .logging import get_logger, Logger
-from . import crandom
+from . import platform
 
 if TYPE_CHECKING:
     from .network import Network, ProxySettings
@@ -423,7 +423,7 @@ class DaemonThread(threading.Thread, Logger):
             self.wake_up_event.clear()
 
     def on_stop(self):
-        if 'ANDROID_DATA' in os.environ:
+        if platform.is_android():
             import jnius
             jnius.detach()
             self.logger.info("jnius detach")
@@ -644,8 +644,7 @@ def is_hidden_wallet_path(wallet_path: Any) -> bool:
 
 
 def is_android_debug_apk() -> bool:
-    is_android = 'ANDROID_DATA' in os.environ
-    if not is_android:
+    if not platform.is_android():
         return False
     from jnius import autoclass
     pkgname = get_android_package_name()
@@ -654,8 +653,7 @@ def is_android_debug_apk() -> bool:
 
 
 def get_android_package_name() -> str:
-    is_android = 'ANDROID_DATA' in os.environ
-    assert is_android
+    assert platform.is_android()
     from jnius import autoclass
     from android.config import ACTIVITY_CLASS_NAME
     activity = autoclass(ACTIVITY_CLASS_NAME).mActivity
@@ -718,7 +716,7 @@ def xor_bytes(a: bytes, b: bytes) -> bytes:
 def user_dir():
     if "ELECTRUMDIR" in os.environ:
         return os.environ["ELECTRUMDIR"]
-    elif 'ANDROID_DATA' in os.environ:
+    elif platform.is_android():
         return android_data_dir()
     elif os.name == 'posix':
         return os.path.join(os.environ["HOME"], ".electrum")

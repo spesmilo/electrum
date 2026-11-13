@@ -44,6 +44,7 @@ from PyQt6.QtCore import QObject, pyqtSignal, QTimer, Qt, QEvent
 
 import PyQt6.QtCore as QtCore
 
+from electrum import platform
 from electrum.logging import Logger, get_logger
 _logger = get_logger(__name__)
 
@@ -58,7 +59,7 @@ except (ImportError, RuntimeError) as e:
 else:
     _logger.debug(f"successfully preloaded optional dependency: PyQt6.QtMultimedia")
 
-if sys.platform == "linux" and os.environ.get("APPIMAGE"):
+if platform.is_appimage():
     # For AppImage, we default to xcb qt backend, for better support of older system.
     # qt6 normally defaults to QT_QPA_PLATFORM=wayland instead of QT_QPA_PLATFORM=xcb.
     # However, the wayland QPA plugin requires libwayland-client0>=1.19, which is too new
@@ -189,7 +190,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.app = QElectrumApplication(sys.argv)
         self.app.installEventFilter(self.open_file_efilter)
         self.screenshot_protection_efilter = ScreenshotProtectionEventFilter()
-        if sys.platform in ['win32', 'windows'] and self.config.GUI_QT_SCREENSHOT_PROTECTION:
+        if platform.is_windows() and self.config.GUI_QT_SCREENSHOT_PROTECTION:
             self.app.installEventFilter(self.screenshot_protection_efilter)
         self.efilter_no_rich_text = InjectNoRichTextEventFilter()
         self.app.installEventFilter(self.efilter_no_rich_text)

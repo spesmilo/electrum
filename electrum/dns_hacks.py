@@ -14,7 +14,7 @@ import dns.asyncresolver
 
 from .logging import get_logger
 from .util import get_asyncio_loop
-from . import util
+from . import util, platform
 
 _logger = get_logger(__name__)
 
@@ -23,7 +23,7 @@ def configure_dns_resolver() -> None:
     # Store this somewhere so we can un-monkey-patch:
     if not hasattr(socket, "_getaddrinfo"):
         socket._getaddrinfo = socket.getaddrinfo
-    if sys.platform == 'win32':
+    if platform.is_windows():
         # On Windows, socket.getaddrinfo takes a mutex, and might hold it for up to 10 seconds
         # when dns-resolving. To speed it up drastically, we resolve dns ourselves, outside that lock.
         # See https://github.com/spesmilo/electrum/issues/4421

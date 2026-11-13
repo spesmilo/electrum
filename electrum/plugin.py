@@ -48,9 +48,7 @@ from .version import ELECTRUM_VERSION
 from .i18n import _
 from .util import (profiler, DaemonThread, UserCancelled, ThreadJob, UserFacingException, ChoiceItem,
                    make_dir, make_aiohttp_session, make_object_immutable)
-from . import bip32
-from . import plugins
-from . import crandom
+from . import bip32, plugins, crandom, platform
 from .simple_config import SimpleConfig
 from .logging import get_logger, Logger
 from .crypto import sha256
@@ -263,10 +261,10 @@ class Plugins(DaemonThread):
         return os.stat(path).st_uid == 0 and not os.access(path, os.W_OK)
 
     def get_keyfile_path(self, key_hex: Optional[str]) -> Tuple[str, str]:
-        if sys.platform in ['windows', 'win32']:
+        if platform.is_windows():
             keyfile_path = self.keyfile_windows
             keyfile_help = _('This file can be edited with Regedit')
-        elif 'ANDROID_DATA' in os.environ:
+        elif platform.is_android():
             raise Exception('platform not supported')
         else:
             # treat unknown platforms and macOS as linux-like
@@ -284,11 +282,11 @@ class Plugins(DaemonThread):
     def try_auto_key_setup(self, pubkey_hex: str) -> bool:
         """Can be called from the GUI to store the plugin pubkey as root/admin user"""
         try:
-            if sys.platform in ['windows', 'win32']:
+            if platform.is_windows():
                 self._write_key_to_regedit_windows(pubkey_hex)
-            elif 'ANDROID_DATA' in os.environ:
+            elif platform.is_android():
                 raise Exception('platform not supported')
-            elif sys.platform.startswith('darwin'):  # macOS
+            elif platform.is_mac():
                 self._write_key_to_root_file_macos(pubkey_hex)
             else:
                 self._write_key_to_root_file_linux(pubkey_hex)
@@ -299,11 +297,11 @@ class Plugins(DaemonThread):
 
     def try_auto_key_reset(self) -> bool:
         try:
-            if sys.platform in ['windows', 'win32']:
+            if platform.is_windows():
                 self._delete_plugin_key_from_windows_registry()
-            elif 'ANDROID_DATA' in os.environ:
+            elif platform.is_android():
                 raise Exception('platform not supported')
-            elif sys.platform.startswith('darwin'):  # macOS
+            elif platform.is_mac():
                 self._delete_macos_plugin_keyfile()
             else:
                 self._delete_linux_plugin_keyfile()
@@ -524,7 +522,7 @@ class Plugins(DaemonThread):
         returns pubkey, salt
         returns None, None if the pubkey has not been set
         """
-        if sys.platform in ['windows', 'win32']:
+        if platform.is_windows():
             import winreg
             with winreg.ConnectRegistry(None, winreg.HKEY_LOCAL_MACHINE) as hkey:
                 try:
@@ -533,7 +531,7 @@ class Plugins(DaemonThread):
                 except Exception as e:
                     self.logger.info(f'winreg error: {e}')
                     return None, None
-        elif 'ANDROID_DATA' in os.environ:
+        elif platform.is_android():
             return None, None
         else:
             # treat unknown platforms as linux-like

@@ -10,6 +10,7 @@ from PyQt6.QtGui import QPen, QPainter, QPalette, QPixmap
 from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QWidget,
                              QFileDialog, QSlider, QGridLayout, QDialog, QApplication)
 
+from electrum import platform
 from electrum.bip32 import is_bip32_derivation, BIP32Node, normalize_bip32_derivation, xpub_type
 from electrum.daemon import Daemon
 from electrum.i18n import _
@@ -1225,11 +1226,11 @@ class WCChooseHWDevice(WalletWizardComponent, Logger):
                 debug_msg = '  {}'.format(_('No exceptions encountered.'))
             if not devices:
                 msg = (_('No hardware device detected.') + '\n\n')
-                if sys.platform == 'win32':
+                if platform.is_windows():
                     msg += _('If your device is not detected on Windows, go to "Settings", "Devices", "Connected devices", '
                              'and do "Remove device". Then, plug your device again.') + '\n'
                     msg += _('While this is less than ideal, it might help if you run Electrum as Administrator.') + '\n'
-                else:
+                elif platform.is_linux():
                     msg += _('On Linux, you might have to add a new permission to your udev rules.') + '\n'
                 msg += '\n\n'
                 msg += _('Debug message') + '\n' + debug_msg

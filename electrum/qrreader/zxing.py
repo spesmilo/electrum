@@ -4,13 +4,13 @@
 
 import ctypes
 import os
-import sys
 from typing import List, Optional, Tuple
 
 from . import MissingLib
 from .abstract_base import AbstractQrCodeReader, QrCodeResult
-from ..logging import get_logger
 
+from electrum.logging import get_logger
+from electrum import platform
 
 _logger = get_logger(__name__)
 
@@ -23,9 +23,9 @@ class _Position(ctypes.Structure):
     _fields_ = [(corner, _Point) for corner in ('topLeft', 'topRight', 'bottomRight', 'bottomLeft')]
 
 
-if sys.platform == 'darwin':
+if platform.is_mac():
     LIBNAMES = ('libZXing.dylib',)
-elif sys.platform == 'win32':
+elif platform.is_windows():
     LIBNAMES = ('ZXing.dll',)
 else:
     # Distro runtime packages only ship the versioned soname, e.g. libZXing.so.3 of Debian's libzxing3.

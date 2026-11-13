@@ -1,8 +1,6 @@
 from abc import ABC, ABCMeta
 import os.path
 import time
-import sys
-import platform
 import queue
 import os
 import webbrowser
@@ -20,6 +18,7 @@ from PyQt6.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout, QVBo
                              QGraphicsEffect, QGraphicsScene, QGraphicsPixmapItem, QLayoutItem, QLayout, QMenu,
                              QFrame, QAbstractButton)
 
+from electrum import platform
 from electrum.i18n import _
 from electrum.util import (FileImportFailed, FileExportFailed, resource_path, EventListener,
                            get_logger, UserCancelled, UserFacingException, ChoiceItem)
@@ -38,9 +37,9 @@ if TYPE_CHECKING:
     from electrum.simple_config import ConfigVarWithConfig
 
 
-if platform.system() == 'Windows':
+if platform.is_windows():
     MONOSPACE_FONT = 'Lucida Console'
-elif platform.system() == 'Darwin':
+elif platform.is_mac():
     MONOSPACE_FONT = 'Monaco'
 else:
     MONOSPACE_FONT = 'monospace'
@@ -1357,7 +1356,7 @@ def font_height(widget: QWidget = None) -> int:
 
 
 def webopen(url: str):
-    if sys.platform == 'linux' and os.environ.get('APPIMAGE'):
+    if platform.is_appimage():
         # When on Linux webbrowser.open can fail in AppImage because it can't find the correct libdbus.
         # We just fork the process and unset LD_LIBRARY_PATH before opening the URL.
         # See #5425
@@ -1503,7 +1502,7 @@ def set_windows_os_screenshot_protection_drm_flag(window: QWidget) -> None:
     screenshots and microsoft recall will not be able to record the window
     https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowdisplayaffinity
     """
-    if sys.platform not in ('win32', 'windows'):
+    if not platform.is_windows():
         return
     try:
         window_id = int(window.winId())
