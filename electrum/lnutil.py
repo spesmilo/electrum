@@ -637,13 +637,15 @@ class HtlcLog(NamedTuple):
             failure_msg = self.failure_msg
             if sender_idx is not None:
                 try:
-                    short_channel_id = route[sender_idx + 1].short_channel_id
+                    edge = route[sender_idx + 1]
+                    short_channel_id = getattr(edge, 'onion_short_channel_id', None) or edge.short_channel_id
                 except IndexError:
                     # payment destination reported error
                     short_channel_id = _("Destination node")
             message = failure_msg.code_name()
         else:
-            short_channel_id = route[-1].short_channel_id
+            edge = route[-1]
+            short_channel_id = getattr(edge, 'onion_short_channel_id', None) or edge.short_channel_id
             message = _('Success')
         chan_str = str(short_channel_id) if short_channel_id else _("Unknown")
         return route_str, chan_str, message

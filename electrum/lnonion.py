@@ -341,7 +341,7 @@ def calc_hops_data_for_payment(
         hop_payload = {
             "amt_to_forward": {"amt_to_forward": amt},
             "outgoing_cltv_value": {"outgoing_cltv_value": cltv_abs},
-            "short_channel_id": {"short_channel_id": route_edge.short_channel_id},
+            "short_channel_id": {"short_channel_id": route_edge.onion_short_channel_id or route_edge.short_channel_id},
         }
         hops_data.append(
             OnionHopsDataSingle(payload=hop_payload))
