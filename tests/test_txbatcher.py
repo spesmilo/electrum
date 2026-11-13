@@ -555,6 +555,38 @@ class TestTxBatcher(ElectrumTestCase):
         self.assertIsNotNone(wallet.adb.get_transaction(child.txid()))
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_sweep_of_forgotten_base_is_added_again(self, mock_save_db):
+        # tx1 sweeps s, and has a child: the batch forgets tx1. lnwatcher adds s again, and it is not
+        # swept while tx1 is in the mempool. tx1 and its child leave the mempool: s is swept again
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        await self._fund_wallet(wallet)
+        add_swap_funding_tx(wallet)
+        wallet.txbatcher.add_sweep_input('default', SWAP_SWEEP_INFO)
+        batch = wallet.txbatcher.tx_batches['default']
+        await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        coins = [c for c in wallet.get_utxos() if c.prevout.txid.hex() == tx1.txid()]
+        child = wallet.make_unsigned_transaction(
+            coins=coins, outputs=[PartialTxOutput.from_address_and_value(wallet.get_receiving_address(), '!')],
+            fee_policy=FeePolicy('feerate:2000'))
+        wallet.sign_transaction(child, password=None)
+        wallet.adb.receive_tx_callback(child, tx_height=TX_HEIGHT_UNCONFIRMED)
+        await batch.run_iteration()
+        self.assertEqual([], batch._batch_txids)
+        wallet.txbatcher.add_sweep_input('default', SWAP_SWEEP_INFO)
+        self.assertIn(SWAP_SWEEP_INFO.txin.prevout, batch.batch_inputs)
+        await batch.run_iteration()
+        self.assertTrue(self.network._tx_queue.empty())
+        # what receive_history_callback does when the server drops a tx
+        wallet.adb.unconfirmed_tx.pop(tx1.txid())
+        wallet.adb.unconfirmed_tx.pop(child.txid())
+        wallet.adb.invalidate_cache()
+        await batch.run_iteration()
+        tx2 = await self.network.next_tx()
+        self.assertIn(SWAP_SWEEP_INFO.txin.prevout, [txin.prevout for txin in tx2.inputs()])
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_base_tx_children_seen_after_rejected_replacement(self, mock_save_db):
         # tx1 pays o1 to an address we watch, and C spends o1, but adb does not know C yet.
         # tx1', which adds o2, is rejected because of C: tx1 remains our latest tx. When the server
@@ -1162,6 +1194,32 @@ class TestTxBatcher(ElectrumTestCase):
         self.assertFalse(anchor_batch.batch_inputs)
         self.assertEqual(wallet.txbatcher.tx_batches['lnwatcher'], anchor_batch)
 
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_anchor_not_needed_yet_is_added_again(self, mock_save_db):
+        # the ctx pays enough fees, so the anchor is not used, and tx1, an unrelated sweep, confirms:
+        # the new batch does not keep the anchor. Once the ctx needs fees, lnwatcher adds it again
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        await self._fund_wallet(wallet)
+        add_swap_funding_tx(wallet)
+        wallet.txbatcher.add_sweep_input('default', SWAP_SWEEP_INFO)
+        batch = wallet.txbatcher.tx_batches['default']
+        await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        wallet.adb.db.transactions[anchor_chan_ctx.txid()] = anchor_chan_ctx
+        with mock.patch.object(wallet.adb, 'get_tx_fee', return_value=1_000_000):
+            wallet.txbatcher.add_sweep_input('default', ANCHOR_SWEEP_INFO)
+            mine_tx(wallet, tx1)
+            await batch.run_iteration()
+        self.assertNotIn(anchor_txin.prevout, batch.batch_inputs)
+        self.assertTrue(self.network._tx_queue.empty())
+        # the fee of the ctx is no longer sufficient
+        wallet.txbatcher.add_sweep_input('default', ANCHOR_SWEEP_INFO)
+        self.assertIn(anchor_txin.prevout, batch.batch_inputs)
+        await batch.run_iteration()
+        tx2 = await self.network.next_tx()
+        self.assertIn(anchor_txin.prevout, [txin.prevout for txin in tx2.inputs()])
+
     async def test_add_sweep_input_ignores_expired_sweep_info(self):
         wallet = self._create_wallet()
         wallet.adb.db.transactions[SWAPDATA.funding_txid] = Transaction(SWAP_FUNDING_TX)
@@ -1184,6 +1242,26 @@ class TestTxBatcher(ElectrumTestCase):
         self.network.local_height = sweep_info.expiry_height
         self.assertFalse(batch._to_sweep_after(tx=None))
         self.assertFalse(batch.batch_inputs)
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_to_sweep_after_drops_input_spent_by_mined_tx(self, mock_save_db):
+        # s is spent by a tx we did not create, which gets mined: s is dropped, and the batch is done
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        add_swap_funding_tx(wallet)
+        wallet.txbatcher.add_sweep_input('default', SWAP_SWEEP_INFO)
+        batch = wallet.txbatcher.tx_batches['default']
+        txin = copy.deepcopy(SWAP_SWEEP_INFO.txin)
+        spender = PartialTransaction.from_io(
+            [txin], [PartialTxOutput.from_address_and_value(wallet.get_receiving_address(), 190_000)],
+            locktime=SWAP_SWEEP_INFO.our_cltv_abs, version=2)
+        sig = spender.sign_txin(0, txin.privkey)
+        spender.inputs()[0].witness = spender.inputs()[0].make_witness(sig)
+        spender = Transaction(spender.serialize())
+        mine_tx(wallet, spender)
+        self.assertFalse(batch._to_sweep_after(None))
+        self.assertFalse(batch.batch_inputs)
+        self.assertTrue(batch.is_done())
 
     async def test_to_sweep_after_drops_expired_input_whose_prev_tx_is_missing(self):
         """Giving up on an expired input must not depend on having its prev tx in the db,

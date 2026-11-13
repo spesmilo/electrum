@@ -259,7 +259,6 @@ class TxBatch(Logger):
         self._batch_txids = storage['txids']  # type: List[str]
         self._fee_policy_name = storage.get('fee_policy_name', 'default')  # type: str
         self._base_tx = None  # type: Optional[PartialTransaction]   # current batch tx. last element of batch_txids
-        self._unconfirmed_sweeps = set()  # type: Set[TxOutpoint]  # inputs we are sweeping (until spending tx is confirmed)
         self._broadcast_heights = {}  # type: Dict[str, int]  # txid -> height of our last broadcast
         self._retry_height = 0  # do not create a tx before that height
 
@@ -330,7 +329,7 @@ class TxBatch(Logger):
             #       worthwhile to sweep. So callers might want to retry later.
             raise BelowDustLimit
         txin = sweep_info.txin
-        if txin.prevout in self._unconfirmed_sweeps:
+        if txin.prevout in self.batch_inputs:
             return
         # early return if the spending tx is confirmed
         # if its block is orphaned, the txin will be added again
@@ -340,7 +339,6 @@ class TxBatch(Logger):
             tx_mined_status = self.wallet.adb.get_tx_height(spender_txid)
             if tx_mined_status.height() > 0:
                 return
-        self._unconfirmed_sweeps.add(txin.prevout)
         self.logger.info(f'add_sweep_info: {sweep_info.name} {sweep_info.txin.prevout.to_str()}')
         self.batch_inputs[txin.prevout] = sweep_info
 
@@ -386,7 +384,6 @@ class TxBatch(Logger):
             if sweep_info.is_expired(self.wallet.adb.get_local_height()):
                 self.logger.info(f"sweep expired, giving up on {sweep_info.name} {prevout}")
                 self.batch_inputs.pop(prevout)
-                self._unconfirmed_sweeps.discard(prevout)
                 continue
             prev_txid, index = prevout.to_str().split(':')
             if not (prev_tx := self.wallet.adb.db.get_transaction(prev_txid)):
@@ -414,8 +411,12 @@ class TxBatch(Logger):
                     continue
             if spender_txid := self.wallet.adb.db.get_spent_outpoint(prev_txid, int(index)):
                 tx_mined_status = self.wallet.adb.get_tx_height(spender_txid)
+                if tx_mined_status.height() > 0:
+                    # nothing to sweep. if its block is orphaned, the txin will be added again
+                    self.batch_inputs.pop(prevout)
+                    continue
                 if tx_mined_status.height() not in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:
-                    # spent by a tx that is not our base_tx (mempool or mined).
+                    # spent by a tx that is not our base_tx (in the mempool).
                     # do not compete with it, even if it is unconfirmed:
                     #  - it might be ours (e.g. another device with the same seed)
                     #  - for timelocked outputs (e.g. in lightning), by the time the counterparty can spend,
@@ -465,7 +466,6 @@ class TxBatch(Logger):
         tx_mined_status = self.wallet.adb.get_tx_height(txid)
         if tx_mined_status.conf > 0:
             self.logger.info(f'base tx confirmed {txid}')
-            self._clear_unconfirmed_sweeps(tx)
             self._start_new_batch(tx)
             return await self.find_base_tx()  # the change of tx might be spent
         if self.is_mine(txid):
@@ -583,7 +583,6 @@ class TxBatch(Logger):
                 # fees rose since it was added: lnwatcher adds it again once it is worth sweeping
                 self.logger.info(f'dropping {v.name}: dust at current fees')
                 self.batch_inputs.pop(k)
-                self._unconfirmed_sweeps.discard(k)
                 continue
             if can_broadcast:
                 to_sweep_now.append(v)
@@ -665,13 +664,6 @@ class TxBatch(Logger):
         # this assert will fail if we merge duplicate outputs
         for o in outputs: assert o in tx.outputs()
         return tx
-
-    def _clear_unconfirmed_sweeps(self, tx: PartialTransaction) -> None:
-        # this ensures that we can accept an input again,
-        # in case the sweeping tx has been removed from the blockchain after a reorg
-        for txin in tx.inputs():
-            if txin.prevout in self._unconfirmed_sweeps:
-                self._unconfirmed_sweeps.remove(txin.prevout)
 
     @locked
     def _start_new_batch(self, tx: Optional[PartialTransaction]) -> None:
