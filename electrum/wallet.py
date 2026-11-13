@@ -2064,6 +2064,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             locktime: Optional[int] = None,
             tx_version: Optional[int] = None,
             is_anchor_channel_opening: bool = False,
+            spend_ln_reserve: bool = False,  # for txs that LN_UTXO_RESERVE exists to fund, e.g. an anchor CPFP
     ) -> PartialTransaction:
         """Can raise NotEnoughFunds or NoDynamicFeeEstimates."""
 
@@ -2173,7 +2174,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     max_swap_amount = sm.client_max_amount_forward_swap() or 0
                     if min_swap_amount <= amount <= max_swap_amount:
                         tx.replace_output_address(change[0].address, DummyAddress.SWAP)
-            if self.should_keep_reserve_utxo(tx.inputs(), tx.outputs(), is_anchor_channel_opening):
+            if not spend_ln_reserve and self.should_keep_reserve_utxo(tx.inputs(), tx.outputs(), is_anchor_channel_opening):
                 raise NotEnoughFunds()
             self.logger.debug(f'coinchooser returned tx with {len(tx.inputs())} inputs and {len(tx.outputs())} outputs')
 
@@ -2207,7 +2208,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             to_distribute = input_amount - allocated_amount
             distribute_amount(to_distribute - fee)
 
-            if self.should_keep_reserve_utxo(tx_inputs, outputs, is_anchor_channel_opening):
+            if not spend_ln_reserve and self.should_keep_reserve_utxo(tx_inputs, outputs, is_anchor_channel_opening):
                 # check if any input of the tx is == LN_UTXO_RESERVE, then we can just remove the input
                 reserve_sized_input = None
                 for tx_input in tx_inputs:
