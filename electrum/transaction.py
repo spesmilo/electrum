@@ -1181,20 +1181,15 @@ class Transaction:
         pubkey_bytes: bytes,
         sig: bytes,
         sighash_cache: SighashCache | None = None,
-        strict: bool = True,  # enforce policy/standardness
     ) -> bool:
         txin = self.inputs()[txin_index]
         if txin.is_taproot():
             raise Exception("not implemented")  # TODO
         else:
             der_sig, sighash = sig[:-1], sig[-1]
-            if not txin.is_segwit() and sighash & 0x1f == Sighash.SINGLE and txin_index >= len(self.outputs()):
-                msg_hash = (1).to_bytes(32, byteorder="little")  # legacy consensus quirk
-            else:
-                pre_hash = self.serialize_preimage(
-                    txin_index, sighash=sighash, sighash_cache=sighash_cache, strict=strict)
-                msg_hash = sha256d(pre_hash)
+            pre_hash = self.serialize_preimage(txin_index, sighash=sighash, sighash_cache=sighash_cache)
             pubkey = ecc.ECPubkey(pubkey_bytes)
+            msg_hash = sha256d(pre_hash)
             sig64 = ecc.ecdsa_sig64_from_der_sig(der_sig)
             return pubkey.ecdsa_verify(sig64, msg_hash)
 
