@@ -15,6 +15,8 @@ from electrum.bitcoin import COIN
 import electrum.trampoline
 from electrum.channel_db import UpdateStatus
 from electrum.lnutil import (
+    HtlcLog, ShortChannelID,
+    NoPathFound, FeeBudgetExceeded,
     RECEIVED, SENT, MIN_FINAL_CLTV_DELTA_ACCEPTED, serialize_htlc_key, LnFeatures, HTLCOwner, PaymentFailure,
     LOCAL, REMOTE, ImportedChannelBackupStorage, make_commitment_output_to_anchor_address, UpdateAddHtlc,
     NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE,
@@ -22,6 +24,7 @@ from electrum.lnutil import (
 from electrum.logging import console_stderr_handler
 from electrum.lnmsg import decode_msg
 from electrum.lnrouter import RouteEdge
+from electrum.lnworker import PaySession
 from electrum.bolt11 import encode_bolt11_invoice, BOLT11Addr
 from electrum.lntransport import LNPeerAddr
 from electrum.invoices import LN_EXPIRY_NEVER, PR_UNPAID, PR_INFLIGHT, Invoice
@@ -673,6 +676,274 @@ class TestLNWallet(ElectrumTestCase):
             # all constructed routes use the outgoing channel of the split config
             self.assertEqual(bob_chan.short_channel_id, shi.route[0].short_channel_id)
 
+    async def test_mpp_parts_see_each_other_as_inflight_during_pathfinding(self):
+        """While the routes of one split configuration are computed, none of the htlcs are sent
+        yet, so without extra accounting all parts would pick the same (cheapest) path."""
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice_w, dave_w = graph.workers['alice'], graph.workers['dave']
+        dave_w.features |= LnFeatures.BASIC_MPP_OPT
+        amount_to_pay = 200_000_000
+        lnaddr, _pay_req = lnhelpers.prepare_invoice(dave_w, include_routing_hints=True, amount_msat=amount_to_pay)
+        bob_chan = graph.channels[('alice', 'bob')][0]
+        split_config = SplitConfig({(bob_chan.channel_id, bob_chan.node_id): [amount_to_pay // 2, amount_to_pay // 2]})
+        alice_w.suggest_payment_splits = lambda **kwargs: [SplitConfigRating(config=split_config, rating=0)]
+        hints = alice_w.network.path_finder.liquidity_hints
+        def num_inflight() -> int:
+            return sum(h.num_inflight_htlcs(True) + h.num_inflight_htlcs(False) for h in hints._liquidity_hints.values())
+        seen = []
+        orig = alice_w.create_route_for_single_htlc
+        def wrapped(**kwargs):
+            seen.append(num_inflight())
+            return orig(**kwargs)
+        alice_w.create_route_for_single_htlc = wrapped
+        routes = await alice_w.create_routes_from_invoice(amount_to_pay, decoded_invoice=lnaddr)
+        self.assertEqual(2, len(routes))
+        self.assertEqual(0, seen[0])
+        self.assertEqual(len(routes[0][0].route), seen[1])
+        # the temporary accounting is undone: the real one happens in pay_to_route
+        self.assertEqual(0, num_inflight())
+
+    async def test_route_over_the_fee_budget_is_reported_as_such(self):
+        # path finding only considers paths within the fee budget. When it finds none, it looks for the path
+        # with the lowest fees: if that one exceeds the budget, the payment fails because of the budget,
+        # and not with "no path found".
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice_w, dave_w = graph.workers['alice'], graph.workers['dave']
+        amount_to_pay = 100_000_000
+        lnaddr, _pay_req = lnhelpers.prepare_invoice(dave_w, include_routing_hints=True, amount_msat=amount_to_pay)
+        path_finder = alice_w.network.path_finder
+        orig = path_finder.find_route
+        max_fees = []
+        def wrapped(**kwargs):
+            max_fees.append((kwargs.get('max_fee_msat'), kwargs.get('penalty_weight', 1)))
+            return orig(**kwargs)
+        path_finder.find_route = wrapped
+        # the route hints of the invoice, with a fee of 1 sat
+        r_tags = [[(pubkey, scid, 1000, fee_proportional_millionths, cltv_delta)
+                   for (pubkey, scid, _fee_base_msat, fee_proportional_millionths, cltv_delta) in path]
+                  for path in lnaddr.get_routing_info()]
+        self.assertTrue(r_tags)
+        alice_w.config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS = 0
+        alice_w.config.LIGHTNING_PAYMENT_FEE_CUTOFF_MSAT = 0
+        with mock.patch.object(BOLT11Addr, 'get_routing_info', lambda *args, **kwargs: r_tags):
+            with self.assertRaises(FeeBudgetExceeded):
+                await alice_w.create_routes_from_invoice(amount_to_pay, decoded_invoice=lnaddr)
+            self.assertEqual([(0, 1), (None, 0)], max_fees[:2])
+            self.assertNotIn((0, 0.25), max_fees)  # no other search, as no path is within the budget
+            # with a budget, the first search finds a route within it
+            max_fees.clear()
+            alice_w.config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS = 10_000
+            routes = await alice_w.create_routes_from_invoice(amount_to_pay, decoded_invoice=lnaddr)
+            self.assertEqual(1, len(routes))
+            self.assertEqual([(10_000 * amount_to_pay // 1_000_000, 1)], max_fees)
+
+    async def _create_routes_with_route_hints(self, hops_after_x, *, carol_to_x_fee_msat, budget_msat, penalty_weight=1):
+        """Route hints of the invoice: carol -> x, then the paths from x to dave given as
+        lists of (node after x or None for dave, fee_base_msat) per hop.
+        Returns the channels of the route after ours, and the path finding searches.
+        For 500 sat, the penalty for unknown liquidity is 550 msat per channel."""
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice_w, dave_w = graph.workers['alice'], graph.workers['dave']
+        amount_to_pay = 500_000
+        lnaddr, _pay_req = lnhelpers.prepare_invoice(dave_w, include_routing_hints=True, amount_msat=amount_to_pay)
+        carol = graph.workers['carol'].node_keypair.pubkey
+        x = bytes([2]) + b'x' * 32
+        # channels are numbered from 60 (carol -> x), in the order of the hops
+        paths, number = [], 61
+        for hops_from_x in hops_after_x:
+            path, start = [], x
+            for node_after, fee_base_msat in hops_from_x:
+                path.append((start, ShortChannelID.from_components(0, 0, number), fee_base_msat, 0, 40))
+                start, number = node_after, number + 1
+            paths.append(path)
+        # a route hint starts at its first node and ends at dave: the first one goes from carol over x
+        r_tags = [[(carol, ShortChannelID.from_components(0, 0, 60), carol_to_x_fee_msat, 0, 40)] + paths[0]]
+        r_tags += paths[1:]
+        alice_w.config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS = 0
+        alice_w.config.LIGHTNING_PAYMENT_FEE_CUTOFF_MSAT = budget_msat
+        path_finder = alice_w.network.path_finder
+        orig = path_finder.find_route
+        searches = []
+        def wrapped(**kwargs):
+            searches.append((kwargs.get('max_fee_msat'), kwargs.get('penalty_weight', 1)))
+            return orig(**kwargs)
+        path_finder.find_route = wrapped
+        with mock.patch.object(BOLT11Addr, 'get_routing_info', lambda *args, **kwargs: r_tags), \
+                mock.patch.object(PaySession, 'penalty_weight', lambda self: penalty_weight):
+            routes = await alice_w.create_routes_from_invoice(amount_to_pay, decoded_invoice=lnaddr)
+        self.assertEqual(1, len(routes))
+        route = routes[0][0].route
+        return [edge.short_channel_id.output_index for edge in route[1:]], searches
+
+    async def test_route_within_the_fee_budget_found_with_lower_penalties_is_used(self):
+        # From x: to dave (2.2 sat), over y (1.9 sat), or over p and q (1.8 sat). With a budget of 32 sat,
+        # path finding reaches x over the direct channel to dave, which is cheaper in fees and penalties,
+        # and finds no path within the budget. The path with the lowest fees (over p and q) is within it,
+        # so path finding is run again with lower penalties, and finds the path over y.
+        y, p, q = (bytes([2]) + bytes([c]) * 32 for c in b'ypq')
+        channels, searches = await self._create_routes_with_route_hints(
+            [[(None, 2200)], [(y, 0), (None, 1900)], [(p, 0), (q, 0), (None, 1800)]],
+            carol_to_x_fee_msat=30_000, budget_msat=32_000)
+        self.assertEqual([60, 62, 63], channels)
+        self.assertEqual([(32_000, 1), (None, 0), (32_000, 0.25)], searches)
+
+    async def test_route_within_the_fee_budget_found_with_lower_penalties_keeps_the_weight_of_the_payment(self):
+        # after 40 failed htlcs (weight 5), the search with lower penalties still prefers fewer channels:
+        # from x, over y (1 sat) rather than over p and q (0.7 sat)
+        y, p, q = (bytes([2]) + bytes([c]) * 32 for c in b'ypq')
+        channels, searches = await self._create_routes_with_route_hints(
+            [[(None, 2200)], [(y, 0), (None, 1000)], [(p, 0), (q, 0), (None, 700)]],
+            carol_to_x_fee_msat=30_000, budget_msat=32_000, penalty_weight=5)
+        self.assertEqual([60, 62, 63], channels)
+        self.assertEqual([(32_000, 5), (None, 0), (32_000, 1.25)], searches)
+
+    async def test_route_within_the_fee_budget_with_the_lowest_fees_is_used_as_the_last_resort(self):
+        # From x: to dave (2.1 sat), or over p and q (1.9 sat). Even with lower penalties, path finding
+        # reaches x over the direct channel, and the path with the lowest fees is used: its fees are
+        # exactly the budget.
+        p, q = (bytes([2]) + bytes([c]) * 32 for c in b'pq')
+        channels, searches = await self._create_routes_with_route_hints(
+            [[(None, 2100)], [(p, 0), (q, 0), (None, 1900)]],
+            carol_to_x_fee_msat=30_000, budget_msat=31_900)
+        self.assertEqual([60, 62, 63, 64], channels)
+        self.assertEqual([(31_900, 1), (None, 0), (31_900, 0.25)], searches)
+
+    async def test_no_further_search_if_the_budget_left_no_path_out(self):
+        # without route hints, dave cannot be reached at all
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice_w, dave_w = graph.workers['alice'], graph.workers['dave']
+        amount_to_pay = 100_000_000
+        lnaddr, _pay_req = lnhelpers.prepare_invoice(dave_w, include_routing_hints=False, amount_msat=amount_to_pay)
+        path_finder = alice_w.network.path_finder
+        orig = path_finder.find_route
+        searches = []
+        def wrapped(**kwargs):
+            searches.append((kwargs.get('max_fee_msat'), kwargs.get('penalty_weight', 1)))
+            return orig(**kwargs)
+        path_finder.find_route = wrapped
+        with self.assertRaises(NoPathFound):
+            await alice_w.create_routes_from_invoice(amount_to_pay, decoded_invoice=lnaddr)
+        self.assertTrue(searches)
+        self.assertEqual({(amount_to_pay * 10_000 // 1_000_000, 1)}, set(searches))
+
+    def _paysession(self) -> PaySession:
+        return PaySession(
+            payment_hash=bytes(32), payment_secret=bytes(32), initial_trampoline_fee_level=0,
+            invoice_features=0, r_tags=[], min_final_cltv_delta=144, amount_to_pay=1_000_000,
+            invoice_pubkey=bytes(33), uses_trampoline=False)
+
+    def test_penalties_grow_with_the_failed_htlcs_of_a_payment(self):
+        # when cheap paths keep failing, paths with fewer channels of unknown liquidity get preferred
+        paysession = self._paysession()
+        for num_failed, weight in ((0, 1), (5, 1.5), (10, 2), (25, 3.5), (90, 10), (200, 10)):
+            paysession.num_failed_htlcs = num_failed
+            self.assertEqual(weight, paysession.penalty_weight())
+
+    async def test_paysession_counts_failed_htlcs(self):
+        paysession = self._paysession()
+        for success in (False, True, False):
+            paysession._amount_inflight += 1000
+            paysession._nhtlcs_inflight += 1
+            paysession.sent_htlcs_q.put_nowait(HtlcLog(success=success, amount_msat=1000))
+            await paysession.wait_for_one_htlc_to_resolve()
+        self.assertEqual(2, paysession.num_failed_htlcs)
+
+    async def test_path_finding_uses_the_penalty_weight_of_the_payment(self):
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice_w, dave_w = graph.workers['alice'], graph.workers['dave']
+        amount_to_pay = 100_000_000
+        lnaddr, _pay_req = lnhelpers.prepare_invoice(dave_w, include_routing_hints=True, amount_msat=amount_to_pay)
+        path_finder = alice_w.network.path_finder
+        orig = path_finder.find_route
+        weights = []
+        def wrapped(**kwargs):
+            weights.append(kwargs.get('penalty_weight', 1))
+            return orig(**kwargs)
+        path_finder.find_route = wrapped
+        with mock.patch.object(PaySession, 'penalty_weight', lambda self: 3):
+            routes = await alice_w.create_routes_from_invoice(amount_to_pay, decoded_invoice=lnaddr)
+        self.assertEqual(1, len(routes))
+        self.assertEqual([3], weights)
+
+    async def test_mpp_parts_get_their_share_of_the_fee_budget_in_path_finding(self):
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice_w, dave_w = graph.workers['alice'], graph.workers['dave']
+        dave_w.features |= LnFeatures.BASIC_MPP_OPT
+        amount_to_pay = 200_000_000
+        alice_w.config.LIGHTNING_PAYMENT_FEE_MAX_MILLIONTHS = 10_000
+        alice_w.config.LIGHTNING_PAYMENT_FEE_CUTOFF_MSAT = 0
+        lnaddr, _pay_req = lnhelpers.prepare_invoice(dave_w, include_routing_hints=True, amount_msat=amount_to_pay)
+        bob_chan = graph.channels[('alice', 'bob')][0]
+        split_config = SplitConfig({(bob_chan.channel_id, bob_chan.node_id): [amount_to_pay // 2, amount_to_pay // 2]})
+        alice_w.suggest_payment_splits = lambda **kwargs: [SplitConfigRating(config=split_config, rating=0)]
+        orig = alice_w.create_route_for_single_htlc
+        max_fees, weights = [], []
+        def wrapped(**kwargs):
+            max_fees.append(kwargs['max_fee_msat'])
+            weights.append(kwargs['penalty_weight'])
+            return orig(**kwargs)
+        alice_w.create_route_for_single_htlc = wrapped
+        with mock.patch.object(PaySession, 'penalty_weight', lambda self: 3):
+            routes = await alice_w.create_routes_from_invoice(amount_to_pay, decoded_invoice=lnaddr)
+        self.assertEqual(2, len(routes))
+        budget_msat = amount_to_pay * 10_000 // 1_000_000
+        self.assertEqual([budget_msat // 2, budget_msat // 2], max_fees)
+        self.assertEqual([3, 3], weights)  # the penalty weight of the payment, for every part
+
+    async def test_mpp_parts_inflight_accounting_is_undone_on_failure(self):
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice_w, dave_w = graph.workers['alice'], graph.workers['dave']
+        dave_w.features |= LnFeatures.BASIC_MPP_OPT
+        amount_to_pay = 200_000_000
+        lnaddr, _pay_req = lnhelpers.prepare_invoice(dave_w, include_routing_hints=True, amount_msat=amount_to_pay)
+        bob_chan = graph.channels[('alice', 'bob')][0]
+        split_config = SplitConfig({(bob_chan.channel_id, bob_chan.node_id): [amount_to_pay // 2, amount_to_pay // 2]})
+        alice_w.suggest_payment_splits = lambda **kwargs: [SplitConfigRating(config=split_config, rating=0)]
+        hints = alice_w.network.path_finder.liquidity_hints
+        orig = alice_w.create_route_for_single_htlc
+        calls = []
+        def wrapped(**kwargs):
+            calls.append(1)
+            if len(calls) == 2:
+                raise NoPathFound()
+            return orig(**kwargs)
+        alice_w.create_route_for_single_htlc = wrapped
+        with self.assertRaises(NoPathFound):
+            await alice_w.create_routes_from_invoice(amount_to_pay, decoded_invoice=lnaddr)
+        self.assertEqual(2, len(calls))
+        self.assertEqual(0, sum(h.num_inflight_htlcs(True) + h.num_inflight_htlcs(False) for h in hints._liquidity_hints.values()))
+
+    async def test_mpp_parts_inflight_accounting_keeps_real_inflight_htlcs(self):
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice_w, dave_w = graph.workers['alice'], graph.workers['dave']
+        dave_w.features |= LnFeatures.BASIC_MPP_OPT
+        amount_to_pay = 200_000_000
+        lnaddr, _pay_req = lnhelpers.prepare_invoice(dave_w, include_routing_hints=True, amount_msat=amount_to_pay)
+        bob_chan = graph.channels[('alice', 'bob')][0]
+        split_config = SplitConfig({(bob_chan.channel_id, bob_chan.node_id): [amount_to_pay // 2, amount_to_pay // 2]})
+        alice_w.suggest_payment_splits = lambda **kwargs: [SplitConfigRating(config=split_config, rating=0)]
+        hints = alice_w.network.path_finder.liquidity_hints
+        hints.add_htlc(alice_w.node_keypair.pubkey, graph.workers['bob'].node_keypair.pubkey, bob_chan.short_channel_id)
+        await alice_w.create_routes_from_invoice(amount_to_pay, decoded_invoice=lnaddr)
+        self.assertEqual(1, sum(h.num_inflight_htlcs(True) + h.num_inflight_htlcs(False) for h in hints._liquidity_hints.values()))
+
+    async def test_direct_payment_does_not_need_path_finder(self):
+        # e.g. in trampoline mode there is no path finder
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['single_chan'])
+        alice_w, bob_w = graph.workers['alice'], graph.workers['bob']
+        bob_w.features |= LnFeatures.BASIC_MPP_OPT
+        amount_to_pay = 100_000_000
+        lnaddr, _pay_req = lnhelpers.prepare_invoice(bob_w, amount_msat=amount_to_pay)
+        chan = graph.channels[('alice', 'bob')][0]
+        split_config = SplitConfig({(chan.channel_id, chan.node_id): [amount_to_pay // 2, amount_to_pay // 2]})
+        alice_w.suggest_payment_splits = lambda **kwargs: [SplitConfigRating(config=split_config, rating=0)]
+        path_finder, alice_w.network.path_finder = alice_w.network.path_finder, None
+        try:
+            routes = await alice_w.create_routes_from_invoice(amount_to_pay, decoded_invoice=lnaddr)
+        finally:
+            alice_w.network.path_finder = path_finder
+        self.assertEqual(2, len(routes))
+
     async def test_unchanged_channel_update_from_failed_htlc(self):
         # a TEMPORARY_CHANNEL_FAILURE carrying a channel update identical to what we
         # already have (UpdateStatus.UNCHANGED) is a liquidity issue: the recorded
@@ -727,6 +998,186 @@ class TestLNWallet(ElectrumTestCase):
             route=two_hop_route('carol'), sender_idx=0, amount_msat=amount_msat,
             failure_msg=OnionRoutingFailure(code=OnionFailureCode.FEE_INSUFFICIENT, data=failure_data))
         self.assertTrue(path_finder._is_edge_blacklisted(chan_cd.short_channel_id, now=now))
+
+    async def test_known_channel_update_from_failed_htlc(self):
+        # a TEMPORARY_CHANNEL_FAILURE usually carries the very same channel_update we
+        # already have in the db, so add_channel_update returns UpdateStatus.DEPRECATED
+        # (not UNCHANGED, as the timestamp is not newer). this is still just a liquidity
+        # issue: the channel must not get blacklisted, only a liquidity hint is recorded.
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice_w = graph.workers['alice']
+        path_finder = alice_w.network.path_finder
+        amount_msat = 100_000_000
+        chan_bd = graph.channels[('bob', 'dave')][0]
+        chan_ann = decode_msg(chan_bd.construct_channel_announcement_without_sigs()[0])[1]
+        alice_w.channel_db.add_channel_announcements(chan_ann, trusted=True)
+        chan_upd_raw = chan_bd.get_outgoing_gossip_channel_update()
+        self.assertEqual(UpdateStatus.GOOD, alice_w.channel_db.add_channel_update(decode_msg(chan_upd_raw)[1], verify=False))
+        self.assertEqual(UpdateStatus.DEPRECATED, alice_w.channel_db.add_channel_update(decode_msg(chan_upd_raw)[1], verify=False))
+        # the route used the parameters of that update, as it normally does
+        policy_bd = decode_msg(chan_upd_raw)[1]
+        route = [
+            RouteEdge(
+                start_node=graph.workers[a].node_keypair.pubkey,
+                end_node=graph.workers[b].node_keypair.pubkey,
+                short_channel_id=graph.channels[(a, b)][0].short_channel_id,
+                fee_base_msat=policy['fee_base_msat'],
+                fee_proportional_millionths=policy['fee_proportional_millionths'],
+                cltv_delta=policy['cltv_expiry_delta'], node_features=0,
+            ) for (a, b), policy in [
+                (('alice', 'bob'), {'fee_base_msat': 0, 'fee_proportional_millionths': 0, 'cltv_expiry_delta': 10}),
+                (('bob', 'dave'), policy_bd)]
+        ]
+        failure_data = len(chan_upd_raw).to_bytes(2, 'big') + chan_upd_raw
+        alice_w.handle_error_code_from_failed_htlc(
+            route=route, sender_idx=0, amount_msat=amount_msat,
+            failure_msg=OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=failure_data))
+        self.assertFalse(path_finder._is_edge_blacklisted(chan_bd.short_channel_id, now=int(time.time())))
+        hint_bd = path_finder.liquidity_hints.get_hint(chan_bd.short_channel_id)
+        pubkey_b = graph.workers['bob'].node_keypair.pubkey
+        pubkey_d = graph.workers['dave'].node_keypair.pubkey
+        self.assertEqual(amount_msat, hint_bd.cannot_send(pubkey_b < pubkey_d))
+
+        # a non-liquidity failure with an update we already know still gets blacklisted
+        chan_cd = graph.channels[('carol', 'dave')][0]
+        chan_ann = decode_msg(chan_cd.construct_channel_announcement_without_sigs()[0])[1]
+        alice_w.channel_db.add_channel_announcements(chan_ann, trusted=True)
+        chan_upd_raw = chan_cd.get_outgoing_gossip_channel_update()
+        self.assertEqual(UpdateStatus.GOOD, alice_w.channel_db.add_channel_update(decode_msg(chan_upd_raw)[1], verify=False))
+        policy_cd = decode_msg(chan_upd_raw)[1]
+        route_c = [
+            RouteEdge(
+                start_node=graph.workers[a].node_keypair.pubkey,
+                end_node=graph.workers[b].node_keypair.pubkey,
+                short_channel_id=graph.channels[(a, b)][0].short_channel_id,
+                # the route already used the parameters of the update, so the node refused for no reason
+                fee_base_msat=policy_cd['fee_base_msat'],
+                fee_proportional_millionths=policy_cd['fee_proportional_millionths'],
+                cltv_delta=policy_cd['cltv_expiry_delta'],
+                node_features=0,
+            ) for a, b in [('alice', 'carol'), ('carol', 'dave')]
+        ]
+        failure_data = amount_msat.to_bytes(8, 'big') + len(chan_upd_raw).to_bytes(2, 'big') + chan_upd_raw
+        alice_w.handle_error_code_from_failed_htlc(
+            route=route_c, sender_idx=0, amount_msat=amount_msat,
+            failure_msg=OnionRoutingFailure(code=OnionFailureCode.FEE_INSUFFICIENT, data=failure_data))
+        self.assertTrue(path_finder._is_edge_blacklisted(chan_cd.short_channel_id, now=int(time.time())))
+
+    async def test_mpp_parts_failing_with_the_same_channel_update_do_not_blacklist(self):
+        # All parts of a payment use the same stale policy, so they fail with the same update.
+        # The first part makes us learn it. For the next one the update is not new anymore,
+        # but the channel is fine: the retry will use the policy we just learned.
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice_w = graph.workers['alice']
+        path_finder = alice_w.network.path_finder
+        amount_msat = 100_000_000
+        chan_bd = graph.channels[('bob', 'dave')][0]
+        chan_ann = decode_msg(chan_bd.construct_channel_announcement_without_sigs()[0])[1]
+        alice_w.channel_db.add_channel_announcements(chan_ann, trusted=True)
+        chan_upd_raw = chan_bd.get_outgoing_gossip_channel_update()
+        policy = decode_msg(chan_upd_raw)[1]
+        route = [
+            RouteEdge(
+                start_node=graph.workers[a].node_keypair.pubkey,
+                end_node=graph.workers[b].node_keypair.pubkey,
+                short_channel_id=graph.channels[(a, b)][0].short_channel_id,
+                fee_base_msat=policy['fee_base_msat'] + 1,  # outdated
+                fee_proportional_millionths=policy['fee_proportional_millionths'],
+                cltv_delta=policy['cltv_expiry_delta'],
+                node_features=0,
+            ) for a, b in [('alice', 'bob'), ('bob', 'dave')]
+        ]
+        failure_data = amount_msat.to_bytes(8, 'big') + len(chan_upd_raw).to_bytes(2, 'big') + chan_upd_raw
+        for _ in range(2):  # one call per failed part
+            alice_w.handle_error_code_from_failed_htlc(
+                route=route, sender_idx=0, amount_msat=amount_msat,
+                failure_msg=OnionRoutingFailure(code=OnionFailureCode.FEE_INSUFFICIENT, data=failure_data))
+        self.assertFalse(path_finder._is_edge_blacklisted(chan_bd.short_channel_id, now=int(time.time())))
+
+    async def test_route_is_logged_with_the_source_of_each_policy(self):
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice_w = graph.workers['alice']
+        chan_bd = graph.channels[('bob', 'dave')][0]
+        chan_ann = decode_msg(chan_bd.construct_channel_announcement_without_sigs()[0])[1]
+        alice_w.channel_db.add_channel_announcements(chan_ann, trusted=True)
+        chan_upd = decode_msg(chan_bd.get_outgoing_gossip_channel_update())[1]
+        chan_upd['timestamp'] = int(time.time()) - 3 * 3600
+        self.assertEqual(UpdateStatus.GOOD, alice_w.channel_db.add_channel_update(chan_upd, verify=False))
+        hint_scid = ShortChannelID.from_components(0, 1, 2)
+        pubkey = {name: graph.workers[name].node_keypair.pubkey for name in ('alice', 'bob', 'dave')}
+        payee = bytes.fromhex('03' + '33' * 32)
+        route = [
+            RouteEdge(start_node=pubkey['alice'], end_node=pubkey['bob'], short_channel_id=graph.channels[('alice', 'bob')][0].short_channel_id,
+                      fee_base_msat=7, fee_proportional_millionths=7, cltv_delta=10, node_features=0),
+            RouteEdge(start_node=pubkey['bob'], end_node=pubkey['dave'], short_channel_id=chan_bd.short_channel_id,
+                      fee_base_msat=chan_upd['fee_base_msat'], fee_proportional_millionths=chan_upd['fee_proportional_millionths'],
+                      cltv_delta=chan_upd['cltv_expiry_delta'], node_features=0),
+            RouteEdge(start_node=pubkey['dave'], end_node=payee, short_channel_id=hint_scid,
+                      fee_base_msat=0, fee_proportional_millionths=1000, cltv_delta=40, node_features=0),
+        ]
+        text = alice_w._route_to_str_for_log(route)
+        self.assertIn(f"{pubkey['alice'].hex()[:10]} -[{route[0].short_channel_id} 7+7ppm cltv 10, own channel]->", text)
+        bd = route[1]
+        self.assertIn(f"{pubkey['bob'].hex()[:10]} -[{chan_bd.short_channel_id} {bd.fee_base_msat}+{bd.fee_proportional_millionths}ppm "
+                      f"cltv {bd.cltv_delta}, update 3h old]->", text)
+        self.assertIn(f"{pubkey['dave'].hex()[:10]} -[{hint_scid} 0+1000ppm cltv 40, route hint]->", text)
+        self.assertTrue(text.endswith(payee.hex()[:10]))
+        # fees of the route, not counting our own channel: 1000 msat + 1800 ppm of the forwarded amount, 1000 ppm of 10_000_000
+        from electrum.lnworker import _route_fee_msat
+        route[1].fee_base_msat, route[1].fee_proportional_millionths = 1000, 1800
+        self.assertEqual(10_000 + 1000 + (10_010_000 * 1800 // 1_000_000), _route_fee_msat(route, 10_000_000))
+        # this route uses other parameters than the update in our db, e.g. it was created before we learned it
+        self.assertIn(f"{chan_bd.short_channel_id} 1000+1800ppm cltv {bd.cltv_delta}, route used an older update, db has one 3h old]->",
+                      alice_w._route_to_str_for_log(route))
+
+    async def test_gossip_status_for_log_does_not_touch_the_db_while_it_loads(self):
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice_w = graph.workers['alice']
+        self.assertIn('newest_policy_age=', alice_w._gossip_status_for_log())
+        alice_w.channel_db.data_loaded.clear()
+        try:
+            with mock.patch.object(alice_w.channel_db, 'get_latest_policy_timestamp', side_effect=RuntimeError('dict changed size')):
+                self.assertIn('newest_policy_age=loading', alice_w._gossip_status_for_log())
+        finally:
+            alice_w.channel_db.data_loaded.set()
+
+    async def test_failed_htlc_logs_the_failing_edge_and_the_route(self):
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice_w = graph.workers['alice']
+        route = [
+            RouteEdge(
+                start_node=graph.workers[a].node_keypair.pubkey,
+                end_node=graph.workers[b].node_keypair.pubkey,
+                short_channel_id=graph.channels[(a, b)][0].short_channel_id,
+                fee_base_msat=0, fee_proportional_millionths=0, cltv_delta=10, node_features=0,
+            ) for a, b in [('alice', 'bob'), ('bob', 'dave')]
+        ]
+        htlc_log = HtlcLog(
+            success=False, amount_msat=100_000_000, route=route, sender_idx=0,
+            failure_msg=OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=(0).to_bytes(2, 'big')))
+        paysession = mock.Mock(uses_trampoline=False)
+        with self.assertLogs('electrum', level='INFO') as logs:
+            await alice_w._process_htlc_log(paysession=paysession, htlc_log=htlc_log, is_forwarding_trampoline=False)
+        line = [line for line in logs.output if 'htlc failed at edge' in line]
+        self.assertEqual(1, len(line))
+        self.assertIn(f"htlc failed at edge 2 of 2 (channel {route[1].short_channel_id})", line[0])
+        # the policies used, without their source: our db might have changed since the route was created
+        self.assertIn(f"-[{route[1].short_channel_id} 0+0ppm cltv 10]->", line[0])
+
+    async def test_htlc_failing_at_the_destination_is_logged_as_such(self):
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice_w = graph.workers['alice']
+        route = [RouteEdge(
+            start_node=alice_w.node_keypair.pubkey, end_node=graph.workers['bob'].node_keypair.pubkey,
+            short_channel_id=graph.channels[('alice', 'bob')][0].short_channel_id,
+            fee_base_msat=0, fee_proportional_millionths=0, cltv_delta=10, node_features=0)]
+        htlc_log = HtlcLog(
+            success=False, amount_msat=100_000_000, route=route, sender_idx=0,
+            failure_msg=OnionRoutingFailure(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b''))
+        with self.assertLogs('electrum', level='INFO') as logs:
+            with self.assertRaises(PaymentFailure):
+                await alice_w._process_htlc_log(paysession=mock.Mock(), htlc_log=htlc_log, is_forwarding_trampoline=False)
+        self.assertTrue(any('htlc failed at the destination. route:' in line for line in logs.output), logs.output)
 
     async def test_missing_channel_update_from_failed_htlc(self):
         # the channel_update in UPDATE-type failure messages is optional, nodes

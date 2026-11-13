@@ -343,6 +343,14 @@ def get_mychannel_policy(short_channel_id: bytes, node_id: bytes,
 class _LoadDataAborted(Exception): pass
 
 
+create_orphaned_channel = """
+CREATE TABLE IF NOT EXISTS orphaned_channel (
+short_channel_id BLOB(8),
+timestamp INTEGER NOT NULL,
+PRIMARY KEY(short_channel_id)
+)"""
+
+
 create_channel_info = """
 CREATE TABLE IF NOT EXISTS channel_info (
 short_channel_id BLOB(8),
@@ -379,6 +387,8 @@ class ChannelDB(SqlDB):
     NUM_MAX_RECENT_PEERS = 20
     PRIVATE_CHAN_UPD_CACHE_TTL_NORMAL = 600
     PRIVATE_CHAN_UPD_CACHE_TTL_SHORT = 120
+    # how long we do not re-request channels that we just pruned for having no recent policies
+    ORPHANED_CHANNEL_REQUERY_DELAY = 7 * 24 * 3600
 
     def __init__(self, network: 'Network'):
         path = self.get_file_path(network.config)
@@ -405,6 +415,8 @@ class ChannelDB(SqlDB):
         self._chans_with_0_policies = set()  # type: Set[ShortChannelID]
         self._chans_with_1_policies = set()  # type: Set[ShortChannelID]
         self._chans_with_2_policies = set()  # type: Set[ShortChannelID]
+        self._orphaned_channels = {}  # type: Dict[ShortChannelID, int]  # scid -> time of pruning
+        self._chans_announced_since_last_prune = set()  # type: Set[ShortChannelID]
 
         self.forwarding_lock = threading.RLock()
         self.fwd_channels = []  # type: List[GossipForwardingMessage]
@@ -413,6 +425,8 @@ class ChannelDB(SqlDB):
         self.fwd_node_announcements = []  # type: List[GossipForwardingMessage]
 
         self.data_loaded = asyncio.Event()
+        # the newest policy before this session added any, i.e. about when we were last online
+        self.latest_policy_ts_at_load = None  # type: Optional[int]
         self.network = network # only for callback
 
     @classmethod
@@ -509,6 +523,7 @@ class ChannelDB(SqlDB):
             self._channels[channel_info.short_channel_id] = channel_info
             self._channels_for_node[channel_info.node1_id].add(channel_info.short_channel_id)
             self._channels_for_node[channel_info.node2_id].add(channel_info.short_channel_id)
+            self._chans_announced_since_last_prune.add(channel_info.short_channel_id)
         self._update_num_policies_for_chan(channel_info.short_channel_id)
         if 'raw' in msg:
             self._db_save_channel(channel_info.short_channel_id, msg['raw'])
@@ -621,6 +636,7 @@ class ChannelDB(SqlDB):
         c.execute(create_address)
         c.execute(create_policy)
         c.execute(create_channel_info)
+        c.execute(create_orphaned_channel)
         self.conn.commit()
 
     @sql
@@ -645,6 +661,13 @@ class ChannelDB(SqlDB):
     def _db_delete_channel(self, short_channel_id: ShortChannelID):
         c = self.conn.cursor()
         c.execute("""DELETE FROM channel_info WHERE short_channel_id=?""", (short_channel_id,))
+
+    @sql
+    def _db_save_orphaned_channels(self, short_channel_ids: Set[ShortChannelID], timestamp: int, cutoff: int):
+        c = self.conn.cursor()
+        c.executemany("REPLACE INTO orphaned_channel (short_channel_id, timestamp) VALUES (?,?)",
+                      [(bytes(scid), timestamp) for scid in short_channel_ids])
+        c.execute("DELETE FROM orphaned_channel WHERE timestamp<=?", (cutoff,))
 
     @sql
     def _db_save_node_info(self, node_id: bytes, msg: bytes):
@@ -730,6 +753,11 @@ class ChannelDB(SqlDB):
 
         self.update_counts()
 
+    def get_latest_policy_timestamp(self) -> Optional[int]:
+        """Returns the newest timestamp of all policies in the db, or None if there are none."""
+        with self.lock:
+            return max((p.timestamp for p in self._policies.values()), default=None)
+
     def get_old_policies(self, delta) -> Sequence[Tuple[bytes, ShortChannelID]]:
         with self.lock:
             _policies = self._policies.copy()
@@ -743,7 +771,7 @@ class ChannelDB(SqlDB):
             for key in old_policies:
                 node_id, scid = key
                 with self.lock:
-                    self._policies.pop(key)
+                    self._policies.pop(key, None)  # note: might have been removed concurrently
                 self._db_delete_policy(*key)
                 self._update_num_policies_for_chan(scid)
             self.update_counts()
@@ -753,11 +781,65 @@ class ChannelDB(SqlDB):
     def prune_orphaned_channels(self):
         with self.lock:
             orphaned_chans = self._chans_with_0_policies.copy()
+            # Only remember the channels that peers told us about just now, but for which they
+            # have no recent policy. Others might just have aged out while we were offline,
+            # or an earlier session got interrupted, so those should get queried again.
+            announced_but_no_policy = orphaned_chans & self._chans_announced_since_last_prune
+            self._chans_announced_since_last_prune = set()
         if orphaned_chans:
             for short_channel_id in orphaned_chans:
                 self.remove_channel(short_channel_id)
             self.update_counts()
             self.logger.info(f'Deleting {len(orphaned_chans)} orphaned channels')
+            if announced_but_no_policy:
+                self._remember_orphaned_channels(announced_but_no_policy)
+
+    def _remember_orphaned_channels(self, short_channel_ids: Set[ShortChannelID]) -> None:
+        now = int(time.time())
+        cutoff = now - self.ORPHANED_CHANNEL_REQUERY_DELAY
+        with self.lock:
+            for short_channel_id in short_channel_ids:
+                self._orphaned_channels[short_channel_id] = now
+            expired = [scid for scid, ts in self._orphaned_channels.items() if ts <= cutoff]
+            for short_channel_id in expired:
+                self._orphaned_channels.pop(short_channel_id)
+        self._db_save_orphaned_channels(short_channel_ids, now, cutoff)
+
+    def has_policy_newer_than(self, short_channel_id: ShortChannelID, timestamp: int) -> bool:
+        channel_info = self._channels.get(short_channel_id)
+        if channel_info is None:
+            return False
+        for node_id in (channel_info.node1_id, channel_info.node2_id):
+            policy = self._policies.get((node_id, short_channel_id))
+            if policy and policy.timestamp > timestamp:
+                return True
+        return False
+
+    def remove_channels_absent_from_peers(self, short_channel_ids: Set[ShortChannelID]) -> None:
+        """Removes channels that peers no longer list, and remembers them,
+        as other peers with an outdated view would keep offering them to us.
+        """
+        for short_channel_id in short_channel_ids:
+            channel_info = self._channels.get(short_channel_id)
+            if channel_info is None:
+                continue
+            for node_id in (channel_info.node1_id, channel_info.node2_id):
+                with self.lock:
+                    policy = self._policies.pop((node_id, short_channel_id), None)
+                if policy is not None:
+                    self._db_delete_policy(node_id, short_channel_id)
+            self.remove_channel(short_channel_id)
+        self.update_counts()
+        self.logger.info(f'Deleting {len(short_channel_ids)} channels that most peers do not list')
+        self._remember_orphaned_channels(short_channel_ids)
+
+    def get_recently_orphaned_channel_ids(self) -> Set[ShortChannelID]:
+        """Channels that we pruned recently, and that peers will still list in reply_channel_range.
+        Requesting them again would download them just to prune them again.
+        """
+        cutoff = int(time.time()) - self.ORPHANED_CHANNEL_REQUERY_DELAY
+        with self.lock:
+            return {scid for scid, ts in self._orphaned_channels.items() if ts > cutoff}
 
     def _get_channel_update_for_private_channel(
         self,
@@ -859,6 +941,9 @@ class ChannelDB(SqlDB):
             return newest_ts
         sorted_node_ids = sorted(self._addresses.keys(), key=newest_ts_for_node_id, reverse=True)
         self._recent_peers = sorted_node_ids[:self.NUM_MAX_RECENT_PEERS]
+        c.execute("""SELECT short_channel_id, timestamp FROM orphaned_channel""")
+        for short_channel_id, timestamp in c:
+            self._orphaned_channels[ShortChannelID.normalize(short_channel_id)] = timestamp
         c.execute("""SELECT * FROM channel_info""")
         for short_channel_id, msg in c:
             maybe_abort()
@@ -897,6 +982,7 @@ class ChannelDB(SqlDB):
         self.logger.info(f'data loaded. {len(self._channels)} chans. {len(self._policies)} policies. '
                          f'{len(self._channels_for_node)} nodes.')
         self.update_counts()
+        self.latest_policy_ts_at_load = self.get_latest_policy_timestamp()
         (nchans_with_0p, nchans_with_1p, nchans_with_2p) = self.get_num_channels_partitioned_by_policy_count()
         self.logger.info(f'num_channels_partitioned_by_policy_count. '
                          f'0p: {nchans_with_0p}, 1p: {nchans_with_1p}, 2p: {nchans_with_2p}')
