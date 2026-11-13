@@ -8,12 +8,16 @@ import "controls"
 ElDialog {
     id: dialog
 
-    required property string text
-    property string text_qr
-    // if text_qr is undefined text will be used
+    required property string psbt
     property string text_help
-    property string text_warn
     property string tx_label
+
+    property var _export: QRIP.getTxExportData(dialog.psbt)
+    readonly property string text_warn: !_export.data_stripped
+        ? ''
+        : [qsTr('Warning: Some data (prev txs / "full utxos") was left out of the QR code to reduce its size.'),
+           qsTr('This might cause issues if signing offline.'),
+           qsTr('As a workaround, copy to clipboard or use the Share option instead.')].join(' ')
 
     title: qsTr('Share Transaction')
 
@@ -48,7 +52,16 @@ ElDialog {
                         width: parent.width
                         QRImage {
                             id: qr
-                            qrdata: dialog.text_qr
+                            visible: !dialog._export.ur_payload
+                            qrdata: dialog._export.qr_text
+                            Layout.alignment: Qt.AlignHCenter
+                            Layout.topMargin: constants.paddingMedium
+                            Layout.bottomMargin: constants.paddingMedium
+                        }
+                        URQRImage {
+                            visible: dialog._export.ur_payload
+                            urType: dialog._export.ur_type
+                            payload: dialog._export.ur_payload
                             Layout.alignment: Qt.AlignHCenter
                             Layout.topMargin: constants.paddingMedium
                             Layout.bottomMargin: constants.paddingMedium
@@ -88,7 +101,7 @@ ElDialog {
                 text: qsTr('Copy')
                 icon.source: '../../icons/copy_bw.png'
                 onClicked: {
-                    AppController.textToClipboard(dialog.text)
+                    AppController.textToClipboard(dialog._export.text)
                     toaster.show(this, qsTr('Copied!'))
                 }
             }
@@ -98,7 +111,7 @@ ElDialog {
                 text: qsTr('Share')
                 icon.source: '../../icons/share.png'
                 onClicked: {
-                    AppController.doShare(dialog.text, dialog.title)
+                    AppController.doShare(dialog._export.text, dialog.title)
                 }
             }
             function beforeLayout() {
