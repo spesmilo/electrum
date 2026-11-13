@@ -2020,15 +2020,10 @@ class LNWallet(Logger):
             reason = str(e)
         finally:
             self.logger.info(f"pay_invoice ending session for RHASH={payment_hash.hex()}. {success=}")
-            if success:
-                self.set_invoice_status(key, PR_PAID)
-                util.trigger_callback('payment_succeeded', self.wallet, key)
-            elif self.has_unresolved_sent_htlcs(payment_hash):
-                # The invoice stays PR_INFLIGHT until the htlcs resolve.
-                self.logger.info("pay_invoice: htlcs are still unresolved.")
-            else:
-                self.set_invoice_status(key, PR_UNPAID)  # allows retries
-                util.trigger_callback('payment_failed', self.wallet, key, reason)
+            if not success:
+                # stays PR_INFLIGHT until the htlcs resolve, else PR_UNPAID (allows retries)
+                # note: the success case is handled in htlc_fulfilled
+                self._set_sent_payment_failed(payment_hash, reason=reason)
         log = self.logs[key]
         return success, log
 
@@ -3246,20 +3241,17 @@ class LNWallet(Logger):
             self.set_invoice_status(key, PR_PAID)
             util.trigger_callback('payment_succeeded', self.wallet, key)
 
-    def _set_sent_payment_failed(self, payment_hash: bytes) -> None:
+    def _set_sent_payment_failed(self, payment_hash: bytes, *, reason: str = '') -> None:
         key = payment_hash.hex()
         if self.has_unresolved_sent_htlcs(payment_hash):
-            return
-        if self.get_preimage(payment_hash) and self.wallet.get_request(key) is None:
-            # if we know the preimage don't consider the payment failed (unless we pay ourselves).
-            # maybe another htlc of the same mpp got fulfilled, or we saw a htlc-success tx in the mempool
-            # before claiming a revoked htlc with a justice tx which ultimately would make LNWatcher try to fail the htlc here
+            self.logger.debug(f"not setting payment {payment_hash.hex()} failed yet, still has pending htlcs")
             return
         info = self.get_payment_info(payment_hash, direction=SENT)
+        # note: if a htlc got fulfilled, htlc_fulfilled has set the status to PR_PAID already
         if info is not None and (info.status == PR_UNPAID and key in self.inflight_payments):
             # invoice status is PR_INFLIGHT, set it to PR_UNPAID
             self.set_invoice_status(key, PR_UNPAID)
-            util.trigger_callback('payment_failed', self.wallet, key, '')
+            util.trigger_callback('payment_failed', self.wallet, key, reason)
 
     def htlc_fulfilled(self, chan: Channel, payment_hash: bytes, htlc_id: int):
         """Called when an HTLC *WE proposed* becomes irrevocably fulfilled."""
@@ -3292,7 +3284,7 @@ class LNWallet(Logger):
                 paysession_active = False
             else:
                 paysession_active = True
-            if not fw_key and not paysession.is_active:
+            if not fw_key:
                 self._set_sent_payment_succeeded(payment_hash)
         else:
             if fw_key:
