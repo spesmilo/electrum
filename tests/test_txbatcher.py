@@ -1236,6 +1236,23 @@ class TestTxBatcher(ElectrumTestCase):
         self.assertEqual(wallet.txbatcher.tx_batches['lnwatcher'], anchor_batch)
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_anchor_cpfp_can_spend_ln_reserve(self, mock_save_db):
+        # LN_UTXO_RESERVE exists to fund an anchor CPFP: a batch without payments may spend it
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        await self._fund_wallet(wallet)
+        wallet.adb.db.transactions[anchor_chan_ctx.txid()] = anchor_chan_ctx
+        with mock.patch.object(wallet, 'should_keep_reserve_utxo', return_value=True):
+            output = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 10_000)
+            with self.assertRaises(util.NotEnoughFunds):
+                wallet.make_unsigned_transaction(outputs=[output], fee_policy=FeePolicy('feerate:1000'))
+            wallet.txbatcher.add_sweep_input('default', ANCHOR_SWEEP_INFO)
+            batch = wallet.txbatcher.tx_batches['default']
+            await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        self.assertIn(anchor_txin.prevout, [txin.prevout for txin in tx1.inputs()])
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_anchor_not_needed_yet_is_added_again(self, mock_save_db):
         # the ctx pays enough fees, so the anchor is not used, and tx1, an unrelated sweep, confirms:
         # the new batch does not keep the anchor. Once the ctx needs fees, lnwatcher adds it again

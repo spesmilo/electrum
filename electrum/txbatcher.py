@@ -682,6 +682,7 @@ class TxBatch(Logger):
             BIP69_sort=False,
             merge_duplicate_outputs=False,
             require_change=True,  # a new batch can be chained to it
+            spend_ln_reserve=not self.batch_payments,  # sweeps, e.g. an anchor CPFP
         )
         # this assert will fail if we merge duplicate outputs
         for o in outputs: assert o in tx.outputs()
