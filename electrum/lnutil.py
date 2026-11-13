@@ -1858,9 +1858,8 @@ class LnFeatures(IntFlag):
                 features |= (1 << flag)
         return features
 
-    if hasattr(IntFlag, "_numeric_repr_"):  # python 3.11+
-        # performance improvement (avoid base2<->base10), see #8403
-        _numeric_repr_ = hex
+    # performance improvement (avoid base2<->base10), see #8403
+    _numeric_repr_ = hex
 
     def __repr__(self):
         # performance improvement (avoid base2<->base10), see #8403

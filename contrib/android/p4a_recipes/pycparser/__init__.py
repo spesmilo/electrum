@@ -7,8 +7,8 @@ assert PycparserRecipe.python_depends == []
 
 
 class PycparserRecipePinned(PycparserRecipe):
-    version = "2.22"
-    sha512sum = "c9a81c78d87162f71281a32a076b279f4f7f2e17253fe14c89c6db5f9b3554a6563ff700c385549a8b51ef8832f99f7bb4ac07f22754c7c475dd91feeb0cf87f"
+    version = "3.12"
+    sha512sum = "59ff647f5e902b275b53e9abfad84d1791832be49800ffda82115dd12d0fa780800c163cb12109e247bc6507fa9d58a585edf46e7a614e820c8d0b4335d60a06"
 
 
 recipe = PycparserRecipePinned()

@@ -1,6 +1,6 @@
 # based on https://github.com/kivy/python-for-android/blob/master/Dockerfile
 
-FROM debian:trixie@sha256:a3b5f4f0286249a124bfe9845b3aec0f88de32ff31dd8d7e1b945f9f98d116b0
+FROM debian:trixie@sha256:bfc36aecdece0387418759dba474aa856c026ca8087da3606b41b90ab0509c99
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -205,8 +205,8 @@ RUN cd /opt \
     && /opt/venv/bin/python3 -m pip install --no-build-isolation --no-dependencies -e .
 
 # install python-for-android
-ENV P4A_CHECKOUT_COMMIT="09f4e218b92743bbe665300f9352e6d649675f63"
-# ^ from branch electrum_202609_qtmultimedia (note: careful with force-pushing! see #8162)
+ENV P4A_CHECKOUT_COMMIT="2a6ec6df384e22953b092bb2d3c066a4f7535ac8"
+# ^ from branch electrum_202611_rm_pyparsing (note: careful with force-pushing! see #8162)
 RUN cd /opt \
     && git clone https://github.com/spesmilo/python-for-android \
     && cd python-for-android \
