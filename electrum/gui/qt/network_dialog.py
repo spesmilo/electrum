@@ -35,7 +35,7 @@ from PyQt6.QtGui import QIntValidator
 
 from electrum.i18n import _
 from electrum.interface import ServerAddr, PREFERRED_NETWORK_PROTOCOL
-from electrum.network import Network, ProxySettings, is_valid_host, is_valid_port
+from electrum.network import Network, ProxySettings, is_valid_host, is_valid_port, is_valid_doh_endpoint
 from electrum.logging import get_logger
 from electrum.util import is_valid_websocket_url
 from electrum.gui import messages
@@ -212,6 +212,7 @@ class ProxyWidget(QWidget):
     }
 
     torProbeFinished = pyqtSignal([str, int], arguments=['host', 'port'])
+    validChanged = pyqtSignal(bool)
 
     def __init__(self, network: Network, parent=None):
         super().__init__(parent)
@@ -236,6 +237,8 @@ class ProxyWidget(QWidget):
         self.proxy_user.setPlaceholderText(_("Proxy username"))
         self.proxy_password = PasswordLineEdit()
         self.proxy_password.setPlaceholderText(_("Proxy password"))
+        self.proxy_doh_endpoint = QLineEdit()
+        self.proxy_doh_endpoint.setPlaceholderText(_("DoH endpoint"))
 
         grid = QGridLayout(self)
         grid.setSpacing(8)
@@ -250,6 +253,12 @@ class ProxyWidget(QWidget):
         grid.addWidget(self.proxy_user, 2, 1, 1, 2)
         grid.addWidget(self.proxy_password, 2, 3, 1, 2)
 
+        grid.addWidget(QLabel(_('Name lookups') + ':'), 3, 0)
+        grid.addWidget(self.proxy_doh_endpoint, 3, 1, 1, 3)
+        doh_helpbutton = HelpButton(
+            _('DoH (DNS-over-HTTPS) endpoint, used for DNSSEC/OpenAlias lookup.'))
+        grid.addWidget(doh_helpbutton, 3, 4, alignment=Qt.AlignmentFlag.AlignRight)
+
         detect_l = QHBoxLayout()
         self.detect_button = QPushButton(_('Detect Tor proxy'))
         self.spinner = Spinner()
@@ -257,11 +266,11 @@ class ProxyWidget(QWidget):
         detect_l.addWidget(self.detect_button)
         detect_l.addWidget(self.spinner)
 
-        grid.addLayout(detect_l, 3, 0, 1, 5, alignment=Qt.AlignmentFlag.AlignLeft)
+        grid.addLayout(detect_l, 4, 0, 1, 5, alignment=Qt.AlignmentFlag.AlignLeft)
 
         spacer = QVBoxLayout()
         spacer.addStretch(1)
-        grid.addLayout(spacer, 4, 0, 1, 5)
+        grid.addLayout(spacer, 5, 0, 1, 5)
 
         self.update_from_config()
         self.update()
@@ -273,6 +282,9 @@ class ProxyWidget(QWidget):
         self.proxy_port.editingFinished.connect(self.on_proxy_settings_changed)
         self.proxy_user.editingFinished.connect(self.on_proxy_settings_changed)
         self.proxy_password.editingFinished.connect(self.on_proxy_settings_changed)
+        self.proxy_doh_endpoint.editingFinished.connect(self.on_proxy_settings_changed)
+        for w in [self.proxy_host, self.proxy_port, self.proxy_doh_endpoint]:
+            w.textChanged.connect(self.validate)
         self.detect_button.clicked.connect(self.detect_tor)
 
         self.torProbeFinished.connect(self.on_tor_probe_finished)
@@ -281,20 +293,34 @@ class ProxyWidget(QWidget):
         enabled = self.proxy_cb.isChecked() and self.config.cv.NETWORK_PROXY.is_modifiable()
         for item in [
                 self.proxy_mode, self.proxy_host, self.proxy_port, self.proxy_user, self.proxy_password,
-                self.detect_button
+                self.proxy_doh_endpoint, self.detect_button
         ]:
             item.setEnabled(enabled)
 
-        if not self.proxy_port.hasAcceptableInput() and not is_valid_port(self.proxy_port.text()):
-            return
-
-        if not is_valid_host(self.proxy_host.text()):
-            return
+        if not self.validate():
+            # with invalid fields, the only change we apply is disabling an enabled proxy
+            if self.proxy_cb.isChecked() or not self.network.proxy.enabled:
+                return
 
         net_params = self.network.get_parameters()
         proxy = self.get_proxy_settings()
         net_params = net_params._replace(proxy=proxy)
         self.network.run_from_another_thread(self.network.set_parameters(net_params))
+
+    def validate(self) -> bool:
+        """Highlights invalid fields and emits validChanged (always valid if the proxy is disabled).
+        Returns whether all fields are valid, regardless of the proxy being enabled."""
+        proxy_enabled = self.proxy_cb.isChecked()
+        fields = [
+            (self.proxy_host, is_valid_host(self.proxy_host.text())),
+            (self.proxy_port, self.proxy_port.hasAcceptableInput() or is_valid_port(self.proxy_port.text())),
+            (self.proxy_doh_endpoint, is_valid_doh_endpoint(self.proxy_doh_endpoint.text())),
+        ]
+        for w, valid in fields:
+            w.setStyleSheet("background-color: rgba(255, 0, 0, 0.2);" if proxy_enabled and not valid else "")
+        fields_valid = all(valid for w, valid in fields)
+        self.validChanged.emit(fields_valid or not proxy_enabled)
+        return fields_valid
 
     def update_from_config(self):
         proxy = ProxySettings.from_config(self.config)
@@ -304,6 +330,7 @@ class ProxyWidget(QWidget):
         self.proxy_port.setText(proxy.port)
         self.proxy_user.setText(proxy.user)
         self.proxy_password.setText(proxy.password)
+        self.proxy_doh_endpoint.setText(proxy.doh_endpoint)
 
         if not self.config.cv.NETWORK_PROXY.is_modifiable():
             for w in [
@@ -329,6 +356,7 @@ class ProxyWidget(QWidget):
         proxy.port = self.proxy_port.text()
         proxy.user = self.proxy_user.text()
         proxy.password = self.proxy_password.text()
+        proxy.doh_endpoint = self.proxy_doh_endpoint.text()
         return proxy
 
     def detect_tor(self):
