@@ -12,7 +12,7 @@ from electrum.util import event_listener
 from electrum.gui.common_qt.util import QtEventListener
 
 from .qeconfig import QEConfig
-from .qeserverlistmodel import QEServerListModel
+from .qeserverlistmodel import QEServerListModel, QEServerListSortModel
 
 if TYPE_CHECKING:
     from electrum.network import Network
@@ -56,6 +56,7 @@ class QENetwork(QObject, QtEventListener):
         assert network, "--offline is not yet implemented for this GUI"  # TODO
         self.network = network
         self._serverListModel = None
+        self._serverListSortModel = None
         self._height = network.get_local_height()  # init here, update event can take a while
         self._server_height = network.get_server_height()  # init here, update event can take a while
         self.register_callbacks()
@@ -212,6 +213,18 @@ class QENetwork(QObject, QtEventListener):
     def isValidServerAddress(self, server: str) -> bool:
         return ServerAddr.from_str_with_inference(server) is not None
 
+    @pyqtSlot(str, bool)
+    def setServerBookmark(self, server_str: str, bookmarked: bool):
+        # server_str is the 'name' role of QEServerListModel, i.e. str(ServerAddr)
+        try:
+            server = ServerAddr.from_str(server_str)
+        except ValueError:
+            self._logger.warning(f'setServerBookmark: invalid server address {server_str!r}')
+            return
+        self.network.set_server_bookmark(server, add=bookmarked)
+        if self._serverListModel is not None:
+            self._serverListModel.updateModel()
+
     @pyqtSlot(str, bool, bool)
     def setServerParameters(self, server_str: str, auto_connect: bool, one_server: bool):
         net_params = self.network.get_parameters()
@@ -303,11 +316,12 @@ class QENetwork(QObject, QtEventListener):
         }
 
     serverListModelChanged = pyqtSignal()
-    @pyqtProperty(QEServerListModel, notify=serverListModelChanged)
+    @pyqtProperty(QEServerListSortModel, notify=serverListModelChanged)
     def serverListModel(self):
-        if self._serverListModel is None:
+        if self._serverListSortModel is None:
             self._serverListModel = QEServerListModel(self.network)
-        return self._serverListModel
+            self._serverListSortModel = QEServerListSortModel(self._serverListModel)
+        return self._serverListSortModel
 
     @pyqtSlot()
     def probeTor(self):
