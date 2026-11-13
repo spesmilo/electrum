@@ -1,6 +1,6 @@
 import copy
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QRegularExpression
 
@@ -102,7 +102,8 @@ class QEConfig(AuthMixin, QObject):
         max_digits_before_dp = (
             len(str(TOTAL_COIN_SUPPLY_LIMIT_IN_BTC))
             + (base_unit_name_to_decimal_point("BTC") - decimal_point))
-        exp = '^[0-9]{0,%d}' % max_digits_before_dp
+        # allow 21M BTC plus extra decimals, but not above that
+        exp = '^((210{0,%d})|((20|1?[0-9])?[0-9]{0,%d}))' % (max_digits_before_dp - 2, max_digits_before_dp - 2)
         decimal_point += extra_precision
         if decimal_point > 0:
             exp += '(\\.[0-9]{0,%d})?' % decimal_point
@@ -355,9 +356,27 @@ class QEConfig(AuthMixin, QObject):
     def formatSatsForEditing(self, satoshis):
         if isinstance(satoshis, QEAmount):
             satoshis = satoshis.satsInt
+
         return self.config.format_amount(
             satoshis,
             add_thousands_sep=False,
+        )
+
+    @pyqtSlot('qint64', result=str)
+    @pyqtSlot(QEAmount, result=str)
+    def formatMilliSatsForEditing(self, msatoshis):
+        if isinstance(msatoshis, QEAmount):
+            sats = Decimal(msatoshis.msatsInt) / 1000
+        elif isinstance(msatoshis, int):
+            sats = Decimal(msatoshis) / 1000
+        else:
+            sats = None  # unknown types or None -> 'unknown'
+
+        precision = 3  # config.amt_precision_post_satoshi is not exposed in preferences
+        return self.config.format_amount(
+            sats,
+            add_thousands_sep=False,
+            precision=precision,
         )
 
     @pyqtSlot('qint64', result=str)
@@ -367,37 +386,53 @@ class QEConfig(AuthMixin, QObject):
     def formatSats(self, satoshis, with_unit=False):
         if isinstance(satoshis, QEAmount):
             satoshis = satoshis.satsInt
+
         if with_unit:
             return self.config.format_amount_and_units(satoshis)
         else:
             return self.config.format_amount(satoshis)
 
+    @pyqtSlot('qint64', result=str)
+    @pyqtSlot('qint64', bool, result=str)
     @pyqtSlot(QEAmount, result=str)
     @pyqtSlot(QEAmount, bool, result=str)
     def formatMilliSats(self, amount, with_unit=False):
-        assert isinstance(amount, QEAmount), f"unexpected type for amount: {type(amount)}"
-        msats = amount.msatsInt
+        if isinstance(amount, QEAmount):
+            sats = Decimal(amount.msatsInt) / 1000
+        elif isinstance(amount, int):
+            sats = Decimal(amount) / 1000
+        else:
+            sats = None  # unknown types or None -> 'unknown'
+
         precision = 3  # config.amt_precision_post_satoshi is not exposed in preferences
         if with_unit:
-            return self.config.format_amount_and_units(msats/1000, precision=precision)
+            return self.config.format_amount_and_units(sats, precision=precision)
         else:
-            return self.config.format_amount(msats/1000, precision=precision)
+            return self.config.format_amount(sats, precision=precision)
 
     @pyqtSlot(str, result=QEAmount)
-    def unitsToSats(self, unitAmount):
+    def baseunitStrToAmount(self, unitAmount):
         self._amount = QEAmount()
         try:
             x = Decimal(unitAmount)
         except Exception:
             return self._amount
 
-        sat_max_precision = self.config.BTC_AMOUNTS_DECIMAL_POINT
         msat_max_precision = self.config.BTC_AMOUNTS_DECIMAL_POINT + 3
-        sat_max_prec_amount = int(pow(10, sat_max_precision) * x)
         msat_max_prec_amount = int(pow(10, msat_max_precision) * x)
-        self._amount = QEAmount(amount_sat=sat_max_prec_amount, amount_msat=msat_max_prec_amount)
+        self._amount = QEAmount(amount_msat=msat_max_prec_amount)
         return self._amount
 
-    @pyqtSlot('quint64', result=float)
-    def satsToUnits(self, satoshis):
-        return satoshis / pow(10, self.config.BTC_AMOUNTS_DECIMAL_POINT)
+    @pyqtSlot('quint64', result=str)
+    @pyqtSlot(QEAmount, result=str)
+    def amountToBaseunitStr(self, amount) -> str:
+        if isinstance(amount, QEAmount):
+            sats = Decimal(amount.msatsInt) / 1000
+        elif isinstance(amount, int):
+            sats = Decimal(amount)
+        else:
+            sats = None  # unknown types or None -> 'unknown'
+
+        msat_max_precision = self.config.BTC_AMOUNTS_DECIMAL_POINT + 3
+        unit_str = self.config.format_amount(sats, precision=msat_max_precision, add_thousands_sep=False)
+        return unit_str.rstrip('.')

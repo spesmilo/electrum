@@ -16,8 +16,8 @@ Item {
 
     function setBalances() {
         root.formattedConfirmedBalance = Config.formatSats(Daemon.currentWallet.confirmedBalance)
-        root.formattedTotalBalance = Config.formatSats(Daemon.currentWallet.totalBalance)
-        root.formattedLightningBalance = Config.formatSats(Daemon.currentWallet.lightningBalance)
+        root.formattedTotalBalance = Config.formatMilliSats(Daemon.currentWallet.totalBalance)
+        root.formattedLightningBalance = Config.formatMilliSats(Daemon.currentWallet.lightningBalance)
         if (Daemon.fx.enabled) {
             root.formattedTotalBalanceFiat = Daemon.fx.fiatValue(Daemon.currentWallet.totalBalance, false)
         }

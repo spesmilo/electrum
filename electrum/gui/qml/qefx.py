@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QRegularExpression
 
-from electrum.bitcoin import COIN
+from electrum.bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
 from electrum.exchange_rate import FxThread
 from electrum.logging import get_logger
 from electrum.simple_config import SimpleConfig
@@ -115,7 +115,7 @@ class QEFX(QObject, QtEventListener):
     def fiatValue(self, satoshis, plain=True):
         rate = self.fx.exchange_rate()
         if isinstance(satoshis, QEAmount):
-            satoshis = satoshis.msatsInt / 1000 if satoshis.msatsInt != 0 else satoshis.satsInt
+            satoshis = Decimal(satoshis.msatsInt) / 1000
         else:
             try:
                 sd = Decimal(satoshis)
@@ -132,7 +132,7 @@ class QEFX(QObject, QtEventListener):
     @pyqtSlot(QEAmount, str, bool, result=str)
     def fiatValueHistoric(self, satoshis, timestamp, plain=True):
         if isinstance(satoshis, QEAmount):
-            satoshis = satoshis.msatsInt / 1000 if satoshis.msatsInt != 0 else satoshis.satsInt
+            satoshis = Decimal(satoshis.msatsInt) / 1000
         else:
             try:
                 sd = Decimal(satoshis)
@@ -151,21 +151,21 @@ class QEFX(QObject, QtEventListener):
         else:
             return self.fx.historical_value_str(satoshis, dt)
 
-    @pyqtSlot(str, result=str)
-    @pyqtSlot(str, bool, result=str)
-    def satoshiValue(self, fiat, plain=True):
+    @pyqtSlot(str, result='QVariant')
+    def satoshiValue(self, fiat):
+        self._amount = QEAmount()
         rate = self.fx.exchange_rate()
         try:
             fd = Decimal(fiat)
         except Exception:
-            return ''
+            return self._amount  # zero
         v = fd / Decimal(rate) * COIN
-        if v.is_nan():
-            return ''
-        if plain:
-            return str(v.to_integral_value())
-        else:
-            return self.config.format_amount(v)
+        if not v.is_nan():
+            max_sats = Decimal(COIN * TOTAL_COIN_SUPPLY_LIMIT_IN_BTC)
+            if v > max_sats:  # clamp to supply, to avoid msats overflowing qint64 (2**63-1)
+                v = max_sats
+            self._amount.satsInt = int(v.to_integral_value())
+        return self._amount
 
     @pyqtSlot(str, result=bool)
     def isRecent(self, timestamp):
