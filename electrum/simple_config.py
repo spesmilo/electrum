@@ -7,9 +7,7 @@ from functools import cached_property
 
 from copy import deepcopy
 
-from . import constants
-from . import util
-from . import invoices
+from . import constants, util, invoices, platform
 from .util import base_units, base_unit_name_to_decimal_point, decimal_point_to_base_unit_name, UnknownBaseUnit, DECIMAL_POINT_DEFAULT
 from .util import format_satoshis, format_fee_satoshis, os_chmod
 from .util import user_dir, make_dir
@@ -468,7 +466,7 @@ class SimpleConfig(Logger):
     def get_backup_dir(self) -> Optional[str]:
         # this is used to save wallet file backups (without active lightning channels)
         # on Android, the export backup button uses android_backup_dir()
-        if 'ANDROID_DATA' in os.environ:
+        if platform.is_android():
             return None
         else:
             return self.WALLET_BACKUP_DIRECTORY

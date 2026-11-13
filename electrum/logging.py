@@ -9,11 +9,13 @@ from functools import lru_cache
 import sys
 import pathlib
 import os
-import platform
+import platform as py_platform
 from typing import Optional, TYPE_CHECKING, Set
 import copy
 import subprocess
 import hashlib
+
+from electrum import platform
 
 if TYPE_CHECKING:
     from .simple_config import SimpleConfig
@@ -345,13 +347,13 @@ def get_logfile_path() -> Optional[pathlib.Path]:
 
 
 def describe_os_version() -> str:
-    if 'ANDROID_DATA' in os.environ:
+    if platform.is_android():
         import jnius
         bv = jnius.autoclass('android.os.Build$VERSION')
         b = jnius.autoclass('android.os.Build')
         return "Android {} on {} {} ({})".format(bv.RELEASE, b.BRAND, b.DEVICE, b.DISPLAY)
     else:
-        return platform.platform()
+        return py_platform.platform()
 
 
 @lru_cache  # result unlikely to change while running. though "-dirty" could technically change

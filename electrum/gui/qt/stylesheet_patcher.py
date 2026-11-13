@@ -2,9 +2,9 @@
 It reads the current stylesheet, appends our modifications and sets the new stylesheet.
 """
 
-import sys
-
 from PyQt6 import QtWidgets
+
+from electrum import platform
 
 
 CUSTOM_PATCH_FOR_DARK_THEME = '''
@@ -61,7 +61,7 @@ def patch_qt_stylesheet(use_dark_theme: bool) -> None:
     if use_dark_theme:
         custom_patch = CUSTOM_PATCH_FOR_DARK_THEME
     else:  # default theme (typically light)
-        if sys.platform == 'darwin':
+        if platform.is_mac():
             custom_patch = CUSTOM_PATCH_FOR_DEFAULT_THEME_MACOS
 
     app = QtWidgets.QApplication.instance()

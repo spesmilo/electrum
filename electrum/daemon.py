@@ -40,8 +40,7 @@ import aiohttp
 from aiohttp import web, client_exceptions
 from aiorpcx import ignore_after
 
-from . import crandom
-from . import util
+from . import crandom, util, GuiImportError, platform
 from .network import Network
 from .util import (
     json_decode, to_bytes, to_string, profiler, standardize_path, constant_time_compare, InvalidPassword,
@@ -54,7 +53,6 @@ from .commands import known_commands, Commands
 from .simple_config import SimpleConfig
 from .exchange_rate import FxThread
 from .logging import get_logger, Logger
-from . import GuiImportError
 from .plugin import run_hook, Plugins
 
 if TYPE_CHECKING:
@@ -78,7 +76,7 @@ def get_rpcsock_default_type(config: SimpleConfig):
     # Use unix domain sockets when available,
     # with the extra paranoia that in case windows "implements" them,
     # we want to test it before making it the default there.
-    if hasattr(socket, 'AF_UNIX') and sys.platform != 'win32':
+    if hasattr(socket, 'AF_UNIX') and not platform.is_windows():
         return 'unix'
     return 'tcp'
 
