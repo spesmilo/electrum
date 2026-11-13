@@ -281,9 +281,9 @@ class TxBatch(Logger):
         return txid in self._batch_txids
 
     def get_held_coins(self) -> Set[TxOutpoint]:
-        """The change of our txs, unless the batch has a sweep of its own, and of the parent tx."""
+        """_prevout, and the change of our txs unless the batch has a sweep of its own."""
         adb = self.wallet.adb
-        coins = {TxOutpoint.from_str(self._prevout)} if self._get_parent_txid() else set()
+        coins = {TxOutpoint.from_str(self._prevout)} if self._prevout else set()
         if any(not s.can_be_batched for s in list(self.batch_inputs.values())):
             return coins  # no payment is ever added: its change can fund other sweeps, e.g. htlc txs
         for txid in self._batch_txids:
@@ -498,6 +498,8 @@ class TxBatch(Logger):
         except NoDynamicFeeEstimates:
             self.logger.debug('no dynamic fee estimates available')
             return
+        except TxBatchFailure:
+            raise
         except Exception as e:
             if base_tx:
                 self.logger.exception(f'Cannot create batch transaction: {repr(e)}')
@@ -636,9 +638,9 @@ class TxBatch(Logger):
                 outputs.append(sweep_info.txout)
         self.logger.info(f'locktime: {locktime}')
         outputs += to_pay
-        inputs += [self._create_input_from_prevout()] if self._get_parent_txid() else []
         # create tx
         coins = self.wallet.get_spendable_coins(nonlocal_only=True)
+        inputs += [self._create_input_from_prevout(coins)] if self._get_parent_txid() or (base_tx is None and self.batch_payments) else []
         tx = self.wallet.make_unsigned_transaction(
             coins=coins,
             fee_policy=self.fee_policy,
@@ -680,17 +682,26 @@ class TxBatch(Logger):
     def _new_base_tx(self, tx: PartialTransaction) -> None:
         prevouts = [txin.prevout for txin in tx.inputs()]
         if self._prevout is None or TxOutpoint.from_str(self._prevout) not in prevouts:
-            # tx does not spend _prevout: its first input
-            self._prevout = prevouts[0].to_str()
+            # tx does not spend _prevout: with payments, a coin of ours, which we can spend again,
+            # else its first input, a sweep input
+            ours = [txin.prevout for txin in tx.inputs() if self.batch_payments and self.wallet.is_mine(txin.address)]
+            self._prevout = (ours or prevouts)[0].to_str()
         self.storage['prevout'] = self._prevout
         self._batch_txids.append(tx.txid())
         self._base_tx = tx
 
-    def _create_input_from_prevout(self) -> PartialTxInput:
-        """The change of the parent tx. Our tx spends it, so that it conflicts with the replacements of the parent."""
-        coin = self.wallet.get_prevout_utxo(TxOutpoint.from_str(self._prevout))
-        if coin is None:
-            raise Exception(f'cannot spend {self._prevout}, the change of the parent tx')
+    def _create_input_from_prevout(self, coins: Sequence[PartialTxInput]) -> PartialTxInput:
+        """An input of ours. Our replacements keep it."""
+        if self._prevout:
+            # the first input of our last batch tx, which is gone, or the change of the parent tx:
+            # spend it, so that payments cannot be made twice
+            coin = self.wallet.get_prevout_utxo(TxOutpoint.from_str(self._prevout))
+            if coin is None:
+                raise TxBatchFailure(f'cannot spend {self._prevout}, dropping batch')
+        else:
+            if not coins:
+                raise NotEnoughFunds()
+            coin = max(coins, key=lambda c: c.value_sats())
         coin.nsequence = 0xffffffff - 2
         return coin
 

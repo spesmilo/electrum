@@ -423,11 +423,14 @@ class TestTxBatcher(ElectrumTestCase):
         self.assertEqual(coins, [c.prevout for c in wallet.get_spendable_coins()])
 
     async def _make_replacement_without_change(self):
-        """tx1(s,o1,o2) is replaced by F(s,o1), which we did not create and which has no change.
+        """tx1(s,c,o1,o2) is replaced by F(s,c,o1), which we did not create and which has no change.
         Returns the wallet, its batch, tx1, F, o1 and o2. The batch is driven manually."""
         wallet = self._create_wallet()
         wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
-        await self._fund_wallet(wallet)
+        funding_tx = await self._fund_wallet(wallet)
+        # a smaller confirmed coin, to pay o2 once F is mined
+        funding_tx2 = make_funding_tx(wallet.get_receiving_address(), 30_000)
+        mine_tx(wallet, funding_tx2)
         add_swap_funding_tx(wallet)
         output1 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 10_000)
         output2 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 20_000)
@@ -438,15 +441,16 @@ class TestTxBatcher(ElectrumTestCase):
         await batch.run_iteration()
         tx1 = await self.network.next_tx()
         assert output1 in tx1.outputs() and output2 in tx1.outputs() and tx1.has_change()
-        assert tx1.inputs()[0].prevout == SWAP_SWEEP_INFO.txin.prevout
-        # F: same input as tx1, only o1, validly signed
+        assert batch.storage['prevout'].split(':')[0] == funding_tx.txid()
+        # F: same inputs as tx1, only o1, validly signed
         replacement = copy.deepcopy(tx1)
         replacement._outputs = [output1]
         replacement.remove_signatures()
         replacement.invalidate_ser_cache()
         wallet.sign_transaction(replacement, password=None)
         replacement = Transaction(replacement.serialize())
-        verify_transaction(replacement, [Transaction(SWAP_FUNDING_TX).outputs()[0]])
+        spent = [wallet.adb.get_transaction(txin.prevout.txid.hex()).outputs()[txin.prevout.out_idx] for txin in replacement.inputs()]
+        verify_transaction(replacement, spent)
         wallet.adb.receive_tx_callback(replacement, tx_height=TX_HEIGHT_UNCONFIRMED)
         assert wallet.adb.get_transaction(tx1.txid()) is None
         return wallet, batch, tx1, replacement, output1, output2
@@ -496,7 +500,7 @@ class TestTxBatcher(ElectrumTestCase):
         self.assertIsNone(wallet.adb.get_transaction(replacement.txid()))
         self.assertIn(output1, tx2.outputs())
         self.assertIn(output2, tx2.outputs())
-        self.assertEqual(SWAP_SWEEP_INFO.txin.prevout, tx2.inputs()[0].prevout)
+        self.assertIn(SWAP_SWEEP_INFO.txin.prevout, [txin.prevout for txin in tx2.inputs()])
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_held_coins_are_not_spendable(self, mock_save_db):
