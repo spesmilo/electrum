@@ -198,7 +198,7 @@ class TestTxBatcher(ElectrumTestCase):
         return wallet
 
     async def _fund_wallet(self, wallet) -> Transaction:
-        """Broadcasts the funding tx, and mines it."""
+        """Broadcasts the funding tx, and mines it: the first input of a batch with payments is confirmed."""
         funding_tx = Transaction(WALLET_DATA["funding_tx"])
         await self.network.try_broadcasting(funding_tx, 'funding')
         await self.network.next_tx()
@@ -503,6 +503,49 @@ class TestTxBatcher(ElectrumTestCase):
         self.assertIn(SWAP_SWEEP_INFO.txin.prevout, [txin.prevout for txin in tx2.inputs()])
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_batch__base_vanished_next_tx_spends_first_input(self, mock_save_db):
+        # tx1 = [c, u] pays o1: c is confirmed, u was received unconfirmed. The sender of u replaces the tx
+        # that created it, which evicts tx1, and may restore it later: the next tx paying o1 must spend c
+        wallet = self._create_wallet()
+        funding_tx = await self._fund_wallet(wallet)
+        confirmed_balance = sum(c.value_sats() for c in wallet.get_spendable_coins())
+        funding_tx2 = make_funding_tx(wallet.get_receiving_address(), 200_000)
+        wallet.adb.receive_tx_callback(funding_tx2, tx_height=TX_HEIGHT_UNCONFIRMED)
+        output1 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, confirmed_balance + 50_000)
+        wallet.txbatcher.add_payment_output('default', output1)
+        tx1 = await self.network.next_tx()
+        prevout = tx1.inputs()[0].prevout
+        self.assertEqual(funding_tx.txid(), prevout.txid.hex())
+        self.assertIn(funding_tx2.txid(), [txin.prevout.txid.hex() for txin in tx1.inputs()])
+        # the sender of u replaces funding_tx2
+        funding_tx2_replacement = make_tx(funding_tx2.inputs(), [(wallet.get_receiving_addresses()[1], 199_000)])
+        wallet.adb.receive_tx_callback(funding_tx2_replacement, tx_height=TX_HEIGHT_UNCONFIRMED)
+        self.assertIsNone(wallet.adb.get_transaction(tx1.txid()))
+        self.assertNotIn(prevout, [c.prevout for c in wallet.get_spendable_coins()])
+        # the next tx paying o1 conflicts with tx1
+        tx2 = await self.network.next_tx()
+        self.assertIn(output1, tx2.outputs())
+        self.assertEqual(prevout, tx2.inputs()[0].prevout)
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_payment_waits_for_a_confirmed_coin(self, mock_save_db):
+        # the only coin of the wallet was received unconfirmed: o1 is paid once that coin is mined
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        funding_tx = make_funding_tx(wallet.get_receiving_address(), 200_000)
+        wallet.adb.receive_tx_callback(funding_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+        output1 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 10_000)
+        wallet.txbatcher.add_payment_output('default', output1)
+        batch = wallet.txbatcher.tx_batches['default']
+        await batch.run_iteration()
+        self.assertTrue(self.network._tx_queue.empty())
+        mine_tx(wallet, funding_tx)
+        await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        self.assertIn(output1, tx1.outputs())
+        self.assertEqual(funding_tx.txid(), tx1.inputs()[0].prevout.txid.hex())
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_held_coins_are_not_spendable(self, mock_save_db):
         # the change of tx1, our base tx, mined or not, and then the change of tx1 as the parent
         # of a new batch, are not offered to other spenders
@@ -590,6 +633,9 @@ class TestTxBatcher(ElectrumTestCase):
         wallet.adb.receive_tx_callback(tx1_other, tx_height=TX_HEIGHT_UNCONFIRMED)
         self.assertIsNone(await batch.find_base_tx())
 
+        # a confirmed coin, for the first input of the next tx: the change of tx1_other is not confirmed
+        funding_tx2 = make_funding_tx(wallet.get_receiving_address(), 200_000)
+        mine_tx(wallet, funding_tx2)
         # the next payment does not replace tx1_other, so output_other is not paid by us,
         # and output1, paid by tx1_other, is not paid again
         output2 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 20_000)
