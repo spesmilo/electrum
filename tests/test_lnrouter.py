@@ -1,4 +1,5 @@
 import random
+import time
 import unittest
 from math import inf
 from unittest import mock
@@ -18,9 +19,15 @@ from electrum.lnonion import (OnionHopsDataSingle, new_onion_packet,
 from electrum import bitcoin, lnrouter
 from electrum.constants import BitcoinTestnet
 from electrum.simple_config import SimpleConfig
+from electrum.lnpeer import Peer
+from electrum.sql_db import sql
+from electrum.lnworker import LNGossip
+from electrum.lnmsg import encode_msg
 from electrum.lnrouter import (PathEdge, LiquidityHintMgr, DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH,
-                               DEFAULT_PENALTY_BASE_MSAT, fee_for_edge_msat, LNPaymentTRoute, TrampolineEdge,
-                               HINT_DURATION)
+                               fee_for_edge_msat, LNPaymentTRoute, TrampolineEdge,
+                               HINT_DURATION, PAIR_FAILURE_PENALTY_FACTOR, RouteEdge,
+                               NODE_FAILURE_MIN_SENDERS, NODE_FAILURE_PENALTY_FACTOR,
+                               OFFLINE_NODE_DURATION, MAX_OUTDATED_POLICIES_PER_PAIR)
 
 from . import ElectrumTestCase
 from .test_bitcoin import needs_test_with_all_chacha20_implementations
@@ -43,6 +50,278 @@ def node_features(extra: LnFeatures = None) -> bytes:
     if extra:
         lnf |= extra
     return lnf.to_bytes(8, 'big')
+
+
+class TestGossipBacklog(ElectrumTestCase):
+
+    def _lngossip(self, *, latest_ts: Optional[int]):
+        return mock.Mock(
+            spec=LNGossip,
+            channel_db=mock.Mock(latest_policy_ts_at_load=latest_ts),
+            max_age=LNGossip.max_age,
+            GOSSIP_BACKLOG_MARGIN=LNGossip.GOSSIP_BACKLOG_MARGIN,
+            GOSSIP_BACKLOG_NUM_PEERS=LNGossip.GOSSIP_BACKLOG_NUM_PEERS,
+            _num_gossip_backlog_requests=0,
+            _gossip_backlog_ts_is_set=False,
+            _gossip_backlog_latest_ts=None,
+        )
+
+    async def test_add_new_ids_skips_recently_orphaned_only_on_request(self):
+        known, orphaned, new = b'\x01' * 8, b'\x02' * 8, b'\x03' * 8
+        g = mock.Mock(
+            spec=LNGossip,
+            channel_db=mock.Mock(get_channel_ids=lambda: {known}, get_recently_orphaned_channel_ids=lambda: {orphaned}),
+            lnpeermgr=mock.Mock(num_peers=lambda: 1),
+            unknown_ids=set(),
+        )
+        await LNGossip.add_new_ids(g, [known, orphaned, new], skip_recently_orphaned=True)
+        self.assertEqual({new}, g.unknown_ids)
+        # orphaned channel_updates show that the channel is alive after all
+        await LNGossip.add_new_ids(g, [orphaned])
+        self.assertEqual({new, orphaned}, g.unknown_ids)
+
+    async def test_query_gossip_uses_backlog_start_and_skips_orphaned_after_db_is_loaded(self):
+        class StopQueryLoop(Exception): pass
+        ids = {b'\x01' * 8}
+        gossip = mock.Mock()
+        gossip.network.lngossip = gossip
+        gossip.channel_db.data_loaded.wait = mock.AsyncMock()
+        def check_db_loaded(*args, **kwargs):
+            gossip.channel_db.data_loaded.wait.assert_awaited_once()
+        gossip.add_new_ids = mock.AsyncMock(side_effect=check_db_loaded)
+        gossip.on_channel_range_reply = mock.AsyncMock(side_effect=check_db_loaded)
+        gossip.get_gossip_timestamp_filter_start.return_value = 1234
+        gossip.get_ids_to_query.side_effect = StopQueryLoop
+        peer = mock.Mock(lnworker=gossip, is_initialized=lambda: True)
+        peer.get_channel_range = mock.AsyncMock(return_value=(ids, True))
+        with self.assertRaises(StopQueryLoop):
+            await Peer._query_gossip(peer)
+        gossip.add_new_ids.assert_awaited_once_with(ids, skip_recently_orphaned=True)
+        gossip.on_channel_range_reply.assert_awaited_once_with(peer.pubkey, ids)
+        peer.request_gossip.assert_called_once_with(1234)
+
+    async def test_orphaned_channel_update_still_triggers_a_query(self):
+        orphaned_id = b'\x02' * 8
+        g = mock.Mock(
+            spec=LNGossip,
+            logger=mock.Mock(),
+            channel_db=mock.Mock(),
+            add_new_ids=mock.AsyncMock(),
+            _num_chan_ann=0, _num_node_ann=0, _num_chan_upd=0, _num_chan_upd_good=0,
+        )
+        g.channel_db.data_loaded.wait = mock.AsyncMock()
+        g.channel_db.add_channel_updates.return_value = mock.Mock(orphaned=[{'short_channel_id': orphaned_id}], good=[])
+        await LNGossip.process_gossip(g, [], [], [{'short_channel_id': orphaned_id}])
+        g.add_new_ids.assert_awaited_once_with([orphaned_id])
+
+    def test_empty_db_requests_only_new_gossip(self):
+        g = self._lngossip(latest_ts=None)
+        with mock.patch('time.time', return_value=1_800_000_000):
+            self.assertEqual(1_800_000_000, LNGossip.get_gossip_timestamp_filter_start(g))
+        self.assertEqual(0, g._num_gossip_backlog_requests)
+
+    def test_backlog_starts_before_latest_known_update_and_is_requested_from_few_peers(self):
+        now = 1_800_000_000
+        latest_ts = now - 12 * 3600
+        g = self._lngossip(latest_ts=latest_ts)
+        with mock.patch('time.time', return_value=now):
+            for _ in range(LNGossip.GOSSIP_BACKLOG_NUM_PEERS):
+                self.assertEqual(latest_ts - LNGossip.GOSSIP_BACKLOG_MARGIN, LNGossip.get_gossip_timestamp_filter_start(g))
+            # further peers would just resend the same backlog
+            self.assertEqual(now, LNGossip.get_gossip_timestamp_filter_start(g))
+
+    def test_backlog_start_does_not_move_within_session(self):
+        now = 1_800_000_000
+        downtime_start = now - 12 * 3600
+        g = self._lngossip(latest_ts=downtime_start)
+        # gossip received from the first peer, or the update of a failed payment, is newer
+        g.channel_db.get_latest_policy_timestamp = lambda: now
+        expected = downtime_start - LNGossip.GOSSIP_BACKLOG_MARGIN
+        with mock.patch('time.time', return_value=now):
+            self.assertEqual(expected, LNGossip.get_gossip_timestamp_filter_start(g))
+            self.assertEqual(expected, LNGossip.get_gossip_timestamp_filter_start(g))
+
+    def test_backlog_is_not_older_than_max_age(self):
+        now = 1_800_000_000
+        g = self._lngossip(latest_ts=now - 10 * LNGossip.max_age)
+        with mock.patch('time.time', return_value=now):
+            self.assertEqual(now - LNGossip.max_age, LNGossip.get_gossip_timestamp_filter_start(g))
+
+
+class TestChannelRangeMajority(ElectrumTestCase):
+
+    OLD_HEIGHT = 100
+    NUM_PEERS = LNGossip.CHANNEL_RANGE_NUM_PEERS
+
+    def _scid(self, n: int, *, height: int = OLD_HEIGHT) -> ShortChannelID:
+        return ShortChannelID.from_components(height, n, 0)
+
+    def _lngossip(self, known, *, local_height: int = 1000, recently_updated=(), latest_policy_ts=None,
+                  policy_timestamps=None):
+        removed = []
+        if latest_policy_ts is None:
+            latest_policy_ts = int(time.time())
+        if policy_timestamps is not None:
+            has_policy_newer_than = lambda scid, ts: policy_timestamps.get(scid, 0) > ts
+        else:
+            has_policy_newer_than = lambda scid, ts: scid in recently_updated
+        g = mock.Mock(
+            spec=LNGossip,
+            logger=mock.Mock(),
+            channel_db=mock.Mock(
+                get_channel_ids=lambda: set(known),
+                remove_channels_absent_from_peers=removed.extend,
+                has_policy_newer_than=has_policy_newer_than,
+                get_latest_policy_timestamp=lambda: latest_policy_ts,
+                latest_policy_ts_at_load=latest_policy_ts,
+            ),
+            network=mock.Mock(get_local_height=lambda: local_height),
+            CHANNEL_RANGE_NUM_PEERS=LNGossip.CHANNEL_RANGE_NUM_PEERS,
+            CHANNEL_RANGE_MIN_PEER_COVERAGE=LNGossip.CHANNEL_RANGE_MIN_PEER_COVERAGE,
+            CHANNEL_RANGE_MAX_REMOVED_FRACTION=LNGossip.CHANNEL_RANGE_MAX_REMOVED_FRACTION,
+            CHANNEL_RANGE_MIN_CHANNEL_AGE=LNGossip.CHANNEL_RANGE_MIN_CHANNEL_AGE,
+            CHANNEL_RANGE_RECENT_POLICY_AGE=LNGossip.CHANNEL_RANGE_RECENT_POLICY_AGE,
+            CHANNEL_RANGE_FRESH_DB_AGE=LNGossip.CHANNEL_RANGE_FRESH_DB_AGE,
+            _channel_range_counts=None,
+            _channel_range_recent_ts=0,
+            _channel_range_max_height=0,
+            _channel_range_db_is_fresh=False,
+            _channel_range_peers=set(),
+            _channel_range_done=False,
+        )
+        return g, removed
+
+    async def _report(self, g, peer_ids_and_lists):
+        for peer_id, ids in peer_ids_and_lists:
+            await LNGossip.on_channel_range_reply(g, peer_id, set(ids))
+
+    def test_constants(self):
+        # a change of these should be a conscious decision
+        self.assertEqual(4, LNGossip.CHANNEL_RANGE_NUM_PEERS)
+        self.assertEqual(0.9, LNGossip.CHANNEL_RANGE_MIN_PEER_COVERAGE)
+
+    async def test_only_channels_listed_by_a_minority_of_peers_get_removed(self):
+        scids = [self._scid(n) for n in range(40)]
+        three_of_four, two_of_four = scids[0], scids[1]
+        everyone = set(scids[2:])
+        g, removed = self._lngossip(scids)
+        await self._report(g, [
+            (b'a', everyone | {three_of_four, two_of_four}),
+            (b'b', everyone | {three_of_four, two_of_four}),
+            (b'c', everyone | {three_of_four}),
+            (b'd', everyone),
+        ])
+        self.assertEqual([two_of_four], removed)
+
+    async def test_nothing_is_removed_before_enough_distinct_peers_reported(self):
+        scids = [self._scid(n) for n in range(30)]
+        g, removed = self._lngossip(scids)
+        same_peer_many_times = [(b'a', scids[1:])] * 10
+        await self._report(g, same_peer_many_times + [(bytes([i]), scids[1:]) for i in range(1, self.NUM_PEERS - 1)])
+        self.assertEqual([], removed)
+
+    async def test_peers_with_an_incomplete_view_do_not_vote(self):
+        scids = [self._scid(n) for n in range(30)]
+        g, removed = self._lngossip(scids)
+        tiny_peers = [(bytes([100 + i]), scids[1:5]) for i in range(5)]
+        full_peers = [(bytes([i]), scids) for i in range(self.NUM_PEERS)]
+        await self._report(g, tiny_peers)
+        self.assertEqual(set(), g._channel_range_peers)
+        await self._report(g, full_peers)
+        self.assertEqual([], removed)
+
+    async def test_decision_is_made_once_and_further_peers_do_not_change_it(self):
+        scids = [self._scid(n) for n in range(30)]
+        g, removed = self._lngossip(scids)
+        await self._report(g, [(bytes([i]), scids[1:]) for i in range(self.NUM_PEERS)])
+        self.assertEqual([scids[0]], removed)
+        self.assertTrue(g._channel_range_done)
+        await self._report(g, [(b'x', scids[2:]), (b'y', scids[2:]), (b'z', scids[2:])])
+        self.assertEqual([scids[0]], removed)
+
+    async def test_young_channels_are_not_removed(self):
+        height_limit = 1000 - LNGossip.CHANNEL_RANGE_MIN_CHANNEL_AGE
+        young = self._scid(1, height=height_limit + 1)
+        old_enough = self._scid(2, height=height_limit)
+        others = [self._scid(n) for n in range(10, 40)]
+        g, removed = self._lngossip(others + [young, old_enough])
+        await self._report(g, [(bytes([i]), others) for i in range(self.NUM_PEERS)])
+        self.assertEqual([old_enough], removed)
+
+    async def test_height_is_taken_when_the_first_peer_reports(self):
+        # the peers answered for the height we had at that time, even if we catch up later
+        height_limit = 1000 - LNGossip.CHANNEL_RANGE_MIN_CHANNEL_AGE
+        too_young_at_first_report = self._scid(1, height=height_limit + 1)
+        others = [self._scid(n) for n in range(10, 40)]
+        g, removed = self._lngossip(others + [too_young_at_first_report], local_height=1000)
+        await self._report(g, [(b'a', others)])
+        g.network.get_local_height = lambda: 5000
+        await self._report(g, [(bytes([i]), others) for i in range(1, self.NUM_PEERS)])
+        self.assertEqual([], removed)
+
+    async def test_recently_updated_channels_are_not_removed(self):
+        scids = [self._scid(n) for n in range(30)]
+        g, removed = self._lngossip(scids, recently_updated={scids[0]})
+        await self._report(g, [(bytes([i]), scids[2:]) for i in range(self.NUM_PEERS)])
+        self.assertEqual([scids[1]], removed)
+
+    async def test_channels_updated_shortly_before_our_newest_policy_are_not_removed(self):
+        # we were offline for 8 hours: what counts as recent is relative to our newest policy.
+        # A channel often gets updated shortly before it is closed, so this is a few hours only.
+        now = int(time.time())
+        latest = now - 8 * 3600
+        scids = [self._scid(n) for n in range(30)]
+        policy_timestamps = {scid: latest - 3600 for scid in scids}
+        policy_timestamps[scids[0]] = latest - LNGossip.CHANNEL_RANGE_RECENT_POLICY_AGE + 600
+        policy_timestamps[scids[1]] = latest - LNGossip.CHANNEL_RANGE_RECENT_POLICY_AGE - 600
+        g, removed = self._lngossip(scids, latest_policy_ts=latest, policy_timestamps=policy_timestamps)
+        await self._report(g, [(bytes([i]), scids[2:]) for i in range(self.NUM_PEERS)])
+        self.assertEqual([scids[1]], removed)
+        self.assertEqual(3 * 3600, LNGossip.CHANNEL_RANGE_RECENT_POLICY_AGE)
+        self.assertEqual(24 * 3600, LNGossip.CHANNEL_RANGE_FRESH_DB_AGE)
+
+    async def test_updates_of_this_session_do_not_move_what_counts_as_recent(self):
+        # e.g. the channel_update of a payment that failed before the first reply of a peer
+        now = int(time.time())
+        last_online = now - 8 * 3600
+        scids = [self._scid(n) for n in range(30)]
+        policy_timestamps = {scid: last_online - 3600 for scid in scids}
+        policy_timestamps[scids[0]] = last_online - 2 * 3600
+        g, removed = self._lngossip(scids, latest_policy_ts=last_online, policy_timestamps=policy_timestamps)
+        policy_timestamps[scids[5]] = now - 60
+        g.channel_db.get_latest_policy_timestamp = lambda: now
+        await self._report(g, [(bytes([i]), scids[1:]) for i in range(self.NUM_PEERS)])
+        self.assertEqual([], removed)
+
+    async def test_nothing_is_removed_if_our_db_is_outdated(self):
+        # after downtime every policy is old, so recent updates cannot protect live channels
+        scids = [self._scid(n) for n in range(30)]
+        latest = int(time.time()) - LNGossip.CHANNEL_RANGE_FRESH_DB_AGE - 3600
+        g, removed = self._lngossip(scids, latest_policy_ts=latest)
+        await self._report(g, [(bytes([i]), scids[1:]) for i in range(self.NUM_PEERS)])
+        self.assertEqual([], removed)
+        self.assertTrue(g._channel_range_done)
+
+    async def test_nothing_is_removed_if_too_many_channels_would_go(self):
+        scids = [self._scid(n) for n in range(40)]
+        g, removed = self._lngossip(scids)
+        without_first_four = scids[4:]
+        without_next_four = scids[:4] + scids[8:]
+        await self._report(g, [(b'a', without_first_four), (b'b', without_first_four),
+                               (b'c', without_next_four), (b'd', without_next_four)])
+        self.assertEqual([], removed)
+        self.assertTrue(g._channel_range_done)  # and we do not try again with further peers
+
+    async def test_channels_learned_after_the_first_report_are_not_judged(self):
+        scids = [self._scid(n) for n in range(30)]
+        learned_later = self._scid(99)
+        known = list(scids)
+        g, removed = self._lngossip([])
+        g.channel_db.get_channel_ids = lambda: set(known)
+        await self._report(g, [(b'a', scids)])
+        known.append(learned_later)
+        await self._report(g, [(bytes([i]), scids) for i in range(1, self.NUM_PEERS)])
+        self.assertEqual([], removed)
 
 
 class Test_LNRouter(ElectrumTestCase):
@@ -88,6 +367,7 @@ class Test_LNRouter(ElectrumTestCase):
             register_callback = lambda *args: None
             interface = None
 
+        self.fake_network = fake_network
         fake_network.channel_db = lnrouter.ChannelDB(fake_network())
         fake_network.channel_db.data_loaded.set()
         self.cdb = fake_network.channel_db
@@ -197,6 +477,514 @@ class Test_LNRouter(ElectrumTestCase):
         add_chan_upd({'short_channel_id': channel(6), 'message_flags': b'\x00', 'channel_flags': b'\x01', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
         add_chan_upd({'short_channel_id': channel(7), 'message_flags': b'\x00', 'channel_flags': b'\x00', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
         add_chan_upd({'short_channel_id': channel(7), 'message_flags': b'\x00', 'channel_flags': b'\x01', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
+
+    async def test_orphaned_channels_are_remembered(self):
+        self.prepare_graph()
+        scid = channel(100)
+        self.cdb.add_channel_announcements({
+            'node_id_1': node('a'), 'node_id_2': node('e'),
+            'bitcoin_key_1': node('a'), 'bitcoin_key_2': node('e'),
+            'short_channel_id': scid,
+            'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
+            'len': 0, 'features': b''
+        }, trusted=True)
+        self.assertIn(scid, self.cdb.get_channel_ids())
+        self.assertEqual(set(), self.cdb.get_recently_orphaned_channel_ids())
+        self.cdb.prune_orphaned_channels()  # we were told about this channel, but got no recent policy
+        self.assertNotIn(scid, self.cdb.get_channel_ids())
+        self.assertEqual({scid}, self.cdb.get_recently_orphaned_channel_ids())
+        # the record is persisted, so that it survives a restart
+        read_table = sql(lambda db: list(db.conn.cursor().execute("SELECT short_channel_id FROM orphaned_channel")))
+        self.assertEqual([(bytes(scid),)], await read_table(self.cdb))
+        # after a restart it is loaded from the db again
+        self.cdb.stop()
+        await self.cdb.stopped_event.wait()
+        self.cdb = lnrouter.ChannelDB(self.fake_network())
+        await self.cdb.load_data()
+        self.assertEqual({scid}, self.cdb.get_recently_orphaned_channel_ids())
+        # and it expires, also from the db
+        with mock.patch('time.time', return_value=time.time() + self.cdb.ORPHANED_CHANNEL_REQUERY_DELAY + 1):
+            self.assertEqual(set(), self.cdb.get_recently_orphaned_channel_ids())
+            self.cdb._remember_orphaned_channels({channel(101)})
+        self.assertEqual([channel(101)], list(self.cdb._orphaned_channels))
+        self.assertEqual([(bytes(channel(101)),)], await read_table(self.cdb))
+
+    async def test_prune_old_policies_tolerates_policies_removed_concurrently(self):
+        self.prepare_graph()
+        stale_key = (node('b'), channel(1))
+        self.assertIn(stale_key, self.cdb._policies)
+        keys = self.cdb.get_old_policies(3600)
+        self.cdb.remove_channels_absent_from_peers({channel(1)})
+        self.assertNotIn(stale_key, self.cdb._policies)
+        with mock.patch.object(self.cdb, 'get_old_policies', return_value=keys):
+            self.cdb.prune_old_policies(3600)
+        self.assertEqual(0, self.cdb.num_policies)
+
+    async def test_channel_that_got_a_policy_is_not_remembered_as_orphaned_later(self):
+        self.prepare_graph()
+        scid = channel(100)
+        self.cdb.add_channel_announcements({
+            'node_id_1': node('a'), 'node_id_2': node('e'),
+            'bitcoin_key_1': node('a'), 'bitcoin_key_2': node('e'),
+            'short_channel_id': scid,
+            'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
+            'len': 0, 'features': b''
+        }, trusted=True)
+        update = {'short_channel_id': scid, 'message_flags': b'\x00', 'channel_flags': b'\x00', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 1000}
+        self.cdb.add_channel_update(update, verify=False)
+        self.cdb.prune_orphaned_channels()  # has a policy: not orphaned, and the marks are reset
+        self.assertIn(scid, self.cdb.get_channel_ids())
+        self.cdb.prune_old_policies(3600)  # later, the policy ages out
+        self.cdb.prune_orphaned_channels()
+        self.assertNotIn(scid, self.cdb.get_channel_ids())
+        self.assertEqual(set(), self.cdb.get_recently_orphaned_channel_ids())
+
+    async def test_channels_not_announced_since_the_last_prune_are_not_remembered_as_orphaned(self):
+        # a channel left in the db without policies by an earlier session (e.g. which got killed
+        # between processing the announcement and the updates) should get queried again
+        self.prepare_graph()
+        scid = channel(100)
+        self.cdb.add_channel_announcements({
+            'node_id_1': node('a'), 'node_id_2': node('e'),
+            'bitcoin_key_1': node('a'), 'bitcoin_key_2': node('e'),
+            'short_channel_id': scid,
+            'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
+            'len': 0, 'features': b''
+        }, trusted=True)
+        self.cdb._chans_announced_since_last_prune.clear()  # as after a restart
+        self.cdb.prune_orphaned_channels()
+        self.assertNotIn(scid, self.cdb.get_channel_ids())
+        self.assertEqual(set(), self.cdb.get_recently_orphaned_channel_ids())
+
+    async def test_channels_with_aged_out_policies_are_not_remembered_as_orphaned(self):
+        # after being offline for longer than max_age all policies age out. these channels
+        # are probably still alive, so they must get queried again.
+        self.prepare_graph()
+        self.assertGreater(self.cdb.num_channels, 0)
+        self.cdb.prune_orphaned_channels()  # periodic maintenance: nothing to do yet
+        self.cdb.prune_old_policies(3600)  # note: all policies in the test graph have timestamp=0
+        self.assertEqual(0, self.cdb.num_policies)
+        self.cdb.prune_orphaned_channels()
+        self.assertEqual(0, self.cdb.num_channels)
+        self.assertEqual(set(), self.cdb.get_recently_orphaned_channel_ids())
+
+    async def test_remove_channels_absent_from_peers(self):
+        self.prepare_graph()
+        num_channels = self.cdb.num_channels
+        self.assertIsNotNone(self.cdb.get_policy_for_node(channel(1), node('b')))
+        self.cdb.remove_channels_absent_from_peers({channel(1)})
+        self.assertEqual(num_channels - 1, self.cdb.num_channels)
+        self.assertNotIn(channel(1), self.cdb.get_channel_ids())
+        self.assertNotIn((node('b'), channel(1)), self.cdb._policies)
+        self.assertNotIn((node('c'), channel(1)), self.cdb._policies)
+        self.assertEqual({channel(1)}, self.cdb.get_recently_orphaned_channel_ids())
+
+    async def test_has_policy_newer_than(self):
+        self.prepare_graph()
+        self.assertFalse(self.cdb.has_policy_newer_than(channel(1), 500))
+        self.cdb.add_channel_update({'short_channel_id': channel(1), 'message_flags': b'\x00', 'channel_flags': b'\x01', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 1000}, verify=False)
+        self.assertTrue(self.cdb.has_policy_newer_than(channel(1), 500))
+        self.assertFalse(self.cdb.has_policy_newer_than(channel(1), 1000))
+        self.assertFalse(self.cdb.has_policy_newer_than(channel(999), 0))
+
+    async def test_latest_policy_timestamp_at_load(self):
+        class fake_network:
+            config = self.config
+            asyncio_loop = util.get_asyncio_loop()
+            trigger_callback = lambda *args: None
+            register_callback = lambda *args: None
+            interface = None
+        def add_channel(cdb, number, timestamp):
+            n1, n2 = sorted([node('a'), node('b')])
+            cdb.add_channel_announcements({
+                'node_id_1': n1, 'node_id_2': n2, 'bitcoin_key_1': n1, 'bitcoin_key_2': n2,
+                'short_channel_id': channel(number), 'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
+                'len': 0, 'features': b''}, trusted=True)
+            update = {
+                'short_channel_id': channel(number), 'message_flags': b'\x00', 'channel_flags': b'\x00',
+                'cltv_expiry_delta': 40, 'htlc_minimum_msat': 1, 'fee_base_msat': 0,
+                'fee_proportional_millionths': 0, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
+                'timestamp': timestamp}
+            update['raw'] = encode_msg('channel_update', signature=bytes(64), **update)  # saved to disk
+            cdb.add_channel_update(update, verify=False)
+        cdb = lnrouter.ChannelDB(fake_network())
+        cdb.data_loaded.set()
+        add_channel(cdb, 1, 1_700_000_000)
+        add_channel(cdb, 2, 1_700_001_000)
+        await cdb.load_data()  # returns at once, as loaded; the writes queued before it are done then
+        cdb.stop()
+        await cdb.stopped_event.wait()
+        self.cdb = lnrouter.ChannelDB(fake_network())
+        self.assertIsNone(self.cdb.latest_policy_ts_at_load)
+        await self.cdb.load_data()
+        self.assertEqual(1_700_001_000, self.cdb.latest_policy_ts_at_load)
+        add_channel(self.cdb, 3, 1_700_002_000)
+        self.assertEqual(1_700_002_000, self.cdb.get_latest_policy_timestamp())
+        self.assertEqual(1_700_001_000, self.cdb.latest_policy_ts_at_load)
+
+    async def test_get_latest_policy_timestamp(self):
+        self.prepare_graph()
+        self.assertEqual(0, self.cdb.get_latest_policy_timestamp())
+        policies = self.cdb._policies
+        self.cdb._policies = {}
+        self.assertIsNone(self.cdb.get_latest_policy_timestamp())
+        self.cdb._policies = policies
+        self.cdb.add_channel_update({'short_channel_id': channel(1), 'message_flags': b'\x00', 'channel_flags': b'\x00', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 1000}, verify=False)
+        self.assertEqual(1000, self.cdb.get_latest_policy_timestamp())
+
+    def _make_graph(self, chans):
+        """chans: (number, node_x, node_y, policy from x to y, policy from y to x),
+        a policy being (fee_base_msat, fee_proportional_millionths, cltv_delta)"""
+        class fake_network:
+            config = self.config
+            asyncio_loop = util.get_asyncio_loop()
+            trigger_callback = lambda *args: None
+            register_callback = lambda *args: None
+            interface = None
+        self.cdb = lnrouter.ChannelDB(fake_network())
+        self.cdb.data_loaded.set()
+        self.path_finder = lnrouter.LNPathFinder(self.cdb)
+        for number, x, y, policy_xy, policy_yx in chans:
+            n1, n2 = sorted([x, y])
+            self.cdb.add_channel_announcements({
+                'node_id_1': n1, 'node_id_2': n2, 'bitcoin_key_1': n1, 'bitcoin_key_2': n2,
+                'short_channel_id': channel(number), 'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
+                'len': 0, 'features': b''}, trusted=True)
+            for start, (fee_base_msat, fee_proportional_millionths, cltv_delta) in ((x, policy_xy), (y, policy_yx)):
+                self.cdb.add_channel_update({
+                    'short_channel_id': channel(number), 'message_flags': b'\x00',
+                    'channel_flags': b'\x00' if start == n1 else b'\x01',
+                    'cltv_expiry_delta': cltv_delta, 'htlc_minimum_msat': 1, 'fee_base_msat': fee_base_msat,
+                    'fee_proportional_millionths': fee_proportional_millionths,
+                    'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0}, verify=False)
+
+    async def test_find_path_with_penalty_weight_zero_lets_1_msat_of_fees_outweigh_the_other_costs(self):
+        # 100k sat: the other costs of a channel are about 15k msat, but only break ties
+        o, p, a, b, w = node('o'), node('p'), node('a'), node('b'), node('w')
+        free = (0, 0, 40)
+        self._make_graph([
+            (31, o, p, free, free),
+            (32, p, w, (1000, 0, 40), free),
+            (33, p, a, free, free),
+            (34, a, b, free, free),
+            (35, b, w, (999, 0, 40), free),
+        ])
+        path = self.path_finder.find_path_for_payment(
+            nodeA=o, nodeB=w, invoice_amount_msat=100_000_000, penalty_weight=0)
+        self.assertEqual([channel(n) for n in (31, 33, 34, 35)], [edge.short_channel_id for edge in path])
+
+    async def test_find_path_with_penalty_weight_zero_breaks_ties_with_the_cltv_cost(self):
+        # same fees and channels; the path over a is found first, but has the longer cltv delta
+        o, p, a, b, w = node('o'), node('p'), node('a'), node('b'), node('w')
+        free = (0, 0, 40)
+        self._make_graph([
+            (31, o, p, free, free),
+            (32, p, a, (500, 0, 40), free),
+            (33, a, w, (500, 0, 144), free),
+            (34, p, b, (500, 0, 40), free),
+            (35, b, w, (500, 0, 40), free),
+        ])
+        path = self.path_finder.find_path_for_payment(
+            nodeA=o, nodeB=w, invoice_amount_msat=1_000_000, penalty_weight=0)
+        self.assertEqual([channel(n) for n in (31, 34, 35)], [edge.short_channel_id for edge in path])
+
+    async def test_find_path_prefers_fewer_hops_over_small_fee_savings(self):
+        # every channel of a path is another chance to fail, so a path that is a bit more expensive
+        # but has fewer channels of unknown liquidity should be preferred
+        sender, short_mid, long_mid1, long_mid2, dest = node('p'), node('q'), node('r'), node('s'), node('w')
+        free = (0, 0, 10)
+        self._make_graph([
+            (31, sender, short_mid, free, free),
+            (32, short_mid, dest, (3000, 0, 10), free),  # one hop less, 3 sat more expensive
+            (33, sender, long_mid1, free, free),
+            (34, long_mid1, long_mid2, free, free),
+            (35, long_mid2, dest, free, free),
+        ])
+        path = self.path_finder.find_path_for_payment(nodeA=sender, nodeB=dest, invoice_amount_msat=13_000_000)
+        self.assertEqual([channel(31), channel(32)], [edge.short_channel_id for edge in path])
+
+    async def test_find_path_with_a_higher_penalty_weight_prefers_fewer_channels(self):
+        # 20k sat: the penalty is 7 sat per channel of unknown liquidity
+        o, p, a, b, w = node('o'), node('p'), node('a'), node('b'), node('w')
+        free = (0, 0, 10)
+        self._make_graph([
+            (31, o, p, free, free),
+            (32, p, w, (20_000, 0, 10), free),  # 20 sat, two channels less
+            (33, p, a, free, free),
+            (34, a, b, free, free),
+            (35, b, w, free, free),
+        ])
+        def find(penalty_weight):
+            path = self.path_finder.find_path_for_payment(
+                nodeA=o, nodeB=w, invoice_amount_msat=20_000_000, penalty_weight=penalty_weight)
+            return [edge.short_channel_id for edge in path]
+        self.assertEqual([channel(n) for n in (31, 33, 34, 35)], find(1))
+        self.assertEqual([channel(n) for n in (31, 32)], find(3))
+
+    async def test_find_path_hop_penalty_is_small_for_small_amounts(self):
+        # for a small payment, the cost of an extra hop must stay small compared to the fees
+        sender, p, q, a1, a2, a3, dest = node('o'), node('p'), node('q'), node('r'), node('s'), node('t'), node('w')
+        free = (0, 0, 10)
+        def fee(sat):
+            return (sat * 1000, 0, 10)
+        self._make_graph([
+            (31, sender, p, free, free),
+            (32, p, q, fee(10), free),  # short path: 11 sat
+            (33, q, dest, fee(1), free),
+            (34, p, a1, fee(1), free),  # long path: 4 sat
+            (35, a1, a2, fee(1), free),
+            (36, a2, a3, fee(1), free),
+            (37, a3, dest, fee(1), free),
+        ])
+        path = self.path_finder.find_path_for_payment(nodeA=sender, nodeB=dest, invoice_amount_msat=1_000_000)
+        self.assertEqual([channel(n) for n in (31, 34, 35, 36, 37)], [edge.short_channel_id for edge in path])
+
+    async def test_find_path_does_not_extend_paths_beyond_the_fee_budget(self):
+        # path finding does not use the fees alone: a path with fewer channels can cost more in fees.
+        # Paths over the fee budget are not extended, so that here the longer path within it is found.
+        o, p, q, a1, a2, w = node('o'), node('p'), node('q'), node('r'), node('s'), node('w')
+        free = (0, 0, 40)
+        def fee(sat):
+            return (int(sat * 1000), 0, 40)
+        self._make_graph([
+            (31, o, p, free, free),
+            (32, p, q, fee(20.5), free),  # short path: 20.5 + 30 = 50.5 sat
+            (34, p, a1, fee(19.5), free),  # long path: 19.5 + 30 = 49.5 sat
+            (35, a1, a2, free, free),
+            (36, a2, q, free, free),
+            (37, q, w, fee(30), free),
+        ])
+        amount_msat = 5_000_000
+        def find(max_fee_msat):
+            path = self.path_finder.find_path_for_payment(
+                nodeA=o, nodeB=w, invoice_amount_msat=amount_msat, max_fee_msat=max_fee_msat)
+            return path and [edge.short_channel_id for edge in path]
+        self.assertEqual([channel(n) for n in (31, 32, 37)], find(None))
+        self.assertEqual([channel(n) for n in (31, 34, 35, 36, 37)], find(50_000))
+        self.assertEqual(None, find(49_000))
+
+    async def test_find_path_with_penalty_weight_zero(self):
+        # as path finding keeps one path per node, the search with penalties can miss a path within the
+        # budget: here, x is reached over the direct channel to w, and from p, that path exceeds a budget
+        # of 32 sat, while the one over y does not. The search by fees finds the cheapest path.
+        o, p, x, y, w = node('o'), node('p'), node('x'), node('y'), node('w')
+        free = (0, 0, 40)
+        self._make_graph([
+            (31, o, p, free, free),
+            (32, p, x, (30_000, 0, 40), free),
+            (33, x, w, (3000, 0, 40), free),
+            (34, x, y, free, free),
+            (35, y, w, free, free),
+        ])
+        def find():
+            path = self.path_finder.find_path_for_payment(
+                nodeA=o, nodeB=w, invoice_amount_msat=5_000_000, penalty_weight=0)
+            return [edge.short_channel_id for edge in path]
+        self.assertEqual([channel(n) for n in (31, 32, 34, 35)], find())
+        # channels that cannot send the amount are still excluded
+        self.path_finder.liquidity_hints.update_cannot_send(x, y, channel(34), amount_msat=1_000_000)
+        self.assertEqual([channel(n) for n in (31, 32, 33)], find())
+
+    async def test_find_path_with_penalty_weight_zero_takes_the_lowest_fees(self):
+        o, p, a, b, c, w = node('o'), node('p'), node('a'), node('b'), node('c'), node('w')
+        free = (0, 0, 40)
+        self._make_graph([
+            (31, o, p, free, free),
+            (32, p, w, (1000, 0, 40), free),  # 1 sat
+            (33, p, a, (100, 0, 40), free),  # 0.9 sat, over two more channels
+            (34, a, b, (800, 0, 40), free),
+            (35, b, w, free, free),
+        ])
+        def find():
+            path = self.path_finder.find_path_for_payment(
+                nodeA=o, nodeB=w, invoice_amount_msat=1_000_000, penalty_weight=0)
+            return [edge.short_channel_id for edge in path]
+        self.assertEqual([channel(n) for n in (31, 33, 34, 35)], find())
+
+    async def test_find_path_with_penalty_weight_zero_takes_fewer_channels_with_the_same_fees(self):
+        # both paths from p cost 0.9 sat. The longer one reaches p first in the search,
+        # the shorter one must still be taken.
+        o, p, a, b, c, w = node('o'), node('p'), node('a'), node('b'), node('c'), node('w')
+        free = (0, 0, 40)
+        self._make_graph([
+            (31, o, p, free, free),
+            (33, p, a, (450, 0, 40), free),
+            (34, a, b, (450, 0, 40), free),
+            (35, b, w, free, free),
+            (36, p, c, (100, 0, 40), free),
+            (37, c, w, (800, 0, 40), free),
+        ])
+        path = self.path_finder.find_path_for_payment(
+            nodeA=o, nodeB=w, invoice_amount_msat=1_000_000, penalty_weight=0)
+        self.assertEqual([channel(n) for n in (31, 36, 37)], [edge.short_channel_id for edge in path])
+
+    async def test_find_path_tries_other_paths_after_several_nodes_failed_to_forward_to_a_node(self):
+        # four nodes can forward to y for free, which can forward to w. After three of them failed
+        # to, the more expensive direct channel to w is tried before the fourth one.
+        s, h, y, w = node('s'), node('h'), node('y'), node('w')
+        xs = [node(c) for c in 'abcd']
+        free = (0, 0, 40)
+        chans = [(41, s, h, free, free), (42, y, w, free, free), (43, h, w, (10_000, 0, 40), free)]
+        for n, x in enumerate(xs):
+            chans += [(50 + n, h, x, free, free), (60 + n, x, y, free, free)]
+        self._make_graph(chans)
+        amount_msat = 1_000_000
+        failed = []
+        for _ in range(NODE_FAILURE_MIN_SENDERS):
+            path = self.path_finder.find_path_for_payment(nodeA=s, nodeB=w, invoice_amount_msat=amount_msat)
+            self.assertEqual(y, path[2].end_node)
+            route = self.path_finder.create_route_from_path(path)
+            self.path_finder.update_liquidity_hints(route, amount_msat, failing_channel=path[2].short_channel_id)
+            failed.append(path[1].end_node)
+        self.assertEqual(NODE_FAILURE_MIN_SENDERS, len(set(failed)))
+        path = self.path_finder.find_path_for_payment(nodeA=s, nodeB=w, invoice_amount_msat=amount_msat)
+        self.assertEqual([channel(41), channel(43)], [edge.short_channel_id for edge in path])
+
+    async def test_find_path_tries_parallel_channels_of_a_failed_node_pair_after_other_paths(self):
+        s, a, b, c, d = node('s'), node('a'), node('b'), node('c'), node('d')
+        free, expensive = (0, 0, 40), (10_000_000, 0, 40)
+        self._make_graph([
+            (41, s, a, free, free),
+            # parallel channels; only the direction b -> a is expensive (the one that does not count)
+            (42, a, b, free, expensive),
+            (43, a, b, free, expensive),
+            (44, b, d, free, free),
+            (45, a, c, (3000, 0, 40), free),  # the other path is 3 sat more expensive
+            (46, c, d, free, free),
+        ])
+        amount_msat = 1_000_000
+        path = self.path_finder.find_path_for_payment(nodeA=s, nodeB=d, invoice_amount_msat=amount_msat)
+        self.assertEqual(b, path[1].end_node)
+        failing_channel = path[1].short_channel_id
+        route = self.path_finder.create_route_from_path(path)
+        self.path_finder.update_liquidity_hints(route, amount_msat, failing_channel=failing_channel)
+        path = self.path_finder.find_path_for_payment(nodeA=s, nodeB=d, invoice_amount_msat=amount_msat)
+        self.assertEqual([channel(41), channel(45), channel(46)], [edge.short_channel_id for edge in path])
+        # without the other path, the parallel channel is still tried
+        self.path_finder.add_edge_to_blacklist(channel(45))
+        path = self.path_finder.find_path_for_payment(nodeA=s, nodeB=d, invoice_amount_msat=amount_msat)
+        other_channel = ({channel(42), channel(43)} - {failing_channel}).pop()
+        self.assertEqual([channel(41), other_channel, channel(44)], [edge.short_channel_id for edge in path])
+
+    async def test_find_path_avoids_a_node_that_several_nodes_cannot_forward_to(self):
+        s, a, b, e, x, c, d = node('s'), node('a'), node('b'), node('e'), node('x'), node('c'), node('d')
+        free = (0, 0, 40)
+        self._make_graph([
+            (41, s, a, free, free),
+            (42, s, b, free, free),
+            (43, s, e, free, free),
+            (44, a, x, free, free),
+            (45, b, x, free, free),
+            (46, e, x, free, free),
+            (47, x, d, free, free),
+            (48, a, c, (3000, 0, 40), free),  # the path without x is 3 sat more expensive
+            (49, c, d, free, free),
+        ])
+        def find(**kwargs):
+            path = self.path_finder.find_path_for_payment(nodeA=s, nodeB=d, invoice_amount_msat=1_000_000, **kwargs)
+            return [edge.end_node for edge in path]
+        def flag_x():
+            for reporter in (a, b, e):
+                self.path_finder.report_unknown_next_peer(reporter, x)
+        self.assertIn(x, find())
+        # the same node twice counts once, and expired reports do not count
+        self.path_finder.report_unknown_next_peer(a, x)
+        self.path_finder.report_unknown_next_peer(a, x)
+        self.path_finder.report_unknown_next_peer(b, x)
+        self.path_finder.report_unknown_next_peer(e, x, now=int(time.time()) - OFFLINE_NODE_DURATION - 1)
+        self.assertIn(x, find())
+        self.path_finder.report_unknown_next_peer(e, x)
+        self.assertEqual([a, c, d], find())
+        self.assertEqual([a, c, d], find(penalty_weight=0.25))
+        # until it forwards an htlc, or returns an error
+        route = self.path_finder.create_route_from_path([
+            PathEdge(start_node=s, end_node=a, short_channel_id=channel(41)),
+            PathEdge(start_node=a, end_node=x, short_channel_id=channel(44)),
+            PathEdge(start_node=x, end_node=d, short_channel_id=channel(47))])
+        self.path_finder.update_liquidity_hints(route, 2_000_000, failing_channel=channel(44))  # failed before x
+        self.assertEqual([a, c, d], find())
+        self.path_finder.update_liquidity_hints(route, 2_000_000, failing_channel=channel(47))  # x returned the error
+        self.assertIn(x, find())
+        flag_x()
+        self.path_finder.update_liquidity_hints(route, 1_000)  # success
+        self.assertIn(x, find())
+        flag_x()
+        self.assertEqual([a, c, d], find())
+        # until the reports expire
+        later = int(time.time()) + OFFLINE_NODE_DURATION + 1
+        with mock.patch('time.time', return_value=later):
+            self.assertIn(x, find())
+        # it is still used if there is no other path: unknown_next_peer is also the error for a closed channel
+        self.path_finder.add_edge_to_blacklist(channel(48))
+        self.assertIn(x, find())
+        self.path_finder.clear_blacklist()
+        self.assertIn(x, find())
+
+    async def test_find_path_with_the_lowest_fees_through_a_node_that_several_nodes_cannot_forward_to(self):
+        # the search for the lowest fees, the last resort of the fee budget, ignores it
+        s, m, n, x, y, d = node('s'), node('m'), node('n'), node('x'), node('y'), node('d')
+        free, two_sat = (0, 0, 40), (2000, 0, 40)
+        self._make_graph([
+            (41, s, m, free, free),
+            (42, m, n, two_sat, free),
+            (43, n, x, free, free),
+            (44, x, d, free, free),
+            (45, n, y, free, free),
+            (46, y, d, two_sat, free),
+        ])
+        for reporter in (node('a'), node('b'), node('c')):
+            self.path_finder.report_unknown_next_peer(reporter, x)
+        def find(**kwargs):
+            path = self.path_finder.find_path_for_payment(
+                nodeA=s, nodeB=d, invoice_amount_msat=1_000_000, max_fee_msat=3000, **kwargs)
+            return path and [edge.end_node for edge in path]
+        search_info = {}
+        self.assertIsNone(find(search_info=search_info))  # the path without x exceeds the budget
+        self.assertTrue(search_info['budget_pruned'])
+        self.assertEqual([m, n, x, d], find(penalty_weight=0))
+
+    async def test_find_path_uses_the_parallel_route_hint_channel_of_a_failed_node_pair(self):
+        # e.g. a receiver with two channels to a node that forwards only over the requested channel
+        s, a, x, d = node('s'), node('a'), node('x'), node('d')
+        self._make_graph([(41, s, a, (0, 0, 40), (0, 0, 40)), (47, a, x, (0, 0, 40), (0, 0, 40))])
+        hints = {scid: RouteEdge(start_node=x, end_node=d, short_channel_id=scid, fee_base_msat=1000,
+                                 fee_proportional_millionths=100, cltv_delta=40, node_features=0)
+                 for scid in (ShortChannelID.from_components(0, 0, 51), ShortChannelID.from_components(0, 0, 52))}
+        amount_msat = 1_000_000
+        path = self.path_finder.find_path_for_payment(
+            nodeA=s, nodeB=d, invoice_amount_msat=amount_msat, private_route_edges=hints)
+        failing_channel = path[-1].short_channel_id
+        route = self.path_finder.create_route_from_path(path, private_route_edges=hints)
+        self.path_finder.update_liquidity_hints(route, amount_msat, failing_channel=failing_channel)
+        path = self.path_finder.find_path_for_payment(
+            nodeA=s, nodeB=d, invoice_amount_msat=amount_msat, private_route_edges=hints)
+        self.assertIsNotNone(path)
+        self.assertEqual((set(hints) - {failing_channel}).pop(), path[-1].short_channel_id)
+
+    def test_liquidity_hints_of_a_node_pair_from_routes(self):
+        # the policies of the channels of a route are those used for the hints of the node pairs
+        self._make_graph([])
+        hints = self.path_finder.liquidity_hints
+        s, a, b = node('s'), node('a'), node('b')
+        amount_msat = 1_000_000
+        policy, more_expensive = (0, 100, 40), (2000, 100, 40)
+        def route_over(scid, policy):
+            fee_base_msat, fee_proportional_millionths, cltv_delta = policy
+            return [RouteEdge(start_node=s, end_node=a, short_channel_id=channel(41), fee_base_msat=0,
+                              fee_proportional_millionths=0, cltv_delta=40, node_features=0),
+                    RouteEdge(start_node=a, end_node=b, short_channel_id=channel(scid), fee_base_msat=fee_base_msat,
+                              fee_proportional_millionths=fee_proportional_millionths, cltv_delta=cltv_delta,
+                              node_features=0)]
+        default = LiquidityHintMgr().penalty(a, b, channel(49), amount_msat=amount_msat, policy=policy)
+        self.path_finder.update_liquidity_hints(route_over(42, policy), amount_msat, failing_channel=channel(42))
+        self.assertEqual((1 + PAIR_FAILURE_PENALTY_FACTOR) * default,
+                         hints.penalty(a, b, channel(49), amount_msat=amount_msat, policy=policy))
+        # a success over a more expensive channel does not contradict it
+        self.path_finder.update_liquidity_hints(route_over(48, more_expensive), amount_msat)
+        self.assertEqual((1 + PAIR_FAILURE_PENALTY_FACTOR) * default,
+                         hints.penalty(a, b, channel(49), amount_msat=amount_msat, policy=policy))
+        self.path_finder.update_liquidity_hints(route_over(43, policy), amount_msat)
+        self.assertEqual(default, hints.penalty(a, b, channel(49), amount_msat=amount_msat, policy=policy))
 
     async def test_find_path_for_payment(self):
         self.prepare_graph()
@@ -340,7 +1128,7 @@ class Test_LNRouter(ElectrumTestCase):
 
         # check default penalty
         self.assertEqual(
-            fee_for_edge_msat(amount_to_send, DEFAULT_PENALTY_BASE_MSAT, DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH),
+            1000 + 100,  # 0.1% of the amount + 100 ppm
             liquidity_hints.penalty(node_from, node_to, channel_id, amount_msat=amount_to_send)
         )
         liquidity_hints.update_can_send(node_from, node_to, channel_id, amount_msat=1_000_000)
@@ -354,7 +1142,7 @@ class Test_LNRouter(ElectrumTestCase):
 
         # check penalties
         self.assertEqual(0., liquidity_hints.penalty(node_from, node_to, channel_id, amount_msat=1_000_000))
-        self.assertEqual(650, liquidity_hints.penalty(node_from, node_to, channel_id, amount_msat=1_500_000))
+        self.assertEqual(1650, liquidity_hints.penalty(node_from, node_to, channel_id, amount_msat=1_500_000))  # 0.1% of the amount + 100 ppm
         self.assertEqual(inf, liquidity_hints.penalty(node_from, node_to, channel_id, amount_msat=2_000_000))
 
         # test that we don't overwrite significant info with less significant info
@@ -372,8 +1160,246 @@ class Test_LNRouter(ElectrumTestCase):
         liquidity_hints.reset_liquidity_hints()
         liquidity_hints.add_htlc(node_from, node_to, channel_id)
         liquidity_hints.get_hint(channel_id)
-        # we have got 600 (attempt) + 600 (inflight) penalty
-        self.assertEqual(1200, liquidity_hints.penalty(node_from, node_to, channel_id, amount_msat=1_000_000))
+        # we have got 1100 (attempt) + 1100 (inflight) penalty
+        self.assertEqual(2200, liquidity_hints.penalty(node_from, node_to, channel_id, amount_msat=1_000_000))
+
+    def test_liquidity_hints_of_a_node_pair(self):
+        # nodes usually forward over any of their channels to the next node whose policy the htlc
+        # satisfies (non-strict forwarding), so a failure to forward from A to B tells us something
+        # about the parallel channels between them that are not more expensive
+        hints = LiquidityHintMgr()
+        a, b = node('a'), node('b')
+        chan_1, chan_2, chan_3 = channel(1), channel(2), channel(3)
+        policy = (1000, 100, 40)  # fee_base_msat, fee_proportional_millionths, cltv_delta
+        cheaper, more_expensive, longer_cltv = (0, 100, 40), (1000, 200, 40), (1000, 100, 41)
+        def default(amount_msat):
+            return LiquidityHintMgr().penalty(a, b, chan_2, amount_msat=amount_msat, policy=policy)
+        def pair_failed(amount_msat):
+            return (1 + PAIR_FAILURE_PENALTY_FACTOR) * default(amount_msat)
+        hints.update_cannot_send(a, b, chan_1, amount_msat=1_000_000, policy=policy)
+        self.assertEqual(inf, hints.penalty(a, b, chan_1, amount_msat=1_000_000, policy=policy))
+        self.assertEqual(pair_failed(1_000_000), hints.penalty(a, b, chan_2, amount_msat=1_000_000, policy=policy))
+        self.assertEqual(pair_failed(2_000_000), hints.penalty(a, b, chan_2, amount_msat=2_000_000, policy=cheaper))
+        self.assertEqual(default(999_999), hints.penalty(a, b, chan_2, amount_msat=999_999, policy=policy))
+        self.assertEqual(default(1_000_000), hints.penalty(a, b, chan_2, amount_msat=1_000_000, policy=more_expensive))
+        self.assertEqual(default(1_000_000), hints.penalty(a, b, chan_2, amount_msat=1_000_000, policy=longer_cltv))
+        self.assertEqual(default(1_000_000), hints.penalty(b, a, chan_2, amount_msat=1_000_000, policy=policy))  # other direction
+        # more failures, of smaller amounts
+        hints.update_cannot_send(a, b, chan_2, amount_msat=500_000, policy=policy)
+        hints.update_cannot_send(a, b, chan_1, amount_msat=800_000, policy=policy)
+        self.assertEqual(pair_failed(600_000), hints.penalty(a, b, chan_3, amount_msat=600_000, policy=policy))
+        # a successful forward contradicts the failure, if it was of at least the failed amount,
+        # over a channel not more expensive than the failed one
+        hints.update_can_send(a, b, chan_1, amount_msat=400_000, policy=policy)
+        self.assertEqual(pair_failed(600_000), hints.penalty(a, b, chan_3, amount_msat=600_000, policy=policy))
+        hints.update_can_send(a, b, chan_1, amount_msat=600_000, policy=more_expensive)
+        self.assertEqual(pair_failed(600_000), hints.penalty(a, b, chan_3, amount_msat=600_000, policy=policy))
+        hints.update_can_send(a, b, chan_1, amount_msat=600_000, policy=policy)
+        self.assertEqual(default(600_000), hints.penalty(a, b, chan_3, amount_msat=600_000, policy=policy))
+        # a failure without the policy of the channel does not say which parallel channels it applies to
+        hints.update_cannot_send(a, b, chan_1, amount_msat=100_000)
+        self.assertEqual(default(600_000), hints.penalty(a, b, chan_3, amount_msat=600_000, policy=policy))
+        # reset
+        hints.update_cannot_send(a, b, chan_1, amount_msat=100_000, policy=policy)
+        self.assertEqual(pair_failed(600_000), hints.penalty(a, b, chan_3, amount_msat=600_000, policy=policy))
+        hints.reset_liquidity_hints()
+        self.assertEqual(default(600_000), hints.penalty(a, b, chan_3, amount_msat=600_000, policy=policy))
+
+    def test_penalty_depends_on_the_amount(self):
+        # 0.1% of the amount, at least 0.5 sat and at most 5 sat, plus 100 ppm
+        hints = LiquidityHintMgr()
+        a, b = node('a'), node('b')
+        self.assertEqual(500 + 10, hints.penalty(a, b, channel(1), amount_msat=100_000))
+        self.assertEqual(2000 + 200, hints.penalty(a, b, channel(1), amount_msat=2_000_000))
+        self.assertEqual(5000 + 2000, hints.penalty(a, b, channel(1), amount_msat=20_000_000))
+
+    def test_penalty_factors_add_up(self):
+        # unknown liquidity (1), an htlc in flight (1), close to the known upper bound (2), failed node pair (10)
+        hints = LiquidityHintMgr()
+        a, b = node('a'), node('b')
+        policy = (1000, 100, 40)
+        hints.update_cannot_send(a, b, channel(2), amount_msat=1_100_000)
+        hints.update_cannot_send(a, b, channel(1), amount_msat=900_000, policy=policy)
+        hints.add_htlc(a, b, channel(2))
+        self.assertEqual((1000 + 100) * (1 + 1 + 2 + 10),
+                         hints.penalty(a, b, channel(2), amount_msat=1_000_000, policy=policy))
+
+    def test_liquidity_hints_of_a_node_that_several_nodes_failed_to_forward_to(self):
+        # when several nodes failed to forward an amount to the same node, its inbound liquidity is
+        # probably drained, and its other incoming channels will likely fail too.
+        # Penalties: for 1_000_000 msat, 1000 + 100 msat, and 11 times that for such a node.
+        self.assertEqual((3, 10), (NODE_FAILURE_MIN_SENDERS, NODE_FAILURE_PENALTY_FACTOR))
+        hints = LiquidityHintMgr()
+        a, b, c, d, y = node('a'), node('b'), node('c'), node('d'), node('y')
+        hints.update_cannot_send(a, y, channel(1), amount_msat=1_000_000)
+        hints.update_cannot_send(b, y, channel(2), amount_msat=1_000_000)
+        self.assertEqual(1100, hints.penalty(d, y, channel(4), amount_msat=1_000_000))
+        hints.update_cannot_send(c, y, channel(3), amount_msat=900_000)
+        self.assertEqual(12100, hints.penalty(d, y, channel(4), amount_msat=1_000_000))
+        # not below the amounts that failed, not from y, not to another node
+        self.assertEqual(950 + 95, hints.penalty(d, y, channel(4), amount_msat=950_000))
+        self.assertEqual(1100, hints.penalty(y, d, channel(4), amount_msat=1_000_000))
+        self.assertEqual(1100, hints.penalty(d, a, channel(4), amount_msat=1_000_000))
+        # the other channels of a node that failed too
+        self.assertEqual(12100, hints.penalty(c, y, channel(8), amount_msat=1_000_000))
+        # a successful forward to y contradicts the failures of up to that amount, included
+        hints.update_can_send(d, y, channel(4), amount_msat=900_000)
+        self.assertEqual(1100, hints.penalty(d, y, channel(7), amount_msat=1_000_000))
+        self.assertEqual(0, hints.penalty(d, y, channel(4), amount_msat=900_000))
+        # reset
+        hints.update_cannot_send(c, y, channel(3), amount_msat=1_000_000)
+        self.assertEqual(12100, hints.penalty(d, y, channel(7), amount_msat=1_000_000))
+        hints.reset_liquidity_hints()
+        self.assertEqual(1100, hints.penalty(d, y, channel(7), amount_msat=1_000_000))
+
+    def test_liquidity_hints_of_a_node_keep_the_smallest_amount_that_failed_per_node(self):
+        hints = LiquidityHintMgr()
+        a, b, c, d, y = node('a'), node('b'), node('c'), node('d'), node('y')
+        hints.update_cannot_send(a, y, channel(1), amount_msat=1_000_000)
+        hints.update_cannot_send(a, y, channel(5), amount_msat=800_000)
+        hints.update_cannot_send(b, y, channel(2), amount_msat=800_000)
+        hints.update_cannot_send(c, y, channel(3), amount_msat=800_000)
+        self.assertEqual(11 * (900 + 90), hints.penalty(d, y, channel(4), amount_msat=900_000))
+        hints.update_cannot_send(a, y, channel(6), amount_msat=2_000_000)  # larger: does not replace it
+        self.assertEqual(11 * (900 + 90), hints.penalty(d, y, channel(4), amount_msat=900_000))
+
+    def test_liquidity_hints_of_a_node_are_replaced_not_changed(self):
+        # as penalty() reads them without the lock
+        hints = LiquidityHintMgr()
+        a, b, d, y = node('a'), node('b'), node('d'), node('y')
+        hints.update_cannot_send(a, y, channel(1), amount_msat=1_000_000)
+        published = hints._node_cannot_receive[y]
+        before = (published[0], dict(published[1]))
+        hints.update_cannot_send(b, y, channel(2), amount_msat=1_000_000)
+        hints.update_can_send(d, y, channel(4), amount_msat=500_000)
+        hints.update_can_send(d, y, channel(4), amount_msat=2_000_000)
+        self.assertEqual(before, (published[0], dict(published[1])))
+        self.assertNotIn(y, hints._node_cannot_receive)
+
+    def test_liquidity_hints_of_a_node_keep_a_channel_that_forwarded_the_amount(self):
+        # the failures of other nodes to forward to y do not tell anything about this channel to y
+        hints = LiquidityHintMgr()
+        a, b, c, d, y = node('a'), node('b'), node('c'), node('d'), node('y')
+        hints.update_can_send(d, y, channel(4), amount_msat=1_200_000)
+        for n, sender in enumerate((a, b, c)):
+            hints.update_cannot_send(sender, y, channel(n), amount_msat=1_000_000)
+        self.assertEqual(0, hints.penalty(d, y, channel(4), amount_msat=1_000_000))
+        self.assertEqual(12100, hints.penalty(d, y, channel(5), amount_msat=1_000_000))
+
+    def test_liquidity_hints_of_a_node_that_several_nodes_failed_to_forward_to_expire(self):
+        hints = LiquidityHintMgr()
+        a, b, c, d, y = node('a'), node('b'), node('c'), node('d'), node('y')
+        for n, sender in enumerate((a, b, c)):
+            hints.update_cannot_send(sender, y, channel(n), amount_msat=1_000_000)
+        self.assertEqual(12100, hints.penalty(d, y, channel(4), amount_msat=1_000_000))
+        later = int(time.time()) + HINT_DURATION + 1
+        with mock.patch('electrum.lnrouter.now', return_value=later):
+            self.assertEqual(1100, hints.penalty(d, y, channel(4), amount_msat=1_000_000))
+            # expired failures are dropped when the node gets another one, which replaces them
+            hints.update_cannot_send(a, y, channel(0), amount_msat=2_000_000)
+            self.assertEqual([a], list(hints._node_cannot_receive[y][1]))
+            hints.update_cannot_send(b, y, channel(1), amount_msat=2_000_000)
+            hints.update_cannot_send(c, y, channel(2), amount_msat=2_000_000)
+            self.assertEqual(24200, hints.penalty(d, y, channel(4), amount_msat=2_000_000))
+
+    def test_liquidity_hints_of_a_node_pair_compare_fees_at_the_amount_sent(self):
+        hints = LiquidityHintMgr()
+        a, b = node('a'), node('b')
+        high_base, high_proportional = (10_000, 0, 40), (0, 1000, 40)
+        hints.update_cannot_send(a, b, channel(1), amount_msat=1_000_000, policy=high_base)
+        default = LiquidityHintMgr().penalty(a, b, channel(2), amount_msat=1_000_000, policy=high_proportional)
+        # at 1_000_000 msat, high_proportional has the lower fee (1000 msat), at 20_000_000 msat the higher one
+        self.assertEqual((1 + PAIR_FAILURE_PENALTY_FACTOR) * default,
+                         hints.penalty(a, b, channel(2), amount_msat=1_000_000, policy=high_proportional))
+        default = LiquidityHintMgr().penalty(a, b, channel(2), amount_msat=20_000_000, policy=high_proportional)
+        self.assertEqual(default, hints.penalty(a, b, channel(2), amount_msat=20_000_000, policy=high_proportional))
+
+    def test_liquidity_hints_of_a_node_pair_override_an_older_success_of_a_parallel_channel(self):
+        hints = LiquidityHintMgr()
+        a, b = node('a'), node('b')
+        policy = (1000, 100, 40)
+        hints.update_can_send(a, b, channel(2), amount_msat=2_000_000, policy=policy)
+        hints.update_cannot_send(a, b, channel(1), amount_msat=1_000_000, policy=policy)
+        default = LiquidityHintMgr().penalty(a, b, channel(2), amount_msat=1_500_000, policy=policy)
+        self.assertEqual((1 + PAIR_FAILURE_PENALTY_FACTOR) * default,
+                         hints.penalty(a, b, channel(2), amount_msat=1_500_000, policy=policy))
+
+    def test_liquidity_hints_of_a_node_pair_with_an_outdated_policy(self):
+        # nodes often change the policies of all their channels to the same node together
+        hints = LiquidityHintMgr()
+        a, b = node('a'), node('b')
+        amount_msat = 1_000_000
+        outdated, cheaper, updated, longer_cltv = (1000, 70, 40), (1000, 60, 40), (1000, 80, 40), (1000, 70, 41)
+        def default(policy, n_from=a, n_to=b):
+            return LiquidityHintMgr().penalty(n_from, n_to, channel(2), amount_msat=amount_msat, policy=policy)
+        def penalty(policy, n_from=a, n_to=b):
+            return hints.penalty(n_from, n_to, channel(2), amount_msat=amount_msat, policy=policy)
+        factor = 1 + PAIR_FAILURE_PENALTY_FACTOR
+        hints.update_outdated_policy(a, b, policy=outdated)
+        self.assertEqual(factor * default(outdated), penalty(outdated))
+        self.assertEqual(factor * default(cheaper), penalty(cheaper))
+        self.assertEqual(default(updated), penalty(updated))  # e.g. the channel with the new policy
+        self.assertEqual(default(longer_cltv), penalty(longer_cltv))
+        self.assertEqual(default(outdated, b, a), penalty(outdated, b, a))  # other direction
+        # a later report adds its outdated policy
+        hints.update_outdated_policy(a, b, policy=cheaper)
+        self.assertEqual(factor * default(outdated), penalty(outdated))
+        hints.update_outdated_policy(a, b, policy=(0, 200, 40))
+        self.assertEqual(factor * default((0, 200, 40)), penalty((0, 200, 40)))
+        self.assertEqual(factor * default(outdated), penalty(outdated))
+        self.assertEqual(default((1000, 200, 40)), penalty((1000, 200, 40)))  # e.g. a policy with both changes
+        # not a liquidity failure: no node hint
+        c, d, e = node('c'), node('d'), node('e')
+        for n_from in (c, d, e):
+            hints.update_outdated_policy(n_from, b, policy=outdated)
+        self.assertEqual(default(outdated, node('f')), penalty(outdated, node('f')))
+        # a forward over a more expensive channel, e.g. the one with the new policy, does not change it
+        hints.update_can_send(a, b, channel(3), amount_msat=amount_msat, policy=(3000, 70, 40))
+        self.assertEqual(factor * default(outdated), penalty(outdated))
+        # a forward with a policy that is not more expensive shows that the node pair's policies are current
+        hints.update_can_send(a, b, channel(3), amount_msat=amount_msat, policy=outdated)
+        self.assertEqual(default(outdated), penalty(outdated))
+        # the oldest of more than MAX_OUTDATED_POLICIES_PER_PAIR are dropped
+        hints.reset_liquidity_hints()
+        dearest = (1000, 100, 40)
+        hints.update_outdated_policy(a, b, policy=dearest)
+        for ppm in range(10, 10 + 10 * MAX_OUTDATED_POLICIES_PER_PAIR, 10):
+            hints.update_outdated_policy(a, b, policy=(1000, ppm, 40))
+            self.assertEqual(ppm < 10 * MAX_OUTDATED_POLICIES_PER_PAIR, penalty(dearest) > default(dearest))
+        # it expires, unless reported again
+        start = int(time.time())
+        with mock.patch('electrum.lnrouter.now', return_value=start):
+            hints.update_outdated_policy(a, b, policy=outdated)
+        with mock.patch('electrum.lnrouter.now', return_value=start + HINT_DURATION - 600):
+            hints.update_outdated_policy(a, b, policy=outdated)
+        with mock.patch('electrum.lnrouter.now', return_value=start + HINT_DURATION + 1):
+            self.assertEqual(factor * default(outdated), penalty(outdated))
+        with mock.patch('electrum.lnrouter.now', return_value=start + 2 * HINT_DURATION):
+            self.assertEqual(default(outdated), penalty(outdated))
+            # and is dropped when another node pair is reported
+            hints.update_outdated_policy(c, b, policy=outdated)
+            self.assertEqual({(c, b)}, set(hints._pair_outdated_policy))
+        hints.update_outdated_policy(a, b, policy=outdated)
+        hints.reset_liquidity_hints()
+        self.assertEqual(default(outdated), penalty(outdated))
+
+    def test_liquidity_hints_of_a_node_pair_expire(self):
+        hints = LiquidityHintMgr()
+        a, b = node('a'), node('b')
+        policy = (1000, 100, 40)
+        def default(amount_msat):
+            return LiquidityHintMgr().penalty(a, b, channel(2), amount_msat=amount_msat, policy=policy)
+        hints.update_cannot_send(a, b, channel(1), amount_msat=1_000_000, policy=policy)
+        self.assertEqual((1 + PAIR_FAILURE_PENALTY_FACTOR) * default(1_000_000),
+                         hints.penalty(a, b, channel(2), amount_msat=1_000_000, policy=policy))
+        later = int(time.time()) + HINT_DURATION + 1
+        with mock.patch('electrum.lnrouter.now', return_value=later):
+            self.assertEqual(default(1_000_000), hints.penalty(a, b, channel(2), amount_msat=1_000_000, policy=policy))
+            # an expired failure is replaced by a newer one, even of a larger amount
+            hints.update_cannot_send(a, b, channel(1), amount_msat=2_000_000, policy=policy)
+            self.assertEqual(default(1_500_000), hints.penalty(a, b, channel(2), amount_msat=1_500_000, policy=policy))
+            self.assertEqual((1 + PAIR_FAILURE_PENALTY_FACTOR) * default(2_000_000),
+                             hints.penalty(a, b, channel(2), amount_msat=2_000_000, policy=policy))
 
     def test_liquidity_hints_expiry(self):
         liquidity_hints = LiquidityHintMgr()
