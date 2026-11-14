@@ -1253,6 +1253,25 @@ class TestTxBatcher(ElectrumTestCase):
         self.assertIn(anchor_txin.prevout, [txin.prevout for txin in tx1.inputs()])
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_anchor_cpfp_pays_for_ctx(self, mock_save_db):
+        # the ctx pays less than our target fee: the CPFP pays the difference, so that the package reaches it
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        await self._fund_wallet(wallet)
+        wallet.config.FEE_POLICY = 'feerate:20000'
+        wallet.adb.db.transactions[anchor_chan_ctx.txid()] = anchor_chan_ctx
+        ctx_fee = 1_000
+        get_tx_fee = wallet.adb.get_tx_fee
+        with mock.patch.object(wallet.adb, 'get_tx_fee', side_effect=lambda txid: ctx_fee if txid == anchor_chan_ctx.txid() else get_tx_fee(txid)):
+            wallet.txbatcher.add_sweep_input('default', ANCHOR_SWEEP_INFO)
+            batch = wallet.txbatcher.tx_batches[anchor_txin.prevout.to_str()]
+            await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        self.assertIn(anchor_txin.prevout, [txin.prevout for txin in tx1.inputs()])
+        package_size = tx1.estimated_size() + anchor_chan_ctx.estimated_size()
+        self.assertGreaterEqual(tx1.get_fee() + ctx_fee, 20 * package_size)
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_anchor_not_needed_yet_waits_in_its_batch(self, mock_save_db):
         # the ctx pays enough fees, so the anchor is not used yet: it waits in its own batch,
         # and is used once the ctx needs fees
