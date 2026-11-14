@@ -124,8 +124,8 @@ class TxBatcher(Logger):
                     self._legacy_htlcs[sweep_info.txin.prevout] = sweep_info
                 return
         fee_policy_name = key
-        if not sweep_info.can_be_batched:
-            # create a batch only for that input
+        if not sweep_info.can_be_batched or sweep_info.is_anchor():
+            # create a batch only for that input. an anchor spends an unconfirmed ctx: a replacement cannot add it
             key = sweep_info.txin.prevout.to_str()
         batch = self._maybe_create_new_batch(key, fee_policy_name)
         batch.add_sweep_input(sweep_info)
@@ -291,7 +291,7 @@ class TxBatch(Logger):
         """_prevout, and the change of our txs unless the batch has a sweep of its own."""
         adb = self.wallet.adb
         coins = {TxOutpoint.from_str(self._prevout)} if self._prevout else set()
-        if any(not s.can_be_batched for s in list(self.batch_inputs.values())):
+        if any(not s.can_be_batched or s.is_anchor() for s in list(self.batch_inputs.values())):
             return coins  # no payment is ever added: its change can fund other sweeps, e.g. htlc txs
         for txid in self._batch_txids:
             if tx := adb.get_transaction(txid):

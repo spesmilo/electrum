@@ -1199,7 +1199,7 @@ class TestTxBatcher(ElectrumTestCase):
         # create wallet
         wallet = self._create_wallet()
         wallet.txbatcher.add_sweep_input('lnwatcher', ANCHOR_SWEEP_INFO)
-        anchor_batch = wallet.txbatcher.tx_batches['lnwatcher']
+        anchor_batch = wallet.txbatcher.tx_batches[anchor_txin.prevout.to_str()]
 
         # does not return sweep info if prev_tx is not in db
         to_sweep_no_tx = anchor_batch._to_sweep_after(tx=None)
@@ -1223,7 +1223,7 @@ class TestTxBatcher(ElectrumTestCase):
         to_sweep_ctx_conf = anchor_batch._to_sweep_after(tx=None)
         self.assertFalse(to_sweep_ctx_conf)
         self.assertFalse(anchor_batch.batch_inputs)
-        self.assertEqual(wallet.txbatcher.tx_batches['lnwatcher'], anchor_batch)
+        self.assertEqual(wallet.txbatcher.tx_batches[anchor_txin.prevout.to_str()], anchor_batch)
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_anchor_cpfp_can_spend_ln_reserve(self, mock_save_db):
@@ -1237,36 +1237,29 @@ class TestTxBatcher(ElectrumTestCase):
             with self.assertRaises(util.NotEnoughFunds):
                 wallet.make_unsigned_transaction(outputs=[output], fee_policy=FeePolicy('feerate:1000'))
             wallet.txbatcher.add_sweep_input('default', ANCHOR_SWEEP_INFO)
-            batch = wallet.txbatcher.tx_batches['default']
+            batch = wallet.txbatcher.tx_batches[anchor_txin.prevout.to_str()]
             await batch.run_iteration()
         tx1 = await self.network.next_tx()
         self.assertIn(anchor_txin.prevout, [txin.prevout for txin in tx1.inputs()])
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
-    async def test_anchor_not_needed_yet_is_added_again(self, mock_save_db):
-        # the ctx pays enough fees, so the anchor is not used, and tx1, an unrelated sweep, confirms:
-        # the new batch does not keep the anchor. Once the ctx needs fees, lnwatcher adds it again
+    async def test_anchor_not_needed_yet_waits_in_its_batch(self, mock_save_db):
+        # the ctx pays enough fees, so the anchor is not used yet: it waits in its own batch,
+        # and is used once the ctx needs fees
         wallet = self._create_wallet()
         wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
         await self._fund_wallet(wallet)
-        add_swap_funding_tx(wallet)
-        wallet.txbatcher.add_sweep_input('default', SWAP_SWEEP_INFO)
-        batch = wallet.txbatcher.tx_batches['default']
-        await batch.run_iteration()
-        tx1 = await self.network.next_tx()
         wallet.adb.db.transactions[anchor_chan_ctx.txid()] = anchor_chan_ctx
         with mock.patch.object(wallet.adb, 'get_tx_fee', return_value=1_000_000):
             wallet.txbatcher.add_sweep_input('default', ANCHOR_SWEEP_INFO)
-            mine_tx(wallet, tx1)
+            batch = wallet.txbatcher.tx_batches[anchor_txin.prevout.to_str()]
             await batch.run_iteration()
-        self.assertNotIn(anchor_txin.prevout, batch.batch_inputs)
+        self.assertIn(anchor_txin.prevout, batch.batch_inputs)
         self.assertTrue(self.network._tx_queue.empty())
         # the fee of the ctx is no longer sufficient
-        wallet.txbatcher.add_sweep_input('default', ANCHOR_SWEEP_INFO)
-        self.assertIn(anchor_txin.prevout, batch.batch_inputs)
         await batch.run_iteration()
-        tx2 = await self.network.next_tx()
-        self.assertIn(anchor_txin.prevout, [txin.prevout for txin in tx2.inputs()])
+        tx1 = await self.network.next_tx()
+        self.assertIn(anchor_txin.prevout, [txin.prevout for txin in tx1.inputs()])
 
     async def test_add_sweep_input_ignores_expired_sweep_info(self):
         wallet = self._create_wallet()
