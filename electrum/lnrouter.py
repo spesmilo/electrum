@@ -53,6 +53,8 @@ DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH = 100  # how much relative fee we apply f
 HINT_DURATION = 3600  # how long (in seconds) a liquidity hint remains valid
 # a parallel channel of a node pair that failed to forward an amount gets this many times the default penalty
 PAIR_FAILURE_PENALTY_FACTOR = 10
+# outdated policies kept per node pair, see LiquidityHintMgr.update_outdated_policy
+MAX_OUTDATED_POLICIES_PER_PAIR = 5
 # When this many different nodes failed to forward an amount to the same node, its inbound liquidity is
 # probably drained (e.g. it receives a lot of payments), and its other incoming channels get this many
 # times the default penalty. For a node that every path goes through, such as the destination, this
@@ -380,6 +382,11 @@ class LiquidityHintMgr:
         # node_to -> (newest timestamp, {node_from: smallest amount that failed}). The values are replaced,
         # not changed, as penalty() reads them without the lock.
         self._node_cannot_receive: Dict[bytes, Tuple[int, Dict[bytes, LiquidAmount]]] = {}
+        # Nodes often change the policies of all their channels to the same node together, so when a node
+        # rejected an htlc because the fee or cltv delta we used for a channel was outdated, its parallel
+        # channels to the same node that are not more expensive likely have outdated policies in our db too.
+        # (node_from, node_to) -> (when, the outdated policies)
+        self._pair_outdated_policy: Dict[Tuple[bytes, bytes], Tuple[LiquidAmount, Tuple[EdgePolicy, ...]]] = {}
 
     @with_lock
     def get_hint(self, channel_id: ShortChannelID) -> LiquidityHint:
@@ -404,6 +411,11 @@ class LiquidityHintMgr:
             if failed_amount.amount_msat <= amount_msat and (
                     policy is None or is_policy_not_more_expensive(policy, failed_policy, amount_msat=amount_msat)):
                 del self._pair_cannot_send[(node_from, node_to)]
+        # a forward over a channel with a policy not more expensive than the outdated one shows it is current
+        pair_outdated = self._pair_outdated_policy.get((node_from, node_to))
+        if pair_outdated is not None and policy is not None and any(
+                is_policy_not_more_expensive(policy, outdated, amount_msat=amount_msat) for outdated in pair_outdated[1]):
+            del self._pair_outdated_policy[(node_from, node_to)]
         # a forward to node_to shows it can receive that amount
         _, node_failures = self._node_cannot_receive.get(node_to, (0, {}))
         if node_failures:
@@ -428,6 +440,17 @@ class LiquidityHintMgr:
         if (pair_cannot_send is None or pair_cannot_send[0].is_invalid()
                 or amount_msat <= pair_cannot_send[0].amount_msat):
             self._pair_cannot_send[(node_from, node_to)] = (LiquidAmount.from_amount(amount_msat), policy)
+
+    @with_lock
+    def update_outdated_policy(self, node_from: bytes, node_to: bytes, *, policy: EdgePolicy) -> None:
+        """node_from rejected an htlc to node_to, as the policy we used for the channel is outdated."""
+        old = self._pair_outdated_policy.get((node_from, node_to))
+        policies = old[1] if old is not None and not old[0].is_invalid() else ()
+        policies = tuple(p for p in policies if p != policy)[-(MAX_OUTDATED_POLICIES_PER_PAIR - 1):] + (policy,)
+        # drop the expired ones
+        self._pair_outdated_policy = {
+            k: v for k, v in self._pair_outdated_policy.items() if not v[0].is_invalid()}
+        self._pair_outdated_policy[(node_from, node_to)] = (LiquidAmount.from_amount(0), policies)
 
     def _set_node_failures(self, node_to: bytes, node_failures: Dict[bytes, LiquidAmount]) -> None:
         # expired failures are dropped here, so that penalty() does not go through them
@@ -504,6 +527,11 @@ class LiquidityHintMgr:
             failed_amount, failed_policy = pair_cannot_send
             pair_failed = (amount_msat >= failed_amount.amount_msat and not failed_amount.is_invalid()
                            and is_policy_not_more_expensive(policy, failed_policy, amount_msat=amount_msat))
+        pair_outdated = self._pair_outdated_policy.get((node_from, node_to))
+        if pair_outdated is not None and policy is not None and not pair_failed:
+            when, outdated_policies = pair_outdated
+            pair_failed = not when.is_invalid() and any(
+                is_policy_not_more_expensive(policy, outdated, amount_msat=amount_msat) for outdated in outdated_policies)
         node_failed = False
         newest_ts, node_failures = self._node_cannot_receive.get(node_to, _NO_NODE_FAILURES)
         if len(node_failures) >= NODE_FAILURE_MIN_SENDERS and now() - newest_ts <= HINT_DURATION:
@@ -539,6 +567,7 @@ class LiquidityHintMgr:
             v._inflight_htlcs_backward = 0
         self._pair_cannot_send = {}
         self._node_cannot_receive = {}
+        self._pair_outdated_policy = {}
 
     def __repr__(self):
         string = "liquidity hints:\n"
@@ -549,6 +578,8 @@ class LiquidityHintMgr:
             string += f"{node_from.hex()[:10]} -> {node_to.hex()[:10]}: cannot send {amount}, {policy}\n"
         for node_to, (_, failures) in self._node_cannot_receive.items():
             string += f"-> {node_to.hex()[:10]}: cannot receive from {len(failures)} nodes\n"
+        for (node_from, node_to), (_, policies) in self._pair_outdated_policy.items():
+            string += f"{node_from.hex()[:10]} -> {node_to.hex()[:10]}: outdated policies {policies}\n"
         return string
 
 

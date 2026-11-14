@@ -169,6 +169,59 @@ class TestLNWallet(ElectrumTestCase):
             report(OnionFailureCode.UNKNOWN_NEXT_PEER, reporter, alice, 30 + i)
         self.assertFalse(path_finder._is_node_likely_offline(alice, now=now))
 
+    async def test_fee_insufficient_for_one_of_parallel_channels(self):
+        await self._test_outdated_policy_of_one_of_parallel_channels(OnionFailureCode.FEE_INSUFFICIENT, 8)
+
+    async def test_incorrect_cltv_expiry_for_one_of_parallel_channels(self):
+        await self._test_outdated_policy_of_one_of_parallel_channels(OnionFailureCode.INCORRECT_CLTV_EXPIRY, 4)
+
+    async def test_channel_disabled_for_one_of_parallel_channels(self):
+        # other errors with a channel_update tell nothing about the parallel channel
+        await self._test_outdated_policy_of_one_of_parallel_channels(OnionFailureCode.CHANNEL_DISABLED, 2, outdated=False)
+
+    async def _test_outdated_policy_of_one_of_parallel_channels(self, code, offset, *, outdated=True):
+        # the node rejects the policy of one of its channels to the receiver: its parallel channel with the
+        # same, now likely outdated, policy is tried after the one with the new policy
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice_w, dave_w = graph.workers['alice'], graph.workers['dave']
+        amount_msat = 100_000_000
+        lnaddr, _pay_req = lnhelpers.prepare_invoice(dave_w, include_routing_hints=False, amount_msat=amount_msat)
+        carol = graph.workers['carol'].node_keypair.pubkey
+        hint_1, hint_2 = ShortChannelID.from_components(0, 1, 1), ShortChannelID.from_components(0, 1, 2)
+        r_tags = [[(carol, hint_1, 0, 0, 40)], [(carol, hint_2, 0, 0, 40)]]
+        for chan in alice_w.channels.values():
+            chan.set_frozen_for_sending(chan.node_id == graph.workers['bob'].node_keypair.pubkey)
+        async def last_edge():
+            with mock.patch.object(BOLT11Addr, 'get_routing_info', lambda *args, **kwargs: r_tags):
+                routes = await alice_w.create_routes_from_invoice(amount_msat, decoded_invoice=lnaddr)
+            return routes[0][0].route
+        route = await last_edge()
+        failing_scid = route[-1].short_channel_id
+        other_scid = ({hint_1, hint_2} - {failing_scid}).pop()
+        hints = alice_w.network.path_finder.liquidity_hints
+        def penalty_of_the_other():
+            return hints.penalty(carol, dave_w.node_keypair.pubkey, other_scid, amount_msat=amount_msat, policy=(0, 0, 40))
+        default = penalty_of_the_other()
+        # an update that we cannot use (here: it cannot be decoded) tells nothing about the parallel channel
+        alice_w.handle_error_code_from_failed_htlc(
+            route=route, sender_idx=0, amount_msat=amount_msat,
+            failure_msg=OnionRoutingFailure(code=code, data=bytes(offset) + bytes([0, 3]) + b'xyz'))
+        self.assertEqual(default, penalty_of_the_other())
+        alice_w.network.path_finder.clear_blacklist()
+        chan_upd_raw = graph.channels[('carol', 'dave')][0].get_outgoing_gossip_channel_update(scid=failing_scid)
+        self.assertGreater(decode_msg(chan_upd_raw)[1]['fee_base_msat'], 0)  # more than we paid
+        alice_w.handle_error_code_from_failed_htlc(
+            route=route, sender_idx=0, amount_msat=amount_msat,
+            failure_msg=OnionRoutingFailure(
+                code=code, data=bytes(offset) + len(chan_upd_raw).to_bytes(2, 'big') + chan_upd_raw))
+        if not outdated:
+            self.assertEqual(default, penalty_of_the_other())
+            return
+        self.assertGreater(penalty_of_the_other(), default)
+        route = await last_edge()
+        self.assertEqual(failing_scid, route[-1].short_channel_id)
+        self.assertGreater(route[-1].fee_base_msat, 0)
+
     async def test_trampoline_invoice_features_and_routing_hints(self):
         """
         When the invoice_features signal trampoline support, routing hints must only

@@ -27,7 +27,7 @@ from electrum.lnrouter import (PathEdge, LiquidityHintMgr, DEFAULT_PENALTY_PROPO
                                fee_for_edge_msat, LNPaymentTRoute, TrampolineEdge,
                                HINT_DURATION, PAIR_FAILURE_PENALTY_FACTOR, RouteEdge,
                                NODE_FAILURE_MIN_SENDERS, NODE_FAILURE_PENALTY_FACTOR,
-                               OFFLINE_NODE_DURATION)
+                               OFFLINE_NODE_DURATION, MAX_OUTDATED_POLICIES_PER_PAIR)
 
 from . import ElectrumTestCase
 from .test_bitcoin import needs_test_with_all_chacha20_implementations
@@ -1323,6 +1323,65 @@ class Test_LNRouter(ElectrumTestCase):
         default = LiquidityHintMgr().penalty(a, b, channel(2), amount_msat=1_500_000, policy=policy)
         self.assertEqual((1 + PAIR_FAILURE_PENALTY_FACTOR) * default,
                          hints.penalty(a, b, channel(2), amount_msat=1_500_000, policy=policy))
+
+    def test_liquidity_hints_of_a_node_pair_with_an_outdated_policy(self):
+        # nodes often change the policies of all their channels to the same node together
+        hints = LiquidityHintMgr()
+        a, b = node('a'), node('b')
+        amount_msat = 1_000_000
+        outdated, cheaper, updated, longer_cltv = (1000, 70, 40), (1000, 60, 40), (1000, 80, 40), (1000, 70, 41)
+        def default(policy, n_from=a, n_to=b):
+            return LiquidityHintMgr().penalty(n_from, n_to, channel(2), amount_msat=amount_msat, policy=policy)
+        def penalty(policy, n_from=a, n_to=b):
+            return hints.penalty(n_from, n_to, channel(2), amount_msat=amount_msat, policy=policy)
+        factor = 1 + PAIR_FAILURE_PENALTY_FACTOR
+        hints.update_outdated_policy(a, b, policy=outdated)
+        self.assertEqual(factor * default(outdated), penalty(outdated))
+        self.assertEqual(factor * default(cheaper), penalty(cheaper))
+        self.assertEqual(default(updated), penalty(updated))  # e.g. the channel with the new policy
+        self.assertEqual(default(longer_cltv), penalty(longer_cltv))
+        self.assertEqual(default(outdated, b, a), penalty(outdated, b, a))  # other direction
+        # a later report adds its outdated policy
+        hints.update_outdated_policy(a, b, policy=cheaper)
+        self.assertEqual(factor * default(outdated), penalty(outdated))
+        hints.update_outdated_policy(a, b, policy=(0, 200, 40))
+        self.assertEqual(factor * default((0, 200, 40)), penalty((0, 200, 40)))
+        self.assertEqual(factor * default(outdated), penalty(outdated))
+        self.assertEqual(default((1000, 200, 40)), penalty((1000, 200, 40)))  # e.g. a policy with both changes
+        # not a liquidity failure: no node hint
+        c, d, e = node('c'), node('d'), node('e')
+        for n_from in (c, d, e):
+            hints.update_outdated_policy(n_from, b, policy=outdated)
+        self.assertEqual(default(outdated, node('f')), penalty(outdated, node('f')))
+        # a forward over a more expensive channel, e.g. the one with the new policy, does not change it
+        hints.update_can_send(a, b, channel(3), amount_msat=amount_msat, policy=(3000, 70, 40))
+        self.assertEqual(factor * default(outdated), penalty(outdated))
+        # a forward with a policy that is not more expensive shows that the node pair's policies are current
+        hints.update_can_send(a, b, channel(3), amount_msat=amount_msat, policy=outdated)
+        self.assertEqual(default(outdated), penalty(outdated))
+        # the oldest of more than MAX_OUTDATED_POLICIES_PER_PAIR are dropped
+        hints.reset_liquidity_hints()
+        dearest = (1000, 100, 40)
+        hints.update_outdated_policy(a, b, policy=dearest)
+        for ppm in range(10, 10 + 10 * MAX_OUTDATED_POLICIES_PER_PAIR, 10):
+            hints.update_outdated_policy(a, b, policy=(1000, ppm, 40))
+            self.assertEqual(ppm < 10 * MAX_OUTDATED_POLICIES_PER_PAIR, penalty(dearest) > default(dearest))
+        # it expires, unless reported again
+        start = int(time.time())
+        with mock.patch('electrum.lnrouter.now', return_value=start):
+            hints.update_outdated_policy(a, b, policy=outdated)
+        with mock.patch('electrum.lnrouter.now', return_value=start + HINT_DURATION - 600):
+            hints.update_outdated_policy(a, b, policy=outdated)
+        with mock.patch('electrum.lnrouter.now', return_value=start + HINT_DURATION + 1):
+            self.assertEqual(factor * default(outdated), penalty(outdated))
+        with mock.patch('electrum.lnrouter.now', return_value=start + 2 * HINT_DURATION):
+            self.assertEqual(default(outdated), penalty(outdated))
+            # and is dropped when another node pair is reported
+            hints.update_outdated_policy(c, b, policy=outdated)
+            self.assertEqual({(c, b)}, set(hints._pair_outdated_policy))
+        hints.update_outdated_policy(a, b, policy=outdated)
+        hints.reset_liquidity_hints()
+        self.assertEqual(default(outdated), penalty(outdated))
 
     def test_liquidity_hints_of_a_node_pair_expire(self):
         hints = LiquidityHintMgr()

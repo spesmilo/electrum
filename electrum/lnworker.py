@@ -2474,6 +2474,12 @@ class LNWallet(Logger):
                     route,
                     amount_msat,
                     failing_channel=ShortChannelID(failing_channel))
+            # the node likely changed the fee or cltv delta of its parallel channels to the same node too
+            if code in (OnionFailureCode.FEE_INSUFFICIENT, OnionFailureCode.INCORRECT_CLTV_EXPIRY) and not blacklist:
+                edge = route[sender_idx + 1]
+                self.network.path_finder.liquidity_hints.update_outdated_policy(
+                    edge.start_node, edge.end_node,
+                    policy=(edge.fee_base_msat, edge.fee_proportional_millionths, edge.cltv_delta))
         # for errors that never include a channel update
         else:
             blacklist = True
