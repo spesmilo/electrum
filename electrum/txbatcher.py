@@ -403,6 +403,10 @@ class TxBatch(Logger):
             return False
         if not self.is_mine(base_tx.txid()):
             return False
+        sweeps = [s for txin in base_tx.inputs() if (s := self.batch_inputs.get(txin.prevout))]
+        if sweeps and not self.batch_payments and all(
+                s.is_anchor() and self.wallet.adb.get_tx_height(s.txin.prevout.txid.hex()).conf > 0 for s in sweeps):
+            return False  # a CPFP of ctxs that are mined
         base_tx_fee = base_tx.get_fee()
         recommended_fee = self.fee_policy.estimate_fee(base_tx.estimated_size(), network=self.wallet.network)
         should_bump_fee = base_tx_fee * 1.1 < recommended_fee
