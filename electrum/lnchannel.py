@@ -846,6 +846,9 @@ class Channel(AbstractChannel):
         self._receive_fail_reasons = {}  # type: Dict[int, tuple[bytes | None, OnionRoutingFailure | None]]
         self.unconfirmed_closing_txid = None # not a state, only for GUI
         self.sent_channel_ready = False # no need to persist this, because channel_ready is re-sent in channel_reestablish
+        # closing fee negotiation: (number of attempts that got as far as closing_signed,
+        # unix timestamp of the end of the last one). not persisted.
+        self.closing_negotiation_attempts = (0, 0.)  # type: Tuple[int, float]
         self.sent_announcement_signatures = False
 
     @property
