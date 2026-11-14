@@ -13,6 +13,7 @@ from datetime import datetime
 import functools
 from functools import partial
 import inspect
+import itertools
 
 import electrum_ecc as ecc
 from electrum_ecc import ecdsa_sig64_from_r_and_s, ecdsa_der_sig_from_ecdsa_sig64, ECPubkey
@@ -66,6 +67,15 @@ if TYPE_CHECKING:
 
 
 LN_P2P_NETWORK_TIMEOUT = 20
+
+# The closing fee negotiation restarts on every reconnection. If the previous attempt has failed,
+# we wait before we take part in the next one: this long after the first failed attempt,
+# and twice as long after each further one, up to the max. (see Peer._wait_before_restarting_closing_negotiation)
+COOP_CLOSE_RETRY_DELAY_INIT = 15  # seconds
+COOP_CLOSE_RETRY_DELAY_MAX = 300  # seconds
+# max number of closing_signed messages we accept from the remote in one negotiation.
+# (lnd changes its fee by 10% per round, so this is enough even if our fee estimates differ by orders of magnitude)
+COOP_CLOSE_MAX_ROUNDS = 100
 
 
 class CoopCloseFailure(Exception): pass
@@ -129,6 +139,13 @@ class Peer(Logger, EventListener):
         self.funding_created_sent = set() # for channels in PREOPENING
         self.funding_signed_sent = set()  # for channels in PREOPENING
         self.shutdown_received = {} # chan_id -> asyncio.Future()
+        # chan_ids for which 'shutdown' was sent / received on this connection:
+        self._shutdown_sent = set()  # type: Set[bytes]
+        self._shutdown_seen = set()  # type: Set[bytes]
+        # chan_id -> outcome of the closing fee negotiation that was started on this connection
+        self._closing_negotiations = {}  # type: Dict[bytes, asyncio.Future]
+        # chan_id -> set when we should no longer hold back our shutdown
+        self._closing_negotiation_wakeup = defaultdict(asyncio.Event)  # type: Dict[bytes, asyncio.Event]
         self.channel_reestablish_msg = defaultdict(self.asyncio_loop.create_future)  # type: Dict[bytes, asyncio.Future]
         self._chan_reest_finished = defaultdict(asyncio.Event)  # type: Dict[bytes, asyncio.Event]
         self.orphan_channel_updates = OrderedDict()  # type: OrderedDict[ShortChannelID, dict]
@@ -1798,7 +1815,7 @@ class Peer(Logger, EventListener):
         util.trigger_callback('channel', self.lnworker.wallet, chan)
         if chan.get_state() == ChannelState.SHUTDOWN:
             # if we have sent a previous shutdown, it must be retransmitted (Bolt2)
-            await self.taskgroup.spawn(self.send_shutdown(chan))
+            await self.taskgroup.spawn(self._retransmit_shutdown(chan))
         elif chan.get_state() == ChannelState.OPEN:
             forwarding_enabled = self.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS
             if forwarding_enabled and chan.short_channel_id and not chan_just_became_ready:
@@ -2565,11 +2582,29 @@ class Peer(Logger, EventListener):
     async def close_channel(self, chan_id: bytes):
         chan = self.get_channel_by_id(chan_id)
         assert chan
+        if chan_id in self.shutdown_received:  # an earlier call is waiting for the shutdown of the remote
+            raise Exception('A cooperative close of this channel is already in progress.')
+        # the user wants to close now: do not hold back our shutdown any longer (after a reconnection)
+        self._closing_negotiation_wakeup[chan_id].set()
+        if chan_id in self._closing_negotiations:
+            # The fee negotiation was already started on this connection, e.g. by the remote
+            # after a reconnection. Report its outcome, instead of starting a second one.
+            txid = await asyncio.shield(self._closing_negotiations[chan_id])
+            if txid is None:
+                raise Exception('The channel was closed in the meantime.')
+            return txid
         self.shutdown_received[chan_id] = self.asyncio_loop.create_future()
-        await self.send_shutdown(chan)
-        payload = await self.shutdown_received[chan_id]
         try:
-            txid = await self._shutdown(chan, payload, is_local=True)
+            await self.send_shutdown(chan)
+            payload = await self._wait_unless_disconnected(self.shutdown_received[chan_id])
+        except CoopCloseFailure as e:  # the connection was lost
+            raise CoopCloseFailure(f"{e} {self._closing_failure_hint(chan)}") from e
+        finally:
+            self.shutdown_received.pop(chan_id, None)
+        try:
+            txid = await self._closing_negotiation(chan, payload, is_local=True)
+            if txid is None:
+                raise Exception('The channel was closed in the meantime.')
             self.logger.info(f'({chan.get_id_for_log()}) Channel closed {txid}')
         except asyncio.TimeoutError:
             txid = chan.unconfirmed_closing_txid
@@ -2609,12 +2644,72 @@ class Peer(Logger, EventListener):
                     close_connection=True)
 
         chan_id = chan.channel_id
+        if chan_id in self._shutdown_seen:
+            # A node MUST NOT send multiple shutdown messages, but Electrum <= 4.8.3 does, after a reconnection.
+            # Without this check, we would run the fee negotiation twice, in parallel.
+            self.logger.info(f"({chan.get_id_for_log()}) ignoring redundant shutdown")
+            return
+        self._shutdown_seen.add(chan_id)
         if chan_id in self.shutdown_received:
             self.shutdown_received[chan_id].set_result(payload)
         else:
-            await self.send_shutdown(chan)
-            txid = await self._shutdown(chan, payload, is_local=False)
-            self.logger.info(f'({chan.get_id_for_log()}) Channel closed by remote peer {txid}')
+            txid = await self._closing_negotiation(chan, payload, is_local=False)
+            if txid is not None:
+                self.logger.info(f'({chan.get_id_for_log()}) Channel closed by remote peer {txid}')
+
+    async def _closing_negotiation(self, chan: Channel, payload, *, is_local: bool) -> Optional[str]:
+        """Negotiates the closing tx, after we have received the shutdown of the remote (payload).
+        If is_local is not set, the remote has started the close (or restarted it, after a reconnection),
+        and we have to send our shutdown first.
+        Returns the txid of the closing tx, or None if the channel got closed in another way meanwhile.
+        The outcome is kept, for calls of close_channel that come later on this connection.
+        """
+        outcome = self._closing_negotiations[chan.channel_id] = self.asyncio_loop.create_future()
+        outcome.add_done_callback(lambda fut: fut.exception())  # nobody might ask for it: mark it as retrieved
+        try:
+            if not is_local:
+                await self._wait_before_restarting_closing_negotiation(chan)
+            if chan.is_closed():  # e.g. the user force-closed while we were waiting
+                txid = None
+            else:
+                if not is_local:
+                    await self.send_shutdown(chan)
+                txid = await self._shutdown(chan, payload, is_local=is_local)
+        except Exception as e:
+            outcome.set_exception(e)
+            raise
+        except asyncio.CancelledError:  # e.g. the connection was lost, or the caller of close_channel has given up
+            outcome.set_exception(CoopCloseFailure(
+                f"The closing negotiation was interrupted. {self._closing_failure_hint(chan)}"))
+            raise
+        outcome.set_result(txid)
+        return txid
+
+    def _closing_failure_hint(self, chan: Channel) -> str:
+        """What the user should know, after the closing negotiation did not complete on this connection."""
+        if chan.get_state() == ChannelState.SHUTDOWN:
+            # (the remote might have broadcast the closing tx already, e.g. if its last closing_signed got lost)
+            return "We have not closed the channel. The negotiation will restart when we reconnect to the remote node."
+        # e.g. the remote sent an error, which makes us force-close (see on_error)
+        return f"The channel is in state {chan.get_state().name} now."
+
+    def _check_still_connected(self) -> None:
+        """note: close_channel is not part of self.taskgroup, so nothing cancels it when the connection is lost."""
+        if self.got_disconnected.is_set():
+            raise CoopCloseFailure("Lost connection to the remote node during the closing negotiation.")
+
+    async def _wait_unless_disconnected(self, awaitable):
+        """Awaits the argument, but raises if the connection is lost first. (see _check_still_connected)"""
+        fut = asyncio.ensure_future(awaitable)
+        disconnected = asyncio.ensure_future(self.got_disconnected.wait())
+        try:
+            await asyncio.wait([fut, disconnected], return_when=asyncio.FIRST_COMPLETED)
+            if not fut.done():
+                self._check_still_connected()
+            return fut.result()
+        finally:
+            fut.cancel()
+            disconnected.cancel()
 
     def can_send_shutdown(self, chan: Channel, *, proposer: HTLCOwner) -> bool:
         if chan.get_state() >= ChannelState.CLOSED:
@@ -2647,10 +2742,54 @@ class Peer(Logger, EventListener):
         chan.set_can_send_ctx_updates(False)
         while chan.has_pending_changes(REMOTE):
             await asyncio.sleep(0.1)
-        self.send_message('shutdown', channel_id=chan.channel_id, len=len(scriptpubkey), scriptpubkey=scriptpubkey)
+        # MUST NOT send multiple shutdown messages. (bolt2)
+        # After a reconnection, it is retransmitted once: we get called both by
+        # reestablish_channel, and when the shutdown of the remote arrives.
+        if chan.channel_id not in self._shutdown_sent:
+            self.send_message('shutdown', channel_id=chan.channel_id, len=len(scriptpubkey), scriptpubkey=scriptpubkey)
+            self._shutdown_sent.add(chan.channel_id)
         chan.set_state(ChannelState.SHUTDOWN)
         # can fulfill or fail htlcs. cannot add htlcs, because state != OPEN
         chan.set_can_send_ctx_updates(True)
+
+    async def _retransmit_shutdown(self, chan: Channel) -> None:
+        await self._wait_before_restarting_closing_negotiation(chan)
+        if chan.get_state() != ChannelState.SHUTDOWN or chan.channel_id in self._shutdown_sent:
+            # the user force-closed while we were waiting, or shutdown was sent in the meantime (see close_channel)
+            return
+        await self.send_shutdown(chan)
+
+    def _closing_negotiation_backoff(self, chan: Channel) -> float:
+        """Returns how many seconds are left until we take part in the closing fee negotiation again."""
+        num_failed_attempts, last_time = chan.closing_negotiation_attempts
+        if num_failed_attempts == 0:
+            return 0
+        delay = min(COOP_CLOSE_RETRY_DELAY_MAX, COOP_CLOSE_RETRY_DELAY_INIT * 2 ** min(num_failed_attempts - 1, 20))
+        # (the clock might have been set back in the meantime: never wait for longer than the delay)
+        return max(0, min(delay, last_time + delay - time.time()))
+
+    async def _wait_before_restarting_closing_negotiation(self, chan: Channel) -> None:
+        """After a reconnection in SHUTDOWN state, we hold back our shutdown for a while,
+        if the previous attempt to negotiate the closing fee has failed.
+
+        Without this, if the negotiation keeps failing, we would reconnect, negotiate, and disconnect again,
+        every few seconds: that would also disturb the other channels we have with this peer.
+        lnd and Electrum do not negotiate before they have received our shutdown on the new connection.
+        Other implementations might send their closing_signed right away: we answer it after the wait.
+        We do not delay our answers once we take part in the negotiation, as the remote might
+        force-close if it hears nothing from us. (we used to do that after 20 seconds)
+
+        An attempt only counts as failed once a closing_signed was sent or received (or the remote did not
+        send one in time): we do not wait after a connection that was lost before that.
+        And if the user asks for the close again (close_channel), the wait ends.
+        """
+        remaining = self._closing_negotiation_backoff(chan)
+        if remaining > 0:
+            self.logger.info(
+                f"({chan.get_id_for_log()}) the closing negotiation has failed {chan.closing_negotiation_attempts[0]} "
+                f"times. waiting {remaining:.1f} sec before the next attempt.")
+            async with ignore_after(remaining):
+                await self._closing_negotiation_wakeup[chan.channel_id].wait()
 
     def get_shutdown_fee_range(self, chan, closing_tx, is_local) -> Tuple[int, dict]:
         """ return our closing fee, and the fee range we initially want to enforce. """
@@ -2699,11 +2838,52 @@ class Peer(Logger, EventListener):
         return our_fee, our_fee_range
 
     @log_exceptions
-    async def _shutdown(self, chan: Channel, payload, *, is_local: bool):
+    async def _shutdown(self, chan: Channel, payload, *, is_local: bool) -> str:
+        """Negotiates the closing tx with the remote, and broadcasts it. Returns its txid.
+
+        If the negotiation fails, we do not force-close: there are no HTLCs, so no funds are at risk,
+        and whether to pay for a force-close (and wait for the CSV delay) is for the user to decide.
+        Instead, we send a warning and disconnect. The channel stays in SHUTDOWN state,
+        and the negotiation restarts when we reconnect (see BOLT-02).
+        note: if the remote sends an error, we do force-close as usual, see on_error.
+        """
+        num_failed_attempts = chan.closing_negotiation_attempts[0]
+        try:
+            return await self._negotiate_closing_tx(chan, payload, is_local=is_local)
+        except CoopCloseFailure as e:
+            self.logger.warning(f"({chan.get_id_for_log()}) closing negotiation failed: {e}")
+            # note: if called via close_channel, we are not running in self.taskgroup,
+            #       and the connection might already be gone (and replaced by a new one).
+            if not self.got_disconnected.is_set():
+                try:
+                    self.send_warning(chan.channel_id, f"closing negotiation failed: {e}")
+                except Exception as e2:
+                    self.logger.info(f"could not send warning: {e2!r}")
+                self.close_and_cleanup()
+            raise CoopCloseFailure(f"{str(e).rstrip('.')}. {self._closing_failure_hint(chan)}") from e
+        except Exception:
+            # e.g. we received a message that we did not expect, or the remote sent an error.
+            # The negotiation cannot continue on this connection: disconnect, so that both sides start over.
+            if not self.got_disconnected.is_set():
+                self.close_and_cleanup()
+            raise
+        except asyncio.CancelledError:
+            # e.g. the caller of close_channel has given up. If a closing_signed was already sent or received,
+            # the remote is left in the middle of the negotiation: disconnect, so that both sides start over.
+            if chan.closing_negotiation_attempts[0] != num_failed_attempts and not self.got_disconnected.is_set():
+                self.close_and_cleanup()
+            raise
+        finally:
+            if chan.closing_negotiation_attempts[0] != num_failed_attempts:
+                # this attempt counts (see _negotiate_closing_tx). the delay before the next one starts now
+                chan.closing_negotiation_attempts = (chan.closing_negotiation_attempts[0], time.time())
+
+    async def _negotiate_closing_tx(self, chan: Channel, payload, *, is_local: bool) -> str:
         # wait until no HTLCs remain in either commitment transaction
         while chan.has_unsettled_htlcs():
             self.logger.info(f'(chan: {chan.short_channel_id}) waiting for htlcs to settle...')
             await asyncio.sleep(1)
+            self._check_still_connected()
         # if no HTLCs remain, we must not send updates
         chan.set_can_send_ctx_updates(False)
         their_scriptpubkey = payload['scriptpubkey']
@@ -2719,8 +2899,17 @@ class Peer(Logger, EventListener):
         is_initiator = chan.constraints.is_initiator
         our_fee, our_fee_range = self.get_shutdown_fee_range(chan, dummy_tx, is_local)
 
+        num_failed_attempts = chan.closing_negotiation_attempts[0]
+
+        def count_this_attempt():
+            # If the channel does not get closed now, this attempt counts as failed, for the delay before
+            # the next one. We get here once a closing_signed is sent or received (or was not received in time).
+            # If the connection is lost before that, e.g. while we wait for their shutdown, nothing has failed yet.
+            chan.closing_negotiation_attempts = (num_failed_attempts + 1, time.time())
+
         def send_closing_signed(our_fee, our_fee_range, drop_remote):
             nonlocal our_sig, closing_tx
+            count_this_attempt()
             closing_signed_tlvs = {'fee_range': our_fee_range}
             our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=our_fee, drop_remote=drop_remote)
             self.logger.info(f"Sending fee range: {closing_signed_tlvs} and fee: {our_fee}")
@@ -2741,17 +2930,18 @@ class Peer(Logger, EventListener):
         async def receive_closing_signed():
             nonlocal our_sig, closing_tx
             try:
-                cs_payload = await self.wait_for_message('closing_signed', chan.channel_id)
+                cs_payload = await self._wait_unless_disconnected(
+                    self.wait_for_message('closing_signed', chan.channel_id))
             except asyncio.exceptions.TimeoutError:
-                self.schedule_force_closing(chan.channel_id)
-                raise CoopCloseFailure("closing_signed not received, force closing.")
+                count_this_attempt()
+                # BOLT-02 says we MUST fail the channel here, after a "reasonable amount of time".
+                # We leave that to the user. (as does e.g. CLN, which has a configurable timeout for this)
+                raise CoopCloseFailure("closing_signed not received.")
+            count_this_attempt()
             their_fee = cs_payload['fee_satoshis']
+            # note: fee_range is missing if the remote uses the legacy negotiation (e.g. lnd)
             their_fee_range = cs_payload['closing_signed_tlvs'].get('fee_range')
             their_sig = cs_payload['signature']
-            # legacy negotiation is no longer supported
-            if their_fee_range is None:
-                self.schedule_force_closing(chan.channel_id)
-                raise CoopCloseFailure(f"Their fee range missing, force closing.")
             # perform checks
             our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=their_fee, drop_remote=False)
             if verify_signature(closing_tx, their_sig):
@@ -2770,12 +2960,50 @@ class Peer(Logger, EventListener):
             if not drop_remote and to_remote_set:
                 to_remote_idx = to_remote_set.pop()
                 to_remote_amount = closing_tx.outputs()[to_remote_idx].value
-                transaction.check_scriptpubkey_template_and_dust(their_scriptpubkey, to_remote_amount)
+                try:
+                    transaction.check_scriptpubkey_template_and_dust(their_scriptpubkey, to_remote_amount)
+                except Exception as e:
+                    raise CoopCloseFailure(f"The closing tx would not relay: {e}.") from e
             return their_fee, their_fee_range, their_sig, drop_remote
+
+        def choose_new_fee_legacy(our_fee, our_fee_range, their_fee, their_previous_fee) -> int:
+            """Legacy negotiation, used if the remote does not send a fee_range (e.g. lnd):
+            both sides make proposals, until one of them repeats the fee of the other.
+            We only ever sign for fees that are inside our own fee range.
+            (which has no upper limit if the remote is the one paying the fee)
+            """
+            if not is_initiator:
+                # we are not the one paying the fee, so we have no reason to have an upper bound
+                # (as below: SHOULD set max_fee_satoshis to at least the max_fee_satoshis received)
+                our_fee_range['max_fee_satoshis'] = max(their_fee, our_fee_range['max_fee_satoshis'])
+            min_fee = our_fee_range['min_fee_satoshis']
+            max_fee = our_fee_range['max_fee_satoshis']
+            # if fee_satoshis matches its previously sent fee_range:
+            if min_fee <= their_fee <= max_fee:
+                # SHOULD reply with a closing_signed with the same fee_satoshis value
+                return their_fee
+            # otherwise, if fee_satoshis is not strictly between its last-sent fee_satoshis
+            # and its previously-received fee_satoshis, UNLESS it has since reconnected:
+            if their_previous_fee is not None:  # (in which case we have already sent our_fee)
+                if not (min(our_fee, their_previous_fee) < their_fee < max(our_fee, their_previous_fee)):
+                    # SHOULD send a warning and close the connection, or send an error and fail the channel.
+                    raise CoopCloseFailure(
+                        f"Their fee ({their_fee} sat) is not strictly between "
+                        f"our last fee ({our_fee} sat) and their previous fee ({their_previous_fee} sat).")
+            # otherwise: MUST propose a value "strictly between" the received fee_satoshis and its previously-sent fee_satoshis.
+            # We meet them halfway, but do not leave our fee range.
+            # note: if we are already at the limit of our range, we repeat our last fee, which is not "strictly between".
+            #       We have nothing left to concede then, but the remote can still move towards us.
+            #       (lnd does so, in steps of 10%, and accepts our fee once it is within 30% of theirs)
+            return max(min_fee, min((our_fee + their_fee) // 2, max_fee))
 
         def choose_new_fee(our_fee, our_fee_range, their_fee, their_fee_range, their_previous_fee):
             assert our_fee != their_fee
             fee_range_sent = our_fee_range and (is_initiator or (their_previous_fee is not None))
+
+            if their_fee_range is None:
+                our_fee = choose_new_fee_legacy(our_fee, our_fee_range, their_fee, their_previous_fee)
+                return our_fee, our_fee_range
 
             # The sending node, if it is not the funder:
             if not is_initiator:
@@ -2797,17 +3025,21 @@ class Peer(Logger, EventListener):
                 overlap_max = min(our_fee_range['max_fee_satoshis'], their_fee_range['max_fee_satoshis'])
                 # if there is no overlap between that and its own fee_range
                 if overlap_min > overlap_max:
-                    # TODO: the receiving node should first send a warning, and fail the channel
-                    # only if it doesn't receive a satisfying fee_range after a reasonable amount of time
-                    self.schedule_force_closing(chan.channel_id)
-                    raise CoopCloseFailure("There is no overlap between their and our fee range.")
+                    # SHOULD send a warning
+                    # MUST fail the channel if it doesn't receive a satisfying fee_range after a reasonable amount of time
+                    # note: we do not fail the channel by ourselves, see _shutdown.
+                    raise CoopCloseFailure(
+                        f"There is no overlap between their and our fee range. "
+                        f"ours={our_fee_range}, theirs={their_fee_range}.")
                 # otherwise, if it is the funder
                 if is_initiator:
                     # if fee_satoshis is not in the overlap between the sent and received fee_range:
                     if not (overlap_min <= their_fee <= overlap_max):
                         # MUST fail the channel
-                        self.schedule_force_closing(chan.channel_id)
-                        raise CoopCloseFailure("Their fee is not in the overlap region, we force closed.")
+                        # note: we do not fail the channel by ourselves, see _shutdown.
+                        raise CoopCloseFailure(
+                            f"Their fee ({their_fee} sat) is not in the overlap region. "
+                            f"ours={our_fee_range}, theirs={their_fee_range}.")
                     # otherwise, MUST reply with the same fee_satoshis.
                     our_fee = their_fee
                 # otherwise (it is not the funder):
@@ -2815,8 +3047,9 @@ class Peer(Logger, EventListener):
                     # if it has already sent a closing_signed:
                     if fee_range_sent:
                         # fee_satoshis is not the same as the value we sent, we MUST fail the channel
-                        self.schedule_force_closing(chan.channel_id)
-                        raise CoopCloseFailure("Expected the same fee as ours, we force closed.")
+                        # note: we do not fail the channel by ourselves, see _shutdown.
+                        raise CoopCloseFailure(
+                            f"Expected the same fee as ours ({our_fee} sat), but they sent {their_fee} sat.")
                     # otherwise:
                     # MUST propose a fee_satoshis in the overlap between received and (about-to-be) sent fee_range.
                     our_fee = (overlap_min + overlap_max) // 2
@@ -2826,15 +3059,19 @@ class Peer(Logger, EventListener):
         # Fee negotiation: both parties exchange 'closing_signed' messages.
         # The funder sends the first message, the non-funder sends the last message.
         # In the 'modern' case, at most 3 messages are exchanged, because choose_new_fee of the funder either returns their_fee or fails
+        # In the 'legacy' case (remote does not send a fee_range), there can be more rounds:
+        # the remote has to move by at least 1 sat in each of them, and we limit their number.
         their_fee = None
         drop_remote = False  # does the peer drop its to_local output or not?
         if is_initiator:
             send_closing_signed(our_fee, our_fee_range, drop_remote)
-        while True:
+        for num_round in itertools.count(1):
             their_previous_fee = their_fee
             their_fee, their_fee_range, their_sig, drop_remote = await receive_closing_signed()
             if our_fee == their_fee:
                 break
+            if num_round >= COOP_CLOSE_MAX_ROUNDS:
+                raise CoopCloseFailure(f"No agreement on the fee after {num_round} rounds.")
             our_fee, our_fee_range = choose_new_fee(our_fee, our_fee_range, their_fee, their_fee_range, their_previous_fee)
             if not is_initiator and our_fee == their_fee:
                 break
