@@ -26,7 +26,8 @@ from electrum.lnmsg import encode_msg
 from electrum.lnrouter import (PathEdge, LiquidityHintMgr, DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH,
                                fee_for_edge_msat, LNPaymentTRoute, TrampolineEdge,
                                HINT_DURATION, PAIR_FAILURE_PENALTY_FACTOR, RouteEdge,
-                               NODE_FAILURE_MIN_SENDERS, NODE_FAILURE_PENALTY_FACTOR)
+                               NODE_FAILURE_MIN_SENDERS, NODE_FAILURE_PENALTY_FACTOR,
+                               OFFLINE_NODE_DURATION)
 
 from . import ElectrumTestCase
 from .test_bitcoin import needs_test_with_all_chacha20_implementations
@@ -864,6 +865,83 @@ class Test_LNRouter(ElectrumTestCase):
         path = self.path_finder.find_path_for_payment(nodeA=s, nodeB=d, invoice_amount_msat=amount_msat)
         other_channel = ({channel(42), channel(43)} - {failing_channel}).pop()
         self.assertEqual([channel(41), other_channel, channel(44)], [edge.short_channel_id for edge in path])
+
+    async def test_find_path_avoids_a_node_that_several_nodes_cannot_forward_to(self):
+        s, a, b, e, x, c, d = node('s'), node('a'), node('b'), node('e'), node('x'), node('c'), node('d')
+        free = (0, 0, 40)
+        self._make_graph([
+            (41, s, a, free, free),
+            (42, s, b, free, free),
+            (43, s, e, free, free),
+            (44, a, x, free, free),
+            (45, b, x, free, free),
+            (46, e, x, free, free),
+            (47, x, d, free, free),
+            (48, a, c, (3000, 0, 40), free),  # the path without x is 3 sat more expensive
+            (49, c, d, free, free),
+        ])
+        def find(**kwargs):
+            path = self.path_finder.find_path_for_payment(nodeA=s, nodeB=d, invoice_amount_msat=1_000_000, **kwargs)
+            return [edge.end_node for edge in path]
+        def flag_x():
+            for reporter in (a, b, e):
+                self.path_finder.report_unknown_next_peer(reporter, x)
+        self.assertIn(x, find())
+        # the same node twice counts once, and expired reports do not count
+        self.path_finder.report_unknown_next_peer(a, x)
+        self.path_finder.report_unknown_next_peer(a, x)
+        self.path_finder.report_unknown_next_peer(b, x)
+        self.path_finder.report_unknown_next_peer(e, x, now=int(time.time()) - OFFLINE_NODE_DURATION - 1)
+        self.assertIn(x, find())
+        self.path_finder.report_unknown_next_peer(e, x)
+        self.assertEqual([a, c, d], find())
+        self.assertEqual([a, c, d], find(penalty_weight=0.25))
+        # until it forwards an htlc, or returns an error
+        route = self.path_finder.create_route_from_path([
+            PathEdge(start_node=s, end_node=a, short_channel_id=channel(41)),
+            PathEdge(start_node=a, end_node=x, short_channel_id=channel(44)),
+            PathEdge(start_node=x, end_node=d, short_channel_id=channel(47))])
+        self.path_finder.update_liquidity_hints(route, 2_000_000, failing_channel=channel(44))  # failed before x
+        self.assertEqual([a, c, d], find())
+        self.path_finder.update_liquidity_hints(route, 2_000_000, failing_channel=channel(47))  # x returned the error
+        self.assertIn(x, find())
+        flag_x()
+        self.path_finder.update_liquidity_hints(route, 1_000)  # success
+        self.assertIn(x, find())
+        flag_x()
+        self.assertEqual([a, c, d], find())
+        # until the reports expire
+        later = int(time.time()) + OFFLINE_NODE_DURATION + 1
+        with mock.patch('time.time', return_value=later):
+            self.assertIn(x, find())
+        # it is still used if there is no other path: unknown_next_peer is also the error for a closed channel
+        self.path_finder.add_edge_to_blacklist(channel(48))
+        self.assertIn(x, find())
+        self.path_finder.clear_blacklist()
+        self.assertIn(x, find())
+
+    async def test_find_path_with_the_lowest_fees_through_a_node_that_several_nodes_cannot_forward_to(self):
+        # the search for the lowest fees, the last resort of the fee budget, ignores it
+        s, m, n, x, y, d = node('s'), node('m'), node('n'), node('x'), node('y'), node('d')
+        free, two_sat = (0, 0, 40), (2000, 0, 40)
+        self._make_graph([
+            (41, s, m, free, free),
+            (42, m, n, two_sat, free),
+            (43, n, x, free, free),
+            (44, x, d, free, free),
+            (45, n, y, free, free),
+            (46, y, d, two_sat, free),
+        ])
+        for reporter in (node('a'), node('b'), node('c')):
+            self.path_finder.report_unknown_next_peer(reporter, x)
+        def find(**kwargs):
+            path = self.path_finder.find_path_for_payment(
+                nodeA=s, nodeB=d, invoice_amount_msat=1_000_000, max_fee_msat=3000, **kwargs)
+            return path and [edge.end_node for edge in path]
+        search_info = {}
+        self.assertIsNone(find(search_info=search_info))  # the path without x exceeds the budget
+        self.assertTrue(search_info['budget_pruned'])
+        self.assertEqual([m, n, x, d], find(penalty_weight=0))
 
     async def test_find_path_uses_the_parallel_route_hint_channel_of_a_failed_node_pair(self):
         # e.g. a receiver with two channels to a node that forwards only over the requested channel

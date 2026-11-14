@@ -126,6 +126,49 @@ class TestLNWallet(ElectrumTestCase):
             await sender.pay_invoice(pay_req2)
         self.assertNotIn(key, sender.logs)  # rejected before pay_to_node opened a session
 
+    async def test_unknown_next_peer_from_several_nodes(self):
+        graph = lnhelpers.prepare_chans_and_peers_in_graph(self, lnhelpers._GRAPH_DEFINITIONS['square_graph'])
+        alice_w = graph.workers['alice']
+        alice = alice_w.node_keypair.pubkey
+        bob, dave = graph.workers['bob'].node_keypair.pubkey, graph.workers['dave'].node_keypair.pubkey
+        path_finder = alice_w.network.path_finder
+        reporters = [bytes([2]) + bytes([i]) * 32 for i in range(1, 4)]
+        def report(code, reporter, node_id, number):
+            def edge(start, end, i):
+                return RouteEdge(start_node=start, end_node=end, short_channel_id=ShortChannelID.from_components(1, number, i),
+                                 fee_base_msat=0, fee_proportional_millionths=0, cltv_delta=40, node_features=0)
+            # the route goes on after node_id, as usual
+            route = [edge(alice, reporter, 0), edge(reporter, node_id, 1), edge(node_id, reporters[-1], 2)]
+            alice_w.handle_error_code_from_failed_htlc(
+                route=route, sender_idx=0, amount_msat=1_000_000, failure_msg=OnionRoutingFailure(code=code, data=b''))
+            return route[1].short_channel_id
+        now = int(time.time())
+        # other errors without a channel_update tell nothing about the next node
+        for i, reporter in enumerate(reporters):
+            report(OnionFailureCode.PERMANENT_CHANNEL_FAILURE, reporter, dave, i)
+        self.assertFalse(path_finder._is_node_likely_offline(dave, now=now))
+        for i, reporter in enumerate(reporters):
+            scid = report(OnionFailureCode.UNKNOWN_NEXT_PEER, reporter, dave, 10 + i)
+            self.assertTrue(path_finder._is_edge_blacklisted(scid, now=now))
+        self.assertTrue(path_finder._is_node_likely_offline(dave, now=now))
+        # until it returns an error itself
+        route = [RouteEdge(start_node=start, end_node=end, short_channel_id=ShortChannelID.from_components(1, 40, i),
+                           fee_base_msat=0, fee_proportional_millionths=0, cltv_delta=40, node_features=0)
+                 for i, (start, end) in enumerate([(alice, reporters[0]), (reporters[0], dave), (dave, reporters[1])])]
+        alice_w.handle_error_code_from_failed_htlc(
+            route=route, sender_idx=1, amount_msat=1_000_000,
+            failure_msg=OnionRoutingFailure(code=OnionFailureCode.PERMANENT_CHANNEL_FAILURE, data=b''))
+        self.assertFalse(path_finder._is_node_likely_offline(dave, now=now))
+        # we are connected to bob, so it is online
+        self.assertIsNotNone(alice_w.lnpeermgr.get_peer_by_pubkey(bob))
+        for i, reporter in enumerate(reporters):
+            report(OnionFailureCode.UNKNOWN_NEXT_PEER, reporter, bob, 20 + i)
+        self.assertFalse(path_finder._is_node_likely_offline(bob, now=now))
+        # nor ourselves, e.g. at the end of a circular payment
+        for i, reporter in enumerate(reporters):
+            report(OnionFailureCode.UNKNOWN_NEXT_PEER, reporter, alice, 30 + i)
+        self.assertFalse(path_finder._is_node_likely_offline(alice, now=now))
+
     async def test_trampoline_invoice_features_and_routing_hints(self):
         """
         When the invoice_features signal trampoline support, routing hints must only

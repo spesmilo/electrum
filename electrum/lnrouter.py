@@ -60,6 +60,14 @@ PAIR_FAILURE_PENALTY_FACTOR = 10
 NODE_FAILURE_MIN_SENDERS = 3
 NODE_FAILURE_PENALTY_FACTOR = 10
 _NO_NODE_FAILURES = (0, {})  # read only
+# When this many different nodes cannot forward to a node with unknown_next_peer, the node is likely
+# offline: its channels stay in the graph until the disabled channel_updates of its peers reach us.
+# For OFFLINE_NODE_DURATION, a path through it gets OFFLINE_NODE_PENALTY_MSAT, so that other paths are
+# tried first. It is not excluded (nor penalized when looking for the lowest fees), as unknown_next_peer
+# is also the error for a channel that was closed, while the node may be online.
+OFFLINE_NODE_MIN_REPORTERS = 3
+OFFLINE_NODE_DURATION = 600  # seconds
+OFFLINE_NODE_PENALTY_MSAT = 10**12
 
 
 def penalty_base_msat(amount_msat: int) -> int:
@@ -551,6 +559,9 @@ class LNPathFinder(Logger):
         self.channel_db = channel_db
         self.liquidity_hints = LiquidityHintMgr()
         self._edge_blacklist = dict()  # type: Dict[ShortChannelID, int]  # scid -> expiration
+        # node -> {node that could not forward to it: expiration}. The values are replaced,
+        # not changed, as path finding reads them without the lock.
+        self._unknown_next_peer_reports = dict()  # type: Dict[bytes, Dict[bytes, int]]
         self._blacklist_lock = threading.Lock()
 
     def _is_edge_blacklisted(self, short_channel_id: ShortChannelID, *, now: int) -> bool:
@@ -578,6 +589,35 @@ class LNPathFinder(Logger):
     def clear_blacklist(self):
         with self._blacklist_lock:
             self._edge_blacklist = dict()
+            self._unknown_next_peer_reports = dict()
+
+    def report_unknown_next_peer(self, reporter: bytes, node: bytes, *, now: int | None = None) -> None:
+        """reporter could not forward an htlc to node (unknown_next_peer): it is not connected to it,
+        or it does not know the channel."""
+        if now is None:
+            now = int(time.time())
+        with self._blacklist_lock:
+            reports = {r: exp for r, exp in self._unknown_next_peer_reports.get(node, {}).items() if exp >= now}
+            reports[reporter] = now + OFFLINE_NODE_DURATION
+            # drop the nodes whose reports all expired
+            self._unknown_next_peer_reports = {
+                n: r for n, r in self._unknown_next_peer_reports.items() if max(r.values()) >= now}
+            self._unknown_next_peer_reports[node] = reports
+        if len(reports) >= OFFLINE_NODE_MIN_REPORTERS:
+            self.logger.info(f"{node.hex()[:10]} is likely offline: {len(reports)} nodes could not forward to it")
+
+    def report_nodes_online(self, nodes: Sequence[bytes]) -> None:
+        """These nodes forwarded an htlc, or returned an error: they are online."""
+        with self._blacklist_lock:
+            reports = self._unknown_next_peer_reports
+            if any(node in reports for node in nodes):
+                self._unknown_next_peer_reports = {n: r for n, r in reports.items() if n not in nodes}
+
+    def _is_node_likely_offline(self, node: bytes, *, now: int) -> bool:
+        reports = self._unknown_next_peer_reports.get(node)
+        if not reports:
+            return False
+        return sum(1 for exp in reports.values() if exp >= now) >= OFFLINE_NODE_MIN_REPORTERS
 
     def update_liquidity_hints(
             self,
@@ -593,6 +633,13 @@ class LNPathFinder(Logger):
         note: actual routable amounts are slightly different than reported here
               as fees would need to be added.
         """
+        # the nodes that forwarded the htlc, or returned the error, are online
+        online = []
+        for r in route:
+            online.append(r.start_node)
+            if r.short_channel_id == failing_channel:
+                break
+        self.report_nodes_online(online)
         for r in route:
             if r.short_channel_id != failing_channel:
                 self.logger.info(f"report {r.short_channel_id} to be able to forward {amount_msat} msat")
@@ -799,6 +846,8 @@ class LNPathFinder(Logger):
                     now=now,
                     penalty_weight=penalty_weight,
                 )
+                if penalty_weight and self._is_node_likely_offline(edge_startnode, now=now):
+                    edge_cost += OFFLINE_NODE_PENALTY_MSAT
                 amount_to_forward_msat = amount_msat + fee_for_edge_msat
                 if max_fee_msat is not None and amount_to_forward_msat - invoice_amount_msat > max_fee_msat:
                     # The path would exceed the fee budget: don't extend it, so that the node can be

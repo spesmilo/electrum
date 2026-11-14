@@ -2441,8 +2441,9 @@ class LNWallet(Logger):
             failing_channel = route[sender_idx + 1].short_channel_id
         except IndexError:
             raise PaymentFailure(f'payment destination reported error: {failure_msg.code_name()}') from None
+        # the nodes up to the one that returned the error are online
+        self.network.path_finder.report_nodes_online([edge.start_node for edge in route[1:sender_idx + 2]])
 
-        # TODO: handle unknown next peer?
         # handle failure codes that may include a channel update
         if code in failure_codes:
             offset = failure_codes[code]
@@ -2476,6 +2477,12 @@ class LNWallet(Logger):
         # for errors that never include a channel update
         else:
             blacklist = True
+            next_node = route[sender_idx + 1].end_node
+            if (code == OnionFailureCode.UNKNOWN_NEXT_PEER and next_node != self.node_keypair.pubkey
+                    and self.lnpeermgr.get_peer_by_pubkey(next_node) is None):
+                # if several nodes cannot forward to the next node, it is likely offline
+                # (but not if it is us, or we are connected to it)
+                self.network.path_finder.report_unknown_next_peer(route[sender_idx + 1].start_node, next_node)
         if blacklist:
             self.network.path_finder.add_edge_to_blacklist(short_channel_id=failing_channel)
 
