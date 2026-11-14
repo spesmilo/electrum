@@ -1,5 +1,6 @@
 import asyncio
 import dataclasses
+import itertools
 import shutil
 import copy
 import tempfile
@@ -17,7 +18,7 @@ import time
 import statistics
 
 from aiorpcx import timeout_after, TaskTimeout
-from electrum_ecc import ECPrivkey
+from electrum_ecc import ECPrivkey, ECPubkey
 import electrum_ecc as ecc
 
 import electrum
@@ -35,7 +36,7 @@ from electrum.util import NetworkRetryManager, bfh, OldTaskGroup, EventListener,
 from electrum.lnpeer import Peer
 from electrum.lnpeer import CoopCloseFailure
 from electrum.lntransport import LNPeerAddr
-from electrum.crypto import privkey_to_pubkey
+from electrum.crypto import privkey_to_pubkey, sha256d
 from electrum.lnutil import Keypair, PaymentFailure, LnFeatures, HTLCOwner, PaymentFeeBudget, RECEIVED
 from electrum.lnchannel import ChannelState, PeerState, Channel, CF_ANNOUNCE_CHANNEL
 from electrum.lnrouter import LNPathFinder, PathEdge, LNPathInconsistent
@@ -1652,6 +1653,10 @@ class TestPeerDirect(TestPeer):
                 await asyncio.sleep(0.1)  # FIXME test is a bit fragile...
                 self.assertIsNone(coop_fail)
                 self.assertEqual((chan_ab._state, chan_ba._state), (ChannelState.CLOSING, ChannelState.CLOSING))
+                # the only fee that is in both ranges
+                for chan in (chan_ab, chan_ba):
+                    closing_tx = chan.lnworker.network.tx_queue.get_nowait()  # type: Transaction
+                    self.assertEqual(10, chan.constraints.capacity - closing_tx.output_value())
 
     @mock.patch('electrum.lnpeer.LN_P2P_NETWORK_TIMEOUT', 0.05)
     async def test_modern_shutdown_no_overlap(self):
@@ -1676,6 +1681,16 @@ class TestPeerDirect(TestPeer):
         # note: "Task exception was never retrieved" for the other CoopCloseFailure
         #       is because we don't start peer.main_loop and hence peer.taskgroup is never joined.
         self.assertEqual((chan_ab._state, chan_ba._state), (ChannelState.FORCE_CLOSING, ChannelState.FORCE_CLOSING))
+
+    @mock.patch('electrum.lnpeer.COOP_CLOSE_MAX_ROUNDS', 3)
+    async def test_legacy_shutdown_agreement_in_last_round(self):
+        # the remote repeats our fee in the last round that is allowed: that is an agreement, not a failure
+        async def remote(peer, chan, payload):
+            return await self._scripted_shutdown(peer, chan, payload, offers=[5000, 4000, 2000])
+        res = await self._test_shutdown_with_remote(
+            remote_negotiation=remote, remote_is_funder=False, remote_closes=False)
+        self._assert_coop_closed_with_remote(res, expected_fee=2000)
+        self.assertEqual([1000, 2000, 2000], res.our_fees)
 
     async def _test_shutdown(
         self,
@@ -1721,13 +1736,444 @@ class TestPeerDirect(TestPeer):
 
         coop_close_failure = None
         try:
-            await gath
+            await util.wait_for2(gath, 20)
         except SuccessfulTest:
             pass
         except CoopCloseFailure as e:
             coop_close_failure = e
 
         return alice_channel, bob_channel, coop_close_failure
+
+    @staticmethod
+    async def _lnd_legacy_shutdown(peer: Peer, chan: Channel, payload, *, ideal_fee: int, max_fee: int) -> int:
+        """Stand-in for Peer._shutdown that negotiates like lnd does when option_simple_close is not negotiated
+        (port of lnwallet/chancloser/chancloser.go, lnd v0.21). In particular, lnd never sends a fee_range.
+        Returns the fee that was agreed on.
+        """
+        def fee_in_acceptable_range(local_fee: int, remote_fee: int) -> bool:
+            if local_fee < remote_fee:
+                return remote_fee <= local_fee + (local_fee * 3) // 10
+            return remote_fee >= local_fee - (local_fee * 3) // 10
+
+        def calc_compromise_fee(last_sent_fee: int, remote_fee: int) -> int:
+            if ideal_fee == remote_fee or last_sent_fee == 0:
+                return ideal_fee
+            if remote_fee == last_sent_fee:
+                return last_sent_fee
+            if fee_in_acceptable_range(last_sent_fee, remote_fee):
+                return remote_fee
+            if remote_fee < last_sent_fee:
+                return last_sent_fee - last_sent_fee // 10
+            return last_sent_fee + last_sent_fee // 10
+
+        is_initiator = chan.constraints.is_initiator
+        our_scriptpubkey = bitcoin.address_to_script(chan.get_sweep_address())
+        their_scriptpubkey = payload['scriptpubkey']
+        prior_fee_offers = {}  # fee -> our sig
+        last_fee_proposal = 0
+
+        def propose_close_signed(fee: int) -> None:
+            nonlocal last_fee_proposal
+            sig, _tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=fee)
+            prior_fee_offers[fee] = sig
+            last_fee_proposal = fee
+
+        def send_close_signed(fee: int) -> None:
+            peer.send_message(
+                'closing_signed',
+                channel_id=chan.channel_id,
+                fee_satoshis=fee,
+                signature=prior_fee_offers[fee],
+                closing_signed_tlvs={},  # no fee_range
+            )
+
+        if is_initiator:
+            propose_close_signed(ideal_fee)
+            send_close_signed(ideal_fee)
+        while True:
+            cs_payload = await peer.wait_for_message('closing_signed', chan.channel_id)
+            remote_fee = cs_payload['fee_satoshis']
+            if remote_fee not in prior_fee_offers:
+                proposal = calc_compromise_fee(last_fee_proposal, remote_fee)
+                if is_initiator and proposal > max_fee:
+                    # lnd resets its state machine and disconnects. (it does not force-close)
+                    raise GracefulDisconnect(f"lnd: proposal exceeds max fee: {proposal} > {max_fee}")
+                propose_close_signed(proposal)
+                if proposal != remote_fee:
+                    send_close_signed(proposal)
+                    continue
+            # the remote must have signed the same tx as we did:
+            _sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=remote_fee)
+            msg_hash = sha256d(closing_tx.serialize_preimage(0))
+            assert ECPubkey(chan.config[REMOTE].multisig_key.pubkey).ecdsa_verify(cs_payload['signature'], msg_hash)
+            send_close_signed(remote_fee)
+            return remote_fee
+
+    @staticmethod
+    async def _scripted_shutdown(peer: Peer, chan: Channel, payload, *, offers: Iterable) -> int:
+        """Stand-in for Peer._shutdown: a remote that sends the given closing_signed messages one after the other,
+        whatever we answer. It is done when we repeat one of its fees, or it repeats our last one.
+        Returns the fee that was agreed on.
+        An offer is either a fee (the message then has no fee_range, as with lnd),
+        or a dict with the keys 'fee', and optionally 'fee_range' (a tuple) and 'bad_sig'.
+        """
+        our_scriptpubkey = bitcoin.address_to_script(chan.get_sweep_address())
+        their_scriptpubkey = payload['scriptpubkey']
+        offers = iter(offers)
+        fees_offered = set()
+
+        def send_next_offer() -> int:
+            offer = next(offers)
+            if not isinstance(offer, dict):
+                offer = {'fee': offer}
+            fee = offer['fee']
+            sig, _tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=fee)
+            if offer.get('bad_sig'):
+                sig = bytes(64)
+            tlvs = {}
+            if offer.get('fee_range'):
+                min_fee, max_fee = offer['fee_range']
+                tlvs = {'fee_range': {'min_fee_satoshis': min_fee, 'max_fee_satoshis': max_fee}}
+            fees_offered.add(fee)
+            peer.send_message(
+                'closing_signed', channel_id=chan.channel_id, fee_satoshis=fee, signature=sig, closing_signed_tlvs=tlvs)
+            return fee
+
+        if chan.constraints.is_initiator:
+            send_next_offer()
+        while True:
+            cs_payload = await peer.wait_for_message('closing_signed', chan.channel_id)
+            their_fee = cs_payload['fee_satoshis']
+            if their_fee in fees_offered or their_fee == send_next_offer():
+                return their_fee
+
+    class CloseWithRemoteResult(NamedTuple):
+        chan_our: Channel
+        w_our: MockLNWallet
+        p_our: Peer
+        remote_agreed_fee: Optional[int]  # the fee the remote agreed to, if any
+        exc: Optional[Exception]  # what close_channel raised, or else what our side of the negotiation raised
+        our_fees: Sequence[int]  # fee_satoshis of all the closing_signed messages we sent
+        warnings_received_by_remote: Sequence[bytes]
+        events: Sequence[str]  # 'warning' (we sent one) and 'disconnect' (we closed the connection), in order
+
+    async def _test_shutdown_with_remote(
+        self,
+        *,
+        remote_negotiation,  # coroutine function (peer, chan, payload) -> agreed fee. replaces Peer._shutdown of the remote
+        remote_is_funder: bool,
+        remote_closes: bool,  # who sends "shutdown" first
+        graph: Graph = None,
+        our_fee_range: Optional[Tuple[int, int]] = (500, 2000),
+    ) -> 'TestPeerDirect.CloseWithRemoteResult':
+        """Cooperative close between Electrum ("we") and a remote whose side of the fee negotiation is scripted.
+        Our fee is 1000 sat, and our fee range is [500, 2000] sat. With our_fee_range=None, they are not set
+        by the test, but come from the fee estimates.
+        """
+        if graph is None:
+            graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
+        p1, p2 = graph.peers.values()
+        w1, w2 = graph.workers.values()
+        alice_channel = graph.channels[('alice', 'bob')][0]
+        bob_channel = graph.channels[('bob', 'alice')][0]
+        assert alice_channel.constraints.is_initiator and not bob_channel.constraints.is_initiator
+        if remote_is_funder:
+            p_remote, (p_our, chan_our, w_our) = p1, (p2, bob_channel, w2)
+        else:
+            p_remote, (p_our, chan_our, w_our) = p2, (p1, alice_channel, w1)
+        if our_fee_range:
+            w_our.network.config.TEST_SHUTDOWN_FEE = 1000
+            w_our.network.config.TEST_SHUTDOWN_FEE_RANGE = {
+                'min_fee_satoshis': our_fee_range[0], 'max_fee_satoshis': our_fee_range[1]}
+        else:
+            orig_get_shutdown_fee_range = p_our.get_shutdown_fee_range
+
+            def get_shutdown_fee_range(*args, **kwargs):
+                nonlocal our_fee_range
+                fee, fee_range = orig_get_shutdown_fee_range(*args, **kwargs)
+                our_fee_range = (fee_range['min_fee_satoshis'], fee_range['max_fee_satoshis'])
+                return fee, fee_range
+            p_our.get_shutdown_fee_range = get_shutdown_fee_range
+        remote_agreed_fee = None
+        our_fees = []
+        our_failures = []
+        warnings_received_by_remote = []
+        events = []
+        orig_send_message = p_our.send_message
+        orig_close_and_cleanup = p_our.close_and_cleanup
+        orig_shutdown = p_our._shutdown
+
+        def send_message(message_name, **kwargs):
+            if message_name == 'closing_signed':
+                our_fees.append(kwargs['fee_satoshis'])
+                # the fee we sign is inside the fee_range we send along with it
+                fee_range = kwargs['closing_signed_tlvs']['fee_range']
+                self.assertTrue(fee_range['min_fee_satoshis'] <= kwargs['fee_satoshis'] <= fee_range['max_fee_satoshis'],
+                                (kwargs['fee_satoshis'], fee_range))
+            elif message_name == 'warning':
+                events.append('warning')
+            return orig_send_message(message_name, **kwargs)
+        p_our.send_message = send_message
+
+        def close_and_cleanup():
+            events.append('disconnect')
+            return orig_close_and_cleanup()
+        p_our.close_and_cleanup = close_and_cleanup
+
+        async def our_shutdown(chan, payload, *, is_local):
+            try:
+                return await orig_shutdown(chan, payload, is_local=is_local)
+            except Exception as e:
+                our_failures.append(e)
+                raise
+        p_our._shutdown = our_shutdown
+        def on_warning(payload):
+            self.assertEqual(alice_channel.channel_id, payload['channel_id'])
+            warnings_received_by_remote.append(payload['data'])
+        p_remote.on_warning = on_warning
+
+        async def remote_shutdown(chan, payload, *, is_local):
+            nonlocal remote_agreed_fee
+            remote_agreed_fee = await remote_negotiation(p_remote, chan, payload)
+            return "txid of the remote"
+        p_remote._shutdown = remote_shutdown
+
+        async def close():
+            await util.wait_for2(p1.initialized, 1)
+            await util.wait_for2(p2.initialized, 1)
+            p_shutdown_sender = p_remote if remote_closes else p_our
+            close_task = asyncio.ensure_future(p_shutdown_sender.close_channel(alice_channel.channel_id))
+            try:
+                # wait until both sides are done, or one of them has failed.
+                # (the side that did not call close_channel runs in a task that nobody awaits)
+                while True:
+                    if close_task.done() and close_task.exception():
+                        raise close_task.exception()
+                    if our_failures:
+                        raise our_failures[0]
+                    if chan_our.get_state() == ChannelState.CLOSING and remote_agreed_fee is not None:
+                        break
+                    await asyncio.sleep(0.01)
+            finally:
+                close_task.cancel()
+            raise SuccessfulTest()
+        gath = asyncio.gather(close(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
+
+        exc = None
+        try:
+            await util.wait_for2(gath, 20)  # a negotiation that does not terminate must fail the test
+        except SuccessfulTest:
+            pass
+        except (CoopCloseFailure, GracefulDisconnect) as e:
+            exc = e
+        # we never signed for a fee outside our fee range. (if the remote is the one paying, there is no upper limit)
+        fees_outside_our_range = [
+            fee for fee in our_fees if fee < our_fee_range[0] or (fee > our_fee_range[1] and not remote_is_funder)]
+        self.assertEqual([], fees_outside_our_range)
+        return self.CloseWithRemoteResult(
+            chan_our, w_our, p_our, remote_agreed_fee, exc, our_fees, warnings_received_by_remote, events)
+
+    async def _test_shutdown_with_lnd(
+        self,
+        *,
+        lnd_ideal_fee: int,
+        lnd_max_fee: int = None,
+        lnd_is_funder: bool,
+        lnd_closes: bool,  # who sends "shutdown" first
+    ) -> 'TestPeerDirect.CloseWithRemoteResult':
+        """Cooperative close between Electrum and an (emulated) lnd."""
+        if lnd_max_fee is None:
+            lnd_max_fee = 3 * lnd_ideal_fee
+
+        async def lnd_negotiation(peer, chan, payload):
+            return await self._lnd_legacy_shutdown(peer, chan, payload, ideal_fee=lnd_ideal_fee, max_fee=lnd_max_fee)
+        return await self._test_shutdown_with_remote(
+            remote_negotiation=lnd_negotiation, remote_is_funder=lnd_is_funder, remote_closes=lnd_closes)
+
+    def _assert_coop_closed_with_remote(self, res: 'TestPeerDirect.CloseWithRemoteResult', *, expected_fee: int):
+        self.assertIsNone(res.exc)
+        self.assertEqual(ChannelState.CLOSING, res.chan_our._state)
+        self.assertEqual(expected_fee, res.remote_agreed_fee)
+        # we broadcast the closing tx, and it pays the fee both sides agreed on
+        self.assertEqual(1, res.w_our.network.tx_queue.qsize())
+        closing_tx = res.w_our.network.tx_queue.get_nowait()  # type: Transaction
+        self.assertTrue(closing_tx.is_complete())
+        self.assertEqual(expected_fee, res.chan_our.constraints.capacity - closing_tx.output_value())
+
+    def _assert_not_closed_with_remote(self, res: 'TestPeerDirect.CloseWithRemoteResult'):
+        # we neither closed nor force-closed
+        self.assertIsNone(res.remote_agreed_fee)
+        self.assertEqual(ChannelState.SHUTDOWN, res.chan_our._state)
+        self.assertEqual(0, res.w_our.network.tx_queue.qsize())
+
+    def _assert_negotiation_failed_with_remote(self, res: 'TestPeerDirect.CloseWithRemoteResult', reason: str):
+        """Our side gave up. (and it force-closes then, as for any other failure of the negotiation)"""
+        self.assertIsInstance(res.exc, CoopCloseFailure)
+        self.assertIn(reason, str(res.exc))
+        self.assertIsNone(res.remote_agreed_fee)
+        self.assertEqual(ChannelState.FORCE_CLOSING, res.chan_our._state)
+
+    async def test_legacy_shutdown_lnd_agrees_with_our_fee(self):
+        # lnd repeats our own fee (without a fee_range): the negotiation is complete after two messages.
+        for lnd_is_funder in [False, True]:
+            for lnd_closes in [False, True]:
+                with self.subTest(lnd_is_funder=lnd_is_funder, lnd_closes=lnd_closes):
+                    res = await self._test_shutdown_with_lnd(
+                        lnd_ideal_fee=1000, lnd_is_funder=lnd_is_funder, lnd_closes=lnd_closes)
+                    self._assert_coop_closed_with_remote(res, expected_fee=1000)
+                    self.assertEqual([1000], res.our_fees)
+
+    async def test_legacy_shutdown_lnd_fee_inside_our_range(self):
+        # the fee lnd proposes is different from ours, but inside our fee range: we accept it.
+        for lnd_is_funder in [False, True]:
+            for lnd_closes in [False, True]:
+                for lnd_ideal_fee in [500, 700, 1010, 2000]:
+                    with self.subTest(lnd_is_funder=lnd_is_funder, lnd_closes=lnd_closes, lnd_ideal_fee=lnd_ideal_fee):
+                        res = await self._test_shutdown_with_lnd(
+                            lnd_ideal_fee=lnd_ideal_fee, lnd_is_funder=lnd_is_funder, lnd_closes=lnd_closes)
+                        self._assert_coop_closed_with_remote(res, expected_fee=lnd_ideal_fee)
+                        # as funder, we send our fee first, and then repeat theirs. otherwise we only repeat theirs.
+                        self.assertEqual([lnd_ideal_fee] if lnd_is_funder else [1000, lnd_ideal_fee], res.our_fees)
+
+    async def test_legacy_shutdown_lnd_fee_below_our_range(self):
+        # lnd wants a lower fee than our minimum: it has to move towards us.
+        for lnd_is_funder in [False, True]:
+            with self.subTest(lnd_is_funder=lnd_is_funder):
+                res = await self._test_shutdown_with_lnd(
+                    lnd_ideal_fee=300, lnd_is_funder=lnd_is_funder, lnd_closes=lnd_is_funder)
+                self._assert_coop_closed_with_remote(res, expected_fee=500)
+                # we met lnd halfway first (1000 -> 650), and then insisted on our minimum,
+                # while lnd raised its fee: 300 -> 330 -> 363 -> 399 (at which point 500 is within 30%)
+                first_fees = [650, 500] if lnd_is_funder else [1000, 650, 500]
+                self.assertEqual(first_fees, res.our_fees[:len(first_fees)])
+                self.assertEqual({500}, set(res.our_fees[len(first_fees):]))
+        # just below our minimum: we propose 749, lnd raises its fee by 10%, and that is inside our range
+        res = await self._test_shutdown_with_lnd(lnd_ideal_fee=499, lnd_is_funder=False, lnd_closes=False)
+        self._assert_coop_closed_with_remote(res, expected_fee=548)
+        self.assertEqual([1000, 749, 548], res.our_fees)
+
+    async def test_legacy_shutdown_lnd_fee_above_our_range(self):
+        # we are the funder, and lnd wants a higher fee than our maximum: we do not pay more than our maximum.
+        res = await self._test_shutdown_with_lnd(lnd_ideal_fee=5000, lnd_is_funder=False, lnd_closes=False)
+        self._assert_coop_closed_with_remote(res, expected_fee=2000)
+        # just above our maximum
+        res = await self._test_shutdown_with_lnd(lnd_ideal_fee=2001, lnd_is_funder=False, lnd_closes=False)
+        self._assert_coop_closed_with_remote(res, expected_fee=1500)
+        # far above our maximum: lnd needs many rounds, but it gets there
+        res = await self._test_shutdown_with_lnd(lnd_ideal_fee=1_000_000, lnd_is_funder=False, lnd_closes=True)
+        self._assert_coop_closed_with_remote(res, expected_fee=2000)
+        # lnd is the funder: it is the one paying, so we have no reason to refuse a high fee.
+        res = await self._test_shutdown_with_lnd(lnd_ideal_fee=5000, lnd_is_funder=True, lnd_closes=False)
+        self._assert_coop_closed_with_remote(res, expected_fee=5000)
+
+    async def test_legacy_shutdown_lnd_cannot_reach_our_range(self):
+        # lnd is the funder, and the most it is willing to pay is below our minimum: lnd gives up and disconnects.
+        res = await self._test_shutdown_with_lnd(
+            lnd_ideal_fee=100, lnd_max_fee=300, lnd_is_funder=True, lnd_closes=True)
+        self.assertIsInstance(res.exc, GracefulDisconnect)
+        self._assert_not_closed_with_remote(res)
+
+    async def test_legacy_shutdown_lnd_does_not_move(self):
+        # lnd changes its fee by 10% in each round, which is 0 sat if the fee is below 10 sat:
+        # it keeps sending the same fee, which is outside our range, so no progress is possible.
+        for lnd_closes in [False, True]:
+            with self.subTest(lnd_closes=lnd_closes):
+                with self.assertLogs('electrum', level='ERROR'):
+                    res = await self._test_shutdown_with_lnd(lnd_ideal_fee=5, lnd_is_funder=False, lnd_closes=lnd_closes)
+                self._assert_negotiation_failed_with_remote(
+                    res, "Their fee (5 sat) is not strictly between our last fee (502 sat) and their previous fee (5 sat).")
+
+    async def test_legacy_shutdown_remote_does_not_move(self):
+        # "strictly between" (BOLT-02): the remote has to come closer to our fee with every message.
+        for remote_is_funder, remote_closes, stubborn_fee, second_fee, our_fees in [
+                # we are the funder. the remote stays above our maximum,
+                (False, False, 5000, 5000, [1000, 2000]),
+                (False, True, 5000, 5000, [1000, 2000]),
+                (False, False, 5000, 5001, [1000, 2000]),  # or moves away from us,
+                (False, False, 5000, 2000, [1000, 2000]),  # or jumps to our last fee (which ends the negotiation),
+                (False, False, 5000, 1999, [1000, 2000, 1999]),  # or beyond it (inside our range: we accept that).
+                # the remote stays below our minimum
+                (False, False, 100, 100, [1000, 550]),
+                (False, False, 100, 99, [1000, 550]),
+                # we are not the funder. the remote stays below our minimum
+                (True, False, 100, 100, [550]),
+                (True, True, 100, 100, [550]),
+                (True, True, 100, 99, [550]),
+        ]:
+            with self.subTest(remote_is_funder=remote_is_funder, remote_closes=remote_closes,
+                              stubborn_fee=stubborn_fee, second_fee=second_fee):
+                async def stubborn_remote(peer, chan, payload, *, stubborn_fee=stubborn_fee, second_fee=second_fee):
+                    fees = itertools.chain([stubborn_fee], itertools.repeat(second_fee))
+                    return await self._scripted_shutdown(peer, chan, payload, offers=fees)
+                with self.assertLogs('electrum', level='DEBUG'):
+                    res = await self._test_shutdown_with_remote(
+                        remote_negotiation=stubborn_remote, remote_is_funder=remote_is_funder, remote_closes=remote_closes)
+                if second_fee in (1999, 2000):
+                    self._assert_coop_closed_with_remote(res, expected_fee=second_fee)
+                else:
+                    self._assert_negotiation_failed_with_remote(
+                        res, f"Their fee ({second_fee} sat) is not strictly between our last fee ({our_fees[-1]} sat) "
+                             f"and their previous fee ({stubborn_fee} sat).")
+                # we answered their first fee, and gave up when the second one arrived
+                self.assertEqual(our_fees, res.our_fees)
+
+    async def test_legacy_shutdown_fee_inside_our_range_is_accepted_at_any_time(self):
+        # BOLT-02 first asks if the fee matches the fee_range we sent, and only then if it is "strictly between".
+        # Here their second fee is not strictly between our last fee (2000) and their previous one (5000),
+        # but it is inside our range, and cheaper for us than our own proposal.
+        async def remote(peer, chan, payload):
+            fees = itertools.chain([5000], itertools.repeat(1500))
+            return await self._scripted_shutdown(peer, chan, payload, offers=fees)
+        res = await self._test_shutdown_with_remote(
+            remote_negotiation=remote, remote_is_funder=False, remote_closes=False)
+        self._assert_coop_closed_with_remote(res, expected_fee=1500)
+        self.assertEqual([1000, 2000, 1500], res.our_fees)
+
+    @mock.patch('electrum.lnpeer.COOP_CLOSE_MAX_ROUNDS', 20)
+    async def test_legacy_shutdown_number_of_rounds_is_limited(self):
+        # the remote comes closer by 1 sat with every message: that is "strictly between", but it would take forever.
+        # (in its 26th message it would send a fee that we accept)
+        for remote_is_funder, start_fee, step, final_fee in [(False, 1_000_000, -1, 2000), (True, 1, 1, 500)]:
+            with self.subTest(remote_is_funder=remote_is_funder):
+                async def slow_remote(peer, chan, payload, *, start_fee=start_fee, step=step, final_fee=final_fee):
+                    offers = itertools.chain(range(start_fee, start_fee + 25 * step, step), itertools.repeat(final_fee))
+                    return await self._scripted_shutdown(peer, chan, payload, offers=offers)
+                with self.assertLogs('electrum', level='ERROR'):
+                    res = await self._test_shutdown_with_remote(
+                        remote_negotiation=slow_remote, remote_is_funder=remote_is_funder, remote_closes=False)
+                self._assert_negotiation_failed_with_remote(res, "No agreement on the fee after 20 rounds.")
+                # we answered 19 of their 20 messages (and sent the first message, if we are the funder)
+                self.assertEqual(19 if remote_is_funder else 20, len(res.our_fees))
+
+    async def test_shutdown_remote_sends_fee_range_only_in_second_message(self):
+        # their first closing_signed has no fee_range, the second one has. each message is handled on its own.
+        async def remote(peer, chan, payload):
+            offers = [5000, {'fee': 1800, 'fee_range': (1500, 3000)}]
+            return await self._scripted_shutdown(peer, chan, payload, offers=offers)
+        res = await self._test_shutdown_with_remote(
+            remote_negotiation=remote, remote_is_funder=False, remote_closes=False)
+        self._assert_coop_closed_with_remote(res, expected_fee=1800)
+        self.assertEqual([1000, 2000, 1800], res.our_fees)
+
+    async def test_legacy_shutdown_with_our_real_fee_range(self):
+        # as the tests above, but our fee and fee range are not set by the test: they come from the fee estimates
+        for lnd_is_funder in [False, True]:
+            with self.subTest(lnd_is_funder=lnd_is_funder):
+                graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
+                p_our = graph.peers[('bob', 'alice')] if lnd_is_funder else graph.peers[('alice', 'bob')]
+                chan_our = graph.channels[('bob', 'alice')][0] if lnd_is_funder else graph.channels[('alice', 'bob')][0]
+                _sig, dummy_tx = chan_our.make_closing_tx(bytes(22), bytes(22), fee_sat=0)
+                our_fee, our_fee_range = p_our.get_shutdown_fee_range(chan_our, dummy_tx, True)
+                min_fee, max_fee = our_fee_range['min_fee_satoshis'], our_fee_range['max_fee_satoshis']
+                self.assertTrue(100 <= min_fee < our_fee < max_fee, (min_fee, our_fee, max_fee))
+                # lnd wants 4 times our fee. if we are the funder, we pay our maximum at most.
+                async def lnd_negotiation(peer, chan, payload, *, our_fee=our_fee):
+                    return await self._lnd_legacy_shutdown(
+                        peer, chan, payload, ideal_fee=4 * our_fee, max_fee=12 * our_fee)
+                res = await self._test_shutdown_with_remote(
+                    remote_negotiation=lnd_negotiation, remote_is_funder=lnd_is_funder, remote_closes=True,
+                    graph=graph, our_fee_range=None)
+                self._assert_coop_closed_with_remote(res, expected_fee=4 * our_fee if lnd_is_funder else max_fee)
 
     async def test_shutdown_with_pending_update_fee(self):
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
