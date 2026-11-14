@@ -32,7 +32,6 @@ import random
 import time
 import copy
 import math
-from functools import partial
 from collections import defaultdict
 from decimal import Decimal
 from typing import TYPE_CHECKING, List, Optional, Tuple, Union, NamedTuple, Sequence, Dict, Any, Set, Iterable, Mapping
@@ -2065,6 +2064,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             tx_version: Optional[int] = None,
             is_anchor_channel_opening: bool = False,
             spend_ln_reserve: bool = False,  # for txs that LN_UTXO_RESERVE exists to fund, e.g. an anchor CPFP
+            extra_fee: int = 0,  # e.g. what a CPFP pays for its unconfirmed parents
     ) -> PartialTransaction:
         """Can raise NotEnoughFunds or NoDynamicFeeEstimates."""
 
@@ -2099,7 +2099,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             nSequence = 0xffffffff - (2 if rbf else 1)
             txin.nsequence = nSequence
 
-        fee_estimator = partial(fee_policy.estimate_fee, network=self.network)
+        def coin_fee_estimator(size: Union[int, float, Decimal]) -> int:
+            return fee_policy.estimate_fee(size, network=self.network)
+
+        def fee_estimator(size: Union[int, float, Decimal]) -> int:
+            return coin_fee_estimator(size) + extra_fee
 
         # set if we merge with another transaction
         rbf_merge_txid = None
@@ -2162,6 +2166,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 outputs=txo,
                 change_addrs=change_addrs,
                 fee_estimator_vb=fee_estimator,
+                coin_fee_estimator_vb=coin_fee_estimator,  # extra_fee is paid once, not by each coin
                 dust_threshold=self.dust_threshold(),
                 BIP69_sort=BIP69_sort,
                 require_change=require_change)

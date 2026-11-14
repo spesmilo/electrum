@@ -294,6 +294,7 @@ class CoinChooserBase(Logger):
             dust_threshold: int,
             BIP69_sort: bool = True,
             require_change: bool = False,  # if set, coins will be added in order to guarantee presence of a change output
+            coin_fee_estimator_vb: Callable[[int | float | Decimal], int] | None = None,  # to value coins, if fee_estimator_vb has fixed parts
     ) -> PartialTransaction:
         """Select unspent coins to spend to pay outputs.  If the change is
         greater than dust_threshold (after adding the change output to
@@ -363,7 +364,7 @@ class CoinChooserBase(Logger):
                 BIP69_sort=BIP69_sort,
             )
         # Collect the coins into buckets
-        all_buckets = self.bucketize_coins(coins, fee_estimator_vb=fee_estimator_vb)
+        all_buckets = self.bucketize_coins(coins, fee_estimator_vb=coin_fee_estimator_vb or fee_estimator_vb)
         # Filter some buckets out. Only keep those that have positive effective value.
         # Note that this filtering is intentionally done on the bucket level
         # instead of per-coin, as each bucket should be either fully spent or not at all.

@@ -394,20 +394,9 @@ class TxBatch(Logger):
                     self.logger.info(f"anchor not needed {prevout}")
                     self.batch_inputs.pop(prevout)
                     continue
-                prev_tx_current_fee = self.wallet.adb.get_tx_fee(prev_txid)
-                try:
-                    prev_tx_target_fee = self.fee_policy.estimate_fee(
-                        prev_tx.estimated_size(),
-                        network=self.wallet.network,
-                    )
-                except NoDynamicFeeEstimates:
-                    prev_tx_target_fee = None
-                fees_available = prev_tx_current_fee and prev_tx_target_fee
-                if fees_available and prev_tx_current_fee > prev_tx_target_fee:
-                    self.logger.info(
-                        f"not using anchor now, fee sufficient: "
-                        f"{prev_tx_current_fee=} > {prev_tx_target_fee=}", only_once=True,
-                    )
+                deficit = self._get_ctx_fee_deficit(prev_txid)
+                if deficit is not None and deficit < 0:
+                    self.logger.info(f"not using anchor now, fee sufficient: {deficit=}", only_once=True)
                     continue
             if spender_txid := self.wallet.adb.db.get_spent_outpoint(prev_txid, int(index)):
                 tx_mined_status = self.wallet.adb.get_tx_height(spender_txid)
@@ -433,10 +422,33 @@ class TxBatch(Logger):
             return False
         base_tx_fee = base_tx.get_fee()
         recommended_fee = self.fee_policy.estimate_fee(base_tx.estimated_size(), network=self.wallet.network)
+        recommended_fee += self._get_cpfp_extra_fee([txin.prevout for txin in base_tx.inputs()])
         should_bump_fee = base_tx_fee * 1.1 < recommended_fee
         if should_bump_fee:
             self.logger.info(f'base tx fee too low {base_tx_fee} < {recommended_fee}. we will bump the fee')
         return should_bump_fee
+
+    def _get_ctx_fee_deficit(self, ctx_txid: str) -> Optional[int]:
+        """What the ctx lacks to reach our target fee, negative if it pays more. None if unknown."""
+        ctx = self.wallet.adb.get_transaction(ctx_txid)
+        ctx_fee = self.wallet.adb.get_tx_fee(ctx_txid)
+        if ctx is None or ctx_fee is None:
+            return None
+        try:
+            target_fee = self.fee_policy.estimate_fee(ctx.estimated_size(), network=self.wallet.network)
+        except NoDynamicFeeEstimates:
+            return None
+        return target_fee - max(ctx_fee, 0)
+
+    def _get_cpfp_extra_fee(self, prevouts: Sequence[TxOutpoint]) -> int:
+        """What a tx spending prevouts pays for the unconfirmed ctxs of its anchors, at most their target fee."""
+        extra_fee = 0
+        for prevout in prevouts:
+            if (sweep_info := self.batch_inputs.get(prevout)) and sweep_info.is_anchor():
+                ctx_txid = prevout.txid.hex()
+                if self.wallet.adb.get_tx_height(ctx_txid).conf <= 0:
+                    extra_fee += max(0, self._get_ctx_fee_deficit(ctx_txid) or 0)
+        return extra_fee
 
     def _get_parent_txid(self) -> Optional[str]:
         """Until the first tx of a new batch: the tx whose change (_prevout) our next tx must spend."""
@@ -679,6 +691,7 @@ class TxBatch(Logger):
             merge_duplicate_outputs=False,
             require_change=True,  # a new batch can be chained to it
             spend_ln_reserve=not self.batch_payments,  # sweeps, e.g. an anchor CPFP
+            extra_fee=self._get_cpfp_extra_fee([txin.prevout for txin in inputs + (base_tx.inputs() if base_tx else [])]),
         )
         # this assert will fail if we merge duplicate outputs
         for o in outputs: assert o in tx.outputs()
