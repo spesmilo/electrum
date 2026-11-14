@@ -129,6 +129,9 @@ class Peer(Logger, EventListener):
         self.funding_created_sent = set() # for channels in PREOPENING
         self.funding_signed_sent = set()  # for channels in PREOPENING
         self.shutdown_received = {} # chan_id -> asyncio.Future()
+        # chan_ids for which 'shutdown' was sent / received on this connection:
+        self._shutdown_sent = set()  # type: Set[bytes]
+        self._shutdown_seen = set()  # type: Set[bytes]
         self.channel_reestablish_msg = defaultdict(self.asyncio_loop.create_future)  # type: Dict[bytes, asyncio.Future]
         self._chan_reest_finished = defaultdict(asyncio.Event)  # type: Dict[bytes, asyncio.Event]
         self.orphan_channel_updates = OrderedDict()  # type: OrderedDict[ShortChannelID, dict]
@@ -2565,8 +2568,16 @@ class Peer(Logger, EventListener):
     async def close_channel(self, chan_id: bytes):
         chan = self.get_channel_by_id(chan_id)
         assert chan
+        if chan_id in self.shutdown_received or chan_id in self._shutdown_sent or chan_id in self._shutdown_seen:
+            # The close was already started on this connection: by an earlier call, by the remote,
+            # or by ourselves after a reconnection (if the channel was in SHUTDOWN state).
+            raise Exception('A cooperative close of this channel is already in progress.')
         self.shutdown_received[chan_id] = self.asyncio_loop.create_future()
-        await self.send_shutdown(chan)
+        try:
+            await self.send_shutdown(chan)
+        except BaseException:
+            self.shutdown_received.pop(chan_id, None)
+            raise
         payload = await self.shutdown_received[chan_id]
         try:
             txid = await self._shutdown(chan, payload, is_local=True)
@@ -2609,6 +2620,12 @@ class Peer(Logger, EventListener):
                     close_connection=True)
 
         chan_id = chan.channel_id
+        if chan_id in self._shutdown_seen:
+            # A node MUST NOT send multiple shutdown messages, but Electrum <= 4.8.3 does, after a reconnection.
+            # Without this check, we would run the fee negotiation twice, in parallel.
+            self.logger.info(f"({chan.get_id_for_log()}) ignoring redundant shutdown")
+            return
+        self._shutdown_seen.add(chan_id)
         if chan_id in self.shutdown_received:
             self.shutdown_received[chan_id].set_result(payload)
         else:
@@ -2647,7 +2664,12 @@ class Peer(Logger, EventListener):
         chan.set_can_send_ctx_updates(False)
         while chan.has_pending_changes(REMOTE):
             await asyncio.sleep(0.1)
-        self.send_message('shutdown', channel_id=chan.channel_id, len=len(scriptpubkey), scriptpubkey=scriptpubkey)
+        # MUST NOT send multiple shutdown messages. (bolt2)
+        # After a reconnection, it is retransmitted once: we get called both by
+        # reestablish_channel, and when the shutdown of the remote arrives.
+        if chan.channel_id not in self._shutdown_sent:
+            self.send_message('shutdown', channel_id=chan.channel_id, len=len(scriptpubkey), scriptpubkey=scriptpubkey)
+            self._shutdown_sent.add(chan.channel_id)
         chan.set_state(ChannelState.SHUTDOWN)
         # can fulfill or fail htlcs. cannot add htlcs, because state != OPEN
         chan.set_can_send_ctx_updates(True)
