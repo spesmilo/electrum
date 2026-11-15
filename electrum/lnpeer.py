@@ -83,6 +83,14 @@ class Peer(Logger, EventListener):
 
     DELAY_INC_MSG_PROCESSING_SLEEP = 0.01
     MIN_TIME_BETWEEN_SENDING_COMMITSIGS = 0.05
+    # New updates take a while to reach us. An update that is older than this when we ask a peer for
+    # gossip was not sent as news: the peer is resending old gossip, as asked.
+    GOSSIP_NEWS_MAX_AGE = 10 * 60  # seconds
+    # The reply to a query for 500 channels is a few thousand messages, at 100 or more per second.
+    QUERY_SHORT_CHANNEL_IDS_TIMEOUT = 30  # seconds
+    # A peer that only sends us gossip can be silent for good reasons, e.g. if it relays none.
+    # We ping it then, to tell that from a connection that died.
+    GOSSIP_PEER_MAX_SILENCE = 30  # seconds
     RECV_GOSSIP_QUEUE_SOFT_MAXSIZE = 2000
     RECV_GOSSIP_QUEUE_HARD_MAXSIZE = 5000
 
@@ -118,12 +126,22 @@ class Peer(Logger, EventListener):
         assert self.node_ids[0] != self.node_ids[1]
         self.last_message_time = 0
         self.pong_event = asyncio.Event()
+        self.last_pong_time = 0.  # type: float
         self.reply_channel_range = None  # type: Optional[asyncio.Queue]
         # gossip uses a single queue to preserve message order
         self.recv_gossip_queue = asyncio.Queue(maxsize=self.RECV_GOSSIP_QUEUE_HARD_MAXSIZE)
         self.our_gossip_timestamp_filter = None  # type: Optional[GossipTimestampFilter]
         self.their_gossip_timestamp_filter = None  # type: Optional[GossipTimestampFilter]
         self.outgoing_gossip_reply = False # type: bool
+        self.num_gossip_msgs_received = 0  # type: int  # only the gossip that we asked for
+        # Since our last gossip_timestamp_filter: the channel updates it asks for that are too old
+        # to be news, and the ones it does not ask for. (not counting the replies to our queries)
+        self.num_gossip_backlog_updates_received = 0  # type: int
+        self.num_gossip_updates_not_asked_for = 0  # type: int
+        self._gossip_news_start = 0  # type: int
+        self.is_querying_short_channel_ids = False  # type: bool
+        self.answers_channel_queries = True  # type: bool
+        self._gossip_batch_is_large = asyncio.Event()
         self.ordered_message_queues = defaultdict(partial(asyncio.Queue, maxsize=10))  # type: Dict[bytes, asyncio.Queue] # for messages that are ordered
         self.temp_id_to_id = {}  # type: Dict[bytes, Optional[bytes]]   # to forward error messages
         self.funding_created_sent = set() # for channels in PREOPENING
@@ -385,7 +403,12 @@ class Peer(Logger, EventListener):
     async def on_ping(self, payload):
         elapsed_since_last = time.monotonic() - self._last_ping_recv_time
         min_delay = 1.0  # seconds
-        if elapsed_since_last < min_delay:
+        # LDK sends a ping after every 32 gossip messages and waits for the pong, so with the
+        # delay we would get only 32 messages per second of the gossip we asked it for. Such a pong
+        # is not larger than its ping, so it does not make us send more than the peer sent.
+        is_needed_for_gossip = (self.our_gossip_timestamp_filter is not None
+                                and payload['num_pong_bytes'] <= payload['byteslen'])
+        if elapsed_since_last < min_delay and not is_needed_for_gossip:
             self.logger.debug("remote sending PINGs too often, sleeping a bit")
             # note: This rate-limiting helps limit our outbound traffic usage.
             #       (max inc msg size 65 KB, max out msg size 65 KB, decoupled)
@@ -399,7 +422,11 @@ class Peer(Logger, EventListener):
         await self.transport.send_bytes_and_drain(raw_msg)
 
     def on_pong(self, payload):
+        self.last_pong_time = time.time()
         self.pong_event.set()
+
+    def send_ping(self) -> None:
+        self.send_message('ping', num_pong_bytes=4, byteslen=4)
 
     async def wait_for_message(self, expected_name: str, channel_id: bytes):
         q = self.ordered_message_queues[channel_id]
@@ -449,6 +476,7 @@ class Peer(Logger, EventListener):
         if self.our_gossip_timestamp_filter is None:
             return  # why is the peer sending this? should we disconnect?
         self.recv_gossip_queue.put_nowait(('node_announcement', payload))
+        self.num_gossip_msgs_received += 1
 
     def on_channel_announcement(self, payload):
         if self.lnworker.uses_trampoline():
@@ -456,6 +484,7 @@ class Peer(Logger, EventListener):
         if self.our_gossip_timestamp_filter is None:
             return  # why is the peer sending this? should we disconnect?
         self.recv_gossip_queue.put_nowait(('channel_announcement', payload))
+        self.num_gossip_msgs_received += 1
 
     def on_channel_update(self, payload):
         self.maybe_save_remote_update(payload)
@@ -464,6 +493,12 @@ class Peer(Logger, EventListener):
         if self.our_gossip_timestamp_filter is None:
             return  # why is the peer sending this? should we disconnect?
         self.recv_gossip_queue.put_nowait(('channel_update', payload))
+        self.num_gossip_msgs_received += 1
+        if not self.is_querying_short_channel_ids:
+            if not self.our_gossip_timestamp_filter.in_range(payload['timestamp']):
+                self.num_gossip_updates_not_asked_for += 1
+            elif payload['timestamp'] < self._gossip_news_start:
+                self.num_gossip_backlog_updates_received += 1
 
     def on_query_channel_range(self, payload):
         if self.lnworker == self.lnworker.network.lngossip or not self._should_forward_gossip():
@@ -578,6 +613,8 @@ class Peer(Logger, EventListener):
             await group.spawn(self._forward_gossip())
             if self.network.lngossip != self.lnworker:
                 await group.spawn(self.htlc_switch())
+            else:
+                await group.spawn(self._ping_when_silent())
 
     async def _monitor_connection(self):
         # this mirrors Interface.monitor_connection.
@@ -586,9 +623,26 @@ class Peer(Logger, EventListener):
             if self.transport.is_closing():
                 raise GracefulDisconnect('transport was closed')
 
+    async def _ping_when_silent(self):
+        """For peers that only send us gossip: disconnects if the peer does not respond.
+        (the peers of a wallet get pinged by htlc_switch)"""
+        while True:
+            await asyncio.sleep(self.GOSSIP_PEER_MAX_SILENCE / 3)
+            if time.time() - self.last_message_time > self.GOSSIP_PEER_MAX_SILENCE:
+                self.pong_event.clear()
+                self.send_ping()
+                try:
+                    await util.wait_for2(self.pong_event.wait(), LN_P2P_NETWORK_TIMEOUT)
+                except asyncio.TimeoutError as e:
+                    raise GracefulDisconnect("pong timed out") from e
+
     async def _process_gossip(self):
         while True:
-            await asyncio.sleep(5)
+            # Process the messages in batches. Do not let a large batch wait: while it waits we take
+            # in no more gossip (see _message_loop), and catching up after being offline takes long.
+            async with ignore_after(5):
+                await self._gossip_batch_is_large.wait()
+            self._gossip_batch_is_large.clear()
             if not self.network.lngossip:
                 continue
             chan_anns = []
@@ -701,13 +755,20 @@ class Peer(Logger, EventListener):
             await self.lnworker.channel_db.data_loaded.wait()
             await self.lnworker.on_channel_range_reply(self.pubkey, ids)
             await self.lnworker.add_new_ids(ids, skip_recently_orphaned=True)
-            self.request_gossip(self.lnworker.get_gossip_timestamp_filter_start())
+            self.request_gossip(*self.lnworker.get_gossip_timestamp_filter(self))
             while True:
-                todo = self.lnworker.get_ids_to_query()
+                todo = self.lnworker.get_ids_to_query(self)
                 if not todo:
                     await asyncio.sleep(1)
                     continue
-                await self.get_short_channel_ids(todo)
+                try:
+                    await util.wait_for2(self.get_short_channel_ids(todo), self.QUERY_SHORT_CHANNEL_IDS_TIMEOUT)
+                except asyncio.TimeoutError:
+                    # Some implementations never reply (LDK). Let the other peers have these ids.
+                    self.logger.info(f"query_short_channel_ids timed out. not asking this peer for channels anymore")
+                    self.answers_channel_queries = False
+                    await self.lnworker.add_new_ids(todo)
+                    return
 
     @staticmethod
     def _is_valid_channel_range_query(payload: dict) -> bool:
@@ -814,12 +875,15 @@ class Peer(Logger, EventListener):
         self.reply_channel_range = None
         return ids, complete
 
-    def request_gossip(self, timestamp=0):
+    def request_gossip(self, timestamp=0, timestamp_range=0xFFFFFFFF):
         if timestamp == 0:
             self.logger.info('requesting whole channel graph')
         else:
-            self.logger.info(f'requesting channel graph since {datetime.fromtimestamp(timestamp).isoformat()}')
-        timestamp_range = 0xFFFFFFFF
+            duration = f', for {timestamp_range} seconds' if timestamp_range != 0xFFFFFFFF else ''
+            self.logger.info(f'requesting channel graph since {datetime.fromtimestamp(timestamp).isoformat()}{duration}')
+        self.num_gossip_backlog_updates_received = 0
+        self.num_gossip_updates_not_asked_for = 0
+        self._gossip_news_start = int(time.time()) - self.GOSSIP_NEWS_MAX_AGE
         self.our_gossip_timestamp_filter = GossipTimestampFilter(
             first_timestamp=timestamp,
             timestamp_range=timestamp_range,
@@ -892,8 +956,12 @@ class Peer(Logger, EventListener):
     async def get_short_channel_ids(self, ids):
         #self.logger.info(f'Querying {len(ids)} short_channel_ids')
         assert not self.querying.is_set()
-        self.query_short_channel_ids(ids)
-        await self.querying.wait()
+        self.is_querying_short_channel_ids = True
+        try:
+            self.query_short_channel_ids(ids)
+            await self.querying.wait()
+        finally:
+            self.is_querying_short_channel_ids = False
         self.querying.clear()
 
     def query_short_channel_ids(self, ids):
@@ -914,8 +982,16 @@ class Peer(Logger, EventListener):
         except (OSError, asyncio.TimeoutError, HandshakeFailed) as e:
             raise GracefulDisconnect(f'initialize failed: {repr(e)}') from e
         async for msg in self.transport.read_messages():
+            num_gossip_msgs_received = self.num_gossip_msgs_received
             await self._process_message(msg)
-            if self.DELAY_INC_MSG_PROCESSING_SLEEP:
+            if self.num_gossip_msgs_received > num_gossip_msgs_received:
+                # Gossip that we asked this peer for. Its pace is set by the queue, see below.
+                # With the delay we would take in less than 100 messages per second, and catching
+                # up after being offline would take minutes instead of seconds.
+                if self.recv_gossip_queue.qsize() >= self.RECV_GOSSIP_QUEUE_SOFT_MAXSIZE // 2:
+                    self._gossip_batch_is_large.set()
+                await asyncio.sleep(0)
+            elif self.DELAY_INC_MSG_PROCESSING_SLEEP:
                 # rate-limit message-processing a bit, to make it harder
                 # for a single peer to bog down the event loop / cpu:
                 await asyncio.sleep(self.DELAY_INC_MSG_PROCESSING_SLEEP)

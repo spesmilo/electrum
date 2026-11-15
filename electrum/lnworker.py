@@ -3,6 +3,7 @@
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
 
 import asyncio
+import logging
 import os
 from decimal import Decimal
 import random
@@ -411,7 +412,8 @@ class LNPeerManager(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
 
     def is_our_lnwallet(self, node_id: bytes) -> bool:
         """Check if node_id is one of our own wallets"""
-        wallets = self.network.daemon.get_wallets()
+        daemon = self.network.daemon
+        wallets = daemon.get_wallets() if daemon else {}  # there is no daemon when only catching up on gossip
         for wallet in wallets.values():
             if wallet.lnworker and wallet.lnworker.node_keypair.pubkey == node_id:
                 return True
@@ -662,11 +664,51 @@ class LNGossip(Logger):
     independently of the active LNWallets. LNGossip keeps a curated batch of gossip in _forwarding_gossip
     that is fetched by the LNWallets for regular forwarding."""
     max_age = 14*24*3600
-    # After downtime we ask some of our peers to resend the gossip we missed. The backlog
-    # starts a bit before the newest update we know of, as peers receive gossip at different times.
+    # After downtime we ask some of our peers to resend the gossip we missed (the backlog).
+    # If we recorded until when we had received all the gossip, the backlog starts shortly before
+    # that, as updates take a while to reach our peers. A db without that record only tells us
+    # its newest update, and a session that got interrupted early has fresh updates but not the
+    # older ones, so there the margin is larger.
+    GOSSIP_SYNCED_MARGIN = 20 * 60  # seconds
     GOSSIP_BACKLOG_MARGIN = 2 * 3600  # seconds
     # peers mostly resend the same updates, so limit how many of them we ask, to save traffic
     GOSSIP_BACKLOG_NUM_PEERS = 2
+    # A peer takes minutes to resend the gossip of a day or more (lnd sends about 200 messages
+    # per second), and a mobile OS only lets us run for a few minutes in the background. So we ask
+    # for a long backlog in parts, oldest first, and record how far we got after each: if we get
+    # interrupted, we go on from there the next time. A part is the older half of what is left,
+    # as most channels get updated at least daily, so most of the backlog is recent.
+    GOSSIP_BACKLOG_LAST_PART_MAX_DURATION = 6 * 3600  # seconds
+    # There is no message that marks the end of the backlog. We consider it received from a peer
+    # once that peer sends as little as the peers that only relay new gossip, and has answered a
+    # ping that we sent when it started to send little: a connection that stalled is quiet as well.
+    GOSSIP_SYNC_TICK = 10  # seconds
+    GOSSIP_CATCH_UP_QUIET_TICKS = 3
+    GOSSIP_CATCH_UP_QUIET_RATE = 20  # messages per second, from a single peer
+    GOSSIP_BACKLOG_PONG_TIMEOUT = LN_P2P_NETWORK_TIMEOUT  # seconds
+    # Not every peer resends old gossip (LDK does not if we ask for less than six hours). A peer
+    # that got quiet without having sent this many old updates does not count, and we ask another.
+    # (the number that applies is lower if few updates are to be expected, see _min_gossip_backlog_updates)
+    GOSSIP_BACKLOG_MIN_UPDATES = 100
+    # Peers that do resend old gossip start within seconds, at hundreds of messages per second.
+    # A peer that by then sent less than a tenth of the minimum, but other messages, will not:
+    # no need to wait for it to get quiet.
+    GOSSIP_BACKLOG_START_TIMEOUT = 15  # seconds
+    # Once a peer has sent the backlog, another one that is still sending is likely sending much
+    # more than we asked for, at a low rate. We do not wait for it longer than this, and disconnect,
+    # to save traffic. After this time we also do not ask further peers.
+    GOSSIP_BACKLOG_GRACE_TIME = 60  # seconds
+    # A peer that ignores the time span we ask for sends its whole graph (LDK does, if we ask for
+    # more than the last six hours), which takes it a quarter of an hour. lnd also sends updates
+    # we did not ask for, the other direction of the channels that got updated, but not this many.
+    GOSSIP_BACKLOG_MIN_UPDATES_NOT_ASKED_FOR = 2000
+    GOSSIP_BACKLOG_MAX_RATIO_NOT_ASKED_FOR = 4
+    # a tick that is this late means that the process or the device was suspended
+    GOSSIP_SUSPEND_THRESHOLD = 60  # seconds
+    # On a network with many channels there is always new gossip. If none arrives for this long,
+    # our peers do not relay it, and we look for others.
+    GOSSIP_MAX_SILENCE = 5 * 60  # seconds
+    GOSSIP_SYNCED_UNTIL_SAVE_INTERVAL = 60  # seconds
     # Peers disagree a lot about which channels exist, and channels only leave our db once their
     # policies are old. We consider a channel gone if fewer than a majority of peers still list it.
     CHANNEL_RANGE_NUM_PEERS = NUM_PEERS_TARGET
@@ -691,9 +733,31 @@ class LNGossip(Logger):
         self.unknown_ids = set()
         self._forwarding_gossip = []  # type: List[GossipForwardingMessage]
         self._last_gossip_batch_ts = 0  # type: int
-        self._num_gossip_backlog_requests = 0  # type: int
-        self._gossip_backlog_ts_is_set = False  # type: bool
-        self._gossip_backlog_latest_ts = None  # type: Optional[int]
+        # until when we have received all the gossip. None if not known (yet)
+        self._gossip_synced_until = None  # type: Optional[int]
+        self._gossip_sync_is_set_up = False  # type: bool
+        self._gossip_catching_up = True  # type: bool
+        self._gossip_catch_up_start = 0.  # type: float
+        # The part of the backlog we are asking peers for: the gossip since _start and before _end.
+        # No _start: there is none to ask for. No _end: it is the last part, followed by the new gossip.
+        self._gossip_backlog_start = None  # type: Optional[int]
+        self._gossip_backlog_end = None  # type: Optional[int]
+        # the peers we asked for this part of the backlog, and when
+        self._gossip_backlog_asked = {}  # type: Dict[Peer, float]
+        # of those, the ones that send little, and when we pinged them for that
+        self._gossip_backlog_pinged = {}  # type: Dict[Peer, float]
+        self._gossip_backlog_done = set()  # type: Set[Peer]  # those that sent it
+        self._gossip_backlog_first_done_time = None  # type: Optional[float]
+        # The nodes that did not send what we asked for, or take too long, since we started
+        # to catch up. We do not ask them again, also not if they reconnect.
+        self._gossip_backlog_useless = set()  # type: Set[bytes]
+        # peer -> (time, number of gossip messages received so far), for the last few ticks
+        self._gossip_rx_samples = {}  # type: Dict[Peer, List[Tuple[float, int]]]
+        self._gossip_last_tick = None  # type: Optional[float]
+        self._gossip_last_rx_time = 0.  # type: float  # when we last noticed that gossip arrived
+        self._gossip_num_msgs_received = 0  # type: int
+        self._gossip_synced_until_saved = 0.  # type: float
+        self._num_gossip_msgs_in_processing = 0  # type: int
         self._channel_range_counts = None  # type: Optional[Dict[ShortChannelID, int]]
         self._channel_range_max_height = 0  # type: int
         self._channel_range_db_is_fresh = False  # type: bool
@@ -738,7 +802,8 @@ class LNGossip(Logger):
         self.lnpeermgr.start_network(network, maintain_random_peers=True)
         for coro in [
                 self.maintain_db(),
-                self._maintain_forwarding_gossip()
+                self._maintain_forwarding_gossip(),
+                self._maintain_gossip_sync(),
         ]:
             tg_coro = self.taskgroup.spawn(coro)
             asyncio.run_coroutine_threadsafe(tg_coro, get_asyncio_loop())
@@ -746,6 +811,11 @@ class LNGossip(Logger):
     async def stop(self):
         await self.lnpeermgr.stop()
         await self.taskgroup.cancel_remaining()
+        if self.channel_db and self._gossip_sync_is_set_up:
+            if saved := self._save_gossip_synced_until(force=True):
+                # the db drops the writes that are still queued when it gets stopped
+                async with ignore_after(5):
+                    await saved
 
     async def maintain_db(self):
         await self.channel_db.data_loaded.wait()
@@ -771,25 +841,317 @@ class LNGossip(Logger):
         async with self._forwarding_gossip_lock:
             return self._forwarding_gossip, self._last_gossip_batch_ts
 
-    def get_gossip_timestamp_filter_start(self) -> int:
-        """Returns the first_timestamp to use in the gossip_timestamp_filter for a new peer.
+    def _set_up_gossip_sync(self) -> None:
+        """Decides what to catch up on, once the db is loaded."""
+        if self._gossip_sync_is_set_up:
+            return
+        self._gossip_sync_is_set_up = True
+        synced_until = self.channel_db.synced_until_at_load
+        if synced_until is not None:
+            synced_until = min(synced_until, int(time.time()))
+        self._gossip_synced_until = synced_until
+        self._start_gossip_catch_up()
+
+    def _start_gossip_catch_up(self) -> None:
+        now = int(time.time())
+        if self._gossip_synced_until is not None:
+            start = self._gossip_synced_until - self.GOSSIP_SYNCED_MARGIN
+        elif (latest_ts := self.channel_db.latest_policy_ts_at_load) is not None:
+            start = latest_ts - self.GOSSIP_BACKLOG_MARGIN
+        else:
+            start = None  # no policies: the channels get queried in full, as they are not known
+        if start is not None:
+            start = min(max(start, now - self.max_age), now)
+        self._gossip_backlog_useless = set()
+        self._set_gossip_backlog_part(start)
+        self._gossip_catching_up = True
+        self._gossip_catch_up_start = time.time()
+
+    def _set_gossip_backlog_part(self, start: Optional[int]) -> None:
+        """Sets the part of the backlog to ask peers for next, which begins at `start`."""
+        end = None
+        if start is not None:
+            duration = int(time.time()) - start
+            if duration > self.GOSSIP_BACKLOG_LAST_PART_MAX_DURATION:
+                end = start + duration // 2
+        self._gossip_backlog_start = start
+        self._gossip_backlog_end = end
+        self._gossip_backlog_asked = {}
+        self._gossip_backlog_pinged = {}
+        self._gossip_backlog_done = set()
+        self._gossip_backlog_first_done_time = None
+
+    def _ask_for_gossip_backlog(self, peer: 'Peer', now: float) -> Tuple[int, int]:
+        """Notes that we ask the peer for the current part of the backlog.
+        Returns the first_timestamp and timestamp_range for its gossip_timestamp_filter."""
+        self._gossip_backlog_asked[peer] = now
+        self._gossip_backlog_pinged.pop(peer, None)
+        self._gossip_rx_samples.pop(peer, None)  # what it sent before says nothing about the backlog
+        start, end = self._gossip_backlog_start, self._gossip_backlog_end
+        return start, (end - start if end is not None else 0xFFFFFFFF)
+
+    def _gossip_peers(self) -> List['Peer']:
+        """Returns the peers that send us gossip."""
+        return [peer for peer in self.lnpeermgr.peers.values() if peer.our_gossip_timestamp_filter is not None]
+
+    def _should_ask_for_gossip_backlog(self, peer: 'Peer', peers: Iterable['Peer'], now: float) -> bool:
+        """Whether to ask the peer for the backlog, `peers` being the ones that send us gossip."""
+        if not self._gossip_catching_up or self._gossip_backlog_start is None:
+            return False
+        if peer in self._gossip_backlog_asked or peer.pubkey in self._gossip_backlog_useless:
+            return False
+        first_done_time = self._gossip_backlog_first_done_time
+        if first_done_time is not None and now - first_done_time >= self.GOSSIP_BACKLOG_GRACE_TIME:
+            return False  # we have the backlog from one peer, and waited long enough for a second one
+        # the peers that are sending the backlog or have sent it
+        sources = [p for p in peers if p in self._gossip_backlog_asked and p.pubkey not in self._gossip_backlog_useless]
+        return len(sources) < self.GOSSIP_BACKLOG_NUM_PEERS  # more peers would mostly resend the same
+
+    def get_gossip_timestamp_filter(self, peer: 'Peer') -> Tuple[int, int]:
+        """Returns the first_timestamp and timestamp_range of the gossip_timestamp_filter for a new peer.
 
         `get_ids_to_query` only requests channels we do not know about yet, so without asking
         for the backlog the policies of known channels stay stale after being offline, until
         they happen to change again.
         """
-        now = int(time.time())
-        if not self._gossip_backlog_ts_is_set:
-            # only look at this once: gossip from the first peer must not move the start for the next one
-            self._gossip_backlog_ts_is_set = True
-            self._gossip_backlog_latest_ts = self.channel_db.latest_policy_ts_at_load
-        latest_ts = self._gossip_backlog_latest_ts
-        if latest_ts is None:
-            return now  # no policies: the channels get queried in full, as they are not known
-        if self._num_gossip_backlog_requests >= self.GOSSIP_BACKLOG_NUM_PEERS:
-            return now
-        self._num_gossip_backlog_requests += 1
-        return max(latest_ts - self.GOSSIP_BACKLOG_MARGIN, now - self.max_age)
+        self._set_up_gossip_sync()
+        now = time.time()
+        if not self._should_ask_for_gossip_backlog(peer, self._gossip_peers(), now):
+            return int(now), 0xFFFFFFFF
+        return self._ask_for_gossip_backlog(peer, now)
+
+    def is_caught_up(self) -> bool:
+        """Whether we received the gossip we missed while offline, and are now getting the new one."""
+        if not self._gossip_sync_is_set_up or self._gossip_catching_up:
+            return False
+        # if the tick is overdue then we were suspended, which the tick will notice in a moment
+        last_tick = self._gossip_last_tick
+        return last_tick is not None and time.time() - last_tick <= self.GOSSIP_SYNC_TICK + self.GOSSIP_SUSPEND_THRESHOLD
+
+    def get_gossip_synced_until(self) -> Optional[int]:
+        """Returns until when we have received all the gossip, if we know."""
+        return self._gossip_synced_until
+
+    async def _maintain_gossip_sync(self):
+        await self.channel_db.data_loaded.wait()
+        self._set_up_gossip_sync()
+        while True:
+            await asyncio.sleep(self.GOSSIP_SYNC_TICK)
+            try:
+                self._gossip_sync_tick()
+            except Exception:
+                # we share the taskgroup with the maintenance of the db
+                self.logger.exception("gossip sync tick failed")
+
+    def _gossip_sync_tick(self) -> None:
+        now = time.time()
+        last_tick, self._gossip_last_tick = self._gossip_last_tick, now
+        peers = self._gossip_peers()
+        num_samples = self.GOSSIP_CATCH_UP_QUIET_TICKS + 1
+        self._gossip_rx_samples = {
+            peer: (self._gossip_rx_samples.get(peer, []) + [(now, peer.num_gossip_msgs_received)])[-num_samples:]
+            for peer in peers}
+        num_msgs_received = self._num_chan_ann + self._num_node_ann + self._num_chan_upd
+        if num_msgs_received != self._gossip_num_msgs_received:
+            self._gossip_num_msgs_received = num_msgs_received
+            self._gossip_last_rx_time = now
+        if last_tick is not None and now - last_tick > self.GOSSIP_SYNC_TICK + self.GOSSIP_SUSPEND_THRESHOLD:
+            # While we slept the peers likely disconnected, and what they sent meanwhile is lost.
+            self.logger.info(f"woke up after {now - last_tick:.0f} seconds. catching up on gossip")
+            self._gossip_rx_samples = {}
+            self._start_gossip_catch_up()
+        elif not self._gossip_catching_up:
+            if not peers:
+                self.logger.info("lost all gossip peers. will catch up on gossip")
+            elif (now - self._gossip_last_rx_time > self.GOSSIP_MAX_SILENCE
+                    and self.channel_db.num_policies >= 100 * self.GOSSIP_BACKLOG_MIN_UPDATES):
+                self.logger.info("no gossip from our peers for a while. will catch up on gossip")
+            else:
+                # (not "now": the peers might have stopped relaying gossip)
+                self._advance_gossip_synced_until()
+                self._save_gossip_synced_until()
+                return
+            self._start_gossip_catch_up()
+        self._update_gossip_backlog_peers(now, peers)
+        if not self._is_gossip_backlog_received():
+            return
+        if self._gossip_backlog_end is not None:
+            # that was a part of it. the peers that sent it get to send the next part
+            self._gossip_synced_until = self._gossip_backlog_end
+            self._save_gossip_synced_until(force=True)
+            sources = [peer for peer in peers if peer in self._gossip_backlog_done]
+            self._set_gossip_backlog_part(self._gossip_backlog_end)
+            for peer in sources:
+                self._request_gossip_backlog(peer, now)
+            return
+        self._gossip_catching_up = False
+        # (not "now": other things than the backlog can have held us up, with no gossip arriving)
+        self._advance_gossip_synced_until()
+        self._save_gossip_synced_until(force=True)
+        self.logger.info(f"caught up on gossip in {now - self._gossip_catch_up_start:.0f} seconds")
+
+    def _advance_gossip_synced_until(self) -> None:
+        """We have the gossip up to the time it last arrived."""
+        last_rx_time = int(self._gossip_last_rx_time)
+        if last_rx_time > (self._gossip_synced_until or 0):
+            self._gossip_synced_until = last_rx_time
+
+    def _gossip_rx_rate(self, peer: 'Peer', *, num_ticks: int = None) -> Optional[float]:
+        """Returns the number of gossip messages per second the peer sent over the last few ticks."""
+        if num_ticks is None:
+            num_ticks = self.GOSSIP_CATCH_UP_QUIET_TICKS
+        samples = self._gossip_rx_samples.get(peer, [])
+        if len(samples) <= num_ticks:
+            return None
+        (t0, n0), (t1, n1) = samples[-num_ticks - 1], samples[-1]
+        return (n1 - n0) / max(t1 - t0, 1)
+
+    def _min_gossip_backlog_updates(self, now: float) -> int:
+        """Returns how many old updates a peer has to send for the current part of the backlog,
+        for us to believe that it does resend old gossip."""
+        start, end = self._gossip_backlog_start, self._gossip_backlog_end
+        if start is None:
+            return 0
+        # the updates that are too old to be news, see Peer.GOSSIP_NEWS_MAX_AGE
+        end = min(end if end is not None else now, now - Peer.GOSSIP_NEWS_MAX_AGE)
+        # Peers resend the updates that are the newest of their channel. Most nodes refresh the
+        # updates of their channels daily (lnd does), so most of those are from the last day:
+        # on mainnet three quarters of the policies. We reckon with half.
+        last_day_start = now - 24 * 3600
+        num_expected = self.channel_db.num_policies / 2 * max(end - max(start, last_day_start), 0) / (24 * 3600)
+        # The rest is older, up to max_age, after which we drop a policy. On mainnet a time span of
+        # some days ago had a fifth of what an even spread of all policies over max_age would give.
+        num_expected += self.channel_db.num_policies / 5 * max(min(end, last_day_start) - start, 0) / self.max_age
+        # a tenth of that is not too much to ask for
+        return min(self.GOSSIP_BACKLOG_MIN_UPDATES, int(num_expected / 10))
+
+    def _update_gossip_backlog_peers(self, now: float, peers: Sequence['Peer']) -> None:
+        """Checks how the peers we asked for the backlog are doing, and asks others if needed."""
+        min_updates = self._min_gossip_backlog_updates(now)
+        first_done_time = self._gossip_backlog_first_done_time
+        for peer in peers:
+            if not self._is_sending_gossip_backlog(peer):
+                continue
+            rate = self._gossip_rx_rate(peer)
+            asked_time = self._gossip_backlog_asked[peer]
+            num_updates = peer.num_gossip_backlog_updates_received
+            num_not_asked_for = peer.num_gossip_updates_not_asked_for
+            is_quiet = rate is not None and rate <= self.GOSSIP_CATCH_UP_QUIET_RATE
+            # Once it is quiet: has it sent everything, or did the connection stall? A pong will tell.
+            # We ping as soon as it sends little, to have the pong by the time we call it quiet.
+            last_rate = self._gossip_rx_rate(peer, num_ticks=1)
+            if last_rate is None or last_rate > self.GOSSIP_CATCH_UP_QUIET_RATE:
+                self._gossip_backlog_pinged.pop(peer, None)
+            elif peer not in self._gossip_backlog_pinged:
+                self._gossip_backlog_pinged[peer] = now
+                try:
+                    peer.send_ping()
+                except Exception as e:
+                    self.logger.info(f"could not ping {peer.pubkey.hex()[:10]}: {e!r}")
+            reason = None
+            if peer.is_querying_short_channel_ids:
+                pass  # its updates are not counted meanwhile, as replies to queries contain old ones
+            elif (10 * num_updates < min_updates and now - asked_time >= self.GOSSIP_BACKLOG_START_TIMEOUT
+                    and peer.last_message_time > asked_time):
+                # (not just zero: the odd update that arrives as news is old enough to be counted)
+                reason = "does not send the gossip backlog we asked for"
+            elif (num_not_asked_for >= self.GOSSIP_BACKLOG_MIN_UPDATES_NOT_ASKED_FOR
+                    and num_not_asked_for > self.GOSSIP_BACKLOG_MAX_RATIO_NOT_ASKED_FOR * num_updates):
+                reason = "sends gossip we did not ask for, instead of the backlog. disconnecting"
+            elif not is_quiet:  # still sending
+                waiting_since = max(first_done_time or now, asked_time)
+                if now - waiting_since >= self.GOSSIP_BACKLOG_GRACE_TIME:
+                    reason = "takes too long to send the gossip backlog. disconnecting"
+            elif peer not in self._gossip_backlog_pinged:
+                pass  # it sent little over the last ticks, but not in the last one. not quiet after all
+            elif peer.last_pong_time < self._gossip_backlog_pinged[peer]:
+                if now - self._gossip_backlog_pinged[peer] >= self.GOSSIP_BACKLOG_PONG_TIMEOUT:
+                    # the connection is dead, which says nothing about what the node would send
+                    self.logger.info(f"{peer.pubkey.hex()[:10]} does not respond. disconnecting")
+                    del self._gossip_backlog_asked[peer]  # so that another peer gets asked right away
+                    peer.close_and_cleanup()
+            elif num_updates >= min_updates:
+                self._gossip_backlog_done.add(peer)
+                if self._gossip_backlog_first_done_time is None:
+                    self._gossip_backlog_first_done_time = now
+            else:
+                reason = "did not send the gossip backlog we asked for"
+            if reason:
+                self.logger.info(f"{peer.pubkey.hex()[:10]} {reason}")
+                self._gossip_backlog_useless.add(peer.pubkey)
+                if reason.endswith("disconnecting"):
+                    peer.close_and_cleanup()
+                elif self._gossip_backlog_end is not None:
+                    # we asked it for a time span in the past. let it send the new gossip
+                    self._request_gossip(peer, int(now))
+        # Ask the peers that are already connected, as they will not get replaced by new ones.
+        # (also after a suspend: if a connection is dead, the peer is gone by one of the next ticks)
+        for peer in peers:
+            # (not during a query for channels: the reply consists of old gossip as well)
+            if not peer.is_querying_short_channel_ids and self._should_ask_for_gossip_backlog(peer, peers, now):
+                self._request_gossip_backlog(peer, now)
+        if (peers and self._gossip_catching_up and self._gossip_backlog_start is not None
+                and not self._gossip_backlog_done and len(self.lnpeermgr.peers) >= NUM_PEERS_TARGET
+                and all(peer.pubkey in self._gossip_backlog_useless for peer in peers)):
+            # None of our peers resends old gossip, and we do not connect to more peers while we
+            # have enough of them. Make room for one. (peers that connect are asked right away)
+            self.logger.info("no peer sent the gossip backlog. disconnecting from one of them")
+            peers[0].close_and_cleanup()
+        if self.logger.isEnabledFor(logging.DEBUG) and self._gossip_catching_up:
+            def state(peer):
+                if peer in self._gossip_backlog_done:
+                    return ' done'
+                if peer.pubkey in self._gossip_backlog_useless:
+                    return ' useless'
+                return ' asked' if peer in self._gossip_backlog_asked else ''
+            self.logger.debug("catching up on gossip. peers (msgs/s, old updates): " + ', '.join(
+                f"{peer.pubkey.hex()[:6]} {'?' if (rate := self._gossip_rx_rate(peer)) is None else round(rate)} "
+                f"{peer.num_gossip_backlog_updates_received}{state(peer)}"
+                for peer in peers) + f". unknown_ids={len(self.unknown_ids)}")
+
+    def _is_sending_gossip_backlog(self, peer: 'Peer') -> bool:
+        """Whether we asked the peer for this part of the backlog and still wait for it."""
+        return (peer in self._gossip_backlog_asked and peer not in self._gossip_backlog_done
+                and peer.pubkey not in self._gossip_backlog_useless)
+
+    def _request_gossip(self, peer: 'Peer', first_timestamp: int, timestamp_range: int = 0xFFFFFFFF) -> None:
+        """Sends a new gossip_timestamp_filter to a peer that is connected already."""
+        try:
+            peer.request_gossip(first_timestamp, timestamp_range)
+        except Exception as e:
+            self.logger.info(f"could not send a gossip_timestamp_filter to {peer.pubkey.hex()[:10]}: {e!r}")
+
+    def _request_gossip_backlog(self, peer: 'Peer', now: float) -> None:
+        """Asks a peer that is connected already for the current part of the backlog."""
+        self._request_gossip(peer, *self._ask_for_gossip_backlog(peer, now))
+
+    def _is_gossip_backlog_received(self) -> bool:
+        peers = self._gossip_peers()
+        # (Without peers this can hold as well, if one of them had sent the backlog. The next tick
+        # then finds that we have no peers, and we catch up from the time gossip last arrived.)
+        if any(peer.is_querying_short_channel_ids for peer in peers):
+            return False  # fetching channels we did not know of
+        if self.unknown_ids and any(peer.answers_channel_queries for peer in peers):
+            return False
+        # (not zero: there are always some new messages waiting for the next batch)
+        num_msgs_to_process = self._num_gossip_msgs_in_processing + sum(peer.recv_gossip_queue.qsize() for peer in peers)
+        if num_msgs_to_process > self.GOSSIP_CATCH_UP_QUIET_RATE * self.GOSSIP_SYNC_TICK:
+            return False
+        if self._gossip_backlog_start is not None:
+            # a peer has sent it, and no other peer is still sending it
+            return bool(self._gossip_backlog_done) and not any(self._is_sending_gossip_backlog(peer) for peer in peers)
+        # Nothing to ask for: the db is new, and we fetch all the channels by their ids.
+        # A peer that just connected needs a moment to tell us which channels exist.
+        return any(self._gossip_rx_rate(peer) is not None for peer in peers)
+
+    def _save_gossip_synced_until(self, *, force: bool = False) -> Optional[asyncio.Future]:
+        if self._gossip_synced_until is None:
+            return None
+        now = time.time()
+        if not force and now - self._gossip_synced_until_saved < self.GOSSIP_SYNCED_UNTIL_SAVE_INTERVAL:
+            return None
+        self._gossip_synced_until_saved = now
+        return self.channel_db.save_synced_until(self._gossip_synced_until)
 
     async def on_channel_range_reply(self, peer_node_id: bytes, ids: Iterable[bytes]) -> None:
         """Removes the channels listed by fewer than a majority of the first few peers of this session.
@@ -848,7 +1210,18 @@ class LNGossip(Logger):
         util.trigger_callback('gossip_peers', self.lnpeermgr.num_peers())
         util.trigger_callback('ln_gossip_sync_progress')
 
-    def get_ids_to_query(self) -> Sequence[bytes]:
+    def get_ids_to_query(self, peer: 'Peer') -> Sequence[bytes]:
+        """Returns some channels we do not know yet, for the peer to be queried for."""
+        if self._gossip_catching_up:
+            if self._is_sending_gossip_backlog(peer):
+                # we tell that a peer resends old gossip from what it sends, so we do not ask it for more of it
+                return []
+            if peer.pubkey in self._gossip_backlog_useless and any(
+                    other.answers_channel_queries and other.pubkey not in self._gossip_backlog_useless
+                    for other in self._gossip_peers()):
+                # The peers that do not resend old gossip mostly do not answer these queries either,
+                # which holds the channels back until the query times out. Leave them to the others.
+                return []
         N = 500
         l = list(self.unknown_ids)
         self.unknown_ids = set(l[N:])
@@ -891,21 +1264,43 @@ class LNGossip(Logger):
     async def process_gossip(self, chan_anns, node_anns, chan_upds):
         # note: we run in the originating peer's TaskGroup, so we can safely raise here
         #       and disconnect only from that peer
+        num_msgs = len(chan_anns) + len(node_anns) + len(chan_upds)
+        self._num_gossip_msgs_in_processing += num_msgs
+        try:
+            await self._process_gossip(chan_anns, node_anns, chan_upds)
+        finally:
+            self._num_gossip_msgs_in_processing -= num_msgs
+
+    async def _process_gossip(self, chan_anns, node_anns, chan_upds):
         await self.channel_db.data_loaded.wait()
 
         # channel announcements
         def process_chan_anns():
-            for payload in chan_anns:
+            # Peers resend the announcement of every channel that has a new update. Checking the
+            # four signatures of each is most of the work when catching up after being offline.
+            known = self.channel_db.get_channel_ids()
+            new_chan_anns = [payload for payload in chan_anns if payload['short_channel_id'] not in known]
+            for payload in new_chan_anns:
                 self.channel_db.verify_channel_announcement(payload)
-            self.channel_db.add_channel_announcements(chan_anns)
+            self.channel_db.add_channel_announcements(new_chan_anns)
         await run_in_thread(process_chan_anns)
 
         # node announcements
         def process_node_anns():
+            valid_node_anns = []
             for payload in node_anns:
-                self.channel_db.verify_node_announcement(payload)
-            self.channel_db.add_node_announcements(node_anns)
-        await run_in_thread(process_node_anns)
+                try:
+                    self.channel_db.verify_node_announcement(payload)
+                except InvalidGossipMsg:
+                    # Not raising: we would lose the channel updates of this batch as well.
+                    # (peers do relay such announcements, e.g. in replies to queries for channels)
+                    continue
+                valid_node_anns.append(payload)
+            self.channel_db.add_node_announcements(valid_node_anns)
+            return len(node_anns) - len(valid_node_anns)
+        num_invalid_node_anns = await run_in_thread(process_node_anns)
+        if num_invalid_node_anns:
+            self.logger.info(f"ignoring {num_invalid_node_anns} node announcements with an invalid signature")
         # channel updates
         categorized_chan_upds = await run_in_thread(partial(
             self.channel_db.add_channel_updates,

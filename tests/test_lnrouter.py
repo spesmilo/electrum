@@ -1,10 +1,14 @@
+import asyncio
 import random
+import sqlite3
 import time
 import unittest
 from math import inf
 from unittest import mock
 from typing import Optional
 from os import urandom
+
+import aiorpcx
 
 from electrum import util
 from electrum.channel_db import NodeInfo
@@ -16,10 +20,11 @@ from electrum.lnutil import ShortChannelID, LnFeatures, PaymentFeeBudget
 from electrum.lnonion import (OnionHopsDataSingle, new_onion_packet,
                               process_onion_packet, _decode_onion_error, decode_onion_error,
                               OnionFailureCode)
-from electrum import bitcoin, lnrouter
+from electrum import bitcoin, lnrouter, lnworker
 from electrum.constants import BitcoinTestnet
 from electrum.simple_config import SimpleConfig
 from electrum.lnpeer import Peer
+from electrum import lnpeer as lnpeer_module
 from electrum.sql_db import sql
 from electrum.lnworker import LNGossip
 from electrum.lnmsg import encode_msg
@@ -50,19 +55,110 @@ def node_features(extra: LnFeatures = None) -> bytes:
     return lnf.to_bytes(8, 'big')
 
 
+class _FakeGossipPeer:
+    """what LNGossip looks at in a Peer that sends us gossip"""
+
+    def __init__(self, character: str, *, lnpeermgr, resends_old_gossip: bool):
+        self.pubkey = node(character)
+        self.our_gossip_timestamp_filter = object()
+        self.num_gossip_msgs_received = 0
+        self.num_gossip_backlog_updates_received = 0
+        self.num_gossip_updates_not_asked_for = 0
+        self.recv_gossip_queue = asyncio.Queue()
+        self.is_querying_short_channel_ids = False
+        self.answers_channel_queries = True
+        self.responds = True  # whether the connection is alive: messages and pongs arrive
+        self._last_message_time = time.time()
+        self.last_pong_time = 0.
+        self.num_pings = 0
+        self.requested = []  # the first_timestamp of the gossip_timestamp_filters we sent
+        self.requested_ranges = []  # their timestamp_range
+        self._lnpeermgr = lnpeermgr
+        self._resends_old_gossip = resends_old_gossip
+        self._was_asked_for_old_gossip = False
+        self.is_connected = True
+        lnpeermgr._peers[self.pubkey] = self
+
+    @property
+    def last_message_time(self):
+        return time.time() if self.responds else self._last_message_time
+
+    def send_ping(self):
+        self.num_pings += 1
+        if self.responds:
+            self.last_pong_time = time.time()
+
+    def request_gossip(self, timestamp, timestamp_range=0xFFFFFFFF):
+        self.requested.append(timestamp)
+        self.requested_ranges.append(timestamp_range)
+        self.num_gossip_backlog_updates_received = 0
+        self.num_gossip_updates_not_asked_for = 0
+        self._was_asked_for_old_gossip = timestamp < time.time() - Peer.GOSSIP_NEWS_MAX_AGE
+
+    def receive(self, num_msgs: int):
+        if not self.responds:
+            return
+        self.num_gossip_msgs_received += num_msgs
+        if num_msgs:
+            self._last_message_time = time.time()
+        if self._resends_old_gossip and self._was_asked_for_old_gossip:
+            self.num_gossip_backlog_updates_received += num_msgs
+
+    def close_and_cleanup(self):
+        self.is_connected = False
+        if self._lnpeermgr._peers.get(self.pubkey) is self:
+            del self._lnpeermgr._peers[self.pubkey]
+
+
 class TestGossipBacklog(ElectrumTestCase):
 
-    def _lngossip(self, *, latest_ts: Optional[int]):
-        return mock.Mock(
-            spec=LNGossip,
-            channel_db=mock.Mock(latest_policy_ts_at_load=latest_ts),
-            max_age=LNGossip.max_age,
-            GOSSIP_BACKLOG_MARGIN=LNGossip.GOSSIP_BACKLOG_MARGIN,
-            GOSSIP_BACKLOG_NUM_PEERS=LNGossip.GOSSIP_BACKLOG_NUM_PEERS,
-            _num_gossip_backlog_requests=0,
-            _gossip_backlog_ts_is_set=False,
-            _gossip_backlog_latest_ts=None,
-        )
+    NOW = 1_800_000_000
+    TICK = LNGossip.GOSSIP_SYNC_TICK
+    QUIET_TICKS = LNGossip.GOSSIP_CATCH_UP_QUIET_TICKS
+    BUSY = 40 * LNGossip.GOSSIP_CATCH_UP_QUIET_RATE * TICK  # messages per tick, while sending the backlog
+    QUIET = LNGossip.GOSSIP_CATCH_UP_QUIET_RATE * TICK  # messages per tick, at most, when only relaying
+
+    def setUp(self):
+        super().setUp()
+        self.now = self.NOW
+        patcher = mock.patch('time.time', side_effect=lambda: self.now)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.saved = []  # what got recorded in the db as "synced until"
+
+    def _lngossip(self, *, latest_ts: Optional[int] = None, synced_until: Optional[int] = None,
+                  num_policies: int = 50_000) -> LNGossip:
+        g = LNGossip(SimpleConfig({'electrum_path': self.electrum_path}))
+        self.addCleanup(g.lnpeermgr.unregister_callbacks)
+        g.lnpeermgr.network = mock.Mock(channel_db=mock.Mock(
+            latest_policy_ts_at_load=latest_ts,
+            synced_until_at_load=synced_until,
+            num_policies=num_policies,
+            save_synced_until=self.saved.append))
+        return g
+
+    def _connect(self, g: LNGossip, character: str, *, resends_old_gossip: bool = True) -> _FakeGossipPeer:
+        """as Peer._query_gossip does, after the reply to its query_channel_range"""
+        peer = _FakeGossipPeer(character, lnpeermgr=g.lnpeermgr, resends_old_gossip=resends_old_gossip)
+        peer.request_gossip(*g.get_gossip_timestamp_filter(peer))
+        return peer
+
+    def _tick(self, g: LNGossip, msgs: dict = None, *, seconds: int = TICK, times: int = 1) -> None:
+        """msgs: peer -> number of gossip messages it sends during a tick"""
+        for _ in range(times):
+            self.now += seconds
+            for peer, num_msgs in (msgs or {}).items():
+                peer.receive(num_msgs)
+                g._num_chan_upd += num_msgs  # they get processed
+            g._gossip_sync_tick()
+
+    def _catch_up(self, g: LNGossip, *peers: _FakeGossipPeer) -> int:
+        """The peers send some backlog and then get quiet. Returns when gossip last arrived."""
+        self._tick(g, {peer: self.BUSY for peer in peers})
+        last_rx_time = self.now
+        self._tick(g, times=self.QUIET_TICKS)
+        self.assertTrue(g.is_caught_up())
+        return last_rx_time
 
     async def test_add_new_ids_skips_recently_orphaned_only_on_request(self):
         known, orphaned, new = b'\x01' * 8, b'\x02' * 8, b'\x03' * 8
@@ -88,7 +184,7 @@ class TestGossipBacklog(ElectrumTestCase):
             gossip.channel_db.data_loaded.wait.assert_awaited_once()
         gossip.add_new_ids = mock.AsyncMock(side_effect=check_db_loaded)
         gossip.on_channel_range_reply = mock.AsyncMock(side_effect=check_db_loaded)
-        gossip.get_gossip_timestamp_filter_start.return_value = 1234
+        gossip.get_gossip_timestamp_filter.return_value = (1234, 5678)
         gossip.get_ids_to_query.side_effect = StopQueryLoop
         peer = mock.Mock(lnworker=gossip, is_initialized=lambda: True)
         peer.get_channel_range = mock.AsyncMock(return_value=(ids, True))
@@ -96,7 +192,8 @@ class TestGossipBacklog(ElectrumTestCase):
             await Peer._query_gossip(peer)
         gossip.add_new_ids.assert_awaited_once_with(ids, skip_recently_orphaned=True)
         gossip.on_channel_range_reply.assert_awaited_once_with(peer.pubkey, ids)
-        peer.request_gossip.assert_called_once_with(1234)
+        gossip.get_gossip_timestamp_filter.assert_called_once_with(peer)
+        peer.request_gossip.assert_called_once_with(1234, 5678)
 
     async def test_orphaned_channel_update_still_triggers_a_query(self):
         orphaned_id = b'\x02' * 8
@@ -109,41 +206,1150 @@ class TestGossipBacklog(ElectrumTestCase):
         )
         g.channel_db.data_loaded.wait = mock.AsyncMock()
         g.channel_db.add_channel_updates.return_value = mock.Mock(orphaned=[{'short_channel_id': orphaned_id}], good=[])
-        await LNGossip.process_gossip(g, [], [], [{'short_channel_id': orphaned_id}])
+        await LNGossip._process_gossip(g, [], [], [{'short_channel_id': orphaned_id}])
         g.add_new_ids.assert_awaited_once_with([orphaned_id])
 
-    def test_empty_db_requests_only_new_gossip(self):
-        g = self._lngossip(latest_ts=None)
-        with mock.patch('time.time', return_value=1_800_000_000):
-            self.assertEqual(1_800_000_000, LNGossip.get_gossip_timestamp_filter_start(g))
-        self.assertEqual(0, g._num_gossip_backlog_requests)
+    async def test_query_for_channels_that_gets_no_reply_times_out(self):
+        # e.g. LDK does not reply to query_short_channel_ids
+        ids = [b'\x01' * 8, b'\x02' * 8]
+        gossip = mock.Mock()
+        gossip.network.lngossip = gossip
+        gossip.channel_db.data_loaded.wait = mock.AsyncMock()
+        gossip.add_new_ids = mock.AsyncMock()
+        gossip.on_channel_range_reply = mock.AsyncMock()
+        gossip.get_gossip_timestamp_filter.return_value = (1234, 5678)
+        gossip.get_ids_to_query.return_value = ids
+        peer = mock.Mock(lnworker=gossip, is_initialized=lambda: True, querying=asyncio.Event(),
+                         is_querying_short_channel_ids=False, answers_channel_queries=True,
+                         QUERY_SHORT_CHANNEL_IDS_TIMEOUT=0.05)
+        peer.get_channel_range = mock.AsyncMock(return_value=(set(), True))
+        seen = []
+        def query_short_channel_ids(ids):
+            seen.append(peer.is_querying_short_channel_ids)
+        peer.query_short_channel_ids = query_short_channel_ids
+        peer.get_short_channel_ids = lambda ids: Peer.get_short_channel_ids(peer, ids)
+        await asyncio.wait_for(Peer._query_gossip(peer), 5)  # returns: the peer is not asked for channels again
+        self.assertEqual([True], seen)
+        self.assertFalse(peer.is_querying_short_channel_ids)
+        self.assertIs(False, peer.answers_channel_queries)
+        gossip.get_ids_to_query.assert_called_once_with(peer)
+        # the ids go back to the pool, for the other peers
+        self.assertEqual([mock.call(set(), skip_recently_orphaned=True), mock.call(ids)], gossip.add_new_ids.await_args_list)
 
-    def test_backlog_starts_before_latest_known_update_and_is_requested_from_few_peers(self):
-        now = 1_800_000_000
-        latest_ts = now - 12 * 3600
+    def _peer_for_gossip_handlers(self) -> mock.Mock:
+        peer = mock.Mock(
+            num_gossip_msgs_received=0, is_querying_short_channel_ids=False, recv_gossip_queue=asyncio.Queue(),
+            GOSSIP_NEWS_MAX_AGE=Peer.GOSSIP_NEWS_MAX_AGE)
+        peer.lnworker.uses_trampoline.return_value = False
+        return peer
+
+    async def test_peer_asked_for_a_part_of_the_backlog_counts_the_updates_of_that_part(self):
+        peer = self._peer_for_gossip_handlers()
+        start, duration = self.NOW - 48 * 3600, 24 * 3600
+        Peer.request_gossip(peer, start, duration)
+        peer.send_message.assert_called_once()
+        self.assertEqual((start, duration), (peer.send_message.call_args.kwargs['first_timestamp'],
+                                             peer.send_message.call_args.kwargs['timestamp_range']))
+        for timestamp in [start - 1, start, start + duration - 1, start + duration, self.NOW - 3600]:
+            Peer.on_channel_update(peer, {'timestamp': timestamp})
+        self.assertEqual(2, peer.num_gossip_backlog_updates_received)
+
+    async def test_peer_counts_the_updates_that_are_too_old_to_be_news(self):
+        news_start = self.NOW - Peer.GOSSIP_NEWS_MAX_AGE
+        peer = self._peer_for_gossip_handlers()
+        Peer.request_gossip(peer, self.NOW - 3600)
+        for timestamp in [self.NOW - 3601,  # we did not ask for it: the other policy of a channel that got updated
+                          self.NOW - 3600, news_start - 1,
+                          news_start, self.NOW]:  # might be news
+            Peer.on_channel_update(peer, {'timestamp': timestamp})
+        self.assertEqual(5, peer.num_gossip_msgs_received)
+        self.assertEqual(2, peer.num_gossip_backlog_updates_received)
+        # replies to our queries for channels have old updates as well
+        peer.is_querying_short_channel_ids = True
+        Peer.on_channel_update(peer, {'timestamp': self.NOW - 3600})
+        self.assertEqual(2, peer.num_gossip_backlog_updates_received)
+        peer.is_querying_short_channel_ids = False
+        # asking again starts the count again
+        self.now += 3600
+        Peer.request_gossip(peer, self.NOW)
+        self.assertEqual(0, peer.num_gossip_backlog_updates_received)
+        Peer.on_channel_update(peer, {'timestamp': self.NOW})
+        self.assertEqual(1, peer.num_gossip_backlog_updates_received)
+
+    async def test_peer_counts_the_updates_we_did_not_ask_for(self):
+        peer = self._peer_for_gossip_handlers()
+        start, duration = self.NOW - 48 * 3600, 24 * 3600
+        Peer.request_gossip(peer, start, duration)
+        for timestamp in [start - 1, start + duration, self.NOW]:
+            Peer.on_channel_update(peer, {'timestamp': timestamp})
+        Peer.on_channel_update(peer, {'timestamp': start + 1})
+        self.assertEqual((3, 1), (peer.num_gossip_updates_not_asked_for, peer.num_gossip_backlog_updates_received))
+        # replies to our queries for channels are what we asked for, whatever their age
+        peer.is_querying_short_channel_ids = True
+        Peer.on_channel_update(peer, {'timestamp': start - 1})
+        self.assertEqual(3, peer.num_gossip_updates_not_asked_for)
+        peer.is_querying_short_channel_ids = False
+        Peer.request_gossip(peer, self.NOW - 3600)
+        self.assertEqual(0, peer.num_gossip_updates_not_asked_for)
+        Peer.on_channel_update(peer, {'timestamp': self.NOW - 3601})
+        Peer.on_channel_update(peer, {'timestamp': self.NOW + 60})  # no end: new gossip is asked for
+        self.assertEqual(1, peer.num_gossip_updates_not_asked_for)
+
+    async def test_peer_asked_only_for_new_gossip_has_no_updates_too_old_to_be_news(self):
+        peer = self._peer_for_gossip_handlers()
+        Peer.request_gossip(peer, self.NOW)
+        for timestamp in [self.NOW - 3600, self.NOW - 60, self.NOW, self.NOW + 60]:
+            Peer.on_channel_update(peer, {'timestamp': timestamp})
+        self.assertEqual(4, peer.num_gossip_msgs_received)
+        self.assertEqual(0, peer.num_gossip_backlog_updates_received)
+
+    async def test_gossip_we_asked_for_is_taken_in_without_the_delay_between_messages(self):
+        async def read_messages():
+            for msg in [b'gossip', b'other', b'gossip', b'gossip']:
+                yield msg
+        peer = mock.Mock(num_gossip_msgs_received=0, DELAY_INC_MSG_PROCESSING_SLEEP=Peer.DELAY_INC_MSG_PROCESSING_SLEEP,
+                         RECV_GOSSIP_QUEUE_SOFT_MAXSIZE=Peer.RECV_GOSSIP_QUEUE_SOFT_MAXSIZE)
+        peer.initialize = mock.AsyncMock()
+        peer.transport.read_messages = read_messages
+        peer.recv_gossip_queue.qsize.return_value = 0
+        async def _process_message(msg):
+            if msg == b'gossip':
+                peer.num_gossip_msgs_received += 1
+        peer._process_message = _process_message
+        delays = []
+        async def sleep(delay):
+            delays.append(delay)
+        with mock.patch('asyncio.sleep', sleep):
+            await Peer._message_loop(peer)
+        self.assertEqual([0, Peer.DELAY_INC_MSG_PROCESSING_SLEEP, 0, 0], delays)
+        peer._gossip_batch_is_large.set.assert_not_called()
+        # once the queue is half full, the batch does not wait any longer to be processed
+        peer.recv_gossip_queue.qsize.return_value = Peer.RECV_GOSSIP_QUEUE_SOFT_MAXSIZE // 2
+        with mock.patch('asyncio.sleep', sleep):
+            await Peer._message_loop(peer)
+        self.assertEqual(3, peer._gossip_batch_is_large.set.call_count)  # for the gossip messages
+
+    async def test_ping_that_asks_for_no_more_than_it_sends_is_answered_without_delay(self):
+        peer = mock.Mock(_last_ping_recv_time=0, our_gossip_timestamp_filter=object())
+        peer.transport.send_bytes_and_drain = mock.AsyncMock()
+        delays = []
+        async def sleep(delay):
+            delays.append(delay)
+        with mock.patch('asyncio.sleep', sleep):
+            # e.g. LDK sends such a ping after every 32 gossip messages, and waits for the pong
+            for _ in range(3):
+                await Peer.on_ping(peer, {'num_pong_bytes': 64, 'byteslen': 64})
+            self.assertEqual([], delays)
+            self.assertEqual(3, peer.transport.send_bytes_and_drain.await_count)
+            await Peer.on_ping(peer, {'num_pong_bytes': 65, 'byteslen': 64})
+            self.assertEqual(1, len(delays))
+            self.assertEqual(4, peer.transport.send_bytes_and_drain.await_count)
+            # the peers of a wallet, and peers we did not ask for gossip, keep the limit
+            peer.our_gossip_timestamp_filter = None
+            await Peer.on_ping(peer, {'num_pong_bytes': 64, 'byteslen': 64})
+            self.assertEqual(2, len(delays))
+
+    async def test_empty_db_requests_only_new_gossip(self):
+        g = self._lngossip()
+        a = self._connect(g, 'a')
+        self.assertEqual([self.NOW], a.requested)  # the channels get queried in full, as they are not known
+        self.assertFalse(g.is_caught_up())
+        self._tick(g, times=self.QUIET_TICKS)
+        self.assertFalse(g.is_caught_up())  # a peer that just connected needs a moment to tell which channels exist
+        g.unknown_ids = {b'\x01' * 8}
+        self._tick(g, {a: self.BUSY}, times=5)
+        self.assertFalse(g.is_caught_up())
+        g.unknown_ids = set()
+        self._tick(g, {a: self.BUSY})
+        self.assertTrue(g.is_caught_up())
+        self.assertEqual([self.now], self.saved)
+        self.assertEqual([self.NOW], a.requested)
+
+    async def test_db_without_record_asks_few_peers_for_backlog_since_before_its_newest_update(self):
+        latest_ts = self.NOW - 12 * 3600
         g = self._lngossip(latest_ts=latest_ts)
-        with mock.patch('time.time', return_value=now):
-            for _ in range(LNGossip.GOSSIP_BACKLOG_NUM_PEERS):
-                self.assertEqual(latest_ts - LNGossip.GOSSIP_BACKLOG_MARGIN, LNGossip.get_gossip_timestamp_filter_start(g))
-            # further peers would just resend the same backlog
-            self.assertEqual(now, LNGossip.get_gossip_timestamp_filter_start(g))
+        a, b, c = [self._connect(g, character) for character in 'abc']
+        self.assertEqual(LNGossip.GOSSIP_BACKLOG_NUM_PEERS, 2)
+        self.assertEqual([latest_ts - LNGossip.GOSSIP_BACKLOG_MARGIN], a.requested)
+        self.assertEqual([latest_ts - LNGossip.GOSSIP_BACKLOG_MARGIN], b.requested)
+        self.assertEqual([self.NOW], c.requested)  # further peers would mostly resend the same backlog
+        self.assertEqual([0xFFFFFFFF], c.requested_ranges)
 
-    def test_backlog_start_does_not_move_within_session(self):
-        now = 1_800_000_000
-        downtime_start = now - 12 * 3600
-        g = self._lngossip(latest_ts=downtime_start)
-        # gossip received from the first peer, or the update of a failed payment, is newer
-        g.channel_db.get_latest_policy_timestamp = lambda: now
-        expected = downtime_start - LNGossip.GOSSIP_BACKLOG_MARGIN
-        with mock.patch('time.time', return_value=now):
-            self.assertEqual(expected, LNGossip.get_gossip_timestamp_filter_start(g))
-            self.assertEqual(expected, LNGossip.get_gossip_timestamp_filter_start(g))
+    async def test_backlog_starts_before_the_time_until_which_we_were_synced(self):
+        # A session that got interrupted before it caught up leaves fresh updates in the db,
+        # but did not get the older ones.
+        synced_until = self.NOW - 12 * 3600
+        g = self._lngossip(latest_ts=self.NOW - 60, synced_until=synced_until)
+        a = self._connect(g, 'a')
+        self.assertEqual([synced_until - LNGossip.GOSSIP_SYNCED_MARGIN], a.requested)
 
-    def test_backlog_is_not_older_than_max_age(self):
-        now = 1_800_000_000
-        g = self._lngossip(latest_ts=now - 10 * LNGossip.max_age)
-        with mock.patch('time.time', return_value=now):
-            self.assertEqual(now - LNGossip.max_age, LNGossip.get_gossip_timestamp_filter_start(g))
+    async def test_backlog_start_does_not_move_while_catching_up(self):
+        synced_until = self.NOW - 12 * 3600
+        g = self._lngossip(synced_until=synced_until)
+        a = self._connect(g, 'a')
+        self._tick(g, {a: self.BUSY}, times=4)
+        b = self._connect(g, 'b')
+        self.assertEqual(a.requested, b.requested)
+        self.assertEqual([], self.saved)
+
+    async def test_backlog_is_not_older_than_max_age(self):
+        g = self._lngossip(latest_ts=self.NOW - 10 * LNGossip.max_age)
+        self.assertEqual([self.NOW - LNGossip.max_age], self._connect(g, 'a').requested)
+        g = self._lngossip(synced_until=self.NOW - 10 * LNGossip.max_age)
+        self.assertEqual([self.NOW - LNGossip.max_age], self._connect(g, 'a').requested)
+
+    async def test_record_from_the_future_is_not_trusted(self):
+        g = self._lngossip(synced_until=self.NOW + 24 * 3600)  # the clock was wrong then, or is now
+        self.assertEqual([self.NOW - LNGossip.GOSSIP_SYNCED_MARGIN], self._connect(g, 'a').requested)
+
+    async def test_caught_up_once_the_peers_asked_for_the_backlog_get_quiet(self):
+        g = self._lngossip(synced_until=self.NOW - 3600)
+        a, b, c = [self._connect(g, character) for character in 'abc']
+        self._tick(g, {a: self.BUSY, b: self.BUSY, c: self.QUIET}, times=2)
+        self._tick(g, {a: self.QUIET, b: self.QUIET, c: self.QUIET}, times=self.QUIET_TICKS - 1)
+        self.assertFalse(g.is_caught_up())
+        self.assertEqual([], self.saved)
+        self._tick(g, {a: self.QUIET, b: self.QUIET, c: self.QUIET})
+        self.assertTrue(g.is_caught_up())
+        self.assertEqual([self.now], self.saved)
+        self.assertTrue(a.is_connected and b.is_connected and c.is_connected)
+        # peers that connect later are only asked for new gossip
+        self.assertEqual([self.now], self._connect(g, 'd').requested)
+
+    async def test_rate_just_above_the_quiet_one_is_not_quiet(self):
+        g = self._lngossip(synced_until=self.NOW - 3600)
+        a = self._connect(g, 'a')
+        self._tick(g, {a: self.QUIET + 1}, times=5)
+        self.assertFalse(g.is_caught_up())
+        self._tick(g, {a: self.QUIET}, times=self.QUIET_TICKS)
+        self.assertTrue(g.is_caught_up())
+
+    async def test_peer_that_just_got_asked_for_the_backlog_is_not_quiet_yet(self):
+        g = self._lngossip(synced_until=self.NOW - 3600, num_policies=0)
+        a = self._connect(g, 'a')
+        self._tick(g, times=self.QUIET_TICKS)
+        self.assertFalse(g.is_caught_up())  # it might not have started to send
+        self._tick(g)
+        self.assertTrue(g.is_caught_up())
+
+    async def test_not_caught_up_without_any_peer(self):
+        g = self._lngossip(synced_until=self.NOW - 3600)
+        g._set_up_gossip_sync()
+        self._tick(g, times=10)
+        self.assertFalse(g.is_caught_up())
+        self.assertEqual([], self.saved)
+
+    async def test_peer_that_leaves_before_it_sent_the_backlog_gets_replaced(self):
+        synced_until = self.NOW - 3600
+        backlog_start = synced_until - LNGossip.GOSSIP_SYNCED_MARGIN
+        g = self._lngossip(synced_until=synced_until)
+        a, b, c = [self._connect(g, character) for character in 'abc']
+        self.assertEqual([self.NOW], c.requested)
+        self._tick(g, {a: self.BUSY, b: self.BUSY})
+        a.close_and_cleanup()
+        # c is already connected, and we might not connect to more peers. ask it with a new filter
+        self._tick(g, {b: self.BUSY})
+        self.assertEqual([self.NOW, backlog_start], c.requested)
+        b.close_and_cleanup()
+        d = self._connect(g, 'd')
+        self.assertEqual([backlog_start], d.requested)
+        self.assertEqual([self.now], self._connect(g, 'e').requested)  # two peers are asked again
+        self._tick(g, {c: self.BUSY, d: self.BUSY}, times=2)
+        self.assertFalse(g.is_caught_up())
+        self._tick(g, times=self.QUIET_TICKS)
+        self.assertTrue(g.is_caught_up())
+
+    async def test_peer_that_sent_the_backlog_and_left_still_counts(self):
+        g = self._lngossip(synced_until=self.NOW - 3600)
+        a, b = self._connect(g, 'a'), self._connect(g, 'b')
+        self._tick(g, {a: self.BUSY, b: self.BUSY})
+        self._tick(g, {b: self.BUSY}, times=self.QUIET_TICKS)
+        a.close_and_cleanup()
+        self._tick(g, times=self.QUIET_TICKS - 1)
+        self.assertFalse(g.is_caught_up())
+        self._tick(g)
+        self.assertTrue(g.is_caught_up())
+
+    async def test_quiet_peer_that_did_not_resend_old_gossip_does_not_count(self):
+        synced_until = self.NOW - 3600
+        backlog_start = synced_until - LNGossip.GOSSIP_SYNCED_MARGIN
+        g = self._lngossip(synced_until=synced_until)
+        # e.g. LDK does not resend anything if we ask for less than six hours
+        a = self._connect(g, 'a', resends_old_gossip=False)
+        b = self._connect(g, 'b', resends_old_gossip=False)
+        c = self._connect(g, 'c')
+        self._tick(g, {a: self.QUIET, b: self.QUIET, c: self.QUIET}, times=self.QUIET_TICKS + 1)
+        self.assertFalse(g.is_caught_up())
+        self.assertEqual([self.NOW, backlog_start], c.requested)
+        self.assertEqual([], self.saved)
+        self._tick(g, {c: self.BUSY})
+        self._tick(g, {c: self.QUIET}, times=self.QUIET_TICKS)
+        self.assertTrue(g.is_caught_up())
+        self.assertTrue(a.is_connected and b.is_connected)
+
+    async def test_peer_that_does_not_start_to_resend_old_gossip_is_given_up_early(self):
+        self.assertLessEqual(LNGossip.GOSSIP_BACKLOG_START_TIMEOUT, 2 * self.TICK)
+        self.assertGreater(LNGossip.GOSSIP_BACKLOG_START_TIMEOUT, self.TICK)
+        backlog_start = self.NOW - 3600 - LNGossip.GOSSIP_SYNCED_MARGIN
+        g = self._lngossip(synced_until=self.NOW - 3600)
+        a = self._connect(g, 'a', resends_old_gossip=False)
+        b = self._connect(g, 'b')
+        c = self._connect(g, 'c')
+        # of the news that a sends, the odd update is old enough to be counted
+        a.num_gossip_backlog_updates_received = 2
+        b.num_gossip_backlog_updates_received = 10  # it has started: a tenth of what we expect at least
+        self.assertEqual(100, g._min_gossip_backlog_updates(self.now + 2 * self.TICK))
+        self._tick(g, {a: self.QUIET, b: 0})
+        self.assertEqual([self.NOW], c.requested)
+        self._tick(g, {a: self.QUIET, b: 0})
+        self.assertEqual([self.NOW, backlog_start], c.requested)  # instead of a
+        self._tick(g, {c: self.BUSY})
+        self._tick(g)
+        self.assertFalse(g.is_caught_up())  # b did not send enough to count, but had its time to get quiet
+        self._tick(g, times=2)
+        self.assertTrue(g.is_caught_up())
+        # on a small network there may be nothing to resend
+        g = self._lngossip(synced_until=self.NOW - 3600, num_policies=50)
+        a = self._connect(g, 'a', resends_old_gossip=False)
+        self._tick(g, times=self.QUIET_TICKS + 1)
+        self.assertTrue(g.is_caught_up())
+
+    async def test_peer_that_did_not_resend_old_gossip_is_not_asked_again(self):
+        g = self._lngossip(synced_until=self.NOW - 3600)
+        a = self._connect(g, 'a', resends_old_gossip=False)
+        self._tick(g, times=self.QUIET_TICKS + 1)
+        a.close_and_cleanup()
+        self._tick(g)
+        a2 = self._connect(g, 'a', resends_old_gossip=False)  # it reconnects
+        self.assertEqual([self.now], a2.requested)
+        self._tick(g, times=self.QUIET_TICKS + 1)
+        self.assertEqual([self.now - (self.QUIET_TICKS + 1) * self.TICK], a2.requested)
+        self.assertFalse(g.is_caught_up())
+
+    async def test_number_of_old_updates_that_counts_as_the_backlog(self):
+        def few_old_updates(num_old_updates, **kwargs):
+            g = self._lngossip(synced_until=self.NOW - 5 * 3600, **kwargs)
+            a = self._connect(g, 'a', resends_old_gossip=False)
+            a.num_gossip_backlog_updates_received = num_old_updates
+            self._tick(g, times=self.QUIET_TICKS + 1)
+            return g.is_caught_up()
+        self.assertEqual(100, LNGossip.GOSSIP_BACKLOG_MIN_UPDATES)
+        self.assertFalse(few_old_updates(99))  # a few updates arrive late also as news
+        self.assertTrue(few_old_updates(100))
+        # a small network has few updates
+        self.assertFalse(few_old_updates(20, num_policies=2000))
+        self.assertTrue(few_old_updates(21, num_policies=2000))
+        self.assertTrue(few_old_updates(0, num_policies=90))
+
+    async def test_fewer_old_updates_are_expected_for_a_short_or_an_old_time_span(self):
+        def min_updates(*, start, end=None, num_policies=50_000):
+            g = self._lngossip(num_policies=num_policies)
+            g._gossip_backlog_start, g._gossip_backlog_end = start, end
+            return g._min_gossip_backlog_updates(self.NOW)
+        hour, day = 3600, 24 * 3600
+        news_max_age = Peer.GOSSIP_NEWS_MAX_AGE
+        self.assertEqual(0, min_updates(start=None))  # nothing to ask for
+        # Most nodes refresh the updates of their channels daily. We reckon with half of the policies
+        # in the last day, and ask for a tenth of that.
+        self.assertEqual(50_000 // 2 // 48 // 10, min_updates(start=self.NOW - news_max_age - hour // 2))
+        self.assertEqual(100, min_updates(start=self.NOW - news_max_age - 2 * hour))  # no more than that
+        # updates that could be news do not count, so there are none to expect for the last minutes
+        self.assertEqual(0, min_updates(start=self.NOW - news_max_age))
+        self.assertEqual(0, min_updates(start=self.NOW - 60))
+        self.assertEqual(17, min_updates(start=self.NOW - 2 * news_max_age))
+        # Of the days before, only the channels that were not updated since are left: a fifth of
+        # what an even spread of the policies over max_age would give. We ask for a tenth of that.
+        self.assertEqual(LNGossip.max_age, 14 * day)
+        self.assertEqual(50_000 // 5 // 14 // 10, min_updates(start=self.NOW - 3 * day, end=self.NOW - 2 * day))
+        self.assertEqual(100, min_updates(start=self.NOW - 7 * day, end=self.NOW - 3 * day))
+        # a part can span both
+        self.assertEqual(int((10_000 / 5 / 14 + 10_000 / 2 / 24) / 10),
+                         min_updates(start=self.NOW - 2 * day, end=self.NOW - 23 * hour, num_policies=10_000))
+        # on a small network a part of the backlog can have next to no updates
+        self.assertEqual(1, min_updates(start=self.NOW - 3 * day, end=self.NOW - 2 * day, num_policies=1000))
+        self.assertEqual(0, min_updates(start=self.NOW - 3 * day, end=self.NOW - 2 * day, num_policies=500))
+        self.assertEqual(2, min_updates(start=self.NOW - news_max_age - hour, num_policies=1000))
+        # (measured on mainnet with 53340 policies: 2429 old updates for a part from 6.2 to 3.1 days ago)
+        self.assertLess(min_updates(start=self.NOW - 538372, end=self.NOW - 269188, num_policies=53340 // 50), 2429 // 50)
+        self.assertEqual(0, min_updates(start=self.NOW - 538372, end=self.NOW - 269188, num_policies=53340 // 500))
+
+    async def test_peer_that_keeps_sending_after_another_sent_the_backlog_gets_disconnected(self):
+        g = self._lngossip(synced_until=self.NOW - 3 * 3600)
+        # e.g. LDK sends its whole graph, slowly, if we ask for more than the last six hours
+        a, b, c = [self._connect(g, character) for character in 'abc']
+        self._tick(g, {a: self.BUSY, b: self.BUSY})
+        self._tick(g, {b: self.BUSY}, times=self.QUIET_TICKS)  # a has sent the backlog
+        waited = 0
+        while waited + self.TICK < LNGossip.GOSSIP_BACKLOG_GRACE_TIME:
+            self._tick(g, {b: self.BUSY})
+            waited += self.TICK
+        self.assertTrue(b.is_connected)
+        self.assertFalse(g.is_caught_up())
+        self._tick(g, {b: self.BUSY})
+        self.assertFalse(b.is_connected)
+        self.assertTrue(g.is_caught_up())
+        self.assertTrue(a.is_connected and c.is_connected)
+        self.assertEqual([self.NOW], c.requested)
+
+    async def test_peer_asked_after_another_sent_the_backlog_gets_its_time_to_send_it(self):
+        backlog_start = self.NOW - 3 * 3600 - LNGossip.GOSSIP_SYNCED_MARGIN
+        g = self._lngossip(synced_until=self.NOW - 3 * 3600)
+        a, b, c = [self._connect(g, character) for character in 'abc']
+        self._tick(g, {a: self.BUSY, b: self.BUSY})
+        self._tick(g, {b: self.BUSY}, times=self.QUIET_TICKS)  # a has sent the backlog
+        first_done_time = self.now
+        self._tick(g, {b: self.BUSY}, times=2)
+        b.close_and_cleanup()
+        self._tick(g, {c: self.BUSY})
+        self.assertEqual([self.NOW, backlog_start], c.requested)
+        asked_c_time = self.now
+        while self.now + self.TICK < asked_c_time + LNGossip.GOSSIP_BACKLOG_GRACE_TIME:
+            self._tick(g, {c: self.BUSY})
+        self.assertGreater(self.now, first_done_time + LNGossip.GOSSIP_BACKLOG_GRACE_TIME)
+        self.assertTrue(c.is_connected)
+        self.assertFalse(g.is_caught_up())
+        self._tick(g, {c: self.BUSY})
+        self.assertFalse(c.is_connected)
+        self.assertTrue(g.is_caught_up())
+
+    async def test_no_further_peer_is_asked_long_after_one_sent_the_backlog(self):
+        g = self._lngossip(synced_until=self.NOW - 3 * 3600)
+        a, b, c = [self._connect(g, character) for character in 'abc']
+        self._tick(g, {a: self.BUSY, b: self.BUSY})
+        self._tick(g, {b: self.BUSY}, times=self.QUIET_TICKS)  # a has sent the backlog
+        self._tick(g, {b: self.BUSY}, times=LNGossip.GOSSIP_BACKLOG_GRACE_TIME // self.TICK - 1)
+        b.close_and_cleanup()
+        self._tick(g)
+        self.assertEqual([self.NOW], c.requested)
+        self.assertTrue(g.is_caught_up())
+
+    async def test_makes_room_for_another_peer_if_none_resends_old_gossip(self):
+        num_peers_target = lnworker.NUM_PEERS_TARGET
+        g = self._lngossip(synced_until=self.NOW - 3600)
+        peers = [self._connect(g, character, resends_old_gossip=False) for character in 'abcdefgh'[:num_peers_target - 1]]
+        self._tick(g, times=(self.QUIET_TICKS + 1) * num_peers_target)
+        self.assertTrue(all(peer.is_connected for peer in peers))  # we still connect to more peers
+        peers.append(self._connect(g, 'z', resends_old_gossip=False))
+        self._tick(g)
+        self.assertTrue(all(peer.is_connected for peer in peers))  # z might still start to send
+        self._tick(g)
+        self.assertEqual(num_peers_target - 1, len([peer for peer in peers if peer.is_connected]))
+        self.assertFalse(g.is_caught_up())
+        y = self._connect(g, 'y')
+        self._catch_up(g, y)
+        self.assertEqual(num_peers_target - 1, len([peer for peer in peers if peer.is_connected]))
+
+    async def test_makes_room_also_if_a_peer_that_resends_no_old_gossip_reconnected(self):
+        num_peers_target = lnworker.NUM_PEERS_TARGET
+        g = self._lngossip(synced_until=self.NOW - 3600)
+        peers = [self._connect(g, character, resends_old_gossip=False) for character in 'abcdefgh'[:num_peers_target]]
+        self._tick(g, times=self.QUIET_TICKS + 1)  # the first two are found to be useless; the others get asked
+        peers[0].close_and_cleanup()
+        peers.append(self._connect(g, 'a', resends_old_gossip=False))
+        self._tick(g, times=self.QUIET_TICKS + 2)
+        self.assertEqual(num_peers_target - 1, len([peer for peer in peers[1:] if peer.is_connected]))
+        self.assertEqual([self.now - (self.QUIET_TICKS + 2) * self.TICK], peers[-1].requested)  # it was not asked again
+
+    async def test_not_caught_up_while_fetching_or_processing_what_we_asked_for(self):
+        def quiet_ticks(g, peer):
+            self._tick(g, {peer: self.QUIET}, times=self.QUIET_TICKS + 1)
+            return g.is_caught_up()
+        def lngossip():
+            g = self._lngossip(synced_until=self.NOW - 3600)
+            a, b = self._connect(g, 'a'), self._connect(g, 'b')
+            self._tick(g, {a: self.BUSY, b: self.BUSY})
+            return g, a, b
+        with self.subTest("channels left to ask for"):
+            g, a, b = lngossip()
+            g.unknown_ids = {b'\x01' * 8}
+            self.assertFalse(quiet_ticks(g, a))
+            g.unknown_ids = set()
+            self.assertTrue(quiet_ticks(g, a))
+        with self.subTest("waiting for the reply to a query for channels"):
+            g, a, b = lngossip()
+            b.is_querying_short_channel_ids = True
+            self.assertFalse(quiet_ticks(g, a))
+            b.is_querying_short_channel_ids = False
+            self.assertTrue(quiet_ticks(g, a))
+        # a few new messages are always waiting for the next batch, or being processed
+        few = LNGossip.GOSSIP_CATCH_UP_QUIET_RATE * self.TICK
+        with self.subTest("received messages not processed yet"):
+            g, a, b = lngossip()
+            for _ in range(few // 2):
+                a.recv_gossip_queue.put_nowait(('channel_update', {}))
+                b.recv_gossip_queue.put_nowait(('channel_update', {}))
+            b.recv_gossip_queue.put_nowait(('channel_update', {}))
+            self.assertFalse(quiet_ticks(g, a))
+            b.recv_gossip_queue.get_nowait()
+            self.assertTrue(quiet_ticks(g, a))
+        with self.subTest("messages being processed"):
+            g, a, b = lngossip()
+            g._num_gossip_msgs_in_processing = few + 1
+            self.assertFalse(quiet_ticks(g, a))
+            g._num_gossip_msgs_in_processing = few
+            self.assertTrue(quiet_ticks(g, a))
+        with self.subTest("messages waiting and being processed"):
+            g, a, b = lngossip()
+            g._num_gossip_msgs_in_processing = few
+            b.recv_gossip_queue.put_nowait(('channel_update', {}))
+            self.assertFalse(quiet_ticks(g, a))
+        with self.subTest("channels left to ask for, but no peer that answers such queries"):
+            g, a, b = lngossip()
+            g.unknown_ids = {b'\x01' * 8}
+            a.answers_channel_queries = False
+            self.assertFalse(quiet_ticks(g, a))
+            b.answers_channel_queries = False
+            self.assertTrue(quiet_ticks(g, a))
+        with self.subTest("a peer we did not ask for the backlog cannot keep us from catching up"):
+            g = self._lngossip(synced_until=self.NOW - 3600)
+            a, b, c = [self._connect(g, character) for character in 'abc']
+            self._tick(g, {a: self.BUSY, b: self.BUSY, c: self.BUSY})
+            self._tick(g, {c: self.BUSY}, times=self.QUIET_TICKS)
+            self.assertTrue(g.is_caught_up())
+            self.assertTrue(c.is_connected)
+
+    async def test_process_gossip_counts_the_messages_being_processed(self):
+        g = self._lngossip()
+        seen = []
+        async def _process_gossip(*args):
+            seen.append(g._num_gossip_msgs_in_processing)
+            raise Exception("invalid gossip")
+        g._process_gossip = _process_gossip
+        await g.process_gossip([{}], [{}, {}], [{}, {}, {}])
+        self.assertEqual([6], seen)
+        self.assertEqual(0, g._num_gossip_msgs_in_processing)
+
+    async def test_node_announcement_with_invalid_signature_does_not_drop_the_rest_of_the_batch(self):
+        g = self._lngossip()
+        channel_db = g.channel_db
+        channel_db.data_loaded.wait = mock.AsyncMock()
+        def verify_node_announcement(payload):
+            if payload['invalid']:
+                raise lnworker.InvalidGossipMsg('signature failed')
+        channel_db.verify_node_announcement = verify_node_announcement
+        channel_db.add_channel_updates.return_value = mock.Mock(orphaned=[], good=[])
+        node_anns = [{'invalid': False, 'n': 1}, {'invalid': True, 'n': 2}, {'invalid': False, 'n': 3}]
+        chan_upds = [{'short_channel_id': b'\x01' * 8}]
+        await g.process_gossip([], node_anns, chan_upds)
+        channel_db.add_node_announcements.assert_called_once_with([node_anns[0], node_anns[2]])
+        channel_db.add_channel_updates.assert_called_once_with(chan_upds, max_age=LNGossip.max_age)
+
+    async def test_synced_until_follows_the_clock_once_caught_up_and_is_saved_every_minute(self):
+        g = self._lngossip(synced_until=self.NOW - 3600)
+        a = self._connect(g, 'a')
+        last_rx_time = self._catch_up(g, a)
+        self.assertEqual([last_rx_time], self.saved)  # not "now": no gossip arrived since
+        caught_up_at = self.now
+        self.assertEqual(60, LNGossip.GOSSIP_SYNCED_UNTIL_SAVE_INTERVAL)
+        self._tick(g, {a: self.BUSY}, times=5)  # new gossip can come in bursts as well
+        self.assertEqual([last_rx_time], self.saved)
+        self._tick(g, {a: self.BUSY})
+        self.assertEqual([last_rx_time, caught_up_at + 60], self.saved)
+        self.assertTrue(g.is_caught_up())
+        self.assertTrue(a.is_connected)
+
+    async def test_catches_up_again_after_losing_all_peers(self):
+        g = self._lngossip(synced_until=self.NOW - 3600)
+        a = self._connect(g, 'a')
+        self._catch_up(g, a)
+        self._tick(g, {a: self.QUIET}, times=2)
+        had_gossip_until = self.now
+        a.close_and_cleanup()
+        self._tick(g, times=30)
+        self.assertFalse(g.is_caught_up())
+        self.assertLessEqual(self.saved[-1], had_gossip_until)  # the record does not move while we have no gossip
+        b = self._connect(g, 'b')
+        self.assertEqual([had_gossip_until - LNGossip.GOSSIP_SYNCED_MARGIN], b.requested)
+        self.assertEqual(self._catch_up(g, b), self.saved[-1])
+
+    async def test_catches_up_again_after_being_suspended(self):
+        g = self._lngossip(synced_until=self.NOW - 3600)
+        a, b, c = [self._connect(g, character) for character in 'abc']
+        self._catch_up(g, a, b)
+        # a tick that is a bit late is not a suspend
+        self._tick(g, {c: self.QUIET}, seconds=self.TICK + LNGossip.GOSSIP_SUSPEND_THRESHOLD)
+        self.assertTrue(g.is_caught_up())
+        awake_until = self.now
+        expected = awake_until - LNGossip.GOSSIP_SYNCED_MARGIN
+        self.now += self.TICK + LNGossip.GOSSIP_SUSPEND_THRESHOLD + 1
+        self.assertFalse(g.is_caught_up())  # already before the tick notices
+        g._gossip_sync_tick()
+        self.assertFalse(g.is_caught_up())
+        # the connections that are still there are asked again, as they will not get replaced
+        self.assertEqual([expected], a.requested[1:])
+        self.assertEqual([expected], b.requested[1:])
+        self.assertEqual([], c.requested[1:])
+        # they turn out to be dead
+        a.close_and_cleanup()
+        b.close_and_cleanup()
+        self._tick(g)
+        self.assertEqual([expected], c.requested[1:])
+        d = self._connect(g, 'd')
+        self.assertEqual([expected], d.requested)
+        self._tick(g, {c: self.BUSY, d: self.BUSY}, times=4)
+        self.assertFalse(g.is_caught_up())
+        self.assertLessEqual(self.saved[-1], awake_until)
+        self._tick(g, {c: self.QUIET, d: self.QUIET}, times=self.QUIET_TICKS)
+        self.assertTrue(g.is_caught_up())
+        self.assertEqual(self.now, self.saved[-1])
+
+    async def test_suspend_while_catching_up_keeps_the_backlog_start(self):
+        synced_until = self.NOW - 3600
+        g = self._lngossip(synced_until=synced_until)
+        a = self._connect(g, 'a')
+        self._tick(g, {a: self.BUSY}, times=4)
+        self._tick(g, seconds=8 * 3600)
+        self.assertFalse(g.is_caught_up())
+        self.assertEqual([synced_until - LNGossip.GOSSIP_SYNCED_MARGIN] * 2, a.requested)
+        self.assertEqual([], self.saved)
+        # what a sent before the suspend does not make it look busy now, nor like it resent old gossip
+        self._tick(g, times=self.QUIET_TICKS + 1)
+        self.assertFalse(g.is_caught_up())
+        b = self._connect(g, 'b')
+        self.assertEqual(a.requested[1], b.requested[-1])
+        self._receive_backlog_in_parts(g, b)
+
+    def _receive_backlog_in_parts(self, g: LNGossip, *sources: _FakeGossipPeer, max_parts: int = 20):
+        """Returns the parts (start, end) that got asked for until we caught up. end is None for the last one."""
+        parts = []
+        num_requested_before = len(sources[0].requested) - 1
+        for _ in range(max_parts):
+            start, duration = sources[0].requested[-1], sources[0].requested_ranges[-1]
+            for peer in sources[1:]:
+                self.assertEqual((start, duration), (peer.requested[-1], peer.requested_ranges[-1]))
+            parts.append((start, start + duration if duration != 0xFFFFFFFF else None))
+            self._tick(g, {peer: self.BUSY for peer in sources})
+            self._tick(g, times=self.QUIET_TICKS)
+            if g.is_caught_up():
+                return parts
+            self.assertEqual(num_requested_before + len(parts) + 1, len(sources[0].requested))
+        self.fail("did not catch up")
+
+    async def test_long_backlog_is_asked_for_in_parts_and_progress_is_recorded(self):
+        max_last_part = LNGossip.GOSSIP_BACKLOG_LAST_PART_MAX_DURATION
+        self.assertEqual(6 * 3600, max_last_part)
+        start = self.NOW - 40 * 3600
+        g = self._lngossip(synced_until=start + LNGossip.GOSSIP_SYNCED_MARGIN)
+        a, b, c = [self._connect(g, character) for character in 'abc']
+        self.assertEqual(([self.NOW], [0xFFFFFFFF]), (c.requested, c.requested_ranges))  # new gossip meanwhile
+        parts = self._receive_backlog_in_parts(g, a, b)
+        # the older half of what is left each time: 20h, 10h, 5h, and the rest
+        self.assertEqual(4, len(parts))
+        self.assertEqual((start, start + 20 * 3600), parts[0])
+        for (start1, end1), (start2, end2) in zip(parts, parts[1:]):
+            self.assertEqual(end1, start2)  # no gaps
+            self.assertGreater(end1 - start1, max_last_part // 2)
+        last_start, last_end = parts[-1]
+        self.assertIsNone(last_end)  # followed by the new gossip
+        self.assertLessEqual(self.NOW - last_start, max_last_part)
+        self.assertGreater(self.NOW - last_start, max_last_part // 2)
+        # how far we got is recorded after each part, and in the end the time gossip last arrived
+        self.assertEqual([end for start, end in parts[:-1]] + [self.now - self.QUIET_TICKS * self.TICK], self.saved)
+        self.assertEqual([self.NOW], c.requested)
+        self.assertTrue(a.is_connected and b.is_connected and c.is_connected)
+
+    async def test_backlog_of_a_few_hours_is_asked_for_at_once(self):
+        start = self.NOW - LNGossip.GOSSIP_BACKLOG_LAST_PART_MAX_DURATION
+        g = self._lngossip(synced_until=start + LNGossip.GOSSIP_SYNCED_MARGIN)
+        a = self._connect(g, 'a')
+        self.assertEqual([(start, None)], self._receive_backlog_in_parts(g, a))
+        g = self._lngossip(synced_until=start - 1 + LNGossip.GOSSIP_SYNCED_MARGIN)
+        a = self._connect(g, 'a')
+        self.assertEqual(2, len(self._receive_backlog_in_parts(g, a)))
+
+    async def test_interrupted_long_catch_up_goes_on_from_the_last_part_received(self):
+        start = self.NOW - 48 * 3600
+        g = self._lngossip(synced_until=start + LNGossip.GOSSIP_SYNCED_MARGIN)
+        a = self._connect(g, 'a')
+        self._tick(g, {a: self.BUSY})
+        self._tick(g, times=self.QUIET_TICKS)
+        self.assertEqual([start + 24 * 3600], self.saved)
+        self._tick(g, {a: self.BUSY})  # the OS kills us while we receive the second part
+        g2 = self._lngossip(latest_ts=self.now, synced_until=self.saved[-1])
+        a2 = self._connect(g2, 'a')
+        self.assertEqual([start + 24 * 3600 - LNGossip.GOSSIP_SYNCED_MARGIN], a2.requested)
+        self.assertNotEqual([0xFFFFFFFF], a2.requested_ranges)  # still more than a few hours to go
+
+    async def test_next_part_is_asked_from_another_peer_if_the_one_that_sent_the_last_part_left(self):
+        g = self._lngossip(synced_until=self.NOW - 48 * 3600)
+        a, b, c = [self._connect(g, character) for character in 'abc']
+        self._tick(g, {a: self.BUSY, b: self.BUSY})
+        a.close_and_cleanup()
+        self._tick(g, {b: self.BUSY})  # c is asked instead of a
+        self._tick(g, {c: self.BUSY})
+        b.close_and_cleanup()
+        self._tick(g, times=self.QUIET_TICKS)
+        self.assertEqual(1, len(self.saved))
+        self.assertEqual([self.NOW, c.requested[1], self.saved[0]], c.requested)
+        parts = self._receive_backlog_in_parts(g, c)
+        self.assertEqual(self.saved[0], parts[0][0])
+
+    async def test_peer_without_old_gossip_for_a_part_is_replaced_for_that_part(self):
+        g = self._lngossip(synced_until=self.NOW - 48 * 3600)
+        a, b, c = [self._connect(g, character) for character in 'abc']
+        self._tick(g, {a: self.BUSY, b: self.BUSY})
+        self._tick(g, times=self.QUIET_TICKS)
+        self.assertEqual(2, len(a.requested))
+        a._resends_old_gossip = b._resends_old_gossip = False
+        self._tick(g, times=2)
+        self.assertEqual([self.NOW, a.requested[1]], c.requested)
+        self.assertEqual(a.requested_ranges[1], c.requested_ranges[1])
+        self.assertNotEqual(0xFFFFFFFF, c.requested_ranges[1])
+        self.assertEqual(1, len(self.saved))
+        # a and b were asked for a time span in the past, which has no new gossip. they get to send that again
+        for peer in (a, b):
+            self.assertEqual((self.now, 0xFFFFFFFF), (peer.requested[-1], peer.requested_ranges[-1]))
+            self.assertEqual(3, len(peer.requested))
+            self.assertTrue(peer.is_connected)
+        # c sends the rest, in parts
+        parts = self._receive_backlog_in_parts(g, c)
+        self.assertEqual(self.saved[0], parts[0][0])
+        self.assertEqual(3, len(a.requested))
+
+    async def test_tick_survives_peers_that_are_connecting_while_we_have_enough_of_them(self):
+        # peers are counted from the moment we start to connect to them, and send gossip only later
+        g = self._lngossip(synced_until=self.NOW - 3600)
+        g._set_up_gossip_sync()
+        connecting = []
+        for character in 'abcdefgh'[:lnworker.NUM_PEERS_TARGET]:
+            peer = _FakeGossipPeer(character, lnpeermgr=g.lnpeermgr, resends_old_gossip=True)
+            peer.our_gossip_timestamp_filter = None
+            connecting.append(peer)
+        self._tick(g, times=3)
+        self.assertFalse(g.is_caught_up())
+        self.assertTrue(all(peer.is_connected for peer in connecting))
+
+    async def test_failing_tick_does_not_stop_the_other_maintenance(self):
+        g = self._lngossip(synced_until=self.NOW - 3600)
+        g.channel_db.data_loaded.wait = mock.AsyncMock()
+        ticks = []
+        def tick():
+            ticks.append(1)
+            if len(ticks) == 1:
+                raise Exception("bug")
+            if len(ticks) == 3:
+                raise asyncio.CancelledError()
+        g._gossip_sync_tick = tick
+        sleep = asyncio.sleep
+        with mock.patch('asyncio.sleep', lambda delay: sleep(0)):
+            with self.assertRaises(asyncio.CancelledError):
+                await g._maintain_gossip_sync()
+        self.assertEqual(3, len(ticks))
+
+    async def test_gossip_sync_is_maintained_once_the_network_is_started(self):
+        g = self._lngossip()
+        g.lnpeermgr.start_network = mock.Mock()
+        spawned = []
+        async def spawn(coro):
+            spawned.append(coro.__name__)
+            coro.close()
+        g.taskgroup.spawn = spawn
+        g.main_loop = mock.AsyncMock()
+        g.start_network(mock.Mock())
+        await asyncio.sleep(0.05)
+        self.assertIn('_maintain_gossip_sync', spawned)
+
+    async def test_peer_that_stopped_responding_is_not_taken_for_one_that_sent_everything(self):
+        backlog_start = self.NOW - 3600 - LNGossip.GOSSIP_SYNCED_MARGIN
+        g = self._lngossip(synced_until=self.NOW - 3600)
+        a = self._connect(g, 'a')
+        self._tick(g, {a: self.BUSY})
+        self.assertEqual(0, a.num_pings)
+        a.responds = False  # e.g. the network stalls in the middle of the backlog
+        self._tick(g)
+        self.assertEqual(1, a.num_pings)  # it sends little: has it sent everything? a pong will tell
+        self._tick(g, times=self.QUIET_TICKS - 1)
+        self.assertEqual(1, a.num_pings)
+        self.assertFalse(g.is_caught_up())  # it is as quiet as a peer that sent everything, but there was no pong
+        self.assertEqual([], self.saved)
+        self.assertGreaterEqual(self.QUIET_TICKS * self.TICK, LNGossip.GOSSIP_BACKLOG_PONG_TIMEOUT)
+        self.assertFalse(a.is_connected)
+        # the node was not found to be useless, only the connection was dead
+        a2 = self._connect(g, 'a')
+        self.assertEqual([backlog_start], a2.requested)
+        self._catch_up(g, a2)
+
+    async def test_peer_that_sends_slowly_and_then_stalls_is_not_taken_for_one_that_sent_everything(self):
+        g = self._lngossip(synced_until=self.NOW - 3600)
+        a = self._connect(g, 'a')
+        slow = 2 * self.QUIET  # per tick: twice the rate of a quiet peer
+        self._tick(g, {a: slow}, times=self.QUIET_TICKS + 1)
+        self.assertFalse(g.is_caught_up())
+        a.responds = False
+        for _ in range(self.QUIET_TICKS + 3):
+            self._tick(g)
+            self.assertFalse(g.is_caught_up())
+            self.assertEqual([], self.saved)
+        self.assertFalse(a.is_connected)
+
+    async def test_peer_that_gets_busy_again_is_pinged_again_once_it_sends_little(self):
+        g = self._lngossip(synced_until=self.NOW - 3600)
+        a = self._connect(g, 'a')
+        self._tick(g, {a: self.BUSY})
+        self._tick(g)
+        self.assertEqual(1, a.num_pings)
+        self._tick(g, {a: self.BUSY})  # it was a pause
+        self._tick(g)
+        self.assertEqual(2, a.num_pings)
+        self._tick(g, times=self.QUIET_TICKS - 1)
+        self.assertEqual(2, a.num_pings)
+        self.assertTrue(g.is_caught_up())
+
+    async def test_dead_connection_asked_after_a_suspend_does_not_make_the_node_useless(self):
+        g = self._lngossip(synced_until=self.NOW - 3600)
+        a = self._connect(g, 'a')
+        self._catch_up(g, a)
+        a.responds = False
+        self._tick(g, seconds=3600)  # the suspend. a is asked again, over a connection that is dead
+        self.assertEqual(2, len(a.requested))
+        self._tick(g, times=self.QUIET_TICKS + 1)
+        self.assertFalse(a.is_connected)
+        a2 = self._connect(g, 'a')
+        self.assertEqual(a.requested[1], a2.requested[0])  # the node is asked again
+
+    async def test_synced_until_does_not_move_while_no_gossip_arrives(self):
+        g = self._lngossip(synced_until=self.NOW - 3600)
+        a = self._connect(g, 'a')
+        self._catch_up(g, a)
+        self._tick(g, {a: self.QUIET}, times=6)
+        had_gossip_until = self.now
+        self.assertEqual(had_gossip_until, self.saved[-1])
+        # the connection is there, but nothing comes in: e.g. it died silently
+        max_silence = LNGossip.GOSSIP_MAX_SILENCE
+        self._tick(g, times=max_silence // self.TICK)
+        self.assertTrue(g.is_caught_up())
+        self.assertEqual(had_gossip_until, max(self.saved))
+        self.assertEqual([self.NOW - 3600 - LNGossip.GOSSIP_SYNCED_MARGIN], a.requested)
+        # after a while we catch up again: a is asked first, and if it has nothing, others will be
+        self._tick(g)
+        self.assertFalse(g.is_caught_up())
+        self.assertEqual(had_gossip_until - LNGossip.GOSSIP_SYNCED_MARGIN, a.requested[-1])
+        self.assertEqual(had_gossip_until, max(self.saved))
+
+    async def test_silence_is_normal_on_a_small_network(self):
+        g = self._lngossip(synced_until=self.NOW - 3600, num_policies=9_999)
+        a = self._connect(g, 'a')
+        last_rx_time = self._catch_up(g, a)
+        self._tick(g, times=10 * LNGossip.GOSSIP_MAX_SILENCE // self.TICK)
+        self.assertTrue(g.is_caught_up())
+        self.assertEqual(1, len(a.requested))
+        self.assertEqual(last_rx_time, max(self.saved))  # which costs a longer backlog next time, of few updates
+
+    async def test_peer_that_sends_what_we_did_not_ask_for_instead_of_the_backlog_gets_disconnected(self):
+        min_num, max_ratio = LNGossip.GOSSIP_BACKLOG_MIN_UPDATES_NOT_ASKED_FOR, LNGossip.GOSSIP_BACKLOG_MAX_RATIO_NOT_ASKED_FOR
+        def lngossip():
+            g = self._lngossip(synced_until=self.NOW - 48 * 3600)
+            return g, self._connect(g, 'a'), self._connect(g, 'b', resends_old_gossip=False)
+        # lnd also sends the other direction of each channel that got updated, whatever its age
+        g, a, b = lngossip()
+        b.num_gossip_backlog_updates_received = 10 * min_num
+        b.num_gossip_updates_not_asked_for = 10 * min_num
+        self._tick(g, {a: self.BUSY, b: self.BUSY}, times=3)
+        self.assertTrue(b.is_connected)
+        # e.g. LDK sends its whole graph if we ask for anything older than six hours
+        g, a, b = lngossip()
+        b.num_gossip_backlog_updates_received = min_num // max_ratio
+        b.num_gossip_updates_not_asked_for = min_num
+        self._tick(g, {a: self.BUSY, b: self.BUSY})
+        self.assertTrue(b.is_connected)  # just not more than that
+        b.num_gossip_updates_not_asked_for += 1
+        self._tick(g, {a: self.BUSY, b: self.BUSY})
+        self.assertFalse(b.is_connected)
+        self.assertTrue(a.is_connected)
+        b2 = self._connect(g, 'b', resends_old_gossip=False)
+        self.assertEqual([self.now], b2.requested)  # it is not asked again
+        # too few to tell
+        g, a, b = lngossip()
+        b.num_gossip_backlog_updates_received = 1
+        b.num_gossip_updates_not_asked_for = min_num - 1
+        self._tick(g, {a: self.BUSY, b: self.BUSY}, times=3)
+        self.assertTrue(b.is_connected)
+
+    async def test_peer_is_not_given_up_early_while_it_answers_our_query_for_channels(self):
+        g = self._lngossip(synced_until=self.NOW - 3600)
+        a = self._connect(g, 'a', resends_old_gossip=False)
+        b = self._connect(g, 'b')
+        c = self._connect(g, 'c')
+        a.is_querying_short_channel_ids = True  # its updates are not counted meanwhile
+        self._tick(g, {a: self.BUSY, b: self.BUSY}, times=4)
+        self.assertEqual([self.NOW], c.requested)
+        a.is_querying_short_channel_ids = False
+        self._tick(g)
+        self.assertEqual(2, len(c.requested))  # now it is: it had its time and sent no old updates
+
+    async def test_channels_are_not_queried_from_the_peer_that_resends_old_gossip_nor_from_useless_ones(self):
+        ids = {bytes([i]) * 8 for i in range(3)}
+        g = self._lngossip(synced_until=self.NOW - 3600)
+        a = self._connect(g, 'a', resends_old_gossip=False)
+        b = self._connect(g, 'b')
+        c = self._connect(g, 'c')
+        d = self._connect(g, 'd')
+        g.unknown_ids = set(ids)
+        self.assertEqual([], g.get_ids_to_query(a))  # while it resends old gossip we tell that by what it sends
+        self.assertEqual([], g.get_ids_to_query(b))
+        self.assertEqual(ids, g.unknown_ids)
+        self._tick(g, {b: self.BUSY}, times=2)  # a is given up, and c is asked instead
+        self.assertEqual(2, len(c.requested))
+        self.assertEqual([], g.get_ids_to_query(a))  # such peers mostly do not answer these queries either
+        self.assertEqual([], g.get_ids_to_query(c))
+        self.assertEqual(ids, set(g.get_ids_to_query(d)))
+        self.assertEqual(set(), g.unknown_ids)
+        g.unknown_ids = set(ids)
+        self._tick(g, {c: self.BUSY})
+        self._tick(g, times=self.QUIET_TICKS + 1)
+        self.assertFalse(g.is_caught_up())  # channels left to ask for
+        self.assertEqual(ids, set(g.get_ids_to_query(b)))  # it has sent the old gossip
+        self._tick(g)
+        self.assertTrue(g.is_caught_up())
+        g.unknown_ids = set(ids)
+        self.assertEqual(ids, set(g.get_ids_to_query(a)))  # afterwards any peer is asked, as before
+
+    async def test_useless_peer_is_queried_for_channels_if_no_other_peer_would_answer(self):
+        ids = {bytes([i]) * 8 for i in range(3)}
+        g = self._lngossip(synced_until=self.NOW - 3600)
+        a = self._connect(g, 'a', resends_old_gossip=False)
+        b = self._connect(g, 'b')
+        self._tick(g, {b: self.BUSY}, times=2)  # a is given up
+        g.unknown_ids = set(ids)
+        self.assertEqual([], g.get_ids_to_query(a))  # b will be asked once it has sent the backlog
+        self._tick(g, times=self.QUIET_TICKS)
+        self.assertFalse(g.is_caught_up())
+        b.close_and_cleanup()
+        c = self._connect(g, 'c')
+        c.answers_channel_queries = False  # it timed out on a query
+        self._tick(g, {c: self.BUSY})
+        self._tick(g, times=self.QUIET_TICKS)
+        self.assertFalse(g.is_caught_up())  # a answers such queries
+        self.assertEqual(ids, set(g.get_ids_to_query(a)))
+        self._tick(g)
+        self.assertTrue(g.is_caught_up())
+
+    async def test_gossip_missed_while_without_peers_is_asked_for_also_if_we_were_about_to_catch_up(self):
+        g = self._lngossip(synced_until=self.NOW - 3600)
+        a, b = self._connect(g, 'a'), self._connect(g, 'b')
+        self._tick(g, {a: self.BUSY, b: self.BUSY})
+        self._tick(g, {b: self.BUSY}, times=self.QUIET_TICKS)  # a has sent the backlog, b is still sending
+        self.assertFalse(g.is_caught_up())
+        last_rx_time = self.now
+        a.close_and_cleanup()
+        b.close_and_cleanup()  # e.g. the phone leaves the wifi. the process is not suspended
+        self._tick(g, times=180)  # half an hour without peers
+        self.assertFalse(g.is_caught_up())
+        # what we have is the gossip until it last arrived, not until now
+        self.assertEqual({last_rx_time}, set(self.saved))
+        c = self._connect(g, 'c')
+        self.assertEqual([last_rx_time - LNGossip.GOSSIP_SYNCED_MARGIN], c.requested)
+        self._catch_up(g, c)
+
+    async def test_time_until_which_we_are_synced_never_goes_back(self):
+        g = self._lngossip(synced_until=self.NOW - 3600)
+        a = self._connect(g, 'a')
+        self._catch_up(g, a)
+        self._tick(g, {a: self.QUIET}, times=3)
+        synced_until = g.get_gossip_synced_until()
+        self.assertEqual(self.now, synced_until)
+        g._gossip_last_rx_time = self.now - 1000  # whatever makes it older
+        self._tick(g)
+        self.assertEqual(synced_until, g.get_gossip_synced_until())
+
+    async def test_backlog_peer_with_a_burst_of_news_in_the_tick_we_would_judge_it_waits_for_the_next(self):
+        g = self._lngossip(synced_until=self.NOW - 3600)
+        a = self._connect(g, 'a')
+        self._tick(g, {a: self.BUSY}, times=2)
+        self._tick(g, {a: self.QUIET // 4}, times=2)  # it sends little: pinged
+        self.assertEqual(1, a.num_pings)
+        # Over the last three ticks it is quiet, but not in the last one, which made us forget the ping.
+        self._tick(g, {a: self.QUIET + 100})
+        self.assertFalse(g.is_caught_up())
+        self._tick(g, {a: self.QUIET // 4}, times=self.QUIET_TICKS)
+        self.assertEqual(2, a.num_pings)
+        self.assertTrue(g.is_caught_up())
+
+    async def test_send_ping_sends_a_ping(self):
+        peer = mock.Mock()
+        Peer.send_ping(peer)
+        peer.send_message.assert_called_once_with('ping', num_pong_bytes=4, byteslen=4)
+
+    async def test_connected_peer_is_not_asked_for_the_backlog_during_a_query_for_channels(self):
+        backlog_start = self.NOW - 3600 - LNGossip.GOSSIP_SYNCED_MARGIN
+        g = self._lngossip(synced_until=self.NOW - 3600)
+        a = self._connect(g, 'a', resends_old_gossip=False)
+        b = self._connect(g, 'b', resends_old_gossip=False)
+        c = self._connect(g, 'c')
+        c.is_querying_short_channel_ids = True  # the reply consists of old gossip as well
+        self._tick(g, times=4)
+        self.assertEqual([self.NOW], c.requested)
+        c.is_querying_short_channel_ids = False
+        self._tick(g)
+        self.assertEqual([self.NOW, backlog_start], c.requested)
+
+    async def test_node_that_was_useless_is_asked_again_the_next_time_we_catch_up(self):
+        g = self._lngossip(synced_until=self.NOW - 3600)
+        a = self._connect(g, 'a', resends_old_gossip=False)
+        b = self._connect(g, 'b')
+        self._catch_up(g, b)
+        self.assertEqual(1, len(a.requested))
+        self._tick(g, {b: self.QUIET})
+        b.close_and_cleanup()
+        a.close_and_cleanup()
+        self._tick(g)
+        self.assertFalse(g.is_caught_up())
+        a2 = self._connect(g, 'a')  # this time it might have what we ask for
+        self.assertLess(a2.requested[0], self.now - LNGossip.GOSSIP_SYNCED_MARGIN + 60)
+        self._catch_up(g, a2)
+
+    async def test_known_channel_announcements_are_not_verified_again(self):
+        g = self._lngossip()
+        channel_db = g.channel_db
+        channel_db.data_loaded.wait = mock.AsyncMock()
+        known, new = b'\x01' * 8, b'\x02' * 8
+        channel_db.get_channel_ids = lambda: {ShortChannelID(known)}
+        channel_db.add_channel_updates.return_value = mock.Mock(orphaned=[], good=[])
+        chan_anns = [{'short_channel_id': known}, {'short_channel_id': new}]
+        await g.process_gossip(chan_anns, [], [])
+        channel_db.verify_channel_announcement.assert_called_once_with(chan_anns[1])
+        channel_db.add_channel_announcements.assert_called_once_with([chan_anns[1]])
+
+    async def test_stop_waits_for_the_record_to_be_written(self):
+        g = self._lngossip(synced_until=self.NOW - 3600)
+        self._catch_up(g, self._connect(g, 'a'))
+        g.lnpeermgr.stop = mock.AsyncMock()
+        written = util.get_asyncio_loop().create_future()
+        g.channel_db.save_synced_until = lambda ts: written
+        stopping = asyncio.create_task(g.stop())
+        await asyncio.sleep(0.05)
+        self.assertFalse(stopping.done())  # the db drops the writes still queued when it gets stopped
+        written.set_result(None)
+        await asyncio.wait_for(stopping, 5)
+
+    async def test_without_a_daemon_no_node_is_one_of_our_wallets(self):
+        g = self._lngossip()
+        g.lnpeermgr.network.daemon = None  # as when only catching up on gossip
+        self.assertFalse(g.lnpeermgr.is_our_lnwallet(node('a')))
+        wallet = mock.Mock()
+        wallet.lnworker.node_keypair.pubkey = node('a')
+        g.lnpeermgr.network.daemon = mock.Mock(get_wallets=lambda: {'w': wallet})
+        self.assertTrue(g.lnpeermgr.is_our_lnwallet(node('a')))
+        self.assertFalse(g.lnpeermgr.is_our_lnwallet(node('b')))
+
+    async def test_large_batch_of_gossip_is_processed_without_waiting(self):
+        processed = []
+        peer = mock.Mock(recv_gossip_queue=asyncio.Queue(), _gossip_batch_is_large=asyncio.Event(),
+                         RECV_GOSSIP_QUEUE_SOFT_MAXSIZE=Peer.RECV_GOSSIP_QUEUE_SOFT_MAXSIZE)
+        async def process_gossip(chan_anns, node_anns, chan_upds):
+            processed.append(len(chan_upds))
+            raise asyncio.CancelledError()
+        peer.network.lngossip.process_gossip = process_gossip
+        for _ in range(Peer.RECV_GOSSIP_QUEUE_SOFT_MAXSIZE // 2):
+            peer.recv_gossip_queue.put_nowait(('channel_update', {}))
+        task = asyncio.create_task(Peer._process_gossip(peer))
+        await asyncio.sleep(0.05)
+        self.assertEqual([], processed)  # a small batch waits for more, a few seconds
+        peer._gossip_batch_is_large.set()  # what _message_loop does when the queue is half full
+        with self.assertRaises(asyncio.CancelledError):
+            await asyncio.wait_for(task, 2)
+        self.assertEqual([Peer.RECV_GOSSIP_QUEUE_SOFT_MAXSIZE // 2], processed)
+
+    async def test_gossip_peer_that_went_silent_gets_pinged_and_dropped_without_a_pong(self):
+        sent = []
+        peer = mock.Mock(last_message_time=self.NOW, pong_event=asyncio.Event(),
+                         GOSSIP_PEER_MAX_SILENCE=Peer.GOSSIP_PEER_MAX_SILENCE)
+        peer.send_ping = lambda: sent.append(self.now)
+        sleep = asyncio.sleep
+        async def fast_sleep(delay):
+            self.now += delay
+            await sleep(0)
+        with mock.patch('asyncio.sleep', fast_sleep), mock.patch.object(lnpeer_module, 'LN_P2P_NETWORK_TIMEOUT', 0.05):
+            with self.assertRaises(lnpeer_module.GracefulDisconnect):
+                await asyncio.wait_for(Peer._ping_when_silent(peer), 5)
+        self.assertEqual(1, len(sent))
+        self.assertGreater(sent[0] - self.NOW, Peer.GOSSIP_PEER_MAX_SILENCE)
+
+    async def test_gossip_peer_that_answers_the_ping_stays(self):
+        pings = []
+        peer = mock.Mock(last_message_time=self.NOW, pong_event=asyncio.Event(),
+                         GOSSIP_PEER_MAX_SILENCE=Peer.GOSSIP_PEER_MAX_SILENCE)
+        def send_ping():
+            pings.append(self.now)
+            if len(pings) == 3:
+                raise asyncio.CancelledError()  # enough
+            Peer.on_pong(peer, {})
+            peer.last_message_time = self.now  # as _process_message does for every message
+        peer.send_ping = send_ping
+        sleep = asyncio.sleep
+        async def fast_sleep(delay):
+            self.now += delay
+            await sleep(0)
+        with mock.patch('asyncio.sleep', fast_sleep):
+            with self.assertRaises(asyncio.CancelledError):
+                await asyncio.wait_for(Peer._ping_when_silent(peer), 5)
+        self.assertEqual(self.NOW + Peer.GOSSIP_PEER_MAX_SILENCE + 10, pings[0])
+        self.assertEqual(pings[1], peer.last_pong_time)  # recorded for those who wait for it
+        # pinged again only after it was silent for that long again
+        self.assertEqual([Peer.GOSSIP_PEER_MAX_SILENCE + 10] * 2, [t2 - t1 for t1, t2 in zip(pings, pings[1:])])
+
+    async def test_only_peers_that_just_send_us_gossip_are_pinged_when_silent(self):
+        async def main_loop(*, is_gossip_peer):
+            group = mock.Mock(spawn=mock.AsyncMock())
+            peer = mock.MagicMock()
+            peer.taskgroup.__aenter__ = mock.AsyncMock(return_value=group)
+            peer.taskgroup.__aexit__ = mock.AsyncMock(return_value=False)
+            peer.initialized = util.get_asyncio_loop().create_future()
+            peer.initialized.set_result(True)
+            peer.network.lngossip = peer.lnworker if is_gossip_peer else mock.Mock()
+            await Peer.main_loop(peer)
+            return peer
+        peer = await main_loop(is_gossip_peer=True)
+        peer._ping_when_silent.assert_called_once_with()
+        peer.htlc_switch.assert_not_called()
+        peer = await main_loop(is_gossip_peer=False)  # the peers of a wallet get pinged by htlc_switch
+        peer._ping_when_silent.assert_not_called()
+        peer.htlc_switch.assert_called_once_with()
+
+    async def test_stop_records_until_when_we_were_synced(self):
+        async def stop(g):
+            g.lnpeermgr.stop = mock.AsyncMock()
+            g.channel_db.save_synced_until = lambda ts: self.saved.append(ts) or util.get_asyncio_loop().create_future()
+            with mock.patch.object(lnworker, 'ignore_after', lambda secs: aiorpcx.ignore_after(0.01)):
+                await g.stop()
+        with self.subTest("caught up"):
+            g = self._lngossip(synced_until=self.NOW - 3600)
+            a = self._connect(g, 'a')
+            self._catch_up(g, a)
+            self._tick(g, {a: self.QUIET}, times=3)
+            had_gossip_until = self.now
+            self.now += 5
+            await stop(g)
+            self.assertEqual(had_gossip_until, self.saved[-1])
+        with self.subTest("stopped right after a suspend"):
+            self.saved.clear()
+            g = self._lngossip(synced_until=self.NOW - 3600)
+            a = self._connect(g, 'a')
+            self._catch_up(g, a)
+            self._tick(g, {a: self.QUIET})
+            had_gossip_until = self.now
+            self.now += 3 * 3600  # the tick has not noticed yet
+            await stop(g)
+            self.assertEqual(had_gossip_until, self.saved[-1])
+        with self.subTest("interrupted while catching up"):
+            self.saved.clear()
+            synced_until = self.NOW - 3600
+            g = self._lngossip(latest_ts=self.NOW, synced_until=synced_until)
+            a = self._connect(g, 'a')
+            self._tick(g, {a: self.BUSY}, times=5)
+            await stop(g)
+            self.assertEqual([synced_until], self.saved)
+        with self.subTest("interrupted while catching up, db without record"):
+            self.saved.clear()
+            g = self._lngossip(latest_ts=self.NOW - 3600)
+            a = self._connect(g, 'a')
+            self._tick(g, {a: self.BUSY}, times=5)
+            await stop(g)
+            self.assertEqual([], self.saved)
+        with self.subTest("stopped before the db got loaded"):
+            g = self._lngossip(synced_until=self.NOW - 3600)
+            await stop(g)
+            self.assertEqual([], self.saved)
 
 
 class TestChannelRangeMajority(ElectrumTestCase):
@@ -619,6 +1825,30 @@ class Test_LNRouter(ElectrumTestCase):
         add_channel(self.cdb, 3, 1_700_002_000)
         self.assertEqual(1_700_002_000, self.cdb.get_latest_policy_timestamp())
         self.assertEqual(1_700_001_000, self.cdb.latest_policy_ts_at_load)
+
+    async def test_synced_until_is_saved_and_loaded(self):
+        class fake_network:
+            config = self.config
+            asyncio_loop = util.get_asyncio_loop()
+            trigger_callback = lambda *args: None
+            register_callback = lambda *args: None
+            interface = None
+        cdb = lnrouter.ChannelDB(fake_network())
+        self.assertIsNone(cdb.synced_until_at_load)
+        await cdb.load_data()
+        self.assertIsNone(cdb.synced_until_at_load)  # a db from before we recorded it
+        await cdb.save_synced_until(1_700_000_000)
+        await cdb.save_synced_until(1_700_000_500.9)
+        self.assertIsNone(cdb.synced_until_at_load)
+        # it is on disk already, in case we get killed: another connection sees it
+        other = sqlite3.connect(cdb.path)
+        self.assertEqual([(1_700_000_500,)], other.execute("SELECT value FROM meta WHERE key='synced_until'").fetchall())
+        other.close()
+        cdb.stop()
+        await cdb.stopped_event.wait()
+        self.cdb = lnrouter.ChannelDB(fake_network())
+        await self.cdb.load_data()
+        self.assertEqual(1_700_000_500, self.cdb.synced_until_at_load)
 
     async def test_get_latest_policy_timestamp(self):
         self.prepare_graph()

@@ -351,6 +351,15 @@ PRIMARY KEY(short_channel_id)
 )"""
 
 
+# small integers that describe the state of the db itself
+create_meta = """
+CREATE TABLE IF NOT EXISTS meta (
+key TEXT NOT NULL,
+value INTEGER NOT NULL,
+PRIMARY KEY(key)
+)"""
+
+
 create_channel_info = """
 CREATE TABLE IF NOT EXISTS channel_info (
 short_channel_id BLOB(8),
@@ -427,6 +436,8 @@ class ChannelDB(SqlDB):
         self.data_loaded = asyncio.Event()
         # the newest policy before this session added any, i.e. about when we were last online
         self.latest_policy_ts_at_load = None  # type: Optional[int]
+        # until when a previous session had received all the gossip, if it recorded that
+        self.synced_until_at_load = None  # type: Optional[int]
         self.network = network # only for callback
 
     @classmethod
@@ -637,6 +648,7 @@ class ChannelDB(SqlDB):
         c.execute(create_policy)
         c.execute(create_channel_info)
         c.execute(create_orphaned_channel)
+        c.execute(create_meta)
         self.conn.commit()
 
     @sql
@@ -668,6 +680,18 @@ class ChannelDB(SqlDB):
         c.executemany("REPLACE INTO orphaned_channel (short_channel_id, timestamp) VALUES (?,?)",
                       [(bytes(scid), timestamp) for scid in short_channel_ids])
         c.execute("DELETE FROM orphaned_channel WHERE timestamp<=?", (cutoff,))
+
+    @sql
+    def _db_save_synced_until(self, timestamp: int):
+        c = self.conn.cursor()
+        c.execute("REPLACE INTO meta (key, value) VALUES ('synced_until', ?)", (timestamp,))
+        # The gossip saved so far is what makes this timestamp true, and a mobile OS can kill us
+        # at any time, so write both to disk now instead of waiting for the next periodic commit.
+        self.conn.commit()
+
+    def save_synced_until(self, timestamp: int) -> asyncio.Future:
+        """Records that we received all the gossip up to this time, see LNGossip."""
+        return self._db_save_synced_until(int(timestamp))
 
     @sql
     def _db_save_node_info(self, node_id: bytes, msg: bytes):
@@ -983,6 +1007,9 @@ class ChannelDB(SqlDB):
                          f'{len(self._channels_for_node)} nodes.')
         self.update_counts()
         self.latest_policy_ts_at_load = self.get_latest_policy_timestamp()
+        c.execute("SELECT value FROM meta WHERE key='synced_until'")
+        row = c.fetchone()
+        self.synced_until_at_load = int(row[0]) if row else None
         (nchans_with_0p, nchans_with_1p, nchans_with_2p) = self.get_num_channels_partitioned_by_policy_count()
         self.logger.info(f'num_channels_partitioned_by_policy_count. '
                          f'0p: {nchans_with_0p}, 1p: {nchans_with_1p}, 2p: {nchans_with_2p}')
