@@ -86,6 +86,8 @@ class ToyNetwork:
         return self.interface.blockchain
     def get_local_height(self) -> int:
         return self.blockchain().height()
+    def get_server_height(self) -> int:
+        return self.blockchain().height()
     def is_connected(self) -> bool:
         return True
 
