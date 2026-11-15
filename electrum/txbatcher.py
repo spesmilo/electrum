@@ -424,6 +424,7 @@ class TxBatch(Logger):
             return None
         tx = PartialTransaction.from_tx(wallet_tx)  # strips witness (hence rebroadcasting wallet_tx below)
         tx.add_info_from_wallet(self.wallet)  # this sets is_change
+        self.add_sweep_info_to_tx(tx)  # so that its size counts the witness of its sweep inputs
 
         if self.is_mine(txid):
             if self._base_tx is None:
