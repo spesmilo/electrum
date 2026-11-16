@@ -12,6 +12,7 @@ ItemDelegate {
     property string headline
     property string supporting
     property int supportingMaxLines: 2
+    property int headlineMaxLines: 1  // > 1: a long headline wraps instead of being elided
     property Component leading
     property Component trailing
     property url leadingIcon       // shortcut for a 24 dp icon in onSurfaceVariant
@@ -59,6 +60,8 @@ ItemDelegate {
                 role: 'bodyLarge'
                 text: root.headline
                 elide: Text.ElideRight
+                wrapMode: root.headlineMaxLines > 1 ? Text.Wrap : Text.NoWrap
+                maximumLineCount: root.headlineMaxLines
             }
             M3Text {
                 id: supportingText
