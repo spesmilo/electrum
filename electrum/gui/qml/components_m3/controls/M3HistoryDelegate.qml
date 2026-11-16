@@ -31,6 +31,7 @@ M3ListItem {
     // as the classic icon choice: complete and not local -> confirmations (0 = unconfirmed), else 'local'
     readonly property bool _local: !txLightning && !(txComplete && txSection != 'local')
     readonly property bool _unconfirmed: !txLightning && !_local && txConfirmations == 0
+    readonly property bool _fewConfirmations: !txLightning && !_local && txConfirmations > 0 && txConfirmations < 6
 
     property string _valueText
     property string _fiatText
@@ -40,14 +41,15 @@ M3ListItem {
     supportingMaxLines: 1
 
     headline: txLabel !== '' ? txLabel : qsTranslate('HistoryItemDelegate', '<no label>')
-    // unconfirmed and local rows: the status string of the model alone (it is long, and says on-chain)
+    // unconfirmed and local rows: the status string of the model alone (it is long, and says on-chain).
+    // 1-5 confirmations: the count first, then the date, without "On-chain" (only on-chain rows have
+    // confirmations, and the icon says it): a narrow row with a long amount elides the date, not the count.
     supporting: _local || _unconfirmed
         ? txDate
-        : (txLightning ? qsTranslate('BalanceSummary', 'Lightning') : qsTranslate('BalanceSummary', 'On-chain'))
-            + (txDate !== '' ? ' \u00B7 ' + txDate : '')
-            + (!txLightning && txConfirmations > 0 && txConfirmations < 6
-                ? ' \u00B7 ' + qsTr('%1 conf.').arg(txConfirmations)
-                : '')
+        : _fewConfirmations
+            ? qsTr('%1 conf.').arg(txConfirmations) + (txDate !== '' ? ' \u00B7 ' + txDate : '')
+            : (txLightning ? qsTranslate('BalanceSummary', 'Lightning') : qsTranslate('BalanceSummary', 'On-chain'))
+                + (txDate !== '' ? ' \u00B7 ' + txDate : '')
 
     Accessible.name: headline + ', ' + _valueText + ' ' + Config.baseUnit
 

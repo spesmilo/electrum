@@ -7,7 +7,7 @@ import org.electrum 1.0
 import "controls"
 
 // History tab: the full wallet history, M3HistoryDelegate rows under date sections.
-// repeats: components/History.qml:51-75 (sections), :97-106 (empty note), :150-176 (height updates,
+// repeats: components/History.qml:51-75 (sections), :94-103 (empty note), :150-176 (height updates,
 // delegate reset on a new wallet, model refresh when shown) @ 4f36c4489.
 // The model is lazy (it rebuilds only when dirty): initModel() runs when the tab is created, when a
 // wallet is loaded and whenever the tab becomes visible again (tab switch, back from a pushed page).

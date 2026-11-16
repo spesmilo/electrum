@@ -14,7 +14,7 @@ import "controls"
 // components/main.qml:214-241 (the network indicators of the classic header: testnet, gossip progress,
 // connection / synchronization / lagging server / chain fork / proxy, with the conditions of
 // components/controls/OnchainNetworkStatusIndicator.qml:10-14 and LightningNetworkStatusIndicator.qml:7-12)
-// @ 4f36c4489; components/History.qml:97-106, :170-176 (empty note, model refresh) @ 4f36c4489.
+// @ 4f36c4489; components/History.qml:94-103, :169-176 (empty note, model refresh) @ 4f36c4489.
 Item {
     id: root
 
@@ -44,6 +44,10 @@ Item {
     readonly property bool _synchronizing: Daemon.currentWallet !== null && Daemon.currentWallet.synchronizing
     // as BalanceSummary: the figures are hidden while offline or synchronizing
     readonly property bool _showBalance: !_synchronizing && Network.isConnected
+    // what is shown instead of the figures (also the accessible name then)
+    readonly property string _balanceStateText: Network.isConnected
+        ? (Daemon.currentWallet ? Daemon.currentWallet.synchronizingProgress : '')
+        : Network.serverStatus
 
     // --- network state, as the classic header indicators
     readonly property bool _connected: Network.isConnected
@@ -98,7 +102,10 @@ Item {
                 clickable: true
                 onClicked: app.stack.push(Qt.resolvedUrl('../components/BalanceDetails.qml'))
                 Accessible.role: Accessible.Button
-                Accessible.name: qsTranslate('BalanceSummary', 'Balance') + ' ' + root.formattedTotalBalance + ' ' + Config.baseUnit
+                // the figures only when they are shown, else the state shown instead
+                Accessible.name: qsTranslate('BalanceSummary', 'Balance') + ' ' + (root._showBalance
+                    ? root.formattedTotalBalance + ' ' + Config.baseUnit
+                    : root._balanceStateText)
 
                 ColumnLayout {
                     width: parent.width
@@ -146,9 +153,7 @@ Item {
                             role: 'headlineSmall'
                             color: m3.primaryContainerOn
                             wrapMode: Text.Wrap
-                            text: Network.isConnected
-                                ? (Daemon.currentWallet ? Daemon.currentWallet.synchronizingProgress : '')
-                                : Network.serverStatus
+                            text: root._balanceStateText
                         }
                     }
 
@@ -193,7 +198,7 @@ Item {
                     shape: 'large'
                     size: 56
                     icon.source: Qt.resolvedUrl('../../icons/m3/south_west.png')
-                    text: qsTr('Receive')
+                    text: qsTranslate('WalletMainView', 'Receive')
                     onClicked: root.paymentFlow.openReceiveDetailsDialog()
                     onPressAndHold: {
                         Config.userKnowsPressAndHold = true
@@ -209,7 +214,7 @@ Item {
                     shape: 'large'
                     size: 56
                     icon.source: Qt.resolvedUrl('../../icons/m3/north_east.png')
-                    text: qsTr('Send')
+                    text: qsTranslate('WalletMainView', 'Send')
                     enabled: root.paymentFlow
                         && !root.paymentFlow.invoiceParser.busy
                         && !root.paymentFlow.piResolver.busy

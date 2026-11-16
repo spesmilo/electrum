@@ -3,7 +3,7 @@ import QtQuick.Controls
 import QtQuick.Controls.Material
 
 // Material 3 card: a tonal container (no shadow, elevation by tone). Children go inside, with padding.
-// clickable: true adds a state layer and emits clicked().
+// clickable: true adds a state layer and emits clicked() on a tap anywhere on the card, padding included.
 Pane {
     id: root
 
@@ -16,6 +16,24 @@ Pane {
     padding: m3.space16
     Material.elevation: 0
 
+    // The handler belongs to the Pane itself (its `data`): a handler declared in the body would go to the
+    // content item (the default property contentData), which excludes the padding, and one inside
+    // `background` never sees the press (the background lies under the Pane, which accepts all buttons).
+    // longPressThreshold 0: a long hold still taps, as the MouseArea of the classic BalanceSummary.
+    data: [
+        TapHandler {
+            id: tap
+            enabled: root.clickable
+            longPressThreshold: 0
+            onTapped: root.clicked()
+        }
+    ]
+
+    Accessible.onPressAction: {
+        if (root.clickable)
+            root.clicked()
+    }
+
     background: Rectangle {
         color: root.color
         radius: root.radius
@@ -25,12 +43,6 @@ Pane {
             radius: parent.radius
             visible: root.clickable && tap.pressed
             color: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, m3.statePressed)
-        }
-
-        TapHandler {
-            id: tap
-            enabled: root.clickable
-            onTapped: root.clicked()
         }
     }
 }
