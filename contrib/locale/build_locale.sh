@@ -29,7 +29,14 @@ mkdir -p "$DST_DIR"
 for i in *; do
     dir="$DST_DIR/$i/LC_MESSAGES"
     mkdir -p "$dir"
-    (msgfmt --output-file="$dir/electrum.mo" "$i/electrum.po" || true)
+    # msgfmt also exits non-zero for files it compiles (e.g. a msgstr that lacks the trailing
+    # newline of its msgid), so the exit status is ignored and a missing .mo file is the error
+    rm -f "$dir/electrum.mo"
+    msgfmt --output-file="$dir/electrum.mo" "$i/electrum.po" || true
+    if [ ! -f "$dir/electrum.mo" ]; then
+        echo "msgfmt failed for $i"
+        exit 1
+    fi
 done
 
 echo "running stats.py"
