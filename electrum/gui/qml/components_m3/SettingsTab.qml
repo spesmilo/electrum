@@ -81,7 +81,7 @@ Item {
 
                 M3SwitchRow {
                     headline: qsTr('Thousands separator')
-                    supporting: qsTr('Add thousands separators to bitcoin amounts')
+                    supporting: qsTranslate('Preferences', 'Add thousands separators to bitcoin amounts')
                     checked: Config.thousandsSeparator
                     onUserToggled: (checked) => { Config.thousandsSeparator = checked }
                 }
@@ -110,7 +110,7 @@ Item {
                     onClicked: app.stack.pushOnRoot(Qt.resolvedUrl('../components/NetworkOverview.qml'))
                 }
                 M3ListItem {
-                    headline: qsTr('About')
+                    headline: qsTranslate('main', 'About')
                     leadingIcon: Qt.resolvedUrl('../../icons/m3/info.png')
                     trailing: chevron
                     onClicked: app.stack.pushOnRoot(Qt.resolvedUrl('../components/About.qml'))
@@ -127,6 +127,7 @@ Item {
                     tone: 'tertiary'
                     iconSource: Qt.resolvedUrl('../../icons/m3/info.png')
                     text: Network.networkName
+                    onClicked: app.stack.pushOnRoot(Qt.resolvedUrl('../components/NetworkOverview.qml'))
                 }
                 M3Chip {
                     tone: Network.isConnected ? '' : 'error'

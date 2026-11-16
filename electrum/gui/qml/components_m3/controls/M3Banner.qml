@@ -105,7 +105,7 @@ Item {
                     Layout.alignment: Qt.AlignRight
                     visible: !!root._clicked_fn
                     variant: 'text'
-                    Material.foreground: m3.tertiary
+                    contentColor: m3.tertiary
                     text: qsTr('Details')
                     onClicked: root._clicked_fn()
                 }

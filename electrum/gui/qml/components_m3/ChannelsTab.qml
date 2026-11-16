@@ -34,14 +34,14 @@ Item {
             role: 'bodyLarge'
             color: m3.surfaceVariantOn
             text: root._lightning
-                ? qsTr('You have %1 open channels').arg(Daemon.currentWallet.channelModel.numOpenChannels)
+                ? qsTranslate('Channels', 'You have %1 open channels').arg(Daemon.currentWallet.channelModel.numOpenChannels)
                 : qsTr('This wallet has no Lightning')
         }
         M3Button {
             Layout.alignment: Qt.AlignHCenter
             visible: root._lightning
             variant: 'tonal'
-            text: qsTr('Lightning Channels')
+            text: qsTranslate('Channels', 'Lightning Channels')
             onClicked: app.stack.pushOnRoot(Qt.resolvedUrl('../components/Channels.qml'))
         }
     }

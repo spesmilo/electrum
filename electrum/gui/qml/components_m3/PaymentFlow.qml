@@ -14,6 +14,8 @@ import "../components" as Classic
 // It holds the payment identifier resolver, the invoice parser and the dialog factories, which the
 // classic dialogs reach by id; the root id `mainView` is required (InvoiceDialog.qml refers to it).
 // Differences from the original are marked with `// M3:`; classic types carry the `Classic.` prefix.
+// M3: the strings keep the translation context of the classic file, qsTranslate('WalletMainView', ...)
+// instead of qsTr (which takes the context from the file name).
 Item {
     id: mainView
 
@@ -72,9 +74,9 @@ Item {
             text_help: helptext,
             text_warn: data[2]
                 ? ''
-                : [qsTr('Warning: Some data (prev txs / "full utxos") was left out of the QR code as it would not fit.'),
-                   qsTr('This might cause issues if signing offline.'),
-                   qsTr('As a workaround, copy to clipboard or use the Share option instead.')].join(' '),
+                : [qsTranslate('WalletMainView', 'Warning: Some data (prev txs / "full utxos") was left out of the QR code as it would not fit.'),
+                   qsTranslate('WalletMainView', 'This might cause issues if signing offline.'),
+                   qsTranslate('WalletMainView', 'As a workaround, copy to clipboard or use the Share option instead.')].join(' '),
             tx_label: data[3]
         })
         dialog.open()
@@ -118,18 +120,18 @@ Item {
         dialog.accepted.connect(function() {
             var finalizerDialog = confirmSweepDialog.createObject(mainView, {
                 privateKeys: dialog.privateKeys,
-                message: qsTr('Sweep transaction'),
+                message: qsTranslate('WalletMainView', 'Sweep transaction'),
                 showOptions: false,
-                amountLabelText: qsTr('Total sweep amount'),
+                amountLabelText: qsTranslate('WalletMainView', 'Total sweep amount'),
                 sendButtonText: Daemon.currentWallet.isWatchOnly
-                    ? qsTr('Sweep...')
-                    : qsTr('Sweep')
+                    ? qsTranslate('WalletMainView', 'Sweep...')
+                    : qsTranslate('WalletMainView', 'Sweep')
             })
             finalizerDialog.accepted.connect(function() {
                 if (Daemon.currentWallet.isWatchOnly) {
                     var confirmdialog = app.messageDialog.createObject(mainView, {
-                        title: qsTr('Confirm Sweep'),
-                        text: qsTr('Current wallet is watch-only. You might not be able to spend from these addresses.\n\nAre you sure?'),
+                        title: qsTranslate('WalletMainView', 'Confirm Sweep'),
+                        text: qsTranslate('WalletMainView', 'Current wallet is watch-only. You might not be able to spend from these addresses.\n\nAre you sure?'),
                         yesno: true
                     })
                     confirmdialog.accepted.connect(function() {
@@ -153,7 +155,7 @@ Item {
 
         onResolveError: (code, message) => {
             var dialog = app.messageDialog.createObject(app, {
-                title: qsTr('Error'),
+                title: qsTranslate('WalletMainView', 'Error'),
                 iconSource: Qt.resolvedUrl('../../icons/warning.png'),
                 text: message
             })
@@ -184,7 +186,7 @@ Item {
         }
         onLnurlError: (code, message) => {
             var dialog = app.messageDialog.createObject(app, {
-                title: qsTr('Error'),
+                title: qsTranslate('WalletMainView', 'Error'),
                 iconSource: Qt.resolvedUrl('../../icons/warning.png'),
                 text: message
             })
@@ -202,7 +204,7 @@ Item {
         wallet: Daemon.currentWallet
         onValidationError: (code, message) => {
             var dialog = app.messageDialog.createObject(app, {
-                title: qsTr('Error'),
+                title: qsTranslate('WalletMainView', 'Error'),
                 iconSource: Qt.resolvedUrl('../../icons/warning.png'),
                 text: message
             })
@@ -233,7 +235,7 @@ Item {
             dialog.open()
         }
         onInvoiceCreateError: (code, message) => {
-            var msg = qsTr('Cannot save invoice') + ': ' + message
+            var msg = qsTranslate('WalletMainView', 'Cannot save invoice') + ': ' + message
             var dialog = app.messageDialog.createObject(app, {
                 text: msg
             })
@@ -253,7 +255,7 @@ Item {
         }
         onLnurlError: (code, message) => {
             var dialog = app.messageDialog.createObject(app, {
-                title: qsTr('Error'),
+                title: qsTranslate('WalletMainView', 'Error'),
                 iconSource: Qt.resolvedUrl('../../icons/warning.png'),
                 text: message
             })
@@ -294,7 +296,7 @@ Item {
         function onRequestCreateError(error) {
             console.log(error)
             var dialog = app.messageDialog.createObject(app, {
-                title: qsTr('Error'),
+                title: qsTranslate('WalletMainView', 'Error'),
                 iconSource: Qt.resolvedUrl('../../icons/warning.png'),
                 text: error
             })
@@ -307,7 +309,7 @@ Item {
         }
         function onBroadcastFailed(txid, code, message) {
             var dialog = app.messageDialog.createObject(app, {
-                title: qsTr('Error'),
+                title: qsTranslate('WalletMainView', 'Error'),
                 iconSource: Qt.resolvedUrl('../../icons/warning.png'),
                 text: message
             })
@@ -315,15 +317,15 @@ Item {
         }
         function onPaymentFailed(invoice_id, message) {
             var dialog = app.messageDialog.createObject(app, {
-                title: qsTr('Error'),
+                title: qsTranslate('WalletMainView', 'Error'),
                 iconSource: Qt.resolvedUrl('../../icons/warning.png'),
-                text: message ? message : qsTr('Payment failed')
+                text: message ? message : qsTranslate('WalletMainView', 'Payment failed')
             })
             dialog.open()
         }
         function onImportChannelBackupFailed(message) {
             var dialog = app.messageDialog.createObject(app, {
-                title: qsTr('Error'),
+                title: qsTranslate('WalletMainView', 'Error'),
                 iconSource: Qt.resolvedUrl('../../icons/warning.png'),
                 text: message
             })
@@ -333,12 +335,12 @@ Item {
             // ln low reserve warning
             if (Daemon.currentWallet.isLowReserve) {
                 var message = [
-                    qsTr('You do not have enough on-chain funds to protect your Lightning channels.'),
-                    qsTr('You should have at least %1 on-chain in order to be able to sweep channel outputs.').arg(Config.formatSats(Config.lnUtxoReserve) + ' ' + Config.baseUnit)
+                    qsTranslate('WalletMainView', 'You do not have enough on-chain funds to protect your Lightning channels.'),
+                    qsTranslate('WalletMainView', 'You should have at least %1 on-chain in order to be able to sweep channel outputs.').arg(Config.formatSats(Config.lnUtxoReserve) + ' ' + Config.baseUnit)
                 ].join(' ')
                 infobanner.show(message, function() {
                     var dialog = app.messageDialog.createObject(app, {
-                        text: message + '\n\n' + qsTr('Do you want to perform a swap?'),
+                        text: message + '\n\n' + qsTranslate('WalletMainView', 'Do you want to perform a swap?'),
                         yesno: true
                     })
                     dialog.accepted.connect(function() {
@@ -376,7 +378,7 @@ Item {
                 } else if (invoice.invoiceType == Invoice.LightningInvoice) {
                     if (lninvoiceButPayOnchain) {
                         var dialog = app.messageDialog.createObject(mainView, {
-                            title: qsTr('Insufficient balance to pay over Lightning. Pay on-chain instead?'),
+                            title: qsTranslate('WalletMainView', 'Insufficient balance to pay over Lightning. Pay on-chain instead?'),
                             yesno: true
                         })
                         dialog.accepted.connect(function() {
@@ -451,7 +453,7 @@ Item {
         id: confirmPaymentDialog
         Classic.ConfirmTxDialog {
             id: _confirmPaymentDialog
-            title: qsTr('Confirm Payment')
+            title: qsTranslate('WalletMainView', 'Confirm Payment')
             finalizer: TxFinalizer {
                 wallet: Daemon.currentWallet
                 canRbf: true
@@ -461,15 +463,15 @@ Item {
                         if (wallet.isWatchOnly) {
                             // tx created in watchonly wallet. Show QR for signer(s)
                             if (wallet.isMultisig) {
-                                msg = qsTr('Transaction created. Present this QR code to one of the co-cigners or signing devices')
+                                msg = qsTranslate('WalletMainView', 'Transaction created. Present this QR code to one of the co-cigners or signing devices')
                             } else {
-                                msg = qsTr('Transaction created. Present this QR code to the signing device')
+                                msg = qsTranslate('WalletMainView', 'Transaction created. Present this QR code to the signing device')
                             }
                         } else {
                             if (signed) {
-                                msg = qsTr('Transaction created and partially signed by this wallet. Present this QR code to the next co-signer')
+                                msg = qsTranslate('WalletMainView', 'Transaction created and partially signed by this wallet. Present this QR code to the next co-signer')
                             } else {
-                                msg = qsTr('Transaction created but not signed by this wallet yet. Sign the transaction and present this QR code to the next co-signer')
+                                msg = qsTranslate('WalletMainView', 'Transaction created but not signed by this wallet yet. Sign the transaction and present this QR code to the next co-signer')
                             }
                         }
                         showExport(getSerializedTx(), msg)
@@ -478,8 +480,8 @@ Item {
                 }
                 onSignError: (message) => {
                     var dialog = app.messageDialog.createObject(mainView, {
-                        title: qsTr('Error'),
-                        text: [qsTr('Could not sign tx'), message].join('\n\n'),
+                        title: qsTranslate('WalletMainView', 'Error'),
+                        text: [qsTranslate('WalletMainView', 'Could not sign tx'), message].join('\n\n'),
                         iconSource: '../../../icons/warning.png'
                     })
                     dialog.open()
@@ -499,7 +501,7 @@ Item {
             id: _confirmSweepDialog
 
             property string privateKeys
-            title: qsTr('Confirm Sweep')
+            title: qsTranslate('WalletMainView', 'Confirm Sweep')
             satoshis: MAX
             finalizer: SweepFinalizer {
                 wallet: Daemon.currentWallet

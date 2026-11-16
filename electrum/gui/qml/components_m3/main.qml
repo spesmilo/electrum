@@ -64,24 +64,32 @@ ApplicationWindow
         && mainStackView.get(0).m3WalletRoot === true
         && Daemon.currentWallet != null
 
+    // M3: items taken from the classic menus keep the translation context of their classic file
+    // (qsTr takes it from the file name).
     M3Menu {
         id: m3Menu
+
+        // bindings: the menu sets its width from its items when it opens
+        x: app.width - m3Menu.width - m3.space8
+        y: toolbar.height - m3.space8
 
         function openPage(url) {
             stack.pushOnRoot(url)
         }
 
         MenuItem {
-            text: qsTr('Wallets')
+            text: qsTranslate('Wallets', 'Wallets')
+            // as "Other wallets" in the classic wallet menu: not on the Wallets page itself
+            enabled: !(mainStackView.currentItem && mainStackView.currentItem.objectName === 'Wallets')
             onTriggered: m3Menu.openPage(Qt.resolvedUrl('../components/Wallets.qml'))
         }
         MenuItem {
-            text: qsTr('Wallet details')
+            text: qsTranslate('WalletMainView', 'Wallet details')
             enabled: app._m3WalletRoot
             onTriggered: m3Menu.openPage(Qt.resolvedUrl('../components/WalletDetails.qml'))
         }
         MenuItem {
-            text: qsTr('Addresses/Coins')
+            text: qsTranslate('WalletMainView', 'Addresses/Coins')
             enabled: app._m3WalletRoot
             onTriggered: m3Menu.openPage(Qt.resolvedUrl('../components/Addresses.qml'))
         }
@@ -100,8 +108,8 @@ ApplicationWindow
         }
         MenuItem {
             text: app._m3WalletRoot && !Daemon.currentWallet.canSignMessage
-                ? qsTr('Verify Message')
-                : qsTr('Sign/Verify Message')
+                ? qsTranslate('WalletMainView', 'Verify Message')
+                : qsTranslate('WalletMainView', 'Sign/Verify Message')
             enabled: app._m3WalletRoot
             onTriggered: {
                 var dialog = app.signVerifyMessageDialog.createObject(app)
@@ -109,7 +117,7 @@ ApplicationWindow
             }
         }
         MenuItem {
-            text: qsTr('Sweep key(s)')
+            text: qsTranslate('WalletMainView', 'Sweep key(s)')
             enabled: app._m3WalletRoot
             onTriggered: mainStackView.get(0).startSweep()
         }
@@ -136,8 +144,6 @@ ApplicationWindow
     }
 
     function openM3Menu() {
-        m3Menu.x = app.width - m3Menu.width - m3.space8
-        m3Menu.y = toolbar.height - m3.space8
         m3Menu.open()
     }
 

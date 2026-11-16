@@ -18,7 +18,8 @@ Button {
         : variant === 'tonal'
             ? m3.secondaryContainer
             : 'transparent'  // outlined, text
-    readonly property color contentColor: variant === 'filled'
+    // may be overridden, e.g. a text button on a colored container (M3Banner)
+    property color contentColor: variant === 'filled'
         ? m3.primaryOn
         : variant === 'tonal'
             ? m3.secondaryContainerOn

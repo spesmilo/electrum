@@ -75,10 +75,14 @@ Pane {
                             { text: qsTr('Classic'), value: 'classic' },
                             { text: qsTr('Material 3'), value: 'material3' }
                         ]
-                        onCurrentValueChanged: {
-                            if (activeFocus) {
-                                if (Config.uiStyle != currentValue) {
-                                    Config.uiStyle = currentValue
+                        // user choice only; also when the shown item is chosen again, so that choosing
+                        // Classic after 'material3-failed' saves 'classic' (no restart: classic runs)
+                        onActivated: (index) => {
+                            var value = valueAt(index)
+                            if (Config.uiStyle != value) {
+                                var restart = Config.uiStyle == 'material3' || value == 'material3'
+                                Config.uiStyle = value
+                                if (restart) {
                                     var dialog = app.messageDialog.createObject(app, {
                                         text: qsTr('Please restart Electrum to activate the new GUI settings')
                                     })

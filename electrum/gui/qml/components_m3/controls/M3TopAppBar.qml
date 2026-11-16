@@ -30,6 +30,9 @@ ToolBar {
     topPadding: app.statusBarHeight
     leftPadding: 4
     rightPadding: 4
+    // the bar is 64 high below the status bar; the implicit height of the row (48) would make it
+    // only max(64, 48 + statusBarHeight) high
+    contentHeight: m3.topAppBarHeight
 
     background: Rectangle {
         implicitHeight: m3.topAppBarHeight

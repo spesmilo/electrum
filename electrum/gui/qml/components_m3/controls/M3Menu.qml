@@ -22,7 +22,9 @@ Menu {
 
     topPadding: 8
     bottomPadding: 8
-    width: Math.min(280, Math.max(200, _widest + 48 + 24))
+    // as wide as the widest item (at least 200), up to the window width minus the margins: a translated
+    // item is not elided (the Material 3 maximum of 280 is too narrow e.g. for Russian)
+    width: Math.min(parent ? parent.width - 2 * m3.space8 : 280, Math.max(200, _widest + 48 + 24))
     font.pixelSize: m3.textStyle('bodyLarge').size
 
     property real _widest: 0
