@@ -2051,6 +2051,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             coins: Optional[Sequence[PartialTxInput]] = None,
             outputs: List[PartialTxOutput],
             inputs: Optional[List[PartialTxInput]] = None,
+            num_pairs: int = 0,  # the first inputs and outputs are pairs, e.g. signed with SIGHASH_SINGLE
             fee_policy: FeePolicy,
             change_addr: str | None = None,
             require_change: bool = False,  # the tx has a change output, even if use_change is disabled
@@ -2135,8 +2136,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     lower_bound_feerate = int(base_feerate * size) + 1
                     lower_bound = max(lower_bound_feerate, lower_bound_relayfee)
                     return max(lower_bound, original_fee_estimator(size))
-                txi = base_tx.inputs() + list(inputs)
-                txo = list(filter(lambda o: not self.is_change(o.address), base_tx.outputs())) + list(outputs)
+                # new pairs first: the pairs of base_tx are first in base_tx, so they stay aligned too
+                txi = inputs[:num_pairs] + base_tx.inputs() + inputs[num_pairs:]
+                txo = outputs[:num_pairs] + list(filter(lambda o: not self.is_change(o.address), base_tx.outputs())) + outputs[num_pairs:]
                 old_change_addrs = [o.address for o in base_tx.outputs() if self.is_change(o.address)]
                 rbf_merge_txid = base_tx.txid()
             else:

@@ -1111,6 +1111,31 @@ class TestTxBatcher(ElectrumTestCase):
 
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_txin_txout_pairs_are_aligned(self, mock_save_db):
+        # tx1 pays o1 and o2. Its replacement adds a sweep input paired with an output, signed with
+        # SIGHASH_SINGLE: they are put first, at the same index, and the first input of tx1 is still _prevout
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        funding_tx = await self._fund_wallet(wallet)
+        add_swap_funding_tx(wallet)
+        for value in (10_000, 20_000):
+            wallet.txbatcher.add_payment_output('default', PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, value))
+        batch = wallet.txbatcher.tx_batches['default']
+        await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        first = tx1.inputs()[0].prevout
+        self.assertEqual(funding_tx.txid(), first.txid.hex())
+        sweep_txout = PartialTxOutput.from_address_and_value('tb1qy6xmdj96v5dzt3j08hgc05yk3kltqsnmw4r6ry', SWAPDATA.onchain_amount)
+        sweep_info = SWAP_SWEEP_INFO._replace(txout=sweep_txout)
+        wallet.txbatcher.add_sweep_input('default', sweep_info)
+        await batch.run_iteration()
+        tx1_prime = await self.network.next_tx()
+        self.assertEqual(sweep_info.txin.prevout, tx1_prime.inputs()[0].prevout)
+        self.assertEqual(sweep_txout, tx1_prime.outputs()[0])
+        self.assertIn(first, [txin.prevout for txin in tx1_prime.inputs()])
+        self.assertEqual(first.to_str(), batch.storage['prevout'])
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_sweep_from_submarine_swap(self, mock_save_db):
         self.maxDiff = None
         # create wallet

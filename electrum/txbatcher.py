@@ -679,6 +679,7 @@ class TxBatch(Logger):
             if sweep_info.txout:
                 outputs.append(sweep_info.txout)
         self.logger.info(f'locktime: {locktime}')
+        num_pairs = len(outputs)  # so far, the txouts of the pairs
         outputs += to_pay
         # create tx
         # a replacement that adds an unconfirmed coin is rejected by Bitcoin Core v30 and older (BIP125 rule 2)
@@ -690,6 +691,7 @@ class TxBatch(Logger):
             base_tx=base_tx,
             inputs=inputs,
             outputs=outputs,
+            num_pairs=num_pairs,
             locktime=locktime,
             BIP69_sort=False,
             merge_duplicate_outputs=False,
