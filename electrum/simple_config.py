@@ -926,6 +926,10 @@ Warning: setting this to too low will result in lots of payment failures."""),
         'logs_num_files_keep', default=30, type_=int,
         long_desc=lambda: _("Old log files get deleted on startup, with only the newest few being kept."),
     )
+    LOGS_SHARING_KEY = ConfigVar(
+        'logs_sharing_key', default=None, type_=str,
+        long_desc=lambda: _("Secret key of the labels that replace private data in the logs the user shares."),
+    )
     LOGS_MAX_TOTAL_SIZE_BYTES = ConfigVar(
         'logs_max_total_size', default=200_000_000, type_=int,
         long_desc=lambda: _(
