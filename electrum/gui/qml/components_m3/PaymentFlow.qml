@@ -16,6 +16,13 @@ import "../components" as Classic
 // Differences from the original are marked with `// M3:`; classic types carry the `Classic.` prefix.
 // M3: the strings keep the translation context of the classic file, qsTranslate('WalletMainView', ...)
 // instead of qsTr (which takes the context from the file name).
+// M3: the adaptation points open the Material 3 SendPage / InvoicePage instead of the classic SendDialog /
+// InvoiceDialog: openInvoice, openSendDialog, closeSendDialog, restartSendDialog, onValidationSuccess, plus
+// dispatch() (repeats: components/SendDialog.qml:40-85 @ 4f36c4489) and doPay() (the onDoPay handler of the
+// classic InvoiceDialog factory, WalletMainView.qml:508-536 @ 4f36c4489, one function for both invoice screens).
+// M3: SendPage.qml and InvoicePage.qml are loaded by URL when they are opened, not as types of this file: a defect
+// in one of them must not break this file and with it the root of the wallet; when a page cannot be loaded, the
+// classic SendDialog / InvoiceDialog is opened instead (logged), so that sending still works.
 Item {
     id: mainView
 
@@ -30,6 +37,9 @@ Item {
         dialog.open()
     }
 
+    // M3: fallback, one edit back to the classic InvoiceDialog (the classic factory below is kept for it)
+    property bool useClassicInvoiceDialog: false
+
     property var _sendDialog
 
     property string _request_amount
@@ -38,9 +48,19 @@ Item {
 
     function openInvoice(key) {
         invoice.key = key
-        var dialog = invoiceDialog.createObject(app, { invoice: invoice })
-        dialog.open()
-        return dialog
+        if (useClassicInvoiceDialog) {
+            var dialog = invoiceDialog.createObject(app, { invoice: invoice })
+            dialog.open()
+            return dialog
+        }
+        // M3: the Material 3 InvoicePage (same contract as InvoiceDialog: invoiceAmountChanged, close())
+        var page = _showPage(Qt.resolvedUrl('InvoicePage.qml'), { flow: mainView, invoice: invoice })
+        if (page && page.m3InvoicePage === true)
+            return page
+        console.log('M3: InvoicePage unavailable, opening the classic InvoiceDialog')
+        var classicdialog = invoiceDialog.createObject(app, { invoice: invoice })
+        classicdialog.open()
+        return classicdialog
     }
 
     function openRequest(key) {
@@ -49,14 +69,40 @@ Item {
         return dialog
     }
 
-    function openSendDialog() {
-        _sendDialog = qtSendDialog.createObject(mainView, {invoiceParser: invoiceParser, piResolver: piResolver})
-        _sendDialog.open()
+    // M3: loads a Material 3 page of this flow; null (and the error in the log) when it cannot be loaded.
+    // The stack is touched only with a ready component: a push or replace of a page that fails to load leaves
+    // StackView in a broken state (measured on the stand: after a failed replace, popping the page below kept
+    // it on the screen) and returns the current item instead of null.
+    function _loadPage(url) {
+        var component = Qt.createComponent(url)
+        if (component.status !== Component.Ready) {
+            console.log('M3: cannot load ' + url + ': ' + component.errorString())
+            return null
+        }
+        return component
     }
 
+    // M3: the Material 3 SendPage on the stack instead of the classic SendDialog
+    function openSendDialog() {
+        var component = _loadPage(Qt.resolvedUrl('SendPage.qml'))
+        var page = component ? app.stack.push(component, { flow: mainView }) : null
+        if (page && page.m3SendPage === true) {
+            _sendDialog = page
+        } else {
+            console.log('M3: SendPage unavailable, opening the classic SendDialog')
+            _sendDialog = qtSendDialog.createObject(mainView, {invoiceParser: invoiceParser, piResolver: piResolver})
+            _sendDialog.open()
+        }
+    }
+
+    // M3: takes SendPage off the stack, only when it is on top (the page clears _sendDialog itself
+    // when it leaves the stack otherwise, e.g. by the back button while a recipient is resolved)
     function closeSendDialog() {
         if (_sendDialog) {
-            _sendDialog.doClose()
+            if (_sendDialog.m3Page !== true)
+                _sendDialog.doClose()  // the classic SendDialog (fallback)
+            else if (app.stack.currentItem === _sendDialog)
+                app.stack.pop()
             _sendDialog = null
         }
     }
@@ -64,6 +110,142 @@ Item {
     function restartSendDialog() {
         if (_sendDialog) {
             _sendDialog.restart()
+        }
+    }
+
+    // M3: shows a page that follows the recipient input (InvoicePage, TxDetails): it replaces SendPage
+    // when SendPage is on top, otherwise it is pushed, so that a scan or a link never takes away the page
+    // the user is on. An InvoicePage on top that shows the same invoice object is replaced as well: it would
+    // only duplicate the new page (both bound to the one object).
+    // Returns the new page, or null when it could not be loaded (the stack is then unchanged).
+    function _showPage(url, properties) {
+        var component = _loadPage(url)
+        if (!component)
+            return null
+        var top = app.stack.currentItem
+        var page
+        if (top && (top === _sendDialog
+                    || (top.m3InvoicePage === true && properties.invoice && top.invoice === properties.invoice))) {
+            page = app.stack.replace(top, component, properties)
+        } else {
+            page = app.stack.push(component, properties)
+        }
+        if (!page || page === top)
+            return null
+        if (top === _sendDialog)
+            _sendDialog = null
+        return page
+    }
+
+    // M3: opens the invoice screen for a validated invoice (onValidationSuccess)
+    function _openParsedInvoice() {
+        if (useClassicInvoiceDialog) {
+            closeSendDialog()
+            var dialog = invoiceDialog.createObject(app, {
+                invoice: invoiceParser,
+                payImmediately: invoiceParser.isLnurlPay
+            })
+            dialog.open()
+            return
+        }
+        var page = _showPage(Qt.resolvedUrl('InvoicePage.qml'), {
+            flow: mainView,
+            invoice: invoiceParser,
+            payImmediately: invoiceParser.isLnurlPay
+        })
+        if (!page || page.m3InvoicePage !== true) {
+            console.log('M3: InvoicePage unavailable, opening the classic InvoiceDialog')
+            closeSendDialog()
+            var classicdialog = invoiceDialog.createObject(app, {
+                invoice: invoiceParser,
+                payImmediately: invoiceParser.isLnurlPay
+            })
+            classicdialog.open()
+        }
+    }
+
+    // M3: repeats components/SendDialog.qml:76-85 (dispatch) with its handlers onTxFound (:40-43) and
+    // onChannelBackupFound (:45-66) @ 4f36c4489. Called by SendPage and by a scan outside SendPage.
+    function dispatch(data) {
+        data = data.trim()
+        if (bitcoin.isRawTx(data)) {
+            _showPage(Qt.resolvedUrl('../components/TxDetails.qml'), { rawtx: data })
+        } else if (Daemon.currentWallet.isValidChannelBackup(data)) {
+            if (!Daemon.currentWallet.isLightning) {
+                var errdialog = app.messageDialog.createObject(app, {
+                    title: qsTranslate('SendDialog', 'Cannot import Channel Backup, Lightning not enabled.')
+                })
+                errdialog.open()
+                return
+            }
+            var dialog = app.messageDialog.createObject(app, {
+                title: qsTranslate('SendDialog', 'Import Channel Backup?'),
+                yesno: true
+            })
+            dialog.accepted.connect(function() {
+                Daemon.currentWallet.importChannelBackup(data)
+                closeSendDialog()
+            })
+            dialog.rejected.connect(function() {
+                closeSendDialog()
+            })
+            dialog.open()
+        } else {
+            piResolver.recipient = data
+        }
+    }
+
+    // M3: the hint of the classic scanner (SendDialog.qml:103-105)
+    function scanHint() {
+        return Daemon.currentWallet.isLightning
+            ? qsTranslate('SendDialog', 'Scan an Invoice, an Address, an LNURL, a PSBT or a Channel Backup')
+            : qsTranslate('SendDialog', 'Scan an Invoice, an Address, an LNURL or a PSBT')
+    }
+
+    // M3: the classic camera (ScanDialog) for a recipient; the found text goes to onFound (if given, e.g. the
+    // field of SendPage) and to dispatch(). For SendPage and for a scan action outside it.
+    function scanRecipient(onFound) {
+        var dialog = app.scanDialog.createObject(app, { hint: scanHint() })
+        dialog.onFoundText.connect(function(data) {
+            dialog.close()
+            if (onFound)
+                onFound(data)
+            dispatch(data)
+        })
+        dialog.open()
+        return dialog
+    }
+
+    // M3: the onDoPay handler of the classic InvoiceDialog factory (WalletMainView.qml:508-536 @ 4f36c4489),
+    // moved into one function for both invoice screens; `invoicedialog` is the InvoicePage or InvoiceDialog
+    // (payOnchain stores the txid in its broadcastTxid).
+    function doPay(invoicedialog, invoice) {
+        var lninvoiceButPayOnchain = false
+        if (invoice.invoiceType == Invoice.LightningInvoice && invoice.address) {
+            // ln invoice with fallback
+            var amountToSend = invoice.amountOverride.isEmpty
+                ? invoice.amount.satsInt
+                : invoice.amountOverride.satsInt
+            if (amountToSend > Daemon.currentWallet.lightningCanSend.satsInt) {
+                lninvoiceButPayOnchain = true
+            }
+        }
+        if (invoice.invoiceType == Invoice.OnchainInvoice) {
+            payOnchain(invoicedialog, invoice)
+        } else if (invoice.invoiceType == Invoice.LightningInvoice) {
+            if (lninvoiceButPayOnchain) {
+                var dialog = app.messageDialog.createObject(mainView, {
+                    title: qsTranslate('WalletMainView', 'Insufficient balance to pay over Lightning. Pay on-chain instead?'),
+                    yesno: true
+                })
+                dialog.accepted.connect(function() {
+                    payOnchain(invoicedialog, invoice)
+                })
+                dialog.open()
+            } else {
+                console.log('About to pay lightning invoice')
+                invoice.payLightningInvoice()
+            }
         }
     }
 
@@ -227,12 +409,8 @@ Item {
             }
         }
         onValidationSuccess: {
-            closeSendDialog()
-            var dialog = invoiceDialog.createObject(app, {
-                invoice: invoiceParser,
-                payImmediately: invoiceParser.isLnurlPay
-            })
-            dialog.open()
+            // M3: InvoicePage, or the classic InvoiceDialog when useClassicInvoiceDialog
+            _openParsedInvoice()
         }
         onInvoiceCreateError: (code, message) => {
             var msg = qsTranslate('WalletMainView', 'Cannot save invoice') + ': ' + message
@@ -362,35 +540,8 @@ Item {
             width: parent.width
             height: parent.height
 
-            onDoPay: {
-                var lninvoiceButPayOnchain = false
-                if (invoice.invoiceType == Invoice.LightningInvoice && invoice.address) {
-                    // ln invoice with fallback
-                    var amountToSend = invoice.amountOverride.isEmpty
-                        ? invoice.amount.satsInt
-                        : invoice.amountOverride.satsInt
-                    if (amountToSend > Daemon.currentWallet.lightningCanSend.satsInt) {
-                        lninvoiceButPayOnchain = true
-                    }
-                }
-                if (invoice.invoiceType == Invoice.OnchainInvoice) {
-                    payOnchain(_invoiceDialog, invoice)
-                } else if (invoice.invoiceType == Invoice.LightningInvoice) {
-                    if (lninvoiceButPayOnchain) {
-                        var dialog = app.messageDialog.createObject(mainView, {
-                            title: qsTranslate('WalletMainView', 'Insufficient balance to pay over Lightning. Pay on-chain instead?'),
-                            yesno: true
-                        })
-                        dialog.accepted.connect(function() {
-                            payOnchain(_invoiceDialog, invoice)
-                        })
-                        dialog.open()
-                    } else {
-                        console.log('About to pay lightning invoice')
-                        invoice.payLightningInvoice()
-                    }
-                }
-            }
+            // M3: one doPay() for both invoice screens
+            onDoPay: mainView.doPay(_invoiceDialog, _invoiceDialog.invoice)
 
             onClosed: destroy()
 
@@ -403,6 +554,7 @@ Item {
         }
     }
 
+    // M3: the classic SendDialog, only as the fallback when SendPage cannot be loaded
     Component {
         id: qtSendDialog
         Classic.SendDialog {}
