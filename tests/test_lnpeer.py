@@ -2481,13 +2481,13 @@ class TestPeerForwarding(TestPeer):
              bd.hex(): hint(can=[(d, b, 8_000_000)], cannot=[(b, d, 8_000_000)]),
              ab.hex(): hint(can=[(b, a, 1_000_000)])},
             sorted([(c.hex(), a.hex(), 7_000_000, policy), (b.hex(), d.hex(), 8_000_000, policy)]),
-            {a.hex(): {c.hex(): [7_000_000]}, d.hex(): {b.hex(): [8_000_000]}},
+            {a.hex(): {c.hex(): [7_000_000, policy]}, d.hex(): {b.hex(): [8_000_000, policy]}},
         ), amounts(saved_by_dave))
         saved_by_alice = json.loads(alice.db.get(LNWallet.LIQUIDITY_HINTS_DB_KEY))
         self.assertEqual((
             {ab.hex(): hint(can=[(a, b, 5_000_000)]), bd.hex(): hint(can=[(d, b, 5_000_000)], cannot=[(b, d, 5_000_000)])},
             [(b.hex(), d.hex(), 5_000_000, policy)],
-            {d.hex(): {b.hex(): [5_000_000]}},
+            {d.hex(): {b.hex(): [5_000_000, policy]}},
         ), amounts(saved_by_alice))
         # after a restart of the gossip, the new path finder gets what the wallets have
         alice.network.path_finder = dave.network.path_finder = LNPathFinder(alice.network.channel_db)

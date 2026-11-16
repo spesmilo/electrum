@@ -30,7 +30,7 @@ from electrum.lnrouter import (PathEdge, LiquidityHintMgr, DEFAULT_PENALTY_PROPO
                                fee_for_edge_msat, LNPaymentTRoute, TrampolineEdge,
                                HINT_DURATION, PAIR_FAILURE_PENALTY_FACTOR, RouteEdge,
                                FAILURE_MEMORY_DURATION, OLD_FAILURE_PENALTY_FACTOR,
-                               NODE_FAILURE_MIN_SENDERS, NODE_FAILURE_PENALTY_FACTOR,
+                               NODE_FAILURE_MIN_SENDERS, NODE_FAILURE_PENALTY_FACTOR, NODE_FAILURE_PRICE_STEP,
                                OFFLINE_NODE_DURATION, MAX_OUTDATED_POLICIES_PER_PAIR)
 
 from . import ElectrumTestCase
@@ -1232,12 +1232,15 @@ class Test_LNRouter(ElectrumTestCase):
         # when several nodes failed to forward an amount to the same node, its inbound liquidity is
         # probably drained, and its other incoming channels will likely fail too.
         # Penalties: for 1_000_000 msat, 1000 + 100 msat, and 11 times that for such a node.
-        self.assertEqual((3, 10), (NODE_FAILURE_MIN_SENDERS, NODE_FAILURE_PENALTY_FACTOR))
+        self.assertEqual((2, 10), (NODE_FAILURE_MIN_SENDERS, NODE_FAILURE_PENALTY_FACTOR))
         hints = LiquidityHintMgr()
         a, b, c, d, y = node('a'), node('b'), node('c'), node('d'), node('y')
         hints.update_cannot_send(a, y, channel(1), amount_msat=1_000_000)
-        hints.update_cannot_send(b, y, channel(2), amount_msat=1_000_000)
+        self.assertEqual(1100, hints.penalty(d, y, channel(4), amount_msat=1_000_000))  # one node is not several
+        hints.update_cannot_send(a, y, channel(9), amount_msat=1_000_000)  # nor is another channel of the same node
         self.assertEqual(1100, hints.penalty(d, y, channel(4), amount_msat=1_000_000))
+        hints.update_cannot_send(b, y, channel(2), amount_msat=1_000_000)
+        self.assertEqual(12100, hints.penalty(d, y, channel(4), amount_msat=1_000_000))
         hints.update_cannot_send(c, y, channel(3), amount_msat=900_000)
         self.assertEqual(12100, hints.penalty(d, y, channel(4), amount_msat=1_000_000))
         # not below the amounts that failed, not from y, not to another node
@@ -1248,13 +1251,101 @@ class Test_LNRouter(ElectrumTestCase):
         self.assertEqual(12100, hints.penalty(c, y, channel(8), amount_msat=1_000_000))
         # a successful forward to y contradicts the failures of up to that amount, included
         hints.update_can_send(d, y, channel(4), amount_msat=900_000)
+        self.assertEqual(12100, hints.penalty(d, y, channel(7), amount_msat=1_000_000))  # a and b failed for more
+        hints.update_can_send(d, y, channel(4), amount_msat=1_000_000)
         self.assertEqual(1100, hints.penalty(d, y, channel(7), amount_msat=1_000_000))
         self.assertEqual(0, hints.penalty(d, y, channel(4), amount_msat=900_000))
         # reset
         hints.update_cannot_send(c, y, channel(3), amount_msat=1_000_000)
+        hints.update_cannot_send(a, y, channel(1), amount_msat=1_000_000)
         self.assertEqual(12100, hints.penalty(d, y, channel(7), amount_msat=1_000_000))
         hints.reset_liquidity_hints()
         self.assertEqual(1100, hints.penalty(d, y, channel(7), amount_msat=1_000_000))
+
+    def test_channels_into_a_node_that_cannot_receive_are_tried_from_about_twice_the_fee_that_failed(self):
+        # where liquidity is scarce it is expensive: not from the cheapest channel up, one by one
+        self.assertEqual(2, NODE_FAILURE_PRICE_STEP)
+        a, b, c, d, y = node('a'), node('b'), node('c'), node('d'), node('y')
+        amount_msat = 1_000_000  # so that the fee in msat is the rate in ppm, plus the base fee
+        node_failed = (1 + NODE_FAILURE_PENALTY_FACTOR) * 1100
+        def policy(ppm, base=0):
+            return base, ppm, 40
+        def penalty(hints, ppm, *, node_from=d, base=0, number=4):
+            return hints.penalty(node_from, y, channel(number), amount_msat=amount_msat, policy=policy(ppm, base))
+        hints = LiquidityHintMgr()
+        hints.update_cannot_send(a, y, channel(1), amount_msat=amount_msat, policy=policy(100))
+        self.assertEqual(1100, penalty(hints, 50))  # one node is not several
+        hints.update_cannot_send(b, y, channel(2), amount_msat=amount_msat, policy=policy(200))
+        # the highest fee that failed is 200: a channel that charges less than 400 gets twice what it lacks
+        for ppm, price_penalty in ((0, 800), (50, 700), (200, 400), (300, 200), (399, 2), (400, 0), (800, 0), (5000, 0)):
+            self.assertEqual(node_failed + price_penalty, penalty(hints, ppm), msg=ppm)
+        # the base fee counts as well: 150 + 50 ppm is 200
+        self.assertEqual(node_failed + 400, penalty(hints, 50, base=150))
+        # so with its fee added, a channel is the cheapest to try at twice the fee that failed,
+        # and gets more expensive the further from that it is, on either side
+        costs = [ppm + penalty(hints, ppm) for ppm in (0, 100, 200, 300, 399, 400, 500, 700, 800)]
+        self.assertEqual(min(costs), costs[5])
+        self.assertEqual(sorted(costs[:6], reverse=True), costs[:6])
+        self.assertEqual(sorted(costs[5:]), costs[5:])
+        self.assertLess(costs[7], costs[0])  # 700 comes before the cheapest ones
+        self.assertEqual(costs[8], costs[0])  # at 4 times the fee that failed, a channel costs what a free one does
+        # the other channels of the nodes that failed get it too, on top of what the pair gets
+        self.assertEqual(node_failed + PAIR_FAILURE_PENALTY_FACTOR * 1100 + 700, penalty(hints, 50, node_from=a, number=8))
+        # a more expensive channel fails: the step is from there
+        hints.update_cannot_send(c, y, channel(3), amount_msat=amount_msat, policy=policy(450))
+        self.assertEqual(node_failed + 2 * (900 - 500), penalty(hints, 500))
+        self.assertEqual(node_failed, penalty(hints, 900))
+        # of the channels of one node that failed, the most expensive counts, whatever the order
+        hints.update_cannot_send(c, y, channel(5), amount_msat=amount_msat, policy=policy(300))
+        self.assertEqual(node_failed, penalty(hints, 900))
+        self.assertEqual(node_failed + 2 * (900 - 700), penalty(hints, 700))
+        hints.update_cannot_send(c, y, channel(6), amount_msat=amount_msat, policy=policy(600))
+        self.assertEqual(node_failed + 2 * (1200 - 900), penalty(hints, 900))
+        # not below the amounts that failed, not to another node, not without the policy of the channel
+        self.assertEqual(990, hints.penalty(d, y, channel(4), amount_msat=900_000, policy=policy(50)))
+        self.assertEqual(1100, hints.penalty(d, a, channel(4), amount_msat=amount_msat, policy=policy(50)))
+        self.assertEqual(node_failed, hints.penalty(d, y, channel(4), amount_msat=amount_msat))
+        # a channel that is known to be able to forward the amount is free as before
+        hints.update_can_send(d, y, channel(7), amount_msat=amount_msat // 2, policy=policy(50))
+        self.assertEqual(0, hints.penalty(d, y, channel(7), amount_msat=amount_msat // 2, policy=policy(50)))
+        # a forward of the amount to y ends it
+        hints.update_can_send(d, y, channel(7), amount_msat=amount_msat, policy=policy(50))
+        self.assertEqual(1100, penalty(hints, 300))
+        self.assertEqual({}, hints._node_failed_policies)
+
+    def test_fee_of_the_channels_into_a_node_does_not_count_if_we_do_not_know_what_those_that_failed_charge(self):
+        a, b, d, y = node('a'), node('b'), node('d'), node('y')
+        node_failed = (1 + NODE_FAILURE_PENALTY_FACTOR) * 1100
+        hints = LiquidityHintMgr()
+        hints.update_cannot_send(a, y, channel(1), amount_msat=1_000_000)
+        hints.update_cannot_send(b, y, channel(2), amount_msat=1_000_000)
+        self.assertEqual(node_failed, hints.penalty(d, y, channel(4), amount_msat=1_000_000, policy=(0, 50, 40)))
+        # of one of them we do
+        hints.update_cannot_send(b, y, channel(3), amount_msat=1_000_000, policy=(0, 200, 40))
+        self.assertEqual(node_failed + 700, hints.penalty(d, y, channel(4), amount_msat=1_000_000, policy=(0, 50, 40)))
+        # a later failure of it that comes without the policy: we cannot tell any more
+        hints.update_cannot_send(b, y, channel(5), amount_msat=1_000_000)
+        self.assertEqual(node_failed, hints.penalty(d, y, channel(4), amount_msat=1_000_000, policy=(0, 50, 40)))
+
+    def test_fee_of_the_channels_that_failed_into_a_node_expires_and_is_reset_with_the_failures(self):
+        a, b, d, y = node('a'), node('b'), node('d'), node('y')
+        node_failed = (1 + NODE_FAILURE_PENALTY_FACTOR) * 1100
+        start = mock_time = 1_000_000
+        with mock.patch.object(lnrouter, 'now', lambda: mock_time):
+            hints = LiquidityHintMgr()
+            hints.update_cannot_send(a, y, channel(1), amount_msat=1_000_000, policy=(0, 100, 40))
+            mock_time = start + HINT_DURATION - 10
+            hints.update_cannot_send(b, y, channel(2), amount_msat=1_000_000, policy=(0, 50, 40))
+            self.assertEqual(node_failed + 2 * (200 - 20), hints.penalty(d, y, channel(4), amount_msat=1_000_000, policy=(0, 20, 40)))
+            # the failure of a expires: one node is left, and its fee does not count by itself
+            mock_time = start + HINT_DURATION + 1
+            self.assertEqual(1100, hints.penalty(d, y, channel(4), amount_msat=1_000_000, policy=(0, 20, 40)))
+            # a fails again, for less: what counts is what failed this time
+            hints.update_cannot_send(a, y, channel(1), amount_msat=1_000_000, policy=(0, 30, 40))
+            self.assertEqual(node_failed + 2 * (100 - 20), hints.penalty(d, y, channel(4), amount_msat=1_000_000, policy=(0, 20, 40)))
+            hints.reset_liquidity_hints()
+            self.assertEqual({}, hints._node_failed_policies)
+            self.assertEqual(1100, hints.penalty(d, y, channel(4), amount_msat=1_000_000, policy=(0, 20, 40)))
 
     def test_liquidity_hints_of_a_node_keep_the_smallest_amount_that_failed_per_node(self):
         hints = LiquidityHintMgr()
@@ -1608,6 +1699,37 @@ class Test_LNRouter(ElectrumTestCase):
             hints.update_can_send(a, b, channel(3), amount_msat=1_000_000, policy=policy)
             self.assertEqual(default(1_000_000), hints.penalty(a, b, channel(2), amount_msat=1_000_000, policy=policy))
 
+    async def test_find_path_steps_up_the_fees_of_the_channels_into_a_node_that_cannot_receive(self):
+        # s - h - a1..a6 - x - d: the channels a_i -> x charge more and more, the rest is free
+        s, h, x, d = node('s'), node('h'), node('x'), node('d')
+        senders = {character: node(character) for character in 'abcefg'}
+        fees = {'a': 100, 'b': 110, 'c': 120, 'e': 130, 'f': 250, 'g': 600}  # ppm of their channel to x
+        free = (0, 0, 40)
+        chans = [(40, s, h, free, free), (59, x, d, free, free)]
+        for i, (character, sender) in enumerate(senders.items()):
+            chans.append((41 + i, h, sender, free, free))
+            chans.append((51 + i, sender, x, (0, fees[character], 40), free))
+        self._make_graph(chans)
+        amount_msat = 1_000_000
+        by_node = {sender: character for character, sender in senders.items()}
+        tried = []
+        def try_next_path():
+            path = self.path_finder.find_path_for_payment(nodeA=s, nodeB=d, invoice_amount_msat=amount_msat)
+            self.assertEqual([h, x, d], [edge.end_node for edge in path if edge.end_node not in by_node])
+            route = self.path_finder.create_route_from_path(path)
+            tried.append(by_node[route[2].start_node])
+            # the channel into x cannot forward
+            self.path_finder.update_liquidity_hints(route, amount_msat, failing_channel=route[2].short_channel_id)
+        for _ in range(len(senders)):
+            try_next_path()
+        # The two cheapest, then not the next cheapest ones: 250 is the first at twice the 110 that failed,
+        # and 600 the first at twice 250. The cheap ones that got skipped are not excluded: they come last.
+        self.assertEqual(['a', 'b', 'f', 'g', 'e', 'c'], tried)
+        self.assertIsNone(self.path_finder.find_path_for_payment(nodeA=s, nodeB=d, invoice_amount_msat=amount_msat))
+        # a smaller amount is not affected
+        path = self.path_finder.find_path_for_payment(nodeA=s, nodeB=d, invoice_amount_msat=amount_msat // 2)
+        self.assertEqual(senders['a'], path[1].end_node)
+
     async def test_find_path_tries_a_channel_with_an_old_failure_after_others_but_does_not_exclude_it(self):
         s, a, b, d = node('s'), node('a'), node('b'), node('d')
         free, one_sat = (0, 0, 40), (1000, 0, 40)
@@ -1681,10 +1803,22 @@ class Test_LNRouter(ElectrumTestCase):
         self.assertEqual(0, restored.penalty(a, b, channel(1), amount_msat=200_000, policy=policy))
         self.assertEqual(0, restored.penalty(b, a, channel(2), amount_msat=300_000, policy=policy))
         self.assertEqual(default(250_000), restored.penalty(a, b, channel(1), amount_msat=250_000, policy=policy))
-        self.assertEqual((1 + NODE_FAILURE_PENALTY_FACTOR) * default(500_000),
+        # (the channels that failed into b charge as much as this one: it gets twice what it lacks to their double)
+        self.assertEqual((1 + NODE_FAILURE_PENALTY_FACTOR) * default(500_000) + 2 * (1000 + 50),
                          restored.penalty(x, b, channel(15), amount_msat=500_000, policy=policy))
-        self.assertEqual((1 + PAIR_FAILURE_PENALTY_FACTOR + NODE_FAILURE_PENALTY_FACTOR) * default(1_000_000),
+        self.assertEqual((1 + PAIR_FAILURE_PENALTY_FACTOR + NODE_FAILURE_PENALTY_FACTOR) * default(1_000_000)
+                         + 2 * (1000 + 100),
                          restored.penalty(a, b, channel(3), amount_msat=1_000_000, policy=policy))
+        # a saved state without what the channels that failed charge, as earlier versions wrote it, is fine too
+        without_policies = json.loads(json.dumps(state))
+        for failures in without_policies['nodes'].values():
+            for sender in failures:
+                self.assertEqual(3, len(failures[sender]))
+                failures[sender] = failures[sender][:2]
+        older = LiquidityHintMgr()
+        self.assertEqual(10, older.import_state(without_policies))
+        self.assertEqual((1 + NODE_FAILURE_PENALTY_FACTOR) * default(500_000),
+                         older.penalty(x, b, channel(15), amount_msat=500_000, policy=policy))
         self.assertEqual(state, json.loads(json.dumps(restored.export_state())))
         self.assertEqual(0, restored.import_state(state))  # nothing new
 
@@ -1779,6 +1913,7 @@ class Test_LNRouter(ElectrumTestCase):
         self.assertEqual(1_000_000, hints._pair_cannot_send[(a, b)][0].amount_msat)
         self.assertEqual({a, c}, set(hints._node_cannot_receive[b][1]))
         self.assertEqual(1_000_000, hints._node_cannot_receive[b][1][a].amount_msat)  # what we had
+        self.assertEqual({a: policy, c: policy}, hints._node_failed_policies[b])
         self.assertEqual({c}, set(hints._node_cannot_receive[d][1]))
 
     def test_saved_failures_that_a_later_forward_is_over_are_not_taken_over(self):
@@ -1857,6 +1992,10 @@ class Test_LNRouter(ElectrumTestCase):
                 changed(nodes=[]), changed(nodes={node_to: []}), changed(nodes={node_to: {'00': [1000, 5]}}),
                 changed(nodes={node_to[:-2]: {}}), changed(nodes={node_to: {node_to: [1000]}}),
                 changed(nodes={node_to: {node_to: [too_much, 5]}}),
+                changed(nodes={node_to: {node_to: [1000, 5, [1000, 100]]}}),
+                changed(nodes={node_to: {node_to: [1000, 5, [1000, 100, 2**32]]}}),
+                changed(nodes={node_to: {node_to: [1000, 5, [1000, 100, 40], 7]}}),
+                changed(nodes={node_to: {node_to: [1000, 5, None]}}),
         ):
             hints = LiquidityHintMgr()
             with self.assertRaises((TypeError, ValueError, KeyError, AttributeError), msg=bad):
