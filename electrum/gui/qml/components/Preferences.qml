@@ -512,7 +512,7 @@ Pane {
                     Button {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
-                        visible: AppController.isAndroid() && Config.logsAreWrittenToDisk
+                        visible: AppController.isAndroid() && writeLogsToDisk.checked
                         text: qsTr('Share log file')
                         onClicked: {
                             var dialog = app.messageDialog.createObject(app, {
