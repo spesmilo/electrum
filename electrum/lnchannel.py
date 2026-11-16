@@ -1498,6 +1498,7 @@ class Channel(AbstractChannel):
             self.config[REMOTE].next_per_commitment_point=revocation.next_per_commitment_point
         assert new_ctn == self.get_oldest_unrevoked_ctn(REMOTE)
         # lnworker callbacks
+        # order matters, report fulfilled htlcs before failed ones so invoices get set PR_PAID before failures are handled
         sent = self.hm.sent_in_ctn(new_ctn)
         for htlc in sent:
             self.lnworker.htlc_fulfilled(self, htlc.payment_hash, htlc.htlc_id)
