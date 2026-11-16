@@ -181,6 +181,54 @@ class QEConfig(AuthMixin, QObject):
         self.config.LIGHTNING_USE_GOSSIP = gossip
         self.useGossipChanged.emit()
 
+    gossipBackgroundSyncChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=gossipBackgroundSyncChanged)
+    def gossipBackgroundSync(self):
+        return self.config.LIGHTNING_GOSSIP_BACKGROUND_SYNC
+
+    @gossipBackgroundSync.setter
+    def gossipBackgroundSync(self, enable):
+        self.config.LIGHTNING_GOSSIP_BACKGROUND_SYNC = enable
+        self.gossipBackgroundSyncChanged.emit()
+
+    @pyqtProperty(int, notify=gossipBackgroundSyncChanged)
+    def gossipBackgroundSyncInterval(self):  # minutes
+        return self.config.LIGHTNING_GOSSIP_BACKGROUND_SYNC_INTERVAL
+
+    @gossipBackgroundSyncInterval.setter
+    def gossipBackgroundSyncInterval(self, interval):
+        self.config.LIGHTNING_GOSSIP_BACKGROUND_SYNC_INTERVAL = interval
+        self.gossipBackgroundSyncChanged.emit()
+
+    @pyqtProperty(bool, notify=gossipBackgroundSyncChanged)
+    def gossipBackgroundSyncUnmeteredOnly(self):
+        return self.config.LIGHTNING_GOSSIP_BACKGROUND_SYNC_UNMETERED_ONLY
+
+    @gossipBackgroundSyncUnmeteredOnly.setter
+    def gossipBackgroundSyncUnmeteredOnly(self, enable):
+        self.config.LIGHTNING_GOSSIP_BACKGROUND_SYNC_UNMETERED_ONLY = enable
+        self.gossipBackgroundSyncChanged.emit()
+
+    @pyqtProperty(bool, notify=gossipBackgroundSyncChanged)
+    def gossipBackgroundSyncChargingOnly(self):
+        return self.config.LIGHTNING_GOSSIP_BACKGROUND_SYNC_CHARGING_ONLY
+
+    @gossipBackgroundSyncChargingOnly.setter
+    def gossipBackgroundSyncChargingOnly(self, enable):
+        self.config.LIGHTNING_GOSSIP_BACKGROUND_SYNC_CHARGING_ONLY = enable
+        self.gossipBackgroundSyncChanged.emit()
+
+    gossipBackgroundSyncBatteryAskedChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=gossipBackgroundSyncBatteryAskedChanged)
+    def gossipBackgroundSyncBatteryAsked(self):
+        """whether we already asked the user, by ourselves, to exempt the app from battery optimizations"""
+        return self.config.LIGHTNING_GOSSIP_BACKGROUND_SYNC_BATTERY_ASKED
+
+    @gossipBackgroundSyncBatteryAsked.setter
+    def gossipBackgroundSyncBatteryAsked(self, asked):
+        self.config.LIGHTNING_GOSSIP_BACKGROUND_SYNC_BATTERY_ASKED = asked
+        self.gossipBackgroundSyncBatteryAskedChanged.emit()
+
     enableDebugLogsChanged = pyqtSignal()
     @pyqtProperty(bool, notify=enableDebugLogsChanged)
     def enableDebugLogs(self):

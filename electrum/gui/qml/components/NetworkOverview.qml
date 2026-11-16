@@ -217,6 +217,10 @@ Pane {
                     Label {
                         text: qsTr('%1 nodes, %2 channels').arg(Network.gossipInfo.db_nodes).arg(Network.gossipInfo.db_channels)
                     }
+                    Label {
+                        visible: Network.gossipInfo.last_background_catch_up != ''
+                        text: qsTr('updated in the background %1').arg(Network.gossipInfo.last_background_catch_up)
+                    }
                 }
                 Label {
                     text: qsTr('enabled');

@@ -1,13 +1,17 @@
-from typing import TYPE_CHECKING
+import asyncio
+import os
+from typing import TYPE_CHECKING, Optional
 
-from PyQt6.QtCore import pyqtProperty, pyqtSignal, QObject, pyqtSlot
+from PyQt6.QtCore import pyqtProperty, pyqtSignal, QObject, pyqtSlot, Qt
+from PyQt6.QtGui import QGuiApplication
 
 from electrum.logging import get_logger
 from electrum import constants
 from electrum.network import ProxySettings
 from electrum.interface import ServerAddr
 from electrum.fee_policy import FEERATE_DEFAULT_RELAY
-from electrum.util import event_listener
+from electrum.util import event_listener, age
+from electrum.gossip_catch_up import BackgroundCatchUpManager
 
 from electrum.gui.common_qt.util import QtEventListener
 
@@ -33,6 +37,7 @@ class QENetwork(QObject, QtEventListener):
     chaintipsChanged = pyqtSignal()
     isLaggingChanged = pyqtSignal()
     gossipUpdated = pyqtSignal()
+    backgroundRestrictedChanged = pyqtSignal()
 
     # shared signal for static properties
     dataChanged = pyqtSignal()
@@ -62,6 +67,38 @@ class QENetwork(QObject, QtEventListener):
         self.destroyed.connect(lambda: self.on_destroy())
 
         QEConfig.instance.useGossipChanged.connect(self.on_gossip_setting_changed)
+
+        self._background_catch_up = None  # type: Optional[BackgroundCatchUpManager]
+        if 'ANDROID_DATA' in os.environ:
+            try:
+                self._init_background_catch_up()
+            except Exception:
+                self._logger.exception("could not set up the catch-ups on gossip in the background")
+
+    def _init_background_catch_up(self):
+        """Lets android update the gossip db from time to time while the app is not in use."""
+        manager = BackgroundCatchUpManager.for_android_app(self.network.config)
+        self._background_catch_up = manager
+        asyncio.run_coroutine_threadsafe(manager.poll_loop(self.network), self.network.asyncio_loop)
+        QEConfig.instance.useGossipChanged.connect(manager.update_schedule)
+        QEConfig.instance.gossipBackgroundSyncChanged.connect(manager.update_schedule)
+        QEConfig.instance.useGossipChanged.connect(self.backgroundRestrictedChanged)
+        QEConfig.instance.gossipBackgroundSyncChanged.connect(self.backgroundRestrictedChanged)
+        if not manager.is_started:  # normally done already, before the daemon got created
+            manager.on_app_start()
+        app = QGuiApplication.instance()
+        if app is not None:
+            app.applicationStateChanged.connect(self._on_application_state_changed)
+
+    def _on_application_state_changed(self, state):
+        """the user left the app, or came back to it"""
+        try:
+            manager = self._background_catch_up
+            manager.set_app_in_background(state != Qt.ApplicationState.ApplicationActive)
+            # not to wait for its next poll, e.g. to resume the gossip right when the user comes back
+            self.network.asyncio_loop.call_soon_threadsafe(manager.poll_safely, self.network)
+        except Exception:
+            self._logger.exception("could not handle the change of the application state")
 
     def on_destroy(self):
         self.unregister_callbacks()
@@ -292,6 +329,37 @@ class QENetwork(QObject, QtEventListener):
     def feeHistogram(self):
         return self._fee_histogram
 
+    @pyqtProperty(bool, notify=backgroundRestrictedChanged)
+    def backgroundRestricted(self):
+        """whether android optimizes our battery use, which delays the updates of the gossip in the background"""
+        manager = self._background_catch_up
+        try:
+            return bool(manager and manager.is_restricted_by_the_os())
+        except Exception:
+            self._logger.exception("could not tell whether the OS restricts us in the background")
+            return False
+
+    @pyqtSlot()
+    def refreshBackgroundRestricted(self):
+        """to be called when the user comes back to the app: they might have changed it in the settings of the OS"""
+        self.backgroundRestrictedChanged.emit()
+
+    @pyqtSlot()
+    def requestUnrestrictedBackground(self):
+        manager = self._background_catch_up
+        try:
+            if manager:
+                manager.request_to_lift_restriction()
+        except Exception:
+            self._logger.exception("could not open the battery settings of the OS")
+
+    def _last_background_catch_up_text(self) -> str:
+        """when the gossip was last updated while the app was not in use. empty if never, or not this session"""
+        entry = self._background_catch_up.last_catch_up if self._background_catch_up else None
+        if not entry or not entry.get('caught_up') or not isinstance(entry.get('finished'), int):
+            return ''
+        return age(entry['finished'])
+
     @pyqtProperty('QVariantMap', notify=gossipUpdated)
     def gossipInfo(self):
         return {
@@ -299,7 +367,8 @@ class QENetwork(QObject, QtEventListener):
             'unknown_channels': self._gossipUnknownChannels,
             'db_nodes': self._gossipDbNodes,
             'db_channels': self._gossipDbChannels,
-            'db_policies': self._gossipDbPolicies
+            'db_policies': self._gossipDbPolicies,
+            'last_background_catch_up': self._last_background_catch_up_text(),
         }
 
     serverListModelChanged = pyqtSignal()

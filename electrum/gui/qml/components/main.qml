@@ -527,6 +527,30 @@ ApplicationWindow
         width: parent.width
     }
 
+    // Asks the user to exempt the app from the battery optimizations of the OS, which delay
+    // the updates of the Lightning gossip in the background. By ourselves we ask only once.
+    function askUnrestrictedBackground() {
+        Config.gossipBackgroundSyncBatteryAsked = true
+        var dialog = app.messageDialog.createObject(app, {
+            title: qsTr('Background updates'),
+            text: qsTr('Android delays the background work of apps whose battery use it optimizes, sometimes by hours. Allow Electrum to run in the background without that restriction, so that the Lightning network graph gets updated on time?'),
+            yesno: true
+        })
+        dialog.accepted.connect(function() {
+            Network.requestUnrestrictedBackground()
+        })
+        dialog.open()
+    }
+
+    Connections {
+        target: Qt.application
+        function onStateChanged() {
+            // the user might have changed it in the settings of the OS
+            if (Qt.application.state == Qt.ApplicationActive)
+                Network.refreshBackgroundRestricted()
+        }
+    }
+
     Component.onCompleted: {
         coverTimer.start()
 
@@ -698,8 +722,11 @@ ApplicationWindow
         let warnings = Daemon.currentWallet.startupWarnings
         // show the warnings one after another, as the dialogs are not modal
         function showWarning(i) {
-            if (i >= warnings.length)
+            if (i >= warnings.length) {
+                if (Network.backgroundRestricted && !Config.gossipBackgroundSyncBatteryAsked)
+                    app.askUnrestrictedBackground()
                 return
+            }
             let dialog = app.messageDialog.createObject(app, {
                 title: warnings[i].title,
                 iconSource: Qt.resolvedUrl('../../icons/warning.png'),

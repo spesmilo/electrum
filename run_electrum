@@ -116,6 +116,7 @@ from electrum.logging import get_logger, configure_logging  # import logging sub
 from electrum import util
 from electrum.payment_identifier import PaymentIdentifier
 from electrum import SimpleConfig
+from electrum import gossip_catch_up
 from electrum.wallet_db import WalletDB
 from electrum.wallet import Wallet
 from electrum.storage import WalletStorage
@@ -405,6 +406,8 @@ def main():
             SimpleConfig.DISABLE_MEMORY_HARDENING_LINUX.key(): True,
         }
         SimpleConfig.set_chain_config_opt_based_on_android_packagename(config_options)
+        # did the OS start us in the background, without the GUI, only to catch up on gossip?
+        gossip_catch_up.set_config_options_for_android_service(config_options)
     else:
         # save sys args for next parser
         saved_sys_argv = sys.argv[:]
@@ -510,8 +513,21 @@ def main():
 
 
 def handle_cmd(*, cmdname: str, config: 'SimpleConfig', config_options: dict):
+    if cmdname == gossip_catch_up.CMD_NAME:
+        # not to a file: we run often, and would push the log files of the app out of the ones that are kept
+        configure_logging(config, log_to_file=False)
+        gossip_catch_up.run(config)
+        # nothing is left to clean up, and other threads must not keep the process alive
+        os._exit(0)
+
     if cmdname == 'gui':
         configure_logging(config)
+        if is_android:
+            # stop the catch-up on gossip in the background, if it is running, before we use our files
+            try:
+                gossip_catch_up.BackgroundCatchUpManager.for_android_app(config).on_app_start()
+            except Exception:
+                _logger.exception("could not set up the catch-ups on gossip in the background")
         fd = daemon.get_file_descriptor(config)
         if fd is not None:
             # When running in GUI mode, only start a limited minimal RPC server, to limit attack surface.

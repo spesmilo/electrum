@@ -102,7 +102,9 @@ fullscreen = False
 #
 
 # (list) Permissions
-android.permissions = INTERNET, CAMERA, WRITE_EXTERNAL_STORAGE, POST_NOTIFICATIONS, USE_BIOMETRIC
+# note: ACCESS_NETWORK_STATE and RECEIVE_BOOT_COMPLETED are for the job that updates the lightning
+#       gossip in the background: it waits for an unmetered network, and stays scheduled after a reboot.
+android.permissions = INTERNET, CAMERA, WRITE_EXTERNAL_STORAGE, POST_NOTIFICATIONS, USE_BIOMETRIC, ACCESS_NETWORK_STATE, RECEIVE_BOOT_COMPLETED
 
 # (int) Android API to use  (compileSdkVersion)
 # note: when changing, Dockerfile also needs to be changed to install corresponding build tools
@@ -239,7 +241,8 @@ p4a.source_dir = /opt/python-for-android
 p4a.local_recipes = %(source.dir)s/contrib/android/p4a_recipes/
 
 # (str) Filename to the hook for p4a
-#p4a.hook =
+# note: declares our services in the manifest
+p4a.hook = %(source.dir)s/contrib/android/p4a_hook.py
 
 # (str) Bootstrap to use for android builds
 p4a.bootstrap = qt6

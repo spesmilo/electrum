@@ -568,10 +568,17 @@ def android_backup_dir():
     return d
 
 
-def android_data_dir():
+def get_android_context():
+    """Returns the activity, or the service if we were started in the background, without the GUI."""
     import jnius
-    PythonActivity = jnius.autoclass('org.kivy.android.PythonActivity')
-    return PythonActivity.mActivity.getFilesDir().getPath() + '/data'
+    activity = jnius.autoclass('org.kivy.android.PythonActivity').mActivity
+    if activity is not None:
+        return activity
+    return jnius.autoclass('org.kivy.android.PythonService').mService
+
+
+def android_data_dir():
+    return get_android_context().getFilesDir().getPath() + '/data'
 
 
 def ensure_sparse_file(file_path: str | Path):
@@ -656,10 +663,7 @@ def is_android_debug_apk() -> bool:
 def get_android_package_name() -> str:
     is_android = 'ANDROID_DATA' in os.environ
     assert is_android
-    from jnius import autoclass
-    from android.config import ACTIVITY_CLASS_NAME
-    activity = autoclass(ACTIVITY_CLASS_NAME).mActivity
-    pkgname = str(activity.getPackageName())
+    pkgname = str(get_android_context().getPackageName())
     return pkgname
 
 

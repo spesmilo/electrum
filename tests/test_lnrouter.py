@@ -2,6 +2,7 @@ import asyncio
 import random
 import sqlite3
 import time
+import types
 import unittest
 from math import inf
 from unittest import mock
@@ -20,7 +21,7 @@ from electrum.lnutil import ShortChannelID, LnFeatures, PaymentFeeBudget
 from electrum.lnonion import (OnionHopsDataSingle, new_onion_packet,
                               process_onion_packet, _decode_onion_error, decode_onion_error,
                               OnionFailureCode)
-from electrum import bitcoin, lnrouter, lnworker
+from electrum import bitcoin, lnrouter, lnworker, gossip_catch_up
 from electrum.constants import BitcoinTestnet
 from electrum.simple_config import SimpleConfig
 from electrum.lnpeer import Peer
@@ -60,7 +61,7 @@ class _FakeGossipPeer:
 
     def __init__(self, character: str, *, lnpeermgr, resends_old_gossip: bool):
         self.pubkey = node(character)
-        self.our_gossip_timestamp_filter = object()
+        self.our_gossip_timestamp_filter = types.SimpleNamespace(first_timestamp=0, timestamp_range=0xFFFFFFFF)
         self.num_gossip_msgs_received = 0
         self.num_gossip_backlog_updates_received = 0
         self.num_gossip_updates_not_asked_for = 0
@@ -83,12 +84,16 @@ class _FakeGossipPeer:
     def last_message_time(self):
         return time.time() if self.responds else self._last_message_time
 
+    def is_initialized(self) -> bool:
+        return self.is_connected
+
     def send_ping(self):
         self.num_pings += 1
         if self.responds:
             self.last_pong_time = time.time()
 
     def request_gossip(self, timestamp, timestamp_range=0xFFFFFFFF):
+        self.our_gossip_timestamp_filter = types.SimpleNamespace(first_timestamp=timestamp, timestamp_range=timestamp_range)
         self.requested.append(timestamp)
         self.requested_ranges.append(timestamp_range)
         self.num_gossip_backlog_updates_received = 0
@@ -761,6 +766,213 @@ class TestGossipBacklog(ElectrumTestCase):
         b = self._connect(g, 'b')
         self.assertEqual([had_gossip_until - LNGossip.GOSSIP_SYNCED_MARGIN], b.requested)
         self.assertEqual(self._catch_up(g, b), self.saved[-1])
+
+    async def test_pause_disconnects_the_peers_until_resume_which_catches_up(self):
+        g = self._lngossip(synced_until=self.NOW - 3600)
+        a, b = self._connect(g, 'a'), self._connect(g, 'b')
+        self._catch_up(g, a, b)
+        self._tick(g, {a: self.QUIET}, times=2)
+        had_gossip_until = self.now
+        self.assertFalse(g.is_paused())
+        g.pause()
+        self.assertTrue(g.is_paused())
+        self.assertTrue(g.lnpeermgr.paused)  # no new connections
+        self.assertEqual([False, False], [a.is_connected, b.is_connected])
+        self.assertFalse(g.is_caught_up())
+        self.assertEqual(had_gossip_until, self.saved[-1])
+        num_saved = len(self.saved)
+        g.pause()  # again: nothing more
+        self.assertEqual(num_saved, len(self.saved))
+        # a connection that was being made when we got paused is closed too, and nothing is asked of it
+        late = _FakeGossipPeer('l', lnpeermgr=g.lnpeermgr, resends_old_gossip=True)
+        self._tick(g)
+        self.assertFalse(late.is_connected)
+        self.assertEqual([], late.requested)
+        # hours pass: the record of what we have does not move, and nothing counts as a suspension
+        self._tick(g, times=30)
+        self._tick(g, seconds=3 * 3600)
+        self.assertEqual(had_gossip_until, self.saved[-1])
+        self.assertFalse(g.is_caught_up())
+        g.resume()
+        self.assertFalse(g.is_paused())
+        self.assertFalse(g.lnpeermgr.paused)
+        self.assertFalse(g.is_caught_up())
+        c = self._connect(g, 'c')
+        self.assertEqual([had_gossip_until - LNGossip.GOSSIP_SYNCED_MARGIN], c.requested)
+        self.assertEqual(self._catch_up(g, c), self.saved[-1])
+        self.assertTrue(c.is_connected)
+        g.resume()  # again: nothing more
+        self.assertTrue(g.is_caught_up())
+
+    async def test_pause_while_catching_up_does_not_move_the_record_of_what_we_have(self):
+        synced_until = self.NOW - 3600
+        g = self._lngossip(synced_until=synced_until)
+        a = self._connect(g, 'a')
+        self._tick(g, {a: self.BUSY})  # the backlog is still arriving
+        self.assertFalse(g.is_caught_up())
+        g.pause()
+        self.assertFalse(a.is_connected)
+        self.assertLessEqual(max(self.saved, default=synced_until), synced_until)
+        self._tick(g, times=5)
+        g.resume()
+        b = self._connect(g, 'b')
+        self.assertEqual([synced_until - LNGossip.GOSSIP_SYNCED_MARGIN], b.requested)
+        self._catch_up(g, b)
+
+    async def test_pause_before_the_db_is_loaded(self):
+        g = self._lngossip(synced_until=self.NOW - 3600)
+        g._gossip_sync_is_set_up = False  # as before the db is loaded
+        g.pause()
+        self.assertEqual([], self.saved)
+        self.assertFalse(g.is_caught_up())
+        g._set_up_gossip_sync()  # the db got loaded meanwhile
+        self._tick(g, times=3)
+        self.assertEqual([], self.saved)
+        g.resume()
+        a = self._connect(g, 'a')
+        self.assertEqual([self.NOW - 3600 - LNGossip.GOSSIP_SYNCED_MARGIN], a.requested)
+        self._catch_up(g, a)
+
+    async def test_peer_manager_does_not_connect_while_paused(self):
+        g = self._lngossip()
+        peermgr = g.lnpeermgr
+        tried, sleeps = [], []
+        async def get_next_peers_to_try():
+            tried.append(len(sleeps))
+            peermgr.stopping_soon = True  # ends the loop
+            return []
+        async def sleep(seconds):
+            sleeps.append(seconds)
+            if len(sleeps) == 5:
+                g.resume()
+        peermgr._get_next_peers_to_try = get_next_peers_to_try
+        g.pause()
+        with mock.patch.object(lnworker.asyncio, 'sleep', sleep):
+            await peermgr._maintain_connectivity()
+        self.assertEqual([5], tried)  # only once we got resumed
+        self.assertEqual(6, len(sleeps))
+
+    async def test_app_in_the_background_pauses_the_gossip_and_catches_up_when_the_os_wakes_it_up(self):
+        # the background manager of the android app, with the gossip as it is
+        g = self._lngossip(synced_until=self.NOW - 3600)
+        network = mock.Mock(lngossip=g)
+        job_service = mock.Mock()
+        job_service.isJobRunningInApp.return_value = False
+        manager = gossip_catch_up.BackgroundCatchUpManager(
+            SimpleConfig({'electrum_path': self.electrum_path}), job_service=job_service, context=object())
+        grace = manager.BACKGROUND_GRACE
+        with mock.patch.object(gossip_catch_up.time, 'monotonic', lambda: self.now):
+            a = self._connect(g, 'a')
+            self._catch_up(g, a)
+            manager.poll(network)
+            self.assertFalse(g.is_paused())
+            # the user leaves the app, and the OS lets it run
+            manager.set_app_in_background(True)
+            self._tick(g, {a: self.QUIET}, times=grace // self.TICK - 1)
+            manager.poll(network)
+            self.assertFalse(g.is_paused())
+            self._tick(g, {a: self.QUIET})
+            had_gossip_until = self.now
+            manager.poll(network)
+            self.assertTrue(g.is_paused())
+            self.assertFalse(a.is_connected)
+            self._tick(g, seconds=2 * 3600)
+            manager.poll(network)
+            self.assertTrue(g.is_paused())
+            job_service.finishJobInApp.assert_not_called()
+            # the job: the gossip is resumed, and the job is kept until it has caught up
+            job_service.isJobRunningInApp.return_value = True
+            manager.poll(network)
+            self.assertFalse(g.is_paused())
+            job_service.finishJobInApp.assert_not_called()
+            b = self._connect(g, 'b')
+            self.assertEqual([had_gossip_until - LNGossip.GOSSIP_SYNCED_MARGIN], b.requested)
+            self._tick(g, {b: self.BUSY})
+            manager.poll(network)
+            job_service.finishJobInApp.assert_not_called()
+            self._tick(g, times=self.QUIET_TICKS)
+            self.assertTrue(g.is_caught_up())
+            manager.poll(network)
+            job_service.finishJobInApp.assert_called_once_with()
+            self.assertFalse(g.is_paused())  # that poll does not pause it yet: the job was still there
+            # then it is paused again, until the next job or until the user comes back
+            job_service.isJobRunningInApp.return_value = False
+            manager.poll(network)
+            self.assertTrue(g.is_paused())
+            self.assertFalse(b.is_connected)
+            manager.set_app_in_background(False)
+            manager.poll(network)
+            self.assertFalse(g.is_paused())
+            self.assertFalse(g.is_caught_up())
+        entry, = gossip_catch_up.read_history(manager.config)
+        self.assertTrue(entry['in_app'])
+        self.assertTrue(entry['caught_up'])
+        self.assertEqual(manager.last_catch_up, entry)
+
+    async def test_first_sync_of_an_empty_db_interrupted_by_a_pause_catches_up_on_what_it_fetched(self):
+        # gossip got switched on: the db has no policies, so the channels get fetched in full. The user leaves
+        # the app meanwhile. The channels fetched by then are known when it resumes: their updates made while
+        # paused have to be asked for, they are not fetched again.
+        for interruption in ('pause', 'suspend'):
+            g = self._lngossip(latest_ts=None, synced_until=None)
+            g.unknown_ids = {b'\x01' * 8}  # still fetching channels
+            session_start = self.now
+            a = self._connect(g, 'a')
+            self.assertEqual([session_start], a.requested)  # only new gossip: the rest comes with the channels
+            self._tick(g, {a: self.BUSY}, times=6)
+            self.assertFalse(g.is_caught_up())
+            if interruption == 'pause':
+                g.pause()
+                self._tick(g, seconds=3 * 3600)
+                g.resume()
+            else:
+                self._tick(g, seconds=3 * 3600)  # the OS froze us
+                a.close_and_cleanup()
+            c = self._connect(g, 'c')
+            g.unknown_ids = set()
+            self.assertEqual([session_start - LNGossip.GOSSIP_SYNCED_MARGIN], c.requested, msg=interruption)
+            self._catch_up(g, c)
+
+    async def test_peers_that_all_connected_after_we_last_had_gossip_make_us_catch_up(self):
+        g = self._lngossip(synced_until=self.NOW - 3600)
+        a, b = self._connect(g, 'a'), self._connect(g, 'b')
+        self._catch_up(g, a, b)
+        self._tick(g, {a: self.QUIET, b: self.QUIET}, times=2)
+        had_gossip_until = self.now
+        a.responds = b.responds = False  # the connections died silently (e.g. the wifi got out of range)
+        self._tick(g, times=4)
+        self.assertTrue(g.is_caught_up())
+        a.close_and_cleanup()  # the ping timed out
+        self.now += 5
+        c = self._connect(g, 'c')  # its replacement, connected and asked for new gossip before the next tick
+        b.close_and_cleanup()
+        self.assertEqual([self.now], c.requested)
+        self._tick(g)
+        self.assertFalse(g.is_caught_up())
+        self.assertEqual(had_gossip_until - LNGossip.GOSSIP_SYNCED_MARGIN, c.requested[-1])
+        self.assertEqual(self._catch_up(g, c), self.saved[-1])
+        # peers that get replaced one by one while gossip goes on arriving are no reason to
+        d = self._connect(g, 'd')
+        self._tick(g, {c: self.QUIET, d: self.QUIET}, times=3)
+        c.close_and_cleanup()
+        self._tick(g, {d: self.QUIET}, times=3)
+        self.assertTrue(g.is_caught_up())
+        self.assertEqual(1, len(d.requested))
+
+    async def test_peer_that_does_not_respond_is_not_asked_again_in_the_tick_that_drops_it(self):
+        g = self._lngossip(synced_until=self.NOW - 3600)
+        g.GOSSIP_BACKLOG_NUM_PEERS = 1  # as in the background process
+        a = self._connect(g, 'a')
+        b = self._connect(g, 'b')
+        self.assertEqual([self.NOW], b.requested)  # one source is enough
+        self._tick(g, {a: self.BUSY})
+        a.responds = False
+        num_requests = len(a.requested)
+        while a.is_connected:
+            self._tick(g)
+        self.assertEqual(num_requests, len(a.requested))
+        self.assertEqual(2, len(b.requested))  # in that same tick, instead
+        self.assertLess(b.requested[-1], self.NOW)
 
     async def test_catches_up_again_after_being_suspended(self):
         g = self._lngossip(synced_until=self.NOW - 3600)
