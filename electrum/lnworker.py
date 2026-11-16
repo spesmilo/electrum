@@ -73,7 +73,8 @@ from .lnutil import (
     ShortChannelID, HtlcLog, NoPathFound, InvalidGossipMsg, FeeBudgetExceeded, ImportedChannelBackupStorage,
     OnchainChannelBackupStorage, ln_compare_features, IncompatibleLightningFeatures, PaymentFeeBudget,
     NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, GossipForwardingMessage, MIN_FUNDING_SAT,
-    MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE, RecvMPPResolution, ReceivedMPPStatus, ReceivedMPPHtlc,
+    MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE, MIN_FINAL_CLTV_DELTA_BUFFER_PAYMENT, RecvMPPResolution, ReceivedMPPStatus,
+    ReceivedMPPHtlc,
     PaymentSuccess, ChannelType, ChannelConfig, ChannelKeys, Keypair, ZEROCONF_TIMEOUT,
 )
 from .lnonion import (
@@ -1999,14 +2000,18 @@ class LNWallet(Logger):
         if attempts is None and self.uses_trampoline():
             # we don't expect lots of failed htlcs with trampoline, so we can fail sooner
             attempts = 30
+        # (not beyond the limit of a route, which the invoice may use up already)
+        final_cltv_buffer = max(0, min(
+            MIN_FINAL_CLTV_DELTA_BUFFER_PAYMENT, NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE - min_final_cltv_delta))
         success, reason = False, _("unknown")
         try:
+            await self._wait_for_chain_tip()
             await self.pay_to_node(
                 node_pubkey=invoice_pubkey,
                 payment_hash=payment_hash,
                 payment_secret=payment_secret,
                 amount_to_pay=amount_to_pay,
-                min_final_cltv_delta=min_final_cltv_delta,
+                min_final_cltv_delta=min_final_cltv_delta + final_cltv_buffer,
                 r_tags=r_tags,
                 invoice_features=invoice_features,
                 attempts=attempts,
@@ -2031,6 +2036,30 @@ class LNWallet(Logger):
                 util.trigger_callback('payment_failed', self.wallet, key, reason)
         log = self.logs[key]
         return success, log
+
+    WAIT_FOR_CHAIN_TIP_TIMEOUT = 15  # seconds
+
+    async def _wait_for_chain_tip(self) -> None:
+        """The cltv_expiry of our htlcs is counted from our chain tip. Right after the wallet got opened,
+        the headers of the blocks mined meanwhile might still be on their way, and a destination that
+        has seen those blocks would reject the htlcs as expiring too soon. So we wait for them a bit,
+        and while we are not connected to a server, which would tell us about them, for that too."""
+        network = self.network
+        deadline = time.monotonic() + self.WAIT_FOR_CHAIN_TIP_TIMEOUT
+        waited = False
+        while True:
+            server_height = network.get_server_height()
+            local_height = network.get_local_height()
+            if server_height and local_height >= server_height:
+                if waited:
+                    self.logger.info(f"waited for the chain tip: {local_height}")
+                return
+            if time.monotonic() >= deadline:
+                self.logger.info(
+                    f"paying, although our chain tip might be behind: {local_height=}, {server_height=}")
+                return
+            waited = True
+            await asyncio.sleep(0.5)
 
     @log_exceptions
     async def pay_to_node(

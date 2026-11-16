@@ -70,7 +70,7 @@ from .wallet import (
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from .mnemonic import Mnemonic
 from .lnutil import (channel_id_from_funding_tx, LnFeatures, SENT, RECEIVED, MIN_FINAL_CLTV_DELTA_ACCEPTED,
-                     PaymentFeeBudget, NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE)
+                     PaymentFeeBudget, NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, MIN_FINAL_CLTV_DELTA_BUFFER_PAYMENT)
 from .plugin import run_hook, DeviceMgr, Plugins
 from .version import ELECTRUM_VERSION
 from .simple_config import SimpleConfig
@@ -1853,12 +1853,13 @@ class Commands(Logger):
                                     f"{max_fee_msat=} > max(invoice amount msat / 2, 1_000_000)"
         wallet.save_invoice(invoice_obj)
         if max_cltv is not None:
-            # The cltv budget excludes the final cltv delta which is why it is deducted here
-            # so the whole used cltv is <= max_cltv
+            # The cltv budget excludes the final cltv delta, and the buffer we add to it,
+            # which is why they are deducted here so the whole used cltv is <= max_cltv
             assert max_cltv <= NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE, \
                     f"{max_cltv=} > {NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE=}"
-            max_cltv_remaining = max_cltv - lnaddr.get_min_final_cltv_delta()
-            assert max_cltv_remaining > 0, f"{max_cltv=} - {lnaddr.get_min_final_cltv_delta()=} < 1"
+            final_cltv_delta = lnaddr.get_min_final_cltv_delta() + MIN_FINAL_CLTV_DELTA_BUFFER_PAYMENT
+            max_cltv_remaining = max_cltv - final_cltv_delta
+            assert max_cltv_remaining > 0, f"{max_cltv=} - {final_cltv_delta=} < 1"
             max_cltv = max_cltv_remaining
         budget = PaymentFeeBudget.from_invoice_amount(
             config=wallet.config,

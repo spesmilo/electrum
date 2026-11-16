@@ -37,6 +37,7 @@ from electrum.lnpeer import CoopCloseFailure
 from electrum.lntransport import LNPeerAddr
 from electrum.crypto import privkey_to_pubkey
 from electrum.lnutil import Keypair, PaymentFailure, LnFeatures, HTLCOwner, PaymentFeeBudget, RECEIVED
+from electrum.lnutil import MIN_FINAL_CLTV_DELTA_BUFFER_PAYMENT, NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE
 from electrum.lnchannel import ChannelState, PeerState, Channel, CF_ANNOUNCE_CHANNEL
 from electrum.lnrouter import LNPathFinder, PathEdge, LNPathInconsistent
 from electrum.channel_db import ChannelDB, InvalidGossipMsg
@@ -740,6 +741,118 @@ class TestPeerDirect(TestPeer):
 
         with self.assertRaises(SuccessfulTest):
             await f()
+
+    async def test_payment_adds_a_buffer_to_the_final_cltv_delta_of_the_invoice(self):
+        # a destination that has seen a block more than we have must not reject the htlc as expiring too soon
+        self.assertEqual(3, MIN_FINAL_CLTV_DELTA_BUFFER_PAYMENT)
+        graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
+        p1, p2 = graph.peers.values()
+        w1, w2 = graph.workers.values()
+        height = w1.network.get_local_height()
+        received = []
+        orig_on_update_add_htlc = p2.on_update_add_htlc
+        def on_update_add_htlc(chan, payload):
+            received.append(payload['cltv_expiry'])
+            return orig_on_update_add_htlc(chan, payload)
+        p2.on_update_add_htlc = on_update_add_htlc
+
+        # the wallet just got opened: the server told about 2 blocks whose headers have not arrived yet
+        w1.network.get_server_height = lambda: height + 2
+        async def headers_arrive():
+            await asyncio.sleep(0.3)
+            w1.network.blockchain()._height += 2
+
+        async def pay():
+            lnaddr, pay_req = self.prepare_invoice(w2, min_final_cltv_delta=150)
+            result, log = await util.wait_for2(w1.pay_invoice(pay_req), timeout=3)
+            self.assertTrue(result)
+            # what is recorded about the invoice is what it says
+            self.assertEqual(150, w1.get_payment_info(lnaddr.paymenthash, direction=lnutil.SENT).min_final_cltv_delta)
+            raise SuccessfulTest()
+
+        async def f():
+            async with OldTaskGroup() as group:
+                await group.spawn(p1._message_loop())
+                await group.spawn(p1.htlc_switch())
+                await group.spawn(p2._message_loop())
+                await group.spawn(p2.htlc_switch())
+                await asyncio.sleep(0.01)
+                await group.spawn(headers_arrive())
+                await group.spawn(pay())
+
+        with self.assertRaises(SuccessfulTest):
+            await f()
+        # counted from the chain tip it waited for
+        self.assertEqual([height + 2 + 150 + MIN_FINAL_CLTV_DELTA_BUFFER_PAYMENT], received)
+
+    async def test_buffer_to_the_final_cltv_delta_stays_within_the_limit_of_a_route(self):
+        # (min_final_cltv_delta of the invoice, cltv budget of the route to the destination or None for the
+        # default one, the cltv delta of the htlc the destination gets)
+        for min_final_cltv_delta, budget_cltv, expected in (
+                # an invoice that leaves less than the buffer within the limit, which it may
+                (NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE - 1, None, NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE),
+                # the budget is for the route, not for the final delta and its buffer (lnpay --max_cltv)
+                (144, 288 - 144, 144 + MIN_FINAL_CLTV_DELTA_BUFFER_PAYMENT),
+        ):
+            with self.subTest(min_final_cltv_delta=min_final_cltv_delta, budget_cltv=budget_cltv):
+                graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
+                p1, p2 = graph.peers.values()
+                w1, w2 = graph.workers.values()
+                height = w1.network.get_local_height()
+                received = []
+                orig_on_update_add_htlc = p2.on_update_add_htlc
+                def on_update_add_htlc(chan, payload, received=received, orig=orig_on_update_add_htlc):
+                    received.append(payload['cltv_expiry'])
+                    return orig(chan, payload)
+                p2.on_update_add_htlc = on_update_add_htlc
+                budget = None if budget_cltv is None else PaymentFeeBudget(fee_msat=1_000_000, cltv=budget_cltv)
+
+                async def pay(w1=w1, w2=w2, budget=budget, min_final_cltv_delta=min_final_cltv_delta):
+                    lnaddr, pay_req = self.prepare_invoice(w2, min_final_cltv_delta=min_final_cltv_delta)
+                    result, log = await util.wait_for2(w1.pay_invoice(pay_req, budget=budget), timeout=3)
+                    self.assertTrue(result, msg=log)
+                    raise SuccessfulTest()
+
+                async def f(p1=p1, p2=p2, pay=pay):
+                    async with OldTaskGroup() as group:
+                        await group.spawn(p1._message_loop())
+                        await group.spawn(p1.htlc_switch())
+                        await group.spawn(p2._message_loop())
+                        await group.spawn(p2.htlc_switch())
+                        await asyncio.sleep(0.01)
+                        await group.spawn(pay())
+
+                with self.assertRaises(SuccessfulTest):
+                    await f()
+                self.assertEqual([height + expected], received)
+
+    async def test_payment_waits_for_the_chain_tip_but_not_forever(self):
+        graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
+        w1, w2 = graph.workers.values()
+        network = w1.network
+        height = network.get_local_height()
+        server_height = [height + 5]
+        network.get_server_height = lambda: server_height[0]
+        w1.WAIT_FOR_CHAIN_TIP_TIMEOUT = 5
+
+        async def headers_arrive():
+            await asyncio.sleep(0.3)
+            network.blockchain()._height += 5
+        t0 = time.monotonic()
+        await asyncio.gather(w1._wait_for_chain_tip(), headers_arrive())
+        self.assertLess(time.monotonic() - t0, 2)  # it returned when the headers arrived, not after the timeout
+        # synced: no wait
+        t0 = time.monotonic()
+        await w1._wait_for_chain_tip()
+        self.assertLess(time.monotonic() - t0, 0.1)
+        # not connected to a server, or it stays ahead: we pay anyway after the timeout
+        w1.WAIT_FOR_CHAIN_TIP_TIMEOUT = 0.6
+        for server_height[0] in (0, network.get_local_height() + 1):
+            t0 = time.monotonic()
+            with self.assertLogs('electrum', level='INFO') as logs:
+                await w1._wait_for_chain_tip()
+            self.assertGreaterEqual(time.monotonic() - t0, 0.6)
+            self.assertIn('our chain tip might be behind', '\n'.join(logs.output))
 
     async def test_reject_invalid_min_final_cltv_delta(self):
         """
@@ -2172,13 +2285,13 @@ class TestPeerDirect(TestPeer):
                 await asyncio.sleep(0.25)  # give w2 some time to do mistakes
                 self.assertEqual(w2.received_mpp_htlcs[payment_key.hex()].resolution, RecvMPPResolution.COMPLETE)
                 if test_expiry:
-                    # we set an expiry delta of 20 blocks before expiry, htlc expiry should be +144 current height
-                    # so adding some blocks should get the htlcs failed
+                    # we set an expiry delta of 20 blocks before expiry, htlc expiry should be +144 current height,
+                    # plus the buffer the sender adds, so adding some blocks should get the htlcs failed
                     w2.network.blockchain()._height += 50
                     await asyncio.sleep(0.1)
                     # the htlcs should not get failed yet as 144-50 > 20
                     self.assertEqual(w2.received_mpp_htlcs[payment_key.hex()].resolution, RecvMPPResolution.COMPLETE)
-                    w2.network.blockchain()._height += 75
+                    w2.network.blockchain()._height += 75 + MIN_FINAL_CLTV_DELTA_BUFFER_PAYMENT
                     return  # the htlcs should get failed and pay should return PaymentFailure
 
                 # saving the preimage should let the htlcs get fulfilled

@@ -709,6 +709,12 @@ MIN_FINAL_CLTV_DELTA_ACCEPTED = 144
 # of incoming payment htlcs reliable even if some blocks have been mined during forwarding
 MIN_FINAL_CLTV_DELTA_BUFFER_INVOICE = 3
 
+# The same, the other way round: buffer added to the min_final_cltv_delta of the invoices we pay.
+# Other implementations do not add a buffer to their invoices: a destination that has seen a block more
+# than we have (it was mined while the htlc was on its way, or we have not received it yet) would
+# reject our htlcs as expiring too soon, with incorrect_or_unknown_payment_details.
+MIN_FINAL_CLTV_DELTA_BUFFER_PAYMENT = 3
+
 # "the deadline for offered HTLCs": (BOLT-02)
 # "the deadline after which the channel has to be failed and timed out on-chain"
 # ("This is G blocks after the HTLC's cltv_expiry")
