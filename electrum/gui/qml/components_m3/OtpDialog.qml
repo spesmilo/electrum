@@ -15,7 +15,9 @@ import "controls"
 // cleared; the busy indicator while waiting; the field is 6 characters wide and has the focus).
 // Differences: Material 3 look: the neutral `verified_user` glyph (coordinator decision R-2) instead of the
 // colored trustedcoin icon, an outlined field, the error in m3.error; a Cancel text button, which does what the
-// Android back button does (doReject()); the width is that of M3Dialog (the factory no longer sets 2/3).
+// Android back button does (doClose(), shown only when allowClose), disabled while the code is being submitted
+// (the transaction goes on regardless, so it cannot promise a cancel); the width is that of M3Dialog (the factory
+// no longer sets 2/3).
 // Strings keep the translation context of the classic file (qsTranslate('OtpDialog', ...)).
 M3Dialog {
     id: dialog
@@ -98,7 +100,10 @@ M3Dialog {
         M3Button {
             variant: 'text'
             text: qsTr('Cancel')
-            onClicked: dialog.doReject()
+            visible: dialog.allowClose
+            // once the code is submitted the server co-signs and the wallet broadcasts: nothing left to cancel
+            enabled: !dialog._waiting
+            onClicked: dialog.doClose()
         }
     ]
 

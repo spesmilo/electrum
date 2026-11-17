@@ -10,8 +10,9 @@ import "controls"
 // z: 1 by default and any z a caller sets (1001 above the crash dialog); the default title Question / Message;
 // the text in plain or rich format, hidden when empty; Ok -> doAccept(), or No -> doReject() and Yes -> doAccept()
 // when yesno).
-// Differences: Material 3 look; the text scrolls when it is longer than the free height, so the buttons stay
-// visible; the icon (M2-MAP F-5) is matched by the file name of `iconSource`, so the callers stay as they are:
+// Differences: Material 3 look; the text scrolls (by a drag, mouse or finger) when it is longer than the free
+// height, so the buttons stay visible; the text is not selectable (the classic read-only TextArea is selectable
+// by mouse); the icon (M2-MAP F-5) is matched by the file name of `iconSource`, so the callers stay as they are:
 // a classic or Material 3 `warning` -> the Material 3 `warning` glyph in m3.error; any other Material 3 glyph
 // (icons/m3/) -> that glyph; `info`, `question` and the other colored classic icons -> no icon.
 // Strings keep the translation context of the classic file (qsTranslate('MessageDialog', ...)).
@@ -41,9 +42,12 @@ M3Dialog {
         : String(iconSource).indexOf('/icons/m3/') >= 0 ? String(iconSource) : ''
 
     // the dialog never grows past the free zone (keyboard included): the text scrolls instead
-    // (centered: the same margin above and below, clear of the status bar and of the navigation bar)
+    // (centered: the same margin above and below, clear of the status bar and of the navigation bar; while the
+    // keyboard is open the navigation bar is under it and the margin is smaller, the height is short then)
     height: Math.min(implicitHeight, parent
-        ? parent.height - 2 * (m3.space24 + Math.max(app.statusBarHeight, app.navigationBarHeight))
+        ? parent.height - 2 * (app.keyboardFreeZone.state != 'visible'
+            ? m3.space24 + Math.max(app.statusBarHeight, app.navigationBarHeight)
+            : m3.space8 + app.statusBarHeight)
         : implicitHeight)
 
     // the header of M3DialogBase, with the icon of F-5 instead of `iconSource` as given
@@ -81,20 +85,18 @@ M3Dialog {
         interactive: height < contentHeight
         boundsBehavior: Flickable.StopAtBounds
 
-        // read-only and selectable, as the classic read-only TextArea
-        TextEdit {
+        // a Text, not a selectable TextEdit: a TextEdit keeps the press, so a drag (mouse or finger) would select
+        // or do nothing instead of scrolling the long text
+        M3Text {
             id: message
             width: flick.width
             visible: dialog.text
-            readOnly: true
-            selectByMouse: true
-            wrapMode: TextEdit.Wrap
-            textFormat: dialog.richText ? TextEdit.RichText : TextEdit.PlainText
+            role: 'bodyMedium'
             color: m3.surfaceVariantOn
-            selectionColor: m3.primaryContainer
-            selectedTextColor: m3.primaryContainerOn
-            font.pixelSize: m3.textStyle('bodyMedium').size
-            font.letterSpacing: m3.textStyle('bodyMedium').tracking
+            wrapMode: Text.Wrap
+            lineHeightMode: Text.ProportionalHeight
+            lineHeight: 1.0
+            textFormat: dialog.richText ? Text.RichText : Text.PlainText
             text: dialog.text
         }
 

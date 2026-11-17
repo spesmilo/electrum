@@ -9,13 +9,16 @@ import "controls"
 // Notification of the Material 3 GUI: a snackbar (M2-MAP F-15), the instance `notificationPopup` in main.qml,
 // shown by AppController.onUserNotify and by a payment that succeeded or failed.
 // repeats: components/NotificationPopup.qml:7-115 @ e6df7e1c8 (the API: show(wallet_name, message), message,
-// wallet_name; shown for 5 s from the last show(), a new show() replaces the text and restarts the time; the
-// wallet name only when it is not the current wallet; clicks on it do not reach the page below; an Item of the
-// window, not a Popup, so it is not in app.activeDialogs and the back button does not close it).
+// wallet_name; shown for 5 s, a new show() replaces the text; the wallet name only when it is not the current
+// wallet; clicks on it do not reach the page below; an Item of the window, not a Popup, so it is not in
+// app.activeDialogs and the back button does not close it).
 // Differences (coordinator decision R-1): at the bottom of the window, on m3.inverseSurface, above the system
 // navigation bar (app.navigationBarHeight, while the keyboard is hidden), above the bottom navigation when the
 // Material 3 wallet root is on top of the stack, plus m3.space8; the text is `message`, the wallet name a
 // labelSmall line above it; it slides up and fades in instead of the classic drop-down from the top.
+// A new show() restarts the 5 s (closetimer.restart()): the classic calls start(), which does nothing on a running
+// Timer, so there a second notification is hidden 5 s after the FIRST one. A tap on the snackbar hides it at once
+// (the classic only swallows the tap; here the snackbar may lie over the bottom buttons of a page).
 Item {
     id: root
 
@@ -61,9 +64,14 @@ Item {
         radius: m3.radiusXS
         color: m3.inverseSurface
 
-        // capture all clicks
+        // capture all clicks; a tap hides the snackbar (it may cover the bottom buttons of a page)
         MouseArea {
             anchors.fill: parent
+            enabled: !root._hide
+            onClicked: {
+                closetimer.stop()
+                root._hide = true
+            }
         }
 
         ColumnLayout {

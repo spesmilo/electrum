@@ -10,7 +10,8 @@ import "controls"
 // repeats: components/controls/HelpDialog.qml:5-75 @ e6df7e1c8 (the API: heading, text; z: 1 so it also covers
 // dialogs using the overlay as parent; the text in rich format; it closes by the back button or a tap outside).
 // Differences: Material 3 look: the heading is the headline of the dialog (the classic draws it underlined and
-// italic next to the info icon), the text scrolls when it is longer than the free height, and a Close text button.
+// italic next to the info icon), the text scrolls when it is longer than the free height, and a Close text button
+// (doClose(), as the back button; shown only when allowClose).
 M3Dialog {
     id: dialog
 
@@ -21,9 +22,12 @@ M3Dialog {
     z: 1 // raise z so it also covers dialogs using overlay as parent
 
     // the dialog never grows past the free zone: the text scrolls instead
-    // (centered: the same margin above and below, clear of the status bar and of the navigation bar)
+    // (centered: the same margin above and below, clear of the status bar and of the navigation bar; while the
+    // keyboard is open the navigation bar is under it and the margin is smaller, the height is short then)
     height: Math.min(implicitHeight, parent
-        ? parent.height - 2 * (m3.space24 + Math.max(app.statusBarHeight, app.navigationBarHeight))
+        ? parent.height - 2 * (app.keyboardFreeZone.state != 'visible'
+            ? m3.space24 + Math.max(app.statusBarHeight, app.navigationBarHeight)
+            : m3.space8 + app.statusBarHeight)
         : implicitHeight)
 
     contentItem: Flickable {
@@ -53,6 +57,7 @@ M3Dialog {
         M3Button {
             variant: 'text'
             text: qsTr('Close')
+            visible: dialog.allowClose
             onClicked: dialog.doClose()
         }
     ]

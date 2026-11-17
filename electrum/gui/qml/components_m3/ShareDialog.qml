@@ -13,8 +13,9 @@ import "controls"
 // only text_qr set -> the QR code without the string, Copy still copies it; the text shown in a fixed font, at
 // most 4 lines; the QR code rendered once the enter animation has finished; Copy -> AppController.textToClipboard
 // (text ? text : text_qr) with "Copied!"; Share -> AppController.doShare(text ? text : text_qr, title)).
-// Differences: Material 3 look (as the Material 3 ExportTxDialog): the QR code on a card, scaled down to the
-// visible height on a short screen (landscape); Copy and Share in a bar at the bottom.
+// Differences: Material 3 look (as the Material 3 ExportTxDialog): the QR code on a card, scaled down on a short
+// screen (landscape, down to a half) so the text and the help (a warning for a channel backup) fit below it, the
+// rest scrolls (scroll indicator); Copy and Share in a bar at the bottom.
 // Strings keep the translation context of the classic file (qsTranslate('GenericShareDialog', ...)).
 M3FullScreenDialog {
     id: dialog
@@ -53,7 +54,7 @@ M3FullScreenDialog {
                 spacing: m3.space16
 
                 // the QR code and the text on a card (GenericShareDialog.qml:45-78); on a short screen the
-                // QR code is scaled down to the visible height, so it is seen whole without scrolling
+                // QR code is scaled down, so it is seen whole together with the text and the help
                 Rectangle {
                     Layout.fillWidth: true
                     implicitHeight: cardLayout.implicitHeight + 2 * m3.space16
@@ -69,8 +70,12 @@ M3FullScreenDialog {
 
                         Item {
                             id: qrBox
+                            // the height left for the code: the visible height without the margins and paddings,
+                            // the text below the code and the help (a warning for a channel backup) below the card
+                            readonly property real _below: (textLine.visible ? textLine.implicitHeight + m3.space16 : 0)
+                                + (helpText.visible ? helpText.implicitHeight + m3.space16 : 0)
                             readonly property real fit: Math.max(0.5, Math.min(1,
-                                (flickable.height - 4 * m3.space16) / qr.height,
+                                (flickable.height - 4 * m3.space16 - _below) / qr.height,
                                 cardLayout.width / qr.width))
                             Layout.alignment: Qt.AlignHCenter
                             implicitWidth: qr.width * fit
@@ -86,6 +91,7 @@ M3FullScreenDialog {
                         }
 
                         M3Text {
+                            id: textLine
                             Layout.fillWidth: true
                             visible: dialog.text
                             role: 'bodyLarge'
@@ -102,12 +108,15 @@ M3FullScreenDialog {
                 }
 
                 M3InfoText {
+                    id: helpText
                     Layout.fillWidth: true
                     iconStyle: dialog.helpTextIconStyle
                     visible: dialog.text_help
                     text: dialog.text_help
                 }
             }
+
+            ScrollIndicator.vertical: ScrollIndicator { }
         }
 
         // GenericShareDialog.qml:92-116

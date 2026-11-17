@@ -15,8 +15,9 @@ import "controls"
 // only when the password has at least 6 characters and both fields match, otherwise always; Ok emits
 // passwordEntered with the first field and does not close: the caller closes the dialog or sets errorMessage).
 // Differences: Material 3 look (M3PasswordField, M3PasswordStrength, M3InfoText); a Cancel text button next to
-// Ok, which does what the Android back button does (doReject(), the `rejected` signal); the content scrolls when
-// the keyboard leaves too little height.
+// Ok, which does what the Android back button does (doClose() -> doReject(), the `rejected` signal; shown only
+// when allowClose; ignored once closing has started, as Ok); the content scrolls when the keyboard leaves too
+// little height, and the field with the focus is scrolled into view.
 // Strings keep the translation context of the classic file (qsTranslate('PasswordDialog', ...)).
 M3Dialog {
     id: passworddialog
@@ -28,7 +29,7 @@ M3Dialog {
     property string infotext
     property string errorMessage
 
-    // Ignore Ok once closing has started.
+    // Ignore Ok (and the Material 3 Cancel) once closing has started.
     property bool _closing: false
 
     signal passwordEntered(string password)
@@ -37,9 +38,12 @@ M3Dialog {
     onAboutToHide: _closing = true
 
     // the dialog never grows past the free zone (keyboard included): the content scrolls instead
-    // (centered: the same margin above and below, clear of the status bar and of the navigation bar)
+    // (centered: the same margin above and below, clear of the status bar and of the navigation bar; while the
+    // keyboard is open the navigation bar is under it and the margin is smaller, the height is short then)
     height: Math.min(implicitHeight, parent
-        ? parent.height - 2 * (m3.space24 + Math.max(app.statusBarHeight, app.navigationBarHeight))
+        ? parent.height - 2 * (app.keyboardFreeZone.state != 'visible'
+            ? m3.space24 + Math.max(app.statusBarHeight, app.navigationBarHeight)
+            : m3.space8 + app.statusBarHeight)
         : implicitHeight)
 
     contentItem: Flickable {
@@ -49,6 +53,11 @@ M3Dialog {
         clip: true
         interactive: height < contentHeight
         boundsBehavior: Flickable.StopAtBounds
+
+        // the keyboard shrinks the dialog after the field got the focus: keep that field in view
+        onHeightChanged: passworddialog._showFocusedField()
+
+        ScrollIndicator.vertical: ScrollIndicator { }
 
         ColumnLayout {
             id: form
@@ -121,12 +130,39 @@ M3Dialog {
         M3Button {
             variant: 'text'
             text: qsTr('Cancel')
-            onClicked: passworddialog.doReject()
+            visible: passworddialog.allowClose
+            onClicked: {
+                if (passworddialog._closing)
+                    return
+                passworddialog.doClose()
+            }
         }
     ]
 
     function clearPassword() {
         pw_1.text = ""
         pw_2.text = ""
+    }
+
+    // scroll the form so that the field with the focus is seen whole (Flickable does not follow the focus)
+    function _showFocusedField() {
+        var field = pw_2.visible && pw_2.field.activeFocus ? pw_2.field : pw_1.field.activeFocus ? pw_1.field : null
+        if (!field || flick.height <= 0)
+            return
+        var top = field.mapToItem(form, 0, 0).y
+        var bottom = top + field.height
+        if (top < flick.contentY)
+            flick.contentY = top
+        else if (bottom > flick.contentY + flick.height)
+            flick.contentY = Math.min(bottom - flick.height, Math.max(0, flick.contentHeight - flick.height))
+    }
+
+    Connections {
+        target: pw_1.field
+        function onActiveFocusChanged() { passworddialog._showFocusedField() }
+    }
+    Connections {
+        target: pw_2.field
+        function onActiveFocusChanged() { passworddialog._showFocusedField() }
     }
 }
