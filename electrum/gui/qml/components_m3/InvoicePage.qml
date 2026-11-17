@@ -57,11 +57,32 @@ M3Page {
     readonly property bool _amountValid: !_invoice_amount.isMax && !_invoice_amount.isEmpty
     property bool _editmode: false
     readonly property bool _wide: root.width >= 600
+    // LN_EXPIRY_NEVER of invoices.py (100 years)
+    readonly property real _lnExpiryNever: 100 * 365 * 24 * 60 * 60
 
     // takes only this page off the stack, and only when it is on top (finding 2)
     function close() {
         if (app.stack.currentItem === root)
             app.stack.pop()
+        else
+            console.log('M3: InvoicePage.close(): the page is not on top, left on the stack')
+    }
+
+    // A payment started from this page may still report to it: a dialog is open over the page (confirmation,
+    // "Pay on-chain instead?", authentication), its transaction is being broadcast, or a Lightning payment is
+    // in flight. PaymentFlow then does not replace this page by a link to another invoice (it pushes the new
+    // page and sets `superseded`).
+    function paymentUnderway() {
+        return app.activeDialogs.length > 0 || broadcastTxid !== '' || _inProgress
+    }
+
+    // set by PaymentFlow when a page for another invoice of the same invoice object was pushed over this one:
+    // the object no longer holds what this page was opened for, so the page shows nothing and leaves the stack
+    // when the user comes back to it
+    property bool superseded: false
+    StackView.onActivated: {
+        if (superseded)
+            Qt.callLater(root.close)
     }
 
     function share(title, text) {
@@ -102,6 +123,7 @@ M3Page {
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
+        visible: !root.superseded
 
         Flickable {
             id: flickable
@@ -186,11 +208,13 @@ M3Page {
                                 readonly property int heroSize: m3.textStyle('amountHero').size
 
                                 // long amounts get a smaller font, down to titleLarge, so that the row fits
+                                // (TextMetrics is not an Item: it has no parent, the row is named by id)
                                 TextMetrics {
                                     id: amountMetrics
                                     font.family: FixedFont
-                                    font.pixelSize: parent.heroSize
-                                    text: parent.amountText
+                                    font.weight: m3.textStyle('amountHero').weight
+                                    font.pixelSize: amountRow.heroSize
+                                    text: amountRow.amountText
                                 }
 
                                 M3Text {
@@ -198,10 +222,10 @@ M3Page {
                                     role: 'amountHero'
                                     font.family: FixedFont
                                     font.pixelSize: Math.max(m3.textStyle('titleLarge').size,
-                                        Math.min(parent.heroSize, Math.floor(parent.heroSize
-                                            * (content.width - unitLabel.implicitWidth - m3.space8)
+                                        Math.min(amountRow.heroSize, Math.floor(amountRow.heroSize
+                                            * (content.width - unitLabel.implicitWidth - amountRow.spacing)
                                             / Math.max(1, amountMetrics.advanceWidth))))
-                                    text: parent.amountText
+                                    text: amountRow.amountText
                                 }
                                 M3Text {
                                     id: unitLabel
@@ -422,15 +446,16 @@ M3Page {
                         onClicked: root.share(qsTranslate('InvoiceDialog', 'Address'), invoice.address)
                         trailing: shareIcon
                     }
-                    M3ListItem {
-                        // N-3: the absolute time of expiry, it needs no recounting
-                        visible: invoice.expiration > 0 && invoice.time > 0
+                    InfoItem {
+                        // N-3: the absolute time of expiry, it needs no recounting; an invoice that never
+                        // expires (0, or LN_EXPIRY_NEVER as the core treats it, invoices.py:91,143) has no row
+                        visible: invoice.expiration > 0 && invoice.expiration != root._lnExpiryNever && invoice.time > 0
                         headline: invoice.status == Invoice.Expired ? qsTr('Expired') : qsTr('Expires')
                         supporting: invoice.time > 0
                             ? new Date((invoice.time + invoice.expiration) * 1000).toLocaleString(Qt.locale(), Locale.ShortFormat)
                             : ''
                     }
-                    M3ListItem {
+                    InfoItem {
                         visible: root._isLightning && Daemon.currentWallet.isLightning
                         headline: qsTranslate('BalanceDetails', 'Can send')
                         // formatted as the classic FormattedAmount (BalanceDetails.qml:194-197)
@@ -475,7 +500,7 @@ M3Page {
                         onClicked: root.share(qsTranslate('InvoiceDialog', 'Payment hash'), invoice.lnprops.payment_hash)
                         trailing: shareIcon
                     }
-                    M3ListItem {
+                    InfoItem {
                         visible: 'r' in invoice.lnprops && invoice.lnprops.r.length
                         headline: qsTranslate('InvoiceDialog', 'Routing hints')
                         supportingMaxLines: 12
@@ -571,6 +596,13 @@ M3Page {
         M3Icon {
             source: Qt.resolvedUrl('../../icons/m3/content_copy.png')
         }
+    }
+
+    // a row without an action: no pressed or hover state, no keyboard focus (it promises no tap)
+    component InfoItem: M3ListItem {
+        hoverEnabled: false
+        down: false
+        focusPolicy: Qt.NoFocus
     }
 
     Component.onCompleted: {

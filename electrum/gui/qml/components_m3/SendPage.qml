@@ -65,29 +65,41 @@ M3Page {
                 width: Math.min(m3.maxContentWidth, flickable.width - 2 * margin)
                 spacing: m3.space16
 
-                TextArea {
-                    id: recipient
+                // at most 6 lines of the field's font (DESIGN-v1 6.2): a longer text (a PSBT) scrolls inside
+                // the field, so the buttons below do not move away under the finger
+                FontMetrics {
+                    id: recipientMetrics
+                    font: recipient.font
+                }
+                ScrollView {
+                    id: recipientScroll
+                    readonly property real _pads: recipient.topPadding + recipient.bottomPadding
                     Layout.fillWidth: true
-                    Layout.minimumHeight: 3 * m3.textStyle('bodyLarge').line + topPadding + bottomPadding
-                    Material.containerStyle: Material.Outlined
-                    placeholderText: qsTranslate('SendDialog', 'Recipient')
-                    font.family: FixedFont
-                    font.pixelSize: m3.textStyle('bodyLarge').size
-                    color: m3.surfaceOn
-                    wrapMode: TextEdit.WrapAnywhere
-                    enabled: !root.busy
-                    inputMethodHints: Qt.ImhEmailCharactersOnly | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
-                    // no automatic focus (finding 10): the keyboard opens only when the user taps the field
-                    focus: false
-                    Keys.onReturnPressed: (event) => {
-                        if (recipient.text.trim())
-                            root.submit(recipient.text)
+                    Layout.preferredHeight: Math.max(3 * m3.textStyle('bodyLarge').line + _pads,
+                        Math.min(recipient.implicitHeight, 6 * recipientMetrics.lineSpacing + _pads))
+
+                    TextArea {
+                        id: recipient
+                        Material.containerStyle: Material.Outlined
+                        placeholderText: qsTranslate('SendDialog', 'Recipient')
+                        font.family: FixedFont
+                        font.pixelSize: m3.textStyle('bodyLarge').size
+                        color: m3.surfaceOn
+                        wrapMode: TextEdit.WrapAnywhere
+                        enabled: !root.busy
+                        inputMethodHints: Qt.ImhEmailCharactersOnly | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
+                        // no automatic focus (finding 10): the keyboard opens only when the user taps the field
+                        focus: false
+                        Keys.onReturnPressed: (event) => {
+                            if (recipient.text.trim())
+                                root.submit(recipient.text)
+                        }
+                        Keys.onEnterPressed: (event) => {
+                            if (recipient.text.trim())
+                                root.submit(recipient.text)
+                        }
+                        onTextChanged: clipboardMessage.text = ''
                     }
-                    Keys.onEnterPressed: (event) => {
-                        if (recipient.text.trim())
-                            root.submit(recipient.text)
-                    }
-                    onTextChanged: clipboardMessage.text = ''
                 }
 
                 RowLayout {

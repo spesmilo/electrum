@@ -103,6 +103,8 @@ Item {
                 _sendDialog.doClose()  // the classic SendDialog (fallback)
             else if (app.stack.currentItem === _sendDialog)
                 app.stack.pop()
+            else
+                console.log('M3: closeSendDialog: SendPage is not on top, left on the stack')
             _sendDialog = null
         }
     }
@@ -116,24 +118,30 @@ Item {
     // M3: shows a page that follows the recipient input (InvoicePage, TxDetails): it replaces SendPage
     // when SendPage is on top, otherwise it is pushed, so that a scan or a link never takes away the page
     // the user is on. An InvoicePage on top that shows the same invoice object is replaced as well: it would
-    // only duplicate the new page (both bound to the one object).
-    // Returns the new page, or null when it could not be loaded (the stack is then unchanged).
+    // only duplicate the new page (both bound to the one object). While a payment of that page is under way
+    // (InvoicePage.paymentUnderway()) it is not replaced, so that its "Payment sent." still comes: the new
+    // page is pushed, and the old one is marked superseded (it shows nothing and leaves the stack when the
+    // user comes back to it), so that it never offers the new invoice under the old input.
+    // Returns the new page, or null when it could not be loaded or the stack did not take it (the stack is
+    // then unchanged).
     function _showPage(url, properties) {
         var component = _loadPage(url)
         if (!component)
             return null
         var top = app.stack.currentItem
-        var page
-        if (top && (top === _sendDialog
-                    || (top.m3InvoicePage === true && properties.invoice && top.invoice === properties.invoice))) {
-            page = app.stack.replace(top, component, properties)
-        } else {
-            page = app.stack.push(component, properties)
-        }
-        if (!page || page === top)
+        var sameInvoice = top && top.m3InvoicePage === true && properties.invoice && top.invoice === properties.invoice
+        var replace = top && (top === _sendDialog || (sameInvoice && !top.paymentUnderway()))
+        var page = replace
+            ? app.stack.replace(top, component, properties)
+            : app.stack.push(component, properties)
+        if (!page || page === top) {
+            console.log('M3: the stack did not take ' + url)
             return null
+        }
         if (top === _sendDialog)
             _sendDialog = null
+        else if (sameInvoice && !replace)
+            top.superseded = true
         return page
     }
 
@@ -148,6 +156,10 @@ Item {
             dialog.open()
             return
         }
+        // the classic SendDialog (fallback when SendPage cannot be loaded) is a full screen popup: the page
+        // would open under it (WalletMainView.qml:373 @ 4f36c4489 closes it first as well)
+        if (_sendDialog && _sendDialog.m3Page !== true)
+            closeSendDialog()
         var page = _showPage(Qt.resolvedUrl('InvoicePage.qml'), {
             flow: mainView,
             invoice: invoiceParser,
@@ -204,12 +216,19 @@ Item {
 
     // M3: the classic camera (ScanDialog) for a recipient; the found text goes to onFound (if given, e.g. the
     // field of SendPage) and to dispatch(). For SendPage and for a scan action outside it.
+    // onFound may belong to a page that left the stack while the camera was open (a link replaced it):
+    // its failure must not lose the scanned text.
     function scanRecipient(onFound) {
         var dialog = app.scanDialog.createObject(app, { hint: scanHint() })
         dialog.onFoundText.connect(function(data) {
             dialog.close()
-            if (onFound)
-                onFound(data)
+            if (onFound) {
+                try {
+                    onFound(data)
+                } catch (e) {
+                    console.log('M3: scanRecipient: the page of the scan is gone: ' + e)
+                }
+            }
             dispatch(data)
         })
         dialog.open()
@@ -707,11 +726,17 @@ Item {
         }
     }
 
-    Component.onCompleted: {
-        console.log("WalletMainView completed: ", Daemon.currentWallet.name)
+    // M3: a link that started the app is taken once the root is on the stack: an invoice opens as a page,
+    // and StackView refuses a push while it is still completing the push of the root that holds this flow
+    function _takeStartupIntent() {
         if (app.pendingIntent) {
             piResolver.recipient = app.pendingIntent
             app.pendingIntent = ""
         }
+    }
+
+    Component.onCompleted: {
+        console.log("WalletMainView completed: ", Daemon.currentWallet.name)
+        Qt.callLater(_takeStartupIntent)
     }
 }
