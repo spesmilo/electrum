@@ -45,15 +45,15 @@ QtObject {
     property url lightningPaymentDetailsClassic: Qt.resolvedUrl('../components/LightningPaymentDetails.qml')
 
     // --- G5 wallet and addresses ---
-    property url walletDetails: Qt.resolvedUrl('../components/WalletDetails.qml')
+    property url walletDetails: Qt.resolvedUrl('WalletDetailsPage.qml')
     property url walletDetailsClassic: Qt.resolvedUrl('../components/WalletDetails.qml')
-    property url addresses: Qt.resolvedUrl('../components/Addresses.qml')
+    property url addresses: Qt.resolvedUrl('AddressesPage.qml')
     property url addressesClassic: Qt.resolvedUrl('../components/Addresses.qml')
-    property url addressDetails: Qt.resolvedUrl('../components/AddressDetails.qml')
+    property url addressDetails: Qt.resolvedUrl('AddressDetailsPage.qml')
     property url addressDetailsClassic: Qt.resolvedUrl('../components/AddressDetails.qml')
-    property url addressHistory: Qt.resolvedUrl('../components/AddressHistory.qml')
+    property url addressHistory: Qt.resolvedUrl('AddressHistoryPage.qml')
     property url addressHistoryClassic: Qt.resolvedUrl('../components/AddressHistory.qml')
-    property url balanceDetails: Qt.resolvedUrl('../components/BalanceDetails.qml')
+    property url balanceDetails: Qt.resolvedUrl('BalanceDetailsPage.qml')
     property url balanceDetailsClassic: Qt.resolvedUrl('../components/BalanceDetails.qml')
 
     // --- G6 channels ---

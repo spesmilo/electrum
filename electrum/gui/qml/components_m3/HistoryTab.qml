@@ -6,7 +6,7 @@ import org.electrum 1.0
 
 import "controls"
 
-// History tab: the full wallet history, M3HistoryDelegate rows under date sections.
+// History tab: the full wallet history, M3HistoryDelegate rows under date sections (controls/M3HistoryList).
 // repeats: components/History.qml:51-75 (sections), :94-103 (empty note), :150-176 (height updates,
 // delegate reset on a new wallet, model refresh when shown) @ 4f36c4489.
 // The model is lazy (it rebuilds only when dirty): initModel() runs when the tab is created, when a
@@ -26,55 +26,11 @@ Item {
         _initializedModel = backingModel
     }
 
-    ListView {
+    // the list with its date sections (controls/M3HistoryList, M2-MAP F-10); the model is initialized here
+    M3HistoryList {
         id: listview
         anchors.fill: parent
-        clip: true
-        boundsBehavior: Flickable.StopAtBounds
         model: root.backingModel
-        topMargin: m3.space8
-        bottomMargin: m3.space16
-
-        readonly property int _columnWidth: Math.min(width, m3.maxContentWidth) - 2 * m3.screenMargin(width)
-
-        readonly property var sectionLabels: ({
-            'local': qsTranslate('History', 'Local'),
-            'mempool': qsTranslate('History', 'Mempool'),
-            'today': qsTranslate('History', 'Today'),
-            'yesterday': qsTranslate('History', 'Yesterday'),
-            'thisweek': qsTranslate('History', 'Earlier this week'),
-            'lastweek': qsTranslate('History', 'Last week'),
-            'thismonth': qsTranslate('History', 'Earlier this month'),
-            'lastmonth': qsTranslate('History', 'Last month'),
-            'older': qsTranslate('History', 'Older')
-        })
-
-        section.property: 'section'
-        section.criteria: ViewSection.FullString
-        section.delegate: Item {
-            required property string section
-            width: ListView.view.width
-            height: sectionHeader.implicitHeight
-            M3SectionHeader {
-                id: sectionHeader
-                width: listview._columnWidth
-                anchors.horizontalCenter: parent.horizontalCenter
-                leftPadding: m3.space16
-                text: section in listview.sectionLabels ? listview.sectionLabels[section] : section
-            }
-        }
-
-        delegate: Item {
-            width: ListView.view.width
-            height: row.height
-            M3HistoryDelegate {
-                id: row
-                width: listview._columnWidth
-                anchors.horizontalCenter: parent.horizontalCenter
-            }
-        }
-
-        ScrollIndicator.vertical: ScrollIndicator { }
     }
 
     ColumnLayout {

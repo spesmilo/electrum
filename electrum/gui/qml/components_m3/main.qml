@@ -527,7 +527,7 @@ ApplicationWindow
     property alias signVerifyMessageDialog: _signVerifyMessageDialog
     Component {
         id: _signVerifyMessageDialog
-        Classic.SignVerifyMessageDialog {
+        SignVerifyMessageDialog {
             onClosed: destroy()
         }
     }
