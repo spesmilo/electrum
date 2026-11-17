@@ -466,7 +466,7 @@ M3Page {
                 var done_dialog = app.messageDialog.createObject(app, {
                     title: success ? qsTranslate('WalletDetails', 'Success') : qsTranslate('WalletDetails', 'Error'),
                     iconSource: success
-                        ? Qt.resolvedUrl('../../icons/m3/info.png')
+                        ? ''  // M2-MAP F-5: an info message has no icon
                         : Qt.resolvedUrl('../../icons/m3/warning.png'),
                     text: success ? qsTranslate('WalletDetails', 'Password changed') : qsTranslate('WalletDetails', 'Password change failed')
                 })
@@ -552,7 +552,7 @@ M3Page {
                 var done_dialog = app.messageDialog.createObject(app, {
                     title: success ? qsTranslate('WalletDetails', 'Success') : qsTranslate('WalletDetails', 'Error'),
                     iconSource: success
-                        ? Qt.resolvedUrl('../../icons/m3/info.png')
+                        ? ''  // M2-MAP F-5: an info message has no icon
                         : Qt.resolvedUrl('../../icons/m3/warning.png'),
                     text: success ? qsTranslate('WalletDetails', 'Password changed') : error_msg
                 })
