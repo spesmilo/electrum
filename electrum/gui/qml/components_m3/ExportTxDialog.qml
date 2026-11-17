@@ -13,7 +13,8 @@ import "controls"
 // each created with { dialog: dialog } and laid out with the other buttons; the plugin reads dialog.text,
 // dialog.tx_label and may call dialog.close()).
 // Differences: Material 3 look; the buttons of the plugins are created when the dialog is completed (the classic
-// DialogButtonContainer did it in its beforeLayout()); the QR code is as large as the width allows.
+// DialogButtonContainer did it in its beforeLayout()); the QR code is as large as the width allows and, when
+// the visible height is shorter than the code (landscape), scaled down to it.
 // Strings keep the translation context of the classic file (qsTranslate('ExportTxDialog', ...)).
 M3FullScreenDialog {
     id: dialog
@@ -50,17 +51,32 @@ M3FullScreenDialog {
 
                 // the QR code on a card, centered (ExportTxDialog.qml:42-57)
                 // (M3QRImage sets its width/height, not an implicit size, so the card is sized here)
-                Rectangle {
+                // On a short screen (the landscape Fold, 830x620) the card is scaled down to the visible
+                // height, so the whole code is seen without scrolling; elsewhere the scale is 1.
+                Item {
+                    id: qrBox
+                    readonly property real fit: Math.max(0.5, Math.min(1,
+                        (flickable.height - 2 * m3.space16) / qrCard.implicitHeight))
                     Layout.alignment: Qt.AlignHCenter
-                    implicitWidth: qr.width + 2 * m3.space16
-                    implicitHeight: qr.height + 2 * m3.space16
-                    radius: m3.radiusL
-                    color: m3.surfaceContainerLow
+                    implicitWidth: qrCard.implicitWidth * fit
+                    implicitHeight: qrCard.implicitHeight * fit
 
-                    M3QRImage {
-                        id: qr
-                        anchors.centerIn: parent
-                        qrdata: dialog.text_qr
+                    Rectangle {
+                        id: qrCard
+                        width: implicitWidth
+                        height: implicitHeight
+                        implicitWidth: qr.width + 2 * m3.space16
+                        implicitHeight: qr.height + 2 * m3.space16
+                        transformOrigin: Item.TopLeft
+                        scale: qrBox.fit
+                        radius: m3.radiusL
+                        color: m3.surfaceContainerLow
+
+                        M3QRImage {
+                            id: qr
+                            anchors.centerIn: parent
+                            qrdata: dialog.text_qr
+                        }
                     }
                 }
 

@@ -6,7 +6,7 @@ import org.electrum 1.0
 
 // Input of a transaction (a row of a list, e.g. inside M3ListGroup): "#index", the outpoint (short id), the
 // value with its unit; below the address in the fixed font with "(mine)" / "(swap)" / "(accounting)".
-// repeats: components/controls/TxInput.qml:8-104 @ e6df7e1c8 (model, allowClick, idx, the suffix, the value or
+// repeats: components/controls/TxInput.qml:8-105 @ e6df7e1c8 (model, allowClick, idx, the suffix, the value or
 // "<unknown amount>", the address or "<address unknown>", its color by kind, the taps: the outpoint opens the
 // previous transaction, an address of this wallet opens its details).
 // Differences: Material 3 look; the taps open the routes app.routes.txDetails / app.routes.addressDetails

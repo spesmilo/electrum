@@ -301,9 +301,24 @@ ApplicationWindow
             readonly property var _classicRoots: ({
                 'Wallets.qml': '../components/Wallets.qml'
             })
+            // M3: the classic root that replaceRoot() opens when the Material 3 one cannot be loaded (an error in
+            // its file or in any file it loads by type, e.g. the dialogs of PaymentFlow): a working classic
+            // wallet screen instead of an empty one; the error goes to the log.
+            readonly property var _rootFallbacks: ({
+                'WalletMainView.qml': '../components/WalletMainView.qml'
+            })
             function replaceRoot(item_url) {
                 mainStackView.clear()
-                mainStackView.push(Qt.resolvedUrl(item_url in _classicRoots ? _classicRoots[item_url] : item_url))
+                var url = Qt.resolvedUrl(item_url in _classicRoots ? _classicRoots[item_url] : item_url)
+                if (item_url in _rootFallbacks) {
+                    var component = Qt.createComponent(url)
+                    if (component.status !== Component.Ready) {
+                        console.warn('M3: cannot load ' + url + ': ' + component.errorString())
+                        url = Qt.resolvedUrl(_rootFallbacks[item_url])
+                        console.warn('M3: opening the classic root ' + url + ' instead')
+                    }
+                }
+                mainStackView.push(url)
             }
             // M3: the strip below (one owner of navigationBarHeight; Material 3 pages do not pad for
             // it themselves) takes the color of the page on top, as a live binding (theme switch).

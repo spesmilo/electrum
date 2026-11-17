@@ -49,6 +49,9 @@ M3Page {
     property list<Item> m3Actions: [
         M3IconButton {
             visible: root._showShare || root._showSave || root._showRemove
+            // the button lives in the top app bar, outside the page: it follows root.enabled itself, so after
+            // Remove... (root.enabled = false, TxDetails.qml:497-504) it is disabled with the rest of the page
+            enabled: root.enabled
             tooltip: qsTr('More options')
             icon.source: Qt.resolvedUrl('../../icons/m3/more_vert.png')
             onClicked: overflowMenu.open()

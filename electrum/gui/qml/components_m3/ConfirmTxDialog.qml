@@ -15,7 +15,8 @@ import "controls"
 // updateAmountText() with the effective amount while valid, the fee picker with the extra fee, the options:
 // multiple change addresses and output value rounding with their helps, the warning, inputs and outputs without
 // taps and sharing, the send button text by the wallet kind, enabled while valid -> doAccept(), doReject() when
-// the dialog closes). Only the look differs.
+// the dialog closes). Only the look differs, and the options are written on onToggled instead of
+// onCheckedChanged + activeFocus (the same "user change only" rule for a row that takes no focus on press).
 // Strings keep the translation context of the classic file (qsTranslate('ConfirmTxDialog', ...)).
 M3FullScreenDialog {
     id: dialog
@@ -70,7 +71,7 @@ M3FullScreenDialog {
                 width: Math.min(m3.maxContentWidth, flickable.width - 2 * margin)
                 spacing: m3.space16
 
-                // --- amount (ConfirmTxDialog.qml:240-293) ---
+                // --- amount (ConfirmTxDialog.qml:67-120) ---
                 ColumnLayout {
                     Layout.fillWidth: true
                     spacing: m3.space4
@@ -129,7 +130,7 @@ M3FullScreenDialog {
                     }
                 }
 
-                // --- fee (ConfirmTxDialog.qml:295-322) ---
+                // --- fee (ConfirmTxDialog.qml:122-149) ---
                 M3SectionHeader {
                     Layout.fillWidth: true
                     Layout.bottomMargin: -m3.space8
@@ -163,7 +164,7 @@ M3FullScreenDialog {
                     }
                 }
 
-                // --- options (ConfirmTxDialog.qml:324-383) ---
+                // --- options (ConfirmTxDialog.qml:151-210) ---
                 M3ListGroup {
                     Layout.fillWidth: true
                     visible: showOptions
@@ -189,11 +190,12 @@ M3FullScreenDialog {
                         M3CheckRow {
                             Layout.fillWidth: true
                             text: qsTranslate('ConfirmTxDialog', 'Use multiple change addresses')
-                            onCheckedChanged: {
-                                if (activeFocus) {
-                                    Daemon.currentWallet.multipleChange = checked
-                                    finalizer.doUpdate()
-                                }
+                            // the classic writes on a user change only (onCheckedChanged + activeFocus: a
+                            // CheckBox takes the focus on press); a CheckDelegate takes no focus on press, so
+                            // the user change is onToggled (emitted on a tap, a click or Space only)
+                            onToggled: {
+                                Daemon.currentWallet.multipleChange = checked
+                                finalizer.doUpdate()
                             }
                             Component.onCompleted: {
                                 checked = Daemon.currentWallet.multipleChange
@@ -215,11 +217,10 @@ M3FullScreenDialog {
                         M3CheckRow {
                             Layout.fillWidth: true
                             text: Config.shortDescFor('WALLET_COIN_CHOOSER_OUTPUT_ROUNDING')
-                            onCheckedChanged: {
-                                if (activeFocus) {
-                                    Config.outputValueRounding = checked
-                                    finalizer.doUpdate()
-                                }
+                            // user change only: onToggled (see above)
+                            onToggled: {
+                                Config.outputValueRounding = checked
+                                finalizer.doUpdate()
                             }
                             Component.onCompleted: {
                                 checked = Config.outputValueRounding
@@ -233,7 +234,7 @@ M3FullScreenDialog {
                     }
                 }
 
-                // --- warning (ConfirmTxDialog.qml:385-394) ---
+                // --- warning (ConfirmTxDialog.qml:212-221) ---
                 M3InfoText {
                     Layout.fillWidth: true
                     visible: finalizer.warning != ''
@@ -241,7 +242,7 @@ M3FullScreenDialog {
                     iconStyle: M3InfoText.IconStyle.Warn
                 }
 
-                // --- inputs and outputs (ConfirmTxDialog.qml:396-449) ---
+                // --- inputs and outputs (ConfirmTxDialog.qml:223-276) ---
                 TxIoSection {
                     Layout.fillWidth: true
                     context: 'ConfirmTxDialog'
@@ -255,7 +256,7 @@ M3FullScreenDialog {
             }
         }
 
-        // ConfirmTxDialog.qml:454-467
+        // ConfirmTxDialog.qml:281-294
         TxDialogButtonBar {
             id: sendBar
             Layout.fillWidth: true

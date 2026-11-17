@@ -9,7 +9,7 @@ import "controls"
 
 // Lightning payment details of the Material 3 GUI (route app.routes.lightningPaymentDetails, replaces the classic
 // LightningPaymentDetails).
-// repeats: components/LightningPaymentDetails.qml:10-348 @ e6df7e1c8: the page contract (key), the "Paid" notice,
+// repeats: components/LightningPaymentDetails.qml:10-218 @ e6df7e1c8: the page contract (key), the "Paid" notice,
 // date, amount received / sent, the fee of a sent payment, label and its editing, payment hash and preimage
 // with their share dialogs, the LnPaymentDetails object. Only the look differs; the details are M3DetailRow rows
 // (M2-MAP F-4). The classic page has no description row (the label is the description), so neither has this one.
@@ -37,7 +37,7 @@ M3Page {
             width: Math.min(m3.maxContentWidth, flickable.width - 2 * margin)
             spacing: m3.space16
 
-            // --- "Paid" (LightningPaymentDetails.qml:163-170) ---
+            // --- "Paid" (LightningPaymentDetails.qml:33-40) ---
             M3InfoText {
                 Layout.fillWidth: true
                 visible: text
@@ -45,7 +45,7 @@ M3Page {
                 iconStyle: M3InfoText.IconStyle.Done
             }
 
-            // --- amount (LightningPaymentDetails.qml:181-191) ---
+            // --- amount (LightningPaymentDetails.qml:51-61) ---
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: m3.space8
@@ -84,7 +84,7 @@ M3Page {
                 }
             }
 
-            // --- details (LightningPaymentDetails.qml:172-262) ---
+            // --- details (LightningPaymentDetails.qml:42-132) ---
             M3ListGroup {
                 Layout.fillWidth: true
 
@@ -100,7 +100,7 @@ M3Page {
                     timestamp: lnpaymentdetails.timestamp
                 }
 
-                // --- label (LightningPaymentDetails.qml:205-262) ---
+                // --- label (LightningPaymentDetails.qml:75-132) ---
                 M3DetailRow {
                     visible: !labelEditRow.editmode
                     label: qsTranslate('LightningPaymentDetails', 'Label')
@@ -158,7 +158,7 @@ M3Page {
                 }
             }
 
-            // --- technical properties (LightningPaymentDetails.qml:264-337) ---
+            // --- technical properties (LightningPaymentDetails.qml:134-207) ---
             M3SectionHeader {
                 Layout.fillWidth: true
                 Layout.bottomMargin: -m3.space8

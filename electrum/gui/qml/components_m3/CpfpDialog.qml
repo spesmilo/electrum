@@ -43,7 +43,7 @@ M3FullScreenDialog {
                 width: Math.min(m3.maxContentWidth, flickable.width - 2 * margin)
                 spacing: m3.space16
 
-                // CpfpBumpFeeDialog.qml:283-293
+                // CpfpBumpFeeDialog.qml:43-53
                 M3Card {
                     Layout.fillWidth: true
                     color: m3.secondaryContainer
@@ -75,7 +75,7 @@ M3FullScreenDialog {
                     }
                 }
 
-                // CpfpBumpFeeDialog.qml:295-316
+                // CpfpBumpFeeDialog.qml:55-76
                 M3SectionHeader {
                     Layout.fillWidth: true
                     Layout.bottomMargin: -m3.space8
@@ -97,7 +97,7 @@ M3FullScreenDialog {
                     }
                 }
 
-                // CpfpBumpFeeDialog.qml:318-393
+                // CpfpBumpFeeDialog.qml:78-153
                 M3SectionHeader {
                     Layout.fillWidth: true
                     Layout.bottomMargin: -m3.space8

@@ -11,7 +11,9 @@ import "controls"
 // repeats: components/RbfBumpFeeDialog.qml:10-240 @ e6df7e1c8 (the contract `rbffeebumper`, the explanation, the
 // bump method chosen by the user, old fee and fee rate, the new fee picker without absolute fees, the output
 // value rounding option with its help, the warning, inputs and outputs without taps and sharing, Ok enabled
-// while the bumper is valid -> doAccept()). Only the look differs.
+// while the bumper is valid -> doAccept()). Only the look differs, and the rounding option is written on
+// onToggled instead of onCheckedChanged + activeFocus (the same "user change only" rule for a row that takes
+// no focus on press).
 // Strings keep the translation context of the classic file (qsTranslate('RbfBumpFeeDialog', ...)).
 M3FullScreenDialog {
     id: dialog
@@ -114,11 +116,12 @@ M3FullScreenDialog {
                         M3CheckRow {
                             Layout.fillWidth: true
                             text: Config.shortDescFor('WALLET_COIN_CHOOSER_OUTPUT_ROUNDING')
-                            onCheckedChanged: {
-                                if (activeFocus) {
-                                    Config.outputValueRounding = checked
-                                    dialog.rbffeebumper.doUpdate()
-                                }
+                            // the classic writes on a user change only (onCheckedChanged + activeFocus: a
+                            // CheckBox takes the focus on press); a CheckDelegate takes no focus on press, so
+                            // the user change is onToggled (emitted on a tap, a click or Space only)
+                            onToggled: {
+                                Config.outputValueRounding = checked
+                                dialog.rbffeebumper.doUpdate()
                             }
                             Component.onCompleted: {
                                 checked = Config.outputValueRounding
