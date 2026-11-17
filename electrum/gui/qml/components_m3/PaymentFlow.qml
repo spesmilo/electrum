@@ -32,8 +32,24 @@ Item {
     property alias requestDetails: requestDetails
 
     // M3: the Receive button of the classic WalletMainView (line 265-268) as a function
+    // M3 (G2): the Material 3 ReceiveRequestDialog (component receiveDetailsDialog below, loaded by URL); the
+    // handlers of the classic factory (onAccepted: the request parameters, then createRequest) are connected here
     function openReceiveDetailsDialog() {
-        var dialog = receiveDetailsDialog.createObject(mainView)
+        var dialog = receiveDetailsDialog ? receiveDetailsDialog.createObject(mainView) : null
+        if (!dialog) {
+            console.log('M3: ReceiveRequestDialog unavailable')
+            return
+        }
+        dialog.accepted.connect(function() {
+            console.log('accepted')
+            _request_amount = dialog.amount
+            _request_description = dialog.description
+            _request_expiry = dialog.expiry
+            createRequest(dialog.isLightning, false)
+        })
+        dialog.rejected.connect(function() {
+            console.log('rejected')
+        })
         dialog.open()
     }
 
@@ -63,10 +79,31 @@ Item {
         return classicdialog
     }
 
+    // M3 (G2): the Material 3 ReceivePage on the stack instead of the classic ReceiveDialog (M2-MAP F-1); the
+    // handler of the classic factory (onRequestPaid: close, then the details of the payment) is connected here:
+    // the details take the place of the page when it is on top, else they are pushed (the classic pushes them
+    // after closing its dialog). Returns the page, or null when it cannot be loaded (logged).
     function openRequest(key) {
-        var dialog = receiveDialog.createObject(app, { key: key })
-        dialog.open()
-        return dialog
+        var page = _showPage(Qt.resolvedUrl('ReceivePage.qml'), { key: key })
+        if (!page || page.m3ReceivePage !== true) {
+            console.log('M3: ReceivePage unavailable')
+            return null
+        }
+        // once: the request reports Unconfirmed and then Paid (the classic dialog is gone after the first)
+        var handled = false
+        page.requestPaid.connect(function() {
+            if (handled)
+                return
+            handled = true
+            var url = page.isLightning ? app.routes.lightningPaymentDetails : app.routes.txDetails
+            var props = page.isLightning ? {'key': page.key} : {'txid': page.getPaidTxid()}
+            var component = app.stack.currentItem === page ? app.loadPage(url) : null
+            if (component)
+                app.stack.replace(page, component, props)
+            else
+                app.pushPage(url, props)  // M3: a route (app.routes)
+        })
+        return page
     }
 
     // M3: loads a Material 3 page of this flow; null (and the error in the log) when it cannot be loaded.
@@ -579,46 +616,10 @@ Item {
         Classic.SendDialog {}
     }
 
-    Component {
-        id: receiveDetailsDialog
-
-        Classic.ReceiveDetailsDialog {
-            id: _receiveDetailsDialog
-            width: parent.width * 0.9
-            anchors.centerIn: parent
-            onAccepted: {
-                console.log('accepted')
-                _request_amount = _receiveDetailsDialog.amount
-                _request_description = _receiveDetailsDialog.description
-                _request_expiry = _receiveDetailsDialog.expiry
-                createRequest(_receiveDetailsDialog.isLightning, false)
-            }
-            onRejected: {
-                console.log('rejected')
-            }
-            onClosed: destroy()
-        }
-    }
-
-    Component {
-        id: receiveDialog
-        Classic.ReceiveDialog {
-            width: parent.width
-            height: parent.height
-
-            onRequestPaid: {
-                close()
-                if (isLightning) {
-                    // M3: a route (app.routes)
-                    app.pushPage(app.routes.lightningPaymentDetails, {'key': key})
-                } else {
-                    // M3: a route (app.routes)
-                    app.pushPage(app.routes.txDetails, {'txid': getPaidTxid()})
-                }
-            }
-            onClosed: destroy()
-        }
-    }
+    // M3 (G2): the Material 3 dialogs of receiving, loaded by URL (null and the error in the log when a file
+    // cannot be loaded: a defect in one of them must not break this file); each dialog sizes itself and
+    // destroys itself on close. The receive page is ReceivePage.qml, loaded by openRequest().
+    readonly property Component receiveDetailsDialog: _loadPage(Qt.resolvedUrl('ReceiveRequestDialog.qml'))
 
     Component {
         id: confirmPaymentDialog
@@ -682,25 +683,9 @@ Item {
         }
     }
 
-    Component {
-        id: lnurlPayDialog
-        Classic.LnurlPayRequestDialog {
-            width: parent.width * 0.9
-            anchors.centerIn: parent
+    readonly property Component lnurlPayDialog: _loadPage(Qt.resolvedUrl('LnurlPayDialog.qml'))
 
-            onClosed: destroy()
-        }
-    }
-
-    Component {
-        id: lnurlWithdrawDialog
-        Classic.LnurlWithdrawRequestDialog {
-            width: parent.width * 0.9
-            anchors.centerIn: parent
-
-            onClosed: destroy()
-        }
-    }
+    readonly property Component lnurlWithdrawDialog: _loadPage(Qt.resolvedUrl('LnurlWithdrawDialog.qml'))
 
     Component {
         id: otpDialog

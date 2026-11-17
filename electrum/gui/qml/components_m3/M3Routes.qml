@@ -33,9 +33,9 @@ QtObject {
     property url walletsClassic: Qt.resolvedUrl('../components/Wallets.qml')
 
     // --- G2 receiving: invoices and requests ---
-    property url invoices: Qt.resolvedUrl('../components/Invoices.qml')
+    property url invoices: Qt.resolvedUrl('InvoicesPage.qml')
     property url invoicesClassic: Qt.resolvedUrl('../components/Invoices.qml')
-    property url receiveRequests: Qt.resolvedUrl('../components/ReceiveRequests.qml')
+    property url receiveRequests: Qt.resolvedUrl('RequestsPage.qml')
     property url receiveRequestsClassic: Qt.resolvedUrl('../components/ReceiveRequests.qml')
 
     // --- G3 transactions: details ---
