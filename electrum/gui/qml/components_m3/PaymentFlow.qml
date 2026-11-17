@@ -82,7 +82,9 @@ Item {
     // M3 (G2): the Material 3 ReceivePage on the stack instead of the classic ReceiveDialog (M2-MAP F-1); the
     // handler of the classic factory (onRequestPaid: close, then the details of the payment) is connected here:
     // the details take the place of the page when it is on top, else they are pushed (the classic pushes them
-    // after closing its dialog). Returns the page, or null when it cannot be loaded (logged).
+    // after closing its dialog). The page signals requestPaid only for a payment made while it is open, not for a
+    // request that was already paid when it was opened (ReceivePage._paid). Returns the page, or null when it cannot
+    // be loaded (logged).
     function openRequest(key) {
         var page = _showPage(Qt.resolvedUrl('ReceivePage.qml'), { key: key })
         if (!page || page.m3ReceivePage !== true) {

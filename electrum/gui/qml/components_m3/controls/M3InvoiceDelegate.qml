@@ -108,16 +108,18 @@ ItemDelegate {
                 Layout.fillWidth: true
                 spacing: m3.space8
 
+                // InvoiceDelegate.qml:61-72: up to two lines, the address (no message) in a smaller font
                 M3Text {
                     Layout.fillWidth: true
-                    role: 'bodyLarge'
+                    role: model.message ? 'bodyLarge' : 'bodyMedium'
                     text: model.message
                         ? model.message
                         : model.type == 'request'
                             ? model.address
                             : ''
                     elide: Text.ElideRight
-                    wrapMode: Text.NoWrap
+                    wrapMode: Text.Wrap
+                    maximumLineCount: 2
                 }
 
                 M3Text {

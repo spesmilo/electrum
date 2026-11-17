@@ -14,10 +14,11 @@ import "controls"
 // address; tap shows the text), :91-133 (status, message or 'unspecified', amount or 'unspecified'), :150-187
 // (Copy: the bolt11 in lower case, else the URI, else the address, then 'Copied!'; Share: the same text, titled
 // 'Payment Request' or 'Onchain address'), :191-207 (RequestDetails of the key, requestPaid on Paid or
-// Unconfirmed), :209-217 (the QR is rendered once the page is shown) @ e6df7e1c8; the fiat value of the amount
+// Unconfirmed; M3: only on a change to it while the page is open, see _paid), :209-217 (the QR is rendered once
+// the page is shown) @ e6df7e1c8; the fiat value of the amount
 // as components/controls/FormattedAmount.qml:39-52 @ e6df7e1c8 (timestamp 0).
-// Added to the view (same object, no new logic): the expiry of the request (RequestDetails.expiration, 0 =
-// never: no row) and the on-chain address as a detail row with the share button.
+// Added to the view (same object, no new logic): the expiry of the request (RequestDetails.expiration; 0 or the
+// LN_EXPIRY_NEVER delay: 'Never') and the on-chain address as a detail row with the share button.
 // Contract for PaymentFlow (as the classic ReceiveDialog): key (set on creation), isLightning, getPaidTxid(),
 // requestPaid; plus close() (takes this page off the stack, only when it is on top).
 // Strings carried over from ReceiveDialog.qml keep its translation context; 'Copy' / 'Share' (untranslated
@@ -62,6 +63,20 @@ M3Page {
     // the request is read only once its key is set (Component.onCompleted): before that the getters of
     // RequestDetails have no request (status, expiration raise in Python)
     property bool _ready: false
+
+    // LN_EXPIRY_NEVER of invoices.py (100 years), a delay the core treats as never (invoices.py:91,143)
+    readonly property real _lnExpiryNever: 100 * 365 * 24 * 60 * 60
+    // M3 (review A-4): the expiry row: 'never', 'date' or '' (no row). RequestDetails.expiration is the date
+    // (time + delay; 0 = never, invoices.py get_expiration_date) as a 32-bit int: with the delay LN_EXPIRY_NEVER
+    // it wraps (measured: a request of 2026 arrives as a date in 1989), so that delay is compared modulo 2^32;
+    // any other date not after the creation time can only be such a wrap (a date after 2038) and is not shown
+    readonly property string _expiryKind: !_ready
+        ? ''
+        : request.expiration == 0 || (request.expiration - request.timestamp - _lnExpiryNever) % 4294967296 == 0
+            ? 'never'
+            : request.expiration > request.timestamp
+                ? 'date'
+                : ''
 
     // status card: colors and icon by the status of the request
     readonly property string _statusStyle: !_ready
@@ -114,13 +129,24 @@ M3Page {
                 rowSpacing: m3.space16
 
                 // --- QR (ReceiveDialog.qml:53-82) ---
+                // M3 (review B-N1, B-N5): the QR is scaled down only when it does not fit: one column - not wider
+                // than the column (360 dp: a short URI gives a QR with its frame wider than the column); wide
+                // layout - not higher than the visible height, so that a scanner sees it whole without scrolling
                 Item {
+                    id: qrBox
+                    readonly property real fit: qr.width <= 0 || qr.height <= 0
+                        ? 1
+                        : Math.max(0.5, Math.min(1, root._wide
+                            ? (flickable.height - 2 * m3.space16) / qr.height
+                            : content.width / qr.width))
                     Layout.alignment: Qt.AlignHCenter | Qt.AlignTop
-                    Layout.preferredWidth: qr.width
-                    Layout.preferredHeight: qr.height
+                    Layout.preferredWidth: Math.floor(qr.width * fit)
+                    Layout.preferredHeight: Math.floor(qr.height * fit)
 
                     M3QRImage {
                         id: qr
+                        transformOrigin: Item.TopLeft
+                        scale: qrBox.fit
                         qrdata: root._qrdata
                         render: root._render_qr
                         enableToggleText: true
@@ -199,15 +225,16 @@ M3Page {
                             text: request.message ? request.message : qsTranslate('ReceiveDialog', 'unspecified')
                         }
                         M3DetailRow {
-                            // 0 means never (invoices.py get_expiration_date): no row
-                            readonly property bool expires: root._ready && request.expiration > 0
-                            visible: expires
-                            label: expires && request.status == RequestDetails.Expired
+                            // a request that never expires: 'Never' (the choice of RequestExpiryComboBox)
+                            visible: root._expiryKind !== ''
+                            label: root._expiryKind === 'date' && request.status == RequestDetails.Expired
                                 ? qsTranslate('InvoicePage', 'Expired')
                                 : qsTranslate('InvoicePage', 'Expires')
-                            text: expires
-                                ? new Date(request.expiration * 1000).toLocaleString(Qt.locale(), Locale.ShortFormat)
-                                : ''
+                            text: root._expiryKind === 'never'
+                                ? qsTranslate('RequestExpiryComboBox', 'Never')
+                                : root._expiryKind === 'date'
+                                    ? new Date(request.expiration * 1000).toLocaleString(Qt.locale(), Locale.ShortFormat)
+                                    : ''
                         }
                         M3DetailRow {
                             visible: root._address !== ''
@@ -217,73 +244,105 @@ M3Page {
                             shareable: true
                         }
                     }
+
+                    // --- Copy / Share, wide layout (review B-N1): under the details, so that the QR beside
+                    // them gets the whole height of the page ---
+                    Loader {
+                        Layout.fillWidth: true
+                        active: root._wide
+                        visible: active
+                        sourceComponent: actionsComponent
+                    }
                 }
             }
         }
 
-        // --- Copy / Share (ReceiveDialog.qml:146-188): below the content ---
+        // --- Copy / Share, one column: below the content ---
         Rectangle {
             Layout.fillWidth: true
-            implicitHeight: actions.implicitHeight + 2 * m3.space16
+            visible: !root._wide
+            implicitHeight: bottomActions.implicitHeight + 2 * m3.space16
             color: m3.surface
 
-            RowLayout {
-                id: actions
+            Loader {
+                id: bottomActions
                 readonly property int margin: m3.screenMargin(root.width)
                 x: Math.max(margin, (parent.width - width) / 2)
                 anchors.verticalCenter: parent.verticalCenter
                 width: Math.min(m3.maxContentWidth, parent.width - 2 * margin)
-                spacing: m3.space8
+                active: !root._wide
+                sourceComponent: actionsComponent
+            }
+        }
+    }
 
-                M3Button {
-                    id: copyButton
-                    Layout.fillWidth: true
-                    Layout.preferredWidth: 1
-                    variant: 'tonal'
-                    size: 56
-                    icon.source: Qt.resolvedUrl('../../icons/m3/content_copy.png')
-                    text: qsTranslate('GenericShareDialog', 'Copy')
-                    onClicked: {
-                        AppController.textToClipboard(_bolt11
+    // --- Copy / Share (ReceiveDialog.qml:146-188) ---
+    Component {
+        id: actionsComponent
+
+        RowLayout {
+            spacing: m3.space8
+
+            M3Button {
+                id: copyButton
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                variant: 'tonal'
+                size: 56
+                icon.source: Qt.resolvedUrl('../../icons/m3/content_copy.png')
+                text: qsTranslate('GenericShareDialog', 'Copy')
+                onClicked: {
+                    AppController.textToClipboard(_bolt11
+                        ? _bolt11.toLowerCase()
+                        : _bip21uri
+                            ? _bip21uri
+                            : _address
+                    )
+                    toaster.show(this, qsTranslate('ReceiveDialog', 'Copied!'))
+                }
+            }
+            M3Button {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                variant: 'filled'
+                size: 56
+                icon.source: Qt.resolvedUrl('../../icons/m3/share.png')
+                text: qsTranslate('GenericShareDialog', 'Share')
+                onClicked: {
+                    enabled = false
+                    AppController.doShare(
+                        _bolt11
                             ? _bolt11.toLowerCase()
                             : _bip21uri
                                 ? _bip21uri
-                                : _address
-                        )
-                        toaster.show(this, qsTranslate('ReceiveDialog', 'Copied!'))
-                    }
-                }
-                M3Button {
-                    Layout.fillWidth: true
-                    Layout.preferredWidth: 1
-                    variant: 'filled'
-                    size: 56
-                    icon.source: Qt.resolvedUrl('../../icons/m3/share.png')
-                    text: qsTranslate('GenericShareDialog', 'Share')
-                    onClicked: {
-                        enabled = false
-                        AppController.doShare(
-                            _bolt11
-                                ? _bolt11.toLowerCase()
-                                : _bip21uri
-                                    ? _bip21uri
-                                    : _address,
-                            _bolt11 || _bip21uri
-                                ? qsTranslate('ReceiveDialog', 'Payment Request')
-                                : qsTranslate('ReceiveDialog', 'Onchain address')
-                        )
-                        enabled = true
-                    }
+                                : _address,
+                        _bolt11 || _bip21uri
+                            ? qsTranslate('ReceiveDialog', 'Payment Request')
+                            : qsTranslate('ReceiveDialog', 'Onchain address')
+                    )
+                    enabled = true
                 }
             }
         }
     }
 
+    // M3 (review A-1, B-N4): requestPaid only for a payment made while the page is open, i.e. a change from a
+    // status that is not Paid / Unconfirmed to one that is. A request that was already paid when the page was
+    // opened (from the list) shows its status and stays; it does not switch to the details later, when the payment
+    // confirms. (The classic dialog went to the details at once in that case.) The status the request has when
+    // its key is set (initRequest emits statusChanged inside Component.onCompleted) is only recorded.
+    property bool _paid: false
+
     RequestDetails {
         id: request
         wallet: Daemon.currentWallet
         onStatusChanged: {
-            if (status == RequestDetails.Paid || status == RequestDetails.Unconfirmed) {
+            if (!root._ready)
+                return
+            var paid = status == RequestDetails.Paid || status == RequestDetails.Unconfirmed
+            var wasPaid = root._paid
+            root._paid = paid
+            if (paid && !wasPaid) {
                 root.requestPaid()
             }
         }
@@ -297,6 +356,7 @@ M3Page {
     Component.onCompleted: {
         request.key = root.key
         _ready = request.amount ? true : false
+        _paid = _ready && (request.status == RequestDetails.Paid || request.status == RequestDetails.Unconfirmed)
         setFiatValue()
     }
 
