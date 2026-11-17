@@ -4,7 +4,7 @@ AppImage binary for Electrum
 ✓ _This binary should be reproducible, meaning you should be able to generate
    binaries that match the official releases._
 
-- _Minimum supported target system (i.e. what end-users need): x86_64, glibc 2.31_
+- _Minimum supported target system (i.e. what end-users need): x86_64, glibc 2.36_
 
 This assumes an Ubuntu host, but it should not be too hard to adapt to another
 similar system. The host architecture should be x86_64 (amd64).

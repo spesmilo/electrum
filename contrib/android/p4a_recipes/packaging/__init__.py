@@ -3,7 +3,7 @@ from pythonforandroid.util import HashPinnedDependency
 
 
 assert PackagingRecipe._version == "26.0"
-assert PackagingRecipe.depends == ["setuptools", "pyparsing", "python3"]
+assert PackagingRecipe.depends == ["setuptools", "python3"]
 assert PackagingRecipe.python_depends == []
 
 

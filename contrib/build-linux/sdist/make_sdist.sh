@@ -50,14 +50,16 @@ info "preparing electrum-locale."
     python3 setup.py --quiet sdist --format=gztar --dist-dir="$PY_DISTDIR"
 
     VERSION=$("$CONTRIB"/print_electrum_version.py)
-    if ([ "$OMIT_UNCLEAN_FILES" = 1 ]); then
+    if ([ "$OMIT_UNCLEAN_FILES" = 1 ]); then  # TODO rename tarballs to lowercase, to conform to PEP 625
         FINAL_DISTNAME="Electrum-sourceonly-$VERSION.tar.gz"
     else
         FINAL_DISTNAME="Electrum-$VERSION.tar.gz"
     fi
     if ([ "$OMIT_UNCLEAN_FILES" = 1 ]); then
-        mv "$PY_DISTDIR/Electrum-$VERSION.tar.gz" "$PY_DISTDIR/../$FINAL_DISTNAME"
+        mv "$PY_DISTDIR/electrum-$VERSION.tar.gz" "$PY_DISTDIR/../$FINAL_DISTNAME"
         rmdir "$PY_DISTDIR"
+    else
+        mv "$PY_DISTDIR/electrum-$VERSION.tar.gz" "$PY_DISTDIR/$FINAL_DISTNAME"
     fi
 
     # the initial tar.gz is not reproducible, see https://github.com/pypa/setuptools/issues/2133
@@ -66,7 +68,7 @@ info "preparing electrum-locale."
     cd "$BUILDDIR/dist2"
     tar -xzf "$BUILDDIR/dist1/$FINAL_DISTNAME"
     find -exec touch -h -d '2000-11-11T11:11:11+00:00' {} +
-    GZIP=-n tar --sort=name -czf "$FINAL_DISTNAME" "Electrum-$VERSION/"
+    GZIP=-n tar --sort=name -czf "$FINAL_DISTNAME" "electrum-$VERSION/"
     mv "$FINAL_DISTNAME" "$DISTDIR/$FINAL_DISTNAME"
 )
 
