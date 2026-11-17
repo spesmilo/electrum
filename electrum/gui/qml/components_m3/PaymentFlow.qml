@@ -621,9 +621,10 @@ Item {
     // destroys itself on close. The receive page is ReceivePage.qml, loaded by openRequest().
     readonly property Component receiveDetailsDialog: _loadPage(Qt.resolvedUrl('ReceiveRequestDialog.qml'))
 
+    // M3: the Material 3 ConfirmTxDialog (same API as the classic one)
     Component {
         id: confirmPaymentDialog
-        Classic.ConfirmTxDialog {
+        ConfirmTxDialog {
             id: _confirmPaymentDialog
             title: qsTranslate('WalletMainView', 'Confirm Payment')
             finalizer: TxFinalizer {
@@ -654,7 +655,7 @@ Item {
                     var dialog = app.messageDialog.createObject(mainView, {
                         title: qsTranslate('WalletMainView', 'Error'),
                         text: [qsTranslate('WalletMainView', 'Could not sign tx'), message].join('\n\n'),
-                        iconSource: '../../../icons/warning.png'
+                        iconSource: Qt.resolvedUrl('../../icons/warning.png')  // M3: resolved here, not in the dialog
                     })
                     dialog.open()
                 }
@@ -667,9 +668,10 @@ Item {
         }
     }
 
+    // M3: the Material 3 ConfirmTxDialog (same API as the classic one)
     Component {
         id: confirmSweepDialog
-        Classic.ConfirmTxDialog {
+        ConfirmTxDialog {
             id: _confirmSweepDialog
 
             property string privateKeys
@@ -697,9 +699,10 @@ Item {
         }
     }
 
+    // M3: the Material 3 ExportTxDialog (same API as the classic one)
     Component {
         id: exportTxDialog
-        Classic.ExportTxDialog {
+        ExportTxDialog {
             onClosed: destroy()
         }
     }

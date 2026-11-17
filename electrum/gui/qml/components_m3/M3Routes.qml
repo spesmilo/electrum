@@ -39,9 +39,9 @@ QtObject {
     property url receiveRequestsClassic: Qt.resolvedUrl('../components/ReceiveRequests.qml')
 
     // --- G3 transactions: details ---
-    property url txDetails: Qt.resolvedUrl('../components/TxDetails.qml')
+    property url txDetails: Qt.resolvedUrl('TxDetailsPage.qml')
     property url txDetailsClassic: Qt.resolvedUrl('../components/TxDetails.qml')
-    property url lightningPaymentDetails: Qt.resolvedUrl('../components/LightningPaymentDetails.qml')
+    property url lightningPaymentDetails: Qt.resolvedUrl('LightningPaymentPage.qml')
     property url lightningPaymentDetailsClassic: Qt.resolvedUrl('../components/LightningPaymentDetails.qml')
 
     // --- G5 wallet and addresses ---
