@@ -2,10 +2,14 @@ import QtQuick
 
 // Routes of the Material 3 GUI: one URL per page that Material 3 code opens on the stack (app.routes, see
 // main.qml). Callers never name a page file: they push app.routes.<page> with app.pushPage(url, props) or
-// app.stack.pushOnRoot(app.loadPage(url)). The group that moves a page to Material 3 changes only the first
-// line of its route (the URL, resolved relative to components_m3/); the second line, <page>Classic, is the classic
-// page that app.loadPage() opens when the Material 3 one cannot be loaded (fallback for the time of the
-// M2 waves; removed together with it, M2-MAP F-14).
+// app.pushPageOnRoot(url), which push only a page that loaded (never a null one). The group that moves a
+// page to Material 3 changes the first line of its route (the URL, resolved relative to components_m3/); the
+// second line, <page>Classic, is the classic page that app.loadPage() opens when the Material 3 one cannot be
+// loaded (fallback for the time of the M2 waves; removed together with it, M2-MAP F-14). Exception: the
+// classic Wallets page is also named in main.qml, by mainStackView.initialItem (Classic.Wallets) and
+// mainStackView._classicRoots (replaceRoot('Wallets.qml')): the group of `wallets` changes those too.
+// Constraint: two routes must not lead to the same Material 3 file: the fallback is looked up by the URL
+// (classicFor), so both routes would fall back to the classic page of the first one.
 // Layout: one block per owning group, blocks separated by a comment line, so that groups editing their own
 // block never touch the same or adjacent lines of another group.
 QtObject {

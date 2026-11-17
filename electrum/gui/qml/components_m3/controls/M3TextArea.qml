@@ -60,13 +60,31 @@ Flickable {
             width: parent.width
             focus: true
             wrapMode: TextEdit.Wrap
-            placeholderText: edit.text.length ? "" : root.placeholderText
+            // the Material TextArea centers its first line in its own 56 px container; without that container
+            // (background replaced) its top padding is negative, the first line starts above the box and
+            // ensureVisible() scrolls it down as soon as the cursor appears: the text jumped on the first key
+            topPadding: 0
             font.pixelSize: m3.textStyle('bodyLarge').size
             color: m3.surfaceOn
-            placeholderTextColor: m3.surfaceVariantOn
             onCursorRectangleChanged: root.ensureVisible(cursorRectangle)
             background: Rectangle {
                 color: 'transparent'
+            }
+
+            // the hint of the empty field (classic: placeholderText while the text is empty), drawn where the
+            // first line of the text goes: the Material placeholder of a TextArea without its container sits
+            // above that line and, on focus, shrinks into a floating label for a border this box does not have
+            Text {
+                x: edit.leftPadding
+                y: edit.topPadding
+                width: edit.width - edit.leftPadding - edit.rightPadding
+                visible: edit.length === 0 && edit.preeditText === ''
+                text: root.placeholderText
+                font: edit.font
+                color: m3.surfaceVariantOn
+                wrapMode: Text.Wrap
+                textFormat: Text.PlainText
+                renderType: edit.renderType
             }
         }
         MouseArea {

@@ -4,14 +4,17 @@ import QtQuick.Controls
 
 // Notice block of the Material 3 GUI (the "M3Notice" of the onboarding design, DESIGN-M2-onboarding.md 7.4):
 // a tonal container (radius 12, padding 16, compact 12) with a 20 dp icon and bodyMedium text.
-// API: `text`, `tone` ('info' | 'warn' | 'error' | 'success' | 'progress'), `textFormat` (PlainText by default),
-// `compact`; plus the properties of the classic InfoTextArea that classic screens use, so a screen moves over
-// verbatim: `iconStyle` (M3InfoText.IconStyle, same values as InfoTextArea.IconStyle; it sets `tone` unless
-// `tone` is set explicitly: Info -> info, Warn -> warn, Error -> error, Done -> success,
-// Progress / Pending / Spinner -> progress; None hides the icon), `horizontalAlignment`, `backgroundColor`,
-// `borderColor` (default: the colors of the tone).
-// repeats: components/controls/InfoTextArea.qml:6-79 @ e6df7e1c8 (the IconStyle enum and the properties);
-// the look is Material 3 (no colored classic icons, no border by default).
+// API: `text`, `tone` ('info' | 'warn' | 'error' | 'success' | 'progress'), `textFormat` (AutoText by default,
+// as the Label of the classic InfoTextArea: markup in the text is rendered), `compact`; plus the properties of
+// the classic InfoTextArea that classic screens use, so a screen moves over verbatim: `iconStyle`
+// (M3InfoText.IconStyle, same values as InfoTextArea.IconStyle; it sets `tone` unless `tone` is set explicitly:
+// Info -> info, Warn -> warn, Error -> error, Done -> success, Progress / Pending / Spinner -> progress; None hides
+// the icon), `horizontalAlignment`, `backgroundColor`, `borderColor` (default: the colors of the tone).
+// The icon follows the classic one: only Spinner spins; Progress (classic unconfirmed.png) is the static `sync`
+// glyph, as unconfirmed transactions in M3HistoryDelegate, and Pending (classic unpaid.png) the static `schedule`;
+// otherwise the glyph of the tone (a `tone: 'progress'` set without a progress style spins, as the M3Notice).
+// repeats: components/controls/InfoTextArea.qml:6-79 @ e6df7e1c8 (the IconStyle enum, the properties, which
+// styles spin); the look is Material 3 (no colored classic icons, no border by default).
 Pane {
     id: root
 
@@ -41,6 +44,14 @@ Pane {
         'progress': { bg: m3.surfaceContainerHigh, fg: m3.surfaceVariantOn,     icon: '' }
     })
     readonly property var _t: tone in _tones ? _tones[tone] : _tones['info']
+    // the glyph of the icon; '' is the spinner (BusyIndicator)
+    readonly property string _glyph: iconStyle === M3InfoText.IconStyle.Spinner
+        ? ''
+        : iconStyle === M3InfoText.IconStyle.Progress
+            ? 'sync'
+            : iconStyle === M3InfoText.IconStyle.Pending
+                ? 'schedule'
+                : _t.icon
 
     property color backgroundColor: _t.bg
     property color borderColor: 'transparent'
@@ -79,14 +90,14 @@ Pane {
             Layout.preferredHeight: 20
 
             M3Icon {
-                visible: root.tone !== 'progress'
+                visible: root._glyph !== ''
                 anchors.centerIn: parent
                 size: 20
-                source: root._t.icon !== '' ? Qt.resolvedUrl('../../../icons/m3/' + root._t.icon + '.png') : ''
+                source: root._glyph !== '' ? Qt.resolvedUrl('../../../icons/m3/' + root._glyph + '.png') : ''
                 color: root.textColor
             }
             BusyIndicator {
-                visible: root.tone === 'progress'
+                visible: root._glyph === ''
                 running: visible
                 anchors.centerIn: parent
                 width: 28
@@ -104,6 +115,7 @@ Pane {
             lineHeightMode: Text.ProportionalHeight
             lineHeight: 1.0
             verticalAlignment: Text.AlignTop
+            textFormat: Text.AutoText  // as the classic InfoTextArea (its Label), not the PlainText of M3Text
         }
     }
 }

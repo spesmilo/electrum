@@ -15,6 +15,10 @@ import org.electrum 1.0
 // screens color it), `btcfield` / `fiatfield` (the two TextFields, e.g. for `font` or focus).
 // Added: `fiatText`, `fiatVisible`, `fieldMaximumWidth` (320 by default), `trailing` (items after the unit of the
 // bitcoin row, e.g. the "Max" switch).
+// Moving a classic BtcField + FiatField pair here: `font: amountBtc.font` (FontMetrics) -> `amountBtc.btcfield.font`;
+// `Layout.preferredWidth` of each field -> `fieldMaximumWidth` (both fields fill their row up to it; paddings:
+// `btcfield.leftPadding`...); `visible: Daemon.fx.enabled` of the fiat field -> `fiatVisible` (the default);
+// `color` and the `fiatfield:` / `btcfield:` cross-links -> drop (the control colors and links the pair itself).
 ColumnLayout {
     id: root
 
@@ -78,10 +82,12 @@ ColumnLayout {
             color: m3.surfaceVariantOn
             text: Config.baseUnit
         }
-        // as the classic rows: the trailing items follow the unit; without a visible one the row is filled
-        Item { Layout.fillWidth: true; visible: trailingRow.implicitWidth <= 0 }
+        // as the classic rows: the trailing items follow the unit; without a visible one this (empty) row fills
+        // the rest itself, as a spacer would, so a hidden "Max" costs no extra spacing. The row stays visible:
+        // an invisible parent hides its children, so `visible: implicitWidth > 0` would never come back.
         Row {
             id: trailingRow
+            Layout.fillWidth: implicitWidth <= 0
             Layout.alignment: Qt.AlignVCenter
             spacing: m3.space8
             children: root.trailing

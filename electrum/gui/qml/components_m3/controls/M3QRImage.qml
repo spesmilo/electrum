@@ -54,7 +54,9 @@ Item {
 
             Image {
                 visible: _qrprops.valid
-                source: Qt.resolvedUrl('../../../icons/m3/electrum.png')
+                // the Electrum brand logo, the same in both styles: the classic file, by the same relative
+                // path as components/controls/QRImage.qml (not a Material Symbol, so not in icons/m3/)
+                source: Qt.resolvedUrl('../../../icons/electrum.png')
                 x: 1
                 y: 1
                 width: parent.width - 2
