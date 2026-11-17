@@ -118,7 +118,7 @@ exe = EXE(
     upx=True,
     icon=ICONS_FILE,
     console=False,
-    target_arch='x86_64',  # TODO investigate building 'universal2'
+    target_arch=os.environ.get('OSX_ARCH', 'x86_64'),
 )
 
 app = BUNDLE(

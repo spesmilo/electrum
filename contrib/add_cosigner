@@ -5,6 +5,7 @@
 #
 # env vars:
 # - SSHUSER
+# - INCLUDE_MACOS_ARM64: set to 1 to download and verify the ARM DMG too
 #
 #
 # - BUILDER builds all binaries and checks they match the official releases
@@ -57,6 +58,9 @@ files = {
     "apk_armeabi": f"Electrum-{version_android}-armeabi-v7a-release.apk",
     "apk_x86_64": f"Electrum-{version_android}-x86_64-release.apk",
 }
+
+if os.environ.get("INCLUDE_MACOS_ARM64", "0") == "1":
+    files["mac_arm64"] = f"electrum-{version_mac}-arm64.dmg"
 
 
 for shortname, filename in files.items():

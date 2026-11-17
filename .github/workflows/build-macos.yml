@@ -1,0 +1,70 @@
+name: macOS builds
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/build-macos.yml'
+      - '.github/workflows/builds.yml'
+      - 'contrib/osx/**'
+      - 'contrib/make_libsecp256k1.sh'
+      - 'contrib/make_libusb.sh'
+      - 'contrib/make_zxing.sh'
+      - 'contrib/build_tools_util.sh'
+      - 'contrib/deterministic-build/**'
+      - 'contrib/release.sh'
+      - 'contrib/make_download'
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    name: 'build: macOS (${{ matrix.arch }})'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: macos-15-intel
+          - arch: arm64
+            runner: macos-15
+    env:
+      OSX_ARCH: ${{ matrix.arch }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Build unsigned app and DMG
+        run: ./contrib/osx/make_osx.sh
+
+      - name: Test architecture validation and release artifact selection
+        run: ./contrib/osx/.cache/$OSX_ARCH/build-venv/bin/python -m unittest discover -s contrib/osx -p 'test_*.py'
+
+      - name: Verify packaged executable
+        run: |
+          ./contrib/osx/.cache/$OSX_ARCH/build-venv/bin/python \
+            contrib/osx/verify_bundle.py --arch "$OSX_ARCH" dist/Electrum.app
+          smoke_dir="$(mktemp -d)"
+          trap 'rm -rf "$smoke_dir"' EXIT
+          dist/Electrum.app/Contents/MacOS/run_electrum -D "$smoke_dir" --offline --version
+
+      # Zip with ditto to preserve the app bundle's symlinks and executable permissions.
+      - name: Archive app bundle
+        run: ditto -c -k --sequesterRsrc --keepParent dist/Electrum.app "dist/Electrum-$OSX_ARCH.app.zip"
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: electrum-macos-${{ matrix.arch }}-${{ github.sha }}
+          path: |
+            dist/*.dmg
+            dist/*.app.zip
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
