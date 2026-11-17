@@ -19,7 +19,6 @@ M3ListItem {
             id: sw
             checked: root.checked
             enabled: root.enabled
-            Accessible.name: root.headline
             onToggled: {
                 var value = sw.checked
                 sw.checked = Qt.binding(function() { return root.checked })

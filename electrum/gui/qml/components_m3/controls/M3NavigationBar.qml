@@ -34,8 +34,6 @@ Rectangle {
                 width: root.width / Math.max(1, root.model.length)
                 height: root.height
                 text: modelData.text
-                Accessible.role: Accessible.PageTab
-                Accessible.name: modelData.text
 
                 // currentIndex is owned by the page (bound there); only report the choice
                 onClicked: root.activated(index)

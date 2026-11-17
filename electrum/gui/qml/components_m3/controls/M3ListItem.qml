@@ -27,8 +27,6 @@ ItemDelegate {
     topPadding: 8
     bottomPadding: 8
     text: headline
-    Accessible.name: headline
-    Accessible.description: supporting
 
     background: Rectangle {
         color: root.down

@@ -373,7 +373,6 @@ M3Page {
                             lineHeightMode: Text.ProportionalHeight
                             lineHeight: 1.0
                             text: invoice.message
-                            Accessible.name: qsTranslate('InvoiceDialog', 'Description') + ': ' + text
                         }
                     }
                 }

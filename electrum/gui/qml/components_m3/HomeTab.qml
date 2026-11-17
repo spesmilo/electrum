@@ -101,11 +101,6 @@ Item {
                 padding: root._narrow ? m3.space16 : m3.space24
                 clickable: true
                 onClicked: app.stack.push(Qt.resolvedUrl('../components/BalanceDetails.qml'))
-                Accessible.role: Accessible.Button
-                // the figures only when they are shown, else the state shown instead
-                Accessible.name: qsTranslate('BalanceSummary', 'Balance') + ' ' + (root._showBalance
-                    ? root.formattedTotalBalance + ' ' + Config.baseUnit
-                    : root._balanceStateText)
 
                 ColumnLayout {
                     width: parent.width

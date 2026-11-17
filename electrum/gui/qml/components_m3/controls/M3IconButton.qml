@@ -19,5 +19,4 @@ ToolButton {
     ToolTip.visible: tooltip !== '' && hovered
     ToolTip.delay: 800
     ToolTip.text: tooltip
-    Accessible.name: tooltip
 }

@@ -29,10 +29,7 @@ Pane {
         }
     ]
 
-    Accessible.onPressAction: {
-        if (root.clickable)
-            root.clicked()
-    }
+    // No accessibility attached properties: Electrum's Android Qt lacks them, and all of M3 would fail to load.
 
     background: Rectangle {
         color: root.color

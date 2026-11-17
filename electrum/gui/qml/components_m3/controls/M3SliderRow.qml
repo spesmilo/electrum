@@ -56,7 +56,6 @@ Pane {
             id: slider
             Layout.fillWidth: true
             value: root.value
-            Accessible.name: root.headline
             onMoved: {
                 var v = slider.value
                 root.moved(v)

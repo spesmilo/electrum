@@ -51,8 +51,6 @@ M3ListItem {
             : (txLightning ? qsTranslate('BalanceSummary', 'Lightning') : qsTranslate('BalanceSummary', 'On-chain'))
                 + (txDate !== '' ? ' \u00B7 ' + txDate : '')
 
-    Accessible.name: headline + ', ' + _valueText + ' ' + Config.baseUnit
-
     leading: Component {
         Rectangle {
             implicitWidth: 40

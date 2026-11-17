@@ -28,7 +28,6 @@ AbstractButton {
     leftPadding: iconSource != '' ? 8 : 16
     rightPadding: 16
     opacity: enabled ? 1 : m3.disabledContentOpacity
-    Accessible.name: text
 
     background: Rectangle {
         radius: m3.radiusS

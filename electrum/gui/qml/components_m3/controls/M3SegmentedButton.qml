@@ -37,8 +37,6 @@ Rectangle {
                 text: modelData.text
                 checkable: true
                 checked: selected
-                Accessible.role: Accessible.RadioButton
-                Accessible.name: modelData.text
 
                 onClicked: {
                     checked = Qt.binding(function() { return segment.selected })
