@@ -181,7 +181,7 @@ Item {
     function dispatch(data) {
         data = data.trim()
         if (bitcoin.isRawTx(data)) {
-            _showPage(Qt.resolvedUrl('../components/TxDetails.qml'), { rawtx: data })
+            _showPage(app.pageUrl(app.routes.txDetails), { rawtx: data })
         } else if (Daemon.currentWallet.isValidChannelBackup(data)) {
             if (!Daemon.currentWallet.isLightning) {
                 var errdialog = app.messageDialog.createObject(app, {
@@ -609,11 +609,11 @@ Item {
             onRequestPaid: {
                 close()
                 if (isLightning) {
-                    // M3: path relative to components_m3/
-                    app.stack.push(Qt.resolvedUrl('../components/LightningPaymentDetails.qml'), {'key': key})
+                    // M3: a route (app.routes)
+                    app.pushPage(app.routes.lightningPaymentDetails, {'key': key})
                 } else {
-                    // M3: path relative to components_m3/
-                    app.stack.push(Qt.resolvedUrl('../components/TxDetails.qml'), {'txid': getPaidTxid()})
+                    // M3: a route (app.routes)
+                    app.pushPage(app.routes.txDetails, {'txid': getPaidTxid()})
                 }
             }
             onClosed: destroy()

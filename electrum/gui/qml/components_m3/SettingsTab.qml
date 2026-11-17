@@ -437,20 +437,20 @@ Item {
                     supporting: qsTr('All settings (classic screen)')
                     leadingIcon: Qt.resolvedUrl('../../icons/m3/settings.png')
                     trailing: chevron
-                    onClicked: app.stack.pushOnRoot(Qt.resolvedUrl('../components/Preferences.qml'))
+                    onClicked: app.pushPageOnRoot(app.routes.preferences)
                 }
                 M3ListItem {
                     headline: qsTr('Network')
                     supporting: Network.isConnected ? Network.server : qsTr('Disconnected')
                     leadingIcon: Qt.resolvedUrl(Network.isConnected ? '../../icons/m3/sync.png' : '../../icons/m3/cloud_off.png')
                     trailing: chevron
-                    onClicked: app.stack.pushOnRoot(Qt.resolvedUrl('../components/NetworkOverview.qml'))
+                    onClicked: app.pushPageOnRoot(app.routes.networkOverview)
                 }
                 M3ListItem {
                     headline: qsTranslate('main', 'About')
                     leadingIcon: Qt.resolvedUrl('../../icons/m3/info.png')
                     trailing: chevron
-                    onClicked: app.stack.pushOnRoot(Qt.resolvedUrl('../components/About.qml'))
+                    onClicked: app.pushPageOnRoot(app.routes.about)
                 }
             }
 
@@ -464,13 +464,13 @@ Item {
                     tone: 'tertiary'
                     iconSource: Qt.resolvedUrl('../../icons/m3/info.png')
                     text: Network.networkName
-                    onClicked: app.stack.pushOnRoot(Qt.resolvedUrl('../components/NetworkOverview.qml'))
+                    onClicked: app.pushPageOnRoot(app.routes.networkOverview)
                 }
                 M3Chip {
                     tone: Network.isConnected ? '' : 'error'
                     iconSource: Qt.resolvedUrl(Network.isConnected ? '../../icons/m3/check_circle.png' : '../../icons/m3/cloud_off.png')
                     text: Network.isConnected ? qsTr('Connected') : qsTr('Disconnected')
-                    onClicked: app.stack.pushOnRoot(Qt.resolvedUrl('../components/NetworkOverview.qml'))
+                    onClicked: app.pushPageOnRoot(app.routes.networkOverview)
                 }
             }
         }

@@ -45,6 +45,55 @@ ApplicationWindow
     property QtObject m3: m3theme
     M3Theme { id: m3theme }
 
+    // M3: routes, one URL per page that Material 3 code opens (M3Routes.qml); open them with pushPage/loadPage
+    property QtObject routes: m3routes
+    M3Routes { id: m3routes }
+
+    // M3: the ready component of the page at `url`; when it cannot be loaded, the classic page of the route
+    // (routes.classicFor), else null; the error goes to the log. The stack only gets ready components: a push
+    // of a page that fails to load leaves StackView broken (see PaymentFlow._loadPage).
+    function loadPage(url) {
+        var component = Qt.createComponent(url)
+        if (component.status === Component.Ready)
+            return component
+        console.log('M3: cannot load ' + url + ': ' + component.errorString())
+        var classic = routes.classicFor(url)
+        if (classic == '' || String(classic) === String(url))
+            return null
+        console.log('M3: opening the classic page ' + classic + ' instead')
+        component = Qt.createComponent(classic)
+        if (component.status === Component.Ready)
+            return component
+        console.log('M3: cannot load ' + classic + ': ' + component.errorString())
+        return null
+    }
+
+    // M3: URL to open for the route `url`: the route itself, or its classic page when the route cannot be
+    // loaded (for callers that load the page themselves, PaymentFlow._showPage)
+    function pageUrl(url) {
+        var component = loadPage(url)
+        return component ? component.url : url
+    }
+
+    // M3: pushes the page at `url` (a route) with `properties`; returns the page, or null when no page
+    // could be loaded (the stack is then unchanged)
+    function pushPage(url, properties) {
+        var component = loadPage(url)
+        if (!component)
+            return null
+        return mainStackView.push(component, properties ? properties : {})
+    }
+
+    // M3: as pushPage, in place of the page above the root (stack.pushOnRoot: pages opened from the overflow
+    // menu, the tabs and the chips replace each other instead of piling up)
+    function pushPageOnRoot(url) {
+        var component = loadPage(url)
+        if (!component)
+            return null
+        mainStackView.pushOnRoot(component)
+        return mainStackView.currentItem
+    }
+
     property alias stack: mainStackView
     property alias keyboardFreeZone: _keyboardFreeZone
     property alias infobanner: _infobanner
@@ -74,36 +123,36 @@ ApplicationWindow
         y: toolbar.height - m3.space8
 
         function openPage(url) {
-            stack.pushOnRoot(url)
+            app.pushPageOnRoot(url)  // M3: a route (app.routes)
         }
 
         MenuItem {
             text: qsTranslate('Wallets', 'Wallets')
             // as "Other wallets" in the classic wallet menu: not on the Wallets page itself
             enabled: !(mainStackView.currentItem && mainStackView.currentItem.objectName === 'Wallets')
-            onTriggered: m3Menu.openPage(Qt.resolvedUrl('../components/Wallets.qml'))
+            onTriggered: m3Menu.openPage(app.routes.wallets)
         }
         MenuItem {
             text: qsTranslate('WalletMainView', 'Wallet details')
             enabled: app._m3WalletRoot
-            onTriggered: m3Menu.openPage(Qt.resolvedUrl('../components/WalletDetails.qml'))
+            onTriggered: m3Menu.openPage(app.routes.walletDetails)
         }
         MenuItem {
             text: qsTranslate('WalletMainView', 'Addresses/Coins')
             enabled: app._m3WalletRoot
-            onTriggered: m3Menu.openPage(Qt.resolvedUrl('../components/Addresses.qml'))
+            onTriggered: m3Menu.openPage(app.routes.addresses)
         }
         MenuItem {
             text: qsTr('Invoices')
             enabled: app._m3WalletRoot
-            onTriggered: m3Menu.openPage(Qt.resolvedUrl('../components/Invoices.qml'))
+            onTriggered: m3Menu.openPage(app.routes.invoices)
         }
         MenuItem {
             text: qsTr('Requests')
             enabled: app._m3WalletRoot
             onTriggered: {
                 Daemon.currentWallet.deleteExpiredRequests()
-                m3Menu.openPage(Qt.resolvedUrl('../components/ReceiveRequests.qml'))
+                m3Menu.openPage(app.routes.receiveRequests)
             }
         }
         MenuItem {
@@ -124,16 +173,16 @@ ApplicationWindow
         MenuSeparator {}
         MenuItem {
             text: qsTr('Network')
-            onTriggered: m3Menu.openPage(Qt.resolvedUrl('../components/NetworkOverview.qml'))
+            onTriggered: m3Menu.openPage(app.routes.networkOverview)
         }
         MenuItem {
             // until the Material 3 settings screen replaces it (Settings tab)
             text: qsTr('Preferences')
-            onTriggered: m3Menu.openPage(Qt.resolvedUrl('../components/Preferences.qml'))
+            onTriggered: m3Menu.openPage(app.routes.preferences)
         }
         MenuItem {
             text: qsTr('About')
-            onTriggered: m3Menu.openPage(Qt.resolvedUrl('../components/About.qml'))
+            onTriggered: m3Menu.openPage(app.routes.about)
         }
         MenuSeparator {}
         MenuItem {
@@ -208,6 +257,8 @@ ApplicationWindow
             ? page.title
             : Daemon.currentWallet ? Daemon.currentWallet.name : ''
         subtitle: page && 'subtitle' in page && page.subtitle ? page.subtitle : ''
+        // M3: actions of the current page (M2-MAP F-3): icon buttons the page lists in its `m3Actions`
+        actions: page && page.m3Actions ? page.m3Actions : []
         showOverflow: mainStackView.depth <= 1 && !(page && page.hideOverflow === true)
 
         onBackClicked: mainStackView.pop()
@@ -444,6 +495,16 @@ ApplicationWindow
     property alias channelOpenProgressDialog: _channelOpenProgressDialog
     Classic.ChannelOpenProgressDialog {
         id: _channelOpenProgressDialog
+    }
+
+    // M3: one factory for "Open channel" (Channels and BalanceDetails, M2-MAP F-12); the channels group
+    // replaces the type by the Material 3 dialog
+    property alias openChannelDialog: _openChannelDialog
+    Component {
+        id: _openChannelDialog
+        Classic.OpenChannelDialog {
+            onClosed: destroy()
+        }
     }
 
     property alias signVerifyMessageDialog: _signVerifyMessageDialog

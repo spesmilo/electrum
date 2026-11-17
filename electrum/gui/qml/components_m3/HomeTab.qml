@@ -100,7 +100,7 @@ Item {
                 radius: m3.radiusXL
                 padding: root._narrow ? m3.space16 : m3.space24
                 clickable: true
-                onClicked: app.stack.push(Qt.resolvedUrl('../components/BalanceDetails.qml'))
+                onClicked: app.pushPage(app.routes.balanceDetails)
 
                 ColumnLayout {
                     width: parent.width
@@ -198,7 +198,7 @@ Item {
                     onPressAndHold: {
                         Config.userKnowsPressAndHold = true
                         Daemon.currentWallet.deleteExpiredRequests()
-                        app.stack.push(Qt.resolvedUrl('../components/ReceiveRequests.qml'))
+                        app.pushPage(app.routes.receiveRequests)
                         AppController.haptic()
                     }
                 }
@@ -217,7 +217,7 @@ Item {
                     onClicked: root.paymentFlow.openSendDialog()
                     onPressAndHold: {
                         Config.userKnowsPressAndHold = true
-                        app.stack.push(Qt.resolvedUrl('../components/Invoices.qml'))
+                        app.pushPage(app.routes.invoices)
                         AppController.haptic()
                     }
                 }
@@ -237,34 +237,34 @@ Item {
                             ? '../../icons/m3/sync.png'
                             : '../../icons/m3/check_circle.png')
                     text: Network.serverStatus
-                    onClicked: app.stack.pushOnRoot(Qt.resolvedUrl('../components/NetworkOverview.qml'))
+                    onClicked: app.pushPageOnRoot(app.routes.networkOverview)
                 }
                 M3Chip {
                     visible: root._lagging
                     tone: 'error'
                     iconSource: Qt.resolvedUrl('../../icons/m3/warning.png')
                     text: qsTr('Server is lagging')
-                    onClicked: app.stack.pushOnRoot(Qt.resolvedUrl('../components/NetworkOverview.qml'))
+                    onClicked: app.pushPageOnRoot(app.routes.networkOverview)
                 }
                 M3Chip {
                     visible: root._fork
                     tone: 'error'
                     iconSource: Qt.resolvedUrl('../../icons/m3/warning.png')
                     text: qsTranslate('NetworkOverview', 'Chain tips:') + ' ' + Network.chaintips
-                    onClicked: app.stack.pushOnRoot(Qt.resolvedUrl('../components/NetworkOverview.qml'))
+                    onClicked: app.pushPageOnRoot(app.routes.networkOverview)
                 }
                 M3Chip {
                     visible: root._proxy
                     iconSource: Qt.resolvedUrl('../../icons/m3/check.png')
                     text: qsTranslate('NetworkOverview', 'Proxy')
-                    onClicked: app.stack.pushOnRoot(Qt.resolvedUrl('../components/NetworkOverview.qml'))
+                    onClicked: app.pushPageOnRoot(app.routes.networkOverview)
                 }
                 M3Chip {
                     visible: Network.isTestNet
                     tone: 'tertiary'
                     iconSource: Qt.resolvedUrl('../../icons/m3/info.png')
                     text: Network.networkName
-                    onClicked: app.stack.pushOnRoot(Qt.resolvedUrl('../components/NetworkOverview.qml'))
+                    onClicked: app.pushPageOnRoot(app.routes.networkOverview)
                 }
                 // Lightning gossip: shown whenever gossip is on (as the classic header icon), with its progress
                 M3Chip {
@@ -272,7 +272,7 @@ Item {
                     iconSource: Qt.resolvedUrl('../../icons/m3/bolt.png')
                     iconColor: m3.tertiary
                     text: qsTranslate('NetworkOverview', 'Gossip') + ' ' + root._gossipProgress + '%'
-                    onClicked: app.stack.pushOnRoot(Qt.resolvedUrl('../components/NetworkOverview.qml'))
+                    onClicked: app.pushPageOnRoot(app.routes.networkOverview)
                 }
             }
 

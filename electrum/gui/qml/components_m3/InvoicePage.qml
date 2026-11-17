@@ -5,7 +5,6 @@ import QtQuick.Controls.Material
 
 import org.electrum 1.0
 
-import "../components/controls" as CC
 import "controls"
 
 // "Pay invoice" of the Material 3 GUI (replaces the classic InvoiceDialog, see PaymentFlow).
@@ -255,76 +254,40 @@ M3Page {
                         enabled: !(invoice.status == Invoice.Expired && root._invoice_amount.isEmpty)
                         spacing: m3.space8
 
-                        RowLayout {
+                        // M3: the amount pair of the classic (BtcField + FiatField) as one control, M3AmountField
+                        M3AmountField {
+                            id: amountBtc
                             Layout.fillWidth: true
-                            spacing: m3.space8
-
-                            CC.BtcField {
-                                id: amountBtc
-                                Layout.fillWidth: true
-                                Layout.maximumWidth: 320
-                                Material.containerStyle: Material.Outlined
-                                font.pixelSize: m3.textStyle('bodyLarge').size
-                                fiatfield: amountFiat
-                                readOnly: amountMax.checked
-                                msatPrecision: root._isLightning
-                                color: readOnly ? m3.primary : m3.surfaceOn
-                                onTextAsSatsChanged: {
-                                    if (!amountMax.checked)
-                                        invoice.amountOverride.copyFrom(textAsSats)
+                            readOnly: amountMax.checked
+                            msatPrecision: root._isLightning
+                            onTextAsSatsChanged: {
+                                if (!amountMax.checked)
+                                    invoice.amountOverride.copyFrom(textAsSats)
+                            }
+                            Connections {
+                                target: invoice.amountOverride
+                                function onSatsIntChanged() {
+                                    console.log('amountOverride satsIntChanged, sats=' + invoice.amountOverride.satsInt)
+                                    if (amountMax.checked)  // amountOverride updated by max amount estimate
+                                        amountBtc.text = Config.formatSatsForEditing(invoice.amountOverride.satsInt)
                                 }
-                                Connections {
-                                    target: invoice.amountOverride
-                                    function onSatsIntChanged() {
-                                        console.log('amountOverride satsIntChanged, sats=' + invoice.amountOverride.satsInt)
-                                        if (amountMax.checked)  // amountOverride updated by max amount estimate
-                                            amountBtc.text = Config.formatSatsForEditing(invoice.amountOverride.satsInt)
+                            }
+                            trailing: [
+                                Switch {
+                                    id: amountMax
+                                    text: qsTranslate('InvoiceDialog', 'Max')
+                                    visible: root._canMax
+                                    checked: false
+                                    // the classic reacts to user changes only (activeFocus); onToggled is that
+                                    onToggled: {
+                                        invoice.amountOverride.isMax = checked
+                                        if (checked) {
+                                            maxAmountMessage.text = ''
+                                            invoice.updateMaxAmount()
+                                        }
                                     }
                                 }
-                            }
-                            M3Text {
-                                role: 'bodyLarge'
-                                color: m3.surfaceVariantOn
-                                text: Config.baseUnit
-                            }
-                            Item { Layout.fillWidth: true; visible: !amountMax.visible }
-                            Switch {
-                                id: amountMax
-                                text: qsTranslate('InvoiceDialog', 'Max')
-                                visible: root._canMax
-                                checked: false
-                                // the classic reacts to user changes only (activeFocus); onToggled is that
-                                onToggled: {
-                                    invoice.amountOverride.isMax = checked
-                                    if (checked) {
-                                        maxAmountMessage.text = ''
-                                        invoice.updateMaxAmount()
-                                    }
-                                }
-                            }
-                        }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            visible: Daemon.fx.enabled
-                            spacing: m3.space8
-
-                            CC.FiatField {
-                                id: amountFiat
-                                Layout.fillWidth: true
-                                Layout.maximumWidth: 320
-                                Material.containerStyle: Material.Outlined
-                                font.pixelSize: m3.textStyle('bodyLarge').size
-                                btcfield: amountBtc
-                                readOnly: amountMax.checked
-                                color: readOnly ? m3.primary : m3.surfaceOn
-                            }
-                            M3Text {
-                                Layout.fillWidth: true
-                                role: 'bodyLarge'
-                                color: m3.surfaceVariantOn
-                                text: Daemon.fx.fiatCurrency
-                            }
+                            ]
                         }
 
                         M3Card {
@@ -566,7 +529,9 @@ M3Page {
                         root._takeEnteredAmount()
                         if (invoice.saveInvoice()) {
                             // finding 2: the invoice list takes the place of this page
-                            app.stack.replace(root, Qt.resolvedUrl('../components/Invoices.qml'))
+                            var invoicesPage = app.loadPage(app.routes.invoices)
+                            if (invoicesPage)
+                                app.stack.replace(root, invoicesPage)
                         }
                     }
                 }

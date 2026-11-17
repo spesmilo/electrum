@@ -62,7 +62,7 @@ Item {
                 visible: root._canEnable
                 variant: 'tonal'
                 text: qsTranslate('WalletMainView', 'Wallet details')
-                onClicked: app.stack.pushOnRoot(Qt.resolvedUrl('../components/WalletDetails.qml'))
+                onClicked: app.pushPageOnRoot(app.routes.walletDetails)
             }
 
             // ------------------------------------------------ Lightning
@@ -96,7 +96,7 @@ Item {
                 visible: root._lightning
                 variant: 'tonal'
                 text: qsTranslate('Channels', 'Lightning Channels')
-                onClicked: app.stack.pushOnRoot(Qt.resolvedUrl('../components/Channels.qml'))
+                onClicked: app.pushPageOnRoot(app.routes.channels)
             }
         }
     }

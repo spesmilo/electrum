@@ -3,13 +3,11 @@ import QtQuick.Layouts
 import QtQuick.Controls
 import QtQuick.Controls.Material
 
-import "../../components/controls" as CC
-
-// Material 3 basic dialog. Built on the classic dialog base (CC.ElDialog), so it takes part in
-// app.activeDialogs and the Android back button, and lives in app.keyboardFreeZone.
-// The theme is set on the popup itself: a popup takes its style from the window, which stays dark.
+// Material 3 basic dialog. Built on M3DialogBase (the behavior of the classic ElDialog), so it takes part in
+// app.activeDialogs and the Android back button, and lives in app.keyboardFreeZone; the theme, the scrim, the
+// background and the header (headline, optional `iconSource` above it) come from the base.
 // Content: `text` (supporting text) or an own contentItem; buttons: `buttons` (right aligned).
-CC.ElDialog {
+M3DialogBase {
     id: dialog
 
     property string text
@@ -21,34 +19,6 @@ CC.ElDialog {
     padding: m3.space24
     topPadding: m3.space16
     bottomPadding: m3.space8
-
-    Material.theme: m3.dark ? Material.Dark : Material.Light
-    Material.accent: m3.primary
-    Material.primary: m3.primary
-    Material.background: m3.surfaceContainerHigh
-    Material.foreground: m3.surfaceOn
-    Material.roundedScale: Material.ExtraLargeScale
-
-    Overlay.modal: Rectangle {
-        color: m3.scrimColor
-    }
-
-    background: Rectangle {
-        color: m3.surfaceContainerHigh
-        radius: m3.radiusXL
-    }
-
-    header: M3Text {
-        visible: dialog.title
-        leftPadding: m3.space24
-        rightPadding: m3.space24
-        topPadding: m3.space24
-        role: 'headlineSmall'
-        wrapMode: Text.Wrap
-        lineHeightMode: Text.ProportionalHeight
-        lineHeight: 1.0
-        text: dialog.title
-    }
 
     contentItem: M3Text {
         role: 'bodyMedium'

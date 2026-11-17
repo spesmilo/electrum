@@ -124,9 +124,9 @@ M3ListItem {
 
     onClicked: {
         if (root.txLightning)
-            app.stack.push(Qt.resolvedUrl('../../components/LightningPaymentDetails.qml'), {'key': root.txKey})
+            app.pushPage(app.routes.lightningPaymentDetails, {'key': root.txKey})
         else
-            app.stack.push(Qt.resolvedUrl('../../components/TxDetails.qml'), {'txid': root.txKey})
+            app.pushPage(app.routes.txDetails, {'txid': root.txKey})
     }
 
     // the model items are not QObjects: refresh the formatted strings on the events that change them
