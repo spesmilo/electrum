@@ -7,7 +7,7 @@ util = load_source('util', os.path.join(os.path.dirname(os.path.dirname(__file__
 
 
 assert PyjniusRecipe._version == "1.7.0"
-assert PyjniusRecipe.depends == [('genericndkbuild', 'sdl2', 'sdl3', 'qt6'), 'six', 'python3'], PyjniusRecipe.depends
+assert PyjniusRecipe.depends == [('genericndkbuild', 'sdl2', 'sdl3'), 'python3'], PyjniusRecipe.depends
 assert PyjniusRecipe.python_depends == []
 
 

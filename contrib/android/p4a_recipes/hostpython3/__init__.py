@@ -8,7 +8,7 @@ util = load_source('util', os.path.join(os.path.dirname(os.path.dirname(__file__
 
 assert HostPython3Recipe.depends == []
 assert HostPython3Recipe.python_depends == []
-assert HostPython3Recipe.patches == []
+assert HostPython3Recipe.patches == ['fix_ensurepip.patch']
 
 
 class HostPython3RecipePinned(util.InheritedRecipeMixin, HostPython3Recipe):
@@ -19,8 +19,8 @@ class HostPython3RecipePinned(util.InheritedRecipeMixin, HostPython3Recipe):
     # use official releases from python.org that have sigs, instead of auto-generated archives from github
     url = 'https://www.python.org/ftp/python/{version}/Python-{version}.tgz'
 
-    # TODO: remove patch once CPython >= 3.12 is used (no more bundled setuptools)
-    patches = [
+    # TODO: remove our patch once CPython >= 3.12 is used (no more bundled setuptools)
+    patches = HostPython3Recipe.patches + [
         os.path.join(os.path.dirname(__file__), "patches", "cpython-311-ensurepip-no-setuptools.patch"),
     ]
 
