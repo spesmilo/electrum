@@ -874,7 +874,7 @@ Warning: setting this to too low will result in lots of payment failures."""),
     GUI_QML_ALWAYS_ALLOW_SCREENSHOTS = ConfigVar('android_always_allow_screenshots', default=False, type_=bool)
     GUI_QML_SET_MAX_BRIGHTNESS_ON_QR_DISPLAY = ConfigVar('android_set_max_brightness_on_qr_display', default=True, type_=bool)
     GUI_QML_PAYMENT_AUTHENTICATION = ConfigVar('qml_payment_authentication', default=False, type_=bool)
-    GUI_QML_UI_STYLE = ConfigVar('qml_ui_style', default='classic', type_=str)  # 'classic' or 'material3' (anything else: classic)
+    GUI_QML_UI_STYLE = ConfigVar('qml_ui_style', default='material3', type_=str)  # 'material3' or 'classic' (anything else: classic)
     GUI_QML_M3_THEME = ConfigVar('qml_m3_theme', default='system', type_=str)  # 'system', 'light' or 'dark'
 
     BTC_AMOUNTS_DECIMAL_POINT = ConfigVar('decimal_point', default=DECIMAL_POINT_DEFAULT, type_=int)

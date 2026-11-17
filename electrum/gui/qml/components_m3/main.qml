@@ -410,7 +410,8 @@ ApplicationWindow
     property alias newWalletWizard: _newWalletWizard
     Component {
         id: _newWalletWizard
-        Classic.NewWalletWizard {
+        // M3: the Material 3 wizard (components_m3/NewWalletWizard.qml)
+        NewWalletWizard {
             onClosed: destroy()
         }
     }
@@ -418,7 +419,8 @@ ApplicationWindow
     property alias termsOfUseWizard: _termsOfUseWizard
     Component {
         id: _termsOfUseWizard
-        Classic.TermsOfUseWizard {
+        // M3: the Material 3 wizard (components_m3/TermsOfUseWizard.qml)
+        TermsOfUseWizard {
             onClosed: destroy()
         }
     }
@@ -426,7 +428,8 @@ ApplicationWindow
     property alias serverConnectWizard: _serverConnectWizard
     Component {
         id: _serverConnectWizard
-        Classic.ServerConnectWizard {
+        // M3: the Material 3 wizard (components_m3/ServerConnectWizard.qml)
+        ServerConnectWizard {
             onClosed: destroy()
         }
     }
