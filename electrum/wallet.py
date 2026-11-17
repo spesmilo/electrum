@@ -2220,6 +2220,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 fee = fee_estimator(tx.estimated_size())
                 distribute_amount(to_distribute - fee)
 
+            if not tx_inputs:
+                raise NotEnoughFunds()
             tx = PartialTransaction.from_io(list(tx_inputs), list(outputs))
 
         assert len(tx.inputs()) > 0, "any bitcoin tx must have at least 1 input by consensus"
