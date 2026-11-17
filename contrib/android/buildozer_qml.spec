@@ -247,6 +247,13 @@ p4a.bootstrap = qt6
 # (int) port number to specify an explicit --port= p4a argument (eg for bootstrap flask)
 #p4a.port =
 
+# (str) extra command line arguments to pass when invoking pythonforandroid.toolchain
+# --no-optimize-python: keep asserts, don't byte-compile with -OO
+# --skip-prebuilt: always build recipes from their pinned sources. Otherwise p4a first asks pip
+#   for a wheel and installs that instead, without checking a hash:
+#   https://github.com/kivy/python-for-android/blob/9562d1b4f306d0af1e76991c711114010dea4152/pythonforandroid/recipe.py#L1381-L1386
+p4a.extra_args = --no-optimize-python --skip-prebuilt
+
 
 #
 # iOS specific
