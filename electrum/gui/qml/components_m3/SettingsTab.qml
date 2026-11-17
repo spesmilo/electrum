@@ -38,6 +38,18 @@ Item {
         _maxBrightness = Config.setMaxBrightnessOnQrDisplay
     }
 
+    // This tab lives for the whole session, while the classic Preferences screen is created on
+    // each opening. Bindings to a value read through a slot (whether the wallet has a password,
+    // changed in Wallet details, a page over this tab) depend on this, so the value is read again
+    // whenever the tab is shown.
+    property int _shownRevision: 0
+
+    // Biometrics.enable() is also called by Wallet details and the classic Preferences screen, each
+    // with its own enablingFailed handler; only a failure of an enabling started here is shown here.
+    // Set when this tab starts one, cleared by its outcome and when the tab is hidden: the system
+    // biometric prompt does not hide it, every other caller is a page over it.
+    property bool _enablingBiometrics: false
+
     function _setPlugin(name, enabled) {
         AppController.setPluginEnabled(name, enabled)
         _readUnsignalled()
@@ -55,14 +67,29 @@ Item {
     }
 
     Component.onCompleted: _readUnsignalled()
-    onVisibleChanged: if (visible) _readUnsignalled()
+    onVisibleChanged: {
+        if (visible) {
+            _readUnsignalled()
+            _shownRevision++
+        } else {
+            _enablingBiometrics = false
+        }
+    }
 
     Connections {
         target: Biometrics
         function onEnablingFailed(error) {
+            if (!root._enablingBiometrics)
+                return // started elsewhere, which shows its own message
+            root._enablingBiometrics = false
             if (error === 'CANCELLED')
                 return // don't show error popup
             root._message('', qsTranslate('Preferences', 'Failed to enable biometric authentication: ') + error)
+        }
+        function onIsEnabledChanged() {
+            // enabled: done. A failure first disables (isEnabled false), then emits enablingFailed
+            if (Biometrics.isEnabled)
+                root._enablingBiometrics = false
         }
     }
 
@@ -191,7 +218,12 @@ Item {
                 M3SelectRow {
                     headline: qsTr('Currency')
                     enabled: Daemon.fx.enabled
-                    model: Daemon.fx.currencies
+                    model: {
+                        // the list depends on the historic-rates switch, but currenciesChanged is
+                        // never emitted: follow historicRatesChanged, from this tab or the classic screen
+                        Daemon.fx.historicRates
+                        return Daemon.fx.currencies
+                    }
                     currentValue: Daemon.fx.fiatCurrency
                     onSelected: (value) => { Daemon.fx.fiatCurrency = value }
                 }
@@ -225,8 +257,12 @@ Item {
                 Layout.fillWidth: true
 
                 M3SwitchRow {
-                    readonly property bool noWalletPassword: Daemon.currentWallet
-                        ? Daemon.currentWallet.verifyPassword('') : true
+                    // read again when the tab is shown (see _shownRevision): no signal follows a
+                    // password set or removed in Wallet details
+                    readonly property bool noWalletPassword: {
+                        root._shownRevision
+                        return Daemon.currentWallet ? Daemon.currentWallet.verifyPassword('') : true
+                    }
                     headline: qsTranslate('Preferences', 'Request authentication for payments')
                     headlineMaxLines: 2
                     enabled: !!Daemon.currentWallet && !noWalletPassword
@@ -247,6 +283,7 @@ Item {
                         if (!checked) {
                             Biometrics.disableProtected()
                         } else if (Daemon.singlePasswordEnabled) {
+                            root._enablingBiometrics = true
                             Biometrics.enable(Daemon.singlePassword)
                         } else {
                             root._message(qsTranslate('Preferences', 'Unavailable'), [
