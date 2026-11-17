@@ -519,10 +519,11 @@ class AddressSynchronizer(Logger, EventListener):
         self.add_transaction(tx, allow_unrelated=True)
 
     @with_lock
-    def receive_history_callback(self, addr: str, hist, tx_fees: Dict[str, int]):
+    def receive_history_callback(self, addr: str, hist: Sequence[Tuple[str, int]], tx_fees: Dict[str, int]):
         old_hist = self.get_address_history(addr)
+        hist_set = set(hist)
         for tx_hash, height in old_hist.items():
-            if (tx_hash, height) not in hist:
+            if (tx_hash, height) not in hist_set:
                 # make tx local
                 self.unverified_tx.pop(tx_hash, None)
                 self.unconfirmed_tx.pop(tx_hash, None)
