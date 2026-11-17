@@ -57,9 +57,7 @@ QtObject {
     property url balanceDetailsClassic: Qt.resolvedUrl('../components/BalanceDetails.qml')
 
     // --- G6 channels ---
-    property url channels: Qt.resolvedUrl('../components/Channels.qml')
-    property url channelsClassic: Qt.resolvedUrl('../components/Channels.qml')
-    property url channelDetails: Qt.resolvedUrl('../components/ChannelDetails.qml')
+    property url channelDetails: Qt.resolvedUrl('ChannelDetailsPage.qml')
     property url channelDetailsClassic: Qt.resolvedUrl('../components/ChannelDetails.qml')
 
     // --- G7 network and about ---

@@ -515,16 +515,15 @@ ApplicationWindow
     }
 
     property alias channelOpenProgressDialog: _channelOpenProgressDialog
-    Classic.ChannelOpenProgressDialog {
+    ChannelOpenProgressDialog {
         id: _channelOpenProgressDialog
     }
 
-    // M3: one factory for "Open channel" (Channels and BalanceDetails, M2-MAP F-12); the channels group
-    // replaces the type by the Material 3 dialog
+    // M3: one factory for "Open channel" (the Channels tab and BalanceDetails, M2-MAP F-12), the Material 3 dialog
     property alias openChannelDialog: _openChannelDialog
     Component {
         id: _openChannelDialog
-        Classic.OpenChannelDialog {
+        OpenChannelDialog {
             onClosed: destroy()
         }
     }
@@ -540,14 +539,14 @@ ApplicationWindow
     property alias nostrSwapServersDialog: _nostrSwapServersDialog
     Component {
         id: _nostrSwapServersDialog
-        Classic.NostrSwapServersDialog {
+        NostrSwapServersDialog {
             onClosed: destroy()
         }
     }
 
     Component {
         id: swapDialog
-        Classic.SwapDialog {
+        SwapDialog {
             id: _swapdialog
             onClosed: destroy()
             swaphelper: SwapHelper {
