@@ -693,10 +693,7 @@ Item {
 
     Component {
         id: otpDialog
-        Classic.OtpDialog {
-            width: parent.width * 2/3
-            anchors.centerIn: parent
-
+        OtpDialog {
             onClosed: destroy()
         }
     }
@@ -711,7 +708,7 @@ Item {
 
     Component {
         id: sweepDialog
-        Classic.SweepDialog {
+        SweepDialog {
             onClosed: destroy()
         }
     }

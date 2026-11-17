@@ -10,7 +10,6 @@ import QtQml
 import org.electrum 1.0
 
 import "../components" as Classic
-import "../components/controls" as CC
 import "controls"
 
 // Window of the Material 3 GUI (qml_ui_style = 'material3'), loaded instead of components/main.qml.
@@ -452,7 +451,7 @@ ApplicationWindow
     property alias messageDialog: _messageDialog
     Component {
         id: _messageDialog
-        Classic.MessageDialog {
+        MessageDialog {
             onClosed: destroy()
         }
     }
@@ -460,7 +459,7 @@ ApplicationWindow
     property alias helpDialog: _helpDialog
     Component {
         id: _helpDialog
-        CC.HelpDialog {
+        HelpDialog {
             onClosed: destroy()
         }
     }
@@ -468,7 +467,7 @@ ApplicationWindow
     property alias passwordDialog: _passwordDialog
     Component {
         id: _passwordDialog
-        Classic.PasswordDialog {
+        PasswordDialog {
             onClosed: destroy()
         }
     }
@@ -476,7 +475,7 @@ ApplicationWindow
     property alias genericShareDialog: _genericShareDialog
     Component {
         id: _genericShareDialog
-        Classic.GenericShareDialog {
+        ShareDialog {
             onClosed: destroy()
         }
     }
@@ -500,12 +499,12 @@ ApplicationWindow
     property alias scanDialog: _scanDialog
     Component {
         id: _scanDialog
-        Classic.ScanDialog {}
+        ScanDialog {}
     }
 
     Component {
         id: crashDialog
-        Classic.ExceptionDialog {
+        ExceptionDialog {
             onClosed: destroy()
         }
     }
@@ -578,7 +577,7 @@ ApplicationWindow
         }
     }
 
-    Classic.NotificationPopup {
+    NotificationPopup {
         id: notificationPopup
         width: parent.width
     }

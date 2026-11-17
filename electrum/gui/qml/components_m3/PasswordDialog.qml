@@ -1,0 +1,132 @@
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
+import QtQuick.Controls.Material
+
+import org.electrum 1.0
+
+import "controls"
+
+// Password dialog of the Material 3 GUI (app.passwordDialog; M2-MAP F-2: an M3Dialog).
+// repeats: components/PasswordDialog.qml:8-119 @ e6df7e1c8 (the API: title, confirmPassword, infotext,
+// errorMessage, passwordEntered(password), clearPassword(); _closing: Ok is ignored once closing has started,
+// set on aboutToShow / aboutToHide; the second field only with confirmPassword, without its own reveal button and
+// with the echo mode of the first; the strength indicator with confirmPassword; Ok enabled with confirmPassword
+// only when the password has at least 6 characters and both fields match, otherwise always; Ok emits
+// passwordEntered with the first field and does not close: the caller closes the dialog or sets errorMessage).
+// Differences: Material 3 look (M3PasswordField, M3PasswordStrength, M3InfoText); a Cancel text button next to
+// Ok, which does what the Android back button does (doReject(), the `rejected` signal); the content scrolls when
+// the keyboard leaves too little height.
+// Strings keep the translation context of the classic file (qsTranslate('PasswordDialog', ...)).
+M3Dialog {
+    id: passworddialog
+
+    title: qsTranslate('PasswordDialog', 'Enter Password')
+    iconSource: Qt.resolvedUrl('../../icons/m3/lock.png')
+
+    property bool confirmPassword: false
+    property string infotext
+    property string errorMessage
+
+    // Ignore Ok once closing has started.
+    property bool _closing: false
+
+    signal passwordEntered(string password)
+
+    onAboutToShow: _closing = false
+    onAboutToHide: _closing = true
+
+    // the dialog never grows past the free zone (keyboard included): the content scrolls instead
+    // (centered: the same margin above and below, clear of the status bar and of the navigation bar)
+    height: Math.min(implicitHeight, parent
+        ? parent.height - 2 * (m3.space24 + Math.max(app.statusBarHeight, app.navigationBarHeight))
+        : implicitHeight)
+
+    contentItem: Flickable {
+        id: flick
+        implicitHeight: form.implicitHeight
+        contentHeight: form.implicitHeight
+        clip: true
+        interactive: height < contentHeight
+        boundsBehavior: Flickable.StopAtBounds
+
+        ColumnLayout {
+            id: form
+            width: flick.width
+            spacing: m3.space12
+
+            M3InfoText {
+                visible: infotext
+                text: infotext
+                Layout.fillWidth: true
+                compact: true
+            }
+
+            M3PasswordField {
+                id: pw_1
+                Layout.fillWidth: true
+                label: qsTranslate('PasswordDialog', 'Password')
+            }
+
+            M3PasswordField {
+                id: pw_2
+                Layout.fillWidth: true
+                visible: confirmPassword
+                showReveal: false
+                echoMode: pw_1.echoMode
+                label: qsTranslate('PasswordDialog', 'Password (again)')
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                visible: confirmPassword
+                spacing: m3.space4
+
+                M3Text {
+                    role: 'labelMedium'
+                    color: m3.surfaceVariantOn
+                    text: qsTranslate('PasswordDialog', 'Strength')
+                }
+
+                M3PasswordStrength {
+                    Layout.fillWidth: true
+                    password: pw_1.text
+                }
+            }
+
+            M3Text {
+                Layout.fillWidth: true
+                visible: errorMessage
+                role: 'bodyMedium'
+                color: m3.error
+                wrapMode: Text.Wrap
+                lineHeightMode: Text.ProportionalHeight
+                lineHeight: 1.0
+                text: errorMessage
+            }
+        }
+    }
+
+    buttons: [
+        M3Button {
+            variant: 'text'
+            text: qsTranslate('PasswordDialog', 'Ok')
+            enabled: confirmPassword ? pw_1.text.length >= 6 && pw_1.text == pw_2.text : true
+            onClicked: {
+                if (passworddialog._closing)
+                    return
+                passwordEntered(pw_1.text)
+            }
+        },
+        M3Button {
+            variant: 'text'
+            text: qsTr('Cancel')
+            onClicked: passworddialog.doReject()
+        }
+    ]
+
+    function clearPassword() {
+        pw_1.text = ""
+        pw_2.text = ""
+    }
+}
