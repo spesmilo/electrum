@@ -2059,7 +2059,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
         if coins is None:
             coins = self.get_spendable_coins()
-        if not inputs and not coins:  # any bitcoin tx must have at least 1 input by consensus
+        if not inputs and not coins and not base_tx:  # any bitcoin tx must have at least 1 input by consensus
             raise NotEnoughFunds()
         if any([c.already_has_some_signatures() for c in coins]):
             raise Exception("Some inputs already contain signatures!")
@@ -2220,8 +2220,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 fee = fee_estimator(tx.estimated_size())
                 distribute_amount(to_distribute - fee)
 
+            if not tx_inputs:
+                raise NotEnoughFunds()
             tx = PartialTransaction.from_io(list(tx_inputs), list(outputs))
 
+        assert len(tx.inputs()) > 0, "any bitcoin tx must have at least 1 input by consensus"
         assert len(tx.outputs()) > 0, "any bitcoin tx must have at least 1 output by consensus"
         if locktime is None:
             # Timelock tx to current height.
