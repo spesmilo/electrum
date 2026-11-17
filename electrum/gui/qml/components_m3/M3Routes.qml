@@ -63,11 +63,11 @@ QtObject {
     property url channelDetailsClassic: Qt.resolvedUrl('../components/ChannelDetails.qml')
 
     // --- G7 network and about ---
-    property url networkOverview: Qt.resolvedUrl('../components/NetworkOverview.qml')
+    property url networkOverview: Qt.resolvedUrl('NetworkPage.qml')
     property url networkOverviewClassic: Qt.resolvedUrl('../components/NetworkOverview.qml')
-    property url about: Qt.resolvedUrl('../components/About.qml')
+    property url about: Qt.resolvedUrl('AboutPage.qml')
     property url aboutClassic: Qt.resolvedUrl('../components/About.qml')
-    property url preferences: Qt.resolvedUrl('../components/Preferences.qml')
+    property url preferences: Qt.resolvedUrl('SettingsPage.qml')
     property url preferencesClassic: Qt.resolvedUrl('../components/Preferences.qml')
 
     // --- end of routes ---

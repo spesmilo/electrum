@@ -8,7 +8,8 @@ import org.electrum 1.0
 import "controls"
 
 // Settings tab: all settings of the classic Preferences screen, grouped, plus the interface style
-// and the Material 3 theme; Network, About and the classic Preferences screen open full screen.
+// and the Material 3 theme; Network and About open full screen. Also the body of SettingsPage (the
+// settings without an open wallet, route app.routes.preferences; asPage: true).
 //
 // repeats: components/Preferences.qml:44-492 (settings, conditions, confirmations), :497-514
 // (initial values) @ 4f36c4489; the language restart dialog repeats the form of
@@ -25,9 +26,21 @@ Item {
     readonly property var _fees: [500, 1000, 3000, 5000, 10000, 20000, 30000, 50000]
     readonly property bool _isAndroid: AppController.isAndroid()
 
+    // true when shown as a page of the stack (SettingsPage, no wallet open), false as a tab of WalletMainView:
+    // a page opens Network and About above itself (back returns here), the tab in place of the page above the
+    // root, as the tabs and the overflow menu do
+    property bool asPage: false
+
+    function _open(url) {
+        if (asPage)
+            app.pushPage(url)
+        else
+            app.pushPageOnRoot(url)
+    }
+
     // Values without a change signal (the plugin state; Config.setMaxBrightnessOnQrDisplay, whose
     // setter emits nothing) are kept here and read again after a write and whenever the tab is
-    // shown (the classic Preferences screen, opened from "More", may have changed them).
+    // shown (a page over it, e.g. Wallet details, may have changed them).
     property bool _labelsEnabled: false
     property bool _psbtNostrEnabled: false
     property bool _maxBrightness: false
@@ -38,14 +51,13 @@ Item {
         _maxBrightness = Config.setMaxBrightnessOnQrDisplay
     }
 
-    // This tab lives for the whole session, while the classic Preferences screen is created on
-    // each opening. Bindings to a value read through a slot (whether the wallet has a password,
-    // changed in Wallet details, a page over this tab) depend on this, so the value is read again
-    // whenever the tab is shown.
+    // This tab lives for the whole session (as a tab of WalletMainView). Bindings to a value read
+    // through a slot (whether the wallet has a password, changed in Wallet details, a page over this
+    // tab) depend on this, so the value is read again whenever the tab is shown.
     property int _shownRevision: 0
 
-    // Biometrics.enable() is also called by Wallet details and the classic Preferences screen, each
-    // with its own enablingFailed handler; only a failure of an enabling started here is shown here.
+    // Biometrics.enable() is also called by Wallet details, with its own enablingFailed handler; only
+    // a failure of an enabling started here is shown here.
     // Set when this tab starts one, cleared by its outcome and when the tab is hidden: the system
     // biometric prompt does not hide it, every other caller is a page over it.
     property bool _enablingBiometrics: false
@@ -433,24 +445,17 @@ Item {
                 Layout.fillWidth: true
 
                 M3ListItem {
-                    headline: qsTranslate('Preferences', 'Preferences')
-                    supporting: qsTr('All settings (classic screen)')
-                    leadingIcon: Qt.resolvedUrl('../../icons/m3/settings.png')
-                    trailing: chevron
-                    onClicked: app.pushPageOnRoot(app.routes.preferences)
-                }
-                M3ListItem {
                     headline: qsTr('Network')
                     supporting: Network.isConnected ? Network.server : qsTr('Disconnected')
                     leadingIcon: Qt.resolvedUrl(Network.isConnected ? '../../icons/m3/sync.png' : '../../icons/m3/cloud_off.png')
                     trailing: chevron
-                    onClicked: app.pushPageOnRoot(app.routes.networkOverview)
+                    onClicked: root._open(app.routes.networkOverview)
                 }
                 M3ListItem {
                     headline: qsTranslate('main', 'About')
                     leadingIcon: Qt.resolvedUrl('../../icons/m3/info.png')
                     trailing: chevron
-                    onClicked: app.pushPageOnRoot(app.routes.about)
+                    onClicked: root._open(app.routes.about)
                 }
             }
 
@@ -464,13 +469,13 @@ Item {
                     tone: 'tertiary'
                     iconSource: Qt.resolvedUrl('../../icons/m3/info.png')
                     text: Network.networkName
-                    onClicked: app.pushPageOnRoot(app.routes.networkOverview)
+                    onClicked: root._open(app.routes.networkOverview)
                 }
                 M3Chip {
                     tone: Network.isConnected ? '' : 'error'
                     iconSource: Qt.resolvedUrl(Network.isConnected ? '../../icons/m3/check_circle.png' : '../../icons/m3/cloud_off.png')
                     text: Network.isConnected ? qsTr('Connected') : qsTr('Disconnected')
-                    onClicked: app.pushPageOnRoot(app.routes.networkOverview)
+                    onClicked: root._open(app.routes.networkOverview)
                 }
             }
         }

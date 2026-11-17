@@ -175,9 +175,14 @@ ApplicationWindow
             onTriggered: m3Menu.openPage(app.routes.networkOverview)
         }
         MenuItem {
-            // until the Material 3 settings screen replaces it (Settings tab)
-            text: qsTr('Preferences')
-            onTriggered: m3Menu.openPage(app.routes.preferences)
+            // M3: the Material 3 settings: the Settings tab on the root of a wallet, else the settings page
+            text: qsTranslate('WalletMainView', 'Settings')
+            onTriggered: {
+                if (app._m3WalletRoot)
+                    mainStackView.get(0).currentTab = 3
+                else
+                    m3Menu.openPage(app.routes.preferences)
+            }
         }
         MenuItem {
             text: qsTr('About')
@@ -834,11 +839,19 @@ ApplicationWindow
         }
         function onPluginLoaded(name) {
             console.log('plugin ' + name + ' loaded')
-            var loader = AppController.plugin(name).loader
+            var plugin = AppController.plugin(name)
+            if (!plugin)  // M3: a plugin without a QML object (AppController.plugin() returns None)
+                return
+            var loader = plugin.loader
             if (loader == undefined)
                 return
-            var url = Qt.resolvedUrl('../../../plugins/' + name + '/qml/' + loader)
-            var comp = Qt.createComponent(url)
+            // M3: the Material 3 QML of the plugin (plugins/<name>/qml_m3/, M2-MAP F-11), else its classic QML
+            var base = '../../../plugins/' + name
+            var comp = Qt.createComponent(Qt.resolvedUrl(base + '/qml_m3/' + loader))
+            if (comp.status == Component.Error) {
+                console.log('M3: no qml_m3 for plugin ' + name + ', loading its classic QML: ' + comp.errorString())
+                comp = Qt.createComponent(Qt.resolvedUrl(base + '/qml/' + loader))
+            }
             if (comp.status == Component.Error) {
                 console.log('Could not find/parse PluginLoader for plugin ' + name)
                 console.log(comp.errorString())
