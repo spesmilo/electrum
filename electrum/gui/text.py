@@ -377,9 +377,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
 
     def print_banner(self):
         if self.network and self.network.banner:
-            banner = self.network.banner
-            banner = banner.replace('\r', '')
-            self.print_list(2, 1, banner.split('\n'))
+            self.print_list(2, 1, self.network.banner.split('\n'))
 
     def get_qr(self, data):
         import qrcode
