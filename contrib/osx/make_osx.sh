@@ -87,7 +87,8 @@ python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: 
 info "Installing some build-time deps for compilation..."
 # cmake, wget and gcc@14 are required for zxing-cpp.
 # gcc can be removed with a C++ 20 compatible compiler becoming available (newer MacOS version)
-brew install autoconf automake libtool gettext coreutils pkgconfig cmake wget gcc@14
+# swig is required to compile pyscard (Satochip plugin)
+brew install autoconf automake libtool gettext coreutils pkgconfig cmake wget gcc@14 swig
 
 info "Building PyInstaller."
 PYINSTALLER_REPO="https://github.com/pyinstaller/pyinstaller.git"
