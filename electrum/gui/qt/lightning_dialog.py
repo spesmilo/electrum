@@ -69,9 +69,10 @@ class LightningDialog(QDialog, QtEventListener):
             self.num_peers.setText(_('Lightning gossip not active.'))
 
     @qt_event_listener
-    def on_event_channel_db(self, num_nodes, num_channels, num_policies):
+    def on_event_channel_db(self, num_nodes, num_channels, num_policies, num_usable_channels):
         self.num_nodes.setText(_('{} nodes').format(num_nodes))
-        self.num_channels.setText(_('{} channels').format(num_channels))
+        # (the others get pruned shortly, see ChannelDB.update_counts)
+        self.num_channels.setText(_('{} channels').format(num_usable_channels))
 
     @qt_event_listener
     def on_event_gossip_peers(self, num_peers):

@@ -28,7 +28,7 @@ import time
 import random
 import os
 from collections import defaultdict
-from typing import Sequence, List, Tuple, Optional, Dict, NamedTuple, TYPE_CHECKING, Set
+from typing import Sequence, List, Tuple, Optional, Dict, NamedTuple, TYPE_CHECKING, Set, Iterable
 import binascii
 import base64
 import asyncio
@@ -406,6 +406,7 @@ class ChannelDB(SqlDB):
         self.num_nodes = 0
         self.num_channels = 0
         self.num_policies = 0
+        self.num_usable_channels = 0  # see update_counts()
         self._channel_updates_for_private_channels = {}  # type: Dict[Tuple[bytes, bytes], Tuple[dict, int]]
         # note: ^ we could maybe move this cache into PaySession instead of being global.
         #       That would only make sense though if PaySessions were never too short
@@ -448,7 +449,12 @@ class ChannelDB(SqlDB):
         self.num_nodes = len(self._nodes)
         self.num_channels = len(self._channels)
         self.num_policies = len(self._policies)
-        util.trigger_callback('channel_db', self.num_nodes, self.num_channels, self.num_policies)
+        # The channels that can be used for routing: with a policy. The others are mostly announcements
+        # of channels whose policies are too old, which get pruned shortly (prune_orphaned_channels).
+        with self.lock:
+            self.num_usable_channels = len(self._chans_with_1_policies) + len(self._chans_with_2_policies)
+        util.trigger_callback(
+            'channel_db', self.num_nodes, self.num_channels, self.num_policies, self.num_usable_channels)
         util.trigger_callback('ln_gossip_sync_progress')
 
     def get_channel_ids(self):
@@ -675,6 +681,11 @@ class ChannelDB(SqlDB):
         c.execute("""DELETE FROM channel_info WHERE short_channel_id=?""", (short_channel_id,))
 
     @sql
+    def _db_forget_orphaned_channels(self, short_channel_ids: Set[ShortChannelID]):
+        c = self.conn.cursor()
+        c.executemany("DELETE FROM orphaned_channel WHERE short_channel_id=?", [(bytes(scid),) for scid in short_channel_ids])
+
+    @sql
     def _db_save_orphaned_channels(self, short_channel_ids: Set[ShortChannelID], timestamp: int, cutoff: int):
         c = self.conn.cursor()
         c.executemany("REPLACE INTO orphaned_channel (short_channel_id, timestamp) VALUES (?,?)",
@@ -856,6 +867,21 @@ class ChannelDB(SqlDB):
         self.update_counts()
         self.logger.info(f'Deleting {len(short_channel_ids)} channels that most peers do not list')
         self._remember_orphaned_channels(short_channel_ids)
+
+    def forget_orphaned_channels(self, short_channel_ids: Iterable[bytes]) -> None:
+        """A channel we pruned turned out to be alive (a fresh update arrived): take it again."""
+        with self.lock:
+            forgotten = {
+                scid for scid in map(ShortChannelID.normalize, short_channel_ids)
+                if self._orphaned_channels.pop(scid, None) is not None}
+        if forgotten:
+            self._db_forget_orphaned_channels(forgotten)
+
+    def get_recently_orphaned_among(self, short_channel_ids: Iterable[bytes]) -> Set[bytes]:
+        """Those of these channels that we pruned recently (see get_recently_orphaned_channel_ids)."""
+        cutoff = int(time.time()) - self.ORPHANED_CHANNEL_REQUERY_DELAY
+        with self.lock:
+            return {scid for scid in short_channel_ids if self._orphaned_channels.get(scid, 0) > cutoff}
 
     def get_recently_orphaned_channel_ids(self) -> Set[ShortChannelID]:
         """Channels that we pruned recently, and that peers will still list in reply_channel_range.

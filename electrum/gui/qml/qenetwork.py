@@ -186,7 +186,8 @@ class QENetwork(QObject, QtEventListener):
         self.feeHistogramUpdated.emit()
 
     @event_listener
-    def on_event_channel_db(self, num_nodes, num_channels, num_policies):
+    def on_event_channel_db(self, num_nodes, num_channels, num_policies, num_usable_channels):
+        num_channels = num_usable_channels  # (the others get pruned shortly, see ChannelDB.update_counts)
         changed = False
         if self._gossipDbNodes != num_nodes:
             self._gossipDbNodes = num_nodes

@@ -723,6 +723,13 @@ class LNGossip(Logger):
     # if our newest policy is older than this, we were offline for long, and we do not remove anything
     CHANNEL_RANGE_FRESH_DB_AGE = 24 * 3600
     CHANNEL_RANGE_MAX_REMOVED_FRACTION = 0.1  # sanity check, against peers with a broken view
+    # A channel that only one peer lists is mostly one that this peer has not forgotten yet: closed long
+    # ago, or with policies older than max_age, which we would download just to prune it. Peers differ
+    # by thousands here (one listed 55k channels, the others 26k to 36k). So we ask for an unknown
+    # channel of a channel range once this many peers list it...
+    CHANNEL_QUERY_MIN_PEERS = 2
+    # ...unless our db has hardly any channels yet (the first sync), when we take what peers list.
+    CHANNEL_QUERY_FIRST_SYNC_CHANNELS = 1000
 
     def __init__(self, config: 'SimpleConfig'):
         self.config = config
@@ -734,6 +741,8 @@ class LNGossip(Logger):
         self.lnpeermgr = LNPeerManager(node_keypair, features=LNGOSSIP_FEATURES, config=self.config, lnwallet_or_lngossip=self)
         self.taskgroup = OldTaskGroup()
         self.unknown_ids = set()
+        # unknown channels of channel ranges, waiting for more peers to list them -> those peers
+        self._unknown_ids_listed_by = {}  # type: Dict[bytes, Set[bytes]]
         self._forwarding_gossip = []  # type: List[GossipForwardingMessage]
         self._last_gossip_batch_ts = 0  # type: int
         # until when we have received all the gossip. None if not known (yet)
@@ -1260,11 +1269,29 @@ class LNGossip(Logger):
         if absent:
             await run_in_thread(partial(self.channel_db.remove_channels_absent_from_peers, absent))
 
-    async def add_new_ids(self, ids: Iterable[bytes], *, skip_recently_orphaned: bool = False):
+    async def add_new_ids(
+            self, ids: Iterable[bytes], *, skip_recently_orphaned: bool = False,
+            listed_by: Optional[bytes] = None,
+    ):
+        """Adds the channels we do not know to the ones to query. listed_by: the peer whose channel range
+        lists them; these are queried once CHANNEL_QUERY_MIN_PEERS peers list them."""
         known = self.channel_db.get_channel_ids()
         new = set(ids) - set(known)
         if skip_recently_orphaned:
             new -= self.channel_db.get_recently_orphaned_channel_ids()
+        if listed_by is not None and self.channel_db.num_usable_channels >= self.CHANNEL_QUERY_FIRST_SYNC_CHANNELS:
+            listed = self._unknown_ids_listed_by
+            for short_channel_id in [scid for scid in listed if scid in known]:
+                del listed[short_channel_id]  # we learned of it otherwise
+            confirmed = set()
+            for short_channel_id in new:
+                peers = listed.setdefault(short_channel_id, set())
+                peers.add(listed_by)
+                if len(peers) >= self.CHANNEL_QUERY_MIN_PEERS:
+                    confirmed.add(short_channel_id)
+            for short_channel_id in confirmed:
+                del listed[short_channel_id]
+            new = confirmed
         self.unknown_ids.update(new)
         util.trigger_callback('unknown_channels', len(self.unknown_ids))
         util.trigger_callback('gossip_peers', self.lnpeermgr.num_peers())
@@ -1340,6 +1367,18 @@ class LNGossip(Logger):
             # four signatures of each is most of the work when catching up after being offline.
             known = self.channel_db.get_channel_ids()
             new_chan_anns = [payload for payload in chan_anns if payload['short_channel_id'] not in known]
+            # Peers also send the announcements of channels we pruned recently, with the same old policies
+            # (prune_orphaned_channels): we would add them only to prune them again. A channel that got a
+            # fresh policy is alive, and is taken.
+            if new_chan_anns and (recently_orphaned := self.channel_db.get_recently_orphaned_among(
+                    [payload['short_channel_id'] for payload in new_chan_anns])):
+                now = int(time.time())
+                fresh = {
+                    payload['short_channel_id'] for payload in chan_upds
+                    if now - payload['timestamp'] <= self.max_age}
+                new_chan_anns = [
+                    payload for payload in new_chan_anns
+                    if payload['short_channel_id'] not in recently_orphaned or payload['short_channel_id'] in fresh]
             for payload in new_chan_anns:
                 self.channel_db.verify_channel_announcement(payload)
             self.channel_db.add_channel_announcements(new_chan_anns)
@@ -1370,6 +1409,8 @@ class LNGossip(Logger):
         if orphaned:
             self.logger.info(f'adding {len(orphaned)} unknown channel ids')
             orphaned_ids = [c['short_channel_id'] for c in orphaned]
+            # (these updates are not expired: the channels are alive, also those we pruned recently)
+            await run_in_thread(partial(self.channel_db.forget_orphaned_channels, orphaned_ids))
             await self.add_new_ids(orphaned_ids)
 
         self._num_chan_ann += len(chan_anns)

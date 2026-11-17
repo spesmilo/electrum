@@ -195,10 +195,73 @@ class TestGossipBacklog(ElectrumTestCase):
         peer.get_channel_range = mock.AsyncMock(return_value=(ids, True))
         with self.assertRaises(StopQueryLoop):
             await Peer._query_gossip(peer)
-        gossip.add_new_ids.assert_awaited_once_with(ids, skip_recently_orphaned=True)
+        gossip.add_new_ids.assert_awaited_once_with(ids, skip_recently_orphaned=True, listed_by=peer.pubkey)
         gossip.on_channel_range_reply.assert_awaited_once_with(peer.pubkey, ids)
         gossip.get_gossip_timestamp_filter.assert_called_once_with(peer)
         peer.request_gossip.assert_called_once_with(1234, 5678)
+
+    def _gossip_for_new_ids(self, *, known, orphaned=()):
+        g = mock.Mock(
+            spec=LNGossip,
+            channel_db=mock.Mock(get_channel_ids=lambda: set(known), get_recently_orphaned_channel_ids=lambda: set(orphaned),
+                                 num_usable_channels=len(known)),
+            lnpeermgr=mock.Mock(num_peers=lambda: 1),
+            unknown_ids=set(),
+            _unknown_ids_listed_by={},
+            CHANNEL_QUERY_MIN_PEERS=LNGossip.CHANNEL_QUERY_MIN_PEERS,
+            CHANNEL_QUERY_FIRST_SYNC_CHANNELS=LNGossip.CHANNEL_QUERY_FIRST_SYNC_CHANNELS,
+        )
+        return g
+
+    async def test_unknown_channel_of_a_channel_range_is_queried_once_two_peers_list_it(self):
+        known = {bytes([1]) + i.to_bytes(7, 'big') for i in range(LNGossip.CHANNEL_QUERY_FIRST_SYNC_CHANNELS)}
+        orphaned, a, b, c = b'\x02' * 8, b'\x03' * 8, b'\x04' * 8, b'\x05' * 8
+        g = self._gossip_for_new_ids(known=known, orphaned=[orphaned])
+        some_known = next(iter(known))
+        await LNGossip.add_new_ids(g, [some_known, orphaned, a, b], skip_recently_orphaned=True, listed_by=b'peer1')
+        self.assertEqual(set(), g.unknown_ids)  # one peer: most likely a channel the others forgot
+        await LNGossip.add_new_ids(g, [a, b], skip_recently_orphaned=True, listed_by=b'peer1')
+        self.assertEqual(set(), g.unknown_ids)  # (the same peer again counts once)
+        await LNGossip.add_new_ids(g, [a, orphaned], skip_recently_orphaned=True, listed_by=b'peer2')
+        self.assertEqual({a}, g.unknown_ids)
+        self.assertEqual({b: {b'peer1'}}, g._unknown_ids_listed_by)
+        # not from a channel range (an update for an unknown channel, a query that timed out): at once
+        await LNGossip.add_new_ids(g, [c])
+        self.assertEqual({a, c}, g.unknown_ids)
+        # a channel we learned of otherwise does not wait for a vote any more
+        known.add(b)
+        await LNGossip.add_new_ids(g, [], skip_recently_orphaned=True, listed_by=b'peer3')
+        self.assertEqual({}, g._unknown_ids_listed_by)
+
+    async def test_unknown_channels_of_the_first_channel_range_of_an_empty_db_are_queried(self):
+        g = self._gossip_for_new_ids(known={b'\x01' * 8})
+        await LNGossip.add_new_ids(g, [b'\x03' * 8], skip_recently_orphaned=True, listed_by=b'peer1')
+        self.assertEqual({b'\x03' * 8}, g.unknown_ids)
+        # told by the channels that have a policy: many announcements without one are still the first sync
+        known = {bytes([1]) + i.to_bytes(7, 'big') for i in range(LNGossip.CHANNEL_QUERY_FIRST_SYNC_CHANNELS)}
+        g = self._gossip_for_new_ids(known=known)
+        g.channel_db.num_usable_channels = 0
+        await LNGossip.add_new_ids(g, [b'\x03' * 8], skip_recently_orphaned=True, listed_by=b'peer1')
+        self.assertEqual({b'\x03' * 8}, g.unknown_ids)
+
+    async def test_announcement_of_a_recently_orphaned_channel_is_dropped_unless_it_got_a_fresh_policy(self):
+        orphaned, revived, new = channel(2), channel(3), channel(4)
+        now = int(time.time())
+        g = mock.Mock(
+            spec=LNGossip, logger=mock.Mock(), channel_db=mock.Mock(), add_new_ids=mock.AsyncMock(),
+            max_age=LNGossip.max_age, _num_chan_ann=0, _num_node_ann=0, _num_chan_upd=0, _num_chan_upd_good=0,
+        )
+        g.channel_db.data_loaded.wait = mock.AsyncMock()
+        g.channel_db.get_channel_ids.return_value = set()
+        g.channel_db.get_recently_orphaned_among = lambda scids: {scid for scid in scids if scid in (orphaned, revived)}
+        g.channel_db.add_channel_updates.return_value = mock.Mock(orphaned=[], good=[])
+        anns = [{'short_channel_id': scid} for scid in (orphaned, revived, new)]
+        upds = [{'short_channel_id': orphaned, 'timestamp': now - LNGossip.max_age - 10},  # the old policy again
+                {'short_channel_id': revived, 'timestamp': now - 60}]
+        await LNGossip._process_gossip(g, anns, [], upds)
+        added, = g.channel_db.add_channel_announcements.call_args.args
+        self.assertEqual([revived, new], [a['short_channel_id'] for a in added])
+        self.assertEqual([revived, new], [c.args[0]['short_channel_id'] for c in g.channel_db.verify_channel_announcement.call_args_list])
 
     async def test_orphaned_channel_update_still_triggers_a_query(self):
         orphaned_id = b'\x02' * 8
@@ -213,6 +276,8 @@ class TestGossipBacklog(ElectrumTestCase):
         g.channel_db.add_channel_updates.return_value = mock.Mock(orphaned=[{'short_channel_id': orphaned_id}], good=[])
         await LNGossip._process_gossip(g, [], [], [{'short_channel_id': orphaned_id}])
         g.add_new_ids.assert_awaited_once_with([orphaned_id])
+        # (the update is not expired: a channel we pruned recently is alive after all)
+        g.channel_db.forget_orphaned_channels.assert_called_once_with([orphaned_id])
 
     async def test_query_for_channels_that_gets_no_reply_times_out(self):
         # e.g. LDK does not reply to query_short_channel_ids
@@ -239,7 +304,8 @@ class TestGossipBacklog(ElectrumTestCase):
         self.assertIs(False, peer.answers_channel_queries)
         gossip.get_ids_to_query.assert_called_once_with(peer)
         # the ids go back to the pool, for the other peers
-        self.assertEqual([mock.call(set(), skip_recently_orphaned=True), mock.call(ids)], gossip.add_new_ids.await_args_list)
+        self.assertEqual([mock.call(set(), skip_recently_orphaned=True, listed_by=peer.pubkey), mock.call(ids)],
+                         gossip.add_new_ids.await_args_list)
 
     def _peer_for_gossip_handlers(self) -> mock.Mock:
         peer = mock.Mock(
@@ -1416,6 +1482,7 @@ class TestGossipBacklog(ElectrumTestCase):
         channel_db.data_loaded.wait = mock.AsyncMock()
         known, new = b'\x01' * 8, b'\x02' * 8
         channel_db.get_channel_ids = lambda: {ShortChannelID(known)}
+        channel_db.get_recently_orphaned_among = lambda scids: set()
         channel_db.add_channel_updates.return_value = mock.Mock(orphaned=[], good=[])
         chan_anns = [{'short_channel_id': known}, {'short_channel_id': new}]
         await g.process_gossip(chan_anns, [], [])
@@ -1924,6 +1991,46 @@ class Test_LNRouter(ElectrumTestCase):
             self.cdb._remember_orphaned_channels({channel(101)})
         self.assertEqual([channel(101)], list(self.cdb._orphaned_channels))
         self.assertEqual([(bytes(channel(101)),)], await read_table(self.cdb))
+
+    async def test_recently_orphaned_among_tells_only_those_pruned_recently(self):
+        self.prepare_graph()
+        self.cdb._remember_orphaned_channels({channel(100)})
+        with self.cdb.lock:
+            self.cdb._orphaned_channels[channel(101)] = int(time.time()) - self.cdb.ORPHANED_CHANNEL_REQUERY_DELAY - 10
+        self.assertEqual({bytes(channel(100))}, self.cdb.get_recently_orphaned_among(
+            [bytes(channel(100)), bytes(channel(101)), bytes(channel(102))]))
+
+    async def test_orphaned_channel_that_turns_out_alive_is_forgotten(self):
+        self.prepare_graph()
+        self.cdb._remember_orphaned_channels({channel(100), channel(101)})
+        self.cdb.forget_orphaned_channels([bytes(channel(100)), channel(102)])
+        self.assertEqual({channel(101)}, self.cdb.get_recently_orphaned_channel_ids())
+        read_table = sql(lambda db: list(db.conn.cursor().execute("SELECT short_channel_id FROM orphaned_channel")))
+        self.assertEqual([(bytes(channel(101)),)], await read_table(self.cdb))
+
+    async def test_channel_counts_tell_the_usable_channels(self):
+        self.prepare_graph()
+        seen = []
+        with mock.patch.object(util, 'trigger_callback', lambda event, *args: seen.append((event, args))):
+            for scid in (channel(100), channel(101)):
+                self.cdb.add_channel_announcements({
+                    'node_id_1': node('a'), 'node_id_2': node('e'),
+                    'bitcoin_key_1': node('a'), 'bitcoin_key_2': node('e'),
+                    'short_channel_id': scid,
+                    'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
+                    'len': 0, 'features': b''
+                }, trusted=True)
+            # one policy of the second one: it can be used in one direction
+            self.cdb.add_channel_update(
+                {'short_channel_id': channel(101), 'message_flags': b'\x00', 'channel_flags': b'\x00',
+                 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100,
+                 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
+                 'timestamp': int(time.time())}, verify=False)
+            self.cdb.update_counts()
+        num_nodes, num_channels, num_policies, num_usable = [args for event, args in seen if event == 'channel_db'][-1]
+        self.assertEqual(self.cdb.num_channels, num_channels)
+        self.assertEqual(num_channels - 1, num_usable)  # all but the one without a policy
+        self.assertEqual(num_usable, self.cdb.num_usable_channels)
 
     async def test_prune_old_policies_tolerates_policies_removed_concurrently(self):
         self.prepare_graph()

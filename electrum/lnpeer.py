@@ -754,7 +754,7 @@ class Peer(Logger, EventListener):
             self.logger.info('Received {} channel ids. (complete: {})'.format(len(ids), complete))
             await self.lnworker.channel_db.data_loaded.wait()
             await self.lnworker.on_channel_range_reply(self.pubkey, ids)
-            await self.lnworker.add_new_ids(ids, skip_recently_orphaned=True)
+            await self.lnworker.add_new_ids(ids, skip_recently_orphaned=True, listed_by=self.pubkey)
             self.request_gossip(*self.lnworker.get_gossip_timestamp_filter(self))
             while True:
                 todo = self.lnworker.get_ids_to_query(self)
