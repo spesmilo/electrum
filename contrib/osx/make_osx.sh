@@ -215,9 +215,6 @@ cp "$DLL_TARGET_DIR"/libsecp256k1.*.dylib "$VENV_DIR/lib/python$PY_VER_MAJOR/sit
 find "$VENV_DIR/lib/python$PY_VER_MAJOR/site-packages/" -type f -name '*.so' -print0 \
     | xargs -0 -t strip -x
 
-info "Faking timestamps..."
-find . -exec touch -t '200101220000' {} + || true
-
 # note: no --dirty, as we have dirtied electrum/locale/ ourselves.
 VERSION=$(git describe --tags --always --abbrev=10)
 
