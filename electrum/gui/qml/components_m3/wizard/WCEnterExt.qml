@@ -12,6 +12,9 @@ import "../controls"
 // checkValid() with wiz.hasDuplicateMasterKeys for a multisig cosigner, the 250 ms validation timer, the custom
 // words field shown only while the extension is on, its input method hints, Component.onCompleted).
 // The checkbox extendcb is a switch row; its state is kept in seedExtend (read by the same apply/checkValid).
+// checkValid() runs right after the assignment in onUserToggled, as the classic onCheckedChanged on the checkbox
+// itself: by then the extendcb mirror holds the new state (a handler of seedExtendChanged would run before the
+// binding of the mirror is updated and validate the previous state).
 // The "Do not enable it unless you know what it does!" line is a warning above the switch, and the switch is a
 // plain row below it (DESIGN-M2.md finding 19: the option must not look like the recommended step).
 WizardComponent {
@@ -22,8 +25,6 @@ WizardComponent {
 
     property int cosigner: 0
     property bool seedExtend: false
-
-    onSeedExtendChanged: checkValid()
 
     function apply() {
         var seed_extend = extendcb.checked
@@ -110,7 +111,10 @@ WizardComponent {
                 headline: qsTranslate('WCEnterExt', 'Extend seed with custom words')
                 headlineMaxLines: 2
                 checked: root.seedExtend
-                onUserToggled: (checked) => { root.seedExtend = checked }
+                onUserToggled: (checked) => {
+                    root.seedExtend = checked
+                    checkValid()
+                }
             }
 
             M3TextField {

@@ -13,7 +13,8 @@ import org.electrum 1.0
 // enum Mode; the initial mode (Manual on the first start, else from Network.autoConnect / oneServer); the address
 // cleared in Autoconnect; the address field disabled in Autoconnect and validated by
 // Network.isValidServerAddress; the help text of the connection modes; Network.serverListModel with the sections
-// by chain; a tap on a server puts its name into the field; address = Network.server at the start).
+// by chain; a tap on a server puts its name into the field; address = Network.server at the start; the address
+// validated at the end of the start, so an empty address in Manual mode is invalid from the first frame).
 // Differences: the mode is one row (M3SelectRow, the choice in a dialog), the invalid address shows the error
 // text "Invalid server address" (new string) once the user edited the field, not a red fill from the start
 // (DESIGN-M2.md finding 18); a server row shows a check when primary and a dot when connected.
@@ -189,5 +190,10 @@ Item {
                     : M3ServerConfig.Mode.Manual
         }
         root.address = Network.server
+        // the classic combo box starts at Auto-connect and then moves to the mode above, so the field turns
+        // enabled and validates itself (onEnabledChanged); here the mode may start right away (Manual on the
+        // first start) and neither the text nor `enabled` changes: validate once, as the classic ends up doing
+        // (an empty address in Manual mode is invalid, Next stays disabled)
+        address_tf.validate()
     }
 }

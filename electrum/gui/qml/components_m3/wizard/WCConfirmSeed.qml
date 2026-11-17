@@ -10,7 +10,9 @@ import "../controls"
 // repeats: components/wizard/WCConfirmSeed.qml:10-51 @ e6df7e1c8 (securePage, valid, checkValid() with
 // wizard.wiz.isMatchingSeed on every change, the strings).
 // Added (DESIGN-M2.md finding 5, view only, `valid` still comes from isMatchingSeed): the number of the first word
-// that does not match the seed shown before, below the field; the keyboard has a "delete word" key.
+// that does not match the seed shown before, below the field; the keyboard has a "delete word" key. The words are
+// compared as mnemonic.is_matching_seed compares them (split on the same whitespace, case kept), and the line is
+// never shown while the page is valid; the field with that line is scrolled into view once the line shows up.
 WizardComponent {
     id: root
     securePage: true
@@ -22,13 +24,21 @@ WizardComponent {
         valid = seedvalid
     }
 
+    // the words of a text as mnemonic.is_matching_seed splits them: Python str.split() with no argument, i.e. on
+    // the characters of str.isspace() (JS \s differs: it lacks \x1c-\x1f and \x85 and has \ufeff); the case is
+    // kept, as there (it does not lower the words: "Abandon" does not match "abandon")
+    function _words(text) {
+        return text.split(/[\t\n\v\f\r\x1c-\x1f \x85\xa0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+/)
+            .filter(function(w) { return w !== '' })
+    }
+
     // number (1-based) of the first typed word that differs from the seed, 0 if none; the word being typed (no
     // space after it yet) only has to be the start of the right word
     function _firstMismatch() {
-        var want = String(wizard_data['seed'] || '').split(/\s+/).filter(function(w) { return w !== '' })
+        var want = _words(String(wizard_data['seed'] || ''))
         var text = confirm.text
-        var got = text.split(/\s+/).filter(function(w) { return w !== '' })
-        var typing = !/\s$/.test(text)
+        var got = _words(text)
+        var typing = _words(text.slice(-1)).length > 0  // the last character is not a space
         for (var i = 0; i < got.length; i++) {
             if (i >= want.length)
                 return i + 1
@@ -76,13 +86,15 @@ WizardComponent {
                 Layout.fillWidth: true
                 placeholderText: qsTranslate('WCConfirmSeed', 'Enter your seed')
                 indicatorValid: false
-                indicatorText: mismatch > 0 ? qsTr('Word %1 does not match').arg(mismatch) : ''
+                indicatorText: mismatch > 0 && !root.valid ? qsTr('Word %1 does not match').arg(mismatch) : ''
                 property int mismatch: 0
                 onTextChanged: {
                     checkValid()
                     mismatch = root._firstMismatch()
                     Qt.callLater(root.ensureVisible, flick, confirm)
                 }
+                // the line below the field showed up: scroll it into view as well
+                onHeightChanged: Qt.callLater(root.ensureVisible, flick, confirm)
             }
         }
     }

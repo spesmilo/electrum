@@ -17,8 +17,9 @@ import "../controls"
 // seed type keeps the classic `infotext` (text, visible) set by setSeedTypeHelpText(); on a low page it is one
 // line that opens on a tap (DESIGN-M2.md finding 7).
 // Added (view only, `valid` and the check do not change): with the Electrum type chosen and 12 or more words that
-// are not a valid Electrum seed, a line below the field suggests BIP39 (DESIGN-M2.md finding 4); the field and its
-// indicator are scrolled into view on every change of the text (finding 7).
+// Electrum does not recognize but that are a BIP39 seed, a line below the field suggests BIP39 (DESIGN-M2.md
+// finding 4, see _updateSuggestBip39); the field with its indicator and that line is scrolled into view on every
+// change of the text and again once the indicator or the line shows up (finding 7).
 WizardComponent {
     id: root
     securePage: true
@@ -124,10 +125,24 @@ WizardComponent {
         valid = _seedValid
     }
 
-    // M3: the hint to choose BIP39 (view only)
-    readonly property bool _suggestBip39: !is2fa && seedVariant == 'electrum' && !_seedValid
-        && !validationTimer.running
-        && seedtext.text.split(/\s+/).filter(function(w) { return w !== '' }).length >= 12
+    // M3: the hint to choose BIP39 (view only). Shown when the Electrum type is chosen, there are 12 or more words,
+    // Electrum does not recognize them as a seed of any type (no _seedType: a recognized seed of another type, e.g.
+    // a duplicate cosigner key, gets no hint) and the same words pass the BIP39 check of this page, the call that
+    // checkValid() makes when BIP39 is chosen: wiz.verifySeed(text, 'bip39', wallet_type) with no message, i.e. a
+    // known wordlist and a good checksum (a BIP39 seed is "valid" even with a failed checksum, wizard.py
+    // validate_seed). An Electrum seed with a mistyped word gets no hint, unless those words happen to be a BIP39
+    // seed too (1 in 16 for 12 random words, the 4-bit checksum). Recomputed after each check, cleared on typing.
+    property bool _suggestBip39: false
+    function _updateSuggestBip39() {
+        _suggestBip39 = false
+        if (is2fa || seed_variant_cb.currentValue != 'electrum' || _seedType !== '')
+            return
+        if (seedtext.text.split(/\s+/).filter(function(w) { return w !== '' }).length < 12)
+            return
+        var bip39 = wiz.verifySeed(seedtext.text, 'bip39', wizard_data['wallet_type'])
+        _suggestBip39 = bip39.valid && bip39.message === ''
+    }
+
     // M3: a low page shows the help text as one line until tapped
     readonly property bool _lowPage: flick.height < 400
     property bool _helpOpen: false
@@ -182,6 +197,7 @@ WizardComponent {
                         setSeedTypeHelpText()
                         checkIsLast()
                         checkValid()
+                        root._updateSuggestBip39()  // M3
                     }
                 }
             }
@@ -232,6 +248,9 @@ WizardComponent {
                 Layout.fillWidth: true
                 spacing: m3.space8
 
+                // the indicator or the BIP39 line showed up (after the check): scroll them into view as well
+                onHeightChanged: Qt.callLater(root.ensureVisible, flick, seedBlock)
+
                 M3SeedField {
                     id: seedtext
                     Layout.fillWidth: true
@@ -248,6 +267,7 @@ WizardComponent {
                             : root._seedType
                     onTextChanged: {
                         startValidationTimer()
+                        root._suggestBip39 = false  // M3
                         Qt.callLater(root.ensureVisible, flick, seedBlock)
                     }
                 }
@@ -303,6 +323,7 @@ WizardComponent {
             checkValid()
             // checkIsLast depends on 'seed_extend'(_canPassphrase) getting set in apply()
             checkIsLast()
+            root._updateSuggestBip39()  // M3
         }
     }
 
