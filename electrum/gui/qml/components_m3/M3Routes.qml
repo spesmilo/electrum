@@ -5,9 +5,9 @@ import QtQuick
 // app.pushPageOnRoot(url), which push only a page that loaded (never a null one). The group that moves a
 // page to Material 3 changes the first line of its route (the URL, resolved relative to components_m3/); the
 // second line, <page>Classic, is the classic page that app.loadPage() opens when the Material 3 one cannot be
-// loaded (fallback for the time of the M2 waves; removed together with it, M2-MAP F-14). Exception: the
-// classic Wallets page is also named in main.qml, by mainStackView.initialItem (Classic.Wallets) and
-// mainStackView._classicRoots (replaceRoot('Wallets.qml')): the group of `wallets` changes those too.
+// loaded (fallback for the time of the M2 waves; removed together with it, M2-MAP F-14). The Wallets page is
+// also named in main.qml, by mainStackView.initialItem (the type Wallets) and by replaceRoot('Wallets.qml'):
+// both lead to components_m3/Wallets.qml, the file of the route `wallets`.
 // Constraint: two routes must not lead to the same Material 3 file: the fallback is looked up by the URL
 // (classicFor), so both routes would fall back to the classic page of the first one.
 // Layout: one block per owning group, blocks separated by a comment line, so that groups editing their own
@@ -29,7 +29,7 @@ QtObject {
     }
 
     // --- G1 onboarding: wallets ---
-    property url wallets: Qt.resolvedUrl('../components/Wallets.qml')
+    property url wallets: Qt.resolvedUrl('Wallets.qml')
     property url walletsClassic: Qt.resolvedUrl('../components/Wallets.qml')
 
     // --- G2 receiving: invoices and requests ---

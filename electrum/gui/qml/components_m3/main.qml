@@ -281,7 +281,7 @@ ApplicationWindow
             Layout.fillWidth: true
 
             initialItem: Component {
-                Classic.Wallets {}
+                Wallets {}
             }
 
             function getRoot() {
@@ -294,11 +294,11 @@ ApplicationWindow
                     mainStackView.push(item)
                 }
             }
-            // M3: classic screens pass bare file names (Wallets.qml: 'WalletMainView.qml',
-            // WalletMainView: 'Wallets.qml'); they resolve relative to components_m3/, except the
-            // classic pages listed here, which have no Material 3 counterpart yet.
+            // M3: screens pass bare file names (Wallets.qml: 'WalletMainView.qml', PaymentFlow after
+            // a wallet was deleted: 'Wallets.qml'); they resolve relative to components_m3/, except a
+            // classic page listed here (a root without a Material 3 counterpart; none since M2 G1-B).
             readonly property var _classicRoots: ({
-                'Wallets.qml': '../components/Wallets.qml'
+                // bare file name: path of the classic page, relative to components_m3/
             })
             // M3: the classic root that replaceRoot() opens when the Material 3 one cannot be loaded (an error in
             // its file or in any file it loads by type, e.g. the dialogs of PaymentFlow): a working classic
@@ -483,7 +483,7 @@ ApplicationWindow
     property alias openWalletDialog: _openWalletDialog
     Component {
         id: _openWalletDialog
-        Classic.OpenWalletDialog {
+        OpenWalletDialog {
             onClosed: destroy()
         }
     }
@@ -491,7 +491,7 @@ ApplicationWindow
     property alias loadingWalletDialog: _loadingWalletDialog
     Component {
         id: _loadingWalletDialog
-        Classic.LoadingWalletDialog {
+        LoadingWalletDialog {
             onClosed: destroy()
         }
     }
