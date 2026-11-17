@@ -468,6 +468,10 @@ class _LogRedactor:
                           r'(?:(?:[0-9a-fA-F]{1,4}:)*(?:\d{1,3}(?:\.\d{1,3}){3}|[0-9a-fA-F]{1,4}))?(?![\w:.])'), 0),
         ('ip', re.compile(r'(?<![\w.])(?:\d{1,3}\.){3}\d{1,3}(?!\.?\d)(?!\w)'), 0),
         ('server', re.compile(r'interface\.\[([^\]]+)\]'), 1),
+        # elsewhere as host:port:protocol, e.g. the server a job on the default server starts with. (host names
+        # may have _ and end with a dot, but not end with a part of digits only, so that a time like 10:30:s is not one;
+        # an ip or onion address got its label above)
+        ('server', re.compile(r'(?<![\w.<-])((?:[A-Za-z0-9_-]+\.)*(?![0-9]+\.?:)[A-Za-z0-9_-]+\.?:\d{1,5}):[st](?![\w:])'), 1),
         ('payment', re.compile(r'PaySession\.\[([0-9a-f]{8}-[0-9a-f]{4})\]'), 1),
     )
     _LABEL = re.compile(r'(<(?:our )?[a-z]+ [0-9a-f]{8}>)')

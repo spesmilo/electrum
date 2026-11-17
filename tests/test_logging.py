@@ -1,5 +1,7 @@
 import hashlib
 import hmac
+import io
+import logging
 import os
 import pathlib
 from unittest import mock
@@ -99,6 +101,14 @@ class TestRedactLogText(ElectrumTestCase):
             (_line('lnworker.PaySession.[d9f3aa74-419e]', 'waiting'),
              _line(f'lnworker.PaySession.[{label("payment", "d9f3aa74-419e")}]', 'waiting')),
             ('interface.[myhome.example:50002] | connected', f'interface.[{label("server", "myhome.example:50002")}] | connected'),
+            ("lnverifier.LNChannelVerifier | starting. interface.server='myhome.example:50002:s'",  # the same label
+             f"lnverifier.LNChannelVerifier | starting. interface.server='{label('server', 'myhome.example:50002')}:s'"),
+            ("server='203.0.113.7:50001:t'", f"server='{label('ip', '203.0.113.7')}:50001:t'"),
+            ("server='umbrel.local:50001:t' 'my_node.lan:50002:s' 'myhome.example.:50002:s' 'mynode:50002:s'",
+             f"server='{label('server', 'umbrel.local:50001')}:t' '{label('server', 'my_node.lan:50002')}:s' "
+             f"'{label('server', 'myhome.example.:50002')}:s' '{label('server', 'mynode:50002')}:s'"),
+            ("server='10-0-0-5:50002:s' '0.tcp.example.io:12345:t'",
+             f"server='{label('server', '10-0-0-5:50002')}:s' '{label('server', '0.tcp.example.io:12345')}:t'"),
             # the nodes and channels of the network too: whom we pay and whom we have channels with
             (f'error reported by {self.NODE_ID}', f'error reported by {label("node", self.NODE_ID[:10])}'),
             ('route: 0322222222 -[700000x5x0 0+0ppm cltv 40]-> 0344444444',
@@ -127,7 +137,32 @@ class TestRedactLogText(ElectrumTestCase):
              f'catching up on gossip. peers (msgs/s, old updates): {label("node", "03abcd")} 12 300 done, {label("node", "02ef01")} ? 0. '
              'unknown_ids=3'),
         ):
-            self.assertEqual(expected, redact(text), msg=text)
+            with self.subTest(text=text):
+                self.assertEqual(expected, redact(text))
+
+    async def test_the_server_a_job_on_the_default_server_starts_with(self):
+        # through the real path: the line util.NetworkJobOnDefaultServer writes, the filter, the labels
+        from electrum.interface import ServerAddr
+        from electrum.lnverifier import LNChannelVerifier
+        written = io.StringIO()
+        handler = logging.StreamHandler(written)
+        handler.setFormatter(electrum_logging.file_formatter)
+        electrum_logging.electrum_logger.addHandler(handler)
+        self.addCleanup(electrum_logging.electrum_logger.removeHandler, handler)
+        job = object.__new__(LNChannelVerifier)
+        electrum_logging.Logger.__init__(job)
+        job.taskgroup = None
+        servers = (('electrum.example.org', 50002, 's'), ('umbrel.local', 50001, 't'), ('my_node.lan', 50002, 's'),
+                   ('myhome.example.', 50002, 's'), ('mynode', 50002, 's'), ('203.0.113.7', 50002, 's'),
+                   ('2001:db8::1', 50002, 's'), ('b' * 56 + '.onion', 50001, 't'))
+        for host, port, protocol in servers:
+            interface = mock.Mock(server=ServerAddr(host, port, protocol=protocol), taskgroup=mock.Mock(spawn=mock.AsyncMock()))
+            await job._start(interface)
+        shared = redact(filter_log_for_sharing(written.getvalue()))
+        self.assertEqual(len(servers), shared.count('lnverifier.LNChannelVerifier | starting. interface.server='))
+        for host, port, protocol in servers:
+            self.assertNotIn(host.rstrip('.'), shared)
+        self.assertIn(f"interface.server='{label('server', 'my_node.lan:50002')}:s'", shared)
 
     def test_the_same_value_gets_the_same_label_in_any_form(self):
         node_bytes = repr(bytes.fromhex(self.NODE_ID))
@@ -151,6 +186,7 @@ class TestRedactLogText(ElectrumTestCase):
             'gossip_db status. sync progress: (26556, 26556, 100). num_nodes=11496',
             'sent htlc 6: amount=1000 msat, fee=1 msat, cltv_abs=976054. fee 1000+1ppm cltv 144',
             _line('lnpeer.Peer.[LNGossip, ?-1a2b3c4d]', 'Received INIT'),
+            'at 10:30:s, ratio 3:4:t, 2026-11-17T10:10:10:s, a:1:sat',  # not servers
         ):
             self.assertEqual(text, redact(text), msg=text)
 
