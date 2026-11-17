@@ -2,17 +2,23 @@ import queue
 import sys
 from contextlib import contextmanager
 from functools import wraps
-from typing import Optional, NamedTuple, Callable, Iterator
+from typing import Optional, NamedTuple, Callable, Iterator, Tuple, Union, TYPE_CHECKING
 import os.path
 
 from PyQt6 import QtGui, sip
 from PyQt6.QtCore import Qt, QThread, QObject, pyqtSignal
 from PyQt6.QtGui import QColor, QPen, QPaintDevice, QFontDatabase, QImage
 import qrcode
+import qrcode.exceptions
 
+from electrum.bcur import UREncoder, UR_TYPE_CRYPTO_PSBT
 from electrum.i18n import _
 from electrum.logging import Logger, get_logger
 from electrum.util import EventListener, event_listener
+
+if TYPE_CHECKING:
+    from electrum.transaction import Transaction
+    from electrum.simple_config import SimpleConfig
 
 _logger = get_logger(__name__)
 
@@ -265,3 +271,31 @@ def break_qt_network() -> None:
     # fail back before even trying to connect to the proxy:
     proxy.setCapabilities(QNetworkProxy.Capability(0))
     QNetworkProxy.setApplicationProxy(proxy)
+
+
+def data_fits_qr(data: str, *, error_correction: int, max_version: int = 40) -> bool:
+    """Returns whether data fits into a single QR code, of at most max_version."""
+    qr = qrcode.QRCode(error_correction=error_correction)
+    qr.add_data(data)
+    try:
+        version = qr.best_fit()
+    except (ValueError, qrcode.exceptions.DataOverflowError):
+        return False
+    return version <= max_version
+
+
+def tx_to_qr_data(
+    tx: 'Transaction', *,
+    config: 'SimpleConfig',
+    error_correction: int,
+    max_version: int = 40,
+) -> Tuple[Union[str, UREncoder], bool]:
+    if tx.is_complete():
+        # Show a final tx as hex network tx if possible (must fit a single QR). Otherwise, as UR-PSBT.
+        tx_hex = tx.serialize().upper()
+        if data_fits_qr(tx_hex, error_correction=error_correction, max_version=max_version):
+            return tx_hex, False
+    # animated QR code
+    psbt, data_stripped = tx.to_ur_psbt()
+    ur_encoder = UREncoder(UR_TYPE_CRYPTO_PSBT, psbt, max_fragment_len=config.GUI_UR_MAX_FRAGMENT_LEN)
+    return ur_encoder, data_stripped

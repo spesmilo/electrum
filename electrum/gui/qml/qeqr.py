@@ -4,6 +4,7 @@ from qrcode.exceptions import DataOverflowError
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 import math
+from typing import Optional, Tuple
 import urllib
 
 from PyQt6 import sip
@@ -26,10 +27,14 @@ except ImportError:
     from PyQt6.QtCore import QObject as QVideoSink
     _LUMA_PLANE_FORMATS = frozenset()
 
+from electrum.bcur import URScanCollector, UREncoder
 from electrum.logging import get_logger
 from electrum.qrreader import get_qr_reader
 from electrum.util import profiler
-from electrum.gui.common_qt.util import draw_qr
+from electrum.gui.common_qt.util import draw_qr, tx_to_qr_data
+from electrum.transaction import tx_from_any
+
+from .qeconfig import QEConfig
 
 
 _logger = get_logger(__name__)
@@ -68,6 +73,7 @@ class QEQRParser(QObject):
 
     dataChanged = pyqtSignal()
     videoSinkChanged = pyqtSignal()
+    urProgressChanged = pyqtSignal()
 
     def __init__(self, text=None, parent=None):
         super().__init__(parent)
@@ -75,6 +81,8 @@ class QEQRParser(QObject):
         self._busy = False
         self._data = None
         self._video_sink = None
+        self._ur_collector = URScanCollector()  # only used on the decoder thread
+        self._ur_progress = None  # type: Optional[Tuple[int, int]]
 
         self._text = text
         self.qrreader = get_qr_reader()
@@ -133,12 +141,17 @@ class QEQRParser(QObject):
                     buffer, buffer_size, stride, width, height,
                     crop=((width - size) // 2, (height - size) // 2, size, size),
                 )
-            if results:
+            texts = []
+            for result in results:
                 try:
-                    self._data = results[0].data.decode('utf-8')
+                    texts.append(result.data.decode('utf-8'))
                 except UnicodeDecodeError:
                     self._logger.warning('ignoring QR code: payload is not valid UTF-8 text')
-                else:
+            if texts:
+                data = self._ur_collector.add_frame(texts)
+                self._update_ur_progress()
+                if data is not None:
+                    self._data = data
                     self.dataChanged.emit()
         except Exception as e:
             if isinstance(e, RuntimeError) and sip.isdeleted(self):
@@ -147,6 +160,32 @@ class QEQRParser(QObject):
         finally:
             self._busy = False
 
+    def _update_ur_progress(self):
+        # runs on the decoder thread
+        progress = self._ur_collector.progress
+        if progress != self._ur_progress:
+            self._ur_progress = progress
+            self.urProgressChanged.emit()
+
+    def _reset_ur(self):
+        # runs on the decoder thread
+        self._ur_collector.reset()
+        self._update_ur_progress()
+
+    @pyqtProperty(bool, notify=urProgressChanged)
+    def urInProgress(self):
+        return self._ur_progress is not None
+
+    @pyqtProperty(int, notify=urProgressChanged)
+    def urPartsReceived(self):
+        progress = self._ur_progress  # written by the decoder thread, so read it only once
+        return progress[0] if progress else 0
+
+    @pyqtProperty(int, notify=urProgressChanged)
+    def urPartsTotal(self):
+        progress = self._ur_progress
+        return progress[1] if progress else 0
+
     @pyqtProperty(str, notify=dataChanged)
     def data(self):
         return self._data or ''
@@ -154,6 +193,7 @@ class QEQRParser(QObject):
     @pyqtSlot()
     def reset(self):
         self._data = None
+        self._decoder.submit(self._reset_ur)
         self.dataChanged.emit()
 
 
@@ -162,11 +202,11 @@ class QEQRImageProvider(QQuickImageProvider):
     ERROR_CORRECT_LEVEL = qrcode.constants.ERROR_CORRECT_M
     # ^ note: this is higher than for desktop. but on desktop we don't put a logo in the middle.
     QR_BORDER = 2
+    MIN_BOX_SIZE = 2  # pixels per module, draw_qr refuses to draw smaller ones
 
     def __init__(self, max_size, parent=None):
         super().__init__(QQuickImageProvider.ImageType.Image)
         self._max_size = max_size
-        self.qimg = None
 
     _logger = get_logger(__name__)
 
@@ -194,15 +234,15 @@ class QEQRImageProvider(QQuickImageProvider):
             modules = len(qr.get_matrix())
             qr.box_size = math.floor(pixelsize/modules)
             qr.make(fit=True)
-            self.qimg = QImage(modules * qr.box_size, modules * qr.box_size, QImage.Format.Format_RGB32)
-            draw_qr(qr=qr, paint_device=self.qimg)
+            qimg = QImage(modules * qr.box_size, modules * qr.box_size, QImage.Format.Format_RGB32)
+            draw_qr(qr=qr, paint_device=qimg, min_boxsize=self.MIN_BOX_SIZE)
         except (ValueError, qrcode.exceptions.DataOverflowError):
             # fake it
             modules = 17 + qr.border * 2
             box_size = math.floor(pixelsize/modules)
-            self.qimg = QImage(box_size * modules, box_size * modules, QImage.Format.Format_RGB32)
-            self.qimg.fill(QColor('gray'))
-        return self.qimg, self.qimg.size()
+            qimg = QImage(box_size * modules, box_size * modules, QImage.Format.Format_RGB32)
+            qimg.fill(QColor('gray'))
+        return qimg, qimg.size()
 
 
 # helper for placing icon exactly where it should go on the QR code
@@ -241,3 +281,92 @@ class QEQRImageProviderHelper(QObject):
             'icon_pixelsize': icon_modules * qr.box_size,
             'valid': valid
         }
+
+    def _max_version(self) -> int:
+        """Returns the largest QR version that the 'qrgen' provider can draw."""
+        pixelsize = min(self._max_size, QEQRImageProvider.MAX_QR_PIXELSIZE)
+        max_modules = int(pixelsize // QEQRImageProvider.MIN_BOX_SIZE)
+        return min(40, (max_modules - 2 * QEQRImageProvider.QR_BORDER - 17) // 4)
+
+    @pyqtSlot(str, result='QVariantMap')
+    def getTxExportData(self, tx_text: str) -> dict:
+        if not tx_text:  # the binding can be evaluated before the dialog's 'psbt' is set
+            return {'text': '', 'qr_text': '', 'ur_type': '', 'ur_payload': '', 'data_stripped': False}
+        tx = tx_from_any(tx_text, sanitize=False)
+        qr_data, data_stripped = tx_to_qr_data(
+            tx,
+            config=QEConfig.instance.config,
+            error_correction=QEQRImageProvider.ERROR_CORRECT_LEVEL,
+            max_version=self._max_version(),
+        )
+        ur_type = ur_payload = ''
+        if isinstance(qr_data, UREncoder):
+            ur_type = qr_data.ur_type
+            if qr_data.is_single_part:
+                qr_data = qr_data.next_part()
+            else:
+                ur_payload, qr_data = qr_data.payload.hex(), ''
+        return {
+            'text': str(tx),  # for copy/share: network tx if complete, else PSBT
+            'qr_text': qr_data,  # for a static QR code
+            'ur_type': ur_type,  # set if the QR code is a UR
+            'ur_payload': ur_payload,  # set for an animated QR code (instead of qr_text)
+            'data_stripped': data_stripped,
+        }
+
+
+class QEURQREncoder(QObject):
+    """Generates the parts of a multi-part UR, to show it as animated QR code."""
+
+    urChanged = pyqtSignal()
+    currentPartChanged = pyqtSignal()
+
+    def __init__(self, parent: Optional[QObject] = None) -> None:
+        super().__init__(parent)
+        self._ur_type = ''
+        self._payload = ''
+        self._encoder: Optional[UREncoder] = None
+        self._current_part = ''
+
+    @pyqtProperty(str, notify=urChanged)
+    def urType(self) -> str:
+        return self._ur_type
+
+    @urType.setter
+    def urType(self, ur_type: str) -> None:
+        if self._ur_type != ur_type:
+            self._ur_type = ur_type
+            self._update_encoder()
+
+    @pyqtProperty(str, notify=urChanged)
+    def payload(self) -> str:
+        """hex"""
+        return self._payload
+
+    @payload.setter
+    def payload(self, payload: str) -> None:
+        if self._payload != payload:
+            self._payload = payload
+            self._update_encoder()
+
+    @pyqtProperty(bool, notify=urChanged)
+    def isMultiPart(self) -> bool:
+        return self._encoder is not None and not self._encoder.is_single_part
+
+    @pyqtProperty(str, notify=currentPartChanged)
+    def currentPart(self) -> str:
+        return self._current_part
+
+    @pyqtSlot()
+    def nextPart(self) -> None:
+        self._current_part = self._encoder.next_part() if self._encoder else ''
+        self.currentPartChanged.emit()
+
+    def _update_encoder(self) -> None:
+        self._encoder = None
+        if self._ur_type and self._payload:
+            config = QEConfig.instance.config
+            self._encoder = UREncoder(
+                self._ur_type, bytes.fromhex(self._payload), max_fragment_len=config.GUI_UR_MAX_FRAGMENT_LEN)
+        self.urChanged.emit()
+        self.nextPart()
