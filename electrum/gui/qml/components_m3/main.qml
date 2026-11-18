@@ -338,9 +338,10 @@ ApplicationWindow
             title: qsTr('Classic interface')
             text: qsTr('Switch to the classic interface? It will be activated after restarting Electrum.')
 
-            // M3-39: "Close Electrum" closes the app only from onClosed, once this dialog is off the screen, and the dialog
-            // closes without its exit animation. A dialog still on the screen when the window is destroyed (its animation
-            // stops with the event loop) lays out its text again after the Qt GUI application is gone: SIGABRT on Android.
+            // "Close Electrum" closes the app only from onClosed, once this dialog is off the screen, and the dialog closes
+            // without its exit animation. When the app was closed right after accept(), this dialog was still on the screen
+            // playing its exit animation as the window was destroyed, and it laid out its text again after the Qt GUI
+            // application was gone (SIGABRT, measured on the Android 14 emulator with Qt 6.10).
             // Without the animation `closed` comes at once (inside doAccept), so no back key or page change gets in between.
             property bool _closeApp: false
 
