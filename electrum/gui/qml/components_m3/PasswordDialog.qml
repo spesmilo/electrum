@@ -17,7 +17,8 @@ import "controls"
 // Differences: Material 3 look (M3PasswordField, M3PasswordStrength, M3InfoText); a Cancel text button next to
 // Ok, which does what the Android back button does (doClose() -> doReject(), the `rejected` signal; shown only
 // when allowClose; ignored once closing has started, as Ok); the content scrolls when the keyboard leaves too
-// little height, and the field with the focus is scrolled into view.
+// little height, and what matters is scrolled into view: the field with the focus, or, after a refused password
+// until a character is typed again, the error line.
 // Strings keep the translation context of the classic file (qsTranslate('PasswordDialog', ...)).
 M3Dialog {
     id: passworddialog
@@ -54,8 +55,10 @@ M3Dialog {
         interactive: height < contentHeight
         boundsBehavior: Flickable.StopAtBounds
 
-        // the keyboard shrinks the dialog after the field got the focus: keep that field in view
-        onHeightChanged: passworddialog._showFocusedField()
+        // the keyboard shrinks the dialog after the field got the focus, the error line grows the content (laid out
+        // after the error was set): keep in view what matters now
+        onHeightChanged: passworddialog._keepInView()
+        onContentHeightChanged: passworddialog._keepInView()
 
         ScrollIndicator.vertical: ScrollIndicator { }
 
@@ -103,7 +106,9 @@ M3Dialog {
                 }
             }
 
+            // the last row of the form: its bottom is the bottom of the content (_keepInView)
             M3Text {
+                id: errorLine
                 Layout.fillWidth: true
                 visible: errorMessage
                 role: 'bodyMedium'
@@ -144,6 +149,24 @@ M3Dialog {
         pw_2.text = ""
     }
 
+    // what a shrunk dialog shows: the error line after a refused password (the caller clears the fields and sets
+    // errorMessage, in either order) until a character is typed again, otherwise the field with the focus
+    readonly property bool _errorInView: errorMessage !== '' && pw_1.text === '' && pw_2.text === ''
+    on_ErrorInViewChanged: _keepInView()
+
+    // the error line whole, its bottom at the bottom of the content window (its top, if it is taller), else the
+    // field with the focus
+    function _keepInView() {
+        if (!_errorInView) {
+            _showFocusedField()
+            return
+        }
+        if (flick.height <= 0)
+            return
+        flick.contentY = Math.max(0, Math.min(flick.contentHeight - errorLine.implicitHeight,
+            flick.contentHeight - flick.height))
+    }
+
     // scroll the form so that the field with the focus is seen whole (Flickable does not follow the focus)
     function _showFocusedField() {
         var field = pw_2.visible && pw_2.field.activeFocus ? pw_2.field : pw_1.field.activeFocus ? pw_1.field : null
@@ -151,12 +174,16 @@ M3Dialog {
             return
         var top = field.mapToItem(form, 0, 0).y
         var bottom = top + field.height
+        // scrolling up: the floating label of the outlined field reaches above the field, keep (up to) the gap over
+        // it in view while the field stays whole
         if (top < flick.contentY)
-            flick.contentY = top
+            flick.contentY = Math.max(0, Math.min(top, Math.max(top - m3.space12, bottom - flick.height)))
         else if (bottom > flick.contentY + flick.height)
             flick.contentY = Math.min(bottom - flick.height, Math.max(0, flick.contentHeight - flick.height))
     }
 
+    // a field that gets the focus (a tap, Tab) is scrolled into view even while the error line is shown: the user
+    // went for that field
     Connections {
         target: pw_1.field
         function onActiveFocusChanged() { passworddialog._showFocusedField() }
