@@ -139,7 +139,15 @@ M3Page {
                         y: m3.space16
                         width: parent.width - 2 * m3.space16
                         spacing: 0
+                        M3Text {
+                            // M3: no histogram (not connected, or none from the server) — a line instead of an empty card
+                            visible: !(Network.feeHistogram.total > 0)
+                            Layout.fillWidth: true
+                            color: m3.surfaceVariantOn
+                            text: qsTr('No fee data')
+                        }
                         RowLayout {
+                            visible: Network.feeHistogram.total > 0
                             Layout.fillWidth: true
                             Layout.preferredHeight: 28
                             spacing: 0

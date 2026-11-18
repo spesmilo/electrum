@@ -40,8 +40,13 @@ Item {
                             target.acceptPsbt(Daemon.currentWallet, event)
                         })
                     } else {
-                        // M3: no page could be loaded: accept as when the page is closed
+                        // M3: no page could be loaded: tell the user, then accept as when the page is closed
                         console.log('psbt_nostr: cannot open the transaction details')
+                        var errdialog = app.messageDialog.createObject(app, {
+                            text: qsTr('Cannot open the transaction details.'),
+                            iconSource: Qt.resolvedUrl('../../../gui/icons/m3/warning.png')
+                        })
+                        errdialog.open()
                         target.acceptPsbt(Daemon.currentWallet, event)
                     }
                 } else if (dialog.choice == PsbtReceiveDialog.Choice.Save) {
