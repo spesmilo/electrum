@@ -22,7 +22,7 @@ import "controls"
 // Differences: the provider button uses this dialog's own `swaphelper` (the classic one reaches the id _swaphelper of
 // main.qml through the context; it is the same object). Material 3 look: the amounts as rows of a group, the
 // slider as a local component (zone probe R-6, M3SliderRow unchanged) in Material 3 roles (the range
-// secondaryContainer, the chosen part primary, the voids surfaceContainerHighest, the zero mark outline), side icons
+// secondaryContainer, the chosen part primary, the voids outline, the zero mark outline), side icons
 // `bolt` for Lightning and `account_balance_wallet` for on-chain (zone probe R-5, no bitcoin glyph in Material
 // Symbols), Ok / Cancel in the bar at the bottom. The slider writes sliderPos on onMoved (a user move only, as the
 // classic onValueChanged + activeFocus).
@@ -298,14 +298,18 @@ M3FullScreenDialog {
 
         implicitHeight: slider.implicitHeight
 
-        // the voids: the whole width, below the slider
+        // the voids: the whole width, below the slider. outline stands apart from the range (secondaryContainer)
+        // and from the dialog (surface) in both themes, so the user sees where the range ends (a container role
+        // such as surfaceContainerHighest is 1:1 to the range in the light theme); faded with the slider while it
+        // is disabled, so a disabled slider does not show the voids stronger than the range
         Rectangle {
             x: slider.leftPadding
             width: parent.width - slider.leftPadding - slider.rightPadding
             anchors.verticalCenter: parent.verticalCenter
             height: 4
             radius: 2
-            color: m3.surfaceContainerHighest
+            color: m3.outline
+            opacity: slider.opacity
         }
 
         Slider {

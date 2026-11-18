@@ -22,7 +22,9 @@ import "controls"
 // updated) with their conditions.
 // Layout (M2-MAP F-3, F-4): the details are M3DetailRow rows in groups; Backup and Close channel are buttons below
 // the content; Delete channel, rare and destructive, is in the overflow menu of the top app bar (`m3Actions`).
-// The close dialog is destroyed when it closes (the classic component keeps it until the page goes).
+// The close dialog is not destroyed when it closes, as in the classic (ChannelDetails.qml:478-481): it lives until
+// the page goes, so the result of a close still running when the dialog was closed with X or back (its
+// channelCloseSuccess message) still reaches the user.
 // Strings keep the translation context of the classic file (qsTranslate('ChannelDetails', ...)).
 M3Page {
     id: root
@@ -431,10 +433,9 @@ M3Page {
         }
     }
 
+    // ChannelDetails.qml:478-481: not destroyed on close (see the header)
     Component {
         id: closechannel
-        CloseChannelDialog {
-            onClosed: destroy()
-        }
+        CloseChannelDialog {}
     }
 }

@@ -15,8 +15,8 @@ import "controls"
 // server_pubkey (its first 32 characters), percentage_fee, mining_fee, timestamp, max_forward_amount,
 // max_reverse_amount; a tap sets selectedPubkey and accepts; the current row follows selectedPubkey at start and
 // on offersUpdated; "No swap providers found" for an empty list.
-// Look: Material 3 rows (the color strip of the server, the details as label / value pairs), the selected server
-// marked with a check; the empty state centered.
+// Look: Material 3 rows (the color strip of the server, the details as label / value pairs), the server of
+// selectedPubkey marked with a tint and a check (no row while selectedPubkey is empty); the empty state centered.
 // Strings keep the translation context of the classic file (qsTranslate('NostrSwapServersDialog', ...)).
 M3FullScreenDialog {
     id: dialog
@@ -62,7 +62,9 @@ M3FullScreenDialog {
                 topPadding: m3.space12
                 bottomPadding: m3.space12
 
-                readonly property bool _current: wrap.ListView.isCurrentItem
+                // the selected server is the row of selectedPubkey, not the current row of the list: with nothing
+                // selected the list still makes row 0 current, and it must not look chosen
+                readonly property bool _current: dialog.selectedPubkey !== '' && model.npub === dialog.selectedPubkey
 
                 onClicked: {
                     dialog.selectedPubkey = model.npub
