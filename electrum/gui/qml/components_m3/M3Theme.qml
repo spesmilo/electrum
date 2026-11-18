@@ -14,20 +14,17 @@ QtObject {
     readonly property bool dark: mode === 'dark'
         || (mode !== 'light' && Application.styleHints.colorScheme === Qt.ColorScheme.Dark)
 
-    // A manual choice is also written to the platform: on Android this switches the light/dark
-    // status bar and navigation bar icons. In 'system' mode the override is cleared, so that
-    // colorScheme follows the system again.
-    // Android without edge-to-edge (below Android 15): the page is not drawn under the bars, the system
-    // draws them. With a light scheme the status bar stays black and its icons turn dark, so they vanish,
-    // while the navigation bar is light with dark buttons (seen in 'system' mode with a light system,
-    // emulator, Android 14). Only the manual Light choice is handled here: it writes Dark, for light status
-    // bar icons (expected: both bars then look as in the Dark theme, black with light icons; to be
-    // confirmed on the emulator). The 'system' mode with a light system keeps the dark icons on the black
-    // status bar: a separate item (in that mode `dark` reads colorScheme, so writing Dark would turn the
-    // whole theme dark). `dark` is not affected in 'light' mode: it is false whatever colorScheme says.
+    // A manual choice is also written to the platform: on Android 15 and later this switches the light/dark status
+    // bar and navigation bar icons. In 'system' mode the override is cleared, so that colorScheme follows the system again.
+    // Android without edge-to-edge (below Android 15): the page is not drawn under the bars, the system draws them in
+    // the color of the activity theme (black), and Qt paints them in that color again when the night mode of the
+    // system changes. There the override is always cleared: Qt then leaves the icons to us, and colorScheme follows
+    // the system, so its change tells that Qt has painted the bars again. The bars get the theme colors and icons
+    // from AppController.setSystemBarColors (applySystemBars). `dark` does not read colorScheme in 'light' and 'dark'
+    // modes, so it is not affected.
     function applyColorScheme() {
-        if (mode === 'light' && _systemDrawsBars())
-            Application.styleHints.colorScheme = Qt.ColorScheme.Dark
+        if (_systemDrawsBars())
+            Application.styleHints.colorScheme = Qt.ColorScheme.Unknown
         else if (mode === 'light')
             Application.styleHints.colorScheme = Qt.ColorScheme.Light
         else if (mode === 'dark')
@@ -39,8 +36,38 @@ QtObject {
         return typeof AppController !== 'undefined' && AppController !== null
             && AppController.isAndroid() && !AppController.enforcesEdgeToEdge()
     }
-    onModeChanged: applyColorScheme()
-    Component.onCompleted: applyColorScheme()
+    // The bars in the theme: the status bar as the top app bar, the navigation bar as the navigation bar of the main
+    // screen; dark icons in the light theme.
+    function applySystemBars() {
+        if (_systemDrawsBars())
+            AppController.setSystemBarColors(surface.toString(), surfaceContainer.toString(), !dark)
+    }
+    // Later in this event: a change handler can run before the bindings it would read (`dark`, the roles) are
+    // updated. Several requests in one event make one call.
+    function _requestSystemBars() {
+        if (_systemDrawsBars())
+            Qt.callLater(applySystemBars)
+    }
+    onModeChanged: {
+        applyColorScheme()
+        _requestSystemBars()
+    }
+    onDarkChanged: _requestSystemBars()
+    property Connections _systemSchemeWatch: Connections {
+        target: Application.styleHints
+        function onColorSchemeChanged() { theme._requestSystemBars() }
+    }
+    property Connections _appStateWatch: Connections {
+        target: Application
+        function onStateChanged() {
+            if (Application.state === Qt.ApplicationActive)
+                theme._requestSystemBars()
+        }
+    }
+    Component.onCompleted: {
+        applyColorScheme()
+        applySystemBars()
+    }
 
     // Naming: the M3 role "on<Role>" (content color on <Role>) is called "<role>On" here, because a
     // QML property name of the form on<Uppercase> is read as a signal handler (m3.onPrimary would be
