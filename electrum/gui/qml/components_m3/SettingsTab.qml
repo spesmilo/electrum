@@ -501,14 +501,17 @@ Item {
             title: qsTranslate('Preferences', 'Language')
             text: qsTranslate('Preferences', 'Please restart Electrum to activate the new GUI settings')
 
+            // M3-39: "Close Electrum" closes the app only from onClosed, without the exit animation, as the restart
+            // dialog of main.qml (showRestartDialog) does; the reason is written there.
+            property bool _closeApp: false
+
             function choose(close_app) {
                 Config.language = dialog.language
-                dialog.doAccept()
                 if (close_app) {
-                    // same path as the confirmation of "Close Electrum?" in onClosing
-                    AppController.wantClose = true
-                    app.close()
+                    dialog._closeApp = true
+                    dialog.exit = null
                 }
+                dialog.doAccept()
             }
 
             buttons: [
@@ -529,7 +532,15 @@ Item {
                 }
             ]
 
-            onClosed: destroy()
+            onClosed: {
+                var closeApp = dialog._closeApp
+                destroy()
+                if (closeApp) {
+                    // same path as the confirmation of "Close Electrum?" in onClosing
+                    AppController.wantClose = true
+                    app.close()
+                }
+            }
         }
     }
 
