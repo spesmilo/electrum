@@ -138,6 +138,9 @@ class Peer(Logger, EventListener):
         # to be news, and the ones it does not ask for. (not counting the replies to our queries)
         self.num_gossip_backlog_updates_received = 0  # type: int
         self.num_gossip_updates_not_asked_for = 0  # type: int
+        # channels we pruned that the peer announced without a policy that is not expired (see LNGossip)
+        self.pruned_chans_announced = set()  # type: Set[bytes]
+        self._queried_short_channel_ids = set()  # type: Set[bytes]  # of our last query (its reply may come late)
         self._gossip_news_start = 0  # type: int
         self.is_querying_short_channel_ids = False  # type: bool
         self.answers_channel_queries = True  # type: bool
@@ -485,6 +488,11 @@ class Peer(Logger, EventListener):
             return  # why is the peer sending this? should we disconnect?
         self.recv_gossip_queue.put_nowait(('channel_announcement', payload))
         self.num_gossip_msgs_received += 1
+        # (not the channels we asked it for. during a query it may send thousands of others)
+        if (payload['short_channel_id'] not in self._queried_short_channel_ids
+                and (lngossip := self.network.lngossip)
+                and lngossip.on_channel_announced(self, payload['short_channel_id'])):
+            raise GracefulDisconnect("resends the channels without a recent policy that we pruned")
 
     def on_channel_update(self, payload):
         self.maybe_save_remote_update(payload)
@@ -494,6 +502,8 @@ class Peer(Logger, EventListener):
             return  # why is the peer sending this? should we disconnect?
         self.recv_gossip_queue.put_nowait(('channel_update', payload))
         self.num_gossip_msgs_received += 1
+        if self.pruned_chans_announced and (lngossip := self.network.lngossip):
+            lngossip.on_channel_update_of_announced(self, payload)
         if not self.is_querying_short_channel_ids:
             if not self.our_gossip_timestamp_filter.in_range(payload['timestamp']):
                 self.num_gossip_updates_not_asked_for += 1
@@ -957,6 +967,7 @@ class Peer(Logger, EventListener):
         #self.logger.info(f'Querying {len(ids)} short_channel_ids')
         assert not self.querying.is_set()
         self.is_querying_short_channel_ids = True
+        self._queried_short_channel_ids = set(ids)
         try:
             self.query_short_channel_ids(ids)
             await self.querying.wait()

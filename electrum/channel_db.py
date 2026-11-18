@@ -351,7 +351,7 @@ PRIMARY KEY(short_channel_id)
 )"""
 
 
-# small integers that describe the state of the db itself
+# small integers that describe the state of the db itself, and since when we avoid a node as a peer
 create_meta = """
 CREATE TABLE IF NOT EXISTS meta (
 key TEXT NOT NULL,
@@ -394,6 +394,8 @@ PRIMARY KEY(node_id)
 class ChannelDB(SqlDB):
 
     NUM_MAX_RECENT_PEERS = 20
+    # how long we do not connect, for gossip, to a node that sent what we cannot use (see LNGossip.on_channel_announced)
+    AVOIDED_PEER_PERIOD = 30 * 24 * 60 * 60  # seconds
     PRIVATE_CHAN_UPD_CACHE_TTL_NORMAL = 600
     PRIVATE_CHAN_UPD_CACHE_TTL_SHORT = 120
     # how long we do not re-request channels that we just pruned for having no recent policies
@@ -422,6 +424,7 @@ class ChannelDB(SqlDB):
         self._addresses = defaultdict(dict)  # type: Dict[bytes, Dict[NetAddress, int]]
         self._channels_for_node = defaultdict(set)  # type: Dict[bytes, Set[ShortChannelID]]
         self._recent_peers = []  # type: List[bytes]  # list of node_ids
+        self._avoided_peers = {}  # type: Dict[bytes, int]  # node_id -> since when
         self._chans_with_0_policies = set()  # type: Set[ShortChannelID]
         self._chans_with_1_policies = set()  # type: Set[ShortChannelID]
         self._chans_with_2_policies = set()  # type: Set[ShortChannelID]
@@ -469,13 +472,30 @@ class ChannelDB(SqlDB):
             # list is ordered
             if node_id in self._recent_peers:
                 self._recent_peers.remove(node_id)
-            self._recent_peers.insert(0, node_id)
+            if not self.is_avoided_peer(node_id):
+                self._recent_peers.insert(0, node_id)
             self._recent_peers = self._recent_peers[:self.NUM_MAX_RECENT_PEERS]
         self._db_save_node_address(peer, now)
 
+    def avoid_peer(self, node_id: bytes) -> None:
+        """For AVOIDED_PEER_PERIOD the node is not taken as a peer: not from the recent peers, nor at random,
+        nor from the fallback nodes or DNS seeds (see LNPeerManager._get_next_peers_to_try).
+        (what we know of it stays: a wallet still connects to it for a channel it has with it)"""
+        now = int(time.time())
+        with self.lock:
+            self._avoided_peers[node_id] = now
+            if node_id in self._recent_peers:
+                self._recent_peers.remove(node_id)
+        self._db_save_avoided_peer(node_id, now)
+
+    def is_avoided_peer(self, node_id: bytes) -> bool:
+        return self._avoided_peers.get(node_id, 0) > int(time.time()) - self.AVOIDED_PEER_PERIOD
+
     def get_200_randomly_sorted_nodes_not_in(self, node_ids):
         with self.lock:
-            unshuffled = set(self._nodes.keys()) - node_ids
+            cutoff = int(time.time()) - self.AVOIDED_PEER_PERIOD
+            avoided = {node_id for node_id, since in self._avoided_peers.items() if since > cutoff}
+            unshuffled = set(self._nodes.keys()) - node_ids - avoided
         return random.sample(list(unshuffled), min(200, len(unshuffled)))
 
     def get_last_good_address(self, node_id: bytes) -> Optional[LNPeerAddr]:
@@ -717,6 +737,13 @@ class ChannelDB(SqlDB):
                   (peer.pubkey, peer.host, peer.port, timestamp))
 
     @sql
+    def _db_save_avoided_peer(self, node_id: bytes, timestamp: int):
+        c = self.conn.cursor()
+        c.execute("REPLACE INTO meta (key, value) VALUES (?, ?)", ('avoided_peer:' + node_id.hex(), timestamp))
+        c.execute("DELETE FROM meta WHERE substr(key, 1, 13) = 'avoided_peer:' AND value <= ?",
+                  (timestamp - self.AVOIDED_PEER_PERIOD,))
+
+    @sql
     def _db_save_node_addresses(self, node_addresses: Sequence[LNPeerAddr]):
         c = self.conn.cursor()
         for addr in node_addresses:
@@ -877,6 +904,12 @@ class ChannelDB(SqlDB):
         if forgotten:
             self._db_forget_orphaned_channels(forgotten)
 
+    def is_recently_orphaned(self, short_channel_id: bytes) -> bool:
+        """Whether we pruned this channel recently (see get_recently_orphaned_channel_ids)."""
+        with self.lock:
+            timestamp = self._orphaned_channels.get(short_channel_id, 0)
+        return timestamp > int(time.time()) - self.ORPHANED_CHANNEL_REQUERY_DELAY
+
     def get_recently_orphaned_among(self, short_channel_ids: Iterable[bytes]) -> Set[bytes]:
         """Those of these channels that we pruned recently (see get_recently_orphaned_channel_ids)."""
         cutoff = int(time.time()) - self.ORPHANED_CHANNEL_REQUERY_DELAY
@@ -989,7 +1022,15 @@ class ChannelDB(SqlDB):
             for addr, ts in self._addresses[node_id].items():
                 newest_ts = max(newest_ts, ts)
             return newest_ts
-        sorted_node_ids = sorted(self._addresses.keys(), key=newest_ts_for_node_id, reverse=True)
+        c.execute("SELECT key, value FROM meta WHERE substr(key, 1, 13) = 'avoided_peer:'")
+        for key, timestamp in c:
+            try:
+                self._avoided_peers[bytes.fromhex(key[13:])] = int(timestamp)
+            except ValueError:
+                continue
+        sorted_node_ids = sorted(
+            (node_id for node_id in self._addresses if not self.is_avoided_peer(node_id)),
+            key=newest_ts_for_node_id, reverse=True)
         self._recent_peers = sorted_node_ids[:self.NUM_MAX_RECENT_PEERS]
         c.execute("""SELECT short_channel_id, timestamp FROM orphaned_channel""")
         for short_channel_id, timestamp in c:

@@ -162,6 +162,7 @@ async def catch_up(network: 'Network', *, timeout: float = DEFAULT_TIMEOUT) -> d
             'channel_announcements': lngossip._num_chan_ann,
             'channel_updates': lngossip._num_chan_upd,
             'channel_updates_good': lngossip._num_chan_upd_good,
+            'peers_resending_pruned_channels': lngossip._num_peers_resending_pruned_chans,
             'node_announcements': lngossip._num_node_ann,
             'channels': channel_db.num_channels,
             'policies': channel_db.num_policies,

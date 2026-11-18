@@ -19,6 +19,7 @@ class _FakeLNGossip:
         self._checks_left = caught_up_after_checks
         self.lnpeermgr = mock.Mock(num_peers=lambda: 3)
         self._num_chan_ann, self._num_chan_upd, self._num_chan_upd_good, self._num_node_ann = 1, 20, 15, 4
+        self._num_peers_resending_pruned_chans = 2
 
     def is_caught_up(self):
         self._checks_left -= 1
@@ -112,7 +113,7 @@ class TestGossipCatchUp(ElectrumTestCase):
         self.assertEqual({
             'caught_up': True, 'synced_until': 1_700_000_000, 'peers': 3,
             'channel_announcements': 1, 'channel_updates': 20, 'channel_updates_good': 15, 'node_announcements': 4,
-            'channels': 30_000, 'policies': 50_000}, entry)
+            'peers_resending_pruned_channels': 2, 'channels': 30_000, 'policies': 50_000}, entry)
         # the lock got released
         with mock.patch.object(gossip_catch_up.time, 'time', return_value=entry_started + 3600):
             self.assertTrue(await self._run())

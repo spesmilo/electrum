@@ -25,6 +25,8 @@ from electrum import bitcoin, lnrouter, lnworker, gossip_catch_up
 from electrum.constants import BitcoinTestnet
 from electrum.simple_config import SimpleConfig
 from electrum.lnpeer import Peer
+from electrum.lntransport import LNPeerAddr
+from electrum.interface import GracefulDisconnect
 from electrum import lnpeer as lnpeer_module
 from electrum.sql_db import sql
 from electrum.lnworker import LNGossip
@@ -65,6 +67,7 @@ class _FakeGossipPeer:
         self.num_gossip_msgs_received = 0
         self.num_gossip_backlog_updates_received = 0
         self.num_gossip_updates_not_asked_for = 0
+        self.pruned_chans_announced = set()
         self.recv_gossip_queue = asyncio.Queue()
         self.is_querying_short_channel_ids = False
         self.answers_channel_queries = True
@@ -529,6 +532,70 @@ class TestGossipBacklog(ElectrumTestCase):
         self.assertFalse(g.is_caught_up())
         self._tick(g, times=self.QUIET_TICKS)
         self.assertTrue(g.is_caught_up())
+
+    async def test_peer_that_resends_the_channels_we_pruned_gets_dropped_and_replaced(self):
+        # Some nodes answer every gossip_timestamp_filter, also one that asks only for the news, with the
+        # announcements of the channels they have no recent policy for: megabytes, every time.
+        synced_until = self.NOW - 3600
+        backlog_start = synced_until - LNGossip.GOSSIP_SYNCED_MARGIN
+        g = self._lngossip(synced_until=synced_until)
+        g.GOSSIP_BACKLOG_NUM_PEERS = 1
+        pruned = {i.to_bytes(8, 'big') for i in range(1, LNGossip.GOSSIP_MAX_PRUNED_CHANS_ANNOUNCED + 1)}
+        g.channel_db.is_recently_orphaned = lambda short_channel_id: short_channel_id in pruned
+        a, b = self._connect(g, 'a'), self._connect(g, 'b')
+        self.assertEqual(([backlog_start], [self.NOW]), (a.requested, b.requested))
+        # a channel we did not prune does not count
+        self.assertFalse(g.on_channel_announced(a, b'\xff' * 8))
+        self.assertEqual(set(), a.pruned_chans_announced)
+        # nor does one that comes with a policy that is not expired: it is alive
+        first, *others = sorted(pruned)
+        self.assertFalse(g.on_channel_announced(a, first))
+        g.on_channel_update_of_announced(a, {'short_channel_id': first, 'timestamp': self.now - g.max_age - 1})
+        self.assertEqual({first}, a.pruned_chans_announced)  # (an expired one: we would prune it again)
+        g.on_channel_update_of_announced(a, {'short_channel_id': first, 'timestamp': self.now - g.max_age})
+        self.assertEqual(set(), a.pruned_chans_announced)
+        for short_channel_id in others:
+            self.assertFalse(g.on_channel_announced(a, short_channel_id))
+            self.assertFalse(g.on_channel_announced(a, short_channel_id))  # (the same one again)
+        g.channel_db.avoid_peer.assert_not_called()
+        self.assertTrue(g.on_channel_announced(a, first))
+        # it would do the same in the next session: it is not taken as a peer again for a while
+        g.channel_db.avoid_peer.assert_called_once_with(a.pubkey)
+        self.assertEqual(1, g._num_peers_resending_pruned_chans)
+        a.close_and_cleanup()  # (Peer.on_channel_announcement raises GracefulDisconnect)
+        # the other peer gets asked for the backlog in the next tick, not after the time a silent peer is given
+        self._tick(g)
+        self.assertEqual([self.NOW, backlog_start], b.requested)
+        b.close_and_cleanup()
+        self.assertEqual([self.now], self._connect(g, 'a').requested)  # if it comes back: the news only
+        self.assertEqual([backlog_start], self._connect(g, 'c').requested)
+
+    async def test_peer_tells_the_channels_it_announces_and_leaves_if_told_so(self):
+        short_channel_id = b'\x01' * 8
+        gossip = mock.Mock()
+        gossip.on_channel_announced.return_value = False
+        peer = mock.Mock(
+            # (a query for channels can take a minute, and the peer may send thousands of others meanwhile)
+            is_querying_short_channel_ids=True, recv_gossip_queue=asyncio.Queue(), num_gossip_msgs_received=0,
+            num_gossip_updates_not_asked_for=0, num_gossip_backlog_updates_received=0, _gossip_news_start=0,
+            pruned_chans_announced=set(), _queried_short_channel_ids={b'\x02' * 8})
+        peer.lnworker.uses_trampoline.return_value = False
+        peer.network.lngossip = gossip
+        Peer.on_channel_announcement(peer, {'short_channel_id': b'\x02' * 8})  # one we asked it for
+        gossip.on_channel_announced.assert_not_called()
+        Peer.on_channel_announcement(peer, {'short_channel_id': short_channel_id})
+        gossip.on_channel_announced.assert_called_once_with(peer, short_channel_id)
+        gossip.on_channel_announced.return_value = True
+        with self.assertRaises(GracefulDisconnect):
+            Peer.on_channel_announcement(peer, {'short_channel_id': short_channel_id})
+        self.assertEqual(3, peer.recv_gossip_queue.qsize())
+        # its policies are told while a channel waits for one
+        update = {'short_channel_id': short_channel_id, 'timestamp': 0}
+        Peer.on_channel_update(peer, update)
+        gossip.on_channel_update_of_announced.assert_not_called()
+        peer.pruned_chans_announced.add(short_channel_id)
+        Peer.on_channel_update(peer, update)
+        gossip.on_channel_update_of_announced.assert_called_once_with(peer, update)
 
     async def test_peer_that_sent_the_backlog_and_left_still_counts(self):
         g = self._lngossip(synced_until=self.NOW - 3600)
@@ -1999,6 +2066,44 @@ class Test_LNRouter(ElectrumTestCase):
             self.cdb._orphaned_channels[channel(101)] = int(time.time()) - self.cdb.ORPHANED_CHANNEL_REQUERY_DELAY - 10
         self.assertEqual({bytes(channel(100))}, self.cdb.get_recently_orphaned_among(
             [bytes(channel(100)), bytes(channel(101)), bytes(channel(102))]))
+        self.assertEqual([True, False, False], [
+            self.cdb.is_recently_orphaned(bytes(channel(n))) for n in (100, 101, 102)])
+
+    async def test_avoided_peer_is_not_taken_from_the_recent_peers_nor_at_random(self):
+        self.prepare_graph()
+        a, b = LNPeerAddr('203.0.113.1', 9735, node('a')), LNPeerAddr('203.0.113.2', 9735, node('b'))
+        with mock.patch('time.time', return_value=time.time() - 60):
+            self.cdb.add_recent_peer(LNPeerAddr('203.0.113.9', 9735, node('a')))  # an older address of it
+        self.cdb.add_recent_peer(a)
+        self.cdb.add_recent_peer(b)
+        self.assertEqual([b, a], self.cdb.get_recent_peers())
+        self.assertIn(node('a'), self.cdb.get_200_randomly_sorted_nodes_not_in(set()))
+        self.cdb.avoid_peer(node('a'))
+        self.assertEqual([b], self.cdb.get_recent_peers())
+        random_nodes = self.cdb.get_200_randomly_sorted_nodes_not_in(set())
+        self.assertNotIn(node('a'), random_nodes)
+        self.assertIn(node('b'), random_nodes)
+        # what we know of it stays: a wallet that has a channel with it connects to its last good address
+        self.assertEqual(a, self.cdb.get_last_good_address(node('a')))
+        self.cdb.add_recent_peer(a)  # (as when that wallet connects to it)
+        self.assertEqual([b], self.cdb.get_recent_peers())
+        # also after a restart
+        read_meta = sql(lambda db: dict(db.conn.cursor().execute("SELECT key, value FROM meta")))
+        meta = await read_meta(self.cdb)  # (the db drops the writes that are still queued when it stops)
+        self.assertEqual(['avoided_peer:' + node('a').hex()], list(meta))
+        self.cdb.stop()
+        await self.cdb.stopped_event.wait()
+        self.cdb = lnrouter.ChannelDB(self.fake_network())
+        await self.cdb.load_data()
+        self.assertEqual([b], self.cdb.get_recent_peers())
+        self.assertEqual(a, self.cdb.get_last_good_address(node('a')))
+        # until the time is up; and then the record is dropped when another node is avoided
+        with mock.patch('time.time', return_value=time.time() + self.cdb.AVOIDED_PEER_PERIOD + 1):
+            self.assertFalse(self.cdb.is_avoided_peer(node('a')))
+            self.cdb.add_recent_peer(a)
+            self.assertEqual([a, b], self.cdb.get_recent_peers())
+            self.cdb.avoid_peer(node('b'))
+            self.assertEqual(['avoided_peer:' + node('b').hex()], list(await read_meta(self.cdb)))
 
     async def test_orphaned_channel_that_turns_out_alive_is_forgotten(self):
         self.prepare_graph()

@@ -522,12 +522,14 @@ class LNPeerManager(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
 
         # getting desperate... let's try hardcoded fallback list of peers
         fallback_list = constants.net.FALLBACK_LN_NODES
-        fallback_list = [peer for peer in fallback_list if self._can_retry_addr(peer, now=now)]
+        fallback_list = [peer for peer in fallback_list if self._can_retry_addr(peer, now=now)
+                         and not self.channel_db.is_avoided_peer(peer.pubkey)]
         if fallback_list:
             return [random.choice(fallback_list)]
 
         # last resort: try dns seeds (BOLT-10)
-        return await self._get_peers_from_dns_seeds()
+        return [peer for peer in await self._get_peers_from_dns_seeds()
+                if not self.channel_db.is_avoided_peer(peer.pubkey)]
 
     async def _get_peers_from_dns_seeds(self) -> Sequence[LNPeerAddr]:
         # Return several peers to reduce the number of dns queries.
@@ -705,6 +707,8 @@ class LNGossip(Logger):
     # more than the last six hours), which takes it a quarter of an hour. lnd also sends updates
     # we did not ask for, the other direction of the channels that got updated, but not this many.
     GOSSIP_BACKLOG_MIN_UPDATES_NOT_ASKED_FOR = 2000
+    # A peer that announces this many channels we pruned, without a policy that is not expired, gets dropped.
+    GOSSIP_MAX_PRUNED_CHANS_ANNOUNCED = 300
     GOSSIP_BACKLOG_MAX_RATIO_NOT_ASKED_FOR = 4
     # a tick that is this late means that the process or the device was suspended
     GOSSIP_SUSPEND_THRESHOLD = 60  # seconds
@@ -786,6 +790,7 @@ class LNGossip(Logger):
         self._num_node_ann = 0
         self._num_chan_upd = 0
         self._num_chan_upd_good = 0
+        self._num_peers_resending_pruned_chans = 0
 
     @property
     def features(self) -> 'LnFeatures':
@@ -1177,6 +1182,34 @@ class LNGossip(Logger):
                 f"{peer.pubkey.hex()[:6]} {'?' if (rate := self._gossip_rx_rate(peer)) is None else round(rate)} "
                 f"{peer.num_gossip_backlog_updates_received}{state(peer)}"
                 for peer in peers) + f". unknown_ids={len(self.unknown_ids)}")
+
+    def on_channel_announced(self, peer: 'Peer', short_channel_id: bytes) -> bool:
+        """Returns whether to disconnect from the peer.
+
+        Some nodes answer a gossip_timestamp_filter with the announcements of all the channels they
+        have no recent policy for: thousands of them, megabytes, and again every time we ask. Those are
+        the channels we pruned (see ChannelDB.prune_orphaned_channels), and we drop them again as they
+        arrive (see process_gossip). The nodes we saw sending a channel with its policies (lnd) send
+        them right after the announcement, so the channels that wait for one do not add up for them.
+        (A node that sent hundreds of announcements first, of channels that came back to life, and
+        their policies only after, would be taken for the former.)
+        """
+        if not self.channel_db.is_recently_orphaned(short_channel_id):
+            return False
+        peer.pruned_chans_announced.add(short_channel_id)
+        if len(peer.pruned_chans_announced) < self.GOSSIP_MAX_PRUNED_CHANS_ANNOUNCED:
+            return False
+        self.logger.info(f"{peer.pubkey.hex()[:10]} resends the channels without a recent policy that we pruned. "
+                         f"disconnecting")
+        self._num_peers_resending_pruned_chans += 1
+        self._gossip_backlog_useless.add(peer.pubkey)  # not to be asked for the backlog if it connects again
+        self.channel_db.avoid_peer(peer.pubkey)  # it would do the same the next time
+        return True
+
+    def on_channel_update_of_announced(self, peer: 'Peer', payload: dict) -> None:
+        """A policy that is not expired, for a channel we pruned that the peer announced: the channel is alive."""
+        if time.time() - payload['timestamp'] <= self.max_age:
+            peer.pruned_chans_announced.discard(payload['short_channel_id'])
 
     def _is_sending_gossip_backlog(self, peer: 'Peer') -> bool:
         """Whether we asked the peer for this part of the backlog and still wait for it."""
