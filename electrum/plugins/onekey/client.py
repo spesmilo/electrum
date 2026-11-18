@@ -53,12 +53,12 @@ class OneKeyClient(HardwareClientBase):
                 ProtocolInfoRequest(eventless_wallet_session=True),
                 expect=ProtocolInfo,
             )
+            # ProtocolInfo advertises C management handlers, not MicroPython Bitcoin handlers.
             required = {
                 message.MESSAGE_WIRE_TYPE for message in (
                     DeviceInfoGet, DeviceStatusGet,
                     DeviceSessionGet, DeviceSessionAskPin,
-                    DeviceSessionAskPassphrase, messages.GetPublicKey,
-                    messages.GetAddress, messages.SignTx,
+                    DeviceSessionAskPassphrase,
                 )
             }
             # Protocol V2's management schema currently reports version 1.

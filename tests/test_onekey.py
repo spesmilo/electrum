@@ -25,7 +25,7 @@ from electrum.util import UserCancelled, UserFacingException
 from electrum.zip_importer import MemoryZipImporter
 
 
-SUPPORTED_MESSAGES = [60200, 60600, 60602, 61200, 61202, 61203, 11, 29, 15]
+SUPPORTED_MESSAGES = [60200, 60600, 60602, 61200, 61202, 61203]
 
 
 def device_status(**kwargs):
@@ -182,6 +182,12 @@ class TestOneKeyClient(unittest.TestCase):
             self.make_client(supported=[60200, 60600])
         with self.assertRaisesRegex(UserFacingException, "Pro 2 and Neo only"):
             self.make_client(model=5)
+
+    def test_bitcoin_handlers_need_not_be_advertised_by_management_registry(self):
+        client, transport, handler = self.make_client(supported=SUPPORTED_MESSAGES)
+        self.assertEqual("OneKey Pro 2", client.device_model_name())
+        self.assertFalse(transport.closed)
+        handler.show_message.assert_not_called()
 
     def test_passphrase_session_and_resume(self):
         client, transport, handler = self.make_client()

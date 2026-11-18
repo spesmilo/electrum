@@ -1,7 +1,7 @@
 {
   "name": "onekey",
   "fullname": "OneKey Pro 2 and Neo",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "min_electrum_version": "4.8.4",
   "description": "USB support for initialized OneKey Pro 2 and Neo hardware wallets. Supports single-signature legacy and SegWit Bitcoin wallets.",
   "registers_keystore": ["hardware", "onekey", "OneKey wallet"],
