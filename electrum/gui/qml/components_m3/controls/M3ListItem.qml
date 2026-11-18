@@ -20,9 +20,11 @@ ItemDelegate {
     readonly property Item trailingItem: trailingLoader.item
 
     Layout.fillWidth: true
-    // the supporting text wraps when it is wider than its column; measured with TextMetrics, not with
-    // supportingText.lineCount (that one is updated inside the layout pass that reads implicitHeight: binding loop)
-    readonly property bool _supportingWraps: supporting !== '' && supportingMetrics.advanceWidth > supportingText.width
+    // the supporting text takes two lines when it has a line break or is wider than its column; measured with
+    // TextMetrics, not with supportingText.lineCount (that one is updated inside the layout pass that reads
+    // implicitHeight: binding loop). TextMetrics measures a text with '\n' as one line, so the break is checked apart.
+    readonly property bool _supportingWraps: supporting !== '' && supportingMaxLines > 1
+        && (supporting.indexOf('\n') >= 0 || supportingMetrics.advanceWidth > supportingText.width)
     implicitHeight: Math.max(supporting === '' ? 56 : (_supportingWraps ? 88 : 72),
                              layout.implicitHeight + 2 * 8)
     leftPadding: m3.space16
