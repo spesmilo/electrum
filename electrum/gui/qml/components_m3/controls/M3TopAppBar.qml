@@ -66,11 +66,19 @@ ToolBar {
             spacing: 0
 
             // with action buttons a title too long for titleLarge takes titleMedium and, still too long,
-            // wraps into two lines (a page without actions keeps one titleLarge line, as before)
+            // wraps into two lines (a page without actions keeps one titleLarge line, as before).
+            // Decided by the DECLARED actions, as if all of them were shown: an action that appears later
+            // (Delete and View for a selected row of Requests/Invoices) does not make the title jump 22 <-> 16
             M3Text {
                 id: titleText
-                readonly property bool _compact: actionsRow.implicitWidth > 0
-                    && titleMetrics.advanceWidth > width
+                readonly property real _declaredActionsWidth: {
+                    var w = 0
+                    for (var i = 0; i < root.actions.length; i++)
+                        w += root.actions[i].implicitWidth
+                    return w
+                }
+                readonly property bool _compact: root.actions.length > 0
+                    && titleMetrics.advanceWidth > width + actionsRow.implicitWidth - _declaredActionsWidth
                 Layout.fillWidth: true
                 role: _compact ? 'titleMedium' : 'titleLarge'
                 text: root.title
