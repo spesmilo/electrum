@@ -71,7 +71,7 @@ from .address_synchronizer import TX_HEIGHT_LOCAL
 from .mnemonic import Mnemonic
 from .lnutil import (channel_id_from_funding_tx, LnFeatures, SENT, RECEIVED, MIN_FINAL_CLTV_DELTA_ACCEPTED,
                      PaymentFeeBudget, NBLOCK_CLTV_DELTA_TOO_FAR_INTO_FUTURE)
-from .plugin import run_hook, DeviceMgr, Plugins
+from .plugin import run_hook, Plugins
 from .version import ELECTRUM_VERSION
 from .simple_config import SimpleConfig
 from .fee_policy import FeePolicy, FEE_ETA_TARGETS, FEERATE_DEFAULT_RELAY
@@ -784,36 +784,7 @@ class Commands(Logger):
     @command('')
     async def version_info(self):
         """Return information about dependencies, such as their version and path."""
-        ret = {
-            "electrum.version": ELECTRUM_VERSION,
-            "electrum.path": os.path.dirname(os.path.realpath(__file__)),
-            "python.version": sys.version,
-            "python.path": sys.executable,
-        }
-        # Add shared libs (.so/.dll), and non-pure-python dependencies.
-        # Such deps can be installed in various ways - often via the Linux distro's pkg manager,
-        # instead of using pip, hence it is useful to list them for debugging.
-        from .gui import common_qt
-        ret.update(common_qt.version_info())
-        from electrum_ecc import ecc_fast
-        ret.update(ecc_fast.version_info())
-        from . import qrreader
-        ret.update(qrreader.version_info())
-        ret.update(DeviceMgr.version_info())
-        ret.update(crypto.version_info())
-        # add some special cases
-        import aiohttp
-        ret["aiohttp.version"] = aiohttp.__version__
-        import aiorpcx
-        ret["aiorpcx.version"] = aiorpcx._version_str
-        import certifi
-        ret["certifi.version"] = certifi.__version__
-        import dns
-        ret["dnspython.version"] = dns.__version__
-        import ssl
-        ret["openssl.version"] = ssl.OPENSSL_VERSION
-
-        return ret
+        return util.get_version_info()
 
     @command('w')
     async def getmpk(self, wallet: Abstract_Wallet = None):
