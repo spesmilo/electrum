@@ -37,6 +37,9 @@ class MockNetwork(Logger):
     def get_local_height(self):
         return self.local_height
 
+    def get_server_height(self):
+        return self.local_height
+
     def blockchain(self):
         class BlockchainMock:
             def is_tip_stale(self):

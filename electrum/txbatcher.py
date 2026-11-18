@@ -668,7 +668,10 @@ class TxBatch(Logger):
         can_broadcast = True
         wanted_height_cltv = None
         wanted_height_csv = None
+        # the tx is broadcast to the main server, which may lag behind our tip
         local_height = self.wallet.network.get_local_height()
+        if server_height := self.wallet.network.get_server_height():  # 0 without a main interface
+            local_height = min(local_height, server_height)
         if sweep_info.our_cltv_abs:
             wanted_height_cltv = sweep_info.our_cltv_abs
             if wanted_height_cltv - local_height > 0:

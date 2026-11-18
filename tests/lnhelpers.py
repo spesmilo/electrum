@@ -177,6 +177,9 @@ class MockNetwork:
     def get_local_height(self):
         return self.blockchain().height()
 
+    def get_server_height(self):
+        return self.blockchain().height()
+
     def blockchain(self):
         return self._blockchain
 
