@@ -65,11 +65,27 @@ ToolBar {
             Layout.leftMargin: root.showBack ? 4 : 12
             spacing: 0
 
+            // with action buttons a title too long for titleLarge takes titleMedium and, still too long,
+            // wraps into two lines (a page without actions keeps one titleLarge line, as before)
             M3Text {
+                id: titleText
+                readonly property bool _compact: actionsRow.implicitWidth > 0
+                    && titleMetrics.advanceWidth > width
                 Layout.fillWidth: true
-                role: 'titleLarge'
+                role: _compact ? 'titleMedium' : 'titleLarge'
                 text: root.title
                 elide: Text.ElideRight
+                wrapMode: _compact && !root.subtitle ? Text.WordWrap : Text.NoWrap
+                maximumLineCount: _compact && !root.subtitle ? 2 : 1
+                lineHeight: _compact ? 20 : _style.line
+            }
+            TextMetrics {
+                id: titleMetrics
+                font.family: titleText.font.family
+                font.pixelSize: m3.textStyle('titleLarge').size
+                font.weight: m3.textStyle('titleLarge').weight
+                font.letterSpacing: m3.textStyle('titleLarge').tracking
+                text: root.title
             }
             M3Text {
                 Layout.fillWidth: true
