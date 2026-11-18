@@ -20,7 +20,10 @@ ItemDelegate {
     readonly property Item trailingItem: trailingLoader.item
 
     Layout.fillWidth: true
-    implicitHeight: Math.max(supporting === '' ? 56 : (supportingText.lineCount > 1 ? 88 : 72),
+    // the supporting text wraps when it is wider than its column; measured with TextMetrics, not with
+    // supportingText.lineCount (that one is updated inside the layout pass that reads implicitHeight: binding loop)
+    readonly property bool _supportingWraps: supporting !== '' && supportingMetrics.advanceWidth > supportingText.width
+    implicitHeight: Math.max(supporting === '' ? 56 : (_supportingWraps ? 88 : 72),
                              layout.implicitHeight + 2 * 8)
     leftPadding: m3.space16
     rightPadding: m3.space16 + (trailing ? -4 : 0)
@@ -83,6 +86,12 @@ ItemDelegate {
             visible: active
             sourceComponent: root.trailing
         }
+    }
+
+    TextMetrics {
+        id: supportingMetrics
+        font: supportingText.font
+        text: root.supporting
     }
 
     Component {
