@@ -101,18 +101,40 @@ M3FullScreenDialog {
             implicitHeight: buttons.implicitHeight + 2 * m3.space16
             color: m3.surface
 
-            RowLayout {
+            // one row of equal buttons; with three or more (a plugin button) that do not fit in equal columns,
+            // two columns, and an odd last button spans both
+            GridLayout {
                 id: buttons
                 readonly property int margin: m3.screenMargin(dialog.width)
+                readonly property var _shown: {
+                    var r = []
+                    for (var i = 0; i < children.length; i++)
+                        if (children[i].visible)
+                            r.push(children[i])
+                    return r
+                }
+                readonly property bool _fitInRow: {
+                    var w = (width - (_shown.length - 1) * columnSpacing) / Math.max(1, _shown.length)
+                    for (var i = 0; i < _shown.length; i++)
+                        if (_shown[i].implicitWidth > w)
+                            return false
+                    return true
+                }
+                function _span(b) {
+                    return columns == 2 && _shown.length % 2 == 1 && _shown[_shown.length - 1] === b ? 2 : 1
+                }
                 x: Math.max(margin, (parent.width - width) / 2)
                 anchors.verticalCenter: parent.verticalCenter
                 width: Math.min(m3.maxContentWidth, parent.width - 2 * margin)
-                spacing: m3.space8
+                columns: _shown.length <= 2 || _fitInRow ? Math.max(1, _shown.length) : 2
+                columnSpacing: m3.space8
+                rowSpacing: m3.space8
 
                 M3Button {
                     id: copyButton
                     Layout.fillWidth: true
                     Layout.preferredWidth: 1
+                    Layout.columnSpan: buttons._span(this)
                     variant: 'tonal'
                     size: 56
                     text: qsTranslate('ExportTxDialog', 'Copy')
@@ -125,6 +147,7 @@ M3FullScreenDialog {
                 M3Button {
                     Layout.fillWidth: true
                     Layout.preferredWidth: 1
+                    Layout.columnSpan: buttons._span(this)
                     variant: 'filled'
                     size: 56
                     text: qsTranslate('ExportTxDialog', 'Share')
@@ -143,6 +166,9 @@ M3FullScreenDialog {
                         })
                         b.Layout.fillWidth = true
                         b.Layout.preferredWidth = 1
+                        b.Layout.columnSpan = Qt.binding(function(b) {
+                            return function() { return buttons._span(b) }
+                        }(b))
                     }
                 }
                 Component.onCompleted: addPluginButtons()
