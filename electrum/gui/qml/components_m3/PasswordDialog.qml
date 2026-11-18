@@ -78,6 +78,7 @@ M3Dialog {
                 id: pw_1
                 Layout.fillWidth: true
                 label: qsTranslate('PasswordDialog', 'Password')
+                onTextChanged: if (text !== '') passworddialog._errorPending = false
             }
 
             M3PasswordField {
@@ -87,6 +88,7 @@ M3Dialog {
                 showReveal: false
                 echoMode: pw_1.echoMode
                 label: qsTranslate('PasswordDialog', 'Password (again)')
+                onTextChanged: if (text !== '') passworddialog._errorPending = false
             }
 
             ColumnLayout {
@@ -147,11 +149,20 @@ M3Dialog {
     function clearPassword() {
         pw_1.text = ""
         pw_2.text = ""
+        // with an error already shown this is a refusal repeated with the same message (errorMessage does not change)
+        if (errorMessage !== '')
+            _errorPending = true
     }
 
-    // what a shrunk dialog shows: the error line after a refused password (the caller clears the fields and sets
-    // errorMessage, in either order) until a character is typed again, otherwise the field with the focus
-    readonly property bool _errorInView: errorMessage !== '' && pw_1.text === '' && pw_2.text === ''
+    // what a shrunk dialog shows: the error line from a refusal until a character is typed in either field, otherwise
+    // the field with the focus. A refusal sets _errorPending: errorMessage becomes non-empty, or clearPassword() is
+    // called while it is non-empty (main.qml handleManualAuth clears the fields, then sets the error; the change of
+    // password in WalletDetailsPage.qml sets the error, then clears the fields; a repeated refusal leaves errorMessage
+    // as it is). The first non-empty text in either field clears it (onTextChanged, whatever the way of input);
+    // erasing the fields back to empty does not set it again.
+    property bool _errorPending: false
+    onErrorMessageChanged: if (errorMessage !== '') _errorPending = true
+    readonly property bool _errorInView: _errorPending && errorMessage !== ''
     on_ErrorInViewChanged: _keepInView()
 
     // the error line whole, its bottom at the bottom of the content window (its top, if it is taller), else the
@@ -182,8 +193,9 @@ M3Dialog {
             flick.contentY = Math.min(bottom - flick.height, Math.max(0, flick.contentHeight - flick.height))
     }
 
-    // a field that gets the focus (a tap, Tab) is scrolled into view even while the error line is shown: the user
-    // went for that field
+    // a field that gets the focus (a tap, Tab) is scrolled into view, also while the error line is shown; a change of
+    // the height that comes after it (the keyboard opening after the tap) brings the error line back into view while
+    // no character has been typed since the refusal (_keepInView)
     Connections {
         target: pw_1.field
         function onActiveFocusChanged() { passworddialog._showFocusedField() }
