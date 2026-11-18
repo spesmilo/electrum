@@ -17,7 +17,8 @@ import "controls"
 // colored trustedcoin icon, an outlined field, the error in m3.error; a Cancel text button, which does what the
 // Android back button does (doClose(), shown only when allowClose), disabled while the code is being submitted
 // (the transaction goes on regardless, so it cannot promise a cancel); the width is that of M3Dialog (the factory
-// no longer sets 2/3).
+// no longer sets 2/3); the content scrolls when the keyboard leaves too little height (the height formula of
+// PasswordDialog.qml), and the code field with the focus is scrolled into view.
 // Strings keep the translation context of the classic file (qsTranslate('OtpDialog', ...)).
 M3Dialog {
     id: dialog
@@ -32,66 +33,91 @@ M3Dialog {
     property string passwordCharacter: '8'
     focus: true
 
-    contentItem: ColumnLayout {
-        spacing: m3.space16
+    // the dialog never grows past the free zone (keyboard included): the content scrolls instead
+    // (as PasswordDialog.qml: centered, the same margin above and below, clear of the status bar and of the
+    // navigation bar; while the keyboard is open the navigation bar is under it and the margin is smaller)
+    height: Math.min(implicitHeight, parent
+        ? parent.height - 2 * (app.keyboardFreeZone.state != 'visible'
+            ? m3.space24 + Math.max(app.statusBarHeight, app.navigationBarHeight)
+            : m3.space8 + app.statusBarHeight)
+        : implicitHeight)
 
-        M3Text {
-            Layout.fillWidth: true
-            role: 'bodyLarge'
-            color: m3.surfaceVariantOn
-            wrapMode: Text.Wrap
-            horizontalAlignment: Text.AlignHCenter
-            text: qsTranslate('OtpDialog', 'Enter Authenticator code')
-        }
+    contentItem: Flickable {
+        id: flick
+        implicitHeight: form.implicitHeight
+        contentHeight: form.implicitHeight
+        clip: true
+        interactive: height < contentHeight
+        boundsBehavior: Flickable.StopAtBounds
 
-        TextField {
-            id: otpEdit
-            Layout.preferredWidth: leftPadding + rightPadding + fontMetrics.advanceWidth(passwordCharacter) * 6
-                + m3.space16
-            Layout.alignment: Qt.AlignHCenter
-            Material.containerStyle: Material.Outlined
-            Material.accent: dialog._otpError !== '' ? m3.error : m3.primary
-            font.pixelSize: m3.textStyle('headlineSmall').size
-            font.letterSpacing: 4
-            color: m3.surfaceOn
-            horizontalAlignment: TextInput.AlignHCenter
-            maximumLength: 6
-            inputMethodHints: Qt.ImhSensitiveData | Qt.ImhDigitsOnly
-            echoMode: TextInput.Password
-            focus: true
-            enabled: !_waiting
-            Keys.onPressed: _otpError = ''
-            onTextChanged: {
-                if (text.length == 6) {
-                    _waiting = true
-                    Daemon.currentWallet.submitOtp(otpEdit.text)
-                }
-            }
-        }
+        // the keyboard shrinks the dialog after the field got the focus: keep that field in view
+        onHeightChanged: dialog._showCodeField()
 
-        Item {
-            Layout.fillWidth: true
-            implicitHeight: Math.max(errorText.implicitHeight, 40)
+        ScrollIndicator.vertical: ScrollIndicator { }
+
+        ColumnLayout {
+            id: form
+            width: flick.width
+            spacing: m3.space16
 
             M3Text {
-                id: errorText
-                width: parent.width
-                anchors.verticalCenter: parent.verticalCenter
-                role: 'bodyMedium'
-                color: m3.error
+                Layout.fillWidth: true
+                role: 'bodyLarge'
+                color: m3.surfaceVariantOn
                 wrapMode: Text.Wrap
-                lineHeightMode: Text.ProportionalHeight
-                lineHeight: 1.0
                 horizontalAlignment: Text.AlignHCenter
-                text: _otpError
+                text: qsTranslate('OtpDialog', 'Enter Authenticator code')
             }
 
-            BusyIndicator {
-                anchors.centerIn: parent
-                width: 40
-                height: 40
-                visible: _waiting
-                running: _waiting
+            TextField {
+                id: otpEdit
+                Layout.preferredWidth: leftPadding + rightPadding + fontMetrics.advanceWidth(passwordCharacter) * 6
+                    + m3.space16
+                Layout.alignment: Qt.AlignHCenter
+                Material.containerStyle: Material.Outlined
+                Material.accent: dialog._otpError !== '' ? m3.error : m3.primary
+                font.pixelSize: m3.textStyle('headlineSmall').size
+                font.letterSpacing: 4
+                color: m3.surfaceOn
+                horizontalAlignment: TextInput.AlignHCenter
+                maximumLength: 6
+                inputMethodHints: Qt.ImhSensitiveData | Qt.ImhDigitsOnly
+                echoMode: TextInput.Password
+                focus: true
+                enabled: !_waiting
+                Keys.onPressed: _otpError = ''
+                onTextChanged: {
+                    if (text.length == 6) {
+                        _waiting = true
+                        Daemon.currentWallet.submitOtp(otpEdit.text)
+                    }
+                }
+            }
+
+            Item {
+                Layout.fillWidth: true
+                implicitHeight: Math.max(errorText.implicitHeight, 40)
+
+                M3Text {
+                    id: errorText
+                    width: parent.width
+                    anchors.verticalCenter: parent.verticalCenter
+                    role: 'bodyMedium'
+                    color: m3.error
+                    wrapMode: Text.Wrap
+                    lineHeightMode: Text.ProportionalHeight
+                    lineHeight: 1.0
+                    horizontalAlignment: Text.AlignHCenter
+                    text: _otpError
+                }
+
+                BusyIndicator {
+                    anchors.centerIn: parent
+                    width: 40
+                    height: 40
+                    visible: _waiting
+                    running: _waiting
+                }
             }
         }
     }
@@ -106,6 +132,24 @@ M3Dialog {
             onClicked: dialog.doClose()
         }
     ]
+
+    // scroll the content so that the code field is seen whole while it has the focus (Flickable does not follow
+    // the focus)
+    function _showCodeField() {
+        if (!otpEdit.activeFocus || flick.height <= 0)
+            return
+        var top = otpEdit.mapToItem(form, 0, 0).y
+        var bottom = top + otpEdit.height
+        if (top < flick.contentY)
+            flick.contentY = top
+        else if (bottom > flick.contentY + flick.height)
+            flick.contentY = Math.min(bottom - flick.height, Math.max(0, flick.contentHeight - flick.height))
+    }
+
+    Connections {
+        target: otpEdit
+        function onActiveFocusChanged() { dialog._showCodeField() }
+    }
 
     Connections {
         target: Daemon.currentWallet
