@@ -41,7 +41,14 @@ M3Dialog {
     property bool valid: amountValid
 
     // the dialog never grows past the free zone (keyboard included): the content scrolls instead
-    height: Math.min(implicitHeight, parent ? parent.height - 2 * m3.space24 : implicitHeight)
+    // (centered: the same margin above and below, clear of the status bar and of the navigation bar; while the
+    // keyboard is open the navigation bar is under it and the margin is smaller, the height is short then;
+    // as PasswordDialog.qml)
+    height: Math.min(implicitHeight, parent
+        ? parent.height - 2 * (app.keyboardFreeZone.state != 'visible'
+            ? m3.space24 + Math.max(app.statusBarHeight, app.navigationBarHeight)
+            : m3.space8 + app.statusBarHeight)
+        : implicitHeight)
     onClosed: destroy()
 
     Component.onCompleted: {
