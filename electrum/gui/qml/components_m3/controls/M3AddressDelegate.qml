@@ -11,10 +11,10 @@ import org.electrum 1.0
 // address (fixed font, elided in the middle), the state of the address (frozen; used with or without balance;
 // change or receive, unused), the label or '<no label>', the balance in the base unit and the number of
 // transactions, each only when not zero; `highlighted` (the row is selected) set by the list.
-// The look is Material 3: the state is a 40 dp avatar with the index (a frozen address shows the ac_unit glyph
-// instead), filled with a role per state in place of the classic colored square: frozen primaryContainer, used
-// with balance successContainer, used and empty surfaceContainerHighest, unused change tertiaryContainer, unused
-// receive secondaryContainer. A selected row is filled with secondaryContainer.
+// The look is Material 3: the state is a 40 dp avatar with the index (a frozen address also has a badge with the
+// ac_unit glyph on the avatar), filled with a role per state in place of the classic colored square: frozen
+// primaryContainer, used with balance successContainer, used and empty surfaceContainerHighest, unused change
+// tertiaryContainer, unused receive secondaryContainer. A selected row is filled with secondaryContainer.
 ItemDelegate {
     id: delegate
 
@@ -65,19 +65,31 @@ ItemDelegate {
 
             M3Text {
                 anchors.centerIn: parent
-                visible: !delegate._held
                 role: 'labelMedium'
                 color: delegate._avatarContent
                 text: model.addridx < 10
                     ? '#' + ('0'+model.addridx).slice(-2)
                     : '#' + model.addridx
             }
-            M3Icon {
-                anchors.centerIn: parent
+            // frozen: a badge with the ac_unit glyph on the lower right of the avatar (the index stays visible);
+            // the ring has the color of the row, so the badge stands apart from the avatar
+            Rectangle {
                 visible: delegate._held
-                size: 24
-                source: Qt.resolvedUrl('../../../icons/m3/ac_unit.png')
-                color: delegate._avatarContent
+                width: 20
+                height: 20
+                radius: 10
+                x: parent.width - width + 4
+                y: parent.height - height + 4
+                color: m3.primary
+                border.width: 2
+                border.color: delegate.highlighted ? m3.secondaryContainer : m3.surface
+
+                M3Icon {
+                    anchors.centerIn: parent
+                    size: 14
+                    source: Qt.resolvedUrl('../../../icons/m3/ac_unit.png')
+                    color: m3.primaryOn
+                }
             }
         }
 
