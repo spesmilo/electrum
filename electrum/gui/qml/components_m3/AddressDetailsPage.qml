@@ -18,7 +18,7 @@ import "controls"
 // with its confirmation (when the address can be deleted), the AddressDetails object and its handlers, the secure
 // window while the private key is shown. Only the look differs.
 // Layout (M2-MAP F-3, F-4): details are M3DetailRow rows; Freeze and Sign/Verify are buttons below the content;
-// Delete (rare and destructive) is an action of the top app bar (`m3Actions`).
+// Delete (rare and destructive) is in the overflow menu of the top app bar (`m3Actions`).
 // Strings keep the translation context of the classic file (qsTranslate('AddressDetails', ...)).
 M3Page {
     id: root
@@ -30,13 +30,13 @@ M3Page {
 
     title: qsTranslate('AddressDetails', 'Address details')
 
-    // AddressDetails.qml:321-341 (Delete): an action of the top app bar
+    // AddressDetails.qml:321-341 (Delete): the overflow menu of the top app bar (as WalletDetailsPage)
     property list<Item> m3Actions: [
         M3IconButton {
             visible: addressdetails.canDelete
-            tooltip: qsTranslate('AddressDetails', 'Delete')
-            icon.source: Qt.resolvedUrl('../../icons/m3/delete.png')
-            onClicked: root.deleteAddress()
+            tooltip: qsTr('More options')
+            icon.source: Qt.resolvedUrl('../../icons/m3/more_vert.png')
+            onClicked: overflowMenu.open()
         }
     ]
 
@@ -313,6 +313,19 @@ M3Page {
             address: root.address,
             backingModel: addressdetails.historyModel
         })
+    }
+
+    // --- Delete (AddressDetails.qml:321-341): the overflow menu of the top app bar ---
+    M3Menu {
+        id: overflowMenu
+        x: app.width - overflowMenu.width - m3.space8
+        y: app.header ? app.header.height - m3.space8 : 0
+
+        MenuItem {
+            text: qsTranslate('AddressDetails', 'Delete')
+            icon.source: Qt.resolvedUrl('../../icons/m3/delete.png')
+            onTriggered: root.deleteAddress()
+        }
     }
 
     AddressDetails {
