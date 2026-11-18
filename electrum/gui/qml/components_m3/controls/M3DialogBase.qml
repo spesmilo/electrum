@@ -74,8 +74,9 @@ Dialog {
         // handlers of the page under the modal dialog (a clickable M3Card opened its page behind the dialog).
         gesturePolicy: TapHandler.ReleaseWithinBounds
         onTapped: (eventPoint, button) => {
-            // This policy keeps the point after it moved: a drag released on the background is not a tap, as
-            // with the default policy.
+            // This policy keeps the point after it moved: a drag released farther than the drag distance from
+            // where it was pressed is not a tap (the default policy also cancels a drag that moved that far and
+            // came back; here such a drag still taps).
             if (Math.abs(eventPoint.scenePosition.x - eventPoint.scenePressPosition.x) > Qt.styleHints.startDragDistance
                     || Math.abs(eventPoint.scenePosition.y - eventPoint.scenePressPosition.y) > Qt.styleHints.startDragDistance)
                 return
