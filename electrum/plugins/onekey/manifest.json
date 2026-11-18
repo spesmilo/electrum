@@ -1,0 +1,8 @@
+{
+  "name": "onekey",
+  "fullname": "OneKey Pro 2 and Neo",
+  "description": "USB support for initialized OneKey Pro 2 and Neo hardware wallets. Supports single-signature legacy and SegWit Bitcoin wallets.",
+  "registers_keystore": ["hardware", "onekey", "OneKey wallet"],
+  "icon": "onekey.svg",
+  "available_for": ["qt"]
+}
