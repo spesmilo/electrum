@@ -29,6 +29,8 @@ M3Page {
             tooltip: qsTranslate('Invoices', 'View')
             onClicked: {
                 var dialog = app.stack.getRoot().openInvoice(listview.currentItem.getKey())
+                if (!dialog)  // M3: no page shown (the user is told, PaymentFlow.openInvoice)
+                    return
                 dialog.invoiceAmountChanged.connect(function () {
                     Daemon.currentWallet.invoiceModel.initModel()
                 })
@@ -78,10 +80,12 @@ M3Page {
                 delegate: M3InvoiceDelegate {
                     onClicked: {
                         var dialog = app.stack.getRoot().openInvoice(model.key)
+                        listview.currentIndex = -1
+                        if (!dialog)  // M3: no page shown (the user is told, PaymentFlow.openInvoice)
+                            return
                         dialog.invoiceAmountChanged.connect(function () {
                             Daemon.currentWallet.invoiceModel.initModel()
                         })
-                        listview.currentIndex = -1
                     }
                     onPressAndHold: listview.currentIndex = index
                 }

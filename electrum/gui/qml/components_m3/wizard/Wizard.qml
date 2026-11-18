@@ -18,9 +18,10 @@ import "../controls"
 // close button (doReject(), as the classic "Cancel") unless `canCancel` is false (wizards whose cancel quits the
 // app: the Android back key is the way out, as in the classic); `topBarVisible: false` hides the bar and puts
 // "Cancel" in the bottom bar instead (terms of use); one filled main button at the bottom right; a tap on it in
-// the first 300 ms after a page change is ignored (no double tap through a page); a page without a Material 3
-// version (a new upstream page, a broken file, a plugin page not in _m3PluginPages) is the classic page, shown
-// as a dark classic island, with a warning in the log.
+// the first 300 ms after a page change is ignored (no double tap through a page); a page that cannot be opened (no
+// Material 3 version: a new upstream page, a plugin page not in _m3PluginPages; a broken file; a page that cannot
+// be created) is not shown: the error goes to the log and app.showScreenError() offers the classic interface (no
+// classic page is shown in its place).
 M3FullScreenDialog {
     id: wizard
     focus: true
@@ -53,7 +54,6 @@ M3FullScreenDialog {
     readonly property var _m3PluginPages: ({
         'trustedcoin': ['Disclaimer', 'ChooseSeed', 'KeepDisable', 'Terms', 'ShowConfirmOTP']
     })
-    property bool _classicFallback: false
 
     // the bars are drawn by the header and the footer below; the content has no padding of its own
     topPadding: topBarVisible ? 0 : app.statusBarHeight
@@ -73,50 +73,19 @@ M3FullScreenDialog {
     }
 
     // M3: the url of the page for the name given by Python: the Material 3 page next to this file (for a plugin
-    // page, the one in the qml_m3 directory of the plugin); without one the classic page, with a warning.
+    // page, the one in the qml_m3 directory of the plugin); '' when there is none.
     // A plugin page is any name with /plugins/ in it (DESIGN-M2.md finding 11): only the form
     // .../plugins/<plugin>/qml/<page>.qml listed in _m3PluginPages has a Material 3 page; any other plugin name (not
-    // in the table, or of another form, e.g. qml/wizard/<page>.qml) is "no Material 3 page", the classic plugin page
-    // in the dark island with the warning, never loaded silently as if it were one.
+    // in the table, or of another form, e.g. qml/wizard/<page>.qml) has none, never loaded as if it were one.
     function _pageUrl(name) {
-        var m3name = name
-        var isPlugin = name.indexOf('/plugins/') >= 0
         var plugin = name.match(/\/plugins\/([^\/]+)\/qml\/([^\/]+)\.qml$/)
         if (plugin) {
             var known = _m3PluginPages[plugin[1]]
-            m3name = known && known.indexOf(plugin[2]) >= 0
-                ? name.replace('/plugins/' + plugin[1] + '/qml/', '/plugins/' + plugin[1] + '/qml_m3/')
+            return known && known.indexOf(plugin[2]) >= 0
+                ? Qt.resolvedUrl(name.replace('/plugins/' + plugin[1] + '/qml/', '/plugins/' + plugin[1] + '/qml_m3/'))
                 : ''
-        } else if (isPlugin) {
-            m3name = ''
         }
-        if (m3name !== '') {
-            var url = Qt.resolvedUrl(m3name)
-            var comp = Qt.createComponent(url)
-            if (comp.status != Component.Error) {
-                _classicFallback = false
-                return url
-            }
-            console.warn('M3 wizard: ' + comp.errorString())
-        }
-        console.warn('M3 wizard: no Material 3 page for ' + name + ', using the classic one')
-        _classicFallback = true
-        // a plugin page name is relative to the wizard directory: the same file as for the classic wizard
-        return isPlugin ? Qt.resolvedUrl(name) : Qt.resolvedUrl('../../components/wizard/' + name)
-    }
-
-    // M3: a color the attached Material of the island takes as an explicit value: the color one step (1/255 of
-    // blue) off. Why: after `Material.theme = Material.Dark` is set from JS on an item inside this popup (explicit
-    // light colors), assigning it a color EQUAL to the default of the dark theme (as a color or as a string) is
-    // ignored and the item keeps the popup's light colors, i.e. dark text on the dark classic panes; one step off
-    // is applied. Proven on Qt 6.10.0 (PyQt 6.10.2) in the image electrum-m3-qml:6.10 (the Qt of the phone) by a
-    // test scene: a dark ApplicationWindow, a light Popup with explicit colors, items in it set to the dark
-    // theme from JS, then foreground/background = the window's (the dark defaults #ffffff/#1c1b1f) -> read back
-    // the popup's #191c20/#ecedf3; the same one step off -> read back #fffffe/#1c1b20 (a color value one step
-    // off is taken too; a color value equal to the default is not). Do not drop the step as noise;
-    // _loadNextComponent warns in the log if a Qt version stops taking it.
-    function _explicitColor(c) {
-        return Qt.rgba(c.r, c.g, c.b < 0.5 ? c.b + 1/255 : c.b - 1/255, 1).toString()
+        return name.indexOf('/plugins/') >= 0 ? '' : Qt.resolvedUrl(name)
     }
 
     // helper function to dynamically load wizard page components
@@ -130,10 +99,18 @@ M3FullScreenDialog {
             pages.takeItem(pages.currentIndex+1).destroy()
         }
 
-        var url = _pageUrl(wiz.viewToComponent(view))
+        // M3: a page that cannot be opened: the log and app.showScreenError(), the wizard stays on its page
+        var name = wiz.viewToComponent(view)
+        var url = _pageUrl(name)
+        if (url == '') {
+            console.warn('M3 wizard: no Material 3 page for ' + name)
+            app.showScreenError()
+            return null
+        }
         var comp = Qt.createComponent(url)
         if (comp.status == Component.Error) {
             console.log(comp.errorString())
+            app.showScreenError()
             return null
         }
 
@@ -141,32 +118,10 @@ M3FullScreenDialog {
         var wdata_copy={}
         Object.assign(wdata_copy, wdata)
         var page = comp.createObject(pages, {wizard_data: wdata_copy})
-        if (_classicFallback) {
-            // M3: a classic page is a dark classic island (its colors come from `constants` of the dark window);
-            // the explicit colors of the popup would be inherited otherwise (dark text on dark panes)
-            var classic = app.contentItem.Material  // the theme of the dark window
-            var island = {
-                'accent': _explicitColor(classic.accent),
-                'primary': _explicitColor(classic.primary),
-                'background': _explicitColor(classic.background),
-                'foreground': _explicitColor(classic.foreground)
-            }
-            page.Material.theme = Material.Dark
-            page.Material.accent = island.accent
-            page.Material.primary = island.primary
-            page.Material.background = island.background
-            page.Material.foreground = island.foreground
-            // the colors must have been taken (see _explicitColor), else the classic page is unreadable
-            var missed = Object.keys(island).filter(function(k) {
-                return !Qt.colorEqual(page.Material[k], island[k])
-            })
-            if (page.Material.theme != Material.Dark)
-                missed.unshift('theme')
-            if (missed.length > 0)
-                console.warn('M3 wizard: the dark island did not take ' + missed.join(', ')
-                             + ': the classic page may be unreadable')
-            else
-                console.log('M3 wizard: classic page shown as a dark island')
+        if (!page) {
+            console.warn('M3 wizard: cannot create the page ' + url)
+            app.showScreenError()
+            return null
         }
         page.validChanged.connect(function() {
             if (page != pages.currentItem)
@@ -325,8 +280,9 @@ M3FullScreenDialog {
             Binding {
                 target: AppController
                 property: 'secureWindow'
-                when: pages.visible  // enables stacking multiple secureWindow dialogs
-                value: pages.contentChildren[pages.currentIndex].securePage
+                // M3: and only while there is a page (none when the first page could not be opened)
+                when: pages.visible && !!pages.contentChildren[pages.currentIndex]  // enables stacking multiple secureWindow dialogs
+                value: pages.contentChildren[pages.currentIndex] ? pages.contentChildren[pages.currentIndex].securePage : false
             }
         }
     }

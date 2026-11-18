@@ -9,7 +9,6 @@ import QtQml
 
 import org.electrum 1.0
 
-import "../components" as Classic
 import "controls"
 
 // Window of the Material 3 GUI (qml_ui_style = 'material3'), loaded instead of components/main.qml.
@@ -35,12 +34,9 @@ ApplicationWindow
     Material.theme: Material.Dark
     Material.primary: Material.Indigo
     Material.accent: Material.LightBlue
-    font.pixelSize: constants.fontSizeMedium
+    font.pixelSize: 15  // M3: repeats components/Constants.qml fontSizeMedium
 
-    property QtObject constants: appconstants
-    Classic.Constants { id: appconstants }
-
-    // M3: Material 3 theme (color roles, type scale, shapes); separate from the classic `constants`
+    // M3: Material 3 theme (color roles, type scale, shapes)
     property QtObject m3: m3theme
     M3Theme { id: m3theme }
 
@@ -48,49 +44,121 @@ ApplicationWindow
     property QtObject routes: m3routes
     M3Routes { id: m3routes }
 
-    // M3: the ready component of the page at `url`; when it cannot be loaded, the classic page of the route
-    // (routes.classicFor), else null; the error goes to the log. The stack only gets ready components: a push
-    // of a page that fails to load leaves StackView broken (see PaymentFlow._loadPage).
+    // M3: the message when a Material 3 screen could not be opened (its file does not load, or its page could not be
+    // created; the details are in the log). There is no classic screen to fall back to: the message offers the way
+    // back to the classic interface of the overflow menu (showRestartDialog). One message at a time.
+    property var _screenErrorDialog: null
+    function showScreenError() {
+        if (_screenErrorDialog)
+            return _screenErrorDialog
+        var dialog = app.messageDialog.createObject(app, {
+            title: qsTr('Screen unavailable'),
+            iconSource: Qt.resolvedUrl('../../icons/m3/warning.png'),
+            text: qsTr('This screen could not be opened (details in the log). Switch to the classic interface?'),
+            yesno: true
+        })
+        _screenErrorDialog = dialog
+        dialog.closed.connect(function() {
+            app._screenErrorDialog = null
+        })
+        dialog.accepted.connect(function() {
+            app.showRestartDialog()
+        })
+        dialog.open()
+        return dialog
+    }
+
+    // M3: the ready component of the page at `url`; when it cannot be loaded, null, the error in the log and the
+    // message of showScreenError. The stack only gets ready components (stackPage).
     function loadPage(url) {
         var component = Qt.createComponent(url)
         if (component.status === Component.Ready)
             return component
         console.log('M3: cannot load ' + url + ': ' + component.errorString())
-        var classic = routes.classicFor(url)
-        if (classic == '' || String(classic) === String(url))
-            return null
-        console.log('M3: opening the classic page ' + classic + ' instead')
-        component = Qt.createComponent(classic)
-        if (component.status === Component.Ready)
-            return component
-        console.log('M3: cannot load ' + classic + ': ' + component.errorString())
+        showScreenError()
         return null
     }
 
-    // M3: URL to open for the route `url`: the route itself, or its classic page when the route cannot be
-    // loaded (for callers that load the page themselves, PaymentFlow._showPage)
-    function pageUrl(url) {
-        var component = loadPage(url)
-        return component ? component.url : url
+    // M3: puts the page of the ready `component` with `properties` on the stack: pushed, or in place of `target`
+    // (StackView.replace: `target` and the pages above it). Returns the page, and calls `done(page)` when given;
+    // returns null when there is no page yet (`failed()` is called when given, if the page could not be created):
+    // - the page could not be created: StackView then leaves an empty element on top and keeps drawing the
+    //   half-made page and a replaced one (measured on Qt 6.10): the empty elements are taken off, those leftovers
+    //   hidden, the error logged and showScreenError shown;
+    // - the stack refused it: StackView refuses an operation asked while it completes a push (e.g. from
+    //   Component.onCompleted of the page it is pushing), returns nothing and stays as it was. That is no broken
+    //   screen: no message; the operation is asked once more after the current event (Qt.callLater), and `done`
+    //   gets the page then.
+    function stackPage(component, properties, target, done, failed, _retry) {
+        var props = properties ? properties : {}
+        var before = []
+        for (var i = 0; i < mainStackView.depth; i++)
+            before.push(mainStackView.get(i))
+        if (target && before.indexOf(target) < 0) {
+            console.log('M3: ' + component.url + ' not shown: the page it was to replace is gone')
+            return null
+        }
+        var children = []
+        for (var c = 0; c < mainStackView.children.length; c++)
+            children.push(mainStackView.children[c])
+
+        var page = target
+            ? mainStackView.replace(target, component, props)
+            : mainStackView.push(component, props)
+
+        var depth = mainStackView.depth
+        if (depth > 0 && mainStackView.get(depth - 1) !== null) {
+            if (page) {
+                if (done)
+                    done(page)
+                return page
+            }
+            if (_retry) {
+                console.log('M3: the stack refused ' + component.url + ' again, not shown')
+            } else {
+                console.log('M3: the stack is busy, ' + component.url + ' is asked again after this event')
+                Qt.callLater(function() {
+                    app.stackPage(component, properties, target, done, failed, true)
+                })
+            }
+            return null
+        }
+
+        console.log('M3: cannot create the page of ' + component.url + ' (see the error above)')
+        while (mainStackView.depth > 1 && mainStackView.get(mainStackView.depth - 1) === null)
+            mainStackView.pop(StackView.Immediate)
+        if (mainStackView.depth === 1 && mainStackView.get(0) === null)
+            mainStackView.clear(StackView.Immediate)
+        var kept = []
+        for (var k = 0; k < mainStackView.depth; k++)
+            kept.push(mainStackView.get(k))
+        for (var h = 0; h < mainStackView.children.length; h++) {
+            var child = mainStackView.children[h]
+            if (kept.indexOf(child) < 0 && (children.indexOf(child) < 0 || before.indexOf(child) >= 0))
+                child.visible = false
+        }
+        showScreenError()
+        if (failed)
+            failed()
+        return null
     }
 
     // M3: pushes the page at `url` (a route) with `properties`; returns the page, or null when no page
-    // could be loaded (the stack is then unchanged)
+    // was shown (stackPage; the stack is then unchanged)
     function pushPage(url, properties) {
         var component = loadPage(url)
         if (!component)
             return null
-        return mainStackView.push(component, properties ? properties : {})
+        return stackPage(component, properties)
     }
 
-    // M3: as pushPage, in place of the page above the root (stack.pushOnRoot: pages opened from the overflow
-    // menu, the tabs and the chips replace each other instead of piling up)
+    // M3: as pushPage, in place of the page above the root (pages opened from the overflow menu, the tabs and the
+    // chips replace each other instead of piling up)
     function pushPageOnRoot(url) {
         var component = loadPage(url)
         if (!component)
             return null
-        mainStackView.pushOnRoot(component)
-        return mainStackView.currentItem
+        return stackPage(component, {}, mainStackView.depth > 1 ? mainStackView.get(1) : null)
     }
 
     property alias stack: mainStackView
@@ -300,29 +368,18 @@ ApplicationWindow
                 }
             }
             // M3: screens pass bare file names (Wallets.qml: 'WalletMainView.qml', PaymentFlow after
-            // a wallet was deleted: 'Wallets.qml'); they resolve relative to components_m3/, except a
-            // classic page listed here (a root without a Material 3 counterpart; none since M2 G1-B).
-            readonly property var _classicRoots: ({
-                // bare file name: path of the classic page, relative to components_m3/
-            })
-            // M3: the classic root that replaceRoot() opens when the Material 3 one cannot be loaded (an error in
-            // its file or in any file it loads by type, e.g. the dialogs of PaymentFlow): a working classic
-            // wallet screen instead of an empty one; the error goes to the log.
-            readonly property var _rootFallbacks: ({
-                'WalletMainView.qml': '../components/WalletMainView.qml'
-            })
+            // a wallet was deleted: 'Wallets.qml'); they resolve relative to components_m3/. A root that cannot be
+            // loaded leaves the stack as it is (app.loadPage shows the message); a root whose page cannot be created
+            // leaves the Wallets page as the root (app.stackPage shows the message).
             function replaceRoot(item_url) {
+                var component = app.loadPage(Qt.resolvedUrl(item_url))
+                if (!component)
+                    return
                 mainStackView.clear()
-                var url = Qt.resolvedUrl(item_url in _classicRoots ? _classicRoots[item_url] : item_url)
-                if (item_url in _rootFallbacks) {
-                    var component = Qt.createComponent(url)
-                    if (component.status !== Component.Ready) {
-                        console.warn('M3: cannot load ' + url + ': ' + component.errorString())
-                        url = Qt.resolvedUrl(_rootFallbacks[item_url])
-                        console.warn('M3: opening the classic root ' + url + ' instead')
-                    }
-                }
-                mainStackView.push(url)
+                app.stackPage(component, {}, null, null, function() {
+                    if (item_url !== 'Wallets.qml' && mainStackView.depth === 0)
+                        replaceRoot('Wallets.qml')
+                })
             }
             // M3: the strip below (one owner of navigationBarHeight; Material 3 pages do not pad for
             // it themselves) takes the color of the page on top, as a live binding (theme switch).
@@ -558,7 +615,7 @@ ApplicationWindow
                 onError: (message) => {
                     var dialog = app.messageDialog.createObject(app, {
                         title: qsTr('Error'),
-                        iconSource: Qt.resolvedUrl('../../icons/warning.png'),
+                        iconSource: Qt.resolvedUrl('../../icons/m3/warning.png'),
                         text: message
                     })
                     dialog.open()
@@ -764,7 +821,7 @@ ApplicationWindow
                 return
             let dialog = app.messageDialog.createObject(app, {
                 title: warnings[i].title,
-                iconSource: Qt.resolvedUrl('../../icons/warning.png'),
+                iconSource: Qt.resolvedUrl('../../icons/m3/warning.png'),
                 text: warnings[i].message
             })
             dialog.accepted.connect(function() {
@@ -799,7 +856,7 @@ ApplicationWindow
             console.log('wallet open error')
             var dialog = app.messageDialog.createObject(app, {
                 title: qsTr('Error'),
-                iconSource: Qt.resolvedUrl('../../icons/warning.png'),
+                iconSource: Qt.resolvedUrl('../../icons/m3/warning.png'),
                 text: error
             })
             dialog.open()
@@ -844,14 +901,12 @@ ApplicationWindow
             var loader = plugin.loader
             if (loader == undefined)
                 return
-            // M3: the Material 3 QML of the plugin (plugins/<name>/qml_m3/, M2-MAP F-11), else its classic QML
+            // M3: the Material 3 QML of the plugin (plugins/<name>/qml_m3/, M2-MAP F-11); a plugin without it has no
+            // QML in Material 3 (its classic QML is not loaded)
             var base = '../../../plugins/' + name
             var comp = Qt.createComponent(Qt.resolvedUrl(base + '/qml_m3/' + loader))
             if (comp.status == Component.Error) {
-                console.log('M3: no qml_m3 for plugin ' + name + ', loading its classic QML: ' + comp.errorString())
-                comp = Qt.createComponent(Qt.resolvedUrl(base + '/qml/' + loader))
-            }
-            if (comp.status == Component.Error) {
+                console.log('M3: no Material 3 QML (qml_m3/' + loader + ') for plugin ' + name + ', its QML is not loaded')
                 console.log('Could not find/parse PluginLoader for plugin ' + name)
                 console.log(comp.errorString())
                 return

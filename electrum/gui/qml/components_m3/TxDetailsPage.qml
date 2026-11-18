@@ -519,7 +519,7 @@ M3Page {
                 return
             var dialog = app.messageDialog.createObject(app, {
                 title: qsTranslate('TxDetails', 'Error'),
-                iconSource: Qt.resolvedUrl('../../icons/warning.png'),
+                iconSource: Qt.resolvedUrl('../../icons/m3/warning.png'),
                 text: message
             })
             dialog.open()

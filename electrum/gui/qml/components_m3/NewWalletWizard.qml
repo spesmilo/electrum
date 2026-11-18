@@ -38,7 +38,7 @@ Wizard {
         function onCreateError(error) {
             var dialog = app.messageDialog.createObject(app, {
                 title: qsTranslate('NewWalletWizard', 'Error'),
-                iconSource: Qt.resolvedUrl('../../icons/warning.png'),
+                iconSource: Qt.resolvedUrl('../../icons/m3/warning.png'),
                 text: error
             })
             dialog.open()

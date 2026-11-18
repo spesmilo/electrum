@@ -6,14 +6,11 @@ import QtQml
 
 import org.electrum 1.0
 
-import "../components" as Classic
-
 // Payment flow of the Material 3 GUI: the non-visual part of the classic WalletMainView,
 // carried over verbatim from components/WalletMainView.qml @ 4f36c4489, lines 17-134 and 295-705
 // (the wallet menu, history list and Send/Receive buttons, lines 136-293, are not carried over).
-// It holds the payment identifier resolver, the invoice parser and the dialog factories, which the
-// classic dialogs reach by id; the root id `mainView` is required (InvoiceDialog.qml refers to it).
-// Differences from the original are marked with `// M3:`; classic types carry the `Classic.` prefix.
+// It holds the payment identifier resolver, the invoice parser and the dialog factories; the root id stays
+// `mainView`, as in the classic file. Differences from the original are marked with `// M3:`.
 // M3: the strings keep the translation context of the classic file, qsTranslate('WalletMainView', ...)
 // instead of qsTr (which takes the context from the file name).
 // M3: the adaptation points open the Material 3 SendPage / InvoicePage instead of the classic SendDialog /
@@ -21,8 +18,9 @@ import "../components" as Classic
 // dispatch() (repeats: components/SendDialog.qml:40-85 @ 4f36c4489) and doPay() (the onDoPay handler of the
 // classic InvoiceDialog factory, WalletMainView.qml:508-536 @ 4f36c4489, one function for both invoice screens).
 // M3: SendPage.qml and InvoicePage.qml are loaded by URL when they are opened, not as types of this file: a defect
-// in one of them must not break this file and with it the root of the wallet; when a page cannot be loaded, the
-// classic SendDialog / InvoiceDialog is opened instead (logged), so that sending still works.
+// in one of them must not break this file and with it the root of the wallet; when a page or a dialog cannot be
+// opened, the error goes to the log and app.showScreenError() offers the classic interface (no classic screen is
+// opened in its place).
 Item {
     id: mainView
 
@@ -38,6 +36,7 @@ Item {
         var dialog = receiveDetailsDialog ? receiveDetailsDialog.createObject(mainView) : null
         if (!dialog) {
             console.log('M3: ReceiveRequestDialog unavailable')
+            app.showScreenError()
             return
         }
         dialog.accepted.connect(function() {
@@ -53,65 +52,54 @@ Item {
         dialog.open()
     }
 
-    // M3: fallback, one edit back to the classic InvoiceDialog (the classic factory below is kept for it)
-    property bool useClassicInvoiceDialog: false
-
     property var _sendDialog
 
     property string _request_amount
     property string _request_description
     property string _request_expiry
 
+    // M3: the Material 3 InvoicePage (same contract as InvoiceDialog: invoiceAmountChanged, close()); returns the page,
+    // or null when it is not shown (yet): see _showPage
     function openInvoice(key) {
         invoice.key = key
-        if (useClassicInvoiceDialog) {
-            var dialog = invoiceDialog.createObject(app, { invoice: invoice })
-            dialog.open()
-            return dialog
-        }
-        // M3: the Material 3 InvoicePage (same contract as InvoiceDialog: invoiceAmountChanged, close())
         var page = _showPage(Qt.resolvedUrl('InvoicePage.qml'), { flow: mainView, invoice: invoice })
-        if (page && page.m3InvoicePage === true)
-            return page
-        console.log('M3: InvoicePage unavailable, opening the classic InvoiceDialog')
-        var classicdialog = invoiceDialog.createObject(app, { invoice: invoice })
-        classicdialog.open()
-        return classicdialog
+        return page && page.m3InvoicePage === true ? page : null
     }
 
     // M3 (G2): the Material 3 ReceivePage on the stack instead of the classic ReceiveDialog (M2-MAP F-1); the
     // handler of the classic factory (onRequestPaid: close, then the details of the payment) is connected here:
     // the details take the place of the page when it is on top, else they are pushed (the classic pushes them
     // after closing its dialog). The page signals requestPaid only for a payment made while it is open, not for a
-    // request that was already paid when it was opened (ReceivePage._paid). Returns the page, or null when it cannot
-    // be loaded (logged).
+    // request that was already paid when it was opened (ReceivePage._paid). Returns the page, or null when it is not
+    // shown (yet): see _showPage.
     function openRequest(key) {
-        var page = _showPage(Qt.resolvedUrl('ReceivePage.qml'), { key: key })
-        if (!page || page.m3ReceivePage !== true) {
-            console.log('M3: ReceivePage unavailable')
-            return null
-        }
-        // once: the request reports Unconfirmed and then Paid (the classic dialog is gone after the first)
-        var handled = false
-        page.requestPaid.connect(function() {
-            if (handled)
+        var page = _showPage(Qt.resolvedUrl('ReceivePage.qml'), { key: key }, function(page) {
+            if (page.m3ReceivePage !== true)
                 return
-            handled = true
-            var url = page.isLightning ? app.routes.lightningPaymentDetails : app.routes.txDetails
-            var props = page.isLightning ? {'key': page.key} : {'txid': page.getPaidTxid()}
-            var component = app.stack.currentItem === page ? app.loadPage(url) : null
-            if (component)
-                app.stack.replace(page, component, props)
-            else
-                app.pushPage(url, props)  // M3: a route (app.routes)
+            // once: the request reports Unconfirmed and then Paid (the classic dialog is gone after the first)
+            var handled = false
+            page.requestPaid.connect(function() {
+                if (handled)
+                    return
+                handled = true
+                var url = page.isLightning ? app.routes.lightningPaymentDetails : app.routes.txDetails
+                var props = page.isLightning ? {'key': page.key} : {'txid': page.getPaidTxid()}
+                if (app.stack.currentItem !== page) {
+                    app.pushPage(url, props)  // M3: a route (app.routes)
+                    return
+                }
+                var component = app.loadPage(url)
+                if (component)
+                    app.stackPage(component, props, page)
+            })
         })
-        return page
+        return page && page.m3ReceivePage === true ? page : null
     }
 
-    // M3: loads a Material 3 page of this flow; null (and the error in the log) when it cannot be loaded.
-    // The stack is touched only with a ready component: a push or replace of a page that fails to load leaves
-    // StackView in a broken state (measured on the stand: after a failed replace, popping the page below kept
-    // it on the screen) and returns the current item instead of null.
+    // M3: loads a Material 3 dialog of this flow when this file is created; null (and the error in the log) when it
+    // cannot be loaded; the user is told when the dialog is to be opened. Pages are loaded by app.loadPage and put on
+    // the stack by app.stackPage (only ready components: a push or replace of a page that fails to load leaves
+    // StackView in a broken state).
     function _loadPage(url) {
         var component = Qt.createComponent(url)
         if (component.status !== Component.Ready) {
@@ -121,26 +109,23 @@ Item {
         return component
     }
 
-    // M3: the Material 3 SendPage on the stack instead of the classic SendDialog
+    // M3: the Material 3 SendPage on the stack instead of the classic SendDialog (nothing is opened when it cannot be:
+    // app.loadPage / app.stackPage tell the user)
     function openSendDialog() {
-        var component = _loadPage(Qt.resolvedUrl('SendPage.qml'))
-        var page = component ? app.stack.push(component, { flow: mainView }) : null
-        if (page && page.m3SendPage === true) {
-            _sendDialog = page
-        } else {
-            console.log('M3: SendPage unavailable, opening the classic SendDialog')
-            _sendDialog = qtSendDialog.createObject(mainView, {invoiceParser: invoiceParser, piResolver: piResolver})
-            _sendDialog.open()
-        }
+        var component = app.loadPage(Qt.resolvedUrl('SendPage.qml'))
+        if (!component)
+            return
+        app.stackPage(component, { flow: mainView }, null, function(page) {
+            if (page.m3SendPage === true)
+                _sendDialog = page
+        })
     }
 
     // M3: takes SendPage off the stack, only when it is on top (the page clears _sendDialog itself
     // when it leaves the stack otherwise, e.g. by the back button while a recipient is resolved)
     function closeSendDialog() {
         if (_sendDialog) {
-            if (_sendDialog.m3Page !== true)
-                _sendDialog.doClose()  // the classic SendDialog (fallback)
-            else if (app.stack.currentItem === _sendDialog)
+            if (app.stack.currentItem === _sendDialog)
                 app.stack.pop()
             else
                 console.log('M3: closeSendDialog: SendPage is not on top, left on the stack')
@@ -161,58 +146,34 @@ Item {
     // (InvoicePage.paymentUnderway()) it is not replaced, so that its "Payment sent." still comes: the new
     // page is pushed, and the old one is marked superseded (it shows nothing and leaves the stack when the
     // user comes back to it), so that it never offers the new invoice under the old input.
-    // Returns the new page, or null when it could not be loaded or the stack did not take it (the stack is
-    // then unchanged).
-    function _showPage(url, properties) {
-        var component = _loadPage(url)
+    // Returns the new page and calls `done(page)` when given; null when the page could not be opened (the user is told,
+    // app.loadPage / app.stackPage) or when the stack was busy: then the page is shown after the current event and
+    // only `done` gets it (app.stackPage).
+    function _showPage(url, properties, done) {
+        var component = app.loadPage(url)
         if (!component)
             return null
         var top = app.stack.currentItem
         var sameInvoice = top && top.m3InvoicePage === true && properties.invoice && top.invoice === properties.invoice
         var replace = top && (top === _sendDialog || (sameInvoice && !top.paymentUnderway()))
-        var page = replace
-            ? app.stack.replace(top, component, properties)
-            : app.stack.push(component, properties)
-        if (!page || page === top) {
-            console.log('M3: the stack did not take ' + url)
-            return null
-        }
-        if (top === _sendDialog)
-            _sendDialog = null
-        else if (sameInvoice && !replace)
-            top.superseded = true
-        return page
+        return app.stackPage(component, properties, replace ? top : null, function(page) {
+            if (top === _sendDialog)
+                _sendDialog = null
+            else if (sameInvoice && !replace)
+                top.superseded = true
+            if (done)
+                done(page)
+        })
     }
 
     // M3: opens the invoice screen for a validated invoice (onValidationSuccess)
+    // (when InvoicePage cannot be opened, SendPage stays with the input, and the user is told: _showPage)
     function _openParsedInvoice() {
-        if (useClassicInvoiceDialog) {
-            closeSendDialog()
-            var dialog = invoiceDialog.createObject(app, {
-                invoice: invoiceParser,
-                payImmediately: invoiceParser.isLnurlPay
-            })
-            dialog.open()
-            return
-        }
-        // the classic SendDialog (fallback when SendPage cannot be loaded) is a full screen popup: the page
-        // would open under it (WalletMainView.qml:373 @ 4f36c4489 closes it first as well)
-        if (_sendDialog && _sendDialog.m3Page !== true)
-            closeSendDialog()
-        var page = _showPage(Qt.resolvedUrl('InvoicePage.qml'), {
+        _showPage(Qt.resolvedUrl('InvoicePage.qml'), {
             flow: mainView,
             invoice: invoiceParser,
             payImmediately: invoiceParser.isLnurlPay
         })
-        if (!page || page.m3InvoicePage !== true) {
-            console.log('M3: InvoicePage unavailable, opening the classic InvoiceDialog')
-            closeSendDialog()
-            var classicdialog = invoiceDialog.createObject(app, {
-                invoice: invoiceParser,
-                payImmediately: invoiceParser.isLnurlPay
-            })
-            classicdialog.open()
-        }
     }
 
     // M3: repeats components/SendDialog.qml:76-85 (dispatch) with its handlers onTxFound (:40-43) and
@@ -220,7 +181,7 @@ Item {
     function dispatch(data) {
         data = data.trim()
         if (bitcoin.isRawTx(data)) {
-            _showPage(app.pageUrl(app.routes.txDetails), { rawtx: data })
+            _showPage(app.routes.txDetails, { rawtx: data })
         } else if (Daemon.currentWallet.isValidChannelBackup(data)) {
             if (!Daemon.currentWallet.isLightning) {
                 var errdialog = app.messageDialog.createObject(app, {
@@ -396,7 +357,7 @@ Item {
         onResolveError: (code, message) => {
             var dialog = app.messageDialog.createObject(app, {
                 title: qsTranslate('WalletMainView', 'Error'),
-                iconSource: Qt.resolvedUrl('../../icons/warning.png'),
+                iconSource: Qt.resolvedUrl('../../icons/m3/warning.png'),
                 text: message
             })
             dialog.closed.connect(function() {
@@ -418,16 +379,22 @@ Item {
         id: requestDetails
         wallet: Daemon.currentWallet
         onNeedsLNURLUserInput: {
-            closeSendDialog()
-            var dialog = lnurlWithdrawDialog.createObject(app, {
+            // M3: the dialog is loaded by URL and may be missing: SendPage is closed only once the dialog exists
+            var dialog = lnurlWithdrawDialog ? lnurlWithdrawDialog.createObject(app, {
                 requestDetails: requestDetails
-            })
+            }) : null
+            if (!dialog) {
+                console.log('M3: LnurlWithdrawDialog unavailable')
+                app.showScreenError()
+                return
+            }
+            closeSendDialog()
             dialog.open()
         }
         onLnurlError: (code, message) => {
             var dialog = app.messageDialog.createObject(app, {
                 title: qsTranslate('WalletMainView', 'Error'),
-                iconSource: Qt.resolvedUrl('../../icons/warning.png'),
+                iconSource: Qt.resolvedUrl('../../icons/m3/warning.png'),
                 text: message
             })
             dialog.open()
@@ -445,7 +412,7 @@ Item {
         onValidationError: (code, message) => {
             var dialog = app.messageDialog.createObject(app, {
                 title: qsTranslate('WalletMainView', 'Error'),
-                iconSource: Qt.resolvedUrl('../../icons/warning.png'),
+                iconSource: Qt.resolvedUrl('../../icons/m3/warning.png'),
                 text: message
             })
             dialog.closed.connect(function() {
@@ -467,7 +434,7 @@ Item {
             }
         }
         onValidationSuccess: {
-            // M3: InvoicePage, or the classic InvoiceDialog when useClassicInvoiceDialog
+            // M3: InvoicePage
             _openParsedInvoice()
         }
         onInvoiceCreateError: (code, message) => {
@@ -478,21 +445,27 @@ Item {
             dialog.open()
         }
         onLnurlRetrieved: {
-            closeSendDialog()
-            if (invoiceParser.invoiceType === Invoice.Type.LNURLPayRequest) {
-                var dialog = lnurlPayDialog.createObject(app, {
-                    invoiceParser: invoiceParser
-                })
-            } else {
+            if (invoiceParser.invoiceType !== Invoice.Type.LNURLPayRequest) {
+                closeSendDialog()
                 console.log("Unsupported LNURL type:", invoiceParser.invoiceType)
                 return
             }
+            // M3: the dialog is loaded by URL and may be missing: SendPage is closed only once the dialog exists
+            var dialog = lnurlPayDialog ? lnurlPayDialog.createObject(app, {
+                invoiceParser: invoiceParser
+            }) : null
+            if (!dialog) {
+                console.log('M3: LnurlPayDialog unavailable')
+                app.showScreenError()
+                return
+            }
+            closeSendDialog()
             dialog.open()
         }
         onLnurlError: (code, message) => {
             var dialog = app.messageDialog.createObject(app, {
                 title: qsTranslate('WalletMainView', 'Error'),
-                iconSource: Qt.resolvedUrl('../../icons/warning.png'),
+                iconSource: Qt.resolvedUrl('../../icons/m3/warning.png'),
                 text: message
             })
             dialog.open()
@@ -533,7 +506,7 @@ Item {
             console.log(error)
             var dialog = app.messageDialog.createObject(app, {
                 title: qsTranslate('WalletMainView', 'Error'),
-                iconSource: Qt.resolvedUrl('../../icons/warning.png'),
+                iconSource: Qt.resolvedUrl('../../icons/m3/warning.png'),
                 text: error
             })
             dialog.open()
@@ -546,7 +519,7 @@ Item {
         function onBroadcastFailed(txid, code, message) {
             var dialog = app.messageDialog.createObject(app, {
                 title: qsTranslate('WalletMainView', 'Error'),
-                iconSource: Qt.resolvedUrl('../../icons/warning.png'),
+                iconSource: Qt.resolvedUrl('../../icons/m3/warning.png'),
                 text: message
             })
             dialog.open()
@@ -554,7 +527,7 @@ Item {
         function onPaymentFailed(invoice_id, message) {
             var dialog = app.messageDialog.createObject(app, {
                 title: qsTranslate('WalletMainView', 'Error'),
-                iconSource: Qt.resolvedUrl('../../icons/warning.png'),
+                iconSource: Qt.resolvedUrl('../../icons/m3/warning.png'),
                 text: message ? message : qsTranslate('WalletMainView', 'Payment failed')
             })
             dialog.open()
@@ -562,7 +535,7 @@ Item {
         function onImportChannelBackupFailed(message) {
             var dialog = app.messageDialog.createObject(app, {
                 title: qsTranslate('WalletMainView', 'Error'),
-                iconSource: Qt.resolvedUrl('../../icons/warning.png'),
+                iconSource: Qt.resolvedUrl('../../icons/m3/warning.png'),
                 text: message
             })
             dialog.open()
@@ -588,34 +561,6 @@ Item {
                 infobanner.hide()
             }
         }
-    }
-
-    Component {
-        id: invoiceDialog
-        Classic.InvoiceDialog {
-            id: _invoiceDialog
-
-            width: parent.width
-            height: parent.height
-
-            // M3: one doPay() for both invoice screens
-            onDoPay: mainView.doPay(_invoiceDialog, _invoiceDialog.invoice)
-
-            onClosed: destroy()
-
-            Connections {
-                target: Daemon.currentWallet
-                function onSaveTxSuccess(txid) {
-                    _invoiceDialog.close()
-                }
-            }
-        }
-    }
-
-    // M3: the classic SendDialog, only as the fallback when SendPage cannot be loaded
-    Component {
-        id: qtSendDialog
-        Classic.SendDialog {}
     }
 
     // M3 (G2): the Material 3 dialogs of receiving, loaded by URL (null and the error in the log when a file
@@ -657,7 +602,7 @@ Item {
                     var dialog = app.messageDialog.createObject(mainView, {
                         title: qsTranslate('WalletMainView', 'Error'),
                         text: [qsTranslate('WalletMainView', 'Could not sign tx'), message].join('\n\n'),
-                        iconSource: Qt.resolvedUrl('../../icons/warning.png')  // M3: resolved here, not in the dialog
+                        iconSource: Qt.resolvedUrl('../../icons/m3/warning.png')  // M3: resolved here, not in the dialog
                     })
                     dialog.open()
                 }

@@ -9,7 +9,7 @@ import "controls"
 // Lightning channel details of the Material 3 GUI (route app.routes.channelDetails, opened from the channel list of
 // the Channels tab; replaces the classic ChannelDetails).
 // repeats: components/ChannelDetails.qml:10-482 @ e6df7e1c8: the page contract (the only property `channelid`, not
-// required: when this page cannot be loaded, app.loadPage opens the classic page with the same properties), the
+// required, as in the classic page), the
 // ChannelDetails object and its trampolineFrozenInGossipMode message; node name, state (highlighted when OPEN);
 // capacity and ratio: the capacity bar (not for redeemed / closed channels and backups), capacity, local balance,
 // can send and can receive (n/a while the channel is not open, n/a (frozen) while frozen) with Freeze / Unfreeze
