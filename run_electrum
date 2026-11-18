@@ -91,11 +91,6 @@ def check_imports():
 
 if not is_android:
     check_imports()
-else:
-    # hack to make pycryptodomex work on Android
-    # from https://github.com/kivy/python-for-android/issues/1866#issuecomment-927157780
-    import ctypes
-    ctypes.pythonapi = ctypes.PyDLL("libpython%d.%d.so" % sys.version_info[:2])  # replaces ctypes.PyDLL(None)
 
 
 # Set default application-wide file umask to more restrictive than typical.
