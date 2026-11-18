@@ -17,10 +17,14 @@ QtObject {
     // A manual choice is also written to the platform: on Android this switches the light/dark
     // status bar and navigation bar icons. In 'system' mode the override is cleared, so that
     // colorScheme follows the system again.
-    // Android without edge-to-edge (below Android 15): the system draws the bars itself, dark, not the
-    // page under them, so the light theme does not ask for dark icons (they would be dark on dark): it
-    // writes Dark, the icons stay light. `dark` is not affected: in 'light' mode it is false whatever
-    // colorScheme says.
+    // Android without edge-to-edge (below Android 15): the page is not drawn under the bars, the system
+    // draws them. With a light scheme the status bar stays black and its icons turn dark, so they vanish,
+    // while the navigation bar is light with dark buttons (seen in 'system' mode with a light system,
+    // emulator, Android 14). Only the manual Light choice is handled here: it writes Dark, for light status
+    // bar icons (expected: both bars then look as in the Dark theme, black with light icons; to be
+    // confirmed on the emulator). The 'system' mode with a light system keeps the dark icons on the black
+    // status bar: a separate item (in that mode `dark` reads colorScheme, so writing Dark would turn the
+    // whole theme dark). `dark` is not affected in 'light' mode: it is false whatever colorScheme says.
     function applyColorScheme() {
         if (mode === 'light' && _systemDrawsBars())
             Application.styleHints.colorScheme = Qt.ColorScheme.Dark

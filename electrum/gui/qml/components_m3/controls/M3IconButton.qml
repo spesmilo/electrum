@@ -6,10 +6,10 @@ import QtQuick.Controls.Material
 // Own background: the Material 3 state layer, a 40 dp circle in the color of the icon (hover, focus, pressed),
 // as M3Button. The Ripple of the Material ToolButton drew its hover circle in the corner of the window (0,0)
 // under the software renderer of Qt Quick, instead of around the button.
-// The tooltip is an own ToolTip of the button (Material 3 plain tooltip: inverseSurface, bodySmall), shown on
-// mouse hover only (touch does not hover, so on a phone it never appears). The attached ToolTip shared by the
-// window kept the text it was given when the hover began (a click within its delay, e.g. on the eye of
-// M3PasswordField, showed the old text afterwards) and was drawn with the dark window theme.
+// The tooltip is an own ToolTip of the button (Material 3 plain tooltip: inverseSurface, bodySmall), shown while
+// the button is hovered, the same condition as the attached ToolTip before (whether a long press on a phone
+// shows it is not checked yet). The attached ToolTip shared by the window was drawn with the dark window theme;
+// the own one binds root.tooltip directly, so a text changed by a click (the eye of M3PasswordField) shows at once.
 ToolButton {
     id: root
 
