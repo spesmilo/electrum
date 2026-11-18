@@ -1,4 +1,9 @@
+import importlib.util
+import io
+import sys
 import unittest
+import zipfile
+from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
@@ -17,6 +22,7 @@ from electrum.plugins.onekey.onekey import OneKeyKeyStore, OneKeyPlugin
 from electrum.plugins.onekey.transport import Transport, crc8, encode_frame
 from electrum.transaction import PartialTransaction, PartialTxInput, PartialTxOutput, Transaction, TxOutpoint, Sighash
 from electrum.util import UserCancelled, UserFacingException
+from electrum.zip_importer import MemoryZipImporter
 
 
 SUPPORTED_MESSAGES = [60200, 60600, 60602, 61200, 61202, 61203, 11, 29, 15]
@@ -114,6 +120,34 @@ class TestOneKeyTransport(unittest.TestCase):
         with self.assertRaisesRegex(UserFacingException, "Incomplete"):
             transport.write(15, b"sign")
         transport.handle.bulkWrite.assert_called_once()
+
+
+class TestOneKeyPackaging(unittest.TestCase):
+    def test_external_zip_loads_dependencies_on_first_import(self):
+        root_name = "onekey_zip_test.onekey"
+        source = Path(__file__).parent.parent / "electrum/plugins/onekey"
+        archive = io.BytesIO()
+        with zipfile.ZipFile(archive, "w") as zipped:
+            for name in ("__init__.py", "onekey.py", "client.py", "messages.py", "transport.py"):
+                zipped.writestr("onekey/" + name, (source / name).read_bytes())
+        importer = MemoryZipImporter(archive.getvalue(), root_name=root_name,
+                                     prefix="onekey", archive_path="onekey-test.zip").install()
+        try:
+            # Electrum loads ZIP packages without a real parent package on disk.
+            for module_name in (root_name, root_name + ".onekey"):
+                spec = importer.find_spec(module_name)
+                module = importlib.util.module_from_spec(spec)
+                sys.modules[module_name] = module
+                spec.loader.exec_module(module)
+            plugin = module.OneKeyPlugin.__new__(module.OneKeyPlugin)
+            self.assertEqual(OneKeyPlugin.__new__(OneKeyPlugin).get_library_version(),
+                             plugin.get_library_version())
+            self.assertIn(root_name + ".client", sys.modules)
+        finally:
+            sys.meta_path.remove(importer)
+            for name in list(sys.modules):
+                if name == root_name or name.startswith(root_name + "."):
+                    del sys.modules[name]
 
 
 class TestOneKeyClient(unittest.TestCase):
