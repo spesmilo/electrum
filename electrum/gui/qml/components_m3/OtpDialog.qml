@@ -18,7 +18,8 @@ import "controls"
 // Android back button does (doClose(), shown only when allowClose), disabled while the code is being submitted
 // (the transaction goes on regardless, so it cannot promise a cancel); the width is that of M3Dialog (the factory
 // no longer sets 2/3); the content scrolls when the keyboard leaves too little height (the height formula of
-// PasswordDialog.qml), and the code field with the focus is scrolled into view.
+// PasswordDialog.qml), and what matters is scrolled into view: the code field with the focus, or, while the code
+// is being submitted and after a refusal until a digit is typed again, the row of the busy indicator and the error.
 // Strings keep the translation context of the classic file (qsTranslate('OtpDialog', ...)).
 M3Dialog {
     id: dialog
@@ -50,8 +51,10 @@ M3Dialog {
         interactive: height < contentHeight
         boundsBehavior: Flickable.StopAtBounds
 
-        // the keyboard shrinks the dialog after the field got the focus: keep that field in view
-        onHeightChanged: dialog._showCodeField()
+        // the keyboard shrinks the dialog after the field got the focus, a long error grows the content (laid out
+        // after the error was set): keep in view what matters now
+        onHeightChanged: dialog._keepInView()
+        onContentHeightChanged: dialog._keepInView()
 
         ScrollIndicator.vertical: ScrollIndicator { }
 
@@ -95,6 +98,7 @@ M3Dialog {
             }
 
             Item {
+                id: feedback
                 Layout.fillWidth: true
                 implicitHeight: Math.max(errorText.implicitHeight, 40)
 
@@ -133,6 +137,23 @@ M3Dialog {
         }
     ]
 
+    // what a shrunk dialog shows: the row under the field (the busy indicator, the error) while the code is being
+    // submitted and after a refusal until a digit is typed again, otherwise the code field
+    readonly property bool _feedbackInView: _waiting || (_otpError !== '' && otpEdit.text === '')
+    on_FeedbackInViewChanged: _keepInView()
+
+    // the row whole, its bottom at the bottom of the content window (its top, if it is taller), else the field
+    function _keepInView() {
+        if (!_feedbackInView) {
+            _showCodeField()
+            return
+        }
+        if (flick.height <= 0)
+            return
+        flick.contentY = Math.max(0, Math.min(feedback.y, feedback.y + feedback.implicitHeight - flick.height,
+            flick.contentHeight - flick.height))
+    }
+
     // scroll the content so that the code field is seen whole while it has the focus (Flickable does not follow
     // the focus)
     function _showCodeField() {
@@ -148,7 +169,7 @@ M3Dialog {
 
     Connections {
         target: otpEdit
-        function onActiveFocusChanged() { dialog._showCodeField() }
+        function onActiveFocusChanged() { dialog._keepInView() }
     }
 
     Connections {
