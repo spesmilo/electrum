@@ -11,7 +11,8 @@ import QtQuick.Controls.Material
 // dialog first, Material 3 or classic.
 // Differences: the theme is set on the popup itself (a popup takes its style from the window, which stays dark
 // for the classic screens), the scrim is m3.scrimColor, and the default header is a Material 3 headline with
-// the optional icon (ElDialog.qml:78-122 draws the classic header with `constants`).
+// the optional icon (ElDialog.qml:78-122 draws the classic header with `constants`), and the tap on the
+// background takes the press for itself (see the TapHandler).
 Dialog {
     id: abstractdialog
 
@@ -68,7 +69,16 @@ Dialog {
 
     TapHandler {  // close keyboard when tapping on the empty background
         parent: abstractdialog.background
-        onTapped: {
+        // An exclusive grab on press: with the default policy (DragThreshold) the handler only grabs passively
+        // and leaves the press unaccepted, so a mouse click on the empty background went on to the pointer
+        // handlers of the page under the modal dialog (a clickable M3Card opened its page behind the dialog).
+        gesturePolicy: TapHandler.ReleaseWithinBounds
+        onTapped: (eventPoint, button) => {
+            // This policy keeps the point after it moved: a drag released on the background is not a tap, as
+            // with the default policy.
+            if (Math.abs(eventPoint.scenePosition.x - eventPoint.scenePressPosition.x) > Qt.styleHints.startDragDistance
+                    || Math.abs(eventPoint.scenePosition.y - eventPoint.scenePressPosition.y) > Qt.styleHints.startDragDistance)
+                return
             // Release input focus so tapping the same field opens the keyboard again.
             abstractdialog.contentItem.forceActiveFocus(Qt.MouseFocusReason)
             Qt.inputMethod.hide()
