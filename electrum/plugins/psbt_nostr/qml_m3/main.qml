@@ -14,8 +14,8 @@ import "../../../gui/qml/components_m3/controls"
 // export dialog (created by ExportTxDialog with { dialog }): shown when canSendPsbt(wallet, dialog.text), a tap
 // disables it and calls sendPsbt(wallet, dialog.text, dialog.tx_label); on sendPsbtSuccess the export dialog closes
 // and a message tells so, on sendPsbtFailed the button is enabled again and a warning shows the reason.
-// Differences: the details are the Material 3 TxDetailsPage, opened by its route (app.pushPage(app.routes.txDetails),
-// which falls back to the classic page); when no page could be opened the PSBT is accepted at once, as after
+// Differences: the details are the Material 3 TxDetailsPage, opened by its route (app.pushPage(app.routes.txDetails));
+// when no page is shown (the app tells the user when it could not be opened) the PSBT is accepted at once, as after
 // closing the page (it is never left pending); the button is an M3Button with the send glyph; the warning passes
 // the Material 3 glyph.
 // Strings keep the translation context of the classic file (qsTranslate('main', ...)).
@@ -40,13 +40,8 @@ Item {
                             target.acceptPsbt(Daemon.currentWallet, event)
                         })
                     } else {
-                        // M3: no page could be loaded: tell the user, then accept as when the page is closed
-                        console.log('psbt_nostr: cannot open the transaction details')
-                        var errdialog = app.messageDialog.createObject(app, {
-                            text: qsTr('Cannot open the transaction details.'),
-                            iconSource: Qt.resolvedUrl('../../../gui/icons/m3/warning.png')
-                        })
-                        errdialog.open()
+                        // M3: no page now (when it could not be opened, the app told the user): accept as on close
+                        console.log('psbt_nostr: the transaction details are not shown')
                         target.acceptPsbt(Daemon.currentWallet, event)
                     }
                 } else if (dialog.choice == PsbtReceiveDialog.Choice.Save) {

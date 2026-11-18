@@ -60,7 +60,8 @@ M3FullScreenDialog {
     bottomPadding: 0
 
     function doClose() {
-        if (pages.currentIndex == 0)
+        // M3: <= 0: also the empty wizard (its first page could not be opened: no page, index -1)
+        if (pages.currentIndex <= 0)
             reject()
         else
             pages.prev()
@@ -138,6 +139,10 @@ M3FullScreenDialog {
             if (newview.view) {
                 console.log('next view: ' + newview.view)
                 var newpage = _loadNextComponent(newview.view, newview.wizard_data)
+                // M3: the next page could not be opened: Python goes back to the step of this page (as the back
+                // button does), the wizard stays on it (pages.next() moves only onto a page that was added)
+                if (!newpage)
+                    wiz.prev()
             } else {
                 console.log('END')
             }
@@ -258,7 +263,9 @@ M3FullScreenDialog {
                 currentItem.accept()
                 _setWizardData(pages.contentChildren[currentIndex].wizard_data)
                 currentItem.next()
-                currentIndex = currentIndex + 1
+                // M3: only onto a page that was added (none when the next page could not be opened)
+                if (pages.contentChildren[currentIndex + 1])
+                    currentIndex = currentIndex + 1
             }
 
             function finish() {
@@ -308,7 +315,7 @@ M3FullScreenDialog {
             M3Button {
                 variant: 'text'
                 focusPolicy: Qt.NoFocus
-                visible: !wizard.topBarVisible && pages.currentIndex == 0
+                visible: !wizard.topBarVisible && pages.currentIndex <= 0  // M3: <= 0: also the empty wizard
                 text: qsTranslate('Wizard', 'Cancel')
                 onClicked: wizard.doReject()
             }

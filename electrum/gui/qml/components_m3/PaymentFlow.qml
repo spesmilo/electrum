@@ -146,9 +146,11 @@ Item {
     // (InvoicePage.paymentUnderway()) it is not replaced, so that its "Payment sent." still comes: the new
     // page is pushed, and the old one is marked superseded (it shows nothing and leaves the stack when the
     // user comes back to it), so that it never offers the new invoice under the old input.
+    // A page that takes the place of the page on top is made before the replacement (app.makePage): when it cannot be
+    // created, the page on top stays as it is (SendPage with the input).
     // Returns the new page and calls `done(page)` when given; null when the page could not be opened (the user is told,
-    // app.loadPage / app.stackPage) or when the stack was busy: then the page is shown after the current event and
-    // only `done` gets it (app.stackPage).
+    // app.loadPage / app.makePage / app.stackPage) or when the stack was busy: then the page is shown after the current
+    // event and only `done` gets it (app.stackPage).
     function _showPage(url, properties, done) {
         var component = app.loadPage(url)
         if (!component)
@@ -156,7 +158,10 @@ Item {
         var top = app.stack.currentItem
         var sameInvoice = top && top.m3InvoicePage === true && properties.invoice && top.invoice === properties.invoice
         var replace = top && (top === _sendDialog || (sameInvoice && !top.paymentUnderway()))
-        return app.stackPage(component, properties, replace ? top : null, function(page) {
+        var content = replace ? app.makePage(component, properties) : component
+        if (!content)
+            return null
+        return app.stackPage(content, properties, replace ? top : null, function(page) {
             if (top === _sendDialog)
                 _sendDialog = null
             else if (sameInvoice && !replace)
@@ -167,7 +172,7 @@ Item {
     }
 
     // M3: opens the invoice screen for a validated invoice (onValidationSuccess)
-    // (when InvoicePage cannot be opened, SendPage stays with the input, and the user is told: _showPage)
+    // (when InvoicePage cannot be loaded or created, SendPage stays with the input, and the user is told: _showPage)
     function _openParsedInvoice() {
         _showPage(Qt.resolvedUrl('InvoicePage.qml'), {
             flow: mainView,

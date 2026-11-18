@@ -1,9 +1,10 @@
 """The style switch of the QML GUI (Material 3 or classic) and the fallback when Material 3 fails to start.
 
-Covers QEConfig.uiStyle / QEConfig.m3Theme (read, write, change signal), the defaults of a new config
-(qml_ui_style, qml_m3_theme) and ElectrumGui._load_main_qml, called on a fake GUI object (no window, no
-QGuiApplication). The expected values are literals of the documented behaviour, never read back from the code
-under test.
+Covers QEConfig.uiStyle / QEConfig.m3Theme (read, write to memory and to disk, change signal), the defaults of a
+new config (qml_ui_style, qml_m3_theme), the paths of the two main.qml files and ElectrumGui._load_main_qml, called
+on a fake GUI object with the real paths of the class (no window, no QGuiApplication). "On disk" is what a new
+SimpleConfig over the same directory reads, as the next start of the app does. The expected values are literals of
+the documented behaviour, never read back from the code under test.
 """
 import os
 import shutil
@@ -70,6 +71,14 @@ class TestUiStyleConfig(QETestCase):
         self.assertEqual(len(receiver.receivedForSignal(self.q.uiStyleChanged)), 1)
 
     @qt_test
+    def test_ui_style_write_is_saved_to_disk(self):
+        self._make_q()
+        self.q.config.GUI_QML_UI_STYLE = 'material3'
+        self.q.uiStyle = 'classic'
+        again = SimpleConfig({'electrum_path': os.path.join(self._base, "electrum")})
+        self.assertEqual(again.get('qml_ui_style'), 'classic')
+
+    @qt_test
     def test_ui_style_same_value_does_not_signal(self):
         self._make_q()
         self.q.config.GUI_QML_UI_STYLE = 'classic'
@@ -94,6 +103,14 @@ class TestUiStyleConfig(QETestCase):
         self.q.m3Theme = 'dark'
         self.assertEqual(self.q.config.GUI_QML_M3_THEME, 'dark')
         self.assertEqual(len(receiver.receivedForSignal(self.q.m3ThemeChanged)), 1)
+
+    @qt_test
+    def test_m3_theme_write_is_saved_to_disk(self):
+        self._make_q()
+        self.q.config.GUI_QML_M3_THEME = 'system'
+        self.q.m3Theme = 'dark'
+        again = SimpleConfig({'electrum_path': os.path.join(self._base, "electrum")})
+        self.assertEqual(again.get('qml_m3_theme'), 'dark')
 
     @qt_test
     def test_m3_theme_same_value_does_not_signal(self):
@@ -176,7 +193,9 @@ class _FakeApp:
 
 
 class TestLoadMainQml(unittest.TestCase):
-    """ElectrumGui._load_main_qml on a fake GUI object: which main.qml is loaded, and the fallback."""
+    """ElectrumGui._load_main_qml on a fake GUI object: which main.qml is loaded, and the fallback. The fake object
+    carries the paths of the class (ElectrumGui.CLASSIC_MAIN_QML / M3_MAIN_QML); the cells compare the loads with the
+    literals CLASSIC / MATERIAL3."""
 
     def setUp(self):
         super().setUp()
@@ -192,10 +211,15 @@ class TestLoadMainQml(unittest.TestCase):
             config=self.config,
             logger=get_logger('test_qml_uistyle'),
             app=app,
-            CLASSIC_MAIN_QML=CLASSIC,
-            M3_MAIN_QML=MATERIAL3,
+            CLASSIC_MAIN_QML=ElectrumGui.CLASSIC_MAIN_QML,
+            M3_MAIN_QML=ElectrumGui.M3_MAIN_QML,
         )
         return gui, app
+
+    def test_main_qml_paths(self):
+        # which file is which set: components/ is the classic GUI, components_m3/ is Material 3
+        self.assertEqual(ElectrumGui.CLASSIC_MAIN_QML, CLASSIC)
+        self.assertEqual(ElectrumGui.M3_MAIN_QML, MATERIAL3)
 
     def test_classic_loads_only_classic(self):
         gui, app = self._gui('classic')
@@ -240,6 +264,12 @@ class TestLoadMainQml(unittest.TestCase):
         self.assertTrue(loads[1]['valid'])
         self.assertEqual(loads[1]['slots'], [app.objectCreated])
         self.assertEqual(app.engine.objectCreated.disconnects, 1)
+
+    def test_material3_failure_is_saved_to_disk(self):
+        gui, app = self._gui('material3', fail=(MATERIAL3,))
+        ElectrumGui._load_main_qml(gui)
+        again = SimpleConfig({'electrum_path': os.path.join(self._base, "electrum")})
+        self.assertEqual(again.get('qml_ui_style'), 'material3-failed')
 
     def test_material3_failure_with_the_handler_already_disconnected(self):
         # ElectrumQmlApplication.objectCreated disconnects itself after its first call: the TypeError of the

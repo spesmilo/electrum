@@ -16,8 +16,8 @@ import "controls"
 // contract the classic screens rely on (stack, keyboardFreeZone, infobanner, dialog factories,
 // activeDialogs, ...), the handlers of Daemon / Biometrics / AppController / Config, authentication,
 // startup and onClosing. Differences from the original are marked with `// M3:`.
-// The window keeps the classic dark theme, so every classic page, dialog and menu looks as today;
-// Material 3 pages and popups set their own (light or dark) theme from `m3` (M3Theme.qml).
+// The window keeps the classic dark theme (as components/main.qml); Material 3 pages and popups set their
+// own (light or dark) theme from `m3` (M3Theme.qml).
 ApplicationWindow
 {
     id: app
@@ -80,7 +80,8 @@ ApplicationWindow
     }
 
     // M3: puts the page of the ready `component` with `properties` on the stack: pushed, or in place of `target`
-    // (StackView.replace: `target` and the pages above it). Returns the page, and calls `done(page)` when given;
+    // (StackView.replace: `target` and the pages above it); `component` may also be a page made by makePage (its
+    // properties are set already). Returns the page, and calls `done(page)` when given;
     // returns null when there is no page yet (`failed()` is called when given, if the page could not be created):
     // - the page could not be created: StackView then leaves an empty element on top and keeps drawing the
     //   half-made page and a replaced one (measured on Qt 6.10): the empty elements are taken off, those leftovers
@@ -90,12 +91,15 @@ ApplicationWindow
     //   screen: no message; the operation is asked once more after the current event (Qt.callLater), and `done`
     //   gets the page then.
     function stackPage(component, properties, target, done, failed, _retry) {
-        var props = properties ? properties : {}
+        var made = _madeEntry(component)
+        var name = made ? String(component) : component.url
+        var props = made ? {} : (properties ? properties : {})
         var before = []
         for (var i = 0; i < mainStackView.depth; i++)
             before.push(mainStackView.get(i))
         if (target && before.indexOf(target) < 0) {
-            console.log('M3: ' + component.url + ' not shown: the page it was to replace is gone')
+            console.log('M3: ' + name + ' not shown: the page it was to replace is gone')
+            _dropMadePage(component)
             return null
         }
         var children = []
@@ -107,16 +111,19 @@ ApplicationWindow
             : mainStackView.push(component, props)
 
         var depth = mainStackView.depth
-        if (depth > 0 && mainStackView.get(depth - 1) !== null) {
+        if (made || (depth > 0 && mainStackView.get(depth - 1) !== null)) {
             if (page) {
+                if (made)
+                    made.placed = true
                 if (done)
                     done(page)
                 return page
             }
             if (_retry) {
-                console.log('M3: the stack refused ' + component.url + ' again, not shown')
+                console.log('M3: the stack refused ' + name + ' again, not shown')
+                _dropMadePage(component)
             } else {
-                console.log('M3: the stack is busy, ' + component.url + ' is asked again after this event')
+                console.log('M3: the stack is busy, ' + name + ' is asked again after this event')
                 Qt.callLater(function() {
                     app.stackPage(component, properties, target, done, failed, true)
                 })
@@ -141,6 +148,53 @@ ApplicationWindow
         if (failed)
             failed()
         return null
+    }
+
+    // M3: the page of the ready `component` made with `properties` before it goes on the stack, for a page that
+    // takes the place of another one (stackPage with `target`): StackView.replace takes the target off the stack
+    // before it creates the new page, so a page that cannot be created would take the page on top with it (e.g.
+    // SendPage with the input). Returns the page (hidden until stackPage shows it), or null when it cannot be created
+    // (the error in the log, showScreenError; nothing on the stack changed).
+    // StackView destroys only the pages it made itself: a made page is destroyed here when it has been on the stack
+    // and has left it (after the transition), or when stackPage does not show it.
+    property var _madePages: []
+    function makePage(component, properties) {
+        var page = component.createObject(mainStackView, Object.assign({}, properties ? properties : {}, { visible: false }))
+        if (!page) {
+            console.log('M3: cannot create the page of ' + component.url + ' (see the error above)')
+            showScreenError()
+            return null
+        }
+        _madePages.push({ page: page, placed: false })
+        return page
+    }
+    function _madeEntry(item) {
+        for (var i = 0; i < _madePages.length; i++)
+            if (_madePages[i].page === item)
+                return _madePages[i]
+        return null
+    }
+    function _dropMadePage(item) {
+        var entry = _madeEntry(item)
+        if (!entry)
+            return
+        _madePages.splice(_madePages.indexOf(entry), 1)
+        item.destroy()
+    }
+    function _dropMadePages() {
+        if (mainStackView.busy)
+            return
+        var onStack = []
+        for (var i = 0; i < mainStackView.depth; i++)
+            onStack.push(mainStackView.get(i))
+        _madePages = _madePages.filter(function(entry) {
+            if (!entry.page)
+                return false  // destroyed already (with the window)
+            if (!entry.placed || onStack.indexOf(entry.page) >= 0)
+                return true
+            entry.page.destroy()
+            return false
+        })
     }
 
     // M3: pushes the page at `url` (a route) with `properties`; returns the page, or null when no page
@@ -316,7 +370,7 @@ ApplicationWindow
         }
     }
 
-    // M3: Material 3 top app bar for every page (Material 3 or classic): back arrow on pushed
+    // M3: Material 3 top app bar for every page: back arrow on pushed
     // pages, title of the current page (or the wallet name, as the classic header), overflow menu
     // on the root of the stack.
     header: M3TopAppBar {
@@ -371,11 +425,22 @@ ApplicationWindow
             // a wallet was deleted: 'Wallets.qml'); they resolve relative to components_m3/. A root that cannot be
             // loaded leaves the stack as it is (app.loadPage shows the message); a root whose page cannot be created
             // leaves the Wallets page as the root (app.stackPage shows the message).
-            function replaceRoot(item_url) {
+            function replaceRoot(item_url, _retry) {
                 var component = app.loadPage(Qt.resolvedUrl(item_url))
                 if (!component)
                     return
                 mainStackView.clear()
+                if (mainStackView.depth > 0) {
+                    // the stack refused the clear (as in stackPage: asked while it completes a push): the whole
+                    // replacement once more after this event (a repeat of the push alone would pile the root up)
+                    if (_retry) {
+                        console.log('M3: the stack refused ' + item_url + ' again, not shown')
+                    } else {
+                        console.log('M3: the stack is busy, ' + item_url + ' is asked again after this event')
+                        Qt.callLater(function() { mainStackView.replaceRoot(item_url, true) })
+                    }
+                    return
+                }
                 app.stackPage(component, {}, null, null, function() {
                     if (item_url !== 'Wallets.qml' && mainStackView.depth === 0)
                         replaceRoot('Wallets.qml')
@@ -397,7 +462,15 @@ ApplicationWindow
                         : 'transparent'
                 })
             }
-            onCurrentItemChanged: updateStylingFromItem(currentItem)
+            onCurrentItemChanged: {
+                updateStylingFromItem(currentItem)
+                Qt.callLater(app._dropMadePages)
+            }
+            // M3: the pages made by app.makePage that left the stack are destroyed when the transition is over
+            onBusyChanged: {
+                if (!busy)
+                    app._dropMadePages()
+            }
         }
 
         // Add bottom padding for navigation bar on Android when UI is edge-to-edge

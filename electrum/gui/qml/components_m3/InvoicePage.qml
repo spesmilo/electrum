@@ -528,10 +528,12 @@ M3Page {
                     onClicked: {
                         root._takeEnteredAmount()
                         if (invoice.saveInvoice()) {
-                            // finding 2: the invoice list takes the place of this page
+                            // finding 2: the invoice list takes the place of this page (made first: when it cannot be
+                            // opened, this page stays and the user is told, app.loadPage / app.makePage)
                             var invoicesPage = app.loadPage(app.routes.invoices)
-                            if (invoicesPage)
-                                app.stack.replace(root, invoicesPage)
+                            var listPage = invoicesPage ? app.makePage(invoicesPage) : null
+                            if (listPage)
+                                app.stackPage(listPage, {}, root)
                         }
                     }
                 }
