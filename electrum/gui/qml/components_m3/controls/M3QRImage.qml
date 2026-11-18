@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 
 // QR code of the Material 3 GUI.
-// repeats: components/controls/QRImage.qml:1-92 @ e6df7e1c8 (qrdata, render, enableToggleText, isTextState,
+// repeats: components/controls/QRImage.qml:1-92 (qrdata, render, enableToggleText, isTextState,
 // clicked(), QRIP dimensions, the logo in the middle, the encoded text on tap, max screen brightness while
 // visible). The QR stays black on white in both themes (scanners need it); Material 3 adds only a white
 // rounded frame (radius M, quiet zone of m3.space8 around the code), so on a dark surface the code keeps its

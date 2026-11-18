@@ -397,7 +397,7 @@ ApplicationWindow
             ? page.title
             : Daemon.currentWallet ? Daemon.currentWallet.name : ''
         subtitle: page && 'subtitle' in page && page.subtitle ? page.subtitle : ''
-        // M3: actions of the current page (M2-MAP F-3): icon buttons the page lists in its `m3Actions`
+        // M3: actions of the current page: icon buttons the page lists in its `m3Actions`
         actions: page && page.m3Actions ? page.m3Actions : []
         showOverflow: mainStackView.depth <= 1 && !(page && page.hideOverflow === true)
 
@@ -663,7 +663,7 @@ ApplicationWindow
         id: _channelOpenProgressDialog
     }
 
-    // M3: one factory for "Open channel" (the Channels tab and BalanceDetails, M2-MAP F-12), the Material 3 dialog
+    // M3: one factory for "Open channel" (the Channels tab and BalanceDetails), the Material 3 dialog
     property alias openChannelDialog: _openChannelDialog
     Component {
         id: _openChannelDialog
@@ -988,7 +988,7 @@ ApplicationWindow
             var loader = plugin.loader
             if (loader == undefined)
                 return
-            // M3: the Material 3 QML of the plugin (plugins/<name>/qml_m3/, M2-MAP F-11); a plugin without it has no
+            // M3: the Material 3 QML of the plugin (plugins/<name>/qml_m3/); a plugin without it has no
             // QML in Material 3 (its classic QML is not loaded)
             var base = '../../../plugins/' + name
             var comp = Qt.createComponent(Qt.resolvedUrl(base + '/qml_m3/' + loader))

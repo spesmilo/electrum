@@ -7,11 +7,11 @@ import org.electrum 1.0
 // Capacity bar of a Lightning channel in the Material 3 GUI (the channel list of the Channels tab and the
 // channel details page): the left half is our side, the right half the remote side, each split into what can
 // be used now (can send / can receive), the reserve, and the unused part of the capacity.
-// repeats: components/controls/ChannelBar.qml:8-111 @ e6df7e1c8 (the API: capacity, localCapacity, remoteCapacity,
+// repeats: components/controls/ChannelBar.qml:8-111 (the API: capacity, localCapacity, remoteCapacity,
 // canSend, canReceive (Amount), frozenForSending, frozenForReceiving; the six segments and their widths in
 // do_update(), frozen sending / receiving shows the whole side as reserve; the updates on a width change, on new
 // amounts and on in-place amount changes).
-// Colors (zone probe R-2: existing Material 3 roles, M3Theme unchanged): can send m3.primary, local reserve
+// Colors (existing Material 3 roles, M3Theme unchanged): can send m3.primary, local reserve
 // m3.primaryContainerOn (the classic darker blue), can receive m3.tertiary (amber, the "Lightning" role of the
 // theme, the classic yellow), remote reserve m3.tertiaryContainerOn (the classic darker yellow), the unused part
 // m3.outlineVariant (the classic gray). All but the unused part differ from each other and from the group

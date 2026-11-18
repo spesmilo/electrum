@@ -6,7 +6,7 @@ import QtQml
 import org.electrum 1.0
 
 // QR code scanner (camera viewfinder) of the Material 3 GUI, used by the Material 3 ScanDialog.
-// repeats: components/controls/QRScan.qml:8-171 @ e6df7e1c8 (the API: active, url, hint, foundText(data),
+// repeats: components/controls/QRScan.qml:8-171 (the API: active, url, hint, foundText(data),
 // restart(), start(), stop(); start() asks for the camera permission (AppController.requestPermission) and
 // activates; the camera is loaded by a Loader and started once loaded; the back camera is preferred (the Android
 // FFmpeg backend marks no default); the camera is active only while `active`, the application is active and the

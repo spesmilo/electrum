@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
 
-// Notice block of the Material 3 GUI (the "M3Notice" of the onboarding design, DESIGN-M2-onboarding.md 7.4):
+// Notice block of the Material 3 GUI:
 // a tonal container (radius 12, padding 16, compact 12) with a 20 dp icon and bodyMedium text.
 // API: `text`, `tone` ('info' | 'warn' | 'error' | 'success' | 'progress'), `textFormat` (AutoText by default,
 // as the Label of the classic InfoTextArea: markup in the text is rendered), `compact`; plus the properties of
@@ -13,7 +13,7 @@ import QtQuick.Controls
 // The icon follows the classic one: only Spinner spins; Progress (classic unconfirmed.png) is the static `sync`
 // glyph, as unconfirmed transactions in M3HistoryDelegate, and Pending (classic unpaid.png) the static `schedule`;
 // otherwise the glyph of the tone (a `tone: 'progress'` set without a progress style spins, as the M3Notice).
-// repeats: components/controls/InfoTextArea.qml:6-79 @ e6df7e1c8 (the IconStyle enum, the properties, which
+// repeats: components/controls/InfoTextArea.qml:6-79 (the IconStyle enum, the properties, which
 // styles spin); the look is Material 3 (no colored classic icons, no border by default).
 Pane {
     id: root

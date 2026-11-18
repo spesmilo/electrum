@@ -5,7 +5,7 @@ import QtQuick.Controls
 import "../controls"
 
 // Material 3 page: first page of the network wizard (proxy and server: use the defaults or configure).
-// repeats: components/wizard/WCWelcome.qml:7-55 @ e6df7e1c8 (valid, wizard_title, apply(), checkIsLast() on every
+// repeats: components/wizard/WCWelcome.qml:7-55 (valid, wizard_title, apply(), checkIsLast() on every
 // change of the two options, the strings). The checkboxes config_proxy / config_server are switch rows; their
 // state is kept in configProxy / configServer, read by the same apply().
 WizardComponent {

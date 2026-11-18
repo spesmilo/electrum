@@ -5,7 +5,7 @@ import QtQuick.Controls
 import "../controls"
 
 // Material 3 page: terms of use.
-// repeats: components/wizard/WCTermsOfUseRequest.qml:7-47 @ e6df7e1c8 (valid, last, the logo, the heading and
+// repeats: components/wizard/WCTermsOfUseRequest.qml:7-47 (valid, last, the logo, the heading and
 // wiz.termsOfUseText in a Flickable). Differences: the logo is cut to the word mark and the atom (the classic
 // hides the empty margins of the image by negative layout margins), the text sits in a card.
 WizardComponent {

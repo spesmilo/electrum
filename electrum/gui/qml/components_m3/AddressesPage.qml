@@ -8,7 +8,7 @@ import org.electrum 1.0
 import "controls"
 
 // Addresses and coins of the Material 3 GUI (route app.routes.addresses, replaces the classic Addresses page).
-// repeats: components/Addresses.qml:11-319 @ e6df7e1c8: the filters (show used, written to
+// repeats: components/Addresses.qml:11-319: the filters (show used, written to
 // Config.addresslistShowUsed only on user action and disabled while only coins are shown; show addresses / coins /
 // both, Config.addresslistShowType; the search text of the filter model), the list of
 // Daemon.currentWallet.addressCoinModel.filterModel with sections by address type, address rows and coin rows
@@ -18,7 +18,7 @@ import "controls"
 // selected row decides which), the model refresh when the page is created and shown again.
 // The look is Material 3: the type filter is a segmented button, "Show Used" a filter chip, the search an outlined
 // field with the search glyph; rows are M3AddressDelegate / M3CoinDelegate; Freeze / Unfreeze is a button below
-// the list while rows are selected (M2-MAP F-3).
+// the list while rows are selected.
 // Strings carried over from Addresses.qml keep its translation context.
 M3Page {
     id: rootItem

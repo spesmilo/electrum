@@ -6,9 +6,9 @@ import org.electrum
 
 import "controls"
 
-// "Sweep private keys" of the Material 3 GUI (PaymentFlow.startSweep, wallet menu "Sweep key(s)"; M2-MAP F-1:
+// "Sweep private keys" of the Material 3 GUI (PaymentFlow.startSweep, wallet menu "Sweep key(s)";
 // a full-screen dialog that returns its result by `accepted`).
-// repeats: components/SweepDialog.qml:9-172 @ e6df7e1c8 (the API: valid, privateKeys, accepted; verifyPrivateKey:
+// repeats: components/SweepDialog.qml:9-172 (the API: valid, privateKeys, accepted; verifyPrivateKey:
 // the trimmed text is checked by Bitcoin.isPrivateKeyList, an invalid list shows "Error: invalid private key(s)";
 // addPrivateKey appends a key on its own line unless it is already there; the text is verified on each change
 // while the field has the focus; Paste verifies the clipboard and adds it; the scan button opens app.scanDialog

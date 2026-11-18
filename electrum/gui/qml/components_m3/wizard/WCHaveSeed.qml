@@ -9,17 +9,17 @@ import "../controls"
 
 // Material 3 page: restore from an existing seed (also the seed of a multisig cosigner and of a 2FA wallet), with
 // the seed keyboard pinned to the bottom.
-// repeats: components/wizard/WCHaveSeed.qml:10-248 @ e6df7e1c8 (securePage, valid, is2fa, cosigner, participants,
+// repeats: components/wizard/WCHaveSeed.qml:10-248 (securePage, valid, is2fa, cosigner, participants,
 // multisigMasterPubkey, apply(), setSeedTypeHelpText(), checkValid() with wiz.verifySeed and the multisig checks,
 // the indicator text and validity, startValidationTimer() and the 500 ms timer with checkValid() + checkIsLast(),
 // the seed type choice and the order of its handler (help text, checkIsLast, checkValid), Component.onCompleted).
 // The combo box seed_variant_cb is a segmented button; its value is kept in seedVariant. The help text of the
 // seed type keeps the classic `infotext` (text, visible) set by setSeedTypeHelpText(); on a low page it is one
-// line that opens on a tap (DESIGN-M2.md finding 7).
+// line that opens on a tap.
 // Added (view only, `valid` and the check do not change): with the Electrum type chosen and 12 or more words that
-// Electrum does not recognize but that are a BIP39 seed, a line below the field suggests BIP39 (DESIGN-M2.md
-// finding 4, see _updateSuggestBip39); the field with its indicator and that line is scrolled into view on every
-// change of the text and again once the indicator or the line shows up (finding 7).
+// Electrum does not recognize but that are a BIP39 seed, a line below the field suggests BIP39
+// (_updateSuggestBip39); the field with its indicator and that line is scrolled into view on every
+// change of the text and again once the indicator or the line shows up.
 WizardComponent {
     id: root
     securePage: true

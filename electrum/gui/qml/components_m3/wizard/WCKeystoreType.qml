@@ -5,7 +5,7 @@ import QtQuick.Controls
 import "../controls"
 
 // Material 3 page: create a seed, restore from a seed or from a master key.
-// repeats: components/wizard/WCKeystoreType.qml:7-53 @ e6df7e1c8 (valid, apply(), the ButtonGroup and the
+// repeats: components/wizard/WCKeystoreType.qml:7-53 (valid, apply(), the ButtonGroup and the
 // `keystoretype` of every option, the first option checked, the hidden disabled "hardware" option, the strings).
 WizardComponent {
     valid: keystoregroup.checkedButton !== null

@@ -8,7 +8,7 @@ import org.electrum 1.0
 import "../controls"
 
 // Material 3 page: the seed extension entered a second time.
-// repeats: components/wizard/WCConfirmExt.qml:10-71 @ e6df7e1c8 (securePage, valid, cosigner, checkValid(), the
+// repeats: components/wizard/WCConfirmExt.qml:10-71 (securePage, valid, cosigner, checkValid(), the
 // input method hints, Component.onCompleted).
 WizardComponent {
     id: root

@@ -7,7 +7,7 @@ import "controls"
 // Detail row with an amount, for the transaction screens of the Material 3 GUI: the label (bodySmall) above
 // the amount in the base unit and its fiat value beside it (M3Amount). The Material 3 form of the classic
 // Label + FormattedAmount pairs (components/TxDetails.qml:108-159, RbfBumpFeeDialog.qml:77-84,
-// RbfCancelDialog.qml:49-56, CpfpBumpFeeDialog.qml:108-120, LightningPaymentDetails.qml:51-73 @ e6df7e1c8);
+// RbfCancelDialog.qml:49-56, CpfpBumpFeeDialog.qml:108-120, LightningPaymentDetails.qml:51-73);
 // a row of M3ListGroup like M3DetailRow. `valid` false shows no amount, as FormattedAmount.valid.
 Item {
     id: root

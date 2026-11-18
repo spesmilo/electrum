@@ -9,12 +9,12 @@ import org.electrum 1.0
 import "controls"
 
 // "Saved Invoices" of the Material 3 GUI (route app.routes.invoices; replaces the classic Invoices page).
-// repeats: components/Invoices.qml:12-119 @ e6df7e1c8 (the press-and-hold hint, the list of
+// repeats: components/Invoices.qml:12-119 (the press-and-hold hint, the list of
 // Daemon.currentWallet.invoiceModel: a tap opens the invoice through the root (openInvoice, then
 // invoiceAmountChanged of the opened page re-reads the model) and clears the current item, press and hold makes
 // the row current; Delete and View for the current row; the list transitions). The heading of the classic page
-// is the title of this page; Delete and View are the actions of the top app bar while a row is current
-// (M2-MAP F-3), not a row of buttons below the list. M3: no current row after Delete.
+// is the title of this page; Delete and View are the actions of the top app bar while a row is current,
+// not a row of buttons below the list. M3: no current row after Delete.
 // Strings carried over from Invoices.qml keep its translation context.
 M3Page {
     id: root
@@ -42,7 +42,7 @@ M3Page {
             tooltip: qsTranslate('Invoices', 'Delete')
             onClicked: {
                 Daemon.currentWallet.deleteInvoice(listview.currentItem.getKey())
-                // M3 (review A-2, B-N2): no current row after a delete; the ListView would make the next row
+                // M3: no current row after a delete; the ListView would make the next row
                 // current and a second tap on Delete would delete it (the classic page does)
                 listview.currentIndex = -1
             }

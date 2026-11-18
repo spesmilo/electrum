@@ -7,9 +7,9 @@ import org.electrum 1.0
 import "../controls"
 
 // Material 3 page: the new seed, to be written down.
-// repeats: components/wizard/WCCreateSeed.qml:9-90 @ e6df7e1c8 (securePage, valid, apply(), setWarningText(),
+// repeats: components/wizard/WCCreateSeed.qml:9-90 (securePage, valid, apply(), setWarningText(),
 // Bitcoin.generateSeed(wizard_data['seed_type']) and onGeneratedSeedChanged, the busy indicator while there is no
-// seed, no copy action). The seed is a numbered grid of words (M3SeedWords, owner fork R-O4 a).
+// seed, no copy action). The seed is a numbered grid of words (M3SeedWords).
 WizardComponent {
     securePage: true
 

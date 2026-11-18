@@ -3,16 +3,16 @@ import QtQuick.Layouts
 import QtQuick.Controls
 import QtQuick.Controls.Material
 
-// On-screen keyboard for seed words (DESIGN-M2-onboarding.md 3.3, R-O5 a): a panel (surfaceContainer) meant to be
+// On-screen keyboard for seed words: a panel (surfaceContainer) meant to be
 // pinned to the bottom of a page, the full width of the screen, the keys in a column of at most
 // m3.maxContentWidth. On top, the strip of suggestions of `target` (an M3SeedField): a tap replaces the last word.
 // The keys write `target.text` themselves.
 // repeats: classic controls/SeedKeyboard.qml:9-91, SeedKeyboardKey.qml:9-42 and SeedTextArea.qml:101-142
-// @ e6df7e1c8 (the rows qwertyuiop / asdfghjkl / zxcvbnm / space and backspace, the half-key offsets, the signal
+// (the rows qwertyuiop / asdfghjkl / zxcvbnm / space and backspace, the half-key offsets, the signal
 // keyEvent(keycode, text), the key code of a letter, autoRepeat with a delay of 750 ms and the repeat on a double
 // click, keys without focus (a physical keyboard keeps typing into the field), the suggestion tap that replaces
 // the last word and adds a space, backspace that drops the last character and the other keys that append).
-// Added: the "delete word" key (DESIGN-M2.md finding 5: fixing a word in the middle needs every later word
+// Added: the "delete word" key (fixing a word in the middle needs every later word
 // deleted, as the field keeps the cursor at the end); the suggestions keep their height while empty, so the keys
 // do not jump; key height `keyHeight` (48, the page sets 40 on a low screen).
 Rectangle {

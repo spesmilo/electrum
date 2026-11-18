@@ -30,7 +30,7 @@ Item {
     property alias requestDetails: requestDetails
 
     // M3: the Receive button of the classic WalletMainView (line 265-268) as a function
-    // M3 (G2): the Material 3 ReceiveRequestDialog (component receiveDetailsDialog below, loaded by URL); the
+    // M3: the Material 3 ReceiveRequestDialog (component receiveDetailsDialog below, loaded by URL); the
     // handlers of the classic factory (onAccepted: the request parameters, then createRequest) are connected here
     function openReceiveDetailsDialog() {
         var dialog = receiveDetailsDialog ? receiveDetailsDialog.createObject(mainView) : null
@@ -66,7 +66,7 @@ Item {
         return page && page.m3InvoicePage === true ? page : null
     }
 
-    // M3 (G2): the Material 3 ReceivePage on the stack instead of the classic ReceiveDialog (M2-MAP F-1); the
+    // M3: the Material 3 ReceivePage on the stack instead of the classic ReceiveDialog; the
     // handler of the classic factory (onRequestPaid: close, then the details of the payment) is connected here:
     // the details take the place of the page when it is on top, else they are pushed (the classic pushes them
     // after closing its dialog). The page signals requestPaid only for a payment made while it is open, not for a
@@ -568,7 +568,7 @@ Item {
         }
     }
 
-    // M3 (G2): the Material 3 dialogs of receiving, loaded by URL (null and the error in the log when a file
+    // M3: the Material 3 dialogs of receiving, loaded by URL (null and the error in the log when a file
     // cannot be loaded: a defect in one of them must not break this file); each dialog sizes itself and
     // destroys itself on close. The receive page is ReceivePage.qml, loaded by openRequest().
     readonly property Component receiveDetailsDialog: _loadPage(Qt.resolvedUrl('ReceiveRequestDialog.qml'))

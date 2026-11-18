@@ -7,11 +7,11 @@ import org.electrum 1.0
 import "../controls"
 
 // Material 3 page: the number of cosigners and of signatures of a multisig wallet.
-// repeats: components/wizard/WCMultisig.qml:9-108 @ e6df7e1c8 (valid, participants 2 and signatures 2 at start; a
+// repeats: components/wizard/WCMultisig.qml:9-108 (valid, participants 2 and signatures 2 at start; a
 // lower number of participants cuts the signatures; apply(); the explanation; "Number of cosigners: %1" 2...15 and
 // "Number of signatures: %1" 1...participants, both changed by the user only (classic: `if (activeFocus)`, here
 // M3SliderRow.moved, emitted on user action only)).
-// Look (DESIGN-M2-onboarding.md 3.1, R-O13): the explanation as M3InfoText; instead of the classic Canvas pie in the
+// Look: the explanation as M3InfoText; instead of the classic Canvas pie in the
 // colors of `constants`, a row of 16 dp circles "N of M": one per cosigner, the signatures filled in m3.primary, the
 // others outlined in m3.outline; the two numbers as M3SliderRow. The circles are bindings of participants and
 // signatures (the classic piechart.updateSlices() on every change is not needed).

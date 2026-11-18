@@ -6,10 +6,10 @@ import "controls"
 
 // "About Electrum" of the Material 3 GUI (route app.routes.about, from the overflow menu and the Settings tab;
 // replaces the classic About).
-// repeats: components/About.qml:6-97 @ e6df7e1c8: the title, the logo, the versions BUILD.electrum_version,
+// repeats: components/About.qml:6-97: the title, the logo, the versions BUILD.electrum_version,
 // protocol_version, qt_version, pyqt_version, the license, the homepage https://electrum.org opened by
 // Qt.openUrlExternally, the developers and the distributor. Only the look differs.
-// Layout (zone probe wave 3 R-14): the logo is the word mark and atom of the same image as the Terms of Use
+// Layout: the logo is the word mark and atom of the same image as the Terms of Use
 // (wizard/WCTermsOfUseRequest.qml); the details are M3DetailRow rows; the homepage is a list row with the
 // open_in_new glyph (Material 3 labels are plain text, no links).
 // Strings keep the translation context of the classic file (qsTranslate('About', ...)).

@@ -7,8 +7,8 @@ import org.electrum 1.0
 import "controls"
 
 // Sign/Verify Message of the Material 3 GUI (factory app.signVerifyMessageDialog in main.qml: from the overflow menu
-// of the wallet and from the address details, with `address`). A full-screen dialog (M2-MAP F-1).
-// repeats: components/SignVerifyMessageDialog.qml:10-253 @ e6df7e1c8: the API (`address`, open(); the result of a
+// of the wallet and from the address details, with `address`). A full-screen dialog.
+// repeats: components/SignVerifyMessageDialog.qml:10-253: the API (`address`, open(); the result of a
 // check in the enum Check), the address check (Bitcoin.isAddress, Daemon.currentWallet.isAddressMine), address,
 // message and signature with their paste buttons (AppController.clipboardToText) and the share dialogs of the
 // message and the signature (app.genericShareDialog with text_qr), the check result reset on every edit, Sign (when

@@ -59,7 +59,7 @@ M3Page {
     // LN_EXPIRY_NEVER of invoices.py (100 years)
     readonly property real _lnExpiryNever: 100 * 365 * 24 * 60 * 60
 
-    // takes only this page off the stack, and only when it is on top (finding 2)
+    // takes only this page off the stack, and only when it is on top
     function close() {
         if (app.stack.currentItem === root)
             app.stack.pop()
@@ -528,7 +528,7 @@ M3Page {
                     onClicked: {
                         root._takeEnteredAmount()
                         if (invoice.saveInvoice()) {
-                            // finding 2: the invoice list takes the place of this page (made first: when it cannot be
+                            // the invoice list takes the place of this page (made first: when it cannot be
                             // opened, this page stays and the user is told, app.loadPage / app.makePage)
                             var invoicesPage = app.loadPage(app.routes.invoices)
                             var listPage = invoicesPage ? app.makePage(invoicesPage) : null

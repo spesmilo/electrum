@@ -2,8 +2,8 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Material
 
-// Base of a Material 3 wizard page (DESIGN-M2-onboarding.md 2.1, 3.0).
-// repeats: components/wizard/WizardComponent.qml:5-52 @ e6df7e1c8 (the signals, the properties wizard_data, valid,
+// Base of a Material 3 wizard page.
+// repeats: components/wizard/WizardComponent.qml:5-52 (the signals, the properties wizard_data, valid,
 // last, wizard_title, title, securePage, onAccept -> apply(), checkIsLast() via wizard.wiz.isLast, the
 // Component.onCompleted with Qt.callLater and the focus, the tap on the empty page that takes the focus).
 // Differences: the content sits in a centered column of at most m3.maxContentWidth with the screen margins

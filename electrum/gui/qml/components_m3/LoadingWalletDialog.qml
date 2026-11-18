@@ -9,11 +9,11 @@ import "controls"
 
 // "Loading Wallet" of the Material 3 GUI (app.loadingWalletDialog, created by main.qml onLoadingChanged with
 // allowClose: false).
-// repeats: components/LoadingWalletDialog.qml:10-63 @ e6df7e1c8 (resizeWithKeyboard false, the position by
+// repeats: components/LoadingWalletDialog.qml:10-63 (resizeWithKeyboard false, the position by
 // Math.floor instead of anchors.centerIn (the classic comment: centerIn pixelates the spinner), the own open()
 // that shows the dialog only after 250 ms, the spinner running while Daemon.loading, on Daemon.loadingChanged
 // to false: stop the timer, close a visible dialog, destroy a never shown one by hand (its onClosed never comes)).
-// Look (DESIGN-M2-onboarding.md 5.3): an M3Dialog of the minimum width without icon and buttons, the headline
+// Look: an M3Dialog of the minimum width without icon and buttons, the headline
 // and the spinner centered below it.
 // Strings carried over keep the translation context of LoadingWalletDialog.qml.
 M3Dialog {

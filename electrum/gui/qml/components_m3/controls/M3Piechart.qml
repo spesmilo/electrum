@@ -1,7 +1,7 @@
 import QtQuick
 
 // Pie chart of the Material 3 GUI (balance details): one sector per slice, a legend line and label per sector.
-// repeats: components/controls/Piechart.qml:1-76 @ e6df7e1c8 (the API: `slices` = [{ v: fraction, color, text }],
+// repeats: components/controls/Piechart.qml:1-76 (the API: `slices` = [{ v: fraction, color, text }],
 // `innerOffset`, `legendOffset`, `showLegend`; the drawing: sectors from 12 o'clock clockwise, slices of value 0
 // skipped, each sector displaced outwards by innerOffset, the legend line and label outside it).
 // Differences: the colors of the sectors come from the caller (Material 3 roles, BalanceDetailsPage); the legend

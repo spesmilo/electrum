@@ -26,7 +26,7 @@ Item {
         _initializedModel = backingModel
     }
 
-    // the list with its date sections (controls/M3HistoryList, M2-MAP F-10); the model is initialized here
+    // the list with its date sections (controls/M3HistoryList); the model is initialized here
     M3HistoryList {
         id: listview
         anchors.fill: parent

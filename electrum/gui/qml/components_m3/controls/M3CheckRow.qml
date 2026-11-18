@@ -5,7 +5,7 @@ import QtQuick.Controls.Material
 
 // List row with a checkbox on the right (the same row as M3RadioRow), for an option that is confirmed rather
 // than switched (a switch is M3SwitchRow). A CheckDelegate, so it keeps the API of the classic ElCheckBox
-// (components/controls/ElCheckBox.qml @ e6df7e1c8: a CheckBox whose text wraps): text, checked, checkState,
+// (components/controls/ElCheckBox.qml: a CheckBox whose text wraps): text, checked, checkState,
 // tristate, toggled(), clicked(); a tap anywhere on the row toggles it, as a tap on the classic checkbox.
 // Added: `headline` (= text), `supporting` (second line, bodyMedium), `leadingIcon` (24 dp); height 56 / 72;
 // state layer as M3ListItem; disabled rows show their content at 0.38 opacity.

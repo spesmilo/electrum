@@ -5,9 +5,9 @@ import QtQuick.Controls.Material
 
 // List row with a radio button on the right (as the rows of M3OptionsDialog), for a choice of 2-6 options in
 // place. A RadioDelegate, so it works with ButtonGroup and keeps the API of the classic ElRadioButton
-// (components/controls/ElRadioButton.qml @ e6df7e1c8: a RadioButton whose text wraps): text, checked,
+// (components/controls/ElRadioButton.qml: a RadioButton whose text wraps): text, checked,
 // toggled(), clicked(), ButtonGroup.group; own properties of a row (wallettype, scripttype, ...) can be added
-// by the screen. DESIGN-M2-onboarding.md 7.4.
+// by the screen.
 // Added: `headline` (= text), `supporting` (second line, bodyMedium), `leadingIcon` (24 dp); height 56 / 72;
 // state layer as M3ListItem; disabled rows show their content at 0.38 opacity.
 RadioDelegate {

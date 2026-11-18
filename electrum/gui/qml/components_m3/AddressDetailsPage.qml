@@ -8,7 +8,7 @@ import "controls"
 
 // Address details of the Material 3 GUI (route app.routes.addressDetails, replaces the classic AddressDetails; also
 // opened from the inputs and outputs of the transaction details).
-// repeats: components/AddressDetails.qml:10-369 @ e6df7e1c8: the page contract (`address`, the signals
+// repeats: components/AddressDetails.qml:10-369: the page contract (`address`, the signals
 // addressDetailsChanged and addressDeleted, which the address list connects to), the frozen mark, the address and
 // its share dialog, balance, number of transactions and the address history (the route addressHistory with
 // `address` and `backingModel` = the history model of the address), the label and its editing, script type,
@@ -17,7 +17,7 @@ import "controls"
 // Freeze / Unfreeze, Sign/Verify (app.signVerifyMessageDialog with `address`, when the wallet can sign), Delete
 // with its confirmation (when the address can be deleted), the AddressDetails object and its handlers, the secure
 // window while the private key is shown. Only the look differs.
-// Layout (M2-MAP F-3, F-4): details are M3DetailRow rows; Freeze and Sign/Verify are buttons below the content;
+// Layout: details are M3DetailRow rows; Freeze and Sign/Verify are buttons below the content;
 // Delete (rare and destructive) is in the overflow menu of the top app bar (`m3Actions`).
 // Strings keep the translation context of the classic file (qsTranslate('AddressDetails', ...)).
 M3Page {

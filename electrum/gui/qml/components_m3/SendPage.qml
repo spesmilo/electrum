@@ -65,7 +65,7 @@ M3Page {
                 width: Math.min(m3.maxContentWidth, flickable.width - 2 * margin)
                 spacing: m3.space16
 
-                // at most 6 lines of the field's font (DESIGN-v1 6.2): a longer text (a PSBT) scrolls inside
+                // at most 6 lines of the field's font: a longer text (a PSBT) scrolls inside
                 // the field, so the buttons below do not move away under the finger
                 FontMetrics {
                     id: recipientMetrics
@@ -88,7 +88,7 @@ M3Page {
                         wrapMode: TextEdit.WrapAnywhere
                         enabled: !root.busy
                         inputMethodHints: Qt.ImhEmailCharactersOnly | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
-                        // no automatic focus (finding 10): the keyboard opens only when the user taps the field
+                        // no automatic focus: the keyboard opens only when the user taps the field
                         focus: false
                         Keys.onReturnPressed: (event) => {
                             if (recipient.text.trim())

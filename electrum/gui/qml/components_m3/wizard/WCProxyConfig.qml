@@ -5,7 +5,7 @@ import QtQuick.Controls
 import "../controls"
 
 // Material 3 page: proxy of the network wizard.
-// repeats: components/wizard/WCProxyConfig.qml:7-24 @ e6df7e1c8 (valid, title, apply() with pc.toProxyDict(),
+// repeats: components/wizard/WCProxyConfig.qml:7-24 (valid, title, apply() with pc.toProxyDict(),
 // proxy_enabled: false at the start).
 WizardComponent {
     id: root

@@ -7,13 +7,13 @@ import org.electrum 1.0
 import "../controls"
 
 // Material 3 page: a master key (xprv / xpub) for a new wallet or for a cosigner of a multisig wallet.
-// repeats: components/wizard/WCHaveMasterKey.qml:10-211 @ e6df7e1c8 (securePage, valid, cosigner, participants,
+// repeats: components/wizard/WCHaveMasterKey.qml:10-211 (securePage, valid, cosigner, participants,
 // multisigMasterPubkey; apply() / applyMasterKey(); verifyMasterKey() with bitcoin.verifyMasterKey and the duplicate /
 // heterogeneous checks of a cosigner; the two versions of the explanation; the key field verified on every change
 // while it has the focus; paste (verified, else the field is cleared) and scan (app.scanDialog with the hint, the same
 // check, close); the validation text, also set from Bitcoin.validationMessage; Component.onCompleted reading
 // wizard_data and the focus in the field).
-// Look (DESIGN-M2-onboarding.md 3.1): CosignerHeader (the master public key to share, "Cosigner #%1 of %2"), the
+// Look: CosignerHeader (the master public key to share, "Cosigner #%1 of %2"), the
 // explanation, an outlined M3TextArea in the fixed font with the icon buttons paste / scan beside it, the error
 // below in m3.error. The page scrolls (the classic page does not) and keeps the field visible above the keyboard.
 // Strings carried over keep the translation context of WCHaveMasterKey.qml.

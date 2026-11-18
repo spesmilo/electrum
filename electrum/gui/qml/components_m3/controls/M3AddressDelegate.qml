@@ -7,7 +7,7 @@ import org.electrum 1.0
 // One address row of the Material 3 address list (AddressesPage), a delegate of a view over
 // Daemon.currentWallet.addressCoinModel.filterModel: reads the roles of qeaddresslistmodel.py through the context
 // property `model`, as the classic delegate does.
-// repeats: components/controls/AddressDelegate.qml:7-95 @ e6df7e1c8: the index '#NN' (two digits below 10), the
+// repeats: components/controls/AddressDelegate.qml:7-95: the index '#NN' (two digits below 10), the
 // address (fixed font, elided in the middle), the state of the address (frozen; used with or without balance;
 // change or receive, unused), the label or '<no label>', the balance in the base unit and the number of
 // transactions, each only when not zero; `highlighted` (the row is selected) set by the list.

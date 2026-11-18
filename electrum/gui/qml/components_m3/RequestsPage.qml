@@ -10,11 +10,11 @@ import "controls"
 
 // "Pending payment requests" of the Material 3 GUI (route app.routes.receiveRequests; replaces the classic
 // ReceiveRequests page).
-// repeats: components/ReceiveRequests.qml:12-113 @ e6df7e1c8 (objectName, the press-and-hold hint, the list of
+// repeats: components/ReceiveRequests.qml:12-113 (objectName, the press-and-hold hint, the list of
 // Daemon.currentWallet.requestModel: a tap opens the request through the root (openRequest) and clears the
 // current item, press and hold makes the row current; Delete and View for the current row; the list
 // transitions). The heading of the classic page is the title of this page; Delete and View are the actions of
-// the top app bar while a row is current (M2-MAP F-3), not a row of buttons below the list. M3: no current row
+// the top app bar while a row is current, not a row of buttons below the list. M3: no current row
 // after Delete.
 // Strings carried over from ReceiveRequests.qml keep its translation context.
 M3Page {
@@ -39,7 +39,7 @@ M3Page {
             tooltip: qsTranslate('ReceiveRequests', 'Delete')
             onClicked: {
                 Daemon.currentWallet.deleteRequest(listview.currentItem.getKey())
-                // M3 (review A-2, B-N2): no current row after a delete; the ListView would make the next row
+                // M3: no current row after a delete; the ListView would make the next row
                 // current and a second tap on Delete would delete it (the classic page does)
                 listview.currentIndex = -1
             }

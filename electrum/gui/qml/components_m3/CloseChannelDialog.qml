@@ -6,9 +6,9 @@ import org.electrum 1.0
 
 import "controls"
 
-// "Close Channel" of the Material 3 GUI, opened by ChannelDetailsPage (zone probe R-3: a full-screen dialog, as
+// "Close Channel" of the Material 3 GUI, opened by ChannelDetailsPage (a full-screen dialog, as
 // the classic one).
-// repeats: components/CloseChannelDialog.qml:10-242 @ e6df7e1c8: the contract (`channelid`), its own ChannelDetails
+// repeats: components/CloseChannelDialog.qml:10-242: the contract (`channelid`), its own ChannelDetails
 // object with onAuthRequired -> app.handleAuthRequired; channel name, short channel ID, remote node ID, the force
 // close message; the three closing methods with their conditions (cooperative, request force-close, local
 // force-close; none while closing) and the default choice on channelChanged (cooperative if possible, else request

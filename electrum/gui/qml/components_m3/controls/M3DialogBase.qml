@@ -4,7 +4,7 @@ import QtQuick.Controls
 import QtQuick.Controls.Material
 
 // Base of every Material 3 dialog (M3Dialog, M3FullScreenDialog), without the classic controls.
-// repeats: components/controls/ElDialog.qml:1-77 @ e6df7e1c8 (allowClose, iconSource, resizeWithKeyboard,
+// repeats: components/controls/ElDialog.qml:1-77 (allowClose, iconSource, resizeWithKeyboard,
 // needsSystemBarPadding, doClose/doAccept/doReject, parent keyboardFreeZone, modal, closePolicy, the tap on
 // the background that hides the keyboard, app.activeDialogs). The dialog puts itself into the same
 // app.activeDialogs as the classic dialogs, so the Android back button (main.qml onClosing) closes the top

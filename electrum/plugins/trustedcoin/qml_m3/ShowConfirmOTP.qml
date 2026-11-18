@@ -9,14 +9,14 @@ import "../../../gui/qml/components_m3/controls"
 
 // Material 3 page of the trustedcoin (2FA) wizard: the authenticator secret (QR and text) and the confirmation with a
 // one-time password. Loaded only by the Material 3 wizard (table _m3PluginPages of components_m3/wizard/Wizard.qml).
-// repeats: plugins/trustedcoin/qml/ShowConfirmOTP.qml:8-164 @ e6df7e1c8 (valid = otpVerified; the error box and the
+// repeats: plugins/trustedcoin/qml/ShowConfirmOTP.qml:8-164 (valid = otpVerified; the error box and the
 // "already registered" notice with their conditions; the QR of the otpauth URI (qrdata verbatim) while the remote key
 // is new or reset, a tap copies the secret ("Copied!"), the commented-out openUrlExternally kept as a comment; the
 // secret, a tap copies it; the three hints with their conditions; the OTP field (digits only, 0...999999, six digits
 // -> plugin.checkOtp(plugin.shortId, otp) and the field cleared); "Request OTP secret" -> resetOtpSecret(); the
 // verified mark; the spinner while plugin.busy; on completion: plugin, createKeystore(), the focus in the OTP field;
 // otpError / remoteKeyError -> the error box, otpSuccess -> otpVerified).
-// Look (DESIGN-M2-onboarding.md 4): the heading, the notices as M3InfoText (error, warn), the QR as M3QRImage (black
+// Look: the heading, the notices as M3InfoText (error, warn), the QR as M3QRImage (black
 // on white in both themes), the secret in the fixed font, bold, on an M3Card, the hints as bodyMedium, the OTP as a
 // centered M3TextField in the fixed font 22, the request as a tonal M3Button, the verified mark as the check_circle
 // glyph 48 dp in m3.success (classic: confirmed.png), "Copied!" by M3Toaster. The page scrolls and keeps the OTP field

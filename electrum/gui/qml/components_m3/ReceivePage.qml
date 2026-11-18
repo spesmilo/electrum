@@ -6,7 +6,7 @@ import org.electrum 1.0
 
 import "controls"
 
-// "Receive Payment" of the Material 3 GUI: one payment request, a page on the stack (M2-MAP F-1), opened by
+// "Receive Payment" of the Material 3 GUI: one payment request, a page on the stack, opened by
 // PaymentFlow.openRequest(key) after a request was created or from the request list; replaces the classic
 // ReceiveDialog.
 // repeats: components/ReceiveDialog.qml:11-31 (contract: key, isLightning, requestPaid, getPaidTxid; the
@@ -15,8 +15,7 @@ import "controls"
 // (Copy: the bolt11 in lower case, else the URI, else the address, then 'Copied!'; Share: the same text, titled
 // 'Payment Request' or 'Onchain address'), :191-207 (RequestDetails of the key, requestPaid on Paid or
 // Unconfirmed; M3: only on a change to it while the page is open, see _paid), :209-217 (the QR is rendered once
-// the page is shown) @ e6df7e1c8; the fiat value of the amount
-// as components/controls/FormattedAmount.qml:39-52 @ e6df7e1c8 (timestamp 0).
+// the page is shown); the fiat value of the amount as components/controls/FormattedAmount.qml:39-52 (timestamp 0).
 // Added to the view (same object, no new logic): the expiry of the request (RequestDetails.expiration; 0 or the
 // LN_EXPIRY_NEVER delay: 'Never') and the on-chain address as a detail row with the share button.
 // Contract for PaymentFlow (as the classic ReceiveDialog): key (set on creation), isLightning, getPaidTxid(),
@@ -66,7 +65,7 @@ M3Page {
 
     // LN_EXPIRY_NEVER of invoices.py (100 years), a delay the core treats as never (invoices.py:91,143)
     readonly property real _lnExpiryNever: 100 * 365 * 24 * 60 * 60
-    // M3 (review A-4): the expiry row: 'never', 'date' or '' (no row). RequestDetails.expiration is the date
+    // M3: the expiry row: 'never', 'date' or '' (no row). RequestDetails.expiration is the date
     // (time + delay; 0 = never, invoices.py get_expiration_date) as a 32-bit int: with the delay LN_EXPIRY_NEVER
     // it wraps (measured: a request of 2026 arrives as a date in 1989), so that delay is compared modulo 2^32;
     // any other date not after the creation time can only be such a wrap (a date after 2038) and is not shown
@@ -129,7 +128,7 @@ M3Page {
                 rowSpacing: m3.space16
 
                 // --- QR (ReceiveDialog.qml:53-82) ---
-                // M3 (review B-N1, B-N5): the QR is scaled down only when it does not fit: one column - not wider
+                // M3: the QR is scaled down only when it does not fit: one column - not wider
                 // than the column (360 dp: a short URI gives a QR with its frame wider than the column); wide
                 // layout - not higher than the visible height, so that a scanner sees it whole without scrolling
                 Item {
@@ -245,7 +244,7 @@ M3Page {
                         }
                     }
 
-                    // --- Copy / Share, wide layout (review B-N1): under the details, so that the QR beside
+                    // --- Copy / Share, wide layout: under the details, so that the QR beside
                     // them gets the whole height of the page ---
                     Loader {
                         Layout.fillWidth: true
@@ -326,7 +325,7 @@ M3Page {
         }
     }
 
-    // M3 (review A-1, B-N4): requestPaid only for a payment made while the page is open, i.e. a change from a
+    // M3: requestPaid only for a payment made while the page is open, i.e. a change from a
     // status that is not Paid / Unconfirmed to one that is. A request that was already paid when the page was
     // opened (from the list) shows its status and stays; it does not switch to the details later, when the payment
     // confirms. (The classic dialog went to the details at once in that case.) The status the request has when

@@ -8,13 +8,13 @@ import "controls"
 
 // "Create Invoice" of the Material 3 GUI: the parameters of a new payment request, opened by the Receive button
 // (PaymentFlow.openReceiveDetailsDialog); replaces the classic ReceiveDetailsDialog.
-// repeats: components/ReceiveDetailsDialog.qml:11-150 @ e6df7e1c8 (the API read by the factory on accept:
+// repeats: components/ReceiveDetailsDialog.qml:11-150 (the API read by the factory on accept:
 // amount, description, expiry, isLightning; the message, amount and expiry fields; Onchain accepts at once;
 // Lightning: its enabled condition, then accept on an existing channel, the confirmation of a just-in-time
-// channel, or "Amount too low") and components/controls/RequestExpiryComboBox.qml:6-35 @ e6df7e1c8 (the five
+// channel, or "Amount too low") and components/controls/RequestExpiryComboBox.qml:6-35 (the five
 // expiry choices, the initial choice from Config.requestExpiry, else the first; a choice of the user is saved
 // to Config.requestExpiry unless it is "Never" (0)).
-// Look: an M3Dialog (M2-MAP F-2) with an outlined message field, M3AmountField (bitcoin and, with fx, fiat), the
+// Look: an M3Dialog with an outlined message field, M3AmountField (bitcoin and, with fx, fiat), the
 // expiry as a choice row, and the two classic buttons Onchain / Lightning as Material 3 buttons.
 // Strings carried over keep the translation context of their classic file.
 M3Dialog {

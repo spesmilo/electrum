@@ -6,9 +6,9 @@ import org.electrum
 import "../../../gui/qml/components_m3/controls"
 
 // Material 3 QML of the psbt_nostr plugin (multisig: PSBTs to and from co-signers over Nostr). Loaded only by the
-// Material 3 GUI (components_m3/main.qml onPluginLoaded: plugins/<name>/qml_m3/ first, M2-MAP F-11); the classic
+// Material 3 GUI (components_m3/main.qml onPluginLoaded: plugins/<name>/qml_m3/ first); the classic
 // GUI keeps loading qml/main.qml.
-// repeats: plugins/psbt_nostr/qml/main.qml:7-80 @ e6df7e1c8: on cosignerReceivedPsbt the receive dialog with the
+// repeats: plugins/psbt_nostr/qml/main.qml:7-80: on cosignerReceivedPsbt the receive dialog with the
 // label and can_be_saved; Open -> saveTxLabel, the transaction details with rawtx and acceptPsbt when that page is
 // closed; Save to Wallet -> acceptPsbt(..., true); Discard -> rejectPsbt; the button `export_tx_button` of the
 // export dialog (created by ExportTxDialog with { dialog }): shown when canSendPsbt(wallet, dialog.text), a tap

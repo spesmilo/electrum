@@ -7,9 +7,9 @@ import org.electrum 1.0
 import "controls"
 
 // "Select Swap Provider" of the Material 3 GUI: the type of the app.nostrSwapServersDialog factory (main.qml
-// onUndefinedNPub of the SwapHelper, and "Choose swap provider" of SwapDialog). M2-MAP F-2: a long list -> a
+// onUndefinedNPub of the SwapHelper, and "Choose swap provider" of SwapDialog). A long list -> a
 // full-screen dialog.
-// repeats: components/NostrSwapServersDialog.qml:10-187 @ e6df7e1c8: the API (`swaphelper`, not required;
+// repeats: components/NostrSwapServersDialog.qml:10-187: the API (`swaphelper`, not required;
 // writable `selectedPubkey`; accepted / rejected: closing without a choice (X, Android back) rejects, so the swap
 // does not wait for a provider forever); the list over swaphelper.availableSwapServers with the roles color,
 // server_pubkey (its first 32 characters), percentage_fee, mining_fee, timestamp, max_forward_amount,

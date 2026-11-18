@@ -9,12 +9,12 @@ import "controls"
 // Progress of a channel opening in the Material 3 GUI: the one instance app.channelOpenProgressDialog (main.qml),
 // driven by the ChannelOpener handlers of the Material 3 OpenChannelDialog and also of the classic one (still
 // reachable through the classic fallback pages).
-// repeats: components/ChannelOpenProgressDialog.qml:10-129 @ e6df7e1c8: the API (writable `state` '' / 'success' /
+// repeats: components/ChannelOpenProgressDialog.qml:10-129: the API (writable `state` '' / 'success' /
 // 'failed', `error`, `info`, `peer`, `channelBackup`, resetDialog(), open()); no closing until the outcome
 // (allowClose false, true in both outcome states); the spinner while opening, the outcome text, the peer, the
 // error (failed) or the info (success) in plain text; on close with a channel backup, the "Save Channel Backup"
 // share dialog with its help.
-// Look (zone probe R-3): an M3Dialog; the headline and the icon above it follow the state ("Opening Channel..."
+// Look: an M3Dialog; the headline and the icon above it follow the state ("Opening Channel..."
 // with a spinner below, "Success!" with check_circle, "Problem opening channel" with error); after the outcome an
 // "Ok" button closes the dialog (besides the Android back button and a tap outside, as allowClose allows).
 // resetDialog() is the classic one (it does not clear `info`, which is shown only after success sets it).

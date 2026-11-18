@@ -5,9 +5,9 @@ import QtQuick.Controls.Material
 
 import "controls"
 
-// "Share Transaction" (export of a transaction) of the Material 3 GUI (M2-MAP F-1: full-screen dialog, created
+// "Share Transaction" (export of a transaction) of the Material 3 GUI (a full-screen dialog, created
 // by PaymentFlow.showExport).
-// repeats: components/ExportTxDialog.qml:8-130 @ e6df7e1c8 (the API text, text_qr, text_help, text_warn, tx_label;
+// repeats: components/ExportTxDialog.qml:8-130 (the API text, text_qr, text_help, text_warn, tx_label;
 // the QR code of text_qr rendered once the dialog has opened, the help and warning texts, Copy with "Copied!",
 // Share by AppController.doShare, the buttons of plugins: app.pluginsComponentsByName('export_tx_button'),
 // each created with { dialog: dialog } and laid out with the other buttons; the plugin reads dialog.text,

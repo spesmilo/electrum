@@ -6,12 +6,12 @@ import QtQuick.Controls.Material
 import "../controls"
 
 // Material 3 page: password of the new wallet (the last page: "Finish" is enabled only while the page is valid).
-// repeats: components/wizard/WCWalletPassword.qml:13-135 @ e6df7e1c8 (valid by isInputValid(),
+// repeats: components/wizard/WCWalletPassword.qml:13-135 (valid by isInputValid(),
 // enforceExistingPassword, passwordMatchesAnyExisting, apply(), isInputValid(), the 500 ms comparison timer with
 // Daemon.numWalletsWithPassword, the two fields (the second without the reveal button, the echo mode of the first,
 // hidden when an existing password is enforced), the strength row, the four messages with their conditions).
 // Differences: "Passwords don't match" and "Password too short" are the error text of the second field;
-// "Passwords don't match" shows only once the second field is not empty (DESIGN-M2.md finding 9).
+// "Passwords don't match" shows only once the second field is not empty.
 
 // We will only end up here if Daemon.singlePasswordEnabled == False.
 // If there are existing wallets, the user must reuse the password of one of them.

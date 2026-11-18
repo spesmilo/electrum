@@ -9,10 +9,10 @@ import "controls"
 
 // Lightning payment details of the Material 3 GUI (route app.routes.lightningPaymentDetails, replaces the classic
 // LightningPaymentDetails).
-// repeats: components/LightningPaymentDetails.qml:10-218 @ e6df7e1c8: the page contract (key), the "Paid" notice,
+// repeats: components/LightningPaymentDetails.qml:10-218: the page contract (key), the "Paid" notice,
 // date, amount received / sent, the fee of a sent payment, label and its editing, payment hash and preimage
-// with their share dialogs, the LnPaymentDetails object. Only the look differs; the details are M3DetailRow rows
-// (M2-MAP F-4). The classic page has no description row (the label is the description), so neither has this one.
+// with their share dialogs, the LnPaymentDetails object. Only the look differs; the details are M3DetailRow rows.
+// The classic page has no description row (the label is the description), so neither has this one.
 // Strings keep the translation context of the classic file (qsTranslate('LightningPaymentDetails', ...)).
 M3Page {
     id: root

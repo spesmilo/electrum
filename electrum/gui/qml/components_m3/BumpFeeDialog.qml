@@ -7,8 +7,8 @@ import org.electrum 1.0
 
 import "controls"
 
-// "Bump Fee" (RBF) of the Material 3 GUI (M2-MAP F-1: full-screen dialog, the result goes out by `accepted`).
-// repeats: components/RbfBumpFeeDialog.qml:10-240 @ e6df7e1c8 (the contract `rbffeebumper`, the explanation, the
+// "Bump Fee" (RBF) of the Material 3 GUI (a full-screen dialog, the result goes out by `accepted`).
+// repeats: components/RbfBumpFeeDialog.qml:10-240 (the contract `rbffeebumper`, the explanation, the
 // bump method chosen by the user, old fee and fee rate, the new fee picker without absolute fees, the output
 // value rounding option with its help, the warning, inputs and outputs without taps and sharing, Ok enabled
 // while the bumper is valid -> doAccept()). Only the look differs, and the rounding option is written on

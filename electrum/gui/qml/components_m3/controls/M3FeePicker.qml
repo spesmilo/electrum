@@ -8,9 +8,9 @@ import org.electrum 1.0
 // Fee picker of the Material 3 GUI, same API as the classic FeePicker: `finalizer` (a TxFeeSlider: TxFinalizer,
 // TxRbfFeeBumper, TxCanceller, TxCpfpFeeBumper, SweepFinalizer), the labels, the show/allow switches and extra
 // rows as children (the default property: pairs of label + value, laid out in two columns after the fee rows).
-// repeats: components/controls/FeePicker.qml:8-197 @ e6df7e1c8 (the fee and fee rate rows, the target, the
+// repeats: components/controls/FeePicker.qml:8-197 (the fee and fee rate rows, the target, the
 // slider and its bindings to finalizer.sliderPos/sliderSteps, the manual fee rate and absolute fee fields with
-// their validators and colors) and components/controls/FeeMethodComboBox.qml:6-27 @ e6df7e1c8 (the four methods,
+// their validators and colors) and components/controls/FeeMethodComboBox.qml:6-27 (the four methods,
 // set on user choice only).
 // Differences: Material 3 look; the method is a segmented button instead of the combo box (the same model and
 // the same "only on user action" rule: M3SegmentedButton.activated); the value rows are label (left) and value

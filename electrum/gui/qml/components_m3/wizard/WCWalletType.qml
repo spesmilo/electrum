@@ -5,9 +5,9 @@ import QtQuick.Controls
 import "../controls"
 
 // Material 3 page: kind of the new wallet.
-// repeats: components/wizard/WCWalletType.qml:7-60 @ e6df7e1c8 (valid, apply() with the seed type by the wallet
+// repeats: components/wizard/WCWalletType.qml:7-60 (valid, apply() with the seed type by the wallet
 // type, the ButtonGroup and the `wallettype` of every option, the first option checked, the strings).
-// The icons are neutral (DESIGN-M2.md finding 12: no "safe" shield on the paid two-factor service).
+// The icons are neutral (no "safe" shield on the paid two-factor service).
 WizardComponent {
     valid: wallettypegroup.checkedButton !== null
 

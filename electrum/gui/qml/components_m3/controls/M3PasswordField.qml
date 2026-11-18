@@ -4,8 +4,8 @@ import QtQuick.Controls
 import QtQuick.Controls.Material
 
 // Password field of the Material 3 GUI: an outlined text field with the reveal ("eye") button inside on the
-// right, and a supporting or error text below (as M3TextField). DESIGN-M2-onboarding.md 3.4.
-// repeats: components/controls/PasswordField.qml:5-37 @ e6df7e1c8 (text, tf, echoMode, placeholderText,
+// right, and a supporting or error text below (as M3TextField).
+// repeats: components/controls/PasswordField.qml:5-37 (text, tf, echoMode, placeholderText,
 // showReveal, accepted(), the input method hints, the minimum width of 16 characters, the toggle of echoMode).
 // Added: `field` (the TextField, as M3TextField; `tf` is kept for screens carried over from the classic),
 // `label` (= placeholderText, the floating label), `supportingText`, `errorText`.

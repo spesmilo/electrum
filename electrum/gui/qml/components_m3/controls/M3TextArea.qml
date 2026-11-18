@@ -5,7 +5,7 @@ import QtQuick.Controls.Material
 
 // Multi-line text input of the Material 3 GUI: an outlined box (radius XS, outline; primary and 2 dp while
 // focused) that scrolls its text when it overflows the height given by the layout.
-// repeats: components/controls/ElTextArea.qml:12-72 @ e6df7e1c8 (the Flickable around a TextArea with
+// repeats: components/controls/ElTextArea.qml:12-72 (the Flickable around a TextArea with
 // ensureVisible() following the cursor, the click below the text focusing it, and the API: text, wrapMode,
 // background, font, inputMethodHints, placeholderText, color, topPadding, anyActiveFocus, textChanged).
 // Added: `readOnly`, `textArea` (the inner TextArea), `errorText` (outline in m3.error).

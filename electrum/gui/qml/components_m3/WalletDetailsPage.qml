@@ -8,7 +8,7 @@ import "controls"
 
 // Wallet details of the Material 3 GUI (route app.routes.walletDetails, from the overflow menu; replaces the classic
 // WalletDetails).
-// repeats: components/WalletDetails.qml:10-684 @ e6df7e1c8: the tags of the wallet (type, script type, HD, watch
+// repeats: components/WalletDetails.qml:10-684: the tags of the wallet (type, script type, HD, watch
 // only, encrypted, hardware, Lightning, seed) and their conditions; the name and its editing
 // (Daemon.isValidWalletName, Daemon.renameWallet); the seed, shown only after Daemon.currentWallet.requestShowSeed()
 // (the wallet asks for authentication; seedRetrieved shows it, a tap hides it again) and the seed extension while
@@ -20,7 +20,7 @@ import "controls"
 // (with its question); the handlers of Daemon (wallet loaded, new unified password, delete errors with their
 // confirmations, rename error), of the wallet (new wallet password with the single-password rule, seed retrieved)
 // and of Biometrics; the secure window while the seed is shown. Only the look differs.
-// Layout (M2-MAP F-3, F-4): tags are chips; details are M3DetailRow rows; the seed is the numbered grid M3SeedWords;
+// Layout: tags are chips; details are M3DetailRow rows; the seed is the numbered grid M3SeedWords;
 // Change Password, Add addresses / keys and Enable Lightning are buttons below the content; Delete Wallet... (rare
 // and destructive) is in the overflow menu of the top app bar (`m3Actions`).
 // Strings keep the translation context of the classic file (qsTranslate('WalletDetails', ...)).
@@ -466,7 +466,7 @@ M3Page {
                 var done_dialog = app.messageDialog.createObject(app, {
                     title: success ? qsTranslate('WalletDetails', 'Success') : qsTranslate('WalletDetails', 'Error'),
                     iconSource: success
-                        ? ''  // M2-MAP F-5: an info message has no icon
+                        ? ''  // an info message has no icon
                         : Qt.resolvedUrl('../../icons/m3/warning.png'),
                     text: success ? qsTranslate('WalletDetails', 'Password changed') : qsTranslate('WalletDetails', 'Password change failed')
                 })
@@ -552,7 +552,7 @@ M3Page {
                 var done_dialog = app.messageDialog.createObject(app, {
                     title: success ? qsTranslate('WalletDetails', 'Success') : qsTranslate('WalletDetails', 'Error'),
                     iconSource: success
-                        ? ''  // M2-MAP F-5: an info message has no icon
+                        ? ''  // an info message has no icon
                         : Qt.resolvedUrl('../../icons/m3/warning.png'),
                     text: success ? qsTranslate('WalletDetails', 'Password changed') : error_msg
                 })

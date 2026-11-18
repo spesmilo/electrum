@@ -10,13 +10,13 @@ import "controls"
 // "Wallets" of the Material 3 GUI: the root of the stack while no wallet is open (main.qml initialItem, and
 // replaceRoot('Wallets.qml') after a wallet was deleted) and the page of the route app.routes.wallets (overflow
 // menu "Wallets"). Same file name and objectName as the classic page: main.qml and the classic code find it by both.
-// repeats: components/Wallets.qml:10-195 @ e6df7e1c8 (objectName 'Wallets', the title, createWallet() with
+// repeats: components/Wallets.qml:10-195 (objectName 'Wallets', the title, createWallet() with
 // app.newWalletWizard and walletCreated, the search field whose exact match loads a wallet not shown in the list,
 // the list of Daemon.availableWallets: a row is shown when it matches the search and is not a hidden wallet
 // (name starting with '.', not loaded), a tap loads it or goes back when it is the current one; "Create Wallet"
 // only while the search is empty, with the check that an existing wallet was unlocked first when all wallets use
 // one password; on Daemon.walletLoaded: the wallet screen as the new root, or back).
-// Look (DESIGN-M2-onboarding.md 5.1): M3Page, the search as M3TextField, the list in a surfaceContainerLow
+// Look: M3Page, the search as M3TextField, the list in a surfaceContainerLow
 // container (empty space when there are no wallets, as the empty classic frame), a row = M3ListItem with an
 // avatar (first letter; primaryContainer when loaded), "Active" / "Not loaded" as the second line and the
 // "Current" pill on the right; "Create Wallet" in the action bar below the list. The heading of the classic page

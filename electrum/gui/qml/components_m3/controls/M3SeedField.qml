@@ -5,11 +5,11 @@ import QtQuick.Controls.Material
 
 import org.electrum 1.0
 
-// Seed input of the Material 3 GUI (DESIGN-M2-onboarding.md 3.3): an outlined multi-line field (FixedFont, bold,
+// Seed input of the Material 3 GUI: an outlined multi-line field (FixedFont, bold,
 // at least 3 lines) and, below it, the indicator line (icon + `indicatorText`, m3.success when `indicatorValid`,
 // else m3.error), shown while the field and `indicatorText` are not empty. The words are typed with
 // M3SeedKeyboard (target: this field), which reads `suggestions`.
-// repeats: classic controls/SeedTextArea.qml:13-66, 151-153 @ e6df7e1c8 (text, placeholderText, indicatorText,
+// repeats: classic controls/SeedTextArea.qml:13-66, 151-153 (text, placeholderText, indicatorText,
 // indicatorValid, the suggestions of bitcoin.mnemonicsFor for the last word, the TextArea that is read-only on
 // Android (no system keyboard; on the desktop a physical keyboard types), its input method hints, the work-around
 // for spurious textChanged and the cursor kept at the end).

@@ -3,13 +3,13 @@ import QtQuick.Controls
 
 import org.electrum 1.0
 
-// History list of the Material 3 GUI (M2-MAP F-10): M3HistoryDelegate rows of a transaction list model under date
+// History list of the Material 3 GUI: M3HistoryDelegate rows of a transaction list model under date
 // sections, in a column of at most m3.maxContentWidth. Used by the History tab (the wallet history) and by the
 // address history page (QEAddressDetails.historyModel).
-// API (zone probe R-5): `model` (a QETransactionListModel), positionViewAtBeginning(). The owner initializes the
+// API: `model` (a QETransactionListModel), positionViewAtBeginning(). The owner initializes the
 // model (initModel(), lazy), sizes the list and shows the empty state; the list only shows the rows.
-// repeats: components/History.qml:51-75 (the section labels and the section delegate) @ e6df7e1c8; moved here
-// verbatim from components_m3/HistoryTab.qml:29-78 @ 79f59c445 (strings keep the context of the classic History).
+// repeats: components/History.qml:51-75 (the section labels and the section delegate; the strings keep the
+// translation context of the classic History).
 Item {
     id: root
 

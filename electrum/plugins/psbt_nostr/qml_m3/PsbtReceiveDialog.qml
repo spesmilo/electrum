@@ -5,11 +5,11 @@ import QtQuick.Controls
 import "../../../gui/qml/components_m3/controls"
 
 // Material 3 dialog of the psbt_nostr plugin: a PSBT was received from a co-signer (created by qml_m3/main.qml).
-// repeats: plugins/psbt_nostr/qml/PsbtReceiveDialog.qml:8-94 @ e6df7e1c8: the title, the enum Choice (None, Open,
+// repeats: plugins/psbt_nostr/qml/PsbtReceiveDialog.qml:8-94: the title, the enum Choice (None, Open,
 // Save) and the API tx_label, can_be_saved, choice; z: 1 (above dialogs whose parent is the overlay); the message
 // with the label, if any, and the question; Open (choice Open, doAccept()), Discard (doReject()), Save to Wallet
 // (only when can_be_saved: choice Save, doAccept()).
-// Differences: an M3Dialog (M2-MAP F-2, zone probe wave 3 R-16); the message is plain text: the label (it comes
+// Differences: an M3Dialog; the message is plain text: the label (it comes
 // from the co-signer) is a line of its own instead of bold rich text; the help glyph instead of the classic
 // question icon; text buttons, Open first.
 // Strings keep the translation context of the classic file (qsTranslate('PsbtReceiveDialog', ...)).

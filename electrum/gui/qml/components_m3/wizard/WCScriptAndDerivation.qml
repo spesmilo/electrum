@@ -8,16 +8,16 @@ import ".."
 import "../controls"
 
 // Material 3 page: the type of addresses and the derivation path (restore from a BIP39 seed, multisig).
-// repeats: components/wizard/WCScriptAndDerivation.qml:11-236 @ e6df7e1c8 (valid, isMultisig, cosigner,
+// repeats: components/wizard/WCScriptAndDerivation.qml:11-236 (valid, isMultisig, cosigner,
 // participants; apply() for the wallet or the cosigner; the purpose tables; validate() with
 // bitcoin.verifyDerivationPath and the duplicate / heterogeneous master key checks of a cosigner;
 // setDerivationPath(); the ButtonGroup and setDerivationPath() on every change of the option; the six options with
 // their `scripttype` and the expressions of visible / enabled / checked; the derivation path field validated on
 // every change; "Detect Existing Accounts" with BIP39RecoveryDialog (Material 3, components_m3/, by `import ".."`)
 // and the handling of its accepted(); Component.onCompleted reading wizard_data).
-// Look (DESIGN-M2-onboarding.md 3.1): the question as the heading, the options as M3RadioRow in an M3ListGroup,
+// Look: the question as the heading, the options as M3RadioRow in an M3ListGroup,
 // the notice and the error as M3InfoText, the path as M3TextField, the button as a tonal M3Button.
-// M3: "Detect Existing Accounts" stands above the list of options (PERSONA-CRITIQUE-M2-onboarding finding 21: the
+// M3: "Detect Existing Accounts" stands above the list of options (the
 // one step a newcomer understands, otherwise below six lines of script types); same action, same condition.
 // Strings carried over keep the translation context of WCScriptAndDerivation.qml.
 WizardComponent {

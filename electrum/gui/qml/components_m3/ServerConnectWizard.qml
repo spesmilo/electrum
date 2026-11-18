@@ -5,9 +5,9 @@ import QtQuick.Controls
 import "wizard"
 
 // Material 3 network wizard of the first start (app.serverConnectWizard).
-// repeats: components/ServerConnectWizard.qml:7-30 @ e6df7e1c8 (verbatim; the base is the Material 3 Wizard).
+// repeats: components/ServerConnectWizard.qml:7-30 (verbatim; the base is the Material 3 Wizard).
 // M3: no close button on the first page: cancelling this wizard quits the app (main.qml), the Android back key
-// is the way out, as in the classic (DESIGN-M2.md finding 6).
+// is the way out, as in the classic.
 Wizard {
     id: serverconnectwizard
 

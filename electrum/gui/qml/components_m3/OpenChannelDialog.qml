@@ -6,10 +6,9 @@ import org.electrum 1.0
 
 import "controls"
 
-// "Open Lightning Channel" of the Material 3 GUI: the type of the app.openChannelDialog factory (M2-MAP F-1: a
-// full-screen dialog, created by the factory without properties from the Channels tab and from BalanceDetailsPage,
-// F-12).
-// repeats: components/OpenChannelDialog.qml:10-334 @ e6df7e1c8: the two recoverability warnings and their
+// "Open Lightning Channel" of the Material 3 GUI: the type of the app.openChannelDialog factory (a
+// full-screen dialog, created by the factory without properties from the Channels tab and from BalanceDetailsPage).
+// repeats: components/OpenChannelDialog.qml:10-334: the two recoverability warnings and their
 // conditions (lightningHasDeterministicNodeId, seedType, Config.useRecoverableChannels); with gossip the node
 // URI field (written to channelopener.connectStr while edited and when it loses the focus), Paste (the clipboard
 // validated by validateConnectString, else "Invalid node-id or connect string") and Scan (app.scanDialog with its
@@ -25,7 +24,7 @@ import "controls"
 // buttons; the trampoline node as an M3SelectRow; M3AmountField with the Max switch; "Open Channel..." in the bar at
 // the bottom). Max is written on onToggled (user change only, as the classic onCheckedChanged + activeFocus); the
 // trampoline node is written on the user's choice (the classic onCurrentValueChanged + activeFocus) and at start.
-// New Material 3 calls pass the Material 3 warning glyph (zone probe: M3 MessageDialog takes it as is).
+// New Material 3 calls pass the Material 3 warning glyph (the Material 3 MessageDialog takes it as is).
 // Strings keep the translation context of the classic file (qsTranslate('OpenChannelDialog', ...)).
 M3FullScreenDialog {
     id: root

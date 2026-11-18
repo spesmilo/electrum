@@ -6,9 +6,9 @@ import org.electrum
 
 import "controls"
 
-// QR scan dialog of the Material 3 GUI (app.scanDialog; M2-MAP F-1: a full-screen dialog, the callers keep the
+// QR scan dialog of the Material 3 GUI (app.scanDialog; a full-screen dialog, the callers keep the
 // classic API).
-// repeats: components/ScanDialog.qml:8-63 @ e6df7e1c8 (the API: hint, error, foundText(data), open(), close();
+// repeats: components/ScanDialog.qml:8-63 (the API: hint, error, foundText(data), open(), close();
 // the scanner stops on aboutToHide; the own doClose() (the Android back button) stops the scanner and rejects
 // later (Qt.callLater(doReject)); the window is secure (no screenshots, no screen recording of the camera image)
 // while the dialog is visible; the dialog destroys itself when closed (the factory does not)).

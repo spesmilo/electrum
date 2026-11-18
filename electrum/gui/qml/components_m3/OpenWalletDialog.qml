@@ -9,15 +9,15 @@ import "controls"
 
 // "Open Wallet" of the Material 3 GUI: the password of a wallet that requires one (app.openWalletDialog, created by
 // main.qml showOpenWalletDialog with name, path, isStartup).
-// repeats: components/OpenWalletDialog.qml:10-143 @ e6df7e1c8 (the properties name, path, isStartup,
+// repeats: components/OpenWalletDialog.qml:10-143 (the properties name, path, isStartup,
 // _invalidPassword, _unlockClicked; the two texts of the notice; the password field: a change of the text enables
 // Unlock and clears the error, Enter unlocks; "Invalid Password" after a failed unlock; unlock() disables Unlock and
 // loads the wallet with the password; maybeUnlockAnyOtherWallet() and the conditions of the fallback; on
 // Daemon.walletRequiresPassword: the fallback, else the error and the focus back in the field; on Daemon.walletLoaded:
 // close; the focus in the field at start).
-// Look (DESIGN-M2-onboarding.md 5.2): an M3Dialog without icon; the notice as text (the classic info box), the
+// Look: an M3Dialog without icon; the notice as text (the classic info box), the
 // password as M3PasswordField with "Invalid Password" as its error text, text buttons "Cancel" (doReject(): the same
-// as the Android back button and the tap outside, closePolicy of the base; DESIGN-M2-onboarding.md R-O12) and
+// as the Android back button and the tap outside, closePolicy of the base) and
 // "Unlock". It lives in app.keyboardFreeZone (the base), so it stays above the keyboard.
 // Strings carried over keep the translation context of OpenWalletDialog.qml.
 M3Dialog {

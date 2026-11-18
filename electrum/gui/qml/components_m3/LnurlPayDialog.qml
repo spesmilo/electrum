@@ -8,12 +8,12 @@ import "controls"
 
 // "LNURL Payment request" of the Material 3 GUI, opened by PaymentFlow (invoiceParser.onLnurlRetrieved);
 // replaces the classic LnurlPayRequestDialog.
-// repeats: components/LnurlPayRequestDialog.qml:10-148 @ e6df7e1c8 (contract: invoiceParser; commentValid,
+// repeats: components/LnurlPayRequestDialog.qml:10-148 (contract: invoiceParser; commentValid,
 // amountValid between min_sendable_sat and max_sendable_sat, valid; the range notice when min and max differ;
 // provider and description; the amount prefilled with the minimum, editable only when min and max differ, every
 // change copied to invoiceParser.amountOverride; the message field with its limit, color and counter, shown
 // when comments are allowed; Pay... enabled when valid, it asks for the invoice with the message and closes).
-// Look: an M3Dialog (M2-MAP F-2): the notice as M3InfoText, provider and description as detail rows, the
+// Look: an M3Dialog; the notice as M3InfoText, provider and description as detail rows, the
 // amount as M3AmountField, the message as M3TextArea (over the limit: the error outline). A fixed amount is shown
 // read-only in both fields (the classic disables the bitcoin field and keeps it in the normal color).
 // Strings carried over keep the translation context of LnurlPayRequestDialog.qml.

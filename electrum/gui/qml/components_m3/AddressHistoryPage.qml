@@ -7,10 +7,10 @@ import org.electrum 1.0
 import "controls"
 
 // Transaction history of one address in the Material 3 GUI (route app.routes.addressHistory, opened from the address
-// details; replaces the classic AddressHistory, M2-MAP F-10).
-// repeats: components/AddressHistory.qml:10-59 @ e6df7e1c8 (the page contract: required `address` and
+// details; replaces the classic AddressHistory).
+// repeats: components/AddressHistory.qml:10-59 (the page contract: required `address` and
 // `backingModel`, the history model of the address; the heading and the address above the list) and, for the list,
-// components/History.qml:150-176 @ e6df7e1c8 as the classic History embedded there runs it: the block height
+// components/History.qml:150-176 as the classic History embedded there runs it: the block height
 // update of the model and initModel() of the (lazy) model whenever the page becomes visible. The rows and the date
 // sections are those of the History tab (controls/M3HistoryList).
 // Strings carried over from AddressHistory.qml keep its translation context.

@@ -5,9 +5,8 @@ import QtQuick.Controls.Material
 
 import "controls"
 
-// Help dialog of the Material 3 GUI (app.helpDialog, opened by M3HelpButton and the classic HelpButton; M2-MAP
-// F-2: an M3Dialog).
-// repeats: components/controls/HelpDialog.qml:5-75 @ e6df7e1c8 (the API: heading, text; z: 1 so it also covers
+// Help dialog of the Material 3 GUI (app.helpDialog, opened by M3HelpButton and the classic HelpButton; an M3Dialog).
+// repeats: components/controls/HelpDialog.qml:5-75 (the API: heading, text; z: 1 so it also covers
 // dialogs using the overlay as parent; the text in rich format; it closes by the back button or a tap outside).
 // Differences: Material 3 look: the heading is the headline of the dialog (the classic draws it underlined and
 // italic next to the info icon), the text scrolls when it is longer than the free height, and a Close text button

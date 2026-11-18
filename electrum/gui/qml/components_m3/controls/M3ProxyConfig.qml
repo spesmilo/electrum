@@ -2,9 +2,9 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
 
-// Proxy settings of the Material 3 GUI (DESIGN-M2-onboarding.md 3.5), for the network wizard and the network
+// Proxy settings of the Material 3 GUI, for the network wizard and the network
 // screens: switch "Enable Proxy", type SOCKS5/TOR or SOCKS4, address and port, authentication, Tor detection.
-// repeats: classic controls/ProxyConfig.qml:8-136 @ e6df7e1c8 (the API proxy_enabled, proxy_type (index),
+// repeats: classic controls/ProxyConfig.qml:8-136 (the API proxy_enabled, proxy_type (index),
 // proxy_address, proxy_port, username, password, proxy_type_map, toProxyDict(); the input method hints; every
 // field but the switch enabled by proxy_enabled; Network.probeTor() and onTorProbeFinished).
 // Differences: the type is a segmented button, the port field is narrow (96), "Authentication" is a section

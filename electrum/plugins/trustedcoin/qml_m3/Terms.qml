@@ -9,10 +9,10 @@ import "../../../gui/qml/components_m3/controls"
 
 // Material 3 page of the trustedcoin (2FA) wizard: the terms and conditions of the service, fetched from the server.
 // Loaded only by the Material 3 wizard (table _m3PluginPages of components_m3/wizard/Wizard.qml).
-// repeats: plugins/trustedcoin/qml/Terms.qml:9-172 @ e6df7e1c8 (valid only with the plugin and once the terms were
+// repeats: plugins/trustedcoin/qml/Terms.qml:9-172 (valid only with the plugin and once the terms were
 // shown; plugin = AppController.plugin('trustedcoin') and fetchTermsAndConditions() on completion; the spinner while
 // plugin.busy; termsAndConditionsRetrieved shows the text and allows Next, termsAndConditionsError shows the message).
-// Look (DESIGN-M2-onboarding.md 4): the heading, then an M3Card over the rest of the height with the scrolling text
+// Look: the heading, then an M3Card over the rest of the height with the scrolling text
 // (bodyMedium) and the spinner.
 // Strings carried over keep the translation context of Terms.qml.
 WizardComponent {

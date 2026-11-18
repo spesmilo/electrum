@@ -7,7 +7,7 @@ import org.electrum 1.0
 // One coin (UTXO) row of the Material 3 address list (AddressesPage), a delegate of a view over
 // Daemon.currentWallet.addressCoinModel.filterModel: reads the roles of qeaddresslistmodel.py through the context
 // property `model`, as the classic delegate does.
-// repeats: components/controls/CoinDelegate.qml:7-97 @ e6df7e1c8: `indent` (coins under their address), the state
+// repeats: components/controls/CoinDelegate.qml:7-97: `indent` (coins under their address), the state
 // (frozen or not), the outpoint (fixed font, elided in the middle), the unconfirmed mark when the coin has no
 // short id, the amount in the base unit when not zero, the label when there is one; `highlighted` (the row is
 // selected) set by the list.

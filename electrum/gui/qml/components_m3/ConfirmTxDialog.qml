@@ -7,11 +7,11 @@ import org.electrum 1.0
 
 import "controls"
 
-// Confirmation of an on-chain payment ("Transaction Fee") of the Material 3 GUI (M2-MAP F-1: full-screen dialog,
+// Confirmation of an on-chain payment ("Transaction Fee") of the Material 3 GUI (a full-screen dialog,
 // created by PaymentFlow.payOnchain / startSweep and later by the channel opening, the result goes out by
 // `accepted`). The API is that of the classic dialog: finalizer, satoshis, address, message, showOptions,
 // amountLabelText, sendButtonText, title, accepted/rejected, doAccept/doReject.
-// repeats: components/ConfirmTxDialog.qml:10-298 @ e6df7e1c8 (the API, address and amount copied to the finalizer,
+// repeats: components/ConfirmTxDialog.qml:10-298 (the API, address and amount copied to the finalizer,
 // updateAmountText() with the effective amount while valid, the fee picker with the extra fee, the options:
 // multiple change addresses and output value rounding with their helps, the warning, inputs and outputs without
 // taps and sharing, the send button text by the wallet kind, enabled while valid -> doAccept(), doReject() when

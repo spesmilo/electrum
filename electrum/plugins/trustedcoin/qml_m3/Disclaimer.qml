@@ -10,9 +10,9 @@ import "../../../gui/qml/components_m3/controls"
 // Material 3 page of the trustedcoin (2FA) wizard: the disclaimer of the service. Loaded only by the Material 3
 // wizard (components_m3/wizard/Wizard.qml, table _m3PluginPages: .../trustedcoin/qml/ -> .../trustedcoin/qml_m3/);
 // the classic wizard keeps loading qml/Disclaimer.qml.
-// repeats: plugins/trustedcoin/qml/Disclaimer.qml:9-32 @ e6df7e1c8 (valid, plugin =
+// repeats: plugins/trustedcoin/qml/Disclaimer.qml:9-32 (valid, plugin =
 // AppController.plugin('trustedcoin') on completion, the picture, the text plugin.disclaimer).
-// Look (DESIGN-M2-onboarding.md 4): the colored picture of the service centered (not tinted), the disclaimer as
+// Look: the colored picture of the service centered (not tinted), the disclaimer as
 // bodyLarge text; the page scrolls.
 WizardComponent {
     valid: true

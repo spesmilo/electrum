@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 
 // Short confirmation above an item ("Copied!"), Material 3 look (inverse surface, as a snackbar).
-// repeats: components/controls/Toaster.qml:1-50 @ e6df7e1c8 (show(item, text): placed centered above `item`
+// repeats: components/controls/Toaster.qml:1-50 (show(item, text): placed centered above `item`
 // in the coordinates of the parent, shown 1 s, then rises and fades out in 1 s). Differences: colors and type
 // from `m3` (inverseSurface / inverseSurfaceOn, bodyMedium, radius S), the gap above the item is m3.space16.
 // Declare it as a child of the page or dialog that holds `item` (it maps `item` into its parent).

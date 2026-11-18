@@ -7,8 +7,8 @@ import org.electrum 1.0
 
 import "controls"
 
-// Password dialog of the Material 3 GUI (app.passwordDialog; M2-MAP F-2: an M3Dialog).
-// repeats: components/PasswordDialog.qml:8-119 @ e6df7e1c8 (the API: title, confirmPassword, infotext,
+// Password dialog of the Material 3 GUI (app.passwordDialog; an M3Dialog).
+// repeats: components/PasswordDialog.qml:8-119 (the API: title, confirmPassword, infotext,
 // errorMessage, passwordEntered(password), clearPassword(); _closing: Ok is ignored once closing has started,
 // set on aboutToShow / aboutToHide; the second field only with confirmPassword, without its own reveal button and
 // with the echo mode of the first; the strength indicator with confirmPassword; Ok enabled with confirmPassword

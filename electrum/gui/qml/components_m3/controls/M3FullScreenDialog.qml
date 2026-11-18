@@ -3,7 +3,7 @@ import QtQuick.Layouts
 import QtQuick.Controls
 import QtQuick.Controls.Material
 
-// Material 3 full-screen dialog (M2-MAP F-1): for dialogs that an app.* factory creates or that return their
+// Material 3 full-screen dialog: for dialogs that an app.* factory creates or that return their
 // result by a signal (accepted, finalizer, ...), so the callers keep the classic API (createObject, open,
 // accepted.connect, doAccept/doReject/doClose). Built on M3DialogBase: it is in app.activeDialogs (the Android
 // back button closes it, unless allowClose is false) and shrinks with the keyboard (keyboardFreeZone).

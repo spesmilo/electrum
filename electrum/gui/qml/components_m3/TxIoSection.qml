@@ -8,7 +8,7 @@ import "controls"
 // BumpFeeDialog, CpfpDialog, CancelTxDialog, ConfirmTxDialog): two collapsible lists, "Inputs (n)" and
 // "Outputs (n)", collapsed at first.
 // repeats: the ToggleLabel + Repeater pairs of components/TxDetails.qml:326-369, RbfBumpFeeDialog.qml:173-222,
-// CpfpBumpFeeDialog.qml:165-214, RbfCancelDialog.qml:106-155, ConfirmTxDialog.qml:223-276 @ e6df7e1c8 and
+// CpfpBumpFeeDialog.qml:165-214, RbfCancelDialog.qml:106-155, ConfirmTxDialog.qml:223-276 and
 // components/controls/ToggleLabel.qml:5-17 (collapsed by default, a tap toggles): while collapsed or hidden
 // (`shown` false: TxDetails `!error`, the dialogs `valid`) the Repeater has no model, as in the classic files.
 // `context` is the classic file the caller replaces: the headings "Inputs (%1)" / "Outputs (%1)" keep its

@@ -2,9 +2,9 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
 
-// The words of a seed as a numbered grid (DESIGN-M2-onboarding.md 3.3, owner fork R-O4 a): a card on
+// The words of a seed as a numbered grid: a card on
 // surfaceContainerLow, radius 16, cells "n. word" (number labelMedium surfaceVariantOn, word FixedFont titleMedium).
-// Shows what the read-only SeedTextArea of the classic controls/SeedTextArea.qml @ e6df7e1c8 showed: `text` is the
+// Shows what the read-only SeedTextArea of the classic controls/SeedTextArea.qml showed: `text` is the
 // seed, words separated by spaces. No copy action (as the classic: "Do not store it electronically").
 // Columns by the width of the card: 2 below 400, 3 below 560, else 4, but never more than the widest word of this
 // seed fits (measured in the font of the words, number included), so a word is never cut: no elide; a word wider

@@ -8,14 +8,14 @@ import org.electrum 1.0
 import "controls"
 
 // On-chain transaction details of the Material 3 GUI (route app.routes.txDetails, replaces the classic TxDetails).
-// repeats: components/TxDetails.qml:10-627 @ e6df7e1c8: the page contract (txid, rawtx, closed, close()), the
+// repeats: components/TxDetails.qml:10-627: the page contract (txid, rawtx, closed, close()), the
 // notices and their conditions (error / warning, the state of the transaction, the broadcast result), amount,
 // amount in channels, fee, fee rate, status, mempool depth, date, label and its editing, mined at, transaction
 // ID, inputs and outputs, the actions and their conditions (Bump fee: RBF or CPFP, Cancel, Sign with the
 // "despite warnings" confirmation, Broadcast, Share with its message, Save, Remove), the TxDetails object and
 // its handlers, the wallet handlers (saved, save error, broadcast result) and the three fee dialogs with their
 // onAccepted handlers. Only the look differs.
-// Layout (M2-MAP F-3, F-4): the main actions (Sign, Broadcast, Bump fee, Cancel) are buttons below the content;
+// Layout: the main actions (Sign, Broadcast, Bump fee, Cancel) are buttons below the content;
 // the rare ones (Share = export, Save, Remove) are in the overflow menu of the top app bar (`m3Actions`); the
 // details are M3DetailRow rows.
 // Strings keep the translation context of the classic file (qsTranslate('TxDetails', ...)).

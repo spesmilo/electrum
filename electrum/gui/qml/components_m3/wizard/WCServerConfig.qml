@@ -5,9 +5,9 @@ import QtQuick.Controls
 import "../controls"
 
 // Material 3 page: server of the network wizard.
-// repeats: components/wizard/WCServerConfig.qml:7-27 @ e6df7e1c8 (valid by sc.addressValid, last, title, apply()).
+// repeats: components/wizard/WCServerConfig.qml:7-27 (valid by sc.addressValid, last, title, apply()).
 // The server settings and the list scroll together, so the address field can be scrolled above the
-// on-screen keyboard (DESIGN-M2.md finding 8), also once the error text below it shows up.
+// on-screen keyboard, also once the error text below it shows up.
 WizardComponent {
     id: root
     valid: sc.addressValid

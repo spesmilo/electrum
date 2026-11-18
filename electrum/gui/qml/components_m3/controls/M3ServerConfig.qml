@@ -4,20 +4,20 @@ import QtQuick.Controls
 
 import org.electrum 1.0
 
-// Server settings of the Material 3 GUI (DESIGN-M2-onboarding.md 3.5), for the network wizard and the network
+// Server settings of the Material 3 GUI, for the network wizard and the network
 // screens: connection mode, server address, the list of known servers. The whole control is as high as its
 // content (the list does not scroll by itself): put it into a Flickable, so the field and the list scroll
-// together and the field can be scrolled above the on-screen keyboard (DESIGN-M2.md finding 8).
+// together and the field can be scrolled above the on-screen keyboard.
 // repeats: classic controls/ServerConfig.qml:12-138, ServerConnectModeComboBox.qml:9-37 and
-// ServerDelegate.qml @ e6df7e1c8 (the API showAutoselectServer, address, serverConnectMode, addressValid; the
+// ServerDelegate.qml (the API showAutoselectServer, address, serverConnectMode, addressValid; the
 // enum Mode; the initial mode (Manual on the first start, else from Network.autoConnect / oneServer); the address
 // cleared in Autoconnect; the address field disabled in Autoconnect and validated by
 // Network.isValidServerAddress; the help text of the connection modes; Network.serverListModel with the sections
 // by chain; a tap on a server puts its name into the field; address = Network.server at the start; the address
 // validated at the end of the start, so an empty address in Manual mode is invalid from the first frame).
 // Differences: the mode is one row (M3SelectRow, the choice in a dialog), the invalid address shows the error
-// text "Invalid server address" (new string) once the user edited the field, not a red fill from the start
-// (DESIGN-M2.md finding 18); a server row shows a check when primary and a dot when connected.
+// text "Invalid server address" (new string) once the user edited the field, not a red fill from the start;
+// a server row shows a check when primary and a dot when connected.
 Item {
     id: root
 

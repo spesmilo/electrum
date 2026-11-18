@@ -9,7 +9,7 @@ import "controls"
 // "Lightning Swap" of the Material 3 GUI: the type of the swapDialog component in main.qml (app.startSwap(), from the
 // Channels tab, BalanceDetailsPage and the low-reserve banner of the payment flow); main.qml gives it its SwapHelper
 // (`swaphelper`, with the handlers of main.qml).
-// repeats: components/SwapDialog.qml:10-335 @ e6df7e1c8: the contract (required `swaphelper`), the user info with
+// repeats: components/SwapDialog.qml:10-335: the contract (required `swaphelper`), the user info with
 // the icon by the swap state, you send / you receive (the side icons by isReverse), the server fee (mining fee of
 // the server + percentage), the mining fee (while valid); the slider from rangeMin to rangeMax with the zero in the
 // middle, the "voids" left and right (leftVoid / rightVoid: the part of the range that cannot be chosen), the part
@@ -21,9 +21,9 @@ import "controls"
 // the dialog closes.
 // Differences: the provider button uses this dialog's own `swaphelper` (the classic one reaches the id _swaphelper of
 // main.qml through the context; it is the same object). Material 3 look: the amounts as rows of a group, the
-// slider as a local component (zone probe R-6, M3SliderRow unchanged) in Material 3 roles (the range
+// slider as a local component (M3SliderRow unchanged) in Material 3 roles (the range
 // secondaryContainer, the chosen part primary, the voids outline, the zero mark outline), side icons
-// `bolt` for Lightning and `account_balance_wallet` for on-chain (zone probe R-5, no bitcoin glyph in Material
+// `bolt` for Lightning and `account_balance_wallet` for on-chain (no bitcoin glyph in Material
 // Symbols), Ok / Cancel in the bar at the bottom. The slider writes sliderPos on onMoved (a user move only, as the
 // classic onValueChanged + activeFocus).
 // Strings keep the translation context of the classic file (qsTranslate('SwapDialog', ...)).
@@ -289,7 +289,7 @@ M3FullScreenDialog {
         }
     }
 
-    // the swap slider (SwapDialog.qml:167-234; zone probe R-6): the full width is the whole range, the voids at the
+    // the swap slider (SwapDialog.qml:167-234): the full width is the whole range, the voids at the
     // ends cannot be chosen; the slider itself spans the rest, from rangeMin to rangeMax with the zero mark
     component SwapSlider: Item {
         id: sliderRoot

@@ -7,7 +7,7 @@ import org.electrum 1.0
 
 // Amount input of the Material 3 GUI: the pair of the classic BtcField and FiatField in one control, two
 // outlined fields with the unit after each (the fiat row only while Daemon.fx is enabled, `fiatVisible`).
-// repeats: components/controls/BtcField.qml:6-37 and FiatField.qml:6-34 @ e6df7e1c8 (fixed font, digits
+// repeats: components/controls/BtcField.qml:6-37 and FiatField.qml:6-34 (fixed font, digits
 // input, the amount regexes, textAsSats, the conversion to fiat while the bitcoin field is edited and back while
 // the fiat field is edited, the re-format on a base unit change, the fiat update on new quotes).
 // API as the classic pair, so screens move their logic over verbatim: `text` (the bitcoin field, in the base

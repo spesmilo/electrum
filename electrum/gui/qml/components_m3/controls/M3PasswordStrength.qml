@@ -3,8 +3,8 @@ import QtQuick.Layouts
 import QtQuick.Controls
 
 // Password strength of the Material 3 GUI: 4 segments (4 dp high, radius 2) and a labelMedium caption in the
-// color of the strength. DESIGN-M2-onboarding.md 3.4.
-// repeats: components/controls/PasswordStrengthIndicator.qml:5-24 @ e6df7e1c8 (password, strength,
+// color of the strength.
+// repeats: components/controls/PasswordStrengthIndicator.qml:5-24 (password, strength,
 // strengthColor, strengthText, Daemon.passwordStrength and the map 0..3 -> Weak / Medium / Strong / Very Strong).
 // Colors: Weak m3.error, Medium m3.tertiary, Strong and Very Strong m3.success; empty segments
 // surfaceContainerHighest; no caption while the password is empty.

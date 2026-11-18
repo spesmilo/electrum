@@ -2,12 +2,12 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
 
-// Detail row of the Material 3 GUI (M2-MAP F-4): label (bodySmall, onSurfaceVariant) above the value
+// Detail row of the Material 3 GUI: label (bodySmall, onSurfaceVariant) above the value
 // (bodyLarge); addresses, txids, invoices and keys (`monospace: true`) in the fixed font, wrapping anywhere.
 // On the right the optional share button (`shareable`: share glyph, opens app.genericShareDialog with
 // `shareTitle` and `shareText`, which also offers "Copy"), and optional `actions` (icon buttons, e.g. edit)
 // before it. Replaces the classic grid of Label + TextHighlightPane + ToolButton
-// (components/controls/TextHighlightPane.qml, DialogHighlightPane.qml @ e6df7e1c8, as used by TxDetails,
+// (components/controls/TextHighlightPane.qml, DialogHighlightPane.qml, as used by TxDetails,
 // LightningPaymentDetails, ChannelDetails, AddressDetails, WalletDetails, NetworkOverview).
 // Set `customShare` to handle shareClicked() yourself instead of the dialog.
 Item {

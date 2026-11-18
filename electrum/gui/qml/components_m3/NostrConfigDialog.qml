@@ -6,15 +6,15 @@ import org.electrum 1.0
 
 import "controls"
 
-// "Nostr relays" of the Material 3 GUI, opened by the Network page (NetworkPage); a full-screen dialog
-// (M2-MAP F-1), as the classic one.
-// repeats: components/NostrConfigDialog.qml:10-121 @ e6df7e1c8: the title; `valid`, clean_array() and verify()
+// "Nostr relays" of the Material 3 GUI, opened by the Network page (NetworkPage); a full-screen dialog,
+// as the classic one.
+// repeats: components/NostrConfigDialog.qml:10-121: the title; `valid`, clean_array() and verify()
 // (the relay pattern); the explanation; the text box of relays, one per line, filled from Config.nostrRelays
 // (commas to new lines) when the dialog is created, with its input hints, verified on each change; Paste appends
 // the clipboard on a new line when it verifies; Ok enabled by valid writes Config.nostrRelays (the cleaned list,
 // joined by commas) and closes the dialog. Only the look differs.
 // Differences: Material 3 look (M3InfoText, M3TextArea, Paste as an icon button beside the box, Ok as the main
-// button below the content); no icon in the header (no Material 3 glyph for the Nostr brand, R-15).
+// button below the content); no icon in the header (no Material 3 glyph for the Nostr brand).
 // Strings keep the translation context of the classic file (qsTranslate('NostrConfigDialog', ...)).
 M3FullScreenDialog {
     id: rootItem

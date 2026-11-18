@@ -6,14 +6,14 @@ import org.electrum 1.0
 
 import "controls"
 
-// "Proxy settings" of the Material 3 GUI, opened by the Network page (NetworkPage); a full-screen dialog
-// (M2-MAP F-1), as the classic one.
-// repeats: components/ProxyConfigDialog.qml:10-63 @ e6df7e1c8: the title; the proxy settings filled from
+// "Proxy settings" of the Material 3 GUI, opened by the Network page (NetworkPage); a full-screen dialog,
+// as the classic one.
+// repeats: components/ProxyConfigDialog.qml:10-63: the title; the proxy settings filled from
 // Network.proxy when the dialog is created (enabled, host, port, user, password, the index of the mode in
 // proxy_type_map); Ok writes Network.proxy = toProxyDict() and closes the dialog. Only the look differs.
 // Differences: the settings are the Material 3 M3ProxyConfig, in a Flickable with the focused field kept above the
 // on-screen keyboard (as wizard/WCProxyConfig.qml); a mode that is not in proxy_type_map gives the first type
-// (Math.max(0, ...)) instead of -1, which M3ProxyConfig cannot show (zone probe wave 3, 5.1 point 2); Ok is the
+// (Math.max(0, ...)) instead of -1, which M3ProxyConfig cannot show; Ok is the
 // main button below the content; no icon in the header (Material 3 full-screen dialog); a user or password that
 // is None gives an empty field (the classic assignment of undefined fails and skips the rest of the filling).
 // Strings keep the translation context of the classic file (qsTranslate('ProxyConfigDialog', ...)).

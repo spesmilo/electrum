@@ -7,10 +7,10 @@ import org.electrum 1.0
 
 import "../controls"
 
-// Material 3 wizard frame (DESIGN-M2-onboarding.md 2.1-2.4, DESIGN-M2.md 3-4): a full-screen popup in
+// Material 3 wizard frame: a full-screen popup in
 // app.keyboardFreeZone (it shrinks above the on-screen keyboard, so the main button stays visible), with the same
 // contract as the classic wizard for Python, the wrappers, the pages and main.qml.
-// repeats: components/wizard/Wizard.qml:10-161, 182-199 @ e6df7e1c8 (id: wizard, focus, closePolicy, wizardTitle,
+// repeats: components/wizard/Wizard.qml:10-161, 182-199 (id: wizard, focus, closePolicy, wizardTitle,
 // wizard_data, pages, wiz, finishButtonText, doClose(), _setWizardData(), _loadNextComponent() but for the url of
 // the page, the root layout with the Android back key, the SwipeView with prev/next/finish/pagevalid/lastpage,
 // the secureWindow Binding, Next/Finish: visible by lastpage, enabled by pagevalid).
@@ -50,7 +50,7 @@ M3FullScreenDialog {
         : wizardTitle
     readonly property string _pageSubtitle: _page && _page.title ? wizardTitle : ''
 
-    // the pages that a plugin has in Material 3: electrum/plugins/<plugin>/qml_m3/<page>.qml (M2-MAP F-11)
+    // the pages that a plugin has in Material 3: electrum/plugins/<plugin>/qml_m3/<page>.qml
     readonly property var _m3PluginPages: ({
         'trustedcoin': ['Disclaimer', 'ChooseSeed', 'KeepDisable', 'Terms', 'ShowConfirmOTP']
     })
@@ -75,7 +75,7 @@ M3FullScreenDialog {
 
     // M3: the url of the page for the name given by Python: the Material 3 page next to this file (for a plugin
     // page, the one in the qml_m3 directory of the plugin); '' when there is none.
-    // A plugin page is any name with /plugins/ in it (DESIGN-M2.md finding 11): only the form
+    // A plugin page is any name with /plugins/ in it: only the form
     // .../plugins/<plugin>/qml/<page>.qml listed in _m3PluginPages has a Material 3 page; any other plugin name (not
     // in the table, or of another form, e.g. qml/wizard/<page>.qml) has none, never loaded as if it were one.
     function _pageUrl(name) {

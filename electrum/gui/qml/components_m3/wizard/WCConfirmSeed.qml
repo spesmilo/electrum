@@ -7,9 +7,9 @@ import org.electrum 1.0
 import "../controls"
 
 // Material 3 page: the new seed typed again, with the seed keyboard pinned to the bottom.
-// repeats: components/wizard/WCConfirmSeed.qml:10-51 @ e6df7e1c8 (securePage, valid, checkValid() with
+// repeats: components/wizard/WCConfirmSeed.qml:10-51 (securePage, valid, checkValid() with
 // wizard.wiz.isMatchingSeed on every change, the strings).
-// Added (DESIGN-M2.md finding 5, view only, `valid` still comes from isMatchingSeed): the number of the first word
+// Added (view only, `valid` still comes from isMatchingSeed): the number of the first word
 // that does not match the seed shown before, below the field; the keyboard has a "delete word" key. The words are
 // compared as mnemonic.is_matching_seed compares them (split on the same whitespace, case kept), and the line is
 // never shown while the page is valid; the field with that line is scrolled into view once the line shows up.

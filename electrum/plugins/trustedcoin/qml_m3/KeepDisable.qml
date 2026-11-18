@@ -7,9 +7,9 @@ import "../../../gui/qml/components_m3/controls"
 
 // Material 3 page of the trustedcoin (2FA) wizard: keep or disable 2FA of a restored 2FA wallet. Loaded only by the
 // Material 3 wizard (table _m3PluginPages of components_m3/wizard/Wizard.qml).
-// repeats: plugins/trustedcoin/qml/KeepDisable.qml:7-34 @ e6df7e1c8 (valid, apply(), the ButtonGroup calling
+// repeats: plugins/trustedcoin/qml/KeepDisable.qml:7-34 (valid, apply(), the ButtonGroup calling
 // checkIsLast() on every change, the two options with their `keepordisable`, the first checked).
-// Look (DESIGN-M2-onboarding.md 4): the heading, the options as M3RadioRow in an M3ListGroup.
+// Look: the heading, the options as M3RadioRow in an M3ListGroup.
 // Strings carried over keep the translation context of KeepDisable.qml.
 WizardComponent {
     valid: keepordisablegroup.checkedButton

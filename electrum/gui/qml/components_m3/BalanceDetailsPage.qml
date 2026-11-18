@@ -8,18 +8,18 @@ import "controls"
 
 // Balance details of the Material 3 GUI (route app.routes.balanceDetails, opened from the balance on the Wallet tab;
 // replaces the classic BalanceDetails).
-// repeats: components/BalanceDetails.qml:10-257 @ e6df7e1c8: the notice while the wallet is not synchronized or not
+// repeats: components/BalanceDetails.qml:10-257: the notice while the wallet is not synchronized or not
 // connected, the pie chart of Daemon.currentWallet.getBalancesForPiechart() (six slices: Lightning, On-chain,
 // On-chain (frozen), Unconfirmed, Unmatured, Frozen Lightning; shown when the total is not zero; updated on
 // balanceChanged), the amounts and their conditions (Total, Lightning, its Frozen part, On-chain, its Frozen part,
 // Unconfirmed), the Lightning liquidity (Can send, Can receive), Lightning swap (app.startSwap()) and Open Channel
-// with their conditions. Open Channel goes through the factory app.openChannelDialog (M2-MAP F-12; the classic page
+// with their conditions. Open Channel goes through the factory app.openChannelDialog (the classic page
 // declares its own OpenChannelDialog component, without the first-channel warning of the Channels path, as here).
-// Colors of the slices (zone probe R-4): existing Material 3 roles, no new theme roles; every one has a contrast of
+// Colors of the slices: existing Material 3 roles, no new theme roles; every one has a contrast of
 // at least 4.3:1 against m3.surface in both themes: Lightning tertiary, Frozen Lightning tertiaryContainerOn (the
 // classic darker orange), On-chain primary, frozen outline (the classic gray), Unconfirmed primaryContainerOn (the
 // classic darker accent), Unmatured success; Total is a ring in primary. The slices are rebuilt on a theme switch.
-// Layout (M2-MAP F-3): the amounts are rows of M3ListGroup with the color of their slice; the two actions are
+// Layout: the amounts are rows of M3ListGroup with the color of their slice; the two actions are
 // buttons below the content.
 // Strings keep the translation context of the classic file (qsTranslate('BalanceDetails', ...)).
 M3Page {
@@ -28,7 +28,7 @@ M3Page {
 
     title: qsTranslate('BalanceDetails', 'Wallet balance')
 
-    // the colors of the slices and of the rows (R-4 above)
+    // the colors of the slices and of the rows (see the header comment)
     readonly property color _colorLightning: m3.tertiary
     readonly property color _colorLightningFrozen: m3.tertiaryContainerOn
     readonly property color _colorOnchain: m3.primary

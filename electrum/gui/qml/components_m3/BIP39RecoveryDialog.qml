@@ -9,15 +9,15 @@ import "controls"
 
 // "Detect BIP39 accounts" of the Material 3 GUI, opened over the wizard by wizard/WCScriptAndDerivation.qml
 // ("Detect Existing Accounts"; found there by `import ".."`, as the classic page finds the classic dialog).
-// repeats: components/BIP39RecoveryDialog.qml:10-157 @ e6df7e1c8 (the properties seed, seedExtraWords,
+// repeats: components/BIP39RecoveryDialog.qml:10-157 (the properties seed, seedExtraWords,
 // walletType, derivationPath, scriptType; z: 1 so that it covers the wizard; 4/5 of the height; the text and the
 // icon style of the notice by the state of the model; the list of the model: description, script type,
 // derivation path, a tap takes the derivation path and the script type of the row and accepts; the model and
 // startScan(walletType, seed, seedExtraWords) on completion).
-// Look (DESIGN-M2-onboarding.md 5.4): an M3Dialog, the notice as M3InfoText (the same IconStyle values: spinner,
+// Look: an M3Dialog, the notice as M3InfoText (the same IconStyle values: spinner,
 // info, error), the list in a surfaceContainerLow container with M3ListItem rows (account_balance_wallet icon,
 // the description wrapping, "script type: ..." and "derivation path: ..." as the second line), a text button
-// "Cancel" (doReject(), the same as the Android back button and the tap outside; DESIGN-M2-onboarding.md R-O12).
+// "Cancel" (doReject(), the same as the Android back button and the tap outside).
 // Strings carried over keep the translation context of BIP39RecoveryDialog.qml.
 M3Dialog {
     id: dialog

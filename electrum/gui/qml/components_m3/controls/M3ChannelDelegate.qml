@@ -7,14 +7,14 @@ import org.electrum 1.0
 // One Lightning channel in the channel list of the Material 3 Channels tab, a delegate of a view over
 // Daemon.currentWallet.channelModel: reads the roles of qechannellistmodel.py through the context property
 // `model`, as the classic delegate does.
-// repeats: components/controls/ChannelDelegate.qml:8-133 @ e6df7e1c8 (closed = state Closed or Redeemed and dimmed;
+// repeats: components/controls/ChannelDelegate.qml:8-133 (closed = state Closed or Redeemed and dimmed;
 // the icon by kind: imported backup, on-chain backup, trampoline, normal; node alias, else the node id in the
 // fixed font (2 lines for an alias, 1 for an id); the state, highlighted when OPEN; the short channel id; the
 // capacity with the base unit; the capacity bar for channels that are neither closed nor backups).
-// Look (zone probe R-4): a 40 dp avatar with a Material 3 glyph instead of the colored classic icons: normal and
+// Look: a 40 dp avatar with a Material 3 glyph instead of the colored classic icons: normal and
 // trampoline channels `bolt` on tertiaryContainer (the Lightning role), an on-chain backup `link_off` and an
 // imported backup `cloud_off` on surfaceContainerHighest; a trampoline channel says "Trampoline" after the short
-// channel id (no kangaroo glyph in Material Symbols). The OPEN state is in m3.success (zone probe R-2).
+// channel id (no kangaroo glyph in Material Symbols). The OPEN state is in m3.success.
 ItemDelegate {
     id: root
 

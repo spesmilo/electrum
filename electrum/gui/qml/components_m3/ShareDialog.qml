@@ -5,9 +5,9 @@ import QtQuick.Controls.Material
 
 import "controls"
 
-// "Share" dialog of the Material 3 GUI: the type of the app.genericShareDialog factory (M2-MAP F-1: a full-screen
+// "Share" dialog of the Material 3 GUI: the type of the app.genericShareDialog factory (a full-screen
 // dialog, the callers keep the classic API).
-// repeats: components/GenericShareDialog.qml:8-131 @ e6df7e1c8 (the API: title, text, text_qr, text_help,
+// repeats: components/GenericShareDialog.qml:8-131 (the API: title, text, text_qr, text_help,
 // helpTextIconStyle (the values of InfoTextArea.IconStyle, which M3InfoText.IconStyle repeats in the same order),
 // iconSource; the meaning of text / text_qr: text is shown and is the data of the QR code unless text_qr is set;
 // only text_qr set -> the QR code without the string, Copy still copies it; the text shown in a fixed font, at

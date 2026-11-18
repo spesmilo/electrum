@@ -7,9 +7,9 @@ import QtQml
 
 import "controls"
 
-// Crash dialog of the Material 3 GUI (crashDialog in main.qml, opened on AppController.onShowException; M2-MAP
-// F-1: a full-screen dialog).
-// repeats: components/ExceptionDialog.qml:10-168 @ e6df7e1c8 (the API: crashData; z: 1000, above every other
+// Crash dialog of the Material 3 GUI (crashDialog in main.qml, opened on AppController.onShowException;
+// a full-screen dialog).
+// repeats: components/ExceptionDialog.qml:10-168 (the API: crashData; z: 1000, above every other
 // dialog, and z: 1001 for the dialogs it opens; _sending disables the content and shows the busy indicator;
 // "Show report contents" logs the traceback and opens the report (crashData.reportstring, rich text) in a
 // full-screen dialog that destroys itself when closed; the optional description of the user; "Send Bug Report"

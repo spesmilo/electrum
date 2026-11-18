@@ -7,9 +7,9 @@ import org.electrum 1.0
 // Output of a transaction (a row of a list, e.g. inside M3ListGroup): "#index", the short id, the value with
 // its unit; below the address in the fixed font with "(mine)" / "(reserve)" / "(accounting)" / "(swap)" /
 // "(billing)"; on the right the optional share button.
-// repeats: components/controls/TxOutput.qml:8-118 @ e6df7e1c8 (model, allowShare, allowClickAddress, idx, the
+// repeats: components/controls/TxOutput.qml:8-118 (model, allowShare, allowClickAddress, idx, the
 // suffix, the address color by kind, the tap on an address of this wallet, the share dialog of the address).
-// Differences: Material 3 look; the tap opens the route app.routes.addressDetails (M2-MAP 4.1, G3) instead of
+// Differences: Material 3 look; the tap opens the route app.routes.addressDetails instead of
 // the classic file URL; colors of the address kinds are Material 3 roles (mine: success, change: tertiary,
 // billing and swap: primary, accounting: secondary) instead of the classic constants.
 // Strings keep the translation context of the classic file (qsTranslate('TxOutput', ...)).

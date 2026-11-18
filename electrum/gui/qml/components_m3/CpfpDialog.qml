@@ -7,9 +7,9 @@ import org.electrum 1.0
 
 import "controls"
 
-// "Bump Fee" by CPFP (child pays for parent) of the Material 3 GUI (M2-MAP F-1: full-screen dialog, the result
+// "Bump Fee" by CPFP (child pays for parent) of the Material 3 GUI (a full-screen dialog, the result
 // goes out by `accepted`).
-// repeats: components/CpfpBumpFeeDialog.qml:10-231 @ e6df7e1c8 (the contract `cpfpfeebumper`, the explanation and
+// repeats: components/CpfpBumpFeeDialog.qml:10-231 (the contract `cpfpfeebumper`, the explanation and
 // its help, the child fee info without the picker, the totals: size, fee, fee rate, the picker without fee rates
 // and without tx info, the warning, inputs and outputs without taps and sharing, Ok enabled while the bumper is
 // valid -> doAccept()). Only the look differs.

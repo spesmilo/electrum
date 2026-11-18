@@ -7,8 +7,8 @@ import org.electrum 1.0
 import "controls"
 
 // Import of additional addresses (watch-only) or private keys into an imported wallet, Material 3 GUI; declared and
-// opened by WalletDetailsPage ("Add addresses" / "Add keys"). A full-screen dialog (M2-MAP F-1).
-// repeats: components/ImportAddressesKeysDialog.qml:8-133 @ e6df7e1c8: the title by the kind of wallet, `valid`,
+// opened by WalletDetailsPage ("Add addresses" / "Add keys"). A full-screen dialog.
+// repeats: components/ImportAddressesKeysDialog.qml:8-133: the title by the kind of wallet, `valid`,
 // verify() (Bitcoin.isAddressList / isPrivateKeyList), the import on accept (importAddresses / importPrivateKeys),
 // the hint, the text box with its input hints, Paste (appends the clipboard on a new line when it verifies) and
 // Scan (app.scanDialog with its hint; appends a scan that verifies, then closes the scanner), Import (enabled when

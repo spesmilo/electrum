@@ -6,15 +6,15 @@ import org.electrum 1.0
 
 import "controls"
 
-// "Server settings" of the Material 3 GUI, opened by the Network page (NetworkPage); a full-screen dialog
-// (M2-MAP F-1), as the classic one.
-// repeats: components/ServerConfigDialog.qml:10-57 @ e6df7e1c8: the title; the server settings; Ok enabled by
+// "Server settings" of the Material 3 GUI, opened by the Network page (NetworkPage); a full-screen dialog,
+// as the classic one.
+// repeats: components/ServerConfigDialog.qml:10-57: the title; the server settings; Ok enabled by
 // addressValid, writing Network.setServerParameters(server, auto_connect, one_server) from the connection mode
 // and the address, then closing the dialog. Only the look differs.
 // Differences: the settings are the Material 3 M3ServerConfig (the enum M3ServerConfig.Mode in place of
 // ServerConnectModeComboBox.Mode, same order); M3ServerConfig is as high as its list of servers, so it sits in a
-// Flickable with the address field kept above the on-screen keyboard (as wizard/WCServerConfig.qml, DESIGN-M2.md
-// finding 8); Ok is the main button below the content; no icon in the header (Material 3 full-screen dialog).
+// Flickable with the address field kept above the on-screen keyboard (as wizard/WCServerConfig.qml);
+// Ok is the main button below the content; no icon in the header (Material 3 full-screen dialog).
 // Strings keep the translation context of the classic file (qsTranslate('ServerConfigDialog', ...)).
 M3FullScreenDialog {
     id: rootItem

@@ -7,7 +7,7 @@ import org.electrum 1.0
 import "../controls"
 
 // Material 3 page: name of the new wallet.
-// repeats: components/wizard/WCWalletName.qml:7-32 @ e6df7e1c8 (valid by Daemon.isValidWalletName, apply(), the
+// repeats: components/wizard/WCWalletName.qml:7-32 (valid by Daemon.isValidWalletName, apply(), the
 // suggested name, the input method hints, the focus at the start).
 WizardComponent {
     id: root

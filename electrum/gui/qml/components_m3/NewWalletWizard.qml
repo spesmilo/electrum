@@ -7,7 +7,7 @@ import org.electrum 1.0
 import "wizard"
 
 // Material 3 wizard for a new wallet (app.newWalletWizard).
-// repeats: components/NewWalletWizard.qml:9-45 @ e6df7e1c8 (verbatim; the base is the Material 3 Wizard).
+// repeats: components/NewWalletWizard.qml:9-45 (verbatim; the base is the Material 3 Wizard).
 Wizard {
     id: walletwizard
 

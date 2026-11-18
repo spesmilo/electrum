@@ -7,13 +7,12 @@ import org.electrum 1.0
 
 import "controls"
 
-// Two-factor code dialog of the Material 3 GUI (PaymentFlow, Daemon.currentWallet.onOtpRequested; M2-MAP F-2:
-// an M3Dialog).
-// repeats: components/OtpDialog.qml:8-89 @ e6df7e1c8 (the API: otpauth, open(); the field takes 6 digits as a
+// Two-factor code dialog of the Material 3 GUI (PaymentFlow, Daemon.currentWallet.onOtpRequested; an M3Dialog).
+// repeats: components/OtpDialog.qml:8-89 (the API: otpauth, open(); the field takes 6 digits as a
 // password, any key clears the error; at 6 digits it waits and calls Daemon.currentWallet.submitOtp(<code>);
 // onOtpSuccess -> otpauth = the code, accept(); onOtpFailed(code, message) -> the error message, the field is
 // cleared; the busy indicator while waiting; the field is 6 characters wide and has the focus).
-// Differences: Material 3 look: the neutral `verified_user` glyph (coordinator decision R-2) instead of the
+// Differences: Material 3 look: the neutral `verified_user` glyph instead of the
 // colored trustedcoin icon, an outlined field, the error in m3.error; a Cancel text button, which does what the
 // Android back button does (doClose(), shown only when allowClose), disabled while the code is being submitted
 // (the transaction goes on regardless, so it cannot promise a cancel); the width is that of M3Dialog (the factory

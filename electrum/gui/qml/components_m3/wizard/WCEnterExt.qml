@@ -8,7 +8,7 @@ import org.electrum 1.0
 import "../controls"
 
 // Material 3 page: optional seed extension (custom words).
-// repeats: components/wizard/WCEnterExt.qml:10-120 @ e6df7e1c8 (securePage, valid, cosigner, apply(),
+// repeats: components/wizard/WCEnterExt.qml:10-120 (securePage, valid, cosigner, apply(),
 // checkValid() with wiz.hasDuplicateMasterKeys for a multisig cosigner, the 250 ms validation timer, the custom
 // words field shown only while the extension is on, its input method hints, Component.onCompleted).
 // The checkbox extendcb is a switch row; its state is kept in seedExtend (read by the same apply/checkValid).
@@ -16,7 +16,7 @@ import "../controls"
 // itself: by then the extendcb mirror holds the new state (a handler of seedExtendChanged would run before the
 // binding of the mirror is updated and validate the previous state).
 // The "Do not enable it unless you know what it does!" line is a warning above the switch, and the switch is a
-// plain row below it (DESIGN-M2.md finding 19: the option must not look like the recommended step).
+// plain row below it (the option must not look like the recommended step).
 WizardComponent {
     id: root
     securePage: true

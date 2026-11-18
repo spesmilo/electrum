@@ -4,9 +4,9 @@ import QtQuick.Controls
 
 import "../controls"
 
-// Header of the multisig cosigner pages (DESIGN-M2-onboarding.md 3.2): the master public key to share with the
+// Header of the multisig cosigner pages: the master public key to share with the
 // cosigners and the number of the cosigner. Hidden while `cosigner` is 0.
-// repeats: components/wizard/WCHaveSeed.qml:112-162 @ e6df7e1c8 (the same block is in WCHaveMasterKey.qml:66-114
+// repeats: components/wizard/WCHaveSeed.qml:112-162 (the same block is in WCHaveMasterKey.qml:66-114
 // and WCCosignerKeystore.qml:34-76): the text, the key in the fixed font, the share button with
 // app.genericShareDialog, the divider, "Cosigner #%1 of %2".
 ColumnLayout {

@@ -7,11 +7,11 @@ import org.electrum 1.0
 import "../controls"
 
 // Material 3 page: import Bitcoin addresses (watching-only wallet) or private keys.
-// repeats: components/wizard/WCImport.qml:9-98 @ e6df7e1c8 (securePage, valid; apply() putting the text into
+// repeats: components/wizard/WCImport.qml:9-98 (securePage, valid; apply() putting the text into
 // address_list or private_key_list; verify(); the field verified on every change; paste appends a verified
 // clipboard on a new line; scan (app.scanDialog with the hint by what the field holds, appends verified data,
 // close)).
-// Look (DESIGN-M2-onboarding.md 3.1): the explanation as M3InfoText, an outlined M3TextArea in the fixed font over
+// Look: the explanation as M3InfoText, an outlined M3TextArea in the fixed font over
 // the rest of the height with the icon buttons paste / scan beside it.
 // Strings carried over keep the translation context of WCImport.qml.
 WizardComponent {

@@ -9,8 +9,8 @@ import "controls"
 // "Network" of the Material 3 GUI (route app.routes.networkOverview: the overflow menu, the Settings tab and the
 // network chips of the Wallet tab; replaces the classic NetworkOverview). Opens without a wallet too (the menu of
 // the Wallets root).
-// repeats: components/NetworkOverview.qml:8-338 @ e6df7e1c8: the title; _getFeerateColor() (the colors of the
-// fee histogram are data, kept as they are, R-19); on-chain: Network.networkName, status, serverWithStatus,
+// repeats: components/NetworkOverview.qml:8-338: the title; _getFeerateColor() (the colors of the
+// fee histogram are data, kept as they are); on-chain: Network.networkName, status, serverWithStatus,
 // height, the server height with "(lagging)" / "(syncing...)" when it differs, the chain tips when more than one
 // (fading in); the mempool fee histogram of Network.feeHistogram (bars by share of the total, tooltips, a tick per
 // MB, max / min fee); Lightning: Gossip (peers, channels to fetch, nodes and channels, only from
@@ -18,9 +18,9 @@ import "controls"
 // proxy (enabled, server, type with TOR); the Server / Proxy / Nostr settings dialogs, each created on a tap and
 // destroyed when closed.
 // Differences: the details are M3DetailRow rows in groups; the chain tips show the account_tree glyph instead of
-// the classic status indicator (OnchainNetworkStatusIndicator, R-13); TOR is a word with the vpn_lock glyph
-// instead of the Tor logo; the three settings are list rows at the end of the page, not bottom buttons (M2-MAP
-// F-3, R-18); Nostr without its brand icon (R-15); the wallet values are read only while a wallet is open (the
+// the classic status indicator (OnchainNetworkStatusIndicator); TOR is a word with the vpn_lock glyph
+// instead of the Tor logo; the three settings are list rows at the end of the page, not bottom buttons;
+// Nostr without its brand icon; the wallet values are read only while a wallet is open (the
 // classic page reads Daemon.currentWallet unguarded); the histogram ticks are drawn in m3.surfaceVariantOn
 // instead of white, so they show in the light theme.
 // Strings keep the translation context of the classic file (qsTranslate('NetworkOverview', ...)); the classic

@@ -5,14 +5,14 @@ import QtQuick.Controls.Material
 
 import "controls"
 
-// Message and question dialog of the Material 3 GUI (app.messageDialog; M2-MAP F-2: an M3Dialog).
-// repeats: components/MessageDialog.qml:8-86 @ e6df7e1c8 (the API: text, title, iconSource, yesno, richText,
+// Message and question dialog of the Material 3 GUI (app.messageDialog; an M3Dialog).
+// repeats: components/MessageDialog.qml:8-86 (the API: text, title, iconSource, yesno, richText,
 // z: 1 by default and any z a caller sets (1001 above the crash dialog); the default title Question / Message;
 // the text in plain or rich format, hidden when empty; Ok -> doAccept(), or No -> doReject() and Yes -> doAccept()
 // when yesno).
 // Differences: Material 3 look; the text scrolls (by a drag, mouse or finger) when it is longer than the free
 // height, so the buttons stay visible; the text is not selectable (the classic read-only TextArea is selectable
-// by mouse); the icon (M2-MAP F-5) is matched by the file name of `iconSource`, so the callers stay as they are:
+// by mouse); the icon is matched by the file name of `iconSource`, so the callers stay as they are:
 // a classic or Material 3 `warning` -> the Material 3 `warning` glyph in m3.error; any other Material 3 glyph
 // (icons/m3/) -> that glyph; `info`, `question` and the other colored classic icons -> no icon.
 // Strings keep the translation context of the classic file (qsTranslate('MessageDialog', ...)).
@@ -28,7 +28,7 @@ M3Dialog {
 
     z: 1 // raise z so it also covers dialogs using overlay as parent
 
-    // M2-MAP F-5: the glyph shown for `iconSource` ('' = no icon) and its color
+    // the glyph shown for `iconSource` ('' = no icon) and its color
     readonly property string _iconName: {
         var s = String(iconSource)
         if (s === '')
@@ -50,7 +50,7 @@ M3Dialog {
             : m3.space8 + app.statusBarHeight)
         : implicitHeight)
 
-    // the header of M3DialogBase, with the icon of F-5 instead of `iconSource` as given
+    // the header of M3DialogBase, with the glyph chosen above (_iconName) instead of `iconSource` as given
     header: ColumnLayout {
         spacing: m3.space16
 

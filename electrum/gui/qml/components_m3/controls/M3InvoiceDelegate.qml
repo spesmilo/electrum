@@ -10,7 +10,7 @@ import org.electrum 1.0
 // repeats: components/controls/InvoiceDelegate.qml:13-17 (highlight of the current item, getKey), :38-57
 // (lightning or on-chain, the on-chain fallback), :59-90 (label: message, else the address of a request;
 // amount: empty, 'MAX' or the formatted amount with the base unit), :92-131 (status string and status icon by
-// the status 0 / 1 / 3 / 7, fiat value), :142-156 (refresh on unit / fx changes) @ e6df7e1c8.
+// the status 0 / 1 / 3 / 7, fiat value), :142-156 (refresh on unit / fx changes).
 // Look: a Material 3 list row (72 high): avatar with the kind (bolt / link, a small link badge for the on-chain
 // fallback of a lightning invoice), the label and the amount on the first line, the status with its Material
 // Symbol and the fiat value on the second; the current (pressed and held) row in m3.secondaryContainer.

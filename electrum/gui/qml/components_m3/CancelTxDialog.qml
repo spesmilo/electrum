@@ -7,8 +7,8 @@ import org.electrum 1.0
 
 import "controls"
 
-// "Cancel Transaction" of the Material 3 GUI (M2-MAP F-1: full-screen dialog, the result goes out by `accepted`).
-// repeats: components/RbfCancelDialog.qml:10-173 @ e6df7e1c8 (the contract `txcanceller`, the explanation, old fee
+// "Cancel Transaction" of the Material 3 GUI (a full-screen dialog, the result goes out by `accepted`).
+// repeats: components/RbfCancelDialog.qml:10-173 (the contract `txcanceller`, the explanation, old fee
 // and fee rate, the new fee picker without absolute fees, the warning, inputs and outputs without taps and
 // sharing, Ok enabled while the canceller is valid -> doAccept()). Only the look differs.
 // Strings keep the translation context of the classic file (qsTranslate('RbfCancelDialog', ...)).

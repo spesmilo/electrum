@@ -6,20 +6,20 @@ import org.electrum 1.0
 
 import "controls"
 
-// Channels tab of the Material 3 GUI (M2-MAP F-9: the Lightning channels right in the tab, replaces the classic
+// Channels tab of the Material 3 GUI (the Lightning channels right in the tab, replaces the classic
 // Channels page that the tab used to open full screen).
-// repeats: components/Channels.qml:10-168 @ e6df7e1c8: the summary (number of open channels, what can be sent /
+// repeats: components/Channels.qml:10-168: the summary (number of open channels, what can be sent /
 // received), the channel list over Daemon.currentWallet.channelModel with the "Channel backups" section and the
 // empty-list text, a tap opens the channel details (route app.routes.channelDetails with `channelid`, as the
 // classic push of ChannelDetails.qml with { channelid: model.cid }), Swap (app.startSwap()) and Open Channel with
 // their conditions; Open Channel with no channel yet first shows the Lightning warning and asks whether to create
-// the first channel (Channels.qml:137-153, M2-MAP F-12: only on this path, BalanceDetailsPage opens the dialog
+// the first channel (Channels.qml:137-153; only on this path, BalanceDetailsPage opens the dialog
 // directly), then opens app.openChannelDialog (the one factory of both paths).
 // The model and the amounts are bound only while the wallet has Lightning (the channel model of a wallet without
 // lnworker logs "lnworker should be defined", qechannellistmodel.py:128-133): a wallet without Lightning gets a
 // note (as the classic wallet menu hides Channels for it), and once Lightning is enabled in Wallet details
 // (isLightningChanged) the list appears without a restart.
-// Layout (M2-MAP F-3): summary, then the two actions as tonal buttons, then the list (one scrolling view; rows in
+// Layout: summary, then the two actions as tonal buttons, then the list (one scrolling view; rows in
 // a column of at most m3.maxContentWidth, as M3HistoryList).
 // Strings carried over keep the translation context of the classic file (qsTranslate('Channels', ...)).
 Item {

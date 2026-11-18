@@ -8,13 +8,13 @@ import "controls"
 
 // "LNURL Withdraw request" of the Material 3 GUI, opened by PaymentFlow (requestDetails.onNeedsLNURLUserInput);
 // replaces the classic LnurlWithdrawRequestDialog.
-// repeats: components/LnurlWithdrawRequestDialog.qml:10-182 @ e6df7e1c8 (contract: wallet, requestDetails; the
+// repeats: components/LnurlWithdrawRequestDialog.qml:10-182 (contract: wallet, requestDetails; the
 // limits: walletCanReceive, provider min / max, effective min / max, insufficientLiquidity, liquidityWarning,
 // amountValid / valid; walletCanReceive taken on completion and on lightningCanReceiveChanged unless busy; the
 // three notices with their conditions and texts; provider, description; the amount field prefilled with the
 // effective maximum and editable only when the provider's min and max differ; Withdraw... enabled when valid and
 // not busy, it requests the withdrawal of the entered amount and closes).
-// Look: an M3Dialog (M2-MAP F-2): notices as M3InfoText, provider and description as detail rows, the amount as
+// Look: an M3Dialog; notices as M3InfoText, provider and description as detail rows, the amount as
 // M3AmountField. A fixed amount is shown read-only in both fields (the classic disables the bitcoin field and
 // keeps it in the normal color).
 // Strings carried over keep the translation context of LnurlWithdrawRequestDialog.qml.
