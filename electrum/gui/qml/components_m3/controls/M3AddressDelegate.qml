@@ -42,6 +42,7 @@ ItemDelegate {
     bottomPadding: m3.space8
 
     background: Rectangle {
+        id: rowBackground
         color: delegate.highlighted
             ? (delegate.down ? m3.stateLayer(m3.secondaryContainer, m3.secondaryContainerOn, m3.statePressed)
                              : m3.secondaryContainer)
@@ -72,7 +73,8 @@ ItemDelegate {
                     : '#' + model.addridx
             }
             // frozen: a badge with the ac_unit glyph on the lower right of the avatar (the index stays visible);
-            // the ring has the color of the row, so the badge stands apart from the avatar
+            // the ring has the color the row shows (its background, selected or hovered or pressed, over the
+            // m3.surface of the page), so the badge stands apart from the avatar
             Rectangle {
                 visible: delegate._held
                 width: 20
@@ -82,7 +84,7 @@ ItemDelegate {
                 y: parent.height - height + 4
                 color: m3.primary
                 border.width: 2
-                border.color: delegate.highlighted ? m3.secondaryContainer : m3.surface
+                border.color: Qt.tint(m3.surface, rowBackground.color)
 
                 M3Icon {
                     anchors.centerIn: parent
