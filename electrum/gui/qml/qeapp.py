@@ -81,8 +81,9 @@ def _with_flags(flags: int, mask: int, on: bool) -> int:
     return (flags | mask) if on else (flags & ~mask)
 
 
-# The two functions below run on the Android UI thread (android.runnable.run_on_ui_thread). They are module level
-# functions: run_on_ui_thread keeps one Runnable per function object for the life of the process.
+# _android_paint_system_bars and _android_restore_system_bars run on the Android UI thread
+# (android.runnable.run_on_ui_thread); the helpers below are called from them. They are module level functions:
+# run_on_ui_thread keeps one Runnable per function object for the life of the process.
 def _android_set_light_bars(window, light: bool) -> None:
     """Dark icons on both bars (light bars) or light icons, as Qt writes them (QtDisplayManager.setStatusBarColorHint,
     setNavigationBarColorHint)."""
@@ -546,8 +547,9 @@ class QEAppController(BaseCrashReporter, QObject):
         """Android without edge-to-edge (below Android 15) only, where the page is not drawn under the system bars
         and the system draws them in the color of the activity theme: paints the status bar and the navigation bar
         with the given colors, with dark icons on them (light_bars) or light icons. Used by the Material 3 GUI.
-        Qt paints the bars back in the theme color when the night mode of the system changes, so the caller
-        paints again then. Applied later, on the Android UI thread."""
+        Qt paints the bars back in the theme color whenever the uiMode of the configuration changes (night mode,
+        car or desk mode), so the caller paints again after a night mode change. Applied later, on the Android UI
+        thread."""
         if not self.isAndroid() or self.enforcesEdgeToEdge() or self._system_bars_disabled:
             return
         self._system_bars_painted = True

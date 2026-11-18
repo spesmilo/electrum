@@ -17,11 +17,12 @@ QtObject {
     // A manual choice is also written to the platform: on Android 15 and later this switches the light/dark status
     // bar and navigation bar icons. In 'system' mode the override is cleared, so that colorScheme follows the system again.
     // Android without edge-to-edge (below Android 15): the page is not drawn under the bars, the system draws them in
-    // the color of the activity theme (black), and Qt paints them in that color again when the night mode of the
-    // system changes. There the override is always cleared: Qt then leaves the icons to us, and colorScheme follows
-    // the system, so its change tells that Qt has painted the bars again. The bars get the theme colors and icons
-    // from AppController.setSystemBarColors (applySystemBars). `dark` does not read colorScheme in 'light' and 'dark'
-    // modes, so it is not affected.
+    // the color of the activity theme (black), and Qt paints them in that color again, with icons for the night mode
+    // of the system, whenever the uiMode of the configuration changes. There the override is always cleared, so that
+    // Qt does not also write icons for our scheme, and colorScheme follows the system: its change tells that Qt has
+    // painted the bars again (a uiMode change that keeps the night mode, e.g. car or desk mode, gives no such signal).
+    // The bars get the theme colors and icons from AppController.setSystemBarColors (applySystemBars). `dark` does
+    // not read colorScheme in 'light' and 'dark' modes, so it is not affected.
     function applyColorScheme() {
         if (_systemDrawsBars())
             Application.styleHints.colorScheme = Qt.ColorScheme.Unknown
