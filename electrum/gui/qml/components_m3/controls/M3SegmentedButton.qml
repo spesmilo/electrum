@@ -45,17 +45,29 @@ Rectangle {
                 }
 
                 background: Item {
-                    // selected fill; the outer segments follow the rounded outline
-                    Rectangle {
-                        anchors.fill: parent
-                        color: segment.selected ? m3.secondaryContainer : 'transparent'
-                        radius: segment.index === 0 || segment.index === root.model.length - 1
-                            ? height / 2 : 0
+                    // selected fill; the outer segments follow the rounded outline. The two halves of an outer
+                    // segment do not overlap (the rounded one is clipped to its half), so a translucent button
+                    // (disabled, opacity) is filled evenly.
+                    readonly property bool _outer: root.model.length > 1
+                        && (segment.index === 0 || segment.index === root.model.length - 1)
+                    Item {
+                        // the rounded fill: the whole segment, or the outer half of an outer segment
+                        width: parent._outer ? parent.width / 2 : parent.width
+                        height: parent.height
+                        x: parent._outer && segment.index !== 0 ? parent.width / 2 : 0
+                        clip: parent._outer
+                        Rectangle {
+                            width: parent.parent.width
+                            height: parent.height
+                            x: parent.x > 0 ? -parent.width : 0
+                            color: segment.selected ? m3.secondaryContainer : 'transparent'
+                            radius: segment.index === 0 || segment.index === root.model.length - 1
+                                ? height / 2 : 0
+                        }
                     }
                     Rectangle {
-                        // square off the inner side of the rounded outer segments
-                        visible: segment.selected && root.model.length > 1
-                            && (segment.index === 0 || segment.index === root.model.length - 1)
+                        // the inner half of an outer segment, square
+                        visible: segment.selected && parent._outer
                         width: parent.width / 2
                         height: parent.height
                         x: segment.index === 0 ? parent.width / 2 : 0
