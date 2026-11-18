@@ -654,7 +654,10 @@ class Exception_Hook(QObject, Logger):
             cls._INSTANCE.wallet_types_seen.add(wallet.wallet_type)
 
     def handler(self, *exc_info):
-        self.logger.error('exception caught by crash reporter', exc_info=exc_info)
+        if len(exc_info) == 1:  # threading.excepthook passes a single ExceptHookArgs
+            args = exc_info[0]
+            exc_info = (args.exc_type, args.exc_value, args.exc_traceback)
+        self.logger.error(f'exception caught by crash reporter {repr(exc_info[1])}', exc_info=exc_info)
         groupid_hash = BaseCrashReporter.get_traceback_groupid_hash(*exc_info)
         if groupid_hash in self.exception_ids_seen:
             return  # to avoid annoying the user, only show crash reporter once per exception groupid
