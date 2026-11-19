@@ -1158,11 +1158,11 @@ class Interface(Logger):
             assert len(resp_header) == 2, f"resp_header contains redundant fields. got {resp_header.keys()}"
             header_dict = blockchain.deserialize_header(header_bytes, height)
             # process header
+            if height < constants.net.max_checkpoint():
+                raise GracefulDisconnect(
+                    f"server tip below max checkpoint. ({height} < {constants.net.max_checkpoint()})")
             self.tip_header = header_dict  # TODO assert it got changed to something different?
             self.tip = height
-            if self.tip < constants.net.max_checkpoint():
-                raise GracefulDisconnect(
-                    f"server tip below max checkpoint. ({self.tip} < {constants.net.max_checkpoint()})")
             self._mark_ready()
             self._headers_cache.clear()  # tip changed, so assume anything could have happened with chain
             self._headers_cache[height] = header_bytes
