@@ -685,16 +685,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             self.show_warning(warning.message, title=warning.title)
             self.wallet.acknowledge_warning(warning.key)
 
-    def open_wallet(self):
+    def open_wallet(self) -> None:
         try:
             wallet_folder = self.get_wallet_folder()
         except FileNotFoundError as e:
             self.show_error(str(e))
             return
-        filename, __ = QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder)
-        if not filename:
+        filenames, __ = QFileDialog.getOpenFileNames(self, "Select your wallet files", wallet_folder)
+        if not filenames:
             return
-        self.gui_object.new_window(filename)
+        self.gui_object.open_wallets(filenames, parent=self)
 
     def select_backup_dir(self, b):
         name = self.config.WALLET_BACKUP_DIRECTORY or ""

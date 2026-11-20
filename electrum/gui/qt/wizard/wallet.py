@@ -96,6 +96,7 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard, MessageBoxMixin):
 
         self._path = standardize_path(path)
         self._password = None
+        self.initial_password: str | None = None
 
         # attach gui classes to views
         self.navmap_merge({
@@ -274,6 +275,8 @@ class WCWalletName(WalletWizardComponent, Logger):
         self.layout().addWidget(msg_label)
         hbox2 = QHBoxLayout()
         self.pw_e = PasswordLineEdit('', self)
+        if wizard.initial_password:
+            self.pw_e.setText(wizard.initial_password)
         self.pw_e.setFixedWidth(17 * char_width_in_lineedit())
         pw_label = QLabel(_('Password') + ':')
         hbox2.addWidget(pw_label)
@@ -312,6 +315,10 @@ class WCWalletName(WalletWizardComponent, Logger):
             if filename_or_path:
                 # Note: if filename_or_path is a path, os.path.join will leave it unchanged
                 _path = os.path.join(datadir_wallet_folder, filename_or_path)
+                if wizard.initial_password and standardize_path(_path) != wizard.path:
+                    # Do not carry a verified password into a different file selected in the wizard.
+                    self.pw_e.clear()
+                    wizard.initial_password = None
                 wallet_from_memory = self.wizard._daemon.get_wallet(_path)
                 try:
                     if wallet_from_memory:
