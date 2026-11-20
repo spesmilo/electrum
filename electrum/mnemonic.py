@@ -155,6 +155,9 @@ filenames = {
 }
 
 
+MIN_SEED_BITS = 132
+
+
 class Mnemonic(Logger):
     # Seed derivation does not follow BIP39
     # Mnemonic phrase uses a hash based checksum, instead of a wordlist-dependent checksum
@@ -204,7 +207,11 @@ class Mnemonic(Logger):
         if seed_type is None:
             seed_type = 'segwit'
         if num_bits is None:
-            num_bits = 132
+            num_bits = MIN_SEED_BITS
+        if not isinstance(num_bits, int) or isinstance(num_bits, bool):
+            raise TypeError('num_bits must be an integer')
+        if num_bits < MIN_SEED_BITS:
+            raise ValueError(f'num_bits must be at least {MIN_SEED_BITS}')
         prefix = version.seed_prefix(seed_type)
         # increase num_bits in order to obtain a uniform distribution for the last word
         bpw = math.log(len(self.wordlist), 2)

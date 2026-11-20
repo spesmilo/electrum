@@ -36,6 +36,31 @@ class TestCommands(ElectrumTestCase):
         super().setUp()
         self.config = SimpleConfig({'electrum_path': self.electrum_path})
 
+    async def test_make_seed_rejects_unsafe_entropy(self):
+        cmds = Commands(config=self.config)
+        for nbits in (0, 1, 11, 128, 131):
+            with self.subTest(nbits=nbits):
+                with self.assertRaisesRegex(UserFacingException, 'at least 132'):
+                    await cmds.make_seed(nbits=nbits)
+
+    async def test_make_seed_rejects_invalid_entropy_type(self):
+        cmds = Commands(config=self.config)
+        for nbits in (True, False, 132.0, '132'):
+            with self.subTest(nbits=nbits):
+                with self.assertRaisesRegex(UserFacingException, 'integer'):
+                    await cmds.make_seed(nbits=nbits)
+
+    async def test_make_seed_accepts_safe_entropy(self):
+        cmds = Commands(config=self.config)
+        for nbits in (None, 132, 264):
+            with self.subTest(nbits=nbits), mock.patch(
+                    'electrum.mnemonic.crandom.get_rand_below',
+                    side_effect=lambda bound: bound // 2) as rng:
+                seed = await cmds.make_seed(nbits=nbits)
+                self.assertEqual('segwit', electrum.mnemonic.calc_seed_type(seed))
+                self.assertEqual(24 if nbits == 264 else 12, len(seed.split()))
+                rng.assert_called_once()
+
     def test_setconfig_non_auth_number(self):
         self.assertEqual(7777, Commands._setconfig_normalize_value('rpcport', "7777"))
         self.assertEqual(7777, Commands._setconfig_normalize_value('rpcport', '7777'))
