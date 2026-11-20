@@ -50,6 +50,8 @@ class QERequestDetails(QObject, QtEventListener):
         self._req = None
         self._timer = None
         self._amount = None
+        self._offer = None  # type: Optional[str]
+        self._offer_message = ''
 
         self._lnurlData = None  # type: Optional[dict]
         self._busy = False
@@ -101,6 +103,8 @@ class QERequestDetails(QObject, QtEventListener):
 
     @pyqtProperty(int, notify=statusChanged)
     def status(self):
+        if not self._req:
+            return PR_UNPAID
         return self._wallet.wallet.get_invoice_status(self._req)
 
     @pyqtProperty(str, notify=statusChanged)
@@ -109,6 +113,8 @@ class QERequestDetails(QObject, QtEventListener):
 
     @pyqtProperty(bool, notify=detailsChanged)
     def isLightning(self):
+        if self._offer is not None:
+            return True
         return self._req.is_lightning() if self._req else False
 
     @pyqtProperty(str, notify=detailsChanged)
@@ -118,6 +124,8 @@ class QERequestDetails(QObject, QtEventListener):
 
     @pyqtProperty(str, notify=detailsChanged)
     def message(self):
+        if self._offer is not None:
+            return self._offer_message
         return self._req.get_message() if self._req else ''
 
     @pyqtProperty(QEAmount, notify=detailsChanged)
@@ -144,6 +152,9 @@ class QERequestDetails(QObject, QtEventListener):
 
     @pyqtProperty(str, notify=detailsChanged)
     def bolt11(self):
+        if self._offer is not None:
+            # in offer mode this field carries the offer string for the QR code / copy / share
+            return self._offer
         wallet = self._wallet.wallet
         if not wallet.lnworker:
             return ''
@@ -187,6 +198,19 @@ class QERequestDetails(QObject, QtEventListener):
         self.detailsChanged.emit()
         self.statusChanged.emit()
         self.set_status_timer()
+
+    @pyqtSlot(str, 'qint64', str)
+    def setOffer(self, offer: str, amount_sat: int, message: str):
+        """Populate from a reusable Lightning offer instead of a persisted request,
+        so the same receive view used for bolt11 can also display offers.
+        Offers are not persisted (no key) and have no payment status."""
+        self._offer = offer
+        self._offer_message = message or ''
+        if amount_sat:
+            self._amount = QEAmount(amount_sat=amount_sat, amount_msat=amount_sat * 1000)
+        else:
+            self._amount = QEAmount()
+        self.detailsChanged.emit()
 
     def set_status_timer(self):
         if self.status == PR_UNPAID:
