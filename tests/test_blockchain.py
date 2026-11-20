@@ -56,8 +56,8 @@ class TestBlockchain(ElectrumTestCase):
 
     def setUp(self):
         super().setUp()
-        self.data_dir = Path(self.electrum_path)
-        self.config = SimpleConfig({'electrum_path': self.data_dir})
+        self.config = SimpleConfig({'electrum_path': self.electrum_path})
+        self.data_dir = Path(self.config.path)
         self.bc_mgr = BlockchainManager.from_config(self.config)
 
     def _append_header(self, chain: Blockchain, header: dict):
