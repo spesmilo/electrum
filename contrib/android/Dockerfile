@@ -213,6 +213,12 @@ RUN cd /opt \
     && git checkout "${P4A_CHECKOUT_COMMIT}^{commit}" \
     && /opt/venv/bin/python3 -m pip install --no-build-isolation --no-dependencies -e .
 
+# pin the sha256 of everything gradle downloads for the apk build.
+# python-for-android copies this file into the gradle project, along with the rest of the bootstrap dir.
+# To update it, run contrib/android/update_gradle_verification_metadata.sh
+COPY --chown=user contrib/android/gradle-verification-metadata.xml \
+    /opt/python-for-android/pythonforandroid/bootstraps/qt6/build/gradle/verification-metadata.xml
+
 # build env vars
 ENV USE_SDK_WRAPPER=1
 ENV GRADLE_OPTS="-Xmx1536M -Dorg.gradle.jvmargs='-Xmx1536M'"
