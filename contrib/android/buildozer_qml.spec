@@ -104,12 +104,9 @@ fullscreen = False
 # (list) Permissions
 android.permissions = INTERNET, CAMERA, WRITE_EXTERNAL_STORAGE, POST_NOTIFICATIONS, USE_BIOMETRIC
 
-# (int) Android API to use  (compileSdkVersion)
+# (int) Android API to use (compileSdkVersion and targetSdkVersion)
 # note: when changing, Dockerfile also needs to be changed to install corresponding build tools
 android.api = 36
-
-# (int) Android targetSdkVersion
-android.target_sdk_version = 36
 
 # (int) Minimum API required. You will need to set the android.ndk_api to be as low as this value.
 android.minapi = 26
@@ -128,9 +125,6 @@ android.ndk_path = /opt/android/android-ndk
 
 # (str) Android SDK directory (if empty, it will be automatically downloaded.)
 android.sdk_path = /opt/android/android-sdk
-
-# (str) ANT directory (if empty, it will be automatically downloaded.)
-android.ant_path = /opt/android/apache-ant
 
 # (bool) If True, then skip trying to update the Android sdk
 # This can be useful to avoid excess Internet downloads or save time

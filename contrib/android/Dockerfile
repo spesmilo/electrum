@@ -117,22 +117,6 @@ RUN curl --location --progress-bar \
 # Without it, avdmanager does not list the platform, and python-for-android asks avdmanager for the available APIs.
 RUN ${ANDROID_SDK_MANAGER} --list_installed > /dev/null
 
-# download ANT
-ENV APACHE_ANT_VERSION="1.10.13"
-ENV APACHE_ANT_HASH="776be4a5704158f00ef3f23c0327546e38159389bc8f39abbfe114913f88bab1"
-ENV APACHE_ANT_ARCHIVE="apache-ant-${APACHE_ANT_VERSION}-bin.tar.gz"
-ENV APACHE_ANT_DL_URL="https://archive.apache.org/dist/ant/binaries/${APACHE_ANT_ARCHIVE}"
-ENV APACHE_ANT_HOME="${ANDROID_HOME}/apache-ant"
-ENV APACHE_ANT_HOME_V="${APACHE_ANT_HOME}-${APACHE_ANT_VERSION}"
-
-RUN curl --location --progress-bar \
-        "${APACHE_ANT_DL_URL}" \
-        --output "${APACHE_ANT_ARCHIVE}" \
-    && echo "${APACHE_ANT_HASH} ${APACHE_ANT_ARCHIVE}" | sha256sum -c - \
-    && tar -xf "${APACHE_ANT_ARCHIVE}" -C "${ANDROID_HOME}" \
-    && ln -sfn "${APACHE_ANT_HOME_V}" "${APACHE_ANT_HOME}" \
-    && rm -rf "${APACHE_ANT_ARCHIVE}"
-
 
 # install system/build dependencies
 # https://github.com/kivy/buildozer/blob/master/docs/source/installation.rst#android-on-ubuntu-2004-64bit
@@ -218,8 +202,8 @@ RUN /opt/venv/bin/python3 -m pip install --no-build-isolation --no-dependencies 
     -r /opt/deterministic-build/requirements-build-android.txt
 
 # install buildozer
-ENV BUILDOZER_CHECKOUT_COMMIT="6242e3e41365e70f76bd18f30992dcc5898ad40e"
-# ^ from branch electrum_20240930 (note: careful with force-pushing! see #8162)
+ENV BUILDOZER_CHECKOUT_COMMIT="6c4a4de72782d218834b5d250d30814d56d8e8da"
+# ^ from branch electrum_20261120 (note: careful with force-pushing! see #8162)
 RUN cd /opt \
     && git clone https://github.com/spesmilo/buildozer \
     && cd buildozer \
