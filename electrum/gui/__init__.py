@@ -4,7 +4,7 @@
 
 # Notifications about network events are sent to the GUI by using network.register_callback()
 
-from typing import TYPE_CHECKING, Mapping, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from . import qt
@@ -27,7 +27,3 @@ class BaseElectrumGui:
         This method must be thread-safe.
         """
         pass
-
-    @classmethod
-    def version_info(cls) -> Mapping[str, Optional[str]]:
-        return {}

@@ -3,6 +3,10 @@ import QtQuick.Layouts
 import QtQuick.Controls
 import QtQuick.Controls.Material
 
+import org.electrum 1.0
+
+import "controls"
+
 Pane {
     objectName: 'About'
 
@@ -40,27 +44,6 @@ Pane {
                 text: BUILD.electrum_version
             }
             Label {
-                text: qsTr('Protocol version')
-                Layout.alignment: Qt.AlignRight
-            }
-            Label {
-                text: BUILD.protocol_version
-            }
-            Label {
-                text: qsTr('Qt Version')
-                Layout.alignment: Qt.AlignRight
-            }
-            Label {
-                text: BUILD.qt_version
-            }
-            Label {
-                text: qsTr('PyQt Version')
-                Layout.alignment: Qt.AlignRight
-            }
-            Label {
-                text: BUILD.pyqt_version
-            }
-            Label {
                 text: qsTr('License')
                 Layout.alignment: Qt.AlignRight
             }
@@ -93,7 +76,45 @@ Pane {
                 Layout.columnSpan: 2
                 Layout.alignment: Qt.AlignHCenter
             }
+
+            Button {
+                id: technicalDetailsButton
+                property bool expanded: false
+                Layout.columnSpan: 2
+                Layout.alignment: Qt.AlignHCenter
+                text: expanded ? qsTr('Hide technical details') : qsTr('Show technical details')
+                onClicked: expanded = !expanded
+            }
+
+            Loader {
+                Layout.columnSpan: 2
+                Layout.fillWidth: true
+                active: technicalDetailsButton.expanded
+                visible: active
+
+                sourceComponent: TextHighlightPane {
+                    VersionInfo {
+                        id: versionInfo
+                    }
+
+                    ColumnLayout {
+                        width: parent.width
+                        BusyIndicator {
+                            Layout.alignment: Qt.AlignHCenter
+                            visible: !versionInfo.text
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            visible: versionInfo.text
+                            text: versionInfo.text
+                            textFormat: Text.PlainText
+                            font.family: FixedFont
+                            font.pixelSize: constants.fontSizeSmall
+                            wrapMode: Text.Wrap
+                        }
+                    }
+                }
+            }
         }
     }
-
 }
