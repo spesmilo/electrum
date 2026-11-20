@@ -86,7 +86,36 @@ class ElectrumGui(BaseElectrumGui, Logger):
 
         # Initialize any QML plugins
         run_hook('init_qml', self.app)
-        self.app.engine.load('electrum/gui/qml/components/main.qml')
+        self._load_main_qml()
+
+    CLASSIC_MAIN_QML = 'electrum/gui/qml/components/main.qml'
+    M3_MAIN_QML = 'electrum/gui/qml/components_m3/main.qml'
+
+    def _load_main_qml(self):
+        ui_style = self.config.GUI_QML_UI_STYLE
+        if ui_style != 'material3':  # unknown values fall back to classic as well
+            ui_style = 'classic'
+        self.logger.info(f'Qml GUI style={ui_style}')
+        if ui_style == 'classic':
+            self.app.engine.load(self.CLASSIC_MAIN_QML)
+            return
+        self.app.engine.load(self.M3_MAIN_QML)
+        if self.app.engine.rootObjects():
+            return
+        # The Material 3 root failed to load (e.g. a QML error). Without a GUI the user could not
+        # switch the style back (on Android there is no other way), so revert to the classic GUI,
+        # and persist that: any value other than 'material3' means classic; 'material3-failed' lets
+        # the classic preferences tell the user why Material 3 is not active.
+        self.logger.error('failed to load Material 3 GUI, falling back to classic GUI')
+        self.config.GUI_QML_UI_STYLE = 'material3-failed'
+        self.app._valid = True
+        # ElectrumQmlApplication.objectCreated disconnects itself after the first call
+        try:
+            self.app.engine.objectCreated.disconnect(self.app.objectCreated)
+        except TypeError:
+            pass
+        self.app.engine.objectCreated.connect(self.app.objectCreated)
+        self.app.engine.load(self.CLASSIC_MAIN_QML)
 
     def close(self):
         self.app.quit()

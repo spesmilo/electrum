@@ -64,6 +64,44 @@ Pane {
                     }
 
                     Label {
+                        text: qsTr('Interface style')
+                    }
+
+                    ElComboBox {
+                        id: uiStyle
+                        textRole: 'text'
+                        valueRole: 'value'
+                        model: [
+                            { text: qsTr('Classic'), value: 'classic' },
+                            { text: qsTr('Material 3'), value: 'material3' }
+                        ]
+                        // user choice only; also when the shown item is chosen again, so that choosing
+                        // Classic after 'material3-failed' saves 'classic' (no restart: classic runs)
+                        onActivated: (index) => {
+                            var value = valueAt(index)
+                            if (Config.uiStyle != value) {
+                                var restart = Config.uiStyle == 'material3' || value == 'material3'
+                                Config.uiStyle = value
+                                if (restart) {
+                                    var dialog = app.messageDialog.createObject(app, {
+                                        text: qsTr('Please restart Electrum to activate the new GUI settings')
+                                    })
+                                    dialog.open()
+                                }
+                            }
+                        }
+                    }
+
+                    Label {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+                        visible: Config.uiStyle == 'material3-failed'
+                        wrapMode: Text.Wrap
+                        color: constants.colorWarning
+                        text: qsTr('Material 3 failed to start last time (see the log). You can select it again.')
+                    }
+
+                    Label {
                         text: qsTr('Base unit')
                     }
 
@@ -496,6 +534,7 @@ Pane {
 
     Component.onCompleted: {
         language.currentIndex = language.indexOfValue(Config.language)
+        uiStyle.currentIndex = Math.max(0, uiStyle.indexOfValue(Config.uiStyle))
         baseUnit.currentIndex = _baseunits.indexOf(Config.baseUnit)
         thousands.checked = Config.thousandsSeparator
         currencies.currentIndex = currencies.indexOfValue(Daemon.fx.fiatCurrency)

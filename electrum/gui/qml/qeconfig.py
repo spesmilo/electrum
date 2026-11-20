@@ -248,6 +248,28 @@ class QEConfig(AuthMixin, QObject):
             self.config.GUI_QML_PREFERRED_REQUEST_TYPE = preferred_request_type
             self.preferredRequestTypeChanged.emit()
 
+    uiStyleChanged = pyqtSignal()
+    @pyqtProperty(str, notify=uiStyleChanged)
+    def uiStyle(self):
+        return self.config.GUI_QML_UI_STYLE
+
+    @uiStyle.setter
+    def uiStyle(self, ui_style):
+        if ui_style != self.config.GUI_QML_UI_STYLE:
+            self.config.GUI_QML_UI_STYLE = ui_style
+            self.uiStyleChanged.emit()
+
+    m3ThemeChanged = pyqtSignal()
+    @pyqtProperty(str, notify=m3ThemeChanged)
+    def m3Theme(self):
+        return self.config.GUI_QML_M3_THEME
+
+    @m3Theme.setter
+    def m3Theme(self, m3_theme):
+        if m3_theme != self.config.GUI_QML_M3_THEME:
+            self.config.GUI_QML_M3_THEME = m3_theme
+            self.m3ThemeChanged.emit()
+
     userKnowsPressAndHoldChanged = pyqtSignal()
     @pyqtProperty(bool, notify=userKnowsPressAndHoldChanged)
     def userKnowsPressAndHold(self):
