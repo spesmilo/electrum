@@ -39,7 +39,7 @@ except Exception as e:
         "you may try 'sudo apt-get install python3-pyqt6'") from e
 
 from PyQt6.QtGui import QGuiApplication, QCursor
-from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QWidget, QMenu, QMessageBox, QDialog, QToolTip, QLabel
+from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QWidget, QMenu, QMessageBox, QDialog, QToolTip, QLabel, QTextEdit
 from PyQt6.QtCore import QObject, pyqtSignal, QTimer, Qt, QEvent
 
 import PyQt6.QtCore as QtCore
@@ -126,7 +126,8 @@ class ScreenshotProtectionEventFilter(QObject):
 
 
 class InjectNoRichTextEventFilter(QObject):
-    """Set the default textFormat of all QLabels to PlainText.
+    """Set the default textFormat of all QLabels to PlainText,
+    and force QTextEdit to display plain text.
 
     note: this also affects e.g. QMessageBox as it uses a QLabel internally.
     FIXME if obj is a QLabel and it contains rich text, has the rich text already been parsed
@@ -146,12 +147,12 @@ class InjectNoRichTextEventFilter(QObject):
             # > This function [QStyle.polish()] is called for every widget at some point after
             # > it has been fully created but just before it is shown for the very first time.
             return False
-        if not isinstance(obj, QLabel):
-            return False
-        if obj.textFormat() != Qt.TextFormat.AutoText:
-            # non-default textFormat => we leave it alone
-            return False
-        obj.setTextFormat(Qt.TextFormat.PlainText)
+        if isinstance(obj, QLabel):
+            if obj.textFormat() == Qt.TextFormat.AutoText:
+                obj.setTextFormat(Qt.TextFormat.PlainText)
+        elif isinstance(obj, QTextEdit):
+            obj._orig_setText = obj.setText
+            obj.setText = obj.setPlainText
         return False
 
 
