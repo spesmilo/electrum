@@ -120,6 +120,21 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         self.need_update = True
 
     @event_listener
+    def on_event_new_transaction(self, wallet, tx):
+        if wallet != self.wallet:
+            return
+
+        self.need_update = True
+
+        # Alert for transactions with an output belonging to this wallet.
+        if any(
+            output.address
+            and self.wallet.is_mine(output.address)
+            for output in tx.outputs()
+        ):
+            curses.beep()
+
+    @event_listener
     def on_event_network_updated(self):
         self.need_update = True
 
