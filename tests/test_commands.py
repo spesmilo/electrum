@@ -342,6 +342,36 @@ class TestCommandsTestnet(ElectrumTestCase):
         self.assertEqual("02000000000101a0a8800d2d6bb0a4a8b93b793f39439c4139a40d30e634cf5cd601e5391de6ed0100000000fdffffff0240e2010000000000160014810480bbaf62145abf945ebe5f657c665a3a3732462b060000000000160014a5103285eb519f826520a9f7d3227e1eaa7ec5f802473044022057a6f4b1ec63336c7d0ba233e785ec9f2e2d9c2d67617a50e069f4498ee6a3b7022032fb331e0bef06f46e9cb77bfe94413142653c4912516835e941fa7f170c1a53012103001b55f19541faaf7e6d57dd1bdb9fdc37725fc500e12f2418cc11e0aed4154978181e00",
                          tx_str)
 
+    async def test_payto_script_output(self):
+        wallet = restore_wallet_from_text__for_unittest(
+            'disagree rug lemon bean unaware square alone beach tennis exhibit fix mimic',
+            path=None,
+            config=self.config)['wallet']
+        # bootstrap wallet
+        funding_tx = Transaction('0200000000010165806607dd458280cb57bf64a16cf4be85d053145227b98c28932e953076b8e20000000000fdffffff02ac150700000000001600147e3ddfe6232e448a8390f3073c7a3b2044fd17eb102908000000000016001427fbe3707bc57e5bb63d6f15733ec88626d8188a02473044022049ce9efbab88808720aa563e2d9bc40226389ab459c4390ea3e89465665d593502206c1c7c30a2f640af1e463e5107ee4cfc0ee22664cfae3f2606a95303b54cdef80121026269e54d06f7070c1f967eb2874ba60de550dfc327a945c98eb773672d9411fd77181e00')
+        wallet.adb.receive_tx_callback(funding_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+        cmds = Commands(config=self.config)
+        op_return = TxOutput(scriptpubkey=bytes.fromhex("6a023210"), value=0)
+        # payto: a single OP_RETURN output (plus change)
+        tx = tx_from_any(await cmds.payto(
+            destination="script(OP_RETURN 3210)", amount="0", feerate=50, locktime=1972344, wallet=wallet))
+        self.assertTrue(op_return in tx.outputs())
+        # paytomany: OP_RETURN next to a regular address output
+        txout = TxOutput.from_address_and_value("tb1qsyzgpwa0vg2940u5t6l97etuvedr5dejpf9tdy", 123456)
+        tx = tx_from_any(await cmds.paytomany(
+            outputs=[["tb1qsyzgpwa0vg2940u5t6l97etuvedr5dejpf9tdy", "0.00123456"], ["script(OP_RETURN 3210)", "0"]],
+            feerate=50, locktime=1972344, wallet=wallet))
+        self.assertTrue(op_return in tx.outputs())
+        self.assertTrue(txout in tx.outputs())
+        # surrounding whitespace is ignored, like in the GUI
+        tx = tx_from_any(await cmds.payto(
+            destination=" script(OP_RETURN 3210)\n", amount="0", feerate=50, locktime=1972344, wallet=wallet))
+        self.assertTrue(op_return in tx.outputs())
+        # a malformed or empty script is a user-facing error
+        for destination in ("script(OP_RETURN zz)", "script()", "script(   )"):
+            with self.assertRaises(UserFacingException):
+                await cmds.payto(destination=destination, amount="0.001", feerate=50, wallet=wallet)
+
     async def test_payto__confirmed_only(self):
         """test that payto respects 'confirmed_only' config var"""
         wallet = restore_wallet_from_text__for_unittest(
