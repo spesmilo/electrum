@@ -4,7 +4,7 @@ from PyQt6.QtCore import pyqtProperty, pyqtSignal, QObject, pyqtSlot
 
 from electrum.logging import get_logger
 from electrum import constants
-from electrum.network import ProxySettings
+from electrum.network import ProxySettings, is_valid_doh_endpoint
 from electrum.interface import ServerAddr
 from electrum.fee_policy import FEERATE_DEFAULT_RELAY
 from electrum.util import event_listener
@@ -211,6 +211,10 @@ class QENetwork(QObject, QtEventListener):
     @pyqtSlot(str, result=bool)
     def isValidServerAddress(self, server: str) -> bool:
         return ServerAddr.from_str_with_inference(server) is not None
+
+    @pyqtSlot(str, result=bool)
+    def isValidDohEndpoint(self, endpoint: str) -> bool:
+        return is_valid_doh_endpoint(endpoint)
 
     @pyqtSlot(str, bool, bool)
     def setServerParameters(self, server_str: str, auto_connect: bool, one_server: bool):
