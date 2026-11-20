@@ -111,7 +111,7 @@ class QEAddressCoinListModel(QAbstractListModel, QtEventListener):
 
     # define listmodel rolemap
     _ROLE_NAMES=('type', 'addridx', 'address', 'label', 'balance', 'numtx', 'held', 'height', 'amount', 'outpoint',
-                 'short_outpoint', 'short_id', 'txid')
+                 'short_outpoint', 'short_id', 'txid', 'coincontrol', 'address_held')
     _ROLE_KEYS = range(Qt.ItemDataRole.UserRole, Qt.ItemDataRole.UserRole + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
     _ROLE_RMAP = dict(zip(_ROLE_NAMES, _ROLE_KEYS))
@@ -154,6 +154,12 @@ class QEAddressCoinListModel(QAbstractListModel, QtEventListener):
             # from name (e.g. via one of its output addresses, or an outpoint it creates or spends)
             txids = {name} | self.wallet.get_txids_with_label_derived_from(name)
             self.updateCoin(txids=txids)
+
+    @qt_event_listener
+    def on_event_frozen_state_changed(self, wallet, addresses, outpoints):
+        # the 'held' role of both addresses and coins depends on the frozen state
+        if wallet == self.wallet:
+            self.setDirty()
 
     def rowCount(self, index):
         return len(self._items)
@@ -198,7 +204,7 @@ class QEAddressCoinListModel(QAbstractListModel, QtEventListener):
             'numtx': self.wallet.adb.get_address_history_len(address),
             'label': self.wallet.get_label_for_address(address),
             'balance': QEAmount(amount_sat=c + u + x),
-            'held': self.wallet.is_frozen_address(address)
+            'held': self.wallet.is_frozen_address(address),
         }
         return item
 
@@ -217,7 +223,9 @@ class QEAddressCoinListModel(QAbstractListModel, QtEventListener):
             'txid': txid,
             'label': self.wallet.get_label_for_txid(txid) or '',
             'held': self.wallet.is_frozen_coin(coin),
-            'coin': coin
+            'address_held': self.wallet.is_frozen_address(coin.address),
+            'coin': coin,
+            'coincontrol': self.wallet.coinfilter.is_selected(coin)
         }
         return item
 
@@ -323,3 +331,25 @@ class QEAddressCoinListModel(QAbstractListModel, QtEventListener):
             for address in addresses:
                 self.updateAddress(address)
 
+    @pyqtSlot(bool, list)
+    def setCoinControlForItems(self, include: bool, items: List[str]):
+        self._logger.debug(f'coin cointrol {include=} for {items!r}')
+        coins = list(filter(lambda x: ':' in x, items))
+        addrs = list(filter(lambda x: is_address(x), items))
+        coins += [x.prevout.to_str() for x in self.wallet.get_utxos(addrs)]
+        if len(coins):
+            utxos = self.wallet.get_utxos()
+            coins2 = list(filter(lambda x: x.prevout.to_str() in coins, utxos))
+            if include:
+                self.wallet.coinfilter.select_coins(coins2)
+            else:
+                self.wallet.coinfilter.deselect_coins(coins2)
+            for coin in coins:
+                self.updateCoin(outpoint=coin)
+
+    @pyqtSlot()
+    def resetCoinControl(self):
+        prevsel = self.wallet.coinfilter.get_selection()
+        self.wallet.coinfilter.clear_selection()
+        for coin in prevsel:
+            self.updateCoin(outpoint=coin)

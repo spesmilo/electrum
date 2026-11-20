@@ -83,6 +83,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     seedRetrieved = pyqtSignal()
     messageSigned = pyqtSignal([str], arguments=['signature'])
     signMessageError = pyqtSignal([str], arguments=['error'])
+    coincontrolUpdated = pyqtSignal()
 
     _network_signal = pyqtSignal(str, object)
 
@@ -219,6 +220,17 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self._logger.debug('wallet_updated')
             self.balanceChanged.emit()
             self.synchronizing = not wallet.is_up_to_date()
+
+    @qt_event_listener
+    def on_event_frozen_state_changed(self, wallet, addresses, outpoints):
+        if wallet == self.wallet:
+            # frozenBalance, isLowReserve and the piechart all depend on the frozen set
+            self.balanceChanged.emit()
+
+    @qt_event_listener
+    def on_event_coin_control_changed(self, wallet, *args):
+        if wallet == self.wallet:
+            self.coincontrolUpdated.emit()
 
     @event_listener
     def on_event_channel(self, wallet, channel):
@@ -868,3 +880,8 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             message = self.wallet.get_text_not_enough_funds_mentioning_frozen(for_amount='!')
 
         return amount, message
+
+    @pyqtProperty(int, notify=coincontrolUpdated)
+    def coinsInCoinControl(self):
+        return len(self.wallet.coinfilter.get_selection())
+

@@ -13,6 +13,13 @@ ItemDelegate {
 
     font.pixelSize: constants.fontSizeMedium // set default font size for child controls
 
+    background: ItemDelegateBackground {
+        delegate: delegate
+        color: model.coincontrol
+                    ? highlighted ? Qt.lighter(constants.colorCoinInCoinControl, 1.75) : constants.colorCoinInCoinControl
+                    : highlighted ? constants.listSelectedColor : 'transparent'
+    }
+
     ColumnLayout {
         id: delegateLayout
         width: parent.width
@@ -52,6 +59,7 @@ ItemDelegate {
                             : model.type == 'change'
                                 ? constants.colorAddressInternal
                                 : constants.colorAddressExternal
+                radius: 3
             }
 
             RowLayout {
