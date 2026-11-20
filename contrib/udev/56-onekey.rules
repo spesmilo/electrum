@@ -1,0 +1,2 @@
+# OneKey Pro 2 and Neo (application USB interface)
+SUBSYSTEM=="usb", ATTR{idVendor}=="1209", ATTR{idProduct}=="4f4c", MODE="0660", GROUP="plugdev", TAG+="uaccess"
