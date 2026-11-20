@@ -71,7 +71,7 @@ import certifi
 import dns.asyncresolver
 
 from .i18n import _
-from .logging import get_logger, Logger
+from .logging import get_logger, Logger, describe_os_version
 from .version import ELECTRUM_VERSION, PROTOCOL_VERSION_MIN, PROTOCOL_VERSION_MAX
 from . import platform
 
@@ -1192,6 +1192,7 @@ def get_version_info() -> dict[str, Optional[str]]:
         "electrum.path": os.path.dirname(os.path.realpath(__file__)),
         "python.version": sys.version,
         "python.path": sys.executable,
+        "os.version": describe_os_version(),
     }
     # Add shared libs (.so/.dll), and non-pure-python dependencies.
     # Such deps can be installed in various ways - often via the Linux distro's pkg manager,
