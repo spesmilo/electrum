@@ -27,7 +27,7 @@ import dataclasses
 import threading
 import itertools
 from collections import defaultdict
-from typing import TYPE_CHECKING, Dict, Optional, Set, Tuple, NamedTuple, Sequence, List, Iterable
+from typing import TYPE_CHECKING, Dict, Optional, Set, Tuple, NamedTuple, Sequence, List
 
 from .crypto import sha256
 from . import bitcoin, util
@@ -309,7 +309,8 @@ class AddressSynchronizer(Logger, EventListener):
         if tx_hash is None:
             raise Exception("cannot add tx without txid to wallet history")
         # For sanity, try to serialize and deserialize tx early:
-        tx_from_any(str(tx), sanitize=False)  # see if raises (no-side-effects)
+        # note: str(tx) finalizes a complete psbt, which _are_new_inputs_valid relies on
+        tx_from_any(str(tx), sanitize=False)  # see if raises
         with self.lock:
             # NOTE: returning if tx in self.transactions might seem like a good idea
             # BUT we track is_mine inputs in a txn, and during subsequent calls
@@ -329,7 +330,7 @@ class AddressSynchronizer(Logger, EventListener):
             stored_tx = self.db.get_transaction(tx_hash)
             is_new_witness = stored_tx is None or isinstance(stored_tx, PartialTransaction)
             checked_tx = tx if is_new_witness else stored_tx  # db keeps a complete tx
-            if not self._are_new_inputs_valid(checked_tx, range(len(tx.inputs())), is_new_witness=is_new_witness):
+            if not self._are_new_inputs_valid(checked_tx, is_new_witness=is_new_witness):
                 if not is_new_witness:
                     self.remove_transaction(tx_hash)
                 raise InvalidTxSignature()
@@ -380,6 +381,15 @@ class AddressSynchronizer(Logger, EventListener):
                 ser = txi.prevout.to_str()
                 self.db.set_spent_outpoint(prevout_hash, prevout_n, tx_hash)
                 add_value_from_prev_output()
+            # save
+            self.db.add_transaction(tx_hash, tx)
+            self.db.add_num_inputs_to_tx(tx_hash, len(tx.inputs()))
+            # verify the stored txs that spend tx, before they are linked to our coins
+            for spender_txid in {self.db.get_spent_outpoint(tx_hash, n) for n in self.db.get_spent_outpoints(tx_hash)}:
+                spender_tx = self.db.get_transaction(spender_txid)
+                if spender_tx and not self._are_new_inputs_valid(spender_tx, is_new_witness=False):
+                    self.logger.warning(f"removing tx with invalid signature: {spender_txid}")
+                    self.remove_transaction(spender_txid)
             # add outputs
             for n, txo in enumerate(tx.outputs()):
                 v = txo.value
@@ -393,23 +403,14 @@ class AddressSynchronizer(Logger, EventListener):
                     # give v to txi that spends me
                     next_tx = self.db.get_spent_outpoint(tx_hash, n)
                     if next_tx is not None:
-                        spender_tx = self.db.get_transaction(next_tx)
-                        txin_idx = spender_tx.get_input_idx_that_spent_prevout(TxOutpoint.from_str(ser)) if spender_tx else None
-                        if txin_idx is not None and not self._are_new_inputs_valid(
-                                spender_tx, [txin_idx], prev_tx=tx, is_new_witness=False):
-                            self.logger.warning(f"removing tx with invalid signature: {next_tx}")
-                            self.remove_transaction(next_tx)
-                            continue
                         is_new_txi = self.db.add_txi_addr(next_tx, addr, ser, v)
                         self._add_tx_to_local_history(next_tx)
                         if is_new_txi:
+                            spender_tx = self.db.get_transaction(next_tx)
                             assert spender_tx
                             util.trigger_callback('adb_updated_tx', self, next_tx, spender_tx)
             # add to local history
             self._add_tx_to_local_history(tx_hash)
-            # save
-            self.db.add_transaction(tx_hash, tx)
-            self.db.add_num_inputs_to_tx(tx_hash, len(tx.inputs()))
             if is_new:
                 util.trigger_callback('adb_added_tx', self, tx_hash, tx)
             elif txi_changed:
@@ -417,44 +418,31 @@ class AddressSynchronizer(Logger, EventListener):
                 util.trigger_callback('adb_updated_tx', self, tx_hash, tx)
             return True
 
-    def _are_new_inputs_valid(
-            self, tx: Transaction, txin_idxs: Iterable[int], *, prev_tx: Transaction = None, is_new_witness: bool,
-    ) -> bool:
-        """Verifies the scripts of txins spending our coins.
+    def _are_new_inputs_valid(self, tx: Transaction, *, is_new_witness: bool) -> bool:
+        """Verifies the scripts of the txins of tx that spend our coins, against their parent txs in the db.
+        A txin whose parent is not in the db is verified when the parent is added.
         If is_new_witness (tx will replace the stored one), txins already linked to our coins are verified too."""
         if not tx.is_complete():
             return True
-        if isinstance(tx, PartialTransaction):
-            tx = Transaction(tx.serialize())  # input addresses from our db, not from the psbt
-        if self.db.is_in_verified_tx(tx.txid()):
+        txid = tx.txid()
+        if self.db.is_in_verified_tx(txid):
             return True  # mined
+        spent_outputs = [self._get_spent_output(txin) for txin in tx.inputs()]
         to_verify = []
-        for txin_idx in txin_idxs:
-            txin = tx.inputs()[txin_idx]
-            if txin.is_coinbase_input():
+        for txin_idx, (txin, spent_output) in enumerate(zip(tx.inputs(), spent_outputs)):
+            if spent_output is None or not self.is_mine(spent_output.address):
                 continue
-            addr = self.get_txin_address(txin)
-            if not self.is_mine(addr):
-                continue
-            if prev_tx is None and self.db.get_transaction(txin.prevout.txid.hex()) is None:
-                continue  # verified when prev_tx is added
-            if not is_new_witness and txin.prevout.to_str() in dict(self.db.get_txi_addr(tx.txid(), addr)):
+            if not is_new_witness and txin.prevout.to_str() in dict(self.db.get_txi_addr(txid, spent_output.address)):
                 continue
             to_verify.append(txin_idx)
-        return not to_verify or self._verify_txin_scripts(tx, to_verify, prev_tx=prev_tx)
+        return not to_verify or self._verify_txin_scripts(tx, to_verify, spent_outputs)
 
-    def _verify_txin_scripts(self, tx: Transaction, txin_idxs: Sequence[int], *, prev_tx: Transaction = None) -> bool:
+    def _verify_txin_scripts(
+            self, tx: Transaction, txin_idxs: Sequence[int], spent_outputs: Sequence[Optional[TxOutput]],
+    ) -> bool:
         """Returns whether the inputs txin_idxs of tx validly spend their outputs, under consensus rules.
-        Their parent txs are in the db, or prev_tx.
+        spent_outputs has the output spent by each input of tx, or None if we do not have it.
         """
-        parents = {prev_tx.txid(): prev_tx} if prev_tx else {}
-        spent_outputs = []  # type: List[Optional[TxOutput]]
-        for txin in tx.inputs():
-            prev_txid = txin.prevout.txid.hex()
-            if prev_txid not in parents:
-                parents[prev_txid] = self.db.get_transaction(prev_txid)
-            outputs = parents[prev_txid].outputs() if parents[prev_txid] else []
-            spent_outputs.append(outputs[txin.prevout.out_idx] if txin.prevout.out_idx < len(outputs) else None)
         if None in spent_outputs:
             # Taproot signatures commit to the outputs spent by all inputs: without them, we cannot verify a
             # taproot input. The other sighashes only use the output spent by the input itself.
@@ -476,6 +464,12 @@ class AddressSynchronizer(Logger, EventListener):
             util.send_exception_to_crash_reporter(e)
             return False
         return True
+
+    def _get_spent_output(self, txin: TxInput) -> Optional[TxOutput]:
+        """Returns the output spent by txin, if its parent tx is in the db."""
+        parent = self.db.get_transaction(txin.prevout.txid.hex())
+        outputs = parent.outputs() if parent else []
+        return outputs[txin.prevout.out_idx] if txin.prevout.out_idx < len(outputs) else None
 
     @with_lock
     def remove_transaction(self, tx_hash: str) -> None:
