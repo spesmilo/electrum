@@ -23,11 +23,15 @@ if [ "${DEBIAN_SNAPSHOT_LATEST}x" = "x" ]; then
     echo "could not find timestamp for debian packages"
     exit 1
 fi
+if ! printf '%s\n' "${DEBIAN_SNAPSHOT_LATEST}" | LC_ALL=C grep -Eqx '[0-9]{8}T[0-9]{6}Z/'; then
+    echo "unexpected format of timestamp for debian packages"
+    exit 1
+fi
 
-DEBIAN_SNAPSHOT=${DEBIAN_SNAPSHOT_BASE}${DEBIAN_SNAPSHOT_LATEST}
+DEBIAN_SNAPSHOT="${DEBIAN_SNAPSHOT_BASE}${DEBIAN_SNAPSHOT_LATEST}"
 
 echo "Checking if URL valid.."
-wget -O /dev/null ${DEBIAN_SNAPSHOT} 2>/dev/null
+wget -O /dev/null "${DEBIAN_SNAPSHOT}" 2>/dev/null
 
 echo "Valid!"
 
