@@ -1,4 +1,5 @@
 import asyncio
+import re
 import dataclasses
 import shutil
 import copy
@@ -43,7 +44,7 @@ from electrum.channel_db import ChannelDB, InvalidGossipMsg
 from electrum.lnworker import LNWallet, NoPathFound, SentHtlcInfo, PaySession, LNPeerManager
 from electrum.lnmsg import encode_msg, decode_msg
 from electrum import lnmsg
-from electrum.logging import console_stderr_handler, Logger
+from electrum.logging import console_stderr_handler, Logger, filter_log_for_sharing, redact_log_text
 from electrum.lnonion import OnionFailureCode, OnionRoutingFailure, OnionHopsDataSingle, OnionPacket, OnionParsingError
 from electrum.lnutil import LOCAL, REMOTE, UpdateAddHtlc, RecvMPPResolution, RevocationStore
 from electrum.invoices import PR_PAID, PR_UNPAID, PR_INFLIGHT, Invoice, PR_FAILED
@@ -169,6 +170,68 @@ def send_trampoline_htlc_to_forward(
 
 class TestPeer(ElectrumTestCase):
     TESTNET = True
+
+    async def _capture_log(self, coro, *, raises=PaymentDone) -> str:
+        """what Electrum really logs while coro runs, at debug level, as written to the log files"""
+        import logging
+        from electrum.logging import file_formatter
+        records = []
+        class Collect(logging.Handler):
+            def emit(self, record):
+                records.append(file_formatter.format(record))
+        handler = Collect(level=logging.DEBUG)
+        root = logging.getLogger()
+        old_level = root.level
+        root.addHandler(handler)
+        root.setLevel(logging.DEBUG)
+        try:
+            with self.assertRaises(raises):
+                await coro
+        finally:
+            root.removeHandler(handler)
+            root.setLevel(old_level)
+        # (the wallets and peers of these tests are subclasses from the test module: in the app, lnworker's
+        # and lnpeer's own)
+        return ('\n'.join(records).replace('tests.lnhelpers.MockLNWallet', 'lnworker.LNWallet')
+                .replace('tests.lnhelpers.PeerInTests', 'lnpeer.Peer') + '\n')
+
+    def _check_log_shared_with_the_developers(self, log: str, workers) -> None:
+        import base64
+        secrets = {}  # name -> bytes
+        names = []
+        for w in workers:
+            names.append(w.wallet.basename())
+            secrets[f'node id of {w.name}'] = w.node_keypair.pubkey
+            for chan in w.channels.values():
+                secrets[f'channel id {chan}'] = chan.channel_id
+                secrets[f'funding txid {chan}'] = bytes.fromhex(chan.funding_outpoint.txid)
+                secrets[f'scid {chan}'] = bytes(chan.short_channel_id)
+                names.append(str(chan.short_channel_id))
+            for payment_hash_hex in w._preimages:
+                payment_hash = bytes.fromhex(payment_hash_hex)
+                secrets[f'payment hash {payment_hash_hex}'] = payment_hash
+                secrets[f'preimage {payment_hash_hex}'] = w.get_preimage(payment_hash)
+                secrets[f'payment secret {payment_hash_hex}'] = w.get_payment_secret(payment_hash)
+        # the log has them, in more than one form, in the lines that are kept
+        kept = filter_log_for_sharing(log)
+        self.assertIn('lnpeer.Peer', kept)
+        self.assertIn('lnworker.PaySession', kept)
+        self.assertTrue(any(secret.hex() in kept for secret in secrets.values()))
+        self.assertTrue(any(repr(secret)[2:-1] in kept for secret in secrets.values()))
+        # whether the wallets are loaded when the log gets shared, or not
+        for ours in ({}, {'our_node_ids': [workers[0].node_keypair.pubkey.hex()],
+                          'our_channels': [str(c.short_channel_id) for c in workers[0].channels.values()],
+                          'wallet_names': [workers[0].wallet.basename()]}):
+            shared = redact_log_text(kept, key=bytes(32), **ours)
+            self.assertIn('pay_to_node starting session', shared)  # what it is for is kept
+            self.assertEqual(shared, redact_log_text(shared, key=bytes(32), **ours))  # labels are left as they are
+            for name, secret in secrets.items():
+                forms = [secret.hex(), repr(secret)[2:-1], base64.b64encode(secret).decode()]
+                forms += [secret.hex()[:16], secret.hex()[:10]] if len(secret) >= 20 else []
+                for form in forms:
+                    self.assertNotIn(form, shared, msg=f'{name}, {ours=}')
+            for name in names:
+                self.assertNotRegex(shared, rf'(?<![0-9A-Za-z]){re.escape(name)}(?![0-9A-Za-z])', msg=f'{ours=}')
 
     @classmethod
     def setUpClass(cls):
@@ -625,6 +688,7 @@ class TestPeerDirect(TestPeer):
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
         p1, p2 = graph.peers.values()
         w1, w2 = graph.workers.values()
+        self._last_graph_workers = w1, w2
         results = {}
         async def pay(lnaddr, pay_req):
             self.assertEqual(PR_UNPAID, w2.get_payment_status(lnaddr.paymenthash, direction=RECEIVED))
@@ -740,6 +804,15 @@ class TestPeerDirect(TestPeer):
 
         with self.assertRaises(SuccessfulTest):
             await f()
+
+    async def test_log_shared_with_the_developers_has_no_secrets_of_a_payment(self):
+        log = await self._capture_log(self._test_simple_payment(test_trampoline=False))
+        self._check_log_shared_with_the_developers(log, list(self._last_graph_workers))
+        # the payment hash, logged in hex and as bytes, has one label
+        shared = redact_log_text(filter_log_for_sharing(log), key=bytes(32))
+        payment_hash_label = re.search(r'RHASH=(<hash [0-9a-f]{8}>)', shared).group(1)
+        self.assertIn(f'payment_hash={payment_hash_label}', shared)
+        self.assertRegex(shared, r'PaySession\.\[<payment [0-9a-f]{8}>\]')
 
     async def test_reject_invalid_min_final_cltv_delta(self):
         """
@@ -2530,6 +2603,14 @@ class TestPeerForwarding(TestPeer):
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['square_graph'])
         with self.assertRaises(PaymentDone):
             await self._run_mpp(graph, {})
+
+    async def test_log_shared_with_the_developers_has_no_secrets_of_a_multipart_payment(self):
+        for kwargs, raises in (({}, PaymentDone), ({'test_failure': True}, NoPathFound)):
+            with self.subTest(kwargs=kwargs):
+                graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['square_graph'])
+                log = await self._capture_log(self._run_mpp(graph, kwargs), raises=raises)
+                self.assertIn('forwarding', log)  # bob and carol forwarded the parts
+                self._check_log_shared_with_the_developers(log, list(graph.workers.values()))
 
     async def test_payment_multipart_with_hold_invoice(self):
         graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['square_graph'])

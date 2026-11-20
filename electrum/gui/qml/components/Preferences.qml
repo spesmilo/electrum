@@ -489,6 +489,43 @@ Pane {
                             wrapMode: Text.Wrap
                         }
                     }
+
+                    RowLayout {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+                        spacing: 0
+                        visible: AppController.isAndroid()
+                        Switch {
+                            id: writeLogsToDisk
+                            onCheckedChanged: {
+                                if (activeFocus)
+                                    Config.writeLogsToDisk = checked
+                            }
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            text: qsTr('Write a log file, to send it to the developers if something goes wrong')
+                            wrapMode: Text.Wrap
+                        }
+                    }
+
+                    Button {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+                        visible: AppController.isAndroid() && writeLogsToDisk.checked
+                        text: qsTr('Share log file')
+                        onClicked: {
+                            var dialog = app.messageDialog.createObject(app, {
+                                title: qsTr('Share log file'),
+                                text: qsTr('The file will contain the part of the log about Lightning payments and the network graph: amounts, times, fees, routes and errors. Node ids, channels, invoices, payment hashes and secrets, transactions, addresses, IP addresses and the names of your wallets are replaced by labels that cannot be turned back into them: the same value gets the same label, also in the logs you share later. On Android 10 and later, a copy is saved in Downloads. Send it only to the developers.'),
+                                yesno: true
+                            })
+                            dialog.accepted.connect(function() {
+                                AppController.shareLogFile()
+                            })
+                            dialog.open()
+                        }
+                    }
                 }
             }
         }
@@ -506,6 +543,7 @@ Pane {
         freezeReusedAddressUtxos.checked = Config.freezeReusedAddressUtxos
         useTrampolineRouting.checked = !Config.useGossip
         enableDebugLogs.checked = Config.enableDebugLogs
+        writeLogsToDisk.checked = Config.writeLogsToDisk
         disableScreenshots.checked = !Config.alwaysAllowScreenshots && AppController.isAndroid()
         setMaxBrightnessOnQrDisplay.checked = Config.setMaxBrightnessOnQrDisplay && AppController.isAndroid()
         useRecoverableChannels.checked = Config.useRecoverableChannels
