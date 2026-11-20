@@ -617,7 +617,7 @@ class LNPathFinder(Logger):
         while nodes_to_explore.qsize() > 0:
             dist_to_edge_endnode, amount_msat, edge_endnode = nodes_to_explore.get()
             if edge_endnode == nodeA and previous_hops:  # previous_hops check for circular paths
-                self.logger.info("found a path")
+                self.logger.info(f"found a path. cost={dist_to_edge_endnode:.0f} (fees and penalties, msat)")
                 break
             if dist_to_edge_endnode != distance_from_start[edge_endnode]:
                 # queue.PriorityQueue does not implement decrease_priority,

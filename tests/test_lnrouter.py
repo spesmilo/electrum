@@ -1,4 +1,5 @@
 import random
+import time
 import unittest
 from math import inf
 from unittest import mock
@@ -18,6 +19,10 @@ from electrum.lnonion import (OnionHopsDataSingle, new_onion_packet,
 from electrum import bitcoin, lnrouter
 from electrum.constants import BitcoinTestnet
 from electrum.simple_config import SimpleConfig
+from electrum.lnpeer import Peer
+from electrum.sql_db import sql
+from electrum.lnworker import LNGossip
+from electrum.lnmsg import encode_msg
 from electrum.lnrouter import (PathEdge, LiquidityHintMgr, DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH,
                                DEFAULT_PENALTY_BASE_MSAT, fee_for_edge_msat, LNPaymentTRoute, TrampolineEdge,
                                HINT_DURATION)
@@ -43,6 +48,278 @@ def node_features(extra: LnFeatures = None) -> bytes:
     if extra:
         lnf |= extra
     return lnf.to_bytes(8, 'big')
+
+
+class TestGossipBacklog(ElectrumTestCase):
+
+    def _lngossip(self, *, latest_ts: Optional[int]):
+        return mock.Mock(
+            spec=LNGossip,
+            channel_db=mock.Mock(latest_policy_ts_at_load=latest_ts),
+            max_age=LNGossip.max_age,
+            GOSSIP_BACKLOG_MARGIN=LNGossip.GOSSIP_BACKLOG_MARGIN,
+            GOSSIP_BACKLOG_NUM_PEERS=LNGossip.GOSSIP_BACKLOG_NUM_PEERS,
+            _num_gossip_backlog_requests=0,
+            _gossip_backlog_ts_is_set=False,
+            _gossip_backlog_latest_ts=None,
+        )
+
+    async def test_add_new_ids_skips_recently_orphaned_only_on_request(self):
+        known, orphaned, new = b'\x01' * 8, b'\x02' * 8, b'\x03' * 8
+        g = mock.Mock(
+            spec=LNGossip,
+            channel_db=mock.Mock(get_channel_ids=lambda: {known}, get_recently_orphaned_channel_ids=lambda: {orphaned}),
+            lnpeermgr=mock.Mock(num_peers=lambda: 1),
+            unknown_ids=set(),
+        )
+        await LNGossip.add_new_ids(g, [known, orphaned, new], skip_recently_orphaned=True)
+        self.assertEqual({new}, g.unknown_ids)
+        # orphaned channel_updates show that the channel is alive after all
+        await LNGossip.add_new_ids(g, [orphaned])
+        self.assertEqual({new, orphaned}, g.unknown_ids)
+
+    async def test_query_gossip_uses_backlog_start_and_skips_orphaned_after_db_is_loaded(self):
+        class StopQueryLoop(Exception): pass
+        ids = {b'\x01' * 8}
+        gossip = mock.Mock()
+        gossip.network.lngossip = gossip
+        gossip.channel_db.data_loaded.wait = mock.AsyncMock()
+        def check_db_loaded(*args, **kwargs):
+            gossip.channel_db.data_loaded.wait.assert_awaited_once()
+        gossip.add_new_ids = mock.AsyncMock(side_effect=check_db_loaded)
+        gossip.on_channel_range_reply = mock.AsyncMock(side_effect=check_db_loaded)
+        gossip.get_gossip_timestamp_filter_start.return_value = 1234
+        gossip.get_ids_to_query.side_effect = StopQueryLoop
+        peer = mock.Mock(lnworker=gossip, is_initialized=lambda: True)
+        peer.get_channel_range = mock.AsyncMock(return_value=(ids, True))
+        with self.assertRaises(StopQueryLoop):
+            await Peer._query_gossip(peer)
+        gossip.add_new_ids.assert_awaited_once_with(ids, skip_recently_orphaned=True)
+        gossip.on_channel_range_reply.assert_awaited_once_with(peer.pubkey, ids)
+        peer.request_gossip.assert_called_once_with(1234)
+
+    async def test_orphaned_channel_update_still_triggers_a_query(self):
+        orphaned_id = b'\x02' * 8
+        g = mock.Mock(
+            spec=LNGossip,
+            logger=mock.Mock(),
+            channel_db=mock.Mock(),
+            add_new_ids=mock.AsyncMock(),
+            _num_chan_ann=0, _num_node_ann=0, _num_chan_upd=0, _num_chan_upd_good=0,
+        )
+        g.channel_db.data_loaded.wait = mock.AsyncMock()
+        g.channel_db.add_channel_updates.return_value = mock.Mock(orphaned=[{'short_channel_id': orphaned_id}], good=[])
+        await LNGossip.process_gossip(g, [], [], [{'short_channel_id': orphaned_id}])
+        g.add_new_ids.assert_awaited_once_with([orphaned_id])
+
+    def test_empty_db_requests_only_new_gossip(self):
+        g = self._lngossip(latest_ts=None)
+        with mock.patch('time.time', return_value=1_800_000_000):
+            self.assertEqual(1_800_000_000, LNGossip.get_gossip_timestamp_filter_start(g))
+        self.assertEqual(0, g._num_gossip_backlog_requests)
+
+    def test_backlog_starts_before_latest_known_update_and_is_requested_from_few_peers(self):
+        now = 1_800_000_000
+        latest_ts = now - 12 * 3600
+        g = self._lngossip(latest_ts=latest_ts)
+        with mock.patch('time.time', return_value=now):
+            for _ in range(LNGossip.GOSSIP_BACKLOG_NUM_PEERS):
+                self.assertEqual(latest_ts - LNGossip.GOSSIP_BACKLOG_MARGIN, LNGossip.get_gossip_timestamp_filter_start(g))
+            # further peers would just resend the same backlog
+            self.assertEqual(now, LNGossip.get_gossip_timestamp_filter_start(g))
+
+    def test_backlog_start_does_not_move_within_session(self):
+        now = 1_800_000_000
+        downtime_start = now - 12 * 3600
+        g = self._lngossip(latest_ts=downtime_start)
+        # gossip received from the first peer, or the update of a failed payment, is newer
+        g.channel_db.get_latest_policy_timestamp = lambda: now
+        expected = downtime_start - LNGossip.GOSSIP_BACKLOG_MARGIN
+        with mock.patch('time.time', return_value=now):
+            self.assertEqual(expected, LNGossip.get_gossip_timestamp_filter_start(g))
+            self.assertEqual(expected, LNGossip.get_gossip_timestamp_filter_start(g))
+
+    def test_backlog_is_not_older_than_max_age(self):
+        now = 1_800_000_000
+        g = self._lngossip(latest_ts=now - 10 * LNGossip.max_age)
+        with mock.patch('time.time', return_value=now):
+            self.assertEqual(now - LNGossip.max_age, LNGossip.get_gossip_timestamp_filter_start(g))
+
+
+class TestChannelRangeMajority(ElectrumTestCase):
+
+    OLD_HEIGHT = 100
+    NUM_PEERS = LNGossip.CHANNEL_RANGE_NUM_PEERS
+
+    def _scid(self, n: int, *, height: int = OLD_HEIGHT) -> ShortChannelID:
+        return ShortChannelID.from_components(height, n, 0)
+
+    def _lngossip(self, known, *, local_height: int = 1000, recently_updated=(), latest_policy_ts=None,
+                  policy_timestamps=None):
+        removed = []
+        if latest_policy_ts is None:
+            latest_policy_ts = int(time.time())
+        if policy_timestamps is not None:
+            has_policy_newer_than = lambda scid, ts: policy_timestamps.get(scid, 0) > ts
+        else:
+            has_policy_newer_than = lambda scid, ts: scid in recently_updated
+        g = mock.Mock(
+            spec=LNGossip,
+            logger=mock.Mock(),
+            channel_db=mock.Mock(
+                get_channel_ids=lambda: set(known),
+                remove_channels_absent_from_peers=removed.extend,
+                has_policy_newer_than=has_policy_newer_than,
+                get_latest_policy_timestamp=lambda: latest_policy_ts,
+                latest_policy_ts_at_load=latest_policy_ts,
+            ),
+            network=mock.Mock(get_local_height=lambda: local_height),
+            CHANNEL_RANGE_NUM_PEERS=LNGossip.CHANNEL_RANGE_NUM_PEERS,
+            CHANNEL_RANGE_MIN_PEER_COVERAGE=LNGossip.CHANNEL_RANGE_MIN_PEER_COVERAGE,
+            CHANNEL_RANGE_MAX_REMOVED_FRACTION=LNGossip.CHANNEL_RANGE_MAX_REMOVED_FRACTION,
+            CHANNEL_RANGE_MIN_CHANNEL_AGE=LNGossip.CHANNEL_RANGE_MIN_CHANNEL_AGE,
+            CHANNEL_RANGE_RECENT_POLICY_AGE=LNGossip.CHANNEL_RANGE_RECENT_POLICY_AGE,
+            CHANNEL_RANGE_FRESH_DB_AGE=LNGossip.CHANNEL_RANGE_FRESH_DB_AGE,
+            _channel_range_counts=None,
+            _channel_range_recent_ts=0,
+            _channel_range_max_height=0,
+            _channel_range_db_is_fresh=False,
+            _channel_range_peers=set(),
+            _channel_range_done=False,
+        )
+        return g, removed
+
+    async def _report(self, g, peer_ids_and_lists):
+        for peer_id, ids in peer_ids_and_lists:
+            await LNGossip.on_channel_range_reply(g, peer_id, set(ids))
+
+    def test_constants(self):
+        # a change of these should be a conscious decision
+        self.assertEqual(4, LNGossip.CHANNEL_RANGE_NUM_PEERS)
+        self.assertEqual(0.9, LNGossip.CHANNEL_RANGE_MIN_PEER_COVERAGE)
+
+    async def test_only_channels_listed_by_a_minority_of_peers_get_removed(self):
+        scids = [self._scid(n) for n in range(40)]
+        three_of_four, two_of_four = scids[0], scids[1]
+        everyone = set(scids[2:])
+        g, removed = self._lngossip(scids)
+        await self._report(g, [
+            (b'a', everyone | {three_of_four, two_of_four}),
+            (b'b', everyone | {three_of_four, two_of_four}),
+            (b'c', everyone | {three_of_four}),
+            (b'd', everyone),
+        ])
+        self.assertEqual([two_of_four], removed)
+
+    async def test_nothing_is_removed_before_enough_distinct_peers_reported(self):
+        scids = [self._scid(n) for n in range(30)]
+        g, removed = self._lngossip(scids)
+        same_peer_many_times = [(b'a', scids[1:])] * 10
+        await self._report(g, same_peer_many_times + [(bytes([i]), scids[1:]) for i in range(1, self.NUM_PEERS - 1)])
+        self.assertEqual([], removed)
+
+    async def test_peers_with_an_incomplete_view_do_not_vote(self):
+        scids = [self._scid(n) for n in range(30)]
+        g, removed = self._lngossip(scids)
+        tiny_peers = [(bytes([100 + i]), scids[1:5]) for i in range(5)]
+        full_peers = [(bytes([i]), scids) for i in range(self.NUM_PEERS)]
+        await self._report(g, tiny_peers)
+        self.assertEqual(set(), g._channel_range_peers)
+        await self._report(g, full_peers)
+        self.assertEqual([], removed)
+
+    async def test_decision_is_made_once_and_further_peers_do_not_change_it(self):
+        scids = [self._scid(n) for n in range(30)]
+        g, removed = self._lngossip(scids)
+        await self._report(g, [(bytes([i]), scids[1:]) for i in range(self.NUM_PEERS)])
+        self.assertEqual([scids[0]], removed)
+        self.assertTrue(g._channel_range_done)
+        await self._report(g, [(b'x', scids[2:]), (b'y', scids[2:]), (b'z', scids[2:])])
+        self.assertEqual([scids[0]], removed)
+
+    async def test_young_channels_are_not_removed(self):
+        height_limit = 1000 - LNGossip.CHANNEL_RANGE_MIN_CHANNEL_AGE
+        young = self._scid(1, height=height_limit + 1)
+        old_enough = self._scid(2, height=height_limit)
+        others = [self._scid(n) for n in range(10, 40)]
+        g, removed = self._lngossip(others + [young, old_enough])
+        await self._report(g, [(bytes([i]), others) for i in range(self.NUM_PEERS)])
+        self.assertEqual([old_enough], removed)
+
+    async def test_height_is_taken_when_the_first_peer_reports(self):
+        # the peers answered for the height we had at that time, even if we catch up later
+        height_limit = 1000 - LNGossip.CHANNEL_RANGE_MIN_CHANNEL_AGE
+        too_young_at_first_report = self._scid(1, height=height_limit + 1)
+        others = [self._scid(n) for n in range(10, 40)]
+        g, removed = self._lngossip(others + [too_young_at_first_report], local_height=1000)
+        await self._report(g, [(b'a', others)])
+        g.network.get_local_height = lambda: 5000
+        await self._report(g, [(bytes([i]), others) for i in range(1, self.NUM_PEERS)])
+        self.assertEqual([], removed)
+
+    async def test_recently_updated_channels_are_not_removed(self):
+        scids = [self._scid(n) for n in range(30)]
+        g, removed = self._lngossip(scids, recently_updated={scids[0]})
+        await self._report(g, [(bytes([i]), scids[2:]) for i in range(self.NUM_PEERS)])
+        self.assertEqual([scids[1]], removed)
+
+    async def test_channels_updated_shortly_before_our_newest_policy_are_not_removed(self):
+        # we were offline for 8 hours: what counts as recent is relative to our newest policy.
+        # A channel often gets updated shortly before it is closed, so this is a few hours only.
+        now = int(time.time())
+        latest = now - 8 * 3600
+        scids = [self._scid(n) for n in range(30)]
+        policy_timestamps = {scid: latest - 3600 for scid in scids}
+        policy_timestamps[scids[0]] = latest - LNGossip.CHANNEL_RANGE_RECENT_POLICY_AGE + 600
+        policy_timestamps[scids[1]] = latest - LNGossip.CHANNEL_RANGE_RECENT_POLICY_AGE - 600
+        g, removed = self._lngossip(scids, latest_policy_ts=latest, policy_timestamps=policy_timestamps)
+        await self._report(g, [(bytes([i]), scids[2:]) for i in range(self.NUM_PEERS)])
+        self.assertEqual([scids[1]], removed)
+        self.assertEqual(3 * 3600, LNGossip.CHANNEL_RANGE_RECENT_POLICY_AGE)
+        self.assertEqual(24 * 3600, LNGossip.CHANNEL_RANGE_FRESH_DB_AGE)
+
+    async def test_updates_of_this_session_do_not_move_what_counts_as_recent(self):
+        # e.g. the channel_update of a payment that failed before the first reply of a peer
+        now = int(time.time())
+        last_online = now - 8 * 3600
+        scids = [self._scid(n) for n in range(30)]
+        policy_timestamps = {scid: last_online - 3600 for scid in scids}
+        policy_timestamps[scids[0]] = last_online - 2 * 3600
+        g, removed = self._lngossip(scids, latest_policy_ts=last_online, policy_timestamps=policy_timestamps)
+        policy_timestamps[scids[5]] = now - 60
+        g.channel_db.get_latest_policy_timestamp = lambda: now
+        await self._report(g, [(bytes([i]), scids[1:]) for i in range(self.NUM_PEERS)])
+        self.assertEqual([], removed)
+
+    async def test_nothing_is_removed_if_our_db_is_outdated(self):
+        # after downtime every policy is old, so recent updates cannot protect live channels
+        scids = [self._scid(n) for n in range(30)]
+        latest = int(time.time()) - LNGossip.CHANNEL_RANGE_FRESH_DB_AGE - 3600
+        g, removed = self._lngossip(scids, latest_policy_ts=latest)
+        await self._report(g, [(bytes([i]), scids[1:]) for i in range(self.NUM_PEERS)])
+        self.assertEqual([], removed)
+        self.assertTrue(g._channel_range_done)
+
+    async def test_nothing_is_removed_if_too_many_channels_would_go(self):
+        scids = [self._scid(n) for n in range(40)]
+        g, removed = self._lngossip(scids)
+        without_first_four = scids[4:]
+        without_next_four = scids[:4] + scids[8:]
+        await self._report(g, [(b'a', without_first_four), (b'b', without_first_four),
+                               (b'c', without_next_four), (b'd', without_next_four)])
+        self.assertEqual([], removed)
+        self.assertTrue(g._channel_range_done)  # and we do not try again with further peers
+
+    async def test_channels_learned_after_the_first_report_are_not_judged(self):
+        scids = [self._scid(n) for n in range(30)]
+        learned_later = self._scid(99)
+        known = list(scids)
+        g, removed = self._lngossip([])
+        g.channel_db.get_channel_ids = lambda: set(known)
+        await self._report(g, [(b'a', scids)])
+        known.append(learned_later)
+        await self._report(g, [(bytes([i]), scids) for i in range(1, self.NUM_PEERS)])
+        self.assertEqual([], removed)
 
 
 class Test_LNRouter(ElectrumTestCase):
@@ -88,6 +365,7 @@ class Test_LNRouter(ElectrumTestCase):
             register_callback = lambda *args: None
             interface = None
 
+        self.fake_network = fake_network
         fake_network.channel_db = lnrouter.ChannelDB(fake_network())
         fake_network.channel_db.data_loaded.set()
         self.cdb = fake_network.channel_db
@@ -197,6 +475,160 @@ class Test_LNRouter(ElectrumTestCase):
         add_chan_upd({'short_channel_id': channel(6), 'message_flags': b'\x00', 'channel_flags': b'\x01', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
         add_chan_upd({'short_channel_id': channel(7), 'message_flags': b'\x00', 'channel_flags': b'\x00', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
         add_chan_upd({'short_channel_id': channel(7), 'message_flags': b'\x00', 'channel_flags': b'\x01', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
+
+    async def test_orphaned_channels_are_remembered(self):
+        self.prepare_graph()
+        scid = channel(100)
+        self.cdb.add_channel_announcements({
+            'node_id_1': node('a'), 'node_id_2': node('e'),
+            'bitcoin_key_1': node('a'), 'bitcoin_key_2': node('e'),
+            'short_channel_id': scid,
+            'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
+            'len': 0, 'features': b''
+        }, trusted=True)
+        self.assertIn(scid, self.cdb.get_channel_ids())
+        self.assertEqual(set(), self.cdb.get_recently_orphaned_channel_ids())
+        self.cdb.prune_orphaned_channels()  # we were told about this channel, but got no recent policy
+        self.assertNotIn(scid, self.cdb.get_channel_ids())
+        self.assertEqual({scid}, self.cdb.get_recently_orphaned_channel_ids())
+        # the record is persisted, so that it survives a restart
+        read_table = sql(lambda db: list(db.conn.cursor().execute("SELECT short_channel_id FROM orphaned_channel")))
+        self.assertEqual([(bytes(scid),)], await read_table(self.cdb))
+        # after a restart it is loaded from the db again
+        self.cdb.stop()
+        await self.cdb.stopped_event.wait()
+        self.cdb = lnrouter.ChannelDB(self.fake_network())
+        await self.cdb.load_data()
+        self.assertEqual({scid}, self.cdb.get_recently_orphaned_channel_ids())
+        # and it expires, also from the db
+        with mock.patch('time.time', return_value=time.time() + self.cdb.ORPHANED_CHANNEL_REQUERY_DELAY + 1):
+            self.assertEqual(set(), self.cdb.get_recently_orphaned_channel_ids())
+            self.cdb._remember_orphaned_channels({channel(101)})
+        self.assertEqual([channel(101)], list(self.cdb._orphaned_channels))
+        self.assertEqual([(bytes(channel(101)),)], await read_table(self.cdb))
+
+    async def test_prune_old_policies_tolerates_policies_removed_concurrently(self):
+        self.prepare_graph()
+        stale_key = (node('b'), channel(1))
+        self.assertIn(stale_key, self.cdb._policies)
+        keys = self.cdb.get_old_policies(3600)
+        self.cdb.remove_channels_absent_from_peers({channel(1)})
+        self.assertNotIn(stale_key, self.cdb._policies)
+        with mock.patch.object(self.cdb, 'get_old_policies', return_value=keys):
+            self.cdb.prune_old_policies(3600)
+        self.assertEqual(0, self.cdb.num_policies)
+
+    async def test_channel_that_got_a_policy_is_not_remembered_as_orphaned_later(self):
+        self.prepare_graph()
+        scid = channel(100)
+        self.cdb.add_channel_announcements({
+            'node_id_1': node('a'), 'node_id_2': node('e'),
+            'bitcoin_key_1': node('a'), 'bitcoin_key_2': node('e'),
+            'short_channel_id': scid,
+            'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
+            'len': 0, 'features': b''
+        }, trusted=True)
+        update = {'short_channel_id': scid, 'message_flags': b'\x00', 'channel_flags': b'\x00', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 1000}
+        self.cdb.add_channel_update(update, verify=False)
+        self.cdb.prune_orphaned_channels()  # has a policy: not orphaned, and the marks are reset
+        self.assertIn(scid, self.cdb.get_channel_ids())
+        self.cdb.prune_old_policies(3600)  # later, the policy ages out
+        self.cdb.prune_orphaned_channels()
+        self.assertNotIn(scid, self.cdb.get_channel_ids())
+        self.assertEqual(set(), self.cdb.get_recently_orphaned_channel_ids())
+
+    async def test_channels_not_announced_since_the_last_prune_are_not_remembered_as_orphaned(self):
+        # a channel left in the db without policies by an earlier session (e.g. which got killed
+        # between processing the announcement and the updates) should get queried again
+        self.prepare_graph()
+        scid = channel(100)
+        self.cdb.add_channel_announcements({
+            'node_id_1': node('a'), 'node_id_2': node('e'),
+            'bitcoin_key_1': node('a'), 'bitcoin_key_2': node('e'),
+            'short_channel_id': scid,
+            'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
+            'len': 0, 'features': b''
+        }, trusted=True)
+        self.cdb._chans_announced_since_last_prune.clear()  # as after a restart
+        self.cdb.prune_orphaned_channels()
+        self.assertNotIn(scid, self.cdb.get_channel_ids())
+        self.assertEqual(set(), self.cdb.get_recently_orphaned_channel_ids())
+
+    async def test_channels_with_aged_out_policies_are_not_remembered_as_orphaned(self):
+        # after being offline for longer than max_age all policies age out. these channels
+        # are probably still alive, so they must get queried again.
+        self.prepare_graph()
+        self.assertGreater(self.cdb.num_channels, 0)
+        self.cdb.prune_orphaned_channels()  # periodic maintenance: nothing to do yet
+        self.cdb.prune_old_policies(3600)  # note: all policies in the test graph have timestamp=0
+        self.assertEqual(0, self.cdb.num_policies)
+        self.cdb.prune_orphaned_channels()
+        self.assertEqual(0, self.cdb.num_channels)
+        self.assertEqual(set(), self.cdb.get_recently_orphaned_channel_ids())
+
+    async def test_remove_channels_absent_from_peers(self):
+        self.prepare_graph()
+        num_channels = self.cdb.num_channels
+        self.assertIsNotNone(self.cdb.get_policy_for_node(channel(1), node('b')))
+        self.cdb.remove_channels_absent_from_peers({channel(1)})
+        self.assertEqual(num_channels - 1, self.cdb.num_channels)
+        self.assertNotIn(channel(1), self.cdb.get_channel_ids())
+        self.assertNotIn((node('b'), channel(1)), self.cdb._policies)
+        self.assertNotIn((node('c'), channel(1)), self.cdb._policies)
+        self.assertEqual({channel(1)}, self.cdb.get_recently_orphaned_channel_ids())
+
+    async def test_has_policy_newer_than(self):
+        self.prepare_graph()
+        self.assertFalse(self.cdb.has_policy_newer_than(channel(1), 500))
+        self.cdb.add_channel_update({'short_channel_id': channel(1), 'message_flags': b'\x00', 'channel_flags': b'\x01', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 1000}, verify=False)
+        self.assertTrue(self.cdb.has_policy_newer_than(channel(1), 500))
+        self.assertFalse(self.cdb.has_policy_newer_than(channel(1), 1000))
+        self.assertFalse(self.cdb.has_policy_newer_than(channel(999), 0))
+
+    async def test_latest_policy_timestamp_at_load(self):
+        class fake_network:
+            config = self.config
+            asyncio_loop = util.get_asyncio_loop()
+            trigger_callback = lambda *args: None
+            register_callback = lambda *args: None
+            interface = None
+        def add_channel(cdb, number, timestamp):
+            n1, n2 = sorted([node('a'), node('b')])
+            cdb.add_channel_announcements({
+                'node_id_1': n1, 'node_id_2': n2, 'bitcoin_key_1': n1, 'bitcoin_key_2': n2,
+                'short_channel_id': channel(number), 'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
+                'len': 0, 'features': b''}, trusted=True)
+            update = {
+                'short_channel_id': channel(number), 'message_flags': b'\x00', 'channel_flags': b'\x00',
+                'cltv_expiry_delta': 40, 'htlc_minimum_msat': 1, 'fee_base_msat': 0,
+                'fee_proportional_millionths': 0, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
+                'timestamp': timestamp}
+            update['raw'] = encode_msg('channel_update', signature=bytes(64), **update)  # saved to disk
+            cdb.add_channel_update(update, verify=False)
+        cdb = lnrouter.ChannelDB(fake_network())
+        cdb.data_loaded.set()
+        add_channel(cdb, 1, 1_700_000_000)
+        add_channel(cdb, 2, 1_700_001_000)
+        await cdb.load_data()  # returns at once, as loaded; the writes queued before it are done then
+        cdb.stop()
+        await cdb.stopped_event.wait()
+        self.cdb = lnrouter.ChannelDB(fake_network())
+        self.assertIsNone(self.cdb.latest_policy_ts_at_load)
+        await self.cdb.load_data()
+        self.assertEqual(1_700_001_000, self.cdb.latest_policy_ts_at_load)
+        add_channel(self.cdb, 3, 1_700_002_000)
+        self.assertEqual(1_700_002_000, self.cdb.get_latest_policy_timestamp())
+        self.assertEqual(1_700_001_000, self.cdb.latest_policy_ts_at_load)
+
+    async def test_get_latest_policy_timestamp(self):
+        self.prepare_graph()
+        self.assertEqual(0, self.cdb.get_latest_policy_timestamp())
+        policies = self.cdb._policies
+        self.cdb._policies = {}
+        self.assertIsNone(self.cdb.get_latest_policy_timestamp())
+        self.cdb._policies = policies
+        self.cdb.add_channel_update({'short_channel_id': channel(1), 'message_flags': b'\x00', 'channel_flags': b'\x00', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 1000}, verify=False)
+        self.assertEqual(1000, self.cdb.get_latest_policy_timestamp())
 
     async def test_find_path_for_payment(self):
         self.prepare_graph()

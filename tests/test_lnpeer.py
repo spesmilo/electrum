@@ -678,6 +678,16 @@ class TestPeerDirect(TestPeer):
             with self.assertRaises(PaymentDone):
                 await self._test_simple_payment(test_trampoline=test_trampoline)
 
+    async def test_simple_payment_logs_the_route(self):
+        for test_trampoline in [False, True]:
+            with self.assertLogs('electrum', level='INFO') as logs:
+                with self.assertRaises(PaymentDone):
+                    await self._test_simple_payment(test_trampoline=test_trampoline)
+            sent = [line for line in logs.output if 'sent htlc' in line]
+            self.assertEqual(1, len(sent), logs.output)
+            self.assertIn('own channel', sent[0])
+            self.assertTrue(any('htlc succeeded. route:' in line for line in logs.output))
+
     async def test_simple_payment_failure(self):
         for test_trampoline in [False, True]:
             with self.assertRaises(PaymentFailure):
