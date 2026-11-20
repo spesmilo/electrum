@@ -88,12 +88,14 @@ Pane {
 
                         placeholderText: qsTr('search')
                         inputMethodHints: Qt.ImhNoPredictiveText
+                        rightPadding: constants.iconSizeMedium + 2 * constants.paddingSmall
 
                         onTextChanged: listview.filterModel.filterText = text
                         Component.onCompleted: text = listview.filterModel.filterText || ''
 
                         Image {
                             anchors.right: parent.right
+                            anchors.rightMargin: constants.paddingSmall
                             anchors.verticalCenter: parent.verticalCenter
                             source: Qt.resolvedUrl('../../icons/zoom.png')
                             sourceSize.width: constants.iconSizeMedium
@@ -277,6 +279,15 @@ Pane {
         }
 
     }
+
+    MouseArea {  // unfocus the search box when clicking elsewhere
+        anchors.fill: parent
+        onPressed: function(mouse) {
+            mouse.accepted = false
+            searchEdit.focus = false
+        }
+    }
+
     property color navigationBarBackgroundColor: constants.highlightBackground
 
     Component {
