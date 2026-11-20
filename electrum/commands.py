@@ -75,7 +75,6 @@ from .plugin import run_hook, DeviceMgr, Plugins
 from .version import ELECTRUM_VERSION
 from .simple_config import SimpleConfig
 from .fee_policy import FeePolicy, FEE_ETA_TARGETS, FEERATE_DEFAULT_RELAY
-from . import GuiImportError
 from . import crypto
 from . import constants
 from . import descriptor
@@ -791,18 +790,11 @@ class Commands(Logger):
             "python.version": sys.version,
             "python.path": sys.executable,
         }
-        # add currently running GUI
-        if self.daemon and self.daemon.gui_object:
-            ret.update(self.daemon.gui_object.version_info())
-        # always add Qt GUI, so we get info even when running this from CLI
-        try:
-            from .gui.qt import ElectrumGui as QtElectrumGui
-            ret.update(QtElectrumGui.version_info())
-        except GuiImportError:
-            pass
         # Add shared libs (.so/.dll), and non-pure-python dependencies.
         # Such deps can be installed in various ways - often via the Linux distro's pkg manager,
         # instead of using pip, hence it is useful to list them for debugging.
+        from .gui import common_qt
+        ret.update(common_qt.version_info())
         from electrum_ecc import ecc_fast
         ret.update(ecc_fast.version_info())
         from . import qrreader
