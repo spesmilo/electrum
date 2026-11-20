@@ -104,7 +104,12 @@ def satoshis_or_max(amount):
 
 def satoshis(amount):
     # satoshi conversion must not be performed by the parser
-    return int(COIN*to_decimal(amount)) if amount is not None else None
+    if amount is None:
+        return None
+    sat = COIN * to_decimal(amount)
+    if sat.is_finite() and sat != sat.to_integral_value():
+        raise UserFacingException(f"Amount has too many decimals: {amount}")
+    return int(sat)
 
 
 def format_satoshis(x: Union[float, int, Decimal, None]) -> Optional[str]:
