@@ -10,7 +10,7 @@ on:
         required: true
         default: 'all'
         type: choice
-        options: [all, windows, android, appimage, tarball]
+        options: [all, windows, android, appimage, tarball, macos]
       android_arch:
         description: 'Android architecture (when running android)'
         required: false
@@ -198,6 +198,33 @@ jobs:
         with:
           name: ${{ matrix.artifact_name }}-${{ github.sha }}
           path: dist/*.tar.gz
+          retention-days: ${{ env.ARTIFACT_RETENTION }}
+          if-no-files-found: error
+          compression-level: 0
+
+  macos:
+    name: "build: macOS"
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'all' || inputs.target == 'macos' }}
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Build macOS binaries
+        # the builder VM's PATH: the runner's own starts with Homebrew, which has another python3
+        run: PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin ./contrib/osx/make_osx.sh
+
+      - name: List output
+        run: ls -lah dist/
+
+      - name: Upload macOS DMGs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: electrum-macos-${{ github.sha }}
+          path: dist/*.dmg
           retention-days: ${{ env.ARTIFACT_RETENTION }}
           if-no-files-found: error
           compression-level: 0

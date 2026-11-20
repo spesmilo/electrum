@@ -14,7 +14,6 @@ PACKAGE=Electrum
 CONTRIB_OSX="$(dirname "$(realpath "$0")")"
 CONTRIB="$CONTRIB_OSX/.."
 PROJECT_ROOT="$CONTRIB/.."
-CACHEDIR="$CONTRIB_OSX/.cache"
 
 
 cd "$PROJECT_ROOT"
@@ -39,19 +38,15 @@ else
 fi
 
 
-function DoCodeSignMaybe { # ARGS: infoName fileOrDirName
+function DoCodeSign { # ARGS: infoName fileOrDirName
     infoName="$1"
     file="$2"
     deep=""
-    if [ -z "$CODESIGN_CERT" ]; then
-        # no cert -> we won't codesign
-        return
-    fi
     if [ -d "$file" ]; then
         deep="--deep"
     fi
     if [ -z "$infoName" ] || [ -z "$file" ] || [ ! -e "$file" ]; then
-        fail "Argument error to internal function DoCodeSignMaybe()"
+        fail "Argument error to internal function DoCodeSign()"
     fi
     hardened_arg="--entitlements=${CONTRIB_OSX}/entitlements.plist -o runtime"
 
@@ -62,18 +57,24 @@ function DoCodeSignMaybe { # ARGS: infoName fileOrDirName
 # note: no --dirty, as we have dirtied electrum/locale/ ourselves.
 VERSION=$(git describe --tags --always --abbrev=10)
 
-DoCodeSignMaybe "app bundle" "dist/${PACKAGE}.app"
+# make_osx.sh builds one app per architecture, in dist/<arch>/
+for arch in x86_64 arm64; do
+    app="dist/$arch/${PACKAGE}.app"
+    dmg="dist/electrum-${VERSION}-${arch}.dmg"
+    [ -d "$app" ] || fail "$app not found. Run make_osx.sh first."
 
-if [ ! -z "$CODESIGN_CERT" ]; then
+    DoCodeSign "app bundle ($arch)" "$app"
+
     if [ ! -z "$APPLE_ID_USER" ]; then
-        info "Notarizing .app with Apple's central server..."
-        "${CONTRIB_OSX}/notarize_app.sh" "dist/${PACKAGE}.app" || fail "Could not notarize binary."
+        info "Notarizing $app with Apple's central server..."
+        "${CONTRIB_OSX}/notarize_app.sh" "$app" || fail "Could not notarize binary."
     else
         warn "AppleID details not set! Skipping Apple notarization."
     fi
-fi
 
-info "Creating .DMG"
-hdiutil create -fs HFS+ -volname "$PACKAGE" -srcfolder "dist/$PACKAGE.app" "dist/electrum-$VERSION.dmg" || fail "Could not create .DMG"
+    info "Creating .DMG ($arch)"
+    rm -f "$dmg"  # left over by an earlier, failed run
+    hdiutil create -fs HFS+ -volname "$PACKAGE" -srcfolder "$app" "$dmg" || fail "Could not create .DMG"
 
-DoCodeSignMaybe ".DMG" "dist/electrum-${VERSION}.dmg"
+    DoCodeSign ".DMG ($arch)" "$dmg"
+done
