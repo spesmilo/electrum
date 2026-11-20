@@ -52,11 +52,11 @@ def with_paired_device(func=None, do_pair: bool = True):
     def wrapper(self, *args, **kwargs):
         if self.bitbox02_device is None:
             if do_pair:
-                _logger.info(f'{str(self)}.{func.__name__}: pairing device')
+                _logger.info(f'{func.__qualname__}: pairing device')
                 self.pairing_dialog()
             if self.bitbox02_device is None:
-                _logger.error(f'{str(self)}.{func.__name__}: error: device not paired')
-                raise BitBox02NotPaired("Need to setup communication first before attempting any BitBox02 calls")
+                _logger.error(f'{func.__qualname__}: error: device not paired')
+                raise BitBox02NotPaired(_("The BitBox02 is not paired. Please reconnect it and try again."))
         return func(self, *args, **kwargs)
     return wrapper
 
