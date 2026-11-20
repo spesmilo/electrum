@@ -58,12 +58,12 @@ class LightningTxDialog(WindowModalDialog):
         self.setMinimumWidth(700)
         vbox = QVBoxLayout()
         self.setLayout(vbox)
-        amount_str = self.main_window.format_amount_and_units(self.amount, timestamp=self.timestamp)
+        amount_str = self.main_window.format_amount_and_units(self.amount, timestamp=self.timestamp, millisat_precision=True)
         vbox.addWidget(QLabel(_("Amount") + f": {amount_str}"))
         fee_msat = tx_item.get('fee_msat')
         if fee_msat is not None:
             fee_sat = Decimal(fee_msat) / 1000 if fee_msat is not None else None
-            fee_str = self.main_window.format_amount_and_units(fee_sat, timestamp=self.timestamp)
+            fee_str = self.main_window.format_amount_and_units(fee_sat, timestamp=self.timestamp, millisat_precision=True)
             vbox.addWidget(QLabel(_("Fee: {}").format(fee_str)))
         time_str = datetime.datetime.fromtimestamp(self.timestamp).isoformat(' ')[:-3]
         vbox.addWidget(QLabel(_("Date") + ": " + time_str))
