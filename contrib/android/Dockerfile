@@ -82,18 +82,40 @@ RUN apt -y update -qq \
         openjdk-21-jdk-headless \
     && apt -y autoremove
 
-# accept Android licenses (JDK necessary!)
-RUN yes | ${ANDROID_SDK_MANAGER} --licenses > /dev/null
-
-
 ENV ANDROID_SDK_BUILD_TOOLS_MAJOR_V="36"
 ENV ANDROID_SDK_BUILD_TOOLS_VERSION="36.0.0"
 
-# download platforms, API, build tools
-RUN ${ANDROID_SDK_MANAGER} "platforms;android-${ANDROID_SDK_BUILD_TOOLS_MAJOR_V}" > /dev/null && \
-    ${ANDROID_SDK_MANAGER} "build-tools;${ANDROID_SDK_BUILD_TOOLS_VERSION}" > /dev/null && \
-    ${ANDROID_SDK_MANAGER} "extras;android;m2repository" > /dev/null && \
-    chmod +x "${ANDROID_SDK_HOME}/cmdline-tools/bin/avdmanager"
+# the archive names of the SDK packages are listed in https://dl.google.com/android/repository/repository2-3.xml
+ENV ANDROID_SDK_PACKAGES_DL_URL="https://dl.google.com/android/repository"
+ENV ANDROID_SDK_PLATFORM_ARCHIVE="platform-36_r02.zip"
+ENV ANDROID_SDK_PLATFORM_HASH="37607369a28c5b640b3a7998868d45898ebcb777565a0e85f9acf36f29631d2e"
+ENV ANDROID_SDK_BUILD_TOOLS_ARCHIVE="build-tools_r36_linux.zip"
+ENV ANDROID_SDK_BUILD_TOOLS_HASH="5d9ac77fb6ff43d9da518a337b4fcf8f9097113df531d99ccefe80ef7ce8250b"
+
+# download and install the Android platform (API) and build tools (not through sdkmanager so we can hash pin them)
+RUN curl --location --progress-bar \
+        "${ANDROID_SDK_PACKAGES_DL_URL}/${ANDROID_SDK_PLATFORM_ARCHIVE}" \
+        --output "${ANDROID_SDK_PLATFORM_ARCHIVE}" \
+    && echo "${ANDROID_SDK_PLATFORM_HASH} ${ANDROID_SDK_PLATFORM_ARCHIVE}" | sha256sum -c - \
+    && unzip -q "${ANDROID_SDK_PLATFORM_ARCHIVE}" -d platform-unpacked \
+    && mkdir --parents "${ANDROID_SDK_HOME}/platforms" \
+    && mv platform-unpacked/* "${ANDROID_SDK_HOME}/platforms/android-${ANDROID_SDK_BUILD_TOOLS_MAJOR_V}" \
+    && rmdir platform-unpacked \
+    && rm -rf "${ANDROID_SDK_PLATFORM_ARCHIVE}"
+
+RUN curl --location --progress-bar \
+        "${ANDROID_SDK_PACKAGES_DL_URL}/${ANDROID_SDK_BUILD_TOOLS_ARCHIVE}" \
+        --output "${ANDROID_SDK_BUILD_TOOLS_ARCHIVE}" \
+    && echo "${ANDROID_SDK_BUILD_TOOLS_HASH} ${ANDROID_SDK_BUILD_TOOLS_ARCHIVE}" | sha256sum -c - \
+    && unzip -q "${ANDROID_SDK_BUILD_TOOLS_ARCHIVE}" -d build-tools-unpacked \
+    && mkdir --parents "${ANDROID_SDK_HOME}/build-tools" \
+    && mv build-tools-unpacked/* "${ANDROID_SDK_HOME}/build-tools/${ANDROID_SDK_BUILD_TOOLS_VERSION}" \
+    && rmdir build-tools-unpacked \
+    && rm -rf "${ANDROID_SDK_BUILD_TOOLS_ARCHIVE}"
+
+# let sdkmanager write the package.xml of the two packages, this does not use the network (JDK necessary!).
+# Without it, avdmanager does not list the platform, and python-for-android asks avdmanager for the available APIs.
+RUN ${ANDROID_SDK_MANAGER} --list_installed > /dev/null
 
 # download ANT
 ENV APACHE_ANT_VERSION="1.10.13"
