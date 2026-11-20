@@ -23,7 +23,7 @@ from electrum import util, storage
 from electrum.daemon import Daemon
 from electrum.invoices import PR_UNPAID, PR_PAID, PR_UNCONFIRMED
 from electrum.transaction import tx_from_any, Transaction, PartialTransaction, PartialTxInput, PartialTxOutput, TxOutpoint
-from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
+from electrum.address_synchronizer import AddressSynchronizer, TX_HEIGHT_UNCONFIRMED
 from electrum import bitcoin
 
 from . import ElectrumTestCase
@@ -491,6 +491,10 @@ class TestTxParents(WalletTestCase):
         a, b, c, d, external = [bitcoin.hash160_to_p2pkh(bytes([i]) * 20) for i in range(1, 6)]
         wallet = restore_wallet_from_text__for_unittest(f'{a} {b} {c} {d}', path=None, config=self.config)['wallet']
         wallet.db.put('stored_height', 1000)
+        # the txs are not signed
+        patcher = mock.patch.object(AddressSynchronizer, '_verify_txin_scripts', return_value=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
         def add_tx(prevouts, outputs, height=TX_HEIGHT_UNCONFIRMED, txpos=None) -> str:
             inputs = [PartialTxInput(prevout=TxOutpoint.from_str(prevout)) for prevout in prevouts]
