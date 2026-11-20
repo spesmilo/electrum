@@ -222,8 +222,9 @@ class AbstractChannel(Logger, ABC):
 
     def is_funded(self) -> bool:
         # NOTE: also true for unfunded zeroconf channels (OPEN > FUNDED)
-        #     - also true for unfunded channel in ChannnelState.FORCE_CLOSING
-        return self.get_state() >= ChannelState.FUNDED
+        # Peers can push an unfunded channel into CLOSING (> FUNDED) state, however
+        # the short_channel_id is only set if the funding tx was seen in a block.
+        return self.get_state() >= ChannelState.FUNDED and (self.short_channel_id is not None or self.is_zeroconf())
 
     def is_open(self) -> bool:
         return self.get_state() == ChannelState.OPEN
@@ -354,8 +355,26 @@ class AbstractChannel(Logger, ABC):
 
     def update_unfunded_state(self) -> None:
         state = self.get_state()
-        if state in [ChannelState.PREOPENING, ChannelState.OPENING, ChannelState.FORCE_CLOSING]:
-            if self.is_initiator():
+        if self.is_zeroconf() and ChannelState.OPEN <= state < ChannelState.CLOSED:
+            # handling zeroconf channels with no funding tx, can happen if broadcasting fails on LSP side
+            # or if the LSP did double spent the funding tx/never published it intentionally.
+            chan_age = now() - self.storage['init_timestamp']
+            # ensure we are up to date to prevent accidentally penalizing a channel that is funded
+            if chan_age > ZEROCONF_TIMEOUT and self.lnworker.wallet.is_up_to_date() \
+                    and not self.lnworker.network.blockchain().is_tip_stale():
+                # freeze the channel to avoid receiving even more into this unfunded channel.
+                # NOTE: we don't reject htlcs arriving on frozen channels, this only really
+                # stops us from including the channel in invoice routing hints.
+                if isinstance(self, Channel):
+                    self.set_frozen_for_receiving(True)
+
+                # un-trust the LSP so the user doesn't accept another channel from the same provider
+                # compare the node id's as the user might already have changed to another one
+                if self.node_id == self.lnworker.trusted_zeroconf_node_id:
+                    self.lnworker.config.ZEROCONF_TRUSTED_NODE = ''
+
+        if self.is_initiator():
+            if state in [ChannelState.PREOPENING, ChannelState.OPENING, ChannelState.FORCE_CLOSING]:
                 # set channel state to REDEEMED so that it can be removed manually
                 # to protect ourselves against a server lying by omission,
                 # we check that funding_inputs have been double spent and deeply mined
@@ -373,37 +392,12 @@ class AbstractChannel(Logger, ABC):
                             self.logger.info(f'channel is double spent {inputs}')
                             self.set_state(ChannelState.REDEEMED)
                             break
-            elif self.has_funding_timed_out():
-                self.logger.warning(f"dropping incoming channel, funding tx taking too long to reach req num conf")
-                self.lnworker.remove_channel(self.channel_id)
-        elif self.is_zeroconf() and state in [ChannelState.OPEN, ChannelState.CLOSING, ChannelState.FORCE_CLOSING]:
-            # handling zeroconf channels with no funding tx, can happen if broadcasting fails on LSP side
-            # or if the LSP did double spent the funding tx/never published it intentionally.
-            if not self.lnworker.wallet.is_up_to_date() or not self.lnworker.network \
-                    or self.lnworker.network.blockchain().is_tip_stale():
-                # ensure we are up to date to prevent accidentally dropping a channel that is funded
-                return
-            chan_age = now() - self.storage['init_timestamp']
-            if chan_age > ZEROCONF_TIMEOUT:
-                # freeze the channel to avoid receiving even more into this unfunded channel.
-                # NOTE: we don't reject htlcs arriving on frozen channels, this only really
-                # stops us from including the channel in invoice routing hints.
-                if isinstance(self, Channel):
-                    self.set_frozen_for_receiving(True)
-
-                # un-trust the LSP so the user doesn't accept another channel from the same provider
-                # compare the node id's as the user might already have changed to another one
-                if self.node_id == self.lnworker.trusted_zeroconf_node_id:
-                    self.lnworker.config.ZEROCONF_TRUSTED_NODE = ''
-
-            if self.has_funding_timed_out():
-                self.lnworker.remove_channel(self.channel_id)
-                # remove remaining local transactions from the wallet, this will also remove child transactions (closing tx)
-                # self.lnworker.lnwatcher.adb.remove_transaction(self.funding_outpoint.txid)
-                if (local_balance_sat := int(self.balance(LOCAL) // 1000)) > 0:
-                    self.logger.warning(
-                        f"we may have been scammed out of {local_balance_sat} sat by our "
-                        f"JIT provider: {self.lnworker.config.ZEROCONF_TRUSTED_NODE} or he didn't use our preimage")
+        elif self.has_funding_timed_out() and state < ChannelState.CLOSED:
+            self.logger.warning(f"dropping incoming channel, funding tx taking too long to reach req num conf")
+            self.lnworker.remove_channel(self.channel_id)
+            if self.is_zeroconf() and (local_balance_sat := int(self.balance(LOCAL) // 1000)) > 0:
+                self.logger.warning(
+                    f"we may have been scammed out of {local_balance_sat} sat by our JIT provider or he didn't use our preimage")
 
     def update_funded_state(self, *, funding_txid: str, funding_height: TxMinedInfo) -> None:
         if funding_height.conf>0:
