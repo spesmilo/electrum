@@ -27,7 +27,7 @@ import dataclasses
 import threading
 import itertools
 from collections import defaultdict
-from typing import TYPE_CHECKING, Dict, Optional, Set, Tuple, NamedTuple, Sequence, List, Callable, Iterable
+from typing import TYPE_CHECKING, Dict, Optional, Set, Tuple, NamedTuple, Sequence, List, Iterable
 
 from .crypto import sha256
 from . import bitcoin, util
@@ -35,7 +35,13 @@ from .bitcoin import COINBASE_MATURITY
 from .util import (
     profiler, bfh, TxMinedInfo, UnrelatedTransactionException, InvalidTxSignature, with_lock, OldTaskGroup,
 )
-from .transaction import Transaction, TxOutput, TxInput, PartialTxInput, TxOutpoint, PartialTransaction, tx_from_any
+from .transaction import (
+    Transaction, TxOutput, TxInput, PartialTxInput, TxOutpoint, PartialTransaction, tx_from_any,
+    match_script_against_template, SCRIPTPUBKEY_TEMPLATE_P2TR,
+)
+from .script_interpreter import (
+    PrecomputedTransactionData, VerificationBudget, ScriptVerificationError, ResourceLimitExceeded, verify_input,
+)
 from .synchronizer import Synchronizer
 from .verifier import SPV
 from .blockchain import hash_header, Blockchain
@@ -53,6 +59,13 @@ TX_HEIGHT_FUTURE = -3
 TX_HEIGHT_LOCAL = -2
 TX_HEIGHT_UNCONF_PARENT = -1
 TX_HEIGHT_UNCONFIRMED = 0
+
+# Bounds the work of verifying the inputs of a tx that spend our coins: their scriptPubKeys are ours, but
+# the scriptSig of a legacy input is chosen by whoever made the tx. The most demanding standard txs need
+# 22,332 signature checks, or 24 MB of sighash bytes (470 P2PKH inputs). At the limit, verification takes
+# about a second.
+MAX_SIG_CHECKS_PER_TX = 30_000
+MAX_SIGHASH_BYTES_PER_TX = 100_000_000
 
 TX_TIMESTAMP_INF = 999_999_999_999
 TX_HEIGHT_INF = 10 ** 9
@@ -84,11 +97,7 @@ class AddressSynchronizer(Logger, EventListener):
     synchronizer: Optional['Synchronizer']
     verifier: Optional['SPV']
 
-    def __init__(
-            self, db: 'WalletDB', config: 'SimpleConfig', *,
-            verify_txins: Optional[Callable[[Transaction, Dict[int, Transaction]], bool]],
-            name: str | None = None,
-    ):
+    def __init__(self, db: 'WalletDB', config: 'SimpleConfig', *, name: str | None = None):
         self.db = db
         self.config = config
         self.name = name
@@ -98,8 +107,6 @@ class AddressSynchronizer(Logger, EventListener):
         self.synchronizer = None
         self.verifier = None
         self.lock = threading.RLock()
-        # (tx, {txin_idx: prev_tx}) -> whether these txins are validly signed
-        self.verify_txins = None  # type: Optional[Callable[[Transaction, Dict[int, Transaction]], bool]]
         self.future_tx = {}  # type: Dict[str, int]  # txid -> wanted (abs) height
         # Txs the server claims are mined but still pending verification:
         self.unverified_tx = defaultdict(int)  # type: Dict[str, int]  # txid -> height. Access with self.lock.
@@ -114,8 +121,6 @@ class AddressSynchronizer(Logger, EventListener):
         self._get_utxos_cache = {}
 
         self.load_and_cleanup()
-        # set after load_and_cleanup, as the wallet is not fully constructed yet
-        self.verify_txins = verify_txins
 
     @with_lock
     def invalidate_cache(self):
@@ -290,12 +295,13 @@ class AddressSynchronizer(Logger, EventListener):
                 txin.set_mined_info(self.get_tx_height(txin.prevout.txid.hex()))
         return tx
 
-    def add_transaction(self, tx: Transaction, *, allow_unrelated=False, is_new=True) -> bool:
+    def add_transaction(self, tx: Transaction, *, allow_unrelated=False, is_new=True, replace_mempool=False) -> bool:
         """
         Returns whether the tx was successfully added to the wallet history.
         Note that a transaction may need to be added several times, if our
         list of addresses has increased. This will return True even if the
         transaction was already in self.db.
+        If replace_mempool is set, a local tx displaces conflicting txns that the server reports as unmined.
         """
         assert tx, tx
         # note: tx.is_complete() is not necessarily True; tx might be partial
@@ -346,7 +352,9 @@ class AddressSynchronizer(Logger, EventListener):
                 if existing_confirmed_txn and tx_height <= 0:
                     # this is a non-confirmed tx that conflicts with confirmed txns; drop.
                     return False
-                if existing_mempool_txn and tx_height == TX_HEIGHT_LOCAL:
+                # before SPV, height() is 0 for a tx reported as mined
+                reported_mined = any(self.get_tx_height(tx_hash2)._height > 0 for tx_hash2 in conflicting_txns)
+                if existing_mempool_txn and tx_height == TX_HEIGHT_LOCAL and (not replace_mempool or reported_mined):
                     # this is a local tx that conflicts with non-local txns; drop.
                     return False
                 # keep this txn and remove all conflicting
@@ -415,15 +423,15 @@ class AddressSynchronizer(Logger, EventListener):
     def _are_new_inputs_valid(
             self, tx: Transaction, txin_idxs: Iterable[int], *, prev_tx: Transaction = None, is_new_witness: bool,
     ) -> bool:
-        """Checks the signatures of txins spending our coins.
-        If is_new_witness (tx will replace the stored one), txins already linked to our coins are checked too."""
-        if self.verify_txins is None or not tx.is_complete():
+        """Verifies the scripts of txins spending our coins.
+        If is_new_witness (tx will replace the stored one), txins already linked to our coins are verified too."""
+        if not tx.is_complete():
             return True
         if isinstance(tx, PartialTransaction):
             tx = Transaction(tx.serialize())  # input addresses from our db, not from the psbt
         if self.db.is_in_verified_tx(tx.txid()):
             return True  # mined
-        prev_txs = {}
+        to_verify = []
         for txin_idx in txin_idxs:
             txin = tx.inputs()[txin_idx]
             if txin.is_coinbase_input():
@@ -431,13 +439,41 @@ class AddressSynchronizer(Logger, EventListener):
             addr = self.get_txin_address(txin)
             if not self.is_mine(addr):
                 continue
-            txin_prev_tx = prev_tx or self.db.get_transaction(txin.prevout.txid.hex())
-            if txin_prev_tx is None:
-                continue  # checked when prev_tx is added
+            if prev_tx is None and self.db.get_transaction(txin.prevout.txid.hex()) is None:
+                continue  # verified when prev_tx is added
             if not is_new_witness and txin.prevout.to_str() in dict(self.db.get_txi_addr(tx.txid(), addr)):
                 continue
-            prev_txs[txin_idx] = txin_prev_tx
-        return not prev_txs or self.verify_txins(tx, prev_txs)
+            to_verify.append(txin_idx)
+        return not to_verify or self._verify_txin_scripts(tx, to_verify, prev_tx=prev_tx)
+
+    def _verify_txin_scripts(self, tx: Transaction, txin_idxs: Sequence[int], *, prev_tx: Transaction = None) -> bool:
+        """Returns whether the inputs txin_idxs of tx validly spend their outputs, under consensus rules.
+        Their parent txs are in the db, or prev_tx.
+        """
+        parents = {prev_tx.txid(): prev_tx} if prev_tx else {}
+        spent_outputs = []  # type: List[Optional[TxOutput]]
+        for txin in tx.inputs():
+            prev_txid = txin.prevout.txid.hex()
+            if prev_txid not in parents:
+                parents[prev_txid] = self.db.get_transaction(prev_txid)
+            outputs = parents[prev_txid].outputs() if parents[prev_txid] else []
+            spent_outputs.append(outputs[txin.prevout.out_idx] if txin.prevout.out_idx < len(outputs) else None)
+        if None in spent_outputs:
+            # Taproot signatures commit to the outputs spent by all inputs: without them, we cannot verify a
+            # taproot input. The other sighashes only use the output spent by the input itself.
+            txin_idxs = [
+                i for i in txin_idxs
+                if not match_script_against_template(spent_outputs[i].scriptpubkey, SCRIPTPUBKEY_TEMPLATE_P2TR)]
+            spent_outputs = [o or TxOutput(scriptpubkey=b'', value=0) for o in spent_outputs]
+        txdata = PrecomputedTransactionData(tx, spent_outputs)
+        budget = VerificationBudget(max_sig_checks=MAX_SIG_CHECKS_PER_TX, max_sighash_bytes=MAX_SIGHASH_BYTES_PER_TX)
+        for txin_idx in txin_idxs:
+            try:
+                verify_input(tx, txin_idx, spent_outputs, txdata=txdata, budget=budget)
+            except (ScriptVerificationError, ResourceLimitExceeded) as e:
+                self.logger.info(f"tx {tx.txid()}: {e!r}")
+                return False
+        return True
 
     @with_lock
     def remove_transaction(self, tx_hash: str) -> None:
@@ -512,7 +548,7 @@ class AddressSynchronizer(Logger, EventListener):
             # note: tx_height is only set by the unit tests: to inject a tx into the history
             self.add_unverified_or_unconfirmed_tx(txid, tx_height)
         elif txid in self.unverified_tx:
-            # the server claims tx is mined: add it once verified, so that its signatures need not be checked
+            # the server claims tx is mined: add it once verified, so that its scripts need not be verified
             self._held_txs[txid] = tx
             return
         self._held_txs.pop(txid, None)
@@ -577,8 +613,12 @@ class AddressSynchronizer(Logger, EventListener):
                 if self.db.get_txi_addresses(tx_hash) or self.db.get_txo_addresses(tx_hash):
                     continue
                 tx = self.db.get_transaction(tx_hash)
-                if tx is not None:
+                if tx is None:
+                    continue
+                try:
                     self.add_transaction(tx, allow_unrelated=True)
+                except InvalidTxSignature:
+                    self.logger.warning(f"removed tx with invalid signature: {tx_hash}")
 
     @with_lock
     def remove_local_transactions_we_dont_have(self):
@@ -1157,6 +1197,10 @@ class AddressSynchronizer(Logger, EventListener):
         if tx_mined_status.height() in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:
             spender_txid = None
         return spender_txid
+
+    def has_children(self, tx_hash: str) -> bool:
+        """Returns whether an output of tx_hash is spent by a tx that is not local."""
+        return any(self.get_spender(f'{tx_hash}:{n}') for n in self.db.get_spent_outpoints(tx_hash))
 
     def subscribe_to_outputs(self, spender_txid: str):
         spender_tx = self.get_transaction(spender_txid)

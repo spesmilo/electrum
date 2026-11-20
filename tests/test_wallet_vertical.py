@@ -2349,7 +2349,6 @@ class TestWalletSending(ElectrumTestCase):
                          str(tx1))
         wallet.adb.receive_tx_callback(tx1, tx_height=TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 298_000, 0), wallet.get_balance())
-        tx1_raw = str(tx1)  # make_unsigned_transaction mutates base_tx
 
         # second payment to dest_addr  (merged)
         outputs2 = [PartialTxOutput.from_address_and_value(dest_addr, 100_000)]
@@ -2366,7 +2365,7 @@ class TestWalletSending(ElectrumTestCase):
         self.assertEqual((0, 197_000, 0), wallet.get_balance())
 
         # remove tx2 from wallet, by replacing it with tx1
-        wallet.adb.receive_tx_callback(tx_from_any(tx1_raw), tx_height=TX_HEIGHT_UNCONFIRMED)
+        wallet.adb.receive_tx_callback(tx1, tx_height=TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 298_000, 0), wallet.get_balance())
 
         # second payment to dest_addr  (not merged, just duplicate outputs)
@@ -2504,11 +2503,8 @@ class TestWalletSending(ElectrumTestCase):
         sig, pubkey = tx.inputs()[0].witness_elements()
         tx.inputs()[0].witness = bitcoin.construct_witness([sig] * 1000 + [pubkey])
         tx = Transaction(tx.serialize_to_network())
-        with mock.patch.object(Transaction, 'verify_sig_for_txin', autospec=True,
-                               side_effect=Transaction.verify_sig_for_txin) as verify_sig:
-            with self.assertRaises(InvalidTxSignature):
-                mywallet.adb.receive_tx_callback(tx, tx_height=TX_HEIGHT_UNCONFIRMED)
-        self.assertLessEqual(verify_sig.call_count, 1)
+        with self.assertRaises(InvalidTxSignature):
+            mywallet.adb.receive_tx_callback(tx, tx_height=TX_HEIGHT_UNCONFIRMED)
 
     async def test_join_psbts__merge_duplicate_outputs(self):
         """txos paying to the same address might be merged into a single output with a larger value"""

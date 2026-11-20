@@ -35,16 +35,15 @@
 # Note that we do not persist older batches. We only persist the current batch in self.batch_txids.
 # Thus, if we need to broadcast tx2 or tx2', then self.batch_txids is reset, and the old batch is forgotten.
 #
-# If we cannot RBF a transaction (because the server returns an error), then we create a new batch,
-# as if the transaction had been mined.
-#   if cannot_rbf(tx1)  -> broadcast tx2(tx1,o2). The new base is now tx2(tx,o2)
-#   if cannot_rbf(tx1') -> broadcast tx3(tx1'|o3)
+# A replacement is added to adb once the server has accepted it. Else, its predecessor remains
+# our latest tx, and we create a new replacement at the next block.
+# A tx without predecessor is added to adb whatever the server answers, and rebroadcast once per block.
 #
 #
 # Notes:
 #
 # 1. CPFP:
-# When a batch is forgotten but not mined (because the server returned an error), we no longer bump its fee.
+# When a batch is forgotten but not mined, we no longer bump its fee.
 # However, the current code does not treat the next batch as a CPFP when computing the fee.
 #
 # 2. Reorgs:
@@ -56,6 +55,13 @@
 # In the case of sweeps, lnwatcher ensures that SweepInfo is added again after a client restart.
 # In order to generalize that logic to payments, callers would need to pass a unique ID along with
 # the payment output, so that we can prevent paying twice.
+#
+# 4. Children of the base tx:
+# We do not replace a base tx that has children, because the replacement would have to pay
+# for evicting them: we start a new batch instead. We only see children that spend outputs
+# we watch: our own addresses, swap lockup addresses, and outputs watched by lnwatcher.
+# With other callers, a replacement may be rejected because of children we do not see,
+# and what it adds waits until the base tx is mined.
 #
 # - nLocktime/CLTV values (bip-65) and nSequence/CSV values (bip-112) are either explicitly
 #   or implicitly block-height-based everywhere in this file.
@@ -118,8 +124,8 @@ class TxBatcher(Logger):
                     self._legacy_htlcs[sweep_info.txin.prevout] = sweep_info
                 return
         fee_policy_name = key
-        if not sweep_info.can_be_batched:
-            # create a batch only for that input
+        if not sweep_info.can_be_batched or sweep_info.is_anchor():
+            # create a batch only for that input. an anchor spends an unconfirmed ctx: a replacement cannot add it
             key = sweep_info.txin.prevout.to_str()
         batch = self._maybe_create_new_batch(key, fee_policy_name)
         batch.add_sweep_input(sweep_info)
@@ -140,9 +146,18 @@ class TxBatcher(Logger):
         self.storage.pop(key)
         self.tx_batches.pop(key)
 
-    def find_batch_by_prevout(self, prevout: str) -> Optional['TxBatch']:
-        for k, v in self.tx_batches.items():
-            if v._prevout == prevout:
+    def get_held_coins(self) -> Set[TxOutpoint]:
+        """Coins that our batches depend on: they must not be spent by others."""
+        coins = set()
+        for batch in list(self.tx_batches.values()):
+            coins |= batch.get_held_coins()
+        return coins
+
+    def find_batch_by_tx(self, tx: Transaction) -> Optional['TxBatch']:
+        """The batch whose _prevout tx spends."""
+        prevouts = set(txin.prevout.to_str() for txin in tx.inputs())
+        for k, v in list(self.tx_batches.items()):
+            if v._prevout in prevouts:
                 return v
         return None
 
@@ -244,8 +259,8 @@ class TxBatch(Logger):
         self._batch_txids = storage['txids']  # type: List[str]
         self._fee_policy_name = storage.get('fee_policy_name', 'default')  # type: str
         self._base_tx = None  # type: Optional[PartialTransaction]   # current batch tx. last element of batch_txids
-        self._parent_tx = None  # type: Optional[PartialTransaction]
-        self._unconfirmed_sweeps = set()  # type: Set[TxOutpoint]  # inputs we are sweeping (until spending tx is confirmed)
+        self._broadcast_heights = {}  # type: Dict[str, int]  # txid -> height of our last broadcast
+        self._retry_height = 0  # do not create a tx before that height
 
     @property
     def fee_policy(self) -> FeePolicy:
@@ -271,6 +286,17 @@ class TxBatch(Logger):
 
     def is_mine(self, txid: str) -> bool:
         return txid in self._batch_txids
+
+    def get_held_coins(self) -> Set[TxOutpoint]:
+        """_prevout, and the change of our txs unless the batch has a sweep of its own."""
+        adb = self.wallet.adb
+        coins = {TxOutpoint.from_str(self._prevout)} if self._prevout else set()
+        if any(not s.can_be_batched or s.is_anchor() for s in list(self.batch_inputs.values())):
+            return coins  # no payment is ever added: its change can fund other sweeps, e.g. htlc txs
+        for txid in self._batch_txids:
+            if tx := adb.get_transaction(txid):
+                coins |= {TxOutpoint(bytes.fromhex(txid), i) for i, o in enumerate(tx.outputs()) if self.wallet.is_change(o.address)}
+        return coins
 
     @locked
     def add_payment_output(self, output: 'PartialTxOutput') -> None:
@@ -303,7 +329,7 @@ class TxBatch(Logger):
             #       worthwhile to sweep. So callers might want to retry later.
             raise BelowDustLimit
         txin = sweep_info.txin
-        if txin.prevout in self._unconfirmed_sweeps:
+        if txin.prevout in self.batch_inputs:
             return
         # early return if the spending tx is confirmed
         # if its block is orphaned, the txin will be added again
@@ -313,14 +339,13 @@ class TxBatch(Logger):
             tx_mined_status = self.wallet.adb.get_tx_height(spender_txid)
             if tx_mined_status.height() > 0:
                 return
-        self._unconfirmed_sweeps.add(txin.prevout)
         self.logger.info(f'add_sweep_info: {sweep_info.name} {sweep_info.txin.prevout.to_str()}')
         self.batch_inputs[txin.prevout] = sweep_info
 
     @locked
     def _to_pay_after(self, tx: Optional[PartialTransaction]) -> Sequence[PartialTxOutput]:
         if not tx:
-            return self.batch_payments
+            return list(self.batch_payments)
         # note: the below is equivalent to
         #   to_pay = multiset(self.batch_payments) - multiset(tx.outputs())
         to_pay = []
@@ -359,7 +384,6 @@ class TxBatch(Logger):
             if sweep_info.is_expired(self.wallet.adb.get_local_height()):
                 self.logger.info(f"sweep expired, giving up on {sweep_info.name} {prevout}")
                 self.batch_inputs.pop(prevout)
-                self._unconfirmed_sweeps.discard(prevout)
                 continue
             prev_txid, index = prevout.to_str().split(':')
             if not (prev_tx := self.wallet.adb.db.get_transaction(prev_txid)):
@@ -370,25 +394,18 @@ class TxBatch(Logger):
                     self.logger.info(f"anchor not needed {prevout}")
                     self.batch_inputs.pop(prevout)
                     continue
-                prev_tx_current_fee = self.wallet.adb.get_tx_fee(prev_txid)
-                try:
-                    prev_tx_target_fee = self.fee_policy.estimate_fee(
-                        prev_tx.estimated_size(),
-                        network=self.wallet.network,
-                    )
-                except NoDynamicFeeEstimates:
-                    prev_tx_target_fee = None
-                fees_available = prev_tx_current_fee and prev_tx_target_fee
-                if fees_available and prev_tx_current_fee > prev_tx_target_fee:
-                    self.logger.info(
-                        f"not using anchor now, fee sufficient: "
-                        f"{prev_tx_current_fee=} > {prev_tx_target_fee=}", only_once=True,
-                    )
+                deficit = self._get_ctx_fee_deficit(prev_txid)
+                if deficit is not None and deficit < 0:
+                    self.logger.info(f"not using anchor now, fee sufficient: {deficit=}", only_once=True)
                     continue
             if spender_txid := self.wallet.adb.db.get_spent_outpoint(prev_txid, int(index)):
                 tx_mined_status = self.wallet.adb.get_tx_height(spender_txid)
+                if tx_mined_status.height() > 0:
+                    # nothing to sweep. if its block is orphaned, the txin will be added again
+                    self.batch_inputs.pop(prevout)
+                    continue
                 if tx_mined_status.height() not in [TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE]:
-                    # spent by a tx that is not our base_tx (mempool or mined).
+                    # spent by a tx that is not our base_tx (in the mempool).
                     # do not compete with it, even if it is unconfirmed:
                     #  - it might be ours (e.g. another device with the same seed)
                     #  - for timelocked outputs (e.g. in lightning), by the time the counterparty can spend,
@@ -409,13 +426,42 @@ class TxBatch(Logger):
             return False  # a CPFP of ctxs that are mined
         base_tx_fee = base_tx.get_fee()
         recommended_fee = self.fee_policy.estimate_fee(base_tx.estimated_size(), network=self.wallet.network)
+        recommended_fee += self._get_cpfp_extra_fee([txin.prevout for txin in base_tx.inputs()])
         should_bump_fee = base_tx_fee * 1.1 < recommended_fee
         if should_bump_fee:
             self.logger.info(f'base tx fee too low {base_tx_fee} < {recommended_fee}. we will bump the fee')
         return should_bump_fee
 
+    def _get_ctx_fee_deficit(self, ctx_txid: str) -> Optional[int]:
+        """What the ctx lacks to reach our target fee, negative if it pays more. None if unknown."""
+        ctx = self.wallet.adb.get_transaction(ctx_txid)
+        ctx_fee = self.wallet.adb.get_tx_fee(ctx_txid)
+        if ctx is None or ctx_fee is None:
+            return None
+        try:
+            target_fee = self.fee_policy.estimate_fee(ctx.estimated_size(), network=self.wallet.network)
+        except NoDynamicFeeEstimates:
+            return None
+        return target_fee - max(ctx_fee, 0)
+
+    def _get_cpfp_extra_fee(self, prevouts: Sequence[TxOutpoint]) -> int:
+        """What a tx spending prevouts pays for the unconfirmed ctxs of its anchors, at most their target fee."""
+        extra_fee = 0
+        for prevout in prevouts:
+            if (sweep_info := self.batch_inputs.get(prevout)) and sweep_info.is_anchor():
+                ctx_txid = prevout.txid.hex()
+                if self.wallet.adb.get_tx_height(ctx_txid).conf <= 0:
+                    extra_fee += max(0, self._get_ctx_fee_deficit(ctx_txid) or 0)
+        return extra_fee
+
+    def _get_parent_txid(self) -> Optional[str]:
+        """Until the first tx of a new batch: the tx whose change (_prevout) our next tx must spend."""
+        return self._prevout.split(':')[0] if self._prevout and not self._batch_txids else None
+
     def is_done(self):
         # todo: require more than one confirmation
+        if (parent_txid := self._get_parent_txid()) and self.wallet.adb.get_tx_height(parent_txid).conf <= 0:
+            return False  # a payment added again after a restart must spend its change
         return len(self.batch_inputs) == 0 and len(self.batch_payments) == 0 and len(self._batch_txids) == 0
 
     async def find_base_tx(self) -> Optional[PartialTransaction]:
@@ -429,10 +475,24 @@ class TxBatch(Logger):
         tx = PartialTransaction.from_tx(wallet_tx)  # strips witness (hence rebroadcasting wallet_tx below)
         tx.add_info_from_wallet(self.wallet)  # this sets is_change
 
+        tx_mined_status = self.wallet.adb.get_tx_height(txid)
+        if tx_mined_status.conf > 0:
+            self.logger.info(f'base tx confirmed {txid}')
+            self._start_new_batch(tx)
+            return await self.find_base_tx()  # the change of tx might be spent
         if self.is_mine(txid):
             if self._base_tx is None:
                 self.logger.info(f'found base_tx {txid}')
             self._base_tx = tx
+        elif tx_mined_status.height() == TX_HEIGHT_LOCAL:
+            # not in the mempool: its inputs can be spent again
+            self.logger.info(f'removing {txid}, which replaced our base tx and is local')
+            self.wallet.adb.remove_transaction(txid)
+            return None
+        elif not tx.has_change():
+            # our next tx would not conflict with the tx it replaced
+            self.logger.info(f'base tx was replaced by {txid}, which has no change. waiting until it is mined', only_once=True)
+            return tx
         elif self.has_only_batch_outputs(tx):
             self.logger.info(f'base tx was replaced by {tx.txid()}')
             self._new_base_tx(tx)
@@ -440,88 +500,101 @@ class TxBatch(Logger):
             # do not replace it: our replacement would pay its outputs
             self.logger.info(f'base tx was replaced by {tx.txid()}, which has outputs not in batch')
             self._start_new_batch(tx)
-        # if tx is confirmed or local, we will start a new batch
-        tx_mined_status = self.wallet.adb.get_tx_height(txid)
-        if tx_mined_status.conf > 0:
-            self.logger.info(f'base tx confirmed {txid}')
-            self._clear_unconfirmed_sweeps(tx)
-            self._start_new_batch(tx)
+            return await self.find_base_tx()
         if tx_mined_status.height() in [TX_HEIGHT_LOCAL]:
             # this may happen if our Electrum server is unresponsive
             # server could also be lying to us. Rebroadcasting might
             # help, if we have switched to another server.
-            await self.wallet.network.try_broadcasting(wallet_tx, 'batch')
+            await self._rebroadcast_with_ancestors(txid)
 
         return self._base_tx
 
     async def run_iteration(self) -> None:
-        if self._parent_tx and not self.wallet.adb.get_transaction(self._parent_tx.txid()):
+        if (parent_txid := self._get_parent_txid()) and not self.wallet.adb.get_transaction(parent_txid):
             raise TxBatchFailure(f"parent tx missing, dropping batch {len(self.batch_inputs)=}, {len(self.batch_payments)=}")
+        if parent_txid:
+            # no longer bumped, but our next tx spends its change
+            await self._rebroadcast_with_ancestors(parent_txid)
         base_tx = await self.find_base_tx()
-        if base_tx and base_tx.txid() != self._batch_txids[-1]:
-            # FIXME: this might get stuck forever if base_tx legitimately doesn't get accepted
-            self.logger.debug(f'waiting for latest base_tx: {self._batch_txids[-1]}', only_once=True)
+        if base_tx and not self.is_mine(base_tx.txid()):
+            return  # waiting until it is mined
+        if base_tx and self.wallet.adb.has_children(base_tx.txid()):
+            # replacing it would evict its children
+            self.logger.info(f'base tx {base_tx.txid()} has children: starting new batch')
+            self._start_new_batch(base_tx)
+            return
+        if self.wallet.adb.get_local_height() < self._retry_height:
+            return
+        if base_tx and not all(self.wallet.is_mine(txin.address) or txin.prevout in self.batch_inputs for txin in base_tx.inputs()):
+            # e.g. after a restart, before the sweep inputs are added again
+            self.logger.info(f'cannot sign all inputs of {base_tx.txid()}: not replacing it', only_once=True)
             return
         try:
             tx = self.create_next_transaction(base_tx)
         except NoDynamicFeeEstimates:
             self.logger.debug('no dynamic fee estimates available')
             return
+        except TxBatchFailure:
+            raise
         except Exception as e:
-            if base_tx:
-                self.logger.exception(f'Cannot create batch transaction: {repr(e)}')
-                self._start_new_batch(base_tx)
-                return
-            else:
-                # will be caught by txBatcher
-                raise
+            # nothing was broadcast: keep the batch, and try again at the next block
+            self.logger.exception(f'Cannot create batch transaction: {repr(e)}')
+            self._retry_height = self.wallet.adb.get_local_height() + 1
+            return
 
         if tx is None:
             # nothing to do
             return
 
-        # add tx to wallet, in order to reserve utxos
-        # note: This saves the tx as local *unsigned*. It is replaced by the signed tx below.
-        #       This is a no-op if tx replaces a tx that is in the mempool.
-        self.wallet.adb.add_transaction(tx)
-        # await password
-        if not await self.sign_transaction(tx):
-            self.wallet.adb.remove_transaction(tx.txid())
-            return
-        # save the signed tx, so that find_base_tx can rebroadcast it
-        self.wallet.adb.add_transaction(tx)
+        # reserve its coins until it is in adb
+        prevouts = [txin.prevout for txin in tx.inputs()]
+        self.wallet.set_reserved_state_of_coins(prevouts, True)
+        try:
+            # await password
+            if not await self.sign_transaction(tx):
+                return
+            accepted = await self._broadcast(tx)
+            if base_tx and not accepted:
+                # base_tx stays in adb: our next tx conflicts with tx, even if tx was relayed
+                self._retry_height = self.wallet.adb.get_local_height() + 1
+                return
+            # once accepted by the server, tx displaces its predecessor
+            if not self.wallet.adb.add_transaction(tx, replace_mempool=accepted):
+                # a conflicting tx was reported as mined
+                self._retry_height = self.wallet.adb.get_local_height() + 1
+                return
+            # save local base_tx
+            self._new_base_tx(tx)
+        finally:
+            self.wallet.set_reserved_state_of_coins(prevouts, False)
 
-        # save local base_tx
-        self._new_base_tx(tx)
+    async def _broadcast(self, tx: Transaction) -> bool:
+        self._broadcast_heights[tx.txid()] = self.wallet.adb.get_local_height()
+        return await self.wallet.network.try_broadcasting(tx, 'batch')
 
-        if not await self.wallet.network.try_broadcasting(tx, 'batch'):
-            self.logger.info(f'cannot broadcast tx {tx.txid()}')
-            if base_tx:
-                # The most likely cause is that base_tx is not
-                # replaceable. This may be the case if it has children
-                # (because we don't pay enough fees to replace them)
-                # or if we are trying to sweep unconfirmed inputs
-                # (replacement-adds-unconfirmed error)
+    async def _rebroadcast(self, tx: Transaction) -> None:
+        """Broadcasts tx at most once per block."""
+        if tx.is_complete() and self._broadcast_heights.get(tx.txid()) != self.wallet.adb.get_local_height():
+            await self._broadcast(tx)
 
-                # it is OK to remove the transaction, because
-                # create_next_transaction will create a new tx that is
-                # incompatible with the one we remove here, so we
-                # cannot double pay.
-                self.wallet.adb.remove_transaction(tx.txid())
-                self.logger.info(f'starting new batch because could not broadcast')
-                self._start_new_batch(base_tx)
-            else:
-                # it is dangerous to remove the transaction if there
-                # is no base_tx. Indeed, the transaction might have
-                # been broadcast. So, we just keep the transaction as
-                # local, and we will try to rebroadcast it later (see
-                # above).
-                #
-                # FIXME: it should be possible to ensure that
-                # create_next_transaction creates transactions that
-                # spend the same coins, using self._prevout. This
-                # would make them incompatible, and safe to broadcast.
-                pass
+    async def _rebroadcast_with_ancestors(self, txid: str) -> None:
+        """Rebroadcasts the local txs among txid and its ancestors, parents first."""
+        adb = self.wallet.adb
+        seen = set()
+        chain = []
+        def visit(txid_: str) -> None:
+            if txid_ in seen:
+                return
+            seen.add(txid_)
+            tx = adb.get_transaction(txid_)
+            if not tx or adb.get_tx_height(txid_).height() != TX_HEIGHT_LOCAL:
+                return
+            for txin in tx.inputs():
+                visit(txin.prevout.txid.hex())
+            chain.append(tx)
+        visit(txid)
+        for tx in chain:
+            await self._rebroadcast(tx)
 
     async def sign_transaction(self, tx: PartialTransaction) -> Optional[PartialTransaction]:
         tx.add_info_from_wallet(self.wallet)  # this adds input amounts
@@ -540,10 +613,18 @@ class TxBatch(Logger):
         to_sweep_now = []  # type: list[SweepInfo]
         for k, v in to_sweep.items():
             can_broadcast, wanted_height = self._can_broadcast(v, base_tx)
+            if can_broadcast and self.is_dust(v):
+                # fees rose since it was added: lnwatcher adds it again once it is worth sweeping
+                self.logger.info(f'dropping {v.name}: dust at current fees')
+                self.batch_inputs.pop(k)
+                continue
             if can_broadcast:
                 to_sweep_now.append(v)
             else:
-                self.wallet.add_future_tx(v, wanted_height)
+                try:
+                    self.wallet.add_future_tx(v, wanted_height)
+                except NotEnoughFunds as e:  # only for display
+                    self.logger.info(f'cannot add future tx for {v.name}: {e!r}')
         while True:
             if not to_pay and not to_sweep_now and not self._should_bump_fee(base_tx):
                 return None
@@ -598,72 +679,75 @@ class TxBatch(Logger):
             if sweep_info.txout:
                 outputs.append(sweep_info.txout)
         self.logger.info(f'locktime: {locktime}')
+        num_pairs = len(outputs)  # so far, the txouts of the pairs
         outputs += to_pay
-        inputs += self._create_inputs_from_tx_change(self._parent_tx, base_tx) if self._parent_tx else []
         # create tx
-        coins = self.wallet.get_spendable_coins(nonlocal_only=True)
+        # a replacement that adds an unconfirmed coin is rejected by Bitcoin Core v30 and older (BIP125 rule 2)
+        coins = self.wallet.get_spendable_coins(nonlocal_only=True, confirmed_only=True if base_tx else None)
+        inputs += [self._create_input_from_prevout(coins)] if self._get_parent_txid() or (base_tx is None and self.batch_payments) else []
         tx = self.wallet.make_unsigned_transaction(
             coins=coins,
             fee_policy=self.fee_policy,
             base_tx=base_tx,
             inputs=inputs,
             outputs=outputs,
+            num_pairs=num_pairs,
             locktime=locktime,
             BIP69_sort=False,
             merge_duplicate_outputs=False,
+            require_change=True,  # a new batch can be chained to it
+            spend_ln_reserve=not self.batch_payments,  # sweeps, e.g. an anchor CPFP
+            extra_fee=self._get_cpfp_extra_fee([txin.prevout for txin in inputs + (base_tx.inputs() if base_tx else [])]),
         )
         # this assert will fail if we merge duplicate outputs
         for o in outputs: assert o in tx.outputs()
         return tx
 
-    def _clear_unconfirmed_sweeps(self, tx: PartialTransaction) -> None:
-        # this ensures that we can accept an input again,
-        # in case the sweeping tx has been removed from the blockchain after a reorg
-        for txin in tx.inputs():
-            if txin.prevout in self._unconfirmed_sweeps:
-                self._unconfirmed_sweeps.remove(txin.prevout)
-
     @locked
     def _start_new_batch(self, tx: Optional[PartialTransaction]) -> None:
-        use_change = tx and tx.has_change() and any([txout in self.batch_payments for txout in tx.outputs()])
-        self.batch_payments = self._to_pay_after(tx)
+        to_pay = self._to_pay_after(tx)
+        self.batch_payments = to_pay
         self.batch_inputs = self._to_sweep_after(tx)
         self._batch_txids.clear()
+        self._broadcast_heights.clear()
+        self._retry_height = 0
         self._base_tx = None
-        self._parent_tx = tx if use_change else None
-        self._prevout = None
+        if tx and tx.has_change() and to_pay:
+            # chain to tx: our next tx spends its change, so that it conflicts with a replacement of tx
+            change_index = next(i for i, o in enumerate(tx.outputs()) if o.is_change)
+            self._prevout = TxOutpoint(bytes.fromhex(tx.txid()), change_index).to_str()
+        else:
+            self._prevout = None
+        self.storage['prevout'] = self._prevout
 
     @locked
     def _new_base_tx(self, tx: PartialTransaction) -> None:
-        self._prevout = tx.inputs()[0].prevout.to_str()
+        prevouts = [txin.prevout for txin in tx.inputs()]
+        if self._prevout is None or TxOutpoint.from_str(self._prevout) not in prevouts:
+            # tx does not spend _prevout: with payments, a confirmed coin of ours, which cannot vanish,
+            # else its first input, a sweep input
+            confirmed = [txin.prevout for txin in tx.inputs() if self.batch_payments and (txin.block_height or 0) > 0 and self.wallet.is_mine(txin.address)]
+            self._prevout = (confirmed or prevouts)[0].to_str()
         self.storage['prevout'] = self._prevout
-        if tx.has_change():
-            self._batch_txids.append(tx.txid())
-            self._base_tx = tx
-        else:
-            self.logger.info(f'starting new batch because current base tx does not have change')
-            self._start_new_batch(tx)
+        self._batch_txids.append(tx.txid())
+        self._base_tx = tx
 
-    def _create_inputs_from_tx_change(
-            self, parent_tx: PartialTransaction, base_tx: Optional[PartialTransaction],
-    ) -> List[PartialTxInput]:
-        inputs = []
-        parent_txid = bytes.fromhex(parent_tx.txid())
-        base_prevouts = set(txin.prevout for txin in base_tx.inputs()) if base_tx else set()
-        for index, o in enumerate(parent_tx.outputs()):
-            if not o.is_change:
-                continue
-            wanted = TxOutpoint(parent_txid, index)
-            if wanted in base_prevouts:
-                continue
-            coins = self.wallet.adb.get_addr_utxo(o.address)
-            if utxo := coins.get(wanted):
-                inputs.append(utxo)
-            else:
-                raise Exception('parent_tx outpoint not in adb')
-        for txin in inputs:
-            txin.nsequence = 0xffffffff - 2
-        return inputs
+    def _create_input_from_prevout(self, coins: Sequence[PartialTxInput]) -> PartialTxInput:
+        """An input that cannot vanish with the tx that created it. Our replacements keep it."""
+        if self._prevout:
+            # the first input of our last batch tx, which is gone, or the change of the parent tx:
+            # spend it, so that payments cannot be made twice
+            coin = self.wallet.get_prevout_utxo(TxOutpoint.from_str(self._prevout))
+            if coin is None:
+                raise TxBatchFailure(f'cannot spend {self._prevout}, dropping batch')
+        else:
+            # a coin we received unconfirmed could vanish, as its sender can replace the tx that created it
+            confirmed = [c for c in coins if c.block_height > 0]
+            if not confirmed:
+                raise NotEnoughFunds()
+            coin = max(confirmed, key=lambda c: c.value_sats())
+        coin.nsequence = 0xffffffff - 2
+        return coin
 
     def _can_broadcast(self, sweep_info: 'SweepInfo', base_tx: 'Transaction') -> Tuple[bool, Optional[int]]:
         prevout = sweep_info.txin.prevout.to_str()

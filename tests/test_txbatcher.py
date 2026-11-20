@@ -2,6 +2,7 @@ import logging
 from unittest import mock
 import asyncio
 import dataclasses
+import copy
 
 from aiorpcx import timeout_after
 
@@ -9,17 +10,28 @@ import electrum.fee_policy
 from electrum import keystore, wallet, lnutil
 from electrum import SimpleConfig
 from electrum import util
-from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
-from electrum.transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput, TxOutpoint
+from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_LOCAL
+from electrum.transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput, TxOutpoint, TxInput
+from electrum.bitcoin import construct_witness
 from electrum.logging import console_stderr_handler, Logger
+from electrum.interface import TxBroadcastServerReturnedError, RequestTimedOut
 from electrum.submarine_swaps import SwapManager, SwapData
 from electrum.lnsweep import SweepInfo, sweep_ctx_anchor
 from electrum.fee_policy import FeeTimeEstimates, FeePolicy
+from electrum.script_interpreter import verify_transaction
+from electrum.txbatcher import TxBatch
 
 from . import ElectrumTestCase
 from .test_wallet_vertical import WalletIntegrityHelper, read_test_vector
+from .test_address_synchronizer import make_tx
 
 WALLET_DATA = read_test_vector('cause_carbon_wallet.json')
+
+
+def make_funding_tx(addr: str, value: int) -> Transaction:
+    """A parent paying to addr. Its own input is not ours, so it is not verified."""
+    txin = TxInput(prevout=TxOutpoint(txid=bytes(range(32)), out_idx=0), script_sig=b'', witness=construct_witness([b'parent']))
+    return make_tx([txin], [(addr, value)])
 
 class MockNetwork(Logger):
 
@@ -31,8 +43,16 @@ class MockNetwork(Logger):
         self.interface = None
         self.relay_fee = 1000
         self.wallets = []
-        self._tx_queue = asyncio.Queue()
+        self._tx_queue = asyncio.Queue()  # txs relayed to the bitcoin network
         self.local_height = 42
+        # 'ok', 'rejected' (not relayed), 'timeout' (relayed, but we get an error),
+        # or 'rejected_but_relayed' (a lying server)
+        self.broadcast_outcomes = []  # outcomes of the next broadcasts
+        self.broadcasts = []  # txids of all broadcast attempts
+        self.default_broadcast_outcome = 'ok'
+        # if set, the server sends relayed txs to the wallets only in sync()
+        self.sync_delay = False
+        self._unsynced = []
 
     def get_local_height(self):
         return self.local_height
@@ -46,11 +66,32 @@ class MockNetwork(Logger):
                 return True
         return BlockchainMock()
 
-    async def try_broadcasting(self, tx, name):
-        for w in self.wallets:
-            w.adb.receive_tx_callback(tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+    async def broadcast_transaction(self, tx, *, timeout=None):
+        self.broadcasts.append(tx.txid())
+        outcome = self.broadcast_outcomes.pop(0) if self.broadcast_outcomes else self.default_broadcast_outcome
+        if outcome == 'rejected':
+            raise TxBroadcastServerReturnedError('rejected')
         self._tx_queue.put_nowait(tx)
-        return tx.txid()
+        self._unsynced.append(tx)
+        if not self.sync_delay:
+            self.sync()
+        if outcome == 'timeout':
+            raise RequestTimedOut()
+        if outcome == 'rejected_but_relayed':
+            raise TxBroadcastServerReturnedError('rejected')
+
+    async def try_broadcasting(self, tx, name):
+        try:
+            await self.broadcast_transaction(tx)
+        except Exception:
+            return False
+        return True
+
+    def sync(self):
+        for tx in self._unsynced:
+            for w in self.wallets:
+                w.adb.receive_tx_callback(tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+        self._unsynced.clear()
 
     async def next_tx(self):
         tx = await util.wait_for2(self._tx_queue.get(), timeout=10)
@@ -61,7 +102,7 @@ class MockNetwork(Logger):
 
 
 SWAP_FUNDING_TX = "01000000000101500e9d67647481864edfb020b5c45e1c40d90f06b0130f9faed1a5149c6d26450000000000ffffffff0226080300000000002200205059c44bf57534303ab8f090f06b7bde58f5d2522440247a1ff6b41bdca9348df312c20100000000160014021d4f3b17921d790e1c022367a5bb078ce4deb402483045022100d41331089a2031396a1db8e4dec6dda9cacefe1288644b92f8e08a23325aa19b02204159230691601f7d726e4e6e0b7124d3377620f400d699a01095f0b0a09ee26a012102d60315c72c0cefd41c6d07883c20b88be3fc37aac7912f0052722a95de0de71600000000"
-SWAP_CLAIM_TX = "02000000000101f9db8580febd5c0f85b6f1576c83f7739109e3a2d772743e3217e9537fea7e89000000000001000000017005030000000000160014b113a47f3718da3fd161339a6681c150fef2cfe30347304402204c6d40103589b1a8177a37a824f0c66a3a7b22bc570b14c9e07965b56f6ace8f02203a35cffe0ab10de00f3e15ecf5aafdd2c7f6c62da11edd9054a1bce7a9e1455c0120f1939b5723155713855d7ebea6e174f77d41d669269e7f138856c3de190e7a366a8201208763a914d7a62ef0270960fe23f0f351b28caadab62c21838821030bfd61153816df786036ea293edce851d3a4b9f4a1c66bdc1a17f00ffef3d6b167750334ef24b1752102fc8128f17f9e666ea281c702171ab16c1dd2a4337b71f08970f5aa10c608a93268ac00000000"
+SWAP_CLAIM_TX = "02000000000101f9db8580febd5c0f85b6f1576c83f7739109e3a2d772743e3217e9537fea7e89000000000001000000017e05030000000000160014b113a47f3718da3fd161339a6681c150fef2cfe30347304402203d82b5b559b2e1dce6e92c5733c0c8db4a2ac32e333c8b37a0215b6e310cc52702207e3dc4599373447285e264dbbff8c86894e224d963991b25d6b6121d0322954e0120f1939b5723155713855d7ebea6e174f77d41d669269e7f138856c3de190e7a366a8201208763a914d7a62ef0270960fe23f0f351b28caadab62c21838821030bfd61153816df786036ea293edce851d3a4b9f4a1c66bdc1a17f00ffef3d6b167750334ef24b1752102fc8128f17f9e666ea281c702171ab16c1dd2a4337b71f08970f5aa10c608a93268ac00000000"
 
 SWAPDATA = SwapData(
     is_reverse=True,
@@ -165,7 +206,7 @@ class TestTxBatcher(ElectrumTestCase):
         return wallet
 
     async def _fund_wallet(self, wallet) -> Transaction:
-        """Broadcasts the funding tx, and mines it."""
+        """Broadcasts the funding tx, and mines it: the first input of a batch with payments is confirmed."""
         funding_tx = Transaction(WALLET_DATA["funding_tx"])
         await self.network.try_broadcasting(funding_tx, 'funding')
         await self.network.next_tx()
@@ -223,46 +264,745 @@ class TestTxBatcher(ElectrumTestCase):
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_batch_payments__parent_replaced_in_mempool(self, mock_save_db):
         # output 1:     tx1(o1)
-        # output 2:     tx1'(o1,o2)     broadcast, but the server has not told us yet
-        # output 3:     tx1''(o1,o2,o3)
+        # output 2:     tx1'(o1,o2)     accepted, but the server has not told us yet
+        # output 3:     tx1''(o1,o2,o3) rejected: tx1' remains our latest tx
+        # next block:   tx1'''(o1,o2,o3)
         #
-        # adb still has tx1, so txbatcher creates a child of tx1, which cannot be broadcast.
-        # when we learn about tx1', txbatcher must not pay o2 again.
+        # txbatcher must not pay o2 again.
         wallet = self._create_wallet()
         await self._fund_wallet(wallet)
         output1 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 10_000)
         wallet.txbatcher.add_payment_output('default', output1)
         tx1 = await self.network.next_tx()
         # the server lags behind the mempool
-        broadcast = self.network.try_broadcasting
-        async def try_broadcasting_lagging(tx, name):
-            self.network._tx_queue.put_nowait(tx)
-            return tx.txid()
-        self.network.try_broadcasting = try_broadcasting_lagging
+        self.network.sync_delay = True
         output2 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 20_000)
         wallet.txbatcher.add_payment_output('default', output2)
         tx1_prime = await self.network.next_tx()
         assert output2 in tx1_prime.outputs()
-        assert wallet.adb.get_transaction(tx1.txid()) is not None
-        assert wallet.adb.get_transaction(tx1_prime.txid()) is None
-        # the mempool rejects transactions that conflict with tx1', or spend from tx1
-        async def try_broadcasting_rejected(tx, name):
-            return None
-        self.network.try_broadcasting = try_broadcasting_rejected
+        assert wallet.adb.get_transaction(tx1.txid()) is None
+        assert wallet.adb.get_transaction(tx1_prime.txid()) is not None
+        self.network.default_broadcast_outcome = 'rejected'
         output3 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 30_000)
         wallet.txbatcher.add_payment_output('default', output3)
         await asyncio.sleep(10 * wallet.txbatcher.SLEEP_INTERVAL)
+        assert self.network.broadcasts[-1] != tx1_prime.txid()
+        assert wallet.adb.get_transaction(self.network.broadcasts[-1]) is None
         # the server tells us about tx1'
-        self.network.try_broadcasting = broadcast
-        wallet.adb.receive_tx_callback(tx1_prime, tx_height=TX_HEIGHT_UNCONFIRMED)
-        assert wallet.adb.get_transaction(tx1.txid()) is None
+        self.network.default_broadcast_outcome = 'ok'
+        self.network.sync_delay = False
+        self.network.sync()
+        assert wallet.adb.get_tx_height(tx1_prime.txid()).height() == TX_HEIGHT_UNCONFIRMED
+        self.network.local_height += 1
         # txbatcher must not pay o2 again
-        # txbatcher creates tx2, child of tx1', paying only o3
         tx1_prime_prime = await self.network.next_tx()
         assert output2 in tx1_prime_prime.outputs()
         assert output3 in tx1_prime_prime.outputs()
         # tx1_prime_prime and tx1_prime spend the same input
         assert tx1_prime_prime.inputs()[0].prevout == tx1_prime.inputs()[0].prevout
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_batch_sweep__broadcast_failed_but_relayed(self, mock_save_db):
+        # sweep:        tx1(s)          pays nothing, has change
+        # output 2:     tx1'(s,o2)      rejected by the server, but the tx was relayed
+        #
+        # tx1 remains our latest tx, and our next tx would conflict with tx1'.
+        # Once the server tells us about tx1', we adopt it: o2 is not paid twice
+        wallet = self._create_wallet()
+        await self._fund_wallet(wallet)
+        add_swap_funding_tx(wallet)
+        wallet.txbatcher.add_sweep_input('default', SWAP_SWEEP_INFO)
+        tx1 = await self.network.next_tx()
+        assert tx1.has_change()
+        # the server relays the tx, but reports that it rejected it
+        self.network.sync_delay = True
+        self.network.broadcast_outcomes = ['rejected_but_relayed']
+        output2 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 20_000)
+        wallet.txbatcher.add_payment_output('default', output2)
+        tx1_prime = await self.network.next_tx()
+        assert output2 in tx1_prime.outputs()
+        await asyncio.sleep(10 * wallet.txbatcher.SLEEP_INTERVAL)
+        assert self.network._tx_queue.empty()
+        assert wallet.adb.get_transaction(tx1.txid()) is not None
+        assert wallet.adb.get_transaction(tx1_prime.txid()) is None
+        # the server tells us about tx1'
+        self.network.sync_delay = False
+        self.network.sync()
+        self.network.local_height += 1
+        await asyncio.sleep(10 * wallet.txbatcher.SLEEP_INTERVAL)
+        assert wallet.adb.get_transaction(tx1.txid()) is None
+        assert wallet.txbatcher.tx_batches['default']._base_tx.txid() == tx1_prime.txid()
+        assert self.network._tx_queue.empty()
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_batch_sweep__broadcast_failed_but_relayed__restart(self, mock_save_db):
+        # same as test_batch_sweep__broadcast_failed_but_relayed, but Electrum restarts before
+        # the server tells us about tx1': o2 is paid again by a tx that conflicts with tx1'
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        await self._fund_wallet(wallet)
+        add_swap_funding_tx(wallet)
+        wallet.txbatcher.add_sweep_input('default', SWAP_SWEEP_INFO)
+        batch = wallet.txbatcher.tx_batches['default']
+        await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        # the server relays the tx, but reports that it rejected it
+        self.network.sync_delay = True
+        self.network.broadcast_outcomes = ['rejected_but_relayed']
+        output2 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 20_000)
+        wallet.txbatcher.add_payment_output('default', output2)
+        await batch.run_iteration()
+        tx1_prime = await self.network.next_tx()
+        assert output2 in tx1_prime.outputs()
+        # restart: payments and sweeps are not persisted, they are added again
+        batch = TxBatch(wallet, batch.storage)
+        self.assertFalse(batch.is_done())
+        batch.add_payment_output(output2)
+        batch.add_sweep_input(SWAP_SWEEP_INFO)
+        await batch.run_iteration()
+        tx1_prime_prime = await self.network.next_tx()
+        self.assertIn(output2, tx1_prime_prime.outputs())
+        self.assertIn(SWAP_SWEEP_INFO.txin.prevout, [txin.prevout for txin in tx1_prime_prime.inputs()])
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_parent_change_spent_by_other_tx(self, mock_save_db):
+        # tx1(o1) is mined while o2 is pending, so o2 must be paid by a child of tx1.
+        # another tx, which has no change, spends the change of tx1: we wait until it is mined
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        await self._fund_wallet(wallet)
+        output1 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 10_000)
+        wallet.txbatcher.add_payment_output('default', output1)
+        batch = wallet.txbatcher.tx_batches['default']
+        await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        output2 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 20_000)
+        wallet.txbatcher.add_payment_output('default', output2)
+        mine_tx(wallet, tx1)
+        # e.g. with coin control, which lists all our coins, held ones included
+        coins = [c for c in wallet.get_utxos() if c.prevout.txid.hex() == tx1.txid()]
+        other_tx = wallet.make_unsigned_transaction(
+            coins=coins, outputs=[PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, '!')], fee_policy=FeePolicy('feerate:2000'))
+        wallet.sign_transaction(other_tx, password=None)
+        wallet.adb.receive_tx_callback(other_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+        await batch.run_iteration()
+        self.assertTrue(self.network._tx_queue.empty())
+        # other_tx is mined, and we have another coin
+        mine_tx(wallet, other_tx)
+        funding_tx2 = make_funding_tx(wallet.get_receiving_address(), 200_000)
+        mine_tx(wallet, funding_tx2)
+        await batch.run_iteration()
+        tx2 = await self.network.next_tx()
+        self.assertIn(output2, tx2.outputs())
+        self.assertNotIn(output1, tx2.outputs())
+
+    async def _make_local_batch_tx(self):
+        """Returns a wallet and its batch, whose tx1 pays o1 and was rejected by the server, so it is LOCAL."""
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        await self._fund_wallet(wallet)
+        self.network.default_broadcast_outcome = 'rejected'
+        output1 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 10_000)
+        wallet.txbatcher.add_payment_output('default', output1)
+        batch = wallet.txbatcher.tx_batches['default']
+        await batch.run_iteration()
+        tx1 = batch._base_tx
+        self.assertEqual(TX_HEIGHT_LOCAL, wallet.adb.get_tx_height(tx1.txid()).height())
+        return wallet, batch, tx1
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_rejected_replacement_keeps_base(self, mock_save_db):
+        # tx1'(o1,o2) is rejected: it is not added to adb, and tx1 remains our latest tx.
+        # at the next block, a new replacement of tx1 is created
+        wallet, batch, tx1 = await self._make_local_batch_tx()
+        output2 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 20_000)
+        wallet.txbatcher.add_payment_output('default', output2)
+        await batch.run_iteration()
+        tx1_prime_txid = self.network.broadcasts[-1]
+        self.assertNotEqual(tx1.txid(), tx1_prime_txid)
+        self.assertIsNone(wallet.adb.get_transaction(tx1_prime_txid))
+        self.assertEqual(TX_HEIGHT_LOCAL, wallet.adb.get_tx_height(tx1.txid()).height())
+        self.assertEqual([tx1.txid()], batch._batch_txids)
+        n = len(self.network.broadcasts)
+        await batch.run_iteration()
+        self.assertEqual(n, len(self.network.broadcasts))
+        # next block: tx1 is rebroadcast, and the server accepts a new replacement
+        self.network.default_broadcast_outcome = 'ok'
+        self.network.local_height += 1
+        await batch.run_iteration()
+        self.assertEqual(tx1.txid(), (await self.network.next_tx()).txid())
+        tx1_prime_prime = await self.network.next_tx()
+        self.assertIn(output2, tx1_prime_prime.outputs())
+        self.assertEqual(tx1.inputs()[0].prevout, tx1_prime_prime.inputs()[0].prevout)
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_rejected_replacement_then_base_is_mined(self, mock_save_db):
+        # tx1'(o1,o2) is rejected: tx1 remains our latest tx. tx1 gets mined: tx2(tx1|o2) pays o2
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        await self._fund_wallet(wallet)
+        output1 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 10_000)
+        wallet.txbatcher.add_payment_output('default', output1)
+        batch = wallet.txbatcher.tx_batches['default']
+        await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        self.network.broadcast_outcomes = ['rejected']
+        output2 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 20_000)
+        wallet.txbatcher.add_payment_output('default', output2)
+        await batch.run_iteration()
+        self.assertIsNone(wallet.adb.get_transaction(self.network.broadcasts[-1]))
+        self.assertEqual(tx1.txid(), batch._base_tx.txid())
+        # tx1 gets mined
+        mine_tx(wallet, tx1)
+        await batch.run_iteration()
+        tx2 = await self.network.next_tx()
+        self.assertNotIn(output1, tx2.outputs())
+        self.assertIn(output2, tx2.outputs())
+        self.assertIn(tx1.txid(), [txin.prevout.txid.hex() for txin in tx2.inputs()])
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_cancelled_replacement_keeps_local_base(self, mock_save_db):
+        # same, but the password is not entered
+        wallet, batch, tx1 = await self._make_local_batch_tx()
+        output2 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 20_000)
+        wallet.txbatcher.add_payment_output('default', output2)
+        with mock.patch.object(batch, 'sign_transaction', mock.AsyncMock(return_value=None)):
+            await batch.run_iteration()
+        self.assertIsNotNone(wallet.adb.get_transaction(tx1.txid()))
+        self.assertEqual(tx1.txid(), (await batch.find_base_tx()).txid())
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_coins_reserved_while_signing(self, mock_save_db):
+        # while we wait for the password, the coins of tx1 are not spendable, and tx1 is not stored
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        await self._fund_wallet(wallet)
+        output1 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 10_000)
+        wallet.txbatcher.add_payment_output('default', output1)
+        batch = wallet.txbatcher.tx_batches['default']
+        coins = [c.prevout for c in wallet.get_spendable_coins()]
+        async def sign_transaction(tx):
+            self.assertIsNone(wallet.adb.get_transaction(tx.txid()))
+            spendable = [c.prevout for c in wallet.get_spendable_coins()]
+            self.assertTrue(all(txin.prevout not in spendable for txin in tx.inputs()))
+            return None  # the password is not entered
+        with mock.patch.object(batch, 'sign_transaction', sign_transaction):
+            await batch.run_iteration()
+        self.assertEqual(coins, [c.prevout for c in wallet.get_spendable_coins()])
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_unknown_broadcast_outcome_keeps_base(self, mock_save_db):
+        # the broadcast of tx1'(o1,o2) times out, but tx1' was relayed. tx1 remains our latest tx,
+        # and once the server sends tx1' to us, we adopt it: the next payment replaces it
+        wallet = self._create_wallet()
+        await self._fund_wallet(wallet)
+        output1 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 10_000)
+        wallet.txbatcher.add_payment_output('default', output1)
+        tx1 = await self.network.next_tx()
+        self.network.sync_delay = True
+        self.network.broadcast_outcomes = ['timeout']
+        output2 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 20_000)
+        wallet.txbatcher.add_payment_output('default', output2)
+        tx1_prime = await self.network.next_tx()
+        await asyncio.sleep(10 * wallet.txbatcher.SLEEP_INTERVAL)
+        self.assertTrue(self.network._tx_queue.empty())
+        self.assertEqual(tx1.txid(), wallet.txbatcher.tx_batches['default']._batch_txids[-1])
+        # the server sends tx1'
+        self.network.sync_delay = False
+        self.network.sync()
+        self.network.local_height += 1
+        output3 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 30_000)
+        wallet.txbatcher.add_payment_output('default', output3)
+        tx1_prime_prime = await self.network.next_tx()
+        self.assertIn(output2, tx1_prime_prime.outputs())
+        self.assertIn(output3, tx1_prime_prime.outputs())
+        self.assertIn(tx1_prime.txid(), wallet.txbatcher.tx_batches['default']._batch_txids)
+        self.assertEqual(tx1.inputs()[0].prevout, tx1_prime_prime.inputs()[0].prevout)
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_base_tx_with_children_starts_new_batch(self, mock_save_db):
+        # tx1(o1) is in the mempool, and o1, paid to us, is spent by a child: replacing tx1 would evict it.
+        # o2 is paid by tx2(tx1|o2) instead
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        await self._fund_wallet(wallet)
+        output1 = PartialTxOutput.from_address_and_value(wallet.get_receiving_address(), 10_000)
+        wallet.txbatcher.add_payment_output('default', output1)
+        batch = wallet.txbatcher.tx_batches['default']
+        await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        coins = [c for c in wallet.get_spendable_coins() if c.prevout.txid.hex() == tx1.txid() and c.address == output1.address]
+        child = wallet.make_unsigned_transaction(
+            coins=coins, outputs=[PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, '!')], fee_policy=FeePolicy('feerate:2000'))
+        wallet.sign_transaction(child, password=None)
+        wallet.adb.receive_tx_callback(child, tx_height=TX_HEIGHT_UNCONFIRMED)
+        output2 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 20_000)
+        wallet.txbatcher.add_payment_output('default', output2)
+        await batch.run_iteration()
+        await batch.run_iteration()
+        tx2 = await self.network.next_tx()
+        self.assertIn(output2, tx2.outputs())
+        self.assertNotIn(output1, tx2.outputs())
+        self.assertIn(tx1.txid(), [txin.prevout.txid.hex() for txin in tx2.inputs()])
+        self.assertIsNotNone(wallet.adb.get_transaction(tx1.txid()))
+        self.assertIsNotNone(wallet.adb.get_transaction(child.txid()))
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_sweep_of_forgotten_base_is_added_again(self, mock_save_db):
+        # tx1 sweeps s, and has a child: the batch forgets tx1. lnwatcher adds s again, and it is not
+        # swept while tx1 is in the mempool. tx1 and its child leave the mempool: s is swept again
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        await self._fund_wallet(wallet)
+        add_swap_funding_tx(wallet)
+        wallet.txbatcher.add_sweep_input('default', SWAP_SWEEP_INFO)
+        batch = wallet.txbatcher.tx_batches['default']
+        await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        coins = [c for c in wallet.get_utxos() if c.prevout.txid.hex() == tx1.txid()]
+        child = wallet.make_unsigned_transaction(
+            coins=coins, outputs=[PartialTxOutput.from_address_and_value(wallet.get_receiving_address(), '!')],
+            fee_policy=FeePolicy('feerate:2000'))
+        wallet.sign_transaction(child, password=None)
+        wallet.adb.receive_tx_callback(child, tx_height=TX_HEIGHT_UNCONFIRMED)
+        await batch.run_iteration()
+        self.assertEqual([], batch._batch_txids)
+        wallet.txbatcher.add_sweep_input('default', SWAP_SWEEP_INFO)
+        self.assertIn(SWAP_SWEEP_INFO.txin.prevout, batch.batch_inputs)
+        await batch.run_iteration()
+        self.assertTrue(self.network._tx_queue.empty())
+        # what receive_history_callback does when the server drops a tx
+        wallet.adb.unconfirmed_tx.pop(tx1.txid())
+        wallet.adb.unconfirmed_tx.pop(child.txid())
+        wallet.adb.invalidate_cache()
+        await batch.run_iteration()
+        tx2 = await self.network.next_tx()
+        self.assertIn(SWAP_SWEEP_INFO.txin.prevout, [txin.prevout for txin in tx2.inputs()])
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_base_tx_children_seen_after_rejected_replacement(self, mock_save_db):
+        # tx1 pays o1 to an address we watch, and C spends o1, but adb does not know C yet.
+        # tx1', which adds o2, is rejected because of C: tx1 remains our latest tx. When the server
+        # reports C, a new batch chained to tx1 pays o2
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        await self._fund_wallet(wallet)
+        output1 = PartialTxOutput.from_address_and_value(wallet.get_receiving_address(), 50_000)
+        wallet.txbatcher.add_payment_output('default', output1)
+        batch = wallet.txbatcher.tx_batches['default']
+        await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        # C, in the mempool of the server
+        prevout = TxOutpoint(bytes.fromhex(tx1.txid()), tx1.outputs().index(output1))
+        coins = [c for c in wallet.get_utxos() if c.prevout == prevout]
+        child = wallet.make_unsigned_transaction(
+            coins=coins, outputs=[PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 20_000)], fee_policy=batch.fee_policy)
+        wallet.sign_transaction(child, password=None)
+        child = Transaction(child.serialize())
+        self.network.default_broadcast_outcome = 'rejected'
+        output2 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 20_000)
+        wallet.txbatcher.add_payment_output('default', output2)
+        await batch.run_iteration()
+        self.assertIsNone(wallet.adb.get_transaction(self.network.broadcasts[-1]))
+        self.assertIsNotNone(wallet.adb.get_transaction(tx1.txid()))
+        # the server reports C
+        self.network.default_broadcast_outcome = 'ok'
+        wallet.adb.receive_tx_callback(child, tx_height=TX_HEIGHT_UNCONFIRMED)
+        await batch.run_iteration()
+        await batch.run_iteration()
+        tx2 = await self.network.next_tx()
+        self.assertIn(output2, tx2.outputs())
+        self.assertNotIn(output1, tx2.outputs())
+        self.assertIn(tx1.txid(), [txin.prevout.txid.hex() for txin in tx2.inputs()])
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_new_batch_chained_after_restart(self, mock_save_db):
+        # tx1(o1) has a child, so o2 starts a new batch chained to tx1. Electrum restarts before tx2
+        # is created, and o2 is added again: tx2 must still spend the change of tx1
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        await self._fund_wallet(wallet)
+        output1 = PartialTxOutput.from_address_and_value(wallet.get_receiving_address(), 10_000)
+        wallet.txbatcher.add_payment_output('default', output1)
+        batch = wallet.txbatcher.tx_batches['default']
+        await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        coins = [c for c in wallet.get_spendable_coins() if c.prevout.txid.hex() == tx1.txid() and c.address == output1.address]
+        child = wallet.make_unsigned_transaction(
+            coins=coins, outputs=[PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, '!')], fee_policy=FeePolicy('feerate:2000'))
+        wallet.sign_transaction(child, password=None)
+        wallet.adb.receive_tx_callback(child, tx_height=TX_HEIGHT_UNCONFIRMED)
+        output2 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 20_000)
+        wallet.txbatcher.add_payment_output('default', output2)
+        await batch.run_iteration()
+        # restart: payments are not persisted, o2 is added again
+        batch = TxBatch(wallet, batch.storage)
+        self.assertFalse(batch.is_done())
+        batch.add_payment_output(output2)
+        await batch.run_iteration()
+        tx2 = await self.network.next_tx()
+        self.assertIn(output2, tx2.outputs())
+        self.assertEqual(tx1.txid(), tx2.inputs()[0].prevout.txid.hex())
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_local_ancestors_are_rebroadcast(self, mock_save_db):
+        # tx1 has a child, so tx2 is chained to tx1. tx2 has a child, so tx3 is chained to tx2.
+        # tx1, tx2 and tx3 drop out of the mempool: they are rebroadcast, parents first
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        await self._fund_wallet(wallet)
+        addr1, addr2 = wallet.get_receiving_addresses()[0:2]
+
+        def spend_output(tx, address):
+            coins = [c for c in wallet.get_spendable_coins() if c.prevout.txid.hex() == tx.txid() and c.address == address]
+            child = wallet.make_unsigned_transaction(
+                coins=coins, outputs=[PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, '!')], fee_policy=FeePolicy('feerate:2000'))
+            wallet.sign_transaction(child, password=None)
+            wallet.adb.receive_tx_callback(child, tx_height=TX_HEIGHT_UNCONFIRMED)
+
+        wallet.txbatcher.add_payment_output('default', PartialTxOutput.from_address_and_value(addr1, 10_000))
+        batch = wallet.txbatcher.tx_batches['default']
+        await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        spend_output(tx1, addr1)
+        wallet.txbatcher.add_payment_output('default', PartialTxOutput.from_address_and_value(addr2, 20_000))
+        await batch.run_iteration()
+        await batch.run_iteration()
+        tx2 = await self.network.next_tx()
+        self.assertIn(tx1.txid(), [txin.prevout.txid.hex() for txin in tx2.inputs()])
+        spend_output(tx2, addr2)
+        wallet.txbatcher.add_payment_output('default', PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 30_000))
+        await batch.run_iteration()
+        await batch.run_iteration()
+        tx3 = await self.network.next_tx()
+        self.assertIn(tx2.txid(), [txin.prevout.txid.hex() for txin in tx3.inputs()])
+        # tx1, tx2 and tx3 drop out of the mempool
+        for tx in [tx1, tx2, tx3]:
+            wallet.adb.unconfirmed_tx.pop(tx.txid())
+        wallet.adb.invalidate_cache()
+        n = len(self.network.broadcasts)
+        self.network.local_height += 1
+        await batch.run_iteration()
+        self.assertEqual([tx1.txid(), tx2.txid(), tx3.txid()], self.network.broadcasts[n:])
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_replacement_displaced_by_predecessor(self, mock_save_db):
+        # the server accepts tx1'(o1,o2), but sends us tx1 again, which displaces tx1'.
+        # the next tx is built on tx1, and conflicts with tx1'
+        wallet = self._create_wallet()
+        await self._fund_wallet(wallet)
+        output1 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 10_000)
+        wallet.txbatcher.add_payment_output('default', output1)
+        tx1 = await self.network.next_tx()
+        self.network.sync_delay = True
+        output2 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 20_000)
+        wallet.txbatcher.add_payment_output('default', output2)
+        tx1_prime = await self.network.next_tx()
+        wallet.adb.receive_tx_callback(tx1, tx_height=TX_HEIGHT_UNCONFIRMED)
+        self.assertIsNone(wallet.adb.get_transaction(tx1_prime.txid()))
+        output3 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 30_000)
+        wallet.txbatcher.add_payment_output('default', output3)
+        tx2 = await self.network.next_tx()
+        self.assertIn(output2, tx2.outputs())
+        self.assertIn(output3, tx2.outputs())
+        self.assertEqual(tx1.inputs()[0].prevout, tx2.inputs()[0].prevout)
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_replacement_of_tx_reported_as_mined(self, mock_save_db):
+        # tx1 is reported as mined, but not verified yet: tx1'(o1,o2) is rejected, it is not added to adb
+        # or recorded, and it is not tried again in this block. once tx1 is verified, tx2(tx1|o2) pays o2
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        await self._fund_wallet(wallet)
+        output1 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 10_000)
+        wallet.txbatcher.add_payment_output('default', output1)
+        batch = wallet.txbatcher.tx_batches['default']
+        await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        wallet.adb.add_unverified_or_unconfirmed_tx(tx1.txid(), self.network.local_height)
+        self.network.default_broadcast_outcome = 'rejected'
+        output2 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 20_000)
+        wallet.txbatcher.add_payment_output('default', output2)
+        await batch.run_iteration()
+        self.assertIsNotNone(wallet.adb.get_transaction(tx1.txid()))
+        self.assertEqual([tx1.txid()], batch._batch_txids)
+        n = len(self.network.broadcasts)
+        await batch.run_iteration()
+        self.assertEqual(n, len(self.network.broadcasts))
+        tx_mined_status = wallet.adb.get_tx_height(tx1.txid())
+        wallet.adb.add_verified_tx(tx1.txid(), dataclasses.replace(tx_mined_status, conf=1))
+        self.network.default_broadcast_outcome = 'ok'
+        await batch.run_iteration()
+        tx2 = await self.network.next_tx()
+        self.assertNotIn(output1, tx2.outputs())
+        self.assertIn(output2, tx2.outputs())
+        self.assertIn(tx1.txid(), [txin.prevout.txid.hex() for txin in tx2.inputs()])
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_local_tx_is_rebroadcast_once_per_block(self, mock_save_db):
+        wallet, batch, tx1 = await self._make_local_batch_tx()
+        n = len(self.network.broadcasts)
+        for i in range(3):
+            await batch.run_iteration()
+        self.assertEqual(n, len(self.network.broadcasts))
+        self.network.local_height += 1
+        await batch.run_iteration()
+        self.assertEqual([tx1.txid()], self.network.broadcasts[n:])
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_rejected_fee_bump_keeps_base(self, mock_save_db):
+        # fees rise, and the fee bump of tx1 is rejected: tx1 remains our latest tx.
+        # at the next block, a new fee bump is created, with the current fee estimate
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        await self._fund_wallet(wallet)
+        output1 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 10_000)
+        wallet.txbatcher.add_payment_output('default', output1)
+        batch = wallet.txbatcher.tx_batches['default']
+        await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        wallet.config.FEE_POLICY = 'feerate:10000'
+        self.network.broadcast_outcomes = ['rejected']
+        await batch.run_iteration()
+        tx1_prime_txid = self.network.broadcasts[-1]
+        self.assertNotEqual(tx1.txid(), tx1_prime_txid)
+        self.assertIsNotNone(wallet.adb.get_transaction(tx1.txid()))
+        self.assertIsNone(wallet.adb.get_transaction(tx1_prime_txid))
+        n = len(self.network.broadcasts)
+        await batch.run_iteration()
+        self.assertEqual(n, len(self.network.broadcasts))
+        # next block
+        wallet.config.FEE_POLICY = 'feerate:20000'
+        self.network.local_height += 1
+        await batch.run_iteration()
+        tx1_prime_prime = await self.network.next_tx()
+        self.assertNotEqual(tx1_prime_txid, tx1_prime_prime.txid())
+        self.assertIn(output1, tx1_prime_prime.outputs())
+        self.assertEqual(tx1.inputs()[0].prevout, tx1_prime_prime.inputs()[0].prevout)
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_build_exception_keeps_batch(self, mock_save_db):
+        # an exception while creating a tx neither drops the batch nor its base tx:
+        # the tx is created again at the next block
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        await self._fund_wallet(wallet)
+        output1 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 10_000)
+        wallet.txbatcher.add_payment_output('default', output1)
+        batch = wallet.txbatcher.tx_batches['default']
+        with mock.patch.object(batch, 'create_next_transaction', side_effect=Exception('test')):
+            await batch.run_iteration()
+        await batch.run_iteration()
+        self.assertTrue(self.network._tx_queue.empty())
+        self.network.local_height += 1
+        await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        self.assertIn(output1, tx1.outputs())
+        # with a base tx
+        output2 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 20_000)
+        wallet.txbatcher.add_payment_output('default', output2)
+        with mock.patch.object(batch, 'create_next_transaction', side_effect=Exception('test')):
+            await batch.run_iteration()
+        self.assertEqual([tx1.txid()], batch._batch_txids)
+        self.network.local_height += 1
+        await batch.run_iteration()
+        tx1_prime = await self.network.next_tx()
+        self.assertIn(output2, tx1_prime.outputs())
+        self.assertEqual(tx1.inputs()[0].prevout, tx1_prime.inputs()[0].prevout)
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_future_tx_failure_does_not_block_ready_outputs(self, mock_save_db):
+        # add_future_tx, which only creates a tx for display, raises for a sweep that is not ready yet
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        await self._fund_wallet(wallet)
+        add_swap_funding_tx(wallet)
+        later_sweep = SWAP_SWEEP_INFO._replace(our_cltv_abs=self.network.local_height + 100)
+        wallet.txbatcher.add_sweep_input('default', later_sweep)
+        output1 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 10_000)
+        wallet.txbatcher.add_payment_output('default', output1)
+        batch = wallet.txbatcher.tx_batches['default']
+        with mock.patch.object(wallet, 'add_future_tx', side_effect=util.NotEnoughFunds()):
+            await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        self.assertIn(output1, tx1.outputs())
+        self.assertNotIn(later_sweep.txin.prevout, [txin.prevout for txin in tx1.inputs()])
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_restart_before_sweep_is_added_again(self, mock_save_db):
+        # after a restart, the sweep info of the input of tx1 is unknown until the caller adds it again:
+        # tx1 must not be replaced before that, as we could not sign its input
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        add_swap_funding_tx(wallet)
+        wallet.txbatcher.add_sweep_input('default', SWAP_SWEEP_INFO)
+        batch = wallet.txbatcher.tx_batches['default']
+        await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        # restart, and fees rise
+        batch = TxBatch(wallet, batch.storage)
+        wallet.txbatcher.tx_batches['default'] = batch
+        wallet.config.FEE_POLICY = 'feerate:10000'
+        await batch.run_iteration()
+        self.assertTrue(self.network._tx_queue.empty())
+        # the caller adds the sweep again
+        batch.add_sweep_input(SWAP_SWEEP_INFO)
+        await batch.run_iteration()
+        tx1_prime = await self.network.next_tx()
+        self.assertNotEqual(tx1.txid(), tx1_prime.txid())
+        self.assertEqual(tx1.inputs()[0].prevout, tx1_prime.inputs()[0].prevout)
+
+    async def _make_replacement_without_change(self):
+        """tx1(s,c,o1,o2) is replaced by F(s,c,o1), which we did not create and which has no change.
+        Returns the wallet, its batch, tx1, F, o1 and o2. The batch is driven manually."""
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        funding_tx = await self._fund_wallet(wallet)
+        # a smaller confirmed coin, to pay o2 once F is mined
+        funding_tx2 = make_funding_tx(wallet.get_receiving_address(), 30_000)
+        mine_tx(wallet, funding_tx2)
+        add_swap_funding_tx(wallet)
+        output1 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 10_000)
+        output2 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 20_000)
+        wallet.txbatcher.add_sweep_input('default', SWAP_SWEEP_INFO)
+        wallet.txbatcher.add_payment_output('default', output1)
+        wallet.txbatcher.add_payment_output('default', output2)
+        batch = wallet.txbatcher.tx_batches['default']
+        await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        assert output1 in tx1.outputs() and output2 in tx1.outputs() and tx1.has_change()
+        assert batch.storage['prevout'].split(':')[0] == funding_tx.txid()
+        # F: same inputs as tx1, only o1, validly signed
+        replacement = copy.deepcopy(tx1)
+        replacement._outputs = [output1]
+        replacement.remove_signatures()
+        replacement.invalidate_ser_cache()
+        wallet.sign_transaction(replacement, password=None)
+        replacement = Transaction(replacement.serialize())
+        spent = [wallet.adb.get_transaction(txin.prevout.txid.hex()).outputs()[txin.prevout.out_idx] for txin in replacement.inputs()]
+        verify_transaction(replacement, spent)
+        wallet.adb.receive_tx_callback(replacement, tx_height=TX_HEIGHT_UNCONFIRMED)
+        assert wallet.adb.get_transaction(tx1.txid()) is None
+        return wallet, batch, tx1, replacement, output1, output2
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_batch__replacement_without_change_waits_until_mined(self, mock_save_db):
+        # tx1 might still get mined: txbatcher must not pay o2 with a tx that does not conflict with tx1.
+        wallet, batch, tx1, replacement, output1, output2 = await self._make_replacement_without_change()
+        # F is not mined, so we must wait
+        await batch.run_iteration()
+        assert self.network._tx_queue.empty()
+        # F gets mined: tx1 can no longer be mined
+        mine_tx(wallet, replacement)
+        await batch.run_iteration()
+        tx2 = await self.network.next_tx()
+        assert output1 not in tx2.outputs()
+        assert output2 in tx2.outputs()
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_batch__replacement_without_change_waits_after_restart(self, mock_save_db):
+        # same, but Electrum restarts, and the batch runs before o2 is added again: it must still wait
+        wallet, batch, tx1, replacement, output1, output2 = await self._make_replacement_without_change()
+        batch = TxBatch(wallet, batch.storage)
+        await batch.run_iteration()
+        batch.add_payment_output(output2)
+        await batch.run_iteration()
+        self.assertTrue(self.network._tx_queue.empty())
+        # F gets mined
+        mine_tx(wallet, replacement)
+        await batch.run_iteration()
+        tx2 = await self.network.next_tx()
+        self.assertNotIn(output1, tx2.outputs())
+        self.assertIn(output2, tx2.outputs())
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_batch__replacement_without_change_becomes_local(self, mock_save_db):
+        # the server drops F, which becomes LOCAL: it is removed from adb, and the next tx spends s again
+        wallet, batch, tx1, replacement, output1, output2 = await self._make_replacement_without_change()
+        await batch.run_iteration()
+        self.assertTrue(self.network._tx_queue.empty())
+        # what receive_history_callback does when the server drops a tx
+        wallet.adb.unconfirmed_tx.pop(replacement.txid())
+        wallet.adb.invalidate_cache()
+        self.assertEqual(TX_HEIGHT_LOCAL, wallet.adb.get_tx_height(replacement.txid()).height())
+        await batch.run_iteration()
+        tx2 = await self.network.next_tx()
+        self.assertIsNone(wallet.adb.get_transaction(replacement.txid()))
+        self.assertIn(output1, tx2.outputs())
+        self.assertIn(output2, tx2.outputs())
+        self.assertIn(SWAP_SWEEP_INFO.txin.prevout, [txin.prevout for txin in tx2.inputs()])
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_batch__base_vanished_next_tx_spends_first_input(self, mock_save_db):
+        # tx1 = [c, u] pays o1: c is confirmed, u was received unconfirmed. The sender of u replaces the tx
+        # that created it, which evicts tx1, and may restore it later: the next tx paying o1 must spend c
+        wallet = self._create_wallet()
+        funding_tx = await self._fund_wallet(wallet)
+        confirmed_balance = sum(c.value_sats() for c in wallet.get_spendable_coins())
+        funding_tx2 = make_funding_tx(wallet.get_receiving_address(), 200_000)
+        wallet.adb.receive_tx_callback(funding_tx2, tx_height=TX_HEIGHT_UNCONFIRMED)
+        output1 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, confirmed_balance + 50_000)
+        wallet.txbatcher.add_payment_output('default', output1)
+        tx1 = await self.network.next_tx()
+        prevout = tx1.inputs()[0].prevout
+        self.assertEqual(funding_tx.txid(), prevout.txid.hex())
+        self.assertIn(funding_tx2.txid(), [txin.prevout.txid.hex() for txin in tx1.inputs()])
+        # the sender of u replaces funding_tx2
+        funding_tx2_replacement = make_tx(funding_tx2.inputs(), [(wallet.get_receiving_addresses()[1], 199_000)])
+        wallet.adb.receive_tx_callback(funding_tx2_replacement, tx_height=TX_HEIGHT_UNCONFIRMED)
+        self.assertIsNone(wallet.adb.get_transaction(tx1.txid()))
+        self.assertNotIn(prevout, [c.prevout for c in wallet.get_spendable_coins()])
+        # the next tx paying o1 conflicts with tx1
+        tx2 = await self.network.next_tx()
+        self.assertIn(output1, tx2.outputs())
+        self.assertEqual(prevout, tx2.inputs()[0].prevout)
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_payment_waits_for_a_confirmed_coin(self, mock_save_db):
+        # the only coin of the wallet was received unconfirmed: o1 is paid once that coin is mined
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        funding_tx = make_funding_tx(wallet.get_receiving_address(), 200_000)
+        wallet.adb.receive_tx_callback(funding_tx, tx_height=TX_HEIGHT_UNCONFIRMED)
+        output1 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 10_000)
+        wallet.txbatcher.add_payment_output('default', output1)
+        batch = wallet.txbatcher.tx_batches['default']
+        await batch.run_iteration()
+        self.assertTrue(self.network._tx_queue.empty())
+        mine_tx(wallet, funding_tx)
+        await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        self.assertIn(output1, tx1.outputs())
+        self.assertEqual(funding_tx.txid(), tx1.inputs()[0].prevout.txid.hex())
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_held_coins_are_not_spendable(self, mock_save_db):
+        # the change of tx1, our base tx, mined or not, and then the change of tx1 as the parent
+        # of a new batch, are not offered to other spenders
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        await self._fund_wallet(wallet)
+        output1 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 10_000)
+        wallet.txbatcher.add_payment_output('default', output1)
+        batch = wallet.txbatcher.tx_batches['default']
+        await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        change = [TxOutpoint(bytes.fromhex(tx1.txid()), i) for i, o in enumerate(tx1.outputs()) if wallet.is_change(o.address)]
+        self.assertEqual(1, len(change))
+        self.assertNotIn(change[0], [c.prevout for c in wallet.get_spendable_coins()])
+        # tx1 is mined while o2 is pending: the new batch is chained to the change of tx1
+        output2 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 20_000)
+        wallet.txbatcher.add_payment_output('default', output2)
+        mine_tx(wallet, tx1)
+        # before the batch notices it
+        self.assertNotIn(change[0], [c.prevout for c in wallet.get_spendable_coins()])
+        await batch.find_base_tx()
+        self.assertEqual(change[0].to_str(), batch.storage['prevout'])
+        self.assertNotIn(change[0], [c.prevout for c in wallet.get_spendable_coins()])
+        await batch.run_iteration()
+        tx2 = await self.network.next_tx()
+        self.assertIn(output2, tx2.outputs())
+        self.assertIn(change[0], [txin.prevout for txin in tx2.inputs()])
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_rbf_batching__cannot_batch_as_would_need_to_use_ismine_outputs_of_basetx(self, mock_save_db):
@@ -323,6 +1063,9 @@ class TestTxBatcher(ElectrumTestCase):
         wallet.adb.receive_tx_callback(tx1_other, tx_height=TX_HEIGHT_UNCONFIRMED)
         self.assertIsNone(await batch.find_base_tx())
 
+        # a confirmed coin, for the first input of the next tx: the change of tx1_other is not confirmed
+        funding_tx2 = make_funding_tx(wallet.get_receiving_address(), 200_000)
+        mine_tx(wallet, funding_tx2)
         # the next payment does not replace tx1_other, so output_other is not paid by us,
         # and output1, paid by tx1_other, is not paid again
         output2 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 20_000)
@@ -359,6 +1102,31 @@ class TestTxBatcher(ElectrumTestCase):
         wallet.adb.receive_tx_callback(tx1_bumped, tx_height=TX_HEIGHT_UNCONFIRMED)
         self.assertEqual(tx1_bumped.txid(), (await batch.find_base_tx()).txid())
 
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_txin_txout_pairs_are_aligned(self, mock_save_db):
+        # tx1 pays o1 and o2. Its replacement adds a sweep input paired with an output, signed with
+        # SIGHASH_SINGLE: they are put first, at the same index, and the first input of tx1 is still _prevout
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        funding_tx = await self._fund_wallet(wallet)
+        add_swap_funding_tx(wallet)
+        for value in (10_000, 20_000):
+            wallet.txbatcher.add_payment_output('default', PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, value))
+        batch = wallet.txbatcher.tx_batches['default']
+        await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        first = tx1.inputs()[0].prevout
+        self.assertEqual(funding_tx.txid(), first.txid.hex())
+        sweep_txout = PartialTxOutput.from_address_and_value('tb1qy6xmdj96v5dzt3j08hgc05yk3kltqsnmw4r6ry', SWAPDATA.onchain_amount)
+        sweep_info = SWAP_SWEEP_INFO._replace(txout=sweep_txout)
+        wallet.txbatcher.add_sweep_input('default', sweep_info)
+        await batch.run_iteration()
+        tx1_prime = await self.network.next_tx()
+        self.assertEqual(sweep_info.txin.prevout, tx1_prime.inputs()[0].prevout)
+        self.assertEqual(sweep_txout, tx1_prime.outputs()[0])
+        self.assertIn(first, [txin.prevout for txin in tx1_prime.inputs()])
+        self.assertEqual(first.to_str(), batch.storage['prevout'])
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_sweep_from_submarine_swap(self, mock_save_db):
@@ -406,6 +1174,32 @@ class TestTxBatcher(ElectrumTestCase):
             self.assertTrue(wallet.is_mine(txout.address), f'change sent to {txout.address}')
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_dust_change_gets_another_input(self, mock_save_db):
+        # the change of tx1'(o1,o2) would be dust, and would be dropped: tx1' spends one more coin,
+        # so that it has change, and a new batch can be chained to it
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        await self._fund_wallet(wallet)
+        output1 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 10_000)
+        wallet.txbatcher.add_payment_output('default', output1)
+        batch = wallet.txbatcher.tx_batches['default']
+        await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        funding_tx2 = make_funding_tx(wallet.get_receiving_address(), 200_000)
+        mine_tx(wallet, funding_tx2)
+        # o2 leaves a change of 100 sat in tx1'
+        trial = wallet.make_unsigned_transaction(
+            coins=[], fee_policy=batch.fee_policy, base_tx=tx1, outputs=[PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 1_000)],
+            BIP69_sort=False, merge_duplicate_outputs=False)
+        output2 = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 1_000 + trial.get_change_outputs()[0].value - 100)
+        wallet.txbatcher.add_payment_output('default', output2)
+        await batch.run_iteration()
+        tx1_prime = await self.network.next_tx()
+        self.assertIn(output2, tx1_prime.outputs())
+        self.assertIn(funding_tx2.txid(), [txin.prevout.txid.hex() for txin in tx1_prime.inputs()])
+        self.assertTrue(tx1_prime.has_change())
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_batch_sweep_and_payment_with_use_change_disabled(self, mock_save_db):
         """A batch that combines a sweep input with a payment output must not send its
         change back to the address of the sweep input, as that address is not ismine.
@@ -433,7 +1227,7 @@ class TestTxBatcher(ElectrumTestCase):
         # create wallet
         wallet = self._create_wallet()
         wallet.txbatcher.add_sweep_input('lnwatcher', ANCHOR_SWEEP_INFO)
-        anchor_batch = wallet.txbatcher.tx_batches['lnwatcher']
+        anchor_batch = wallet.txbatcher.tx_batches[anchor_txin.prevout.to_str()]
 
         # does not return sweep info if prev_tx is not in db
         to_sweep_no_tx = anchor_batch._to_sweep_after(tx=None)
@@ -457,7 +1251,62 @@ class TestTxBatcher(ElectrumTestCase):
         to_sweep_ctx_conf = anchor_batch._to_sweep_after(tx=None)
         self.assertFalse(to_sweep_ctx_conf)
         self.assertFalse(anchor_batch.batch_inputs)
-        self.assertEqual(wallet.txbatcher.tx_batches['lnwatcher'], anchor_batch)
+        self.assertEqual(wallet.txbatcher.tx_batches[anchor_txin.prevout.to_str()], anchor_batch)
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_anchor_cpfp_can_spend_ln_reserve(self, mock_save_db):
+        # LN_UTXO_RESERVE exists to fund an anchor CPFP: a batch without payments may spend it
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        await self._fund_wallet(wallet)
+        wallet.adb.db.transactions[anchor_chan_ctx.txid()] = anchor_chan_ctx
+        with mock.patch.object(wallet, 'should_keep_reserve_utxo', return_value=True):
+            output = PartialTxOutput.from_address_and_value(OUTGOING_ADDRESS, 10_000)
+            with self.assertRaises(util.NotEnoughFunds):
+                wallet.make_unsigned_transaction(outputs=[output], fee_policy=FeePolicy('feerate:1000'))
+            wallet.txbatcher.add_sweep_input('default', ANCHOR_SWEEP_INFO)
+            batch = wallet.txbatcher.tx_batches[anchor_txin.prevout.to_str()]
+            await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        self.assertIn(anchor_txin.prevout, [txin.prevout for txin in tx1.inputs()])
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_anchor_cpfp_pays_for_ctx(self, mock_save_db):
+        # the ctx pays less than our target fee: the CPFP pays the difference, so that the package reaches it
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        await self._fund_wallet(wallet)
+        wallet.config.FEE_POLICY = 'feerate:20000'
+        wallet.adb.db.transactions[anchor_chan_ctx.txid()] = anchor_chan_ctx
+        ctx_fee = 1_000
+        get_tx_fee = wallet.adb.get_tx_fee
+        with mock.patch.object(wallet.adb, 'get_tx_fee', side_effect=lambda txid: ctx_fee if txid == anchor_chan_ctx.txid() else get_tx_fee(txid)):
+            wallet.txbatcher.add_sweep_input('default', ANCHOR_SWEEP_INFO)
+            batch = wallet.txbatcher.tx_batches[anchor_txin.prevout.to_str()]
+            await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        self.assertIn(anchor_txin.prevout, [txin.prevout for txin in tx1.inputs()])
+        package_size = tx1.estimated_size() + anchor_chan_ctx.estimated_size()
+        self.assertGreaterEqual(tx1.get_fee() + ctx_fee, 20 * package_size)
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_anchor_not_needed_yet_waits_in_its_batch(self, mock_save_db):
+        # the ctx pays enough fees, so the anchor is not used yet: it waits in its own batch,
+        # and is used once the ctx needs fees
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        await self._fund_wallet(wallet)
+        wallet.adb.db.transactions[anchor_chan_ctx.txid()] = anchor_chan_ctx
+        with mock.patch.object(wallet.adb, 'get_tx_fee', return_value=1_000_000):
+            wallet.txbatcher.add_sweep_input('default', ANCHOR_SWEEP_INFO)
+            batch = wallet.txbatcher.tx_batches[anchor_txin.prevout.to_str()]
+            await batch.run_iteration()
+        self.assertIn(anchor_txin.prevout, batch.batch_inputs)
+        self.assertTrue(self.network._tx_queue.empty())
+        # the fee of the ctx is no longer sufficient
+        await batch.run_iteration()
+        tx1 = await self.network.next_tx()
+        self.assertIn(anchor_txin.prevout, [txin.prevout for txin in tx1.inputs()])
 
     async def test_add_sweep_input_ignores_expired_sweep_info(self):
         wallet = self._create_wallet()
@@ -481,6 +1330,26 @@ class TestTxBatcher(ElectrumTestCase):
         self.network.local_height = sweep_info.expiry_height
         self.assertFalse(batch._to_sweep_after(tx=None))
         self.assertFalse(batch.batch_inputs)
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_to_sweep_after_drops_input_spent_by_mined_tx(self, mock_save_db):
+        # s is spent by a tx we did not create, which gets mined: s is dropped, and the batch is done
+        wallet = self._create_wallet()
+        wallet.txbatcher.SLEEP_INTERVAL = 100  # we drive the batch manually
+        add_swap_funding_tx(wallet)
+        wallet.txbatcher.add_sweep_input('default', SWAP_SWEEP_INFO)
+        batch = wallet.txbatcher.tx_batches['default']
+        txin = copy.deepcopy(SWAP_SWEEP_INFO.txin)
+        spender = PartialTransaction.from_io(
+            [txin], [PartialTxOutput.from_address_and_value(wallet.get_receiving_address(), 190_000)],
+            locktime=SWAP_SWEEP_INFO.our_cltv_abs, version=2)
+        sig = spender.sign_txin(0, txin.privkey)
+        spender.inputs()[0].witness = spender.inputs()[0].make_witness(sig)
+        spender = Transaction(spender.serialize())
+        mine_tx(wallet, spender)
+        self.assertFalse(batch._to_sweep_after(None))
+        self.assertFalse(batch.batch_inputs)
+        self.assertTrue(batch.is_done())
 
     async def test_to_sweep_after_drops_expired_input_whose_prev_tx_is_missing(self):
         """Giving up on an expired input must not depend on having its prev tx in the db,
