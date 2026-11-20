@@ -20,7 +20,7 @@ from electrum.constants import BitcoinTestnet
 from electrum.simple_config import SimpleConfig
 from electrum.lnrouter import (PathEdge, LiquidityHintMgr, DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH,
                                DEFAULT_PENALTY_BASE_MSAT, fee_for_edge_msat, LNPaymentTRoute, TrampolineEdge,
-                               HINT_DURATION)
+                               HINT_DURATION, RouteEdge)
 
 from . import ElectrumTestCase
 from .test_bitcoin import needs_test_with_all_chacha20_implementations
@@ -197,6 +197,66 @@ class Test_LNRouter(ElectrumTestCase):
         add_chan_upd({'short_channel_id': channel(6), 'message_flags': b'\x00', 'channel_flags': b'\x01', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
         add_chan_upd({'short_channel_id': channel(7), 'message_flags': b'\x00', 'channel_flags': b'\x00', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
         add_chan_upd({'short_channel_id': channel(7), 'message_flags': b'\x00', 'channel_flags': b'\x01', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
+
+    async def test_find_path_with_route_hints_sharing_an_scid_alias(self):
+        # hints from b and from d to x, with the same scid alias: each has a local short_channel_id,
+        # and its own blacklist entry, liquidity hints and cached channel updates
+        self.prepare_graph()
+        x = node('x')
+        alias = ShortChannelID.from_components(0, 1234567, 8901)
+        local_b = lnrouter.local_scid_for_route_hint(alias, node('b'), x, taken={alias})
+        local_d = lnrouter.local_scid_for_route_hint(alias, node('d'), x, taken={alias, local_b})
+        self.assertEqual(0xFFFFFF, local_d.block_height)
+        def hint(start, scid):
+            return RouteEdge(start_node=start, end_node=x, short_channel_id=scid, onion_short_channel_id=alias,
+                             fee_base_msat=1000, fee_proportional_millionths=100, cltv_delta=40, node_features=0)
+        private_route_edges = {local_b: hint(node('b'), local_b), local_d: hint(node('d'), local_d)}
+        def find():
+            route = self.path_finder.find_route(
+                nodeA=node('a'), nodeB=x, invoice_amount_msat=100_000, private_route_edges=private_route_edges)
+            return route and route[-1].start_node
+        self.path_finder.add_edge_to_blacklist(local_b)
+        self.assertEqual(node('d'), find())
+        self.path_finder.clear_blacklist()
+        self.path_finder.add_edge_to_blacklist(local_d)
+        self.assertEqual(node('b'), find())
+        self.path_finder.clear_blacklist()
+        # a failure to forward over one hint
+        for failing_start, other_start in ((node('b'), node('d')), (node('d'), node('b'))):
+            self.path_finder.liquidity_hints.reset_liquidity_hints()
+            failing = private_route_edges[local_b if failing_start == node('b') else local_d]
+            route = self.path_finder.create_route_from_path(
+                [PathEdge(start_node=node('a'), end_node=failing_start,
+                          short_channel_id=channel(3) if failing_start == node('b') else channel(6)),
+                 PathEdge(start_node=failing_start, end_node=x, short_channel_id=failing.short_channel_id)],
+                private_route_edges=private_route_edges)
+            self.path_finder.update_liquidity_hints(route, 100_000, failing_channel=failing.short_channel_id)
+            self.assertEqual(other_start, find())
+        self.path_finder.liquidity_hints.reset_liquidity_hints()
+        # a channel_update of the alias from d, e.g. from a failed htlc, applies to the hint from d
+        disabled_update = {
+            'short_channel_id': alias, 'message_flags': b'\x00', 'channel_flags': b'\x03',
+            'cltv_expiry_delta': 40, 'htlc_minimum_msat': 1, 'fee_base_msat': 1000,
+            'fee_proportional_millionths': 100, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
+            'timestamp': util.now()}
+        with mock.patch('electrum.channel_db.verify_sig_for_channel_update', return_value=True):
+            self.assertTrue(self.cdb.add_channel_update_for_private_channel(disabled_update, node('d')))
+        self.path_finder.add_edge_to_blacklist(local_b)
+        self.assertIsNone(self.path_finder.find_route(
+            nodeA=node('a'), nodeB=x, invoice_amount_msat=100_000, private_route_edges=private_route_edges))
+
+    def test_local_scid_for_route_hint_is_not_taken(self):
+        alias = ShortChannelID.from_components(0, 1234567, 8901)
+        first = lnrouter.local_scid_for_route_hint(alias, node('d'), node('x'), taken=set())
+        self.assertEqual(first, lnrouter.local_scid_for_route_hint(alias, node('d'), node('x'), taken=set()))
+        second = lnrouter.local_scid_for_route_hint(alias, node('d'), node('x'), taken={first})
+        self.assertNotEqual(first, second)
+        self.assertNotEqual(first, lnrouter.local_scid_for_route_hint(alias, node('b'), node('x'), taken=set()))
+        # however many are taken
+        taken = set()
+        for _ in range(100):
+            taken.add(lnrouter.local_scid_for_route_hint(alias, node('d'), node('x'), taken=taken))
+        self.assertEqual(100, len(taken))
 
     async def test_find_path_for_payment(self):
         self.prepare_graph()
