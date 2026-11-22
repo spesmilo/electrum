@@ -2,7 +2,7 @@ import copy
 from enum import IntEnum
 import threading
 from decimal import Decimal, InvalidOperation
-from typing import Optional, TYPE_CHECKING, Callable
+from typing import Optional, TYPE_CHECKING, Callable, Mapping, Sequence
 from functools import partial
 
 from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, pyqtEnum, QVariant
@@ -10,7 +10,7 @@ from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, pyqtEnum, 
 from electrum.logging import get_logger
 from electrum.i18n import _
 from electrum.bitcoin import DummyAddress
-from electrum.transaction import PartialTxOutput, PartialTransaction, Transaction, TxOutpoint
+from electrum.transaction import PartialTxOutput, PartialTransaction, Transaction, TxOutpoint, PartialTxInput
 from electrum.util import (
     NotEnoughFunds, profiler, quantize_feerate, UserFacingException, NoDynamicFeeEstimates, event_listener
 )
@@ -1127,7 +1127,7 @@ class QETxSweepFinalizer(QETxFinalizer):
         super().__init__(parent)
 
         self._private_keys = ''
-        self._txins = None
+        self._txins_and_keys = None  # type: tuple[Sequence[PartialTxInput], Mapping[bytes, bytes]] | None
         self._amount = QEAmount(is_max=True)
 
         self.txinsRetrieved.connect(self.update)
@@ -1147,9 +1147,9 @@ class QETxSweepFinalizer(QETxFinalizer):
     def make_sweep_tx(self):
         address = self._wallet.wallet.get_receiving_address()
         assert self._wallet.wallet.is_mine(address)
-        assert self._txins is not None
+        assert self._txins_and_keys is not None
 
-        coins, keypairs = copy.deepcopy(self._txins)
+        coins, keypairs = copy.deepcopy(self._txins_and_keys)
         outputs = [PartialTxOutput.from_address_and_value(address, value='!')]
 
         tx = self._wallet.wallet.make_unsigned_transaction(
@@ -1165,8 +1165,9 @@ class QETxSweepFinalizer(QETxFinalizer):
         @ignore_if_destroyed(self)
         def fetch_privkeys_info():
             try:
-                self._txins = self._wallet.wallet.network.run_from_another_thread(sweep_preparations(privkeys, self._wallet.wallet.network))
-                self._logger.debug(f'txins {self._txins!r}')
+                coins, keypairs = self._wallet.wallet.network.run_from_another_thread(sweep_preparations(privkeys, self._wallet.wallet.network))
+                self._txins_and_keys = coins, keypairs
+                self._logger.debug(f'found {len(coins)} utxos we can sweep')
             except NetworkException as e:
                 self.warning = _('Network error') + ': ' + str(e)
                 return
@@ -1184,7 +1185,7 @@ class QETxSweepFinalizer(QETxFinalizer):
         if not self._private_keys:
             self._logger.debug('private keys not set, ignoring update()')
             return
-        if self._txins is None:
+        if self._txins_and_keys is None:
             self._logger.debug('txins not set, ignoring update()')
             return
 
