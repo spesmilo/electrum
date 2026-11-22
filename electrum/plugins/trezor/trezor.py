@@ -31,7 +31,9 @@ try:
     from trezorlib.messages import (
         Capability, BackupType, HDNodeType, HDNodePathType,
         InputScriptType, OutputScriptType, MultisigRedeemScriptType,
-        TxInputType, TxOutputType, TxOutputBinType, TransactionType, AmountUnit)
+        TxInputType, TxOutputType, TxOutputBinType, TransactionType, AmountUnit,
+        MultisigPubkeysOrder,
+    )
 
     from trezorlib.client import PassphraseSetting
     import trezorlib.log
@@ -430,7 +432,9 @@ class TrezorPlugin(HW_PluginBase):
         return MultisigRedeemScriptType(
             pubkeys=pubkeys,
             signatures=[b''] * len(pubkeys),
-            m=desc.thresh)
+            m=desc.thresh,
+            pubkeys_order=MultisigPubkeysOrder.LEXICOGRAPHIC if desc.is_sorted else MultisigPubkeysOrder.PRESERVED,
+        )
 
     def tx_outputs(self, tx: PartialTransaction, *, keystore: 'TrezorKeyStore', firmware_version: Sequence[int]):
 
