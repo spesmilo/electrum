@@ -129,13 +129,17 @@ class PluginDialog(WindowModalDialog):
         except Exception as e:
             self.show_error(f"{e}")
             return
-        self.window.plugins.enable(self.name)
-        d = self.plugins.get_metadata(self.name)
-        if details := d.registers_keystore:
-            self.plugins.register_keystore(self.name, details)
-        if self.status_button:
-            self.status_button.update()
-        self.accept()
+        try:
+            self.window.plugins.enable(self.name)
+            d = self.plugins.get_metadata(self.name)
+            if details := d.registers_keystore:
+                self.plugins.register_keystore(self.name, details)
+        except Exception as e:
+            self.show_error(f"{e}")
+        finally:
+            if self.status_button:
+                self.status_button.update()
+            self.accept()
 
     def do_upgrade(self):
         privkey = self.window.get_plugins_privkey()
@@ -325,7 +329,7 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
         if not d.exec():
             self.plugins.remove_external_plugin_metadata(name)
             return
-        if self.gui_object:
+        if self.gui_object and self.plugins.get(name):  # nothing to reload if the plugin could not be loaded
             self.gui_object.reload_windows()
         self.show_list()
 
@@ -380,7 +384,11 @@ class PluginsDialog(WindowModalDialog, MessageBoxMixin):
         if is_enabled:
             self.plugins.disable(name)
         else:
-            self.plugins.enable(name)
+            try:
+                self.plugins.enable(name)
+            except Exception as e:
+                self.show_error(f"{e}")
+                return
         if status_button:
             status_button.update()
         if self.gui_object:
