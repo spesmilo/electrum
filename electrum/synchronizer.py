@@ -192,8 +192,10 @@ class Synchronizer(SynchronizerBase):
     async def _on_address_status(self, addr, status):
         try:
             old_history = self.adb.db.get_addr_history(addr)
-            if history_status(old_history) == status:
+            if history_status(old_history) == status:  # our local state is current, yay
                 self._stale_histories.pop(addr, asyncio.Future()).cancel()
+                # Request transactions we don't have
+                await self._request_missing_txs(old_history)
                 return
             # No point in requesting history twice for the same announced status.
             # However if we got announced a new status, we should request history again:
@@ -234,8 +236,8 @@ class Synchronizer(SynchronizerBase):
         # Remove request; this allows up_to_date to be True
         self.requested_histories.discard((addr, status))
 
-    async def _request_missing_txs(self, hist, *, allow_server_not_finding_tx=False):
-        # "hist" is a list of [tx_hash, tx_height] lists
+    async def _request_missing_txs(self, hist: Sequence[tuple[str, int]]) -> None:
+        # "hist" is a list of (tx_hash, tx_height) pairs
         transaction_hashes = []
         for tx_hash, _tx_height in hist:
             if tx_hash in self.requested_tx:
@@ -252,20 +254,18 @@ class Synchronizer(SynchronizerBase):
         if not transaction_hashes: return
         async with OldTaskGroup() as group:
             for tx_hash in transaction_hashes:
-                await group.spawn(self._get_transaction(tx_hash, allow_server_not_finding_tx=allow_server_not_finding_tx))
+                await group.spawn(self._get_transaction(tx_hash))
 
-    async def _get_transaction(self, tx_hash, *, allow_server_not_finding_tx=False):
+    async def _get_transaction(self, tx_hash: str) -> None:
+        """Request a raw tx from the server.
+        tx_hash corresponds to a recently received addr history, hence we do not tolerate the server not finding it
+        (and we disconnect). There is a small chance for an honest race, where the tx got reorged/evicted-from-mempool
+        *just now* - if so, we do not distinguish that from lying and still disconnect.
+        """
         self._requests_sent += 1
         try:
             async with self._network_request_semaphore:
                 raw_tx = await self.interface.get_transaction(tx_hash)
-        except RPCError as e:
-            # most likely, "No such mempool or blockchain transaction"
-            if allow_server_not_finding_tx:
-                self.requested_tx.remove(tx_hash)
-                return
-            else:
-                raise
         finally:
             self._requests_answered += 1
         tx = Transaction(raw_tx)
@@ -277,13 +277,6 @@ class Synchronizer(SynchronizerBase):
 
     async def main(self):
         self.adb.up_to_date_changed()
-        # request missing txns, if any
-        for addr in random_shuffled_copy(self.adb.db.get_history()):
-            history = self.adb.db.get_addr_history(addr)
-            # Old electrum servers returned ['*'] when all history for the address
-            # was pruned. This no longer happens but may remain in old wallets.
-            if history == ['*']: continue
-            await self._request_missing_txs(history, allow_server_not_finding_tx=True)
         # add addresses to bootstrap
         for addr in random_shuffled_copy(self.adb.get_addresses()):
             await self._add_address(addr)

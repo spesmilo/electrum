@@ -200,7 +200,7 @@ class TestAddressSynchronizerSignatures(ElectrumTestCase):
         self.adb.receive_tx_callback(tx)
         self.adb.add_unverified_or_unconfirmed_tx(tx.txid(), TX_HEIGHT_UNCONFIRMED)
         await sync._request_missing_txs([(tx.txid(), TX_HEIGHT_UNCONFIRMED)])
-        sync._get_transaction.assert_called_once_with(tx.txid(), allow_server_not_finding_tx=False)
+        sync._get_transaction.assert_called_once_with(tx.txid())
 
     async def test_held_txs_are_dropped_on_server_switch(self):
         self._receive(self.funding_tx)
