@@ -941,7 +941,7 @@ class Plugins(DaemonThread):
             register_keystore(details[1], dynamic_constructor)
 
     def get_plugin(self, name: str) -> 'BasePlugin':
-        assert self.is_authorized(name)
+        assert self.is_authorized(name), f"plugin {name!r} not authorized"
         if name not in self.plugins:
             self.load_plugin(name)
         return self.plugins[name]
