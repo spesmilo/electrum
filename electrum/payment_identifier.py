@@ -67,6 +67,18 @@ RE_EMAIL = r'\b[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+\.)+[A-Za-z]{2,7}\b'
 RE_DOMAIN = r'\b([A-Za-z0-9-]+\.)+[A-Za-z]{2,7}\b'
 RE_SCRIPT_FN = r'script\((.*)\)'
 
+from .mnemonic import normalize_text
+
+def sanitize_label(label: str) -> str:
+    # removes LTR and other weird stuff. keeps whitespaces reasonable
+    label = normalize_text(label)
+    # remove brackets < >
+    _filter = lambda c: c not in '<>'
+    label = ''.join(filter(_filter, label))
+    # keep reasonable size
+    label = label[:50].strip()
+    return label
+
 
 class PaymentIdentifierState(IntEnum):
     EMPTY = 0               # Initial state.
@@ -277,8 +289,8 @@ class PaymentIdentifier(Logger):
                 self.set_state(PaymentIdentifierState.INVALID)
                 return
             self.set_state(PaymentIdentifierState.AVAILABLE)
-        elif self.parse_output(text)[0]:
-            scriptpubkey, is_address = self.parse_output(text)
+        elif self._parse_output(text)[0]:
+            scriptpubkey, is_address = self._parse_output(text)
             self._type = PaymentIdentifierType.SPK
             self.spk = scriptpubkey
             self.spk_is_address = is_address
@@ -433,7 +445,7 @@ class PaymentIdentifier(Logger):
             return [PartialTxOutput(scriptpubkey=self.spk, value=amount)]
         elif self.bip21:
             address = self.bip21.get('address')
-            scriptpubkey, is_address = self.parse_output(address)
+            scriptpubkey, is_address = self._parse_output(address)
             assert is_address  # unlikely, but make sure it is an address, not a script
             return [PartialTxOutput(scriptpubkey=scriptpubkey, value=amount)]
         else:
@@ -471,15 +483,15 @@ class PaymentIdentifier(Logger):
             x, y = line.split(',')
         except ValueError:
             raise Exception("expected two comma-separated values: (address, amount)") from None
-        scriptpubkey, is_address = self.parse_output(x)
+        scriptpubkey, is_address = self._parse_output(x)
         if not scriptpubkey:
             raise Exception('Invalid address')
         amount = self.parse_amount(y)
         return PartialTxOutput(scriptpubkey=scriptpubkey, value=amount)
 
-    def parse_output(self, x: str) -> Tuple[Optional[bytes], bool]:
+    def _parse_output(self, x: str) -> Tuple[Optional[bytes], bool]:
         try:
-            address = self.parse_address(x)
+            address = self._parse_address_and_label(x)
             return bitcoin.address_to_script(address), True
         except Exception as e:
             pass
@@ -516,9 +528,12 @@ class PaymentIdentifier(Logger):
         except InvalidOperation:
             raise Exception("Invalid amount")
 
-    def parse_address(self, line: str):
+    def _parse_address_and_label(self, line: str):
         r = line.strip()
         m = re.match('^' + RE_ALIAS + '$', r)
+        if m:
+            alias = m.group(1)
+            assert alias == sanitize_label(alias)
         address = str(m.group(2) if m else r)
         assert bitcoin.is_address(address)
         return address
@@ -533,6 +548,13 @@ class PaymentIdentifier(Logger):
                 error = _("Invoice requires unknown or incompatible Lightning feature") + f":\n{e!r}"
         return error
 
+    @classmethod
+    def format_payto(_class, label, address):
+        if not label:
+            return address
+        label = sanitize_label(label)
+        return f'{label} <{address}>'
+
     def get_fields_for_GUI(self) -> FieldsForGUI:
         recipient = None
         amount = None
@@ -546,7 +568,7 @@ class PaymentIdentifier(Logger):
             address = self.openalias_data.get('address')
             name = self.openalias_data.get('name')
             description = name
-            recipient = key + ' <' + address + '>'
+            recipient = self.format_payto(key, address)
 
         elif self.bolt11:
             recipient, amount, description = self._get_bolt11_fields()
@@ -554,8 +576,8 @@ class PaymentIdentifier(Logger):
         elif self.lnurl and self.lnurl_data:
             assert isinstance(self.lnurl_data, LNURL6Data), f"{self.lnurl_data=}"
             domain = urllib.parse.urlparse(self.lnurl).netloc
-            recipient = f"{self.lnurl_data.metadata_plaintext} <{domain}>"
             description = self.lnurl_data.metadata_plaintext
+            recipient = self.format_payto(description, domain)
             if self.lnurl_data.comment_allowed:
                 comment = self.lnurl_data.comment_allowed
             if self.lnurl_data.min_sendable_sat:
@@ -572,7 +594,7 @@ class PaymentIdentifier(Logger):
         elif self.bip21:
             label = self.bip21.get('label')
             address = self.bip21.get('address')
-            recipient = f'{label} <{address}>' if label else address
+            recipient = self.format_payto(label, address)
             amount = self.bip21.get('amount')
             description = self.bip21.get('message')
             # TODO: use label as description? (not BIP21 compliant)
