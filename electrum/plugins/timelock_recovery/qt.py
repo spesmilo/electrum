@@ -211,7 +211,7 @@ class Plugin(TimelockRecoveryPlugin):
         grid_row = 0
 
         payto_e = PayToEdit(context.main_window.send_tab) # Reuse configuration from send tab
-        payto_e.toggle_paytomany()
+        payto_e.set_paytomany(True)
 
         context.timelock_days = 90
         timelock_days_widget = QLineEdit()

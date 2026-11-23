@@ -281,7 +281,7 @@ class PayToEdit(QWidget, Logger, GenericInputHandler, QtEventListener):
 
         # toggle to multiline if payment identifier is a multiline
         if self.payment_identifier.is_multiline() and not self._is_paytomany:
-            self.set_paytomany(True)
+            self.send_tab.set_paytomany(True)
 
         # if payment identifier gets set externally, we want to update the edit control
         # Note: this triggers the change handler, but we shortcut if it's the same payment identifier
@@ -292,10 +292,6 @@ class PayToEdit(QWidget, Logger, GenericInputHandler, QtEventListener):
     def set_paytomany(self, b):
         self._is_paytomany = b
         self.multiline = b
-        self.send_tab.paytomany_menu.setChecked(b)
-
-    def toggle_paytomany(self) -> None:
-        self.set_paytomany(not self._is_paytomany)
 
     def is_paytomany(self):
         return self._is_paytomany
@@ -319,7 +315,6 @@ class PayToEdit(QWidget, Logger, GenericInputHandler, QtEventListener):
         return self.isReadOnly()
 
     def do_clear(self) -> None:
-        self.set_paytomany(False)
         self.setText('')
         self.setToolTip('')
         self.payment_identifier = None

@@ -364,6 +364,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.logger.debug('do_clear')
         self.lock_fields(lock_recipient=False, lock_amount=False, lock_max=True, lock_description=False)
         self.max_button.setChecked(False)
+        self.set_paytomany(False)
         self.payto_e.do_clear()
         self.spinner.setVisible(False)
         for w in [self.comment_e, self.comment_label]:
@@ -843,9 +844,12 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         WaitingDialog(self, _('Broadcasting transaction...'),
                       broadcast_thread, broadcast_done, self.window.on_error)
 
-    def toggle_paytomany(self):
-        self.payto_e.toggle_paytomany()
-        if self.payto_e.is_paytomany():
+    def toggle_paytomany(self) -> None:
+        self.set_paytomany(not self.payto_e.is_paytomany())
+
+    def set_paytomany(self, b: bool) -> None:
+        if b:
+            self.payto_e.set_paytomany(True)
             message = '\n'.join([
                 _('Enter a list of outputs in the \'Pay to\' field.'),
                 _('One output per line.'),
@@ -856,8 +860,11 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             self.payto_label.setAlignment(Qt.AlignmentFlag.AlignTop)
             self.payto_label.setText(_('Pay to many'))
         else:
+            self.payto_e.set_paytomany(False)
             self.payto_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
             self.payto_label.setText(_('Pay to'))
+        # set menu
+        self.paytomany_menu.setChecked(b)
 
     def payto_contacts(self, labels):
         paytos = [self.window.get_contact_payto(label) for label in labels]
