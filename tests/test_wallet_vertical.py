@@ -11,6 +11,7 @@ from electrum.wallet_db import WalletDB
 from electrum.storage import WalletStorage
 from electrum import SimpleConfig
 from electrum import util
+from electrum.blockchain import deserialize_header
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE
 from electrum.wallet import (sweep, sweep_preparations, Multisig_Wallet, Standard_Wallet, Imported_Wallet,
                              Abstract_Wallet, CannotBumpFee, BumpFeeStrategy,
@@ -4886,11 +4887,17 @@ class TestWalletHistory_CacheInvalidation(ElectrumTestCase):
             TxMinedInfo(_height=1001, timestamp=1700000001, txpos=7, header_hash="01"*32))
         return w
 
+    def reorg_out_funding_tx(self, w: Abstract_Wallet) -> None:
+        w.adb.network = mock.Mock()
+        w.adb.network.get_local_height.return_value = 1010
+        w.adb.network.blockchain.return_value.read_header.return_value = deserialize_header(bytes(80), 1001)
+
     async def test_caches_are_invalidated_when_mined_tx_goes_back_to_mempool(self):
         w = self.create_wallet_with_mined_funding_tx()
         self.assertEqual((1999890, 0, 0), w.get_balance())
         self.assertEqual('1001x7x0', str(w.get_utxos()[0].short_id))
         # the server tells us the tx is in the mempool again (e.g. after a reorg)
+        self.reorg_out_funding_tx(w)
         w.adb.add_unverified_or_unconfirmed_tx(self.FUNDING_TXID, TX_HEIGHT_UNCONF_PARENT)
         self.assertEqual((0, 1999890, 0), w.get_balance())
         utxo = w.get_utxos()[0]
@@ -4922,6 +4929,7 @@ class TestWalletHistory_CacheInvalidation(ElectrumTestCase):
         utxo = w.get_utxos()[0]
         self.assertEqual(1001, utxo.block_height)
         # the server no longer knows the tx at all (e.g. reorged out and evicted from the mempool)
+        self.reorg_out_funding_tx(w)
         w.adb.receive_history_callback(utxo.address, [], {})
         self.assertEqual(TX_HEIGHT_LOCAL, w.adb.get_tx_height(self.FUNDING_TXID).height())
         self.assertEqual((0, 1999890, 0), w.get_balance())
@@ -4932,6 +4940,7 @@ class TestWalletHistory_CacheInvalidation(ElectrumTestCase):
         # tx is built, the funding tx is back in the mempool.
         w = self.create_wallet_with_mined_funding_tx()
         coins = w.get_spendable_coins(None)  # fills the utxo cache
+        self.reorg_out_funding_tx(w)
         w.adb.add_unverified_or_unconfirmed_tx(self.FUNDING_TXID, TX_HEIGHT_UNCONF_PARENT)
         outputs = [PartialTxOutput.from_address_and_value("tb1qgh5c088he4d559wl0hw27hrdeg8p2z96pefn4q", 100_000)]
         tx = w.make_unsigned_transaction(outputs=outputs, coins=coins, fee_policy=FixedFeePolicy(5000))

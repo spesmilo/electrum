@@ -4,6 +4,7 @@ from unittest import mock
 from electrum import SimpleConfig
 from electrum.address_synchronizer import AddressSynchronizer, TX_HEIGHT_UNCONFIRMED
 from electrum.bitcoin import construct_witness, hash_to_segwit_addr
+from electrum.blockchain import deserialize_header, hash_header
 from electrum.transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput, TxOutpoint
 from electrum.util import InvalidTxSignature, TxMinedInfo
 from electrum.synchronizer import Synchronizer
@@ -14,6 +15,7 @@ from . import ElectrumTestCase
 
 ADDR_MINE = hash_to_segwit_addr(bytes(20), witver=0)
 ADDR_OTHER = hash_to_segwit_addr(bytes([1]) * 20, witver=0)
+HEADER_100 = deserialize_header(bytes(80), 100)
 
 
 def make_tx(prevouts: Sequence[str], outputs: Sequence[Tuple[str, int]], *, witness: bytes = b'good') -> Transaction:
@@ -212,3 +214,43 @@ class TestAddressSynchronizerSignatures(ElectrumTestCase):
         self.assertFalse(self.adb.is_held_tx(tx.txid()))
         self.adb.add_verified_tx(tx.txid(), TxMinedInfo(_height=100, timestamp=0, txpos=1, header_hash='00' * 32))
         self.assertIsNone(self.adb.db.get_transaction(tx.txid()))
+
+    def _receive_verified_payment(self) -> str:
+        """We receive a payment, mined in HEADER_100, the tip of our chain."""
+        tx = make_tx(['11' * 32 + ':0'], [(ADDR_MINE, 100_000)])
+        txid = tx.txid()
+        self.adb.network = mock.Mock()
+        self.adb.network.get_local_height.return_value = 100
+        self.adb.network.blockchain.return_value.read_header = lambda height: HEADER_100 if height == 100 else None
+        self.adb.receive_history_callback(ADDR_MINE, [(txid, 100)], {})
+        self.adb.receive_tx_callback(tx)
+        self.adb.add_verified_tx(txid, TxMinedInfo(_height=100, timestamp=0, txpos=1, header_hash=hash_header(HEADER_100)))
+        return txid
+
+    def _assert_tx_not_removable(self, txid: str):
+        self.assertGreater(self.adb.get_tx_height(txid).height(), 0)
+        # the input is not is_mine, so a double spend needs no valid signature
+        double_spend = make_tx(['11' * 32 + ':0'], [(ADDR_OTHER, 100_000)], witness=b'bad')
+        self._receive(double_spend)
+        self.assertIsNotNone(self.adb.db.get_transaction(txid))
+        self.assertIsNone(self.adb.db.get_transaction(double_spend.txid()))
+
+    async def test_server_cannot_omit_verified_tx(self):
+        txid = self._receive_verified_payment()
+        self.adb.receive_history_callback(ADDR_MINE, [], {})
+        self._assert_tx_not_removable(txid)
+
+    async def test_server_cannot_unconfirm_verified_tx(self):
+        txid = self._receive_verified_payment()
+        self.adb.add_unverified_or_unconfirmed_tx(txid, TX_HEIGHT_UNCONFIRMED)  # e.g. in the history of another address
+        self._assert_tx_not_removable(txid)
+
+    async def test_history_update_before_reorg(self):
+        txid = self._receive_verified_payment()
+        self.adb.receive_history_callback(ADDR_MINE, [(txid, 101)], {})
+        self.assertEqual(100, self.adb.get_tx_height(txid).height())
+        # we get the headers of the reorg
+        blockchain = mock.Mock()
+        blockchain.read_header.return_value = deserialize_header(bytes([1]) + bytes(79), 100)
+        self.assertEqual({txid}, self.adb.undo_verifications(blockchain, above_height=99))
+        self.assertEqual({txid: 101}, self.adb.get_unverified_txs())
