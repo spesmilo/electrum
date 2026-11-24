@@ -128,7 +128,6 @@ class AddressSynchronizer(Logger, EventListener):
     @with_lock
     def load_and_cleanup(self):
         self.load_local_history()
-        self.check_history()
         self.load_unverified_transactions()
         self.remove_local_transactions_we_dont_have()
 
@@ -563,22 +562,6 @@ class AddressSynchronizer(Logger, EventListener):
         self._address_history_changed_events = defaultdict(asyncio.Event)  # address -> Event
         for txid in itertools.chain(self.db.list_txi(), self.db.list_txo()):
             self._add_tx_to_local_history(txid)
-
-    @with_lock
-    @profiler
-    def check_history(self):
-        hist_addrs_mine = list(filter(lambda k: self.is_mine(k), self.db.get_history()))
-        hist_addrs_not_mine = list(filter(lambda k: not self.is_mine(k), self.db.get_history()))
-        for addr in hist_addrs_not_mine:
-            self.db.remove_addr_history(addr)
-        for addr in hist_addrs_mine:
-            hist = self.db.get_addr_history(addr)
-            for tx_hash, tx_height in hist:
-                if self.db.get_txi_addresses(tx_hash) or self.db.get_txo_addresses(tx_hash):
-                    continue
-                tx = self.db.get_transaction(tx_hash)
-                if tx is not None:
-                    self.add_transaction(tx, allow_unrelated=True)
 
     @with_lock
     def remove_local_transactions_we_dont_have(self):
