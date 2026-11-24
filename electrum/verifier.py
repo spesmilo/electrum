@@ -51,6 +51,7 @@ class SPV(NetworkJobOnDefaultServer):
 
     def __init__(self, network: 'Network', wallet: 'AddressSynchronizer'):
         self.wallet = wallet
+        self.blockchain = network.blockchain()  # not reset on server switch, so that we undo verifications
         NetworkJobOnDefaultServer.__init__(self, network)
 
     def _reset(self):
@@ -67,7 +68,6 @@ class SPV(NetworkJobOnDefaultServer):
         return self.wallet.diagnostic_name()
 
     async def main(self):
-        self.blockchain = self.network.blockchain()
         while True:
             await self._maybe_undo_verifications()
             await self._request_proofs()
