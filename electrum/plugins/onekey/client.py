@@ -23,6 +23,7 @@ from .transport import Transport
 
 LIBRARY_VERSION = version("trezor")
 MODELS = {7: "OneKey Pro 2", 8: "OneKey Neo"}
+PIN_ANY = 1
 INPUT_SCRIPT_TYPES = {
     "standard": messages.InputScriptType.SPENDADDRESS,
     "p2pkh": messages.InputScriptType.SPENDADDRESS,
@@ -48,6 +49,8 @@ class OneKeyClient(HardwareClientBase):
         self.cancelled = threading.Event()
         self.flow_depth = 0
         self.session = None
+        self.session_attach_pin = False
+        self._firmware_cancelled = False
         try:
             protocol = self.call(
                 ProtocolInfoRequest(eventless_wallet_session=True),
@@ -94,6 +97,7 @@ class OneKeyClient(HardwareClientBase):
                 raise UserFacingException(_("Invalid OneKey response.")) from e
             if isinstance(response, Failure):
                 if response.code == 5 and response.subcode == 1:
+                    self._firmware_cancelled = True
                     raise UserCancelled()
                 raise UserFacingException(
                     response.message or _("OneKey request failed.")
@@ -114,6 +118,8 @@ class OneKeyClient(HardwareClientBase):
         if self.session is not None:
             if status.unlocked is not True:
                 raise UserFacingException(_("OneKey was locked. Reconnect and unlock the device."))
+            if bool(status.unlocked_by_attach_to_pin) != self.session_attach_pin:
+                raise UserFacingException(_("OneKey wallet session changed. Reconnect the device."))
             session = self.call(DeviceSessionGet(
                 session_id=self.session.session_id,
                 btc_test_address=self.session.btc_test_address,
@@ -124,25 +130,29 @@ class OneKeyClient(HardwareClientBase):
                 raise UserFacingException(_("OneKey wallet session changed. Reconnect the device."))
             return
 
-        if status.unlocked is not True or status.unlocked_by_attach_to_pin is not False:
-            self.call(DeviceSessionAskPin(type=2), expect=Success)
+        if status.unlocked is not True:
+            # PIN_ANY accepts both Main PIN and Attach PIN natively on the device.
+            self.call(DeviceSessionAskPin(type=PIN_ANY), expect=Success)
             status = self.call(DeviceStatusGet(), expect=DeviceStatus)
-        if (status.device_id != self.device_id or status.unlocked is not True
-                or status.unlocked_by_attach_to_pin is not False
-                or status.passphrase_enabled is None):
-            raise UserFacingException(_("Unlock OneKey with the main PIN to continue."))
+        if status.device_id != self.device_id or status.unlocked is not True:
+            raise UserFacingException(_("Unlock OneKey to continue."))
 
-        if status.passphrase_enabled:
-            self.handler.show_message(_(
-                "Enter the passphrase on your OneKey. Leave it empty for the standard wallet."
-            ), on_cancel=self.cancelled.set)
-            self.call(DeviceSessionAskPassphrase(
-                on_device=True, seed_domains=[1],
-            ), expect=Success)
+        attach_pin = status.unlocked_by_attach_to_pin is True
+        if not attach_pin:
+            if status.passphrase_enabled is None:
+                raise UserFacingException(_("Incomplete OneKey device status."))
+            if status.passphrase_enabled:
+                self.handler.show_message(_(
+                    "Enter the passphrase on your OneKey. Leave it empty for the standard wallet."
+                ), on_cancel=self.cancelled.set)
+                self.call(DeviceSessionAskPassphrase(
+                    on_device=True, seed_domains=[1],
+                ), expect=Success)
         session = self.call(DeviceSessionGet(), expect=DeviceSession)
         if not session.session_id or not session.btc_test_address or 1 not in session.seed_domains:
             raise UserFacingException(_("Incomplete OneKey wallet session."))
         self.session = session
+        self.session_attach_pin = attach_pin
 
     def __enter__(self):
         if self.flow_depth:
@@ -151,6 +161,7 @@ class OneKeyClient(HardwareClientBase):
         if self.handler is None or self.transport is None:
             raise UserFacingException(_("Reconnect your OneKey using the wallet wizard."))
         self.cancelled.clear()
+        self._firmware_cancelled = False
         self.flow_depth = 1
         self.handler.show_message(_("Check your OneKey device to continue."), on_cancel=self.cancelled.set)
         try:
@@ -166,16 +177,19 @@ class OneKeyClient(HardwareClientBase):
             return
         try:
             if exc_type is not None:
-                # Abort, without replaying an address or signing request after a timeout.
-                with suppress(Exception):
-                    self.transport.write(*MAPPING.encode(messages.Cancel()))
-                self.close()
+                if not (issubclass(exc_type, UserCancelled) and self._firmware_cancelled):
+                    # Abort, without replaying an address or signing request after a timeout.
+                    with suppress(Exception):
+                        self.transport.write(*MAPPING.encode(messages.Cancel()))
+                    self.close()
         finally:
+            self._firmware_cancelled = False
             self.handler.finished()
 
     @runs_in_hwd_thread
     def close(self):
         self.session = None
+        self.session_attach_pin = False
         if self.transport is not None:
             self.transport.close()
             self.transport = None

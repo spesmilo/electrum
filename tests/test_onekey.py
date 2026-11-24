@@ -200,7 +200,7 @@ class TestOneKeyClient(unittest.TestCase):
         run_in_hwd_thread(lambda: self._open_twice(client))
         requests = transport.requests[3:]
         self.assertIsInstance(requests[1], management.DeviceSessionAskPin)
-        self.assertEqual(2, requests[1].type)
+        self.assertEqual(1, requests[1].type)
         self.assertIsInstance(requests[3], management.DeviceSessionAskPassphrase)
         self.assertTrue(requests[3].on_device)
         self.assertIsNone(requests[3].passphrase)
@@ -238,16 +238,43 @@ class TestOneKeyClient(unittest.TestCase):
         self.assertFalse(any(isinstance(req, management.DeviceSessionAskPassphrase) for req in transport.requests))
         self.assertTrue(transport.closed)
 
+    def test_attach_pin_session_and_mode_change_rejection(self):
+        client, transport, handler = self.make_client()
+        transport.responses.extend([
+            device_status(unlocked=False, passphrase_enabled=None, unlocked_by_attach_to_pin=None),
+            management.Success(),
+            device_status(passphrase_enabled=True, unlocked_by_attach_to_pin=True),
+            wallet_session(),
+            device_status(passphrase_enabled=True, unlocked_by_attach_to_pin=True),
+            wallet_session(),
+        ])
+        run_in_hwd_thread(lambda: self._open_twice(client))
+        requests = transport.requests[3:]
+        self.assertIsInstance(requests[1], management.DeviceSessionAskPin)
+        self.assertEqual(1, requests[1].type)
+        self.assertFalse(any(isinstance(req, management.DeviceSessionAskPassphrase) for req in requests))
+        self.assertTrue(client.session_attach_pin)
+        self.assertFalse(transport.closed)
+        self.assertEqual(2, handler.finished.call_count)
+
+        # Switching from Attach PIN to Main PIN invalidates the active session.
+        transport.responses.append(device_status(unlocked_by_attach_to_pin=False))
+        with self.assertRaisesRegex(UserFacingException, "session changed"):
+            client.show_address([0], "p2pkh", "expected")
+        self.assertTrue(transport.closed)
+
     def test_address_mismatch_and_device_cancellation(self):
-        for response, error in ((messages.Address(address="wrong-address"), UserFacingException),
-                                (management.Failure(code=5, subcode=1, message="Cancelled"), UserCancelled)):
+        for response, error, should_close in (
+            (messages.Address(address="wrong-address"), UserFacingException, True),
+            (management.Failure(code=5, subcode=1, message="Cancelled"), UserCancelled, False),
+        ):
             with self.subTest(response=type(response).__name__):
                 client, transport, _ = self.make_client()
                 client.session = wallet_session()
                 transport.responses.extend([device_status(), wallet_session(), response])
                 with self.assertRaises(error):
                     client.show_address([0], "p2wpkh", "expected-address")
-                self.assertTrue(transport.closed)
+                self.assertEqual(should_close, transport.closed)
 
     def test_xpub_header_conversion_and_standard_session(self):
         client, transport, _ = self.make_client()
