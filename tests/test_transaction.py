@@ -144,6 +144,13 @@ class TestTransaction(ElectrumTestCase):
 
         self.assertEqual(tx.serialize(), signed_blob)
 
+    def test_tx_deserialize_rejects_duplicate_inputs(self):
+        version, txin, rest = signed_blob[:8], signed_blob[10:308], signed_blob[308:]
+        self.assertEqual(signed_blob, version + '01' + txin + rest)
+        tx = transaction.Transaction(version + '02' + txin + txin + rest)
+        with self.assertRaisesRegex(transaction.SerializationError, 'tx has duplicate inputs'):
+            tx.deserialize()
+
     def test_estimated_tx_size(self):
         tx = transaction.Transaction(signed_blob)
 
