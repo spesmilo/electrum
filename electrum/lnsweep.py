@@ -6,7 +6,7 @@ from typing import Optional, Dict, List, Tuple, TYPE_CHECKING, NamedTuple, Calla
 
 import electrum_ecc as ecc
 
-from .util import bfh, UneconomicFee
+from .util import bfh
 from .crypto import privkey_to_pubkey
 from .bitcoin import redeem_script_to_address, construct_witness
 from . import descriptor
@@ -470,15 +470,12 @@ def sweep_our_ctx(
                 txs[prevout] = keep_watching_txo
             if not preimage:
                 continue
-        try:
-            txs_htlc(
-                htlc=htlc,
-                htlc_direction=direction,
-                ctx_output_idx=ctx_output_idx,
-                htlc_relative_idx=htlc_relative_idx,
-                preimage=preimage)
-        except UneconomicFee:
-            continue
+        txs_htlc(
+            htlc=htlc,
+            htlc_direction=direction,
+            ctx_output_idx=ctx_output_idx,
+            htlc_relative_idx=htlc_relative_idx,
+            preimage=preimage)
     return txs
 
 
