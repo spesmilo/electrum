@@ -992,6 +992,8 @@ class Transaction:
         if n_vin < 1:
             raise SerializationError('tx needs to have at least 1 input')
         txins = [parse_input(vds) for i in range(n_vin)]
+        if len(set(txin.prevout for txin in txins)) != n_vin:
+            raise SerializationError('tx has duplicate inputs')
         n_vout = vds.read_compact_size()
         if n_vout < 1:
             raise SerializationError('tx needs to have at least 1 output')
