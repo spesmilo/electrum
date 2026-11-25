@@ -2617,7 +2617,7 @@ class PartialTransaction(Transaction):
 
         `signatures` is expected to be a list of sigs with signatures[i]
         intended for self._inputs[i].
-        This is used by the Trezor, KeepKey and Safe-T plugins.
+        This is used by the Trezor and KeepKey plugins.
         """
         if self.is_complete():
             return
