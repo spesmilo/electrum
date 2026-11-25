@@ -41,7 +41,6 @@ source.exclude_dirs =
     electrum/plugins/nwc,
     electrum/plugins/payserver,
     electrum/plugins/revealer,
-    electrum/plugins/safe_t,
     electrum/plugins/swapserver,
     electrum/plugins/timelock_recovery,
     electrum/plugins/trezor,

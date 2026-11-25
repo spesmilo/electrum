@@ -10,7 +10,6 @@ These are necessary for the devices to be usable on Linux environments.
  - `53-hid-bitbox02.rules`, `54-hid-bitbox02.rules` (BitBox02): https://github.com/digitalbitbox/bitbox-wallet-app/blob/master/frontends/qt/resources/deb-afterinstall.sh
  - `51-trezor.rules` (Trezor): https://github.com/trezor/trezor-common/blob/master/udev/51-trezor.rules
  - `51-usb-keepkey.rules` (Keepkey): https://github.com/keepkey/udev-rules/blob/master/51-usb-keepkey.rules
- - `51-safe-t.rules` (Archos): https://github.com/archos-safe-t/safe-t-common/blob/master/udev/51-safe-t.rules
  - `55-usb-jade.rules` (Blockstream Jade): https://github.com/Blockstream/Jade
 
 # Usage

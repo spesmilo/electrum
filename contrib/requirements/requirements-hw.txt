@@ -3,9 +3,6 @@ hidapi
 # device plugin: trezor
 trezor[hidapi]>=0.20.1,<0.21
 
-# device plugin: safe_t
-safet>=0.1.5
-
 # device plugin: keepkey
 ecdsa>=0.9
 protobuf>=3.20
