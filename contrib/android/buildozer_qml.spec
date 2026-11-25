@@ -34,7 +34,6 @@ source.exclude_dirs =
     electrum/plugins/audio_modem,
     electrum/plugins/bitbox02,
     electrum/plugins/coldcard,
-    electrum/plugins/digitalbitbox,
     electrum/plugins/jade,
     electrum/plugins/keepkey,
     electrum/plugins/ledger,
