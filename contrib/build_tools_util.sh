@@ -48,7 +48,11 @@ function verify_hash() {
 function download_if_not_exist() {
     local file_name=$1 url=$2
     if [ ! -e "$file_name" ] ; then
-        wget -O "$file_name" "$url"
+        if [ -x "$(command -v wget)" ] ; then
+            wget -O "$file_name" "$url"
+        else  # macOS
+            curl -q -fL --retry 3 -o "$file_name" "$url"
+        fi
     fi
 }
 
