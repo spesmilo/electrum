@@ -276,7 +276,22 @@ Running `compare_dmg` should succeed:
 `$ ./electrum/contrib/osx/compare_dmg <unsigned executable> <self-signed executable>`
 
 
-### Historical issues codesigning with production cert
+### Codesigning with production cert
+
+Keys and certificates are imported with the GUI:
+
+ - Import the intermediate certificate DeveloperIDG2CA.cer from https://www.apple.com/certificateauthority/
+ - Import the Electrum certificate
+ - Import codesigning private key (p12 file)
+ - Leave trust settings to "Use System Defaults"
+
+Sanity check:
+```
+% security find-identity -v -p codesigning
+1) 334066EA45A0F71D0DCCC3BDC36BC9E04CAF3432 "Developer ID Application: Electrum Technologies GmbH (L6P37P7P56)"
+   1 valid identities found
+```
+
 
 #### "Trust" settings of developer certificate must be set to "Use System Defaults"
 
