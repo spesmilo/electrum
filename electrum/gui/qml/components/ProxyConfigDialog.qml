@@ -38,6 +38,7 @@ ElDialog {
             FlatButton {
                 Layout.fillWidth: true
                 text: qsTr('Ok')
+                enabled: proxyconfig.valid
                 icon.source: '../../icons/confirmed.png'
                 onClicked: {
                     Network.proxy = proxyconfig.toProxyDict()
@@ -56,6 +57,7 @@ ElDialog {
         proxyconfig.proxy_port = p['port']
         proxyconfig.username = p['user']
         proxyconfig.password = p['password']
+        proxyconfig.doh_endpoint = p['doh_endpoint']
         proxyconfig.proxy_type = proxyconfig.proxy_type_map.map(function(x) {
             return x.value
         }).indexOf(p['mode'])
