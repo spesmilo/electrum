@@ -49,6 +49,8 @@ class LeftSiblingDuplicate(MerkleVerificationFailure): pass
 class SPV(NetworkJobOnDefaultServer):
     """ Simple Payment Verification """
 
+    MAX_PENDING_MERKLE_TASKS = 100
+
     def __init__(self, network: 'Network', wallet: 'AddressSynchronizer'):
         self.wallet = wallet
         NetworkJobOnDefaultServer.__init__(self, network)
@@ -92,8 +94,10 @@ class SPV(NetworkJobOnDefaultServer):
                     await self.taskgroup.spawn(self.interface.request_chunk_below_max_checkpoint(height=tx_height))
                 continue
             # request now
-            self.logger.info(f'requested merkle {tx_hash}')
+            if len(self.requested_merkle) >= self.MAX_PENDING_MERKLE_TASKS:
+                return
             self.requested_merkle.add(tx_hash)
+            self.logger.info(f'requested merkle {tx_hash}')
             await self.taskgroup.spawn(self._request_and_verify_single_proof, tx_hash, tx_height)
 
     async def _request_and_verify_single_proof(self, tx_hash, tx_height):

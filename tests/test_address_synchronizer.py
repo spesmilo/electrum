@@ -189,18 +189,18 @@ class TestAddressSynchronizerSignatures(ElectrumTestCase):
         self.adb.add_unverified_or_unconfirmed_tx(tx.txid(), 100)
         sync = self._make_synchronizer()
         self.adb.receive_tx_callback(tx)
-        await sync._request_missing_txs([(tx.txid(), 100)])
-        self.assertEqual(set(), sync.requested_tx)
+        await sync._find_and_queue_missing_txs([(tx.txid(), 100)])
+        self.assertEqual(set(), sync.missing_txs)
 
     async def test_held_tx_is_requested_again_if_unconfirmed(self):
         tx = make_tx([self.funding_outpoint], [(ADDR_OTHER, 90_000)])
         self.adb.add_unverified_or_unconfirmed_tx(tx.txid(), 100)
         sync = self._make_synchronizer()
-        sync._get_transaction = mock.AsyncMock()
         self.adb.receive_tx_callback(tx)
         self.adb.add_unverified_or_unconfirmed_tx(tx.txid(), TX_HEIGHT_UNCONFIRMED)
-        await sync._request_missing_txs([(tx.txid(), TX_HEIGHT_UNCONFIRMED)])
-        sync._get_transaction.assert_called_once_with(tx.txid(), allow_server_not_finding_tx=False)
+        self.assertEqual(set(), sync.missing_txs)
+        await sync._find_and_queue_missing_txs([(tx.txid(), TX_HEIGHT_UNCONFIRMED)])
+        self.assertEqual(set([tx.txid()]), sync.missing_txs)
 
     async def test_held_txs_are_dropped_on_server_switch(self):
         self._receive(self.funding_tx)
