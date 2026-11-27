@@ -68,6 +68,15 @@ Having a several months old build cache might also cause confusing build failure
 in such a case, worth a try clearing it.
 
 
+### The build fails with "Dependency verification failed". What now?
+Gradle checks everything it downloads against the hashes in `gradle-verification-metadata.xml`.
+If the gradle or android gradle plugin version of python-for-android has changed, regenerate the file:
+```
+$ ./contrib/android/update_gradle_verification_metadata.sh
+```
+Otherwise a download does not match its pinned hash. Find out why, instead of regenerating the file.
+
+
 ### How do I deploy on connected phone for quick testing?
 Assuming `adb` is installed:
 ```

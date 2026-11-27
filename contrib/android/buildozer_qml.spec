@@ -102,12 +102,9 @@ fullscreen = False
 # (list) Permissions
 android.permissions = INTERNET, CAMERA, WRITE_EXTERNAL_STORAGE, POST_NOTIFICATIONS, USE_BIOMETRIC
 
-# (int) Android API to use  (compileSdkVersion)
+# (int) Android API to use (compileSdkVersion and targetSdkVersion)
 # note: when changing, Dockerfile also needs to be changed to install corresponding build tools
 android.api = 36
-
-# (int) Android targetSdkVersion
-android.target_sdk_version = 36
 
 # (int) Minimum API required. You will need to set the android.ndk_api to be as low as this value.
 android.minapi = 26
@@ -126,9 +123,6 @@ android.ndk_path = /opt/android/android-ndk
 
 # (str) Android SDK directory (if empty, it will be automatically downloaded.)
 android.sdk_path = /opt/android/android-sdk
-
-# (str) ANT directory (if empty, it will be automatically downloaded.)
-android.ant_path = /opt/android/apache-ant
 
 # (bool) If True, then skip trying to update the Android sdk
 # This can be useful to avoid excess Internet downloads or save time
@@ -244,6 +238,13 @@ p4a.bootstrap = qt6
 
 # (int) port number to specify an explicit --port= p4a argument (eg for bootstrap flask)
 #p4a.port =
+
+# (str) extra command line arguments to pass when invoking pythonforandroid.toolchain
+# --no-optimize-python: keep asserts, don't byte-compile with -OO
+# --skip-prebuilt: always build recipes from their pinned sources. Otherwise p4a first asks pip
+#   for a wheel and installs that instead, without checking a hash:
+#   https://github.com/kivy/python-for-android/blob/9562d1b4f306d0af1e76991c711114010dea4152/pythonforandroid/recipe.py#L1381-L1386
+p4a.extra_args = --no-optimize-python --skip-prebuilt
 
 
 #

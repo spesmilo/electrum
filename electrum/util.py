@@ -71,7 +71,8 @@ import certifi
 import dns.asyncresolver
 
 from .i18n import _
-from .logging import get_logger, Logger
+from .logging import get_logger, Logger, describe_os_version
+from .version import ELECTRUM_VERSION, PROTOCOL_VERSION_MIN, PROTOCOL_VERSION_MAX
 from . import platform
 
 if TYPE_CHECKING:
@@ -642,9 +643,11 @@ def is_android_debug_apk() -> bool:
     if not platform.is_android():
         return False
     from jnius import autoclass
-    pkgname = get_android_package_name()
-    build_config = autoclass(f"{pkgname}.BuildConfig")
-    return bool(build_config.DEBUG)
+    from android.config import ACTIVITY_CLASS_NAME
+    activity = autoclass(ACTIVITY_CLASS_NAME).mActivity
+    ApplicationInfo = autoclass('android.content.pm.ApplicationInfo')
+    app_flags = activity.getApplicationInfo().flags
+    return bool(app_flags & ApplicationInfo.FLAG_DEBUGGABLE)
 
 
 def get_android_package_name() -> str:
@@ -1175,6 +1178,37 @@ def send_exception_to_crash_reporter(e: BaseException):
 
 def versiontuple(v):
     return tuple(map(int, (v.split("."))))
+
+
+def get_version_info() -> dict[str, Optional[str]]:
+    ret = {
+        "electrum.version": ELECTRUM_VERSION,
+        "electrum.protocol_version": f"[{PROTOCOL_VERSION_MIN}, {PROTOCOL_VERSION_MAX}]",
+        "electrum.path": os.path.dirname(os.path.realpath(__file__)),
+        "python.version": sys.version,
+        "python.path": sys.executable,
+        "os.version": describe_os_version(),
+    }
+    # Add shared libs (.so/.dll), and non-pure-python dependencies.
+    # Such deps can be installed in various ways - often via the Linux distro's pkg manager,
+    # instead of using pip, hence it is useful to list them for debugging.
+    from .gui import common_qt
+    ret.update(common_qt.version_info())
+    from electrum_ecc import ecc_fast
+    ret.update(ecc_fast.version_info())
+    from . import qrreader
+    ret.update(qrreader.version_info())
+    from .plugin import DeviceMgr
+    ret.update(DeviceMgr.version_info())
+    from . import crypto
+    ret.update(crypto.version_info())
+    # add some special cases
+    ret["aiohttp.version"] = aiohttp.__version__
+    ret["aiorpcx.version"] = aiorpcx._version_str
+    ret["certifi.version"] = certifi.__version__
+    ret["dnspython.version"] = dns.__version__
+    ret["openssl.version"] = ssl.OPENSSL_VERSION
+    return ret
 
 
 def read_json_file(path):

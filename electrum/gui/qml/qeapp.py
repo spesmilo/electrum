@@ -8,7 +8,7 @@ import threading
 from functools import partial
 from typing import TYPE_CHECKING, Set, List, Optional, Callable
 
-from PyQt6.QtCore import (pyqtSlot, pyqtSignal, pyqtProperty, QObject, QT_VERSION_STR, PYQT_VERSION_STR,
+from PyQt6.QtCore import (pyqtSlot, pyqtSignal, pyqtProperty, QObject,
                           qInstallMessageHandler, QTimer, QSortFilterProxyModel)
 from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtQml import qmlRegisterType, QQmlApplicationEngine
@@ -47,6 +47,7 @@ from .qewizard import QENewWalletWizard, QEServerConnectWizard, QETermsOfUseWiza
 from .qemodelfilter import QEFilterProxyModel
 from .qebip39recovery import QEBip39RecoveryListModel
 from .qebiometrics import QEBiometrics
+from .qeversioninfo import QEVersionInfo
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
@@ -549,6 +550,7 @@ class ElectrumQmlApplication(QGuiApplication):
         qmlRegisterType(QETxSweepFinalizer, 'org.electrum', 1, 0, 'SweepFinalizer')
         qmlRegisterType(QEBip39RecoveryListModel, 'org.electrum', 1, 0, 'Bip39RecoveryListModel')
         qmlRegisterType(FeeSlider, 'org.electrum', 1, 0, 'FeeSlider')
+        qmlRegisterType(QEVersionInfo, 'org.electrum', 1, 0, 'VersionInfo')
         # TODO QT6: these were declared as uncreatable, but that doesn't seem to work for pyqt6
         # qmlRegisterUncreatableType(QEAmount, 'org.electrum', 1, 0, 'Amount', 'Amount can only be used as property')
         # qmlRegisterUncreatableType(QENewWalletWizard, 'org.electrum', 1, 0, 'QNewWalletWizard', 'QNewWalletWizard can only be used as property')
@@ -592,9 +594,6 @@ class ElectrumQmlApplication(QGuiApplication):
         self.context.setContextProperty('Biometrics', self.biometrics)
         self.context.setContextProperty('BUILD', {
             'electrum_version': version.ELECTRUM_VERSION,
-            'protocol_version': f"[{version.PROTOCOL_VERSION_MIN}, {version.PROTOCOL_VERSION_MAX}]",
-            'qt_version': QT_VERSION_STR,
-            'pyqt_version': PYQT_VERSION_STR
         })
         self.context.setContextProperty('UI_UNIT_NAME', {
             "FEERATE_SAT_PER_VBYTE": electrum.util.UI_UNIT_NAME_FEERATE_SAT_PER_VBYTE,
