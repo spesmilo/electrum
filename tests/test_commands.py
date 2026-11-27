@@ -232,6 +232,24 @@ class TestCommandsTestnet(ElectrumTestCase):
             await self.daemon.stop()
         await super().asyncTearDown()
 
+    async def test_getpubkeys(self):
+        cmds = Commands(config=self.config)
+        wallet = restore_wallet_from_text__for_unittest(
+            'disagree rug lemon bean unaware square alone beach tennis exhibit fix mimic',
+            path=None, config=self.config)['wallet']
+        addr = "tb1qyla7xurmc4l9hd3adu2hx0kgscndsxy2snf2gg"
+        pubkeys = await cmds.getpubkeys(addr, wallet=wallet)
+        self.assertEqual(["03001b55f19541faaf7e6d57dd1bdb9fdc37725fc500e12f2418cc11e0aed41549"], pubkeys)
+        self.assertEqual(addr, electrum.bitcoin.pubkey_to_address('p2wpkh', pubkeys[0]))
+        self.assertEqual(pubkeys, await cmds.getpubkeys(f" {addr} ", wallet=wallet))
+        with self.assertRaisesRegex(UserFacingException, "Address not in wallet: tb1q7rwqj0mlkxmkelgxvyx4xkwkt9t8dnptvwkkgl"):
+            await cmds.getpubkeys("tb1q7rwqj0mlkxmkelgxvyx4xkwkt9t8dnptvwkkgl", wallet=wallet)
+        with self.assertRaisesRegex(UserFacingException, "Invalid bitcoin address: asdasd"):
+            await cmds.getpubkeys("asdasd", wallet=wallet)
+        imported_wallet = restore_wallet_from_text__for_unittest(addr, path=None, config=self.config)['wallet']
+        with self.assertRaisesRegex(UserFacingException, "Invalid bitcoin address: asdasd"):
+            await cmds.getpubkeys("asdasd", wallet=imported_wallet)
+
     async def test_convert_xkey(self):
         cmds = Commands(config=self.config)
         xpubs = {
